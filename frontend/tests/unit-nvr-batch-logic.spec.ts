@@ -22,7 +22,7 @@ import {
   undoConfirmModel,
   windowOf,
 } from '../src/screens/nvr-batch-logic';
-import { normalizeActive, type Batch, type BatchItem, type BatchItemStatus } from '../src/api/nvr-batch';
+import { normalizeActive, normalizeBatch, type Batch, type BatchItem, type BatchItemStatus } from '../src/api/nvr-batch';
 import type { CameraDetail, NvrCamera, StreamEncoding } from '../src/api/nvr-settings';
 
 // CR-020 S2C: the pure logic of the multi-camera change - candidates, selection, the window of a long list, the plain Hebrew of every
@@ -211,3 +211,38 @@ test.describe('the client module', () => {
     expect(normalizeActive('x')).toBeNull();
   });
 });
+
+test.describe('the backend contract of pilot/CR020-s2c (7068b093)', () => {
+  test('an unknown outcome the server could not prove ends `interrupted` with an unknown_* reason: the same plain words as an unknown stop', () => {
+    const b = batch('interrupted', ['applied', 'unknown', 'not_attempted'], { stopped_reason: 'unknown_unverified' });
+    expect(batchView(b, name)).toMatchObject({ tone: 'error', title: 'נעצר: לא ברור אם בוצע במצלמה מצלמה 2', showUndo: true, canUndo: false });
+    const settled = batch('interrupted', ['applied', 'applied', 'not_attempted'], { stopped_reason: 'unknown_unverified', can_rollback: true });
+    expect(batchView(settled, name)).toMatchObject({ title: 'השינוי נקטע באמצע', canUndo: true }); // settled: no problem camera left
+    expect(batchView(batch('interrupted', ['applied', 'not_attempted'], { stopped_reason: 'interrupted' }), name).title).toBe('השינוי נקטע באמצע');
+    // the check found the camera on the old value: that is a plain failure at the camera, not an unknown
+    expect(batchView(batch('interrupted', ['applied', 'no_effect', 'not_attempted'], { stopped_reason: 'unknown_not_applied' }), name)).toMatchObject({ title: 'נעצר במצלמה מצלמה 2', showUndo: true });
+  });
+  test('a running batch with an unknown item says it is being checked; the server's can_rollback:false keeps undo-all off', () => {
+    const b = batch('running', ['applied', 'unknown', 'queued']);
+    expect(batchView(b, name)).toMatchObject({ title: '1 מתוך 3', sub: 'נבדק מול ה־NVR', canStop: true });
+    expect(batchView(batch('failed', ['applied', 'refused'], { can_rollback: false }), name)).toMatchObject({ showUndo: true, canUndo: false });
+    expect(batchView(batch('failed', ['applied', 'refused'], { can_rollback: true }), name).canUndo).toBe(true);
+  });
+  test('the total is the server's (items of cameras the person may not see are hidden); `running` items are in flight', () => {
+    const b = batch('running', ['applied', 'running'], { total: 5 });
+    expect(tally(b)).toMatchObject({ total: 5, processed: 1, inFlight: 1 });
+    expect(batchView(b, name).title).toBe('1 מתוך 5');
+    expect(toneOf(item(0, 'running'))).toBe('spin');
+  });
+  test('the undone batch is `source_batch_id` on the wire and `rollback_of` for the screen', () => {
+    expect(normalizeBatch({ batch_id: 'b2', kind: 'rollback', state: 'running', source_batch_id: 'b1' }).rollback_of).toBe('b1');
+    expect(normalizeBatch({ batch_id: 'b2', kind: 'rollback', state: 'running', rollback_of: 'b9', source_batch_id: 'b1' }).rollback_of).toBe('b9');
+    expect(normalizeBatch({ batch_id: 'b1', kind: 'write', state: 'running' }).rollback_of).toBeNull();
+  });
+  test('the backend's refusal codes have plain lines', () => {
+    expect(startErrorLine({ status: 422, code: 'batch_target_not_allowed', details: { reason: 'svc' } })).toEqual({ text: 'אחת המצלמות אינה מתאימה לשינוי. נטען מחדש.', reload: true });
+    expect(startErrorLine({ status: 409, code: 'write_in_progress' }).text).toBe('שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.');
+    expect(startErrorLine({ status: 503, code: 'capabilities_unreadable' }).text).toBe('יכולות הזרם אינן ידועות, ולכן השינוי בוטל.');
+  });
+});
+

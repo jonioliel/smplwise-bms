@@ -151,7 +151,8 @@ export function tally(b: Batch): Tally {
   if (b.items) for (const i of b.items) by[i.status] = (by[i.status] ?? 0) + 1;
   else Object.assign(by, b.counts ?? {});
   const n = (...s: BatchItemStatus[]) => s.reduce((a, k) => a + (by[k] ?? 0), 0);
-  const total = b.items ? b.items.length : Object.values(by).reduce((a, v) => a + (v ?? 0), 0);
+  // `total` is the server's count of ALL items (an item of a camera the person may not see is not in `items`)
+  const total = b.total ?? (b.items ? b.items.length : Object.values(by).reduce((a, v) => a + (v ?? 0), 0));
   const ok = n(...SETTLED_OK);
   const bad = n(...BAD);
   return {
@@ -252,7 +253,10 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
   const problem = firstProblem(b);
   const pname = problem ? nameOf(problem) : '';
   const left = t.total - t.restored; // a rollback that stopped: still changed
-  const undoWait = isUnsettled(b) || b.state === 'running';
+  const undoWait = isUnsettled(b) || b.state === 'running' || b.can_rollback === false;
+  // the server stops after an unknown outcome it could not verify: `interrupted` with the reason `unknown_unverified` (older builds: `stopped_unknown`)
+  // (once the janitor settled the item as applied there is no problem camera left: it reads as a plain interruption)
+  const unknownStop = !!problem && (b.state === 'stopped_unknown' || (b.state !== 'running' && b.stopped_reason === 'unknown_unverified'));
   const base = { canStop: false, showUndo: false, canUndo: false, showRetry: false };
   if (b.state === 'running') {
     return { ...base, tone: 'running', title: `${t.processed} מתוך ${t.total}`, sub: stopping ? 'עוצר אחרי המצלמה הנוכחית' : t.unknown ? 'נבדק מול ה־NVR' : '', canStop: !stopping };
@@ -262,6 +266,9 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
     : join([t.applied > 0 && `נשמר ${inCameras(t.applied)}`, t.bad > 0 && `נכשל ${inCameras(t.bad)}`, t.unknown > 0 && `לא ברור אם בוצע ${inCameras(t.unknown)}`,t.notAttempted > 0 && `לא בוצע ${inCameras(t.notAttempted)}`]);
   const undo = !rb && t.applied > 0 ? { showUndo: true, canUndo: !undoWait } : {};
   const retry = rb && left > 0 && !!b.rollback_of && b.state !== 'completed' ? { showRetry: true } : {};
+  // the check found the camera still on the old value: a plain failure at that camera
+  if (b.state === 'interrupted' && b.stopped_reason === 'unknown_not_applied' && problem) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה במצלמה ${pname}` : `נעצר במצלמה ${pname}`, sub: counts };
+  if (unknownStop) return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה: לא ברור אם בוצע במצלמה ${pname}` : `נעצר: לא ברור אם בוצע במצלמה ${pname}`, sub: counts };
   switch (b.state) {
     case 'completed':
       return {
@@ -273,8 +280,6 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
       return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? 'ההחזרה נעצרה בבקשתך' : 'נעצר בבקשתך', sub: counts };
     case 'failed':
       return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה במצלמה ${pname}` : `נעצר במצלמה ${pname}`, sub: counts };
-    case 'stopped_unknown':
-      return { ...base, ...undo, ...retry, tone: 'error', title: rb ? `ההחזרה נעצרה: לא ברור אם בוצע במצלמה ${pname}` : `נעצר: לא ברור אם בוצע במצלמה ${pname}`, sub: counts };
     default:
       return { ...base, ...undo, ...retry, tone: 'error', title: rb ? 'ההחזרה נקטעה באמצע' : 'השינוי נקטע באמצע', sub: counts };
   }
@@ -302,6 +307,12 @@ export function startErrorLine(e: { status: number; code: string; user_message?:
       const name = idx !== null && nameOfIndex ? nameOfIndex(idx) : null;
       return { text: name ? `הערכים של ${name} השתנו ב־NVR. נטען מחדש.` : 'הערכים השתנו ב־NVR. נטען מחדש.', reload: true };
     }
+    case 'batch_target_not_allowed':
+      return { text: 'אחת המצלמות אינה מתאימה לשינוי. נטען מחדש.', reload: true };
+    case 'write_in_progress':
+      return { text: 'שינוי אחר של אחד הזרמים מתבצע. נסו שוב בעוד רגע.', reload: false };
+    case 'capabilities_unreadable':
+      return { text: 'יכולות הזרם אינן ידועות, ולכן השינוי בוטל.', reload: false };
     case 'confirm_required':
       return { text: 'נדרש אישור.', reload: false };
     case 'not_rollbackable':

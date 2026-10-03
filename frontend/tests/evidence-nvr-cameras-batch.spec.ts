@@ -180,14 +180,14 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     });
     const prog = page.locator(PROG);
     await expect(prog).toHaveAttribute('heading', '0 מתוך 3');
-    await expect(item(page, 0)).toHaveAttribute('data-status', 'pending');
+    await expect(item(page, 0)).toHaveAttribute('data-status', 'running');
     await expect(item(page, 1)).toHaveAttribute('data-status', 'queued');
     await expect(prog.locator('[data-nvr-batch-stop]')).toHaveText('עצור');
     await shot(page, 'batch-04-progress-start');
     d.step();
     await expect(prog).toHaveAttribute('heading', '1 מתוך 3', POLL);
     await expect(item(page, 0)).toHaveAttribute('data-status', 'applied');
-    await expect(item(page, 1)).toHaveAttribute('data-status', 'pending');
+    await expect(item(page, 1)).toHaveAttribute('data-status', 'running');
     await expect(item(page, 0).locator('[data-nvr-batch-item-line]')).toHaveText('נשמר');
     await shot(page, 'batch-05-progress-mid');
     d.run();
@@ -314,24 +314,58 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     expect(batchCalls(bm, 'POST', '/rollback')[1].path).toBe('nvr/stream-batches/batch-1/rollback'); // the SOURCE batch, a new request
   });
 
-  test('an unknown outcome: "לא ברור אם בוצע. נבדק מול ה־NVR.", the batch stopped, undo-all waits until the server settled it', async ({ page }) => {
+  test('an unknown outcome PROVEN applied by the server\'s read-only check: "נבדק מול ה־NVR", then the batch goes on by itself; nothing is re-sent', async ({ page }) => {
+    await open(page);
+    await startBatch(page, [2, 3]);
+    d.step();
+    d.step('unknown'); // camera 2: the answer was lost; the batch waits and the server reads the camera
+    const prog = page.locator(PROG);
+    await expect(item(page, 1).locator('[data-nvr-batch-item-line]')).toHaveText('לא ברור אם בוצע. נבדק מול ה־NVR.', POLL);
+    await expect(prog).toHaveAttribute('subheading', 'נבדק מול ה־NVR');
+    await expect(prog).toHaveAttribute('data-state', 'running');
+    await expect(item(page, 1)).toHaveAttribute('data-status', 'unknown');
+    await shot(page, 'batch-12-unknown-checking');
+    d.check('applied'); // the reading proves the new value: the server continues with camera 3
+    await expect(item(page, 1)).toHaveAttribute('data-status', 'applied', POLL);
+    await expect(item(page, 2)).toHaveAttribute('data-status', 'running', POLL);
+    d.run();
+    await expect(toast(page).locator('[data-nvr-toast-text]')).toHaveText('נשמר ב־3 מצלמות', POLL);
+    expect(batchCalls(bm, 'POST')).toHaveLength(1);
+  });
+
+  test('an unknown outcome the server could not prove: "נעצר: לא ברור אם בוצע", undo-all waits until the janitor settled the item, then it is offered', async ({ page }) => {
     await open(page);
     await startBatch(page, [2, 3]);
     d.step();
     d.step('unknown');
+    d.check('unverified'); // the camera could not be read: the batch ends `interrupted / unknown_unverified`, the item stays unknown
     const prog = page.locator(PROG);
     await expect(prog).toHaveAttribute('heading', 'נעצר: לא ברור אם בוצע במצלמה מצלמה 2', POLL);
-    await expect(prog).toHaveAttribute('data-state', 'stopped_unknown');
+    await expect(prog).toHaveAttribute('data-state', 'interrupted');
     await expect(item(page, 1).locator('[data-nvr-batch-item-line]')).toHaveText('לא ברור אם בוצע. נבדק מול ה־NVR.');
     await expect(item(page, 2).locator('[data-nvr-batch-item-line]')).toHaveText('לא בוצע');
     await expect(prog.locator('[data-nvr-batch-undo]')).toHaveAttribute('disabled', '');
     await shot(page, 'batch-12-unknown');
-    // the page keeps reading (read-only); the server settles the item as applied -> the undo is offered, nothing was re-sent
+    // the page keeps reading (read-only); the janitor settles the item as applied -> the undo is offered, nothing was re-sent
     d.settle('applied');
     await expect(item(page, 1)).toHaveAttribute('data-status', 'applied', { timeout: 12_000 });
     await expect(prog.locator('[data-nvr-batch-undo]')).not.toHaveAttribute('disabled');
     await expect(prog).toHaveAttribute('subheading', 'נשמר ב־2 מצלמות · לא בוצע במצלמה אחת');
     expect(batchCalls(bm, 'POST')).toHaveLength(1);
+  });
+
+  test('an unknown outcome the camera did NOT take: the batch ends, the row says it failed, what was saved can be undone', async ({ page }) => {
+    await open(page);
+    await startBatch(page, [2, 3]);
+    d.step();
+    d.step('unknown');
+    d.check('not_applied');
+    const prog = page.locator(PROG);
+    await expect(prog).toHaveAttribute('data-state', 'interrupted', POLL);
+    await expect(prog).toHaveAttribute('heading', 'נעצר במצלמה מצלמה 2');
+    await expect(item(page, 1)).toHaveAttribute('data-status', 'no_effect');
+    await expect(item(page, 1).locator('[data-nvr-batch-item-line]')).toHaveText('ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.');
+    await expect(prog.locator('[data-nvr-batch-undo]')).not.toHaveAttribute('disabled');
   });
 
   test('interrupted (the server restarted): "השינוי נקטע באמצע", what was applied is listed and can be undone', async ({ page }) => {
@@ -518,6 +552,7 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     st.canBatch = true;
     st.cameras = batchCameras(300, { names: { 150: 'שער ראשי' } });
     const bm = newBatchMock();
+    bm.pageMax = 100; // the server pages the items: the screen must read every page
     const d = await installBatch(page, st, bm);
     await open(page);
     await openChecklist(page);
@@ -565,6 +600,8 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     expect(rows).toBeLessThan(40);
     d.run(150);
     await expect(prog).toHaveAttribute('heading', `150 מתוך ${n}`, POLL);
+    expect(bm.pages).toContain('100,100'); // paged reads: offset 0, 100, 200 (the mock caps the page at 100)
+    expect(bm.pages).toContain('200,100');
     // the list follows the camera in flight (a window far below the start)
     await expect(item(page, 150)).toBeAttached();
     d.step('failed'); // camera #151 fails: the list scrolls to it and the header names it

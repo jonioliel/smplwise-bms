@@ -358,8 +358,9 @@ export class NvrCameraBatch extends LitElement {
 
   // ---------------------------------------------------------------------------------------------- the batch's life
 
+  /** The server pages a batch's items and the start / listing answers carry at most a page: the screen always reads the whole batch by id. */
   private async full(b: Batch): Promise<Batch> {
-    return b.items ? b : nvrBatch().get(b.batch_id);
+    return nvrBatch().get(b.batch_id);
   }
 
   private emit<T>(name: string, detail?: T) {

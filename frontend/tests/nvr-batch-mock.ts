@@ -1,9 +1,11 @@
 import type { Page, Route } from '@playwright/test';
 import { err, install as installWrite, stream, type Mock, type Stream } from './nvr-cameras-write-mock';
 
-// CR-020 S2 phase C: a STATEFUL mocked backend of the multi-camera change (PLAN_C section 2: POST /nvr/stream-batches, GET status,
-// POST stop, POST rollback), layered on the phase-B mock. It follows the contract of private/cr020-s2/PLAN_C.md, NOT a built backend:
-// the real one is on branch pilot/CR020-s2c. The batch moves ONLY when a test calls `step()` / `finish()` etc., so every state of the screen
+// CR-020 S2 phase C: a STATEFUL mocked backend of the multi-camera change (POST /nvr/stream-batches, GET status, POST stop, POST rollback),
+// layered on the phase-B mock. It follows the contract of the backend on branch pilot/CR020-s2c (7068b093, docs/architecture/NVR_SETTINGS_API.md
+// 3.7): item status `running` (not `pending`), batch states running | completed | stopped | failed | interrupted, `stopped_reason`, paged GET
+// (`offset`, `limit`, `next_offset`, `total`, `hidden`), `source_batch_id`, `can_rollback`, and the unknown-outcome policy (the batch waits, one
+// read-only check, continues only when the reading PROVES the change; else `interrupted` with `unknown_not_applied` / `unknown_unverified`). The batch moves ONLY when a test calls `step()` / `finish()` etc., so every state of the screen
 // (running, stopped by the user, stopped on a failure, unknown outcome, interrupted, partial rollback) is reached deterministically.
 // Lab-shaped values only: no address, serial or MAC anywhere.
 
@@ -24,7 +26,9 @@ export interface MBatch {
   kind: 'write' | 'rollback';
   state: string;
   items: MItem[];
-  rollback_of: string | null;
+  /** rollback batches: the batch they undo (the server's `source_batch_id`) */
+  source_batch_id: string | null;
+  stopped_reason: string | null;
 }
 
 export interface BatchMock {
@@ -33,7 +37,7 @@ export interface BatchMock {
   /** gate answer of POST: off = 409 batch_not_enabled */
   gate: boolean;
   /** the answer shape of GET ?active=1 */
-  activeShape: 'batch' | 'batches' | 'bare';
+  activeShape: 'batches' | 'batch' | 'bare';
   /** one-shot: the next POST answers this instead of starting (defaults to a real start) */
   startFault: null | 'in_progress' | 'stale' | 'forbidden' | 'abort' | 'unprocessable';
   /** one-shot: the next stop / rollback fails with this */
@@ -44,9 +48,13 @@ export interface BatchMock {
   refusedSingles: string[];
   /** every poll answers this status (the screen must keep trying) */
   getDown: boolean;
+  /** the server's page cap for GET (the real one is 500); a test lowers it to prove the screen reads every page */
+  pageMax: number;
+  /** GET requests of one batch: "offset,limit" */
+  pages: string[];
 }
 
-export const newBatchMock = (): BatchMock => ({ batches: [], seq: 0, gate: true, activeShape: 'batch', startFault: null, undoFault: null, calls: [], refusedSingles: [], getDown: false });
+export const newBatchMock = (): BatchMock => ({ batches: [], seq: 0, gate: true, activeShape: 'batches', startFault: null, undoFault: null, calls: [], refusedSingles: [], getDown: false, pageMax: 500, pages: [] });
 
 /** `n` cameras whose main stream is H.264 with SVC on (channels 1..n); channel `h265` is H.265 and `off` has SVC already off. */
 export function batchCameras(n: number, opt: { h265?: number[]; off?: number[]; offline?: number[]; names?: Record<number, string> } = {}): Record<string, any>[] { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -76,7 +84,19 @@ export const counts = (b: MBatch): Record<string, number> => {
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-const view = (b: MBatch) => ({ batch_id: b.batch_id, kind: b.kind, state: b.state, counts: counts(b), items: clone(b.items), stopped_at: null, stopped_reason: null, rollback_of: b.rollback_of });
+const canRollback = (b: MBatch) => b.kind === 'write' && b.state !== 'running' && b.items.some((i) => i.status === 'applied') && !b.items.some((i) => i.status === 'unknown' || i.status === 'running');
+
+/** The server's status body: a page of items (by index), `total`, `next_offset`; a summary (no items) for the listing. */
+const view = (b: MBatch, offset = 0, limit = 500, withItems = true) => {
+  const page = withItems ? b.items.slice(offset, offset + limit) : undefined;
+  const next = withItems && offset + limit < b.items.length ? offset + limit : null;
+  const cur = b.items.findIndex((i) => i.status === 'running');
+  return {
+    batch_id: b.batch_id, kind: b.kind, state: b.state, recorder_id: 'nvr-1', total: b.items.length, done: b.items.filter((i) => ['applied', 'unchanged', 'rolled_back'].includes(i.status)).length,
+    current_index: cur < 0 ? null : cur, counts: counts(b), hidden: 0, offset, limit, next_offset: next, ...(page ? { items: clone(page) } : {}),
+    created_at: '2026-10-03T09:00:00Z', started_by: 'joni', stopped_at: null, stopped_reason: b.stopped_reason, source_batch_id: b.source_batch_id, can_rollback: canRollback(b),
+  };
+};
 
 export class BatchDriver {
   constructor(readonly st: Mock, readonly bm: BatchMock) {}
@@ -105,18 +125,19 @@ export class BatchDriver {
   /** Claims the next queued item (the runner's pending row), or ends the batch when none is left. */
   private claim(b: MBatch) {
     const next = b.items.find((i) => i.status === 'queued');
-    if (next) next.status = 'pending';
+    if (next) next.status = 'running';
     else if (b.state === 'running') b.state = b.items.some((i) => i.status === 'not_attempted') ? 'stopped' : 'completed';
   }
 
-  private endWith(b: MBatch, state: string, reason: string) {
-    for (const i of b.items) if (i.status === 'queued') [i.status, i.error_code, i.user_message] = ['not_attempted', reason, null];
+  private endWith(b: MBatch, state: string, itemReason: string, stopReason: string | null) {
+    for (const i of b.items) if (i.status === 'queued') [i.status, i.error_code, i.user_message] = ['not_attempted', itemReason, null];
     b.state = state;
+    b.stopped_reason = stopReason;
   }
 
-  start(camIds: string[], kind: 'write' | 'rollback' = 'write', rollbackOf: string | null = null): MBatch {
+  start(camIds: string[], kind: 'write' | 'rollback' = 'write', source: string | null = null): MBatch {
     const items: MItem[] = camIds.map((id, index) => ({ index, camera_id: id, stream_ref: this.main(id)?.s.stream_ref ?? '', status: 'queued', change_id: null, error_code: null, user_message: null }));
-    const b: MBatch = { batch_id: `batch-${++this.bm.seq}`, kind, state: 'running', items, rollback_of: rollbackOf };
+    const b: MBatch = { batch_id: `batch-${++this.bm.seq}`, kind, state: 'running', items, source_batch_id: source, stopped_reason: null };
     this.bm.batches.push(b);
     this.claim(b);
     return b;
@@ -125,7 +146,7 @@ export class BatchDriver {
   /** Finishes the item in flight with `outcome`, then (while running) claims the next one. */
   step(outcome: Outcome = 'applied', b: MBatch | null = this.running): void {
     if (!b) throw new Error('no running batch');
-    const cur = b.items.find((i) => i.status === 'pending');
+    const cur = b.items.find((i) => i.status === 'running');
     if (!cur) {
       this.claim(b);
       return;
@@ -133,12 +154,12 @@ export class BatchDriver {
     const stopped = b.items.some((i) => i.status === 'not_attempted'); // the user's stop already parked the rest
     if (outcome === 'failed') {
       [cur.status, cur.error_code, cur.user_message] = ['refused', 'nvr_busy', 'ה־NVR עסוק.'];
-      this.endWith(b, 'failed', 'earlier_failure');
+      this.endWith(b, 'failed', 'earlier_failure', 'item_refused');
       return;
     }
     if (outcome === 'unknown') {
+      // the PUT may have gone out: the item is `unknown`, the batch WAITS (the real runner waits 45 s, then makes one read-only check)
       [cur.status, cur.error_code] = ['unknown', 'outcome_unknown'];
-      this.endWith(b, 'stopped_unknown', 'earlier_unknown');
       return;
     }
     if (outcome === 'unchanged') cur.status = 'unchanged';
@@ -149,11 +170,12 @@ export class BatchDriver {
     } else {
       this.setSvc(cur.camera_id, true);
       cur.status = 'applied'; // a rollback's own change row
-      const src = this.bm.batches.find((x) => x.batch_id === b.rollback_of)?.items.find((i) => i.camera_id === cur.camera_id);
+      const src = this.bm.batches.find((x) => x.batch_id === b.source_batch_id)?.items.find((i) => i.camera_id === cur.camera_id);
       if (src) src.status = 'rolled_back';
     }
     if (stopped) {
       b.state = 'stopped';
+      b.stopped_reason = 'user_stop';
       return;
     }
     this.claim(b);
@@ -164,7 +186,22 @@ export class BatchDriver {
     for (let k = 0; k < n && b && b.state === 'running'; k++) this.step('applied', b);
   }
 
-  /** The server settled the unknown item read-only. */
+  /** The server's ONE read-only check of the unknown item: `applied` = proven (the batch goes on), `not_applied` = the camera kept the old value (the
+   * batch ends `interrupted / unknown_not_applied`), `unverified` = the camera could not be read (ends `interrupted / unknown_unverified`, the item stays `unknown`). */
+  check(result: 'applied' | 'not_applied' | 'unverified', b: MBatch = this.last): void {
+    const it = b.items.find((i) => i.status === 'unknown');
+    if (!it) return;
+    if (result === 'applied') {
+      this.setSvc(it.camera_id, b.kind === 'rollback');
+      it.status = 'applied';
+      this.claim(b);
+    } else if (result === 'not_applied') {
+      [it.status, it.error_code, it.user_message] = ['no_effect', 'nvr_no_effect', 'ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.'];
+      this.endWith(b, 'interrupted', 'earlier_unknown', 'unknown_not_applied');
+    } else this.endWith(b, 'interrupted', 'earlier_unknown', 'unknown_unverified');
+  }
+
+  /** The janitor later settles a still-unknown item of an ended batch by a read. */
   settle(status: 'applied' | 'failed', b: MBatch = this.last): void {
     const it = b.items.find((i) => i.status === 'unknown');
     if (!it) return;
@@ -177,12 +214,12 @@ export class BatchDriver {
   /** The runner died: the item in flight was settled read-only as applied, the rest was never tried. */
   interrupt(b: MBatch | null = this.running): void {
     if (!b) return;
-    const cur = b.items.find((i) => i.status === 'pending');
+    const cur = b.items.find((i) => i.status === 'running');
     if (cur) {
       this.setSvc(cur.camera_id, b.kind === 'rollback');
       cur.status = 'applied';
     }
-    this.endWith(b, 'interrupted', 'interrupted');
+    this.endWith(b, 'interrupted', 'interrupted', 'interrupted');
   }
 
   /** Items in flight or queued became settled by hand (a restart test) */
@@ -217,12 +254,11 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
     if (p === 'nvr/stream-batches' && method === 'GET') {
       const run = d.running;
       if (url.searchParams.get('active') === '1') {
-        const v = run ? view(run) : null;
-        if (bm.activeShape === 'bare') return json(v);
-        if (bm.activeShape === 'batches') return json({ batches: v ? [{ ...v, items: undefined }] : [] });
-        return json({ batch: v });
+        if (bm.activeShape === 'bare') return json(run ? view(run) : null);
+        if (bm.activeShape === 'batch') return json({ batch: run ? view(run) : null });
+        return json({ batches: run ? [view(run, 0, 0, false)] : [] });
       }
-      return json({ batches: bm.batches.map(view) });
+      return json({ batches: bm.batches.slice(-20).map((b) => view(b, 0, 0, false)) });
     }
     if (p === 'nvr/stream-batches' && method === 'POST') {
       if (body?.confirm !== true) return json(err('confirm_required', 'נדרש אישור.'), 422);
@@ -239,13 +275,16 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
         if (!f || fault === 'stale' || f.etag !== targets[index].if_match) return json(err('stale', 'ההגדרות השתנו ב־NVR. נטען מחדש.', { index, target: index }), 409);
       }
       const b = d.start(targets.map((t) => t.camera_id));
-      return json({ ...view(b), items: view(b).items }, 202);
+      return json(view(b), 202);
     }
     let m = /^nvr\/stream-batches\/([^/]+)$/.exec(p);
     if (m && method === 'GET') {
       if (bm.getDown) return json(err('source_unavailable', 'השרת אינו זמין כרגע.'), 503);
       const b = bm.batches.find((x) => x.batch_id === m![1]);
-      return b ? json(view(b)) : json(err('not_found', 'השינוי לא נמצא.'), 404);
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      const limit = Math.max(1, Math.min(Number(url.searchParams.get('limit') ?? 200), bm.pageMax));
+      bm.pages.push(`${offset},${limit}`);
+      return b ? json(view(b, offset, limit)) : json(err('not_found', 'השינוי לא נמצא.'), 404);
     }
     m = /^nvr\/stream-batches\/([^/]+)\/stop$/.exec(p);
     if (m && method === 'POST') {
@@ -254,7 +293,7 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       if (b.state === 'running') {
         // the queued rows are parked at once; the camera in flight finishes (the next step() ends the batch)
         for (const i of b.items) if (i.status === 'queued') [i.status, i.error_code] = ['not_attempted', 'stopped'];
-        if (!b.items.some((i) => i.status === 'pending')) b.state = 'stopped';
+        if (!b.items.some((i) => i.status === 'running' || i.status === 'unknown')) [b.state, b.stopped_reason] = ['stopped', 'user_stop'];
       }
       return json(view(b));
     }
@@ -268,7 +307,7 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       if (!src) return json(err('not_found', 'השינוי לא נמצא.'), 404);
       if (fault === 'in_progress' || d.running) return json(err('batch_in_progress', 'מתבצע שינוי מרובה'), 409);
       const ids = src.items.filter((i) => i.status === 'applied').map((i) => i.camera_id).reverse();
-      if (!ids.length) return json(err('not_rollbackable', 'אי אפשר לבטל את השינוי הזה.'), 409);
+      if (!ids.length || !canRollback(src)) return json(err('not_rollbackable', 'אי אפשר לבטל את השינוי הזה.'), 409);
       const b = d.start(ids, 'rollback', src.batch_id);
       return json(view(b), 202);
     }

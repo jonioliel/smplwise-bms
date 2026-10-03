@@ -16,6 +16,7 @@ export type BatchState = 'running' | 'completed' | 'stopped' | 'failed' | 'stopp
 export type BatchItemStatus =
   | 'queued'
   | 'running'
+  /** The older name of `running` (an item in flight). */
   | 'pending'
   | 'applied'
   | 'unchanged'
@@ -48,8 +49,15 @@ export interface Batch {
   items?: BatchItem[];
   stopped_at?: string | null;
   stopped_reason?: string | null;
-  /** A rollback batch names the batch it undoes (used by "נסה שוב"). */
+  /** A rollback batch names the batch it undoes (used by "נסה שוב"). The server calls it `source_batch_id`; `normalizeBatch` fills this one. */
   rollback_of?: string | null;
+  source_batch_id?: string | null;
+  /** All items of the batch (`items` may be a page or fewer when the caller's camera scope hides some). */
+  total?: number;
+  /** The server's own answer to "may the whole batch be undone now" (a write batch with something applied and nothing running / unknown). */
+  can_rollback?: boolean;
+  /** Who started it (shown nowhere: the audit has it). */
+  started_by?: string | null;
 }
 
 export interface BatchTarget {
@@ -92,12 +100,41 @@ export function normalizeActive(raw: unknown): Batch | null {
   return null;
 }
 
+/** The server's page size cap; the page asks for it so a few hundred cameras are one request. */
+const PAGE = 500;
+
+/** One shape for the page: the server names the undone batch `source_batch_id`, the screen reads `rollback_of`. */
+export function normalizeBatch(raw: Batch): Batch {
+  return { ...raw, rollback_of: raw.rollback_of ?? raw.source_batch_id ?? null };
+}
+
+/** The batch with ALL its items: the server pages the items (`next_offset`), so the pages are read one after the other (reads only). */
+async function readAll(id: string): Promise<Batch> {
+  let first: (Batch & { next_offset?: number | null }) | null = null;
+  const items: BatchItem[] = [];
+  let offset = 0;
+  for (let guard = 0; guard < 400; guard++) {
+    const page = await get<Batch & { next_offset?: number | null }>(`nvr/stream-batches/${enc(id)}?offset=${offset}&limit=${PAGE}`);
+    first ??= page;
+    items.push(...(page.items ?? []));
+    if (page.next_offset === null || page.next_offset === undefined || page.next_offset <= offset) break;
+    offset = page.next_offset;
+  }
+  return normalizeBatch({ ...(first as Batch), items });
+}
+
 const http: NvrBatchAdapter = {
-  start: (req) => post('nvr/stream-batches', req),
-  get: (id) => get(`nvr/stream-batches/${enc(id)}`),
-  active: async () => normalizeActive(await get('nvr/stream-batches?active=1')),
-  stop: async (id) => normalizeActive(await post(`nvr/stream-batches/${enc(id)}/stop`, {})),
-  undo: (id) => post(`nvr/stream-batches/${enc(id)}/rollback`, { confirm: true }),
+  start: async (req) => normalizeBatch(await post<Batch>('nvr/stream-batches', req)),
+  get: (id) => readAll(id),
+  active: async () => {
+    const a = normalizeActive(await get('nvr/stream-batches?active=1'));
+    return a ? normalizeBatch(a) : null;
+  },
+  stop: async (id) => {
+    const b = normalizeActive(await post(`nvr/stream-batches/${enc(id)}/stop`, {}));
+    return b ? normalizeBatch(b) : null;
+  },
+  undo: async (id) => normalizeBatch(await post<Batch>(`nvr/stream-batches/${enc(id)}/rollback`, { confirm: true })),
 };
 
 /** The adapter in force. (The static demo has no batch: its camera list carries no `can_batch`, so no control exists to call it.) */
