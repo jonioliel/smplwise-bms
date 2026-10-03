@@ -590,12 +590,14 @@ async def _raw_body(request: Request) -> bytes:
 
 
 def json_body(raw: bytes) -> Any:
-    """The JSON value of a raw body; None when empty, `MALFORMED` when it is not JSON (the handler refuses it, audited)."""
+    """The JSON value of a raw body; None when empty, `MALFORMED` when it is not JSON (the handler refuses it, audited).
+    CR-020 S2C review finding 7: a deeply nested body (inside the 1 MB cap) raises RecursionError, not ValueError - it is
+    MALFORMED too (a clean audited 422, never a bare 500); so is a body the parser runs out of memory on."""
     if not raw:
         return None
     try:
         return json.loads(raw)
-    except ValueError:
+    except (ValueError, RecursionError, MemoryError):
         return MALFORMED
 
 

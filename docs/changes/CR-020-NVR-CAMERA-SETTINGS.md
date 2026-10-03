@@ -288,3 +288,30 @@ Not built in this slice, with the reason:
   larger recorder cannot be read at all yet - not a batch limit;
 - multi-process runners: the add-on runs one process; start-up recovery therefore interrupts every running batch. A
   second worker would need the heartbeat path only (already used by the janitor).
+
+### 9.5 Phase C security review fixes (2026-10-04, branch `pilot/CR020-s2c-fixes`, backend only, test-first)
+
+Review: `private/cr020-s2c-review/SECURITY_REVIEW.md` (13 findings on 7068b093). Tests:
+`test_nvr_stream_batch_review_fixes.py` (each failed on 7068b093 and passes now; fake NVR only, new fake knobs
+`list_inject`, `drip_from` / `drip_s`); adjusted: `test_nvr_stream_batch_recovery.py` (a GET no longer recovers; the lock key
+comes from `nvr_batch.lock_key`), `test_nvr_stream_batch.py` (the lock is per device). Contract changes (additive) are in
+API §3.5 / §3.7 "Security review fixes".
+
+| # | Finding | Result |
+|---|---|---|
+| 1 | unknown-outcome check took a foreign change for ours; undo sent the whole before document | fixed: `_settle_one` needs every other field unchanged (else `diverged`, batch `unknown_diverged`); `rollback_stream` builds the document from the current reading with only our fields - batch and single (janitor) paths |
+| 2 | a slow device could hold the lock until restart | fixed: `nvr.deadline` (per item 90 s, check 30 s) inside every bounded read and the streamed PUT answer; a runner hung > 150 s in one item is abandoned by stop / recovery (`deadline`), lock released, no further PUT, the late thread records nothing more |
+| 3 | status / list / stop took the write lock; a GET recovered and read the device | fixed: read connection; recovery only from the janitor (and stop for a gone / hung runner, without device reads) |
+| 4 | replace restore deleted the batch keys; backups carried run details | fixed: `SETTINGS_KEEP_PREFIXES = ("nvr.batch.",)` - not exported, not restored, not deleted |
+| 5 | no index on `batch_id` | NOT fixed: needs a migration; 0052 is the NVR connection feature, 0053 reserved - open item |
+| 6 | lock keyed by recorder row, not device | fixed: `adapter.device_key` (`addon-nvr` for the add-on's NVR) |
+| 7 | deep JSON -> bare 500 | fixed: `json_body` maps RecursionError / MemoryError to MALFORMED (audited 422), batch and single write |
+| 8 | undo-all audited an unvalidated id | fixed: id checked first (404, nothing audited) |
+| 9 | stream cut out by text search | fixed: `slice_stream_element` identifies the element by a real parse of the list and accepts the text slice only when structurally identical (comments / CDATA ignored) |
+| 10 | reboot request invisible | fixed: item `reboot_required`, status `reboot_required` count |
+| 11 | window between permission check and claim | fixed: `authorize` re-run under the write lock right before the claim |
+| 12 | out-of-scope items still counted | accepted, documented (only system_admin holds nvr.configure) |
+| 13 | single-process assumption | documented (module docstring, API §3.7) |
+
+Behaviour change to note for the single-camera path: an undo now PUTs the current document with only the change's fields
+restored (before: the stored whole `before` document); for an untouched stream the two are the same document.

@@ -68,7 +68,7 @@ def test_restart_after_item_1_interrupts_and_never_resumes(settings, fake, fast_
             bid = r.json()["batch_id"]
             assert nvr_batch.wait_idle(15)
             with app.state.db.connection(mode="read") as conn:
-                assert conn.execute("SELECT value FROM settings WHERE key = 'nvr.batch.active.nvr-1'").fetchone()[0] == bid, "the dead runner left its lock"
+                assert conn.execute("SELECT value FROM settings WHERE key LIKE 'nvr.batch.active.%'").fetchone()[0] == bid, "the dead runner left its lock"
             assert [x["status"] for x in batch_rows(app, bid)] == ["applied", "queued", "queued"]
     writes = list(fake.writes)
     app2 = make_app(settings)  # a fresh process on the same database: start-up recovery
@@ -145,13 +145,15 @@ def test_shutdown_in_the_middle_ends_after_the_current_camera(settings, fake, fa
     assert puts(fake) == ["101"]
 
 
-def _fake_running_batch(app, ids, beat: str) -> str:
+def _fake_running_batch(app, ids, beat: str, settings) -> str:
     bid = new_id()
     with app.state.db.connection() as conn:
+        key = nvr_batch.lock_key(conn, with_nvr(settings), "nvr-1")
         conn.execute("INSERT INTO nvr_changes(id, kind, permission, target, path, status, note, created_at, recorder_id, camera_id, stream_ref, fields_json, etag_before, batch_id, batch_index)"
                      " VALUES (?, 'stream_encoding', 'nvr.configure', 'stream-101', '', 'queued', '', ?, 'nvr-1', ?, '101', '{}', ?, ?, 0)", (new_id(), now_iso(), ids[1], "0" * 16, bid))
-        conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (f"nvr.batch.{bid}", json.dumps({"kind": "write", "recorder_id": "nvr-1", "total": 1, "state": "running", "created_at": now_iso()})))
-        conn.execute("INSERT INTO settings(key, value) VALUES ('nvr.batch.active.nvr-1', ?)", (bid,))
+        conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (f"nvr.batch.{bid}", json.dumps({"kind": "write", "recorder_id": "nvr-1", "lock_key": key, "total": 1,
+                                                                                                  "state": "running", "created_at": now_iso()})))
+        conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (key, bid))
         conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (f"nvr.batch.{bid}.beat", beat))
     return bid
 
@@ -161,14 +163,17 @@ def test_janitor_interrupts_only_a_batch_whose_heartbeat_is_stale(settings, fake
     with TestClient(app) as c:
         ready(app, 5)
         ids = camera_ids(app)
-        fresh = _fake_running_batch(app, ids, now_iso())
+        fresh = _fake_running_batch(app, ids, now_iso(), settings)
         assert nvr_batch.recover_batches(app.state.db, with_nvr(settings)) == 0, "another worker's live runner is left alone"
         assert c.get(f"/api/v1/nvr/stream-batches/{fresh}").json()["state"] == "running"
         single = c.put(f"/api/v1/nvr/cameras/{ids[4]}/streams/401", json={"if_match": "0" * 16, "confirm": True, "changes": {"svc": False}})
         assert single.status_code == 409 and single.json()["code"] == "batch_in_progress"
         with app.state.db.connection() as conn:
             conn.execute("UPDATE settings SET value = '2026-01-01T00:00:00Z' WHERE key = ?", (f"nvr.batch.{fresh}.beat",))
-        body = c.get(f"/api/v1/nvr/stream-batches/{fresh}").json()  # on demand, from the status route
+        # review finding 3: the status route never recovers (it is read-only); the periodic recovery does
+        assert c.get(f"/api/v1/nvr/stream-batches/{fresh}").json()["state"] == "running"
+        assert nvr_batch.recover_batches(app.state.db, with_nvr(settings)) == 1
+        body = c.get(f"/api/v1/nvr/stream-batches/{fresh}").json()
         assert (body["state"], statuses(body)) == ("interrupted", [("not_attempted", "interrupted")])
         assert fake.writes == []
 
@@ -180,7 +185,7 @@ def test_janitor_tick_runs_the_recovery(settings, fake, fast_unknown):
     with TestClient(app) as c:
         ready(app, 5)
         ids = camera_ids(app)
-        stale = _fake_running_batch(app, ids, "2026-01-01T00:00:00Z")
+        stale = _fake_running_batch(app, ids, "2026-01-01T00:00:00Z", settings)
         janitor_tick(app.state.db, with_nvr(settings))
         assert c.get(f"/api/v1/nvr/stream-batches/{stale}").json()["state"] == "interrupted"
         assert fake.writes == []

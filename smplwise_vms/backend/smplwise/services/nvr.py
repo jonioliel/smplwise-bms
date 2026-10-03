@@ -3,8 +3,12 @@ input channels, their online status and the recording track ids. Every call is a
 auth; nothing here writes to the device, and no URL or credential leaves the server."""
 from __future__ import annotations
 
+import contextvars
 import re
+import time
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import httpx
@@ -821,10 +825,78 @@ _TEXT_CAP = 64
 ENCODING_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
 
 
-def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
-    """A read-only GET whose body is read at most `max_bytes` (an answer over the cap is refused, not truncated)."""
+# CR-020 S2C review (finding 2): a whole-operation wall-clock deadline. httpx timeouts are per network read, so a device
+# that trickles one byte every few seconds could keep a 2 MB read going for hours. A caller (the batch runner, per item)
+# opens `deadline(seconds)`; inside it every bounded read below checks the clock between network reads and caps each
+# httpx timeout by the time left. A context variable: only the caller's own thread is bounded.
+_DEADLINE: contextvars.ContextVar[float | None] = contextvars.ContextVar("nvr_deadline", default=None)
+
+
+@contextmanager
+def deadline(seconds: float) -> Iterator[None]:
+    """Bound every device read / write of this thread inside the block to `seconds` in total (nested: the earlier wins)."""
+    outer = _DEADLINE.get()
+    at = time.monotonic() + max(0.0, seconds)
+    token = _DEADLINE.set(at if outer is None else min(outer, at))
     try:
-        with client.stream("GET", path) as r:
+        yield
+    finally:
+        _DEADLINE.reset(token)
+
+
+def time_left() -> float | None:
+    """Seconds left of the current deadline (None: no deadline)."""
+    at = _DEADLINE.get()
+    return None if at is None else at - time.monotonic()
+
+
+def past_deadline() -> bool:
+    left = time_left()
+    return left is not None and left <= 0
+
+
+def deadline_error(op: str) -> ApiError:
+    return ApiError(503, "source_timeout", "ה־NVR לא ענה בזמן.", retryable=False, details={"op": op, "error": "deadline"})
+
+
+def check_deadline(op: str) -> None:
+    if past_deadline():
+        raise deadline_error(op)
+
+
+def bounded_timeout(base: httpx.Timeout) -> httpx.Timeout:
+    """`base` (the client's or the request's timeout) with every part capped by the time left of the deadline (a floor of
+    50 ms keeps httpx valid). Without a deadline `base` unchanged."""
+    left = time_left()
+    if left is None:
+        return base
+    left = max(0.05, left)
+
+    def cap(v: float | None) -> float:
+        return left if v is None else min(v, left)
+
+    return httpx.Timeout(connect=cap(base.connect), read=cap(base.read), write=cap(base.write), pool=cap(base.pool))
+
+
+def read_capped(r: httpx.Response, max_bytes: int, op: str, *, path: str | None = None) -> bytes:
+    """Read a streamed answer, at most `max_bytes`, checking the deadline between network reads (each read is bounded by
+    the request timeout). Over the cap: `source_too_large`; past the deadline: `source_timeout`."""
+    extra = {"path": path} if path else {}
+    body = bytearray()
+    for chunk in r.iter_bytes():  # no chunk size: a piece is yielded as it arrives, so the clock is checked per read
+        body.extend(chunk)
+        if len(body) > max_bytes:
+            raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={**extra, "op": op})
+        check_deadline(op)
+    return bytes(body)
+
+
+def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
+    """A read-only GET whose body is read at most `max_bytes` (an answer over the cap is refused, not truncated), within
+    the current deadline when one is set."""
+    check_deadline("read")
+    try:
+        with client.stream("GET", path, timeout=bounded_timeout(client.timeout)) as r:
             if r.status_code in (401, 403):
                 raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"path": path, "status": r.status_code})
             if r.status_code != 200:
@@ -832,13 +904,10 @@ def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
             declared = r.headers.get("content-length")
             if declared and declared.isdigit() and int(declared) > max_bytes:
                 raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"path": path})
-            body = bytearray()
-            for chunk in r.iter_bytes(64 * 1024):
-                body.extend(chunk)
-                if len(body) > max_bytes:
-                    raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"path": path})
-            return bytes(body).decode(r.encoding or "utf-8", "replace")
+            return read_capped(r, max_bytes, "read", path=path).decode(r.encoding or "utf-8", "replace")
     except httpx.HTTPError as exc:
+        if past_deadline():
+            raise deadline_error("read") from exc
         raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
 
 
@@ -957,9 +1026,29 @@ CAPS_DOC_MAX_BYTES = 256_000  # one stream's capability document is a few KB
 _OPT_MAX = 64  # entries kept from one opt list
 
 
+def _canon(el: ET.Element) -> tuple[object, ...]:
+    """A namespace-agnostic structural form of an element (local tag, attributes without namespaces, stripped text,
+    children). Comments and processing instructions are not in an ElementTree at all; CDATA is plain text."""
+    attrs = tuple(sorted((_local(k), v) for k, v in el.attrib.items()))
+    return (_local(el.tag), attrs, (el.text or "").strip(), tuple(_canon(c) for c in el))
+
+
 def slice_stream_element(list_xml: str, stream_ref: str) -> str | None:
     """The `<StreamingChannel>...</StreamingChannel>` element of `stream_ref`, as the exact text of the list (its id must be
-    its first child, as on every Hikvision firmware seen). None when the list has no such stream or the slice does not parse."""
+    its first child, as on every Hikvision firmware seen). None when the list has no such stream or the slice does not parse.
+
+    Security review (finding 9): the element is identified by a REAL parse of the whole list first (comments and CDATA
+    are not elements, so a forged `<StreamingChannel>` inside a comment does not exist for it), and the text slice is
+    accepted only when it is structurally the same element. A list naming the stream twice is ambiguous: None."""
+    try:
+        root = xmlsafe.parse(list_xml)
+    except ET.ParseError:
+        return None
+    items = [root] if _local(root.tag) == "StreamingChannel" else [el for el in root if _local(el.tag) == "StreamingChannel"]
+    truth = [el for el in items if _child_text(el, "id") == stream_ref]
+    if len(truth) != 1:
+        return None
+    want = _canon(truth[0])
     for m in _STREAM_HEAD.finditer(list_xml):
         if m.group(1) != stream_ref:
             continue
@@ -968,11 +1057,11 @@ def slice_stream_element(list_xml: str, stream_ref: str) -> str | None:
             return None
         element = list_xml[m.start(): end + len(_STREAM_END)]
         try:
-            root = xmlsafe.parse(element)
+            sliced = xmlsafe.parse(element)
         except ET.ParseError:
-            return None
-        if _local(root.tag) != "StreamingChannel" or _child_text(root, "id") != stream_ref:
-            return None
+            continue  # e.g. a head inside a comment whose slice runs into the real element
+        if _local(sliced.tag) != "StreamingChannel" or _child_text(sliced, "id") != stream_ref or _canon(sliced) != want:
+            continue
         return element
     return None
 

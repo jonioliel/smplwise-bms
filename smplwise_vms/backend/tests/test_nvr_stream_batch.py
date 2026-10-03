@@ -345,10 +345,12 @@ def test_parallel_creates_one_wins(bw):
     assert len(puts(fake)) == 2
 
 
-def test_a_batch_on_another_recorder_does_not_block_this_one(bw):
+def test_a_batch_on_another_device_does_not_block_this_one(bw):
+    """The lock is per DEVICE (review finding 6; two recorder rows of the same NVR share it - see
+    test_nvr_stream_batch_review_fixes): a batch holding another device's lock does not block this NVR."""
     app, c, fake, ids = bw
     with app.state.db.connection() as conn:
-        conn.execute("INSERT INTO settings(key, value) VALUES ('nvr.batch.active.nvr-2', ?)", (new_id(),))
+        conn.execute("INSERT INTO settings(key, value) VALUES ('nvr.batch.active.another-device', ?)", (new_id(),))
         conn.execute("INSERT INTO settings(key, value) VALUES (?, ?)", (f"nvr.batch.{'f' * 16}.beat", now_iso()))
     body = run(c, ids, (1, 2))
     assert body["state"] == "completed"

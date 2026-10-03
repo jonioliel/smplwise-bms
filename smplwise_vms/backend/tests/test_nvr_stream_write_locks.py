@@ -86,21 +86,33 @@ def test_busy_database_at_relock_leaves_the_pending_row_for_the_janitor(w, setti
     assert len(fake.writes) == 1, "settling reads; it never writes"
 
 
-def _pending(app, cid: str, ref: str, fields: dict, created_at: str = "2026-01-01T00:00:00Z", rollback_of: str | None = None) -> str:
+def _before(fake, ref: str, fields: dict) -> str:
+    """The element as it was BEFORE the change: what the device shows now with the change's fields at their old values (a
+    real pending row always stores the device's element; since the 2026-10-04 review the settle compares the other
+    fields with it)."""
+    from smplwise.services import nvr
+
+    channel, kind = divmod(int(ref), 100)
+    now = fake._streaming_channel(channel, "main" if kind == 1 else "sub")
+    return nvr.stream_document(now, {k: v[0] for k, v in fields.items()})
+
+
+def _pending(app, cid: str, ref: str, fields: dict, created_at: str = "2026-01-01T00:00:00Z", rollback_of: str | None = None, fake=None) -> str:
     rid = dbmod.new_id()
+    before = _before(fake, ref, fields) if fake is not None else "<b/>"
     with app.state.db.connection() as conn:
         conn.execute("INSERT INTO nvr_changes(id, kind, permission, target, path, before_xml, after_xml, status, note, created_at, recorder_id, camera_id, stream_ref, fields_json, rollback_of) "
-                     "VALUES (?, 'stream_encoding', 'nvr.configure', ?, ?, '<b/>', '<a/>', 'pending', '', ?, 'nvr-1', ?, ?, ?, ?)",
-                     (rid, f"stream-{ref}", f"direct:{ref}", created_at, cid, ref, json.dumps(fields), rollback_of))
+                     "VALUES (?, 'stream_encoding', 'nvr.configure', ?, ?, ?, '<a/>', 'pending', '', ?, 'nvr-1', ?, ?, ?, ?)",
+                     (rid, f"stream-{ref}", f"direct:{ref}", before, created_at, cid, ref, json.dumps(fields), rollback_of))
     return rid
 
 
 def test_janitor_settles_applied_interrupted_and_diverged_from_a_read(w, settings):
     app, c, fake, ids = w
     fake.nvr["encodings_by_channel"] = {1: {"main": {"svc": False}}, 2: {"main": {"codec": "H.265", "svc": True, "profile": "Main"}}, 3: {"main": {"svc": False, "gop": 50}}}
-    a = _pending(app, ids[1], "101", {"svc": [True, False]})                      # the device shows the new value
-    b = _pending(app, ids[2], "201", {"svc": [True, False]})                      # the device shows the old value
-    d = _pending(app, ids[3], "301", {"svc": [True, False], "gop": [50, 25]})     # half of it
+    a = _pending(app, ids[1], "101", {"svc": [True, False]}, fake=fake)                    # the device shows the new value
+    b = _pending(app, ids[2], "201", {"svc": [True, False]}, fake=fake)                    # the device shows the old value
+    d = _pending(app, ids[3], "301", {"svc": [True, False], "gop": [50, 25]}, fake=fake)   # half of it
     young = _pending(app, ids[1], "102", {"gop": [40, 30]}, created_at=dbmod.now_iso())
     assert nvr_settings.settle_pending(app.state.db, with_nvr(settings)) == 3
     got = {r["id"]: (r["status"], r["error"]) for r in rows(app, "SELECT id, status, error FROM nvr_changes")}
@@ -118,7 +130,7 @@ def test_janitor_leaves_the_row_when_the_device_cannot_be_read_and_settles_an_un
     r = put(c, ids[1], "101", {"svc": False})
     orig = r.json()["change"]["id"]
     fake.nvr["encodings_by_channel"] = {1: {"main": {"svc": True}}}  # the undo landed on the device, the request never recorded it
-    undo = _pending(app, ids[1], "101", {"svc": [False, True]}, rollback_of=orig)
+    undo = _pending(app, ids[1], "101", {"svc": [False, True]}, rollback_of=orig, fake=fake)
     fake.nvr["up"] = False
     assert nvr_settings.settle_pending(app.state.db, with_nvr(settings)) == 0
     assert rows(app, "SELECT status FROM nvr_changes WHERE id = ?", undo)[0]["status"] == "pending"

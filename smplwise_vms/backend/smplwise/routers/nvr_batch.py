@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import JSONResponse
 
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..auth import current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..mode import ensure_nvr
 from ..rbac import INSTALLATION, Principal, require
@@ -70,40 +70,41 @@ def create_batch(request: Request, principal: Principal = Depends(_gate_ro), raw
 
 
 @router.get("/nvr/stream-batches")
-def list_batches(request: Request, active: bool = Query(default=False), principal: Principal = Depends(current_principal),
-                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_batches(active: bool = Query(default=False), principal: Principal = Depends(current_principal_ro),
+                 conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CR-020 S2C: the running batches (?active=1, the screen resumes after a reload) or the latest ones; nvr.configure."""
-    require(conn, principal, PERMISSION, INSTALLATION)
-    return nvr_batch.list_batches(conn, settings_of(request), active)
+    require(conn, principal, PERMISSION, INSTALLATION)  # review finding 3: read connection, no recovery, no device read
+    return nvr_batch.list_batches(conn, active)
 
 
 @router.get("/nvr/stream-batches/{batch_id}")
-def get_batch(request: Request, batch_id: str = BATCH_ID, offset: int = Query(default=0, ge=0, le=100_000),
-              limit: int = Query(default=nvr_batch.PAGE_DEFAULT, ge=1, le=nvr_batch.PAGE_MAX), principal: Principal = Depends(current_principal),
-              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_batch(batch_id: str = BATCH_ID, offset: int = Query(default=0, ge=0, le=100_000),
+              limit: int = Query(default=nvr_batch.PAGE_DEFAULT, ge=1, le=nvr_batch.PAGE_MAX), principal: Principal = Depends(current_principal_ro),
+              conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """CR-020 S2C: one batch's state, counts and a page of its items (by index); nvr.configure, items filtered by camera scope."""
-    require(conn, principal, PERMISSION, INSTALLATION)
-    return nvr_batch.batch_status(conn, principal, batch_id, settings=settings_of(request), offset=offset, limit=limit)
+    require(conn, principal, PERMISSION, INSTALLATION)  # review finding 3: polled every 1.5 s - never the write lock
+    return nvr_batch.batch_status(conn, principal, batch_id, offset=offset, limit=limit)
 
 
 @router.post("/nvr/stream-batches/{batch_id}/stop")
-def stop_batch(request: Request, batch_id: str = BATCH_ID, principal: Principal = Depends(current_principal),
-               conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """CR-020 S2C: stop after the camera in progress (the rest not attempted); no confirm, idempotent; nvr.configure."""
+def stop_batch(request: Request, batch_id: str = BATCH_ID, principal: Principal = Depends(current_principal_ro),
+               conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """CR-020 S2C: stop after the camera in progress (the rest not attempted); a gone or hung runner is abandoned at once;
+    no confirm, idempotent; nvr.configure."""
     require(conn, principal, PERMISSION, INSTALLATION)
-    return nvr_batch.stop_batch(conn, settings_of(request), principal, batch_id, request_id=_rid(request))
+    return nvr_batch.stop_batch(request.app.state.db, conn, principal, batch_id, request_id=_rid(request))
 
 
 @router.post("/nvr/stream-batches/{batch_id}/rollback", status_code=202, openapi_extra=CONFIRM_BODY_OPENAPI)
 def rollback_batch(request: Request, batch_id: str, principal: Principal = Depends(_gate_ro), raw: bytes = Depends(_raw_body),
                    conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     """CR-020 S2C: undo-all - a new batch of single undos in reverse order ({confirm: true}, nvr.configure + every camera); 202."""
+    if not BATCH_ID_RE.fullmatch(batch_id):  # review finding 8: never audit an id that did not pass the format check
+        raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
     body = json_body(raw)
     if not isinstance(body, dict) or body.get("confirm") is not True:
         raise nvr_batch.refuse(conn, principal, ApiError(422, "confirm_required", "יש לאשר את הביטול."), _rid(request), kind="rollback",
-                               source_batch_id=batch_id[:16]) from None
-    if not BATCH_ID_RE.fullmatch(batch_id):
-        raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
+                               source_batch_id=batch_id) from None
     settings = settings_of(request)
     ensure_nvr(settings)
     out = nvr_batch.create_rollback_batch(conn, request.app.state.db, settings, principal, batch_id, request_id=_rid(request))

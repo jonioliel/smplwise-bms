@@ -92,6 +92,14 @@ class HikvisionAdapter:
         self.recorder_id = recorder_id
         self._settings = settings
 
+    @property
+    def device_key(self) -> str:
+        """The physical device this adapter talks to (CR-020 S2C review finding 6). The adapter always speaks to the
+        add-on's configured NVR (the add-on options), whatever recorder row it was built for - registry: "until then every
+        recorder row is the add-on's NVR" - so every row shares this one key. When rows carry their own connection
+        (ADP section 7) the key must name that connection. Never an address: it is stored in `settings`."""
+        return "addon-nvr"
+
     def capabilities(self) -> RecorderCapabilities:
         # S2: one stream's encoding is writable (guarded path); add / remove a channel stay false until S3.
         return RecorderCapabilities(
@@ -161,15 +169,14 @@ class HikvisionAdapter:
     @staticmethod
     def _probe(client: httpx.Client, path: str) -> tuple[int, str]:
         """A bounded read-only GET that answers its status instead of raising for 403 / 404 (capability discovery)."""
+        nvr.check_deadline("capabilities")
         try:
-            with client.stream("GET", path) as r:
-                body = bytearray()
-                for chunk in r.iter_bytes(64 * 1024):
-                    body.extend(chunk)
-                    if len(body) > nvr.CAPS_DOC_MAX_BYTES:
-                        raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"op": "capabilities"})
-                return r.status_code, bytes(body).decode(r.encoding or "utf-8", "replace")
+            with client.stream("GET", path, timeout=nvr.bounded_timeout(client.timeout)) as r:
+                body = nvr.read_capped(r, nvr.CAPS_DOC_MAX_BYTES, "capabilities")
+                return r.status_code, body.decode(r.encoding or "utf-8", "replace")
         except httpx.HTTPError as exc:
+            if nvr.past_deadline():
+                raise nvr.deadline_error("capabilities") from exc
             raise _unavailable("capabilities", exc) from exc
 
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
@@ -223,12 +230,21 @@ class HikvisionAdapter:
             if before.etag != expect_etag:
                 raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before.etag})
             body = '<?xml version="1.0" encoding="UTF-8"?>' + element
+            nvr.check_deadline("put")  # past the caller's deadline before anything was sent: a plain refusal, never unknown
             try:
-                r = client.put(path, content=body.encode("utf-8"), headers={"Content-Type": "application/xml"},
-                               timeout=httpx.Timeout(8.0, read=PUT_READ_TIMEOUT_S))
+                # review finding 2: the answer is streamed and read within the caller's deadline (a device trickling its
+                # answer cannot hold the item); every httpx timeout is capped by the time left
+                with client.stream("PUT", path, content=body.encode("utf-8"), headers={"Content-Type": "application/xml"},
+                                   timeout=nvr.bounded_timeout(httpx.Timeout(8.0, read=PUT_READ_TIMEOUT_S))) as r:
+                    status = r.status_code
+                    try:
+                        text = nvr.read_capped(r, nvr.CAPS_DOC_MAX_BYTES, "put").decode(r.encoding or "utf-8", "replace")
+                    except ApiError as exc:  # the device has the PUT; its answer was too slow or too large: state unknown
+                        raise ApiError(503, "source_unavailable", "לא ידוע אם השינוי בוצע. המצב ייבדק מחדש.", retryable=False,
+                                       details={"op": "put", "cause": exc.code, "outcome": "unknown"}) from exc
             except httpx.HTTPError as exc:  # sent or not, the device may have applied it: the janitor reads and settles
                 raise _unavailable("put", exc, outcome="unknown") from exc
-            device_status, reboot = put_result(r.status_code, r.text)
+            device_status, reboot = put_result(status, text)
             try:
                 verified = self._snapshot(client, stream_ref, "verify")
             except ApiError as exc:

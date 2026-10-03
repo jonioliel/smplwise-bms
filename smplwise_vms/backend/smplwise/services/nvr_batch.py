@@ -18,11 +18,27 @@ status route). Owner decisions 2026-10-03 (binding):
 - undo-all = a NEW batch of single undos in reverse order, confirmed once (the toast press is that confirmation);
 - a restart never resumes a write: `recover_batches` marks a batch whose runner is gone `interrupted`.
 
+Security review 2026-10-04 (private/cr020-s2c-review/SECURITY_REVIEW.md), fixed on pilot/CR020-s2c-fixes:
+- the unknown check counts `applied` only when every other encoding field is unchanged (nvr_settings._settle_one), and an
+  undo restores only the fields our change modified (nvr_settings.rollback_stream);
+- every item runs under a hard wall-clock deadline (ITEM_DEADLINE_S, nvr.deadline); a runner still inside one item after
+  HUNG_AFTER_S is abandoned by "stop" or by the periodic recovery (`deadline`): the batch ends `interrupted`, the lock is
+  released, its queued items can never be claimed (no further PUT) and the late thread never rewrites the end;
+- status, list and stop answer on a READ connection; a dead batch is ended by the periodic maintenance (janitor_tick) or by
+  an explicit stop - a GET never reads the device or writes;
+- the lock is keyed by the device (`adapter.device_key`), not by the recorder row;
+- the permission is checked again under the write lock right before the item's claim.
+
+Single process (review finding 13): the add-on runs ONE worker process. `_live` (the runners of this process) is the
+source of truth for "is this runner alive"; start-up recovery interrupts every batch left running. A second worker would
+interrupt another worker's live batch at its start-up and could not see its runners - it would need a per-process id with
+the heartbeat before more than one worker is ever configured.
+
 Storage without a migration (0050 already has `nvr_changes.batch_id` / `batch_index`): the items are `nvr_changes` rows
 (placeholder status `queued` until their turn - outside the partial unique index of pending rows and invisible to the
-pending janitor); the batch's own record, its heartbeat and the recorder lock are three keys of the `settings` table
-(META_KEY, BEAT_KEY, nvr_settings.BATCH_ACTIVE_KEY). No response, audit row or log line carries a device address, a
-device user name, a password, a serial number or a MAC.
+pending janitor); the batch's own record, its heartbeat and the device lock are three keys of the `settings` table
+(META_KEY, BEAT_KEY, nvr_settings.BATCH_ACTIVE_KEY) - never in a backup and never restored (services/backup.py). No
+response, audit row or log line carries a device address, a device user name, a password, a serial number or a MAC.
 """
 from __future__ import annotations
 
@@ -40,7 +56,7 @@ from ..config import Settings
 from ..db import commit_now, get_setting, new_id, now_iso, set_setting, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, require
-from . import nvr_settings
+from . import nvr, nvr_settings
 from .access import camera_scope, require_camera
 from .recorders import registry
 
@@ -53,6 +69,12 @@ MAX_TARGETS = 1024  # an input-size guard against an abusive body, not a product
 BEAT_STALE_S = 180  # a running batch whose heartbeat is older than this and whose runner is not in this process is interrupted
 BEAT_EVERY_S = 20.0
 UNKNOWN_CHECK_DELAY_S = float(nvr_settings.UNKNOWN_SETTLE_MIN_S)  # tests set 0
+# review finding 2: the hard wall-clock limit of one item's device work (reads, PUT, verify; nvr.deadline) and of the
+# read-only check after an unknown outcome. A runner still inside one item HUNG_AFTER_S after it began (something the
+# deadline cannot reach) is abandoned by stop / recovery.
+ITEM_DEADLINE_S = 90.0
+CHECK_DEADLINE_S = 30.0
+HUNG_AFTER_S = ITEM_DEADLINE_S + 60.0
 PAGE_DEFAULT = 200
 PAGE_MAX = 500
 LIST_LIMIT = 20
@@ -65,7 +87,8 @@ ETAG_RE = re.compile(r"^[0-9a-f]{16}$")
 RECORDER_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
 # why a batch ended without completing -> its state
 STOP_STATES = {"user_stop": "stopped", "item_failed": "failed", "item_refused": "failed", "forbidden": "failed",
-               "unknown_not_applied": "interrupted", "unknown_unverified": "interrupted", "interrupted": "interrupted", "shutdown": "interrupted", "error": "interrupted"}
+               "unknown_not_applied": "interrupted", "unknown_unverified": "interrupted", "unknown_diverged": "interrupted", "deadline": "interrupted",
+               "interrupted": "interrupted", "shutdown": "interrupted", "error": "interrupted"}
 # the operator's line per item (server-side, short, no device detail)
 MESSAGES = {
     "queued": "ממתין.", "running": "מתבצע.", "applied": "נשמר.", "unchanged": "כבר מוגדר כך.", "rolled_back": "הוחזר.",
@@ -76,9 +99,11 @@ ERROR_MESSAGES = {
     "interrupted": "לא בוצע (השינוי נקטע).", "stale": "ההגדרות השתנו ב־NVR.", "nvr_busy": "ה־NVR עסוק.", "forbidden": "אין הרשאה למצלמה הזו.",
     "write_in_progress": "שינוי אחר של הזרם הזה מתבצע.", "batch_in_progress": "מתבצע שינוי מרובה.", "outcome_unknown": "לא ברור אם בוצע. נבדק מול ה־NVR.",
     "not_rollbackable": "אי אפשר לבטל את השינוי הזה.", "capabilities_unreadable": "ה־NVR אינו מפרסם את יכולות הזרם.", "source_unavailable": "ה־NVR אינו זמין.",
+    "source_timeout": "ה־NVR לא ענה בזמן.",
 }
 
 _live: dict[str, threading.Thread] = {}
+_item_started: dict[str, float] = {}  # batch id -> monotonic start of the item its runner is inside now (finding 2)
 _live_lock = threading.Lock()
 _shutdown = threading.Event()
 
@@ -177,9 +202,27 @@ def _is_live(batch_id: str) -> bool:
     return t is not None and t.is_alive()
 
 
-def _release_lock(conn: sqlite3.Connection, batch_id: str, recorder_id: str) -> None:
+def _hung(batch_id: str) -> bool:
+    """A live runner that has been inside one item longer than HUNG_AFTER_S (the per-item deadline did not stop it)."""
+    with _live_lock:
+        t = _live.get(batch_id)
+        began = _item_started.get(batch_id)
+    return t is not None and t.is_alive() and began is not None and time.monotonic() - began > HUNG_AFTER_S
+
+
+def lock_key(conn: sqlite3.Connection, settings: Settings | None, recorder_id: str) -> str:
+    """The `settings` key of the batch lock of the DEVICE behind this recorder row (review finding 6)."""
+    try:
+        adapter: Any = registry.adapter_for(conn, settings, recorder_id)  # type: ignore[arg-type] - builds only, no device call
+    except ApiError:
+        adapter = None
+    return nvr_settings.batch_lock_key(adapter, recorder_id)
+
+
+def _release_lock(conn: sqlite3.Connection, batch_id: str) -> None:
+    """The heartbeat and whichever device lock this batch holds (only when it is still this batch's)."""
     conn.execute("DELETE FROM settings WHERE key = ?", (BEAT_KEY.format(batch_id),))
-    conn.execute("DELETE FROM settings WHERE key = ? AND value = ?", (nvr_settings.BATCH_ACTIVE_KEY.format(recorder_id), batch_id))
+    conn.execute("DELETE FROM settings WHERE key LIKE 'nvr.batch.active.%' AND value = ?", (batch_id,))
 
 
 def _abort_rest(conn: sqlite3.Connection, batch_id: str, why: str) -> int:
@@ -208,7 +251,7 @@ def _item(r: sqlite3.Row) -> dict[str, Any]:
     if message is None:
         message = MESSAGES.get(status) or ("השינוי נדחה." if status == "refused" else "השינוי נכשל.")
     return {"index": r["batch_index"], "camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "status": status, "change_id": r["id"],
-            "rollback_of": r["rollback_of"], "error_code": code, "user_message": message}
+            "rollback_of": r["rollback_of"], "error_code": code, "user_message": message, "reboot_required": bool(r["reboot_required"])}
 
 
 # ------------------------------------------------------------------------------------------------ create
@@ -291,10 +334,10 @@ def _preflight(conn: sqlite3.Connection, settings: Settings, rid: str, req: Batc
             raise _not_allowed(i, "svc")
 
 
-def _locked_checks(conn: sqlite3.Connection, rid: str, refs: list[str]) -> None:
-    """Under the write lock: one batch per recorder, and no single change pending on a target stream."""
-    recover_dead(conn, None, rid)
-    nvr_settings.batch_guard(conn, rid)
+def _locked_checks(conn: sqlite3.Connection, settings: Settings, rid: str, refs: list[str]) -> None:
+    """Under the write lock: one batch per device, and no single change pending on a target stream."""
+    recover_dead(conn, settings, rid, settle=False)
+    nvr_settings.batch_guard(conn, lock_key(conn, settings, rid))
     for start in range(0, len(refs), 500):
         chunk = refs[start:start + 500]
         row = conn.execute(f"SELECT stream_ref FROM nvr_changes WHERE recorder_id = ? AND status = 'pending' AND stream_ref IN ({','.join('?' * len(chunk))}) LIMIT 1",
@@ -303,7 +346,7 @@ def _locked_checks(conn: sqlite3.Connection, rid: str, refs: list[str]) -> None:
             raise ApiError(409, "write_in_progress", "שינוי אחר של אחד הזרמים עדיין מתבצע.", retryable=True, details={"index": refs.index(row["stream_ref"])})
 
 
-def _new_batch(conn: sqlite3.Connection, principal: Any, *, kind: str, rid: str, items: list[dict[str, Any]], request_id: str | None,
+def _new_batch(conn: sqlite3.Connection, principal: Any, *, kind: str, rid: str, key: str, items: list[dict[str, Any]], request_id: str | None,
                source_batch_id: str | None = None) -> str:
     bid = new_id()
     now = now_iso()
@@ -316,8 +359,8 @@ def _new_batch(conn: sqlite3.Connection, principal: Any, *, kind: str, rid: str,
         )
     _save_meta(conn, bid, {"v": 1, "kind": kind, "recorder_id": rid, "total": len(items), "state": "running", "stopped_reason": None, "stopped_at": None,
                            "created_at": now, "actor_id": getattr(principal, "user_id", None), "actor_username": getattr(principal, "username", None),
-                           "request_id": request_id, "source_batch_id": source_batch_id})
-    set_setting(conn, nvr_settings.BATCH_ACTIVE_KEY.format(rid), bid)
+                           "request_id": request_id, "source_batch_id": source_batch_id, "lock_key": key})
+    set_setting(conn, key, bid)
     _beat(conn, bid)
     return bid
 
@@ -331,15 +374,16 @@ def create_write_batch(conn: sqlite3.Connection, db: Any, settings: Settings, pr
     except ApiError as exc:
         raise refuse(conn, principal, exc, request_id, targets=len(req.targets)) from None
     refs = [t.stream_ref for t in req.targets]
+    key = lock_key(conn, settings, rid)
     try:
         recover_dead(conn, settings, rid)
-        nvr_settings.batch_guard(conn, rid)  # cheap refusal before any device read
+        nvr_settings.batch_guard(conn, key)  # cheap refusal before any device read
         _preflight(conn, settings, rid, req, cams)
-        _locked_checks(conn, rid, refs)
+        _locked_checks(conn, settings, rid, refs)
     except ApiError as exc:
         raise refuse(conn, principal, exc, request_id, recorder_id=rid, targets=len(req.targets)) from None
     items = [{"camera_id": t.camera_id, "stream_ref": t.stream_ref, "etag": t.if_match, "fields": {k: [True, v] for k, v in BATCH_FIELDS.items()}} for t in req.targets]
-    bid = _new_batch(conn, principal, kind="write", rid=rid, items=items, request_id=request_id)
+    bid = _new_batch(conn, principal, kind="write", rid=rid, key=key, items=items, request_id=request_id)
     _audit_batch(conn, principal, "write", "allowed", rid, {"phase": "attempt", "batch_id": bid, "total": len(items), "fields": sorted(BATCH_FIELDS),
                                                              "targets": [{"camera_id": t.camera_id, "stream_ref": t.stream_ref} for t in req.targets]}, request_id=request_id)
     commit_now(conn)  # the rows exist before the runner looks for them
@@ -371,8 +415,9 @@ def create_rollback_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
     except ApiError as exc:
         raise refuse(conn, principal, exc, request_id, kind="rollback", recorder_id=rid, source_batch_id=source_id) from None
     authorize_targets(conn, principal, sorted({str(r["camera_id"]) for r in applied}))
+    key = lock_key(conn, settings, rid)
     try:
-        nvr_settings.batch_guard(conn, rid)
+        nvr_settings.batch_guard(conn, key)
     except ApiError as exc:
         raise refuse(conn, principal, exc, request_id, kind="rollback", recorder_id=rid, source_batch_id=source_id) from None
     items = []
@@ -383,7 +428,7 @@ def create_rollback_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
             orig = {}
         items.append({"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "etag": r["etag_after"], "rollback_of": r["id"], "note": f"החזר של {r['id']}",
                       "fields": {k: [v[1], v[0]] for k, v in orig.items() if isinstance(v, list) and len(v) == 2}})
-    bid = _new_batch(conn, principal, kind="rollback", rid=rid, items=items, request_id=request_id, source_batch_id=source_id)
+    bid = _new_batch(conn, principal, kind="rollback", rid=rid, key=key, items=items, request_id=request_id, source_batch_id=source_id)
     _audit_batch(conn, principal, "rollback", "allowed", rid, {"phase": "attempt", "batch_id": bid, "source_batch_id": source_id, "total": len(items),
                                                                 "targets": [{"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "rollback_of": r["id"]} for r in applied]},
                  request_id=request_id)
@@ -394,19 +439,13 @@ def create_rollback_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
 
 # ------------------------------------------------------------------------------------------------ status, list, stop
 
-def _state(conn: sqlite3.Connection, settings: Settings | None, batch_id: str) -> dict[str, Any] | None:
-    meta = _meta(conn, batch_id)
-    if meta is None:
-        return None
-    if meta.get("state") == "running" and settings is not None and recover_dead(conn, settings, str(meta["recorder_id"]), only=batch_id):
-        meta = _meta(conn, batch_id) or meta
-    return meta
-
-
-def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, settings: Settings | None = None, offset: int = 0, limit: int = PAGE_DEFAULT) -> dict[str, Any]:
+def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, offset: int = 0, limit: int = PAGE_DEFAULT) -> dict[str, Any]:
     """One batch from its rows (any worker answers the same). Items are paged by `batch_index`; items of a camera outside
-    the caller's nvr.configure camera scope are left out (counted in `hidden`)."""
-    meta = _state(conn, settings, batch_id)
+    the caller's nvr.configure camera scope are left out (counted in `hidden`). Read-only (review finding 3): works on a
+    read connection, never recovers a dead batch, never reads the device - the periodic maintenance does that.
+    Review finding 12 (accepted, documented): `total`, `counts`, `current_index` and `hidden` still count the items of
+    cameras outside the caller's scope - only system_admin holds nvr.configure, so nobody sees a count they could not see."""
+    meta = _meta(conn, batch_id)
     if meta is None:
         raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
     limit = max(1, min(int(limit), PAGE_MAX))
@@ -419,8 +458,10 @@ def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, set
     cur = conn.execute("SELECT batch_index FROM nvr_changes WHERE batch_id = ? AND status = 'pending' ORDER BY batch_index LIMIT 1", (batch_id,)).fetchone()
     done = total - counts.get("queued", 0) - counts.get("running", 0) - counts.get("unknown", 0)
     state = str(meta.get("state"))
+    reboots = int(conn.execute("SELECT COUNT(*) FROM nvr_changes WHERE batch_id = ? AND reboot_required = 1", (batch_id,)).fetchone()[0])
     return {
         "batch_id": batch_id, "kind": meta.get("kind"), "state": state, "recorder_id": meta.get("recorder_id"), "total": total, "done": done,
+        "reboot_required": reboots,
         "current_index": cur["batch_index"] if cur is not None else None, "counts": counts, "items": items, "hidden": len(page) - len(items),
         "offset": offset, "limit": limit, "next_offset": offset + len(page) if offset + len(page) < total else None,
         "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_at": meta.get("stopped_at"),
@@ -436,8 +477,9 @@ def _summary(conn: sqlite3.Connection, batch_id: str, meta: dict[str, Any]) -> d
             "counts": counts, "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_reason": meta.get("stopped_reason")}
 
 
-def list_batches(conn: sqlite3.Connection, settings: Settings, active: bool) -> dict[str, Any]:
-    """`?active=1`: the running batches (the screen resumes after a reload); otherwise the latest LIST_LIMIT batches."""
+def list_batches(conn: sqlite3.Connection, active: bool) -> dict[str, Any]:
+    """`?active=1`: the running batches (the screen resumes after a reload); otherwise the latest LIST_LIMIT batches.
+    Read-only, like `batch_status` (review finding 3)."""
     if active:
         ids = [r["value"] for r in conn.execute("SELECT value FROM settings WHERE key LIKE 'nvr.batch.active.%' ORDER BY key").fetchall()]
     else:
@@ -445,27 +487,41 @@ def list_batches(conn: sqlite3.Connection, settings: Settings, active: bool) -> 
             "SELECT batch_id, MIN(created_at) AS at FROM nvr_changes WHERE batch_id IS NOT NULL GROUP BY batch_id ORDER BY at DESC LIMIT ?", (LIST_LIMIT,)).fetchall()]
     out = []
     for bid in ids:
-        meta = _state(conn, settings, bid)
+        meta = _meta(conn, bid)
         if meta is None or (active and meta.get("state") != "running"):
             continue
         out.append(_summary(conn, bid, meta))
     return {"batches": out}
 
 
-def stop_batch(conn: sqlite3.Connection, settings: Settings, principal: Any, batch_id: str, *, request_id: str | None = None) -> dict[str, Any]:
-    """Cooperative and idempotent: the still-queued items become `not_attempted` (`stopped`); the item in flight is never
-    interrupted (a half-sent PUT is the worst case) - the runner ends after it. No confirmation: stopping is the safe way."""
-    meta = _state(conn, settings, batch_id)
+def stop_batch(db: Any, conn: sqlite3.Connection, principal: Any, batch_id: str, *, request_id: str | None = None) -> dict[str, Any]:
+    """`conn` is the request's READ connection (review finding 3); the write is a short transaction of its own, taken only
+    when there is something to record. Cooperative and idempotent: the still-queued items become `not_attempted`
+    (`stopped`); the item in flight is not interrupted (a half-sent PUT is the worst case) - the runner ends after it.
+    Review finding 2: a runner that is gone (heartbeat stale) or hung inside one item past HUNG_AFTER_S is abandoned at
+    once - the batch ends `interrupted` (`deadline` / `interrupted`), the device lock is released, nothing can be claimed
+    any more (no further PUT). No device read here. No confirmation: stopping is the safe way."""
+    meta = _meta(conn, batch_id)
     if meta is None:
         raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
-    if meta.get("state") == "running" and not meta.get("stop_requested_at"):
-        n = _abort_rest(conn, batch_id, "stopped")
-        meta["stop_requested_at"] = now_iso()
-        meta["stop_requested_by"] = getattr(principal, "username", None)
-        _save_meta(conn, batch_id, meta)
-        _audit_batch(conn, principal, str(meta.get("kind") or "write"), "allowed", str(meta["recorder_id"]), {"phase": "stop", "batch_id": batch_id, "not_attempted": n},
-                     request_id=request_id)
-    return batch_status(conn, principal, batch_id)
+    if meta.get("state") != "running":
+        return batch_status(conn, principal, batch_id)
+    with db.connection(label="nvr_batch.stop") as w:
+        meta = _meta(w, batch_id) or meta
+        if meta.get("state") == "running":
+            kind = str(meta.get("kind") or "write")
+            hung = _hung(batch_id)
+            if hung or (not _is_live(batch_id) and _beat_age_s(w, batch_id) > BEAT_STALE_S):
+                _abandon(batch_id)
+                _audit_batch(w, principal, kind, "allowed", str(meta["recorder_id"]), {"phase": "stop", "batch_id": batch_id, "abandoned": True}, request_id=request_id)
+                _interrupt(w, None, batch_id, meta, reason="deadline" if hung else "interrupted")
+            elif not meta.get("stop_requested_at"):
+                n = _abort_rest(w, batch_id, "stopped")
+                meta["stop_requested_at"] = now_iso()
+                meta["stop_requested_by"] = getattr(principal, "username", None)
+                _save_meta(w, batch_id, meta)
+                _audit_batch(w, principal, kind, "allowed", str(meta["recorder_id"]), {"phase": "stop", "batch_id": batch_id, "not_attempted": n}, request_id=request_id)
+        return batch_status(w, principal, batch_id)
 
 
 # ------------------------------------------------------------------------------------------------ the runner
@@ -491,6 +547,23 @@ def _run(db: Any, settings: Settings, principal: Any, batch_id: str) -> None:
             log.exception("nvr batch %s: could not record the end", batch_id)
         with _live_lock:
             _live.pop(batch_id, None)
+            _item_started.pop(batch_id, None)
+
+
+def _abandon(batch_id: str) -> None:
+    """The runner of this batch is left to end on its own (review finding 2). It cannot claim another item (they are all
+    `not_attempted` now), and `_loop` / `_finish` see the batch is no longer running and record nothing more."""
+    log.warning("nvr batch %s: runner abandoned (gone or past its item deadline); the device lock is released", batch_id)
+
+
+def _item_begins(batch_id: str) -> None:
+    with _live_lock:
+        _item_started[batch_id] = time.monotonic()
+
+
+def _item_ends(batch_id: str) -> None:
+    with _live_lock:
+        _item_started.pop(batch_id, None)
 
 
 def _wait(db: Any, batch_id: str, seconds: float) -> bool:
@@ -512,54 +585,71 @@ def _loop(db: Any, settings: Settings, principal: Any, batch_id: str) -> str | N
         if _shutdown.is_set():
             return "shutdown"
         unknown_id: str | None = None
-        with db.connection(label="nvr_batch.item") as conn:
-            meta = _meta(conn, batch_id)
-            if meta is None:
-                return "error"
-            _beat(conn, batch_id)
-            row = conn.execute("SELECT * FROM nvr_changes WHERE batch_id = ? AND status = 'queued' ORDER BY batch_index LIMIT 1", (batch_id,)).fetchone()
-            if row is None:
-                return None
-            kind = str(meta.get("kind") or "write")
-            idx = int(row["batch_index"])
-            try:  # per-item authorization: a deny or a lost binding added mid-batch stops it (audited by `require`)
-                require(conn, principal, WRITE_PERMISSION, INSTALLATION)
-                require_camera(conn, principal, str(row["camera_id"]), WRITE_PERMISSION)
-            except ApiError:
-                conn.execute("UPDATE nvr_changes SET status = 'refused', error = 'forbidden' WHERE id = ? AND status = 'queued'", (row["id"],))
-                return "forbidden"
-            error: ApiError | None = None
-            try:
-                if kind == "rollback":
-                    orig = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (row["rollback_of"],)).fetchone()
-                    if orig is not None and orig["status"] == "rolled_back":  # undone meanwhile (a single undo): nothing to do
-                        conn.execute("UPDATE nvr_changes SET status = 'unchanged', error = 'already_rolled_back' WHERE id = ? AND status = 'queued'", (row["id"],))
+        _item_begins(batch_id)
+        try:
+            with db.connection(label="nvr_batch.item") as conn:
+                meta = _meta(conn, batch_id)
+                if meta is None:
+                    return "error"
+                if meta.get("state") != "running":  # abandoned by a stop / the recovery (finding 2): record nothing more
+                    return "abandoned"
+                _beat(conn, batch_id)
+                row = conn.execute("SELECT * FROM nvr_changes WHERE batch_id = ? AND status = 'queued' ORDER BY batch_index LIMIT 1", (batch_id,)).fetchone()
+                if row is None:
+                    return None
+                kind = str(meta.get("kind") or "write")
+                idx = int(row["batch_index"])
+                camera_id = str(row["camera_id"])
+
+                def authorize(c: sqlite3.Connection, camera_id: str = camera_id) -> None:
+                    require(c, principal, WRITE_PERMISSION, INSTALLATION)
+                    require_camera(c, principal, camera_id, WRITE_PERMISSION)
+
+                try:  # per-item authorization: a deny or a lost binding added mid-batch stops it (audited by `require`)
+                    authorize(conn)
+                except ApiError:
+                    conn.execute("UPDATE nvr_changes SET status = 'refused', error = 'forbidden' WHERE id = ? AND status = 'queued'", (row["id"],))
+                    return "forbidden"
+                error: ApiError | None = None
+                try:
+                    # finding 2: a hard wall-clock limit on the item's device work; finding 11: `authorize` runs again under
+                    # the write lock right before the claim (a deny added during the device reads stops this item)
+                    with nvr.deadline(ITEM_DEADLINE_S):
+                        if kind == "rollback":
+                            orig = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (row["rollback_of"],)).fetchone()
+                            if orig is not None and orig["status"] == "rolled_back":  # undone meanwhile (a single undo): nothing to do
+                                conn.execute("UPDATE nvr_changes SET status = 'unchanged', error = 'already_rolled_back' WHERE id = ? AND status = 'queued'", (row["id"],))
+                                continue
+                            if orig is None:
+                                raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.")
+                            nvr_settings.rollback_stream(conn, settings, principal, orig, request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"],
+                                                         authorize=authorize)
+                        else:
+                            nvr_settings.write_stream(conn, settings, principal, camera_id, str(row["stream_ref"]),
+                                                      nvr_settings.WriteRequest(if_match=str(row["etag_before"]), changes=dict(BATCH_FIELDS)),
+                                                      request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"], authorize=authorize)
+                except ApiError as exc:
+                    error = exc
+                timed_out = error is not None and error.code == "source_timeout"
+                cur = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (row["id"],)).fetchone()
+                status = str(cur["status"])
+                if status == "queued":  # refused before the device was touched, or nothing to change
+                    if error is None:
+                        conn.execute("UPDATE nvr_changes SET status = 'unchanged', error = NULL WHERE id = ?", (row["id"],))
                         continue
-                    if orig is None:
-                        raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.")
-                    nvr_settings.rollback_stream(conn, settings, principal, orig, request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"])
-                else:
-                    nvr_settings.write_stream(conn, settings, principal, str(row["camera_id"]), str(row["stream_ref"]),
-                                              nvr_settings.WriteRequest(if_match=str(row["etag_before"]), changes=dict(BATCH_FIELDS)),
-                                              request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"])
-            except ApiError as exc:
-                error = exc
-            cur = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (row["id"],)).fetchone()
-            status = str(cur["status"])
-            if status == "queued":  # refused before the device was touched, or nothing to change
-                if error is None:
-                    conn.execute("UPDATE nvr_changes SET status = 'unchanged', error = NULL WHERE id = ?", (row["id"],))
+                    code = "forbidden" if error.status == 403 else error.code[:64]
+                    conn.execute("UPDATE nvr_changes SET status = 'refused', error = ? WHERE id = ?", (code, row["id"]))
+                    return "forbidden" if code == "forbidden" else ("deadline" if timed_out else "item_refused")
+                if status == "not_attempted":  # a user stop (or an abandonment) won the race for the claim
+                    return None
+                if status == "applied":
                     continue
-                conn.execute("UPDATE nvr_changes SET status = 'refused', error = ? WHERE id = ?", (error.code[:64], row["id"]))
-                return "item_refused"
-            if status == "not_attempted":  # a user stop won the race for the claim
-                return None
-            if status == "applied":
-                continue
-            if status == "pending":
-                unknown_id = str(row["id"])
-            else:
-                return "item_failed"
+                if status == "pending":
+                    unknown_id = str(row["id"])
+                else:
+                    return "deadline" if timed_out else "item_failed"
+        finally:
+            _item_ends(batch_id)
         if unknown_id is not None:
             verdict = _check_unknown(db, settings, principal, batch_id, unknown_id)
             if verdict != "applied":
@@ -571,18 +661,30 @@ def _check_unknown(db: Any, settings: Settings, principal: Any, batch_id: str, c
     check of that camera (S2A `_settle_one`). 'applied' only when the reading PROVES it; never a second PUT."""
     if not _wait(db, batch_id, UNKNOWN_CHECK_DELAY_S):
         return "unknown_unverified"
-    with db.connection(label="nvr_batch.check") as conn:
-        row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (change_id,)).fetchone()
-        if row is not None and row["status"] == "pending":
-            nvr_settings._settle_one(conn, settings, row)  # reads only; an unreadable device leaves it pending
+    _item_begins(batch_id)
+    try:
+        with db.connection(label="nvr_batch.check") as conn:
+            meta = _meta(conn, batch_id) or {}
+            if meta.get("state") != "running":  # abandoned meanwhile: the janitor settles the item, nothing more here
+                return "abandoned"
             row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (change_id,)).fetchone()
-        status = str(row["status"]) if row is not None else "pending"
-        verdict = "applied" if status == "applied" else ("unknown_unverified" if status == "pending" else "unknown_not_applied")
-        meta = _meta(conn, batch_id) or {}
-        _audit_batch(conn, principal, str(meta.get("kind") or "write"), "allowed" if verdict == "applied" else "denied", str(meta.get("recorder_id") or "*"),
-                     {"phase": "check", "batch_id": batch_id, "change_id": change_id, "status": status, "continue": verdict == "applied"},
-                     reason=None if verdict == "applied" else verdict)
+            if row is not None and row["status"] == "pending":
+                with nvr.deadline(CHECK_DEADLINE_S):
+                    nvr_settings._settle_one(conn, settings, row)  # reads only; an unreadable device leaves it pending
+                row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (change_id,)).fetchone()
+            status = str(row["status"]) if row is not None else "pending"
+            # finding 1: `diverged` (our field took, but something else changed too) is not a proof - the batch stops
+            verdict = {"applied": "applied", "pending": "unknown_unverified", "diverged": "unknown_diverged"}.get(status, "unknown_not_applied")
+            _audit_check(conn, principal, batch_id, change_id, meta, status, verdict)
+    finally:
+        _item_ends(batch_id)
     return verdict
+
+
+def _audit_check(conn: sqlite3.Connection, principal: Any, batch_id: str, change_id: str, meta: dict[str, Any], status: str, verdict: str) -> None:
+    _audit_batch(conn, principal, str(meta.get("kind") or "write"), "allowed" if verdict == "applied" else "denied", str(meta.get("recorder_id") or "*"),
+                 {"phase": "check", "batch_id": batch_id, "change_id": change_id, "status": status, "continue": verdict == "applied"},
+                 reason=None if verdict == "applied" else verdict)
 
 
 def _finish(db: Any, principal: Any, batch_id: str, reason: str | None) -> None:
@@ -590,8 +692,10 @@ def _finish(db: Any, principal: Any, batch_id: str, reason: str | None) -> None:
         meta = _meta(conn, batch_id)
         if meta is None:
             return
+        if meta.get("state") != "running":  # abandoned by a stop / the recovery (finding 2): that end stands
+            return
         rest = {"item_failed": "earlier_failure", "item_refused": "earlier_failure", "forbidden": "earlier_failure",
-                "unknown_not_applied": "earlier_unknown", "unknown_unverified": "earlier_unknown"}.get(reason or "", "interrupted")
+                "unknown_not_applied": "earlier_unknown", "unknown_unverified": "earlier_unknown", "unknown_diverged": "earlier_unknown"}.get(reason or "", "interrupted")
         _abort_rest(conn, batch_id, rest)
         if reason is None:
             stopped = conn.execute("SELECT 1 FROM nvr_changes WHERE batch_id = ? AND status = 'not_attempted' AND error = 'stopped' LIMIT 1", (batch_id,)).fetchone()
@@ -600,7 +704,7 @@ def _finish(db: Any, principal: Any, batch_id: str, reason: str | None) -> None:
         meta.update({"state": state, "stopped_reason": reason, "stopped_at": now_iso() if reason else None, "ended_at": now_iso()})
         _save_meta(conn, batch_id, meta)
         rid = str(meta["recorder_id"])
-        _release_lock(conn, batch_id, rid)
+        _release_lock(conn, batch_id)
         counts = _counts(conn, batch_id)
         _audit_batch(conn, principal, str(meta.get("kind") or "write"), "allowed" if state == "completed" else "denied", rid,
                      {"phase": "outcome", "batch_id": batch_id, "state": state, "stopped_reason": reason, "counts": counts, "total": meta.get("total")},
@@ -609,9 +713,11 @@ def _finish(db: Any, principal: Any, batch_id: str, reason: str | None) -> None:
 
 # ------------------------------------------------------------------------------------------------ recovery
 
-def _interrupt(conn: sqlite3.Connection, settings: Settings | None, batch_id: str, meta: dict[str, Any]) -> None:
-    """A batch whose runner is gone: the one pending item is settled from a device read when due (S2A rule, reads only),
-    every queued item becomes `not_attempted` (`interrupted`), the batch `interrupted`. Never a write, never a resume."""
+def _interrupt(conn: sqlite3.Connection, settings: Settings | None, batch_id: str, meta: dict[str, Any], reason: str = "interrupted") -> None:
+    """A batch whose runner is gone or hung: the one pending item is settled from a device read when due (S2A rule, reads
+    only; `settings` None: left to the janitor), every queued item becomes `not_attempted` (`interrupted`), the batch
+    `interrupted` (`stopped_reason` = `reason`: `interrupted`, or `deadline` for a hung runner), the device lock released.
+    Never a write, never a resume."""
     if settings is not None:
         for r in conn.execute("SELECT * FROM nvr_changes WHERE batch_id = ? AND status = 'pending'", (batch_id,)).fetchall():
             if nvr_settings._settle_due(r):
@@ -619,38 +725,42 @@ def _interrupt(conn: sqlite3.Connection, settings: Settings | None, batch_id: st
     n = _abort_rest(conn, batch_id, "interrupted")
     rid = str(meta.get("recorder_id") or "*")
     if meta.get("state") == "running":
-        meta.update({"state": "interrupted", "stopped_reason": "interrupted", "stopped_at": now_iso()})
+        meta.update({"state": "interrupted", "stopped_reason": reason, "stopped_at": now_iso(), "ended_at": now_iso()})
         _save_meta(conn, batch_id, meta)
-    _release_lock(conn, batch_id, rid)
+    _release_lock(conn, batch_id)
     _audit_batch(conn, None, str(meta.get("kind") or "write"), "denied", rid, {"phase": "settle", "batch_id": batch_id, "not_attempted": n, "counts": _counts(conn, batch_id)},
-                 reason="interrupted")
+                 reason=reason)
 
 
 def _dead(conn: sqlite3.Connection, batch_id: str, startup: bool) -> bool:
+    """A runner of this process: dead only when hung past HUNG_AFTER_S inside one item (finding 2 - recovery never skips
+    a live but stuck thread forever). No runner here: at start-up always, otherwise when its heartbeat is stale."""
     if _is_live(batch_id):
-        return False
+        return _hung(batch_id)
     return startup or _beat_age_s(conn, batch_id) > BEAT_STALE_S
 
 
-def recover_dead(conn: sqlite3.Connection, settings: Settings | None, recorder_id: str, only: str | None = None) -> bool:
-    """On demand (create, status, rollback): interrupt this recorder's running batch when its runner is gone."""
-    bid = get_setting(conn, nvr_settings.BATCH_ACTIVE_KEY.format(recorder_id))
-    ids = {bid} if bid else set()
-    if only:
-        ids = {only}
+def recover_dead(conn: sqlite3.Connection, settings: Settings | None, recorder_id: str, *, settle: bool = True) -> bool:
+    """On demand from the write routes (create, rollback - never from a GET): interrupt the running batch that holds this
+    recorder's device lock when its runner is gone or hung. `settle=False`: no device read (under the write lock)."""
+    bid = get_setting(conn, lock_key(conn, settings, recorder_id))
     done = False
-    for b in ids:
-        meta = _meta(conn, b)
-        if meta is not None and meta.get("state") == "running" and _dead(conn, b, False):
-            _interrupt(conn, settings, b, meta)
+    if bid:
+        meta = _meta(conn, bid)
+        if meta is not None and meta.get("state") == "running" and _dead(conn, bid, False):
+            hung = _is_live(bid)
+            if hung:
+                _abandon(bid)
+            _interrupt(conn, settings if settle else None, bid, meta, reason="deadline" if hung else "interrupted")
             done = True
     return done
 
 
 def recover_batches(db: Any, settings: Settings, *, startup: bool = False) -> int:
-    """Start-up (`startup=True`: no runner of this fresh process exists, so every running batch is interrupted - the add-on
-    runs one process) and the janitor pass (only batches whose heartbeat is stale and whose runner is not in this process).
-    Returns how many batches were interrupted."""
+    """The periodic maintenance (janitor_tick, every 30 s) and start-up. Start-up (`startup=True`): no runner of this fresh
+    process exists, so every running batch is interrupted - the add-on runs ONE process (finding 13). The janitor pass:
+    batches whose runner is not in this process and whose heartbeat is stale, and runners of this process hung inside one
+    item past HUNG_AFTER_S (`deadline`). Returns how many batches were interrupted."""
     if startup:
         _shutdown.clear()
     n = 0
@@ -662,9 +772,12 @@ def recover_batches(db: Any, settings: Settings, *, startup: bool = False) -> in
             return 0
         for bid in sorted(ids):
             meta = _meta(conn, bid) or {"kind": "write", "state": "running", "recorder_id": _recorder_of_batch(conn, bid)}
-            if not _dead(conn, bid, startup):
+            live = _is_live(bid)
+            if not _dead(conn, bid, startup) or (live and meta.get("state") != "running"):
                 continue
-            _interrupt(conn, settings, bid, meta)
+            if live:
+                _abandon(bid)
+            _interrupt(conn, settings, bid, meta, reason="deadline" if live else "interrupted")
             n += 1
     return n
 

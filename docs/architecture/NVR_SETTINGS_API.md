@@ -164,6 +164,11 @@ permission). For `kind = stream_encoding` it additionally: refuses 409 `stale` w
 etag of the change's `after` document (someone changed it since); runs the same two-phase path as §4 (rollback is a
 write); refreshes the registry (§5.3). `GET /nvr/changes?camera_id=` filters the existing change log (new query param).
 The UI offers undo on the success toast (10 s) and in the change log.
+Security review 2026-10-04 (finding 1): the undo document is the stream's CURRENT reading with only the fields the change
+modified put back (`stream_document`), never the stored whole `before` document - a field someone else changed meanwhile is
+kept. A change settled after an unknown outcome (§4, janitor) is `applied` only when its fields have the new values AND
+every other encoding field still has its value from before the change; otherwise it is `diverged` (audit `phase:"settle"`
+with `foreign_change: true`). Response shapes unchanged.
 
 ### 3.7 The same change on many cameras (S2 phase C, backend 2026-10-03)
 
@@ -205,8 +210,9 @@ Every check of the preflight is repeated by the item at its own turn (devices ch
 Item `status`: `queued | running | unknown | applied | unchanged | refused | failed | no_effect | diverged | not_attempted |
 rolled_back`; `error_code` e.g. `nvr_busy`, `stale`, `forbidden`, `earlier_failure`, `earlier_unknown`, `stopped`,
 `interrupted`. Batch `state`: `running | completed | stopped | failed | interrupted`; `stopped_reason`: `user_stop`,
-`item_failed`, `item_refused`, `forbidden`, `unknown_not_applied`, `unknown_unverified`, `interrupted` (restart / dead
-runner), `shutdown`, `error`. Items of a camera outside the caller's `nvr.configure` camera scope are left out (`hidden`).
+`item_failed`, `item_refused`, `forbidden`, `unknown_not_applied`, `unknown_unverified`, `unknown_diverged` (2026-10-04),
+`deadline` (2026-10-04), `interrupted` (restart / dead runner), `shutdown`, `error`. Each item also has `reboot_required`
+(bool) and the status a `reboot_required` count (2026-10-04). Items of a camera outside the caller's `nvr.configure` camera scope are left out (`hidden`).
 The list form answers `{batches: [summary…]}` (running ones with `active=1`, else the latest 20).
 
 `POST /nvr/stream-batches/{batch_id}/stop` → 200 status. No confirmation (the safe direction), idempotent: the still
@@ -235,7 +241,40 @@ this process. A write is never resumed. Shutdown: each runner ends after its cur
 
 Storage (no migration): items are `nvr_changes` rows (0050's `batch_id`, `batch_index`); `queued` placeholders are outside
 the partial unique index of pending rows and invisible to `settle_pending`. The batch record (`nvr.batch.<id>`), its
-heartbeat and the recorder lock (`nvr.batch.active.<recorder_id>`) are `settings` keys, never returned by the settings API.
+heartbeat and the device lock (`nvr.batch.active.<device_key>`) are `settings` keys, never returned by the settings API,
+never written to a backup and never deleted or brought back by a restore.
+
+**Security review fixes (2026-10-04, branch `pilot/CR020-s2c-fixes`) - contract changes, all backward compatible
+(additive fields / values; no field removed or renamed):**
+- Unknown outcome: the check counts `applied` only when SVC is off AND every other encoding field is unchanged from the
+  reading before the PUT; otherwise the item is `diverged` and the batch ends `interrupted` with the NEW `stopped_reason`
+  `unknown_diverged` (the rest `not_attempted/earlier_unknown`). Undo / undo-all restore only our field on the current
+  reading (§3.5).
+- Hard time limit: each item's device work runs under a wall-clock deadline (90 s; a trickling device cannot hold it).
+  Past it before the PUT: item `refused`, NEW `error_code` `source_timeout`, batch `interrupted` with the NEW
+  `stopped_reason` `deadline`; past it after the PUT: the existing unknown-outcome rule. A runner still inside one item
+  150 s after it began is abandoned by `POST .../stop` or by the periodic recovery: batch `interrupted` / `deadline`, the
+  device lock released at once, its queued items `not_attempted` (`interrupted`) and never sent; an item whose PUT was in
+  flight stays `running` until the janitor settles it by a read.
+- `GET /nvr/stream-batches[/{id}]` and `POST .../stop` answer on a READ connection; a GET never ends a dead batch and never
+  reads the device. A batch whose runner is gone is ended by the periodic maintenance (every 30 s) or at once by a stop
+  (`stopped_reason` `interrupted`). The UI therefore may see `state: "running"` for up to ~30 s after a crash.
+- NEW fields: every item carries `reboot_required` (bool, the NVR answered "reboot required"); the status carries
+  `reboot_required` (count of such items). The UI should show it (owner: "show the operator").
+- The lock is per DEVICE (`adapter.device_key`; today every recorder row is the add-on's NVR, so all rows share one key):
+  a batch through one recorder row refuses single writes through another row of the same NVR (409 `batch_in_progress`).
+- The permission (`nvr.configure` at installation + the camera) is checked again under the write lock right before the
+  item is claimed; a deny added during the item's device reads stops it (`refused/forbidden`, no PUT).
+- `POST .../{id}/rollback` with an id that is not 16 lowercase hex: 404 `not_found` BEFORE the confirmation check (was
+  422 `confirm_required` audited with the raw id); nothing about the id is audited.
+- A body that is not JSON, or nested too deeply for the parser (inside the 1 MB cap), is refused 422 `confirm_required`
+  (not a JSON object), audited - never a bare 500. Same for the single write (§3.4).
+- Not changed (accepted, documented): `total`, `counts`, `current_index` and `hidden` still count items of cameras outside
+  the caller's scope (only system_admin holds `nvr.configure`). The add-on runs ONE worker process: start-up recovery
+  interrupts every running batch, and "is the runner alive" is this process's memory; a second worker needs a per-process
+  id first.
+- Open: an index on `nvr_changes(batch_id, batch_index)` needs a migration (0052 is the NVR connection feature, 0053 is
+  reserved) - not added; the status queries scan `nvr_changes`, which is small (one row per change).
 
 ### 3.6 Add and remove a camera (S3)
 
