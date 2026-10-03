@@ -100,7 +100,7 @@ def test_0050_nvr_stream_changes_on_a_0049_database(settings, tmp_path, monkeypa
                          (rid, rid, json.dumps(perms), json.dumps(sens)))
         rev = dbmod.permission_revision(conn)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [50]
+    assert dbmod.Database(settings.db_path).migrate() == [50, 51]  # 0051 (CR-021 self-update) follows
     with database.connection() as conn:
         old = dict(conn.execute("SELECT * FROM nvr_changes WHERE id = 'old'").fetchone())
         assert (old["recorder_id"], old["camera_id"], old["stream_ref"], old["reboot_required"], old["batch_id"], old["status"], old["before_xml"]) == ("nvr-1", None, None, 0, None, "applied", "<a/>")
