@@ -82,7 +82,7 @@ test.describe('electricity layout guard', () => {
           await page.waitForSelector('[data-elec]');
           await page.waitForFunction(() => document.querySelector('[data-elec]')?.getAttribute('data-state') !== 'loading', null, { timeout: 20_000 });
           // the desktop touch dial: the guard asks 44 px by default (the bubble skin's look); the other skins keep their 32 px desktop controls
-          await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32');
+          await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32px');
           if (s.prep) await s.prep(page);
           for (const w of WIDTHS) {
             await page.setViewportSize({ width: w, height: height(w) });

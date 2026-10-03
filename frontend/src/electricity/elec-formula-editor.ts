@@ -34,10 +34,6 @@ export class ElecFormulaEditor extends LitElement {
   @state() private textIssues: Issue[] = [];
   @state() private selected = -1;
   @state() private menu = false;
-  @state() private numOpen = false;
-  @state() private numVal = '';
-  @state() private numPct = true;
-  @state() private numErr = '';
   @state() private mainId = '';
   @state() private pctVal = '30';
   @state() private preview: FormulaPreview | null = null;
@@ -180,20 +176,9 @@ export class ElecFormulaEditor extends LitElement {
     this.edit(toks);
     this.selected = Math.min(i - 1, toks.length - 1);
   }
-  private confirmNumber() {
-    const raw = this.numVal.trim().replace(',', '.');
-    if (!/^\d+(\.\d+)?$/.test(raw) || Number(raw) <= 0) {
-      this.numErr = 'צריך להקליד מספר גדול מאפס';
-      return;
-    }
-    if (this.numPct && Number(raw) > 1000) {
-      this.numErr = 'האחוז גדול מדי';
-      return;
-    }
-    this.numOpen = false;
-    this.numErr = '';
-    this.add({ t: 'n', v: raw, pct: this.numPct });
-    this.numVal = '';
+  /** the number-entry dialog lives in the host page (outside the card); it calls this with the typed value */
+  addNumber(raw: string, pct: boolean) {
+    this.add({ t: 'n', v: raw, pct });
   }
 
   // ---------------------------------------------------------------- text mode
@@ -275,7 +260,7 @@ export class ElecFormulaEditor extends LitElement {
               <button type="button" class="btn" data-op="percent" aria-label="אחוז" @click=${() => this.togglePercent()}>%</button>
               <button type="button" class="btn" data-op="(" aria-label="סוגר פותח" @click=${() => this.addOp('(')}>(</button>
               <button type="button" class="btn" data-op=")" aria-label="סוגר סוגר" @click=${() => this.addOp(')')}>)</button>
-              <button type="button" class="btn" data-number-btn @click=${() => { this.numOpen = true; this.numErr = ''; }}>מספר</button>
+              <button type="button" class="btn" data-number-btn @click=${() => this.dispatchEvent(new CustomEvent('number-request', { bubbles: true, composed: true }))}>מספר</button>
               <span class="sp"></span>
               <button type="button" class="btn ghost" data-backspace @click=${() => this.backspace()}>⌫ מחיקה</button>
             </div>
@@ -287,17 +272,6 @@ export class ElecFormulaEditor extends LitElement {
       ${this.previewErr ? alertBox('err', this.previewErr) : nothing}
       ${ok ? alertBox('ok', 'הנוסחה תקינה') : nothing}
       ${pv && !issues.length ? this.renderPreview(pv) : nothing}
-      <elec-dialog heading="הוספת מספר" ?open=${this.numOpen} data-number-dialog @close=${() => (this.numOpen = false)}>
-        <div class="fld"><label for="numv">ערך</label>
-          <input id="numv" class="ltr ${this.numErr ? 'err' : ''}" data-number-input inputmode="decimal" .value=${this.numVal} @input=${(e: Event) => { this.numVal = (e.target as HTMLInputElement).value; this.numErr = ''; }} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.confirmNumber()} />
-          ${this.numErr ? html`<div class="msg" role="alert">${this.numErr}</div>` : nothing}</div>
-        <div class="seg" role="group" aria-label="סוג">
-          <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>אחוז</button>
-          <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>מספר</button>
-        </div>
-        <button slot="actions" type="button" class="btn pri" data-number-ok @click=${() => this.confirmNumber()}>הוספה</button>
-        <button slot="actions" type="button" class="btn" @click=${() => (this.numOpen = false)}>ביטול</button>
-      </elec-dialog>
     </div>`;
   }
 

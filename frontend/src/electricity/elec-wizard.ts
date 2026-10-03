@@ -13,7 +13,7 @@ import {
 } from '../api/electricity-billing';
 import { ElecBase, alertBox, n, setFlash, skeleton, stateBox } from './elec-ui';
 import './elec-formula-editor';
-import type { FormulaChange } from './elec-formula-editor';
+import type { ElecFormulaEditor, FormulaChange } from './elec-formula-editor';
 import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
 import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
@@ -79,6 +79,10 @@ export class ElecAccountWizard extends ElecBase {
   @state() private saving = false;
   @state() private saveErr = '';
   @state() private sampleResult: number | null = null;
+  @state() private numOpen = false;
+  @state() private numVal = '';
+  @state() private numPct = true;
+  @state() private numErr = '';
   private account: Account | null = null;
   private createdCustomerId = '';
 
@@ -286,7 +290,35 @@ export class ElecAccountWizard extends ElecBase {
     this.sampleResult = e.detail.result;
   };
   private renderStep2() {
-    return html`<elec-formula-editor .meters=${this.chosen()} .tokens=${this.tokens} @change=${this.onFormula} @checked=${this.onChecked}></elec-formula-editor>`;
+    return html`<elec-formula-editor .meters=${this.chosen()} .tokens=${this.tokens} @change=${this.onFormula} @checked=${this.onChecked} @number-request=${() => { this.numOpen = true; this.numErr = ''; }}></elec-formula-editor>`;
+  }
+  private confirmNumber() {
+    const raw = this.numVal.trim().replace(',', '.');
+    if (!/^\d+(\.\d+)?$/.test(raw) || Number(raw) <= 0) {
+      this.numErr = 'צריך להקליד מספר גדול מאפס';
+      return;
+    }
+    if (this.numPct && Number(raw) > 1000) {
+      this.numErr = 'האחוז גדול מדי';
+      return;
+    }
+    this.numOpen = false;
+    this.numErr = '';
+    this.renderRoot.querySelector<ElecFormulaEditor>('elec-formula-editor')?.addNumber(raw, this.numPct);
+    this.numVal = '';
+  }
+  private renderNumberDialog() {
+    return html`<elec-dialog heading="הוספת מספר" ?open=${this.numOpen} data-number-dialog @close=${() => (this.numOpen = false)}>
+      <div class="fld"><label for="numv">ערך</label>
+        <input id="numv" class="ltr ${this.numErr ? 'err' : ''}" data-number-input inputmode="decimal" .value=${this.numVal} @input=${(e: Event) => { this.numVal = (e.target as HTMLInputElement).value; this.numErr = ''; }} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.confirmNumber()} />
+        ${this.numErr ? html`<div class="msg" role="alert">${this.numErr}</div>` : nothing}</div>
+      <div class="seg" role="group" aria-label="סוג">
+        <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>אחוז</button>
+        <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>מספר</button>
+      </div>
+      <button slot="actions" type="button" class="btn pri" data-number-ok @click=${() => this.confirmNumber()}>הוספה</button>
+      <button slot="actions" type="button" class="btn" @click=${() => (this.numOpen = false)}>ביטול</button>
+    </elec-dialog>`;
   }
 
   private exOf(t: Tariff): { ex: number; inc: number; vat: number } {
@@ -440,7 +472,7 @@ export class ElecAccountWizard extends ElecBase {
               : html`<button type="button" class="btn pri" data-save ?disabled=${this.saving || !this.accName.trim()} @click=${() => void this.save()}>${this.edit ? 'שמירת שינויים' : this.afterSave === 'draft' && this.draftPossible() ? 'שמירה והפקת טיוטה' : 'שמירה'}</button>`}</div>
         </div>
       </div>
-      ${this.renderTariffDialog()}
+      ${this.renderTariffDialog()}${this.renderNumberDialog()}
     </div>`;
   }
 }

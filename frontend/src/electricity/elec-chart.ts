@@ -26,6 +26,7 @@ export class ElecChart extends LitElement {
     :host {
       display: block;
       min-inline-size: 0;
+      contain: inline-size;
       --c-bar: var(--sw-accent);
       --c-bar2: color-mix(in srgb, var(--sw-accent) 38%, var(--sw-surface-3));
       --c-text: var(--sw-text-3);

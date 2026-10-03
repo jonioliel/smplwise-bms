@@ -353,8 +353,7 @@ export const elecCss = css`
     background: var(--sw-surface-3);
     border-radius: var(--sw-r-sm);
     max-inline-size: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-wrap: wrap;
   }
   .seg button {
     padding: 5px 12px;
@@ -469,6 +468,7 @@ export const elecCss = css`
     display: inline-flex;
     align-items: center;
     min-block-size: var(--elec-touch);
+    min-inline-size: var(--elec-touch);
     color: var(--sw-heading);
     font-weight: 600;
     text-decoration: none;
@@ -480,6 +480,7 @@ export const elecCss = css`
     display: inline-flex;
     align-items: center;
     min-block-size: var(--elec-touch);
+    min-inline-size: var(--elec-touch);
     color: var(--sw-accent-text);
     text-decoration: none;
     cursor: pointer;
@@ -816,6 +817,13 @@ export const elecCss = css`
     background: var(--sw-danger-soft);
     color: var(--sw-danger-text);
     border-color: var(--sw-danger);
+  }
+  .tok.swatch {
+    inline-size: var(--elec-touch);
+    block-size: var(--elec-touch);
+    min-inline-size: var(--elec-touch);
+    padding: 0;
+    border-radius: 50%;
   }
   .tok.sel {
     outline: 2px solid var(--sw-accent);
