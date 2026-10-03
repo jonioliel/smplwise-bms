@@ -7,13 +7,17 @@ list is settled in a separate shared DTO file after these vectors are verified.
 ## Files
 
 - `GOLDEN_VECTORS.json` - `vectors_version: 2`. The v1 `vectors` array (29 vectors, generated from the existing Arx
-  signers) is unchanged; v2 adds `contract` and `contract_vectors` (68 cases). Do not edit it by hand.
-- `DTO_DRAFT.md` - the shared DTO draft (transport, schema, validation order, codes, DTO, versioning, open items).
-- `NOTE_FOR_WISKEY_v2.md` - what changed since vectors_version 1.
+  signers) is unchanged; v2 adds `contract` and `contract_vectors` (68 cases). Do not edit it by hand. Locked by
+  SHA-256 `2966133294109546e5a1d4b6dc319264bf17b80a1e468088b087c549f10c5a1f` (verified by WisKey 2026-10-04).
+- `GOLDEN_VECTORS_v3.json` - `vectors_version: 3`, a separate file with 82 complementary cases for WisKey's answers
+  W1-W8, response schemas and stateful setups. It supersedes one v2 case
+  (`status_station_mismatch_vs_open_record`); everything else in `GOLDEN_VECTORS.json` stays binding.
+- `DTO_DRAFT_v3.md` - the current shared DTO draft. `DTO_DRAFT.md` (v2) is kept unchanged as the verified record.
+- `NOTE_FOR_WISKEY_v3.md` - what changed since vectors_version 2. `NOTE_FOR_WISKEY_v2.md` - since vectors_version 1.
 - Generator and drift test: `smplwise_vms/backend/tests/test_wiskey_golden_vectors.py`.
   - `pytest tests/test_wiskey_golden_vectors.py` (from `smplwise_vms/backend`) fails if the file and the
     signers disagree.
-  - `python tests/test_wiskey_golden_vectors.py --write` rewrites the file.
+  - `python tests/test_wiskey_golden_vectors.py --write` rewrites both files (the v2 bytes must come out identical).
 
 The HMAC key in the file (`test_hmac_key.value`) is a public test constant. It is not a pairing secret. Never
 use it as one, and never derive one from it.
@@ -142,10 +146,45 @@ every accept case yields exactly its `expected_dto`, that a status call never op
 also refused by the v2 validator, and that the existing verifier accepts several of these cases (string `ts`, numeric
 nonce, 31 s lifetime, extra fields, collapsed duplicates), which is why the strict stages are required.
 
-## Open items
+## vectors_version 3: complementary vectors (DTO draft v3)
 
-Items 1, 2, 6, 7 and 8 below are settled by the DTO draft (string transport, closed schema, exact ts/nonce,
-`params.target_request_id`, both digests). The current open items are in `DTO_DRAFT.md` section 9.
+Added 2026-10-04 after WisKey's reply to v2 (W1-W8 accepted by Arx). `GOLDEN_VECTORS_v3.json` is a separate file;
+it references the v2 file by hash (`complements`) and lists the one superseded v2 case (`supersedes`). Cases are in
+`contract_vectors_v3` with the v2 fields (`id`, `category`, `service`, `expect`, `reason`, `reject_stage`,
+`reject_code`, `now`, `now_iso`, `signed_message_json`, `service_data_json`, digests and `expected_dto` for accept and
+stateful cases) plus:
+
+- `response_schema` and `expected_response` wherever the answer is determinate (every reject and stateful case; a
+  stateless accept depends on the store and has `null`). The schemas are in `response_schemas`.
+- `state_setup` (machine-readable store, capability, mapping, storage, dispatch result, clock) and
+  `expected_side_effects` (`pending_created`, `dispatched`, `status_read`, `replay_purge_allowed`) for stateful cases.
+- `forbidden_responses` on rejection cases: answers that must fail the case's schema.
+- `signed_message_utf8_bytes` / `signed_message_code_points` on size cases; `verified: false` on clock cases;
+  `replaces` on the replacement case.
+
+| Category | accept | reject | stateful | Total |
+|---|---|---|---|---|
+| relay | 0 | 0 | 5 | 5 |
+| size | 2 | 5 | 0 | 7 |
+| identity | 16 | 17 | 0 | 33 |
+| capability | 0 | 0 | 4 | 4 |
+| status | 0 | 0 | 8 | 8 |
+| response | 0 | 0 | 8 | 8 |
+| rejection | 0 | 7 | 0 | 7 |
+| clock | 0 | 1 | 7 | 8 |
+| time | 0 | 2 | 0 | 2 |
+| **total** | **18** | **32** | **32** | **82** |
+
+The test module models the v3 path in TEST code only (stateless validator plus a toy store) and checks every case's
+response and side effects, the forbidden responses, the byte counts, the v2 hash lock, and that the v3 reference keeps
+every v2 accept/reject outcome. Current open items: `DTO_DRAFT_v3.md` section 11.
+
+## Open items (historical)
+
+All items below are decided. Items 1, 2, 6, 7 and 8 were settled by the v2 draft (string transport, closed schema,
+exact ts/nonce, `params.target_request_id`, both digests); item 3 by the strict parser of the contract; item 4 by the
+lone-surrogate reject vectors; item 5 by the 30 s lifetime in the contract while the 60 s window of other paths stays
+unchanged. They are kept as the record of round 4. The current open items are in `DTO_DRAFT_v3.md` section 11.
 
 1. **Duplicate keys cannot be detected after parsing.** Python's `json.loads` (and, as far as we know, the
    JSON loader in front of an HA service call; not verified here) keeps the last value. The bridge service

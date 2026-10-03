@@ -13,6 +13,11 @@ parser/validator that exists in this TEST module only. It is not product code an
 that every reject vector is refused before any pending record or dispatch and that every accept vector passes. The v1
 `vectors` array is pinned by hash and must not change.
 
+vectors_version 3 is a SEPARATE file, `GOLDEN_VECTORS_v3.json` (DTO_DRAFT_v3.md): complementary cases for WisKey's
+answers W1-W8 of 2026-10-04, response documents with their schemas, and a toy store for the stateful cases. The v2
+file is locked by the SHA-256 WisKey verified; `--write` regenerates both files and must leave the v2 bytes identical.
+`python tests/test_wiskey_golden_vectors.py --v3` prints the v3 document.
+
 The HMAC key below is a TEST CONSTANT. It is not, and must never become, a pairing secret of any installation.
 """
 from __future__ import annotations
@@ -1198,10 +1203,880 @@ def test_existing_verifier_gaps_that_v2_closes():
     assert bridge_signing.Verifier(TEST_SECRET).verify(collapsed, now=T0) is None
 
 
+# ================================================================ vectors_version 3: complementary vectors (test code only)
+#
+# GOLDEN_VECTORS_v3.json is a SEPARATE file. It does not repeat or edit the v1 `vectors` or the v2 `contract_vectors`
+# in GOLDEN_VECTORS.json (that file is pinned below by the hash WisKey verified). v3 adds the cases for WisKey's
+# answers W1-W8 of 2026-10-04 (DTO_DRAFT_v3.md) and supersedes exactly one v2 case by a new id.
+#
+# The v3 reference below is still TEST code only: a stateless validator (v2 plus the 8192-byte limit) and a toy store
+# that models stage `state`, the clock-health block, the pending record, dispatch and the response documents. No
+# product code imports it, and it is not a door_open service.
+
+VECTORS_V3_FILE = VECTORS_FILE.parent / "GOLDEN_VECTORS_v3.json"
+VECTORS_V3_VERSION = 3
+# SHA-256 of GOLDEN_VECTORS.json (vectors_version 2, Arx commit c22b5f6a) as verified by WisKey on 2026-10-04.
+V2_FILE_SHA256 = "2966133294109546e5a1d4b6dc319264bf17b80a1e468088b087c549f10c5a1f"
+V2_COMMIT = "c22b5f6a"
+V2_CONTRACT_VECTORS = 68
+MAX_MESSAGE_BYTES = 8192
+CLOCK_MAX_DIVERGENCE_MS = 2000
+SUPERSEDED_BY_V3 = {"status_station_mismatch_vs_open_record": "status_station_mismatch_answers_not_found"}
+
+V3_CODES: dict[str, tuple[str, ...]] = {k: tuple(v) for k, v in CODES.items()}
+V3_CODES["encoding"] = (*CODES["encoding"], "message_too_large")
+V3_CODES["state"] = ("capability_missing", "capability_invalid", "capability_revoked", "replay", "request_id_conflict",
+                     "relay_not_allowed", "storage_unavailable")
+PRE_SCHEMA_STAGES = ("transport", "encoding", "parse", "schema")
+POST_SCHEMA_STAGES = ("binding", "signature", "time", "state")
+OPEN_UNKNOWN_REASONS = ("pending", "unconfirmed", "interrupted", "outcome_persistence_failed")
+STATUS_UNKNOWN_REASONS = (*OPEN_UNKNOWN_REASONS, "not_found_or_expired")
+STORED_UNKNOWN_REASONS = ("unconfirmed", "interrupted", "outcome_persistence_failed")
+STATE_CHECK_ORDER = ("capability", "replay (nonce)", "request_id (duplicate or conflict)", "relay mapping (door_open)",
+                     "pending record (door_open)", "dispatch / stored outcome read")
+
+# Documents this draft relies on, pinned at the versions found in the repository (path, version line, last commit, file
+# SHA-256 of the LF checkout). A later change that contradicts the draft needs an agreed change request.
+PINNED_DOCUMENTS = [
+    {"path": "MASTER_SPEC_HE.md", "version": "1.1.0-planning (14.09.2026)",
+     "commit": "af9ed7cf8fe1da688e5246115f004d3965149ee6",
+     "sha256": "04f55ec65652cf981723b5b28f74630f6b04622d3ec95454ff3fdfe66a95f5f7"},
+    {"path": "docs/security/HA_IDENTITY_RBAC_HE.md", "version": "binding specification 1.1 (14.09.2026)",
+     "commit": "af9ed7cf8fe1da688e5246115f004d3965149ee6",
+     "sha256": "f45f2c78b33e611654be00ececbbb43a166da6c02fcbae1c5ef21794496b932a"},
+    {"path": "docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md", "version": "audit of 2026-09-16, re-run 2026-09-22 (0.1.81)",
+     "commit": "196baedc41d6b5f6b97b3f562f1c35a0a785f042",
+     "sha256": "62e9c8a9edbd4a9294333ba69cefdb90630e031d16780ac38ffec0d5cfc7d641"},
+]
+
+
+class V3Reject(Exception):
+    """A v3 refusal: stage and code only. `request_id` is set only when the schema stage passed (for the echo rule)."""
+
+    def __init__(self, stage: str, code: str, request_id: str | None = None) -> None:
+        assert stage in STAGES and code in V3_CODES[stage], (stage, code)
+        assert (request_id is not None) == (stage in POST_SCHEMA_STAGES), (stage, request_id)
+        super().__init__(f"{stage}:{code}")
+        self.stage = stage
+        self.code = code
+        self.request_id = request_id
+
+
+def contract_validate_v3(service: str, service_data: Any, now: int | None, raw_inner: bytes | None = None) -> TrustedDoorDTO:
+    """v3 stateless stages: transport, encoding (UTF-8 check, THEN the 8192-byte limit), parse .. time as in v2."""
+    if raw_inner is not None:
+        data = raw_inner
+    else:
+        if not isinstance(service_data, dict) or set(service_data) != {"signed_message_json"} or not isinstance(service_data["signed_message_json"], str):
+            raise V3Reject("transport", "transport_shape")
+        text = service_data["signed_message_json"]
+        if _has_surrogate(text):
+            raise V3Reject("encoding", "lone_surrogate")
+        data = text.encode("utf-8")
+    try:
+        data.decode("utf-8")  # strict; never yields a surrogate
+    except UnicodeDecodeError:
+        raise V3Reject("encoding", "invalid_utf8") from None
+    if len(data) > MAX_MESSAGE_BYTES:  # UTF-8 BYTES of signed_message_json, inclusive limit, before parse
+        raise V3Reject("encoding", "message_too_large")
+    try:
+        return contract_validate(service, None, now, raw_inner=data)
+    except ContractReject as e:
+        rid = json.loads(data.decode("utf-8"))["request_id"] if e.stage in POST_SCHEMA_STAGES else None
+        raise V3Reject(e.stage, e.code, rid) from None
+
+
+def clock_healthy(clock: dict[str, Any] | None) -> bool:
+    """W7 (NOT YET VERIFIED): a valid UTC anchor exists, UTC has not regressed below it, and the UTC advance agrees
+    with the monotonic advance within 2000 ms in absolute value. `None` = healthy, not under test."""
+    if clock is None:
+        return True
+    if clock["stored_utc_anchor_ms"] is None or clock["utc_now_ms"] < clock["stored_utc_anchor_ms"]:
+        return False
+    divergence = (clock["utc_now_ms"] - clock["utc_ref_ms"]) - (clock["monotonic_now_ms"] - clock["monotonic_ref_ms"])
+    return abs(divergence) <= CLOCK_MAX_DIVERGENCE_MS
+
+
+def _rejected(stage: str, code: str, request_id: str | None) -> dict[str, Any]:
+    r: dict[str, Any] = {"result": "rejected", "stage": stage, "code": code}
+    if stage in POST_SCHEMA_STAGES:
+        r["request_id"] = request_id
+    return r
+
+
+def _stored_result(request_id: str, target: str, rec: dict[str, Any]) -> dict[str, Any]:
+    outcome = {"result": "acknowledged"} if rec["state"] == "acknowledged" else {"result": "unknown", "reason": rec["reason"]}
+    return {"result": "stored_result", "request_id": request_id, "target_request_id": target, "outcome": outcome}
+
+
+def reference_door_service(service: str, service_data: Any, now: int | None, setup: dict[str, Any] | None,
+                           raw_inner: bytes | None = None) -> tuple[dict[str, Any], dict[str, bool]]:
+    """The whole path in the v3 reference: stateless stages, clock health, stage `state`, pending, dispatch, response.
+    `setup` is a vector's machine-readable `state_setup` (None for a stateless case: only the validation runs)."""
+    effects = {"pending_created": False, "dispatched": False, "status_read": False, "replay_purge_allowed": True}
+    try:
+        dto = contract_validate_v3(service, service_data, now, raw_inner=raw_inner)
+    except V3Reject as e:
+        return _rejected(e.stage, e.code, e.request_id), effects
+    if setup is None:
+        return {"result": "validated", "request_id": dto.request_id}, effects
+    rid = dto.request_id
+    if not clock_healthy(setup["clock"]):
+        effects["replay_purge_allowed"] = False
+        return _rejected("time", "clock_invalid", rid), effects
+    if setup["capability"] != "valid":
+        return _rejected("state", f"capability_{setup['capability']}", rid), effects
+    records = {r["request_id"]: r for r in setup["records"]}
+    if any(r["nonce"] == dto.nonce and r["request_id"] != rid for r in setup["records"]):
+        return _rejected("state", "replay", rid), effects
+    if dto.action == "door_open":
+        relay = dict(dto.params)["relay"]
+        actor = dict(dto.actor)
+        rec = records.get(rid)
+        if rec is not None:
+            if (rec["actor"], rec["station"], rec["relay"]) != (actor, dto.station, relay):
+                return _rejected("state", "request_id_conflict", rid), effects
+            if rec["state"] == "pending":
+                return {"result": "unknown", "request_id": rid, "reason": "pending"}, effects  # never executed again
+            return _stored_result(rid, rid, rec), effects
+        if relay not in setup["station_relays"].get(dto.station, []):
+            return _rejected("state", "relay_not_allowed", rid), effects
+        if setup["storage"] == "fails_before_send":
+            return _rejected("state", "storage_unavailable", rid), effects  # nothing sent, nothing stored
+        effects["pending_created"] = True
+        effects["dispatched"] = True
+        result = setup["dispatch_result"]
+        if result == "acknowledged":
+            return {"result": "acknowledged", "request_id": rid}, effects
+        return {"result": "unknown", "request_id": rid, "reason": result}, effects  # after a possible send: never rejected
+    target = dict(dto.params)["target_request_id"]
+    effects["status_read"] = True
+    rec = records.get(target)
+    if rec is None or rec["station"] != dto.station:  # exact match; a different station looks exactly like a missing target
+        return {"result": "unknown", "request_id": rid, "target_request_id": target, "reason": "not_found_or_expired"}, effects
+    if rec["state"] == "pending":
+        return {"result": "unknown", "request_id": rid, "target_request_id": target, "reason": "pending"}, effects
+    return _stored_result(rid, target, rec), effects
+
+
+# ---------------------------------------------------------------- v3 response schemas and a strict mini validator
+
+UUID_PATTERN = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+SCHEMA_KEYWORDS = frozenset({"type", "const", "enum", "pattern", "properties", "required", "additionalProperties", "oneOf"})
+
+
+def _obj(props: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "object", "properties": props, "required": sorted(props), "additionalProperties": False}
+
+
+def _uuid() -> dict[str, Any]:
+    return {"type": "string", "pattern": UUID_PATTERN}
+
+
+def _rejected_schema(stages: tuple[str, ...], with_request_id: bool) -> dict[str, Any]:
+    branches = []
+    for s in stages:
+        props: dict[str, Any] = {"result": {"const": "rejected"}, "stage": {"const": s}, "code": {"enum": list(V3_CODES[s])}}
+        if with_request_id:
+            props["request_id"] = _uuid()
+        branches.append(_obj(props))
+    return {"oneOf": branches}
+
+
+RESPONSE_SCHEMAS: dict[str, dict[str, Any]] = {
+    "rejected_before_schema_pass": _rejected_schema(PRE_SCHEMA_STAGES, False),
+    "rejected_after_schema_pass": _rejected_schema(POST_SCHEMA_STAGES, True),
+    "door_open_acknowledged": _obj({"result": {"const": "acknowledged"}, "request_id": _uuid()}),
+    "door_open_unknown": _obj({"result": {"const": "unknown"}, "request_id": _uuid(), "reason": {"enum": list(OPEN_UNKNOWN_REASONS)}}),
+    "status_unknown": _obj({"result": {"const": "unknown"}, "request_id": _uuid(), "target_request_id": _uuid(),
+                            "reason": {"enum": list(STATUS_UNKNOWN_REASONS)}}),
+    "stored_result": _obj({"result": {"const": "stored_result"}, "request_id": _uuid(), "target_request_id": _uuid(),
+                           "outcome": {"oneOf": [_obj({"result": {"const": "acknowledged"}}),
+                                                 _obj({"result": {"const": "unknown"}, "reason": {"enum": list(STORED_UNKNOWN_REASONS)}})]}}),
+}
+
+
+def schema_ok(schema: dict[str, Any], inst: Any) -> bool:
+    """A strict validator for the JSON Schema subset used above. Unknown keywords are an error, not ignored."""
+    assert not set(schema) - SCHEMA_KEYWORDS, set(schema) - SCHEMA_KEYWORDS
+    t = schema.get("type")
+    if t == "object" and not isinstance(inst, dict):
+        return False
+    if t == "string" and not isinstance(inst, str):
+        return False
+    if "const" in schema and not (type(inst) is type(schema["const"]) and inst == schema["const"]):
+        return False
+    if "enum" in schema and not any(type(inst) is type(e) and inst == e for e in schema["enum"]):
+        return False
+    if "pattern" in schema:
+        p = schema["pattern"]
+        assert p.startswith("^") and p.endswith("$")
+        if not isinstance(inst, str) or not re.fullmatch(p[1:-1], inst):
+            return False
+    if isinstance(inst, dict):
+        props = schema.get("properties", {})
+        if any(k not in inst for k in schema.get("required", ())):
+            return False
+        if schema.get("additionalProperties") is False and set(inst) - set(props):
+            return False
+        if any(k in inst and not schema_ok(sub, inst[k]) for k, sub in props.items()):
+            return False
+    if "oneOf" in schema and sum(schema_ok(s, inst) for s in schema["oneOf"]) != 1:
+        return False
+    return True
+
+
+# ---------------------------------------------------------------- v3 case construction
+
+def _v3_rid(tag: str) -> str:
+    h = hashlib.sha256(f"v3-request:{tag}".encode()).hexdigest()
+    return f"{h[:8]}-{h[8:12]}-4{h[13:16]}-8{h[17:20]}-{h[20:32]}"
+
+
+def _v3_nonce(tag: str) -> str:
+    return hashlib.sha256(f"v3-nonce:{tag}".encode()).hexdigest()[:32]
+
+
+def _fresh(tag: str, **changes: Any) -> dict[str, Any]:
+    """DOOR_OPEN with its own request_id and nonce (so stateful cases never collide by accident) plus `changes`."""
+    return {**DOOR_OPEN, "request_id": _v3_rid(tag), "nonce": _v3_nonce(tag), **changes}
+
+
+def _actor(**changes: str) -> dict[str, str]:
+    return {**DOOR_OPEN["actor"], **changes}
+
+
+def _pad_to(text: str, total_bytes: int) -> str:
+    """Insert insignificant JSON whitespace after the opening brace until the UTF-8 length is exactly total_bytes.
+    Whitespace is legal JSON and is not part of the signed canonical bytes, so the signature stays valid."""
+    n = total_bytes - len(text.encode("utf-8"))
+    assert n >= 0 and text.startswith("{")
+    return "{" + " " * n + text[1:]
+
+
+OPEN_RECORD = {"request_id": DOOR_OPEN["request_id"], "nonce": DOOR_OPEN["nonce"], "actor": dict(DOOR_OPEN["actor"]),
+               "station": DOOR_OPEN["station"], "relay": 1, "state": "acknowledged", "reason": None}
+DEFAULT_SETUP: dict[str, Any] = {"capability": "valid", "station_relays": {"test_station_entrance": [1, 2]}, "records": [],
+                                 "storage": "ok", "dispatch_result": "acknowledged", "clock": None}
+NO_EFFECTS = {"pending_created": False, "dispatched": False, "status_read": False, "replay_purge_allowed": True}
+OPENED = {**NO_EFFECTS, "pending_created": True, "dispatched": True}
+READ = {**NO_EFFECTS, "status_read": True}
+CLOCK_BLOCKED = {**NO_EFFECTS, "replay_purge_allowed": False}
+ENTRY_ID = "01JTESTSTATIONENTRYID00000"  # synthetic, shaped like an opaque ConfigEntry.entry_id; not a real one
+
+
+def _setup(**over: Any) -> dict[str, Any]:
+    return {**DEFAULT_SETUP, **over}
+
+
+def _record(**over: Any) -> dict[str, Any]:
+    return {**OPEN_RECORD, **over}
+
+
+def _clock(*, divergence_ms: int = 0, anchor_ms: int | None = (T0 - 3600) * 1000, utc_now_ms: int = T0 * 1000) -> dict[str, Any]:
+    """A clock snapshot: reference pair taken 600 s ago; monotonic advanced 600 s minus divergence."""
+    return {"utc_now_ms": utc_now_ms, "utc_ref_ms": utc_now_ms - 600_000, "monotonic_now_ms": 700_000 - divergence_ms,
+            "monotonic_ref_ms": 100_000, "stored_utc_anchor_ms": anchor_ms}
+
+
+def _v3_cases() -> list[dict[str, Any]]:
+    C: list[dict[str, Any]] = []
+
+    def add(vid: str, category: str, expect: str, stage: str | None, code: str | None, reason: str, *,
+            service: str = "door_open", now: int | None = T0, **payload: Any) -> None:
+        C.append({"id": vid, "category": category, "service": service, "expect": expect, "reject_stage": stage,
+                  "reject_code": code, "now": now, "reason": reason, **payload})
+
+    base = _signed_wire(DOOR_OPEN)
+    W = _signed_wire
+
+    # --- relay (W1): params.relay is the physical_index of WisKey's verified active mapping for the station
+    add("relay_physical_index_1_allowed", "relay", "stateful", None, None,
+        "relay 1 with the station's verified active mapping {1, 2}: acknowledged after the pending record and the dispatch.",
+        wire=W(_fresh("relay1")), state_setup=_setup(),
+        expected_response={"result": "acknowledged", "request_id": _v3_rid("relay1")}, response_schema="door_open_acknowledged",
+        expected_side_effects=OPENED)
+    add("relay_physical_index_2_mapping_without_1", "relay", "stateful", None, None,
+        "The mapping holds only physical_index 2. relay 2 is allowed: no contiguous range starting at 1 is assumed.",
+        wire=W(_fresh("relay2only", params={"relay": 2})), state_setup=_setup(station_relays={"test_station_entrance": [2]}),
+        expected_response={"result": "acknowledged", "request_id": _v3_rid("relay2only")}, response_schema="door_open_acknowledged",
+        expected_side_effects=OPENED)
+    add("relay_1_not_in_mapping_with_gap", "relay", "stateful", "state", "relay_not_allowed",
+        "The mapping holds only physical_index 2; relay 1 is refused before any pending record, although 1 < 2.",
+        wire=W(_fresh("relay1gap")), state_setup=_setup(station_relays={"test_station_entrance": [2]}),
+        expected_side_effects=NO_EFFECTS)
+    add("relay_3_not_in_mapping", "relay", "stateful", "state", "relay_not_allowed",
+        "relay 3 with the mapping {1, 2} (rc.37 uses a subset of {1, 2}). Refused before any pending record.",
+        wire=W(_fresh("relay3", params={"relay": 3})), state_setup=_setup(), expected_side_effects=NO_EFFECTS)
+    add("relay_max_safe_integer_not_in_mapping", "relay", "stateful", "state", "relay_not_allowed",
+        "relay 2^53-1 passes the schema (an integer >= 1) and is refused by the mapping check, not by parsing.",
+        wire=W(_fresh("relaymax", params={"relay": SAFE_MAX})), state_setup=_setup(), expected_side_effects=NO_EFFECTS)
+
+    # --- size (W4): 8192 UTF-8 bytes inclusive, measured after the UTF-8 check and before parse
+    ascii_wire = W(_fresh("size_ascii"))
+    multi_wire = W(_fresh("size_multi", actor=_actor(display_name="ש" * 64 + "\U0001F6AA" * 64)))
+    heb_wire = W(_fresh("size_cp", actor=_actor(display_name="ש" * 128)))
+    add("size_8192_bytes_ascii_accept", "size", "accept", None, None,
+        "signed_message_json is exactly 8192 UTF-8 bytes (padding is insignificant JSON whitespace after the opening brace). Accepted: the limit is inclusive. The outer service_data_json is longer (escaping); only the inner string is measured.",
+        inner=_pad_to(_text(ascii_wire), 8192))
+    add("size_8193_bytes_ascii_reject", "size", "reject", "encoding", "message_too_large",
+        "The same message with one more space: 8193 bytes. Refused before parsing.",
+        inner=_pad_to(_text(ascii_wire), 8193))
+    add("size_8192_bytes_multibyte_accept", "size", "accept", None, None,
+        "Exactly 8192 bytes with multi-byte characters: display_name is 64 Hebrew letters (2 bytes) and 64 U+1F6AA (4 bytes, 2 UTF-16 units). Fewer than 8192 code points; accepted.",
+        inner=_pad_to(_text(multi_wire), 8192))
+    add("size_8193_bytes_multibyte_reject", "size", "reject", "encoding", "message_too_large",
+        "8193 bytes with the same multi-byte characters, well under 8192 code points and UTF-16 units. Refused: the limit counts bytes, not characters.",
+        inner=_pad_to(_text(multi_wire), 8193))
+    t = _text(heb_wire)
+    cp_8192 = "{" + " " * (8192 - len(t)) + t[1:]
+    add("size_8192_code_points_8320_bytes_reject", "size", "reject", "encoding", "message_too_large",
+        "Exactly 8192 code points but 8320 UTF-8 bytes (128 Hebrew letters in display_name). A character count would accept it; the byte count refuses it.",
+        inner=cp_8192)
+    add("size_8193_bytes_invalid_json_size_first", "size", "reject", "encoding", "message_too_large",
+        "8193 bytes of truncated JSON. Under the limit this is parse/invalid_json; here the size check runs first because it precedes parsing.",
+        inner=_pad_to(_text(base)[:-1], 8193))
+    add("size_8193_bytes_invalid_utf8_utf8_first", "size", "reject", "encoding", "invalid_utf8",
+        "8193 bytes that also contain 0xFF. The UTF-8 check runs before the size check, so the code is invalid_utf8. Given as hex only.",
+        raw_inner=_pad_to(_text(base), 8192).encode("utf-8").replace(b'"display_name":"', b'"display_name":"\xff', 1))
+
+    # --- identity (W3): station = opaque ConfigEntry.entry_id (exact match), actor.id = Arx user id
+    def ident(vid: str, expect: str, reason: str, **changes: Any) -> None:
+        add(vid, "identity", expect, "schema" if expect == "reject" else None, "bad_format" if expect == "reject" else None,
+            reason, wire=W({**DOOR_OPEN, **changes}))
+
+    ident("station_length_1_accept", "accept", "station of 1 code point.", station="s")
+    ident("station_length_128_accept", "accept", "station of 128 code points (the maximum).", station="s" * 128)
+    ident("station_length_129_reject", "reject", "station of 129 code points.", station="s" * 129)
+    ident("station_128_non_bmp_code_points_accept", "accept",
+          "station of 128 U+1F6AA: 128 code points, 256 UTF-16 units, 512 bytes. The limit counts code points.", station="\U0001F6AA" * 128)
+    ident("station_entry_id_opaque_accept", "accept",
+          "A synthetic opaque ConfigEntry.entry_id-like value. No UUID requirement, no hardware identifier.", station=ENTRY_ID)
+    ident("station_uppercase_uuid_like_accept", "accept",
+          "An upper-case UUID-looking station. station is not UUID-validated and is not case-folded.", station="3F2B8C1E-9A4D-4E6F-8B7A-1C2D3E4F5A6B")
+    ident("station_case_preserved_accept", "accept", "Mixed case is kept exactly in the DTO (no case change).", station="Test_Station_ENTRANCE")
+    ident("station_whitespace_not_trimmed_accept", "accept",
+          "Leading and trailing spaces are kept exactly in the DTO (no trim). The exact-match store would treat it as a different station.",
+          station=" test_station_entrance ")
+    ident("station_nbsp_u00a0_accept", "accept", "U+00A0 (just above the C1 range) is not a control character.", station="test station")
+    ident("station_c0_u0001_reject", "reject", "station contains U+0001 (C0).", station="test\u0001station")
+    ident("station_c0_tab_reject", "reject", "station contains a TAB (C0).", station="test\tstation")
+    ident("station_del_u007f_reject", "reject", "station contains DEL (U+007F).", station="test\u007fstation")
+    ident("station_c1_u0080_reject", "reject", "station contains U+0080 (first C1).", station="test\u0080station")
+    ident("station_c1_u0085_reject", "reject", "station contains U+0085 NEL (C1).", station="test\u0085station")
+    ident("station_c1_u009f_reject", "reject", "station contains U+009F (last C1).", station="test\u009fstation")
+    ident("actor_id_length_1_accept", "accept", "actor.id of 1 code point.", actor=_actor(id="u"))
+    ident("actor_id_length_128_accept", "accept", "actor.id of 128 code points.", actor=_actor(id="u" * 128))
+    ident("actor_id_length_129_reject", "reject", "actor.id of 129 code points.", actor=_actor(id="u" * 129))
+    ident("actor_id_empty_reject", "reject", "actor.id is the empty string.", actor=_actor(id=""))
+    ident("actor_id_non_uuid_accept", "accept", "actor.id is the Arx user id as is; no UUID requirement.", actor=_actor(id="arx-user:42/Main"))
+    ident("actor_id_whitespace_not_trimmed_accept", "accept", "actor.id with surrounding spaces is kept exactly.", actor=_actor(id=" test-user-0001 "))
+    ident("actor_id_c0_u001f_reject", "reject", "actor.id contains U+001F (C0).", actor=_actor(id="test\u001fuser"))
+    ident("actor_id_c1_u0085_reject", "reject", "actor.id contains U+0085 (C1).", actor=_actor(id="test\u0085user"))
+    ident("actor_id_del_reject", "reject", "actor.id contains DEL.", actor=_actor(id="test\u007fuser"))
+    ident("display_name_length_1_accept", "accept", "display_name of 1 code point.", actor=_actor(display_name="ש"))
+    ident("display_name_length_128_hebrew_accept", "accept", "display_name of 128 Hebrew letters (256 bytes).", actor=_actor(display_name="ש" * 128))
+    ident("display_name_length_129_reject", "reject", "display_name of 129 code points.", actor=_actor(display_name="ש" * 129))
+    ident("display_name_empty_reject", "reject", "display_name is the empty string.", actor=_actor(display_name=""))
+    ident("display_name_128_non_bmp_accept", "accept",
+          "display_name of 128 U+1F6AA: 128 code points (256 UTF-16 units). A UTF-16 length check would wrongly refuse it.",
+          actor=_actor(display_name="\U0001F6AA" * 128))
+    ident("display_name_single_space_accept", "accept", "display_name is one space: a printable code point, kept as is (no trim).",
+          actor=_actor(display_name=" "))
+    ident("display_name_c0_newline_reject", "reject", "display_name contains a line feed (C0).", actor=_actor(display_name="שורה\nשנייה"))
+    ident("display_name_c1_u009f_reject", "reject", "display_name contains U+009F (C1).", actor=_actor(display_name="שם\u009f"))
+    ident("display_name_del_reject", "reject", "display_name contains DEL.", actor=_actor(display_name="שם\u007f"))
+
+    # --- capability (W5)
+    for vid, cap, why in (("capability_missing", "missing", "No capability was handed over with the DTO."),
+                          ("capability_invalid_other_config_entry", "invalid", "The capability belongs to a different bridge/config entry."),
+                          ("capability_revoked_after_reload", "revoked", "The capability was revoked when the bridge entry was unloaded/reloaded.")):
+        add(vid, "capability", "stateful", "state", f"capability_{cap}",
+            f"{why} Refused in stage state: no pending record, no dispatch, no extra RBAC.",
+            wire=W(_fresh(vid)), state_setup=_setup(capability=cap), expected_side_effects=NO_EFFECTS)
+    st_now = _epoch(V2_STATUS["issued_at"])
+    add("capability_revoked_status_query", "capability", "stateful", "state", "capability_revoked",
+        "door_open_status with a revoked capability: refused, the stored outcome is not read.",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now,
+        state_setup=_setup(capability="revoked", records=[_record()]), expected_side_effects=NO_EFFECTS)
+
+    # --- status (W5 replacement, W6 shapes)
+    target = DOOR_OPEN["request_id"]
+    nf = {"result": "unknown", "request_id": STATUS_REQUEST_ID, "target_request_id": target, "reason": "not_found_or_expired"}
+    add("status_station_mismatch_answers_not_found", "status", "stateful", None, None,
+        "REPLACES v2 status_station_mismatch_vs_open_record. Status for the open request but station test_station_side; the record is for test_station_entrance. Answered exactly like a missing target, so a status call cannot probe other stations.",
+        service="door_open_status", wire=W({**V2_STATUS, "station": "test_station_side"}), now=st_now,
+        state_setup=_setup(records=[_record()]), expected_response=nf, response_schema="status_unknown", expected_side_effects=READ,
+        replaces="status_station_mismatch_vs_open_record")
+    add("status_station_case_differs_answers_not_found", "status", "stateful", None, None,
+        "Status with station Test_Station_Entrance; the record has test_station_entrance. Exact match only: not found.",
+        service="door_open_status", wire=W({**V2_STATUS, "station": "Test_Station_Entrance"}), now=st_now,
+        state_setup=_setup(records=[_record()]), expected_response=nf, response_schema="status_unknown", expected_side_effects=READ)
+    add("status_station_trailing_space_answers_not_found", "status", "stateful", None, None,
+        "Status with station 'test_station_entrance ' (trailing space). No trim: not found.",
+        service="door_open_status", wire=W({**V2_STATUS, "station": "test_station_entrance "}), now=st_now,
+        state_setup=_setup(records=[_record()]), expected_response=nf, response_schema="status_unknown", expected_side_effects=READ)
+    add("status_target_missing_answers_not_found", "status", "stateful", None, None,
+        "Status for a target the store does not hold (never seen or purged after 7 days): the full v3 response document.",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now, state_setup=_setup(),
+        expected_response=nf, response_schema="status_unknown", expected_side_effects=READ)
+    add("status_target_pending", "status", "stateful", None, None,
+        "The open is still pending: unknown/pending with target_request_id. Nothing is executed again.",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now, state_setup=_setup(records=[_record(state="pending")]),
+        expected_response={**nf, "reason": "pending"}, response_schema="status_unknown", expected_side_effects=READ)
+    sr = {"result": "stored_result", "request_id": STATUS_REQUEST_ID, "target_request_id": target}
+    add("status_target_acknowledged", "status", "stateful", None, None,
+        "The open completed with acknowledged: stored_result, outcome acknowledged (a command acknowledgement, not proof the door opened).",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now, state_setup=_setup(records=[_record()]),
+        expected_response={**sr, "outcome": {"result": "acknowledged"}}, response_schema="stored_result", expected_side_effects=READ)
+    add("status_target_unknown_unconfirmed", "status", "stateful", None, None,
+        "The open completed with an unconfirmed outcome: stored_result, outcome unknown/unconfirmed.",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now, state_setup=_setup(records=[_record(state="unknown", reason="unconfirmed")]),
+        expected_response={**sr, "outcome": {"result": "unknown", "reason": "unconfirmed"}}, response_schema="stored_result", expected_side_effects=READ)
+    add("status_target_interrupted", "status", "stateful", None, None,
+        "The open was interrupted (for example a restart while pending) and is stored as unknown/interrupted; it is never re-executed.",
+        service="door_open_status", wire=W(V2_STATUS), now=st_now, state_setup=_setup(records=[_record(state="unknown", reason="interrupted")]),
+        expected_response={**sr, "outcome": {"result": "unknown", "reason": "interrupted"}}, response_schema="stored_result", expected_side_effects=READ)
+
+    # --- response (W6, door_open)
+    rid = _v3_rid("resp")
+    resp_wire = W(_fresh("resp"))
+    add("open_acknowledged", "response", "stateful", None, None,
+        "Stored and acknowledged: {result: acknowledged, request_id}. Command acknowledgement only.",
+        wire=resp_wire, state_setup=_setup(), expected_response={"result": "acknowledged", "request_id": rid},
+        response_schema="door_open_acknowledged", expected_side_effects=OPENED)
+    for reason in ("unconfirmed", "interrupted", "outcome_persistence_failed"):
+        extra = ({"forbidden_responses": [
+            {"why": "after the point where a send was possible the answer is unknown, never rejected",
+             "response": {"result": "rejected", "stage": "state", "code": "storage_unavailable", "request_id": rid}}]}
+                 if reason == "outcome_persistence_failed" else {})
+        add(f"open_unknown_{reason}", "response", "stateful", None, None,
+            f"The command was sent; the outcome is uncertain ({reason}). The answer is unknown, never rejected, and Arx then only asks with door_open_status.",
+            wire=resp_wire, state_setup=_setup(dispatch_result=reason), expected_response={"result": "unknown", "request_id": rid, "reason": reason},
+            response_schema="door_open_unknown", expected_side_effects=OPENED, **extra)
+    add("open_duplicate_while_pending", "response", "stateful", None, None,
+        "The identical door_open again while its record is pending: unknown/pending. No second pending record, no second dispatch.",
+        wire=base, state_setup=_setup(records=[_record(state="pending")]),
+        expected_response={"result": "unknown", "request_id": target, "reason": "pending"}, response_schema="door_open_unknown",
+        expected_side_effects=NO_EFFECTS)
+    add("open_duplicate_completed_acknowledged", "response", "stateful", None, None,
+        "The identical door_open again after it completed: stored_result; request_id (this call) and target_request_id (the open) are equal here. Not executed again.",
+        wire=base, state_setup=_setup(records=[_record()]),
+        expected_response={"result": "stored_result", "request_id": target, "target_request_id": target, "outcome": {"result": "acknowledged"}},
+        response_schema="stored_result", expected_side_effects=NO_EFFECTS)
+    add("open_duplicate_completed_unknown", "response", "stateful", None, None,
+        "The identical door_open again after it completed with unknown/unconfirmed: stored_result with that outcome. Not executed again.",
+        wire=base, state_setup=_setup(records=[_record(state="unknown", reason="unconfirmed")]),
+        expected_response={"result": "stored_result", "request_id": target, "target_request_id": target,
+                           "outcome": {"result": "unknown", "reason": "unconfirmed"}},
+        response_schema="stored_result", expected_side_effects=NO_EFFECTS)
+    add("open_storage_unavailable_before_send", "response", "stateful", "state", "storage_unavailable",
+        "The pending record cannot be written. Nothing was sent: rejected state/storage_unavailable. Not a success and not a re-open.",
+        wire=W(_fresh("storage")), state_setup=_setup(storage="fails_before_send"), expected_side_effects=NO_EFFECTS,
+        forbidden_responses=[{"why": "nothing was sent; this is not a success",
+                              "response": {"result": "acknowledged", "request_id": _v3_rid("storage")}},
+                             {"why": "nothing was sent; this is not an uncertain outcome",
+                              "response": {"result": "unknown", "request_id": _v3_rid("storage"), "reason": "outcome_persistence_failed"}}])
+
+    # --- rejection (W8): shape and request_id echo
+    leak = {"why": "no input text, body, digest, actor or station in a refusal"}
+    add("rejection_parse_no_request_id", "rejection", "reject", "parse", "duplicate_key",
+        "Duplicate station in the string. The request_id is readable in the text but is NOT echoed: the schema stage never ran.",
+        inner=_text(base).replace('"station":"test_station_entrance"', '"station":"test_station_other","station":"test_station_entrance"'),
+        forbidden_responses=[
+            {"why": "request_id is echoed only after a full schema pass", "response": {"result": "rejected", "stage": "parse", "code": "duplicate_key", "request_id": target}},
+            {**leak, "response": {"result": "rejected", "stage": "parse", "code": "duplicate_key", "detail": "duplicate key 'station'"}},
+            {**leak, "response": {"result": "rejected", "stage": "parse", "code": "duplicate_key", "station": "test_station_entrance"}},
+            {"why": "the code must belong to the stage", "response": {"result": "rejected", "stage": "schema", "code": "duplicate_key"}},
+            {"why": "closed code set", "response": {"result": "rejected", "stage": "parse", "code": "duplicate"}}])
+    add("rejection_schema_no_request_id", "rejection", "reject", "schema", "unknown_field",
+        "An extra signed field `capability`; request_id itself is valid. Not echoed: the schema stage did not pass as a whole.",
+        wire=W({**DOOR_OPEN, "capability": "x"}),
+        forbidden_responses=[
+            {"why": "request_id is echoed only after a full schema pass", "response": {"result": "rejected", "stage": "schema", "code": "unknown_field", "request_id": target}},
+            {**leak, "response": {"result": "rejected", "stage": "schema", "code": "unknown_field", "field": "capability"}}])
+    add("rejection_schema_bad_request_id_no_echo", "rejection", "reject", "schema", "bad_format",
+        "request_id is not a UUID. Not echoed (and could not be, it failed the schema).",
+        wire=W({**DOOR_OPEN, "request_id": "req-0001"}),
+        forbidden_responses=[{"why": "request_id is echoed only after a full schema pass",
+                              "response": {"result": "rejected", "stage": "schema", "code": "bad_format", "request_id": "req-0001"}}])
+    add("rejection_transport_no_request_id", "rejection", "reject", "transport", "transport_shape",
+        "The wire message as an object instead of the string envelope. No request_id.",
+        service_data=base,
+        forbidden_responses=[{"why": "request_id is echoed only after a full schema pass",
+                              "response": {"result": "rejected", "stage": "transport", "code": "transport_shape", "request_id": target}}])
+    add("rejection_binding_echoes_request_id", "rejection", "reject", "binding", "ts_mismatch",
+        "ts = epoch(issued_at) + 1. The schema passed, so the refusal echoes request_id.",
+        wire=W(DOOR_OPEN, ts=T0 + 1),
+        forbidden_responses=[
+            {"why": "after a full schema pass the request_id is echoed", "response": {"result": "rejected", "stage": "binding", "code": "ts_mismatch"}},
+            {**leak, "response": {"result": "rejected", "stage": "binding", "code": "ts_mismatch", "request_id": target, "body_sha256": "0" * 64}}])
+    add("rejection_signature_echoes_request_id", "rejection", "reject", "signature", "bad_signature",
+        "station changed after signing. The schema passed, so request_id is echoed; no digest of the refused message is returned.",
+        wire={**base, "station": "test_station_other"},
+        forbidden_responses=[
+            {**leak, "response": {"result": "rejected", "stage": "signature", "code": "bad_signature", "request_id": target,
+                                  "authenticated_message_sha256": "0" * 64}},
+            {**leak, "response": {"result": "rejected", "stage": "signature", "code": "bad_signature", "request_id": target,
+                                  "actor": {"id": "test-user-0001"}}}])
+    add("rejection_time_echoes_request_id", "rejection", "reject", "time", "expired",
+        "now = expires_at. Refused with request_id echoed.", wire=base, now=T0 + 30,
+        forbidden_responses=[{"why": "a refusal is rejected, not unknown", "response": {"result": "unknown", "request_id": target, "reason": "unconfirmed"}}])
+
+    # --- clock health (W7): NOT YET VERIFIED, stateful
+    def clock_case(vid: str, expect: str, reason: str, clock: dict[str, Any], *, service: str = "door_open",
+                   wire: dict[str, Any] | None = None, now: int = T0, stage: str | None = "time", code: str | None = "clock_invalid",
+                   response: dict[str, Any] | None = None, schema: str | None = None, effects: dict[str, bool] = CLOCK_BLOCKED,
+                   records: list[dict[str, Any]] | None = None) -> None:
+        add(vid, "clock", expect, stage, code, reason + " NOT YET VERIFIED: the anchor procedure is a proposal.",
+            service=service, now=now, wire=wire if wire is not None else W(_fresh(vid)),
+            state_setup=_setup(clock=clock, records=records or []), expected_side_effects=effects,
+            **({"expected_response": response, "response_schema": schema} if response else {}))
+
+    clock_case("clock_health_ok", "stateful", "Valid anchor, no regression, UTC and monotonic advanced equally.", _clock(),
+               stage=None, code=None, response={"result": "acknowledged", "request_id": _v3_rid("clock_health_ok")},
+               schema="door_open_acknowledged", effects=OPENED)
+    clock_case("clock_divergence_2000ms_allowed", "stateful", "UTC advanced 2000 ms more than monotonic: |divergence| = 2000 ms is not more than 2 s.",
+               _clock(divergence_ms=2000), stage=None, code=None,
+               response={"result": "acknowledged", "request_id": _v3_rid("clock_divergence_2000ms_allowed")}, schema="door_open_acknowledged", effects=OPENED)
+    clock_case("clock_divergence_plus_2001ms_blocks", "stateful", "UTC advanced 2001 ms more than monotonic: blocked, no dispatch, no replay purge.",
+               _clock(divergence_ms=2001))
+    clock_case("clock_divergence_minus_2001ms_blocks", "stateful", "UTC advanced 2001 ms less than monotonic: blocked (absolute value).",
+               _clock(divergence_ms=-2001))
+    clock_case("clock_utc_regressed_below_anchor_blocks", "stateful",
+               "After a restart UTC reads 1 s earlier than the stored UTC anchor: blocked although the floor (2026-01-01) is met.",
+               _clock(anchor_ms=T0 * 1000 + 1000))
+    clock_case("clock_no_anchor_blocks", "stateful", "No valid anchor stored yet (first start): no dispatch and no replay deletion until one exists.",
+               _clock(anchor_ms=None))
+    clock_case("clock_no_anchor_blocks_status", "stateful", "door_open_status without a valid anchor: blocked too, the stored outcome is not read.",
+               _clock(anchor_ms=None, utc_now_ms=st_now * 1000), service="door_open_status", wire=W(V2_STATUS), now=st_now, records=[_record()])
+    clock_case("clock_healthy_is_not_a_skew_allowance", "reject",
+               "A healthy clock (divergence 2000 ms) does not allow a future issued_at: now = issued_at - 1 is refused time/not_yet_valid by the stateless stage.",
+               _clock(divergence_ms=2000, utc_now_ms=(T0 - 1) * 1000), now=T0 - 1, wire=base, stage="time", code="not_yet_valid",
+               effects=NO_EFFECTS)
+
+    # --- time (W2): no forward skew in v1
+    add("time_no_forward_skew_1s", "time", "reject", "time", "not_yet_valid",
+        "now = issued_at - 1. No forward clock skew is tolerated in v1 (issued_at <= now < expires_at); the 2-second question is withdrawn.",
+        wire=base, now=T0 - 1)
+    add("time_no_forward_skew_2s", "time", "reject", "time", "not_yet_valid", "now = issued_at - 2. Refused the same way.", wire=base, now=T0 - 2)
+    return C
+
+
+def build_contract_vectors_v3() -> list[dict[str, Any]]:
+    out = []
+    for c in _v3_cases():
+        v: dict[str, Any] = {k: c[k] for k in ("id", "category", "expect", "reason", "reject_stage", "reject_code", "service", "now")}
+        v["now_iso"] = None if c["now"] is None else _iso(c["now"])
+        if "wire" in c or "inner" in c:
+            inner = _text(c["wire"]) if "wire" in c else c["inner"]
+            v["signed_message_json"] = inner
+            v["service_data_json"] = _service_data_json(inner)
+            data = inner.encode("utf-8")
+        elif "raw_inner" in c:
+            v["signed_message_json"] = None
+            v["signed_message_utf8_hex"] = c["raw_inner"].hex()
+            v["service_data_json"] = None
+            data = c["raw_inner"]
+        else:
+            v["signed_message_json"] = None
+            v["service_data_json"] = json.dumps(c["service_data"], ensure_ascii=False, separators=(",", ":"))
+            data = None
+        if c["category"] == "size":
+            v["signed_message_utf8_bytes"] = len(data)
+            v["signed_message_code_points"] = len(data.decode("utf-8", errors="replace"))
+        if "replaces" in c:
+            v["replaces"] = {"vectors_version": 2, "id": c["replaces"]}
+        if c["category"] == "clock":
+            v["verified"] = False
+        if "state_setup" in c:
+            v["state_setup"] = c["state_setup"]
+            v["expected_side_effects"] = c["expected_side_effects"]
+        if c["expect"] in ("accept", "stateful") and v["signed_message_json"] is not None:
+            wire = json.loads(v["signed_message_json"])
+            body_sha, hmac_input, auth_sha = _digests(wire)
+            v["signed_body"] = {k: x for k, x in wire.items() if k not in ("ts", "nonce", "sig")}
+            v["canonical_utf8"] = current_canonical(v["signed_body"])
+            v["body_sha256"] = body_sha
+            v["hmac_input"] = hmac_input
+            v["authenticated_message_sha256"] = auth_sha
+            v["sig"] = wire["sig"]
+            v["expected_dto"] = _expected_dto(wire)
+        if "expected_response" in c:
+            v["response_schema"], v["expected_response"] = c["response_schema"], c["expected_response"]
+        elif c["reject_stage"] is not None:  # the W8 shape, written from the rule (the reference computes it separately)
+            post = c["reject_stage"] in POST_SCHEMA_STAGES
+            resp = {"result": "rejected", "stage": c["reject_stage"], "code": c["reject_code"]}
+            if post:
+                resp["request_id"] = json.loads(v["signed_message_json"])["request_id"]
+            v["response_schema"] = "rejected_after_schema_pass" if post else "rejected_before_schema_pass"
+            v["expected_response"] = resp
+        else:
+            v["response_schema"], v["expected_response"] = None, None  # stateless accept: the answer depends on the store
+        if "forbidden_responses" in c:
+            v["forbidden_responses"] = c["forbidden_responses"]
+        out.append(v)
+    return out
+
+
+def build_document_v3() -> dict[str, Any]:
+    return {
+        "format": "smplwise-arx/wiskey-trusted-caller/golden-vectors",
+        "format_version": 1,
+        "protocol": PROTOCOL,
+        "vectors_version": VECTORS_V3_VERSION,
+        "generated_by": "smplwise_vms/backend/tests/test_wiskey_golden_vectors.py --write (synthetic; do not edit by hand)",
+        "status": "DRAFT, Arx 2026-10-04, after WisKey's answers W1-W8 (ARX_REPLY_TO_VECTORS_V2_2026-10-04). See DTO_DRAFT_v3.md.",
+        "complements": {
+            "file": "GOLDEN_VECTORS.json", "vectors_version": 2, "arx_commit": V2_COMMIT, "file_sha256": V2_FILE_SHA256,
+            "contract_vectors": V2_CONTRACT_VECTORS,
+            "rule": "v3 adds cases only. GOLDEN_VECTORS.json (v1 `vectors` and v2 `contract_vectors`) is unchanged and still binding, except the superseded case below. Run both files.",
+        },
+        "supersedes": [{"vectors_version": 2, "id": old, "replaced_by": new,
+                        "why": "W5: a status query whose station differs from the open record answers unknown/not_found_or_expired, exactly like a missing target; station_mismatch is no longer a code."}
+                       for old, new in SUPERSEDED_BY_V3.items()],
+        "test_hmac_key": {
+            "value": TEST_SECRET,
+            "encoding": "UTF-8 bytes of the string are the HMAC key",
+            "warning": "TEST CONSTANT ONLY. Publicly known. Never use as, or derive, a pairing secret.",
+        },
+        "relies_on_documents": PINNED_DOCUMENTS,
+        "contract_v3": {
+            "max_signed_message_json_bytes": MAX_MESSAGE_BYTES,
+            "size_rule": "len(UTF-8 bytes of signed_message_json) <= 8192, inclusive; measured after the UTF-8 check and before parse; violation encoding/message_too_large. Not characters, not UTF-16 units; the outer service_data is not measured.",
+            "identity_rule": "station (opaque ConfigEntry.entry_id, exact match), actor.id (Arx user id) and actor.display_name: 1-128 Unicode code points, no C0 (U+0000-U+001F), DEL (U+007F) or C1 (U+0080-U+009F); no trim, no normalization, no case change; no UUID requirement for station or actor.",
+            "relay_rule": "params.relay is the physical_index of WisKey's verified active mapping for the station (rc.37: a subset of {1, 2}); no contiguous range is assumed; a relay outside the mapping is state/relay_not_allowed before any pending record.",
+            "time_rule": "issued_at <= now < expires_at, 0 < expires_at - issued_at <= 30, whole seconds; no forward skew tolerance in v1.",
+            "clock_health": {
+                "verified": False,
+                "rule": "time/clock_invalid when the clock is missing or before 2026-01-01T00:00:00Z, and also when no valid UTC anchor is stored, when UTC is below the stored anchor (regression after restart), or when |(utc_now - utc_ref) - (monotonic_now - monotonic_ref)| > 2000 ms. No dispatch and no replay deletion until a valid anchor exists. This is not a skew allowance.",
+                "clock_fields_ms": ["utc_now_ms", "utc_ref_ms", "monotonic_now_ms", "monotonic_ref_ms", "stored_utc_anchor_ms"],
+            },
+            "validation_stages_in_order": list(STAGES),
+            "encoding_stage_order": ["UTF-8 / lone surrogate", "size"],
+            "state_check_order": list(STATE_CHECK_ORDER),
+            "codes": {k: list(v) for k, v in V3_CODES.items()},
+            "codes_removed_since_v2": {"state": ["station_mismatch"]},
+            "request_id_echo": "a rejection carries request_id if and only if the schema stage passed (stages binding, signature, time, state)",
+            "after_send": "once a send was possible the answer is unknown, never rejected",
+            "expect_values": {
+                "accept": "passes every stateless stage; expected_dto is the DTO handed to WisKey; the response depends on the store",
+                "reject": "refused at reject_stage with reject_code before any pending record or dispatch; expected_response is the refusal",
+                "stateful": "passes every stateless stage; state_setup drives the outcome; expected_response and expected_side_effects are binding (clock cases: proposal, verified=false)",
+            },
+        },
+        "state_setup_format": {
+            "capability": "valid | missing | invalid | revoked",
+            "station_relays": "station -> list of physical_index values in WisKey's verified active mapping",
+            "records": "door_open records in the store: request_id, nonce, actor, station, relay, state (pending | acknowledged | unknown), reason (for unknown)",
+            "storage": "ok | fails_before_send (the pending record cannot be written)",
+            "dispatch_result": "acknowledged | unconfirmed | interrupted | outcome_persistence_failed (what the relay path reports)",
+            "clock": "null = healthy with a valid anchor, not under test; otherwise the clock snapshot in milliseconds",
+        },
+        "response_schema_dialect": "JSON Schema 2020-12 subset: type, const, enum, pattern, properties, required, additionalProperties, oneOf. Cross-field rules not expressible here: request_id is the current call's request_id; target_request_id is params.target_request_id (status) or the open's request_id (duplicate door_open).",
+        "response_schemas": RESPONSE_SCHEMAS,
+        "contract_vectors_v3": build_contract_vectors_v3(),
+    }
+
+
+_ESCAPE_IN_FILE = re.compile("[\u007f-\u009f  ]")
+
+
+def render_v3(doc: dict[str, Any]) -> str:
+    """Like render(), but DEL, C1 and U+2028/9 are written as \\u escapes (same JSON value; no invisible line breaks)."""
+    text = json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
+    return _ESCAPE_IN_FILE.sub(lambda m: f"\\u{ord(m.group()):04x}", text)
+
+
+# ---------------------------------------------------------------- tests: vectors_version 3
+
+
+def _v3_input(v: dict[str, Any]) -> tuple[Any, bytes | None]:
+    if v.get("signed_message_utf8_hex"):
+        return None, bytes.fromhex(v["signed_message_utf8_hex"])
+    return json.loads(v["service_data_json"]), None
+
+
+def test_v3_file_has_not_drifted():
+    assert VECTORS_V3_FILE.read_text(encoding="utf-8") == render_v3(build_document_v3()), (
+        "GOLDEN_VECTORS_v3.json differs from the generator. Regenerate only after a reviewed change; existing v3 cases "
+        "are never edited, a wrong case is superseded by a new id in a new vectors_version.")
+
+
+def test_v2_file_is_locked_by_hash():
+    assert hashlib.sha256(VECTORS_FILE.read_bytes()).hexdigest() == V2_FILE_SHA256
+    assert hashlib.sha256(render(build_document()).encode("utf-8")).hexdigest() == V2_FILE_SHA256
+    doc = json.loads(VECTORS_V3_FILE.read_text(encoding="utf-8"))
+    assert doc["complements"]["file_sha256"] == V2_FILE_SHA256 and doc["vectors_version"] == 3
+    assert len(json.loads(VECTORS_FILE.read_text(encoding="utf-8"))["contract_vectors"]) == V2_CONTRACT_VECTORS
+
+
+def test_v3_cases_are_well_formed():
+    vs = build_contract_vectors_v3()
+    ids = [v["id"] for v in vs]
+    v2_ids = {v["id"] for v in build_contract_vectors()}
+    assert len(ids) == len(set(ids)) and not set(ids) & v2_ids
+    assert set(SUPERSEDED_BY_V3) <= v2_ids and set(SUPERSEDED_BY_V3.values()) <= set(ids)
+    for v in vs:
+        assert v["expect"] in ("accept", "reject", "stateful") and v["reason"], v["id"]
+        if v["reject_stage"] is not None:
+            assert v["reject_code"] in V3_CODES[v["reject_stage"]], v["id"]
+        else:
+            assert v["reject_code"] is None, v["id"]
+        if v["expect"] == "reject":
+            assert v["reject_stage"] != "state" and v["response_schema"].startswith("rejected_"), v["id"]
+        if v["expect"] == "stateful":
+            assert v["state_setup"] and v["expected_side_effects"] and v["expected_response"], v["id"]
+            assert v["reject_stage"] in (None, "state", "time"), v["id"]
+        if v["expected_response"] is not None:
+            assert schema_ok(RESPONSE_SCHEMAS[v["response_schema"]], v["expected_response"]), v["id"]
+        if v["signed_message_json"] is not None:
+            assert json.loads(v["service_data_json"]) == {"signed_message_json": v["signed_message_json"]}, v["id"]
+        assert (v.get("verified") is False) == (v["category"] == "clock"), v["id"]
+        assert TEST_SECRET not in json.dumps(v, ensure_ascii=False), v["id"]
+    assert not _ESCAPE_IN_FILE.search(VECTORS_V3_FILE.read_text(encoding="utf-8"))
+
+
+def test_v3_reference_agrees_with_every_case():
+    """Each case through the whole v3 reference path: response and side effects must equal the vector; a refusal
+    never creates a pending record or a dispatch; the error never carries input text."""
+    for v in build_contract_vectors_v3():
+        service_data, raw = _v3_input(v)
+        try:
+            contract_validate_v3(v["service"], service_data, v["now"], raw_inner=raw)
+            stateless = None
+        except V3Reject as e:
+            stateless = (e.stage, e.code)
+            assert "test_" not in str(e) and "משתמש" not in str(e), v["id"]
+        if v["expect"] == "accept":
+            assert stateless is None, (v["id"], stateless)
+            dto = contract_validate_v3(v["service"], service_data, v["now"], raw_inner=raw)
+            assert dto.as_json() == v["expected_dto"], v["id"]
+            continue
+        if v["expect"] == "reject":
+            assert stateless == (v["reject_stage"], v["reject_code"]), (v["id"], stateless)
+        resp, effects = reference_door_service(v["service"], service_data, v["now"], v.get("state_setup"), raw_inner=raw)
+        assert resp == v["expected_response"], (v["id"], resp)
+        if "expected_side_effects" in v:
+            assert effects == v["expected_side_effects"], (v["id"], effects)
+        if resp["result"] == "rejected":
+            assert not effects["pending_created"] and not effects["dispatched"] and not effects["status_read"], v["id"]
+            assert (resp["stage"], resp["code"]) == (v["reject_stage"], v["reject_code"]), v["id"]
+        if v["expect"] == "stateful":
+            assert stateless is None, (v["id"], stateless)
+            assert v["expected_dto"] == contract_validate_v3(v["service"], service_data, v["now"]).as_json(), v["id"]
+        if v["service"] == "door_open_status":
+            assert not effects["pending_created"] and not effects["dispatched"], v["id"]  # a status never opens
+
+
+def test_v3_forbidden_responses_fail_their_schema():
+    seen = 0
+    for v in build_contract_vectors_v3():
+        for f in v.get("forbidden_responses", ()):
+            assert not schema_ok(RESPONSE_SCHEMAS[v["response_schema"]], f["response"]), (v["id"], f)
+            assert f["why"], v["id"]
+            seen += 1
+    assert seen >= 15
+
+
+def test_v3_response_schemas_are_closed():
+    s = RESPONSE_SCHEMAS
+    assert schema_ok(s["rejected_before_schema_pass"], {"result": "rejected", "stage": "encoding", "code": "message_too_large"})
+    assert not schema_ok(s["rejected_before_schema_pass"], {"result": "rejected", "stage": "state", "code": "replay"})
+    assert not schema_ok(s["rejected_after_schema_pass"], {"result": "rejected", "stage": "state", "code": "station_mismatch",
+                                                           "request_id": DOOR_OPEN["request_id"]})  # removed in v3
+    assert not schema_ok(s["rejected_after_schema_pass"], {"result": "rejected", "stage": "state", "code": "replay",
+                                                           "request_id": DOOR_OPEN["request_id"].upper()})
+    assert not schema_ok(s["door_open_acknowledged"], {"result": "acknowledged", "request_id": DOOR_OPEN["request_id"], "door": "open"})
+    assert not schema_ok(s["door_open_unknown"], {"result": "unknown", "request_id": DOOR_OPEN["request_id"], "reason": "not_found_or_expired"})
+    assert not schema_ok(s["status_unknown"], {"result": "unknown", "request_id": STATUS_REQUEST_ID, "reason": "pending"})  # target missing
+    assert not schema_ok(s["stored_result"], {"result": "stored_result", "request_id": STATUS_REQUEST_ID, "target_request_id": DOOR_OPEN["request_id"],
+                                              "outcome": {"result": "unknown", "reason": "pending"}})
+    assert not schema_ok(s["stored_result"], {"result": "stored_result", "request_id": STATUS_REQUEST_ID, "target_request_id": DOOR_OPEN["request_id"],
+                                              "outcome": {"result": "acknowledged", "reason": "unconfirmed"}})
+    for name, schema in s.items():
+        assert "station_mismatch" not in json.dumps(schema), name
+
+
+def test_v3_size_vectors_measure_bytes():
+    vs = {v["id"]: v for v in build_contract_vectors_v3()}
+    for vid, nbytes in (("size_8192_bytes_ascii_accept", 8192), ("size_8193_bytes_ascii_reject", 8193),
+                        ("size_8192_bytes_multibyte_accept", 8192), ("size_8193_bytes_multibyte_reject", 8193),
+                        ("size_8192_code_points_8320_bytes_reject", 8320), ("size_8193_bytes_invalid_json_size_first", 8193)):
+        v = vs[vid]
+        assert len(v["signed_message_json"].encode("utf-8")) == nbytes == v["signed_message_utf8_bytes"], vid
+    assert vs["size_8193_bytes_multibyte_reject"]["signed_message_code_points"] < 8192
+    assert len(vs["size_8193_bytes_multibyte_reject"]["signed_message_json"].encode("utf-16-le")) // 2 < 8192
+    assert vs["size_8192_code_points_8320_bytes_reject"]["signed_message_code_points"] == 8192
+    assert len(bytes.fromhex(vs["size_8193_bytes_invalid_utf8_utf8_first"]["signed_message_utf8_hex"])) == 8193
+    # the padded accept case is the same signed message as without padding (whitespace is outside the signed bytes)
+    padded = json.loads(vs["size_8192_bytes_ascii_accept"]["signed_message_json"])
+    assert bridge_signing.Verifier(TEST_SECRET).verify(dict(padded), now=padded["ts"]) is None
+    # under the limit, the truncated message is an ordinary parse error
+    with_limit_off = _text(_signed_wire(DOOR_OPEN))[:-1]
+    try:
+        contract_validate_v3("door_open", {"signed_message_json": with_limit_off}, T0)
+    except V3Reject as e:
+        assert (e.stage, e.code) == ("parse", "invalid_json")
+    else:
+        raise AssertionError("truncated JSON was accepted")
+
+
+def test_v3_identity_values_are_kept_exactly():
+    vs = {v["id"]: v for v in build_contract_vectors_v3()}
+    assert vs["station_whitespace_not_trimmed_accept"]["expected_dto"]["station"] == " test_station_entrance "
+    assert vs["station_case_preserved_accept"]["expected_dto"]["station"] == "Test_Station_ENTRANCE"
+    assert vs["actor_id_whitespace_not_trimmed_accept"]["expected_dto"]["actor"]["id"] == " test-user-0001 "
+    nb = vs["display_name_128_non_bmp_accept"]["expected_dto"]["actor"]["display_name"]
+    assert len(nb) == 128 and len(nb.encode("utf-16-le")) // 2 == 256
+    for v in vs.values():
+        if v["category"] == "identity" and v["expect"] == "reject":
+            assert (v["reject_stage"], v["reject_code"]) == ("schema", "bad_format"), v["id"]
+
+
+def test_v3_reference_on_v2_vectors():
+    """The v3 reference keeps every v2 accept/reject outcome; only the superseded stateful case answers differently."""
+    for v in build_contract_vectors():
+        service_data, raw = _service_data_for(v)
+        try:
+            contract_validate_v3(v["service"], service_data, v["now"], raw_inner=raw)
+            got = None
+        except V3Reject as e:
+            got = (e.stage, e.code)
+            assert (e.request_id is not None) == (e.stage in POST_SCHEMA_STAGES), v["id"]
+        if v["expect"] == "reject":
+            assert got == (v["reject_stage"], v["reject_code"]), (v["id"], got)
+        else:
+            assert got is None, (v["id"], got)
+    old = {v["id"]: v for v in build_contract_vectors()}["status_station_mismatch_vs_open_record"]
+    resp, effects = reference_door_service(old["service"], json.loads(old["service_data_json"]), old["now"], _setup(records=[_record()]))
+    assert resp == {"result": "unknown", "request_id": STATUS_REQUEST_ID, "target_request_id": DOOR_OPEN["request_id"],
+                    "reason": "not_found_or_expired"} and effects == READ
+    assert "station_mismatch" not in V3_CODES["state"]
+
+
+def test_v3_relay_rule_assumes_no_contiguous_range():
+    vs = {v["id"]: v for v in build_contract_vectors_v3()}
+    a, b = vs["relay_physical_index_2_mapping_without_1"], vs["relay_1_not_in_mapping_with_gap"]
+    assert a["state_setup"]["station_relays"] == b["state_setup"]["station_relays"] == {"test_station_entrance": [2]}
+    assert a["expected_response"]["result"] == "acknowledged" and b["expected_response"]["code"] == "relay_not_allowed"
+
+
+def test_v3_accept_and_stateful_messages_verify_with_the_existing_verifier():
+    for v in build_contract_vectors_v3():
+        if v["expect"] in ("accept", "stateful") and v["signed_message_json"]:
+            wire = json.loads(v["signed_message_json"])
+            assert bridge_signing.Verifier(TEST_SECRET).verify(dict(wire), now=wire["ts"]) is None, v["id"]
+
+
 if __name__ == "__main__":
     if "--write" in sys.argv:
         VECTORS_FILE.parent.mkdir(parents=True, exist_ok=True)
         VECTORS_FILE.write_bytes(render(build_document()).encode("utf-8"))
         print(f"wrote {VECTORS_FILE}")
+        VECTORS_V3_FILE.write_bytes(render_v3(build_document_v3()).encode("utf-8"))
+        print(f"wrote {VECTORS_V3_FILE}")
+    elif "--v3" in sys.argv:
+        print(render_v3(build_document_v3()))
     else:
         print(render(build_document()))
