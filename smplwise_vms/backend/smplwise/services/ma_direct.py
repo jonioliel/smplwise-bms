@@ -54,6 +54,7 @@ COMMANDS = frozenset({
     "player_queues/move_item",
     "player_queues/delete_item",
     "player_queues/clear",
+    "player_queues/play_index",        # "play this queue item now": the one audible command on this path (owner-approved 2026-10-04)
     "music/search",
 })
 MONO = time.monotonic  # tests move the clock here

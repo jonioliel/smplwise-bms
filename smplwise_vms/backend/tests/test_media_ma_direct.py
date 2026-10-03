@@ -67,6 +67,10 @@ class FakeMA:
         if command == "player_queues/clear":
             self.rows = self.rows[:self.current + 1]
             return None
+        if command == "player_queues/play_index":
+            self.current = next(n for n, r in enumerate(self.rows) if r["queue_item_id"] == args["index"])
+            self.buffered = self.current
+            return None
         if command == "music/search":
             return {"tracks": [{"uri": "library://track/7", "media_type": "track", "name": "נמצא", "artists": [{"name": "אמנית"}]},
                                {"uri": "https://evil.example/x.mp3", "media_type": "track", "name": "כתובת"}],
@@ -550,3 +554,233 @@ def test_the_new_permissions_have_labels_and_their_default_roles():
     contract = json.loads((pathlib.Path(__file__).resolve().parents[3] / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
     assert {r["id"]: sorted(p for p in r["permissions"] if p in ("media.browse", "media.queue")) for r in contract["roles"]} == \
         {r["id"]: sorted(p for p in ROLES[r["id"]] if p in ("media.browse", "media.queue")) for r in contract["roles"]}
+
+
+# ------------------------------------------------------------------------------------------------ the new queue actions (play now, move to top, several rows, clear upcoming)
+
+
+def _post(c, keys, **kw):
+    return c.post(f"{API}/devices/{keys['a']}/queue", json=body(**kw))
+
+
+def _sent(fake, *commands: str) -> list[tuple[str, dict[str, Any]]]:
+    return [x for x in fake.calls if x[0] in commands]
+
+
+def test_play_now_jumps_to_the_row_and_the_current_row_is_refused(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    r = _post(c, keys, op="play", item=items["שיר 6"])
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "play"}), r.text
+    assert _sent(fake, "player_queues/play_index") == [("player_queues/play_index", {"queue_id": f"q-{aseed.UID_A}", "index": "qi-6"})]
+    assert fake.current == 6
+    items = _rows(c, keys)
+    assert items, "the list is read again from the new current row"
+    cur = next(i for i in c.get(f"{API}/devices/{keys['a']}/queue").json()["items"] if i["locked"])
+    n = len(_sent(fake, "player_queues/play_index"))
+    r = _post(c, keys, op="play", item=cur["item"])
+    assert (r.status_code, r.json()["code"]) == (409, "locked") and len(_sent(fake, "player_queues/play_index")) == n
+
+
+def test_play_now_works_on_a_buffered_row_and_is_rate_limited(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    assert _post(c, keys, op="play", item=items["שיר 3"]).status_code == 202, "a buffered (locked for edits) row may still be played"
+    codes = []
+    for _ in range(4):
+        items = {i["name"]: i["item"] for i in c.get(f"{API}/devices/{keys['a']}/queue").json()["items"]}
+        codes.append(_post(c, keys, op="play", item=items["שיר 7"]).status_code)
+    assert 429 in codes, "1 a second per device (a burst of 2)"
+
+
+def test_move_to_top_puts_the_row_right_after_the_locked_rows(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    r = _post(c, keys, op="top", item=items["שיר 7"])
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "top", "to": 4}), r.text
+    assert [x["queue_item_id"] for x in fake.rows][4] == "qi-7"
+    assert _sent(fake, "player_queues/move_item") == [("player_queues/move_item", {"queue_id": f"q-{aseed.UID_A}", "queue_item_id": "qi-7", "pos_shift": -3})]
+    items = _rows(c, keys)
+    assert _post(c, keys, op="top", item=items["שיר 2"]).json()["code"] == "locked"
+
+
+def test_delete_many_removes_each_row_once_in_order_and_audits_the_count(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    r = _post(c, keys, op="delete_many", items=[items["שיר 6"], items["שיר 4"], items["שיר 7"]])
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "delete_many", "count": 3}), r.text
+    assert [a["item_id_or_index"] for _c, a in _sent(fake, "player_queues/delete_item")] == ["qi-6", "qi-4", "qi-7"]
+    assert [x["queue_item_id"] for x in fake.rows] == ["qi-0", "qi-1", "qi-2", "qi-3", "qi-5"]
+    row = audit_rows(app, "media.queue")[-1]
+    assert (row["decision"], row["details"]["op"], row["details"]["count"]) == ("allowed", "delete_many", 3)
+    blob = json.dumps(audit_rows(app, "media.queue"), ensure_ascii=False)
+    assert "qi-" not in blob and "שיר" not in blob and "q-" + aseed.UID_A not in blob and "ma.example" not in blob and TOKEN not in blob
+
+
+def test_delete_many_is_all_or_nothing_before_anything_is_sent(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    bad = [
+        dict(items=[items["שיר 6"], items["שיר 3"]]),            # a locked (buffered) row inside the set
+        dict(items=[items["שיר 6"], "0" * 24]),                 # an unknown token
+        dict(items=[items["שיר 6"], items["שיר 6"]]),           # a duplicate
+        dict(items=[]),                                         # empty
+        dict(),                                                 # missing
+        dict(items=[items["שיר 6"]], item=items["שיר 7"]),      # both forms
+    ]
+    codes = [_post(c, keys, op="delete_many", **b).status_code for b in bad]
+    assert codes == [409, 422, 422, 422, 422, 422], codes
+    assert not _sent(fake, "player_queues/delete_item")
+    assert _post(c, keys, op="delete", items=[items["שיר 6"]]).status_code == 422, "`items` belongs to delete_many only"
+    assert len(audit_rows(app, "media.queue")) >= 7 and all(x["decision"] == "denied" for x in audit_rows(app, "media.queue"))
+
+
+def test_delete_many_caps_the_selection_at_25_and_the_body_size(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    r = _post(c, keys, op="delete_many", items=[f"{n:024x}" for n in range(26)])
+    assert r.status_code == 422, "26 rows: refused by the closed body model"
+    r = c.post(f"{API}/devices/{keys['a']}/queue", json=body(op="delete_many", items=[f"{n:024x}" for n in range(25)], pad="x" * 5000))
+    assert r.status_code == 413
+    assert not _sent(fake, "player_queues/delete_item")
+
+
+def test_delete_many_stops_at_the_first_refusal_and_says_how_many_were_done(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    original = fake.call
+    state = {"n": 0}
+
+    def second_refused(url, token, command, args):
+        if command == "player_queues/delete_item":
+            state["n"] += 1
+            if state["n"] == 2:
+                fake.calls.append((command, args))
+                raise ma_direct.MaError("refused", 7)
+        return original(url, token, command, args)
+
+    fake.call = second_refused  # type: ignore[method-assign]
+    r = _post(c, keys, op="delete_many", items=[items["שיר 4"], items["שיר 5"], items["שיר 6"]])
+    assert (r.status_code, r.json()) == (200, {"status": "refused", "op": "delete_many", "error": 7, "done": 1})
+    assert len(_sent(fake, "player_queues/delete_item")) == 2, "the third row was never tried; nothing is retried"
+    row = audit_rows(app, "media.queue")[-1]
+    assert (row["decision"], row["reason"], row["details"]["count"]) == ("denied", "ma_refused", 1)
+
+
+def test_delete_many_with_the_server_going_down_reports_unavailable_and_the_rows_done(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    original = fake.call
+    state = {"n": 0}
+
+    def goes_down(url, token, command, args):
+        if command == "player_queues/delete_item":
+            state["n"] += 1
+            if state["n"] == 2:
+                fake.calls.append((command, args))
+                raise ma_direct.MaError("unreachable")
+        return original(url, token, command, args)
+
+    fake.call = goes_down  # type: ignore[method-assign]
+    r = _post(c, keys, op="delete_many", items=[items["שיר 4"], items["שיר 5"], items["שיר 6"]])
+    assert (r.status_code, r.json()["code"], r.json()["details"]["done"]) == (503, "ma_unavailable", 1)
+    assert len(_sent(fake, "player_queues/delete_item")) == 2
+
+
+def test_clear_upcoming_asks_first_keeps_the_current_song_and_sends_no_clear(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    r = _post(c, keys, op="clear_upcoming")
+    assert (r.status_code, r.json()["code"], r.json()["details"]["count"]) == (409, "confirm_required", 4)
+    assert not _sent(fake, "player_queues/delete_item", "player_queues/clear")
+    r = _post(c, keys, op="clear_upcoming", confirmed=True)
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "clear_upcoming", "count": 4}), r.text
+    assert [x["queue_item_id"] for x in fake.rows] == ["qi-0", "qi-1", "qi-2", "qi-3"], "the current and buffered rows stay"
+    assert not _sent(fake, "player_queues/clear"), "clear upcoming never calls the stop-everything command"
+    assert [a["item_id_or_index"] for _c, a in _sent(fake, "player_queues/delete_item")] == ["qi-7", "qi-6", "qi-5", "qi-4"]
+    n = len(_sent(fake, "player_queues/delete_item"))
+    media_commands.BUCKETS.clear()
+    r = _post(c, keys, op="clear_upcoming")
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "clear_upcoming", "count": 0}) and len(_sent(fake, "player_queues/delete_item")) == n, "nothing follows: nothing to ask"
+
+
+def test_clear_upcoming_refuses_more_than_200_rows_with_the_count(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    fake.rows = [{"queue_item_id": f"qi-{n}", "name": f"שיר {n}"} for n in range(260)]
+    r = _post(c, keys, op="clear_upcoming", confirmed=True)
+    assert (r.status_code, r.json()["code"], r.json()["details"]["count"]) == (422, "too_many", 256)
+    assert not _sent(fake, "player_queues/delete_item")
+    assert _post(c, keys, op="clear", confirmed=True).status_code == 202, "clear everything stays available for a long queue"
+
+
+def test_clear_everything_still_needs_its_own_confirm_and_stops_playback(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    r = _post(c, keys, op="clear")
+    assert (r.status_code, r.json()["code"]) == (409, "confirm_required")
+    r = _post(c, keys, op="clear", confirmed=True)
+    assert (r.status_code, r.json()) == (202, {"status": "accepted", "op": "clear", "count": 4})
+    assert _sent(fake, "player_queues/clear") and not _sent(fake, "player_queues/delete_item")
+
+
+def test_a_per_installation_ceiling_stops_a_burst_of_row_deletes(d, monkeypatch):
+    app, c, fake, bridge, keys, *_ = d
+    monkeypatch.setattr(media_queue, "ROWS_INSTALL", (0.0, 3.0))
+    connect(c)
+    items = _rows(c, keys)
+    r = _post(c, keys, op="delete_many", items=[items["שיר 4"], items["שיר 5"], items["שיר 6"], items["שיר 7"]])
+    assert (r.status_code, r.json()["code"]) == (429, "rate_limited") and not _sent(fake, "player_queues/delete_item")
+    media_commands.BUCKETS.clear()
+    assert _post(c, keys, op="clear_upcoming", confirmed=True).status_code == 429, "clear upcoming (4 rows) is over the ceiling of 3"
+    assert not _sent(fake, "player_queues/delete_item")
+
+
+@pytest.mark.parametrize("op", ["play", "top", "delete_many", "clear_upcoming", "clear"])
+def test_every_new_action_checks_the_permission_before_the_body_is_read_and_before_the_server_is_called(d, op):
+    app, c, fake, bridge, keys, settings, _ = d
+    connect(c)
+    nq = c.post("/api/v1/access/roles", json={"name": "בלי תור", "permissions": ["media.read", "media.control"]})
+    assert nq.status_code in (200, 201), nq.text
+    bind(c, settings, "olga", nq.json()["id"], "installation", "*")
+    n = len(fake.calls)
+    before = len(audit_rows(app, "media.queue"))
+    for payload in ({"data": "{not json"}, {"json": {"op": op, "bogus": 1}}, {"json": body(op=op, item="0" * 24, items=["0" * 24], confirmed=True)}):
+        r = c.post(f"{API}/devices/{keys['a']}/queue", headers={**as_user("olga"), **({"content-type": "text/plain"} if "data" in payload else {})}, **payload)
+        assert r.status_code == 403, (payload, r.status_code, r.text)
+    assert len(fake.calls) == n, "nothing reached the music server"
+    rows = audit_rows(app, "media.queue")
+    assert len(rows) == before + 3 and all(x["decision"] == "denied" for x in rows[before:]), "every refusal is audited"
+
+
+def test_a_user_with_only_media_queue_and_no_control_cannot_play_or_clear(d):
+    app, c, fake, bridge, keys, settings, _ = d
+    connect(c)
+    role = c.post("/api/v1/access/roles", json={"name": "תור בלבד", "permissions": ["media.read", "media.queue"]})
+    assert role.status_code in (200, 201), role.text
+    bind(c, settings, "pam", role.json()["id"], "installation", "*")
+    items = {i["name"]: i["item"] for i in c.get(f"{API}/devices/{keys['a']}/queue", headers=as_user("pam")).json()["items"]}
+    n = len(fake.calls)
+    for kw in (dict(op="play", item=items["שיר 6"]), dict(op="clear_upcoming", confirmed=True), dict(op="delete_many", items=[items["שיר 6"]])):
+        assert c.post(f"{API}/devices/{keys['a']}/queue", headers=as_user("pam"), json=body(**kw)).status_code == 403
+    assert len(fake.calls) == n
+
+
+def test_with_the_server_down_the_new_actions_say_unavailable_and_the_list_is_never_empty(d):
+    app, c, fake, bridge, keys, *_ = d
+    connect(c)
+    items = _rows(c, keys)
+    fake.fail = "unreachable"
+    r = _post(c, keys, op="play", item=items["שיר 6"])
+    assert (r.status_code, r.json()["code"]) == (503, "ma_unavailable")
+    q = c.get(f"{API}/devices/{keys['a']}/queue")
+    assert q.status_code == 503 and q.json()["code"] == "ma_unavailable", "no empty queue: the panel falls back to the bridge depth"
+    n = len(fake.calls)
+    assert _post(c, keys, op="delete_many", items=[items["שיר 6"]]).status_code == 503 and len(fake.calls) == n, "the circuit is open: nothing is sent"
