@@ -28,7 +28,7 @@ log = logging.getLogger("smplwise.media")
 
 PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT = "media.read", "media.control", "media.power", "media.public", "media.bulk", "media.layout"
 PERM_GROUP = "media.group"  # CR-016: join / leave, group volume, saved groups (needs media.control at every member's anchor too)
-PERM_QUEUE, PERM_BROWSE = "media.queue", "media.browse"  # CR-016 phase 2b: queue edits (default deny), the library tab (browse + search)
+PERM_QUEUE, PERM_BROWSE = "media.queue", "media.browse"  # CR-016 phase 2b: queue edits (operator and above), the library tab (browse + search)
 ALL_PERMS = (PERM_READ, PERM_CONTROL, PERM_POWER, PERM_PUBLIC, PERM_BULK, PERM_LAYOUT, PERM_GROUP, PERM_QUEUE, PERM_BROWSE)
 CONFIGURE = "system.configure"
 TOMBSTONE_DAYS = 30
