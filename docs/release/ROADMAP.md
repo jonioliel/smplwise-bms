@@ -14,7 +14,7 @@ Estimates are agent work-hours, not wall clock. "Tier" is the test tier of `TEST
 | **0.1.156** | S | Test stability: two flaky specs fixed, no product change | - | released 2026-10-03 |
 | **0.1.157** | M | Dropdown tabs style (4-6 mockups, owner picks) then dropdown on all widths; Bubble on security, devices, automations lists, settings chrome | the dropdown style pick | next |
 | **0.1.158** | M | Bubble variants from the catalogue: weather/clock/calendar tiles, quick-launcher grid, vertical sliders, animated weather, no-surface and native surfaces, avatar badges | which variants | after 0.1.157 |
-| **0.1.159** | L | Switch model (CR-019) S2-S4: schedule policy, review list and settings screen, docs | - | agent can start now |
+| **0.1.159** | - | Switch model (CR-019) S1-S4 were all released in 0.1.153; nothing left except two cosmetic leftovers (stale `bulk_reason = unclassified` comment in `frontend/src/api/devices.ts`, scheduler note) | - | done |
 | **0.1.160** | L | NVR camera settings (CR-020) S1 table + S2 guarded writes (H.264/SVC) | approval for every lab write | needs the owner |
 | **0.1.161** | M | Music: library search without the direct connection (bridge 0.7.0, platform restart) and voice announcements | decision on announcements | later |
 | **0.2.0** | L | Structural: the system runs without an NVR or go2rtc; several NVR vendors in parallel (Provision-ISR, Frigate besides Hikvision); infrastructure tab (electricity meters, electricity bill editing and export, generators, water) | access to the NVRs; the electricity bill specification; component list from Home Assistant (owner: next week) | not before next week |
