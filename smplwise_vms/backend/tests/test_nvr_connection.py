@@ -403,6 +403,16 @@ def test_no_nvr_choice_is_ha_only(world, fake, settings):
     assert TestClient(app).get("/api/v1/me").json()["mode"] == HA_ONLY
 
 
+def test_a_just_saved_connection_leaves_the_nvr_step_todo_until_the_restart(world, fake, settings):
+    """Slice C finding: a saved, readable connection of an installation that started without an NVR is waiting for the restart -
+    the wizard step must say so (todo, `restart_pending`), not claim the stored details are unreadable."""
+    _, c = world
+    assert j(c, "put", json=GOOD).status_code == 200
+    step = next(s for s in c.get("/api/v1/setup/state").json()["steps"] if s["id"] == "nvr")
+    assert step["status"] == "todo" and step["problem"]["code"] == "restart_pending"
+    assert "ממתינים" in step["facts"][0]["value"]
+
+
 def test_an_unreadable_connection_fails_closed_and_start_up_completes(world, fake, settings):
     _, c = world
     assert j(c, "put", json=GOOD).status_code == 200

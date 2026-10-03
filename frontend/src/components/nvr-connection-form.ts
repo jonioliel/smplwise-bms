@@ -229,7 +229,7 @@ export class NvrConnectionForm extends LitElement {
     }
   }
 
-  private async remove() {
+  private async removeNvr() {
     if (this.busy || this.word.trim() !== REMOVE_WORD) return;
     this.busy = 'remove';
     this.msg = null;
@@ -336,7 +336,7 @@ export class NvrConnectionForm extends LitElement {
       ${this.removeOpen
         ? html`<sw-dialog open heading="הסרת NVR" subheading="המצלמות יישארו במערכת ויושבתו" data-conn-remove-dialog @close=${() => (this.removeOpen = false)}>
             <sw-field label=${`להסרה הקלידו „${REMOVE_WORD}”`}><input data-ltr data-conn-remove-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || this.word.trim() !== REMOVE_WORD} data-conn-remove-confirm @click=${() => this.remove()}>${this.busy === 'remove' ? 'מסיר…' : 'הסר NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || this.word.trim() !== REMOVE_WORD} data-conn-remove-confirm @click=${() => this.removeNvr()}>${this.busy === 'remove' ? 'מסיר…' : 'הסר NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
     </div>`;

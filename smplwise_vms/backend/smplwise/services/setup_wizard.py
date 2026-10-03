@@ -766,7 +766,8 @@ NVR_LESS_SKIP = "דילוג - מצב ללא NVR"
 NVR_LESS_ACTION = ("להוספת NVR בהמשך: בחרו את סוג ה־NVR והזינו את פרטי החיבור בהגדרות › חיבורים, ואז הפעילו את המערכת מחדש. "
                    "הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
 NVR_CHOICE_ACTION = "בחרו בהגדרות › חיבורים את סוג ה־NVR והזינו את פרטי החיבור, או בחרו \"ללא NVR\" אם אין NVR בהתקנה."
-NVR_UNREADABLE_ACTION = "פרטי החיבור השמורים אינם קריאים (קובץ המפתח חסר או הוחלף). הזינו את הסיסמה מחדש בהגדרות › חיבורים והפעילו את המערכת מחדש."
+NVR_RESTART_ACTION = "לחצו \"הפעל מחדש\" בהודעה שבראש המסך, או הפעילו את השירות מחדש ידנית."
+NVR_UNREADABLE_ACTION ="פרטי החיבור השמורים אינם קריאים (קובץ המפתח חסר או הוחלף). הזינו את הסיסמה מחדש בהגדרות › חיבורים והפעילו את המערכת מחדש."
 
 
 def not_applicable_step(step_id: str, summary: str, problem: dict[str, Any], link: dict[str, str], *, label: str = NVR_LESS_SKIP) -> dict[str, Any]:
@@ -775,16 +776,21 @@ def not_applicable_step(step_id: str, summary: str, problem: dict[str, Any], lin
                  settings_link=link, problem=problem) | {"status_label": label}
 
 
-def nvr_choice_step(conn: sqlite3.Connection | None) -> dict[str, Any]:
+def nvr_choice_step(conn: sqlite3.Connection | None, settings: Settings | None = None) -> dict[str, Any]:
     """CR-022 section 11: the NVR step of an installation without an NVR host. `done` for the installer's explicit "no NVR"
-    (vendor `none` stored), `failed` for a stored connection that cannot be decrypted, `todo` while nothing was chosen."""
-    from .connection_store import get_row
+    (vendor `none` stored), `failed` for a stored connection that cannot be decrypted, `todo` while nothing was chosen - and
+    `todo` for a connection that was just saved and waits for the restart that applies it (slice C: it is not unreadable)."""
+    from .connection_store import get_row, readable
 
     link = _link("connections")
     row = get_row(conn) if conn is not None else None
     if row is not None and row["vendor"] == "none":
         return _step("nvr", "done", "ללא NVR - נבחר במפורש.", facts=[_fact("סוג NVR", "ללא NVR", "ok")], evidence={"configured": False, "mode": "ha_only", "choice": "none"},
                      settings_link=link) | {"status_label": "ללא NVR"}
+    if row is not None and conn is not None and settings is not None and readable(conn, settings, row):
+        p = _problem("restart_pending", "פרטי החיבור נשמרו; נדרשת הפעלה מחדש כדי להחיל אותם.", NVR_RESTART_ACTION, link)
+        return _step("nvr", "todo", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן - ממתינים להפעלה מחדש", "warn")], evidence={"configured": False, "state": "pending_restart"},
+                     settings_link=link, problem=p)
     if row is not None:
         p = _problem("connection_unreadable", "לא ניתן לקרוא את פרטי החיבור השמורים של ה־NVR.", NVR_UNREADABLE_ACTION, link)
         return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא קריאים", "err")], evidence={"configured": False, "state": "unreadable"},
@@ -800,7 +806,7 @@ def nvr_less_steps(settings: Settings, conn: sqlite3.Connection | None = None) -
     conn_link = _link("connections")
     p = _problem("nvr_less_mode", "ההתקנה פועלת במצב ללא NVR - הדילוג מכוון.", NVR_LESS_ACTION, conn_link)
     out = {
-        "nvr": nvr_choice_step(conn),
+        "nvr": nvr_choice_step(conn, settings),
         "camera": not_applicable_step("camera", "אין מצלמות NVR במצב ללא NVR; המפה מציגה את ישויות תשתית המערכת.", p, _link("sites")),
     }
     if not settings.go2rtc_url and not settings.wiskey_user:  # WisKey station stills and video need go2rtc
