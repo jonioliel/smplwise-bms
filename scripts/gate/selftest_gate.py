@@ -8,7 +8,10 @@ Exit code 0 = every case behaved; 1 = a guard is broken. Each case prints OK / B
 import json, os, stat, sys, tempfile, textwrap
 from pathlib import Path
 
+import atexit, shutil  # noqa: E402
+
 TMP = Path(tempfile.mkdtemp(prefix="gate_selftest_"))
+atexit.register(shutil.rmtree, TMP, True)
 os.environ["GATE_HOME"] = str(TMP / "home")
 os.environ["GATE_RESULTS_DIR"] = str(TMP / "results")
 (TMP / "home").mkdir()
