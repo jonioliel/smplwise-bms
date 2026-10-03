@@ -1,0 +1,208 @@
+{
+  "format": "smplwise-arx/wiskey-trusted-caller/vector-package-manifest",
+  "format_version": 1,
+  "protocol": "wiskey-trusted-door-v1",
+  "package": "v3-addendum",
+  "addendum_version": 1,
+  "vectors_version": 3,
+  "date": "2026-10-04",
+  "delivery_target": "2026-10-06",
+  "status": "DRAFT for WisKey reading and verification; documents and synthetic vectors only; no runtime, no live run",
+  "files": [
+    {
+      "path": "GOLDEN_VECTORS_v3_addendum.json",
+      "role": "vectors (generated)"
+    },
+    {
+      "path": "MANIFEST.json",
+      "role": "manifest (generated)"
+    },
+    {
+      "path": "README.md",
+      "role": "documentation (English)"
+    },
+    {
+      "path": "NOTE_FOR_WISKEY_v3_addendum.md",
+      "role": "short note (Hebrew)"
+    },
+    {
+      "path": "ANCHOR_PROCEDURE_DRAFT.md",
+      "role": "draft procedure, not verified"
+    },
+    {
+      "path": "check_v3_addendum.py",
+      "role": "offline stdlib checker"
+    },
+    {
+      "path": "SHA256SUMS",
+      "role": "SHA-256 of every other file in this folder"
+    }
+  ],
+  "earlier_files_pinned": [
+    {
+      "path": "../GOLDEN_VECTORS.json",
+      "package": "v1+v2",
+      "sha256": "2966133294109546e5a1d4b6dc319264bf17b80a1e468088b087c549f10c5a1f"
+    },
+    {
+      "path": "../DTO_DRAFT.md",
+      "package": "v2",
+      "sha256": "07d19c77027d4909f56d6929e2c8338d3e482425f7ca6616e9d0315aa7a6eaeb"
+    },
+    {
+      "path": "../NOTE_FOR_WISKEY_v2.md",
+      "package": "v2",
+      "sha256": "52f6c49db7805e588f9f40153988864d8d431fc31de5b064beb54b7c69e7005b"
+    },
+    {
+      "path": "../v3/GOLDEN_VECTORS_v3.json",
+      "package": "v3",
+      "sha256": "f162f8a8a551be9ce0016844067261473df7e404fedeeb864899ed78b95b1263"
+    },
+    {
+      "path": "../v3/DTO_DRAFT_v3.md",
+      "package": "v3",
+      "sha256": "8885d19dcd4a5d30458223dab0b934101ac1031e4822b0c3947edb78370f83ae"
+    },
+    {
+      "path": "../v3/NOTE_FOR_WISKEY_v3.md",
+      "package": "v3",
+      "sha256": "35524d41a54df4e88f32af14a8d6e634bb24ce64f9c65fa5f52ef2c73f9177d2"
+    }
+  ],
+  "v1_vectors_canonical_sha256": "3bb4bb2240e5586fed3e276699ed071b9fcec09dc84162f85f3833ce76b17520",
+  "complements": [
+    {
+      "file": "../GOLDEN_VECTORS.json",
+      "vectors_version": 2,
+      "arx_commit": "c22b5f6a",
+      "file_sha256": "2966133294109546e5a1d4b6dc319264bf17b80a1e468088b087c549f10c5a1f",
+      "cases": {
+        "vectors (v1)": 29,
+        "contract_vectors (v2)": 68
+      },
+      "rule": "unchanged and binding, except the v2 case superseded by v3"
+    },
+    {
+      "file": "../v3/GOLDEN_VECTORS_v3.json",
+      "vectors_version": 3,
+      "arx_commit": "2439a57a",
+      "file_sha256": "f162f8a8a551be9ce0016844067261473df7e404fedeeb864899ed78b95b1263",
+      "cases": {
+        "contract_vectors_v3": 82
+      },
+      "rule": "unchanged and binding, except response_schemas.status_unknown and one metadata field (see supersedes)"
+    }
+  ],
+  "supersedes": [
+    {
+      "target": "../v3/GOLDEN_VECTORS_v3.json#/response_schemas/status_unknown",
+      "replaced_by": "GOLDEN_VECTORS_v3_addendum.json#/response_schemas/status_unknown",
+      "why": "status_unknown.reason is only pending | not_found_or_expired (WisKey answer (e), agreed by Arx). The v3 schema also allowed unconfirmed, interrupted and outcome_persistence_failed. No v3 case changes outcome: every v3 status_unknown expected_response uses pending or not_found_or_expired.",
+      "negative_cases": [
+        "status_unknown_reason_unconfirmed_is_invalid",
+        "status_unknown_reason_interrupted_is_invalid",
+        "status_unknown_reason_outcome_persistence_failed_is_invalid"
+      ]
+    },
+    {
+      "target": "../v3/GOLDEN_VECTORS_v3.json#case:size_8193_bytes_invalid_utf8_utf8_first/signed_message_code_points",
+      "replaced_by": "GOLDEN_VECTORS_v3_addendum.json#/metadata_corrections/0",
+      "why": "Code points are not defined for invalid UTF-8. The refusal (encoding/invalid_utf8) and the byte count (8193) stay binding."
+    }
+  ],
+  "carried_supersedes": [
+    {
+      "vectors_version": 2,
+      "id": "status_station_mismatch_vs_open_record",
+      "replaced_by": "status_station_mismatch_answers_not_found",
+      "declared_in": "../v3/GOLDEN_VECTORS_v3.json#/supersedes"
+    }
+  ],
+  "group_complements": {
+    "schema": {
+      "complements_v3_cases": [
+        "status_target_unknown_unconfirmed",
+        "status_target_interrupted",
+        "status_target_pending",
+        "status_target_missing_answers_not_found"
+      ],
+      "note": "adds the outcome_persistence_failed status case and the three forbidden top-level reasons"
+    },
+    "station": {
+      "complements_v3_cases": [
+        "relay_physical_index_1_allowed",
+        "relay_physical_index_2_mapping_without_1",
+        "relay_1_not_in_mapping_with_gap",
+        "relay_3_not_in_mapping",
+        "relay_max_safe_integer_not_in_mapping",
+        "capability_missing"
+      ],
+      "closes_open_item": "DTO_DRAFT_v3.md section 11 W-f"
+    },
+    "capabilities": {
+      "complements_v3_cases": [],
+      "note": "new read-only service; a hint for display and selection only, never an authorization"
+    },
+    "clock": {
+      "complements_v3_cases": [
+        "clock_health_ok",
+        "clock_divergence_2000ms_allowed",
+        "clock_divergence_plus_2001ms_blocks",
+        "clock_divergence_minus_2001ms_blocks",
+        "clock_utc_regressed_below_anchor_blocks",
+        "clock_no_anchor_blocks",
+        "clock_no_anchor_blocks_status",
+        "clock_healthy_is_not_a_skew_allowance",
+        "time_no_forward_skew_1s",
+        "time_no_forward_skew_2s"
+      ],
+      "note": "a v3 clock case has no clock_signal: read it as 'signal healthy and fresh, not under test'"
+    },
+    "anchor": {
+      "complements_v3_cases": [
+        "clock_no_anchor_blocks",
+        "clock_utc_regressed_below_anchor_blocks"
+      ],
+      "closes_open_item": "DTO_DRAFT_v3.md section 11 W-b (as a draft procedure, not verified)"
+    }
+  },
+  "counts": {
+    "schema": {
+      "stateful": 3,
+      "total": 3
+    },
+    "station": {
+      "stateful": 8,
+      "total": 8
+    },
+    "capabilities": {
+      "model": 27,
+      "total": 27
+    },
+    "clock": {
+      "reject": 2,
+      "stateful": 20,
+      "total": 22
+    },
+    "anchor": {
+      "model": 16,
+      "total": 16
+    },
+    "total": {
+      "total": 76
+    }
+  },
+  "model_only_groups": [
+    "capabilities",
+    "clock",
+    "anchor"
+  ],
+  "not_verified": [
+    "any runtime: there is no door_open, door_open_status or trusted_door_capabilities service",
+    "a real Supervisor /host/info, its versions and its exact dt_utc format (COMPAT.md, planned 2026-10-08)",
+    "SQLite durability of the high-water, concurrency, restarts",
+    "the HMAC rotation procedure (draft planned 2026-10-12); it is separate from the Ed25519 package-signer procedure"
+  ],
+  "checker": "python check_v3_addendum.py  (stdlib only, offline; exit 0 = all checks passed)"
+}
