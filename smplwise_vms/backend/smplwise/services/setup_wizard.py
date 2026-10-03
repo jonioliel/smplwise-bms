@@ -33,6 +33,8 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from .. import __version__
+from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, installation_block
+from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
@@ -568,7 +570,8 @@ def _with_nvr_gap(live: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- step 4: go2rtc
 
 GO2RTC_ERRORS = {
-    "media_not_configured": ("כתובת go2rtc לא הוגדרה.", "מלאו go2rtc_url (למשל http://<כתובת HA>:1984) ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש."),
+    # NN1: operator wording without infrastructure branding (the connection settings move into the product with NN4)
+    "media_not_configured": ("כתובת שרת המדיה (go2rtc) לא הוגדרה.", "השלימו את כתובת שרת המדיה (go2rtc_url, בדרך כלל בפורט 1984) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש."),
     "media_unavailable": ("go2rtc לא ענה.", "ודאו שה־Add-on של go2rtc מותקן ופועל ושהכתובת go2rtc_url נכונה (כולל הפורט, בדרך כלל 1984)."),
     "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username ו־go2rtc_api_password ב־Configuration של ה־Add-on."),
 }
@@ -587,6 +590,9 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
     link = _link("media")
     if not settings.go2rtc_url:
         p = _go2rtc_problem("media_not_configured")
+        if resolve_capabilities(settings).unsupported_reason == NVR_WITHOUT_GO2RTC:
+            # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation - say why, keep the code
+            p = _problem("media_not_configured", UNSUPPORTED_MESSAGES[NVR_WITHOUT_GO2RTC], UNSUPPORTED_ACTIONS[NVR_WITHOUT_GO2RTC], link)
         return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     if is_ha_only(settings):
         # NVR-less mode: no camera streams exist or are synced; the step is go2rtc answering (WisKey station video)
@@ -828,9 +834,12 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     required = [s for s in ordered if s["status"] != "not_applicable"]  # a step skipped on purpose is not counted
     done = sum(1 for s in required if s["status"] == "done")
     nxt = next((s["id"] for s in required if s["status"] != "done"), None)
+    caps = resolve_capabilities(settings)
     return {
         "version": __version__, "mode": installation_mode(settings), "checked_at": now_iso(), "steps": ordered, "done": done, "total": len(required),
-        "ready": done == len(required), "next": nxt,
+        # NN1: an unsupported installation (an NVR without go2rtc) never reaches "ready", whatever the steps say
+        "ready": done == len(required) and caps.supported, "next": nxt,
+        "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps),  # system.configure only
         "thresholds": {"drift_ok_s": DRIFT_OK_S, "drift_fail_s": DRIFT_FAIL_S}, "check_every_s": CHECK_EVERY_S, "live_ttl_s": LIVE_TTL_S,
     }
 

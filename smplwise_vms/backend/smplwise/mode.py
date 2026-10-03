@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .capabilities import nvr_host
 from .config import DEV_NVR_PLACEHOLDER, Settings
 from .errors import ApiError
 
@@ -33,8 +34,9 @@ NVR_LESS_LABEL = "לא מוגדר - מצב ללא NVR"
 
 def installation_mode(settings: Settings) -> str:
     """`ha_only` when the add-on options name no NVR host, `full` otherwise (a host without credentials is a full
-    installation whose NVR is not configured yet - the existing "not configured" wording applies to it)."""
-    return FULL if (settings.nvr_host or "").strip() else HA_ONLY
+    installation whose NVR is not configured yet - the existing "not configured" wording applies to it).
+    NN1: a thin compatibility wrapper over the `nvr` capability (capabilities.py, the one place that reads the NVR host)."""
+    return FULL if nvr_host(settings) else HA_ONLY
 
 
 def is_ha_only(settings: Settings) -> bool:
