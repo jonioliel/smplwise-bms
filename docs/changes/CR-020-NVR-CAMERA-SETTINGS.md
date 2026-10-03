@@ -294,7 +294,9 @@ Not built in this slice, with the reason:
 Review: `private/cr020-s2c-review/SECURITY_REVIEW.md` (13 findings on 7068b093). Tests:
 `test_nvr_stream_batch_review_fixes.py` (each failed on 7068b093 and passes now; fake NVR only, new fake knobs
 `list_inject`, `drip_from` / `drip_s`); adjusted: `test_nvr_stream_batch_recovery.py` (a GET no longer recovers; the lock key
-comes from `nvr_batch.lock_key`), `test_nvr_stream_batch.py` (the lock is per device). Contract changes (additive) are in
+comes from `nvr_batch.lock_key`), `test_nvr_stream_batch.py` (the lock is per device), `test_nvr_stream_write_locks.py`
+(the synthetic pending rows now store a real before document - the settle compares the other fields with it; a row
+without a readable before document is settled `diverged`, never `applied`). Contract changes (additive) are in
 API §3.5 / §3.7 "Security review fixes".
 
 | # | Finding | Result |

@@ -504,7 +504,8 @@ def stop_batch(db: Any, conn: sqlite3.Connection, principal: Any, batch_id: str,
     meta = _meta(conn, batch_id)
     if meta is None:
         raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
-    if meta.get("state") != "running":
+    gone = _hung(batch_id) or (not _is_live(batch_id) and _beat_age_s(conn, batch_id) > BEAT_STALE_S)
+    if meta.get("state") != "running" or (meta.get("stop_requested_at") and not gone):  # nothing to record: stays read-only
         return batch_status(conn, principal, batch_id)
     with db.connection(label="nvr_batch.stop") as w:
         meta = _meta(w, batch_id) or meta
