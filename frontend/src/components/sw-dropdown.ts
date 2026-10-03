@@ -200,22 +200,22 @@ export class SwDropdown extends LitElement {
     }
 
     /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). auto has none of this. ---- */
-    :host([dd-style]:not([dd-style='auto'])) {
+    :host(:where(:not([dd-style='auto']))) {
       --_h: max(28px, calc(var(--sw-touch-desktop, 44px) - 12px));
       --_opt: var(--sw-touch-desktop, 44px);
     }
-    :host([dd-style]:not([dd-style='auto'])) .chip {
+    :host(:where(:not([dd-style='auto']))) .chip {
       min-block-size: var(--_h);
       border-radius: var(--sw-r-sm);
     }
-    :host([dd-style]:not([dd-style='auto'])) .chip::after {
+    :host(:where(:not([dd-style='auto']))) .chip::after {
       inset-block: calc((var(--_h) - var(--_opt)) / 2);
     }
-    :host([dd-style]:not([dd-style='auto'])) .chip:focus-visible,
-    :host([dd-style]:not([dd-style='auto'])) .opt:focus-visible {
+    :host(:where(:not([dd-style='auto']))) .chip:focus-visible,
+    :host(:where(:not([dd-style='auto']))) .opt:focus-visible {
       outline-offset: 2px;
     }
-    :host([dd-style]:not([dd-style='auto'])) .pop {
+    :host(:where(:not([dd-style='auto']))) .pop {
       border: 0;
       border-radius: var(--sw-r-lg);
       background: var(--sw-dd-pop-bg, var(--sw-surface-solid));
@@ -223,7 +223,7 @@ export class SwDropdown extends LitElement {
       -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
       backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
     }
-    :host([dd-style]:not([dd-style='auto'])) .opt {
+    :host(:where(:not([dd-style='auto']))) .opt {
       min-block-size: var(--_opt);
       border-radius: var(--sw-r-sm);
     }
@@ -440,10 +440,10 @@ export class SwDropdown extends LitElement {
       }
     }
     @media (forced-colors: active) {
-      :host([dd-style]:not([dd-style='auto'])) .chip {
+      :host(:where(:not([dd-style='auto']))) .chip {
         border: 1px solid ButtonText;
       }
-      :host([dd-style]:not([dd-style='auto'])) .pop {
+      :host(:where(:not([dd-style='auto']))) .pop {
         border: 1px solid CanvasText;
       }
     }
