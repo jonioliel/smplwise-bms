@@ -87,7 +87,7 @@ export const nvrConnection = () => get<NvrConnection>('nvr/connection');
 export const testNvrConnection = (body: ConnectionBody & { use_stored_password?: boolean }) => post<TestResult>('nvr/connection/test', body);
 export const saveNvrConnection = (body: ConnectionBody & { save_untested?: boolean; confirm_text?: string; if_revision?: number }) => put<SaveResult>('nvr/connection', body);
 /** `DELETE` carries a body (the typed word); the shared `del` helper does not. */
-export const removeNvrConnection = (confirm_text: string) =>
-  api<{ removed: true; restart_required: true; revision: number; cameras_disabled: number }>('nvr/connection', { method: 'DELETE', body: JSON.stringify({ confirm_text }) });
+export const removeNvrConnection = (confirm_text: string, if_revision: number) =>
+  api<{ removed: true; restart_required: true; revision: number; cameras_disabled: number }>('nvr/connection', { method: 'DELETE', body: JSON.stringify({ confirm_text, if_revision }) });
 /** 202 = accepted; the process ends after the answer, so its outcome is only seen by the system coming back. */
 export const restartSystem = () => post<{ restarting: true }>('system/restart', { confirm: true });

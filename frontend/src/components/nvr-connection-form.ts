@@ -68,6 +68,8 @@ export class NvrConnectionForm extends LitElement {
   @state() private word = '';
   /** The server answered `remove_first` (a vendor change with cameras present). */
   @state() private lockedByServer = false;
+  /** Someone else changed the connection meanwhile (409 stale): the form offers "טען מחדש" and sends nothing until then. */
+  @state() private stale = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -82,6 +84,7 @@ export class NvrConnectionForm extends LitElement {
       this.view = view;
       this.loadError = '';
       this.lockedByServer = false;
+      this.stale = false;
       this.loadState = 'ready';
       this.editing = this.context === 'wizard' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable';
       this.seed();
@@ -136,7 +139,10 @@ export class NvrConnectionForm extends LitElement {
   /** Whether the stored password still applies: same vendor as stored, and the installer did not choose to change it. */
   private get keepsStoredPassword(): boolean {
     const v = this.view;
-    return !!v?.has_password && v.vendor === this.draft.vendor && !this.changePassword;
+    if (!v?.has_password || v.vendor !== this.draft.vendor || this.changePassword) return false;
+    // a changed destination (address or port) never inherits the stored password: it has to be typed again (server rule)
+    const d = this.draft;
+    return d.host.trim() === (v.host ?? "") && d.http_port.trim() === String(v.http_port ?? "") && d.rtsp_port.trim() === String(v.rtsp_port ?? "");
   }
 
   private body(): ConnectionBody {
@@ -218,7 +224,7 @@ export class NvrConnectionForm extends LitElement {
       this.word = '';
       if (err instanceof ApiError && err.code === 'stale') {
         this.msg = { tone: 'err', text: err.body.user_message };
-        void this.load();
+        this.stale = true;
       } else {
         if (err instanceof ApiError && err.code === 'remove_first') this.lockedByServer = true;
         this.msg = { tone: 'err', text: describeError(err) };
@@ -234,7 +240,7 @@ export class NvrConnectionForm extends LitElement {
     this.busy = 'remove';
     this.msg = null;
     try {
-      await removeNvrConnection(this.word.trim());
+      await removeNvrConnection(this.word.trim(), this.view?.revision ?? 0);
       this.removeOpen = false;
       this.word = '';
       announceRestartPending(true);
@@ -244,6 +250,7 @@ export class NvrConnectionForm extends LitElement {
     } catch (err) {
       this.removeOpen = false;
       this.msg = { tone: 'err', text: describeError(err) };
+      if (err instanceof ApiError && err.code === 'stale') this.stale = true;
     } finally {
       this.busy = '';
     }
@@ -327,6 +334,7 @@ export class NvrConnectionForm extends LitElement {
         </div>`}
       ${this.editing && hasConnection && v.vendor !== 'none' && this.context === 'settings' ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="trash" data-conn-remove ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button></div>` : nothing}
       ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-conn-msg>${this.msg.text}</div>` : nothing}
+      ${this.stale ? html`<div class="actions"><sw-button size="sm" icon="refresh" data-conn-reload @click=${() => void this.load()}>טען מחדש</sw-button></div>` : nothing}
       ${this.untestedOpen
         ? html`<sw-dialog open heading="שמירה בלי בדיקת חיבור" subheading="לא ניתן להתחבר ל־NVR כרגע" data-conn-untested-dialog @close=${() => (this.untestedOpen = false)}>
             <sw-field label=${`לאישור הקלידו „${SAVE_WORD}”`}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>

@@ -160,6 +160,12 @@ export class NvrRestartBanner extends LitElement {
       flex-basis: 100%;
       color: var(--sw-danger-text);
     }
+    /* from 768 px up the shell's floating search / status corner sits over the far end of the first row (as for the setup hint) */
+    @media (min-width: 768px) {
+      .bar {
+        padding-inline-end: 86px;
+      }
+    }
     @media (max-width: 767px) {
       .bar {
         margin: 8px 12px 0;

@@ -180,12 +180,12 @@ test.describe('NVR connection form (settings card)', () => {
     // nothing chosen: no fields, and no test or removal to offer
     await expect(form.locator('[data-conn-field]')).toHaveCount(0);
     await expect(form.locator('[data-conn-remove]')).toHaveCount(0);
-    await expect(form.locator('[data-conn-save]')).toBeDisabled();
+    await expect(form.locator('[data-conn-save]')).toHaveAttribute('disabled', '');
     await page.locator(`${FORM} [data-conn-vendor]`).selectOption('hikvision');
     await expect(form.locator('[data-conn-field]')).toHaveCount(4 + 1);
     await expect(form.locator('[data-conn-field="http_port"]')).toHaveValue('80');
     await expect(form.locator('[data-conn-field="rtsp_port"]')).toHaveValue('554');
-    await expect(form.locator('[data-conn-test]')).toBeDisabled();
+    await expect(form.locator('[data-conn-test]')).toHaveAttribute('disabled', '');
     await shot(page, 'settings-form-empty');
     await noOverflow(page);
   });
@@ -265,10 +265,10 @@ test.describe('NVR connection form (settings card)', () => {
     await shot(page, 'settings-unreachable');
     await form.locator('[data-conn-save-anyway]').click();
     const dlg = form.locator('[data-conn-untested-dialog]');
-    await expect(dlg).toBeVisible();
-    await expect(dlg.locator('[data-conn-untested-confirm]')).toBeDisabled();
+    await expect(dlg).toHaveAttribute('open', '');
+    await expect(dlg.locator('[data-conn-untested-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-conn-untested-word]').fill('שמרו');
-    await expect(dlg.locator('[data-conn-untested-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-conn-untested-confirm]')).toHaveAttribute('disabled', '');
     await shot(page, 'settings-untested-dialog');
     expect(m.calls.saves).toHaveLength(0);
     await dlg.locator('[data-conn-untested-word]').fill('שמור');
@@ -299,9 +299,9 @@ test.describe('NVR connection form (settings card)', () => {
     await form.locator('[data-conn-remove]').first().click();
     const dlg = form.locator('[data-conn-remove-dialog]');
     await expect(dlg).toContainText('המצלמות יישארו במערכת ויושבתו');
-    await expect(dlg.locator('[data-conn-remove-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-conn-remove-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-conn-remove-word]').fill('הסרה');
-    await expect(dlg.locator('[data-conn-remove-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-conn-remove-confirm]')).toHaveAttribute('disabled', '');
     await shot(page, 'settings-remove-dialog');
     await dlg.locator('[data-conn-remove-word]').fill('הסר');
     await dlg.locator('[data-conn-remove-confirm]').click();
@@ -368,11 +368,11 @@ test.describe('restart-required banner', () => {
     await open(page, '/explore/sites');
     await page.locator('sw-app nvr-restart-banner [data-restart-open]').click();
     const dlg = page.locator('sw-app nvr-restart-banner [data-restart-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await shot(page, 'restart-dialog');
     expect(m.calls.restarts).toBe(0);
     await dlg.locator('sw-button', { hasText: 'ביטול' }).click();
-    await expect(dlg).toBeHidden();
+    await expect(dlg).not.toHaveAttribute('open', '');
     expect(m.calls.restarts).toBe(0);
     await page.locator('sw-app nvr-restart-banner [data-restart-open]').click();
     await dlg.locator('[data-restart-confirm]').click();
