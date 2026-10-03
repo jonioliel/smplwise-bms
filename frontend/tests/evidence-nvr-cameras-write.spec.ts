@@ -43,7 +43,7 @@ const detailReads = (st: Mock, id: string) => st.hits.filter((h) => h === `GET n
 /** Presses the SVC switch of 101 and confirms the dialog. */
 async function toggleSvc101(page: Page) {
   await toggleOf(page, 1, '101').click();
-  await expect(page.locator(CONFIRM)).toBeVisible();
+  await expect(page.locator(`${CONFIRM} [data-nvr-confirm]`)).toBeVisible(); // the host has no box of its own (fixed children)
   await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
 }
 
@@ -64,7 +64,7 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     await tog.click();
     // the switch has NOT moved, nothing was sent, ONE short dialog: heading, camera · stream, the count, two buttons, details collapsed
     const dlg = page.locator(CONFIRM);
-    await expect(dlg).toBeVisible();
+    await expect(dlg.locator("[data-nvr-confirm]")).toBeVisible();
     await checked(tog);
     expect(st.writes).toEqual([]);
     await expect(dlg).toHaveAttribute('heading', 'לכבות SVC?');
@@ -382,7 +382,7 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     const btn = toggleOf(page, 1, '101').locator('button[role="switch"]');
     await btn.focus();
     await page.keyboard.press('Space');
-    await expect(page.locator(CONFIRM)).toBeVisible();
+    await expect(page.locator(`${CONFIRM} [data-nvr-confirm]`)).toBeVisible(); // the host has no box of its own (fixed children)
     await page.keyboard.press('Escape');
     await expect(page.locator(CONFIRM)).toHaveCount(0);
     expect(st.writes).toEqual([]);
@@ -394,7 +394,7 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     await expect(toggleOf(page, 1, '101')).toBeVisible();
     expect(await over()).toBeLessThanOrEqual(0);
     await toggleOf(page, 1, '101').click();
-    await expect(page.locator(CONFIRM)).toBeVisible();
+    await expect(page.locator(`${CONFIRM} [data-nvr-confirm]`)).toBeVisible(); // the host has no box of its own (fixed children)
     expect(await over()).toBeLessThanOrEqual(0);
     const box = await page.locator(`${CONFIRM}`).evaluate((el) => (el.shadowRoot!.querySelector('.box') as HTMLElement).getBoundingClientRect().toJSON());
     expect(box.left).toBeGreaterThanOrEqual(0);
@@ -419,7 +419,7 @@ test.describe('CR-020 S2b cameras write: dark and RTL', () => {
     await expect(toggleOf(page, 1, '101')).toBeVisible();
     await shot(page, 'dark-01-ready');
     await toggleOf(page, 1, '101').click();
-    await expect(page.locator(CONFIRM)).toBeVisible();
+    await expect(page.locator(`${CONFIRM} [data-nvr-confirm]`)).toBeVisible(); // the host has no box of its own (fixed children)
     await shot(page, 'dark-02-confirm');
     await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
     await expect(toast(page)).toHaveCount(1);
