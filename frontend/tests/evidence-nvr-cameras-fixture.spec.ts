@@ -39,13 +39,32 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
     control = await pwRequest.newContext({ baseURL: CONTROL });
   });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async () => {
     expect((await control.post('/reset')).status()).toBe(200);
-    expect((await control.post('/nvr', { data: { encodings_by_channel: { 1: { main: MAIN } } } })).status()).toBe(200);
+    expect((await control.post('/nvr', { data: { encodings_by_channel: { 1: { main: MAIN }, 4: { main: MAIN } } } })).status()).toBe(200);
+  });
+
+  /** The screen reads every camera's options on opening (the backend caches them per process: 10 minutes when readable, 60 s when not). */
+  async function openPage(page: Page) {
     await page.goto('about:blank');
     await page.goto('/?design=a#/system/security/cameras');
     await page.waitForSelector('sw-app');
     await expect(page.locator(`${PAGE} [data-nvr-cameras]`)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  }
+
+  // FIRST: the capability documents of channel 4's main answer 404 BEFORE anything reads them (the backend caches a readable answer for 10
+  // minutes, so this must be the first read of that stream in a fresh backend process): its switch is disabled, nothing is sent.
+  test('capability documents answer 404: the switch is disabled with the reason in its tooltip, nothing is sent', async ({ page }) => {
+    expect((await control.post('/nvr', { data: { caps_status_by_stream: { 401: { direct: 404, proxy: 404 } } } })).status()).toBe(200);
+    await openPage(page);
+    const tog = rowOf(page, 4, '401').locator('sw-toggle[data-svc-toggle]');
+    await expect(tog).toBeVisible({ timeout: 30_000 });
+    await expect(tog).toHaveAttribute('disabled', '');
+    await expect(tog).toHaveAttribute('title', 'יכולות הזרם אינן ידועות');
+    await tog.click({ force: true });
+    await expect(page.locator(CONFIRM)).toHaveCount(0);
+    expect(await nvrWrites()).toEqual([]);
+    await expect(toggle(page)).not.toHaveAttribute('disabled'); // the other cameras are not affected
   });
 
   test.afterAll(async () => {
@@ -54,6 +73,7 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
   });
 
   test('SVC off: one PUT reaches the NVR, the value is read back, the undo sends the second PUT that restores it', async ({ page }) => {
+    await openPage(page);
     const tog = toggle(page);
     await expect(tog).toBeVisible({ timeout: 30_000 }); // after the camera's detail (options, writable) was read from the fake NVR
     await expect(tog).toHaveAttribute('checked', '');
@@ -83,6 +103,7 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
   });
 
   test('a busy NVR: one PUT, one line, the switch stays', async ({ page }) => {
+    await openPage(page);
     expect((await control.post('/nvr', { data: { put: { status: 'busy' } } })).status()).toBe(200);
     await expect(toggle(page)).toBeVisible({ timeout: 30_000 });
     await toggle(page).click();
@@ -94,6 +115,7 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
   });
 
   test('the NVR answers OK and keeps the old value: "nvr_no_effect" line', async ({ page }) => {
+    await openPage(page);
     expect((await control.post('/nvr', { data: { put: { status: 'ok', keeps_old: true } } })).status()).toBe(200);
     await expect(toggle(page)).toBeVisible({ timeout: 30_000 });
     await toggle(page).click();
@@ -104,6 +126,7 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
   });
 
   test('the answer is lost after the PUT was applied: "הסטטוס נבדק", never retried (exactly one PUT)', async ({ page }) => {
+    await openPage(page);
     expect((await control.post('/nvr', { data: { put: { status: 'timeout' }, timeout_applies: true } })).status()).toBe(200);
     await expect(toggle(page)).toBeVisible({ timeout: 30_000 });
     await toggle(page).click();
@@ -111,17 +134,5 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
     await expect(lineOf(page).first()).toHaveText('הסטטוס נבדק', { timeout: 60_000 });
     await page.waitForTimeout(2000);
     expect(await nvrWrites()).toHaveLength(1);
-  });
-
-  test('capability documents answer 404: the switch is disabled with the reason in its tooltip, nothing is sent', async ({ page }) => {
-    expect((await control.post('/nvr', { data: { firmware: 'V4.99 caps-404', caps_status: { direct: 404, proxy: 404 } } })).status()).toBe(200);
-    await page.reload();
-    await expect(page.locator(`${PAGE} [data-nvr-cameras]`)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
-    const tog = toggle(page);
-    await expect(tog).toBeVisible({ timeout: 30_000 });
-    await expect(tog).toHaveAttribute('disabled', '');
-    await tog.click({ force: true });
-    await expect(page.locator(CONFIRM)).toHaveCount(0);
-    expect(await nvrWrites()).toEqual([]);
   });
 });
