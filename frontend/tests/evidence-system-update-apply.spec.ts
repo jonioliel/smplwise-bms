@@ -535,8 +535,10 @@ test.describe('permission gating, RTL, phone', () => {
     await mockBackend(page, BASE_PERMS, mock);
     await open(page, '/system/update');
     await page.waitForTimeout(800);
+    await expect(root(page).locator('[data-update-forbidden]')).toBeVisible();
     await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
     await expect(card(page)).toHaveCount(0);
+    expect(mock.stateCalls).toBe(0);
     expect(mock.applyBodies).toEqual([]);
     expect(mock.restartBodies).toEqual([]);
     expect(mock.arxRestarts).toBe(0);

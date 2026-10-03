@@ -11,6 +11,7 @@ import '../components/restarts-card';
 import { describeError } from '../api/client';
 import { applyUpdate, classifyRunError, newIdempotencyKey, runFailureRequestText, type RunView } from '../api/system-update-runs';
 import { productSettings } from '../api/prefs';
+import { can, isApi } from '../api/session';
 import {
   INTERVAL_CHOICES, checkForUpdate, classifyCheckError, getUpdateState, intervalLabel, resultLabel, setUpdateInterval,
   type CheckFailure, type UpdateState,
@@ -224,6 +225,7 @@ export class SystemUpdate extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (this.notHolder()) return; // CR-021 S3: the page offers nothing (and asks nothing) without system.update
     void this.load();
     void productSettings()
       .then((s) => (this.tz = (s['time.zone'] as string | undefined) ?? this.tz))
@@ -389,7 +391,14 @@ export class SystemUpdate extends LitElement {
     </sw-dialog>`;
   }
 
+  private notHolder(): boolean {
+    return isApi() && !can('system.update');
+  }
+
   render() {
+    if (this.notHolder()) {
+      return html`<sw-page heading="עדכונים"><sw-state-panel state="forbidden" data-update-forbidden></sw-state-panel></sw-page>`;
+    }
     const d = this.data;
     if (!d) {
       return html`<sw-page heading="עדכונים">
