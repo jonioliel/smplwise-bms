@@ -365,7 +365,7 @@ test.describe('the mockups\' per-skin notes', () => {
         const w = el.getBoundingClientRect().width;
         return { bg: cs.backgroundColor, blur: cs.backdropFilter, w };
       });
-      const alpha = /,\s*([\d.]+)\)$/.exec(r.bg)?.[1] ?? /\/\s*([\d.]+)\)$/.exec(r.bg)?.[1];
+      const alpha = /^rgba\(.*,\s*([\d.]+)\)$/.exec(r.bg)?.[1] ?? /\/\s*([\d.]+)\)$/.exec(r.bg)?.[1];
       if (check === 'opaque') expect(alpha === undefined || Number(alpha) === 1, `${skin} list is opaque (${r.bg})`).toBe(true);
       else {
         expect(Number(alpha ?? 1), `${skin} list is the 84% glass (${r.bg})`).toBeLessThan(0.95);
