@@ -80,6 +80,8 @@ DEFAULTS: dict[str, str] = {
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_style": "auto",
     "ui.dd_style_groups": "{}",
+    # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet, default) | list (the small list under the field). services/dd_style.py.
+    "ui.dd_phone": "sheet",
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
@@ -274,6 +276,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
     out["ui.dd_style"] = dd_style.stored_style(out["ui.dd_style"])
     out["ui.dd_style_groups"] = dd_style.stored_groups(out["ui.dd_style_groups"])
+    out["ui.dd_phone"] = dd_style.stored_phone(out["ui.dd_phone"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
@@ -458,6 +461,7 @@ class SettingsPatch(BaseModel):
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
     ui_dd_style: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.STYLES) + ")$", alias="ui.dd_style")
+    ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py

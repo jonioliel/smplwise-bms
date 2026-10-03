@@ -86,6 +86,7 @@ class PrefsPatch(BaseModel):
     ui_tabs_mode: str | None = Field(default=None, alias="ui.tabs_mode")  # release 0.1.153: tabs | hybrid | dropdown (services/tabs_mode.py); null = follow the installation
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # the same per tab group
     ui_dd_style: str | None = Field(default=None, alias="ui.dd_style")  # release 0.1.157: auto | pill | field | underline | text | prefix | tonal (services/dd_style.py); null = follow the installation
+    ui_dd_phone: str | None = Field(default=None, alias="ui.dd_phone")  # owner 2026-10-03: sheet | list, how a dropdown opens on a phone (services/dd_style.py); null = follow the installation
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
