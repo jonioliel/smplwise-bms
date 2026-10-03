@@ -116,9 +116,27 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) .pages button,
   :host([data-skin='bubble']) .link,
   :host([data-skin='bubble']) .linkbtn,
-  :host([data-skin='bubble']) button.link {
+  :host([data-skin='bubble']) button.link,
+  :host([data-skin='bubble']) a.seeall,
+  :host([data-skin='bubble']) a.why,
+  :host([data-skin='bubble']) button.kiosk,
+  :host([data-skin='bubble']) button.chip {
     min-block-size: var(--sw-touch-desktop, 44px);
     min-inline-size: var(--sw-touch-desktop, 44px);
+  }
+  :host([data-skin='bubble']) a.seeall,
+  :host([data-skin='bubble']) a.why,
+  :host([data-skin='bubble']) a.link {
+    display: inline-flex;
+    align-items: center;
+  }
+  /* a wide segmented control wraps inside its track at 320 px instead of pushing the page sideways; a muted note wraps too */
+  :host([data-skin='bubble']) .seg {
+    flex-wrap: wrap;
+  }
+  :host([data-skin='bubble']) .muted {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   /* 3. bordered boxes and list items (.wrow events, .item / .files / .add cases, .settings-row wall, .evl a history, .acc-root
         camera, .hcard / .brow diagnostics, .zone alarm, .skin / button.opt / li pickers, .ib, .step wizard, .map detail,

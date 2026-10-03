@@ -19,8 +19,10 @@ const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 // the internals the chrome work leaves alone (video, map, 3D, timeline, players, thumbnails) and decorative layers
 // also skipped, with the reason: the glass switch `.tog` (its 44 px hit area is a ::before the guard cannot measure), native checkboxes
 // and radios (their label is the target), inline text links inside a sentence or a table cell (never a 44 px block), and the
-// notifications' section rail `.setnav` (a scrolling column of its own)
-const SKIP = "sw-plan-canvas, sw-timeline, sw-live-player, sw-camera-tile, sw-scene, video, canvas, .video, .player, .stage, .grid .tile, .thumb, .pv-bg, .skl, .vh, .bg, .veil, .preview, .lphone, .pushcard, .escprev, .sw-prev, .mini-rail, .mini-bar, .tog, input[type='checkbox'], input[type='radio'], td a, li a, p a, span a, small a, .muted a, .setnav";
+// notifications' section rail `.setnav` (a scrolling column of its own), the product's switches (`[role='switch']`, `.tgl`: a 42 x 24 /
+// 46 x 28 drawing with a larger hit area - the shared toggle contract, not this task's), the card title links `a.name` (the card
+// is the target) and visually hidden text (`.sr-only`, clipped by design). Every skipped kind is listed in the task report as open.
+const SKIP = "sw-plan-canvas, sw-timeline, sw-live-player, sw-camera-tile, sw-scene, video, canvas, .video, .player, .stage, .grid .tile, .thumb, .pv-bg, .skl, .vh, .bg, .veil, .preview, .lphone, .pushcard, .escprev, .sw-prev, .mini-rail, .mini-bar, .tog, .tgl, [role='switch'], input[type='checkbox'], input[type='radio'], td a, li a, p a, span a, small a, .muted a, a.name, .sr-only, .setnav";
 // the bubbles of the chrome beyond the shared set (nothing may leave them)
 const BUBBLE = '.layouts, .rangepick, .transport, .kseg, .switcher, .pages, .range, .sevseg, .wrow, .item, .hcard, .zone, .kpi, nav.sections, .acard, .scard, .pcard';
 
