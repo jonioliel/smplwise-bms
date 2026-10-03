@@ -1,5 +1,17 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.156 (pilot) — Test stability release (no change to how the system behaves)
+**After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration and no new setting; nothing changes on any screen.
+### Fixes and under the hood
+- Two occasionally failing automated checks were made reliable: the automations builder check on right-to-left and touch layouts (a sub-pixel height rounding), and the tabs-settings check (it now waits for the settings save to finish before the second edit). These affected only the test suite, never the product.
+### How to turn it on and use it (English)
+1. Nothing to enable: update the add-on and reload the installed web app once.
+
+## עברית — 0.1.156: שחרור יציבות בדיקות (ללא שינוי בהתנהגות המערכת)
+- **לא נדרשת הפעלה מחדש** של הפלטפורמה, אין מיגרציה ואין הגדרה חדשה; שום מסך לא משתנה.
+- שתי בדיקות אוטומטיות שנכשלו לפעמים נעשו אמינות: בדיקת בונה האוטומציות בפריסת ימין-לשמאל ובמגע (עיגול גובה בפיקסל חלקי), ובדיקת הגדרות הלשוניות (ממתינה לסיום שמירת ההגדרות לפני העריכה השנייה). זה השפיע רק על סט הבדיקות, לא על המוצר.
+- **איך מפעילים:** אין מה להפעיל. מעדכנים את התוסף ורועננים פעם אחת את האפליקציה המותקנת.
+
 ## 0.1.155 (pilot) — Ten colour palettes for the Bubble look, and a palette editor
 **After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration; the new setting `ui.palettes` is created on first save. Reload the installed web app once.
 ### Ten ready palettes - הגדרות › כללי › "מראה" › "ערכת צבעים" (works with the Bubble look)
