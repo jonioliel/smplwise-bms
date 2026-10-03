@@ -212,6 +212,27 @@ use the real store: `tests/test_energy_store.py::make_store` shows how to feed r
   calls `energy_bills` with `state = 'draft'` (`period_start`, `period_end`, `account_id`) if that table exists.
   Bill and PDF retention (7 years) is executed by the billing branch; the setting key is owned here (section 5).
 
+### 2.4 Adapter to the billing branch's own protocol
+
+The billing branch coded against its own `BillingReadings` (`services/energy_billing_provider.py`: `meters()`, `segments()`,
+`history_wh()`) and looks up `services/energy_billing_adapter.provider()` at run time. This branch ships that adapter
+(`services/energy_billing_adapter.py`, configured in `main.create_app`): segments are consecutive accepted raw readings of
+one epoch (reset pairs carry the energy since the restart with `reset=True`, rebase pairs are left out, nothing crosses a
+replacement); for the part of a window older than the oldest raw reading (raw retention 90 days) the quarter-hour buckets
+are returned as 15-minute segments (`v0_wh = v1_wh = 0`); `history_wh` comes from the daily totals as `(wh, complete)` or
+`None`. Tested in `tests/test_energy_store.py::test_billing_adapter_segments_and_history`.
+
+### 2.5 Navigation id
+
+`services/user_prefs.NAV_TAB_IDS` includes `"infra"` (the Infrastructure area, after WisKey), so a saved personal menu order
+keeps it; `ui.tabs` accepts any slug section id (`infra`, `infra.electricity`).
+
+### 2.6 Not provided
+
+- Manual meter readings (calibration against the physical meter or the utility bill): not built in this phase (owner D7:
+  bills use measured readings only; the plan places calibration later). Replacement readings are typed through `/replace`.
+- History import (backfill): not built (owner round 2, answer 9).
+
 ## 3. REST API of this branch (`/api/v1/energy/...`, router `routers/energy_meters.py`)
 
 Conventions: JSON only (415 otherwise); errors in the shared `ApiError` envelope with Hebrew `user_message`; every write
@@ -234,15 +255,19 @@ money anywhere in these routes. All routes work on the remote channel with the s
 | GET | `/energy/settings` | energy.view (values) | - | `{values: {...}, editable: {key: bool}, ranges: {...}, storage: Storage}` |
 | PATCH | `/energy/settings` | energy.manage; retention keys need system.configure | `{key: value, ...}` (only known keys) | same as GET |
 
-`Candidate`: `{ref, name, area_id, area_name, unit, device_class, state_class, state, verdict: 'ok'|'warning'|'rejected',
+`Candidate`: `{ref, name, area_id, area_name, floor_id, floor_name, unit, device_class, state_class, state, verdict: 'ok'|'warning'|'rejected',
 code, message, already_meter_id}`. Codes: `ok`, `domain_rejected`, `power_unit`, `unit_rejected`, `unit_missing`,
 `device_class_rejected`, `measurement`, `state_not_numeric`, `state_negative`, `returned_energy`, `warn_total`,
 `warn_no_device_class`, `warn_unavailable`, `warn_same_device`. Rejected items carry the CR-023 section 5 Hebrew message.
 
-`Meter`: `{id, display_name, source_kind, source_ref, unit, area_id, area_name, status, status_reason, max_kw, revision,
-created_at, retired_at, state: 'reporting'|'not_reporting'|'paused'|'retired', last_report_at, value_kwh, today_kwh}`.
+`Meter`: `{id, display_name, source_kind, source_ref, unit, area_id, area_name, floor_id, floor_name, status, status_reason,
+max_kw, revision, created_at, retired_at, state: 'reporting'|'not_reporting'|'paused'|'retired', last_report_at, value_kwh,
+today_kwh, month_kwh, accounts_count}` (floor/area come from the meter's own area override or the sensor's area, so the UI
+needs no devices permission; `month_kwh` = from local midnight of the 1st of this month to now; `accounts_count` = active
+accounts whose formula uses the meter). `Epoch`: `{id, started_at, ended_at, start_reading_kwh, end_reading_kwh,
+start_reading_wh, end_reading_wh, reason, note}`.
 
-`Storage`: `{energy_db_bytes, classes: {raw: {rows, bytes_estimate}, intervals: {...}, daily: {...}}, estimate:
+`Storage`: `{energy_db_bytes, classes: {raw: {rows, bytes_estimate}, intervals: {...}, daily: {...}, drafts: {rows, bytes_estimate}}, estimate:
 {meters, raw_bytes, intervals_bytes, daily_bytes, total_bytes}}` - the estimate is for the current meter count at the
 current retention values (formula in section 6).
 
@@ -303,3 +328,6 @@ daily ≈ 20 MB. Typical sites (10-30 meters) need tens of MB.
 
 ## Change log
 - 2026-10-04: first version (elec-server).
+- 2026-10-04: meters list adds floor_id/floor_name, month_kwh, accounts_count; epochs add the Wh readings; candidates add
+  the floor; storage adds drafts; section 2.4 (billing adapter), 2.5 (nav id "infra"), 2.6 (not provided). The split into
+  buckets is on the cumulative line (section 2.1).

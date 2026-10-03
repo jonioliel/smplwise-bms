@@ -290,3 +290,63 @@ def test_sampler_load_200_meters_and_main_gate_untouched(env, monkeypatch):
         assert c.wh == 590  # 59 deltas of 10 Wh (the first poll is the reference)
     finally:
         cm.__exit__(None, None, None)
+
+
+def test_billing_adapter_segments_and_history(env):
+    """The adapter the billing branch looks up (services/energy_billing_adapter.provider): segments of accepted readings,
+    a reset pair carries the energy since the restart, nothing across a replacement, quarter-hour fallback after the raw
+    retention, history from the daily totals."""
+    from smplwise.services import energy_billing_adapter as ad
+
+    db, store, settings = env
+    ad.configure(settings)
+    mid = add_meter(db)
+    feed(store, mid, [(local(2026, 9, 1, 10), 500_000), (local(2026, 9, 1, 11), 501_000), (local(2026, 9, 1, 12), 300)])  # reset
+    rd = ad.provider()
+    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
+    assert [(s.wh, s.reset) for s in segs] == [(1000, False), (300, True)] and segs[0].v0_wh == 500_000
+    # replacement at 13:00 with typed readings: no segment crosses it
+    with db.connection() as conn:
+        conn.execute("INSERT INTO energy_meter_epochs(id, meter_id, started_at, start_reading_wh, reason, source_ref, created_at) VALUES ('e2', ?, ?, 0, 'replaced', 'x', ?)",
+                     (mid, iso_z(local(2026, 9, 1, 13)), now_iso()))
+    store.start_epoch(mid, at=ts(local(2026, 9, 1, 13)), epoch_id="e2", tz=TZ, final_wh=400, start_wh=0)
+    feed(store, mid, [(local(2026, 9, 1, 14), 250)])
+    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
+    assert [s.wh for s in segs] == [1000, 300, 100, 250]
+    assert sum(s.wh for s in segs) == ep.EnergyProvider(db._open(), store).consumption(mid, local(2026, 9, 1), local(2026, 9, 2)).wh
+    info = rd.meters([mid])[mid]
+    assert info.name == "לוח ראשי" and info.last_report_at == local(2026, 9, 1, 14).astimezone(UTC)
+    assert rd.history_wh(mid, local(2026, 9, 1), local(2026, 9, 2)) == (1650, False)  # the day is covered from 10:00 only
+    assert rd.history_wh(mid, local(2026, 8, 1), local(2026, 9, 1)) is None
+    # after the raw retention the quarter-hour buckets stand in
+    store.prune(raw_before=ts(local(2026, 9, 2)), intervals_before=0, daily_before=dt.date(2000, 1, 1))
+    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
+    assert segs and all((s.t1 - s.t0).total_seconds() == 900 for s in segs) and sum(s.wh for s in segs) == 1650
+
+
+def iso_z(x: dt.datetime) -> str:
+    return x.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def test_fake_provider_agrees_with_the_real_store(env):
+    """tests/energy_fake.FakeEnergyProvider (for the billing branch) answers like the real provider for plain readings."""
+    from energy_fake import FakeEnergyProvider
+
+    db, store, settings = env
+    mid = add_meter(db)
+    pts = [(local(2026, 8, 31, 23, 40), 100_000), (local(2026, 9, 15, 12, 0), 400_000), (local(2026, 10, 1, 0, 20), 777_777)]
+    feed(store, mid, pts, max_kw=1000)
+    fake = FakeEnergyProvider(now=local(2026, 10, 2).astimezone(UTC))
+    fake.add_meter(mid, "לוח ראשי")
+    fake.add_readings(mid, pts)
+    p, cm = provider(db, settings, local(2026, 10, 2))
+    try:
+        for a, b in ((local(2026, 9, 1), local(2026, 10, 1)), (local(2026, 8, 1), local(2026, 9, 1)), (local(2026, 9, 10), local(2026, 9, 20))):
+            real, fk = p.consumption(mid, a, b), fake.consumption(mid, a, b)
+            assert (real.wh, real.coverage) == (fk.wh, fk.coverage)
+        hr = p.history_windows([mid], dt.date(2026, 10, 1), dt.date(2026, 11, 1), "Asia/Jerusalem", 3)[mid]
+        hf = fake.history_windows([mid], dt.date(2026, 10, 1), dt.date(2026, 11, 1), "Asia/Jerusalem", 3)[mid]
+        assert hr == hf
+        assert p.reading_at(mid, local(2026, 9, 15, 12)).value_wh == fake.reading_at(mid, local(2026, 9, 15, 12)).value_wh == 400_000
+    finally:
+        cm.__exit__(None, None, None)

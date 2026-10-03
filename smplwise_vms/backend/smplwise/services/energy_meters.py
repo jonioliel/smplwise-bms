@@ -19,7 +19,7 @@ from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 
 UNITS = {"kwh": ("kWh", 1000), "wh": ("Wh", 1), "mwh": ("MWh", 1_000_000)}
-POWER_UNITS = {"w", "kw", "mw", "gw", "mw", "va", "kva"}
+POWER_UNITS = {"w", "kw", "mw", "gw", "va", "kva", "var", "kvar"}
 REJECTED_CLASSES = {"power", "apparent_power", "reactive_power", "current", "voltage", "energy_storage", "gas", "water", "monetary"}
 RETURNED_RE = re.compile(r"(returned|export|injected|feed_?in|to_grid)", re.I)
 NOT_NUMERIC_STATES = {None, "", "unavailable", "unknown", "none"}
@@ -141,7 +141,8 @@ def candidates(conn: sqlite3.Connection, q: str | None, area_id: str | None, inc
         where.append("e.area_id = ?")
         args.append(area_id)
     rows = conn.execute(
-        f"""SELECT e.entity_id, e.name, e.original_name, e.domain, e.device_class, e.unit, e.state, e.attributes_json, e.area_id, e.area_name, e.device_id
+        f"""SELECT e.entity_id, e.name, e.original_name, e.domain, e.device_class, e.unit, e.state, e.attributes_json, e.area_id, e.area_name, e.device_id,
+                   e.ha_floor_id, e.ha_floor_name
             FROM ha_entities e WHERE {' AND '.join(where)}
             ORDER BY CASE WHEN lower(COALESCE(e.unit, '')) IN ('kwh', 'wh', 'mwh') THEN 0 WHEN e.device_class = 'energy' THEN 1 ELSE 2 END, e.name, e.entity_id
             LIMIT ?""",
@@ -157,6 +158,7 @@ def candidates(conn: sqlite3.Connection, q: str | None, area_id: str | None, inc
         attrs = _attrs(r)
         out.append({
             "ref": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "area_id": r["area_id"], "area_name": r["area_name"],
+            "floor_id": r["ha_floor_id"], "floor_name": r["ha_floor_name"],
             "unit": r["unit"], "device_class": r["device_class"], "state_class": attrs.get("state_class"), "state": r["state"],
             "verdict": v.verdict, "code": v.code, "message": v.message, "already_meter_id": live.get(r["entity_id"]),
         })
@@ -173,9 +175,12 @@ def _live_devices(conn: sqlite3.Connection) -> set[str]:
 # ---------------------------------------------------------------- registry
 
 COLUMNS = "m.id, m.source_kind, m.source_ref, m.display_name, m.unit, m.unit_factor, m.area_id, m.status, m.status_reason, m.max_kw, m.revision, m.created_at, m.created_by, m.updated_at, m.retired_at"
-AREA_SQL = f"""SELECT {COLUMNS}, COALESCE(a.name, e.area_name) AS area_name, COALESCE(m.area_id, e.area_id) AS eff_area_id
+AREA_SQL = f"""SELECT {COLUMNS}, COALESCE(a.name, e.area_name) AS area_name, COALESCE(m.area_id, e.area_id) AS eff_area_id,
+                      CASE WHEN a.area_id IS NOT NULL THEN a.floor_id ELSE e.ha_floor_id END AS floor_id,
+                      CASE WHEN a.area_id IS NOT NULL THEN f.name ELSE e.ha_floor_name END AS floor_name
                FROM energy_meters m LEFT JOIN ha_entities e ON e.entity_id = m.source_ref
-               LEFT JOIN ha_areas a ON a.area_id = COALESCE(m.area_id, e.area_id)"""
+               LEFT JOIN ha_areas a ON a.area_id = COALESCE(m.area_id, e.area_id)
+               LEFT JOIN ha_floors f ON f.floor_id = a.floor_id"""
 
 
 def get(conn: sqlite3.Connection, meter_id: str) -> sqlite3.Row | None:
@@ -281,6 +286,11 @@ def accounts_using(conn: sqlite3.Connection, meter_id: str) -> list[dict[str, An
         return [{"account_id": r[0], "name": r[1]} for r in rows]
     rows = conn.execute("SELECT DISTINCT account_id FROM energy_account_meters WHERE meter_id = ?", (meter_id,)).fetchall()
     return [{"account_id": r[0], "name": None} for r in rows]
+
+
+def accounts_counts(conn: sqlite3.Connection, meter_ids: list[str]) -> dict[str, int]:
+    """{meter id: number of active accounts using it} for the meters list (same rule as accounts_using)."""
+    return {m: len(accounts_using(conn, m)) for m in meter_ids}
 
 
 def retire(conn: sqlite3.Connection, meter_id: str, revision: int) -> None:

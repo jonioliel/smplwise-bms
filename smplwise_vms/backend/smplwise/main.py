@@ -102,6 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
+    from .services import energy_billing_adapter
+
+    energy_billing_adapter.configure(settings)  # CR-023: the readings store answers the billing branch's provider seam
     from . import db as db_mod
 
     # the add-on option db_write_gate (default on); SW_DB_WRITE_GATE=0 always wins

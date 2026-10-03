@@ -346,6 +346,26 @@ class EnergyStore:
                                 (mid, start, end, EVENT_FLAGS)).fetchall()
         return [(r[0], r[1], r[2]) for r in rows]
 
+    def accepted_window(self, ext_id: str, start: int, end: int) -> list[tuple[int, int, int]]:
+        """Accepted readings (ts, value_wh, flags) with start <= ts < end, plus the last one before `start` and the first
+        one at or after `end` (so pairs straddling the edges are complete). Ordered by ts."""
+        with self.db.connection(mode="read", label="energy.accepted_window") as conn:
+            mid = self._mid(conn, ext_id, create=False)
+            if mid is None:
+                return []
+            before = conn.execute("SELECT ts, value_wh, flags FROM readings WHERE meter_id = ? AND ts < ? AND (flags & ?) = 0 ORDER BY ts DESC LIMIT 1", (mid, start, NOT_ACCEPTED)).fetchone()
+            inside = conn.execute("SELECT ts, value_wh, flags FROM readings WHERE meter_id = ? AND ts >= ? AND ts < ? AND (flags & ?) = 0 ORDER BY ts", (mid, start, end, NOT_ACCEPTED)).fetchall()
+            after = conn.execute("SELECT ts, value_wh, flags FROM readings WHERE meter_id = ? AND ts >= ? AND (flags & ?) = 0 ORDER BY ts LIMIT 1", (mid, end, NOT_ACCEPTED)).fetchone()
+        return ([tuple(before)] if before else []) + [tuple(r) for r in inside] + ([tuple(after)] if after else [])
+
+    def oldest_raw(self, ext_id: str) -> int | None:
+        with self.db.connection(mode="read", label="energy.oldest_raw") as conn:
+            mid = self._mid(conn, ext_id, create=False)
+            if mid is None:
+                return None
+            row = conn.execute("SELECT MIN(ts) FROM readings WHERE meter_id = ?", (mid,)).fetchone()
+        return row[0] if row else None
+
     def reading_around(self, ext_id: str, at: int) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
         """(last accepted reading at or before `at`, first accepted reading after `at`) as (ts, value_wh)."""
         with self.db.connection(mode="read", label="energy.reading_around") as conn:

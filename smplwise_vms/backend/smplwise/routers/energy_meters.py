@@ -14,21 +14,20 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
-import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate, settings_of
-from ..errors import ApiError, not_found
+from ..auth import current_principal, get_conn, get_read_conn, read_gate, settings_of
+from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, effective_permissions, require
 from ..services import energy_meters as meters
 from ..services import energy_settings as es
 from ..services import energy_store as st
 from ..services.energy_provider import EnergyProvider, coverage_of
-from ..services.timeutil import parse_utc, zone
+from ..services.timeutil import parse_utc
 from .devices import _is_json, _raw_body
 
 router = APIRouter()
@@ -103,32 +102,40 @@ def _today_start(p: EnergyProvider, now: int) -> int:
     return st.day_bounds(st.local_date(now, p.tz), p.tz)[0]
 
 
-def _meter_out(p: EnergyProvider, row: sqlite3.Row, status: Any, now: int) -> dict[str, Any]:
-    today_wh = None
+def _month_start(p: EnergyProvider, now: int) -> int:
+    return st.day_bounds(st.local_date(now, p.tz).replace(day=1), p.tz)[0]
+
+
+def _meter_out(p: EnergyProvider, row: sqlite3.Row, status: Any, now: int, accounts_count: int = 0) -> dict[str, Any]:
+    today_wh = month_wh = None
     if row["status"] != "retired":
-        res = p.store.consumption(row["id"], _today_start(p, now), now, tz=p.tz, interval_floor=None)
-        today_wh = res["wh"]
+        today_wh = p.store.consumption(row["id"], _today_start(p, now), now, tz=p.tz, interval_floor=None)["wh"]
+        month_wh = p.store.consumption(row["id"], _month_start(p, now), now, tz=p.tz, interval_floor=None)["wh"]
     return {
         "id": row["id"], "display_name": row["display_name"], "source_kind": row["source_kind"], "source_ref": row["source_ref"], "unit": row["unit"],
-        "area_id": row["eff_area_id"], "area_name": row["area_name"], "status": row["status"], "status_reason": row["status_reason"],
+        "area_id": row["eff_area_id"], "area_name": row["area_name"], "floor_id": row["floor_id"], "floor_name": row["floor_name"],
+        "status": row["status"], "status_reason": row["status_reason"],
         "max_kw": row["max_kw"], "revision": row["revision"], "created_at": row["created_at"], "retired_at": row["retired_at"],
         "state": status.state, "last_report_at": _iso(status.last_report_at), "value_kwh": _kwh(status.last_value_wh), "today_kwh": _kwh(today_wh),
+        "month_kwh": _kwh(month_wh), "accounts_count": accounts_count,
     }
 
 
 def _epoch_out(e: sqlite3.Row) -> dict[str, Any]:
     return {"id": e["id"], "started_at": e["started_at"], "ended_at": e["ended_at"], "start_reading_kwh": _kwh(e["start_reading_wh"]),
-            "end_reading_kwh": _kwh(e["end_reading_wh"]), "reason": e["reason"], "note": e["note"]}
+            "end_reading_kwh": _kwh(e["end_reading_wh"]), "start_reading_wh": e["start_reading_wh"], "end_reading_wh": e["end_reading_wh"],
+            "reason": e["reason"], "note": e["note"]}
 
 
 def _one(request: Request, conn: sqlite3.Connection, meter_id: str, *, detail: bool = False) -> dict[str, Any]:
     p = _provider(request, conn)
     row = meters.require(conn, meter_id)
     now = p.now()
-    out = _meter_out(p, row, p.statuses([meter_id])[meter_id], now)
+    used = meters.accounts_using(conn, meter_id)
+    out = _meter_out(p, row, p.statuses([meter_id])[meter_id], now, len(used))
     if detail:
         out["epochs"] = [_epoch_out(e) for e in meters.epochs(conn, meter_id)]
-        out["used_in"] = meters.accounts_using(conn, meter_id)
+        out["used_in"] = used
     return out
 
 
@@ -146,9 +153,11 @@ def list_meters(request: Request, include_retired: bool = Query(False), principa
     """Electricity meters with their status (reporting / not reporting / paused), current value and today's kWh (energy.view)."""
     p = _provider(request, conn)
     rows = meters.list_rows(conn, include_retired)
-    statuses = p.statuses([r["id"] for r in rows])
+    ids = [r["id"] for r in rows]
+    statuses = p.statuses(ids)
+    counts = meters.accounts_counts(conn, ids)
     now = p.now()
-    return {"items": [_meter_out(p, r, statuses[r["id"]], now) for r in rows], "stale_after_minutes": int(es.value(conn, "energy.stale_after_minutes"))}
+    return {"items": [_meter_out(p, r, statuses[r["id"]], now, counts[r["id"]]) for r in rows], "stale_after_minutes": int(es.value(conn, "energy.stale_after_minutes"))}
 
 
 @router.get("/energy/meters/{meter_id}")
@@ -339,6 +348,19 @@ def consumption(request: Request, meter_ids: str = Query(min_length=1, max_lengt
 
 # ---------------------------------------------------------------- settings
 
+def _draft_usage(conn: sqlite3.Connection) -> dict[str, int]:
+    """Draft bills of the billing branch (retention "טיוטות"): rows and the bytes of their JSON columns; zeros before its table exists."""
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(energy_bills)").fetchall()}
+        if not cols:
+            return {"rows": 0, "bytes_estimate": 0}
+        size = " + ".join(f"COALESCE(LENGTH({c}), 0)" for c in ("snapshot_json", "totals_json") if c in cols) or "0"
+        row = conn.execute(f"SELECT COUNT(*), COALESCE(SUM({size}), 0) FROM energy_bills WHERE state = 'draft'").fetchone()
+        return {"rows": int(row[0]), "bytes_estimate": int(row[1])}
+    except sqlite3.Error:
+        return {"rows": 0, "bytes_estimate": 0}
+
+
 def _settings_out(request: Request, conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     perms = set(effective_permissions(conn, principal, INSTALLATION))
     vals = es.values(conn, perms | {VIEW})
@@ -349,7 +371,8 @@ def _settings_out(request: Request, conn: sqlite3.Connection, principal: Princip
     storage = {"energy_db_bytes": store.file_bytes(), "classes": {
         "raw": {"rows": counts["readings"], "bytes_estimate": counts["readings"] * es.RAW_ROW_BYTES},
         "intervals": {"rows": counts["intervals"], "bytes_estimate": counts["intervals"] * es.INTERVAL_ROW_BYTES},
-        "daily": {"rows": counts["daily"], "bytes_estimate": counts["daily"] * es.DAILY_ROW_BYTES}}, "estimate": est}
+        "daily": {"rows": counts["daily"], "bytes_estimate": counts["daily"] * es.DAILY_ROW_BYTES},
+        "drafts": _draft_usage(conn)}, "estimate": est}
     editable = {k: s.permission in perms for k, s in es.SPECS.items() if k in vals}
     return {"values": vals, "editable": editable, "ranges": {k: v for k, v in es.ranges().items() if k in vals}, "storage": storage}
 
