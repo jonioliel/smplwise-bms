@@ -8,7 +8,8 @@
 -- 2. Owner decision 2026-10-03: the unused sensitive permission `nvr.config.stream` is removed from roles.json (encoding
 --    writes are the installer's job: `nvr.configure`, held by the built-in system_admin only and never by a custom role).
 --    A custom role that still names it loses it here, so the role editor never meets an unknown permission. A role
---    whose lists changed moves its own `revision`, and the permission revision moves once (the 0042 pattern).
+--    whose lists changed moves its own `revision`, and the permission revision moves once (the 0042 pattern); each such
+--    role gets one audit row `rbac.role.update` (reason `migration_0050`, no actor).
 ALTER TABLE nvr_changes ADD COLUMN recorder_id TEXT NOT NULL DEFAULT 'nvr-1';
 ALTER TABLE nvr_changes ADD COLUMN camera_id TEXT;
 ALTER TABLE nvr_changes ADD COLUMN stream_ref TEXT;
@@ -44,5 +45,14 @@ INSERT INTO settings(key, value)
    WHERE EXISTS (SELECT 1 FROM custom_roles c JOIN stream_perm_before b ON b.id = c.id
                   WHERE c.permissions_json != b.permissions_json OR c.sensitive_json != b.sensitive_json)
   ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT);
+
+-- review L3: the audit trail says which roles the upgrade changed (no actor: the upgrade did it; ids and the permission
+-- name only). Same transaction as the change (Database.migrate wraps the file in BEGIN/COMMIT).
+INSERT INTO audit_log(at, actor_user_id, actor_username, action, resource_type, resource_id, decision, reason, request_id, permission_revision, details_json)
+  SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), NULL, NULL, 'rbac.role.update', 'role', c.id, 'allowed', 'migration_0050', NULL,
+         (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'permission_revision'),
+         json_object('migration', '0050', 'removed', json_array('nvr.config.stream'), 'revision', c.revision)
+    FROM custom_roles c JOIN stream_perm_before b ON b.id = c.id
+   WHERE c.permissions_json != b.permissions_json OR c.sensitive_json != b.sensitive_json;
 
 DROP TABLE stream_perm_before;

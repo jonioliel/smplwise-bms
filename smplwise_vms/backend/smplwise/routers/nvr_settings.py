@@ -9,20 +9,28 @@ the camera's chain (403 before 404), then `confirm: true` (the JSON literal) bef
 No route returns a device address, a user name, a password, a serial number or a MAC."""
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured, after the permission check
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr_settings
 from ..services.access import camera_allowed, camera_scope, require_camera
+from .nvr_write import _raw_body, json_body
 
 router = APIRouter()
+STREAM_REF_RE = re.compile(r"\d{1,6}")
+# The PUT body is parsed by hand after the permission checks (review L2); its shape for the OpenAPI document (API 3.4):
+WRITE_BODY_OPENAPI: dict[str, Any] = {"requestBody": {"required": True, "content": {"application/json": {"schema": {
+    "type": "object", "required": ["if_match", "confirm", "changes"], "additionalProperties": False,
+    "properties": {"if_match": {"type": "string", "pattern": "^[0-9a-f]{16}$"}, "confirm": {"type": "boolean", "enum": [True]},
+                   "changes": {"type": "object", "minProperties": 1, "propertyNames": {"enum": list(nvr_settings.WRITE_FIELDS)}}}}}}}}
 PERMISSION = "system.configure"
 WRITE_PERMISSION = nvr_settings.WRITE_PERMISSION
 RECORDER_ID = Query(default=None, pattern=r"^[A-Za-z0-9_.-]{1,40}$")
@@ -73,6 +81,7 @@ def camera(camera_id: str, request: Request, principal: Principal = Depends(curr
 @router.get("/nvr/cameras/{camera_id}/streams/{stream_ref}/options")
 def stream_options(camera_id: str, request: Request, stream_ref: str = STREAM_REF, codec: str | None = CODEC,
                    principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """API 3.3: one stream's options from capability discovery; writable is a boolean here (null in the lists)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     require_camera(conn, principal, camera_id, PERMISSION)
     settings = settings_of(request)
@@ -80,17 +89,29 @@ def stream_options(camera_id: str, request: Request, stream_ref: str = STREAM_RE
     return nvr_settings.stream_options(conn, settings, camera_id, stream_ref, codec)
 
 
-@router.put("/nvr/cameras/{camera_id}/streams/{stream_ref}")
-def write_stream(camera_id: str, request: Request, stream_ref: str = STREAM_REF, body: Any = Body(default=None),
-                 principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """API 3.4. Order: permission at installation, permission on the camera's chain, `confirm` (literal true), body shape,
-    NVR-less mode, then the service (device reads, validation, two-phase write)."""
+def _writer_ro(camera_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """The write's permission on the READ connection, before the body is read (review L2 / L7, auth.read_gate pattern):
+    nvr.configure at installation scope, then on the camera's chain (403, audited, before 404)."""
     require(conn, principal, WRITE_PERMISSION, INSTALLATION)
     require_camera(conn, principal, camera_id, WRITE_PERMISSION)
+    return principal
+
+
+@router.put("/nvr/cameras/{camera_id}/streams/{stream_ref}", openapi_extra=WRITE_BODY_OPENAPI)
+def write_stream(camera_id: str, stream_ref: str, request: Request, principal: Principal = Depends(_writer_ro),
+                 raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """API 3.4: one stream's encoding (nvr.configure + camera, {if_match, confirm: true, changes}); 200 {change|null, stream, ...}.
+
+    Order: permission at installation, permission on the camera's chain (the gate), then - only then - the request
+    itself: `confirm` (literal true), the stream id, the body shape (review L2: the body and the path are parsed by hand after
+    the permission checks, so an unauthorised caller gets 403 whatever they sent), NVR-less mode, then the service (device
+    reads, validation, two-phase write)."""
     try:
-        req = nvr_settings.parse_write_body(body)
+        req = nvr_settings.parse_write_body(json_body(raw))
+        if not STREAM_REF_RE.fullmatch(stream_ref):
+            raise ApiError(422, "validation", "מזהה זרם לא תקין.", details={"field": "stream_ref"})
     except ApiError as exc:
-        raise nvr_settings.refuse_attempt(conn, principal, camera_id, stream_ref, exc, _rid(request)) from None
+        raise nvr_settings.refuse_attempt(conn, principal, camera_id, stream_ref[:16], exc, _rid(request)) from None
     settings = settings_of(request)
     ensure_nvr(settings)
     return nvr_settings.write_stream(conn, settings, principal, camera_id, stream_ref, req, request_id=_rid(request))

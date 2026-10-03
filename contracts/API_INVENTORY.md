@@ -292,11 +292,11 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | nvr | PUT | `/api/v1/cameras/{camera_id}/smart` | B4: line crossing and intrusion rules - one recorded change per document; the zones cache is dropped so the |
 | nvr | GET | `/api/v1/nvr/cameras` |  |
 | nvr | GET | `/api/v1/nvr/cameras/{camera_id}` |  |
-| nvr | PUT | `/api/v1/nvr/cameras/{camera_id}/streams/{stream_ref}` | API 3.4. Order: permission at installation, permission on the camera's chain, `confirm` (literal true), body shape, |
-| nvr | GET | `/api/v1/nvr/cameras/{camera_id}/streams/{stream_ref}/options` |  |
-| nvr | GET | `/api/v1/nvr/changes` |  |
-| nvr | GET | `/api/v1/nvr/changes/{change_id}` | The change with both documents (for the "before / after" view). |
-| nvr | POST | `/api/v1/nvr/changes/{change_id}/rollback` |  |
+| nvr | PUT | `/api/v1/nvr/cameras/{camera_id}/streams/{stream_ref}` | API 3.4: one stream's encoding (nvr.configure + camera, {if_match, confirm: true, changes}); 200 {change\|null, stream, ...}. |
+| nvr | GET | `/api/v1/nvr/cameras/{camera_id}/streams/{stream_ref}/options` | API 3.3: one stream's options from capability discovery; writable is a boolean here (null in the lists). |
+| nvr | GET | `/api/v1/nvr/changes` | The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); |
+| nvr | GET | `/api/v1/nvr/changes/{change_id}` | The change with both documents (for the "before / after" view). A stream change only for its installer (review M1). |
+| nvr | POST | `/api/v1/nvr/changes/{change_id}/rollback` | Undo. stream_encoding: nvr.configure + camera, body {"confirm": true}, 201 {change, stream, rollback_of, reboot_required}. |
 | nvr | GET | `/api/v1/nvr/connection` |  |
 | nvr | PUT | `/api/v1/nvr/connection` | D4: test the new connection (deviceInfo), then persist it - Supervisor options + add-on restart inside HA, a |
 | nvr | GET | `/api/v1/nvr/notify` | Which channels notify the surveillance centre for motion and for the smart events (read-only probe). |

@@ -109,7 +109,13 @@ def test_0050_nvr_stream_changes_on_a_0049_database(settings, tmp_path, monkeypa
         assert roles["r-both"] == (["map.read"], [], 2)
         assert roles["r-plain"] == (["map.read"], ["nvr.config.osd"], 1), "a role without it is untouched"
         assert dbmod.permission_revision(conn) == rev + 1
-        ins = ("INSERT INTO nvr_changes(id, kind, permission, target, path, status, note, created_at, recorder_id, stream_ref) "
+        # review L3: one audit row per stripped role (no actor: the upgrade did it), naming what was removed
+        trail = {r["resource_id"]: r for r in conn.execute("SELECT * FROM audit_log WHERE action = 'rbac.role.update' AND reason = 'migration_0050'")}
+        assert set(trail) == {"r-stream", "r-both"}
+        for r in trail.values():
+            assert (r["decision"], r["resource_type"], r["actor_user_id"], r["permission_revision"]) == ("allowed", "role", None, rev + 1)
+            assert json.loads(r["details_json"]) == {"migration": "0050", "removed": ["nvr.config.stream"], "revision": 2}
+        ins =("INSERT INTO nvr_changes(id, kind, permission, target, path, status, note, created_at, recorder_id, stream_ref) "
                "VALUES (?, 'stream_encoding', 'nvr.configure', 't', 'p', ?, '', 't', ?, ?)")
         conn.execute(ins, ("p1", "pending", "nvr-1", "101"))
         conn.execute(ins, ("p2", "pending", "nvr-1", "102"))  # another stream

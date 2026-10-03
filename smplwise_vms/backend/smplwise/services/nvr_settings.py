@@ -39,6 +39,10 @@ MAX_CAMERAS = 256
 WRITE_PERMISSION = "nvr.configure"
 KIND = "stream_encoding"
 PENDING_SETTLE_S = 120  # a pending row older than this is settled by reading the device (API 4 step 7)
+# Review M2: a change whose device answer was unknown (timeout, 5xx, failed verify) is settled no sooner than this after it
+# was recorded - the device may still be applying the PUT (whose answer it waits PUT_READ_TIMEOUT_S = 25 s for). Until then a
+# second write of the stream is 409 `write_in_progress` and the janitor leaves the row alone.
+UNKNOWN_SETTLE_MIN_S = 45
 WRITE_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
 REFUSED = ("stale", "nvr_busy", "nvr_not_supported", "nvr_rejected")
 
@@ -141,10 +145,6 @@ def _camera(recorder_id: str, channel: int, device_name: str | None, online: boo
     }
 
 
-def _cached(adapter: RecorderAdapter, stream_ref: str) -> StreamOptions | None:
-    getter = getattr(adapter, "cached_options", None)
-    return getter(stream_ref) if getter is not None else None
-
 
 def read_recorder(conn: sqlite3.Connection, adapter: RecorderAdapter) -> dict[str, Any]:
     """The cameras of one recorder: {"cameras": [...], "stale": bool, "error": code | None}."""
@@ -177,7 +177,7 @@ def read_recorder(conn: sqlite3.Connection, adapter: RecorderAdapter) -> dict[st
         if streams_error is not None:
             streams = _registry_streams(row, ch)
         else:
-            streams = [_stream_dict(s, _cached(adapter, s.stream_ref)) for s in by_channel.get(c.source_ref, [])]
+            streams = [_stream_dict(s) for s in by_channel.get(c.source_ref, [])]  # `writable` null: the list never discovers
         cameras.append(_camera(rid, ch, c.name, c.online, row, streams, streams_error))
     return {"cameras": cameras, "stale": streams_error is not None, "error": streams_error}
 
@@ -196,7 +196,12 @@ def list_cameras(conn: sqlite3.Connection, settings: Settings, scope: CameraScop
             stale = True
             failed.append(rid)
             error = error or res["error"]
-        out.extend(c for c in res["cameras"] if (scope.allows(c["camera_id"]) if c["camera_id"] else scope.everything))
+        for cam in res["cameras"]:
+            if not (scope.allows(cam["camera_id"]) if cam["camera_id"] else scope.everything):
+                continue
+            for s in cam["streams"]:  # frozen API shape: `writable` is null in lists, a boolean only in the detail / options
+                s["writable"], s["not_writable_reason"] = None, None
+            out.append(cam)
     return {"cameras": out, "recorders_failed": failed, "stale": stale, "error": error, "can_write": can_write, "checked_at": now_iso()}
 
 
@@ -414,6 +419,10 @@ def _pending(conn: sqlite3.Connection, recorder_id: str, stream_ref: str) -> sql
     return conn.execute("SELECT * FROM nvr_changes WHERE recorder_id = ? AND stream_ref = ? AND status = 'pending'", (recorder_id, stream_ref)).fetchone()
 
 
+def _utcnow() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)  # tests move this clock
+
+
 def _age_s(created_at: str) -> float:
     try:
         then = dt.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
@@ -421,11 +430,16 @@ def _age_s(created_at: str) -> float:
         return 10**9
     if then.tzinfo is None:
         then = then.replace(tzinfo=dt.timezone.utc)
-    return (dt.datetime.now(dt.timezone.utc) - then).total_seconds()
+    return (_utcnow() - then).total_seconds()
 
 
 def _settle_due(r: sqlite3.Row, older_than_s: float = PENDING_SETTLE_S) -> bool:
-    return r["error"] == "outcome_unknown" or _age_s(r["created_at"]) > older_than_s
+    """A pending row is settled when it is older than `older_than_s` (crash, busy database at re-lock), or - when the
+    device answer was unknown - once it is UNKNOWN_SETTLE_MIN_S old (never at once: the PUT may still be landing)."""
+    age = _age_s(r["created_at"])
+    if r["error"] == "outcome_unknown":
+        return age >= UNKNOWN_SETTLE_MIN_S
+    return age > older_than_s
 
 
 def _clear_pending(conn: sqlite3.Connection, settings: Settings, recorder_id: str, stream_ref: str) -> None:
@@ -490,29 +504,46 @@ def _device_write(conn: sqlite3.Connection, adapter: RecorderAdapter, stream_ref
     return outcome, error
 
 
+def _forget_options(adapter: Any, stream_ref: str) -> None:
+    """The device changed the stream: its cached capability discovery is dropped (review L1). In memory only."""
+    forget = getattr(adapter, "forget_options", None)
+    if forget is not None:
+        forget(stream_ref)
+
+
 def _record_outcome(conn: sqlite3.Connection, principal: Any, *, cid: str, action: str, camera_id: str, role: str, base: dict[str, Any], fields: dict[str, list[Any]],
-                    outcome: Any, error: ApiError | None, request_id: str | None, rollback_of: str | None = None) -> tuple[dict[str, Any], str, Any]:
-    """Phase 4 in one transaction: the change row, the outcome audit row, the registry. Returns (row, status, verified)."""
+                    outcome: Any, error: ApiError | None, request_id: str | None, rollback_of: str | None = None, adapter: Any = None) -> tuple[dict[str, Any], str, Any]:
+    """Phase 4 in one transaction: the change row, the outcome audit row, the registry. Returns (row, status, verified).
+    Every UPDATE is guarded by `status = 'pending'`: when the janitor settled the row meanwhile (review L5) the request
+    records nothing more - no second outcome audit row, no registry write - and answers with the janitor's verdict."""
     if error is not None:
         if error.details.get("outcome") == "unknown":
-            conn.execute("UPDATE nvr_changes SET error = 'outcome_unknown' WHERE id = ? AND status = 'pending'", (cid,))
+            error.retryable = False  # review M2: an unknown device outcome is never retried by a client
+            n = conn.execute("UPDATE nvr_changes SET error = 'outcome_unknown' WHERE id = ? AND status = 'pending'", (cid,)).rowcount
             status = "pending"
         else:
             status = "refused" if error.code in REFUSED else "failed"
-            conn.execute("UPDATE nvr_changes SET status = ?, error = ? WHERE id = ? AND status = 'pending'", (status, error.code, cid))
+            n = conn.execute("UPDATE nvr_changes SET status = ?, error = ? WHERE id = ? AND status = 'pending'", (status, error.code, cid)).rowcount
+        row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (cid,)).fetchone()
+        if not n:
+            return change_row(row), str(row["status"]), None
         audit(conn, actor=principal, action=action, decision="denied", resource_type="camera", resource_id=camera_id, reason=error.code, request_id=request_id,
               details={"phase": "outcome", **base, "fields": fields, "change_id": cid, "status": status, **({"rollback_of": rollback_of} if rollback_of else {})})
-        return change_row(conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (cid,)).fetchone()), status, None
+        return change_row(row), status, None
     verified: StreamSnapshot = outcome.verified
     status = classify(verified.parsed, fields)
-    conn.execute(
+    if status != "no_effect":
+        _forget_options(adapter, verified.stream_ref)
+    if not conn.execute(
         "UPDATE nvr_changes SET status = ?, error = ?, after_xml = ?, etag_after = ?, device_status = ?, reboot_required = ? WHERE id = ? AND status = 'pending'",
         (status, None if status == "applied" else status, verified.element, verified.etag, outcome.device_status, 1 if outcome.reboot_required else 0, cid),
-    )
+    ).rowcount:
+        row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (cid,)).fetchone()
+        return change_row(row), str(row["status"]), verified
     if status != "no_effect":
         refresh_registry(conn, camera_id, role, verified.element)
     if status == "applied" and rollback_of:
-        conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status = 'applied'", (rollback_of,))
+        conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status IN ('applied', 'diverged')", (rollback_of,))
     audit(conn, actor=principal, action=action, decision="allowed" if status == "applied" else "denied", resource_type="camera", resource_id=camera_id,
           reason=None if status == "applied" else status, request_id=request_id,
           details={"phase": "outcome", **base, "fields": fields, "change_id": cid, "status": status, "device_status": outcome.device_status,
@@ -524,7 +555,7 @@ def _raise_for(status: str, error: ApiError | None, cid: str) -> None:
     if error is not None:
         error.details = {**{k: v for k, v in error.details.items() if k in ("op", "code", "sub", "status", "outcome")}, "change_id": cid}
         raise error
-    if status == "no_effect":
+    if status in ("no_effect", "failed"):  # "failed": the janitor settled the row meanwhile and found the old values
         raise ApiError(409, "nvr_no_effect", "ה־NVR אישר את הכתיבה אבל לא שינה את ההגדרה.", details={"change_id": cid})
     if status == "diverged":
         raise ApiError(409, "nvr_diverged", "ה־NVR שינה רק חלק מההגדרות. בדקו את הזרם.", details={"change_id": cid})
@@ -569,7 +600,7 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
           details={"phase": "attempt", **base, "fields": fields, "change_id": cid})
     outcome, error = _device_write(conn, adapter, stream_ref, snap.etag, document, opts.write_via)
     rec, status, verified = _record_outcome(conn, principal, cid=cid, action="nvr.stream.write", camera_id=camera_id, role=str(base["role"]), base=base,
-                                            fields=fields, outcome=outcome, error=error, request_id=request_id)
+                                            fields=fields, outcome=outcome, error=error, request_id=request_id, adapter=adapter)
     _raise_for(status, error, cid)
     return {"change": rec, "stream": stream_from_parsed(verified.parsed, opts), "applied_fields": sorted(fields), "unchanged_fields": unchanged,
             "reboot_required": bool(outcome.reboot_required)}
@@ -584,7 +615,9 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
     camera_id, stream_ref, rid = orig["camera_id"], orig["stream_ref"], orig["recorder_id"]
     base = _details(rid, stream_ref, None, rollback_of=orig["id"])
     try:
-        if orig["status"] != "applied" or not orig["before_xml"] or not orig["etag_after"] or not stream_ref or not camera_id:
+        # review L4: a `diverged` change (the device took only part of it) is undone like an applied one - the same guards,
+        # and only while the stream still shows exactly what that change left (its etag_after)
+        if orig["status"] not in ("applied", "diverged") or not orig["before_xml"] or not orig["etag_after"] or not stream_ref or not camera_id:
             raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.", details={"status": orig["status"]})
         cam = _camera_row(conn, camera_id)
         adapter = registry.adapter_for(conn, settings, rid)
@@ -603,7 +636,10 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
             original = json.loads(orig["fields_json"] or "{}")
         except ValueError:
             original = {}
-        fields = {k: [v[1], v[0]] for k, v in original.items() if isinstance(v, list) and len(v) == 2}
+        # from what the stream shows now back to the original values: for a diverged change only the fields the device
+        # really changed (the others already have their old value)
+        fields = {k: [field_value(snap.parsed, k), v[0]] for k, v in original.items()
+                  if isinstance(v, list) and len(v) == 2 and not _same(field_value(snap.parsed, k), v[0])}
         if not fields:
             raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.")
         document = str(orig["before_xml"])
@@ -616,7 +652,7 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
           details={"phase": "attempt", **base, "fields": fields, "change_id": cid})
     outcome, error = _device_write(conn, adapter, stream_ref, snap.etag, document, opts.write_via)
     rec, status, verified = _record_outcome(conn, principal, cid=cid, action="nvr.rollback", camera_id=camera_id, role=str(base["role"]), base=base,
-                                            fields=fields, outcome=outcome, error=error, request_id=request_id, rollback_of=orig["id"])
+                                            fields=fields, outcome=outcome, error=error, request_id=request_id, rollback_of=orig["id"], adapter=adapter)
     _raise_for(status, error, cid)
     return {"change": rec, "stream": stream_from_parsed(verified.parsed, opts), "rollback_of": orig["id"], "reboot_required": bool(outcome.reboot_required)}
 
@@ -662,8 +698,9 @@ def _settle_one(conn: sqlite3.Connection, settings: Settings, r: sqlite3.Row) ->
         return None  # settled by someone else meanwhile
     if status != "failed":
         refresh_registry(conn, r["camera_id"], str(snap.parsed.get("role")), snap.element)
+        _forget_options(adapter, str(r["stream_ref"]))
     if status == "applied" and r["rollback_of"]:
-        conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status = 'applied'", (r["rollback_of"],))
+        conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status IN ('applied', 'diverged')", (r["rollback_of"],))
     audit(conn, actor=None, action="nvr.rollback" if r["rollback_of"] else "nvr.stream.write", decision="allowed" if status == "applied" else "denied",
           resource_type="camera", resource_id=r["camera_id"], reason=error,
           details={"phase": "settle", "recorder_id": r["recorder_id"], "stream_ref": r["stream_ref"], "change_id": r["id"], "status": status, "fields": fields})

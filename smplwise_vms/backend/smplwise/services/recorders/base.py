@@ -107,7 +107,8 @@ class RecorderAdapter(Protocol):
         ...
 
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
-        """Capability discovery for one stream (cached per process by recorder + firmware + stream + codec)."""
+        """Capability discovery for one stream (cached per process by recorder + stream + codec: a positive answer for 10 minutes,
+        a negative one for 60 s; a hit makes no device call)."""
         ...
 
     def read_stream(self, stream_ref: str) -> StreamSnapshot:

@@ -6,6 +6,7 @@ no other device write, no address or credential anywhere). AT-020-06..11, AT-020
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import json
 import sys
 import time
@@ -18,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from smplwise.db import new_id, now_iso, permission_revision
 from smplwise.main import create_app
-from smplwise.services import nvr, stream_codecs
+from smplwise.services import nvr, nvr_settings, stream_codecs
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
 from fake_devices import NVR_HOST, FakeDevices  # noqa: E402
@@ -347,7 +348,7 @@ def test_proxy_capabilities_write_on_the_proxy_path(w):
     assert fake.writes == ["nvr PUT /ISAPI/ContentMgmt/StreamingProxy/channels/101"]
 
 
-def test_unknown_outcome_stays_pending_and_the_next_write_settles_it(w):
+def test_unknown_outcome_stays_pending_and_the_next_write_settles_it(w, monkeypatch):
     app, c, fake, ids = w
     fake.nvr["put"] = {"status": "timeout"}
     fake.nvr["timeout_applies"] = True
@@ -356,6 +357,8 @@ def test_unknown_outcome_stays_pending_and_the_next_write_settles_it(w):
     [ch] = rows(app, "SELECT * FROM nvr_changes")
     assert (ch["status"], ch["error"]) == ("pending", "outcome_unknown"), "the device may have applied it: no guess"
     fake.nvr["put"] = {"status": "ok"}
+    later = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=nvr_settings.UNKNOWN_SETTLE_MIN_S + 1)
+    monkeypatch.setattr(nvr_settings, "_utcnow", lambda: later)  # review M2: an unknown outcome is settled no sooner than 45 s later
     r = put(c, ids[1], "101", {"svc": True})
     assert r.status_code == 200, r.text
     first = rows(app, "SELECT * FROM nvr_changes WHERE id = ?", ch["id"])[0]

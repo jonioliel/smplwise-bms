@@ -89,13 +89,13 @@ Rules:
 - `fps`: frames per second (`maxFrameRate / 100`); `fps_full:true` when the device says `0` (the camera's full rate).
 - `bitrate_kbps`: `constantBitRate` under CBR, `vbrUpperCap` under VBR. `quality`: `fixedQuality` (VBR only).
 - `webrtc` / `webrtc_reason`: `nvr.webrtc_verdict` on the normalized encoding, unchanged logic.
-- `writable` is known only after the stream's options were read once in this process (§5.1); before that `null`.
+- `writable` is always `null` in this list (frozen 2026-10-03, CR-020 section 9.2): only §3.3 and the options route discover it.
 - The streaming document fails: the cameras come from the registry (`cameras.capabilities_json.encoding`: main and sub
   only), `stale:true`, `error` = the adapter's code, `etag:null`, nothing editable. Never a 5xx for a device failure.
 
 ### 3.3 `GET /nvr/cameras/{camera_id}`
 
-The one camera as in §3.2, plus per stream `options` (read now, cached per process by recorder + firmware + stream):
+The one camera as in §3.2, plus per stream `options` (read now, cached per process by recorder + stream + codec; see §5.1):
 
 ```json
 {
@@ -228,7 +228,8 @@ Never retried automatically (AGENTS: no blind retry of device commands). One wri
 
 ### 5.1 Capability discovery, never endpoint guesses
 
-Per stream, first time in the process (cached by `recorder_id + firmware + stream_ref`):
+Per stream (cached per process by `recorder_id + stream_ref + codec`: a positive answer 10 min, a negative one 60 s, dropped after a
+change the device applied; a cache hit makes no device call - CR-020 section 9.1, review L1):
 1. `GET /ISAPI/Streaming/channels/{sid}/capabilities` → 200: options from the `opt` / `min` / `max` attributes, write
    path `/ISAPI/Streaming/channels/{sid}`.
 2. else `GET /ISAPI/ContentMgmt/StreamingProxy/channels/{sid}/capabilities` → 200: write path

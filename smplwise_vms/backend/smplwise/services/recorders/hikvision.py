@@ -12,6 +12,7 @@ on `/ISAPI/Streaming/channels/{sid}` or - when only the proxy capability documen
 from __future__ import annotations
 
 import threading
+import time
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -27,9 +28,18 @@ CAPS_PATHS = (("direct", "/ISAPI/Streaming/channels/{sid}/capabilities", "capabi
               ("proxy", "/ISAPI/ContentMgmt/StreamingProxy/channels/{sid}/capabilities", "proxy_capabilities"))
 DYNAMIC_CAP_PATH = "/ISAPI/Streaming/channels/{sid}/dynamicCap"
 REFUSED_CODES = ("stale", "nvr_busy", "nvr_not_supported", "nvr_rejected")
+# Review M2: how long the stream PUT waits for the device's answer. An encoder restart can take the NVR many seconds; an
+# answer that never comes is an unknown outcome (the service waits UNKNOWN_SETTLE_MIN_S before settling it from a read).
+PUT_READ_TIMEOUT_S = 25.0
+# Review L1: capability discovery is cached per process by recorder + stream + codec. A positive answer is re-read after
+# OPTIONS_TTL_S (a firmware upgrade can change it), a negative one (403 / 404 on both paths) after NEGATIVE_TTL_S, and a
+# change the device applied drops the stream's entries (forget_options). A hit makes no device call at all.
+OPTIONS_TTL_S = 600.0
+NEGATIVE_TTL_S = 60.0
 
-_OPTIONS: dict[tuple[str, str, str, str], StreamOptions] = {}
+_OPTIONS: dict[tuple[str, str, str], tuple[float, StreamOptions]] = {}  # (recorder, stream, codec or "") -> (expires at, options)
 _OPTIONS_LOCK = threading.Lock()
+_monotonic = time.monotonic  # tests move this clock
 
 
 def clear_options_cache() -> None:
@@ -38,10 +48,18 @@ def clear_options_cache() -> None:
 
 
 def _unavailable(op: str, exc: Exception, *, outcome: str | None = None) -> ApiError:
+    """A device that did not answer. With `outcome="unknown"` (the PUT may have been applied) the error is NOT retryable:
+    the next write of the stream waits for the pending change to be settled from a read (review M2)."""
     details: dict[str, object] = {"op": op, "error": type(exc).__name__}
     if outcome:
         details["outcome"] = outcome
-    return ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details=details)
+    return ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=outcome is None, details=details)
+
+
+def _outcome_unknown(op: str, exc: ApiError) -> ApiError:
+    """After an accepted PUT the verify read failed (any error, a missing stream included): the device state is unknown."""
+    return ApiError(503, "source_unavailable", "ה־NVR קיבל את השינוי אבל לא ניתן לאמת אותו. המצב ייבדק מחדש.", retryable=False,
+                    details={"op": op, "cause": exc.code, "outcome": "unknown"})
 
 
 def put_result(status: int, text: str) -> tuple[str, bool]:
@@ -58,7 +76,7 @@ def put_result(status: int, text: str) -> tuple[str, bool]:
         raise ApiError(503, "source_forbidden", "ה־NVR דחה את הכתיבה (הרשאות המשתמש ב־NVR).", details={"op": "put", "status": status, "sub": sub_s})
     if status >= 500 and code not in (3, 4, 5, 6):
         # a server error without a refusal code says nothing about what the device did: treat the outcome as unknown
-        raise ApiError(503, "source_unavailable", "ה־NVR החזיר שגיאה; לא ידוע אם השינוי בוצע. המצב ייבדק מחדש.", retryable=False,
+        raise ApiError(503, "source_unavailable", "ה־NVR החזיר שגיאה; לא ידוע אם השינוי בוצע. המצב ייבדק מחדש.", retryable=False,  # never retryable (M2)
                        details={"op": "put", "status": status, "outcome": "unknown"})
     if status == 200 and code == 7:
         return "7", True
@@ -110,12 +128,16 @@ class HikvisionAdapter:
     # ------------------------------------------------------------------------------------------ S2: one stream
 
     def cached_options(self, stream_ref: str) -> StreamOptions | None:
-        """The options already discovered for this stream (any firmware), without a device call - for the list view."""
+        """The options already discovered for this stream (not expired), without a device call."""
         with _OPTIONS_LOCK:
-            for (rid, _fw, sid, codec), opts in _OPTIONS.items():
-                if rid == self.recorder_id and sid == stream_ref and codec == "":
-                    return opts
-        return None
+            hit = _OPTIONS.get((self.recorder_id, stream_ref, ""))
+        return hit[1] if hit is not None and hit[0] > _monotonic() else None
+
+    def forget_options(self, stream_ref: str) -> None:
+        """Drop every cached discovery of this stream (all codecs): the device changed it (review L1)."""
+        with _OPTIONS_LOCK:
+            for key in [k for k in _OPTIONS if k[0] == self.recorder_id and k[1] == stream_ref]:
+                del _OPTIONS[key]
 
     def _snapshot(self, client: httpx.Client, stream_ref: str, op: str = "read") -> StreamSnapshot:
         try:
@@ -153,16 +175,12 @@ class HikvisionAdapter:
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
         if codec is not None and not nvr.SAFE_TOKEN.match(codec):
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "codec"})
+        key = (self.recorder_id, stream_ref, codec or "")
+        with _OPTIONS_LOCK:
+            hit = _OPTIONS.get(key)
+        if hit is not None and hit[0] > _monotonic():  # a hit: no device call at all
+            return hit[1]
         with nvr._client(self._settings) as client:
-            try:
-                firmware = nvr.device_info(self._settings).get("firmware") or ""
-            except ApiError:
-                firmware = ""
-            key = (self.recorder_id, firmware, stream_ref, codec or "")
-            with _OPTIONS_LOCK:
-                hit = _OPTIONS.get(key)
-            if hit is not None:
-                return hit
             result: StreamOptions | None = None
             last = "capabilities_unreadable"
             for via, template, source in CAPS_PATHS:
@@ -193,7 +211,7 @@ class HikvisionAdapter:
             if result is None:
                 result = StreamOptions(writable=False, reason=last, options=None, write_via=None, source=None)
             with _OPTIONS_LOCK:
-                _OPTIONS[key] = result
+                _OPTIONS[key] = (_monotonic() + (OPTIONS_TTL_S if result.writable else NEGATIVE_TTL_S), result)
             return result
 
     def write_stream_encoding(self, stream_ref: str, expect_etag: str, element: str, write_via: str) -> WriteOutcome:
@@ -206,13 +224,13 @@ class HikvisionAdapter:
                 raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before.etag})
             body = '<?xml version="1.0" encoding="UTF-8"?>' + element
             try:
-                r = client.put(path, content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
+                r = client.put(path, content=body.encode("utf-8"), headers={"Content-Type": "application/xml"},
+                               timeout=httpx.Timeout(8.0, read=PUT_READ_TIMEOUT_S))
             except httpx.HTTPError as exc:  # sent or not, the device may have applied it: the janitor reads and settles
                 raise _unavailable("put", exc, outcome="unknown") from exc
             device_status, reboot = put_result(r.status_code, r.text)
             try:
                 verified = self._snapshot(client, stream_ref, "verify")
             except ApiError as exc:
-                exc.details = {**exc.details, "outcome": "unknown"}
-                raise
+                raise _outcome_unknown("verify", exc) from exc
         return WriteOutcome(device_status=device_status, reboot_required=reboot, verified=verified)

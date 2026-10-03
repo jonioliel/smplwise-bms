@@ -8,6 +8,7 @@ are never touched here.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 import sqlite3
 from collections.abc import Callable
@@ -90,14 +91,48 @@ def _put(client: httpx.Client, path: str, xml: str) -> str:
 
 # ---------------------------------------------------------------- change records
 
+def _fields(r: sqlite3.Row) -> dict[str, Any] | None:
+    """CR-020 S2 frozen API shape: a stream change's field diff as an object ({"svc": [true, false]}), never a JSON string."""
+    raw = r["fields_json"] if "fields_json" in r.keys() else None
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def _row(r: sqlite3.Row) -> dict[str, Any]:
-    return {k: r[k] for k in r.keys() if k not in ("before_xml", "after_xml")} | {"has_before": bool(r["before_xml"]), "has_after": bool(r["after_xml"])}
+    return ({k: r[k] for k in r.keys() if k not in ("before_xml", "after_xml", "fields_json")}
+            | {"fields": _fields(r), "has_before": bool(r["before_xml"]), "has_after": bool(r["after_xml"])})
 
 
-def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None) -> list[dict[str, Any]]:
-    if camera_id:
-        return [_row(r) for r in conn.execute("SELECT * FROM nvr_changes WHERE camera_id = ? ORDER BY created_at DESC LIMIT ?", (camera_id, limit)).fetchall()]
-    return [_row(r) for r in conn.execute("SELECT * FROM nvr_changes ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
+def change_detail(r: sqlite3.Row) -> dict[str, Any]:
+    """One change with both documents (the "before / after" view); the caller has checked who may see them."""
+    return {k: r[k] for k in r.keys() if k != "fields_json"} | {"fields": _fields(r)}
+
+
+STREAM_KIND = "stream_encoding"
+
+
+def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None,
+                 stream_visible: Callable[[str | None], bool] | None = None) -> list[dict[str, Any]]:
+    """The newest changes. A `stream_encoding` row is listed only when `stream_visible(camera_id)` says so (CR-020 S2 review
+    M1: the caller's nvr.configure camera scope); without that predicate no stream change is listed at all."""
+    where, args = ("WHERE camera_id = ?", [camera_id]) if camera_id else ("", [])
+    if stream_visible is None:
+        where = (where + " AND" if where else "WHERE") + " kind != ?"
+        args.append(STREAM_KIND)
+        return [_row(r) for r in conn.execute(f"SELECT * FROM nvr_changes {where} ORDER BY created_at DESC LIMIT ?", (*args, limit)).fetchall()]
+    out: list[dict[str, Any]] = []
+    cur = conn.execute(f"SELECT * FROM nvr_changes {where} ORDER BY created_at DESC", args)
+    while len(out) < limit:
+        batch = cur.fetchmany(200)
+        if not batch:
+            break
+        out.extend(_row(r) for r in batch if r["kind"] != STREAM_KIND or stream_visible(r["camera_id"]))
+    return out[:limit]
 
 
 def get_change(conn: sqlite3.Connection, change_id: str) -> sqlite3.Row | None:

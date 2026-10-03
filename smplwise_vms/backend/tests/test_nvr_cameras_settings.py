@@ -357,7 +357,8 @@ def test_unreadable_streaming_document_falls_back_to_the_registry_stale(app_and_
         body = r.json()
         assert body["stale"] is True and body["error"] == "source_error" and body["recorders_failed"] == ["nvr-1"]
         cam = next(x for x in body["cameras"] if x["channel"] == 1)
-        assert cam["error"] == "source_error" and [(s["stream_ref"], s["role"], s["etag"], s["writable"]) for s in cam["streams"]] == [("101", "main", None, False), ("102", "sub", None, False)]
+        assert cam["error"] == "source_error" and [(s["stream_ref"], s["role"], s["etag"], s["writable"]) for s in cam["streams"]] == [("101", "main", None, None), ("102", "sub", None, None)], \
+            "CR-020 S2 frozen shape: `writable` is null in lists (the list's `stale` says why nothing is writable now)"
         assert (cam["streams"][0]["svc"], cam["streams"][0]["webrtc"], cam["streams"][0]["gop"]) == (True, "unknown", 50)
         # the whole NVR down: the cameras Arx knows, from the registry
         fake.nvr["up"] = False
