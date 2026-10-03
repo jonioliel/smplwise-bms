@@ -306,6 +306,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
+        roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
         files = 0
         for member in names:
             if not member.startswith("files/") or member.endswith("/"):
@@ -329,7 +330,36 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current,
+            "roles_pruned": roles_pruned, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+
+
+def _prune_role_permissions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """CR-020 S2 review L6: a restored archive from an older version can carry custom roles naming a permission this version
+    no longer has (nvr.config.stream, removed by migration 0050) or one that only built-in roles may hold. Such a role would
+    grant nothing for it and its next edit would fail (422 permission_unknown), so the permission is dropped here - the same
+    rule migration 0050 applied - and the role's revision moves. Returns [{role_id, removed}] for the answer and the audit row."""
+    from ..routers.access import PERMISSION_LABELS, SYSTEM_PERMISSIONS  # local import: the permission catalogue lives with the roles API
+
+    def keep(p: Any) -> bool:
+        return isinstance(p, str) and p in PERMISSION_LABELS and p not in SYSTEM_PERMISSIONS
+
+    out: list[dict[str, Any]] = []
+    for r in conn.execute("SELECT id, permissions_json, sensitive_json FROM custom_roles").fetchall():
+        try:
+            perms = json.loads(r["permissions_json"] or "[]")
+            sens = json.loads(r["sensitive_json"] or "[]")
+        except ValueError:
+            continue
+        if not isinstance(perms, list) or not isinstance(sens, list):
+            continue
+        removed = sorted({str(p)[:64] for p in perms + sens if not keep(p)})
+        if not removed:
+            continue
+        conn.execute("UPDATE custom_roles SET permissions_json = ?, sensitive_json = ?, revision = revision + 1 WHERE id = ?",
+                     (json.dumps([p for p in perms if keep(p)]), json.dumps([p for p in sens if keep(p)]), r["id"]))
+        out.append({"role_id": r["id"], "removed": removed})
+    return out
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:

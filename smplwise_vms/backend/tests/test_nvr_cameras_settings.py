@@ -1,7 +1,8 @@
 """CR-020 S1: the read-only table of the cameras' video settings - the parser of every stream of the ISAPI streaming LIST
 (synthetic, redacted fixtures in the lab's v2.0 shape: no address, serial or MAC), the Hikvision adapter, and the three GET
 routes against the fake NVR of tests/fixtures/fake_devices.py (the backend's real ISAPI code runs, only the HTTP answers are
-fake). Nothing here - and nothing in S1 - writes to a device: `fake.writes` stays empty."""
+fake). Nothing here writes to a device: `fake.writes` stays empty (the S2 write path has its own tests:
+test_nvr_stream_write*.py)."""
 from __future__ import annotations
 
 import dataclasses
@@ -142,13 +143,13 @@ def with_nvr(settings, **extra):
     return dataclasses.replace(settings, nvr_host=NVR_HOST, nvr_user="reader", nvr_password="fake-password", **extra)
 
 
-def test_adapter_reads_channels_and_streams_and_declares_read_only(settings, fake):
+def test_adapter_reads_channels_and_streams_and_declares_encoding_writes(settings, fake):
     fake.nvr["channels"] = 2
     fake.nvr["offline"] = [2]
     fake.nvr["encodings_by_channel"] = {1: {"main": {"codec": "H.264", "svc": True, "bitrate_kbps": 3072, "quality": 60}}}
     ad = HikvisionAdapter("nvr-1", with_nvr(settings))
     caps = ad.capabilities()
-    assert (caps.vendor, caps.read_encodings, caps.write_encodings, caps.add_channel, caps.remove_channel) == ("hikvision", True, False, False, False)
+    assert (caps.vendor, caps.read_encodings, caps.write_encodings, caps.add_channel, caps.remove_channel) == ("hikvision", True, True, False, False), "S2: encodings writable, channels not (S3)"
     assert "svc" in caps.encoding_fields and "b_frames" in caps.encoding_fields
     h = ad.health()
     assert (h.online, h.model, h.error) == (True, "DS-7616NI-FAKE", None)
@@ -242,7 +243,7 @@ def test_cameras_route_lists_every_channel_with_every_stream(app_and_fake, setti
         r = c.get("/api/v1/nvr/cameras")
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["stale"] is False and body["recorders_failed"] == [] and body["can_write"] is False and body["error"] is None
+        assert body["stale"] is False and body["recorders_failed"] == [] and body["can_write"] is True and body["error"] is None, "the bootstrap system_admin holds nvr.configure"
         cams = {x["channel"]: x for x in body["cameras"]}
         assert sorted(cams) == [1, 2, 3], "every channel of the NVR: offline and disabled-in-Arx included"
         assert (cams[1]["camera_id"], cams[1]["name"], cams[1]["online"], cams[1]["enabled_in_arx"]) == (ids[1], "כניסה", True, True)
@@ -250,7 +251,7 @@ def test_cameras_route_lists_every_channel_with_every_stream(app_and_fake, setti
         assert (cams[3]["camera_id"], cams[3]["online"], cams[3]["name"]) == (None, False, "מצלמה 3"), "an unsynced channel: the device's own name, no Arx id"
         m1, s1 = cams[1]["streams"]
         assert (m1["stream_ref"], m1["role"], m1["codec"], m1["svc"], m1["resolution"], m1["fps_full"], m1["bitrate_kbps"], m1["bitrate_mode"]) == ("101", "main", "H.264", True, "2560x1440", True, 3072, "VBR")
-        assert (m1["webrtc"], m1["webrtc_reason"], m1["writable"], m1["not_writable_reason"]) == ("unknown", "svc", False, "read_only")
+        assert (m1["webrtc"], m1["webrtc_reason"], m1["writable"], m1["not_writable_reason"]) == ("unknown", "svc", None, None), "the list never probes capability documents: writable unknown"
         assert (s1["role"], s1["svc"], s1["fps"], s1["bitrate_mode"], s1["bitrate_kbps"], s1["profile"], s1["webrtc"]) == ("sub", None, 20.0, "CBR", 512, "Baseline", "ok")
         assert s1["fields"]["svc"] == {"supported": False, "editable": False} and s1["fields"]["b_frames"]["supported"] is False
         assert (cams[2]["streams"][0]["codec"], cams[2]["streams"][0]["webrtc_reason"]) == ("H.265", "h265")
@@ -274,8 +275,8 @@ def test_recorders_route_and_nvr_less_mode(settings, fake):
         r = c.get("/api/v1/nvr/recorders")
         assert r.status_code == 200, r.text
         rec = r.json()["recorders"][0]
-        assert (rec["recorder_id"], rec["vendor"], rec["online"], rec["model"], rec["error"], r.json()["can_write"]) == ("nvr-1", "hikvision", True, "DS-7616NI-FAKE", None, False)
-        assert (rec["capabilities"]["read_encodings"], rec["capabilities"]["write_encodings"], rec["capabilities"]["add_channel"]) == (True, False, False)
+        assert (rec["recorder_id"], rec["vendor"], rec["online"], rec["model"], rec["error"], r.json()["can_write"]) == ("nvr-1", "hikvision", True, "DS-7616NI-FAKE", None, True)
+        assert (rec["capabilities"]["read_encodings"], rec["capabilities"]["write_encodings"], rec["capabilities"]["add_channel"]) == (True, True, False)
         fake.nvr["up"] = False
         down = c.get("/api/v1/nvr/recorders").json()["recorders"][0]
         assert (down["online"], down["error"]) == (False, "source_unavailable")
@@ -333,7 +334,10 @@ def test_camera_detail(app_and_fake):
         r = c.get(f"/api/v1/nvr/cameras/{ids[1]}")
         assert r.status_code == 200, r.text
         cam = r.json()["camera"]
-        assert (cam["camera_id"], cam["channel"], [s["stream_ref"] for s in cam["streams"]]) == (ids[1], 1, ["101", "102"]) and r.json()["can_write"] is False
+        assert (cam["camera_id"], cam["channel"], [s["stream_ref"] for s in cam["streams"]]) == (ids[1], 1, ["101", "102"]) and r.json()["can_write"] is True
+        opts = r.json()["options"]
+        assert sorted(opts) == ["101", "102"] and opts["101"]["codec"] == ["H.264", "H.265"] and opts["101"]["svc"] is True
+        assert [(s["writable"], s["not_writable_reason"]) for s in cam["streams"]] == [(True, None), (True, None)], "S2: the detail computes writable from capability discovery"
         assert c.get("/api/v1/nvr/cameras/nope").status_code in (403, 404)
         assert fake.writes == []
 
@@ -353,7 +357,8 @@ def test_unreadable_streaming_document_falls_back_to_the_registry_stale(app_and_
         body = r.json()
         assert body["stale"] is True and body["error"] == "source_error" and body["recorders_failed"] == ["nvr-1"]
         cam = next(x for x in body["cameras"] if x["channel"] == 1)
-        assert cam["error"] == "source_error" and [(s["stream_ref"], s["role"], s["etag"], s["writable"]) for s in cam["streams"]] == [("101", "main", None, False), ("102", "sub", None, False)]
+        assert cam["error"] == "source_error" and [(s["stream_ref"], s["role"], s["etag"], s["writable"]) for s in cam["streams"]] == [("101", "main", None, None), ("102", "sub", None, None)], \
+            "CR-020 S2 frozen shape: `writable` is null in lists (the list's `stale` says why nothing is writable now)"
         assert (cam["streams"][0]["svc"], cam["streams"][0]["webrtc"], cam["streams"][0]["gop"]) == (True, "unknown", 50)
         # the whole NVR down: the cameras Arx knows, from the registry
         fake.nvr["up"] = False
@@ -373,13 +378,18 @@ def test_recorder_id_filter_is_validated(app_and_fake):
         assert c.get("/api/v1/nvr/cameras?recorder_id=../etc").status_code == 422
 
 
-def test_no_write_verbs_exist(app_and_fake):
-    """S1 ships no write route and no write method: PUT / POST / DELETE on the new paths are 405 (the guarded writes are S2)."""
+def test_the_only_device_write_verb_is_the_stream_put(app_and_fake):
+    """S2 adds exactly one device write: PUT of one stream on /ISAPI/Streaming/channels/{sid} (or its StreamingProxy twin),
+    through PUT /nvr/cameras/{id}/streams/{ref}. No other verb exists on the camera-settings paths, and the adapter declares no
+    channel add / remove (S3)."""
     app, fake = app_and_fake
     with TestClient(app) as c:
-        for method in ("put", "post", "delete", "patch"):
+        for method in ("post", "delete", "patch"):
             for path in ("/api/v1/nvr/cameras", "/api/v1/nvr/cameras/x", "/api/v1/nvr/recorders", "/api/v1/nvr/cameras/x/streams/101"):
                 assert getattr(c, method)(path).status_code in (404, 405, 422), (method, path)
+        for path in ("/api/v1/nvr/cameras", "/api/v1/nvr/cameras/x", "/api/v1/nvr/recorders"):
+            assert c.put(path).status_code in (404, 405, 422), path
         assert fake.writes == []
-    assert not any(hasattr(HikvisionAdapter, n) for n in ("write_stream_encoding", "add_channel", "remove_channel"))
+    assert hasattr(HikvisionAdapter, "write_stream_encoding")
+    assert not any(hasattr(HikvisionAdapter, n) for n in ("add_channel", "remove_channel"))
     assert autosync is not None

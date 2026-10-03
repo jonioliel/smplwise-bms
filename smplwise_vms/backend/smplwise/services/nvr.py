@@ -941,3 +941,241 @@ def parse_streaming_channels_all(xml: str | bytes, max_streams: int = MAX_STREAM
         out.append(enc)
     return out
 
+
+
+# ---------------------------------------------------------------- one stream: slice, edit, options (CR-020 S2)
+#
+# The write path reads the LIST only (the lab firmware's single-stream GET lacks <SVC>), slices out the one
+# <StreamingChannel> element as TEXT (it keeps its own xmlns; the list root has another namespace) and PUTs that element,
+# edited at text level: no XML re-serialization (a namespace-prefix rewrite is refused by Hikvision firmwares). Every value
+# that reaches the document is a validated int, a boolean, or a short token from a strict alphabet - never free text.
+
+_STREAM_HEAD = re.compile(r"<StreamingChannel\b[^>]*>\s*<id>\s*(\d{1,6})\s*</id>")
+_STREAM_END = "</StreamingChannel>"
+SAFE_TOKEN = re.compile(r"^[A-Za-z0-9.+_-]{1,32}$")
+CAPS_DOC_MAX_BYTES = 256_000  # one stream's capability document is a few KB
+_OPT_MAX = 64  # entries kept from one opt list
+
+
+def slice_stream_element(list_xml: str, stream_ref: str) -> str | None:
+    """The `<StreamingChannel>...</StreamingChannel>` element of `stream_ref`, as the exact text of the list (its id must be
+    its first child, as on every Hikvision firmware seen). None when the list has no such stream or the slice does not parse."""
+    for m in _STREAM_HEAD.finditer(list_xml):
+        if m.group(1) != stream_ref:
+            continue
+        end = list_xml.find(_STREAM_END, m.end())
+        if end < 0:
+            return None
+        element = list_xml[m.start(): end + len(_STREAM_END)]
+        try:
+            root = xmlsafe.parse(element)
+        except ET.ParseError:
+            return None
+        if _local(root.tag) != "StreamingChannel" or _child_text(root, "id") != stream_ref:
+            return None
+        return element
+    return None
+
+
+def stream_element_etag(element: str) -> str:
+    """The etag of one sliced element - the same function the LIST parser uses, so page, check and log agree."""
+    return _stream_etag(xmlsafe.parse(element))
+
+
+def parse_stream_element(element: str) -> dict[str, object]:
+    """One sliced element in the shape of `parse_streaming_channels_all` (fields, etag, verdict)."""
+    parsed = parse_streaming_channels_all(element)
+    if not parsed:
+        raise ApiError(503, "source_invalid", "תשובת ה־NVR אינה מסמך זרם תקין.", details={"op": "stream"})
+    return parsed[0]
+
+
+def _not_supported(field: str) -> ApiError:
+    return ApiError(422, "field_not_supported", "המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", details={"field": field})
+
+
+def _not_allowed(field: str, message: str = "הערך אינו מותר.") -> ApiError:
+    return ApiError(422, "value_not_allowed", message, details={"field": field})
+
+
+def _token(field: str, value: object) -> str:
+    if not isinstance(value, str) or not SAFE_TOKEN.match(value):
+        raise _not_allowed(field)
+    return value
+
+
+def _set_text(video: str, tag: str, value: str, field: str) -> str:
+    pat = re.compile(rf"(<{tag}>)[^<]*(</{tag}>)")
+    if not pat.search(video):
+        raise _not_supported(field)
+    return pat.sub(lambda m: m.group(1) + value + m.group(2), video, count=1)
+
+
+def _set_flag(video: str, block: str, on: bool, field: str) -> str:
+    pat = re.compile(rf"(<{block}\b[^>]*>(?:(?!</{block}>).)*?<enabled>)\s*(?:true|false)\s*(</enabled>)", re.S)
+    if not pat.search(video):
+        raise _not_supported(field)
+    return pat.sub(lambda m: m.group(1) + ("true" if on else "false") + m.group(2), video, count=1)
+
+
+def _int_value(field: str, value: object, low: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < low or value > 10_000_000:
+        raise _not_allowed(field)
+    return value
+
+
+def stream_document(element: str, changes: dict[str, object]) -> str:
+    """`element` (one sliced <StreamingChannel>) with the validated `changes` applied inside its <Video>; every other byte
+    is kept. Keys: codec, profile, resolution ("WxH"), fps (number or "full"), bitrate_mode (CBR|VBR), bitrate_kbps,
+    quality, gop, svc, smart_codec. Only elements already in the document are written; the single insertion is
+    <constantBitRate> right after <videoQualityControlType> when switching to CBR on a document that has none."""
+    unknown = set(changes) - {"codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec"}
+    if unknown:
+        raise _not_supported(sorted(unknown)[0])
+    vm = re.search(r"(<Video\b[^>]*>)(.*?)(</Video>)", element, re.S)
+    if vm is None:
+        raise _not_supported(next(iter(changes), "video"))
+    video = vm.group(2)
+    if "codec" in changes:
+        codec = _token("codec", changes["codec"])
+        video = _set_text(video, "videoCodecType", codec, "codec")
+        family = _codec_family(codec)
+        new_tag = "H265Profile" if family == "H.265" else "H264Profile" if family == "H.264" else None
+        old = re.search(r"<(H26[45]Profile)>([^<]*)</\1>", video)
+        if old and new_tag is None:
+            video = video[: old.start()] + video[old.end():]
+        elif old and old.group(1) != new_tag:
+            prof = _token("profile", changes["profile"]) if "profile" in changes else _token("profile", old.group(2))
+            video = video[: old.start()] + f"<{new_tag}>{prof}</{new_tag}>" + video[old.end():]
+    if "profile" in changes:
+        prof = _token("profile", changes["profile"])
+        m = re.search(r"<(H26[45]Profile)>[^<]*</\1>", video)
+        if m is None:
+            raise _not_supported("profile")
+        video = video[: m.start()] + f"<{m.group(1)}>{prof}</{m.group(1)}>" + video[m.end():]
+    if "resolution" in changes:
+        rm = re.fullmatch(r"(\d{2,5})x(\d{2,5})", str(changes["resolution"]))
+        if rm is None or not isinstance(changes["resolution"], str):
+            raise _not_allowed("resolution")
+        video = _set_text(video, "videoResolutionWidth", str(int(rm.group(1))), "resolution")
+        video = _set_text(video, "videoResolutionHeight", str(int(rm.group(2))), "resolution")
+    if "fps" in changes:
+        fps = changes["fps"]
+        if fps == "full":
+            rate = "0"
+        elif isinstance(fps, bool) or not isinstance(fps, (int, float)) or not 0 < float(fps) <= 1000:
+            raise _not_allowed("fps")
+        else:
+            rate = str(int(round(float(fps) * 100)))
+        video = _set_text(video, "maxFrameRate", rate, "fps")
+    mode_now = re.search(r"<videoQualityControlType>\s*([^<]*?)\s*</videoQualityControlType>", video)
+    mode = mode_now.group(1).upper() if mode_now else None
+    if "bitrate_mode" in changes:
+        new_mode = changes["bitrate_mode"]
+        if new_mode not in ("CBR", "VBR"):
+            raise _not_allowed("bitrate_mode")
+        video = _set_text(video, "videoQualityControlType", str(new_mode), "bitrate_mode")
+        if new_mode == "CBR" and "<constantBitRate>" not in video:
+            kbps: object = changes.get("bitrate_kbps")
+            if kbps is None:
+                cap = re.search(r"<vbrUpperCap>\s*(\d{1,9})\s*</vbrUpperCap>", video)
+                kbps = int(cap.group(1)) if cap else None
+            if kbps is None:
+                raise _not_allowed("bitrate_kbps", "חסר קצב סיביות למצב CBR.")
+            at = video.index("</videoQualityControlType>") + len("</videoQualityControlType>")
+            video = video[:at] + f"<constantBitRate>{_int_value('bitrate_kbps', kbps, 1)}</constantBitRate>" + video[at:]
+        mode = str(new_mode)
+    if "bitrate_kbps" in changes:
+        kbps_v = _int_value("bitrate_kbps", changes["bitrate_kbps"], 1)
+        video = _set_text(video, "constantBitRate" if mode == "CBR" else "vbrUpperCap", str(kbps_v), "bitrate_kbps")
+    for field, tag in (("quality", "fixedQuality"), ("gop", "GovLength")):
+        if field in changes:
+            video = _set_text(video, tag, str(_int_value(field, changes[field])), field)
+    for field, block in (("svc", "SVC"), ("smart_codec", "SmartCodec")):
+        if field in changes:
+            v = changes[field]
+            if not isinstance(v, bool):
+                raise _not_allowed(field)
+            video = _set_flag(video, block, v, field)
+    return element[: vm.start(2)] + video + element[vm.end(2):]
+
+
+def _opt(el: ET.Element | None) -> list[str]:
+    if el is None:
+        return []
+    raw = el.get("opt") or ""
+    return [t.strip() for t in raw.split(",") if t.strip()][:_OPT_MAX]
+
+
+def _bounds(el: ET.Element | None) -> dict[str, int] | None:
+    if el is None:
+        return None
+    lo, hi = (el.get("min") or "").strip(), (el.get("max") or "").strip()
+    if not re.fullmatch(r"\d{1,9}", lo) or not re.fullmatch(r"\d{1,9}", hi) or int(lo) > int(hi):
+        return None
+    return {"min": int(lo), "max": int(hi)}
+
+
+def _find(root: ET.Element, name: str) -> ET.Element | None:
+    for el in root.iter():
+        if _local(el.tag) == name:
+            return el
+    return None
+
+
+def parse_stream_capabilities(xml: str | bytes, current_codec: str | None = None) -> dict[str, object]:
+    """A stream's capability document (`.../capabilities`, `opt` / `min` / `max` attributes) -> the options of API 3.3.
+    Width and height `opt` lists are paired by position. Tokens outside the strict alphabet are dropped (an untrusted
+    device never puts text into a document Arx writes). Raises ET.ParseError for a non-XML / DOCTYPE document.
+    The shape follows the contract (API 5.1); no lab capability document has been read yet [UNVERIFIED on the lab NVR]."""
+    root = xmlsafe.parse(xml)
+    video = _find(root, "Video")
+    if video is None:
+        video = root
+    codecs = [c for c in _opt(_find(video, "videoCodecType")) if SAFE_TOKEN.match(c)]
+    if not codecs and current_codec and SAFE_TOKEN.match(current_codec):
+        codecs = [current_codec]
+    widths, heights = _opt(_find(video, "videoResolutionWidth")), _opt(_find(video, "videoResolutionHeight"))
+    resolutions = [f"{int(w)}x{int(h)}" for w, h in zip(widths, heights) if w.isdigit() and h.isdigit() and len(w) <= 5 and len(h) <= 5]
+    profiles: dict[str, list[str]] = {}
+    for tag, family in (("H264Profile", "H.264"), ("H265Profile", "H.265")):
+        got = [p for p in _opt(_find(video, tag)) if SAFE_TOKEN.match(p)]
+        if got:
+            profiles[family] = got
+    fps_raw = [int(v) for v in _opt(_find(video, "maxFrameRate")) if v.isdigit() and len(v) <= 6]
+    modes = [m.upper() for m in _opt(_find(video, "videoQualityControlType")) if m.upper() in ("CBR", "VBR")]
+    rate = _bounds(_find(video, "constantBitRate")) or _bounds(_find(video, "vbrUpperCap"))
+    quality = [int(v) for v in _opt(_find(video, "fixedQuality")) if v.isdigit() and len(v) <= 3]
+    smart = _find(video, "SmartCodec") is not None
+    return {
+        "codec": codecs,
+        "profile": profiles,
+        "resolution": {c: list(resolutions) for c in codecs},
+        "fps": [round(v / 100, 2) for v in fps_raw if v > 0],
+        "fps_full": 0 in fps_raw,
+        "bitrate_mode": modes,
+        "bitrate_kbps": rate,
+        "quality": quality,
+        "gop": _bounds(_find(video, "GovLength")),
+        "svc": _find(video, "SVC") is not None,
+        "smart_codec": smart,
+        "b_frames": False,  # S2 writes no B-frame element (the lab firmware has none)
+        "locks": {"smart_codec": ["gop", "bitrate_mode", "quality"]} if smart else {},
+    }
+
+
+def parse_dynamic_resolutions(xml: str | bytes) -> list[str]:
+    """`.../dynamicCap` -> the resolutions it lists for the codec asked for (`<resolution>2560*1440</resolution>` or
+    `2560x1440`). [UNVERIFIED shape on the lab NVR.]"""
+    root = xmlsafe.parse(xml)
+    out: list[str] = []
+    for el in root.iter():
+        if _local(el.tag) == "resolution":
+            m = re.fullmatch(r"\s*(\d{2,5})\s*[*xX]\s*(\d{2,5})\s*", el.text or "")
+            if m:
+                value = f"{int(m.group(1))}x{int(m.group(2))}"
+                if value not in out:
+                    out.append(value)
+        if len(out) >= _OPT_MAX:
+            break
+    return out

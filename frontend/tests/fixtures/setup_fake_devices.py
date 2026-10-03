@@ -20,7 +20,8 @@ then, from frontend/ (`npm run build` first):
 Control API (SW_SETUP_CONTROL_PORT, default SW_PORT + 10, 127.0.0.1 only), JSON:
     POST /reset                    fake devices back to their defaults (all up); the wizard forgets its cached checks and
                                    its rate limiter
-    POST /nvr {up?, auth?, drift_s?, offset?, channels?, streaming?, encodings?, encodings_by_channel?}
+    POST /nvr {up?, auth?, drift_s?, offset?, channels?, streaming?, encodings?, encodings_by_channel?, write_path?, put?, put_hold_s?,
+               put_fail_at?, timeout_applies?, single_get_has_svc?, caps?, caps_status?, caps_status_by_stream?, dynamic_cap?}
                                    change the fake NVR (e.g. {"up": false} - every ISAPI call then fails to connect;
                                    {"encodings": {"main": {"codec": "H.264", "svc": false}, "sub": {...}}} - the stream
                                    encodings of GET /ISAPI/Streaming/channels, CR-008 D7; a camera sync reads them)
@@ -95,7 +96,10 @@ class Control(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True})
         if self.path in ("/nvr", "/go2rtc"):
             target = FAKE.nvr if self.path == "/nvr" else FAKE.go2rtc
-            allowed = {"up", "auth", "drift_s", "offset", "channels", "streaming", "encodings", "encodings_by_channel"} if self.path == "/nvr" else {"up", "auth"}
+            allowed = ({"up", "auth", "drift_s", "offset", "channels", "streaming", "encodings", "encodings_by_channel",
+                        # CR-020 S2: the stream-write knobs (JSON-safe ones only; on_put / on_list_read are Python hooks for pytest)
+                        "write_path", "put", "put_hold_s", "put_fail_at", "timeout_applies", "single_get_has_svc", "caps", "caps_status", "caps_status_by_stream", "dynamic_cap"}
+                       if self.path == "/nvr" else {"up", "auth"})
             unknown = set(body) - allowed
             if unknown:
                 return self._json(400, {"error": f"unknown keys {sorted(unknown)}"})

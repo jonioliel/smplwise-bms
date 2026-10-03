@@ -4,7 +4,7 @@
  * permission only system administrators hold. The server checks everything; `can_write` only shapes the screen.
  *
  * Slice S1 (read-only table) is implemented on the backend: `recorders`, `cameras` and `camera` (no `options`) answer for real.
- * The write calls are the S2 / S3 stub: the demo implements them in memory, the backend does not have them yet.
+ * S2 (single-stream write, options, undo, change log) is on the backend; S3 (add / remove a camera) is still the in-memory demo only.
  * With a backend the HTTP adapter calls the contract's routes; without one
  * (static demo / mockup) an in-memory demo answers in the lab's shape: H.264 mains with SVC on, an H.265 camera, H.264 subs.
  * No address, user name, password, serial or MAC ever appears in these types.
@@ -161,11 +161,32 @@ export interface ChangeRef {
   created_at: string;
 }
 
+/** One row of the stream's change log (GET /nvr/changes?camera_id=). The documents (before / after XML) are NEVER part of a row. */
+export interface StreamChange extends ChangeRef {
+  camera_id: string | null;
+  stream_ref: string | null;
+  /** The contract's object `{field: [from, to]}`; older servers sent the JSON string in `fields_json`. */
+  fields?: Record<string, unknown> | null;
+  fields_json?: string | null;
+  rollback_of?: string | null;
+  reboot_required?: boolean | number | null;
+  error?: string | null;
+}
+
 export interface StreamWriteResult {
-  change: ChangeRef;
+  /** null: a request whose values all equal the device's (200, nothing written, no change row). */
+  change: ChangeRef | null;
   stream: StreamEncoding;
   applied_fields: EncodingField[];
   unchanged_fields: EncodingField[];
+  reboot_required: boolean;
+}
+
+/** The answer of the stream undo (201): the rollback's own change row and the stream as the device now holds it. */
+export interface UndoResult {
+  change: ChangeRef;
+  stream: StreamEncoding;
+  rollback_of: string;
   reboot_required: boolean;
 }
 
@@ -194,8 +215,10 @@ export interface NvrSettingsAdapter {
   /** One stream's options for a codec it is not on yet (the editor reloads resolution / FPS lists). */
   options(cameraId: string, streamRef: string, codec?: string): Promise<StreamOptions | null>;
   writeStream(cameraId: string, streamRef: string, req: StreamWriteRequest): Promise<StreamWriteResult>;
-  /** The existing change-log rollback (needs the change's permission: nvr.configure). */
-  undo(changeId: string): Promise<ChangeRef>;
+  /** The newest changes of one camera (the caller filters by stream); rows carry no XML. */
+  changes(cameraId: string, limit?: number): Promise<{ changes: StreamChange[] }>;
+  /** The change-log rollback of a stream change (needs nvr.configure). The press on the undo toast IS the confirmation: sends `confirm: true`. */
+  undo(changeId: string): Promise<UndoResult>;
   addChannel(recorderId: string, spec: NewChannel): Promise<AddChannelResult>;
   removeChannel(cameraId: string, confirmName: string): Promise<void>;
 }
@@ -208,7 +231,8 @@ const http: NvrSettingsAdapter = {
   camera: (cameraId) => get(`nvr/cameras/${enc(cameraId)}`),
   options: (cameraId, streamRef, codec) => get(`nvr/cameras/${enc(cameraId)}/streams/${enc(streamRef)}/options${codec ? `?codec=${enc(codec)}` : ''}`),
   writeStream: (cameraId, streamRef, req) => put(`nvr/cameras/${enc(cameraId)}/streams/${enc(streamRef)}`, req),
-  undo: (changeId) => post(`nvr/changes/${enc(changeId)}/rollback`),
+  changes: (cameraId, limit = 30) => get(`nvr/changes?camera_id=${enc(cameraId)}&limit=${limit}`),
+  undo: (changeId) => post(`nvr/changes/${enc(changeId)}/rollback`, { confirm: true }),
   addChannel: (recorderId, spec) => post(`nvr/recorders/${enc(recorderId)}/channels`, spec),
   // DELETE with a body (the shared `del` sends none): the typed name is the server-checked confirmation
   removeChannel: (cameraId, confirmName) => api<void>(`nvr/cameras/${enc(cameraId)}/channel`, { method: 'DELETE', body: JSON.stringify({ confirm_name: confirmName }) }),
@@ -306,11 +330,13 @@ interface DemoChange {
   before: StreamEncoding;
   after: StreamEncoding;
   status: ChangeStatus;
+  fields: Record<string, [unknown, unknown]>;
+  created_at: string;
 }
 
 class DemoNvrSettings implements NvrSettingsAdapter {
   cameras_ = demoCameras();
-  changes: DemoChange[] = [];
+  changes_: DemoChange[] = [];
   seq = 0;
 
   private find(cameraId: string): NvrCamera {
@@ -326,7 +352,7 @@ class DemoNvrSettings implements NvrSettingsAdapter {
   }
 
   async cameras(recorderId?: string): Promise<CameraList> {
-    return { cameras: clone(this.cameras_.filter((c) => !recorderId || c.recorder_id === recorderId)), recorders_failed: [], stale: false, can_write: false };
+    return { cameras: clone(this.cameras_.filter((c) => !recorderId || c.recorder_id === recorderId)), recorders_failed: [], stale: false, can_write: true };
   }
 
   async camera(cameraId: string): Promise<CameraDetail> {
@@ -405,13 +431,20 @@ class DemoNvrSettings implements NvrSettingsAdapter {
     [s.webrtc, s.webrtc_reason] = webrtcVerdict(s);
     if (applied.length) s.etag = `${s.stream_ref}-${++this.seq + 1}`;
     const id = `demo-change-${++this.seq}`;
-    const status: ChangeStatus = applied.length ? 'applied' : 'unchanged';
-    this.changes.push({ id, camera_id: cameraId, stream_ref: streamRef, before, after: clone(s), status });
-    return { change: { id, status, kind: 'stream_encoding', created_at: new Date().toISOString() }, stream: clone(s), applied_fields: applied, unchanged_fields: unchanged, reboot_required: false };
+    if (!applied.length) return { change: null, stream: clone(s), applied_fields: [], unchanged_fields: unchanged, reboot_required: false };
+    const fieldsDiff = Object.fromEntries(applied.map((f) => [f, [before[f as keyof StreamEncoding], s[f as keyof StreamEncoding]]])) as DemoChange['fields'];
+    const created_at = new Date().toISOString();
+    this.changes_.push({ id, camera_id: cameraId, stream_ref: streamRef, before, after: clone(s), status: 'applied', fields: fieldsDiff, created_at });
+    return { change: { id, status: 'applied', kind: 'stream_encoding', created_at }, stream: clone(s), applied_fields: applied, unchanged_fields: unchanged, reboot_required: false };
   }
 
-  async undo(changeId: string): Promise<ChangeRef> {
-    const ch = this.changes.find((x) => x.id === changeId) ?? fail(404, 'not_found', 'השינוי לא נמצא.');
+  async changes(cameraId: string, limit = 30) {
+    const rows = this.changes_.filter((x) => x.camera_id === cameraId).reverse().slice(0, limit);
+    return { changes: rows.map((x): StreamChange => ({ id: x.id, status: x.status, kind: 'stream_encoding', created_at: x.created_at, camera_id: x.camera_id, stream_ref: x.stream_ref, fields: x.fields })) };
+  }
+
+  async undo(changeId: string): Promise<UndoResult> {
+    const ch = this.changes_.find((x) => x.id === changeId) ?? fail(404, 'not_found', 'השינוי לא נמצא.');
     if (ch.status !== 'applied') fail(409, 'not_rollbackable', 'אין לשינוי הזה מסמך קודם להחזיר.', { status: ch.status });
     const c = this.find(ch.camera_id);
     const i = c.streams.findIndex((x) => x.stream_ref === ch.stream_ref);
@@ -419,8 +452,10 @@ class DemoNvrSettings implements NvrSettingsAdapter {
     c.streams[i] = { ...clone(ch.before), etag: `${ch.stream_ref}-${++this.seq + 1}` };
     ch.status = 'rolled_back';
     const id = `demo-change-${++this.seq}`;
-    this.changes.push({ id, camera_id: ch.camera_id, stream_ref: ch.stream_ref, before: ch.after, after: clone(c.streams[i]), status: 'applied' });
-    return { id, status: 'applied', kind: 'stream_encoding', created_at: new Date().toISOString() };
+    const created_at = new Date().toISOString();
+    const back = Object.fromEntries(Object.entries(ch.fields).map(([f, v]) => [f, [v[1], v[0]]])) as DemoChange['fields'];
+    this.changes_.push({ id, camera_id: ch.camera_id, stream_ref: ch.stream_ref, before: ch.after, after: clone(c.streams[i]), status: 'applied', fields: back, created_at });
+    return { change: { id, status: 'applied', kind: 'stream_encoding', created_at }, stream: clone(c.streams[i]), rollback_of: changeId, reboot_required: false };
   }
 
   async addChannel(recorderId: string, spec: NewChannel): Promise<AddChannelResult> {

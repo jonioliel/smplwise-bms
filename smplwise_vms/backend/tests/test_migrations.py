@@ -2,6 +2,7 @@
 to a database that already holds groups keeps them (revision 1) and the API works on them at once."""
 from __future__ import annotations
 
+import json
 import shutil
 from collections import Counter
 
@@ -71,3 +72,56 @@ def test_group_revision_migration_on_existing_groups(settings, tmp_path, monkeyp
     g = c.get("/api/v1/access/groups").json()["groups"]
     assert [(x["id"], x["revision"]) for x in g] == [("g-old", 1)]
     assert c.patch("/api/v1/access/groups/g-old", json={"name": "שם חדש", "revision": 1}).json()["revision"] == 2
+
+
+def test_0050_nvr_stream_changes_on_a_0049_database(settings, tmp_path, monkeypatch):
+    """CR-020 S2: 0050 adds the stream columns to an nvr_changes log that already has rows (defaults, no data lost), enforces
+    one pending change per recorder + stream, and strips the removed permission nvr.config.stream from stored custom roles
+    (their revision and the permission revision move; an untouched role stays as it was)."""
+    import sqlite3
+
+    import pytest
+
+    real = dbmod.MIGRATIONS_DIR
+    older = tmp_path / "older"
+    older.mkdir()
+    for f in real.glob("*.sql"):
+        if int(f.name.split("_", 1)[0]) < 50:
+            shutil.copy(f, older / f.name)
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", older)
+    database = dbmod.Database(settings.db_path)
+    database.migrate()
+    with database.connection() as conn:
+        conn.execute("INSERT INTO nvr_changes(id, kind, permission, target, path, before_xml, after_xml, status, note, created_at) "
+                     "VALUES ('old', 'osd', 'nvr.config.osd', 'osd-1', '/ISAPI/x', '<a/>', '<b/>', 'applied', '', '2026-09-01T00:00:00Z')")
+        for rid, perms, sens in (("r-stream", ["map.read"], ["nvr.config.stream", "nvr.config.osd"]), ("r-both", ["map.read", "nvr.config.stream"], ["nvr.config.stream"]),
+                                 ("r-plain", ["map.read"], ["nvr.config.osd"])):
+            conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?, ?, ?, ?, 't', 't')",
+                         (rid, rid, json.dumps(perms), json.dumps(sens)))
+        rev = dbmod.permission_revision(conn)
+    monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
+    assert dbmod.Database(settings.db_path).migrate() == [50]
+    with database.connection() as conn:
+        old = dict(conn.execute("SELECT * FROM nvr_changes WHERE id = 'old'").fetchone())
+        assert (old["recorder_id"], old["camera_id"], old["stream_ref"], old["reboot_required"], old["batch_id"], old["status"], old["before_xml"]) == ("nvr-1", None, None, 0, None, "applied", "<a/>")
+        roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"]), r["revision"]) for r in conn.execute("SELECT * FROM custom_roles")}
+        assert roles["r-stream"] == (["map.read"], ["nvr.config.osd"], 2)
+        assert roles["r-both"] == (["map.read"], [], 2)
+        assert roles["r-plain"] == (["map.read"], ["nvr.config.osd"], 1), "a role without it is untouched"
+        assert dbmod.permission_revision(conn) == rev + 1
+        # review L3: one audit row per stripped role (no actor: the upgrade did it), naming what was removed
+        trail = {r["resource_id"]: r for r in conn.execute("SELECT * FROM audit_log WHERE action = 'rbac.role.update' AND reason = 'migration_0050'")}
+        assert set(trail) == {"r-stream", "r-both"}
+        for r in trail.values():
+            assert (r["decision"], r["resource_type"], r["actor_user_id"], r["permission_revision"]) == ("allowed", "role", None, rev + 1)
+            assert json.loads(r["details_json"]) == {"migration": "0050", "removed": ["nvr.config.stream"], "revision": 2}
+        ins =("INSERT INTO nvr_changes(id, kind, permission, target, path, status, note, created_at, recorder_id, stream_ref) "
+               "VALUES (?, 'stream_encoding', 'nvr.configure', 't', 'p', ?, '', 't', ?, ?)")
+        conn.execute(ins, ("p1", "pending", "nvr-1", "101"))
+        conn.execute(ins, ("p2", "pending", "nvr-1", "102"))  # another stream
+        conn.execute(ins, ("p3", "pending", "nvr-2", "101"))  # another recorder
+        conn.execute(ins, ("a1", "applied", "nvr-1", "101"))  # a pending + applied pair
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(ins, ("p4", "pending", "nvr-1", "101"))
+    c = TestClient(create_app(settings))
+    assert c.get("/api/v1/access/roles").status_code == 200

@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import email.utils
 import json
+import re
 import threading
 import time
 from typing import Any
@@ -27,6 +28,8 @@ GO2RTC_HOST = "fake-go2rtc.test"
 HA_HOST = "fake-ha.test"
 NS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
 UTC = dt.timezone.utc
+_STREAM_PUT = re.compile(r"^(/ISAPI/Streaming/channels|/ISAPI/ContentMgmt/StreamingProxy/channels)/(\d{3,6})$")
+_STREAM_SUB = re.compile(r"^(/ISAPI/Streaming/channels|/ISAPI/ContentMgmt/StreamingProxy/channels)/(\d{3,6})(?:/(capabilities|dynamicCap))?$")
 
 
 def _xml(body: str) -> str:
@@ -59,6 +62,24 @@ class FakeDevices:
                 "encodings": {"main": {"codec": "H.265", "svc": False, "width": 2560, "height": 1440},
                               "sub": {"codec": "H.264", "svc": None, "width": 640, "height": 360}},
                 "encodings_by_channel": {},
+                # CR-020 S2: the guarded stream write. PUT /ISAPI/Streaming/channels/{sid} (or the StreamingProxy path when
+                # `write_path` is "proxy"; the other path answers 403 notSupport) parses the received <Video> into
+                # `encodings_by_channel`, so the next LIST shows it; every body is kept in `put_bodies`. `put` picks the
+                # answer: status ok (statusCode 1) | reboot (7, applied) | busy (2) | invalid (6) | forbidden (403) |
+                # notsupport (403 notSupport) | timeout (httpx.ReadTimeout, applied or not per `timeout_applies`) |
+                # server_error (500 without a ResponseStatus, applied); keeps_old answers OK and applies nothing;
+                # put_fail_at: n makes the nth PUT busy. put_hold_s holds a PUT outside the lock (parallel requests run);
+                # on_put(request) runs when a PUT arrives (exceptions kept in on_put_error). on_list_read(fake, n) runs
+                # inside the lock on the nth LIST read (a test changes the stream between reads).
+                # Capability documents: caps (the opt / min / max values), caps_status {"direct": 200, "proxy": 404},
+                # caps_status_by_stream {"101": {...}}, dynamic_cap None (404) or {codec: ["WxH", ...]}.
+                # The single-stream GET omits <SVC> like the lab firmware unless single_get_has_svc.
+                "write_path": "direct", "put": {"status": "ok"}, "put_hold_s": 0.0, "on_put": None, "on_put_error": None, "put_fail_at": None,
+                "timeout_applies": False, "on_list_read": None, "list_reads": 0, "put_count": 0, "put_bodies": [], "single_get_has_svc": False,
+                "caps": {"codec": ["H.264", "H.265"], "widths": [2560, 1920, 1280], "heights": [1440, 1080, 720], "fps": [2500, 2000, 1500, 1000, 500, 0],
+                         "modes": ["CBR", "VBR"], "kbps": (32, 16384), "quality": [10, 30, 45, 60, 75, 90], "gop": (1, 400),
+                         "h264_profiles": ["Baseline", "Main", "High"], "h265_profiles": ["Main"], "svc": True, "smart": True},
+                "caps_status": {"direct": 200, "proxy": 404}, "caps_status_by_stream": {}, "dynamic_cap": None,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -84,9 +105,14 @@ class FakeDevices:
             raise httpx.ConnectError("fake NVR is down", request=request)
         if request.method == "POST" and request.url.path == "/ISAPI/ContentMgmt/search":  # a read by POST (recording search)
             return self._ok(request, f"<CMSearchResult {NS}><responseStatus>true</responseStatus><responseStatusStrg>NO MATCHES</responseStatusStrg><numOfMatches>0</numOfMatches></CMSearchResult>")
+        if request.method == "PUT" and _STREAM_PUT.match(request.url.path):
+            return self._stream_put(request)
         if request.method != "GET":
             self.writes.append(f"nvr {request.method} {request.url.path}")
             return httpx.Response(403, text=_xml(f"<ResponseStatus {NS}><statusString>Forbidden</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
+        caps = _STREAM_SUB.match(request.url.path)
+        if caps and n["auth"]:
+            return self._stream_sub(request, caps.group(1), int(caps.group(2)), caps.group(3))
         if not n["auth"]:
             return httpx.Response(401, text="Unauthorized", request=request)
         path = request.url.path
@@ -104,6 +130,10 @@ class FakeDevices:
                 f"<Track><id>{c}01</id><Channel>{c}01</Channel><Description>{desc}</Description><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 f"<Track><id>{c}02</id><Channel>{c}02</Channel><SrcDescriptor><SrcChannel>{c}</SrcChannel></SrcDescriptor></Track>"
                 for c in chans if c not in n["no_tracks"]) + "</TrackList>")
+        if path == "/ISAPI/Streaming/channels" and n["streaming"]:
+            n["list_reads"] += 1
+            if n["on_list_read"] is not None:
+                n["on_list_read"](self, n["list_reads"])
         if path == "/ISAPI/Streaming/channels" and n["streaming"] and n["streaming_xml"] is not None:
             return self._ok(request, n["streaming_xml"])
         if path == "/ISAPI/Streaming/channels" and n["streaming"]:
@@ -119,8 +149,136 @@ class FakeDevices:
             return self._ok(request, f"<NTPServer version=\"2.0\" {NS}><id>1</id>{where}<portNo>{n['ntp_port']}</portNo><synchronizeInterval>1440</synchronizeInterval></NTPServer>")
         return httpx.Response(404, text=_xml(f"<ResponseStatus {NS}><statusString>Invalid Operation</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
 
+    def _encoding(self, channel: int, kind: str) -> dict[str, Any]:
+        return {**self.nvr["encodings"][kind], **(self.nvr["encodings_by_channel"].get(channel) or self.nvr["encodings_by_channel"].get(str(channel)) or {}).get(kind, {})}
+
+    # ------------------------------------------------------------ CR-020 S2: one stream (capabilities, single GET, PUT)
+
+    def _stream_exists(self, sid: int) -> bool:
+        channel, kind = divmod(sid, 100)
+        return 1 <= channel <= self.nvr["channels"] and kind in (1, 2)
+
+    def _caps_status(self, sid: int, which: str) -> int:
+        by = self.nvr["caps_status_by_stream"].get(str(sid)) or {}
+        return int(by.get(which, self.nvr["caps_status"].get(which, 404)))
+
+    def _caps_xml(self) -> str:
+        c = self.nvr["caps"]
+        lo, hi = c["kbps"]
+        glo, ghi = c["gop"]
+        svc = '<SVC><enabled opt="true,false">true</enabled><SVCMode opt="manual,auto">manual</SVCMode></SVC>' if c.get("svc") else ""
+        smart = '<SmartCodec><enabled opt="true,false">false</enabled></SmartCodec>' if c.get("smart") else ""
+        return (f'<StreamingChannel version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema"><id>101</id><Video>'
+                f'<videoCodecType opt="{",".join(c["codec"])}">H.264</videoCodecType>'
+                f'<videoResolutionWidth opt="{",".join(map(str, c["widths"]))}">1920</videoResolutionWidth>'
+                f'<videoResolutionHeight opt="{",".join(map(str, c["heights"]))}">1080</videoResolutionHeight>'
+                f'<videoQualityControlType opt="{",".join(c["modes"])}">VBR</videoQualityControlType>'
+                f'<constantBitRate min="{lo}" max="{hi}">2048</constantBitRate><vbrUpperCap min="{lo}" max="{hi}">2048</vbrUpperCap>'
+                f'<fixedQuality opt="{",".join(map(str, c["quality"]))}">60</fixedQuality>'
+                f'<maxFrameRate opt="{",".join(map(str, c["fps"]))}">2500</maxFrameRate>'
+                f'<GovLength min="{glo}" max="{ghi}">50</GovLength>'
+                f'<H264Profile opt="{",".join(c["h264_profiles"])}">Main</H264Profile><H265Profile opt="{",".join(c["h265_profiles"])}">Main</H265Profile>'
+                f'{svc}{smart}</Video></StreamingChannel>')
+
+    def _stream_sub(self, request: httpx.Request, prefix: str, sid: int, sub: str | None) -> httpx.Response:
+        not_found = httpx.Response(404, text=_xml(f"<ResponseStatus {NS}><statusCode>4</statusCode><statusString>Invalid Operation</statusString><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
+        if not self._stream_exists(sid):
+            return not_found
+        which = "proxy" if "StreamingProxy" in prefix else "direct"
+        if sub == "capabilities":
+            status = self._caps_status(sid, which)
+            if status != 200:
+                return httpx.Response(status, text=_xml(f"<ResponseStatus {NS}><statusCode>4</statusCode><subStatusCode>notSupport</subStatusCode></ResponseStatus>"), request=request)
+            return self._ok(request, self._caps_xml())
+        if sub == "dynamicCap":
+            dyn = self.nvr["dynamic_cap"]
+            codec = request.url.params.get("videoCodecType") or "H.264"
+            if dyn is None or which != "direct":
+                return not_found
+            return self._ok(request, "<DynamicCap><ResolutionAvailableDscriptorList>" + "".join(
+                f"<ResolutionAvailableDscriptor><resolution>{r.replace('x', '*')}</resolution></ResolutionAvailableDscriptor>" for r in dyn.get(codec, [])) + "</ResolutionAvailableDscriptorList></DynamicCap>")
+        if sub is None and which == "direct":  # the single-stream GET: like the lab firmware, without <SVC>
+            channel, kind = divmod(sid, 100)
+            el = self._streaming_channel(channel, "main" if kind == 1 else "sub")
+            if not self.nvr["single_get_has_svc"]:
+                el = re.sub(r"<SVC>.*?</SVC>", "", el)
+            return self._ok(request, el)
+        return not_found
+
+    def _stream_put(self, request: httpx.Request) -> httpx.Response:
+        n = self.nvr
+        path = request.url.path
+        self.writes.append(f"nvr PUT {path}")
+        body = request.content.decode("utf-8", "replace")
+        n["put_bodies"].append(body)
+        n["put_count"] += 1
+        m = _STREAM_PUT.match(path)
+        assert m is not None
+        sid = int(m.group(2))
+        which = "proxy" if "StreamingProxy" in m.group(1) else "direct"
+        status_doc = lambda code, sub, http=200: httpx.Response(http, text=_xml(  # noqa: E731
+            f"<ResponseStatus {NS}><requestURL>{path}</requestURL><statusCode>{code}</statusCode><statusString>s</statusString><subStatusCode>{sub}</subStatusCode></ResponseStatus>"), request=request)
+        if which != n["write_path"] or not self._stream_exists(sid):
+            return status_doc(4, "notSupport", 403)
+        mode = (n["put"] or {}).get("status", "ok")
+        if n["put_fail_at"] is not None and n["put_count"] == n["put_fail_at"]:
+            mode = "busy"
+        if mode == "busy":
+            return status_doc(2, "deviceBusy", 503)
+        if mode == "invalid":
+            return status_doc(6, "badXmlContent", 400)
+        if mode == "forbidden":
+            return status_doc(4, "unAuthorized", 403)
+        if mode == "notsupport":
+            return status_doc(4, "notSupport", 403)
+        if mode == "timeout":
+            if n["timeout_applies"]:
+                self._apply_put(sid, body)
+            raise httpx.ReadTimeout("fake NVR timed out", request=request)
+        if not (n["put"] or {}).get("keeps_old"):
+            self._apply_put(sid, body)
+        if mode == "server_error":
+            return httpx.Response(500, text="Internal Server Error", request=request)
+        if mode == "reboot":
+            return status_doc(7, "rebootRequired")
+        return status_doc(1, "ok")
+
+    def _apply_put(self, sid: int, body: str) -> None:
+        import xml.etree.ElementTree as ET
+
+        channel, k = divmod(sid, 100)
+        kind = "main" if k == 1 else "sub"
+        root = ET.fromstring(body.encode("utf-8"))
+        video = next(el for el in root.iter() if el.tag.endswith("Video"))
+
+        def text(name: str) -> str | None:
+            el = next((c for c in video if c.tag.split("}")[-1] == name), None)
+            return (el.text or "").strip() if el is not None else None
+
+        def flag(name: str) -> bool | None:
+            el = next((c for c in video if c.tag.split("}")[-1] == name), None)
+            en = next((c for c in el if c.tag.split("}")[-1] == "enabled"), None) if el is not None else None
+            return None if en is None else (en.text or "").strip() == "true"
+
+        e = self._encoding(channel, kind)
+        mode = text("videoQualityControlType") or e.get("bitrate_mode", "VBR")
+        new = {
+            "codec": text("videoCodecType"), "width": int(text("videoResolutionWidth") or e.get("width", 1920)), "height": int(text("videoResolutionHeight") or e.get("height", 1080)),
+            "bitrate_mode": mode, "fps": int(text("maxFrameRate") or 2500) / 100, "gop": int(text("GovLength") or e.get("gop", 50)),
+            "profile": text("H264Profile") or text("H265Profile") or e.get("profile"), "svc": flag("SVC") if flag("SVC") is not None else e.get("svc"),
+            "smart": flag("SmartCodec"),
+        }
+        kbps = text("constantBitRate") if mode == "CBR" else text("vbrUpperCap")
+        if kbps:
+            new["bitrate_kbps"] = int(kbps)
+        if text("fixedQuality"):
+            new["quality"] = int(text("fixedQuality") or 0)
+        by = self.nvr["encodings_by_channel"]
+        key: Any = channel if channel in by or str(channel) not in by else str(channel)
+        by.setdefault(key, {})[kind] = {**(by.get(key) or {}).get(kind, {}), **{k2: v for k2, v in new.items() if v is not None}}
+
     def _streaming_channel(self, channel: int, kind: str) -> str:
-        e = {**self.nvr["encodings"][kind], **(self.nvr["encodings_by_channel"].get(channel) or self.nvr["encodings_by_channel"].get(str(channel)) or {}).get(kind, {})}
+        e = self._encoding(channel, kind)
         codec = e.get("codec") or "H.264"
         profile = f"<{'H265Profile' if '265' in codec else 'H264Profile'}>{e['profile']}</{'H265Profile' if '265' in codec else 'H264Profile'}>" if e.get("profile") else ""
         svc = f"<SVC><enabled>{'true' if e['svc'] else 'false'}</enabled><SVCMode>manual</SVCMode></SVC>" if e.get("svc") is not None else ""
@@ -140,7 +298,7 @@ class FakeDevices:
                 f"<Video><enabled>true</enabled><dynVideoInputChannelID>{channel}</dynVideoInputChannelID><videoCodecType>{codec}</videoCodecType>"
                 f"<videoResolutionWidth>{e.get('width', 1920)}</videoResolutionWidth><videoResolutionHeight>{e.get('height', 1080)}</videoResolutionHeight>"
                 f"<videoQualityControlType>{mode}</videoQualityControlType>{rate}<maxFrameRate>{int(float(e.get('fps', 25)) * 100)}</maxFrameRate><GovLength>{e.get('gop', 50)}</GovLength>{profile}{svc}{bframes}"
-                "<snapShotImageType>JPEG</snapShotImageType><SmartCodec><enabled>false</enabled></SmartCodec></Video></StreamingChannel>")
+                f"<snapShotImageType>JPEG</snapShotImageType><SmartCodec><enabled>{'true' if e.get('smart') else 'false'}</enabled></SmartCodec></Video></StreamingChannel>")
 
     @staticmethod
     def _ok(request: httpx.Request, body: str) -> httpx.Response:
@@ -196,8 +354,19 @@ class FakeDevices:
             return None
         with self.lock:
             delay = float(self.nvr["delay_s"]) if host == NVR_HOST else 0.0
+            stream_put = host == NVR_HOST and request.method == "PUT" and _STREAM_PUT.match(request.url.path) is not None
+            hold = float(self.nvr["put_hold_s"]) if stream_put else 0.0
+            on_put = self.nvr["on_put"] if stream_put else None
         if delay:
             time.sleep(delay)
+        if on_put is not None:  # outside the lock: the observer may read the fake or the database
+            try:
+                on_put(request)
+            except Exception as exc:  # noqa: BLE001 - kept for the test to re-raise
+                with self.lock:
+                    self.nvr["on_put_error"] = exc
+        if hold:
+            time.sleep(hold)
         with self.lock:
             self.hits.append(f"{host} {request.method} {request.url.path}")
             if host == NVR_HOST:
