@@ -247,6 +247,36 @@ export class SwDropdown extends LitElement {
     .pop.centred::backdrop {
       background: var(--sw-overlay, rgba(0, 0, 0, 0.4));
     }
+    /* the bottom sheet slides up (the mockups' opening; backwards fill so a swipe's own inline transform takes over after it) and the scrim fades in;
+       prefers-reduced-motion: none of it */
+    :host .pop.sheet {
+      animation: dd-sheet-in var(--sw-t-sheet, 280ms) var(--sw-ease-thumb, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards;
+    }
+    .pop.sheet::backdrop {
+      animation: dd-scrim-in 200ms ease-out backwards;
+    }
+    @keyframes dd-sheet-in {
+      from {
+        transform: translateY(100%);
+      }
+    }
+    @keyframes dd-scrim-in {
+      from {
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host .pop.sheet,
+      .pop.sheet::backdrop {
+        animation: none;
+      }
+    }
+    /* the sheet's head (handle + title): the part a finger drags down to close it */
+    .hd {
+      flex: none;
+      touch-action: none;
+      cursor: grab;
+    }
     .grab {
       flex: none;
       inline-size: 36px;
@@ -627,16 +657,19 @@ export class SwDropdown extends LitElement {
     if (changed.has('ddStyle') && !(DD_STYLE_IDS as readonly string[]).includes(this.ddStyle)) this.ddStyle = 'auto';
   }
 
-  /** How the open list is presented: a popover under the chip on a wide screen; on the phone (a style other than `auto`) the Bubble `popup` dial decides - sheet (default), centred, inline. */
+  /** How the open list is presented: a popover under the chip on a wide screen. On the phone the owner's setting (`data-dd-phone` on <html>, from
+   * shell/tabs-mode.ts, `ui.dd_phone`) decides: `list` = the popover under the field, `sheet` = a bottom sheet (the Bubble `popup` dial may turn it into
+   * a centred box or an inline list). Without the attribute (a component on its own) the old rule holds: `auto` is a popover, the other styles a sheet. */
   private presentation(): Present {
-    if (this.ddStyle === 'auto') return 'pop';
+    const choice = document.documentElement.getAttribute('data-dd-phone');
+    if (choice !== 'sheet' && choice !== 'list' && this.ddStyle === 'auto') return 'pop';
     let phone = false;
     try {
       phone = window.matchMedia('(max-width: 767px)').matches;
     } catch {
       /* no matchMedia */
     }
-    if (!phone) return 'pop';
+    if (!phone || choice === 'list') return 'pop';
     const dial = document.documentElement.getAttribute('data-bubble-popup');
     return dial === 'centred' ? 'centred' : dial === 'inline' ? 'inline' : 'sheet';
   }
@@ -785,6 +818,41 @@ export class SwDropdown extends LitElement {
     this.scrollToCursor();
   }
 
+  /** Swipe down on the head of the bottom sheet: it follows the finger (rubber band upwards); released past 35 % of its height or in a quick flick it closes. */
+  private drag: { y0: number; t0: number } | null = null;
+
+  private onHeadDown(e: PointerEvent) {
+    if (this.present !== 'sheet') return;
+    this.drag = { y0: e.clientY, t0: performance.now() };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* synthetic pointer */
+    }
+  }
+
+  private onHeadMove(e: PointerEvent) {
+    const pop = this.popEl();
+    if (!this.drag || !pop) return;
+    const dy = e.clientY - this.drag.y0;
+    pop.style.animation = 'none';
+    pop.style.transition = 'none';
+    pop.style.transform = `translateY(${dy > 0 ? dy : dy / 6}px)`;
+  }
+
+  private onHeadUp(e: PointerEvent) {
+    const pop = this.popEl();
+    const d = this.drag;
+    this.drag = null;
+    if (!d || !pop) return;
+    const dy = e.clientY - d.y0;
+    const flick = dy > 24 && dy / Math.max(1, performance.now() - d.t0) > 0.6;
+    pop.style.animation = '';
+    pop.style.transition = '';
+    pop.style.transform = '';
+    if (e.type !== 'pointercancel' && (dy > pop.getBoundingClientRect().height * 0.35 || flick)) this.close(true);
+  }
+
   /** A press on the dimmed backdrop of a sheet (the click lands on the popover element, outside its box) closes it. */
   private onPopClick(e: MouseEvent) {
     if (this.present !== 'sheet' && this.present !== 'centred') return;
@@ -893,7 +961,9 @@ export class SwDropdown extends LitElement {
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}
       </button>
       <div class="pop ${this.present}" popover=${this.present === 'inline' ? nothing : 'manual'} ?hidden=${!this.open} data-present=${this.present} @keydown=${(e: KeyboardEvent) => this.onListKey(e)} @click=${(e: MouseEvent) => this.onPopClick(e)}>
-        ${this.open && (this.present === 'sheet' || this.present === 'centred') ? html`<div class="grab" aria-hidden="true"></div>${this.label ? html`<div class="ttl" aria-hidden="true">${this.label}</div>` : nothing}` : nothing}
+        ${this.open && (this.present === 'sheet' || this.present === 'centred')
+          ? html`<div class="hd" data-dd-head @pointerdown=${(e: PointerEvent) => this.onHeadDown(e)} @pointermove=${(e: PointerEvent) => this.onHeadMove(e)} @pointerup=${(e: PointerEvent) => this.onHeadUp(e)} @pointercancel=${(e: PointerEvent) => this.onHeadUp(e)}><div class="grab" aria-hidden="true"></div>${this.label ? html`<div class="ttl" aria-hidden="true">${this.label}</div>` : nothing}</div>`
+          : nothing}
         ${this.open && this.hasSearch
           ? html`<label class="search"><sw-icon name="search" size=${14}></sw-icon><input class="q" type="search" data-dd-search placeholder="חיפוש" aria-label=${`חיפוש ב${this.label || 'רשימה'}`} autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
               role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls=${listId} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing} .value=${this.query} @input=${(e: Event) => this.onQuery(e)} /></label>`

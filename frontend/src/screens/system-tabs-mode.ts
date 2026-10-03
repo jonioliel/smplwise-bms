@@ -7,9 +7,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdStyle, asTabMode, installationDdStyle, installationTabsMode, onTabsMode, ownDdStyle, ownTabsMode, resolveDdStyle, resolveTabMode, saveOwnDdStyle,
+  DD_PHONES, DD_PHONE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPhone, asDdStyle, asTabMode, installationDdPhone, installationDdStyle, installationTabsMode, onTabsMode, ownDdPhone, ownDdStyle, ownTabsMode, resolveDdStyle, resolveTabMode, saveOwnDdPhone, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
-  type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
+  type DdPhone, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -36,9 +36,13 @@ export class SystemTabsMode extends LitElement {
   @state() private own = ownTabsMode();
   @state() private ddInst = installationDdStyle();
   @state() private ddOwn = ownDdStyle();
+  @state() private phInst: DdPhone = installationDdPhone();
+  @state() private phOwn: DdPhone | null = ownDdPhone();
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
+  /** Which card the status line belongs to (the tabs / style cards, or the phone card). */
+  @state() private scope: 'style' | 'phone' = 'style';
   @state() private error = '';
   private stop?: () => void;
 
@@ -177,6 +181,8 @@ export class SystemTabsMode extends LitElement {
       this.own = ownTabsMode();
       this.ddInst = installationDdStyle();
       this.ddOwn = ownDdStyle();
+      this.phInst = installationDdPhone();
+      this.phOwn = ownDdPhone();
     });
     void this.load();
   }
@@ -203,6 +209,7 @@ export class SystemTabsMode extends LitElement {
   }
 
   private async saveInstallation(mode: TabMode, groups: TabModeGroups) {
+    this.scope = 'style';
     this.busy = true;
     this.error = '';
     try {
@@ -218,6 +225,7 @@ export class SystemTabsMode extends LitElement {
   }
 
   private async saveDdInstallation(style: DdStyle, groups: DdStyleGroups) {
+    this.scope = 'style';
     this.busy = true;
     this.error = '';
     try {
@@ -233,10 +241,41 @@ export class SystemTabsMode extends LitElement {
   }
 
   private async saveDdOwn(style: DdStyle | null, groups: DdStyleGroups) {
+    this.scope = 'style';
     this.busy = true;
     this.error = '';
     try {
       await saveOwnDdStyle(style, groups);
+      this.flash('ההעדפה נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async savePhoneInstallation(mode: DdPhone) {
+    this.scope = 'phone';
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'ui.dd_phone': mode });
+      invalidateSettings();
+      setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
+      this.flash('ברירת המחדל נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async savePhoneOwn(mode: DdPhone | null) {
+    this.scope = 'phone';
+    this.busy = true;
+    this.error = '';
+    try {
+      await saveOwnDdPhone(mode);
       this.flash('ההעדפה נשמרה');
     } catch (err) {
       this.error = describeError(err);
@@ -268,6 +307,7 @@ export class SystemTabsMode extends LitElement {
   }
 
   private async saveOwn(mode: TabMode | null, groups: TabModeGroups) {
+    this.scope = 'style';
     this.busy = true;
     this.error = '';
     try {
@@ -370,7 +410,24 @@ export class SystemTabsMode extends LitElement {
       <div class="styles" data-dd-style-previews>${DD_STYLES.map(
         (m) => html`<div data-dd-preview=${m}><span class="muted">${DD_STYLE_LABEL[m]}</span><sw-tabs variant="dropdown" dd-style=${m} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
       )}</div>
-      <div aria-live="polite">${this.message ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
+      <div aria-live="polite">${this.message && this.scope === 'style' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'style' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
+    </sw-card>
+    <sw-card heading="תפריט נפתח בטלפון" data-dd-phone-card>
+      <div class="grid">
+        <div data-dd-phone-installation>
+          <fieldset><legend>ברירת המחדל של ההתקנה</legend>
+            ${DD_PHONES.map((m) => html`<label class="opt"><input type="radio" name="dd-phone-inst" value=${m} data-dd-phone=${`inst:${m}`} .checked=${this.phInst === m} ?disabled=${ddInstDisabled} @change=${() => void this.savePhoneInstallation(m)} /><span class="t">${DD_PHONE_LABEL[m]}</span></label>`)}
+          </fieldset>
+        </div>
+        <div data-dd-phone-own>
+          <fieldset><legend>ההעדפה שלי</legend>
+            <label class="opt"><input type="radio" name="dd-phone-own" value="" data-dd-phone="own:follow" .checked=${this.phOwn === null} ?disabled=${this.busy} @change=${() => void this.savePhoneOwn(null)} /><span class="t">לפי ההתקנה (כרגע: ${DD_PHONE_LABEL[this.phInst]})</span></label>
+            ${DD_PHONES.map((m) => html`<label class="opt"><input type="radio" name="dd-phone-own" value=${m} data-dd-phone=${`own:${m}`} .checked=${this.phOwn === m} ?disabled=${this.busy} @change=${() => void this.savePhoneOwn(asDdPhone(m))} /><span class="t">${DD_PHONE_LABEL[m]}</span></label>`)}
+          </fieldset>
+        </div>
+      </div>
+      <div class="effective" data-dd-phone-effective><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PHONE_LABEL[this.phOwn ?? this.phInst]}</span></div>
+      <div aria-live="polite">${this.message && this.scope === 'phone' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'phone' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
     </sw-card>`;
   }
 }
