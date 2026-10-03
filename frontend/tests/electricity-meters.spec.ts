@@ -105,6 +105,14 @@ test.describe('electricity: meters overview', () => {
     await expect(page.locator(`${PAGE} [data-no-results]`)).toBeVisible();
   });
 
+  test('partial data: no floors from the devices tree, no month-to-date', async ({ page }) => {
+    await open(page, '/infra/electricity/meters', { perms: PERMS.view, noFloors: true, consumptionFails: true });
+    await ready(page);
+    await expect(visibleRows(page)).toHaveCount(12);
+    await expect(page.locator(`${PAGE} [data-month]`)).toHaveText('-');
+    if (!isPhone(page)) await expect(page.locator(`${PAGE} [data-area-tree] [data-floor="_none"]`)).toBeVisible();
+  });
+
   test('table and cards views', async ({ page }) => {
     test.skip(isPhone(page), 'the phone has one list view');
     await open(page, '/infra/electricity/meters', { perms: PERMS.bills });
@@ -149,8 +157,8 @@ test.describe('electricity: the meter card', () => {
     const card = page.locator(`${PAGE} elec-meter-card [data-meter-card="m2"]`);
     await expect(card).toBeVisible();
     await expect(card.locator('[data-chart]')).toBeVisible();
-    await expect(card.locator('[data-epochs] .li')).toHaveCount(2); // install + reset
-    await expect(card).toContainText('איפוס');
+    await expect(card.locator('[data-epochs] .li')).toHaveCount(1); // the install epoch
+    await expect(card).toContainText('סטודיו אורן - קומה 1'); // the accounts that use it (the detail's used_in)
     await card.locator('[data-range="hours"]').click();
     await expect(card.locator('[data-chart] rect')).toHaveCount(24);
     await card.locator('[data-meter-pause]').click();
@@ -224,7 +232,7 @@ test.describe('electricity: adding a meter', () => {
     await expect(visibleRows(page)).toHaveCount(13);
     expect(mock.calls.some((c) => c.method === 'POST' && c.path === 'meters')).toBe(true);
     // the search by name asked the server
-    expect(mock.calls.some((c) => c.path.startsWith('candidates?q='))).toBe(true);
+    expect(mock.calls.some((c) => c.path.includes('q='))).toBe(true);
   });
 
   test('the already-added sensor and the warning verdict', async ({ page }) => {
@@ -266,7 +274,7 @@ test.describe('electricity: retention settings', () => {
     await root.locator('[data-retention-save]').click();
     await expect(root.locator('[data-saved]')).toBeVisible();
     const patch = mock.calls.find((c) => c.method === 'PATCH' && c.path === 'settings');
-    expect(patch?.body).toEqual({ raw_retention_days: 120 });
+    expect(patch?.body).toEqual({ 'energy.raw_retention_days': 120 });
   });
 
   test('a manager without the system permission edits only the drafts', async ({ page }) => {

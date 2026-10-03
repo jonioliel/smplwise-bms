@@ -304,7 +304,7 @@ export class ElecMetersPage extends LitElement {
     const s = summarize(this.meters);
     return html`<div class="tiles" data-tiles>
       <div class="tile"><div class="k">היום</div><div class="v"><span class="num">${fmtInt(s.today_kwh)}</span><span class="u">קוט״ש</span></div></div>
-      <div class="tile"><div class="k">מתחילת החודש</div><div class="v"><span class="num">${fmtInt(s.month_kwh)}</span><span class="u">קוט״ש</span></div></div>
+      <div class="tile"><div class="k">מתחילת החודש</div><div class="v"><span class="num" data-month>${this.meters.some((m) => m.month_kwh != null) ? fmtInt(s.month_kwh) : '-'}</span><span class="u">קוט״ש</span></div></div>
       <div class="tile"><div class="k">מדווחים</div><div class="v"><span class="num" data-count="reporting">${s.reporting}</span><span class="u">מתוך ${s.total}</span></div></div>
       <div class="tile"><div class="k">לא מדווחים</div><div class="v" style=${s.stale ? 'color:var(--sw-warning-text)' : ''}><span class="num" data-count="stale">${s.stale}</span></div></div>
     </div>`;
@@ -325,12 +325,13 @@ export class ElecMetersPage extends LitElement {
   }
 
   private renderTable(list: Meter[]) {
+    const showAcc = list.some((m) => m.accounts_count != null);
     return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
-      <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (קוט״ש)</th><th class="n">היום</th><th class="n">מתחילת החודש</th><th>מצב</th><th class="dsk">בחשבונות</th></tr></thead>
+      <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (קוט״ש)</th><th class="n">היום</th><th class="n">מתחילת החודש</th><th>מצב</th>${showAcc ? html`<th class="dsk">בחשבונות</th>` : nothing}</tr></thead>
       <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
         <td class="b">${m.name}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
         <td class="n"><span class="num">${fmtKwh(m.reading_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.today_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.month_kwh)}</span></td>
-        <td>${this.statusChip(m)}${this.staleNote(m)}</td><td class="dsk">${m.accounts.length || html`<span class="mut">-</span>`}</td></tr>`)}</tbody></table></div>`;
+        <td>${this.statusChip(m)}${this.staleNote(m)}</td>${showAcc ? html`<td class="dsk">${m.accounts_count || html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table></div>`;
   }
 
   private renderCards(list: Meter[]) {

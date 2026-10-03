@@ -31,7 +31,6 @@ export function fixtureMeters(): Meter[] {
   return ROWS.map(([id, name, area, floor, reading, today, month, status, accounts]) => ({
     id,
     name,
-    entity_name: `sensor.${id}_energy`,
     area_id: AREA_ID[area],
     area_name: area,
     floor_id: FLOOR_ID[floor],
@@ -42,6 +41,7 @@ export function fixtureMeters(): Meter[] {
     today_kwh: today,
     month_kwh: month,
     accounts,
+    accounts_count: accounts.length,
     revision: 1,
   }));
 }
@@ -102,7 +102,7 @@ export function fixtureSettings(): EnergySettings {
     draft_retention_days: 30,
     usage: { raw_bytes: 212 * 1_048_576, interval_bytes: 96 * 1_048_576, bill_bytes: 41 * 1_048_576, draft_bytes: 1_048_576 },
     meter_count: 12,
-    can_edit_retention: true,
-    can_edit_drafts: true,
+    editable: { raw_retention_days: true, interval_retention_months: true, bill_retention_years: true, draft_retention_days: true },
+    ranges: { raw_retention_days: { min: 7, max: 366 }, interval_retention_months: { min: 3, max: 120 }, bill_retention_years: { min: 1, max: 15 }, draft_retention_days: { min: 7, max: 365 } },
   };
 }

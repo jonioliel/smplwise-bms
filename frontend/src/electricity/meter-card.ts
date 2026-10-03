@@ -237,7 +237,7 @@ export class ElecMeterCard extends LitElement {
     this.busy = true;
     this.replaceError = '';
     try {
-      this.detail = await replaceMeter(d.id, { final_reading_kwh: fin, start_reading_kwh: start, note: this.note.trim() || undefined });
+      this.detail = await replaceMeter(d, { final_reading_kwh: fin, start_reading_kwh: start, note: this.note.trim() || undefined });
       this.dlg = '';
       this.fire('changed');
     } catch (err) {

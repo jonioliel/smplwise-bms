@@ -115,13 +115,12 @@ export class ElecSettingsRetention extends LitElement {
   }
 
   private editable(r: RowDef): boolean {
-    if (!this.data) return false;
-    return r.owner === 'system' ? this.data.can_edit_retention && this.access.system : this.data.can_edit_drafts && this.access.manage;
+    return !!this.data?.editable[r.key];
   }
 
   private problem(r: RowDef): string {
     const raw = (this.values[r.key] ?? '').trim();
-    const range = RETENTION_RANGES[r.key];
+    const range = this.data?.ranges[r.key] ?? RETENTION_RANGES[r.key];
     const n = Number(raw);
     if (raw === '' || !Number.isInteger(n) || n < range.min || n > range.max) return `הערך חייב להיות בין ${range.min} ל-${range.max}`;
     return '';
@@ -159,18 +158,18 @@ export class ElecSettingsRetention extends LitElement {
     if (this.phase === 'loading') return html`<div data-elec="retention" data-state="loading" aria-busy="true" class="card">${[0, 1, 2, 3].map(() => html`<div class="row" style="padding:12px 0"><div class="sk" style="inline-size:36%"></div><span class="sp"></span><div class="sk" style="inline-size:20%"></div></div>`)}</div>`;
     if (this.phase === 'error' || !this.data) return html`<div data-elec="retention" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את ההגדרות" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></div>`;
     const d = this.data;
-    const total = ROWS.reduce((s, r) => s + d.usage[r.usage], 0);
+    const total = ROWS.reduce((s, r) => s + (d.usage[r.usage] ?? 0), 0);
     const hasChange = Object.keys(this.changed()).length > 0;
     const anyProblem = ROWS.some((r) => this.editable(r) && this.problem(r));
     return html`<div data-elec="retention" data-state="ready" class="card">
       <div class="list">${ROWS.map((r) => {
-        const range = RETENTION_RANGES[r.key];
+        const range = { ...RETENTION_RANGES[r.key], ...d.ranges[r.key] };
         const err = this.editable(r) ? this.problem(r) : '';
         const n = Number(this.values[r.key]);
         const edited = !err && n !== d[r.key];
         return html`<div class="rowx" data-retention=${r.key}>
           <div class="grow"><div class="t1">${r.label}</div>
-            <div class="t2">${range.min} עד ${range.max} · בשימוש <span class="num" data-usage>${fmtMb(d.usage[r.usage])}</span>${edited && r.key !== 'draft_retention_days' ? html` · הערכה לערך החדש <span class="num" data-estimate>${fmtMb(estimateBytes(r.key, n, d.meter_count))}</span>` : nothing}</div></div>
+            <div class="t2">${range.min} עד ${range.max} · בשימוש <span class="num" data-usage>${d.usage[r.usage] == null ? '-' : fmtMb(d.usage[r.usage]!)}</span>${edited && r.key !== 'draft_retention_days' ? html` · הערכה לערך החדש <span class="num" data-estimate>${fmtMb(estimateBytes(r.key, n, d.meter_count))}</span>` : nothing}</div></div>
           <div class="fld"><div class="inp ${err ? 'err' : ''}"><input inputmode="numeric" data-retention-input=${r.key} aria-label=${r.label} aria-invalid=${err ? 'true' : 'false'} ?disabled=${!this.editable(r)} .value=${this.values[r.key] ?? ''}
             @input=${(e: Event) => { this.saved = false; this.values = { ...this.values, [r.key]: (e.target as HTMLInputElement).value }; }} /><span class="mut">${range.unit}</span></div>
             ${err ? html`<div class="msg" role="alert" data-retention-error=${r.key}>${err}</div>` : nothing}</div>
