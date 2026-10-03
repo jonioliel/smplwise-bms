@@ -44,7 +44,7 @@ const OPTIONS: { key: string; label: string }[] = [
   { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
   { key: 'wiskey_username', label: 'משתמש עמדות WisKey (מצלמות)' },
   { key: 'wiskey_password', label: 'סיסמת עמדות WisKey' },
-  { key: 'bootstrap_admin_username', label: 'שם משתמש HA של המנהל הראשון' },
+  { key: 'bootstrap_admin_username', label: 'שם משתמש של המנהל הראשון' },
   { key: 'log_level', label: 'רמת לוג' },
 ];
 
@@ -462,7 +462,7 @@ export class SystemSetup extends LitElement {
   private renderApi() {
     const h = this.raw;
     return html`
-      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SmplWise Arx › Configuration">
+      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד · הערכים עצמם מוגדרים בהגדרות ה־Add-on של SmplWise Arx (Configuration)">
         <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.load()}>${this.busy ? 'בודק…' : 'רענון'}</sw-button>
         ${this.error ? html`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
         ${!h
@@ -471,8 +471,8 @@ export class SystemSetup extends LitElement {
               <div class="grouplabel">מערכת ה־NVR</div>
               ${h.mode === 'ha_only'
                 ? html`<sw-card heading="NVR - מצב ללא NVR" subheading="לא מוגדר - דילוג מכוון" data-nvr-less-connections>
-                    ${this.row('מצב ההתקנה', 'Home Assistant בלבד (ללא NVR)')}
-                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
+                    ${this.row('מצב ההתקנה', 'תשתית המערכת בלבד (ללא NVR)')}
+                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות ה־Add-on של SmplWise Arx (Configuration) והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
                   </sw-card>
                   ${this.renderConnectionCard()}`
                 : html`
@@ -499,14 +499,14 @@ export class SystemSetup extends LitElement {
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
-              <sw-card heading="Home Assistant" subheading=${h.home_assistant.connected ? `מחובר · HA ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
+              <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
                 ${this.row('ישויות בקטלוג', h.home_assistant.entities)}
                 ${this.row('תמונת מצב אחרונה', when(h.home_assistant.last_snapshot_at))}
                 ${this.row('עדכון ישות אחרון', when(h.home_assistant.last_event_at))}
                 ${this.row('רישום (אזורים / קומות) עודכן', when(h.home_assistant.last_registry_at))}
                 ${this.row('התחברויות מחדש מאז ההפעלה', h.home_assistant.reconnects, h.home_assistant.reconnects > 3 ? 'warn' : '')}
-                ${this.row('מקור הזהות', h.identity_source === 'ingress' ? 'Home Assistant Ingress' : h.identity_source)}
+                ${this.row('מקור הזהות', h.identity_source === 'ingress' ? 'תשתית המערכת (כניסה מקומית)' : h.identity_source)}
               </sw-card>
               <sw-card heading="אחסון וכלים" subheading=${`גרסה ${h.version}`}>
                 ${this.row('בסיס הנתונים', h.db.ok ? `תקין · מהדורת הרשאות ${h.db.permission_revision}` : 'שגיאה', h.db.ok ? 'ok' : 'err')}
@@ -521,7 +521,7 @@ export class SystemSetup extends LitElement {
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>
-              <div class="hint">Home Assistant › הגדרות › Add-ons › SmplWise Arx › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
+              <div class="hint">הגדרות ה־Add-on של SmplWise Arx (Configuration). משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
             </sw-card>`}
       </sw-page>
     `;
@@ -656,7 +656,7 @@ export class SystemSetup extends LitElement {
     if (isApi()) return this.renderApi();
     // T071: the demo onboarding wizard that lived here became the real wizard (system-wizard.ts, #/system/wizard);
     // this page lists live connection facts, which a design preview without a backend does not have.
-    return html`<sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד">
+    return html`<sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
       <sw-state-panel state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
     </sw-page>`;
   }
