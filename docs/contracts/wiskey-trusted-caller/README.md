@@ -6,7 +6,10 @@ list is settled in a separate shared DTO file after these vectors are verified.
 
 ## Files
 
-- `GOLDEN_VECTORS.json` - 29 vectors, generated from the existing Arx signers. Do not edit it by hand.
+- `GOLDEN_VECTORS.json` - `vectors_version: 2`. The v1 `vectors` array (29 vectors, generated from the existing Arx
+  signers) is unchanged; v2 adds `contract` and `contract_vectors` (68 cases). Do not edit it by hand.
+- `DTO_DRAFT.md` - the shared DTO draft (transport, schema, validation order, codes, DTO, versioning, open items).
+- `NOTE_FOR_WISKEY_v2.md` - what changed since vectors_version 1.
 - Generator and drift test: `smplwise_vms/backend/tests/test_wiskey_golden_vectors.py`.
   - `pytest tests/test_wiskey_golden_vectors.py` (from `smplwise_vms/backend`) fails if the file and the
     signers disagree.
@@ -96,7 +99,53 @@ For each vector with `expect: accept`:
 For each vector with `expect: reject`, your parser or schema must refuse `input_json` before any side effect,
 with the reason class given in `reject_reason`.
 
+## vectors_version 2: contract vectors (DTO draft)
+
+Added 2026-10-04 after WisKey's eight answers. The draft contract is `DTO_DRAFT.md`; the machine-readable rules are
+in the file's `contract` object. Nothing in the v1 `vectors` array changed: the test pins its canonical SHA-256
+(`3bb4bb22...`), and the v1 file hash WisKey verified (`fd39b7ec...`) is recorded in `vectors_version_history`.
+
+Each entry of `contract_vectors` has:
+
+- `id`, `category` (`types`, `time`, `status`, `state`, `signature`, `transport`), `service` (the HA service called),
+  `expect` (`accept` / `reject` / `stateful`), `reason`, `reject_stage`, `reject_code`, `now` (epoch seconds; `null`
+  = no valid clock) and `now_iso`.
+- `signed_message_json`: the inner wire message string, and `service_data_json`: the exact outer `service_data`
+  text, `{"signed_message_json": "..."}`. Feed `service_data_json` through a normal JSON parser (that is what HA does)
+  and then your strict parser on the string.
+- Exceptions: `transport_inner_invalid_utf8` gives `signed_message_utf8_hex` only; `transport_outer_lone_surrogate`
+  gives `service_data_json` only (ASCII-escaped); `transport_outer_duplicate_collapsed_by_ha` also gives
+  `service_data_as_received_by_bridge`; the `transport_*_shape` cases give a `service_data_json` that is not a
+  one-string envelope.
+- `accept` and `stateful` cases also carry `signed_body`, `canonical_utf8`, `body_sha256`, `hmac_input`,
+  `authenticated_message_sha256`, `sig` and `expected_dto`.
+- `stateful` cases pass every stateless stage; `state_setup` says what the store holds, and `reject_code` (stage
+  `state`) or `stateful_expectation` says the outcome.
+
+Every reject case has exactly one defect, so `reject_stage` and `reject_code` are both binding. Reject cases are
+correctly signed wherever the defect allows it, so the refusal comes from the named stage and not from the HMAC
+(placeholders are marked in `reason`).
+
+| Category | accept | reject | stateful | Total |
+|---|---|---|---|---|
+| types | 1 | 20 | 0 | 21 |
+| time | 2 | 12 | 0 | 14 |
+| status | 1 | 7 | 2 | 10 |
+| state | 0 | 0 | 4 | 4 |
+| signature | 0 | 4 | 0 | 4 |
+| transport | 2 | 13 | 0 | 15 |
+| **total** | **6** | **56** | **6** | **68** |
+
+The test module also holds a strict reference validator (TEST code only, not product code). The tests prove that
+every reject case is refused at its declared stage and code with zero pending records and zero dispatches, that
+every accept case yields exactly its `expected_dto`, that a status call never opens, that the v1 reject vectors are
+also refused by the v2 validator, and that the existing verifier accepts several of these cases (string `ts`, numeric
+nonce, 31 s lifetime, extra fields, collapsed duplicates), which is why the strict stages are required.
+
 ## Open items
+
+Items 1, 2, 6, 7 and 8 below are settled by the DTO draft (string transport, closed schema, exact ts/nonce,
+`params.target_request_id`, both digests). The current open items are in `DTO_DRAFT.md` section 9.
 
 1. **Duplicate keys cannot be detected after parsing.** Python's `json.loads` (and, as far as we know, the
    JSON loader in front of an HA service call; not verified here) keeps the last value. The bridge service

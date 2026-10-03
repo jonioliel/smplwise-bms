@@ -536,5 +536,1476 @@
         "existing_verifier_accepts_hmac": true
       }
     }
+  ],
+  "vectors_version": 2,
+  "vectors_version_history": [
+    {
+      "vectors_version": 1,
+      "arx_commit": "9b05abbb",
+      "file_sha256": "fd39b7ecc7bf71ef909cd148caed111231b0965e90fe602dfe277979d30389c8",
+      "content": "the `vectors` array (29 vectors); unchanged since, its canonical SHA-256 is pinned in the test"
+    },
+    {
+      "vectors_version": 2,
+      "content": "adds `contract` and `contract_vectors` for the DTO draft (DTO_DRAFT.md); `vectors` untouched"
+    }
+  ],
+  "contract": {
+    "status": "DRAFT, Arx position 2026-10-04, pending WisKey agreement; see DTO_DRAFT.md",
+    "transport": "service_data = {\"signed_message_json\": <wire message JSON as ONE string>}; nothing else",
+    "wire_fields": [
+      "action",
+      "actor",
+      "expires_at",
+      "issued_at",
+      "nonce",
+      "params",
+      "protocol",
+      "request_id",
+      "sig",
+      "station",
+      "ts"
+    ],
+    "actor_fields": [
+      "display_name",
+      "id"
+    ],
+    "params_fields": {
+      "door_open": [
+        "relay"
+      ],
+      "door_open_status": [
+        "target_request_id"
+      ]
+    },
+    "max_lifetime_s": 30,
+    "clock_floor": "2026-01-01T00:00:00Z",
+    "validation_stages_in_order": [
+      "transport",
+      "encoding",
+      "parse",
+      "schema",
+      "binding",
+      "signature",
+      "time",
+      "state"
+    ],
+    "codes": {
+      "transport": [
+        "transport_shape"
+      ],
+      "encoding": [
+        "invalid_utf8",
+        "lone_surrogate"
+      ],
+      "parse": [
+        "invalid_json",
+        "duplicate_key",
+        "non_json_constant",
+        "non_integer_number",
+        "integer_out_of_range",
+        "lone_surrogate",
+        "not_an_object"
+      ],
+      "schema": [
+        "unknown_field",
+        "missing_field",
+        "wrong_type",
+        "bad_format",
+        "bad_value"
+      ],
+      "binding": [
+        "ts_mismatch",
+        "action_service_mismatch",
+        "target_is_self"
+      ],
+      "signature": [
+        "bad_signature"
+      ],
+      "time": [
+        "clock_invalid",
+        "lifetime_invalid",
+        "not_yet_valid",
+        "expired"
+      ],
+      "state": [
+        "replay",
+        "request_id_conflict",
+        "station_mismatch",
+        "relay_not_allowed"
+      ]
+    },
+    "now": "evaluation time in epoch seconds (null = no valid clock); now_iso is the same instant",
+    "digests": {
+      "body_sha256": "lower-case hex SHA-256 of the canonical signed_body (wire minus ts, nonce, sig)",
+      "authenticated_message_sha256": "lower-case hex SHA-256 of UTF-8(hmac_input), hmac_input = f'{ts}.{nonce}.{body_sha256}'"
+    },
+    "expect_values": {
+      "accept": "passes every stateless stage; expected_dto is the DTO handed to WisKey",
+      "reject": "refused at reject_stage with reject_code, before any pending record or dispatch",
+      "stateful": "passes every stateless stage; the outcome depends on the bridge/WisKey store (state_setup, reject_code or stateful_expectation)"
+    }
+  },
+  "contract_vectors": [
+    {
+      "id": "types_ts_string",
+      "category": "types",
+      "expect": "reject",
+      "reason": "ts is the string \"<epoch>\". The existing verifier coerces it with int(); the contract does not.",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":\"1791028800\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":\\\"1791028800\\\",\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "types_ts_float",
+      "category": "types",
+      "expect": "reject",
+      "reason": "ts is <epoch>.0. Floats are refused while parsing; the existing verifier would truncate it.",
+      "reject_stage": "parse",
+      "reject_code": "non_integer_number",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800.0,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800.0,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "types_ts_bool",
+      "category": "types",
+      "expect": "reject",
+      "reason": "ts is true. A boolean is not an integer (Python bool is an int subclass; the check must be exact).",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":true,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":true,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "types_ts_mismatch",
+      "category": "types",
+      "expect": "reject",
+      "reason": "ts = epoch(issued_at) + 1. Correctly signed, but ts must equal the epoch seconds of issued_at.",
+      "reject_stage": "binding",
+      "reject_code": "ts_mismatch",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028801,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"1a3a74d9e651edbdf3b411d2c1e7a37bcb658cd8a32b2ad7ff1be3025b75e067\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028801,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"1a3a74d9e651edbdf3b411d2c1e7a37bcb658cd8a32b2ad7ff1be3025b75e067\\\"}\"}"
+    },
+    {
+      "id": "types_nonce_number",
+      "category": "types",
+      "expect": "reject",
+      "reason": "nonce is the number 12345. The existing verifier would str() it.",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":12345,\"sig\":\"6e05a65e6dc96bfc65f69c88dfc2624eb014c2d2f6953c1fb88bbd45c29df043\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":12345,\\\"sig\\\":\\\"6e05a65e6dc96bfc65f69c88dfc2624eb014c2d2f6953c1fb88bbd45c29df043\\\"}\"}"
+    },
+    {
+      "id": "types_nonce_16_hex",
+      "category": "types",
+      "expect": "reject",
+      "reason": "nonce has 16 hex chars: the existing signer's default (secrets.token_hex(8)). v1 requires 32; Arx passes it explicitly.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718\",\"sig\":\"0a34bf867a8c2ac6fa1d6f3d776f29b808dc3334b8bdda93f0c97a7339dfe30d\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718\\\",\\\"sig\\\":\\\"0a34bf867a8c2ac6fa1d6f3d776f29b808dc3334b8bdda93f0c97a7339dfe30d\\\"}\"}"
+    },
+    {
+      "id": "types_nonce_uppercase",
+      "category": "types",
+      "expect": "reject",
+      "reason": "nonce in upper-case hex. Only lower-case is accepted (no case folding).",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"A1B2C3D4E5F60718293A4B5C6D7E8F90\",\"sig\":\"b8b7204caca549580ff26569d228ba0ba32c25f7a24bd7177b27101ce49477db\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"A1B2C3D4E5F60718293A4B5C6D7E8F90\\\",\\\"sig\\\":\\\"b8b7204caca549580ff26569d228ba0ba32c25f7a24bd7177b27101ce49477db\\\"}\"}"
+    },
+    {
+      "id": "types_relay_bool",
+      "category": "types",
+      "expect": "reject",
+      "reason": "relay is true.",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":true},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"c9c9895b71d52296e4cf2463fbb8e8ad8cca22019c0bd51c63e99d6972043c9b\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":true},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"c9c9895b71d52296e4cf2463fbb8e8ad8cca22019c0bd51c63e99d6972043c9b\\\"}\"}"
+    },
+    {
+      "id": "types_relay_string",
+      "category": "types",
+      "expect": "reject",
+      "reason": "relay is the string \"1\".",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":\"1\"},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"d20ff6b90d99615d2c3c241526ac09395e91ca6057db9f212de0839100b13157\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":\\\"1\\\"},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"d20ff6b90d99615d2c3c241526ac09395e91ca6057db9f212de0839100b13157\\\"}\"}"
+    },
+    {
+      "id": "types_relay_zero",
+      "category": "types",
+      "expect": "reject",
+      "reason": "relay is 0. relay must be a positive integer.",
+      "reject_stage": "schema",
+      "reject_code": "bad_value",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":0},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"36f8137752313e6dd1024019a9d88c6e1d63c74d16619f96132634a2737e4f69\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":0},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"36f8137752313e6dd1024019a9d88c6e1d63c74d16619f96132634a2737e4f69\\\"}\"}"
+    },
+    {
+      "id": "types_relay_negative",
+      "category": "types",
+      "expect": "reject",
+      "reason": "relay is -1.",
+      "reject_stage": "schema",
+      "reject_code": "bad_value",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":-1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"37eb539fd25a1f35c5e717ab6995db44e26a90fb458eb74d59ae6564aaa4f1ec\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":-1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"37eb539fd25a1f35c5e717ab6995db44e26a90fb458eb74d59ae6564aaa4f1ec\\\"}\"}"
+    },
+    {
+      "id": "types_relay_positive_2",
+      "category": "types",
+      "expect": "accept",
+      "reason": "relay 2 passes the schema. Whether station test_station_entrance has relay 2 is WisKey's per-station check (stage state).",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":2},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"17de997eac612ca2ff48b0551e024de2c8b7c6945eee1ccaad3f4ad5fcf8025c\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":2},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"17de997eac612ca2ff48b0551e024de2c8b7c6945eee1ccaad3f4ad5fcf8025c\\\"}\"}",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 2
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":2},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+      "authenticated_message_sha256": "41002d33cfb48d5ad64ad225ef0c8e9eb74e2de48fc580febae1549994d1850d",
+      "sig": "17de997eac612ca2ff48b0551e024de2c8b7c6945eee1ccaad3f4ad5fcf8025c",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 2
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+        "authenticated_message_sha256": "41002d33cfb48d5ad64ad225ef0c8e9eb74e2de48fc580febae1549994d1850d"
+      }
+    },
+    {
+      "id": "types_action_open_door",
+      "category": "types",
+      "expect": "reject",
+      "reason": "action \"open_door\" (the wrong name from an earlier draft). Only door_open and door_open_status exist.",
+      "reject_stage": "schema",
+      "reject_code": "bad_value",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"open_door\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"1a0f77f042aeacc5b068d55f48f65095b14ebc5939b984ac4bd0becb73729933\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"open_door\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"1a0f77f042aeacc5b068d55f48f65095b14ebc5939b984ac4bd0becb73729933\\\"}\"}"
+    },
+    {
+      "id": "types_protocol_unknown",
+      "category": "types",
+      "expect": "reject",
+      "reason": "protocol wiskey-trusted-door-v2 is not known to a v1 verifier.",
+      "reject_stage": "schema",
+      "reject_code": "bad_value",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v2\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"9c90ce6082bc4d0a8acb81bb664c94f263c7c4f257bcecadaba58d5394c869a6\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v2\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"9c90ce6082bc4d0a8acb81bb664c94f263c7c4f257bcecadaba58d5394c869a6\\\"}\"}"
+    },
+    {
+      "id": "types_extra_wire_field",
+      "category": "types",
+      "expect": "reject",
+      "reason": "Extra signed top-level field `capability`. HMAC valid; closed schema refuses it.",
+      "reject_stage": "schema",
+      "reject_code": "unknown_field",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"capability\":\"x\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"2891e7855888dddcb9dd8a8f1e49c4419b9e306a0f15b324195ed15927bd5c08\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"capability\\\":\\\"x\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"2891e7855888dddcb9dd8a8f1e49c4419b9e306a0f15b324195ed15927bd5c08\\\"}\"}"
+    },
+    {
+      "id": "types_extra_actor_field",
+      "category": "types",
+      "expect": "reject",
+      "reason": "Extra field `role` inside actor. HMAC valid.",
+      "reject_stage": "schema",
+      "reject_code": "unknown_field",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"role\":\"admin\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"bb6c04dd393eb68706cadfc53df3bc98eaeb7a99c0dae74d8517a129a92e3f9b\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\",\\\"role\\\":\\\"admin\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"bb6c04dd393eb68706cadfc53df3bc98eaeb7a99c0dae74d8517a129a92e3f9b\\\"}\"}"
+    },
+    {
+      "id": "types_extra_params_field",
+      "category": "types",
+      "expect": "reject",
+      "reason": "Extra field `duration_s` inside params. HMAC valid.",
+      "reject_stage": "schema",
+      "reject_code": "unknown_field",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1,\"duration_s\":5},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"bc60d0c2afa9df70290566a68d30e55e82b1951d9d5065efcb3859d8a9ad537a\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1,\\\"duration_s\\\":5},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"bc60d0c2afa9df70290566a68d30e55e82b1951d9d5065efcb3859d8a9ad537a\\\"}\"}"
+    },
+    {
+      "id": "types_missing_request_id",
+      "category": "types",
+      "expect": "reject",
+      "reason": "request_id absent. HMAC valid over the shorter body.",
+      "reject_stage": "schema",
+      "reject_code": "missing_field",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"2a29454a50fd021a2bd386674161d744fe443116def08f54fc6dda1eff47832a\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"2a29454a50fd021a2bd386674161d744fe443116def08f54fc6dda1eff47832a\\\"}\"}"
+    },
+    {
+      "id": "types_request_id_not_uuid",
+      "category": "types",
+      "expect": "reject",
+      "reason": "request_id is not a lower-case hyphenated UUID.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"req-0001\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"10eafb3176c5ddb39746e9b2bbb627faf50336f67a0f5886b24d9237a6c3f03d\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"req-0001\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"10eafb3176c5ddb39746e9b2bbb627faf50336f67a0f5886b24d9237a6c3f03d\\\"}\"}"
+    },
+    {
+      "id": "types_actor_id_number",
+      "category": "types",
+      "expect": "reject",
+      "reason": "actor.id is a number.",
+      "reject_stage": "schema",
+      "reject_code": "wrong_type",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":1,\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"7b03782eb522142f1b729208ada0fdc71a3ed7f5cf9f8ff10996a31270c45cec\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":1,\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"7b03782eb522142f1b729208ada0fdc71a3ed7f5cf9f8ff10996a31270c45cec\\\"}\"}"
+    },
+    {
+      "id": "types_station_empty",
+      "category": "types",
+      "expect": "reject",
+      "reason": "station is the empty string.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"b7ea64287214de730768abf3a3ea422da82cd3ef8052cc40bc4d77a28ee6b532\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"b7ea64287214de730768abf3a3ea422da82cd3ef8052cc40bc4d77a28ee6b532\\\"}\"}"
+    },
+    {
+      "id": "time_lifetime_30_ok",
+      "category": "time",
+      "expect": "accept",
+      "reason": "expires_at - issued_at = 30 s (the maximum); now = issued_at.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a",
+      "sig": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+        "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a"
+      }
+    },
+    {
+      "id": "time_last_valid_second",
+      "category": "time",
+      "expect": "accept",
+      "reason": "now = expires_at - 1: the last accepted second.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028829,
+      "now_iso": "2026-10-03T12:00:29Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a",
+      "sig": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+        "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a"
+      }
+    },
+    {
+      "id": "time_lifetime_31",
+      "category": "time",
+      "expect": "reject",
+      "reason": "expires_at - issued_at = 31 s.",
+      "reject_stage": "time",
+      "reject_code": "lifetime_invalid",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:31Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"75782dd65dd4f831422bd1d12c776118f3874a8fe0ba982c594a30800bddb411\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:31Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"75782dd65dd4f831422bd1d12c776118f3874a8fe0ba982c594a30800bddb411\\\"}\"}"
+    },
+    {
+      "id": "time_lifetime_zero",
+      "category": "time",
+      "expect": "reject",
+      "reason": "expires_at == issued_at.",
+      "reject_stage": "time",
+      "reject_code": "lifetime_invalid",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:00Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"42d9f9f5f7960a9b8912926dc56dc52a483d81225658e1ba53754062aff12db8\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"42d9f9f5f7960a9b8912926dc56dc52a483d81225658e1ba53754062aff12db8\\\"}\"}"
+    },
+    {
+      "id": "time_lifetime_negative",
+      "category": "time",
+      "expect": "reject",
+      "reason": "expires_at < issued_at.",
+      "reject_stage": "time",
+      "reject_code": "lifetime_invalid",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T11:59:59Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"82b43625978efb8d1fce16f5b2f4ddeb72990d5c5d7312b88d1db1505c718670\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T11:59:59Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"82b43625978efb8d1fce16f5b2f4ddeb72990d5c5d7312b88d1db1505c718670\\\"}\"}"
+    },
+    {
+      "id": "time_future_issued_at_1s",
+      "category": "time",
+      "expect": "reject",
+      "reason": "now = issued_at - 1. v1 allows no future skew (open question: tolerate up to 2 s?).",
+      "reject_stage": "time",
+      "reject_code": "not_yet_valid",
+      "service": "door_open",
+      "now": 1791028799,
+      "now_iso": "2026-10-03T11:59:59Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "time_exact_expiry",
+      "category": "time",
+      "expect": "reject",
+      "reason": "now == expires_at: rejected exactly at expiry (now < expires_at is required).",
+      "reject_stage": "time",
+      "reject_code": "expired",
+      "service": "door_open",
+      "now": 1791028830,
+      "now_iso": "2026-10-03T12:00:30Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "time_expired",
+      "category": "time",
+      "expect": "reject",
+      "reason": "now = expires_at + 1.",
+      "reject_stage": "time",
+      "reject_code": "expired",
+      "service": "door_open",
+      "now": 1791028831,
+      "now_iso": "2026-10-03T12:00:31Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "time_clock_unavailable",
+      "category": "time",
+      "expect": "reject",
+      "reason": "No valid clock (now = null). An invalid clock blocks; it never passes.",
+      "reject_stage": "time",
+      "reject_code": "clock_invalid",
+      "service": "door_open",
+      "now": null,
+      "now_iso": null,
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "time_clock_before_floor",
+      "category": "time",
+      "expect": "reject",
+      "reason": "now = 0 (1970): earlier than the clock floor 2026-01-01T00:00:00Z, treated as an invalid clock.",
+      "reject_stage": "time",
+      "reject_code": "clock_invalid",
+      "service": "door_open",
+      "now": 0,
+      "now_iso": "1970-01-01T00:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "time_offset_not_z",
+      "category": "time",
+      "expect": "reject",
+      "reason": "issued_at written as +00:00 instead of Z (same instant). Only the Z form is accepted.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00+00:00\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"f2fc545d1591b4e2883c541fc90aef1bf24340aa5819d946fdc0504637ac2485\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00+00:00\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"f2fc545d1591b4e2883c541fc90aef1bf24340aa5819d946fdc0504637ac2485\\\"}\"}"
+    },
+    {
+      "id": "time_lowercase_z",
+      "category": "time",
+      "expect": "reject",
+      "reason": "expires_at with a lower-case z.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"8339994b4259ae5ed1642fd81204923ca6d334f9590b294c286b8523c80ffd1b\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"8339994b4259ae5ed1642fd81204923ca6d334f9590b294c286b8523c80ffd1b\\\"}\"}"
+    },
+    {
+      "id": "time_fractional_seconds",
+      "category": "time",
+      "expect": "reject",
+      "reason": "issued_at with fractional seconds (.000Z). Whole seconds only.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00.000Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"62c16c91c0e01aa919b0bd937fbc83b44a7204263f1bb8fde831fa7e1d8e2325\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00.000Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"62c16c91c0e01aa919b0bd937fbc83b44a7204263f1bb8fde831fa7e1d8e2325\\\"}\"}"
+    },
+    {
+      "id": "time_invalid_calendar_date",
+      "category": "time",
+      "expect": "reject",
+      "reason": "expires_at 2026-02-30: right shape, not a date.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-02-30T12:00:00Z\",\"expires_at\":\"2026-02-30T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"adcb6d89c6eb27d24ae7c578248ef4918265330b62f442a6dd0c4cfe96916dee\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-02-30T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-02-30T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"adcb6d89c6eb27d24ae7c578248ef4918265330b62f442a6dd0c4cfe96916dee\\\"}\"}"
+    },
+    {
+      "id": "status_with_target",
+      "category": "status",
+      "expect": "accept",
+      "reason": "door_open_status with params.target_request_id = the door_open request_id; own request_id and nonce; same station.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"3f15d62b56d65eb8881f9d47d429578adf05e022024c9ed9010f27b92de36850\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"3f15d62b56d65eb8881f9d47d429578adf05e022024c9ed9010f27b92de36850\\\"}\"}",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {
+          "target_request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open_status\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:35Z\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\"},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "3e0dd1ab2e76e6c9c2ca5a53350bff0806447512ed7d7e505088ce557ba393e1",
+      "hmac_input": "1791028805.c0ffee00c0ffee00c0ffee00c0ffee00.3e0dd1ab2e76e6c9c2ca5a53350bff0806447512ed7d7e505088ce557ba393e1",
+      "authenticated_message_sha256": "dcddb665f66a5b00e0cab40695cdd91d7157637e7a0deae1d9011761b150e58c",
+      "sig": "3f15d62b56d65eb8881f9d47d429578adf05e022024c9ed9010f27b92de36850",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {
+          "target_request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "nonce": "c0ffee00c0ffee00c0ffee00c0ffee00",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z",
+        "body_sha256": "3e0dd1ab2e76e6c9c2ca5a53350bff0806447512ed7d7e505088ce557ba393e1",
+        "authenticated_message_sha256": "dcddb665f66a5b00e0cab40695cdd91d7157637e7a0deae1d9011761b150e58c"
+      }
+    },
+    {
+      "id": "status_missing_target",
+      "category": "status",
+      "expect": "reject",
+      "reason": "door_open_status with empty params (the v1 envelope_door_open_status shape, re-signed here).",
+      "reject_stage": "schema",
+      "reject_code": "missing_field",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"49b1714735255dba53c066105d0e8d2df7652a4704272f00d8cb04301235ad11\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"49b1714735255dba53c066105d0e8d2df7652a4704272f00d8cb04301235ad11\\\"}\"}"
+    },
+    {
+      "id": "status_target_not_uuid",
+      "category": "status",
+      "expect": "reject",
+      "reason": "target_request_id is not a UUID.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"not-a-uuid\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"3aadcb4b5a20bf457843c5c71d38376b6e8ff8d65a61595a8892f2836e98139a\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"not-a-uuid\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"3aadcb4b5a20bf457843c5c71d38376b6e8ff8d65a61595a8892f2836e98139a\\\"}\"}"
+    },
+    {
+      "id": "status_target_uppercase_uuid",
+      "category": "status",
+      "expect": "reject",
+      "reason": "target_request_id in upper case. Lower-case only, no case folding.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"3F2B8C1E-9A4D-4E6F-8B7A-1C2D3E4F5A6B\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"4dd3cfb21e07b97060d9f16f534d809e55974d2d463a808dbf83d8fc34f67594\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"3F2B8C1E-9A4D-4E6F-8B7A-1C2D3E4F5A6B\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"4dd3cfb21e07b97060d9f16f534d809e55974d2d463a808dbf83d8fc34f67594\\\"}\"}"
+    },
+    {
+      "id": "status_carrying_relay",
+      "category": "status",
+      "expect": "reject",
+      "reason": "door_open_status params also carry relay. Status params are exactly {target_request_id}.",
+      "reject_stage": "schema",
+      "reject_code": "unknown_field",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"relay\":1},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"6382b4c8dcc75400ce3bb43543f47e341295376a9301e9487f37f206acc44024\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"relay\\\":1},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"6382b4c8dcc75400ce3bb43543f47e341295376a9301e9487f37f206acc44024\\\"}\"}"
+    },
+    {
+      "id": "status_target_is_self",
+      "category": "status",
+      "expect": "reject",
+      "reason": "target_request_id equals the status message's own request_id.",
+      "reject_stage": "binding",
+      "reject_code": "target_is_self",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"e6dc79af479844b6651ee4cf9e930eb487664b91d981b7d09a8d02e3ad1ce9f3\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"e6dc79af479844b6651ee4cf9e930eb487664b91d981b7d09a8d02e3ad1ce9f3\\\"}\"}"
+    },
+    {
+      "id": "status_sent_to_door_open_service",
+      "category": "status",
+      "expect": "reject",
+      "reason": "A valid door_open_status message delivered to the door_open service.",
+      "reject_stage": "binding",
+      "reject_code": "action_service_mismatch",
+      "service": "door_open",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"3f15d62b56d65eb8881f9d47d429578adf05e022024c9ed9010f27b92de36850\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"3f15d62b56d65eb8881f9d47d429578adf05e022024c9ed9010f27b92de36850\\\"}\"}"
+    },
+    {
+      "id": "door_open_sent_to_status_service",
+      "category": "status",
+      "expect": "reject",
+      "reason": "A valid door_open message delivered to the door_open_status service: it must not open and must not query.",
+      "reject_stage": "binding",
+      "reject_code": "action_service_mismatch",
+      "service": "door_open_status",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "status_station_mismatch_vs_open_record",
+      "category": "status",
+      "expect": "stateful",
+      "reason": "Well-formed status for the door_open request but station test_station_side. Passes every stateless stage; the bridge/WisKey store must refuse it because the open record has station test_station_entrance.",
+      "reject_stage": "state",
+      "reject_code": "station_mismatch",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_side\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"46e4e129e2bb85a015ddd7c872ec248c3dae79875415f8a297d05ce1c25c7092\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_side\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"46e4e129e2bb85a015ddd7c872ec248c3dae79875415f8a297d05ce1c25c7092\\\"}\"}",
+      "state_setup": "door_open request 3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b recorded for station test_station_entrance",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_side",
+        "params": {
+          "target_request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open_status\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:35Z\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"params\":{\"target_request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\"},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"station\":\"test_station_side\"}",
+      "body_sha256": "932099ba9587a51848e53a57142b3c9e5e01302696b88cdc99c90e36d3ba611c",
+      "hmac_input": "1791028805.c0ffee00c0ffee00c0ffee00c0ffee00.932099ba9587a51848e53a57142b3c9e5e01302696b88cdc99c90e36d3ba611c",
+      "authenticated_message_sha256": "5c1bed78f61df0c9b3288053007ad9b2f37e68309a96a923a4d1e925880e27bb",
+      "sig": "46e4e129e2bb85a015ddd7c872ec248c3dae79875415f8a297d05ce1c25c7092",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_side",
+        "params": {
+          "target_request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "nonce": "c0ffee00c0ffee00c0ffee00c0ffee00",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z",
+        "body_sha256": "932099ba9587a51848e53a57142b3c9e5e01302696b88cdc99c90e36d3ba611c",
+        "authenticated_message_sha256": "5c1bed78f61df0c9b3288053007ad9b2f37e68309a96a923a4d1e925880e27bb"
+      }
+    },
+    {
+      "id": "status_target_unknown",
+      "category": "status",
+      "expect": "stateful",
+      "reason": "Well-formed status for a request the store has never seen (or purged after 7 days). Not a rejection: the response is unknown / not_found_or_expired; no pending, no open.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{\"target_request_id\":\"00000000-0000-4000-8000-000000000000\"},\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"c0ffee00c0ffee00c0ffee00c0ffee00\",\"sig\":\"0f277b5e7ecf1a590995d26c95b630642ad38b3a329ad6641d7aefa42abdd08f\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"target_request_id\\\":\\\"00000000-0000-4000-8000-000000000000\\\"},\\\"request_id\\\":\\\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"c0ffee00c0ffee00c0ffee00c0ffee00\\\",\\\"sig\\\":\\\"0f277b5e7ecf1a590995d26c95b630642ad38b3a329ad6641d7aefa42abdd08f\\\"}\"}",
+      "state_setup": "empty store",
+      "stateful_expectation": {
+        "result": "unknown",
+        "reason": "not_found_or_expired",
+        "pending_created": false,
+        "door_opened": false
+      },
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {
+          "target_request_id": "00000000-0000-4000-8000-000000000000"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open_status\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:35Z\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"params\":{\"target_request_id\":\"00000000-0000-4000-8000-000000000000\"},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "64288351ddb42963d534760504c850d2214b397cc45327aa37aa1a4066c0cdcd",
+      "hmac_input": "1791028805.c0ffee00c0ffee00c0ffee00c0ffee00.64288351ddb42963d534760504c850d2214b397cc45327aa37aa1a4066c0cdcd",
+      "authenticated_message_sha256": "715e798314b9024d4c4af5f984d1f9b957a9c61a79c8e23f6689a77f87596ab3",
+      "sig": "0f277b5e7ecf1a590995d26c95b630642ad38b3a329ad6641d7aefa42abdd08f",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {
+          "target_request_id": "00000000-0000-4000-8000-000000000000"
+        },
+        "request_id": "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d",
+        "nonce": "c0ffee00c0ffee00c0ffee00c0ffee00",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z",
+        "body_sha256": "64288351ddb42963d534760504c850d2214b397cc45327aa37aa1a4066c0cdcd",
+        "authenticated_message_sha256": "715e798314b9024d4c4af5f984d1f9b957a9c61a79c8e23f6689a77f87596ab3"
+      }
+    },
+    {
+      "id": "state_duplicate_identical",
+      "category": "state",
+      "expect": "stateful",
+      "reason": "The exact envelope_door_open wire delivered a second time after it completed. Not executed again: the stored result is returned.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}",
+      "state_setup": "the same request_id/nonce/meaning already completed",
+      "stateful_expectation": {
+        "result": "stored_result",
+        "second_dispatch": false
+      },
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a",
+      "sig": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+        "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a"
+      }
+    },
+    {
+      "id": "state_request_id_reused_other_meaning",
+      "category": "state",
+      "expect": "stateful",
+      "reason": "Same request_id, a new nonce, relay 2 instead of 1. Refused: one request_id, one meaning.",
+      "reject_stage": "state",
+      "reject_code": "request_id_conflict",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":2},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"11111111111111111111111111111111\",\"sig\":\"e4d5b0fd57eb38be79d1bd8c9ec604c3bebe52b0b663fdad86c99e1318b0b612\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":2},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"11111111111111111111111111111111\\\",\\\"sig\\\":\\\"e4d5b0fd57eb38be79d1bd8c9ec604c3bebe52b0b663fdad86c99e1318b0b612\\\"}\"}",
+      "state_setup": "request 3f2b8c1e-... recorded with relay 1",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 2
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":2},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+      "hmac_input": "1791028800.11111111111111111111111111111111.20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+      "authenticated_message_sha256": "5eb8e742b9a068a85690fe55b491dbbfaab84bf0b5c15d15b701d7c2ee5b9271",
+      "sig": "e4d5b0fd57eb38be79d1bd8c9ec604c3bebe52b0b663fdad86c99e1318b0b612",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 2
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "11111111111111111111111111111111",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "20ebee82231989c98b104be1eedd2a9ef73844f7371e8686ccb7bb2f3e331165",
+        "authenticated_message_sha256": "5eb8e742b9a068a85690fe55b491dbbfaab84bf0b5c15d15b701d7c2ee5b9271"
+      }
+    },
+    {
+      "id": "state_nonce_reused_other_request",
+      "category": "state",
+      "expect": "stateful",
+      "reason": "The nonce of envelope_door_open reused by a different request_id. Refused as replay.",
+      "reject_stage": "state",
+      "reject_code": "replay",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"20bbee76bb5fd4d27fef3ffb6927d867f28a981638df99d9d19487727aa5b645\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"20bbee76bb5fd4d27fef3ffb6927d867f28a981638df99d9d19487727aa5b645\\\"}\"}",
+      "state_setup": "nonce a1b2c3d4... recorded for request 3f2b8c1e-...",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "56be4b7e9331d1f43cd80f478cedac0b309e4d1806b7766f5e2b2be2b5c2b56c",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.56be4b7e9331d1f43cd80f478cedac0b309e4d1806b7766f5e2b2be2b5c2b56c",
+      "authenticated_message_sha256": "1309088dad55426aa07ec7356af465b2c0c649ce9564a69d31b97299eb4d54f2",
+      "sig": "20bbee76bb5fd4d27fef3ffb6927d867f28a981638df99d9d19487727aa5b645",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "56be4b7e9331d1f43cd80f478cedac0b309e4d1806b7766f5e2b2be2b5c2b56c",
+        "authenticated_message_sha256": "1309088dad55426aa07ec7356af465b2c0c649ce9564a69d31b97299eb4d54f2"
+      }
+    },
+    {
+      "id": "state_relay_outside_station_range",
+      "category": "state",
+      "expect": "stateful",
+      "reason": "relay 99 passes the schema; the station's allowed relay range (WisKey to confirm per station) refuses it before any pending.",
+      "reject_stage": "state",
+      "reject_code": "relay_not_allowed",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":99},\"request_id\":\"2a4c6e80-1357-4b9d-8ace-02468ace1357\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"22222222222222222222222222222222\",\"sig\":\"4671b1b67c7e250c045fb8a6a6b360ecea5e2afacb832c57a73a2a30d385ba7f\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":99},\\\"request_id\\\":\\\"2a4c6e80-1357-4b9d-8ace-02468ace1357\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"22222222222222222222222222222222\\\",\\\"sig\\\":\\\"4671b1b67c7e250c045fb8a6a6b360ecea5e2afacb832c57a73a2a30d385ba7f\\\"}\"}",
+      "state_setup": "a fresh request (new request_id and nonce); test_station_entrance allows relay 1 only",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 99
+        },
+        "request_id": "2a4c6e80-1357-4b9d-8ace-02468ace1357",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":99},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"2a4c6e80-1357-4b9d-8ace-02468ace1357\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "9fbfa278543421474217ce5794d5fe86e15988f8c1f3e2baccdd546e9d6351c9",
+      "hmac_input": "1791028800.22222222222222222222222222222222.9fbfa278543421474217ce5794d5fe86e15988f8c1f3e2baccdd546e9d6351c9",
+      "authenticated_message_sha256": "2f09976f7774bc45fc457fe13564061f5f705735ac78ee49f4a5f79f8838c67f",
+      "sig": "4671b1b67c7e250c045fb8a6a6b360ecea5e2afacb832c57a73a2a30d385ba7f",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 99
+        },
+        "request_id": "2a4c6e80-1357-4b9d-8ace-02468ace1357",
+        "nonce": "22222222222222222222222222222222",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "9fbfa278543421474217ce5794d5fe86e15988f8c1f3e2baccdd546e9d6351c9",
+        "authenticated_message_sha256": "2f09976f7774bc45fc457fe13564061f5f705735ac78ee49f4a5f79f8838c67f"
+      }
+    },
+    {
+      "id": "signature_tampered_station",
+      "category": "signature",
+      "expect": "reject",
+      "reason": "station changed after signing.",
+      "reject_stage": "signature",
+      "reject_code": "bad_signature",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_other\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_other\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "signature_nonce_changed",
+      "category": "signature",
+      "expect": "reject",
+      "reason": "nonce changed after signing. nonce is not in body_sha256 but it is in hmac_input (and in authenticated_message_sha256).",
+      "reject_stage": "signature",
+      "reject_code": "bad_signature",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"ffffffffffffffffffffffffffffffff\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"ffffffffffffffffffffffffffffffff\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "signature_wrong_key",
+      "category": "signature",
+      "expect": "reject",
+      "reason": "Signed with a different (also public, fake) key.",
+      "reject_stage": "signature",
+      "reject_code": "bad_signature",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"9baa5a0232e0e854ddf0cea12ad43f930fae3bafb3e951d8e0da0293948ad747\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"9baa5a0232e0e854ddf0cea12ad43f930fae3bafb3e951d8e0da0293948ad747\\\"}\"}"
+    },
+    {
+      "id": "signature_uppercase_sig",
+      "category": "signature",
+      "expect": "reject",
+      "reason": "sig in upper-case hex. Lower-case 64 hex only.",
+      "reject_stage": "schema",
+      "reject_code": "bad_format",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15D7D47BDDFDD07F6F5855C1EF01D9FC27652E91D685CEE3EB2EECC30FA862AF\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15D7D47BDDFDD07F6F5855C1EF01D9FC27652E91D685CEE3EB2EECC30FA862AF\\\"}\"}"
+    },
+    {
+      "id": "transport_envelope_door_open",
+      "category": "transport",
+      "expect": "accept",
+      "reason": "v1 vector envelope_door_open, carried as service_data {\"signed_message_json\": <wire_message_json>}.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}",
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a",
+      "sig": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+        "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a"
+      }
+    },
+    {
+      "id": "transport_envelope_door_open_status_v1",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "v1 vector envelope_door_open_status in the string envelope. Valid serialization, but not a complete v2 status query (no target_request_id).",
+      "reject_stage": "schema",
+      "reject_code": "missing_field",
+      "service": "door_open_status",
+      "now": 1791028805,
+      "now_iso": "2026-10-03T12:00:05Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{},\"request_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"sig\":\"b95a4ec7177fd1f767dc050677b3578bd3b0f87f6b8993c365becea8b95c370b\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open_status\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{},\\\"request_id\\\":\\\"7c9e6679-7425-40de-944b-e07fc1f90ae7\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:05Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:35Z\\\",\\\"ts\\\":1791028805,\\\"nonce\\\":\\\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\\\",\\\"sig\\\":\\\"b95a4ec7177fd1f767dc050677b3578bd3b0f87f6b8993c365becea8b95c370b\\\"}\"}"
+    },
+    {
+      "id": "transport_duplicate_station_in_string",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "station twice INSIDE signed_message_json. The outer service_data is a valid one-key object; the bridge parses the string itself and refuses the duplicate. A plain json.loads would keep the last value and the HMAC would verify.",
+      "reject_stage": "parse",
+      "reject_code": "duplicate_key",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_other\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_other\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "transport_duplicate_actor_id_nested",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "Duplicate actor.id inside the string (nested object).",
+      "reject_stage": "parse",
+      "reject_code": "duplicate_key",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0002\",\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0002\\\",\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "transport_duplicate_params_relay_nested",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "Duplicate params.relay inside the string.",
+      "reject_stage": "parse",
+      "reject_code": "duplicate_key",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":2,\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":2,\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "transport_wire_as_object",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "service_data IS the wire message as an object (the pre-v2 shape). Refused: duplicates would already have collapsed before the bridge sees it.",
+      "reject_stage": "transport",
+      "reject_code": "transport_shape",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}"
+    },
+    {
+      "id": "transport_signed_message_not_string",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "signed_message_json holds an object, not a string.",
+      "reject_stage": "transport",
+      "reject_code": "transport_shape",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{\"signed_message_json\":{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}}"
+    },
+    {
+      "id": "transport_extra_outer_key",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "service_data has a second key next to signed_message_json.",
+      "reject_stage": "transport",
+      "reject_code": "transport_shape",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\",\"station\":\"test_station_other\"}"
+    },
+    {
+      "id": "transport_missing_outer_key",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "service_data is empty.",
+      "reject_stage": "transport",
+      "reject_code": "transport_shape",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{}"
+    },
+    {
+      "id": "transport_inner_not_object",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "signed_message_json is a JSON array.",
+      "reject_stage": "parse",
+      "reject_code": "not_an_object",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "[]",
+      "service_data_json": "{\"signed_message_json\":\"[]\"}"
+    },
+    {
+      "id": "transport_inner_invalid_json",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "signed_message_json is truncated JSON.",
+      "reject_stage": "parse",
+      "reject_code": "invalid_json",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"\"}"
+    },
+    {
+      "id": "transport_inner_lone_surrogate_escape",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "actor.display_name contains the escape \\ud800 inside the string; it decodes to a lone surrogate. sig is a placeholder (the signer cannot encode it); the refusal happens before signature checking.",
+      "reject_stage": "parse",
+      "reject_code": "lone_surrogate",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"\\ud800משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"0000000000000000000000000000000000000000000000000000000000000000\"}",
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"\\\\ud800משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"0000000000000000000000000000000000000000000000000000000000000000\\\"}\"}"
+    },
+    {
+      "id": "transport_outer_lone_surrogate",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "The OUTER JSON escapes a lone surrogate (\\ud800) into the string value itself, so signed_message_json reaches the bridge already holding U+D800. Refused before parsing. Only service_data_json is given: the inner string cannot be written as UTF-8.",
+      "reject_stage": "encoding",
+      "reject_code": "lone_surrogate",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"\\ud800\\u05de\\u05e9\\u05ea\\u05de\\u05e9 \\u05d1\\u05d3\\u05d9\\u05e7\\u05d4 \\\\\\\"\\u05e8\\u05d0\\u05e9\\u05d9\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}"
+    },
+    {
+      "id": "transport_inner_invalid_utf8",
+      "category": "transport",
+      "expect": "reject",
+      "reason": "The inner message as bytes with 0xFF inside actor.display_name. Given as hex only (a JSON string cannot hold it); inside HA the REST layer fails first. Implementations that receive bytes must decode strictly.",
+      "reject_stage": "encoding",
+      "reject_code": "invalid_utf8",
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "signed_message_utf8_hex": "7b2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c226163746f72223a7b226964223a22746573742d757365722d30303031222c22646973706c61795f6e616d65223a22ffd79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22227d2c22616374696f6e223a22646f6f725f6f70656e222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365222c22706172616d73223a7b2272656c6179223a317d2c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c227473223a313739313032383830302c226e6f6e6365223a226131623263336434653566363037313832393361346235633664376538663930222c22736967223a2231356437643437626464666464303766366635383535633165663031643966633237363532653931643638356365653365623265656363333066613836326166227d",
+      "service_data_json": null
+    },
+    {
+      "id": "transport_outer_duplicate_collapsed_by_ha",
+      "category": "transport",
+      "expect": "accept",
+      "reason": "The OUTER service_data JSON repeats signed_message_json. HA parses the REST body before the bridge and keeps the last value, so the bridge receives one key and cannot see the duplicate. Harmless: all meaning is inside the signed string. Arx must never send this; listed to show the outer/inner difference.",
+      "reject_stage": null,
+      "reject_code": null,
+      "service": "door_open",
+      "now": 1791028800,
+      "now_iso": "2026-10-03T12:00:00Z",
+      "signed_message_json": null,
+      "service_data_json": "{\"signed_message_json\":\"garbage\",\"signed_message_json\":\"{\\\"protocol\\\":\\\"wiskey-trusted-door-v1\\\",\\\"actor\\\":{\\\"id\\\":\\\"test-user-0001\\\",\\\"display_name\\\":\\\"משתמש בדיקה \\\\\\\"ראשי\\\\\\\"\\\"},\\\"action\\\":\\\"door_open\\\",\\\"station\\\":\\\"test_station_entrance\\\",\\\"params\\\":{\\\"relay\\\":1},\\\"request_id\\\":\\\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\\\",\\\"issued_at\\\":\\\"2026-10-03T12:00:00Z\\\",\\\"expires_at\\\":\\\"2026-10-03T12:00:30Z\\\",\\\"ts\\\":1791028800,\\\"nonce\\\":\\\"a1b2c3d4e5f60718293a4b5c6d7e8f90\\\",\\\"sig\\\":\\\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\\\"}\"}",
+      "service_data_as_received_by_bridge": {
+        "signed_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}"
+      },
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a",
+      "sig": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "expected_dto": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z",
+        "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+        "authenticated_message_sha256": "c371741ab57e816b4b16eb2eb1a80820fe27966df693127bafc7f2ac64580e8a"
+      }
+    }
   ]
 }

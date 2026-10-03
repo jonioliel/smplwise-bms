@@ -8,6 +8,11 @@ production signing code as it is today: the add-on's `smplwise.services.ha_bridg
 - `python tests/test_wiskey_golden_vectors.py --write` rewrites the file (only after a deliberate, reviewed change:
   a serialization change needs a new protocol version, see the README next to the vectors).
 
+vectors_version 2 adds `contract` and `contract_vectors` (the DTO draft in DTO_DRAFT.md) and a STRICT reference
+parser/validator that exists in this TEST module only. It is not product code and no product code imports it; it proves
+that every reject vector is refused before any pending record or dispatch and that every accept vector passes. The v1
+`vectors` array is pinned by hash and must not change.
+
 The HMAC key below is a TEST CONSTANT. It is not, and must never become, a pairing secret of any installation.
 """
 from __future__ import annotations
@@ -16,7 +21,9 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import sys
+from dataclasses import FrozenInstanceError, dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -350,6 +357,557 @@ def _current_behaviour(text: str) -> dict[str, Any]:
         return {"signer_error": f"UnicodeEncodeError: {e.reason}"}
 
 
+# ================================================================ vectors_version 2: the DTO draft contract (test code only)
+#
+# Everything below is a REFERENCE for the draft contract in docs/contracts/wiskey-trusted-caller/DTO_DRAFT.md. It lives
+# in test code on purpose: there is no door_open / door_open_status service in product code, and this module must not
+# become one. It proves, vector by vector, that every reject case is refused before any pending record or dispatch and
+# that every accept case passes, with the expected immutable DTO.
+
+VECTORS_VERSION = 2
+# SHA-256 of the canonical form of the vectors_version 1 `vectors` array (29 vectors, Arx commit 9b05abbb). The v1 array
+# must stay byte-for-byte what WisKey verified; the v2 cases live in `contract_vectors`.
+V1_VECTORS_SHA256 = "3bb4bb2240e5586fed3e276699ed071b9fcec09dc84162f85f3833ce76b17520"
+V1_FILE_SHA256 = "fd39b7ecc7bf71ef909cd148caed111231b0965e90fe602dfe277979d30389c8"
+
+MAX_LIFETIME_S = 30
+CLOCK_FLOOR = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp())  # a clock earlier than this is "invalid"
+WIRE_KEYS = frozenset({"protocol", "actor", "action", "station", "params", "request_id", "issued_at", "expires_at", "ts", "nonce", "sig"})
+V2_ACTOR_KEYS = frozenset({"id", "display_name"})
+V2_PARAMS_KEYS = {"door_open": frozenset({"relay"}), "door_open_status": frozenset({"target_request_id"})}
+STRING_FIELDS = ("protocol", "action", "station", "request_id", "issued_at", "expires_at", "nonce", "sig")
+MAX_ACTOR_ID = 128
+MAX_DISPLAY_NAME = 128
+MAX_STATION = 128
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+HEX32_RE = re.compile(r"[0-9a-f]{32}")
+HEX64_RE = re.compile(r"[0-9a-f]{64}")
+TIME_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
+
+STAGES = ("transport", "encoding", "parse", "schema", "binding", "signature", "time", "state")
+CODES = {
+    "transport": ("transport_shape",),
+    "encoding": ("invalid_utf8", "lone_surrogate"),
+    "parse": ("invalid_json", "duplicate_key", "non_json_constant", "non_integer_number", "integer_out_of_range", "lone_surrogate", "not_an_object"),
+    "schema": ("unknown_field", "missing_field", "wrong_type", "bad_format", "bad_value"),
+    "binding": ("ts_mismatch", "action_service_mismatch", "target_is_self"),
+    "signature": ("bad_signature",),
+    "time": ("clock_invalid", "lifetime_invalid", "not_yet_valid", "expired"),
+    "state": ("replay", "request_id_conflict", "station_mismatch", "relay_not_allowed"),
+}
+
+
+class ContractReject(Exception):
+    """A refusal at a named stage. Carries only the stage and the code: never the body or the offending text."""
+
+    def __init__(self, stage: str, code: str) -> None:
+        assert stage in STAGES and code in CODES[stage], (stage, code)
+        super().__init__(f"{stage}:{code}")
+        self.stage = stage
+        self.code = code
+
+
+@dataclass(frozen=True)
+class TrustedDoorDTO:
+    """The immutable internal DTO the bridge hands to WisKey's trusted Python API. No secret, no signature, no ts."""
+
+    protocol: str
+    actor: tuple[tuple[str, str], ...]
+    action: str
+    station: str
+    params: tuple[tuple[str, Any], ...]
+    request_id: str
+    nonce: str
+    issued_at: str
+    expires_at: str
+    body_sha256: str
+    authenticated_message_sha256: str
+
+    def as_json(self) -> dict[str, Any]:
+        return {"protocol": self.protocol, "actor": dict(self.actor), "action": self.action, "station": self.station,
+                "params": dict(self.params), "request_id": self.request_id, "nonce": self.nonce, "issued_at": self.issued_at,
+                "expires_at": self.expires_at, "body_sha256": self.body_sha256,
+                "authenticated_message_sha256": self.authenticated_message_sha256}
+
+
+def _has_surrogate(s: str) -> bool:
+    return any(0xD800 <= ord(c) <= 0xDFFF for c in s)
+
+
+def contract_loads(text: str | bytes) -> dict[str, Any]:
+    """Stages `encoding` and `parse`. `bytes` input exists only for the invalid-UTF-8 vector (a Python str cannot hold
+    invalid UTF-8; inside HA the REST layer fails first)."""
+    if isinstance(text, bytes):
+        try:
+            text = text.decode("utf-8")  # strict
+        except UnicodeDecodeError:
+            raise ContractReject("encoding", "invalid_utf8") from None
+    if _has_surrogate(text):
+        raise ContractReject("encoding", "lone_surrogate")
+
+    def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
+        seen: dict[str, Any] = {}
+        for k, v in items:
+            if k in seen:
+                raise ContractReject("parse", "duplicate_key")
+            seen[k] = v
+        return seen
+
+    def bad_const(_c: str) -> Any:
+        raise ContractReject("parse", "non_json_constant")
+
+    def bad_float(_s: str) -> Any:
+        raise ContractReject("parse", "non_integer_number")
+
+    def checked_int(s: str) -> int:
+        i = int(s)
+        if not -SAFE_MAX <= i <= SAFE_MAX:
+            raise ContractReject("parse", "integer_out_of_range")
+        return i
+
+    try:
+        v = json.loads(text, object_pairs_hook=pairs, parse_constant=bad_const, parse_float=bad_float, parse_int=checked_int)
+    except json.JSONDecodeError:
+        raise ContractReject("parse", "invalid_json") from None
+
+    def walk(x: Any) -> None:
+        if isinstance(x, str):
+            if _has_surrogate(x):
+                raise ContractReject("parse", "lone_surrogate")
+        elif isinstance(x, list):
+            for y in x:
+                walk(y)
+        elif isinstance(x, dict):
+            for k, y in x.items():
+                walk(k)
+                walk(y)
+
+    walk(v)
+    if not isinstance(v, dict):
+        raise ContractReject("parse", "not_an_object")
+    return v
+
+
+def _parse_time(s: str) -> int:
+    if not TIME_RE.fullmatch(s):
+        raise ContractReject("schema", "bad_format")
+    try:
+        return int(datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        raise ContractReject("schema", "bad_format") from None
+
+
+def _plain_text(s: str, max_len: int) -> bool:
+    return 0 < len(s) <= max_len and not any(ord(c) < 0x20 or 0x7F <= ord(c) < 0xA0 for c in s)
+
+
+def contract_schema(m: dict[str, Any]) -> tuple[int, int]:
+    """Stage `schema`: closed schema at wire, actor and params level. Returns (issued_epoch, expires_epoch)."""
+    keys = set(m)
+    if keys - WIRE_KEYS:
+        raise ContractReject("schema", "unknown_field")
+    if WIRE_KEYS - keys:
+        raise ContractReject("schema", "missing_field")
+    for f in STRING_FIELDS:
+        if not isinstance(m[f], str):
+            raise ContractReject("schema", "wrong_type")
+    if type(m["ts"]) is not int or not isinstance(m["actor"], dict) or not isinstance(m["params"], dict):
+        raise ContractReject("schema", "wrong_type")
+    if m["protocol"] != PROTOCOL or m["action"] not in V2_PARAMS_KEYS:
+        raise ContractReject("schema", "bad_value")
+    if not _plain_text(m["station"], MAX_STATION):
+        raise ContractReject("schema", "bad_format")
+    if not UUID_RE.fullmatch(m["request_id"]) or not HEX32_RE.fullmatch(m["nonce"]) or not HEX64_RE.fullmatch(m["sig"]):
+        raise ContractReject("schema", "bad_format")
+    issued, expires = _parse_time(m["issued_at"]), _parse_time(m["expires_at"])
+    actor = m["actor"]
+    if set(actor) - V2_ACTOR_KEYS:
+        raise ContractReject("schema", "unknown_field")
+    if V2_ACTOR_KEYS - set(actor):
+        raise ContractReject("schema", "missing_field")
+    if not isinstance(actor["id"], str) or not isinstance(actor["display_name"], str):
+        raise ContractReject("schema", "wrong_type")
+    if not _plain_text(actor["id"], MAX_ACTOR_ID) or not _plain_text(actor["display_name"], MAX_DISPLAY_NAME):
+        raise ContractReject("schema", "bad_format")
+    params, want = m["params"], V2_PARAMS_KEYS[m["action"]]
+    if set(params) - want:
+        raise ContractReject("schema", "unknown_field")
+    if want - set(params):
+        raise ContractReject("schema", "missing_field")
+    if m["action"] == "door_open":
+        if type(params["relay"]) is not int:  # bool is not int here
+            raise ContractReject("schema", "wrong_type")
+        if params["relay"] < 1:
+            raise ContractReject("schema", "bad_value")
+    else:
+        if not isinstance(params["target_request_id"], str):
+            raise ContractReject("schema", "wrong_type")
+        if not UUID_RE.fullmatch(params["target_request_id"]):
+            raise ContractReject("schema", "bad_format")
+    return issued, expires
+
+
+def _digests(m: dict[str, Any]) -> tuple[str, str, str]:
+    signed_body = {k: v for k, v in m.items() if k not in ("ts", "nonce", "sig")}
+    body_sha = hashlib.sha256(current_canonical(signed_body).encode("utf-8")).hexdigest()
+    hmac_input = f"{m['ts']}.{m['nonce']}.{body_sha}"
+    return body_sha, hmac_input, hashlib.sha256(hmac_input.encode("utf-8")).hexdigest()
+
+
+def contract_validate(service: str, service_data: Any, now: int | None, secret: str = TEST_SECRET,
+                      raw_inner: bytes | None = None) -> TrustedDoorDTO:
+    """The draft validation order, stateless part (stages transport .. time). Stage `state` (replay, request_id,
+    station vs open record, relay range, capability) needs the bridge/WisKey store and is not modelled here."""
+    # transport
+    if raw_inner is not None:
+        text: str | bytes = raw_inner
+    else:
+        if not isinstance(service_data, dict) or set(service_data) != {"signed_message_json"} or not isinstance(service_data["signed_message_json"], str):
+            raise ContractReject("transport", "transport_shape")
+        text = service_data["signed_message_json"]
+    # encoding + parse
+    m = contract_loads(text)
+    # schema
+    issued, expires = contract_schema(m)
+    # binding
+    if m["ts"] != issued:
+        raise ContractReject("binding", "ts_mismatch")
+    if m["action"] != service:
+        raise ContractReject("binding", "action_service_mismatch")
+    if m["action"] == "door_open_status" and m["params"]["target_request_id"] == m["request_id"]:
+        raise ContractReject("binding", "target_is_self")
+    # signature
+    body_sha, hmac_input, auth_sha = _digests(m)
+    expected = hmac.new(secret.encode("utf-8"), hmac_input.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, m["sig"]):
+        raise ContractReject("signature", "bad_signature")
+    # time
+    if type(now) is not int or now < CLOCK_FLOOR:
+        raise ContractReject("time", "clock_invalid")
+    if not 0 < expires - issued <= MAX_LIFETIME_S:
+        raise ContractReject("time", "lifetime_invalid")
+    if now < issued:
+        raise ContractReject("time", "not_yet_valid")
+    if now >= expires:
+        raise ContractReject("time", "expired")
+    return TrustedDoorDTO(
+        protocol=m["protocol"], actor=tuple(sorted(m["actor"].items())), action=m["action"], station=m["station"],
+        params=tuple(sorted(m["params"].items())), request_id=m["request_id"], nonce=m["nonce"], issued_at=m["issued_at"],
+        expires_at=m["expires_at"], body_sha256=body_sha, authenticated_message_sha256=auth_sha)
+
+
+class FakeWisKey:
+    """Records what would happen after validation. A reject must leave both lists empty."""
+
+    def __init__(self) -> None:
+        self.pending: list[str] = []
+        self.calls: list[tuple[str, str]] = []
+
+    def reference_handle(self, service: str, service_data: Any, now: int | None, raw_inner: bytes | None = None) -> TrustedDoorDTO:
+        dto = contract_validate(service, service_data, now, raw_inner=raw_inner)  # raises before anything below
+        if dto.action == "door_open":
+            self.pending.append(dto.request_id)
+            self.calls.append(("open", dto.request_id))
+        else:
+            self.calls.append(("status_query", dict(dto.params)["target_request_id"]))  # never a pending, never an open
+        return dto
+
+
+def stateful_check(dto: TrustedDoorDTO, store: dict[str, Any]) -> str | None:
+    """A toy of stage `state`, only to show what the stateful vectors mean. The real store is WisKey's SQLite."""
+    if dto.nonce in store["nonces"] and store["nonces"][dto.nonce] != dto.request_id:
+        return "replay"
+    if dto.action == "door_open":
+        rec = store["requests"].get(dto.request_id)
+        meaning = (dto.protocol, dto.actor, dto.action, dto.station, dto.params)
+        if rec is not None and rec["meaning"] != meaning:
+            return "request_id_conflict"
+        if dict(dto.params)["relay"] not in store["allowed_relays"].get(dto.station, ()):
+            return "relay_not_allowed"
+        return None
+    rec = store["requests"].get(dict(dto.params)["target_request_id"])
+    if rec is not None and rec["station"] != dto.station:
+        return "station_mismatch"
+    return None
+
+
+# ---------------------------------------------------------------- v2 case construction
+
+ISSUED = "2026-10-03T12:00:00Z"
+T0 = _epoch(ISSUED)
+STATUS_REQUEST_ID = "5b0c7d1a-2e3f-4a5b-9c6d-7e8f9a0b1c2d"
+STATUS_NONCE = "c0ffee00c0ffee00c0ffee00c0ffee00"
+V2_STATUS = {**DOOR_OPEN_STATUS, "params": {"target_request_id": DOOR_OPEN["request_id"]}, "request_id": STATUS_REQUEST_ID,
+             "nonce": STATUS_NONCE, "issued_at": "2026-10-03T12:00:05Z", "expires_at": "2026-10-03T12:00:35Z"}
+
+
+def _iso(epoch: int) -> str:
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _signed_wire(env: dict[str, Any], *, ts: Any = None, wire_nonce: Any = None, hmac_ts: Any = None,
+                 secret: str = TEST_SECRET) -> dict[str, Any]:
+    """Wire message from an envelope (nonce included), signed with the documented recipe. `ts`/`wire_nonce` override
+    what is put on the wire (type vectors); the HMAC uses `hmac_ts` (default: the wire ts) and the wire nonce, spelled
+    as the existing verifier would (`int(ts)`, `str(nonce)`), so the HMAC is valid wherever that is meaningful."""
+    nonce = env["nonce"] if wire_nonce is None else wire_nonce
+    if ts is None:
+        ts = _epoch(env["issued_at"]) if TIME_RE.fullmatch(str(env["issued_at"])) else T0
+    signed_body = {k: v for k, v in env.items() if k != "nonce"}
+    sha = hashlib.sha256(current_canonical(signed_body).encode("utf-8")).hexdigest()
+    hts = ts if hmac_ts is None else hmac_ts
+    sig = hmac.new(secret.encode("utf-8"), f"{hts}.{nonce}.{sha}".encode("utf-8"), hashlib.sha256).hexdigest()
+    if type(ts) is int and isinstance(nonce, str) and secret == TEST_SECRET and hmac_ts is None:
+        assert _sign_both(signed_body, ts, nonce)["sig"] == sig  # same bytes as the production signers
+    return {**signed_body, "ts": ts, "nonce": nonce, "sig": sig}
+
+
+def _text(wire: dict[str, Any]) -> str:
+    return json.dumps(wire, ensure_ascii=False, separators=(",", ":"))
+
+
+def _service_data_json(inner: str, ascii_only: bool = False) -> str:
+    return json.dumps({"signed_message_json": inner}, ensure_ascii=ascii_only, separators=(",", ":"))
+
+
+# Each case: id, category, service, expect, stage, code, now, reason, and exactly ONE of:
+#   wire (dict -> inner text), inner (exact inner text), service_data (dict as the bridge receives it), raw_inner (bytes)
+# Every reject case carries exactly one defect, so stage AND code are both binding for a conforming implementation.
+
+def _cases() -> list[dict[str, Any]]:
+    C: list[dict[str, Any]] = []
+
+    def add(vid: str, category: str, expect: str, stage: str | None, code: str | None, reason: str, *, service: str = "door_open",
+            now: int | None = T0, **payload: Any) -> None:
+        C.append({"id": vid, "category": category, "service": service, "expect": expect, "reject_stage": stage,
+                  "reject_code": code, "now": now, "reason": reason, **payload})
+
+    base = _signed_wire(DOOR_OPEN)
+
+    # --- types
+    add("types_ts_string", "types", "reject", "schema", "wrong_type", "ts is the string \"<epoch>\". The existing verifier coerces it with int(); the contract does not.",
+        wire=_signed_wire(DOOR_OPEN, ts=str(T0)))
+    add("types_ts_float", "types", "reject", "parse", "non_integer_number", "ts is <epoch>.0. Floats are refused while parsing; the existing verifier would truncate it.",
+        inner=_text(base).replace(f'"ts":{T0}', f'"ts":{T0}.0'))
+    add("types_ts_bool", "types", "reject", "schema", "wrong_type", "ts is true. A boolean is not an integer (Python bool is an int subclass; the check must be exact).",
+        wire=_signed_wire(DOOR_OPEN, ts=True, hmac_ts=T0))
+    add("types_ts_mismatch", "types", "reject", "binding", "ts_mismatch", "ts = epoch(issued_at) + 1. Correctly signed, but ts must equal the epoch seconds of issued_at.",
+        wire=_signed_wire(DOOR_OPEN, ts=T0 + 1))
+    add("types_nonce_number", "types", "reject", "schema", "wrong_type", "nonce is the number 12345. The existing verifier would str() it.",
+        wire=_signed_wire(DOOR_OPEN, wire_nonce=12345))
+    add("types_nonce_16_hex", "types", "reject", "schema", "bad_format", "nonce has 16 hex chars: the existing signer's default (secrets.token_hex(8)). v1 requires 32; Arx passes it explicitly.",
+        wire=_signed_wire({**DOOR_OPEN, "nonce": "a1b2c3d4e5f60718"}))
+    add("types_nonce_uppercase", "types", "reject", "schema", "bad_format", "nonce in upper-case hex. Only lower-case is accepted (no case folding).",
+        wire=_signed_wire({**DOOR_OPEN, "nonce": DOOR_OPEN["nonce"].upper()}))
+    add("types_relay_bool", "types", "reject", "schema", "wrong_type", "relay is true.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": True}}))
+    add("types_relay_string", "types", "reject", "schema", "wrong_type", "relay is the string \"1\".",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": "1"}}))
+    add("types_relay_zero", "types", "reject", "schema", "bad_value", "relay is 0. relay must be a positive integer.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": 0}}))
+    add("types_relay_negative", "types", "reject", "schema", "bad_value", "relay is -1.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": -1}}))
+    add("types_relay_positive_2", "types", "accept", None, None, "relay 2 passes the schema. Whether station test_station_entrance has relay 2 is WisKey's per-station check (stage state).",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": 2}}))
+    add("types_action_open_door", "types", "reject", "schema", "bad_value", "action \"open_door\" (the wrong name from an earlier draft). Only door_open and door_open_status exist.",
+        wire=_signed_wire({**DOOR_OPEN, "action": "open_door"}))
+    add("types_protocol_unknown", "types", "reject", "schema", "bad_value", "protocol wiskey-trusted-door-v2 is not known to a v1 verifier.",
+        wire=_signed_wire({**DOOR_OPEN, "protocol": "wiskey-trusted-door-v2"}))
+    add("types_extra_wire_field", "types", "reject", "schema", "unknown_field", "Extra signed top-level field `capability`. HMAC valid; closed schema refuses it.",
+        wire=_signed_wire({**DOOR_OPEN, "capability": "x"}))
+    add("types_extra_actor_field", "types", "reject", "schema", "unknown_field", "Extra field `role` inside actor. HMAC valid.",
+        wire=_signed_wire({**DOOR_OPEN, "actor": {**DOOR_OPEN["actor"], "role": "admin"}}))
+    add("types_extra_params_field", "types", "reject", "schema", "unknown_field", "Extra field `duration_s` inside params. HMAC valid.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": 1, "duration_s": 5}}))
+    add("types_missing_request_id", "types", "reject", "schema", "missing_field", "request_id absent. HMAC valid over the shorter body.",
+        wire=_signed_wire({k: v for k, v in DOOR_OPEN.items() if k != "request_id"}))
+    add("types_request_id_not_uuid", "types", "reject", "schema", "bad_format", "request_id is not a lower-case hyphenated UUID.",
+        wire=_signed_wire({**DOOR_OPEN, "request_id": "req-0001"}))
+    add("types_actor_id_number", "types", "reject", "schema", "wrong_type", "actor.id is a number.",
+        wire=_signed_wire({**DOOR_OPEN, "actor": {"id": 1, "display_name": DOOR_OPEN["actor"]["display_name"]}}))
+    add("types_station_empty", "types", "reject", "schema", "bad_format", "station is the empty string.",
+        wire=_signed_wire({**DOOR_OPEN, "station": ""}))
+
+    # --- time
+    add("time_lifetime_30_ok", "time", "accept", None, None, "expires_at - issued_at = 30 s (the maximum); now = issued_at.", wire=base)
+    add("time_last_valid_second", "time", "accept", None, None, "now = expires_at - 1: the last accepted second.", wire=base, now=T0 + 29)
+    add("time_lifetime_31", "time", "reject", "time", "lifetime_invalid", "expires_at - issued_at = 31 s.",
+        wire=_signed_wire({**DOOR_OPEN, "expires_at": _iso(T0 + 31)}))
+    add("time_lifetime_zero", "time", "reject", "time", "lifetime_invalid", "expires_at == issued_at.",
+        wire=_signed_wire({**DOOR_OPEN, "expires_at": ISSUED}))
+    add("time_lifetime_negative", "time", "reject", "time", "lifetime_invalid", "expires_at < issued_at.",
+        wire=_signed_wire({**DOOR_OPEN, "expires_at": _iso(T0 - 1)}))
+    add("time_future_issued_at_1s", "time", "reject", "time", "not_yet_valid", "now = issued_at - 1. v1 allows no future skew (open question: tolerate up to 2 s?).",
+        wire=base, now=T0 - 1)
+    add("time_exact_expiry", "time", "reject", "time", "expired", "now == expires_at: rejected exactly at expiry (now < expires_at is required).", wire=base, now=T0 + 30)
+    add("time_expired", "time", "reject", "time", "expired", "now = expires_at + 1.", wire=base, now=T0 + 31)
+    add("time_clock_unavailable", "time", "reject", "time", "clock_invalid", "No valid clock (now = null). An invalid clock blocks; it never passes.", wire=base, now=None)
+    add("time_clock_before_floor", "time", "reject", "time", "clock_invalid", "now = 0 (1970): earlier than the clock floor 2026-01-01T00:00:00Z, treated as an invalid clock.", wire=base, now=0)
+    add("time_offset_not_z", "time", "reject", "schema", "bad_format", "issued_at written as +00:00 instead of Z (same instant). Only the Z form is accepted.",
+        wire=_signed_wire({**DOOR_OPEN, "issued_at": "2026-10-03T12:00:00+00:00"}, ts=T0))
+    add("time_lowercase_z", "time", "reject", "schema", "bad_format", "expires_at with a lower-case z.",
+        wire=_signed_wire({**DOOR_OPEN, "expires_at": "2026-10-03T12:00:30z"}))
+    add("time_fractional_seconds", "time", "reject", "schema", "bad_format", "issued_at with fractional seconds (.000Z). Whole seconds only.",
+        wire=_signed_wire({**DOOR_OPEN, "issued_at": "2026-10-03T12:00:00.000Z"}, ts=T0))
+    add("time_invalid_calendar_date", "time", "reject", "schema", "bad_format", "expires_at 2026-02-30: right shape, not a date.",
+        wire=_signed_wire({**DOOR_OPEN, "issued_at": "2026-02-30T12:00:00Z", "expires_at": "2026-02-30T12:00:30Z"}, ts=T0))
+
+    # --- status
+    st_now = _epoch(V2_STATUS["issued_at"])
+    add("status_with_target", "status", "accept", None, None, "door_open_status with params.target_request_id = the door_open request_id; own request_id and nonce; same station.",
+        service="door_open_status", wire=_signed_wire(V2_STATUS), now=st_now)
+    add("status_missing_target", "status", "reject", "schema", "missing_field", "door_open_status with empty params (the v1 envelope_door_open_status shape, re-signed here).",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {}}), now=st_now)
+    add("status_target_not_uuid", "status", "reject", "schema", "bad_format", "target_request_id is not a UUID.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {"target_request_id": "not-a-uuid"}}), now=st_now)
+    add("status_target_uppercase_uuid", "status", "reject", "schema", "bad_format", "target_request_id in upper case. Lower-case only, no case folding.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {"target_request_id": DOOR_OPEN["request_id"].upper()}}), now=st_now)
+    add("status_carrying_relay", "status", "reject", "schema", "unknown_field", "door_open_status params also carry relay. Status params are exactly {target_request_id}.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {"target_request_id": DOOR_OPEN["request_id"], "relay": 1}}), now=st_now)
+    add("status_target_is_self", "status", "reject", "binding", "target_is_self", "target_request_id equals the status message's own request_id.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {"target_request_id": STATUS_REQUEST_ID}}), now=st_now)
+    add("status_sent_to_door_open_service", "status", "reject", "binding", "action_service_mismatch", "A valid door_open_status message delivered to the door_open service.",
+        service="door_open", wire=_signed_wire(V2_STATUS), now=st_now)
+    add("door_open_sent_to_status_service", "status", "reject", "binding", "action_service_mismatch", "A valid door_open message delivered to the door_open_status service: it must not open and must not query.",
+        service="door_open_status", wire=base)
+    add("status_station_mismatch_vs_open_record", "status", "stateful", "state", "station_mismatch",
+        "Well-formed status for the door_open request but station test_station_side. Passes every stateless stage; the bridge/WisKey store must refuse it because the open record has station test_station_entrance.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "station": "test_station_side"}), now=st_now,
+        state_setup="door_open request 3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b recorded for station test_station_entrance")
+    add("status_target_unknown", "status", "stateful", None, None,
+        "Well-formed status for a request the store has never seen (or purged after 7 days). Not a rejection: the response is unknown / not_found_or_expired; no pending, no open.",
+        service="door_open_status", wire=_signed_wire({**V2_STATUS, "params": {"target_request_id": "00000000-0000-4000-8000-000000000000"}}), now=st_now,
+        state_setup="empty store", stateful_expectation={"result": "unknown", "reason": "not_found_or_expired", "pending_created": False, "door_opened": False})
+
+    # --- stateful door_open cases (described; the toy store in the test demonstrates them)
+    add("state_duplicate_identical", "state", "stateful", None, None,
+        "The exact envelope_door_open wire delivered a second time after it completed. Not executed again: the stored result is returned.",
+        wire=base, state_setup="the same request_id/nonce/meaning already completed",
+        stateful_expectation={"result": "stored_result", "second_dispatch": False})
+    add("state_request_id_reused_other_meaning", "state", "stateful", "state", "request_id_conflict",
+        "Same request_id, a new nonce, relay 2 instead of 1. Refused: one request_id, one meaning.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": 2}, "nonce": "11111111111111111111111111111111"}),
+        state_setup="request 3f2b8c1e-... recorded with relay 1")
+    add("state_nonce_reused_other_request", "state", "stateful", "state", "replay",
+        "The nonce of envelope_door_open reused by a different request_id. Refused as replay.",
+        wire=_signed_wire({**DOOR_OPEN, "request_id": "9d3e5f7a-1b2c-4d4e-8f6a-7b8c9d0e1f2a"}),
+        state_setup="nonce a1b2c3d4... recorded for request 3f2b8c1e-...")
+    add("state_relay_outside_station_range", "state", "stateful", "state", "relay_not_allowed",
+        "relay 99 passes the schema; the station's allowed relay range (WisKey to confirm per station) refuses it before any pending.",
+        wire=_signed_wire({**DOOR_OPEN, "params": {"relay": 99}, "request_id": "2a4c6e80-1357-4b9d-8ace-02468ace1357",
+                           "nonce": "22222222222222222222222222222222"}),
+        state_setup="a fresh request (new request_id and nonce); test_station_entrance allows relay 1 only")
+
+    # --- signature
+    tampered = {**base, "station": "test_station_other"}
+    add("signature_tampered_station", "signature", "reject", "signature", "bad_signature", "station changed after signing.", wire=tampered)
+    add("signature_nonce_changed", "signature", "reject", "signature", "bad_signature",
+        "nonce changed after signing. nonce is not in body_sha256 but it is in hmac_input (and in authenticated_message_sha256).",
+        wire={**base, "nonce": "ffffffffffffffffffffffffffffffff"})
+    add("signature_wrong_key", "signature", "reject", "signature", "bad_signature", "Signed with a different (also public, fake) key.",
+        wire=_signed_wire(DOOR_OPEN, secret="TEST-ONLY-some-other-fake-key"))
+    add("signature_uppercase_sig", "signature", "reject", "schema", "bad_format", "sig in upper-case hex. Lower-case 64 hex only.",
+        wire={**base, "sig": base["sig"].upper()})
+
+    # --- transport (the string envelope)
+    add("transport_envelope_door_open", "transport", "accept", None, None,
+        "v1 vector envelope_door_open, carried as service_data {\"signed_message_json\": <wire_message_json>}.", wire=base)
+    add("transport_envelope_door_open_status_v1", "transport", "reject", "schema", "missing_field",
+        "v1 vector envelope_door_open_status in the string envelope. Valid serialization, but not a complete v2 status query (no target_request_id).",
+        service="door_open_status", wire=_signed_wire(DOOR_OPEN_STATUS), now=_epoch(DOOR_OPEN_STATUS["issued_at"]))
+    dup = _text(base).replace('"station":"test_station_entrance"', '"station":"test_station_other","station":"test_station_entrance"')
+    add("transport_duplicate_station_in_string", "transport", "reject", "parse", "duplicate_key",
+        "station twice INSIDE signed_message_json. The outer service_data is a valid one-key object; the bridge parses the string itself and refuses the duplicate. A plain json.loads would keep the last value and the HMAC would verify.",
+        inner=dup)
+    add("transport_duplicate_actor_id_nested", "transport", "reject", "parse", "duplicate_key", "Duplicate actor.id inside the string (nested object).",
+        inner=_text(base).replace('"id":"test-user-0001"', '"id":"test-user-0002","id":"test-user-0001"'))
+    add("transport_duplicate_params_relay_nested", "transport", "reject", "parse", "duplicate_key", "Duplicate params.relay inside the string.",
+        inner=_text(base).replace('"relay":1', '"relay":2,"relay":1'))
+    add("transport_wire_as_object", "transport", "reject", "transport", "transport_shape",
+        "service_data IS the wire message as an object (the pre-v2 shape). Refused: duplicates would already have collapsed before the bridge sees it.",
+        service_data=base)
+    add("transport_signed_message_not_string", "transport", "reject", "transport", "transport_shape", "signed_message_json holds an object, not a string.",
+        service_data={"signed_message_json": base})
+    add("transport_extra_outer_key", "transport", "reject", "transport", "transport_shape", "service_data has a second key next to signed_message_json.",
+        service_data={"signed_message_json": _text(base), "station": "test_station_other"})
+    add("transport_missing_outer_key", "transport", "reject", "transport", "transport_shape", "service_data is empty.", service_data={})
+    add("transport_inner_not_object", "transport", "reject", "parse", "not_an_object", "signed_message_json is a JSON array.", inner="[]")
+    add("transport_inner_invalid_json", "transport", "reject", "parse", "invalid_json", "signed_message_json is truncated JSON.", inner=_text(base)[:-1])
+    add("transport_inner_lone_surrogate_escape", "transport", "reject", "parse", "lone_surrogate",
+        "actor.display_name contains the escape \\ud800 inside the string; it decodes to a lone surrogate. sig is a placeholder (the signer cannot encode it); the refusal happens before signature checking.",
+        inner=_text({**base, "sig": "0" * 64}).replace('"display_name":"', '"display_name":"\\ud800', 1))
+    add("transport_outer_lone_surrogate", "transport", "reject", "encoding", "lone_surrogate",
+        "The OUTER JSON escapes a lone surrogate (\\ud800) into the string value itself, so signed_message_json reaches the bridge already holding U+D800. Refused before parsing. Only service_data_json is given: the inner string cannot be written as UTF-8.",
+        outer_surrogate=True)
+    add("transport_inner_invalid_utf8", "transport", "reject", "encoding", "invalid_utf8",
+        "The inner message as bytes with 0xFF inside actor.display_name. Given as hex only (a JSON string cannot hold it); inside HA the REST layer fails first. Implementations that receive bytes must decode strictly.",
+        raw_inner=_text(base).encode("utf-8").replace("משתמש".encode("utf-8"), b"\xff" + "משתמש".encode("utf-8"), 1))
+    collapsed_outer = '{"signed_message_json":"garbage","signed_message_json":' + json.dumps(_text(base), ensure_ascii=False) + "}"
+    add("transport_outer_duplicate_collapsed_by_ha", "transport", "accept", None, None,
+        "The OUTER service_data JSON repeats signed_message_json. HA parses the REST body before the bridge and keeps the last value, so the bridge receives one key and cannot see the duplicate. Harmless: all meaning is inside the signed string. Arx must never send this; listed to show the outer/inner difference.",
+        service_data_json_override=collapsed_outer, service_data={"signed_message_json": _text(base)})
+    return C
+
+
+def _expected_dto(wire: dict[str, Any]) -> dict[str, Any]:
+    """Built independently of contract_validate: envelope fields plus the two digests."""
+    body_sha, hmac_input, auth_sha = _digests(wire)
+    return {k: wire[k] for k in ("protocol", "actor", "action", "station", "params", "request_id", "nonce", "issued_at", "expires_at")} | {
+        "body_sha256": body_sha, "authenticated_message_sha256": auth_sha}
+
+
+def build_contract_vectors() -> list[dict[str, Any]]:
+    out = []
+    for c in _cases():
+        v: dict[str, Any] = {k: c[k] for k in ("id", "category", "expect", "reason", "reject_stage", "reject_code", "service", "now")}
+        v["now_iso"] = None if c["now"] is None else _iso(c["now"])
+        if "wire" in c:
+            inner = _text(c["wire"])
+            v["signed_message_json"] = inner
+            v["service_data_json"] = _service_data_json(inner)
+        elif "inner" in c:
+            v["signed_message_json"] = c["inner"]
+            v["service_data_json"] = _service_data_json(c["inner"])
+        elif "raw_inner" in c:
+            v["signed_message_json"] = None
+            v["signed_message_utf8_hex"] = c["raw_inner"].hex()
+            v["service_data_json"] = None
+        elif c.get("outer_surrogate"):
+            inner = _text(_signed_wire(DOOR_OPEN)).replace('"display_name":"', '"display_name":"\ud800', 1)
+            v["signed_message_json"] = None
+            v["service_data_json"] = _service_data_json(inner, ascii_only=True)
+        else:
+            v["signed_message_json"] = None
+            v["service_data_json"] = c.get("service_data_json_override") or json.dumps(c["service_data"], ensure_ascii=False, separators=(",", ":"))
+            if "service_data_json_override" in c:
+                v["service_data_as_received_by_bridge"] = c["service_data"]
+        if "state_setup" in c:
+            v["state_setup"] = c["state_setup"]
+        if "stateful_expectation" in c:
+            v["stateful_expectation"] = c["stateful_expectation"]
+        if c["expect"] in ("accept", "stateful") and v["signed_message_json"] is not None or "service_data_json_override" in c:
+            wire = json.loads(v["signed_message_json"] or c["service_data"]["signed_message_json"])
+            body_sha, hmac_input, auth_sha = _digests(wire)
+            v["signed_body"] = {k: x for k, x in wire.items() if k not in ("ts", "nonce", "sig")}
+            v["canonical_utf8"] = current_canonical(v["signed_body"])
+            v["body_sha256"] = body_sha
+            v["hmac_input"] = hmac_input
+            v["authenticated_message_sha256"] = auth_sha
+            v["sig"] = wire["sig"]
+            v["expected_dto"] = _expected_dto(wire)
+        out.append(v)
+    return out
+
+
+def _service_data_for(v: dict[str, Any]) -> tuple[Any, bytes | None]:
+    """What the bridge handler receives for a contract vector: HA's (stdlib) parse of service_data_json."""
+    if v.get("signed_message_utf8_hex"):
+        return None, bytes.fromhex(v["signed_message_utf8_hex"])
+    if "service_data_as_received_by_bridge" in v:
+        return v["service_data_as_received_by_bridge"], None
+    return json.loads(v["service_data_json"]), None
+
+
 def build_document() -> dict[str, Any]:
     vectors: list[dict[str, Any]] = []
     for vid, desc, text in ACCEPT:
@@ -390,6 +948,34 @@ def build_document() -> dict[str, Any]:
         "generic_ts": GENERIC_TS,
         "generic_nonce": GENERIC_NONCE,
         "vectors": vectors,
+        "vectors_version": VECTORS_VERSION,
+        "vectors_version_history": [
+            {"vectors_version": 1, "arx_commit": "9b05abbb", "file_sha256": V1_FILE_SHA256,
+             "content": "the `vectors` array (29 vectors); unchanged since, its canonical SHA-256 is pinned in the test"},
+            {"vectors_version": 2, "content": "adds `contract` and `contract_vectors` for the DTO draft (DTO_DRAFT.md); `vectors` untouched"},
+        ],
+        "contract": {
+            "status": "DRAFT, Arx position 2026-10-04, pending WisKey agreement; see DTO_DRAFT.md",
+            "transport": "service_data = {\"signed_message_json\": <wire message JSON as ONE string>}; nothing else",
+            "wire_fields": sorted(WIRE_KEYS),
+            "actor_fields": sorted(V2_ACTOR_KEYS),
+            "params_fields": {k: sorted(v) for k, v in V2_PARAMS_KEYS.items()},
+            "max_lifetime_s": MAX_LIFETIME_S,
+            "clock_floor": _iso(CLOCK_FLOOR),
+            "validation_stages_in_order": list(STAGES),
+            "codes": {k: list(v) for k, v in CODES.items()},
+            "now": "evaluation time in epoch seconds (null = no valid clock); now_iso is the same instant",
+            "digests": {
+                "body_sha256": "lower-case hex SHA-256 of the canonical signed_body (wire minus ts, nonce, sig)",
+                "authenticated_message_sha256": "lower-case hex SHA-256 of UTF-8(hmac_input), hmac_input = f'{ts}.{nonce}.{body_sha256}'",
+            },
+            "expect_values": {
+                "accept": "passes every stateless stage; expected_dto is the DTO handed to WisKey",
+                "reject": "refused at reject_stage with reject_code, before any pending record or dispatch",
+                "stateful": "passes every stateless stage; the outcome depends on the bridge/WisKey store (state_setup, reject_code or stateful_expectation)",
+            },
+        },
+        "contract_vectors": build_contract_vectors(),
     }
 
 
@@ -466,6 +1052,150 @@ def test_envelope_tamper_breaks_the_hmac():
     for field, value in (("station", "test_station_other"), ("params", {"relay": 2}), ("expires_at", "2026-10-03T12:05:00Z")):
         assert bridge_signing.Verifier(TEST_SECRET).verify({**wire, field: value}, now=wire["ts"]) == "bad_signature"
     assert bridge_signing.Verifier(TEST_SECRET).verify({**wire, "nonce": "ffffffffffffffffffffffffffffffff"}, now=wire["ts"]) == "bad_signature"
+
+
+# ---------------------------------------------------------------- tests: vectors_version 2 (DTO draft)
+
+
+def _v1_vectors_sha(vectors: list[dict[str, Any]]) -> str:
+    return hashlib.sha256(json.dumps(vectors, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def test_v1_vectors_are_unchanged():
+    assert _v1_vectors_sha(build_document()["vectors"]) == V1_VECTORS_SHA256
+    assert _v1_vectors_sha(json.loads(VECTORS_FILE.read_text(encoding="utf-8"))["vectors"]) == V1_VECTORS_SHA256
+
+
+def test_contract_vectors_are_well_formed():
+    vs = build_contract_vectors()
+    ids = [v["id"] for v in vs]
+    assert len(ids) == len(set(ids))
+    for v in vs:
+        assert v["expect"] in ("accept", "reject", "stateful") and v["reason"], v["id"]
+        if v["expect"] == "accept":
+            assert v["reject_stage"] is None and v["reject_code"] is None, v["id"]
+        if v["expect"] == "reject":
+            assert v["reject_stage"] in STAGES and v["reject_code"] in CODES[v["reject_stage"]], v["id"]
+            assert v["reject_stage"] != "state", v["id"]  # state cases are `stateful`
+        if v["expect"] == "stateful":
+            assert v["reject_stage"] in (None, "state") and v.get("state_setup"), v["id"]
+        if v["signed_message_json"] is not None:
+            assert json.loads(v["service_data_json"]) == {"signed_message_json": v["signed_message_json"]}, v["id"]
+        text = json.dumps(v, ensure_ascii=False)
+        assert TEST_SECRET not in text, v["id"]  # the key itself never appears inside a vector
+
+
+def test_reference_validator_agrees_with_every_contract_vector():
+    """Every reject is refused at its declared stage and code with ZERO pending/dispatch; every accept and every
+    stateful case passes all stateless stages and yields exactly the expected DTO."""
+    for v in build_contract_vectors():
+        sink = FakeWisKey()
+        service_data, raw = _service_data_for(v)
+        if v["expect"] == "reject":
+            try:
+                sink.reference_handle(v["service"], service_data, v["now"], raw_inner=raw)
+            except ContractReject as e:
+                assert (e.stage, e.code) == (v["reject_stage"], v["reject_code"]), (v["id"], e.stage, e.code)
+                assert "test_" not in str(e) and "משתמש" not in str(e), v["id"]  # the error never carries input text
+            else:
+                raise AssertionError(f"{v['id']} was accepted")
+            assert sink.pending == [] and sink.calls == [], v["id"]
+            continue
+        dto = sink.reference_handle(v["service"], service_data, v["now"], raw_inner=raw)
+        assert dto.as_json() == v["expected_dto"], v["id"]
+        if dto.action == "door_open":
+            assert sink.calls == [("open", dto.request_id)] and sink.pending == [dto.request_id], v["id"]
+        else:
+            assert sink.pending == [] and [c[0] for c in sink.calls] == ["status_query"], v["id"]  # a status never opens
+
+
+def test_accept_vectors_also_verify_with_the_existing_verifier():
+    for v in build_contract_vectors():
+        if v["expect"] in ("accept", "stateful") and v["signed_message_json"]:
+            wire = json.loads(v["signed_message_json"])
+            assert bridge_signing.Verifier(TEST_SECRET).verify(dict(wire), now=wire["ts"]) is None, v["id"]
+
+
+def test_stateful_vectors_with_a_toy_store():
+    vs = {v["id"]: v for v in build_contract_vectors()}
+
+    def dto_of(vid: str) -> TrustedDoorDTO:
+        v = vs[vid]
+        return contract_validate(v["service"], json.loads(v["service_data_json"]), v["now"])
+
+    opened = dto_of("transport_envelope_door_open")
+    store = {"nonces": {opened.nonce: opened.request_id},
+             "requests": {opened.request_id: {"station": opened.station, "meaning": (opened.protocol, opened.actor, opened.action, opened.station, opened.params)}},
+             "allowed_relays": {"test_station_entrance": (1,)}}
+    assert stateful_check(dto_of("status_station_mismatch_vs_open_record"), store) == "station_mismatch"
+    assert stateful_check(dto_of("status_with_target"), store) is None
+    assert stateful_check(dto_of("state_request_id_reused_other_meaning"), store) == "request_id_conflict"
+    assert stateful_check(dto_of("state_nonce_reused_other_request"), store) == "replay"
+    assert stateful_check(dto_of("state_relay_outside_station_range"), store) == "relay_not_allowed"
+    assert stateful_check(dto_of("state_duplicate_identical"), store) is None  # same meaning: the stored result is returned
+    assert dto_of("status_target_unknown").params[0][1] not in store["requests"]
+    for vid, v in vs.items():
+        if v["expect"] == "stateful" and v["reject_code"]:
+            assert v["reject_code"] in CODES["state"], vid
+
+
+def test_v1_vectors_under_the_v2_validator():
+    """v1 reject vectors are refused before dispatch by the v2 validator too; v1 envelope accepts pass once they are
+    carried in the string envelope (the v1 status vector lacks target_request_id, see its v2 transport twin)."""
+    for v in build_document()["vectors"]:
+        sink = FakeWisKey()
+        if v["expect"] == "reject":
+            try:
+                sink.reference_handle("door_open", {"signed_message_json": v["input_json"]}, T0)
+            except ContractReject as e:
+                assert e.stage in ("encoding", "parse", "schema"), (v["id"], e.stage)
+            else:
+                raise AssertionError(v["id"])
+            assert sink.calls == [], v["id"]
+        elif v["id"] == "envelope_door_open":
+            dto = sink.reference_handle("door_open", {"signed_message_json": v["wire_message_json"]}, v["ts"])
+            assert dto.body_sha256 == v["body_sha256"]
+        elif v["id"] == "envelope_door_open_status":
+            try:
+                sink.reference_handle("door_open_status", {"signed_message_json": v["wire_message_json"]}, v["ts"])
+            except ContractReject as e:
+                assert (e.stage, e.code) == ("schema", "missing_field")
+        elif v["expect"] == "accept":
+            contract_loads(v["input_json"])  # serialization-only vectors pass the strict parser (they are not envelopes)
+
+
+def test_digests_bind_what_they_claim():
+    v = {x["id"]: x for x in build_contract_vectors()}["transport_envelope_door_open"]
+    wire = json.loads(v["signed_message_json"])
+    other = {**wire, "nonce": "ffffffffffffffffffffffffffffffff"}
+    b1, _h1, a1 = _digests(wire)
+    b2, _h2, a2 = _digests(other)
+    assert b1 == b2 and a1 != a2  # nonce is outside body_sha256 but inside authenticated_message_sha256
+    assert v["body_sha256"] == {x["id"]: x for x in build_document()["vectors"]}["envelope_door_open"]["body_sha256"]
+    dto = contract_validate("door_open", json.loads(v["service_data_json"]), T0)
+    try:
+        dto.station = "x"  # type: ignore[misc]
+    except FrozenInstanceError:
+        pass
+    else:
+        raise AssertionError("DTO must be immutable")
+    assert "sig" not in dto.as_json() and "ts" not in dto.as_json()
+    assert TEST_SECRET not in json.dumps(dto.as_json(), ensure_ascii=False)
+
+
+def test_existing_signer_default_nonce_is_16_hex_so_arx_must_pass_one():
+    for signer in (ha_bridge.sign, bridge_signing.sign):
+        n = signer(TEST_SECRET, {}, GENERIC_TS)["nonce"]
+        assert len(n) == 16 and not HEX32_RE.fullmatch(n)
+
+
+def test_existing_verifier_gaps_that_v2_closes():
+    vs = {v["id"]: v for v in build_contract_vectors()}
+    for vid in ("types_ts_string", "types_nonce_number", "time_lifetime_31", "types_extra_wire_field", "types_relay_bool"):
+        wire = json.loads(vs[vid]["signed_message_json"])
+        assert bridge_signing.Verifier(TEST_SECRET).verify(dict(wire), now=T0) is None, vid  # existing verifier says OK
+    collapsed = json.loads(vs["transport_duplicate_station_in_string"]["signed_message_json"])  # stdlib keeps the last
+    assert bridge_signing.Verifier(TEST_SECRET).verify(collapsed, now=T0) is None
 
 
 if __name__ == "__main__":
