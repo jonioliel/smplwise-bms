@@ -673,3 +673,23 @@ they have a different authority (the direct connection) and permission (`media.q
 - Q3 (search without a token): add a `search` argument to the bridge's `media_query library` (bridge 0.6.0) so search works through Home
   Assistant without the direct connection - recommended for 0.1.153.
 - Q4 (network): confirm the MA server port is reachable from the add-on container (the workstation could not reach it, 17.1).
+
+### 17.10 Queue actions (added after 0.1.157; owner answers 2026-10-04)
+
+`POST /multimedia/devices/{key}/queue` gains four `op`s next to `move | next | delete | clear`; the permission order, the closed body, the
+audit (`media.queue`, no names / ids / addresses / tokens) and the safe degradation of 17.5 / 17.6 apply unchanged.
+
+| op | Body | Sends to the music server | Notes |
+|---|---|---|---|
+| `play` | `item` | `player_queues/play_index` (`index` = the row's queue item id) | any row except the current one (409 `locked`); a buffered row may be played; 1 a second per device |
+| `top` | `item` | `player_queues/move_item` | right after the locked rows (same as `next`; the screen says "העבר לראש התור") |
+| `delete_many` | `items` (1..25, unique) | `player_queues/delete_item` once per row, in the order given | all-or-nothing validation first (unknown 422, locked 409, changed 409); stops at the first refusal: 200 `refused` + `done`, or 503 + `details.done` |
+| `clear_upcoming` | `confirmed: true` | `player_queues/delete_item` per row after the locked zone (last first) | the current song continues; at most 200 rows (422 `too_many` + `count`); 409 `confirm_required` + `count`; nothing pending = 202 `count: 0`, nothing sent |
+| `clear` (unchanged) | `confirmed: true` | `player_queues/clear` | clears everything and stops |
+
+The request body is capped at 4 KB (413) after the permission check. Rows removed one by one count against a per-installation bucket
+(10 a second, burst 200); over it: 429 `scope: installation`. Answers carry `count` (rows removed). Shuffle, repeat and moving a queue
+between rooms stay on the bridge. Screens: a tap on a row plays it; "בחר" turns the rows into a selection (up to 25) removed after one
+question; "נקה תור" asks which clear ("נקה את הבאים - השיר הנוכחי ממשיך" / "נקה הכול - הניגון ייעצר").
+Unverified against a real server (build from documentation): the command names above, `play_index` accepting a queue item id, and whether
+a deleted row that MA already buffered is refused.
