@@ -218,25 +218,27 @@ export class MediaQueueList extends LitElement {
         color: var(--mr-text-2);
         padding: 2px 8px;
       }
-      @media (max-width: 1100px) {
-        /* touch layouts: every target is 44 px (the layout guard's rule) */
-        .qb {
-          inline-size: 44px;
-          block-size: 44px;
-        }
-        .tap {
-          min-block-size: 44px;
-        }
-        .psh .hacts .lnk {
-          min-block-size: 44px;
-          padding-inline: 10px;
-        }
-        .ask button {
-          min-block-size: 44px;
-          display: inline-flex;
-          align-items: center;
-          padding-inline: 14px;
-        }
+      /* every target is 44 px (the layout guard's rule: touch layouts, and the desktop dial's default) */
+      .qb {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      .tap {
+        min-block-size: 44px;
+      }
+      .psh .hacts .lnk {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+        justify-content: center;
+        padding-inline: 10px;
+      }
+      .ask button {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-inline: 14px;
       }
       @media (max-width: 480px) {
         .uq .row.qrow {
