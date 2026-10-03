@@ -3,6 +3,14 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 
+/**
+ * The look of the closed control and of the list (0.1.157, owner decision 2026-10-03: all six approved). `auto` = today's look (the
+ * skin's resting style; nothing changes until a style is chosen). The styles live HERE, not in the skins: tokens only, so the four
+ * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
+ */
+export type DdStyle = 'auto' | 'pill' | 'field' | 'underline' | 'text' | 'prefix' | 'tonal';
+export const DD_STYLE_IDS: readonly DdStyle[] = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal'];
+
 export interface DropdownItem {
   id: string;
   label: string;
@@ -36,6 +44,8 @@ export class SwDropdown extends LitElement {
   @property() placeholder = '';
   /** Fills its flexible box (a chip of the pair row: equal widths, min 0, the text ellipsised). */
   @property({ type: Boolean, reflect: true }) block = false;
+  /** 0.1.157: the style (attribute `dd-style`, reflected so the per-style CSS below matches the host); `auto` / unknown = today's look. */
+  @property({ attribute: 'dd-style', reflect: true }) ddStyle: DdStyle = 'auto';
   @state() private open = false;
   @state() private cursor = -1;
   @state() private pos = { top: 0, left: 0, minWidth: 0, maxHeight: 320 };
@@ -145,8 +155,8 @@ export class SwDropdown extends LitElement {
       border-radius: 14px;
       color: var(--sw-dd-text, var(--sw-text));
       background: var(--sw-dd-pop-bg, var(--mm-sheet-surface, color-mix(in srgb, var(--sw-surface) 86%, transparent)));
-      -webkit-backdrop-filter: blur(40px) saturate(1.8);
-      backdrop-filter: blur(40px) saturate(1.8);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(40px) saturate(1.8));
+      backdrop-filter: var(--sw-perf-blur, blur(40px) saturate(1.8));
       box-shadow: var(--sw-shadow-3);
       outline: none;
       opacity: 1;
@@ -186,6 +196,255 @@ export class SwDropdown extends LitElement {
     @media (forced-colors: active) {
       .opt[aria-selected='true'] {
         outline: 2px solid Highlight;
+      }
+    }
+
+    /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). `auto` has none of this. ---- */
+    :host([dd-style]:not([dd-style='auto'])) {
+      --_h: max(28px, calc(var(--sw-touch-desktop, 44px) - 12px));
+      --_opt: var(--sw-touch-desktop, 44px);
+    }
+    :host([dd-style]:not([dd-style='auto'])) .chip {
+      min-block-size: var(--_h);
+      border-radius: var(--sw-r-sm);
+    }
+    :host([dd-style]:not([dd-style='auto'])) .chip::after {
+      inset-block: calc((var(--_h) - var(--_opt)) / 2);
+    }
+    :host([dd-style]:not([dd-style='auto'])) .chip:focus-visible,
+    :host([dd-style]:not([dd-style='auto'])) .opt:focus-visible {
+      outline-offset: 2px;
+    }
+    :host([dd-style]:not([dd-style='auto'])) .pop {
+      border: 0;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-dd-pop-bg, var(--sw-surface-solid));
+      box-shadow: 0 0 0 1px var(--sw-border), var(--sw-shadow-3);
+      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
+      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
+    }
+    :host([dd-style]:not([dd-style='auto'])) .opt {
+      min-block-size: var(--_opt);
+      border-radius: var(--sw-r-sm);
+    }
+    .pre {
+      display: none;
+      color: var(--sw-text-3);
+      font-weight: var(--sw-fw-medium);
+      white-space: nowrap;
+    }
+    /* pill: a filled pill, no border */
+    :host([dd-style='pill']) .chip {
+      border-color: transparent;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-dd-pill-bg, var(--sw-surface-3));
+      box-shadow: none;
+    }
+    :host([dd-style='pill']) .chip:hover {
+      background: var(--sw-dd-hover, var(--sw-surface-2));
+    }
+    :host([dd-style='pill']) .chip[aria-expanded='true'] {
+      background: var(--sw-surface-solid);
+      box-shadow: var(--sw-shadow-2);
+    }
+    :host([dd-style='pill']) .opt {
+      border-radius: var(--sw-r-pill);
+    }
+    :host([dd-style='pill']) .opt[aria-selected='true'] {
+      background: var(--sw-surface-solid);
+      box-shadow: var(--sw-shadow-1);
+    }
+    :host([dd-style='pill']) .opt[aria-selected='true'][data-active] {
+      background: var(--sw-surface-3);
+    }
+    /* field: a bordered form control, a check mark on the selected option */
+    :host([dd-style='field']) .chip {
+      background: var(--sw-surface);
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-1);
+    }
+    :host([dd-style='field']) .opt[aria-selected='true']::after {
+      content: '';
+      flex: none;
+      inline-size: 14px;
+      block-size: 14px;
+      background: currentColor;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    /* underline: the tab that stayed a tab */
+    :host([dd-style='underline']) .chip {
+      padding-inline: 6px 2px;
+      border-color: transparent;
+      border-radius: var(--sw-r-sm) var(--sw-r-sm) 0 0;
+      background: transparent;
+      color: var(--sw-accent-text, var(--sw-accent));
+      box-shadow: inset 0 -2px 0 var(--sw-accent);
+    }
+    :host([dd-style='underline']) .chip .chev,
+    :host([dd-style='underline']) .chip .n {
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([dd-style='underline']) .chip:hover,
+    :host([dd-style='underline']) .chip[aria-expanded='true'] {
+      background: var(--sw-accent-soft);
+    }
+    :host([dd-style='underline']) .chip[aria-expanded='true'] {
+      box-shadow: inset 0 -3px 0 var(--sw-accent);
+    }
+    :host([dd-style='underline']) .opt {
+      border-inline-start: 3px solid transparent;
+      border-start-start-radius: 0;
+      border-end-start-radius: 0;
+    }
+    :host([dd-style='underline']) .opt[aria-selected='true'] {
+      border-inline-start-color: var(--sw-accent);
+      background: var(--sw-accent-soft);
+    }
+    /* text: the title is the menu (the chevron sits in a small round badge) */
+    :host([dd-style='text']) .chip {
+      padding-inline: 2px 0;
+      gap: 8px;
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold, 700);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    :host([dd-style='text']) .chip .n {
+      font-size: var(--sw-fs-sm);
+      align-self: flex-end;
+      margin-block-end: 2px;
+    }
+    :host([dd-style='text']) .chip .chev {
+      inline-size: 22px;
+      block-size: 22px;
+      justify-content: center;
+      align-items: center;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+    }
+    :host([dd-style='text']) .chip:hover .chev,
+    :host([dd-style='text']) .chip[aria-expanded='true'] .chev {
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([dd-style='text']) .chip .dot {
+      position: static;
+      box-shadow: none;
+      margin-inline-start: -2px;
+    }
+    :host([dd-style='text']) .chip:focus-visible {
+      outline-offset: 4px;
+    }
+    :host([dd-style='text']) .opt {
+      font-size: var(--sw-fs-md, var(--sw-fs-sm));
+    }
+    :host([dd-style='text']) .opt[aria-selected='true'] {
+      color: var(--sw-heading, var(--sw-text));
+      font-weight: var(--sw-fw-bold, 700);
+    }
+    :host([dd-style='text']) .opt[aria-selected='true']::before {
+      content: '';
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: var(--sw-accent);
+      margin-inline-end: 2px;
+    }
+    @media (max-width: 767px) {
+      :host([dd-style='text'][block]) .chip {
+        font-size: var(--sw-fs-lg, var(--sw-fs-sm));
+      }
+    }
+    /* prefix: the group name before the value ("אבטחה: חקירה"); a pair chip on the phone drops it (width) */
+    :host([dd-style='prefix']) .pre {
+      display: inline;
+      padding-inline-end: 8px;
+      margin-inline-end: 8px;
+      border-inline-end: 1px solid var(--sw-border-strong);
+    }
+    @media (max-width: 767px) {
+      :host([dd-style='prefix'][block]) .pre {
+        display: none;
+      }
+    }
+    :host([dd-style='prefix']) .chip {
+      gap: 0;
+      padding-inline-start: 10px;
+      border-color: transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-3);
+      box-shadow: none;
+    }
+    :host([dd-style='prefix']) .chip .txt {
+      margin-inline-end: 6px;
+    }
+    :host([dd-style='prefix']) .chip .n {
+      margin-inline-end: 4px;
+    }
+    :host([dd-style='prefix']) .chip:hover {
+      background: var(--sw-surface-2);
+    }
+    :host([dd-style='prefix']) .chip[aria-expanded='true'] {
+      box-shadow: inset 0 0 0 1px var(--sw-accent);
+    }
+    :host([dd-style='prefix']) .opt[aria-selected='true'] {
+      background: var(--sw-surface-3);
+    }
+    :host([dd-style='prefix']) .grp {
+      margin: 0 6px 4px;
+      padding: 6px;
+      border-block-end: 1px solid var(--sw-border-strong);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    /* tonal: the selected segment of a pill bar, standing alone */
+    :host([dd-style='tonal']) .chip {
+      border-color: transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text, var(--sw-accent));
+      box-shadow: none;
+    }
+    :host([dd-style='tonal']) .chip .chev,
+    :host([dd-style='tonal']) .chip .n {
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([dd-style='tonal']) .chip:hover {
+      box-shadow: inset 0 0 0 1px var(--sw-accent);
+    }
+    :host([dd-style='tonal']) .chip[aria-expanded='true'] {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse, #fff);
+    }
+    :host([dd-style='tonal']) .chip[aria-expanded='true'] .chev,
+    :host([dd-style='tonal']) .chip[aria-expanded='true'] .n {
+      color: var(--sw-text-inverse, #fff);
+    }
+    :host([dd-style='tonal']) .opt {
+      border-radius: var(--sw-r-md);
+    }
+    :host([dd-style='tonal']) .opt[aria-selected='true'] {
+      background: var(--sw-accent-soft);
+    }
+    :host([dd-style='tonal']) .opt[aria-selected='true'][data-active] {
+      box-shadow: inset 0 0 0 1px var(--sw-accent);
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .pop {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
+    }
+    @media (forced-colors: active) {
+      :host([dd-style]:not([dd-style='auto'])) .chip {
+        border: 1px solid ButtonText;
+      }
+      :host([dd-style]:not([dd-style='auto'])) .pop {
+        border: 1px solid CanvasText;
       }
     }
   `;
@@ -385,7 +644,7 @@ export class SwDropdown extends LitElement {
     const listId = `l-${this.seq}`;
     return html`<button type="button" class="chip" data-dropdown-chip aria-haspopup="listbox" aria-expanded=${String(this.open)} aria-controls=${listId} aria-label=${aria}
         @click=${() => (this.open ? this.close(true) : void this.openList())} @keydown=${(e: KeyboardEvent) => this.onChipKey(e)}>
-        ${this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}
+        ${this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
         <span class="txt">${sel?.label ?? this.placeholder}</span>${sel?.count !== undefined ? html`<span class="n">(${sel.count})</span>` : nothing}
         <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${12}></sw-icon></span>
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}

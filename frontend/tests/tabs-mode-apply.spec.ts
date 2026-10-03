@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 // Owner bug 2026-10-02 (0.1.153): "I changed תצוגת לשוניות and nothing changed on the screens". Regression for the apply path against a
 // mocked backend that behaves like the real one (settings PATCH, /me/prefs PUT with `stored`): every group, the precedence, a live change
-// without a reload, and the settings card telling the truth (what is active per group and why; the phone-only note on a wide screen).
+// without a reload, and the settings card telling the truth (what is active per group and why; every width since 0.1.157).
 // Needs the Vite DEV server (imports /src/...):
 //   $env:SW_API_PORT='59999'; npx vite --host 127.0.0.1 --port 5196   then
 //   $env:SW_BASE_URL='http://127.0.0.1:5196/'; npx playwright test tabs-mode-apply --project=desktop --workers=1
@@ -76,9 +76,9 @@ const chromeDropdowns = (page: Page) =>
 
 const GROUP_ROUTES: Record<string, string> = { area: '/devices/areas', security: '/live', settings: '/system/diagnostics', multimedia: '/multimedia/screens' };
 
-test.describe('every group follows the installation default on a phone, and nothing changes on a wide screen', () => {
+test.describe('every group follows the installation default on every width (0.1.157: no phone-only gate)', () => {
   for (const [group, hash] of Object.entries(GROUP_ROUTES)) {
-    test(`group ${group}: default dropdown -> the real row is a dropdown (phone, after a reload); tabs; wide screen unchanged`, async ({ page }) => {
+    test(`group ${group}: default dropdown -> the real row is a dropdown (phone, after a reload, and on a wide screen); tabs again when cleared`, async ({ page }) => {
       const srv = fresh();
       srv.inst.groups = { [group]: 'dropdown' };
       await mock(page, srv);
@@ -89,7 +89,7 @@ test.describe('every group follows the installation default on a phone, and noth
       await page.waitForTimeout(1500);
       expect(await chromeDropdowns(page)).toBeGreaterThan(0);
       await open(page, hash, 1280);
-      expect(await chromeDropdowns(page)).toBe(0);
+      expect(await chromeDropdowns(page)).toBeGreaterThan(0);
       srv.inst.groups = {};
       await open(page, hash, 390);
       expect(await chromeDropdowns(page)).toBe(0);
@@ -146,12 +146,12 @@ test.describe('precedence and live change', () => {
     await expect.poll(() => chromeDropdowns(page)).toBe(0); // the personal choice wins at once
   });
 
-  test('the resolver: personal group > personal global > default group > default global > tabs; a wide screen is tabs', async ({ page }) => {
+  test('the resolver: personal group > personal global > default group > default global > tabs; every width gives the same answer', async ({ page }) => {
     await mock(page, fresh());
     await open(page, '/devices/building', 390);
     const rows = await page.evaluate(async (url) => {
       const m = await import(/* @vite-ignore */ url);
-      const at = (g: string) => [m.tabModeOf(g, true), m.tabModeOf(g, false)];
+      const at = (g: string) => [m.tabModeOf(g, true), m.tabModeOf(g, false)]; // the second argument no longer matters (0.1.157)
       const out: Record<string, unknown> = {};
       m.setInstallationTabsMode({ 'ui.tabs_mode': 'hybrid', 'ui.tabs_mode_groups': { settings: 'dropdown' } });
       await m.saveOwnTabsMode(null, {});
@@ -162,24 +162,22 @@ test.describe('precedence and live change', () => {
       out.ownGroup = [at('area'), at('settings')];
       return out;
     }, MODE_URL);
-    expect(rows.install).toEqual([['hybrid', 'tabs'], ['dropdown', 'tabs']]);
+    expect(rows.install).toEqual([['hybrid', 'hybrid'], ['dropdown', 'dropdown']]);
     expect(rows.ownGlobal).toEqual([['tabs', 'tabs'], ['tabs', 'tabs']]);
-    expect(rows.ownGroup).toEqual([['tabs', 'tabs'], ['hybrid', 'tabs']]);
+    expect(rows.ownGroup).toEqual([['tabs', 'tabs'], ['hybrid', 'hybrid']]);
   });
 });
 
 test.describe('the settings card tells the truth', () => {
-  test('on a wide screen it says the mode applies on the phone; on a phone it does not; every group is listed with its mode', async ({ page }) => {
+  test('on a wide screen the card has no phone-only note and lists every group with its mode (0.1.157)', async ({ page }) => {
     const srv = fresh();
     srv.inst = { mode: 'dropdown', groups: {} };
     await mock(page, srv);
     await open(page, '/system/diagnostics?tab=tabs', 1280);
     const card = page.locator('system-tabs-mode');
-    await expect(card.locator('[data-tabs-mode-wide]')).toBeVisible();
+    await expect(card.locator('[data-tabs-mode-wide]')).toHaveCount(0);
     await expect(card.locator('[data-effective-group]')).toHaveCount(5);
     await expect(card.locator('[data-effective-group=security]')).toHaveAttribute('data-mode', 'dropdown');
-    await page.setViewportSize({ width: 390, height: 844 }); // live: the note leaves when the screen becomes a phone
-    await expect(card.locator('[data-tabs-mode-wide]')).toHaveCount(0);
   });
 
   test('the personal "reset" button clears both keys on the server', async ({ page }) => {

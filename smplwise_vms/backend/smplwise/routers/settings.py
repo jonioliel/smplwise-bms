@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, palettes, tabs_mode, timeline_colors
+from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -76,6 +76,10 @@ DEFAULTS: dict[str, str] = {
     # {home|area|multimedia|security|settings: mode}, read back as an object). A user's own value (/me/prefs) wins. services/tabs_mode.py.
     "ui.tabs_mode": "tabs",
     "ui.tabs_mode_groups": "{}",
+    # release 0.1.157: the look of a dropdown - auto (today's) | pill | field | underline | text | prefix | tonal - global and per tab group
+    # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
+    "ui.dd_style": "auto",
+    "ui.dd_style_groups": "{}",
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
@@ -268,6 +272,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.palettes"] = palettes.stored(out["ui.palettes"])
     out["ui.tabs_mode"] = tabs_mode.stored_mode(out["ui.tabs_mode"])
     out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
+    out["ui.dd_style"] = dd_style.stored_style(out["ui.dd_style"])
+    out["ui.dd_style_groups"] = dd_style.stored_groups(out["ui.dd_style_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
@@ -451,6 +457,8 @@ class SettingsPatch(BaseModel):
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
+    ui_dd_style: str | None = Field(default=None, pattern="^(auto|pill|field|underline|text|prefix|tonal)$", alias="ui.dd_style")
+    ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
@@ -605,6 +613,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.tabs_mode_groups"] = tabs_mode.normalize_groups(changes["ui.tabs_mode_groups"])
         except ValueError as exc:
             raise ApiError(422, "validation", "תצוגת לשוניות לפי קבוצה: ערך לא תקין.", details={"ui.tabs_mode_groups": str(exc)})
+    if "ui.dd_style_groups" in changes:
+        try:
+            changes["ui.dd_style_groups"] = dd_style.normalize_groups(changes["ui.dd_style_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "סגנון תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_style_groups": str(exc)})
     if "ui.mobile" in changes:
         try:
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
@@ -692,7 +705,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

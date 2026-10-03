@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Callable
 
 from ..db import now_iso
-from . import area_row, home_config, look, media_layout, nav_size, tabs_mode
+from . import area_row, dd_style, home_config, look, media_layout, nav_size, tabs_mode
 
 # The navigation tabs of the app shell in their default order (frontend/src/shell/nav.ts, NAV_A): ראשי (the device
 # overview), אבטחה, מפה, WisKey. The user avatar is always last and is not a tab. A new tab is appended to every stored
@@ -77,6 +77,11 @@ VALIDATORS["ui.tabs_mode"] = tabs_mode.normalize_mode
 VALIDATORS["ui.tabs_mode_groups"] = tabs_mode.normalize_groups
 DEFAULTS["ui.tabs_mode"] = None
 DEFAULTS["ui.tabs_mode_groups"] = None
+# `ui.dd_style` / `ui.dd_style_groups` (release 0.1.157): the look of a dropdown, globally and per tab group (services/dd_style.py); null = follow the installation.
+VALIDATORS["ui.dd_style"] = dd_style.normalize_style
+VALIDATORS["ui.dd_style_groups"] = dd_style.normalize_groups
+DEFAULTS["ui.dd_style"] = None
+DEFAULTS["ui.dd_style_groups"] = None
 
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal

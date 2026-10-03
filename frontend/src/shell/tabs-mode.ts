@@ -9,8 +9,14 @@
  *   the user's group override, the user's global value, the installation's group override, the installation's global value, `tabs`.
  * Presentation only (nothing here is a permission). The mode takes effect on the phone (<= 767 px) only; `tabModeOf` answers
  * `tabs` on a wider screen. Backend validation: services/tabs_mode.py (same closed lists).
+ *
+ * 0.1.157: the width gate is gone (the dropdown works on every width; `hybrid` keeps its three-item rule), and the LOOK of the dropdown
+ * is a second setting of the same shape: `DdStyle` (auto = today's look | pill | field | underline | text | prefix | tonal), global
+ * plus per tab group, installation (`ui.dd_style`, `ui.dd_style_groups`) and personal (/me/prefs), resolved by `resolveDdStyle`.
+ * Backend validation: services/dd_style.py.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
+import { DD_STYLE_IDS, type DdStyle } from '../components/sw-dropdown';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
@@ -25,15 +31,45 @@ export const TAB_MODE_HINT: Record<TabMode, string> = {
 };
 export const TAB_GROUPS: readonly TabGroup[] = ['home', 'area', 'multimedia', 'security', 'settings'];
 export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: 'אזורים בקומה (מסך האזור)', area: 'לשוניות האזור', multimedia: 'מולטימדיה', security: 'אבטחה', settings: 'הגדרות' };
-/** The widest screen the mode applies to (the phone). */
+/** The phone's width (the shell's phone layout, the pair row); the mode itself no longer depends on it (0.1.157). */
 export const TAB_MODE_MAX_WIDTH = 767;
 /** `hybrid`: up to this many items stay a segmented control. */
 export const HYBRID_MAX_ITEMS = 3;
 
 export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 
+export type { DdStyle };
+export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
+export const DD_STYLE_DEFAULT: DdStyle = 'auto';
+export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כמוסה', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה' };
+export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
+
 export function asTabMode(v: unknown): TabMode | null {
   return typeof v === 'string' && (TAB_MODES as readonly string[]).includes(v) ? (v as TabMode) : null;
+}
+
+export function asDdStyle(v: unknown): DdStyle | null {
+  return typeof v === 'string' && (DD_STYLES as readonly string[]).includes(v) ? (v as DdStyle) : null;
+}
+
+/** The stored per-group dropdown styles, reduced to known groups and styles (a stored string is parsed); never throws. */
+export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  const out: DdStyleGroups = {};
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const g of TAB_GROUPS) {
+      const m = asDdStyle((value as Record<string, unknown>)[g]);
+      if (m) out[g] = m;
+    }
+  }
+  return out;
 }
 
 /** The stored per-group overrides, reduced to known groups and modes (a stored string is parsed); never throws. */
@@ -59,6 +95,8 @@ export function normalizeTabModeGroups(raw: unknown): TabModeGroups {
 const CACHE_KEY = 'sw.tabs.mode';
 let installation: { mode: TabMode; groups: TabModeGroups } = { mode: TAB_MODE_DEFAULT, groups: {} };
 let own: { mode: TabMode | null; groups: TabModeGroups } = { mode: null, groups: {} };
+let ddInstallation: { style: DdStyle; groups: DdStyleGroups } = { style: DD_STYLE_DEFAULT, groups: {} };
+let ddOwn: { style: DdStyle | null; groups: DdStyleGroups } = { style: null, groups: {} };
 let user: string | null = null;
 let remote = false;
 const listeners = new Set<() => void>();
@@ -102,21 +140,36 @@ export function resolveTabMode(group: TabGroup): { mode: TabMode; source: TabMod
 }
 
 /**
- * THE helper every tab row asks, next to nav.ts `tabStyleOf`: how the group is presented now. `tabs` on a screen wider than the phone
- * (or when `phone` says so), else the configured mode. `phone` lets a caller that already knows its width (the shell) pass it.
+ * THE helper every tab row asks, next to nav.ts `tabStyleOf`: how the group is presented now - the configured mode on EVERY width
+ * (0.1.157: the phone-only gate was removed). The second argument is kept so existing callers compile; it no longer matters.
  */
-export function tabModeOf(group: TabGroup, phone: boolean = isPhoneWidth()): TabMode {
-  return phone ? configuredTabMode(group) : 'tabs';
+export function tabModeOf(group: TabGroup, _phone?: boolean): TabMode {
+  return configuredTabMode(group);
 }
 
-/** What a tab bar of a group gets for sw-tabs: the bar's own style while the mode is `tabs` (nothing changes), `dropdown`, or `adaptive` for the hybrid. */
-export function tabModeProps<S extends string>(group: TabGroup, style: S, phone: boolean = isPhoneWidth()): { variant: S | 'dropdown'; adaptive: boolean } {
-  const mode = tabModeOf(group, phone);
-  return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid' };
+/** Where a group's dropdown style comes from: user's group, user's global, installation's group, installation's global, `auto`. */
+export function resolveDdStyle(group: TabGroup): { style: DdStyle; source: TabModeSource } {
+  const og = ddOwn.groups[group];
+  if (og) return { style: og, source: 'own-group' };
+  if (ddOwn.style) return { style: ddOwn.style, source: 'own' };
+  const ig = ddInstallation.groups[group];
+  if (ig) return { style: ig, source: 'installation-group' };
+  return { style: ddInstallation.style, source: 'installation' };
 }
 
-/** A Lit reactive controller for a screen that draws its own tab / chip row: it re-renders the host when the mode changes and when
- * the viewport crosses the phone width. `this.mode = new TabsModeController(this, 'multimedia')`; then `this.mode.value`. */
+/** The dropdown style a group's chips get now (`auto` = today's look). */
+export function ddStyleOf(group: TabGroup): DdStyle {
+  return resolveDdStyle(group).style;
+}
+
+/** What a tab bar of a group gets for sw-tabs: the bar's own style while the mode is `tabs` (nothing changes), `dropdown`, or `adaptive` for the hybrid; `ddStyle` is the look of the dropdown. */
+export function tabModeProps<S extends string>(group: TabGroup, style: S, _phone?: boolean): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle } {
+  const mode = tabModeOf(group);
+  return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: ddStyleOf(group) };
+}
+
+/** A Lit reactive controller for a screen that draws its own tab / chip row: it re-renders the host when the mode or the style changes
+ * and when the viewport crosses the phone width. `this.mode = new TabsModeController(this, 'multimedia')`; then `this.mode.value`. */
 export class TabsModeController {
   private mq: MediaQueryList | null = null;
   private stop?: () => void;
@@ -127,8 +180,12 @@ export class TabsModeController {
     return tabModeOf(this.group);
   }
   /** `variant` / `adaptive` for an sw-tabs of this group. */
-  props<S extends string>(style: S): { variant: S | 'dropdown'; adaptive: boolean } {
+  props<S extends string>(style: S): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle } {
     return tabModeProps(this.group, style);
+  }
+  /** The look of this group's dropdown chips. */
+  get ddStyle(): DdStyle {
+    return ddStyleOf(this.group);
   }
   private tick = () => this.host.requestUpdate();
   hostConnected() {
@@ -147,6 +204,15 @@ export class TabsModeController {
   }
 }
 
+export function installationDdStyle(): { style: DdStyle; groups: DdStyleGroups } {
+  return ddInstallation;
+}
+
+/** The user's own dropdown styles: `style` null = follows the installation; `groups` holds only the groups they set. */
+export function ownDdStyle(): { style: DdStyle | null; groups: DdStyleGroups } {
+  return ddOwn;
+}
+
 export function installationTabsMode(): { mode: TabMode; groups: TabModeGroups } {
   return installation;
 }
@@ -159,6 +225,7 @@ export function ownTabsMode(): { mode: TabMode | null; groups: TabModeGroups } {
 /** The installation default (the product settings): at load, and right after the settings screen saved it. */
 export function setInstallationTabsMode(settings: Record<string, unknown> | null | undefined): void {
   installation = { mode: asTabMode(settings?.['ui.tabs_mode']) ?? TAB_MODE_DEFAULT, groups: normalizeTabModeGroups(settings?.['ui.tabs_mode_groups']) };
+  ddInstallation = { style: asDdStyle(settings?.['ui.dd_style']) ?? DD_STYLE_DEFAULT, groups: normalizeDdStyleGroups(settings?.['ui.dd_style_groups']) };
   notify();
 }
 
@@ -170,6 +237,28 @@ function readCache(): { u: string; mode: TabMode | null; groups: TabModeGroups }
     return typeof c.u === 'string' ? { u: c.u, mode: asTabMode(c.mode), groups: normalizeTabModeGroups(c.groups) } : null;
   } catch {
     return null;
+  }
+}
+
+const DD_CACHE_KEY = 'sw.dd.style';
+
+function readDdCache(): { u: string; style: DdStyle | null; groups: DdStyleGroups } | null {
+  try {
+    const raw = localStorage.getItem(DD_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { u?: unknown; style?: unknown; groups?: unknown };
+    return typeof c.u === 'string' ? { u: c.u, style: asDdStyle(c.style), groups: normalizeDdStyleGroups(c.groups) } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDdCache(u: string, v: { style: DdStyle | null; groups: DdStyleGroups }): void {
+  try {
+    if (!v.style && !Object.keys(v.groups).length) localStorage.removeItem(DD_CACHE_KEY);
+    else localStorage.setItem(DD_CACHE_KEY, JSON.stringify({ u, style: v.style, groups: v.groups }));
+  } catch {
+    /* storage unavailable: the server copy still applies after load */
   }
 }
 
@@ -188,6 +277,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   remote = api;
   const cached = readCache();
   own = cached && cached.u === userId ? { mode: cached.mode, groups: cached.groups } : { mode: null, groups: {} };
+  const ddCached = readDdCache();
+  ddOwn = ddCached && ddCached.u === userId ? { style: ddCached.style, groups: ddCached.groups } : { style: null, groups: {} };
   notify();
   if (!api) return;
   try {
@@ -200,6 +291,12 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     };
     writeCache(userId, next);
     own = next;
+    const ddNext = {
+      style: stored.includes('ui.dd_style') ? asDdStyle(p.prefs['ui.dd_style']) : null,
+      groups: stored.includes('ui.dd_style_groups') ? normalizeDdStyleGroups(p.prefs['ui.dd_style_groups']) : {},
+    };
+    writeDdCache(userId, ddNext);
+    ddOwn = ddNext;
     notify();
   } catch {
     /* an older backend, or offline: keep the cached copy */
@@ -223,6 +320,25 @@ export async function saveOwnTabsMode(mode: TabMode | null, groups: TabModeGroup
     if (user !== who) return;
     own = before;
     if (user) writeCache(user, before);
+    notify();
+    throw err;
+  }
+}
+
+/** Save the user's own dropdown style: `style` null = follow the installation, `groups` only the overrides. Optimistic, reverted on refusal (as saveOwnTabsMode). */
+export async function saveOwnDdStyle(style: DdStyle | null, groups: DdStyleGroups): Promise<void> {
+  const before = ddOwn;
+  ddOwn = { style, groups };
+  if (user) writeDdCache(user, ddOwn);
+  notify();
+  if (!remote) return;
+  const who = user;
+  try {
+    await putMyPrefs({ 'ui.dd_style': style, 'ui.dd_style_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null });
+  } catch (err) {
+    if (user !== who) return;
+    ddOwn = before;
+    if (user) writeDdCache(user, before);
     notify();
     throw err;
   }
