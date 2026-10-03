@@ -44,6 +44,8 @@ import '../screens/multimedia-screens'; // CR-015: the screens page (the remote,
 import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
 import '../screens/multimedia-groups'; // CR-016: "קבוצות"
 import '../screens/system-multimedia';
+import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
+import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/security-alarm';
 import '../screens/schedule-editor';
 import '../screens/live-overview';
@@ -83,6 +85,7 @@ import { setupState } from '../api/setup';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
+import { refreshInfraVisibility } from '../electricity/visibility';
 import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
@@ -1413,6 +1416,7 @@ export class SwApp extends LitElement {
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
+          void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
           // overview) by default; a start screen this user does not see falls back to their first tab
@@ -1958,6 +1962,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
+        if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)
         if (s[1] === 'access') return html`<system-access></system-access>`;
         if (s[1] === 'notifications') return html`<system-notifications .section=${r.params.get('section') ?? ''}></system-notifications>`; // CR-018: the administrator's eight sections; everyone else: the device registration
@@ -2011,6 +2016,10 @@ export class SwApp extends LitElement {
         // the list, which stays mounted underneath (closing the sheet returns to the item's drawer or the list without a reload).
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
+      case 'infra':
+        // CR-023: #/infra/electricity/<page> (meters, accounts, bills, customers); #/infra opens the meters page
+        if (!s[1] || s[1] !== 'electricity' || !s[2]) queueMicrotask(() => window.location.replace('#/infra/electricity/meters'));
+        return html`<infra-electricity .route=${r}></infra-electricity>`;
       case 'multimedia':
         // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)
         if (s[1] === 'players') return html`<multimedia-players .playerKey=${r.params.get('player') ?? ''}></multimedia-players>`;

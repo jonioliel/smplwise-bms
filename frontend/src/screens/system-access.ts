@@ -60,6 +60,8 @@ import {
   type RolesResponse,
 } from '../api/access';
 import { SkinController } from '../design/skin';
+import '../electricity/permission-rows'; // CR-023: the electricity permission rows (roles tab)
+import { ENERGY_PERMISSION_LABELS } from '../electricity/permission-rows';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const TABS = [
@@ -434,7 +436,7 @@ export class SystemAccess extends LitElement {
   }
 
   private label(p: string): string {
-    return this.roles?.labels[p] ?? p;
+    return this.roles?.labels[p] ?? ENERGY_PERMISSION_LABELS[p] ?? p;
   }
 
   private startWizard(kind: 'user' | 'group', id: string, name: string) {
@@ -1046,6 +1048,7 @@ export class SystemAccess extends LitElement {
           ? html`<div class="hint" style="margin-block-start:10px" data-delegation>מוצגים רק התפקידים שמותר לך לשייך בהיקף שלך (רשימת ההאצלה של ההתקנה). עריכת תפקידים והרשימה — מנהל המערכת בלבד.</div>`
           : nothing}
       <div class="hint">תפקידים מובנים אינם נערכים; תפקיד מותאם מורכב מהרשאות רגילות ומהרשאות רגישות שניתנות במפורש, ולעולם לא מהרשאות מערכת. התפקידים אינם סולם: עריכת מפה והיסטוריית וידאו הן יכולות נפרדות.</div>
+      <elec-permission-rows .roles=${roles}></elec-permission-rows>
       ${this.renderRoleDialog()}
       ${this.roleDelete
         ? html`<sw-dialog open heading="מחיקת תפקיד" subheading=${this.roleDelete.name} @close=${() => (this.roleDelete = null)}>
