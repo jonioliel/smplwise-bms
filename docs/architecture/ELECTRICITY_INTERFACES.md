@@ -171,9 +171,10 @@ class EnergyReadingsProvider(Protocol):
 ### 2.1 Semantics billing relies on
 
 1. **Allocation by time.** Each accepted delta between readings at t0 and t1 is spread linearly over [t0, t1] into
-   15-minute buckets with an exact-sum integer split (largest remainder), so `consumption(a, b) + consumption(b, c) ==
-   consumption(a, c)` exactly for quarter-hour-aligned instants, and local midnights in `Asia/Jerusalem` are always
-   quarter-hour aligned. Non-aligned edges are prorated inside the edge bucket.
+   15-minute buckets with an exact-sum integer split on the cumulative line (any run of whole buckets is within 1 Wh of
+   its exact linear share), so `consumption(a, b) + consumption(b, c) == consumption(a, c)` exactly for
+   quarter-hour-aligned instants, and local midnights in `Asia/Jerusalem` are always quarter-hour aligned. Non-aligned
+   edges are prorated inside the edge bucket.
 2. **Linear formula support.** Because `consumption` is additive and per meter, the billing formula is applied to the
    per-meter results (CR-023 section 6). The provider has no notion of accounts.
 3. **Coverage.** `coverage == 'full'` means no unknown time in the range. A meter that started reporting inside the range,
