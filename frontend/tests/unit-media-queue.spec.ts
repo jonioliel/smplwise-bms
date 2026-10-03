@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  BROWSE_TYPES, BROWSE_TYPE_LABEL, MA_STATE_LABEL, PLAYER_ERROR_LABEL, browseOffered, confirmCount, fullQueueOffered, httpPlayers, queueDropTarget, reorderRows, type QueueRow,
+  BROWSE_TYPES, BROWSE_TYPE_LABEL, MA_STATE_LABEL, PLAYER_ERROR_LABEL, QUEUE_SELECT_MAX, browseOffered, confirmCount, fullQueueOffered, httpPlayers, partialDone, queueDropTarget, queueResultLine,
+  reorderRows, toggleSelected, upcomingCount, type QueueRow,
 } from '../src/api/media-players';
 import { resetPlayersMock } from '../src/api/media-players-mock';
 import { ApiError } from '../src/api/client';
@@ -130,5 +131,75 @@ test.describe('the mock adapter (house with a music library)', () => {
     expect(JSON.stringify(c)).not.toContain('xxxxxxxx');
     expect((await m.testMaConnection()).state).toBe('ready');
     expect((await m.saveMaConnection({ clear_token: true })).state).toBe('off');
+  });
+});
+
+test.describe('the new queue actions (play now, move to top, several rows, two clears)', () => {
+  test('helpers: the selection cap, the upcoming count, the half-way line, the partial count of an error', () => {
+    let sel: string[] = [];
+    for (let i = 0; i < 40; i++) sel = toggleSelected(sel, `i${i}`);
+    expect(sel.length).toBe(QUEUE_SELECT_MAX);
+    expect(toggleSelected(['a', 'b'], 'a')).toEqual(['b']);
+    expect(upcomingCount({ count: 12, locked_to: 4 })).toBe(7);
+    expect(upcomingCount({ count: 3, locked_to: 4 })).toBe(0);
+    expect(upcomingCount({ count: null, locked_to: null })).toBe(0);
+    expect(queueResultLine({ status: 'refused', op: 'delete_many', done: 2, error: 7 }, 5)).toBe('הוסרו 2 מתוך 5');
+    expect(queueResultLine({ status: 'refused', op: 'delete', error: 7 }, 1)).toBe('הפעולה נדחתה');
+    expect(queueResultLine({ status: 'accepted', op: 'delete_many', count: 3 }, 3)).toBe('');
+    const e = new ApiError(503, { code: 'ma_unavailable', user_message: 'x', retryable: true, correlation_id: 'c', details: { done: 1 } });
+    expect(partialDone(e)).toBe(1);
+    expect(partialDone(new Error('x'))).toBeNull();
+    expect(PLAYER_ERROR_LABEL.too_many).toBeTruthy();
+  });
+
+  test('play now moves the current row; the current row is refused; top = right after the locked rows', async () => {
+    const m = resetPlayersMock('ma');
+    m.enablePhase2b();
+    const q = await m.queue('mp-liv');
+    const free = q.items.filter((r) => !r.locked);
+    expect(await code(m.queueEdit('mp-liv', { op: 'play', item: q.items[0].item, ...req(10) }))).toBe('locked');
+    expect(await m.queueEdit('mp-liv', { op: 'play', item: free[2].item, ...req(11) })).toEqual({ status: 'accepted', op: 'play' });
+    const after = await m.queue('mp-liv');
+    expect(after.items[0].name).toBe(free[2].name);
+    const f2 = after.items.filter((r) => !r.locked);
+    expect(await m.queueEdit('mp-liv', { op: 'top', item: f2[f2.length - 1].item, ...req(12) })).toEqual({ status: 'accepted', op: 'top', to: after.locked_to! + 1 });
+  });
+
+  test('several rows: one request, at most 25, none locked, unknown refused; the two clears differ', async () => {
+    const m = resetPlayersMock('ma');
+    m.enablePhase2b();
+    const q = await m.queue('mp-liv');
+    const free = q.items.filter((r) => !r.locked);
+    expect(await code(m.queueEdit('mp-liv', { op: 'delete_many', items: [], ...req(20) }))).toBe('validation');
+    expect(await code(m.queueEdit('mp-liv', { op: 'delete_many', items: Array.from({ length: 26 }, (_, i) => `${i}`.padStart(24, '0')), ...req(21) }))).toBe('validation');
+    expect(await code(m.queueEdit('mp-liv', { op: 'delete_many', items: [free[0].item, q.items[0].item], ...req(22) }))).toBe('locked');
+    expect(await code(m.queueEdit('mp-liv', { op: 'delete_many', items: ['0'.repeat(24)], ...req(23) }))).toBe('unknown_item');
+    expect(await m.queueEdit('mp-liv', { op: 'delete_many', items: [free[0].item, free[3].item], ...req(24) })).toEqual({ status: 'accepted', op: 'delete_many', count: 2 });
+    const left = (await m.queue('mp-liv')).items;
+    expect(left.length).toBe(q.items.length - 2);
+    const up = left.filter((r) => !r.locked).length;
+    expect(await code(m.queueEdit('mp-liv', { op: 'clear_upcoming', ...req(25) }))).toBe('confirm_required');
+    expect(await m.queueEdit('mp-liv', { op: 'clear_upcoming', confirmed: true, ...req(26) })).toEqual({ status: 'accepted', op: 'clear_upcoming', count: up });
+    expect((await m.queue('mp-liv')).items.length).toBe(2); // the current and the buffered row stay; the player keeps playing
+    expect((await m.get('mp-liv')).live.play).toBe('playing');
+    await m.queueEdit('mp-liv', { op: 'clear', confirmed: true, ...req(27) });
+    expect((await m.queue('mp-liv')).items.length).toBe(0);
+    expect((await m.get('mp-liv')).live.play).not.toBe('playing');
+  });
+
+  test('the HTTP adapter posts the several-rows body as `items`', async () => {
+    const seen: unknown[] = [];
+    const orig = globalThis.fetch;
+    (globalThis as { document?: unknown }).document = { baseURI: 'http://h/app/' };
+    globalThis.fetch = (async (_u: string | URL, init?: RequestInit) => {
+      seen.push(init?.body ? JSON.parse(String(init.body)) : null);
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      await httpPlayers.queueEdit('mp-a', { op: 'delete_many', items: ['a'.repeat(24), 'b'.repeat(24)], ...req(30) });
+    } finally {
+      globalThis.fetch = orig;
+    }
+    expect(seen[0]).toMatchObject({ op: 'delete_many', items: ['a'.repeat(24), 'b'.repeat(24)] });
   });
 });

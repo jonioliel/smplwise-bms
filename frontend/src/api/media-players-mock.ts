@@ -531,19 +531,45 @@ export class PlayersMockStore implements PlayersAdapter {
       const d = this.build(this.row(key));
       if (!d.can.queue) fail(403, 'forbidden', 'אין הרשאה לערוך את התור.');
       const h = this.queueHead(key);
-      if (body.op === 'clear') {
-        if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: Math.max(0, h.rows.length - (h.lockedTo + 1)) });
-        h.rows.splice(h.lockedTo + 1);
-        return { status: 'accepted', op: 'clear' } as QueueEditResult;
+      if (body.op === 'clear' || body.op === 'clear_upcoming') {
+        const pending = Math.max(0, h.rows.length - (h.lockedTo + 1));
+        if (body.op === 'clear_upcoming' && pending === 0) return { status: 'accepted', op: body.op, count: 0 } as QueueEditResult;
+        if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: pending });
+        if (body.op === 'clear_upcoming' && pending > 200) fail(422, 'too_many', 'יש יותר מדי שירים.', { count: pending });
+        h.rows.splice(body.op === 'clear' ? 0 : h.lockedTo + 1); // clear everything stops the player; clear upcoming keeps the current song
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
+        if (body.op === 'clear') h.lead.st = 'idle';
+        return { status: 'accepted', op: body.op, count: pending } as QueueEditResult;
+      }
+      if (body.op === 'delete_many') {
+        const ids = body.items ?? [];
+        if (!ids.length || ids.length > 25 || new Set(ids).size !== ids.length) fail(422, 'validation', 'אפשר לבחור עד 25 שירים.', { fields: ['items'] });
+        const ats = ids.map((id) => h.rows.findIndex((row) => hex(`q:${row.id}`, 24) === id));
+        if (ats.some((a) => a < 0)) fail(422, 'unknown_item', 'הפריט אינו מוכר.');
+        if (ats.some((a) => a <= h.lockedTo)) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
+        const gone = new Set(ats);
+        h.rows.splice(0, h.rows.length, ...h.rows.filter((_, n) => !gone.has(n)));
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
+        return { status: 'accepted', op: 'delete_many', count: ids.length } as QueueEditResult;
       }
       const at = h.rows.findIndex((row) => hex(`q:${row.id}`, 24) === body.item);
       if (at < 0) fail(422, 'unknown_item', 'הפריט אינו מוכר.');
+      if (body.op === 'play') {
+        if (at === h.index) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
+        h.lead.queue = { count: h.rows.length, index: at };
+        h.lead.track = h.rows[at].track;
+        h.lead.pos = 0;
+        h.lead.posAt = new Date().toISOString();
+        h.lead.st = 'playing';
+        return { status: 'accepted', op: 'play' } as QueueEditResult;
+      }
       if (at <= h.lockedTo) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
       if (body.op === 'delete') {
         h.rows.splice(at, 1);
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
         return { status: 'accepted', op: 'delete' } as QueueEditResult;
       }
-      const to = body.op === 'next' ? h.lockedTo + 1 : body.to;
+      const to = body.op === 'next' || body.op === 'top' ? h.lockedTo + 1 : body.to;
       if (typeof to !== 'number' || to <= h.lockedTo || to > h.rows.length - 1) fail(422, 'validation', 'מיקום לא תקין בתור.', { fields: ['to'] });
       const [row] = h.rows.splice(at, 1);
       h.rows.splice(to as number, 0, row);
