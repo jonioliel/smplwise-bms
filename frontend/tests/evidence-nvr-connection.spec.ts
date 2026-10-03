@@ -457,7 +457,7 @@ test.describe('setup wizard: the NVR step', () => {
     await step.locator('[data-conn-save]').click();
     await expect(step.locator('[data-conn-msg]')).toContainText('החיבור נבדק ונשמר', { timeout: 10000 });
     expect(m.calls.saves[0]).toMatchObject({ vendor: 'hikvision', host: 'nvr.fake.test', password: CANARY });
-    await expect(step.locator('[data-conn-field="password"]')).toHaveValue(''); // the wizard form is open and the typed password is gone
+    await expect(step.locator('[data-conn-password-set]')).toBeVisible(); // the typed password is gone: the form shows the write-only "kept" state
     await expect(page.locator(BANNER)).toContainText('נדרשת הפעלה מחדש');
     await page.locator('sw-app nvr-restart-banner [data-restart-open]').click();
     await page.locator('sw-app nvr-restart-banner [data-restart-confirm]').click();
@@ -505,7 +505,7 @@ test.describe('operator wording, RTL and layout (AT-022-24)', () => {
     texts.push(await textOf(page, 'sw-app nvr-restart-banner'));
     m.view = { ...m.view, vendor: 'hikvision', host: 'nvr.fake.test', http_port: 80, rtsp_port: 554, username: 'viewer', has_password: true, state: 'unreadable', cameras: 2, vendor_locked: true, legacy_options_differ: true };
     await page.reload();
-    await expect(form.locator('[data-conn-summary]')).toBeVisible({ timeout: 20000 });
+    await expect(form.locator('[data-conn-unreadable]')).toBeVisible({ timeout: 20000 });
     await form.locator('[data-conn-remove]').first().click();
     texts.push(await textOf(page, FORM));
     // the wizard step
@@ -541,6 +541,8 @@ test.describe('operator wording, RTL and layout (AT-022-24)', () => {
 });
 
 // ------------------------------------------------------------------ every skin, light and dark (the layout guard of tests/layout-guard.ts)
+// decorative layers; and the open dialog (sw-dialog's fixed backdrop sits inside the card in the DOM - its box is asserted separately)
+const SKIP = '.vh, .skl, .gbox, .bg, .veil, .backdrop, .backdrop *';
 const SKINS = QUICK ? ['classic', 'bubble'] : ['classic', 'domus', 'tesla', 'bubble'];
 const SCHEMES = QUICK ? ['light'] : ['light', 'dark'];
 
@@ -556,7 +558,7 @@ test.describe('skins x schemes', () => {
         const findings: Finding[] = [];
         const check = async (label: string) => {
           await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-          findings.push(...(await page.evaluate(inPageCheck, { ctx: `${skin}/${scheme}/${testInfo.project.name}/${label}`, skip: '.vh, .skl, .gbox, .bg, .veil' })));
+          findings.push(...(await page.evaluate(inPageCheck, { ctx: `${skin}/${scheme}/${testInfo.project.name}/${label}`, skip: SKIP })));
         };
         await check('summary');
         await shot(page, `skin-${skin}-${scheme}-summary`);
@@ -569,6 +571,8 @@ test.describe('skins x schemes', () => {
         await expect(form.locator('[data-conn-save-anyway]')).toBeVisible();
         await form.locator('[data-conn-save-anyway]').click();
         await check('dialog');
+        const box = await form.locator('[data-conn-untested-dialog]').evaluate((d) => { const r = d.shadowRoot!.querySelector('.box')!.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: innerWidth, h: innerHeight }; });
+        expect(box.l >= 0 && box.r <= box.w && box.t >= 0 && box.b <= box.h, JSON.stringify(box)).toBe(true);
         await shot(page, `skin-${skin}-${scheme}-dialog`);
         // the guard walks the whole screen: what the rest of the page already reports (the baseline, measured with the form and the
         // banner taken out) is not this change's; anything else is
@@ -576,10 +580,12 @@ test.describe('skins x schemes', () => {
         await page.locator('sw-app nvr-restart-banner').evaluate((e) => e.remove());
         const base: Finding[] = [];
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-        base.push(...(await page.evaluate(inPageCheck, { ctx: 'baseline', skip: '.vh, .skl, .gbox, .bg, .veil' })));
+        base.push(...(await page.evaluate(inPageCheck, { ctx: 'baseline', skip: SKIP })));
         const key = (f: Finding) => `${f.cls}|${f.el}|${f.detail}`;
         const known = new Set(base.map(key));
-        const own = findings.filter((f) => !known.has(key(f)));
+        // a touch target below 44 px is a finding on a phone (the product's rule, sw-button / sw-field); the open dialog is sw-dialog's own box (position: fixed inside the card)
+        const phone = (page.viewportSize()?.width ?? 1440) <= 767;
+        const own = findings.filter((f) => !known.has(key(f)) && (f.cls !== 'target' || phone));
         expect(own.length, summarize(own).lines.join('\n')).toBe(0);
       });
     }
