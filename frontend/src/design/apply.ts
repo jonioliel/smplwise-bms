@@ -15,7 +15,8 @@ import { ReactiveElement } from 'lit';
 import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf } from './contrast';
-import { bootLook, setAlphaFloor, setLiteAlpha } from './look';
+import { bootLook, onLook, setAlphaFloor, setLiteAlpha } from './look';
+import { activePaletteTokens, bootPalettes, onPalettes, syncPalette } from './palette';
 
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
@@ -106,8 +107,12 @@ function apply() {
   }
   // the translucent sheet never drops below the alpha at which its text reads at 4.5:1 (design/contrast.ts, per skin and scheme)
   const t = skinTable(skin);
-  const model = sheetModelOf((n) => t[n]?.[theme] ?? '');
-  setAlphaFloor(model ? alphaFloor(model) : 1);
+  // the palette of the look dial (bubble only): inline custom properties on <html>, so the floor below is computed from ITS colours
+  const { palette, tokens: pt } = activePaletteTokens(skin, theme);
+  syncPalette(root, pt);
+  const model = sheetModelOf((n) => pt?.[n] ?? t[n]?.[theme] ?? '');
+  // a palette also carries its own minimum glass opacity (high-contrast: 88 %); the computed floor never goes below it
+  setAlphaFloor(Math.max(model ? alphaFloor(model) : 1, palette ? palette.schemes[theme].glass.opacity.min : 0));
   setLiteAlpha(model ? liteAlpha(model) : 1); // the lite tier's tinted layers (no blur) keep the same 4.5:1 guard
   listeners.forEach((fn) => fn());
 }
@@ -148,6 +153,10 @@ export function bootDesign() {
   booted = true;
   loadStored();
   bootLook(); // the look dials (data-bubble-* and the numeric custom properties on <html>), before the first paint
+  bootPalettes(); // the installation's custom palettes as last known (no flash of the default colours)
+  // the palette dial and the custom list re-apply the colours (the user's own override, the installation's, `?look=`)
+  onLook(() => apply());
+  onPalettes(() => apply());
   // the token CSS is a constructable stylesheet: the strict CSP candidate (remote channel) refuses inline <style> elements
   try {
     const tokens = new CSSStyleSheet();

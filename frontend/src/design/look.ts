@@ -17,13 +17,18 @@
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { autoTier, readCaps, capsVerdict, type PerformanceMode, type Tier } from './performance';
+import rawPalettes from './palettes.json' with { type: 'json' };
+
+/** Only the ids and Hebrew names of the ready palettes are read here (the colours are design/palette.ts's). */
+const palettesFile = rawPalettes as unknown as { palettes: { id: string; name: { he: string } }[] };
 
 export type Density = 'wide' | 'regular' | 'compact' | 'row';
 export type Surface = 'flat' | 'glass' | 'gradient' | 'fill';
 export type Popup = 'sheet' | 'centred' | 'inline';
 export type Radius = 'pill' | 'soft' | 'square';
 export type Touch = 32 | 44;
-export type Palette = 'default';
+/** `default` (the skin's own colours), one of the ten ready palette ids, or `custom-<slug>` (an installation's custom palette, design/palette.ts). */
+export type PaletteId = string;
 export type Performance = PerformanceMode;
 
 export interface Look {
@@ -39,7 +44,7 @@ export interface Look {
   touch: Touch;
   /** What the glass costs: `lite` = no blur on cards, pills, rows and lists (the dock, rail, tree, scrim and the open pop-up keep theirs); `auto` = this device decides (design/performance.ts). */
   performance: Performance;
-  palette: Palette;
+  palette: PaletteId;
 }
 export type LookDial = keyof Look;
 export type PartialLook = Partial<Look>;
@@ -105,14 +110,19 @@ export const LOOK_DIALS = {
     labelHe: { auto: 'אוטומטי', full: 'מלא', lite: 'קל' },
     hintHe: { auto: 'המכשיר מחליט לפי כוחו', full: 'טשטוש זכוכית בכל השכבות', lite: 'בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש' },
   } satisfies ChoiceDial<Performance>,
+  // the fixed choices = `default` + every palette of design/palettes.json (the backend lists the same file); a `custom-<slug>` id is valid too
+  // (CUSTOM_PALETTE_ID). Adding a palette is a data-only change: append it to the file (docs/design/palettes/README.md).
   palette: {
     kind: 'choice',
-    values: ['default'],
+    values: ['default', ...palettesFile.palettes.map((p) => p.id)],
     nameHe: 'צבעים',
-    labelHe: { default: 'ברירת מחדל' },
-    hintHe: { default: 'ערכות צבעים נוספות - בשלב הבא' },
-  } satisfies ChoiceDial<Palette>,
+    labelHe: { default: 'ברירת מחדל', ...Object.fromEntries(palettesFile.palettes.map((p) => [p.id, p.name.he])) },
+    hintHe: { default: 'הצבעים של סגנון Bubble' },
+  } satisfies ChoiceDial<PaletteId>,
 } as const;
+
+/** A custom palette's dial value (the backend's CUSTOM_ID_RE): a lower-case kebab slug after `custom-`. */
+export const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette'] as const satisfies readonly LookDial[];
 
@@ -121,6 +131,7 @@ export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill
 /** The backend's rule for one dial: a listed value / a whole in-range number, else null. */
 export function normalizeDial<K extends LookDial>(dial: K, v: unknown): Look[K] | null {
   const d = LOOK_DIALS[dial] as ChoiceDial<string | number> | RangeDial;
+  if (dial === 'palette') return typeof v === 'string' && (d.kind === 'choice' && (d.values as readonly unknown[]).includes(v) || (v.length <= 40 && CUSTOM_PALETTE_ID.test(v))) ? (v as Look[K]) : null;
   if (d.kind === 'choice') return (d.values as readonly unknown[]).includes(v) ? (v as Look[K]) : null;
   if (typeof v !== 'number' || !Number.isInteger(v)) return null;
   return v >= d.range[0] && v <= d.range[1] ? (v as Look[K]) : null;
@@ -188,8 +199,15 @@ export function onLook(fn: () => void): () => void {
 
 /** THE resolver: the dial in force. */
 export function lookOf<K extends LookDial>(dial: K): Look[K] {
+  // the palette is chosen by the installation's system administrator only (owner 2026-10-02): a personal value is never read
+  if (dial === 'palette') return (query.palette ?? installation.palette ?? LOOK_DEFAULT.palette) as Look[K];
   return (query[dial] ?? own[dial] ?? installation[dial] ?? LOOK_DEFAULT[dial]) as Look[K];
 }
+/** A personal override without the palette (an older stored value may carry one; it is ignored). */
+const withoutPalette = (v: PartialLook): PartialLook => {
+  const { palette: _ignored, ...rest } = v;
+  return rest;
+};
 /** Every dial in force. */
 export function look(): Look {
   const out: Record<string, unknown> = {};
@@ -314,7 +332,7 @@ export function bootLook(): void {
   booted = true;
   installation = { ...LOOK_DEFAULT, ...normalizeLook(read(INST_KEY)) };
   const cached = readCache();
-  own = cached ? cached.look : {};
+  own = cached ? withoutPalette(cached.look) : {};
   query = readQuery();
   refreshAutoPerformance(); // the cached / free verdict of `auto` at once (no flicker); the probe, when needed, runs at idle
   applyLook();
@@ -352,7 +370,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
   user = userId;
   remote = api;
   const cached = readCache();
-  own = cached && cached.u === userId ? cached.look : {};
+  own = cached && cached.u === userId ? withoutPalette(cached.look) : {};
   notify();
   if (!api) return;
   try {
@@ -361,7 +379,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
     const stored = Array.isArray(p.stored) && p.stored.includes('ui.look');
     const v = stored ? normalizeLook(p.prefs['ui.look']) : {};
     writeCache(userId, v);
-    own = v;
+    own = withoutPalette(v);
     notify();
   } catch {
     /* an older backend, or offline: keep the cached copy */
@@ -371,7 +389,7 @@ export async function loadLook(userId: string, api: boolean): Promise<void> {
 /** Save the user's own override: only the dials in `v` are overridden; `{}` = "לפי ההתקנה" for every dial. Optimistic; reverted when refused. */
 export async function saveOwnLook(v: PartialLook): Promise<void> {
   const before = own;
-  own = normalizeLook(v);
+  own = withoutPalette(normalizeLook(v));
   writeCache(user, own);
   notify();
   if (!remote) return;

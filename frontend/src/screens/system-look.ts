@@ -9,7 +9,10 @@ import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
-import { currentSkin, onDesign } from '../design/apply';
+import { currentSkin, onDesign, resolvedTheme } from '../design/apply';
+import './system-palette-editor';
+import { allPalettes, onPalettes, paletteById, paletteTokens, setCustomPalettes, type Palette } from '../design/palette';
+import { skinTable } from '../design/css';
 import {
   DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
   sameLook, setInstallationLook, tierOf, type Look, type LookDial, type PartialLook,
@@ -136,6 +139,56 @@ export class SystemLook extends LitElement {
       outline: 2px solid var(--sw-focus);
       outline-offset: 1px;
     }
+    /* the palette row: one chip per palette with its four swatch colours */
+    .pal {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-inline-size: 100%;
+    }
+    .pal button {
+      all: unset;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 40px;
+      padding: 0 12px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      cursor: pointer;
+    }
+    .pal button[aria-pressed='true'] {
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: inset 0 0 0 2px var(--sw-accent);
+    }
+    .pal button[disabled] {
+      cursor: default;
+      opacity: 0.6;
+    }
+    .pal button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .dots {
+      display: inline-flex;
+      direction: ltr;
+    }
+    .dots i {
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.45);
+      margin-inline-start: -4px;
+    }
+    .dots i:first-child {
+      margin-inline-start: 0;
+    }
     /* the preview: a canvas with the draft's tokens, two pills, a mini sheet over a colourful backdrop */
     .preview {
       margin-block-start: 12px;
@@ -245,11 +298,13 @@ export class SystemLook extends LitElement {
       this.requestUpdate();
     }));
     this.stops.push(onDesign(() => (this.skin = currentSkin())));
+    this.stops.push(onPalettes(() => this.requestUpdate()));
     if (isApi()) {
       void getSettings()
         .then((r) => {
           this.canEdit = r.can_edit;
           setInstallationLook(r.settings['ui.look']);
+          setCustomPalettes(r.settings['ui.palettes']);
           this.draftInst = installationLook();
         })
         .catch(() => undefined);
@@ -371,8 +426,57 @@ export class SystemLook extends LitElement {
 
   /** The preview's tokens: the same bundles the page gets, as inline custom properties (a shadow root cannot see the document's attribute rules). */
   private previewStyle(l: Look): Record<string, string> {
-    const a = lookAttributes(l, effectiveSheetAlpha() <= l.transparency / 100 ? 0 : effectiveSheetAlpha());
-    return { ...DENSITY_BUNDLE[l.density], ...RADIUS_BUNDLE[l.radius], ...a.style };
+    const pal = paletteById(l.palette);
+    const palMin = pal ? pal.schemes[resolvedTheme()].glass.opacity.min : 0;
+    const a = lookAttributes(l, Math.max(palMin, effectiveSheetAlpha() <= l.transparency / 100 ? 0 : effectiveSheetAlpha()));
+    return { ...DENSITY_BUNDLE[l.density], ...RADIUS_BUNDLE[l.radius], ...this.paletteStyle(l.palette), ...a.style };
+  }
+
+  /** The colours of a palette as the preview's inline custom properties; `default` (and an id with no palette) = the skin's own colours, over whatever the page itself shows. */
+  private paletteStyle(id: string): Record<string, string> {
+    const theme = resolvedTheme();
+    const pal = paletteById(id);
+    if (pal) return paletteTokens(pal, theme);
+    const table = skinTable('bubble');
+    const out: Record<string, string> = {};
+    for (const n of Object.keys(paletteTokens(allPalettes()[0], theme))) {
+      const v = table[n]?.[theme];
+      if (v) out[n] = v;
+    }
+    return out;
+  }
+
+  /** The four colours of a palette's swatch in the scheme in force (bg, surface, accent, text). */
+  private swatch(id: string): string[] {
+    const theme = resolvedTheme();
+    const pal: Palette | null = paletteById(id);
+    if (pal) {
+      const s = pal.schemes[theme];
+      return [s.bg, s.surface, s.accent, s.text];
+    }
+    const t = skinTable('bubble');
+    return ['--sw-bg', '--sw-surface', '--sw-accent', '--sw-text'].map((n) => t[n][theme]);
+  }
+
+  /** The palette is chosen for everybody by the installation's system administrator only (owner 2026-10-02): no personal override, so the row exists only on the installation target, for a person who can edit it. */
+  private paletteRow() {
+    if (this.target !== 'installation' || !this.canEdit) return nothing;
+    const d = LOOK_DIALS.palette;
+    const current = this.draftInst.palette;
+    const disabled = this.busy;
+    const nameOf = (id: string) => (id === 'default' ? d.labelHe.default : paletteById(id)?.name.he ?? d.labelHe.default);
+    const ids = ['default', ...allPalettes().map((p) => p.id)];
+    return html`<div class="row" data-look-row="palette">
+      <span class="lbl">${d.nameHe}<span class="muted">${nameOf(current)}</span></span>
+      <span class="pal" role="group" aria-label=${d.nameHe}>
+        ${ids.map(
+          (id) => html`<button type="button" data-look-option=${`palette:${id}`} aria-pressed=${current === id ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick('palette', id)}>
+            <span class="dots" aria-hidden="true">${this.swatch(id).map((c) => html`<i style=${styleMap({ background: c })}></i>`)}</span>${nameOf(id)}
+          </button>`,
+        )}
+      </span>
+    </div>
+    <system-palette-editor .canEdit=${this.canEdit}></system-palette-editor>`;
   }
 
   render() {
@@ -396,7 +500,7 @@ export class SystemLook extends LitElement {
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}
       ${this.choiceRow('performance')}
-      ${this.choiceRow('palette')}
+      ${this.paletteRow()}
       <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
         data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}>
         <div class="pv-col">

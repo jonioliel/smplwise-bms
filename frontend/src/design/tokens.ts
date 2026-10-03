@@ -276,6 +276,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-lit-cool': lt('#ece4c9', '#e3e0cf'),
       '--sw-lit-soft': lt('rgba(255, 200, 87, 0.32)', 'rgba(255, 181, 71, 0.34)'),
       '--sw-on-lit': same('#2b1a05'),
+      '--sw-fill-edge': same('transparent'), // a 3px mark at the slider fill's end; a palette sets it where fill and track are under 3:1 (design/palette.ts)
       // eight decorative hues for icon rings and the gradient surface (decoration only, never meaning); a palette replaces them
       '--sw-hue-1': lt('#7b84eb', '#7b84eb'),
       '--sw-hue-2': lt('#e8456f', '#ef3464'),
@@ -286,6 +287,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-hue-7': lt('#5a6fd8', '#4f68d8'),
       '--sw-hue-8': lt('#7a9a2f', '#7d9b2a'),
       '--sw-ring-on-hue': same('#ffffff'),
+      // the gradient surface's washes (sw-pill): accent share at the start / end of the wash and of the lit part; a palette lowers them where its text would not read (design/palette.ts washShares)
+      '--sw-wash-start': same('40%'),
+      '--sw-wash-end': same('24%'),
+      '--sw-wash-lit': same('70%'),
       '--sw-cool': lt('#2f8fb8', '#4aa8d8'),
       '--sw-heat': lt('#e0662f', '#ff7a45'),
       // the pill family's sizes: the density dial rewrites them (design/look.ts DENSITY bundles)
