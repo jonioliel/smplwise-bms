@@ -64,7 +64,7 @@ async function startBatch(page: Page, chs: number[]) {
   await page.locator(`${SEL} [data-nvr-batch-next]`).click();
   await expect(page.locator(`${CONFIRM} [data-nvr-confirm]`)).toBeVisible();
   await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
-  await expect(page.locator(PROG)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(PROG)).toHaveCount(1, { timeout: 5000 });
   await expect(page.locator(`${PROG} [data-nvr-batch-list]`)).toBeVisible();
 }
 
@@ -164,7 +164,7 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     await expect(dlg.locator('[data-nvr-confirm-names] li')).toHaveText(['מצלמה 1', 'מצלמה 2', 'מצלמה 3']);
     await shot(page, 'batch-03-confirm');
     await dlg.locator('[data-nvr-cancel]').click();
-    await expect(page.locator(SEL)).toBeVisible(); // back in the checklist with the choice intact
+    await expect(page.locator(SEL)).toHaveCount(1); // back in the checklist with the choice intact
     await expect(page.locator(`${SEL} [data-nvr-batch-count]`)).toHaveText('נבחרו 3 מתוך 3');
     expect(bm.calls).toEqual([]);
     expect(st.writes).toEqual([]);
@@ -210,7 +210,7 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     await expect(toast(page).locator('[data-nvr-toast-text]')).toHaveText('נשמר ב־3 מצלמות', POLL);
     await toast(page).locator('[data-nvr-undo]').click();
     await expect(page.locator(CONFIRM)).toHaveCount(0);
-    await expect(page.locator(PROG)).toBeVisible();
+    await expect(page.locator(PROG)).toHaveCount(1);
     await expect.poll(() => batchCalls(bm, 'POST', '/rollback').length).toBe(1);
     expect(batchCalls(bm, 'POST', '/rollback')[0]).toEqual({ method: 'POST', path: 'nvr/stream-batches/batch-1/rollback', body: { confirm: true } });
     const prog = page.locator(PROG);
@@ -280,7 +280,7 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     await expect(dlg.locator('[data-nvr-confirm-names] li')).toHaveText(['מצלמה 1']);
     await shot(page, 'batch-10-undo-confirm');
     await dlg.locator('[data-nvr-cancel]').click();
-    await expect(page.locator(PROG)).toBeVisible(); // back to the result
+    await expect(page.locator(PROG)).toHaveCount(1); // back to the result
     expect(batchCalls(bm, 'POST', '/rollback')).toEqual([]);
     await prog.locator('[data-nvr-batch-undo]').click();
     await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
@@ -368,7 +368,7 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     await expect(toggleOf(page, 2)).toHaveAttribute('disabled', '');
     await expect(toggleOf(page, 2)).toHaveAttribute('title', 'מתבצע שינוי מרובה');
     await page.locator(`${PAGE} [data-nvr-batch-show]`).click();
-    await expect(page.locator(PROG)).toBeVisible();
+    await expect(page.locator(PROG)).toHaveCount(1);
     // it fails while the page is closed; reopening shows the finished result, once
     await page.goto('about:blank');
     d.step('failed');
@@ -542,9 +542,14 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     await expect(sel.locator('[data-nvr-batch-all]')).toHaveText(`בחר הכל (${matches})`);
     await sel.locator('[data-nvr-batch-all]').click();
     await expect(sel.locator('[data-nvr-batch-count]')).toContainText(`נבחרו ${matches + 2} מתוך 300`);
+    // every camera named "מצלמה ..." (299; the gate camera was ticked already): 300 of 300, no cap
+    await sel.locator('[data-nvr-batch-search]').fill('מצלמה');
+    await expect(sel.locator('[data-nvr-batch-all]')).toHaveText('בחר הכל (299)');
+    await sel.locator('[data-nvr-batch-all]').click();
+    await expect(sel.locator('[data-nvr-batch-count]')).toContainText('נבחרו 300 מתוך 300');
     await sel.locator('[data-nvr-batch-next]').click();
     const dlg = page.locator(CONFIRM);
-    const n = matches + 2;
+    const n = 300;
     await expect(dlg).toHaveAttribute('heading', `לכבות SVC ב־${n} מצלמות?`);
     await expect(dlg.locator('[data-nvr-confirm-count]')).toHaveText(`${n} מצלמות`);
     await dlg.locator('details summary').click();
@@ -558,14 +563,16 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     expect(batchCalls(bm, 'POST')[0].body.targets).toHaveLength(n);
     const rows = await page.locator(`${PROG} [data-nvr-batch-item]`).count();
     expect(rows).toBeLessThan(40);
-    d.run(60);
-    await expect(prog).toHaveAttribute('heading', `60 מתוך ${n}`, POLL);
-    d.step('failed'); // camera #61 fails: the list scrolls to it and the header names it
+    d.run(150);
+    await expect(prog).toHaveAttribute('heading', `150 מתוך ${n}`, POLL);
+    // the list follows the camera in flight (a window far below the start)
+    await expect(item(page, 150)).toBeAttached();
+    d.step('failed'); // camera #151 fails: the list scrolls to it and the header names it
     await expect(prog).toHaveAttribute('data-state', 'failed', POLL);
-    await expect(item(page, 60)).toBeAttached();
-    await expect(item(page, 60)).toHaveAttribute('data-status', 'refused');
+    await expect(item(page, 150)).toBeAttached();
+    await expect(item(page, 150)).toHaveAttribute('data-status', 'refused');
     expect(await page.locator(`${PROG} [data-nvr-batch-item]`).count()).toBeLessThan(40);
-    await expect(prog).toHaveAttribute('subheading', `נשמר ב־60 מצלמות · נכשל במצלמה אחת · לא בוצע ב־${n - 61} מצלמות`);
+    await expect(prog).toHaveAttribute('subheading', `נשמר ב־150 מצלמות · נכשל במצלמה אחת · לא בוצע ב־${n - 151} מצלמות`);
     await shot(page, 'batch-19-hundreds-failed');
   });
 });
@@ -600,7 +607,7 @@ test.describe('CR-020 S2c phone and layout facts (mocked backend)', () => {
     await page.locator(`${CONFIRM} details summary`).click();
     await fits(CONFIRM);
     await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
-    await expect(page.locator(PROG)).toBeVisible();
+    await expect(page.locator(PROG)).toHaveCount(1);
     await fits(PROG);
     d.step();
     d.step('failed');
