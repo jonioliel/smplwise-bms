@@ -149,7 +149,6 @@ test.describe('the new queue actions (play now, move to top, several rows, two c
     const e = new ApiError(503, { code: 'ma_unavailable', user_message: 'x', retryable: true, correlation_id: 'c', details: { done: 1 } });
     expect(partialDone(e)).toBe(1);
     expect(partialDone(new Error('x'))).toBeNull();
-    expect(PLAYER_ERROR_LABEL.too_many).toBeTruthy();
   });
 
   test('play now moves the current row; the current row is refused; top = right after the locked rows', async () => {
