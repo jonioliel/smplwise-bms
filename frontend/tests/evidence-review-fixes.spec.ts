@@ -81,7 +81,8 @@ test.describe('live review fixes (SW A)', () => {
     const cn = page.locator('system-setup');
     await expect(cn.locator('[data-connections]')).toBeVisible({ timeout: 30000 });
     await expect(cn.locator('[data-connections]')).toContainText(String(health.home_assistant.entities));
-    await expect(cn.locator('[data-connection-options]')).toContainText('nvr_host');
+    await expect(cn.locator('[data-connection-options]')).toContainText('go2rtc_url');
+    await expect(cn.locator('[data-connection-options]')).not.toContainText('nvr_host'); // CR-022: the NVR connection is stored by Arx
     await page.screenshot({ path: path.join(OUT, `connections-${testInfo.project.name}.png`), fullPage: true });
     await page.goto('/?design=a#/system/audit');
     const au = page.locator('system-audit');

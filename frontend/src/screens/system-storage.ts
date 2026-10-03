@@ -366,7 +366,7 @@ export class SystemStorage extends LitElement {
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
       ${this.renderDiskGuard()}
       ${d ? this.renderLocal(d) : nothing}
-      <sw-state-panel data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת עם Home Assistant בלבד: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא. להוספת NVR: nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעלה מחדש."></sw-state-panel>
+      <sw-state-panel data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת ללא NVR: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא."></sw-state-panel>
     </sw-page>`;
   }
 

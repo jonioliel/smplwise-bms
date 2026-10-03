@@ -209,6 +209,9 @@ def test_f5_a_stored_host_that_fails_the_policy_is_not_used(settings, fake, host
     c = TestClient(app)
     assert c.get(API, headers=as_user("joni")).json()["state"] == "refused"
     assert c.get("/api/v1/health").json()["nvr"]["state"] == "refused"
+    # integration with slice C's restart_pending case: the row loaded at start-up is refused, not "waiting for a restart"
+    step = next(s for s in c.get("/api/v1/setup/state", headers=as_user("joni")).json()["steps"] if s["id"] == "nvr")
+    assert step["status"] == "failed" and step["problem"]["code"] == "connection_refused"
 
 
 def test_f5_an_allowed_stored_host_is_used(settings, fake):
