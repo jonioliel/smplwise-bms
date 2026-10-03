@@ -30,9 +30,13 @@ export const bubbleChrome = css`
     border: 0;
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface-2);
-    padding: 3px;
+    padding: 0;
     gap: 2px;
     box-shadow: none;
+  }
+  /* the screens' own sw-tabs rows (the settings hub, the look card) take the touch dial as their hit height */
+  :host([data-skin='bubble']) {
+    --sw-tab-min-h: var(--sw-touch-desktop, 44px);
   }
   :host([data-skin='bubble']) .layouts button,
   :host([data-skin='bubble']) .rangepick button,
@@ -45,10 +49,15 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) .sevseg button {
     border: 0;
     border-radius: var(--sw-r-pill);
-    min-block-size: calc(var(--sw-touch-desktop, 44px) - 6px);
-    min-inline-size: calc(var(--sw-touch-desktop, 44px) - 6px);
+    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop, 44px);
+    block-size: auto;
     box-shadow: none;
     background: transparent;
+  }
+  /* chip rows wrap instead of leaving their card (the notifications' channel chips at 320-390) */
+  :host([data-skin='bubble']) .chs {
+    flex-wrap: wrap;
   }
   :host([data-skin='bubble']) .layouts button.on,
   :host([data-skin='bubble']) .rangepick button.on,
@@ -272,8 +281,11 @@ export const bubbleChrome = css`
     :host([data-skin='bubble']) .pages button,
     :host([data-skin='bubble']) .range button,
     :host([data-skin='bubble']) .sevseg button {
-      min-block-size: 38px;
-      min-inline-size: 38px;
+      min-block-size: 44px;
+      min-inline-size: 44px;
+    }
+    :host([data-skin='bubble']) {
+      --sw-tab-min-h: 44px;
     }
     :host([data-skin='bubble']) .chips button,
     :host([data-skin='bubble']) .colbtn,
