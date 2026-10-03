@@ -136,7 +136,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # group over the whole building needs media.bulk as well. Not sensitive. Saving a group (the presets) is media.layout.
     "media.group": "קיבוץ רמקולים וקבוצות שמורות",
     # CR-016 phase 2b (the direct Music Assistant connection, CR 17.4): media.browse (operator and above, the media.group pattern) opens the library tab of a
-    # player - browse and search; starting an item stays media.control. media.queue (system_admin only: default deny for every other built-in role) moves,
+    # player - browse and search; starting an item stays media.control. media.queue (operator, site_admin, system_admin, like media.browse; a custom role may add it) moves,
     # deletes, plays next and clears queue rows - with media.control, and at every follower's anchor when the queue is a live leader's. Neither is sensitive.
     "media.browse": "עיון וחיפוש בספריית המוזיקה",
     "media.queue": "עריכת תור הניגון",

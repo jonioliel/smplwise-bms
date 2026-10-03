@@ -609,7 +609,7 @@ refetching panel needs; reserved).
 | Permission | Label | Allows | Default roles | Sensitive |
 |---|---|---|---|---|
 | `media.browse` (new) | עיון וחיפוש בספריית המוזיקה | the library tab (browse + search) of a device, at its anchor; starting an item stays `media.control` (`play_item`) | operator, site_admin, system_admin (the `media.group` pattern) | no |
-| `media.queue` (new) | עריכת תור הניגון | move, delete, play next, clear; needs `media.control` too; on a live leader with followers `media.queue` at every follower's anchor | **system_admin only** (default deny for every other built-in role; a custom role may add it) | no |
+| `media.queue` (new) | עריכת תור הניגון | move, delete, play next, clear; needs `media.control` too; on a live leader with followers `media.queue` at every follower's anchor | operator, site_admin, system_admin (every built-in role that controls multimedia; viewer, kiosk and editor do not; a custom role may add it) | no |
 
 Reading the full queue list needs `media.read` (as up next). No migration: nobody loses a capability, no custom role changes. (Next free
 migration number if one is ever needed: **0051** - 0045-0047 CR-018 on `g0/intake`, 0048 on unmerged CR-018 branches, 0049
@@ -669,7 +669,7 @@ they have a different authority (the direct connection) and permission (`media.q
 
 - Q1 (credentials model): a dedicated MA `user` account + `player_filter` + a token pasted by the installer (adopted) vs. reusing an
   existing MA account. Default: dedicated account; the settings warn when the account sees more players than the product manages.
-- Q2 (`media.queue` default): system_admin only (adopted) vs. also operator / site_admin.
+- Q2 (`media.queue` default): resolved as built - operator, site_admin and system_admin (the earlier proposal was system_admin only).
 - Q3 (search without a token): add a `search` argument to the bridge's `media_query library` (bridge 0.6.0) so search works through Home
   Assistant without the direct connection - recommended for 0.1.153.
 - Q4 (network): confirm the MA server port is reachable from the add-on container (the workstation could not reach it, 17.1).
