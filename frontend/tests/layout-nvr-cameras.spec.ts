@@ -10,17 +10,41 @@ import { install, newMock } from './nvr-cameras-write-mock';
 // One project runs the whole sweep. Run on the runner (dev server): ~/run_remote.sh spec <branch> tests/layout-nvr-cameras.spec.ts --project=desktop
 const WIDTHS = [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
 const THEMES = ['light', 'dark'] as const;
+// bubble: the guard's own skin (its touch dial makes 44 px controls); classic: the guard's overflow / escape / clipped classes only
+// (classic components are 26-32 px by design, so "target" is judged in bubble and on the screen's own controls below)
+const SKINS = ['bubble', 'classic'] as const;
 const PAGE = 'sw-app system-security system-security-cameras';
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 // decorative / own-layer items the guard must not measure: the toast (floats by design), the switch's inner button (its host is checked), the drawer's focus traps
 const SKIP = 'nvr-undo-toast, sw-toggle, .trap, .vh';
 
-async function check(page: Page, results: Finding[], ctx: string) {
+/** Only this screen is measured (`within`): the shell's own tabs and navigation have their own specs. */
+async function check(page: Page, results: Finding[], ctx: string, keep: Finding['cls'][]) {
   await settle(page);
   // the desktop touch dial of the guard: 32 px (the cameras table is a dense settings table; touch layouts need 44 px)
   await page.evaluate(() => document.documentElement.style.setProperty('--sw-touch-desktop', '32'));
-  results.push(...(await page.evaluate(inPageCheck, { ctx, skip: SKIP, roots: ['system-security-cameras'] })));
+  const found = await page.evaluate(inPageCheck, { ctx, skip: SKIP, roots: ['system-security-cameras'], within: 'system-security-cameras' });
+  results.push(...found.filter((f) => keep.includes(f.cls)));
+}
+
+/** The editor is a modal drawer in the browser's top layer: the guard walks the composed tree, where the shell's clipped column is its ancestor, so
+ * "clipped" / "floating" are false positives there. Its own box is measured here instead: inside the viewport, no horizontal scroll, every control inside the panel. */
+async function drawerCheck(page: Page, results: Finding[], ctx: string) {
+  const bad = await page.locator('sw-app system-security system-security-cameras nvr-camera-editor sw-drawer').evaluate((el) => {
+    const out: string[] = [];
+    const dlg = el.shadowRoot!.querySelector('dialog')!;
+    const r = dlg.getBoundingClientRect();
+    if (r.left < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5 || r.top < -0.5) out.push(`panel outside the viewport (${Math.round(r.left)}..${Math.round(r.right)} of ${innerWidth}, bottom ${Math.round(r.bottom)} of ${innerHeight})`);
+    const body = el.shadowRoot!.querySelector('.body') as HTMLElement;
+    if (body.scrollWidth > body.clientWidth + 1) out.push(`body scrolls horizontally (${body.scrollWidth} > ${body.clientWidth})`);
+    for (const c of el.querySelectorAll('select, input, sw-toggle, sw-button')) {
+      const b = c.getBoundingClientRect();
+      if (b.width && (b.left < r.left - 1 || b.right > r.right + 1)) out.push(`${c.tagName.toLowerCase()} outside the panel`);
+    }
+    return out;
+  });
+  for (const d of bad) results.push({ cls: 'overflow', el: 'editor drawer', detail: d, ctx });
 }
 
 /** The switch's host box (what a finger hits) is at least 44 x 44 in touch layouts; its padded box counts. */
@@ -54,10 +78,11 @@ test.describe('layout guard: the cameras screen with its write controls', () => 
     let runs = 0;
     const st = newMock();
     await install(page, st);
-    for (const theme of THEMES) {
+    for (const [skin, theme] of SKINS.flatMap((k) => THEMES.map((t) => [k, t] as const))) {
+      const own: Finding['cls'][] = skin === 'bubble' ? ['escape', 'overflow', 'floating', 'clipped', 'target'] : ['escape', 'overflow', 'clipped'];
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto('about:blank');
-      await page.goto(`/?design=a&scheme=${theme}#/system/security/cameras`);
+      await page.goto(`/?design=a&skin=${skin}&scheme=${theme}#/system/security/cameras`);
       await page.waitForSelector('sw-app');
       await expect(page.locator(`${PAGE} [data-nvr-cameras]`)).toHaveAttribute('data-state', 'ready');
       await expect(page.locator(`${PAGE} sw-toggle[data-svc-toggle]`).first()).toBeAttached();
@@ -66,9 +91,9 @@ test.describe('layout guard: the cameras screen with its write controls', () => 
       for (const w of WIDTHS) {
         await page.setViewportSize({ width: w, height: height(w) });
         await page.waitForTimeout(150);
-        const ctx = `${theme} ${w}`;
+        const ctx = `${skin} ${theme} ${w}`;
         runs++;
-        await check(page, results, `${ctx} list`);
+        await check(page, results, `${ctx} list`, own);
         await hostTargets(page, results, `${ctx} list`);
         const phone = w < 768;
         const scope = `${PAGE} ${phone ? '[data-nvr-cards]' : '[data-nvr-table]'}`;
@@ -79,14 +104,15 @@ test.describe('layout guard: the cameras screen with its write controls', () => 
         await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-confirm]')).toBeVisible();
         await page.locator('sw-dialog[open][data-nvr-confirm-dialog] details summary').click();
         runs++;
-        await check(page, results, `${ctx} confirm`);
+        await check(page, results, `${ctx} confirm`, own);
         await page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-cancel]').click();
         await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog]')).toHaveCount(0);
         // the editor (a modal drawer: side panel / bottom sheet)
         await page.locator(`${scope} ${phone ? '[data-stream-card]' : 'tr[data-stream-row]'}[data-camera="nvr-1:1"][data-stream="101"] button[data-edit-stream]`).click();
         await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open] [data-nvr-editor-form]`)).toBeVisible();
         runs++;
-        await check(page, results, `${ctx} editor`);
+        await drawerCheck(page, results, `${ctx} editor`);
+        if (skin === 'bubble') await check(page, results, `${ctx} editor`, ['target']);
         await page.keyboard.press('Escape');
         await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`)).toHaveCount(0);
       }
