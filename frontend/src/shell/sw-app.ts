@@ -82,7 +82,7 @@ import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
 import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
 import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
-import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
+import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
@@ -113,7 +113,7 @@ import '../components/sw-page';
 @customElement('sw-app')
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
-  @state() private session: Session = { mode: 'loading', me: null, error: null };
+  @state() private session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
   /** T071: "complete the setup" for a system administrator while wizard steps remain; dismissed per browser session. */
