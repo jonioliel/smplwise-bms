@@ -17,7 +17,7 @@
  * Backend validation: services/dd_style.py.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
-import { DD_STYLE_IDS, type DdStyle } from '../components/sw-dropdown';
+import { DD_STYLE_IDS, type DdStyle } from '../components/dd-style';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';

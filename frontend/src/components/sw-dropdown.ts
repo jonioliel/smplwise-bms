@@ -8,8 +8,8 @@ import type { IconName } from './sw-icon';
  * skin's resting style; nothing changes until a style is chosen). The styles live HERE, not in the skins: tokens only, so the four
  * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
  */
-export type DdStyle = 'auto' | 'pill' | 'field' | 'underline' | 'text' | 'prefix' | 'tonal';
-export const DD_STYLE_IDS: readonly DdStyle[] = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal'];
+import { DD_STYLE_IDS, type DdStyle } from './dd-style';
+export { DD_STYLE_IDS, type DdStyle };
 /** A list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items). */
 export const DD_SEARCH_MIN_ITEMS = 8;
 type Present = 'pop' | 'sheet' | 'centred' | 'inline';
