@@ -317,7 +317,7 @@ test.describe('NVR connection form (settings card)', () => {
     await expect(form.locator('[data-conn-summary]')).toContainText('ללא NVR');
     await expect(page.locator(BANNER)).toBeVisible();
     // the server's own 409 (a vendor change attempted while cameras exist) shows the same line
-    m.view = { ...m.view, vendor: 'hikvision', vendor_locked: false, host: 'nvr.fake.test', has_password: true, cameras: 4 };
+    m.view = { ...m.view, vendor: 'hikvision', vendor_locked: false, host: 'nvr.fake.test', http_port: 80, rtsp_port: 554, username: 'viewer', has_password: true, cameras: 4 };
     m.saveFail = { status: 409, body: ENVELOPE('remove_first', 'יש להסיר את ה־NVR לפני החלפת סוג.') };
     await page.reload();
     await expect(form.locator('[data-conn-edit]')).toBeVisible({ timeout: 20000 });

@@ -43,8 +43,15 @@ export class NvrRestartBanner extends LitElement {
     if (this.pending) void this.learnMode();
   };
 
+  private readonly mq = window.matchMedia('(max-width: 767px)');
+  private readonly onMq = () => this.requestUpdate();
+  private get btn(): 'sm' | 'lg' {
+    return this.mq.matches ? 'lg' : 'sm';
+  }
+
   connectedCallback() {
     super.connectedCallback();
+    this.mq.addEventListener('change', this.onMq);
     window.addEventListener('sw-restart-pending', this.onAnnounce);
     this.stopSession = onSession(() => {
       const me: Me | null = session.me;
@@ -57,6 +64,7 @@ export class NvrRestartBanner extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('sw-restart-pending', this.onAnnounce);
+    this.mq.removeEventListener('change', this.onMq);
     this.stopSession?.();
     window.clearTimeout(this.timer);
   }
@@ -123,11 +131,11 @@ export class NvrRestartBanner extends LitElement {
     }
     if (this.phase === 'manual') {
       return html`<div class="bar" role="alert" data-restart-banner data-restart-phase="manual"><sw-icon name="warning" size=${16}></sw-icon><span data-restart-manual>המערכת לא חזרה. הפעילו ידנית.</span>
-        <sw-button size="sm" data-restart-again @click=${() => this.again()}>בדקו שוב</sw-button></div>`;
+        <sw-button size=${this.btn} data-restart-again @click=${() => this.again()}>בדקו שוב</sw-button></div>`;
     }
     return html`<div class="bar" role="status" data-restart-banner data-restart-phase="idle"><sw-icon name="warning" size=${16}></sw-icon>
         <span data-restart-text>${this.manualOnly ? 'יש להפעיל מחדש את השירות כדי להחיל את השינוי' : 'נדרשת הפעלה מחדש כדי להחיל את השינוי'}</span>
-        ${this.manualOnly ? nothing : html`<sw-button size="sm" variant="primary" data-restart-open @click=${() => (this.phase = 'confirm')}>הפעל מחדש</sw-button>`}
+        ${this.manualOnly ? nothing : html`<sw-button size=${this.btn} variant="primary" data-restart-open @click=${() => (this.phase = 'confirm')}>הפעל מחדש</sw-button>`}
         ${this.error ? html`<span class="err" data-restart-error>${this.error}</span>` : nothing}</div>
       <sw-dialog ?open=${this.phase === 'confirm'} heading="הפעלה מחדש" subheading="המערכת לא תהיה זמינה לרגעים אחדים" data-restart-dialog @close=${() => (this.phase = 'idle')}>
         <div slot="footer"><sw-button variant="primary" data-restart-confirm @click=${() => { this.phase = 'idle'; void this.run(); }}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${() => (this.phase = 'idle')}>ביטול</sw-button></div>
@@ -169,6 +177,7 @@ export class NvrRestartBanner extends LitElement {
     @media (max-width: 767px) {
       .bar {
         margin: 8px 12px 0;
+        padding-inline-end: 92px; /* the floating search / status corner is on the phone too */
       }
     }
   `;

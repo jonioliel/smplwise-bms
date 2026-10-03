@@ -71,8 +71,21 @@ export class NvrConnectionForm extends LitElement {
   /** Someone else changed the connection meanwhile (409 stale): the form offers "טען מחדש" and sends nothing until then. */
   @state() private stale = false;
 
+  /** Phone: 44 px targets (the large button size) - the product's touch rule; elsewhere the compact size. */
+  private readonly mq = window.matchMedia('(max-width: 767px)');
+  private readonly onMq = () => this.requestUpdate();
+  private get btn(): 'sm' | 'lg' {
+    return this.mq.matches ? 'lg' : 'sm';
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.mq.removeEventListener('change', this.onMq);
+  }
+
   connectedCallback() {
     super.connectedCallback();
+    this.mq.addEventListener('change', this.onMq);
     if (isApi() && can('system.configure')) void this.load();
   }
 
@@ -290,7 +303,7 @@ export class NvrConnectionForm extends LitElement {
   /** Write-only: a stored password is "הוגדרה סיסמה" with "שנה"; the input only ever holds what is being typed now. */
   private passwordField(f: Vendor['fields'][number]) {
     if (this.keepsStoredPassword) {
-      return html`<div class="pwset" data-conn-password-set><span>${f.label}: הוגדרה סיסמה</span><sw-button size="sm" variant="ghost" data-conn-password-change @click=${() => (this.changePassword = true)}>שנה</sw-button></div>`;
+      return html`<div class="pwset" data-conn-password-set><span>${f.label}: הוגדרה סיסמה</span><button type="button" class="linkbtn" data-conn-password-change @click=${() => (this.changePassword = true)}>שנה</button></div>`;
     }
     return html`<sw-field label=${f.label}><input type="password" data-ltr data-conn-field="password" data-conn-password autocomplete="new-password" .value=${this.draft.password} @input=${(e: Event) => this.setDraft({ password: (e.target as HTMLInputElement).value })} /></sw-field>`;
   }
@@ -311,10 +324,10 @@ export class NvrConnectionForm extends LitElement {
       ${spec && spec.fields.length ? html`<div class="grid">${spec.fields.map((f) => this.field(f))}</div>` : nothing}
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       <div class="actions">
-        ${d.vendor && d.vendor !== 'none' ? html`<sw-button size="sm" icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
-        <sw-button size="sm" variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== ''} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button>
-        ${this.offerUntested ? html`<sw-button size="sm" variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>שמור בכל זאת</sw-button>` : nothing}
-        ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>ביטול</sw-button>` : nothing}
+        ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
+        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== ''} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button>
+        ${this.offerUntested ? html`<sw-button size=${this.btn} variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>שמור בכל זאת</sw-button>` : nothing}
+        ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size=${this.btn} variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>ביטול</sw-button>` : nothing}
       </div>
     </div>`;
   }
@@ -329,12 +342,12 @@ export class NvrConnectionForm extends LitElement {
       ${!this.editing && hasConnection ? this.summary(v) : nothing}
       ${v.legacy_options_differ && !this.editing ? html`<div class="note" data-conn-legacy>פרטי חיבור ישנים בתשתית המערכת אינם בשימוש</div>` : nothing}
       ${this.editing ? this.form(v) : html`<div class="actions">
-          <sw-button size="sm" icon="edit" data-conn-edit @click=${() => { this.seed(); this.editing = true; this.msg = null; }}>עריכה</sw-button>
-          ${v.vendor && v.vendor !== 'none' ? html`<sw-button size="sm" variant="danger" icon="trash" data-conn-remove @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button>` : nothing}
+          <sw-button size=${this.btn} icon="edit" data-conn-edit @click=${() => { this.seed(); this.editing = true; this.msg = null; }}>עריכה</sw-button>
+          ${v.vendor && v.vendor !== 'none' ? html`<sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button>` : nothing}
         </div>`}
-      ${this.editing && hasConnection && v.vendor !== 'none' && this.context === 'settings' ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="trash" data-conn-remove ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button></div>` : nothing}
+      ${this.editing && hasConnection && v.vendor !== 'none' && this.context === 'settings' ? html`<div class="actions"><sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button></div>` : nothing}
       ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-conn-msg>${this.msg.text}</div>` : nothing}
-      ${this.stale ? html`<div class="actions"><sw-button size="sm" icon="refresh" data-conn-reload @click=${() => void this.load()}>טען מחדש</sw-button></div>` : nothing}
+      ${this.stale ? html`<div class="actions"><sw-button size=${this.btn} icon="refresh" data-conn-reload @click=${() => void this.load()}>טען מחדש</sw-button></div>` : nothing}
       ${this.untestedOpen
         ? html`<sw-dialog open heading="שמירה בלי בדיקת חיבור" subheading="לא ניתן להתחבר ל־NVR כרגע" data-conn-untested-dialog @close=${() => (this.untestedOpen = false)}>
             <sw-field label=${`לאישור הקלידו „${SAVE_WORD}”`}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
@@ -423,6 +436,22 @@ export class NvrConnectionForm extends LitElement {
       color: var(--sw-text-2);
       min-block-size: 44px;
     }
+    .linkbtn {
+      all: unset;
+      box-sizing: border-box;
+      cursor: pointer;
+      color: var(--sw-accent-text, var(--sw-accent));
+      font-weight: var(--sw-fw-semibold);
+      padding-inline: 12px;
+      min-inline-size: 44px;
+      min-block-size: 44px;
+      display: inline-grid;
+      place-items: center;
+    }
+    .linkbtn:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      border-radius: 6px;
+    }
     .chk {
       display: flex;
       align-items: center;
@@ -430,6 +459,10 @@ export class NvrConnectionForm extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 767px) {
+      input:not([type='checkbox']),
+      select {
+        min-block-size: 44px;
+      }
       .grid {
         grid-template-columns: 1fr;
       }
