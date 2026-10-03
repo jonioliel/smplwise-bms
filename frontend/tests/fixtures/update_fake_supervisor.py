@@ -21,6 +21,8 @@ Switches (attributes, set from a test):
     update_status          status of the update call (200, 400, 409, 500 ...)
     kill_on_update         True: the update call is received, then the connection closes without an answer (the container is replaced)
     update_job             True: the update answers `{"job_id": ...}`; `job_done` / `job_errors` / `job_backup_done` shape GET /jobs/info
+    job_listed             False: GET /jobs/info lists no job at all (the Supervisor is not working on an update)
+    backup_errors          errors of the backup child job (a backup that ran and failed)
     core_version, core_state, core_info_status   GET /core/info
     core_check_status      status of POST /core/check (400 = the configuration is invalid)
     core_restart_status    status of POST /core/restart; `core_restart_drop` closes the connection after receiving it
@@ -65,6 +67,8 @@ class FakeSupervisor:
         self.job_done = False
         self.job_errors: list[dict] = []
         self.job_backup_done = False
+        self.job_listed = True
+        self.backup_errors: list[dict] = []
         self.core_version = "2026.10.0"
         self.core_state = "running"
         self.core_info_status = 200
@@ -153,9 +157,9 @@ class FakeSupervisor:
                         return
                     return self._ok({"job_id": JOB_ID} if outer.update_job else {})
                 if key == ("GET", "/jobs/info"):
-                    children = [{"uuid": "c" * 32, "name": "backup_manager_partial_backup", "done": outer.job_backup_done, "errors": [], "child_jobs": []}]
+                    children = [{"uuid": "c" * 32, "name": "backup_manager_partial_backup", "done": outer.job_backup_done, "errors": outer.backup_errors, "child_jobs": []}]
                     job = {"uuid": JOB_ID, "name": "addon_manager_update", "done": outer.job_done, "errors": outer.job_errors, "child_jobs": children}
-                    return self._ok({"jobs": [job]})
+                    return self._ok({"jobs": [job] if outer.job_listed else []})
                 if key == ("GET", "/core/info"):
                     if outer._down_left > 0:
                         outer._down_left -= 1

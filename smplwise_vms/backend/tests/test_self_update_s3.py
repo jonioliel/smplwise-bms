@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 from conftest import as_user
-from test_self_update import NEWER, j, sup, world  # noqa: F401 - fixtures
+from test_self_update import API, NEWER, sup, world  # noqa: F401 - fixtures
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "frontend" / "tests" / "fixtures"))
 from update_fake_supervisor import JOB_ID, TOKEN  # noqa: E402
@@ -22,6 +22,13 @@ from smplwise import __version__  # noqa: E402
 from smplwise import remote_channel  # noqa: E402
 from smplwise.db import set_setting  # noqa: E402
 from smplwise.services import addon_restart, bridge_install, nvr_system, platform_restart, self_update, update_runs  # noqa: E402
+
+SAME_ORIGIN = {"Sec-Fetch-Site": "same-origin"}  # what every current browser sends on a fetch from an Arx page
+
+
+def j(c, method, path, user="joni", **kw):
+    return getattr(c, method)(f"{API}{path}", headers={**as_user(user), **SAME_ORIGIN}, **kw)
+
 
 SECRET_TEXT = ("secret detail", "Invalid config")
 KEY = "k-0000000001"
@@ -97,13 +104,14 @@ def updated_process(monkeypatch, app, settings, version):
 # ================================================================ unit: the single door
 
 EXPECTED_ALLOWED = {("GET", "/addons/self/info"), ("POST", "/store/reload"), ("POST", "/store/addons/{slug}/update"), ("GET", "/jobs/info"),
-                    ("GET", "/core/info"), ("POST", "/core/check"), ("POST", "/core/restart"), ("POST", "/addons/self/options"), ("POST", "/addons/self/restart")}
+                    ("GET", "/core/info"), ("POST", "/core/check"), ("POST", "/core/restart"), ("POST", "/addons/self/options"), ("POST", "/addons/self/restart"),
+                    ("POST", "/discovery")}
 
 
 def test_the_allow_list_is_exact(settings, sup):  # noqa: F811
     assert self_update.ALLOWED == EXPECTED_ALLOWED
     assert self_update.BODY_KEYS == {("POST", "/store/addons/{slug}/update"): {"backup", "background"}, ("POST", "/core/restart"): set(),
-                                     ("POST", "/addons/self/options"): {"options"}}
+                                     ("POST", "/addons/self/options"): {"options"}, ("POST", "/discovery"): {"service", "config"}}
     refused = [
         ("POST", "/store/addons/{slug}/update", {"backup": True, "background": True}, "../x"),
         ("POST", "/store/addons/{slug}/update", {"backup": True, "background": True}, "a/b"),
@@ -258,9 +266,10 @@ def test_body_refusals_are_audited_and_send_nothing(rig, sup):  # noqa: F811
         ({"json": apply_body(), "headers": {**as_user("joni"), "Sec-Fetch-Site": "same-site"}}, 403, "cross_site_refused"),
     ]
     for kw, status, code in cases:
-        r = c.post("/api/v1/system/update/apply", **({"headers": as_user("joni")} | kw))
+        kw = {**kw, "headers": {**SAME_ORIGIN, **kw["headers"]}} if "headers" in kw else kw
+        r = c.post("/api/v1/system/update/apply", **({"headers": {**as_user("joni"), **SAME_ORIGIN}} | kw))
         assert (r.status_code, r.json()["code"]) == (status, code), (kw, r.text)
-    r = c.post("/api/v1/system/update/restart-platform", headers=as_user("joni"), json={"confirm": False, "idempotency_key": KEY})
+    r = c.post("/api/v1/system/update/restart-platform", headers={**as_user("joni"), **SAME_ORIGIN}, json={"confirm": False, "idempotency_key": KEY})
     assert r.status_code == 422 and r.json()["code"] == "confirm_required"
     assert sup.log == [] and drain() == 0
     rows = [r for r in audit_rows(app) if r["action"] in ("system.update.apply", "system.update.restart_platform")]
@@ -327,7 +336,10 @@ def test_on_startup_with_the_old_version_is_version_unchanged(rig, sup, monkeypa
     run_id = j(c, "post", "/apply", json=apply_body()).json()["run_id"]
     sup.kill_on_update = True
     drain()
-    assert updated_process(monkeypatch, app, app.state.settings, __version__) == "version_unchanged"
+    sup.installed, sup.job_listed = __version__, False  # the Supervisor runs no update job and still reports the old version
+    assert updated_process(monkeypatch, app, app.state.settings, __version__) == "resumed", "no verdict at start: the job state decides"
+    assert run_row(app, run_id)["finished_at"] is None
+    drain()
     row = run_row(app, run_id)
     assert (row["state"], row["error_code"]) == ("failed", "version_unchanged")
 
@@ -458,7 +470,7 @@ def test_a_stale_run_is_abandoned_and_unblocks(rig, sup, monkeypatch):  # noqa: 
     sup.latest = NEWER
     run_id = j(c, "post", "/apply", json=apply_body()).json()["run_id"]
     pending.clear()
-    later = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=21)
+    later = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=update_runs.UPDATE_TIMEOUT_S + 60)  # past the ceiling
     monkeypatch.setattr(update_runs, "_now", lambda: later)
     body = j(c, "get", f"/runs/{run_id}").json()
     assert body["state"] == "abandoned" and body["error_code"] == "timeout" and body["finished_at"]
@@ -479,7 +491,7 @@ def test_apply_refused_while_an_nvr_write_is_pending(rig, sup):  # noqa: F811
     assert j(c, "post", "/apply", json=apply_body()).json()["code"] == "nvr_write_in_progress"
 
 
-def test_no_database_lock_is_held_while_the_infrastructure_is_called(rig, sup, settings):  # noqa: F811
+def test_no_database_lock_is_held_while_the_infrastructure_is_called(rig, sup, settings, monkeypatch):  # noqa: F811
     app, c, drain, *_ = rig
     sup.latest = NEWER
     results = []
@@ -496,6 +508,7 @@ def test_no_database_lock_is_held_while_the_infrastructure_is_called(rig, sup, s
             raw.close()
 
     sup.hook = try_write
+    monkeypatch.setattr(update_runs, "POLL_S", 900.0)  # the job never ends here: few polls up to the ceiling
     assert j(c, "post", "/apply", json=apply_body()).status_code == 202
     drain()
     assert j(c, "post", "/restart-platform", json={"confirm": True, "idempotency_key": "k-0000000007"}).status_code in (202, 409)
@@ -506,7 +519,7 @@ def test_no_database_lock_is_held_while_the_infrastructure_is_called(rig, sup, s
 # ================================================================ restart-platform
 
 def restart(c, key=KEY, user="joni", **headers):
-    return c.post("/api/v1/system/update/restart-platform", headers={**as_user(user), **headers}, json={"confirm": True, "idempotency_key": key})
+    return c.post("/api/v1/system/update/restart-platform", headers={**as_user(user), **SAME_ORIGIN, **headers}, json={"confirm": True, "idempotency_key": key})
 
 
 def test_platform_restart_end_to_end(rig, sup, monkeypatch):  # noqa: F811
