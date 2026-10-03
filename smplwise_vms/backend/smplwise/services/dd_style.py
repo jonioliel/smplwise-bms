@@ -15,9 +15,9 @@ DEFAULT_STYLE = "auto"
 
 
 def normalize_style(value: Any) -> str:
-    """One of STYLES (surrounding spaces ignored); anything else is refused."""
-    if isinstance(value, str) and value.strip() in STYLES:
-        return value.strip()
+    """Exactly one of STYLES (no trimming, no case folding: the settings route's pattern accepts the same strings); else refused."""
+    if isinstance(value, str) and value in STYLES:
+        return value
     raise ValueError(f"dropdown style must be one of {', '.join(STYLES)}")
 
 

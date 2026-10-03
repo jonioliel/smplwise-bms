@@ -17,7 +17,6 @@ def test_normalize_styles_and_groups():
     assert dd_style.STYLES == ("auto", "pill", "field", "underline", "text", "prefix", "tonal")
     for s in dd_style.STYLES:
         assert dd_style.normalize_style(s) == s
-    assert dd_style.normalize_style(" tonal ") == "tonal"
     assert dd_style.normalize_groups({}) == {}
     assert dd_style.normalize_groups({"settings": "text", "home": "field"}) == {"home": "field", "settings": "text"}
     for bad in BAD_STYLES:
@@ -26,6 +25,27 @@ def test_normalize_styles_and_groups():
     for bad in BAD_GROUPS:
         with pytest.raises(ValueError):
             dd_style.normalize_groups(bad)
+
+
+PROBES = [*dd_style.STYLES, " pill", "pill ", " tonal ", "pill\n", "\ttext", "PILL", "Pill", "pill,", "p", "auto|pill", ".*", ""]
+
+
+def test_the_settings_route_and_the_validator_accept_exactly_the_same_strings(settings):
+    """No silent trimming differences: what PATCH /settings accepts is what normalize_style accepts (and what /me/prefs accepts)."""
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    for probe in PROBES:
+        try:
+            dd_style.normalize_style(probe)
+            valid = True
+        except ValueError:
+            valid = False
+        assert valid == (probe in dd_style.STYLES), repr(probe)
+        r = c.patch("/api/v1/settings", json={"ui.dd_style": probe})
+        assert (r.status_code == 200) == valid, (probe, r.status_code)
+        if valid:
+            assert c.get("/api/v1/settings").json()["settings"]["ui.dd_style"] == probe
+        assert (c.put("/api/v1/me/prefs", json={"ui.dd_style": probe}).status_code == 200) == valid, probe
 
 
 def test_stored_values_that_are_corrupt_read_as_the_defaults():

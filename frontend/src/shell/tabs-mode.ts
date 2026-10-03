@@ -7,8 +7,9 @@
  * twice: the installation's (`ui.tabs_mode`, `ui.tabs_mode_groups` product settings) and the user's own (the same keys of /me/prefs;
  * null = follow the installation). The effective value for a group, first match wins:
  *   the user's group override, the user's global value, the installation's group override, the installation's global value, `tabs`.
- * Presentation only (nothing here is a permission). The mode takes effect on the phone (<= 767 px) only; `tabModeOf` answers
- * `tabs` on a wider screen. Backend validation: services/tabs_mode.py (same closed lists).
+ * Presentation only (nothing here is a permission). Since 0.1.157 the mode takes effect on EVERY width: `tabModeOf` answers the
+ * configured mode on a wide screen too (before it answered `tabs` above 767 px). Backend validation: services/tabs_mode.py (same
+ * closed lists).
  *
  * 0.1.157: the width gate is gone (the dropdown works on every width; `hybrid` keeps its three-item rule), and the LOOK of the dropdown
  * is a second setting of the same shape: `DdStyle` (auto = today's look | pill | field | underline | text | prefix | tonal), global
