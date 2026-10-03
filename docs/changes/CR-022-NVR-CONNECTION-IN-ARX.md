@@ -520,5 +520,22 @@ UI binding requirement (F14): `model`, `firmware`, `username`, `host` and every 
 3. **Fixture backend of the live spec.** The connection test now connects only to an address it resolved and checked (F3), so
    `frontend/tests/fixtures/nvr_connection_backend.py` replaces the probe's resolver: the fake NVR's name resolves to its
    documentation-range address (the fake answers it), every other name to nothing. No real DNS lookup, device or platform.
-4. **Not changed by the integration:** `smplwise_vms/DOCS.md`, the migration, the API inventory, the version. The open items of
+4. **Second security review (private re-review note of 2026-10-04, base `5ea0365b`), fixed on this branch.** Regression tests:
+   `tests/test_cr022_security_rereview.py` (each new case failed before the fix).
+   - N1 (medium): with no stored destination (no row, a "no NVR" row, no legacy host) no stored or legacy password is used
+     at all; "use the stored password" answers 422 `password_required` (test and save).
+   - N2: the 8 s deadline is hard. Every socket read and write of the probe is bounded by the time left (the probe's own
+     network backend under httpx), also while waiting for the response headers (an endless series of `100 Continue`); the
+     probe runs in its own thread and its sockets are shut down if it is still running at the deadline. Tested with a local
+     socket server on 127.0.0.1.
+   - N3: `Accept-Encoding: identity`; any other `Content-Encoding` is `source_error`; raw bytes are counted against the cap
+     (nothing is inflated before the cap).
+   - N9: the probe client ignores proxy settings of the environment (`trust_env=False`). N6: the whole local-use NAT64 range
+     `64:ff9b:1::/48` is refused (the well-known `64:ff9b::/96` is still judged by its embedded IPv4).
+   - N4: the per-request read-timeout tweak (read only once by the HTTP library) and its wrong comment are removed.
+   - Information only, recorded as open items: N5 (the legacy-file wipe follows a symbolic link; a symbolic link already
+     inside `plans/` passes the restore's path check - both need write access to the system's files), N7 (bidirectional and
+     zero-width characters are not removed from device text or the user name; visual only), N8 (the start-up host check
+     resolves DNS inside the start-up write transaction, up to about 4 s when DNS is down).
+5. **Not changed by the integration:** `smplwise_vms/DOCS.md`, the migration, the API inventory, the version. The open items of
    §20.2 stay open (owner decisions).
