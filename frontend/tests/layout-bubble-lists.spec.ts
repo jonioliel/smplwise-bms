@@ -63,6 +63,50 @@ function report(name: string, runs: number, results: Finding[], errors: string[]
 
 const WANTED = process.env.LAYOUT_SCREENS ? new Set(process.env.LAYOUT_SCREENS.split(',')) : null;
 
+// LAYOUT_DIAG=1: instead of the sweep, print what overflows a 320 px page and which interactive elements are under 44 px on each
+// selected screen (LAYOUT_SCREENS), with their composed path - the way to find a finding's source without a browser at hand.
+test.describe('bubble layout diagnostics', () => {
+  test.skip(!process.env.LAYOUT_DIAG, 'LAYOUT_DIAG=1 only');
+  test('where the overflow and the small targets come from', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project');
+    await page.route('**/api/v1/**', (route) => route.abort());
+    for (const s of CHROME_SCREENS.filter((x) => !WANTED || WANTED.has(x.id))) {
+      for (const w of [320, 390]) {
+        await page.setViewportSize({ width: w, height: 844 });
+        await openChrome(page, s, 'light');
+        await setLook(page, { density: 'regular', surface: 'fill', radius: 'pill', touch: 44, performance: 'full' });
+        await settle(page);
+        const out = await page.evaluate((vw) => {
+          const lines: string[] = [];
+          const path = (el: Element) => {
+            const parts: string[] = [];
+            for (let e: Element | null = el; e && parts.length < 6; ) {
+              parts.unshift(`${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : ''}`);
+              const p: Node | null = e.assignedSlot ?? e.parentNode;
+              e = p instanceof ShadowRoot ? p.host : p instanceof Element ? p : null;
+            }
+            return parts.join(' > ');
+          };
+          const walk = (root: Document | ShadowRoot) => {
+            for (const el of root.querySelectorAll('*')) {
+              const r = el.getBoundingClientRect();
+              const cs = getComputedStyle(el);
+              if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+              if (r.width > 0 && (r.right > vw + 1 || r.left < -1) && cs.position !== 'fixed') lines.push(`over ${Math.round(r.left)}..${Math.round(r.right)} ${path(el)}`);
+              if (el.matches('button, a[href], input, select') && r.width > 0 && (r.width < 43.5 || r.height < 43.5) && !el.matches('[tabindex="-1"]')) lines.push(`small ${Math.round(r.width)}x${Math.round(r.height)} ${path(el)} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 20)}"`);
+              if (el.shadowRoot) walk(el.shadowRoot);
+            }
+          };
+          walk(document);
+          return lines.slice(0, 40);
+        }, w);
+        console.log(`--- ${s.id} @ ${w}`);
+        for (const l of out) console.log('  ' + l);
+      }
+    }
+  });
+});
+
 test.describe('bubble layout guard: the chrome screens (security, lists, settings)', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo spec');
   test.describe.configure({ timeout: 40 * 60_000 });

@@ -104,7 +104,7 @@ const tokens: TokenTable = {
    shell and the shared components. A floating glass layer always has its solid twin (@supports / reduced transparency). */
 const rules = `
 /* bubble 1 - the canvas with its two blooms */
-:host(sw-app) { background: var(--sw-canvas); }
+:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); /* 0.1.157: the shell's tab rows meet the touch dial */ }
 /* bubble 2 - the rail is a floating glass pill column */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 0; border-radius: var(--sw-r-lg); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { border-radius: 50%; }
@@ -159,15 +159,12 @@ const rules = `
 :host(sw-page) h1 { letter-spacing: -0.3px; }
 /* bubble 12 - 0.1.157 (the security / lists / settings chrome): the security sections (לייב | חקירה | אזעקה) are a pill track with a solid thumb like the segmented control; the phone's row does not stick (nothing floats over the rows) */
 :host(sw-app) nav.sections.sections { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); padding: 0; --sw-tab-min-h: var(--sw-touch-desktop); }
-:host(sw-app) nav.sections.sections a { border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); }
-:host(sw-app) nav.secrow.secrow a, :host(sw-app) nav.sectabs.phone.phone a { min-block-size: 44px; }
-:host(sw-app) .subnav { --sw-tab-min-h: var(--sw-touch-desktop); }
-@media (max-width: 1100px) { :host(sw-app) .subnav, :host(sw-app) nav.sections.sections { --sw-tab-min-h: 44px; } }
+:host(sw-app) nav.sections.sections a { border-radius: var(--sw-r-pill); min-block-size: var(--sw-tab-min-h); }
 :host(sw-app) nav.sections.sections a.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-2); }
-:host(sw-app) nav.secrow.secrow, :host(sw-app) nav.sectabs.phone.phone { position: relative; inset: auto; z-index: auto; background: transparent; border: 0; }
+:host(sw-app) nav.secrow.secrow, :host(sw-app) nav.sectabs.phone.phone { position: relative; inset: auto; z-index: auto; background: transparent; border: 0; --sw-tab-min-h: 44px; }
 :host(sw-app) nav.secrow.secrow::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
-:host(sw-app) nav.secrow.secrow a .pill { border-radius: var(--sw-r-pill); }
-:host(sw-app) nav.secrow.secrow a.on .pill { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
+:host(sw-app) nav.secrow.secrow a.on .pill { border-radius: var(--sw-r-pill); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
+@media (max-width: 1100px) { :host(sw-app) .subnav, :host(sw-app) nav.sections.sections { --sw-tab-min-h: 44px; } }
 `;
 
 export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', tokens, rules };
