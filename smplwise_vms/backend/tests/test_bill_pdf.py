@@ -584,7 +584,11 @@ def bbox_words(pdf: bytes) -> list[tuple[float, float, float, float]]:
 
 def bbox_text_words(pdf: bytes) -> list[tuple[float, float, float, float, str]]:
     html = subprocess.run(["pdftotext", "-bbox", "-", "-"], input=pdf, capture_output=True, check=True).stdout.decode()
-    return [(float(a), float(b), float(c), float(d), BIDI.sub("", w)) for a, b, c, d, w in re.findall(
+    def logical(w: str) -> str:  # pdftotext -bbox reports Hebrew words in visual (reversed) order
+        w = BIDI.sub("", w)
+        return w[::-1] if re.search("[\u05d0-\u05ea]", w) else w
+
+    return [(float(a), float(b), float(c), float(d), logical(w)) for a, b, c, d, w in re.findall(
         r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">([^<]*)</word>', html)]
 
 
