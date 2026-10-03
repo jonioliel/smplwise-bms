@@ -49,7 +49,7 @@ async function apply(page: Page, mock: UpdateMock, backup = true) {
   await open(page, '/system/update');
   await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 15000 });
   await root(page).locator('[data-update-apply]').click();
-  await expect(root(page).locator('[data-update-dialog]')).toBeVisible();
+  await expect(root(page).locator('[data-update-dialog]')).toHaveAttribute('open', '');
   if (!backup) await root(page).locator('[data-update-backup]').uncheck();
   await root(page).locator('[data-update-confirm]').click();
   await expect(run(page)).toBeVisible();
@@ -63,7 +63,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
     await open(page, '/system/update');
     await root(page).locator('[data-update-apply]').click();
     const dlg = root(page).locator('[data-update-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await expect(dlg).toContainText('לעדכן את SmplWise Arx?');
     await expect(dlg.locator('[data-update-dialog-versions]')).toContainText('0.1.156');
     await expect(dlg.locator('[data-update-dialog-versions]')).toContainText('0.1.157');
@@ -75,7 +75,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
     expect(((await dlg.textContent()) ?? '')).not.toMatch(FORBIDDEN);
     await shot(page, 'apply-dialog');
     await dlg.locator('[data-update-cancel]').click();
-    await expect(dlg).toBeHidden();
+    await expect(dlg).not.toHaveAttribute('open', '');
     expect(mock.applyBodies).toEqual([]);
   });
 
@@ -141,7 +141,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
       const err = root(page).locator('[data-update-apply-error]');
       await expect(err).toContainText(text);
       await expect(err).not.toContainText('RAW-SERVER-TEXT');
-      await expect(root(page).locator('[data-update-dialog]')).toBeVisible();
+      await expect(root(page).locator('[data-update-dialog]')).toHaveAttribute('open', '');
       await expect(run(page)).toHaveCount(0);
       expect(await err.textContent()).not.toMatch(FORBIDDEN);
       await noOverflow(page);
@@ -345,7 +345,7 @@ test.describe('the restarts card (CR-021 S3)', () => {
     await open(page, '/system/update');
     await card(page).locator('[data-restart-platform]').click();
     const dlg = card(page).locator('[data-restart-dialog]');
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
     await expect(dlg).toHaveAttribute('data-restart-which', 'platform');
     await expect(dlg).toContainText('להפעיל מחדש את תשתית המערכת?');
     await expect(dlg.locator('input')).toHaveCount(0);
@@ -411,9 +411,9 @@ test.describe('the restarts card (CR-021 S3)', () => {
     await open(page, '/system/update');
     for (const which of ['arx', 'platform']) {
       await card(page).locator(`[data-restart-${which}]`).click();
-      await expect(card(page).locator('[data-restart-dialog]')).toBeVisible();
+      await expect(card(page).locator('[data-restart-dialog]')).toHaveAttribute('open', '');
       await card(page).locator('[data-restart-cancel]').click();
-      await expect(card(page).locator('[data-restart-dialog]')).toBeHidden();
+      await expect(card(page).locator('[data-restart-dialog]')).not.toHaveAttribute('open', '');
     }
     expect(mock.restartBodies).toEqual([]);
     expect(mock.arxRestarts).toBe(0);
