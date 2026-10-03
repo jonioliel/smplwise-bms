@@ -111,7 +111,10 @@ test.describe('layout guard: the multi-camera change', () => {
         runs++;
         await check(page, results, `${ctx} checklist`, own);
         await boxCheck(page, results, `${ctx} checklist`, SEL, true);
-        await page.locator(`${SEL} [data-nvr-batch-next]`).click();
+        // the footer's button must be reachable: inside the viewport (a dialog taller than the screen would hide it)
+        const nb = await page.locator(`${SEL} [data-nvr-batch-next]`).boundingBox();
+        if (!nb || nb.y + nb.height > height(w) + 0.5 || nb.y < -0.5) results.push({ cls: 'overflow', el: 'checklist footer', detail: `"המשך" outside the viewport (y ${Math.round(nb?.y ?? -1)}, h ${Math.round(nb?.height ?? 0)}, viewport ${height(w)})`, ctx: `${ctx} checklist` });
+        await page.locator(`${SEL} [data-nvr-batch-next]`).dispatchEvent('click');
         // the one confirmation, names open
         await page.locator(`${CONFIRM} details summary`).click();
         runs++;
