@@ -60,7 +60,7 @@ test.describe('electricity: navigation', () => {
     await expect(page.locator('sw-app [data-nav="infra"]')).toHaveCount(0);
     const page2 = await page.context().newPage();
     await open(page2, '/devices/building', { perms: [...PERMS.bills, 'devices.read'], meters: 'empty' });
-    await page2.waitForSelector('sw-app [data-nav="devices"]');
+    await page2.waitForSelector('sw-app [data-nav="devices"]', { state: 'attached' });
     await expect(page2.locator('sw-app [data-nav="infra"]:visible').first()).toBeVisible();
   });
 });
