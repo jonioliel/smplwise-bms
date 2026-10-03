@@ -202,7 +202,7 @@ export class ElecMeterCard extends LitElement {
     }
   }
 
-  private async remove() {
+  private async confirmRemove() {
     const d = this.detail;
     if (!d || this.busy) return;
     this.busy = true;
@@ -287,7 +287,7 @@ export class ElecMeterCard extends LitElement {
       <sw-dialog ?open=${this.dlg === 'remove'} heading="הסרת המונה" data-meter-remove-dialog @close=${() => (this.dlg = '')}>
         <div>המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.</div>
         ${this.actionError && this.dlg === 'remove' ? html`<div class="alert err" role="alert">${this.actionError}</div>` : nothing}
-        <sw-button slot="footer" variant="danger" data-meter-remove-confirm ?disabled=${this.busy} @click=${() => void this.remove()}>הסרה</sw-button>
+        <sw-button slot="footer" variant="danger" data-meter-remove-confirm ?disabled=${this.busy} @click=${() => void this.confirmRemove()}>הסרה</sw-button>
         <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'replace'} heading="החלפת מונה" data-meter-replace-dialog @close=${() => (this.dlg = '')}>
