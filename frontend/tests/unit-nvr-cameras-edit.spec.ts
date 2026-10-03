@@ -127,6 +127,7 @@ test.describe('error lines (errorLine)', () => {
     expect(E('field_locked').text).toBe('השדה נעול כרגע.');
     expect(E('field_not_supported').text).toBe('השדה אינו נתמך בזרם הזה.');
     expect(E('source_unavailable').text).toBe('ה־NVR אינו זמין.');
+    expect(E('source_forbidden').text).toBe('ל־NVR אין הרשאה לשינוי הזה.');
     expect(E('something_new', {}, 'הודעת השרת').text).toBe('הודעת השרת');
   });
 
@@ -225,6 +226,7 @@ test.describe('the change log', () => {
     expect(undoable(list)?.id).toBe('r6');
     expect(undoable([row('x', '2026-10-03T12:00:00Z', { status: 'rolled_back' })])).toBeNull();
     expect(undoable([])).toBeNull();
+    expect(undoable([row('d', '2026-10-03T12:00:00Z', { status: 'diverged' })])?.id).toBe('d'); // the server allows the undo of a diverged change too
     // rows never carry the documents
     expect(Object.keys(list[0]).some((k) => k.endsWith('_xml'))).toBe(false);
   });

@@ -159,6 +159,7 @@ const LINE: Record<string, string> = {
   not_rollbackable: 'אי אפשר לבטל את השינוי הזה.',
   forbidden: 'אין הרשאה לפעולה הזו.',
   source_unavailable: 'ה־NVR אינו זמין.',
+  source_forbidden: 'ל־NVR אין הרשאה לשינוי הזה.',
 };
 
 /** The one muted line under a row / in the editor for a failed write or undo. */
@@ -351,9 +352,9 @@ export function lastChanges(rows: StreamChange[], streamRef: string, limit = 5):
     .slice(0, limit);
 }
 
-/** The undo goes only on the newest change of the stream, and only when it was applied (an undo is itself such a change: pressing it again re-applies). */
+/** The undo goes only on the newest change of the stream, and only when it was applied or diverged (the server allows both; an undo is itself such a change: pressing it again re-applies). */
 export function undoable(list: StreamChange[]): StreamChange | null {
   const newest = list[0];
-  return newest && newest.status === 'applied' ? newest : null;
+  return newest && (newest.status === 'applied' || newest.status === 'diverged') ? newest : null;
 }
 
