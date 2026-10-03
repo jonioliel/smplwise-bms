@@ -280,7 +280,7 @@ test.describe('bubble foundation', () => {
     expect(await attr(page, 'data-bubble-density')).toBe('row'); // applied at once, nothing to save
     await card.locator('[data-look-option="touch:32"]').click();
     expect(await rootVar(page, '--sw-touch-desktop')).toBe('32px');
-    await expect(card.locator('[data-look-preview]')).toHaveAttribute('data-look-preview', /^row\/fill\/sheet\/pill\/72\/100\/32$/);
+    await expect(card.locator('[data-look-preview]')).toHaveAttribute('data-look-preview', /^row\/fill\/sheet\/pill\/72\/100\/32\/none\/0\/0$/); // MD1: material / depth / tint follow (off)
     await page.evaluate(() => sessionStorage.setItem('look-keep', '1')); // the init script above clears the stores on every load unless told to keep them
     await page.reload();
     await page.waitForSelector('sw-app');
