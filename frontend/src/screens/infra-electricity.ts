@@ -7,6 +7,8 @@ import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
 import { tabStyleOf, INFRA_TABS } from '../shell/nav';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 // Every screen file of the module registers itself: `screens/electricity/page-*.ts` (pages) and `settings-*.ts` (settings sections). A file added by
 // the other UI branch needs no edit here (docs/architecture/ELECTRICITY_UI_SHELL.md).
@@ -42,11 +44,12 @@ export function pageOf(segments: readonly string[]): ElectricityPage {
  */
 @customElement('infra-electricity')
 export class InfraElectricity extends LitElement {
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) route: RouteState | null = null;
   @state() private access: EnergyAccess = energyAccess();
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -69,7 +72,7 @@ export class InfraElectricity extends LitElement {
     .body > * {
       display: block;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

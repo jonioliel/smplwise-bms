@@ -19,9 +19,11 @@ const ROOTS = ['infra-electricity', 'system-infra'];
 
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-async function check(page: Page, results: Finding[], ctx: string) {
+async function check(page: Page, results: Finding[], ctx: string, skin: string) {
   await settle(page);
-  results.push(...(await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots: ROOTS })));
+  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots: ROOTS });
+  // the touch dial and the floating rule belong to the bubble foundation (the other skins keep their own sizes); a modal drawer or dialog is top-layer by design and covers the inert page behind it
+  results.push(...found.filter((f) => !(f.cls === "floating" && /^dialog.panel/.test(f.el)) && (skin === "bubble" || (f.cls !== "target" && f.cls !== "floating"))));
 }
 
 interface Shot {
@@ -71,7 +73,7 @@ test.describe('electricity layout guard', () => {
             await page.setViewportSize({ width: w, height: height(w) });
             await page.waitForTimeout(150);
             runs++;
-            await check(page, results, `${shot.name} ${skin} ${theme} ${w}`);
+            await check(page, results, `${shot.name} ${skin} ${theme} ${w}`, skin);
           }
         }
       }
