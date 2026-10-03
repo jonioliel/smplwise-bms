@@ -26,6 +26,8 @@ import { exportDownloadUrl, formatBytes } from '../api/exports';
 import { listCameras } from '../api/maps';
 import type { Camera } from '../api/types';
 import { CASE_STATUS_LABEL, FILE_STATUS_LABEL, PRESERVATION_LABEL, PRODUCER_LABEL, producerOf, addCaseItem, bundleUrl, caseItemFileUrl, checkCaseIntegrity, createBundle, createCase, deleteCase, getCase, importBundle, listBundles, listCases, preserveCaseItem, removeCaseItem, updateCase, verifyBundle, type Bundle, type BundleFileStatus, type BundleVerification, type Case, type CaseDetail, type CaseIntegrity, type CaseItem, type CaseStatus, type Preservation, type SignatureVerdict } from '../api/cases';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -60,6 +62,8 @@ const columns: TableColumn[] = [
 /** SC16 — cases list (board 2 screen 10, Beta). */
 @customElement('investigate-cases')
 export class InvestigateCases extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private cases: Case[] = [];
   @state() private canManage = false;
   @state() private loading = false;
@@ -79,7 +83,7 @@ export class InvestigateCases extends LitElement {
   @state() private importError = '';
   private qTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     .bar {
       display: flex;
       align-items: center;
@@ -156,7 +160,7 @@ export class InvestigateCases extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
@@ -331,6 +335,8 @@ export class InvestigateCases extends LitElement {
 /** SC17 — incident / case review (board 2 screen 10): picture with controls, clip strip, Details / Notes / Related tabs, Share / Export Evidence. */
 @customElement('investigate-case-detail')
 export class InvestigateCaseDetail extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() caseId = 'case-1';
   @state() private tab = 'details';
   @state() private data: CaseDetail | null = null;
@@ -352,7 +358,7 @@ export class InvestigateCaseDetail extends LitElement {
   private loadedFor = '';
   private pollTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     .wrap {
       max-inline-size: 860px;
       display: flex;
@@ -644,7 +650,7 @@ export class InvestigateCaseDetail extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   updated(changed: Map<string, unknown>) {
     if (changed.has('caseId') && isApi() && this.loadedFor !== this.caseId) void this.load();

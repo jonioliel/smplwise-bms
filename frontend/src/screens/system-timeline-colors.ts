@@ -13,6 +13,8 @@ import {
   DEFAULT_TIMELINE_COLORS, TIMELINE_OPTIONS, TIMELINE_OPTION_LABEL, TIMELINE_PALETTE, applyTimelineColors, normalizeTimelineColors, onTimelineColors,
   similarTimelineOptions, timelineColors, timelineHex, type TimelineColors, type TimelineOption,
 } from '../api/timeline-colors';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
  * הגדרות › וידאו ומדיה › צבעי ציר הזמן (owner 2026-10-01: the person dots and the recording bars were both blue). One row per
@@ -24,6 +26,8 @@ import {
  */
 @customElement('system-timeline-colors')
 export class SystemTimelineColors extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private draft: TimelineColors = { ...timelineColors() };
   @state() private display: Record<PlaybackItem, Visibility> = { ...playbackDisplay() };
   @state() private canEdit = false;
@@ -33,7 +37,7 @@ export class SystemTimelineColors extends LitElement {
   private stop?: () => void;
   private stopDisplay?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -161,7 +165,7 @@ export class SystemTimelineColors extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

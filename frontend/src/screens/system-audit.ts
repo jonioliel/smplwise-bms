@@ -13,6 +13,8 @@ import '../components/sw-avatar';
 import '../components/sw-icon';
 import type { TableColumn } from '../components/sw-table';
 import { demoAudit } from '../fixtures/catalog';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const columns: TableColumn[] = [
   { key: 'time', label: 'זמן', render: (r) => html`14.09.2026 ${String(r.time)}` },
@@ -110,6 +112,8 @@ const apiColumns: TableColumn[] = [
  *  With a backend: the real `audit_log` (GET /api/v1/audit), filtered by action family, user and count (F2). */
 @customElement('system-audit')
 export class SystemAudit extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private rows: AuditRow[] | null = null;
   @state() private error = '';
   @state() private family = '';
@@ -177,7 +181,7 @@ export class SystemAudit extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     .filters {
       display: flex;
       gap: 8px;
@@ -215,7 +219,7 @@ export class SystemAudit extends LitElement {
       border-color: var(--sw-accent);
       color: #fff;
     }
-  `;
+  `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();

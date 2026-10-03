@@ -21,6 +21,8 @@ import { describeError } from '../api/client';
 import { EVENT_LABEL, EVENT_TONE, SOURCE_LABEL, WINDOW_GROUP_LABEL, ackEvent, ackMany, getEventFacets, listEvents, listWindows, pollThumbnail, subscribeEvents, thumbnailUrl, type WindowGroup, type EventFacets, type EventKind, type EventWindow, type IngestState, type UnsupportedFilter, type VmsEvent } from '../api/events';
 import { dateInZone, closePlayback, createPlayback, frameUrl, playbackWsUrl, type PlaybackSession } from '../api/recordings';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
@@ -33,6 +35,8 @@ const SEV_LABEL = { info: 'מידע', alert: 'התראה', critical: 'קריטי
  */
 @customElement('investigate-events')
 export class InvestigateEvents extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** Route params (#/investigate/events?camera=&date=) */
   @property() cameraId = '';
   @property() date = '';
@@ -73,7 +77,7 @@ export class InvestigateEvents extends LitElement {
   private thumbTimers = new Map<string, number>();
   private thumbInFlight = 0;
 
-  static styles = css`
+  static styles = [css`
     .filters {
       display: flex;
       flex-wrap: wrap;
@@ -393,7 +397,7 @@ export class InvestigateEvents extends LitElement {
       direction: ltr;
       unicode-bidi: isolate;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

@@ -22,6 +22,8 @@ import type { Camera, Site } from '../api/types';
 import { TileLayoutController } from '../api/tile-layout';
 import { dateInZone } from '../api/recordings';
 import { liveTileKnobs } from '../styles/tile-knobs';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -56,6 +58,8 @@ const EVENT_SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance
  */
 @customElement('live-overview')
 export class LiveOverview extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private cams: Camera[] | null = null;
   @state() private recorder: { name: string; model: string | null } | null = null;
   @state() private sites: Site[] | null = null;
@@ -242,7 +246,7 @@ export class LiveOverview extends LitElement {
     `;
   }
 
-  static styles = [liveTileKnobs, css`
+  static styles = [bubbleChrome, liveTileKnobs, css`
     .date {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);

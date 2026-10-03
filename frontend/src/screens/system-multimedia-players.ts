@@ -23,6 +23,8 @@ import {
   type FavouritesCuration, type GroupPreset, type LibraryItem, type LibraryKind, type MergeSuggestion, type MusicProvider, type PlayerDevice, type PlayerStatus,
 } from '../api/media-players';
 import { DEFAULT_NIGHT, parseCeiling, parseNight, presetFloors, presetRooms } from './multimedia-players-layout';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The kinds a speaker / player / receiver card may be set to (settings choose; the detected kind is the default). */
@@ -59,6 +61,8 @@ const KINDS: LibraryKind[] = ['favourites', 'stations', 'playlists'];
  */
 @customElement('system-multimedia-players')
 export class SystemMultimediaPlayers extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private phase: 'loading' | 'ready' | 'forbidden' = 'loading';
   @state() private devices: AdminDevice[] = [];
   @state() private live = new Map<string, PlayerDevice>();
@@ -81,7 +85,7 @@ export class SystemMultimediaPlayers extends LitElement {
   private noteTimer = 0;
   private offPush: (() => void) | null = null;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: contents;
     }
@@ -273,7 +277,7 @@ export class SystemMultimediaPlayers extends LitElement {
         inline-size: 100%;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

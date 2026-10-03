@@ -11,6 +11,8 @@ import { isApi } from '../api/session';
 import { navigate } from '../router';
 import { cancelExport, deleteExport, exportDownloadUrl, exportManifestUrl, formatBytes, listExports, type ExportJob } from '../api/exports';
 import { describeError } from '../api/client';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const STATE_LABEL: Record<ExportJob['state'], string> = { queued: 'ממתין', running: 'מוריד', done: 'הושלם', partial: 'חלקי', failed: 'נכשל', cancelled: 'בוטל', interrupted: 'הופסק', paused_disk_full: 'מושהה · אין מקום בדיסק' };
 const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', running: 'live', done: 'recorded', partial: 'partial', failed: 'error', cancelled: 'unknown', interrupted: 'stale', paused_disk_full: 'stale' };
@@ -18,12 +20,14 @@ const STATE_KIND: Record<ExportJob['state'], StateKind> = { queued: 'neutral', r
 /** SC18 — exports and downloads: durable jobs, progress/cancel/partial/fail, scoped download (chapter 27). */
 @customElement('investigate-exports')
 export class InvestigateExports extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private jobs: ExportJob[] | null = null;
   @state() private ffmpeg = true;
   @state() private error = '';
   private timer: number | undefined;
 
-  static styles = css`
+  static styles = [css`
     .job {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 180px auto;
@@ -81,7 +85,7 @@ export class InvestigateExports extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

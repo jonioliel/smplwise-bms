@@ -31,6 +31,8 @@ import {
 import type { DrawerResult } from './automation-drawer';
 import type { AutomationDrawer } from './automation-drawer';
 import type { CardAction } from '../components/sw-automation-card';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
 const SCHEDULES_PATH = '/devices/schedules';
@@ -50,6 +52,8 @@ interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; r
  */
 @customElement('devices-automations')
 export class DevicesAutomations extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** 0.1.154: the segments of "קברניט" this user is offered (set by the shell); the schedules segment is the first button of the strip. */
   @property({ attribute: false }) kavarnit: KavarnitSegments = { schedules: true, automations: true };
   @state() private schedCount: number | null = null;
@@ -86,7 +90,7 @@ export class DevicesAutomations extends LitElement {
   private lastWritten = '';
   private fieldsFor = '';
 
-  static styles = [...automationsStyles, mediaPageStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
     sw-dialog {
       --sw-surface: var(--mm-sheet-surface);
       --sw-glass-blur: var(--mm-sheet-blur);

@@ -22,6 +22,8 @@ import { buildPatches, canMove, moveRow as moveLayoutRow, originalsOf, rowsFromC
 import { remoteVideo } from '../api/video-policy';
 import { repeat } from 'lit/directives/repeat.js';
 import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapshotRefreshMs } from '../api/live-budget';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -48,6 +50,8 @@ const VIEWS = [
 /** SC07 — multi-camera grid (board 1 screen 6): real streams (sub profile) with snapshot posters, or the demo grid. */
 @customElement('live-wall')
 export class LiveWall extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** Below 768 px the toolbar is one short row of compact selects (mobile audit 2026-09-30). */
   private readonly phone = new PhoneWidth(this);
   /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
@@ -95,7 +99,7 @@ export class LiveWall extends LitElement {
    * itself still only lists the enabled ones in `this.cams`, same as the grid. */
   private allCams: Camera[] = [];
 
-  static styles = css`
+  static styles = [css`
     .layouts {
       display: inline-flex;
       gap: 2px;
@@ -261,7 +265,7 @@ export class LiveWall extends LitElement {
         grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr));
       }
     }
-  `;
+  `, bubbleChrome];
 
   /** Owner round 3 (2.5): columns chosen by hand for the wall (0 = best fit); kept per browser. */
   @state() private colsOverride = (() => { try { return Number(localStorage.getItem('sw.wall.cols') ?? 0) || 0; } catch { return 0; } })();

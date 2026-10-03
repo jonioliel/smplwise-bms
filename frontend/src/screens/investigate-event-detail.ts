@@ -16,6 +16,8 @@ import { describeError } from '../api/client';
 import { isApi } from '../api/session';
 import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, getCorrelation, getEvent, getEventRoute, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type EventRoute, type VmsEvent } from '../api/events';
 import type { StateKind } from '../components/sw-badge';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
 import { closePlayback, createPlayback, playbackWsUrl, type PlaybackSession } from '../api/recordings';
@@ -45,6 +47,8 @@ const NEARBY_MS = 10 * 60 * 1000;
  */
 @customElement('investigate-event-detail')
 export class InvestigateEventDetail extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() eventId = '';
   @state() private ev: EventDetail | null = null;
   @state() private error = '';
@@ -82,7 +86,7 @@ export class InvestigateEventDetail extends LitElement {
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -293,7 +297,7 @@ export class InvestigateEventDetail extends LitElement {
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

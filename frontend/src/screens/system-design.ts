@@ -10,6 +10,8 @@ import { isApi } from '../api/session';
 import { SKIN_IDS, SKINS, type SkinId } from '../design/skins';
 import { skinTable } from '../design/css';
 import { SCHEMES, installationDesign, onDesign, ownSchemeChoice, saveDemoDesign, setInstallationDesign, setOwnScheme, type Scheme, type Theme } from '../design/apply';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const SCHEME_LABEL: Record<Scheme, string> = { light: 'בהיר', dark: 'כהה', auto: 'אוטומטי' };
 
@@ -31,6 +33,8 @@ const themeOf = (s: Scheme): Theme => (s === 'auto' ? (systemDark() ? 'dark' : '
  */
 @customElement('system-design')
 export class SystemDesign extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private draftSkin: SkinId = installationDesign().skin;
   @state() private draftScheme: Scheme = installationDesign().scheme;
   @state() private own: Scheme | null = ownSchemeChoice();
@@ -40,7 +44,7 @@ export class SystemDesign extends LitElement {
   @state() private error = '';
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -239,7 +243,7 @@ export class SystemDesign extends LitElement {
       color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

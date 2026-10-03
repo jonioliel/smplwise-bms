@@ -10,6 +10,8 @@ import {
   TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, TAB_MODE_MAX_WIDTH, asTabMode, installationTabsMode, isPhoneWidth, onTabsMode, ownTabsMode, resolveTabMode, saveOwnTabsMode, setInstallationTabsMode,
   type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const SOURCE_LABEL: Record<TabModeSource, string> = { 'own-group': 'ההעדפה שלי לקבוצה', own: 'ההעדפה שלי', 'installation-group': 'ברירת המחדל לקבוצה', installation: 'ברירת המחדל של ההתקנה' };
 
@@ -25,6 +27,8 @@ const SAMPLE_6 = [{ id: 'a', label: 'סלון', count: 6 }, { id: 'b', label: '�
  */
 @customElement('system-tabs-mode')
 export class SystemTabsMode extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private inst = installationTabsMode();
   @state() private own = ownTabsMode();
   @state() private canEdit = false;
@@ -35,7 +39,7 @@ export class SystemTabsMode extends LitElement {
   private mq: MediaQueryList | null = null;
   private stop?: () => void;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -149,7 +153,7 @@ export class SystemTabsMode extends LitElement {
     .err {
       color: var(--sw-danger);
     }
-  `;
+  `, bubbleChrome];
 
   private onWidth = () => (this.phone = isPhoneWidth());
 

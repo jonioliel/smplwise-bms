@@ -36,6 +36,8 @@ import { boundItemOf } from '../map/part-select';
 import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
 import { sameRefs } from '../map/memo';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const NEAR_MIN = 10;
 
@@ -51,6 +53,8 @@ function markerKind(t: EventKind): TimelineEvent['kind'] {
  */
 @customElement('investigate-history-map')
 export class InvestigateHistoryMap extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() floorId = 'f0';
   /** Instant to open at (UTC ISO), e.g. an event time; empty = now. */
   @property() at = '';
@@ -104,7 +108,7 @@ export class InvestigateHistoryMap extends LitElement {
     }
   };
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
@@ -332,7 +336,7 @@ export class InvestigateHistoryMap extends LitElement {
         display: none;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

@@ -13,6 +13,8 @@ import { describeError, get } from '../api/client';
 import { canNav, isApi, nvrLess } from '../api/session';
 import { SECURITY_CAMERAS_HREF, SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** GET /api/v1/health - the connection facts, for every signed-in user (the same read הגדרות › חיבורים starts from). */
 interface RawHealth {
@@ -42,6 +44,8 @@ function when(iso: string | null | undefined): string {
  */
 @customElement('system-security')
 export class SystemSecurity extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** The page from the route (`alarm` | `manage` | `nvr`), empty for the bare section address. */
   @property() sub = '';
   /** The alarm panel named by the link (`?panel=`), kept through the redirect from the old alarm route. */
@@ -51,7 +55,7 @@ export class SystemSecurity extends LitElement {
   private tabsMode = new TabsModeController(this, 'settings'); // 0.1.153: tabs / hybrid / dropdown
   private giveUp = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -91,7 +95,7 @@ export class SystemSecurity extends LitElement {
       flex-wrap: wrap;
       margin-block-start: 10px;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
@@ -164,10 +168,12 @@ export class SystemSecurity extends LitElement {
 /** הגדרות › אבטחה › NVR: the state at a glance and the way to the connection and recorder settings (they stay in חיבורים). */
 @customElement('system-security-nvr')
 export class SystemSecurityNvr extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private h: RawHealth | null = null;
   @state() private error = '';
 
-  static styles = SystemSecurity.styles;
+  static styles = [SystemSecurity.styles, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

@@ -6,6 +6,8 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import { bidi } from '../i18n/bidi';
 import { areaLine, cardChips, floorLine, runLine } from '../screens/automations-logic';
 import type { Item } from '../api/automations';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 export type CardAction = 'edit' | 'run' | 'dryrun' | 'trace' | 'versions' | 'copy' | 'delete';
 
@@ -18,6 +20,8 @@ export type CardAction = 'edit' | 'run' | 'dryrun' | 'trace' | 'versions' | 'cop
  */
 @customElement('automation-card')
 export class AutomationCard extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) item!: Item;
   @property() href = '';
   @property() traceHref = '';
@@ -27,7 +31,7 @@ export class AutomationCard extends LitElement {
   @property({ type: Boolean, reflect: true, attribute: 'data-picked' }) picked = false;
   @state() private menu = false;
 
-  static styles = [...automationsStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, css`
     :host {
       display: block;
       min-inline-size: 0;

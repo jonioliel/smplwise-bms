@@ -9,6 +9,8 @@ import { liveWsUrl } from '../api/media';
 import { can, session } from '../api/session';
 import type { Camera } from '../api/types';
 import { connectionEnv, formatReports, runConnProbe, uaFamily, type ProbeEnv, type ProbeReport, type Profile } from '../api/video-conn-test';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Choice = Profile | 'both';
 
@@ -27,6 +29,8 @@ function probeEnv(): ProbeEnv {
  */
 @customElement('system-video-conn-test')
 export class SystemVideoConnTest extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private cameras: Camera[] | null = null;
   @state() private cameraId = '';
   @state() private choice: Choice = 'sub';
@@ -37,7 +41,7 @@ export class SystemVideoConnTest extends LitElement {
   private abort: AbortController | null = null;
   private runId = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -119,7 +123,7 @@ export class SystemVideoConnTest extends LitElement {
         inline-size: auto;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
