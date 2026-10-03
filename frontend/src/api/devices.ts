@@ -110,10 +110,11 @@ export interface DeviceRow {
   alarm_managed?: boolean;
   managed_label?: string;
   /** CR-019 (switch rows, for a bulk holder): `bulk_protected` is the administrator's mark (a protected switch is left out of
-   * group actions only); `bulk_reason` says what a group action does with it - "allowed", "protected", "unclassified" (not judged
-   * yet: excluded until it is) or "doors_layer" / "alarm_managed" (never). */
+   * group actions only); `bulk_reason` says what a group action does with it - "allowed" (the default, including a switch nobody has judged yet), "protected"
+   * (the administrator's mark: left out of group actions only) or "doors_layer" / "alarm_managed" (never). The owner decision of
+   * 2026-10-02 (CR-019 section 16) removed "unclassified"; the backend never emits it. */
   bulk_protected?: boolean;
-  bulk_reason?: 'allowed' | 'protected' | 'unclassified' | 'doors_layer' | 'alarm_managed';
+  bulk_reason?: 'allowed' | 'protected' | 'doors_layer' | 'alarm_managed';
   /** Re-review M1 (tiles' panel rows): why a bulk action would not reach this row (the bulk resolve's own rules), or null. */
   bulk_excluded?: string | null;
   // lighting
