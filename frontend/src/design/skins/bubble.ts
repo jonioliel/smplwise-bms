@@ -151,7 +151,7 @@ const rules = `
 /* bubble 10 - the phone tab pair (0.1.153 dropdown mode) and the dropdown chip / list follow the skin: glass row, pill chips, a translucent list */
 :host(sw-app) .tabpair { background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); }
 :host(sw-app) .tabpair a.alarmpin { border-radius: 50%; background: var(--sw-surface-2); }
-:host(sw-dropdown) .chip { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; }
+:host(sw-dropdown[dd-style='auto']) .chip { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; }
 :host(sw-dropdown) .pop { border: 0; border-radius: var(--sw-r-lg); background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha)); box-shadow: inset 0 1px 0 var(--sw-highlight), inset 0 0 0 1px var(--sw-border-strong), var(--sw-shadow-3); }
 /* bubble 11 - tables: pill-shaped rows with a soft hover (admin lists stay tables, never a column of pills) */
 :host(sw-table) tbody tr:hover { background: var(--sw-surface-3); }
