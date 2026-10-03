@@ -10,6 +10,7 @@ import {
   isUnknownOutcome,
   lastChanges,
   lockedBy,
+  reasonHe,
   reconcile,
   shownFields,
   undoable,
@@ -72,6 +73,16 @@ test.describe('which control a stream gets (control)', () => {
     expect(control('svc', c, main, ctx({ detail: detail(c, { stale: true }) }))).toEqual({ show: true, enabled: false, reason: 'ה־NVR אינו זמין' });
     expect(control('svc', c, main, ctx({ detail: 'error' }))).toEqual({ show: true, enabled: false, reason: 'ה־NVR אינו זמין' });
     expect(control('svc', c, stream('101', 'main', { etag: null }), ctx()).enabled).toBe(false); // no etag, no if_match
+  });
+
+  test('the server reason is never shown raw: the device\'s own status (notSupport, http_404) reads "capabilities unknown"', () => {
+    expect(reasonHe('notSupport')).toBe('יכולות הזרם אינן ידועות');
+    expect(reasonHe('http_404')).toBe('יכולות הזרם אינן ידועות');
+    expect(reasonHe('capabilities_invalid')).toBe('יכולות הזרם אינן ידועות');
+    expect(reasonHe('stale')).toBe('ה־NVR אינו זמין');
+    expect(reasonHe(null)).toBe('השינוי אינו זמין');
+    const raw = cam([stream('101', 'main', { writable: false, not_writable_reason: 'notSupport' })]);
+    expect(control('svc', raw, raw.streams[0], { canWrite: true, stale: false, detail: detail(raw) }).reason).toBe('יכולות הזרם אינן ידועות');
   });
 
   test('a writable value that is not a boolean (null) is not offered', () => {

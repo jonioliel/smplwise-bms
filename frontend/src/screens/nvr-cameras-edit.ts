@@ -53,7 +53,9 @@ export const REASON_HE: Record<string, string> = {
   no_options: 'יכולות הזרם אינן ידועות',
 };
 
-export const reasonHe = (code: string | null | undefined): string => (code && REASON_HE[code]) || REASON_HE.read_only;
+/** `not_writable_reason` is a code of the server or - when the device's capability documents were refused - the device's own short status
+ * (`notSupport`, `http_404`, `capabilities_invalid`): none of those is shown raw; any unknown code means "the capabilities are not known". */
+export const reasonHe = (code: string | null | undefined): string => (!code ? REASON_HE.read_only : REASON_HE[code] ?? REASON_HE.no_options);
 
 /** The control state of one stream for the SVC toggle (`kind: 'svc'`) or the editor's pencil (`kind: 'edit'`). */
 export function control(kind: 'svc' | 'edit', cam: Pick<NvrCamera, 'camera_id' | 'online'>, s: StreamEncoding | null, ctx: Ctx): Control {
