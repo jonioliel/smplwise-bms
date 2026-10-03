@@ -280,6 +280,13 @@ test.describe('NVR connection form (settings card)', () => {
     m.saveFail = { status: 503, body: ENVELOPE('source_unavailable', 'לא ניתן להתחבר ל־NVR.', { can_save_untested: true }) };
     await form.locator('[data-conn-edit]').click();
     await form.locator('[data-conn-field="host"]').fill('other.fake.test');
+    // security review: a changed address never inherits the stored password - the "kept" state is gone and a password must be typed
+    await expect(form.locator('[data-conn-password-set]')).toHaveCount(0);
+    await expect(form.locator('[data-conn-save]')).toHaveAttribute('disabled', '');
+    await form.locator('[data-conn-field="host"]').fill('nvr.fake.test'); // back to the stored address: kept again
+    await expect(form.locator('[data-conn-password-set]')).toBeVisible();
+    await form.locator('[data-conn-field="host"]').fill('other.fake.test');
+    await form.locator('[data-conn-field="password"]').fill(CANARY);
     await form.locator('[data-conn-save]').click();
     await expect(form.locator('[data-conn-msg]')).toHaveText('לא ניתן להתחבר ל־NVR.');
     await expect(form.locator('[data-conn-save-anyway]')).toBeVisible();
@@ -306,7 +313,7 @@ test.describe('NVR connection form (settings card)', () => {
     await dlg.locator('[data-conn-remove-word]').fill('הסר');
     await dlg.locator('[data-conn-remove-confirm]').click();
     await expect(form.locator('[data-conn-msg]')).toHaveText('ה־NVR הוסר', { timeout: 10000 });
-    expect(m.calls.removes).toEqual([{ confirm_text: 'הסר' }]);
+    expect(m.calls.removes).toEqual([{ confirm_text: 'הסר', if_revision: 3 }]);
     await expect(form.locator('[data-conn-summary]')).toContainText('ללא NVR');
     await expect(page.locator(BANNER)).toBeVisible();
     // the server's own 409 (a vendor change attempted while cameras exist) shows the same line
@@ -317,6 +324,25 @@ test.describe('NVR connection form (settings card)', () => {
     await form.locator('[data-conn-edit]').click();
     await form.locator('[data-conn-save]').click();
     await expect(form.locator('[data-conn-vendor-locked]')).toBeVisible();
+  });
+
+  test('security review: a save on a connection that changed meanwhile (409 stale) asks to reload, and sends the loaded revision', async ({ page }) => {
+    const m = freshMock({}, { vendor: 'hikvision', host: 'nvr.fake.test', http_port: 80, rtsp_port: 554, username: 'viewer', has_password: true, state: 'ok', revision: 5 });
+    await mockBackend(page, m);
+    await open(page, '/system/setup');
+    const form = page.locator(FORM);
+    await expect(form.locator('[data-conn-edit]')).toBeVisible({ timeout: 20000 });
+    await form.locator('[data-conn-edit]').click();
+    await form.locator('[data-conn-field="username"]').fill('viewer3');
+    m.saveFail = { status: 409, body: ENVELOPE('stale', 'פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.', { revision: 6 }) };
+    await form.locator('[data-conn-save]').click();
+    await expect(form.locator('[data-conn-msg]')).toContainText('השתנו בינתיים');
+    expect(m.calls.saves[0]).toMatchObject({ if_revision: 5 });
+    await expect(form.locator('[data-conn-reload]')).toBeVisible();
+    m.view = { ...m.view, revision: 6, username: 'other-admin' };
+    await form.locator('[data-conn-reload]').click();
+    await expect(form.locator('[data-conn-summary]')).toContainText('other-admin');
+    await expect(form.locator('[data-conn-reload]')).toHaveCount(0);
   });
 
   test('permission: without system.configure nothing writable is shown and the connection routes are never asked', async ({ page }) => {
@@ -501,7 +527,7 @@ test.describe('operator wording, RTL and layout (AT-022-24)', () => {
     expect(await form.locator('[data-conn-field="host"]').evaluate((e) => getComputedStyle(e).direction)).toBe('ltr');
     expect(await form.locator('[data-conn-field="http_port"]').evaluate((e) => getComputedStyle(e).direction)).toBe('ltr');
     await form.locator('[data-conn-untested-dialog] sw-button', { hasText: 'ביטול' }).click();
-    texts.push(await textOf(page, 'system-setup'));
+    texts.push(await textOf(page, 'system-setup [data-nvr-connection]'));
     texts.push(await textOf(page, 'sw-app nvr-restart-banner'));
     m.view = { ...m.view, vendor: 'hikvision', host: 'nvr.fake.test', http_port: 80, rtsp_port: 554, username: 'viewer', has_password: true, state: 'unreadable', cameras: 2, vendor_locked: true, legacy_options_differ: true };
     await page.reload();
@@ -511,7 +537,7 @@ test.describe('operator wording, RTL and layout (AT-022-24)', () => {
     // the wizard step
     await open(page, '/system/wizard');
     await expect(page.locator('system-wizard section[data-step="nvr"] nvr-connection-form')).toBeVisible({ timeout: 20000 });
-    texts.push(await textOf(page, 'system-wizard'));
+    texts.push(await textOf(page, 'system-wizard section[data-step="nvr"]'));
     // the shell's panel of an NVR area in the NVR-less mode
     await open(page, '/live/wall');
     await expect(page.locator('sw-app sw-state-panel[data-nvr-less]')).toBeVisible({ timeout: 20000 });
