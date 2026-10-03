@@ -46,7 +46,8 @@
         "media.power",
         "media.group",
         "media.browse",
-        "media.queue"
+        "media.queue",
+        "energy.view"
       ]
     },
     {
@@ -116,7 +117,10 @@
         "media.layout",
         "media.group",
         "media.browse",
-        "media.queue"
+        "media.queue",
+        "energy.view",
+        "energy.manage",
+        "energy.bills"
       ]
     },
     {
@@ -190,7 +194,10 @@
         "media.layout",
         "media.group",
         "media.browse",
-        "media.queue"
+        "media.queue",
+        "energy.view",
+        "energy.manage",
+        "energy.bills"
       ]
     }
   ],
@@ -229,7 +236,8 @@
     "nvr.record.lock",
     "nvr.alarm_output",
     "nvr.storage.test",
-    "nvr.system.reboot"
+    "nvr.system.reboot",
+    "energy.bills"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
 }

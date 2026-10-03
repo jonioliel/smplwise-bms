@@ -21,13 +21,21 @@ from ..db import Database, bump_permission_revision, get_setting, set_setting
 log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
-PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies", "device_bulk_protected", "device_switch_classified"]
+PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies", "device_bulk_protected", "device_switch_classified",
+                  # CR-023 P2: electricity billing (energy_bill_numbers stays OUT on purpose: the ledger of used bill numbers is never
+                  # restored or emptied, so a restore can never make a number reusable)
+                  "energy_customers", "energy_tariffs", "energy_tariff_versions", "energy_vat_rates", "energy_accounts", "energy_account_meters",
+                  "energy_bills", "energy_bill_events", "energy_auto_runs", "energy_assets"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified"})
+KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified",
+                              # CR-023: issued bills are financial records - an archive written before billing existed never empties them
+                              "energy_customers", "energy_tariffs", "energy_tariff_versions", "energy_vat_rates", "energy_accounts",
+                              "energy_account_meters", "energy_bills", "energy_bill_events", "energy_auto_runs", "energy_assets"})
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
-FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
+FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"],
+                "energy_bills": ["pdf_path"], "energy_assets": ["storage_path"]}  # CR-023: stored bill PDFs and business logos
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",

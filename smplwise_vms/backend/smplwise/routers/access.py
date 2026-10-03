@@ -188,6 +188,13 @@ PERMISSION_LABELS: dict[str, str] = {
     # access.release / access.people.manage: default ONLY site_admin and system_admin, sensitive (never implied; a custom
     # role naming it among its sensitive permissions plus a binding is the per-person grant path), installation scope.
     "access.cards.capture": "קריאת כרטיס מקורא בעמדת WisKey (מפעיל את הקורא בדלת; דורש גם ניהול אנשים)",
+    # CR-023 (electricity meters and bills, "תשתיות › מוני חשמל"): energy.view - meters, kWh, accounts without money;
+    # energy.manage - configure meters, accounts and formulas, customers, prices and VAT, business details; energy.bills -
+    # prices, amounts, customer contact fields and every bill action (owner decision D5: any holder issues and cancels).
+    # energy.bills is sensitive (never implied; a custom role must name it). Installation scope only in v1.
+    "energy.view": "צפייה במונים ובצריכה",
+    "energy.manage": "ניהול מונים, חשבונות, לקוחות ומחירים",
+    "energy.bills": "חיובים: סכומים, לקוחות, הפקה וביטול",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
