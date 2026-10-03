@@ -1,0 +1,196 @@
+== host: x86_64 Ubuntu 24.04.5 LTS; load: 9.15 8.61 7.47
+pip install: 7 s
+Name: weasyprint
+Version: 70.0
+Name: pydyf
+Version: 0.12.1
+Name: tinycss2
+Version: 1.5.1
+Name: cssselect2
+Version: 0.10.1
+Name: tinyhtml5
+Version: 2.1.0
+Name: cffi
+Version: 2.1.1
+Name: fpdf2
+Version: 2.8.9
+Name: uharfbuzz
+Version: 0.56.2
+== venv site-packages size of the WeasyPrint stack
+3.0M	venv/lib/python3.12/site-packages/weasyprint
+68K	venv/lib/python3.12/site-packages/pydyf
+272K	venv/lib/python3.12/site-packages/tinycss2
+140K	venv/lib/python3.12/site-packages/cssselect2
+520K	venv/lib/python3.12/site-packages/tinyhtml5
+6.3M	venv/lib/python3.12/site-packages/pyphen
+29M	venv/lib/python3.12/site-packages/fontTools
+36K	venv/lib/python3.12/site-packages/brotli-1.2.0.dist-info
+4.0K	venv/lib/python3.12/site-packages/brotli.py
+2.7M	venv/lib/python3.12/site-packages/zopfli
+44K	venv/lib/python3.12/site-packages/zopfli-0.4.3.dist-info
+884K	venv/lib/python3.12/site-packages/cffi
+36K	venv/lib/python3.12/site-packages/cffi-2.1.1.dist-info
+344K	venv/lib/python3.12/site-packages/_cffi_backend.cpython-312-x86_64-linux-gnu.so
+== fonts: Heebo variable woff2 subsets from the product -> static TTF instances (400, 700)
+fonts ok
+total 80
+drwxrwxr-x 2 sw sw  4096 Oct  3 21:56 .
+drwxr--r-- 8 sw sw  4096 Oct  3 22:06 ..
+-rw-rw-r-- 1 sw sw 10964 Oct  3 22:06 Heebo-he-400.ttf
+-rw-rw-r-- 1 sw sw 11044 Oct  3 22:06 Heebo-he-700.ttf
+-rw-rw-r-- 1 sw sw 22732 Oct  3 22:06 Heebo-la-400.ttf
+-rw-rw-r-- 1 sw sw 22896 Oct  3 22:06 Heebo-la-700.ttf
+== WeasyPrint render (5 runs each, same process; the first run is cold)
+{
+ "weasyprint": "70.0",
+ "python": "3.12.3",
+ "import_s": 0.822,
+ "one_page": {
+  "file": "sample-1p.pdf",
+  "pages": 1,
+  "bytes": 18149,
+  "seconds_each": [
+   0.269,
+   0.2,
+   0.269,
+   0.239,
+   0.271
+  ]
+ },
+ "three_page": {
+  "file": "sample-3p.pdf",
+  "pages": 5,
+  "bytes": 29266,
+  "seconds_each": [
+   0.605,
+   0.62,
+   0.883,
+   0.77,
+   1.237
+  ]
+ },
+ "blocked_urls": [
+  "file:///etc/hostname",
+  "http://example.invalid/x.png",
+  "https://example.invalid/b.png"
+ ],
+ "max_rss_mb": 87.7
+}
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:06.50
+	Maximum resident set size (kbytes): 89776
+== cold single render in a fresh process (import + 1-page bill)
+1.41 s wall, 61836 KB max RSS
+== text extraction (logical order check) and embedded fonts
+‫חשבון צריכת חשמל ודרישת תשלום‬
+
+‫נכסי הדוגמה בע״מ‬
+‫ח‪.‬פ‪510000000 .‬‬
+‫רחוב הדוגמה ‪ ,12‬עיר לדוגמה‬
+‫‪billing@example.co.il · 03-0000000‬‬
+
+‫אינו חשבונית מס‬
+
+‫לכבוד‬
+‫סטודיו אורן לעיצוב‬
+‫רחוב הדוגמה ‪ ,12‬קומה ‪ ,1‬עיר לדוגמה‬
+‫מספר לקוח‪0001 :‬‬
+‫חשבון‪ :‬סטודיו אורן ‪ -‬קומה ‪1‬‬
+‫מונה‬
+
+‫קריאה בתחילת התקופה‬
+
+‫מספר חשבון‪2026-09-0001 :‬‬
+‫תאריך הפקה‪02.10.2026 :‬‬
+‫תקופה‪ 30( 30.09.2026 - 01.09.2026 :‬ימים)‬
+‫לתשלום עד‪16.10.2026 :‬‬
+
+‫קריאה בסוף התקופה‬
+
+‫צריכה (קוט״ש)‬
+
+‫לוח סטודיו‬
+
+‫‪12,480.62‬‬
+
+‫‪13,166.10‬‬
+
+‫‪685.48‬‬
+
+‫תאורת לובי‬
+
+‫‪4,210.30‬‬
+
+‫‪4,512.70‬‬
+name                                 type              encoding         emb sub uni object ID
+------------------------------------ ----------------- ---------------- --- --- --- ---------
+JPTATA+HeeboHe-Bold                  CID TrueType      Identity-H       yes yes yes     16  0
+RLUSAX+HeeboHe                       CID TrueType      Identity-H       yes yes yes     20  0
+EGERLB+HeeboLa                       CID TrueType      Identity-H       yes yes yes     24  0
+LHZEDO+HeeboLa-Bold                  CID TrueType      Identity-H       yes yes yes     28  0
+Pages:           5
+File size:       29266 bytes
+== fpdf2 fallback
+{"fpdf2": "2.8.9", "seconds": 0.038}
+‫חשבון צריכת חשמל ודרישת תשלום‬
+‫לכבוד‪ :‬סטודיו אורן לעיצוב‪ ,‬מספר לקוח ‪0001‬‬
+‫תקופה‪30.09.2026 - 01.09.2026 :‬‬
+‫צריכה‪ 776.20 :‬קוט״ש × ‪₪ 421.48 = ₪ 0.5430‬‬
+‫מע״מ ‪ ,₪ 75.87 :18%‬סה״כ‪₪ 497.35 :‬‬
+
+== wheel availability for the add-on's base (Alpine = musllinux, Python 3.12), both architectures
+musllinux_1_2_x86_64: OK, 16 wheels, 22M
+brotli-1.2.0-cp312-cp312-musllinux_1_2_x86_64.whl
+cffi-2.1.1-cp312-cp312-musllinux_1_2_x86_64.whl
+cssselect2-0.10.1-py3-none-any.whl
+defusedxml-0.7.1-py2.py3-none-any.whl
+fonttools-4.66.1-cp312-cp312-musllinux_1_2_x86_64.whl
+fpdf2-2.8.9-py3-none-any.whl
+pillow-12.3.0-cp312-cp312-musllinux_1_2_x86_64.whl
+pycparser-3.0-py3-none-any.whl
+pydyf-0.12.1-py3-none-any.whl
+pyphen-0.18.1-py3-none-any.whl
+tinycss2-1.5.1-py3-none-any.whl
+tinyhtml5-2.1.0-py3-none-any.whl
+uharfbuzz-0.56.2-cp310-abi3-musllinux_1_2_x86_64.whl
+weasyprint-70.0-py3-none-any.whl
+webencodings-0.6.1-py3-none-any.whl
+zopfli-0.4.3-cp310-abi3-musllinux_1_2_x86_64.whl
+musllinux_1_2_aarch64: OK, 16 wheels, 21M
+brotli-1.2.0-cp312-cp312-musllinux_1_2_aarch64.whl
+cffi-2.1.1-cp312-cp312-musllinux_1_2_aarch64.whl
+cssselect2-0.10.1-py3-none-any.whl
+defusedxml-0.7.1-py2.py3-none-any.whl
+fonttools-4.66.1-cp312-cp312-musllinux_1_2_aarch64.whl
+fpdf2-2.8.9-py3-none-any.whl
+pillow-12.3.0-cp312-cp312-musllinux_1_2_aarch64.whl
+pycparser-3.0-py3-none-any.whl
+pydyf-0.12.1-py3-none-any.whl
+pyphen-0.18.1-py3-none-any.whl
+tinycss2-1.5.1-py3-none-any.whl
+tinyhtml5-2.1.0-py3-none-any.whl
+uharfbuzz-0.56.2-cp310-abi3-musllinux_1_2_aarch64.whl
+weasyprint-70.0-py3-none-any.whl
+webencodings-0.6.1-py3-none-any.whl
+zopfli-0.4.3-cp310-abi3-musllinux_1_2_aarch64.whl
+== Alpine 3.22 package indexes: what apk add pango adds
+{
+ "x86_64": {
+  "pango_version": "1.56.3-r0",
+  "new_packages": [
+   "libxft",
+   "pango"
+  ],
+  "new_installed_mb": 0.7,
+  "pango_closure_total_mb": 18.6
+ },
+ "aarch64": {
+  "pango_version": "1.56.3-r0",
+  "new_packages": [
+   "libxft",
+   "pango"
+  ],
+  "new_installed_mb": 0.9,
+  "pango_closure_total_mb": 21.9
+ }
+}
+== done; load: 13.15 9.62 7.84
