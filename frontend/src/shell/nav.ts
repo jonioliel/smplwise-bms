@@ -428,6 +428,8 @@ export const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
 export const MULTIMEDIA_PLAYERS_HREF = '#/multimedia/players';
 export const MULTIMEDIA_GROUPS_HREF = '#/multimedia/groups';
 export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
+/** CR-021 S2: הגדרות › עדכונים. */
+export const UPDATE_SETTINGS_HREF = '#/system/update';
 export const MULTIMEDIA_TABS: TabItem[] = [
   { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
   { id: 'players', label: 'נגנים ורמקולים', href: MULTIMEDIA_PLAYERS_HREF },
@@ -593,6 +595,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'security', label: 'אבטחה', href: SECURITY_SETTINGS_HREF },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
+    // CR-021 S2: the self-update page (system.update, installation scope: system administrators only)
+    { id: 'update', label: 'עדכונים', href: UPDATE_SETTINGS_HREF },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
@@ -780,6 +784,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/multimedia/players': ['media.read'],
   '#/multimedia/groups': ['media.read'],
   [MULTIMEDIA_SETTINGS_HREF]: ['system.configure'],
+  // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
+  [UPDATE_SETTINGS_HREF]: ['system.update'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
@@ -814,7 +820,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
