@@ -122,7 +122,7 @@ test.describe('CR-020 S2c multi-camera change (mocked backend)', () => {
     await expect(first).toHaveAttribute('aria-checked', 'true');
     await expect(first).toHaveAttribute('aria-disabled', 'true');
     await expect(sel.locator('[data-nvr-batch-next]')).toHaveAttribute('disabled', '');
-    await first.click(); // fixed: stays ticked
+    await first.click({ force: true }); // fixed (aria-disabled): stays ticked
     await expect(first).toHaveAttribute('aria-checked', 'true');
     await shot(page, 'batch-02-checklist');
     await sel.locator('[data-nvr-batch-cam="cam-2"]').click();
