@@ -110,7 +110,7 @@ tells the user to configure something (the "how to add it" text lives in Setting
 ## 5. P0 audit (2026-10-03, code-level)
 
 Method: grep of every service and router for direct NVR (`services/nvr*`, ISAPI) and go2rtc (`Go2rtc(`, `go2rtc_url`) use,
-plus the table-driven route sweep of `tests/test_capabilities.py` across the four installations. The Chromium walk of every
+plus the table-driven route sweep of `tests/test_installation_capabilities.py` across the four installations. The Chromium walk of every
 shell route per installation (the NVR_LESS_MODE method) was **not run**: Playwright is not run on the workstation and the
 shell is P2 work; it belongs to the P2 evidence.
 
@@ -137,7 +137,8 @@ shell is P2 work; it belongs to the P2 evidence.
 
 ## 7. Tests
 
-`smplwise_vms/backend/tests/test_capabilities.py`: the pure derivation for 4 installations x HA (none / configured but down /
+`smplwise_vms/backend/tests/test_installation_capabilities.py` (the plan called it `test_capabilities.py`; that name already
+holds the T045 per-camera capability tests, so the new file has its own name): the pure derivation for 4 installations x HA (none / configured but down /
 connected); `/me`, `/health`, `/health/report`, `/health/summary`, `/setup/state` per installation; capabilities stable when
 devices go down; recorder detail by permission; "never ready" guard; a table-driven route sweep per installation (2xx / 4xx /
 409, never 5xx, gated answers under 2 s); 401 and audited 403 before 409 on every capability-gated route.
