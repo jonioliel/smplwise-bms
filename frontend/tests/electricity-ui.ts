@@ -68,3 +68,6 @@ export function watchErrors(page: Page): { expectNone: () => void } {
 }
 
 export const phone = (info: TestInfo): boolean => info.project.name === 'mobile';
+
+/** Clicks a visually hidden control (the radio / checkbox of a row, opacity 0) the way a tap on its row does, whatever the viewport. */
+export const tap = (l: Locator): Promise<void> => l.evaluate((e) => (e as HTMLElement).click());
