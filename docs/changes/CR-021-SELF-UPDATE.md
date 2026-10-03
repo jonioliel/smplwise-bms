@@ -278,3 +278,102 @@ need no new role (the read works today; the store reload needs `manager`, so bef
 - D6: platform restart is always a separate action.
 - D7: nightly opt-in auto-update recorded as a future option, not built now.
 - D8: bilingual CHANGELOG plus a `[platform-restart]` marker line is the release-notes source.
+
+## 13. Slice S3 (backend): owner answers of 2026-10-03 and what was built
+
+Branch `pilot/CR021-s3` (from `pilot/CR021-on-CR020`). Backend, fake infrastructure only; the UI card, modal and status screen
+are a later slice. No new migration (`update_runs` is in 0051; the boot counter and the restart reasons are `settings` rows).
+
+### 13.1 Owner answers (binding)
+
+| # | Answer |
+|---|---|
+| 1 | Platform restart = Supervisor `POST /core/restart`, after `POST /core/check` (needs the manager role) |
+| 2 | `hassio_role: manager` ships with the S1/S2 release family; `config.yaml` carries it on this branch; one-time manual install documented (DOCS "Updates and restarts from inside Arx") |
+| 3 | The single `system.update` covers update and platform restart |
+| 4 | Plain confirmation everywhere (`confirm: true`), no typed confirmation |
+| 5 | The owner presses the buttons in the lab; agents build against fakes only (checklist 13.5) |
+| 6 | Keep `backup: hot`; Arx's own pre-upgrade zip is the consistent copy; both offered on failure |
+| 7 | "Restart required" row in Settings + the user-menu dot, system admins only (backend: `requires_platform_restart` + `platform_restart_reasons` on `GET /state`, holders only) |
+| 8 | No rate limit on the platform restart: only the permission and the confirmation are checked |
+| 9 | One "הפעלות מחדש" card, two buttons, one shared helper: `services/addon_restart.py` (CR-022's names and behaviour kept) |
+| 10 | Rollback is guidance only; no restore / downgrade button |
+| 11 | Branch protection + required review on the store repository before S3 ships (release gate 13.4) |
+
+### 13.2 Routes (all `system.update`, installation scope)
+
+| Route | Request | Response / errors |
+|---|---|---|
+| `POST /api/v1/system/update/apply` | `{target_version, backup, confirm: true, idempotency_key}` | `202 {run_id, kind:"update", state:"requested", ...}`; same key -> `200` same run; 409 `update_in_progress` / `update_not_available` / `target_version_mismatch` / `platform_busy` / `nvr_write_in_progress` / `idempotency_key_reused`; 429 `rate_limited` (1 per 10 min, from `update_runs`, survives the restart); 503 `platform_not_permitted` (`required_role: manager`) / `infrastructure_unreachable`; 502 `infrastructure_error` |
+| `POST /api/v1/system/update/restart-platform` | `{confirm: true, idempotency_key}` | `202 {run_id, kind:"platform_restart", step:"config_check", ...}`; 409 `update_in_progress` while any run is active; 503 / 502 as above. No rate limit |
+| `GET /api/v1/system/update/runs/{run_id}` | - | `{run_id, kind, state, step, started_at, finished_at, from_version, to_version, backup, error_code, timeout_s}`; a run past its timeout is settled `abandoned` here |
+
+Order on both POST routes (the `auth.read_gate` pattern): permission on the read connection (403 + audit before the body is read)
+-> body cap 4 KB -> `Sec-Fetch-Site` other than `same-origin` refused (403 `cross_site_refused`) -> JSON only (415) -> body schema
+(422 `invalid_request`) -> `confirm` must be the JSON literal `true` (422 `confirm_required`) -> write connection. Every refusal after
+the permission is an audit row (`system.update.apply` / `.restart_platform`, `denied`, `phase:"request"`). The remote channel may use
+the routes (D5); its cookie sessions pass `remote_channel.csrf_ok` first. The routes are not on `BLOCKED_ON_REMOTE`.
+
+### 13.3 State machine and audit
+
+`requested -> backing_up | updating -> restarting -> verifying -> succeeded | failed | abandoned` (update) and
+`requested (config_check) -> restarting -> verifying -> succeeded | failed | abandoned` (platform restart). `step` and `error_code`
+are fixed vocabularies (`services/update_runs.py` STEPS / ERROR_CODES); no upstream text, slug, token, address or backup name is
+stored, returned or audited.
+
+Two-phase rule (as CR-020): reads with the write lock released; then, under the lock, ONE `INSERT ... WHERE NOT EXISTS (unfinished
+run)` + the audit row `phase:"attempt"`, committed before a worker sends anything; the worker records the outcome
+(`system.update.result`, `phase:"outcome"`, `allowed` for success, `denied` + `reason` = error code otherwise). An answer that never
+arrives (`dropped`) is an UNKNOWN outcome: never resent, never claimed; the update run goes to `restarting/outcome_unknown` and is
+settled by the next start (`update_runs.on_startup`, called once from `main.py` after the migrations): running version = target ->
+`verifying` + health check with one retry after 60 s (schema at the newest migration, database writable, infrastructure reports the
+target version and `started`) -> `succeeded` / `failed/health_check_failed`; running version = source -> `failed/version_unchanged`
+(`interrupted` when the call was never sent); three starts of the target without a healthy check -> `failed/restart_loop`. A process
+that outlives the 20-minute window -> `abandoned/timeout`. The platform restart: the configuration check fails (HTTP 400) ->
+`failed/platform_config_invalid`, no restart; otherwise `POST /core/restart` once, then `GET /core/info` every 5 s up to 10 min:
+`running` after it was seen down (or after 30 s when the restart was accepted) and, when the bridge is paired, a bridge directory push
+after the restart -> `succeeded`; else `platform_not_back` / `bridge_not_loaded`. A successful restart clears the stored reasons.
+
+Deviations from the private design: the configuration check runs in the worker (the run row exists first; an Ingress request never
+waits for a slow check) - its failure is on the run, not a synchronous 409; `confirm_text` is gone (answer 4); the platform restart has
+no rate limit (answer 8); `backup_ref` is not filled (no backup name is kept, nothing in the UI needs it).
+
+### 13.4 Release gate (before S3 ships)
+
+- [ ] Branch protection + required review on the store (release) repository enabled by the owner (answer 11). Agents do not change
+      repository settings.
+- [ ] Tier L (TEST_POLICY: RBAC + manifest role + update path): full backend + full Playwright on the runner.
+- [ ] Security review of `services/self_update.py` (allow-list), `services/update_runs.py`, `routers/system_update.py`.
+- [ ] The lab session of 13.5 done with the owner pressing the buttons; any [A] item that failed is fixed or the slice is held.
+- [ ] Release notes carry the one-time manual update step (DOCS "One-time manual update to the first release with the role").
+
+### 13.5 Assumptions that need the lab (acceptance checklist for the owner session)
+
+| # | Assumption (built that way) | How the lab confirms it |
+|---|---|---|
+| A1 | `POST /store/addons/{slug}/update` needs the real slug (the `self` bypass excludes `update`); `GET /addons/self/info` returns `slug` | the in-app update after the manual R1 install reaches the store route (no 404); before it, a 403 shows "אין הרשאה" |
+| A2 | the update body keys `backup` / `background` are accepted; `background: true` answers at once with `job_id` | Supervisor log + the run's step `job_running` |
+| A3 | `GET /jobs/info` lists the job with `uuid`, `done`, `errors`, `child_jobs` (backup child named `*backup*`) | the run passes `backing_up -> updating -> restarting` while Arx is alive |
+| A4 | the Supervisor restarts the add-on after the update by itself | Arx returns on the new version, run `succeeded` |
+| A5 | a failed backup aborts the update; a failed build keeps the old image | not provoked in the lab; reviewed from Supervisor source (P0) |
+| A6 | the add-on `state` is `started` within 60 s of the new process's start (health check + one retry) | run `succeeded`, not `health_check_failed` |
+| A7 | slow migrations do not trip the watchdog (`/healthz`) during a start | measure the start time of R2 |
+| A8 | `POST /core/check` exists and answers 400 for an invalid configuration, 200 for a valid one | the restart passes the check (the invalid case is not provoked) |
+| A9 | `POST /core/restart` (body `{}`) needs `manager`; it may answer before or after the core is back | run reaches `succeeded`; note how long the call took |
+| A10 | `GET /core/info` returns `state` (`running`) and is answered with the default role; it fails or shows another state while the core restarts | run step sequence `restart_accepted -> bridge_wait/waiting_for_platform` |
+| A11 | the bridge pushes its directory right after the core loads it (proof the bridge is back) | run `succeeded` without `bridge_not_loaded`; bridge version active |
+| A12 | Ingress sessions and HA-identity lookups fail only for seconds during a core restart; Arx stays up | the status screen keeps polling; Arx log clean |
+| A13 | browsers send `Sec-Fetch-Site: same-origin` through Ingress and the remote channel | the confirmation buttons work in Chrome (local and remote) |
+| A14 | the lower security rating after the role change | Info tab after R1 |
+| A15 | WisKey `requires_ha_restart` (release manifest) and its contract version after a restart | WisKey fold-in not written yet: the installer must call `platform_restart.note_component_manifest(conn, "wiskey", manifest)`; a successful restart counts as "loaded" until the contract command exists |
+
+### 13.6 Not built in this slice (and why)
+
+- UI: card "הפעלות מחדש", confirmation modal, status screen surviving the restart, failure / rollback screen, Settings row and
+  user-menu dot - the later frontend slice (the backend fields exist).
+- `POST /api/system/restart` (the Arx-only restart): CR-022's route on `pilot/nn4-backend`; S3 only provides the shared helper
+  (`addon_restart.restart`) with the same names, so that route works unchanged on either merge order.
+- Release-notes feed and the `[platform-restart]` reason source (S4); the hook `platform_restart.add_reason(conn, "release", version)`
+  exists.
+- A refusal while an Arx backup restore is running: there is no restore-in-progress marker to read; the NVR-write interlock is built.
+- Restore / downgrade button (answer 10).

@@ -138,6 +138,50 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   included in Home Assistant backups (`backup: hot`).
 - Original plan uploads are never modified; backgrounds are derived and can be regenerated.
 
+## Updates and restarts from inside Arx (CR-021)
+
+Settings → System → Updates shows when a newer Arx version is in the store, installs it, and restarts the platform when
+a component needs it. Only system administrators (permission `system.update`) see and use it; every action asks for a
+plain confirmation and is audited.
+
+### What Arx may do on your system
+
+The add-on manifest requests the Supervisor role `manager` (`hassio_role: manager`). Home Assistant shows a lower
+security rating for the add-on because that role could, in principle, also manage backups, other add-ons and the host.
+Arx itself sends only these calls, from one module, and nothing else (a test fails the build if another call appears):
+
+| Call | Why |
+|---|---|
+| read this add-on's info | installed and latest version, state |
+| refresh the add-on store | "בדוק אם יש עדכון" |
+| update this add-on (to the store's latest version only, backup on by default) | "עדכן" |
+| read the job list | progress of the running update |
+| read the core info, run the configuration check, restart the core | "הפעל מחדש את תשתית המערכת" (only after the configuration check passed) |
+| set this add-on's options, restart this add-on | the existing connection settings / "הפעל מחדש את Arx" |
+
+Arx never adds a store repository, never touches another add-on, never creates, restores or downloads platform backups,
+and never restarts or updates the host, the OS or the Supervisor. To give the role back, install a release without the
+line (the role is re-read on update), or stop the add-on from the platform UI.
+
+### One-time manual update to the first release with the role
+
+The running add-on still has the old role, and Arx cannot raise its own role, so the first release that carries
+`hassio_role: manager` is installed by hand once (about 5-10 minutes; the image is built locally):
+
+1. Home Assistant → Settings → Add-ons → SmplWise Arx → menu → "Check for updates".
+2. Tick "Create backup before updating" (recommended), press Update and wait for the rebuild.
+3. Info tab: the new version is shown, and the lower security rating (expected).
+4. Arx → Settings → System → Updates → "בדוק אם יש עדכון": the check reports that the refresh worked, and the
+   "אין הרשאה" state is gone. From the next release on, updates run from inside Arx.
+
+### When an update fails
+
+Rollback is guidance only (no restore button in Arx): (1) restore the add-on from the platform's partial backup taken
+"before update" (it restores the image and `/data` together), or (2) reinstall the previous version and restore the
+newest "לפני עדכון" backup in Arx → Settings → Backup. Migrations only move forward, so an image rollback without the data
+is not offered. The platform backup is taken while Arx runs (`backup: hot`); Arx's own pre-upgrade backup is the
+consistent copy.
+
 ## Live video
 
 - Browser ↔ add-on WebSocket relay ↔ go2rtc. The browser never learns the go2rtc address or any

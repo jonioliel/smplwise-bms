@@ -56,9 +56,10 @@ def j(c, method, path, user="joni", **kw):
 
 # ---------------------------------------------------------------- unit
 
-def test_only_the_two_read_and_refresh_calls_can_be_sent(settings, sup):
-    assert self_update.ALLOWED == {("GET", "/addons/self/info"), ("POST", "/store/reload")}
-    for method, path in (("POST", "/store/addons/self/update"), ("POST", "/addons/self/update"), ("POST", "/core/restart"), ("POST", "/backups/new/partial"),
+def test_only_the_allow_listed_calls_can_be_sent(settings, sup):
+    # S1's two calls plus the exact S3 pairs (tests/test_self_update_s3.py pins the full list, bodies and slugs)
+    assert {("GET", "/addons/self/info"), ("POST", "/store/reload")} <= self_update.ALLOWED
+    for method, path in (("POST", "/store/addons/self/update"), ("POST", "/addons/self/update"), ("POST", "/backups/new/partial"),
                          ("GET", "/addons"), ("DELETE", "/addons/self/info"), ("GET", "/addons/self/info/")):
         with pytest.raises(self_update.ProbeRefused):
             self_update.call(settings, method, path)
@@ -141,7 +142,7 @@ def test_state_before_any_check(world):
     _, c = world
     s = j(c, "get", "/state").json()
     assert s == {"installed": __version__, "latest": None, "update_available": False, "checked_at": None, "check_result": None, "interval_hours": 6,
-                 "permitted": "unknown", "notes": [], "requires_platform_restart": False, "run": None}
+                 "permitted": "unknown", "notes": [], "requires_platform_restart": False, "platform_restart_reasons": [], "run": None}
 
 
 # ---------------------------------------------------------------- the check

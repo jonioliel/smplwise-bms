@@ -382,22 +382,24 @@ def with_connection(settings: Settings, *, host: str, http_port: int, rtsp_port:
 
 
 def supervisor_post(settings: Settings, path: str, body: dict[str, Any] | None = None) -> None:
-    """A Supervisor API call from inside the add-on (options / restart). Raises ApiError on refusal."""
-    try:
-        r = httpx.post(f"http://supervisor{path}", json=body, headers={"Authorization": f"Bearer {settings.ha_token}"}, timeout=15)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"path": path, "error": type(exc).__name__}) from exc
-    if r.status_code >= 400:
-        raise ApiError(502, "supervisor_refused", "ה־Supervisor דחה את הבקשה.", details={"path": path, "status": r.status_code})
+    """A Supervisor API call from inside the add-on (options / restart). Raises ApiError on refusal. CR-021 S3: sent through the single
+    allow-list of `self_update` (only `/addons/self/options` and `/addons/self/restart` are accepted here), never to an arbitrary path."""
+    from . import self_update
+
+    reply = self_update.send("POST", path, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", body=body, timeout=15)
+    if reply.kind in ("unreachable", "dropped") and path != self_update.P_SELF_RESTART:
+        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"path": path, "error": reply.kind})
+    if reply.kind in ("forbidden", "error"):
+        raise ApiError(502, "supervisor_refused", "ה־Supervisor דחה את הבקשה.", details={"path": path, "status": reply.status})
 
 
 def supervisor_options(settings: Settings) -> dict[str, Any]:
-    try:
-        r = httpx.get("http://supervisor/addons/self/info", headers={"Authorization": f"Bearer {settings.ha_token}"}, timeout=15)
-        r.raise_for_status()
-        return dict(r.json().get("data", {}).get("options") or {})
-    except (httpx.HTTPError, ValueError) as exc:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"error": type(exc).__name__}) from exc
+    from . import self_update
+
+    reply = self_update.send("GET", self_update.P_INFO, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", timeout=15)
+    if reply.kind != "ok":
+        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"error": reply.kind})
+    return dict((reply.data or {}).get("options") or {})
 
 
 def save_connection(settings: Settings, new: Settings) -> str:

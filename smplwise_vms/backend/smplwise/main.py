@@ -132,6 +132,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
+    from .services import update_runs  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
+
+    update_runs.on_startup(app.state.db, settings)
     try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
         from .services import notify_policy
 

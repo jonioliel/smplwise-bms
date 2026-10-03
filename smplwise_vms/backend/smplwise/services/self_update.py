@@ -1,16 +1,27 @@
-"""Self-update, slice S1 (CR-021, docs/changes/CR-021-SELF-UPDATE.md): FIND a newer version of this add-on, remember the result and the settings.
+"""Self-update (CR-021, docs/changes/CR-021-SELF-UPDATE.md): FIND a newer version of this add-on (S1), and the ONE door through which
+Arx talks to the add-on infrastructure API (the Supervisor) for anything with an effect (S3).
 
-S1 is read-mostly. The only calls made to the infrastructure (the add-on Supervisor) are
+S1 calls: `GET /addons/self/info` (installed / latest version, update flag; the default role) and `POST /store/reload` (the store refresh;
+the `manager` role). S3 widens ALLOWED to the exact (method, path) pairs of the in-app update and the platform restart (CR-021 section 13,
+owner answers of 2026-10-03):
 
-  * `GET  /addons/self/info`   the installed version, the latest version, the update flag (works with the add-on's default role), and
-  * `POST /store/reload`       the same refresh as the refresh button of the add-on store (needs the `manager` role; CR-021 owner decision D1).
+  * `POST /store/addons/{slug}/update`  body exactly `{"backup": bool, "background": bool}`; `{slug}` is the add-on's own slug read from
+                                        `GET /addons/self/info` and must match SLUG_RE (assumption to confirm in the lab: the store route
+                                        does not resolve `self`, the Supervisor's self bypass excludes `update`)
+  * `GET  /jobs/info`                   optional progress of the Supervisor job while Arx is still alive
+  * `GET  /core/info`                   the platform version and state before / after a platform restart
+  * `POST /core/check`                  the platform's configuration check; a failed check refuses the restart (owner answer 1)
+  * `POST /core/restart`                body `{}`; the platform restart
+  * `POST /addons/self/options`, `POST /addons/self/restart`   the two pre-existing calls of services/nvr_system.py and the Arx restart of
+                                        CR-022 (services/addon_restart.py), routed through this list so manager power has exactly one door.
 
-Both are in ALLOWED below and nothing else can be sent: apply / platform restart / backup are S3 and are not reachable from this module.
-The check results are rows of the existing `settings` table (`update.*`); no token, address or add-on slug is ever stored or returned - the
-token addresses the add-on as `self`.
+Anything else raises ProbeRefused before a socket is opened: an unknown pair, a body on a call without one, a body key outside BODY_KEYS,
+a non-boolean update flag, a slug that fails SLUG_RE. No request field ever reaches a path; redirects are never followed; an upstream body
+is never echoed (only its class and HTTP status). No token, address or slug is stored or returned.
 
 Network calls never run while a database connection is held (the callers read the settings first, call, then write). Tests install
-`BASE_URL` (a local fake Supervisor, tests/update_fake_supervisor.py) or `UPDATE_FETCHER` (notify_sources' older seam).
+`BASE_URL` (a local fake Supervisor, frontend/tests/fixtures/update_fake_supervisor.py), `TRANSPORT` (an httpx MockTransport) or
+`UPDATE_FETCHER` (notify_sources' older seam).
 """
 from __future__ import annotations
 
@@ -32,10 +43,33 @@ from .timeutil import iso_utc
 DEFAULT_BASE = "http://supervisor"
 BASE_URL: str | None = None      # tests / a developer: a local fake Supervisor (then no `in_addon` is needed)
 TOKEN: str | None = None         # tests: a stand-in for SUPERVISOR_TOKEN
+TRANSPORT: Any = None            # tests: an httpx.BaseTransport
 TIMEOUT_S = 8.0
 
-# The whole outgoing surface of this slice. Anything else raises ProbeRefused before a socket is opened.
-ALLOWED: frozenset[tuple[str, str]] = frozenset({("GET", "/addons/self/info"), ("POST", "/store/reload")})
+P_INFO = "/addons/self/info"
+P_RELOAD = "/store/reload"
+P_UPDATE = "/store/addons/{slug}/update"
+P_JOBS = "/jobs/info"
+P_CORE_INFO = "/core/info"
+P_CORE_CHECK = "/core/check"
+P_CORE_RESTART = "/core/restart"
+P_OPTIONS = "/addons/self/options"
+P_SELF_RESTART = "/addons/self/restart"
+
+# The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
+ALLOWED: frozenset[tuple[str, str]] = frozenset({
+    ("GET", P_INFO), ("POST", P_RELOAD),                                     # S1
+    ("POST", P_UPDATE), ("GET", P_JOBS),                                     # S3: the update
+    ("GET", P_CORE_INFO), ("POST", P_CORE_CHECK), ("POST", P_CORE_RESTART),  # S3: the platform restart
+    ("POST", P_OPTIONS), ("POST", P_SELF_RESTART),                           # pre-existing nvr_system calls / the CR-022 Arx restart
+})
+# The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
+BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {
+    ("POST", P_UPDATE): frozenset({"backup", "background"}),
+    ("POST", P_CORE_RESTART): frozenset(),
+    ("POST", P_OPTIONS): frozenset({"options"}),
+}
+SLUG_RE = re.compile(r"[a-z0-9_]{1,64}")
 
 VERSION_RE = re.compile(r"[0-9A-Za-z._+-]{1,40}")
 INTERVALS = (0, 1, 3, 6, 12, 24)   # hours; 0 = off (CR-021 section 5.1)
@@ -60,7 +94,9 @@ class ProbeRefused(Exception):
 
 @dataclass(frozen=True)
 class Reply:
-    """`kind`: ok | forbidden | unreachable | error. `status` is the HTTP status of the infrastructure (0 when none); `data` the `data` object."""
+    """`kind`: ok | forbidden | unreachable | dropped | error. `status` is the HTTP status of the infrastructure (0 when none); `data`
+    the `data` object. `dropped` only for a call with an effect (POST): the request may have been received and acted upon but no answer
+    arrived (the connection broke or the read timed out) - its outcome is UNKNOWN. A GET that breaks is `unreachable`."""
     kind: str
     status: int = 0
     data: dict[str, Any] | None = None
@@ -75,28 +111,58 @@ def _token() -> str | None:
     return TOKEN or os.environ.get("SUPERVISOR_TOKEN") or None
 
 
-def call(settings: Settings, method: str, path: str) -> Reply:
-    """One allow-listed request. Never raises for a network or HTTP problem; the reply says which kind it was. No body, no query."""
+def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None) -> str:
+    """The allow-list, the body shape and the slug, checked BEFORE anything is opened. Returns the concrete path."""
     if (method, path) not in ALLOWED:
         raise ProbeRefused(f"{method} {path}")
-    if not configured(settings):
-        return Reply("unreachable")
+    keys = BODY_KEYS.get((method, path))
+    if body is not None:
+        if keys is None or not isinstance(body, dict) or not set(body) <= keys:
+            raise ProbeRefused(f"{method} {path}: body")
+        if path == P_UPDATE and (set(body) != keys or not all(isinstance(v, bool) for v in body.values())):
+            raise ProbeRefused(f"{method} {path}: body values")
+    elif path == P_UPDATE:
+        raise ProbeRefused(f"{method} {path}: the backup flag is always sent explicitly")
+    if "{slug}" in path:
+        if not isinstance(slug, str) or not SLUG_RE.fullmatch(slug):
+            raise ProbeRefused(f"{method} {path}: slug")
+        return path.replace("{slug}", slug)
+    if slug is not None:
+        raise ProbeRefused(f"{method} {path}: slug")
+    return path
+
+
+def send(method: str, path: str, *, base: str, token: str, transport: Any = None, body: dict[str, Any] | None = None, slug: str | None = None,
+         timeout: float | None = None) -> Reply:
+    """The single place a request to the infrastructure is made. `path` is an ALLOWED template. Never raises for a network or HTTP problem."""
+    concrete = check_allowed(method, path, body, slug)
     import httpx
 
     try:
-        r = httpx.request(method, (BASE_URL or DEFAULT_BASE).rstrip("/") + path, headers={"Authorization": f"Bearer {_token()}"}, timeout=TIMEOUT_S)
+        with httpx.Client(transport=transport, timeout=timeout or TIMEOUT_S, follow_redirects=False) as client:
+            r = client.request(method, base.rstrip("/") + concrete, headers={"Authorization": f"Bearer {token}"}, json=body)
+    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.UnsupportedProtocol, httpx.InvalidURL):
+        return Reply("unreachable")   # nothing reached the other side
     except httpx.HTTPError:
-        return Reply("unreachable")
+        return Reply("unreachable" if method == "GET" else "dropped")
     if r.status_code in (401, 403):
         return Reply("forbidden", r.status_code)
-    if r.status_code != 200:
+    if not 200 <= r.status_code < 300:
         return Reply("error", r.status_code)
     try:
-        body = r.json()
+        payload = r.json()
     except ValueError:
-        return Reply("error", r.status_code)
-    data = body.get("data") if isinstance(body, dict) else None
-    return Reply("ok", 200, data if isinstance(data, dict) else {})
+        return Reply("error", r.status_code) if method == "GET" else Reply("ok", r.status_code, {})
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return Reply("ok", r.status_code, data if isinstance(data, dict) else {})
+
+
+def call(settings: Settings, method: str, path: str, *, body: dict[str, Any] | None = None, slug: str | None = None, timeout: float | None = None) -> Reply:
+    """One allow-listed request with this module's seams (BASE_URL / TOKEN / TRANSPORT)."""
+    check_allowed(method, path, body, slug)
+    if not configured(settings):
+        return Reply("unreachable")
+    return send(method, path, base=BASE_URL or DEFAULT_BASE, token=_token() or "", transport=TRANSPORT, body=body, slug=slug, timeout=timeout)
 
 
 @dataclass(frozen=True)
@@ -184,13 +250,21 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
     latest = get_setting(conn, K_LATEST, "") or ""
     available = get_setting(conn, K_AVAILABLE, "false") == "true" and bool(latest) and latest != installed
     permitted = get_setting(conn, K_PERMITTED, "unknown")
-    run = conn.execute("SELECT id, state, step, created_at, finished_at, from_version, to_version, error_code FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned') ORDER BY created_at DESC LIMIT 1").fetchone()
+    run = conn.execute("SELECT id, state, step, created_at, finished_at, from_version, to_version, error_code, restart_platform FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned') ORDER BY created_at DESC LIMIT 1").fetchone()
+    from . import platform_restart  # S3: the "restart required" row of Settings and the user-menu dot (owner answer 7)
+
+    reasons = platform_restart.reasons(conn)
+    run_out = None
+    if run:
+        run_out = {k: run[k] for k in run.keys() if k != "restart_platform"}
+        run_out["kind"] = "platform_restart" if run["restart_platform"] else "update"
     return {
         "installed": installed, "latest": latest or None, "update_available": available,
         "checked_at": get_setting(conn, K_CHECKED_AT) or None, "check_result": get_setting(conn, K_RESULT) or None,
         "interval_hours": get_interval(conn), "permitted": permitted if permitted in ("unknown", "yes", "no") else "unknown",
-        "notes": [], "requires_platform_restart": False,  # release notes arrive with S2/S4 (CR-021 section 4 point 3)
-        "run": dict(run) if run else None,
+        "notes": [],  # release notes arrive with S4 (CR-021 section 4 point 3)
+        "requires_platform_restart": bool(reasons), "platform_restart_reasons": reasons,
+        "run": run_out,
     }
 
 
