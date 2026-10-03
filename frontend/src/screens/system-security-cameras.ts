@@ -493,27 +493,53 @@ export class SystemSecurityCameras extends LitElement {
 
   // ---------------------------------------------------------------------------------------------- S2: detail, controls, writes
 
-  /** `writable` is null in the list: a holder of `nvr.configure` reads each camera's detail (three at a time) before a switch is offered. */
+  /** `writable` is null in the list: a holder of `nvr.configure` reads each camera's detail (three at a time) before a switch is offered.
+   * CR-020 S2C (hundreds of cameras): the answers are committed to the screen in groups (every 25 cameras or 150 ms), not one render of the whole table per camera. */
   private async prefetch(list: CameraList, mine: number) {
     if (!list.can_write || list.stale) return;
     const ids = list.cameras.filter((c) => c.camera_id && c.streams.length).map((c) => c.camera_id as string);
     let next = 0;
+    const sink = new Map<string, CameraDetail | 'error'>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (mine !== this.seq || !sink.size) return;
+      this.commitDetails(new Map(sink));
+      sink.clear();
+    };
     const worker = async () => {
-      while (next < ids.length && mine === this.seq) await this.readCamera(ids[next++], mine);
+      while (next < ids.length && mine === this.seq) {
+        await this.readCamera(ids[next++], mine, sink);
+        if (sink.size >= 25) flush();
+        else if (!timer) timer = setTimeout(flush, 150);
+      }
     };
     await Promise.all([worker(), worker(), worker()]);
+    flush();
   }
 
-  /** A READ of one camera (the options and `writable`); also how a row is refreshed after stale / diverged / an unknown outcome. */
-  private async readCamera(id: string, mine = this.seq) {
+  /** Several detail answers at once: one new `details` map and one new `data` (the list's streams take the detail's copy, which carries `writable`). */
+  private commitDetails(got: Map<string, CameraDetail | 'error'>) {
+    this.details = new Map([...this.details, ...got]);
+    if (!this.data) return;
+    const streams = new Map<string, StreamEncoding[]>();
+    for (const [id, d] of got) if (d !== 'error' && d.camera.streams.length) streams.set(id, d.camera.streams);
+    if (streams.size) this.data = { ...this.data, cameras: this.data.cameras.map((c) => (c.camera_id && streams.has(c.camera_id) ? { ...c, streams: streams.get(c.camera_id) as StreamEncoding[] } : c)) };
+  }
+
+  /** A READ of one camera (the options and `writable`); also how a row is refreshed after stale / diverged / an unknown outcome. With a `sink` the answer is
+   * handed to the caller (the prefetch commits groups) instead of being committed here. */
+  private async readCamera(id: string, mine = this.seq, sink?: Map<string, CameraDetail | 'error'>) {
+    let got: CameraDetail | 'error';
     try {
-      const d = await nvrSettings().camera(id);
-      if (mine !== this.seq) return;
-      this.details = new Map(this.details).set(id, d);
-      if (this.data && d.camera.streams.length) this.data = { ...this.data, cameras: this.data.cameras.map((c) => (c.camera_id === id ? { ...c, streams: d.camera.streams } : c)) };
+      got = await nvrSettings().camera(id);
     } catch {
-      if (mine === this.seq) this.details = new Map(this.details).set(id, 'error');
+      got = 'error';
     }
+    if (mine !== this.seq) return;
+    if (sink) sink.set(id, got);
+    else this.commitDetails(new Map([[id, got]]));
   }
 
   private cameraById(id: string): NvrCamera | null {

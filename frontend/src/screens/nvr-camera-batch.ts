@@ -367,8 +367,9 @@ export class NvrCameraBatch extends LitElement {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
-  /** `showNow`: found after a reload - the dialog opens on it (a finished one shows its result). */
-  private adopt(b: Batch, showNow = false) {
+  /** `showNow`: found after a reload - the dialog opens on it (a finished one shows its result). `live`: the person just started it - a batch that already
+   * finished by the time of the first read (a short one) is a live completion (the toast), not a result found later. */
+  private adopt(b: Batch, showNow = false, live = false) {
     this.pollSeq++;
     this.stopping = false;
     this.offline = false;
@@ -381,6 +382,7 @@ export class NvrCameraBatch extends LitElement {
     if (this.timer) clearTimeout(this.timer);
     const wait = this.nextDelay(b);
     if (wait !== null) this.armPoll(b.batch_id, wait);
+    if (live && isTerminal(b.state)) this.finished(b);
   }
 
   private nextDelay(b: Batch): number | null {
@@ -496,8 +498,8 @@ export class NvrCameraBatch extends LitElement {
     this.phase = 'progress';
     try {
       const b = await nvrBatch().start({ confirm: true, changes: { svc: false }, targets, ...(recorder.size === 1 ? { recorder_id: picked[0].recorderId } : {}) });
+      this.adopt(await this.full(b), false, true);
       this.starting = false;
-      this.adopt(await this.full(b));
     } catch (err) {
       this.starting = false;
       const sent = !(err instanceof ApiError) || err.status >= 500; // the answer may have been lost after the batch started
@@ -559,8 +561,8 @@ export class NvrCameraBatch extends LitElement {
     this.phase = 'progress';
     try {
       const b = await nvrBatch().undo(sourceId);
+      this.adopt(await this.full(b), false, true);
       this.starting = false;
-      this.adopt(await this.full(b));
     } catch (err) {
       this.starting = false;
       const sent = !(err instanceof ApiError) || err.status >= 500;

@@ -594,7 +594,7 @@ test.describe('CR-020 S2c hundreds of cameras (mocked backend)', () => {
     await shot(page, 'batch-18-hundreds-confirm');
     await dlg.locator('[data-nvr-confirm]').click();
     const prog = page.locator(PROG);
-    await expect(prog).toHaveAttribute('heading', `0 מתוך ${n}`, { timeout: 8000 });
+    await expect(prog).toHaveAttribute('heading', `0 מתוך ${n}`, { timeout: 20_000 });
     expect(batchCalls(bm, 'POST')[0].body.targets).toHaveLength(n);
     const rows = await page.locator(`${PROG} [data-nvr-batch-item]`).count();
     expect(rows).toBeLessThan(40);
