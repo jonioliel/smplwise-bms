@@ -50,6 +50,20 @@ export class NvrConfirm extends LitElement {
       display: grid;
       gap: 4px;
     }
+    .extra {
+      display: flex;
+      justify-content: flex-start;
+    }
+    /* a multi-camera change lists every camera: hundreds scroll inside the list, the dialog keeps its size */
+    ul.names {
+      max-block-size: min(36dvh, 240px);
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    ul.names li {
+      display: block;
+      overflow-wrap: anywhere;
+    }
     li {
       display: flex;
       flex-wrap: wrap;
@@ -82,8 +96,13 @@ export class NvrConfirm extends LitElement {
             <p class="count" data-nvr-confirm-count>${m.count}</p>
             <details data-nvr-confirm-details>
               <summary>פרטים</summary>
-              <ul>${m.details.map((d) => html`<li data-field=${d.field}><span class="k">${d.label}</span><bdi>${d.from}</bdi><span class="arrow" aria-hidden="true">←</span><bdi>${d.to}</bdi></li>`)}</ul>
+              ${m.names
+                ? html`<ul class="names" data-nvr-confirm-names tabindex="0" aria-label="המצלמות">${m.names.map((n) => html`<li>${n}</li>`)}</ul>`
+                : html`<ul>${m.details.map((d) => html`<li data-field=${d.field}><span class="k">${d.label}</span><bdi>${d.from}</bdi><span class="arrow" aria-hidden="true">←</span><bdi>${d.to}</bdi></li>`)}</ul>`}
             </details>
+            ${m.extraLabel
+              ? html`<div class="extra"><sw-button variant="ghost" size="sm" data-nvr-extra @click=${() => this.dispatchEvent(new CustomEvent('extra', { bubbles: true, composed: true }))}>${m.extraLabel}</sw-button></div>`
+              : nothing}
             <sw-button slot="footer" variant="ghost" data-nvr-cancel @click=${this.cancel}>ביטול</sw-button>
             <sw-button slot="footer" variant="primary" data-nvr-confirm @click=${() => this.dispatchEvent(new CustomEvent('confirm', { bubbles: true, composed: true }))}>${m.confirmLabel}</sw-button>`
         : nothing}

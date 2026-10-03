@@ -49,6 +49,8 @@ export interface Mock {
   seq: number;
   /** a camera's detail was answered with this delay (ms) - lets a test look at the state before the detail arrives */
   detailDelay: number;
+  /** CR-020 S2C: the list carries `can_batch` (the server offers the multi-camera change) */
+  canBatch: boolean;
 }
 
 export const err = (code: string, user_message: string, details: Record<string, unknown> = {}) => ({ code, user_message, retryable: false, correlation_id: '', details });
@@ -99,7 +101,7 @@ export function newCameras(): Record<string, any>[] { // eslint-disable-line @ty
 }
 
 export function newMock(perms = CONFIGURE): Mock {
-  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0 };
+  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0, canBatch: false };
 }
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -164,7 +166,7 @@ export async function install(page: Page, st: Mock) {
     if (p === 'nvr/recorders') return json({ recorders: [RECORDER], can_write: st.canWrite });
     if (p === 'nvr/cameras') {
       const cameras = st.cameras.map((c) => ({ ...clone(c), streams: c.streams.map((s: Stream) => ({ ...clone(s), writable: null, not_writable_reason: null, ...(st.stale ? { etag: null } : {}) })) }));
-      return json({ cameras, recorders_failed: st.stale ? ['nvr-1'] : [], stale: st.stale, error: st.stale ? 'source_unavailable' : null, can_write: st.canWrite });
+      return json({ cameras, recorders_failed: st.stale ? ['nvr-1'] : [], stale: st.stale, error: st.stale ? 'source_unavailable' : null, can_write: st.canWrite, ...(st.canBatch ? { can_batch: true } : {}) });
     }
     let m = /^nvr\/cameras\/([^/]+)$/.exec(p);
     if (m && method === 'GET') {

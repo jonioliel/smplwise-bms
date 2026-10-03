@@ -9,7 +9,11 @@ import '../components/sw-icon';
 import './nvr-camera-editor';
 import './nvr-confirm';
 import './nvr-undo-toast';
+import './nvr-camera-batch';
 import { keyed } from 'lit/directives/keyed.js';
+import type { Batch } from '../api/nvr-batch';
+import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
+import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
 import { ApiError, describeError } from '../api/client';
 import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
 import type { SwToggle } from '../components/sw-toggle';
@@ -51,9 +55,14 @@ interface Toast {
   n: number;
   message: string;
   undo?: { changeId: string; cameraId: string; ref: string };
+  /** CR-020 S2C: the "בטל" of a finished multi-camera change: the id of the batch to undo (the press IS the confirmation). */
+  batchUndo?: string;
   reboot?: boolean;
   busy?: boolean;
 }
+
+/** Said when a single change is refused or disabled because a multi-camera change is running. */
+const BATCH_BUSY = 'מתבצע שינוי מרובה';
 
 /** Table columns in display order; `sort` is the column's sort key (none: not sortable). */
 const COLUMNS: { id: string; label: string; sort?: SortKey }[] = [
@@ -106,6 +115,8 @@ export class SystemSecurityCameras extends LitElement {
   @state() private confirm: { model: ConfirmModel; cameraId: string; ref: string; changes: EncodingChanges } | null = null;
   @state() private editing: { cameraId: string; ref: string } | null = null;
   @state() private toast: Toast | null = null;
+  /** The multi-camera change the page is following (running, or finished and not yet closed); null when none. */
+  @state() private batch: Batch | null = null;
   private seq = 0;
   private toasts = 0;
 
@@ -466,7 +477,11 @@ export class SystemSecurityCameras extends LitElement {
       if (list.stale && !list.cameras.length) {
         this.data = null;
         this.failure = { status: 503, code: list.error ?? 'source_unavailable', message: STALE_NOTE };
-      } else void this.prefetch(list, mine);
+      } else {
+        void this.prefetch(list, mine);
+        // a multi-camera change that is running (or the last one the person was looking at) comes back on screen
+        if (list.can_write && !list.stale) void this.updateComplete.then(() => this.batchEl()?.resume());
+      }
     } catch (err) {
       if (mine !== this.seq) return;
       this.data = null;
@@ -512,7 +527,24 @@ export class SystemSecurityCameras extends LitElement {
   private ctrl(kind: 'svc' | 'edit', r: StreamRow): Control {
     const d = this.data;
     if (!d || !r.cameraId) return { show: false, enabled: false, reason: '' };
-    return control(kind, { camera_id: r.cameraId, online: r.online }, r.stream, { canWrite: d.can_write, stale: d.stale, detail: this.details.get(r.cameraId) ?? null });
+    const c = control(kind, { camera_id: r.cameraId, online: r.online }, r.stream, { canWrite: d.can_write, stale: d.stale, detail: this.details.get(r.cameraId) ?? null });
+    // a multi-camera change is running: the server refuses single changes, so no single control acts (the reason is in the tooltip, the strip says it)
+    return c.show && this.batchRunning ? { show: true, enabled: false, reason: BATCH_BUSY } : c;
+  }
+
+  private get batchRunning(): boolean {
+    return this.batch?.state === 'running';
+  }
+
+  private batchEl(): NvrCameraBatch | null {
+    return this.renderRoot.querySelector<NvrCameraBatch>('nvr-camera-batch');
+  }
+
+  /** The names the batch's rows show (its items carry only the camera id). */
+  private cameraInfo(): Record<string, CameraInfo> {
+    const out: Record<string, CameraInfo> = {};
+    for (const c of this.data?.cameras ?? []) if (c.camera_id) out[c.camera_id] = { name: c.name, channel: c.channel };
+    return out;
   }
 
   private isBusy(r: StreamRow): boolean {
@@ -562,6 +594,8 @@ export class SystemSecurityCameras extends LitElement {
     if (from === 'row') this.setLine(rowKey, r.line.text);
     // a READ of the camera (never a repeat of the write): the server's own state replaces ours
     if (r.line.reload) void this.readCamera(cameraId);
+    // the server refused because a multi-camera change runs (another administrator started it): the strip appears
+    if (r.code === 'batch_in_progress') void this.batchEl()?.resume();
   }
 
   private onSvc(e: Event, r: StreamRow) {
@@ -571,7 +605,28 @@ export class SystemSecurityCameras extends LitElement {
     if (!s || !r.cameraId || this.isBusy(r) || !this.ctrl('svc', r).enabled) return;
     const changes: EncodingChanges = { svc: s.svc !== true };
     this.setLine(r.key, null);
-    this.confirm = { model: confirmModel(r.cameraName, s, changes), cameraId: r.cameraId, ref: s.stream_ref, changes };
+    const model = confirmModel(r.cameraName, s, changes);
+    // SVC off on a camera that qualifies, with at least one more candidate: the same dialog offers the multi-camera change (always on; the server's `can_batch`)
+    const others = this.batchCandidates();
+    if (changes.svc === false && this.data?.can_batch === true && others.length >= 2 && others.some((c) => c.cameraId === r.cameraId)) model.extraLabel = 'החל גם על מצלמות נוספות';
+    this.confirm = { model, cameraId: r.cameraId, ref: s.stream_ref, changes };
+  }
+
+  private batchCandidates() {
+    const d = this.data;
+    return d ? batchCandidates(d.cameras, this.details, d.stale) : [];
+  }
+
+  /** "החל גם על מצלמות נוספות": the single dialog gives way to the checklist (the current camera ticked and fixed). */
+  private openBatch() {
+    const c = this.confirm;
+    this.confirm = null;
+    if (c) this.batchEl()?.openSelect(c.cameraId);
+  }
+
+  private onBatchFinished(b: Batch) {
+    const t = doneToast(b);
+    this.showToast(t.message, t.undo ? { batchUndo: b.batch_id } : {});
   }
 
   private async confirmed() {
@@ -589,6 +644,13 @@ export class SystemSecurityCameras extends LitElement {
 
   private async undoToast() {
     const t = this.toast;
+    if (t?.batchUndo && !t.busy) {
+      // the press on "נשמר ב־N מצלמות · בטל" IS the confirmation of the undo-all: the request carries it at once, and the progress opens
+      const id = t.batchUndo;
+      this.toast = null;
+      await this.batchEl()?.undoAll(id);
+      return;
+    }
     if (!t?.undo || t.busy) return;
     const { changeId, cameraId, ref } = t.undo;
     this.toast = { ...t, busy: true };
@@ -635,7 +697,7 @@ export class SystemSecurityCameras extends LitElement {
   private renderToast() {
     const t = this.toast;
     if (!t) return nothing;
-    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.undo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
+    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.undo || t.batchUndo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
       @undo=${() => void this.undoToast()} @dismiss=${() => !t.busy && (this.toast = null)}></nvr-undo-toast>`);
   }
 
@@ -727,9 +789,25 @@ export class SystemSecurityCameras extends LitElement {
             </div>
             <div class="cards" data-nvr-cards>${shown.map((r) => this.renderCard(r))}</div>`;
     return html`
+      ${this.batchRunning && this.batch ? this.renderStrip(this.batch) : nothing}
       ${data.stale ? html`<div class="note" data-nvr-stale role="status"><span>${STALE_NOTE}</span><sw-button size="sm" data-nvr-retry ?disabled=${this.loading} @click=${() => void this.load()}>נסה שוב</sw-button></div>` : nothing}
       ${all.length ? this.renderToolbar(shown.length, c.streams) : nothing}
       ${body}`;
+  }
+
+  /** A multi-camera change is running: the screen says so and offers the progress ("הצג"). Single changes are disabled meanwhile. */
+  private renderStrip(b: Batch) {
+    const t = tally(b);
+    return html`<div class="note" data-nvr-batch-strip role="status"><span data-nvr-batch-strip-text>${BATCH_BUSY} · <span class="ltr">${t.processed}</span> מתוך <span class="ltr">${t.total}</span></span><sw-button size="sm" data-nvr-batch-show @click=${() => this.batchEl()?.show()}>הצג</sw-button></div>`;
+  }
+
+  private renderBatch() {
+    const d = this.data;
+    if (!d?.can_write) return nothing;
+    return html`<nvr-camera-batch .candidates=${this.batchCandidates()} .info=${this.cameraInfo()}
+      @batch-change=${(e: CustomEvent<{ batch: Batch | null }>) => (this.batch = e.detail.batch)}
+      @batch-finished=${(e: CustomEvent<{ batch: Batch }>) => this.onBatchFinished(e.detail.batch)}
+      @batch-refresh=${() => void this.load()}></nvr-camera-batch>`;
   }
 
   private subheading(): string {
@@ -749,7 +827,8 @@ export class SystemSecurityCameras extends LitElement {
     else content = this.renderBody();
     return html`<sw-page heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>
       ${this.data?.can_write ? this.renderEditor() : nothing}
-      <nvr-confirm .model=${this.confirm?.model ?? null} @confirm=${() => void this.confirmed()} @cancel=${() => (this.confirm = null)}></nvr-confirm>
+      ${this.renderBatch()}
+      <nvr-confirm .model=${this.confirm?.model ?? null} @confirm=${() => void this.confirmed()} @cancel=${() => (this.confirm = null)} @extra=${() => this.openBatch()}></nvr-confirm>
       ${this.renderToast()}`;
   }
 }

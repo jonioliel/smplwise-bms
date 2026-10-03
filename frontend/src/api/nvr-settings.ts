@@ -101,6 +101,8 @@ export interface CameraList {
   /** True when the device could not be read and the values are the registry's last reading (main and sub only). */
   stale: boolean;
   can_write: boolean;
+  /** CR-020 S2C: the server offers the multi-camera change (nvr.configure + the batch is available). Absent / false: no batch control exists. */
+  can_batch?: boolean;
   /** The adapter's error code when the device could not be read (with `stale`). */
   error?: string | null;
   checked_at?: string;
