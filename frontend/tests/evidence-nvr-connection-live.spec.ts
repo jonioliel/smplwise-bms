@@ -111,7 +111,7 @@ test.describe('NVR connection against the fixture backend (fake NVR)', () => {
     await step.locator('[data-conn-field="password"]').fill(CANARY);
     await step.locator('[data-conn-save]').click();
     await expect(step.locator('[data-conn-msg]')).toContainText('החיבור נבדק ונשמר', { timeout: 30000 });
-    await expect(step.locator('[data-conn-field="password"]')).toHaveValue('');
+    await expect(step.locator('[data-conn-password-set]')).toBeVisible(); // the typed password is gone: the write-only "kept" state
     await expect(page.locator(BANNER)).toBeVisible({ timeout: 10000 });
     const me = await (await request.get('/api/v1/me')).json();
     expect(me.connection_pending_restart).toBe(true);
