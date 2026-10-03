@@ -170,6 +170,7 @@ export const electricityCss = css`
     gap: 6px;
   }
   .li {
+    flex: none;
     display: flex;
     align-items: center;
     gap: 10px;
