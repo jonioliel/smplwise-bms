@@ -244,7 +244,8 @@ export const electricityCss = css`
     background: transparent;
     color: inherit;
     font: inherit;
-    min-block-size: calc(var(--elec-touch) - 4px);
+    min-block-size: var(--elec-touch);
+    margin-block: -1px;
   }
   .inp select {
     cursor: pointer;
