@@ -261,8 +261,8 @@ export class SwDropdown extends LitElement {
     .pop.sheet::backdrop {
       animation: dd-scrim-in 200ms ease-out backwards;
       /* the live page behind is blurred a little (the mockups: 3 px); not in the lite performance tier, not under reduced transparency */
-      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-backdrop-blur, blur(3px)));
-      backdrop-filter: var(--sw-perf-blur, var(--sw-backdrop-blur, blur(3px)));
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
+      backdrop-filter: var(--sw-perf-blur, blur(3px));
     }
     /* closing: 200 ms ease-in down and out (the open attribute is already false; the popover stays up until the animation ends) */
     :host .pop.sheet.closing {
