@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..capabilities import may_see_recorders, resolve as resolve_capabilities
 from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import forbidden, validation
 from ..mode import installation_mode
@@ -67,6 +68,9 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         "bootstrap_state": get_setting(conn, "bootstrap_state", "pending"),
         # NVR-less mode (mode.py): `ha_only` hides the NVR areas in the shell; every route still checks permissions itself
         "mode": installation_mode(settings_of(request)),
+        # NN1 (capabilities.py): what this installation has - booleans for everyone, the recorder detail only for whoever
+        # may read the NVR configuration. Not authorisation: every route checks its own permission first.
+        "capabilities": resolve_capabilities(settings_of(request)).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
     }
 
 
