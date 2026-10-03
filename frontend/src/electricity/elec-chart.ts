@@ -8,29 +8,8 @@
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { BillHistory } from '../api/electricity-billing';
-import { f2, fmtRange, monthShort } from './elec-format';
-
-export interface Bar {
-  key: string;
-  label: string;
-  title: string;
-  kwh: number | null;
-  kind: 'prev' | 'cur' | 'ly';
-  partial: boolean;
-}
-
-/** The bars of a series in reading order, oldest first: last year, previous periods, the current period. Pure (unit specs use it). */
-export function chartBars(h: BillHistory | null | undefined): Bar[] {
-  if (!h) return [];
-  const out: Bar[] = [];
-  const ly = h.same_period_last_year;
-  if (ly && ly.kwh !== null) out.push({ key: 'ly', label: monthShort(ly.to), title: `אותה תקופה אשתקד, ${fmtRange(ly.from, ly.to)}`, kwh: Number(ly.kwh), kind: 'ly', partial: ly.status === 'partial' });
-  for (const p of h.previous.slice(-12)) out.push({ key: `p${p.to}`, label: monthShort(p.to), title: fmtRange(p.from, p.to), kwh: p.kwh === null ? null : Number(p.kwh), kind: 'prev', partial: p.status === 'partial' });
-  if (h.current) out.push({ key: 'cur', label: monthShort(h.current.to), title: `התקופה הנוכחית, ${fmtRange(h.current.from, h.current.to)}`, kwh: Number(h.current.kwh), kind: 'cur', partial: false });
-  return out;
-}
-/** A series draws a chart only when at least one bar other than the current period has data. */
-export const hasComparison = (h: BillHistory | null | undefined): boolean => chartBars(h).some((b) => b.kind !== 'cur' && b.kwh !== null);
+import { f2 } from './elec-format';
+import { chartBars, hasComparison, type Bar } from './elec-chart-data';
 
 @customElement('elec-chart')
 export class ElecChart extends LitElement {
@@ -203,9 +182,9 @@ export class ElecChart extends LitElement {
     const xOf = (i: number) => W - pad - (i + 1) * bw + (bw - barW) / 2;
     const labelEvery = bw < 30 ? 2 : 1;
     const showVal = bw >= 30;
-    const ly = bars.find((b) => b.kind === 'ly');
     const cur = bars.find((b) => b.kind === 'cur');
-    const lyY = ly && ly.kwh !== null ? base - scale(ly.kwh) : null;
+    const lyBar = bars.find((b) => b.kind === 'ly' || b.lyMark);
+    const lyY = lyBar && lyBar.kwh !== null ? base - scale(lyBar.kwh) : null;
     const hasPartial = bars.some((b) => b.partial);
     const aria = `צריכה לפי תקופה: ${bars.filter((b) => b.kwh !== null).map((b) => `${b.label} ${f2(b.kwh as number)} קוט״ש`).join(', ')}`;
     return html`
@@ -222,16 +201,17 @@ export class ElecChart extends LitElement {
           if (b.kwh === null) return svg`<g data-bar="gap"><title>${b.title}: אין נתונים</title><line class="gap" x1=${cx - 5} x2=${cx + 5} y1=${base - 4} y2=${base - 4}></line>${label}</g>`;
           const h = Math.max(2, scale(b.kwh));
           const y = base - h;
+          const ring = b.lyMark ? svg`<rect class="ly" x=${x - 2} y=${base - Math.max(2, scale(b.kwh)) - 2} width=${barW + 4} height=${Math.max(2, scale(b.kwh)) + 2} rx="4"></rect>` : nothing;
           const cls = b.kind === 'cur' ? 'bar' : b.kind === 'ly' ? 'ly' : b.partial ? 'part' : 'bar2';
           return svg`<g data-bar=${b.kind}><title>${b.title}: ${f2(b.kwh)} קוט״ש${b.partial ? ' (נתונים חלקיים)' : ''}</title>
             <rect class=${cls} x=${x} y=${y} width=${barW} height=${h} rx="3"></rect>
-            ${showVal ? svg`<text class="v" x=${cx} y=${y - 4} text-anchor="middle">${f2(b.kwh).replace(/\.00$/, '')}</text>` : nothing}${label}</g>`;
+            ${ring}${showVal ? svg`<text class="v" x=${cx} y=${y - 4} text-anchor="middle">${f2(b.kwh).replace(/\.00$/, '')}</text>` : nothing}${label}</g>`;
         })}
       </svg>
       <div class="legend">
         ${cur ? html`<span><i class="l-cur"></i>התקופה הנוכחית</span>` : nothing}
         <span><i class="l-prev"></i>תקופות קודמות</span>
-        ${ly ? html`<span><i class="l-ly"></i>אותה תקופה אשתקד</span>` : nothing}
+        ${lyBar ? html`<span><i class="l-ly"></i>אותה תקופה אשתקד</span>` : nothing}
         ${hasPartial ? html`<span><i class="l-part"></i>נתונים חלקיים</span>` : nothing}
       </div>
       ${this.renderTable(bars)}

@@ -14,7 +14,7 @@ import { billsTable } from './elec-bills-table';
 import { billChip } from './elec-ui';
 import { f0, f2, f4, fmtDate, periodLabel } from './elec-format';
 import { go, href, route } from './elec-routes';
-import { hasComparison } from './elec-chart';
+import { hasComparison } from './elec-chart-data';
 
 type Tab = 'status' | 'history' | 'bills';
 

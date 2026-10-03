@@ -68,6 +68,7 @@ export class ElecFormulaEditor extends LitElement {
 
   willUpdate(ch: PropertyValues) {
     if (ch.has('meters') && !this.mainId) this.mainId = this.meters[0]?.id ?? '';
+    if (ch.has('tokens') && this.tokens.length) this.preset = detectPreset(this.tokens, this.meters.map((m) => m.id));
   }
 
   updated(ch: PropertyValues) {

@@ -9,7 +9,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { BillSnapshot } from '../api/electricity-billing';
 import './elec-chart';
-import { hasComparison } from './elec-chart';
+import { hasComparison } from './elec-chart-data';
 import { f2, f4, fmtDate, fmtDateTime } from './elec-format';
 import { factorLabel } from './elec-formula';
 

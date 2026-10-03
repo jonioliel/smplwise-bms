@@ -316,6 +316,7 @@ export function presetTokens(preset: PresetId, ids: string[], opts: { main?: str
 export function detectPreset(toks: Tok[], ids: string[]): PresetId {
   const same = (a: Tok[], b: Tok[]) => JSON.stringify(a) === JSON.stringify(b);
   if (same(toks, presetTokens('sum', ids))) return 'sum';
+  if (toks.length === 3 && toks[0].t === 'n' && toks[0].pct && toks[1].t === 'op' && toks[1].v === '*' && toks[2].t === 'm') return 'pct';
   const first = toks[0];
   if (first?.t === 'm' && ids.length > 1 && same(toks, presetTokens('mainsub', ids, { main: first.id }))) return 'mainsub';
   return 'custom';

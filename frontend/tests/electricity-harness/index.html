@@ -7,6 +7,14 @@
     <title>Electricity screens (test harness)</title>
     <link rel="stylesheet" href="/fonts.css" />
     <link rel="stylesheet" href="/src/styles/base.css" />
+    <style>
+      /* the shell scrolls its own main column; here the document scrolls (full-page screenshots, the layout guard) */
+      html,
+      body {
+        height: auto !important;
+        overflow: visible !important;
+      }
+    </style>
     <script type="module" src="./harness.ts"></script>
   </head>
   <body>

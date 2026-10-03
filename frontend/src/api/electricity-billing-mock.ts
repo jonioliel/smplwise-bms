@@ -20,7 +20,7 @@ import type {
   Customer, ElecBackend, ElecMeter, FormulaPreview, HistoryPoint, MeterCandidate, PeriodChoice, PriceMode, Tariff, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
-import { addDays, daysInclusive, isIsoDate, monthShort, periodContaining, r2 } from '../electricity/elec-format';
+import { addDays, baseNumber, daysInclusive, isIsoDate, monthShort, periodContaining, r2 } from '../electricity/elec-format';
 
 export const MOCK_TODAY = '2026-10-04';
 /** wire decimals: plain digits, never grouped */
@@ -110,31 +110,34 @@ let accounts: MA[] = [
   { id: 'a4', name: 'שטחים משותפים', customer_id: 'c4', ast: chain('-', F('m1'), F('m2'), F('m5'), F('m6'), F('m7'), F('m8'), F('m11')), tariff_id: 't2', months: 1, anchor_day: 1, anchor_month: 1, first: '2026-07-01', auto: 'off', revision: 1 },
 ];
 
-const HIST: [string, number][] = [['2025-10', 702], ['2025-11', 688], ['2025-12', 731], ['2026-01', 805], ['2026-02', 842], ['2026-03', 790], ['2026-04', 655], ['2026-05', 610], ['2026-06', 690], ['2026-07', 845], ['2026-08', 812.4], ['2026-09', 776.2]];
+const HIST: [string, number][] = [['2025-08', 695], ['2025-09', 671.8], ['2025-10', 702], ['2025-11', 688], ['2025-12', 731], ['2026-01', 805], ['2026-02', 842], ['2026-03', 790], ['2026-04', 655], ['2026-05', 610], ['2026-06', 690], ['2026-07', 845], ['2026-08', 812.4], ['2026-09', 776.2]];
 /** Per account: how many previous periods exist (full, partial and "no data" cases), the scale, the same period last year (null = the account did not exist then), a missing / partial point. */
-const SHAPE: Record<string, { factor: number; keep: number; lastYear: number | null; missing?: number; partial?: number }> = {
-  a1: { factor: 1, keep: 12, lastYear: 671.8 },
-  a2: { factor: 2.6, keep: 12, lastYear: 1744.2, missing: 5, partial: 1 },
-  a5: { factor: 0.5, keep: 4, lastYear: null },
-  a3: { factor: 8.4, keep: 3, lastYear: 6612.1 },
-  a4: { factor: 1, keep: 0, lastYear: null },
+const SHAPE: Record<string, { factor: number; keep: number; ly: boolean; missing?: number; partial?: number }> = {
+  a1: { factor: 1, keep: 12, ly: true },
+  a2: { factor: 2.6, keep: 12, ly: true, missing: 5, partial: 1 },
+  a5: { factor: 0.5, keep: 4, ly: false },
+  a3: { factor: 8.4, keep: 3, ly: true },
+  a4: { factor: 1, keep: 0, ly: false },
 };
 const monthEnd = (ym: string): string => `${ym}-${String(new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate()).padStart(2, '0')}`;
 
 /** The comparison series (CR-023 round 3). Never invented: a missing period has `kwh: null`; an account without history has none. */
 function historyFor(accountId: string, current: { from: string; to: string; kwh: number } | null): BillHistory {
-  const s = SHAPE[accountId] ?? { factor: 1, keep: 0, lastYear: null };
-  const rows = HIST.slice(HIST.length - s.keep);
+  const s = SHAPE[accountId] ?? { factor: 1, keep: 0, ly: false };
+  const before = current ? HIST.filter(([ym]) => monthEnd(ym) < current.from) : HIST;
+  const rows = s.keep ? before.slice(Math.max(0, before.length - s.keep)) : [];
   const previous: HistoryPoint[] = rows.map(([ym, v], i) => {
     const base = { from: `${ym}-01`, to: monthEnd(ym) };
     if (s.missing === i) return { ...base, kwh: null, status: 'missing', source: null };
     return { ...base, kwh: dec(v * s.factor), status: s.partial === i ? 'partial' : 'measured', source: i >= rows.length - 3 ? 'bill' : 'readings' };
   });
-  return {
-    current: current ? { from: current.from, to: current.to, kwh: dec(current.kwh) } : null,
-    previous,
-    same_period_last_year: s.lastYear !== null && current ? { from: addDays(current.from, -365), to: addDays(current.to, -365), kwh: dec(s.lastYear), status: 'measured', source: 'readings' } : null,
-  };
+  let ly: HistoryPoint | null = null;
+  if (s.ly && current) {
+    const ym = `${Number(current.to.slice(0, 4)) - 1}-${current.to.slice(5, 7)}`;
+    const h = HIST.find(([k]) => k === ym);
+    if (h) ly = { from: `${ym}-01`, to: monthEnd(ym), kwh: dec(h[1] * s.factor), status: 'measured', source: 'readings' };
+  }
+  return { current: current ? { from: current.from, to: current.to, kwh: dec(current.kwh) } : null, previous, same_period_last_year: ly };
 }
 
 // ------------------------------------------------------------------------------------------------ arithmetic (CR-023 §7)
@@ -261,7 +264,7 @@ function numberBase(to: string, customerNo: string): string {
 }
 /** `YYYY-MM-CCCC[/S][-R]`: the running suffix when another bill already took the base. */
 function nextNumber(to: string, customerNo: string, revisionOf: string | null, revision: number): string {
-  if (revisionOf) return `${revisionOf.replace(/-\d+$/, '')}-${revision}`;
+  if (revisionOf) return `${baseNumber(revisionOf)}-${revision}`;
   const base = numberBase(to, customerNo);
   const taken = bills.filter((b) => b.number && (b.number === base || b.number.startsWith(`${base}/`) || b.number.startsWith(`${base}-`))).length;
   return taken ? `${base}/${taken + 1}` : base;
@@ -450,12 +453,13 @@ export const mockBackend: ElecBackend = {
   async accountHistory(id, months) {
     await tick();
     const a = getAccWire(id);
-    const cmp = historyFor(id, { from: '2026-09-01', to: '2026-09-30', kwh: SHAPE[id]?.keep ? r2(HIST[HIST.length - 1][1] * SHAPE[id].factor) : 0 });
-    const prev = cmp.previous.filter((p) => p.kwh !== null).slice(-months);
+    const sh = SHAPE[id];
+    const cmp = historyFor(id, sh?.keep ? { from: '2026-09-01', to: '2026-09-30', kwh: r2(776.2 * sh.factor) } : null);
+    const pts = [...cmp.previous, ...(cmp.current ? [cmp.current] : [])].filter((p) => p.kwh !== null).slice(-months);
     const t = tariff(a.tariff_id);
-    const rows = prev.map((p, i) => {
+    const rows = pts.map((p, i) => {
       const kwh = Number(p.kwh);
-      const before = prev[i - 1] ? Number(prev[i - 1].kwh) : 0;
+      const before = pts[i - 1] ? Number(pts[i - 1].kwh) : 0;
       const b = bills.find((x) => x.account_id === id && x.state !== 'void' && x.period.to === p.to) ?? null;
       const row: AccountHistory['rows'][number] = { label: monthShort(p.to), from: p.from, to: p.to, kwh, change_pct: before ? ((kwh - before) / before) * 100 : null, bill: null };
       if (moneyAllowed()) {
@@ -464,7 +468,7 @@ export const mockBackend: ElecBackend = {
       }
       return row;
     });
-    return { rows, comparison: SHAPE[id]?.keep ? cmp : { current: null, previous: [], same_period_last_year: null } };
+    return { rows, comparison: sh?.keep ? cmp : { current: null, previous: [], same_period_last_year: null } };
   },
   async createAccount(body: AccountBody, afterSave) {
     await tick();

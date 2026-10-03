@@ -10,7 +10,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorCode, elecErrorText, elecPerms, elecToday, type Bill, type BillAction, type BillEvent, type SentHow } from '../api/electricity-billing';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
-import { f2, fmtDate, fmtDateTime, fmtRange, isIsoDate } from './elec-format';
+import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate } from './elec-format';
 import { go, href, route } from './elec-routes';
 
 type Dlg = '' | 'issue' | 'void' | 'correct' | 'sent' | 'paid' | 'delete';
@@ -172,7 +172,7 @@ export class ElecBillPage extends ElecBase {
   private dialogs(b: Bill) {
     const err = this.error ? alertBox('err', this.error) : nothing;
     const cancel = (label = 'ביטול') => html`<button slot="actions" type="button" class="btn" @click=${() => this.close()}>${label}</button>`;
-    const nextRev = `${(b.snapshot.bill.replaces ? b.snapshot.bill.replaces.number : b.number ?? '').replace(/-\d+$/, '')}-${b.revision + 1}`;
+    const nextRev = `${baseNumber(b.number ?? '')}-${b.revision + 1}`;
     const reasonEmpty = !this.reason.trim();
     return html`
       <elec-dialog heading="הנפקת חיוב" ?open=${this.dlg === 'issue'} data-dialog="issue" @close=${() => this.close()}>

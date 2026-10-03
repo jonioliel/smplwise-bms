@@ -82,6 +82,9 @@ export function nextPeriods(firstStart: string, months: 1 | 2, anchorDay: number
 /** The bill number the CR-023 §10 rules give: `YYYY-MM-CCCC[L]` (month of the period's last day). */
 export const billNumber = (to: string, customerNo: string, letter: string, revision = 1): string => `${to.slice(0, 7)}-${customerNo}${letter}${revision > 1 ? `-${revision}` : ''}`;
 
+/** `2026-12-0001-2` -> `2026-12-0001`; `2026-12-0001/2-3` -> `2026-12-0001/2` (the revision suffix is dropped, the running suffix stays) */
+export const baseNumber = (num: string): string => /^(\d{4}-\d{2}-\d+(?:\/\d+)?)/.exec(num)?.[1] ?? num;
+
 export const HEBREW_DAYS_UNIT = (n: number): string => (n === 1 ? 'יום' : 'ימים');
 
 /** `חודשי, מה-1 בחודש` / `דו-חודשי, מה-1 בינואר` */
