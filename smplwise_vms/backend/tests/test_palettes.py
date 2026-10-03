@@ -234,7 +234,7 @@ def test_an_old_personal_palette_value_stays_in_storage_and_is_ignored(settings)
     with app.state.db.connection() as conn:
         conn.execute("UPDATE user_prefs SET value_json = ? WHERE key = 'ui.look'", (json.dumps({"density": "row", "palette": "forest"}),))
     assert c.get("/api/v1/me/prefs", headers=h).json()["prefs"]["ui.look"] == {"density": "row"}  # ignored
-    assert c.put("/api/v1/me/prefs", headers=h, json={"ui.look": {"density": "card"}}).json()["prefs"]["ui.look"] == {"density": "card"}
+    assert c.put("/api/v1/me/prefs", headers=h, json={"ui.look": {"density": "compact"}}).json()["prefs"]["ui.look"] == {"density": "compact"}
     with app.state.db.connection() as conn:
         raw = [json.loads(r[0]) for r in conn.execute("SELECT value_json FROM user_prefs WHERE key = 'ui.look'").fetchall()]
     assert raw == [{"density": "card", "palette": "forest"}]  # nothing deleted
