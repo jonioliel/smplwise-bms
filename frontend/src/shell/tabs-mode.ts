@@ -24,7 +24,7 @@ export const TAB_MODE_HINT: Record<TabMode, string> = {
   dropdown: 'כל קבוצה כתפריט אחד, חוסך מקום',
 };
 export const TAB_GROUPS: readonly TabGroup[] = ['home', 'area', 'multimedia', 'security', 'settings'];
-export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: 'אזורים במסך הראשי', area: 'לשוניות האזור', multimedia: 'מולטימדיה', security: 'אבטחה', settings: 'הגדרות' };
+export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: 'אזורים בקומה (מסך האזור)', area: 'לשוניות האזור', multimedia: 'מולטימדיה', security: 'אבטחה', settings: 'הגדרות' };
 /** The widest screen the mode applies to (the phone). */
 export const TAB_MODE_MAX_WIDTH = 767;
 /** `hybrid`: up to this many items stay a segmented control. */
@@ -84,7 +84,21 @@ export function isPhoneWidth(): boolean {
 
 /** The configured mode of a group (user over installation, group over global), regardless of the screen width. */
 export function configuredTabMode(group: TabGroup): TabMode {
-  return own.groups[group] ?? own.mode ?? installation.groups[group] ?? installation.mode;
+  return resolveTabMode(group).mode;
+}
+
+/** Where a group's configured mode comes from (the settings card names it, so a personal value that hides a changed default is visible). */
+export type TabModeSource = 'own-group' | 'own' | 'installation-group' | 'installation';
+
+/** THE resolver (the shell's rows, the screens' chip rows and the settings card all go through it): user's group, user's global,
+ * installation's group, installation's global. The built-in `tabs` default is the installation value when nothing was saved. */
+export function resolveTabMode(group: TabGroup): { mode: TabMode; source: TabModeSource } {
+  const og = own.groups[group];
+  if (og) return { mode: og, source: 'own-group' };
+  if (own.mode) return { mode: own.mode, source: 'own' };
+  const ig = installation.groups[group];
+  if (ig) return { mode: ig, source: 'installation-group' };
+  return { mode: installation.mode, source: 'installation' };
 }
 
 /**

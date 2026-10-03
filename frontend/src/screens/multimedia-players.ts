@@ -7,14 +7,16 @@ import '../components/sw-dialog';
 import '../components/media-player-card';
 import '../components/media-group-dialog';
 import '../components/media-player-panel';
+import '../components/media-now-hero';
 import './multimedia-edit-panel';
+import { SkinController } from '../design/skin';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa } from '../api/ha';
 import { getDevicesTree } from '../api/devices';
 import { isApi } from '../api/session';
 import { EMPTY_LAYOUT, media, type LayoutResponse, type MediaLayout } from '../api/media-screens';
-import { GROUPABLE_KINDS, UNPLACED_LABEL, players, resolveLeader, roomChips, type PlayerDevice, type PlayerLive, type PlayerStatus } from '../api/media-players';
+import { GROUPABLE_KINDS, isPlaying, UNPLACED_LABEL, players, resolveLeader, roomChips, type PlayerDevice, type PlayerLive, type PlayerStatus } from '../api/media-players';
 import { loadLayout } from '../api/media-personal';
 import { onRouteChange, parseRoute, pushRoute, replaceRoute } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
@@ -93,6 +95,8 @@ export class MultimediaPlayers extends LitElement {
   private pushedPlayer = false;
   private loading = false;
   private homeFloorsLoaded = false;
+  /** Bubble phase C: the skin in force (the now-playing hero above the groups, the cards as pill rows). */
+  private skin = new SkinController(this);
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`
     .shlink[disabled] {
@@ -106,7 +110,31 @@ export class MultimediaPlayers extends LitElement {
     .pgrid > media-player-card {
       min-inline-size: 0;
     }
+    /* the bubble skin: the pill rows in --sw-grid-min columns (row density = one column), the hero on top */
+    :host([data-skin='bubble']) .pgrid {
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--sw-grid-min), 280px)), 1fr));
+      gap: var(--sw-gap-grid);
+    }
+    :host([data-skin='bubble']) media-now-hero {
+      margin-block-end: 4px;
+    }
+    :host([data-skin='bubble']) .page {
+      gap: 18px;
+    }
+    :host([data-skin='bubble']) .dh.compact {
+      background: var(--sw-nav-glass);
+      -webkit-backdrop-filter: var(--sw-glass-blur-nav);
+      backdrop-filter: var(--sw-glass-blur-nav);
+      box-shadow: none;
+      border: 0;
+    }
   `];
+
+  /** The hero's player (bubble skin): the first that plays and is not a member, else the first paused, else none. */
+  private nowPlaying(): PlayerDevice | null {
+    const lead = this.devices.filter((d) => d.live.group.role !== 'member');
+    return lead.find((d) => isPlaying(d)) ?? lead.find((d) => d.live.power === 'on' && d.live.play === 'paused') ?? null;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -586,7 +614,8 @@ export class MultimediaPlayers extends LitElement {
     if (!groups.length) {
       return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו נגנים', playerFiltersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(PLAYER_NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
     }
-    return html`${stale}<div class="groups" data-mm-state="ready">${groups.map((g) => this.section(g))}</div>`;
+    const hero = this.skin.bubble && !this.editing ? this.nowPlaying() : null;
+    return html`${stale}${hero ? html`<media-now-hero .device=${hero} @media-changed=${() => this.scheduleRefresh(300)}></media-now-hero>` : nothing}<div class="groups" data-mm-state="ready">${groups.map((g) => this.section(g))}</div>`;
   }
 
   render() {

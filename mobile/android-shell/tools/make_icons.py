@@ -1,6 +1,6 @@
 """Generate the Android shell's launcher icons from the PWA icons (frontend/public/icons/).
 
-Run from the repository root with the project venv:  ./.venv/Scripts/python.exe mobile/android-shell/tools/make_icons.py
+Run from the repository root with the project venv:  <venv-python> mobile/android-shell/tools/make_icons.py
 Deterministic (Pillow only); re-run after the PWA icons change and commit the PNGs under
 mobile/android-shell/app/src/main/res/. Adapted from the Trusted Web Activity branch's android/tools/make_icons.py; the
 shell needs no splash PNG (the Android 12 splash API draws the adaptive foreground) and no notification icon.

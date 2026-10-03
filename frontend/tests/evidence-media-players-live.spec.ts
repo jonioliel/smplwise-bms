@@ -22,7 +22,7 @@ import path from 'node:path';
  *
  * One house per run, one throwaway backend per house (the registry of the previous house would stay in the backend's own tables):
  *   SW_PORT=4481 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni SW_FAKE_HOUSE=ma \
- *       <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/media_fake_ha.py          (the control server is SW_PORT + 1)
+ *       <venv-python> frontend/tests/fixtures/media_fake_ha.py          (the control server is SW_PORT + 1)
  *   SW_LIVE=1 SW_MEDIA_FIXTURE=1 SW_HOUSE=ma SW_API_PORT=4481 SW_BASE_URL=http://127.0.0.1:4191/ \
  *       npx playwright test tests/evidence-media-players-live.spec.ts --workers=1
  *   (then the same with SW_HOUSE=sonos, SW_FAKE_HOUSE=sonos and ports 4484 / 4485)

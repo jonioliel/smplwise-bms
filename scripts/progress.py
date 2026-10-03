@@ -16,10 +16,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / "management" / "tasks.json"
-PHASES = OrderedDict([("G0", "G0 (הכנה)"), ("PILOT", "Pilot"), ("BETA", "Beta"), ("V1", "V1"), ("V2", "V2")])
+PHASES = OrderedDict([("G0", "G0 (הכנה)"), ("PILOT", "Pilot"), ("BETA", "Beta"), ("V1", "V1"), ("V2", "V2"), ("V3", "V3")])
 MARKERS = ("pre-evidence", "partial", "fix (", "lab ", "PASS", "design SW A", "commit ")
 # weights for the single-number estimate: what the owner cares about now is the pilot
-WEIGHTS = {"G0": 1.0, "PILOT": 3.0, "BETA": 1.5, "V1": 1.0, "V2": 0.5}
+WEIGHTS = {"G0": 1.0, "PILOT": 3.0, "BETA": 1.5, "V1": 1.0, "V2": 0.5, "V3": 0.25}
 
 
 def has_evidence(task: dict) -> bool:

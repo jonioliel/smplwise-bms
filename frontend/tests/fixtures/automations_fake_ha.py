@@ -23,7 +23,7 @@ push that tells the add-on), `POST /load {ok}` (a reload that never registers a 
 Run it (a fresh data dir each time):
 
     SW_PORT=8350 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni \\
-        <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/automations_fake_ha.py
+        <venv-python> frontend/tests/fixtures/automations_fake_ha.py
 
 then, from frontend/ (`npm run build` first):
 

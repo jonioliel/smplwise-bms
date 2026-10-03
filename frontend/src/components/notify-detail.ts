@@ -223,8 +223,8 @@ export class NotifyDetail extends LitElement {
         padding: 0 10px;
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.45);
-        -webkit-backdrop-filter: blur(10px);
-        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: var(--sw-perf-blur, blur(10px));
+        backdrop-filter: var(--sw-perf-blur, blur(10px));
         color: #fff;
         font-size: 11.5px;
         font-weight: 600;

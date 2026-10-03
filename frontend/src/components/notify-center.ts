@@ -435,8 +435,8 @@ export class NotifyCenter extends LitElement {
         max-inline-size: calc(100% - 24px);
         inset-block-end: 78px;
         background: rgba(28, 28, 30, 0.88);
-        -webkit-backdrop-filter: blur(20px);
-        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
+        backdrop-filter: var(--sw-perf-blur, blur(20px));
         color: #fff;
         padding: 11px 20px 11px 16px;
         border-radius: 999px;

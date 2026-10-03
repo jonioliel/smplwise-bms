@@ -170,13 +170,35 @@ Two smaller findings by reading the code (not exercised by a test):
 3. Do **not** simply put `system.configure` on `GET /ha/entities` or `/ha/ws`: it breaks Plan Studio for editors and the
    live push for every viewer.
 
+## The home area: "מבט על" and "קברניט" (release 0.1.154)
+
+The `devices` section has two tabs: `building` ("מבט על") and `automations`, whose visible label is now **"קברניט"** (owner
+2026-10-02, "for now"; only the label changed, the tab id and every route id are untouched). The old `schedules` tab is gone: the
+schedules list is the **first segment** of קברניט, followed by אוטומציות · סצנות · סקריפטים. Frontend only, no backend change.
+
+- **Routes:** `#/devices/schedules[/...]` keeps working unchanged (notifications, the guide, the phone bottom bar and old bookmarks);
+  the shell draws it under the קברניט tab (`activeAreaTab` answers `automations`) and the screen shows the segment strip, so there is
+  no redirect to a new address. The automations screen's strip starts with "תזמונים", which opens that address.
+- **Gates** (`kavarnitSegments(api, can)` in `shell/nav.ts`): the schedules segment needs `schedules.enabled` (not in `HIDDEN_HREFS`) and
+  `schedule.view` or `schedule.manage`; the automations segment needs `automations.enabled` and one of the automation rights. The
+  קברניט tab is offered while either is, and **opens on the schedules when they are offered, else on the automations**. With neither the
+  tab is gone (and with it the tab row, when "מבט על" is all that is left). The strip shows only when there is a second segment to go to.
+- **Stored `ui.tabs`:** `normalizeTabsConfig` drops a stored `schedules` entry (order and hidden) from the `devices` section, so no dead
+  tab and no hidden segment remain (the settings page `system.schedules` is another section and keeps its own tab). A stored hidden
+  `automations` (the old tab of that name) hides קברניט only while the schedules segment is not offered; when it is, the tab stays so
+  the schedules are never taken away by a stale entry. The editor (הגדרות › כללי › לשוניות) lists `building` and `automations`.
+- **`ui.tabs_mode` groups:** the group is the area (`area` for the home area), not a tab, so nothing changes there: the dropdown and
+  hybrid modes see two tabs instead of three.
+- **Counts and search** are per segment: each screen keeps its own search and filters; the strip shows the schedules count
+  (`/schedules/status`) and the automations, scenes and scripts counts (`/automations/status`) as best-effort numbers.
+
 ## Presentation mode: tabs, hybrid or dropdown (release 0.1.153)
 
 How a group of tabs is drawn on the phone (<= 767 px; wider screens are always `tabs`) is a separate setting from the order, the
 visibility and the look (`ui.tabs`). Three values: `tabs` (today, the default everywhere), `hybrid` (a bar of up to three items,
 a dropdown for four or more) and `dropdown`.
 
-- **Groups** (closed list, `services/tabs_mode.py` and `shell/tabs-mode.ts`): `home` (the areas chip row of the home screen),
+- **Groups** (closed list, `services/tabs_mode.py` and `shell/tabs-mode.ts`): `home` (the areas chip row of an area's page),
   `area` (the sub-tabs of the home / map / WisKey areas), `multimedia` (the area row and the room filter), `security` (the
   sections and their pages) and `settings` (the settings tabs and the security sub-tabs). The main bottom navigation is not a group.
 - **Keys**, installation default in `/settings` and the user's own in `/me/prefs` (null = follow the installation):

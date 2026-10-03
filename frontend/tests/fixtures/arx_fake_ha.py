@@ -18,7 +18,7 @@ plus a site / building / floor so the viewer's map has something to show.
 
 Run it (a fresh data dir each time; `npm run build` first - the UI is served from frontend/dist):
 
-    SW_PORT=8349 SW_DATA_DIR=<empty dir> <repo>/.venv/Scripts/python.exe frontend/tests/fixtures/arx_fake_ha.py
+    SW_PORT=8349 SW_DATA_DIR=<empty dir> <venv-python> frontend/tests/fixtures/arx_fake_ha.py
 
 then, from frontend/:
 

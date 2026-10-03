@@ -262,6 +262,7 @@ test.describe('tab bar styles (mocked backend)', () => {
     await ed2.locator('[data-style-section="explore"]').selectOption('');
     await ed2.locator('[data-tabs-save]').click();
     await expect.poll(() => st.patches.length).toBe(2);
+    await expect(ed2).toContainText('הלשוניות נשמרו'); // the response is applied (the draft is reset from it) before the next edit
     expect(st.patches[1]).toEqual({ 'ui.tabs': { styles: { level2: 'underline' } } });
     // a style survives an order edit of the same section
     await ed2.locator('[data-style-section="explore"]').selectOption('underline');

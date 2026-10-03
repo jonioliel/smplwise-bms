@@ -7,7 +7,7 @@ import json
 
 import httpx
 import pytest
-from conftest import as_user, bind, png_bytes, seed_tree
+from conftest import as_user, bind, day_now, png_bytes, seed_tree
 from fastapi.testclient import TestClient
 from test_push import Browser, FakePushService
 
@@ -16,7 +16,7 @@ from smplwise.services import notify, notify_channels
 from smplwise.services import push as svc
 
 API = "/api/v1"
-REAL_NOW = notify.now_utc  # monkeypatch.undo() would also undo the fake push transport; tests put the clock back with this
+REAL_NOW = day_now  # the pinned daytime clock (conftest.daytime_clock); tests put the clock back to it after crossing a boundary
 NOW = dt.datetime(2026, 10, 1, 9, 0, tzinfo=dt.timezone.utc)  # 12:00 in Asia/Jerusalem (quiet hours are 22:00-07:00 by default)
 
 

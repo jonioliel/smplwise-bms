@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { keyed } from 'lit/directives/keyed.js';
 import './automation-editors';
@@ -14,6 +14,8 @@ import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { applyAutomationsGlass, autoApi, autoNow, autoReady, demoControl, demoLoading } from '../api/automations-demo';
 import { isApi } from '../api/session';
 import { subscribeHa } from '../api/ha';
+import { getScheduleStatus } from '../api/schedules';
+import type { KavarnitSegments } from '../shell/nav';
 import { bidi } from '../i18n/bidi';
 import { onRouteChange, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
@@ -30,6 +32,9 @@ import type { DrawerResult } from './automation-drawer';
 import type { AutomationDrawer } from './automation-drawer';
 import type { CardAction } from '../components/sw-automation-card';
 
+/** 0.1.154: the schedules screen, the first segment of "קברניט" (its address is unchanged). */
+const SCHEDULES_PATH = '/devices/schedules';
+
 interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; run: () => void } }
 
 /**
@@ -45,6 +50,9 @@ interface Note { text: string; tone: 'ok' | 'error'; action?: { label: string; r
  */
 @customElement('devices-automations')
 export class DevicesAutomations extends LitElement {
+  /** 0.1.154: the segments of "קברניט" this user is offered (set by the shell); the schedules segment is the first button of the strip. */
+  @property({ attribute: false }) kavarnit: KavarnitSegments = { schedules: true, automations: true };
+  @state() private schedCount: number | null = null;
   @state() private status: AutomationsStatus | null = null;
   @state() private items: Item[] | null = null;
   @state() private failed = '';
@@ -326,8 +334,18 @@ export class DevicesAutomations extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ data
 
+  /** The count of the schedules segment (best effort: a caller without schedule rights, or an old server, just gets no number). */
+  private async loadScheduleCount() {
+    try {
+      this.schedCount = (await getScheduleStatus()).counts.visible;
+    } catch {
+      this.schedCount = null;
+    }
+  }
+
   private async load() {
     if (demoLoading()) return;
+    if (this.kavarnit.schedules) void this.loadScheduleCount();
     await autoReady();
     this.now = autoNow();
     try {
@@ -568,7 +586,7 @@ export class DevicesAutomations extends LitElement {
         </div>` : html`<span class="grow"></span>`}
       </div>
       ${tools ? html`<div class="dh-det">
-        ${kinds.length > 1 ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id)} data-segment=${s.id} @click=${() => this.setSegment(s.id)}>${s.label} <small>${counts[s.kind]}</small></button>`)}</div>` : nothing}
+        ${kinds.length > 1 || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג">${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id)} data-segment=${s.id} @click=${() => this.setSegment(s.id)}>${s.label} <small>${counts[s.kind]}</small></button>`)}</div>` : nothing}
         ${def.kind === 'automation' && all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${def.kind === 'automation' && all.length ? html`<button type="button" class="btn foldbtn" data-fold-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}סינון${active ? html` <small>${active}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>

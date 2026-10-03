@@ -8,6 +8,8 @@ import { glyphIcon, mIcon, nameText } from './media-icons';
 import { runPlayerCommand } from './media-player-run';
 import { leaderName, playerView, type PlayerView } from './media-player-now';
 import type { CommandOutcome } from './media-command';
+import { SkinController } from '../design/skin';
+import './sw-pill';
 
 /**
  * CR-016: ONE card per physical speaker, player or receiver (MEDIA_PLAYERS_API.md §2, mockup `players-index.html` "PLAYER CARD"):
@@ -43,6 +45,9 @@ export class MediaPlayerCard extends LitElement {
   @state() private menu = false;
   @state() private detail: PlayerDeviceDetail | null = null;
   @state() private detailBusy = false;
+  /** Bubble skin: the row is morphed into its volume slider. */
+  @state() private volOpen = false;
+  private skin = new SkinController(this);
   private throttle = new KeyThrottle();
   private timers: number[] = [];
   private ticker = 0;
@@ -244,8 +249,8 @@ export class MediaPlayerCard extends LitElement {
       place-items: center;
       background: rgba(0, 0, 0, 0.32);
       z-index: 4;
-      -webkit-backdrop-filter: blur(3px);
-      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
+      backdrop-filter: var(--sw-perf-blur, blur(3px));
     }
     .cov .pend i {
       inline-size: 26px;
@@ -441,6 +446,199 @@ export class MediaPlayerCard extends LitElement {
     :host([data-size='s']) .pop {
       inset-inline-start: 8px;
     }
+    /* ---- the Bubble skin (phase C): the card is a pill row - a round cover ring, the name and the state, the play key and
+       the volume button at the end; the volume button MORPHS the row into a slider (mute · slider · % · close · play), as in
+       the Bubble Card video. No blur, no shadow: a scrolling list stays cheap on a phone. ---- */
+    :host([data-skin='bubble']) .pcard {
+      --mm-cover-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'cov tx main';
+      gap: 6px 10px;
+      padding: 6px 8px;
+      min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+      border-radius: var(--sw-r-pill);
+      border: 0;
+      background: var(--sw-surface);
+      box-shadow: none;
+      transition: background var(--sw-t-state) var(--sw-ease);
+    }
+    :host([data-skin='bubble']) .pcard.lit {
+      background: var(--sw-lit);
+      color: var(--sw-on-lit);
+      box-shadow: none;
+    }
+    :host([data-skin='bubble']) .pcard.lit .tx small,
+    :host([data-skin='bubble']) .pcard.lit .tx small.now {
+      color: inherit;
+      opacity: 0.86;
+    }
+    :host([data-skin='bubble']) .pcard.paused {
+      background: var(--sw-lit-soft);
+      color: var(--sw-text);
+    }
+    :host([data-skin='bubble']) .pcard.paused .gbox,
+    :host([data-skin='bubble']) .pcard .gbox {
+      display: none;
+    }
+    :host([data-skin='bubble']) .pcard.un {
+      background: var(--sw-surface);
+      opacity: 0.6;
+      border: 0;
+    }
+    :host([data-skin='bubble']) .cov {
+      min-inline-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop, 44px);
+      border-radius: 50%;
+      box-shadow: none;
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    :host([data-skin='bubble']) .cov::after {
+      display: none;
+    }
+    :host([data-skin='bubble']) .cov .pilld,
+    :host([data-skin='bubble']) .cov .pb,
+    :host([data-skin='bubble']) .cov .live {
+      display: none;
+    }
+    :host([data-skin='bubble']) .cov .ctr {
+      font-size: 20px;
+      color: inherit;
+    }
+    :host([data-skin='bubble']) .cov.rcv .ctr span {
+      display: none;
+    }
+    :host([data-skin='bubble']) .cov.rcv .ctr .ic {
+      font-size: 20px;
+      color: inherit;
+    }
+    :host([data-skin='bubble']) .tx b {
+      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+      font-weight: var(--sw-fw-semibold);
+    }
+    :host([data-skin='bubble']) .tx small {
+      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale, 1));
+    }
+    :host([data-skin='bubble']) .tx .st {
+      flex-wrap: nowrap;
+    }
+    :host([data-skin='bubble']) .gchip {
+      block-size: 22px;
+      padding-inline: 8px;
+      background: rgba(0, 0, 0, 0.12);
+      color: inherit;
+    }
+    /* the end of the row: play / power, the volume button (morph), mute, source and "נגן" as round sub-buttons */
+    :host([data-skin='bubble']) .main {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    :host([data-skin='bubble']) .pk,
+    :host([data-skin='bubble']) .pw,
+    :host([data-skin='bubble']) .rb,
+    :host([data-skin='bubble']) .vb {
+      inline-size: calc(var(--sw-sub) * var(--sw-look-scale, 1));
+      block-size: calc(var(--sw-sub) * var(--sw-look-scale, 1));
+      min-inline-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop, 44px);
+      box-shadow: none;
+      border: 0;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+    :host([data-skin='bubble']) .pk {
+      background: var(--sw-text);
+      color: var(--sw-bg);
+    }
+    :host([data-skin='bubble']) .pk .ic {
+      font-size: 20px;
+    }
+    :host([data-skin='bubble']) .pcard.lit .pk {
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+    }
+    :host([data-skin='bubble']) .pk.idle,
+    :host([data-skin='bubble']) .pw,
+    :host([data-skin='bubble']) .rb,
+    :host([data-skin='bubble']) .vb {
+      background: rgba(0, 0, 0, 0.1);
+      color: inherit;
+    }
+    :host([data-skin='bubble']) .pw.on {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      box-shadow: none;
+    }
+    :host([data-skin='bubble']) .rb.muted {
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+      box-shadow: none;
+    }
+    :host([data-skin='bubble']) .vb[aria-expanded='true'] {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+    }
+    :host([data-skin='bubble']) .sctl {
+      display: none;
+    }
+    :host([data-skin='bubble']) .main .rbtn {
+      min-block-size: var(--sw-touch-desktop, 44px);
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: rgba(0, 0, 0, 0.1);
+      color: inherit;
+      box-shadow: none;
+      padding-inline: 12px;
+    }
+    /* the morph: the whole row becomes mute · the slider pill · close · the main key */
+    :host([data-skin='bubble']) .vmorph {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      min-inline-size: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    :host([data-skin='bubble']) .vmorph sw-pill {
+      flex: 1 1 120px;
+      min-inline-size: 0;
+      --pill-base: rgba(0, 0, 0, 0.1);
+      --sw-pill-h: 44px;
+    }
+    :host([data-skin='bubble']) .pcard.morph .cov {
+      display: none;
+    }
+    :host([data-skin='bubble']) .pop {
+      border: 0;
+      border-radius: var(--sw-r-lg);
+      background: rgba(var(--sw-sheet-rgb), var(--sw-sheet-alpha));
+      -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
+      backdrop-filter: var(--sw-glass-blur-sheet);
+      box-shadow: var(--sw-shadow-3);
+    }
+    @media (max-width: 1100px) {
+      :host([data-skin='bubble']) .pk,
+      :host([data-skin='bubble']) .pw,
+      :host([data-skin='bubble']) .rb,
+      :host([data-skin='bubble']) .vb {
+        min-inline-size: 44px;
+        min-block-size: 44px;
+      }
+      :host([data-skin='bubble']) .cov {
+        min-inline-size: 44px;
+        min-block-size: 44px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host([data-skin='bubble']) .pcard {
+        transition: none;
+      }
+    }
   `];
 
   connectedCallback() {
@@ -540,6 +738,14 @@ export class MediaPlayerCard extends LitElement {
     const d = this.device;
     const level = Math.max(0, Math.min(100, (d.live.volume.level ?? 0) + dir * 2));
     void this.send('volume', d.caps.volume_set ? { command: 'volume_set', level } : { command: 'volume_step', direction: dir > 0 ? 'up' : 'down' });
+  }
+
+  /** The morphed slider's release (bubble skin): one volume_set, capped by the ceiling the night window sets. */
+  private setVolume(level: number) {
+    const d = this.device;
+    const ceiling = effectiveCeiling(d);
+    const v = Math.max(0, Math.min(ceiling ?? 100, Math.round(level)));
+    void this.send('volume', { command: 'volume_set', level: v });
   }
 
   private async mute() {
@@ -657,12 +863,53 @@ export class MediaPlayerCard extends LitElement {
     return html`${this.volumeControls(d)}${this.muteButton(d)}${src}<span class="grow"></span>${open}`;
   }
 
+  /** The bubble row's end: play / power, the volume button (the morph), mute, source, "נגן" - the same commands as the classic card. */
+  private bubbleKeys(d: PlayerDevice, v: PlayerView) {
+    const main = this.mainKey(d, v);
+    const ro = !d.can.control && !d.can.power;
+    const open = html`<button type="button" class="rbtn" aria-label=${`${d.kind === 'receiver' ? 'שלט' : 'נגן'} · ${d.name}`} @click=${() => this.openPlayer()}>${mIcon(d.kind === 'receiver' ? 'remote' : 'music')}</button>`;
+    if (v.kind === 'un') return html`<div class="main">${open}</div>`;
+    if (ro) return html`<div class="main">${main === nothing ? nothing : main}</div>`;
+    const canVol = d.can.control && d.caps.volume_set && v.kind !== 'off';
+    const vol = canVol
+      ? html`<button type="button" class="vb" aria-label=${`עוצמה · ${d.name}`} aria-expanded=${String(this.volOpen)} aria-controls="vol" @click=${() => (this.volOpen = !this.volOpen)}>${mIcon(d.live.volume.muted ? 'volOff' : 'vol')}</button>`
+      : v.kind === 'off' ? nothing : this.volumeControls(d);
+    const src = d.can.power && d.caps.sources && v.kind !== 'off' ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`מקור: ${d.live.now.label || d.name}`} title="מקור" @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>` : nothing;
+    return html`<div class="main">${vol}${src}${open}${main === nothing ? nothing : main}</div>`;
+  }
+
+  /** The morph (bubble skin): mute · the slider pill · close · the main key, the whole row. */
+  private bubbleSlider(d: PlayerDevice, v: PlayerView) {
+    const lv = d.live.volume.level ?? 0;
+    const ceiling = effectiveCeiling(d);
+    const main = this.mainKey(d, v);
+    // the slider pill's tap is mute / unmute (its ring too), so no mute key is needed beside it: the row stays wide enough at 300 px
+    return html`<div class="vmorph" id="vol" data-volume-morph>
+      <sw-pill variant="slider" density="compact" .icon=${d.live.volume.muted ? 'volume' : 'volume'} label=${d.live.volume.muted ? 'מושתק' : 'עוצמה'} .state=${`${lv}%${ceiling !== null ? ` · עד ${ceiling}%` : ''}`} .value=${lv / 100} on keep-text fill-color="var(--sw-accent-soft)" ?unavailable=${this.pending.has('volume')} ?accent=${!!d.live.volume.muted}
+        @toggle=${() => void this.mute()} @icon-click=${() => void this.mute()} @change=${(e: CustomEvent<{ value: number }>) => this.setVolume(e.detail.value * 100)}></sw-pill>
+      <button type="button" class="rb" aria-label="סגור את העוצמה" data-volume-close @click=${() => (this.volOpen = false)}>${mIcon('close')}</button>
+      ${main === nothing ? nothing : (main as TemplateResult)}
+    </div>`;
+  }
+
   render() {
     const d = this.device;
     if (!d) return nothing;
     const lead = this.leader;
     const v = playerView(d, lead);
     const lit = !!v.rgb && (v.playing || v.paused);
+    if (this.skin.bubble) {
+      const chip = isMember(d) ? null : groupChip(d);
+      const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? 'לא זמין' : v.line].filter(Boolean).join(' · ');
+      const sub = this.note ? html`<small class="bad" role="status">${this.note}</small>` : html`<small>${line}${!this.note && v.title ? html` · ${nameText(v.title)}` : nothing}</small>`;
+      const chipEl = chip ? html`<span class=${classMap({ gchip: true, warn: chip.kind === 'conflict' })}>${mIcon(chip.kind === 'conflict' ? 'warning' : 'group')}${chip.text}</span>` : nothing;
+      const morph = this.volOpen && d.can.control && d.caps.volume_set && v.kind !== 'off';
+      return html`<article class=${classMap({ pcard: true, glass: true, lit, paused: v.paused, un: v.kind === 'un', morph })} aria-label=${d.name} data-device=${d.key} data-kind=${d.kind} data-state=${v.kind} data-group-role=${d.live.group.role} data-leader=${leaderName(d, lead) ?? ''}>
+        <div class="edit-slot"><slot name="edit"></slot></div>
+        ${morph ? this.bubbleSlider(d, v) : html`${this.cover(d, v)}<div class="tx"><b>${nameText(d.name)}</b><span class="st">${sub}${chipEl}</span></div>${this.editing ? nothing : this.bubbleKeys(d, v)}`}
+        ${this.sourceMenu(d)}
+      </article>`;
+    }
     const ctl = this.controls(d, v);
     const chip = isMember(d) ? null : groupChip(d);
     const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? 'לא זמין' : v.line].filter(Boolean).join(' · ');

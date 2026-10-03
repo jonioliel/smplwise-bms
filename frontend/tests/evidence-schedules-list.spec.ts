@@ -11,6 +11,16 @@ import { ApiError } from '../src/api/client';
 // in-process demo store) and checks the permission-gated navigation and what the client sends.
 //   SW_BASE_URL=http://127.0.0.1:4791/ npx playwright test tests/evidence-schedules-list.spec.ts --project=desktop --project=mobile --workers=1
 
+/** The instant the page believes it is (it keeps ticking from here): a Monday noon in Asia/Jerusalem, so "the runs still to come
+ *  today" and the demo store's upcoming list do not depend on the wall clock of the machine running the suite. */
+const PINNED_NOW = new Date('2026-10-05T09:00:00Z');
+const pinned = new WeakSet<Page>();
+async function pinClock(page: Page) {
+  if (pinned.has(page)) return; // a test may open the screen more than once; the clock is installed once per page
+  pinned.add(page);
+  await page.clock.install({ time: PINNED_NOW });
+}
+
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/CR014-s3');
 
 interface Control {
@@ -81,6 +91,7 @@ async function installDoubles(page: Page) {
 async function open(page: Page, hash: string, control: Control = {}) {
   // demo mode whatever runs on the preview's proxy target: no backend answers this page
   await page.route('**/api/v1/**', (route) => route.abort());
+  await pinClock(page);
   await page.addInitScript((c) => {
     try {
       localStorage.setItem('sw.demo.schedules', JSON.stringify(c));
@@ -123,8 +134,8 @@ test.describe('the schedules list (demo mode)', () => {
   test('cards: the summary strip, the toolbar, one card per schedule; the home tabs', async ({ page }, info) => {
     await open(page, '/devices/schedules');
     await ready(page);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים', 'אוטומציות']); // CR-017 added the third tab
-    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('תזמונים');
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
+    await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(scr(page).locator('article.card')).toHaveCount(13);
     await expect(scr(page).locator('[data-kpi="active"] .big')).toContainText('10');
     await expect(scr(page).locator('[data-upcoming]').first()).toBeVisible();
@@ -406,10 +417,10 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
   test('"מבט על" is the home screen as it was, the first of two tabs (the layout editor\'s row rule is under "with a session")', async ({ page }, info) => {
     await open(page, '/devices/building');
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
-    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'תזמונים', 'אוטומציות']); // CR-017 added the third tab
+    await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('מבט על');
     await shot(page, '20-home-overview-tab', info);
-    await page.locator('sw-app .subnav sw-tabs a', { hasText: 'תזמונים' }).click();
+    await page.locator('sw-app .subnav sw-tabs a', { hasText: 'קברניט' }).click();
     await expect(page.locator('sw-app devices-schedules')).toHaveCount(1);
   });
 
@@ -533,6 +544,7 @@ async function install(page: Page, st: ApiState) {
 }
 
 async function openApi(page: Page, hash: string) {
+  await pinClock(page);
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
@@ -555,7 +567,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     expect(await rowTabs(page)).toEqual([]);
     st.perms = [...VIEWER_PERMS, 'schedule.view'];
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
   });
 
   test('schedule.manage without devices.read: the home area opens on the schedules, one tab, no row', async ({ page }) => {
@@ -570,9 +582,9 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     st.settings = { 'schedules.enabled': 'false' };
     await openApi(page, '/devices/building');
     expect(await rowTabs(page)).toEqual([]);
-    st.settings = { 'ui.tabs': { devices: { order: ['schedules', 'building'], hidden: [] } } };
+    st.settings = { 'ui.tabs': { devices: { order: ['automations', 'building'], hidden: [] } } };
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['תזמונים', 'מבט על']);
+    await expect.poll(() => rowTabs(page)).toEqual(['קברניט', 'מבט על']);
     st.settings = { 'ui.tabs': { devices: { order: [], hidden: ['building'] } } };
     await openApi(page, '/devices/schedules');
     expect(await rowTabs(page)).toEqual([]); // one tab left: no row
@@ -583,7 +595,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect(page.locator('sw-app devices-building')).toHaveCount(1);
     await expect(page.locator('sw-app .subnav sw-tabs')).toHaveCount(0);
     await openApi(page, '/devices/building');
-    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'תזמונים']);
+    await expect.poll(() => rowTabs(page)).toEqual(['מבט על', 'קברניט']);
   });
 
   test('toggle, bulk and delete send the contract\'s requests', async ({ page }) => {
@@ -661,6 +673,8 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await s.locator('[data-settings-save]').click();
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).not.toHaveProperty('schedules.shabbat_sensor_force');
+    // the save must have finished (the screen reloads its draft) before the next edit, or the edit is overwritten and the button detaches
+    await expect(s.locator('[data-settings-saved]')).toBeVisible();
     // another sensor: asked first; cancelling sends nothing
     await s.locator('[data-shabbat-sensor]').selectOption('binary_sensor.office_occupancy');
     await s.locator('[data-settings-save]').click();

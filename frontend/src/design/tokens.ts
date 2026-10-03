@@ -267,6 +267,10 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-layer-2': lt('rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.14)'),
       '--sw-nav-glass': lt('#ffffff', '#151c2c'), // rail, tree panel, phone dock
       '--sw-backdrop-blur': same('none'), // the live page behind a sheet
+      // the lite tier of the performance dial (design/look.ts PERFORMANCE_BUNDLE): `initial` = no override, the component's own blur and fill apply
+      '--sw-perf-blur': same('initial'), // `none` in lite: components read var(--sw-perf-blur, blur(..)) for cards, pills, rows, chips and lists
+      '--sw-perf-glass-bg': same('initial'), // lite: the sheet colour at --sw-lite-alpha, replacing a translucent glass fill
+      '--sw-lite-alpha': same('0.9'), // computed from the contrast floor (design/contrast.ts liteAlpha), set on <html>
       // the "lit" fill of a light's pill and the text on it (bubble: the lamp's warm colour)
       '--sw-lit': lt('#ffc857', '#ffb547'),
       '--sw-lit-cool': lt('#ece4c9', '#e3e0cf'),

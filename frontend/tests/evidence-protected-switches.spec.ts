@@ -8,7 +8,7 @@ import path from 'node:path';
 // server; the two routes of the screen are answered by an in-spec fake server that keeps the same rules as the backend
 // (a refusal for alarm / door / multimedia rows, approve only on auto rows) and records every request body.
 //   npx vite --host 127.0.0.1 --port 5205   then   SW_BASE_URL=http://127.0.0.1:5205/ npx playwright test evidence-protected-switches --project=desktop --workers=1
-// SW_SHOTS=<dir> saves the screenshots there (docs/evidence/CR-019). One project only: the spec sets the widths itself.
+// SW_SHOTS=<dir> saves the screenshots there (docs/evidence/CR-019). Runs in every project: row locators take the layout that is visible (table from 600 px, cards below).
 const SHOTS = process.env.SW_SHOTS ?? '';
 const SIZES = [
   { w: 1440, h: 900 },
@@ -162,8 +162,10 @@ async function mount(page: Page, scheme: 'light' | 'dark' = 'light') {
 }
 
 const el = (page: Page) => page.locator('devices-protected-switches');
-const rowOf = (page: Page, id: string) => el(page).locator(`table tr[data-entity="switch.${id}"]`);
-const boxOf = (page: Page, id: string) => el(page).locator(`table input[data-protected-row="switch.${id}"]`);
+// Under 600 px the screen shows cards (label.card[data-entity]) and hides the table, so every locator takes the VISIBLE layout.
+const rowOf = (page: Page, id: string) => el(page).locator(`[data-entity="switch.${id}"]:visible`);
+const boxOf = (page: Page, id: string) => el(page).locator(`[data-entity="switch.${id}"]:visible input[data-protected-row]`);
+const listed = (page: Page) => el(page).locator('[data-entity]:visible');
 
 test.describe('מתגים מוגנים (CR-019 S3)', () => {
   test('the suggestions strip, the counts line and the rows of every kind', async ({ page }) => {
@@ -194,14 +196,14 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
   test('"הצג" applies the suggestions filter; filters combine and reset', async ({ page }) => {
     await open(page, { rows: house(), posts: [], mode: 'ok' });
     await el(page).locator('[data-protected-show]').click();
-    await expect(el(page).locator('table tbody tr')).toHaveCount(4);
+    await expect(listed(page)).toHaveCount(4);
     await expect(el(page).locator('[data-protected-counts]')).toContainText('4 מתוך 13 מתגים');
     await el(page).locator('select[data-protected-category]').selectOption('network');
-    await expect(el(page).locator('table tbody tr')).toHaveCount(1);
+    await expect(listed(page)).toHaveCount(1);
     await el(page).locator('[data-protected-reset]').click();
-    await expect(el(page).locator('table tbody tr')).toHaveCount(13);
+    await expect(listed(page)).toHaveCount(13);
     await el(page).locator('input[data-protected-search]').fill('חצר');
-    await expect(el(page).locator('table tbody tr')).toHaveCount(2);
+    await expect(listed(page)).toHaveCount(2);
     await el(page).locator('input[data-protected-search]').fill('אין כזה מתג');
     await expect(el(page).locator('[data-protected-empty]')).toBeVisible();
     await shots(page, 'ps-03-empty-filter-light', [1440]);
@@ -265,15 +267,16 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
   test('protect more: Shift+click selects a range of selectable rows only; the action sends only what it can change', async ({ page }) => {
     const fake: Fake = { rows: house(), posts: [], mode: 'ok' };
     await open(page, fake);
-    await el(page).locator('th button[data-protected-sort="area"]').click();
-    const ids = await el(page).locator('table tbody tr').evaluateAll((trs) => trs.map((t) => (t as HTMLElement).dataset.entity!));
+    const sortByArea = el(page).locator('th button[data-protected-sort="area"]');
+    if (await sortByArea.isVisible()) await sortByArea.click(); // the table header exists on wide screens only
+    const ids = await listed(page).evaluateAll((trs) => trs.map((t) => (t as HTMLElement).dataset.entity!));
     const a = ids.indexOf('switch.garden_lights');
     const b = ids.indexOf('switch.lobby_sign');
     expect(a).toBeGreaterThanOrEqual(0);
     expect(b).toBeGreaterThanOrEqual(0);
     await boxOf(page, ids[Math.min(a, b)].replace('switch.', '')).click();
     await boxOf(page, ids[Math.max(a, b)].replace('switch.', '')).click({ modifiers: ['Shift'] });
-    const picked = await el(page).locator('table tbody input[type=checkbox]:checked').count();
+    const picked = await el(page).locator('input[data-protected-row]:checked:visible').count();
     expect(picked).toBeGreaterThanOrEqual(2);
     await el(page).locator('sw-button[data-protected-do-protect]').click();
     await shots(page, 'ps-07-protect-dialog-light', [1440]);
@@ -300,7 +303,7 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
     const rows: Row[] = Array.from({ length: 1103 }, (_, i) => base(`auto_${i}`, `משאבה ${i}`, ['g', 'קרקע'], ['a', 'אזור'], { ...AUTO, category: 'water_heating', category_label: 'משאבות ודודים', rule: 'name:משאבה' }));
     const fake: Fake = { rows, posts: [], mode: 'ok' };
     await open(page, fake);
-    await expect(el(page).locator('table tbody tr')).toHaveCount(100);
+    await expect(listed(page)).toHaveCount(100);
     await expect(el(page).locator('[data-protected-more]')).toContainText('הצג עוד');
     await expect(el(page).locator('[data-protected-counts]')).toHaveText('1103 מתוך 1103 מתגים · 0 מוגנים · 1103 מוצעים להגנה');
     await el(page).locator('[data-protected-approve-all]').click();

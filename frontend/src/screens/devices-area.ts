@@ -32,6 +32,8 @@ import { isCameraSource } from '../api/camera-card';
 import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type MeasuredGrid, type TileEntry } from './devices-layout';
 import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards';
 import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
+import { SkinController, hueOf } from '../design/skin';
+import { bubbleAreaStyles, renderBubblePill, renderBubbleSensorTile, renderBubbleSep, renderBubbleSheetBody, sectionIcon } from './devices-area-bubble';
 
 export { rowLabel };
 
@@ -525,6 +527,9 @@ export class DevicesArea extends LitElement {
   @state() private phone = false;
   private phoneMq: MediaQueryList | null = null;
   private extraKey = '';
+  /** Bubble skin (phase C): the skin in force mirrored on the host, and the device whose sheet is open. */
+  private skin = new SkinController(this);
+  @state() private sheet: { id: string; card: CardId } | null = null;
   /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
@@ -832,7 +837,7 @@ export class DevicesArea extends LitElement {
     .lay-item > sw-card[data-camera-card] > devices-camera-card {
       flex: 1 1 auto;
     }
-  `, AREA_GLASS, AREA_DESIGN];
+  `, AREA_GLASS, AREA_DESIGN, bubbleAreaStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1049,15 +1054,17 @@ export class DevicesArea extends LitElement {
     // 6c: "סידור התקנים" - the editor shows the card being arranged alone
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
-    return html`<sw-page heading=${bidi(d.area.name)} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
+    const bubble = this.skin.bubble;
+    return html`<sw-page heading=${bubble ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
       <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
         ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
-        ${d.counts.alarm ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
-        <sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>
+        ${d.counts.alarm && !bubble ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
+        ${bubble && connected ? nothing : html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>`}
         ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
       </div>
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
+      ${bubble ? this.renderBubbleHead(d) : nothing}
       ${this.lay.renderBar()}
       ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
       ${arranging
@@ -1075,7 +1082,56 @@ export class DevicesArea extends LitElement {
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
       ${this.lay.renderPanel()}
+      ${bubble ? this.renderBubbleSheet() : nothing}
     </sw-page>`;
+  }
+
+  // ---------------------------------------------------------------- Bubble skin (phase C, 2026-10-02): the head pill, the
+  // device sheet, the section separators and the pills (devices-area-bubble.ts draws them; the commands are this screen's own)
+
+  private bubbleHost = {
+    ctl: this.ctl,
+    openSheet: (r: DeviceRow, card: CardId) => {
+      this.sheet = { id: r.entity_id, card };
+    },
+    assignButton: (r: DeviceRow) => (this.canAssignArea ? html`<sw-button slot="subs" class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>שייך לאזור</sw-button>` : nothing),
+  };
+
+  /** The area's head pill: name, counts, the room temperature (its first temperature sensor), and "כבה הכל" for a bulk holder. */
+  private renderBubbleHead(d: DeviceAreaDetail) {
+    const c = d.counts;
+    const parts = [c.lights_on ? `${ltrNum(c.lights_on)} דולקים` : '', c.climate_active + c.heating_active ? `${ltrNum(c.climate_active + c.heating_active)} מיזוג` : '', c.covers_open ? `${ltrNum(c.covers_open)} פתוחים` : ''].filter(Boolean);
+    const state = [parts.length ? parts.join(' · ') : `${ltrNum(c.entities)} התקנים`, d.area.floor_name ?? ''].filter(Boolean).join(' · ');
+    const temp = d.cards.sensors.entities.find((r) => r.domain === 'sensor' && r.device_class === 'temperature' && r.available && r.value !== null && r.value !== undefined);
+    const alarm = d.counts.alarm;
+    return html`<sw-pill class="bhead" variant="plain" ring-static icon="home" .label=${bidi(d.area.name)} .state=${state} .hue=${hueOf(d.area.area_id)} tabindex="-1" data-area-head=${d.area.area_id}>
+      ${temp ? html`<span slot="subs" class="chip plain" data-area-temperature title=${bidi(temp.name)}><sw-icon name="thermometer" size=${14}></sw-icon>${deg(temp.value)}</span>` : nothing}
+      ${alarm ? html`<a slot="subs" class="chip" href="#/security/alarm" data-area-alarm title="לאזעקה" style="text-decoration:none"><sw-icon name="shield" size=${14}></sw-icon>${ALARM_HE[alarm] ?? alarm}</a>` : nothing}
+      ${this.bulkAllowed && (c.lights_on || c.switches_on) ? html`<button slot="subs" type="button" class="sb" aria-label="כבה הכל באזור" data-area-all-off @click=${() => this.openCoverGroupBulk('all_off')}><sw-icon name="power" size=${18}></sw-icon></button>` : nothing}
+    </sw-pill>`;
+  }
+
+  /** The open device's sheet: its own pill as the head, the full controls as the body. The row is read live from the loaded
+   * area (a state push re-renders it), so the sheet follows the device like the pill does. */
+  private renderBubbleSheet() {
+    const s = this.sheet;
+    const hit = s ? this.rowIndex().get(s.id) : undefined;
+    const r = hit?.row;
+    const card = s?.card ?? hit?.card ?? 'sensors';
+    return html`<sw-sheet ?open=${!!r} heading=${r ? bidi(r.name) : ''} data-device-sheet=${r?.entity_id ?? ''} @close=${() => (this.sheet = null)}>
+      ${r ? html`<sw-pill slot="head" variant="plain" ring-static .icon=${sectionIcon(card)} .label=${bidi(r.name)} .state=${rowLabel(r)} .hue=${hueOf(r.entity_id)} ?on=${r.active && r.available} fill-color=${card === 'lighting' ? 'var(--sw-lit)' : card === 'climate' || card === 'heating' ? (card === 'heating' ? 'var(--sw-heat)' : 'var(--sw-cool)') : 'var(--sw-accent-soft)'} tabindex="-1" data-sheet-head></sw-pill>${renderBubbleSheetBody(this.bubbleHost, r, card)}` : nothing}
+    </sw-sheet>`;
+  }
+
+  /** A section in the bubble skin: a separator (icon, label, count, the fold on a phone, the bulk button) and its body. */
+  private renderBubbleSection(c: DeviceCard, key: string, body: unknown) {
+    const it = this.lay.item(key);
+    const folded = this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors');
+    const actions = SECTION_BULK[c.id] && this.bulkAllowed && c.count && !this.lay.arranging(key)
+      ? html`<span class="sec-bulk" data-section-bulk=${c.id} data-bulk-look=${this.lay.bulkLookOf(key)}>${SECTION_BULK[c.id]!.map((a) => html`<button type="button" class="sb" aria-label=${`${a.label} · ${c.label}`} title=${a.label} data-section-bulk-kind=${a.kind} @click=${() => this.openCoverGroupBulk(a.kind)}><sw-icon .name=${a.icon} size=${18}></sw-icon></button>`)}</span>`
+      : nothing;
+    return html`${renderBubbleSep({ id: c.id, icon: it?.icon ?? sectionIcon(c.id), label: titleOf(it, c.label), count: c.count ? `${ltrNum(c.count)}` : '', fold: this.phone && !this.lay.editing ? { open: !folded, toggle: () => this.fold(key, !folded) } : null, actions })}
+      ${folded ? nothing : body}`;
   }
 
   /** Owner 2026-09-30: a camera card - one camera as a live picture (screens/devices-camera-card.ts); its title is the
@@ -1094,22 +1150,31 @@ export class DevicesArea extends LitElement {
     // CR-007 6c: an arranged card (or the one being arranged) draws its tiles in the saved order / span / size
     const tiles = c.count ? this.lay.tiles(`card:${c.id}`, this.displayRows(c).map((r) => r.entity_id)) : null;
     const key = `card:${c.id}`;
+    const bubble = this.skin.bubble;
+    const body = c.count === 0
+      ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
+      : tiles
+        ? this.renderArranged(c, tiles)
+        : !ents.length
+        ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+        : c.id === 'media' && this.mediaHook
+        ? this.renderMedia(key, null, ents)
+        : c.id === 'sensors'
+          ? this.renderSensorsSection(key, ents)
+          : bubble
+            ? html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="bgrid" data-bubble-grid=${c.id}>${repeat(ents, (r) => r.entity_id, (r) => renderBubblePill(this.bubbleHost, r, c.id))}</div>`
+          : c.id === 'lighting' || c.id === 'switches'
+            ? html`<div class="tiles">${repeat(ents, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
+            : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(ents, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`;
+    // the bubble skin: the card is a bare container (the section is a separator + a grid of pills); the layout editor's
+    // wrapper, keys and arranged tiles are untouched
+    if (bubble) {
+      return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} data-bubble-card>${this.renderBubbleSection(c, key, body)}</sw-card>`;
+    }
     return html`<sw-card data-card=${c.id} data-lay-key=${key} ?data-empty=${c.count === 0} ?row=${this.rowSections && c.id !== 'sensors' && c.id !== 'media'} ?collapsible=${this.phone && !this.lay.editing} ?collapsed=${this.phone && !this.lay.editing && this.folded(key, c.id === 'sensors')} @sw-card-toggle=${(ev: CustomEvent<{ collapsed: boolean }>) => this.fold(key, ev.detail.collapsed)} heading=${titleOf(it, c.label)} subheading=${c.count ? `${c.count} התקנים${c.id === 'lighting' || c.id === 'switches' || c.id === 'climate' || c.id === 'heating' || c.id === 'covers' || c.id === 'media' ? ` · ${c.active} פעילים` : ''}` : ''}>
       ${this.renderSectionBulk(c, key)}
       <sw-icon slot="actions" .name=${it?.icon ?? CARD_ICON[c.id]} size=${18}></sw-icon>
-      ${c.count === 0
-        ? html`<sw-state-panel compact data-card-empty state="empty" heading=${e.heading} hint=${e.hint}></sw-state-panel>`
-        : tiles
-          ? this.renderArranged(c, tiles)
-          : !ents.length
-          ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
-          : c.id === 'media' && this.mediaHook
-          ? this.renderMedia(key, null, ents)
-          : c.id === 'sensors'
-            ? this.renderSensorsSection(key, ents)
-            : c.id === 'lighting' || c.id === 'switches'
-              ? html`<div class="tiles">${repeat(ents, (r) => r.entity_id, (r) => this.renderTile(r, c.id))}</div>`
-              : html`${c.id === 'covers' ? this.renderCoverGroupControl() : nothing}<div class="rows">${repeat(ents, (r) => r.entity_id, (r) => this.renderRow(r, c.id))}</div>`}
+      ${body}
     </sw-card>`;
   }
 
@@ -1181,11 +1246,16 @@ export class DevicesArea extends LitElement {
       else next.add(key);
       this.sensOpen = next;
     };
+    if (this.skin.bubble) {
+      return html`<div class="kv" data-main-sensors>${main.map((r) => renderBubbleSensorTile(r, mainSlotOf(r)))}</div>
+        ${rest.length ? html`<button type="button" class="bmore" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? 'הסתר חיישנים' : `עוד ${rest.length} חיישנים`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
+    }
     return html`<div class="main-sensors" data-main-sensors>${main.map((r) => this.renderMainSensor(r))}</div>
       ${rest.length ? html`<button type="button" class="more-sens" data-sensors-more aria-expanded=${String(open)} @click=${toggle}>${open ? 'הסתר חיישנים' : `עוד ${rest.length} חיישנים`}</button>${open ? this.renderSensorGroups(rest) : nothing}` : nothing}`;
   }
 
   private renderMainSensor(r: DeviceRow) {
+    if (this.skin.bubble) return renderBubbleSensorTile(r, mainSlotOf(r));
     const slot = mainSlotOf(r);
     const icon: IconName = slot === 'temperature' ? 'sensor' : slot === 'humidity' ? 'sensor' : slot === 'motion' ? 'activity' : slot === 'door' ? 'door' : 'sensor';
     const unavailable = !r.available || r.state === 'unavailable';
@@ -1280,17 +1350,25 @@ export class DevicesArea extends LitElement {
     const tiles = all.length ? this.lay.tiles(key, all.map((r) => r.entity_id)) : null;
     const tileRows = rows.filter((r) => TILE_CARDS.has(cardOf(r.entity_id)));
     const listRows = rows.filter((r) => !TILE_CARDS.has(cardOf(r.entity_id)));
+    const bubble = this.skin.bubble;
+    const body = !all.length
+      ? html`<div class="count" data-card-empty>אין בכרטיס התקנים. בחרו התקנים בחלונית המאפיינים של הכרטיס.</div>`
+      : tiles
+        ? this.renderArranged(pseudo, tiles, { key, cardOf })
+        : !rows.length
+          ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
+          : custom.type === 'media' && this.mediaHook
+          ? this.renderMedia(key, custom.entities ?? null, rows)
+          : bubble
+            ? html`<div class="bgrid" data-bubble-grid=${custom.type}>${repeat(rows, (r) => r.entity_id, (r) => renderBubblePill(this.bubbleHost, r, cardOf(r.entity_id)))}</div>`
+          : html`${tileRows.length ? html`<div class="tiles">${repeat(tileRows, (r) => r.entity_id, (r) => this.renderTile(r, cardOf(r.entity_id)))}</div>` : nothing}${listRows.length ? html`<div class="rows">${repeat(listRows, (r) => r.entity_id, (r) => this.renderRow(r, cardOf(r.entity_id)))}</div>` : nothing}`;
+    if (bubble) {
+      const sepCard: DeviceCard = { ...pseudo, id: (isCardType(custom.type) && (CARD_IDS as string[]).includes(custom.type) ? custom.type : 'sensors') as CardId, label: titleOf(it, info.label) };
+      return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} data-bubble-card>${renderBubbleSep({ id: sepCard.id, icon: it?.icon ?? info.icon, label: sepCard.label, count: all.length ? `${ltrNum(all.length)}` : '' })}${body}</sw-card>`;
+    }
     return html`<sw-card data-custom-card=${key.slice(5)} data-card-type=${custom.type} data-lay-key=${key} ?data-empty=${all.length === 0} heading=${titleOf(it, info.label)} subheading=${all.length ? `${all.length} התקנים` : ''}>
       <sw-icon slot="actions" .name=${it?.icon ?? info.icon} size=${18}></sw-icon>
-      ${!all.length
-        ? html`<div class="count" data-card-empty>אין בכרטיס התקנים. בחרו התקנים בחלונית המאפיינים של הכרטיס.</div>`
-        : tiles
-          ? this.renderArranged(pseudo, tiles, { key, cardOf })
-          : !rows.length
-            ? html`<div class="count" data-card-all-hidden>כל ההתקנים בכרטיס הוסתרו בעורך הפריסה.</div>`
-            : custom.type === 'media' && this.mediaHook
-            ? this.renderMedia(key, custom.entities ?? null, rows)
-            : html`${tileRows.length ? html`<div class="tiles">${repeat(tileRows, (r) => r.entity_id, (r) => this.renderTile(r, cardOf(r.entity_id)))}</div>` : nothing}${listRows.length ? html`<div class="rows">${repeat(listRows, (r) => r.entity_id, (r) => this.renderRow(r, cardOf(r.entity_id)))}</div>` : nothing}`}
+      ${body}
     </sw-card>`;
   }
 
@@ -1312,6 +1390,12 @@ export class DevicesArea extends LitElement {
       if (ib === -1) return -1;
       return ia - ib;
     });
+    if (this.skin.bubble) {
+      return html`<div class="sensor-groups">${keys.map((g) => html`<div class="sensor-group" data-sensor-group=${g}>
+        <div class="bsh">${SENSOR_GROUP_LABELS[g] ?? g}</div>
+        <div class="bgrid" data-bubble-grid="sensors">${repeat(groups.get(g)!, (r) => r.entity_id, (r) => renderBubblePill(this.bubbleHost, r, 'sensors'))}</div>
+      </div>`)}</div>`;
+    }
     return html`<div class="sensor-groups">${keys.map((g) => html`<div class="sensor-group" data-sensor-group=${g}>
       <div class="sensor-group-label">${SENSOR_GROUP_LABELS[g] ?? g}</div>
       <div class="tiles">${repeat(groups.get(g)!, (r) => r.entity_id, (r) => this.renderTile(r, 'sensors'))}</div>
@@ -1319,6 +1403,7 @@ export class DevicesArea extends LitElement {
   }
 
   private renderTile(raw: DeviceRow, card: CardId) {
+    if (this.skin.bubble) return renderBubblePill(this.bubbleHost, raw, card);
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'lighting' || card === 'switches');
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
@@ -1367,6 +1452,17 @@ export class DevicesArea extends LitElement {
 
   private renderCoverGroupControl() {
     if (!this.coverGroupAllowed) return nothing;
+    if (this.skin.bubble) {
+      // the bubble skin: one pill for every cover of the area - a position slider (sent on "קבע") and open / stop / close
+      const v = this.coverGroupPosition;
+      return html`<sw-pill class="bgroup" variant="slider" icon="layers" label="כל התריסים" .state=${`מיקום לכולם · ${ltrNum(v)}%`} .value=${v / 100} on fill-color="var(--sw-accent-soft)" keep-text data-cover-group
+        @input=${(e: CustomEvent<{ value: number }>) => (this.coverGroupPosition = Math.round(e.detail.value * 100))} @toggle=${() => (this.coverGroupPosition = v > 0 ? 0 : 100)}>
+        <button slot="subs" type="button" class="sb" aria-label="פתח הכל" data-cover-group-kind="covers_open" @click=${() => this.openCoverGroupBulk('covers_open')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="sb" aria-label="עצור הכל" data-cover-group-kind="covers_stop" @click=${() => this.openCoverGroupBulk('covers_stop')}><sw-icon name="pause" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="sb" aria-label="סגור הכל" data-cover-group-kind="covers_close" @click=${() => this.openCoverGroupBulk('covers_close')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+        <button slot="subs" type="button" class="chip on" data-cover-group-kind="covers_position" @click=${() => this.openCoverGroupBulk('covers_position', this.coverGroupPosition)}>${`קבע ${ltrNum(v)}%`}</button>
+      </sw-pill>`;
+    }
     const setPos = (ev: Event) => (this.coverGroupPosition = Number((ev.target as HTMLInputElement).value));
     return html`<div class="cover-group" data-cover-group>
       <span class="lbl">כל התריסים:</span>
@@ -1450,6 +1546,7 @@ export class DevicesArea extends LitElement {
   }
 
   private renderRow(raw: DeviceRow, card: CardId) {
+    if (this.skin.bubble) return renderBubblePill(this.bubbleHost, raw, card);
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'climate' || card === 'heating' || card === 'covers' || card === 'media');
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';

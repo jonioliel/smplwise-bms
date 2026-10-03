@@ -237,8 +237,8 @@ export class MediaScreenCard extends LitElement {
       place-items: center;
       background: rgba(0, 0, 0, 0.32);
       z-index: 4;
-      -webkit-backdrop-filter: blur(3px);
-      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(3px));
+      backdrop-filter: var(--sw-perf-blur, blur(3px));
     }
     .shot .spin i {
       inline-size: 30px;

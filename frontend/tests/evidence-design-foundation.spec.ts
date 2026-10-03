@@ -34,7 +34,9 @@ async function open(page: Page, hash: string, query = '') {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a${query}#${hash}`);
+  // performance:full is pinned: the pixel baselines are the classic skin at full, and the auto probe (a blurred layer for ~700 ms at idle) must not run
+  // inside the screenshot window (it turns the whole page's LCD text antialiasing to greyscale while it is mounted)
+  await page.goto(`/?design=a&look=performance:full${query}#${hash}`);
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(900);
   await page.evaluate(() => document.fonts.ready);
@@ -58,19 +60,41 @@ async function openDialog(page: Page) {
 
 const view = (info: { project: { name: string } }) => (info.project.name === 'mobile' ? '390' : '1440');
 
+/** The committed baselines carry Playwright's platform suffix (-win32). On another OS (the Linux runner) there is no baseline
+ *  until one is generated there with `--update-snapshots`; until then the pixel check is skipped instead of failing on a
+ *  missing file. Rendering (fonts, text shaping) differs per OS, so baselines are never shared between platforms. */
+const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
+  info.config.updateSnapshots !== 'all' && !fs.existsSync(info.snapshotPath(name));
+
 test.describe('design foundation', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
 
   for (const s of SCREENS) {
     test(`classic is pixel-stable: ${s.id}`, async ({ page }, info) => {
       test.skip(info.project.name === 'tablet', 'two widths are enough for the regression check');
+      test.skip(noBaseline(info, `classic-${s.id}-${view(info)}.png`), `no ${process.platform} baseline yet (run with --update-snapshots on this platform)`);
       await open(page, s.hash);
       await expect(page).toHaveScreenshot(`classic-${s.id}-${view(info)}.png`, { maxDiffPixels: 0, animations: 'disabled', fullPage: false });
     });
   }
 
+  test('an explicit performance tier never runs the auto probe', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'the logic runs once');
+    await page.addInitScript(() => {
+      (window as unknown as { __probeSeen: number }).__probeSeen = 0;
+      new MutationObserver((ms) => {
+        for (const m of ms) m.addedNodes.forEach((n) => (n as HTMLElement).hasAttribute?.('data-perf-probe') && ((window as unknown as { __probeSeen: number }).__probeSeen += 1));
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await open(page, '/devices');
+    await page.waitForTimeout(3500); // past the idle callback + the 700 ms probe window
+    expect(await page.evaluate(() => (window as unknown as { __probeSeen: number }).__probeSeen)).toBe(0);
+    await expect(page.locator('html')).toHaveAttribute('data-bubble-performance', 'full');
+  });
+
   test('classic is pixel-stable: dialog', async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'two widths are enough for the regression check');
+    test.skip(noBaseline(info, `classic-dialog-${view(info)}.png`), `no ${process.platform} baseline yet (run with --update-snapshots on this platform)`);
     await open(page, '/devices');
     await openDialog(page);
     await expect(page).toHaveScreenshot(`classic-dialog-${view(info)}.png`, { maxDiffPixels: 0, animations: 'disabled' });

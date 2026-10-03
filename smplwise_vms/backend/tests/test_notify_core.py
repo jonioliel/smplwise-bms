@@ -11,6 +11,8 @@ import pytest
 from conftest import as_user
 from notify_world import API, NOW, REAL_NOW, World, fake_push  # noqa: F401 - fake_push is a fixture
 
+pytestmark = pytest.mark.usefixtures("daytime_clock")  # the wall clock must not decide quiet hours (see conftest.daytime_clock)
+
 from smplwise import db as dbmod
 from smplwise.services import notify
 from smplwise.services import notify_policy as policies
@@ -251,7 +253,7 @@ def test_read_snooze_summary_and_ack_marks_read(w, monkeypatch):
     assert w.c.post(f"{API}/notifications/{c}/snooze", json={"minutes": 30}, headers=h).status_code == 422
     r = w.c.post(f"{API}/notifications/{c}/snooze", json={"minutes": 60}, headers=h).json()
     until = dt.datetime.fromisoformat(r["me"]["snoozed_until"].replace("Z", "+00:00"))
-    assert 3500 < (until - dt.datetime.now(dt.timezone.utc)).total_seconds() <= 3600
+    assert 3500 < (until - notify.now_utc()).total_seconds() <= 3600
     assert w.c.get(f"{API}/notifications/summary", headers=h).json()["by_category"].get("device_faults", 0) == 0, "snoozed = not unread"
     assert w.c.get(f"{API}/notifications/summary", headers=as_user("joni")).json()["by_category"].get("device_faults", 0) >= 1, "joni's own state is untouched"
     # "until the morning" = the next end of the quiet window, in the installation zone
