@@ -189,13 +189,19 @@ test.describe('tabs configuration, the map default floor and the device catalogu
     await expect(sel.locator('option').first()).toHaveText('אוטומטי');
     await sel.selectOption('f-b1');
     if (info.project.name === 'desktop') await shot(page, 'settings-map-default-floor-desktop');
-    await page.locator('sw-app system-diagnostics [data-save-map]').click();
+    const save = page.locator('sw-app system-diagnostics [data-save-map]');
+    await save.click();
     await expect.poll(() => st.patches.length).toBe(1);
     expect(st.patches[0]).toEqual({ 'map.default_floor': 'f-b1' });
     expect(st.defaultFloor).toBe('f-b1');
+    // The save is only finished once the screen has applied the response (it then resets its draft). Wait for that marker
+    // before editing again: a draft made while the first PATCH is in flight is discarded by that reset, and sw-button is a
+    // custom element, so Playwright would still "click" it while it is disabled and no second PATCH would be sent.
+    await expect(page.locator('sw-app system-diagnostics')).toContainText('ההגדרות נשמרו');
     // "אוטומטי" clears it
     await sel.selectOption('');
-    await page.locator('sw-app system-diagnostics [data-save-map]').click();
+    await expect(save).not.toHaveAttribute('disabled', /.*/); // dirty again, so the button is enabled
+    await save.click();
     await expect.poll(() => st.patches.length).toBe(2);
     expect(st.patches[1]).toEqual({ 'map.default_floor': '' });
   });
