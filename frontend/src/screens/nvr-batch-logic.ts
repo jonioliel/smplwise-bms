@@ -123,8 +123,6 @@ export type Tone = 'wait' | 'spin' | 'ok' | 'bad' | 'unk' | 'skip';
 const SETTLED_OK: BatchItemStatus[] = ['applied', 'unchanged', 'rolled_back'];
 const BAD: BatchItemStatus[] = ['failed', 'refused', 'no_effect', 'diverged'];
 const IN_FLIGHT: BatchItemStatus[] = ['running', 'pending'];
-/** An item the server has not finished with: undo-all waits for none of these. */
-const OPEN: BatchItemStatus[] = ['queued', 'running', 'pending', 'unknown'];
 
 export const isTerminal = (s: BatchState): boolean => s !== 'running';
 export const isUnsettled = (b: Batch): boolean => (b.items ?? []).some((i) => i.status === 'unknown' || IN_FLIGHT.includes(i.status));

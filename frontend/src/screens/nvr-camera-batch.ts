@@ -91,7 +91,7 @@ export class NvrCameraBatch extends LitElement {
   @state() private stopping = false;
   @state() private offline = false;
   @state() private confirmFor: { model: ConfirmModel; run: () => void } | null = null;
-  @state() private scrollTop = 0;
+  @state() private listTop = 0;
   @state() private viewH = 360;
 
   private pollSeq = 0;
@@ -322,7 +322,7 @@ export class NvrCameraBatch extends LitElement {
     this.selected = new Set([cameraId]);
     this.q = '';
     this.line = '';
-    this.scrollTop = 0;
+    this.listTop = 0;
     this.phase = 'select';
   }
 
@@ -610,7 +610,7 @@ export class NvrCameraBatch extends LitElement {
   }
 
   private onScroll = (e: Event) => {
-    this.scrollTop = (e.target as HTMLElement).scrollTop;
+    this.listTop = (e.target as HTMLElement).scrollTop;
   };
 
   private takeControl = () => {
@@ -618,7 +618,7 @@ export class NvrCameraBatch extends LitElement {
   };
 
   private vlist(n: number, rowH: number, kind: 'select' | 'progress', row: (i: number) => TemplateResult, label: string) {
-    const w = windowOf(this.scrollTop, this.viewH, n, rowH);
+    const w = windowOf(this.listTop, this.viewH, n, rowH);
     const idx: number[] = [];
     for (let i = w.start; i < w.end; i++) idx.push(i);
     return html`<div class="vl" role="list" aria-label=${label} tabindex="0" data-nvr-batch-list=${kind} data-rows=${n} @scroll=${this.onScroll} @wheel=${this.takeControl} @touchstart=${this.takeControl} @pointerdown=${this.takeControl}>
@@ -647,7 +647,7 @@ export class NvrCameraBatch extends LitElement {
         ? html`<div class="tools">
               <sw-field><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-batch-search .value=${this.q} @input=${(e: Event) => {
                 this.q = (e.target as HTMLInputElement).value;
-                this.scrollTop = 0;
+                this.listTop = 0;
                 const vl = this.renderRoot.querySelector<HTMLElement>('.vl');
                 if (vl) vl.scrollTop = 0;
               }} /></sw-field>
