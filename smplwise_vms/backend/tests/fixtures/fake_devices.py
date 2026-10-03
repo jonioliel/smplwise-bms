@@ -80,6 +80,8 @@ class FakeDevices:
                          "modes": ["CBR", "VBR"], "kbps": (32, 16384), "quality": [10, 30, 45, 60, 75, 90], "gop": (1, 400),
                          "h264_profiles": ["Baseline", "Main", "High"], "h265_profiles": ["Main"], "svc": True, "smart": True},
                 "caps_status": {"direct": 200, "proxy": 404}, "caps_status_by_stream": {}, "dynamic_cap": None,
+                # CR-020 S2C: put_unknown_at: n makes the nth PUT a timeout (applied or not per `timeout_applies`) - an unknown outcome
+                "put_unknown_at": None,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -223,6 +225,8 @@ class FakeDevices:
         mode = (n["put"] or {}).get("status", "ok")
         if n["put_fail_at"] is not None and n["put_count"] == n["put_fail_at"]:
             mode = "busy"
+        if n.get("put_unknown_at") is not None and n["put_count"] == n["put_unknown_at"]:
+            mode = "timeout"
         if mode == "busy":
             return status_doc(2, "deviceBusy", 503)
         if mode == "invalid":

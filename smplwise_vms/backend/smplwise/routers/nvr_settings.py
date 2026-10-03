@@ -62,6 +62,7 @@ def cameras(request: Request, recorder_id: str | None = RECORDER_ID, principal: 
     settings = settings_of(request)
     ensure_nvr(settings)
     result = nvr_settings.list_cameras(conn, settings, camera_scope(conn, principal, PERMISSION), recorder_id, _can_write(conn, principal))
+    result["can_batch"] = result["can_write"]  # CR-020 S2C: the batch is always on (owner 2026-10-03) for whoever may write
     audit(conn, actor=principal, action="nvr.cameras.read", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request), details=nvr_settings.audit_details(result))
     return result
 
@@ -73,6 +74,7 @@ def camera(camera_id: str, request: Request, principal: Principal = Depends(curr
     settings = settings_of(request)
     ensure_nvr(settings)
     result = nvr_settings.camera_detail(conn, settings, camera_id, _can_write(conn, principal, camera_id))
+    result["can_batch"] = result["can_write"]
     audit(conn, actor=principal, action="nvr.cameras.read", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=_rid(request),
           details=nvr_settings.audit_details({"cameras": [result["camera"]], "stale": result["stale"], "error": result["camera"].get("error")}))
     return result

@@ -254,3 +254,37 @@ An independent Opus review of phase A found two medium and six low items; all ar
 ### 9.3 Phase B (UI) implementation record (2026-10-03, branch `pilot/CR020-s2-b`)
 
 SVC switch + pencil per stream for holders of `nvr.configure` (`can_write`), one confirmation (count, two buttons, details under "פרטים"), undo toast (10 s, press = `confirm:true`), editor drawer with the last five changes, error lines per code, unknown outcome = "הסטטוס נבדק" and never retried. Deviations: the confirmation is a centred `sw-dialog` also on phones (nesting-safe inside the modal drawer); the editor is the shared modal `sw-drawer` (side panel / bottom sheet) instead of a full-screen `sw-sheet`; holders of `nvr.configure` get the cards below 900 px; no disk-days line in the confirmation (no retention data in the API); no XML view. Specs: `evidence-nvr-cameras-write` (stateful mock), `evidence-nvr-cameras-fixture` (real backend + fake NVR, fresh backend per project), `layout-nvr-cameras`, `unit-nvr-cameras-edit`. Evidence: `docs/evidence/CR-020-s2/`.
+
+### 9.4 Phase C (multi-camera batch) backend record (2026-10-03, branch `pilot/CR020-s2c`, backend only)
+
+Design: `private/cr020-s2/PLAN_C.md`; contract: API §3.7. Owner decisions 2026-10-03 that change PLAN_C (binding, recorded
+here as deviations from the plan): the batch is **always on** (no `nvr.batch_enabled` gate; PLAN_C Q1 = ב), with one audit
+row `nvr.stream.batch` `phase:"attempt"` naming who started it; **no cap** on cameras (PLAN_C proposed 8; only an
+input-size guard of 1024 targets remains, and progress is paged); **any H.264 main stream whose SVC is on, derived from
+the device** - no channel list in code (Q4 = א); background run on the server, stoppable, survives a closed page (Q5 = א);
+undo-all with ONE confirmation, the toast press (Q3 = א); single changes refused "מתבצע שינוי מרובה" while a batch runs on
+the same NVR (Q8 = א); **after an unknown outcome** the batch stops, waits 45 s, checks that camera read-only and continues
+automatically ONLY when the reading proves the change was applied; otherwise `interrupted` (Q7 = ב with the proof rule,
+instead of PLAN_C's "never continue").
+
+Built: `POST /nvr/stream-batches` (confirm first, allow-list `{"svc": false}`, every target authorized up front, one LIST
+read preflight, placeholders + one audit row, 202), `GET /nvr/stream-batches[?active=1]`, `GET /nvr/stream-batches/{id}`
+(paged items, camera-scope filter), `POST .../stop`, `POST .../rollback` (undo-all as a new reversed batch); the server
+runner (own connections, one item at a time, heartbeat, per-item re-authorization, stop-at-first-failure, the unknown
+rule); `recover_batches` at start-up, in the janitor and on demand; shutdown ends runners after the current camera;
+`batch_guard` in the S2A single write / undo; `can_batch` on the camera responses. S2A code changed in three spots only
+(`write_stream` / `rollback_stream` gain `batch` and `adopt`; `_insert_pending` claims a placeholder). No migration (0050's
+`batch_id` / `batch_index`), no permission change. Tests: `test_nvr_stream_batch.py`, `test_nvr_stream_batch_recovery.py`,
+`test_nvr_stream_batch_rbac.py` (fake NVR only; fake knob `put_unknown_at`).
+
+Not built in this slice, with the reason:
+- the UI (checklist, one confirmation, progress, stop, partial-failure view, undo toast with count): a separate Sonnet slice
+  (PLAN_C S2-35/36) on the frozen API §3.7;
+- fields other than `svc:false` in a batch: the owner approved SVC only; the allow-list is one constant (`BATCH_FIELDS`);
+- a lab batch on the real NVR: no approval (PLAN_C Q2); the single write AT-020-16 is the only lab proof;
+- an index on `nvr_changes.batch_id`: needs a migration (0052 belongs to NN4); the queries scan a small table and the runner
+  fetches one row per item;
+- more than 128 channels per recorder: the S1 LIST reader stops at 256 stream elements (`nvr.MAX_STREAMING_ELEMENTS`), so a
+  larger recorder cannot be read at all yet - not a batch limit;
+- multi-process runners: the add-on runs one process; start-up recovery therefore interrupts every running batch. A
+  second worker would need the heartbeat path only (already used by the janitor).

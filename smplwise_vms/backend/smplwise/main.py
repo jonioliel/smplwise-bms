@@ -86,6 +86,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
             nvr_settings.settle_pending(db, settings)
         except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
             log.warning("nvr stream janitor failed", exc_info=True)
+        try:  # CR-020 S2C: a multi-camera batch whose runner is gone (stale heartbeat) ends `interrupted` - never resumed
+            from .services import nvr_batch
+
+            nvr_batch.recover_batches(db, settings)
+        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+            log.warning("nvr batch recovery failed", exc_info=True)
     db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
 
 
@@ -238,6 +244,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
+    from .routers import nvr_batch as nvr_batch_router
+
+    app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
     from .routers import remote as remote_router
 
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
@@ -265,6 +274,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return iid
 
         pb.set_instance_id(await run_in_threadpool(_instance))
+        from .services import nvr_batch
+
+        # CR-020 S2C: a batch left running by the previous process ends `interrupted` (its pending item settled by a read when
+        # due); a write is never resumed after a restart
+        await run_in_threadpool(lambda: nvr_batch.recover_batches(app.state.db, settings, startup=True))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
         ha_only = is_ha_only(settings)  # NVR-less mode: none of the NVR background work starts (mode.py)
@@ -329,6 +343,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _stop_janitor() -> None:
+        from .services import nvr_batch
+
+        nvr_batch.signal_shutdown()  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
         for name in ("janitor", "remote_revalidation"):
             task = getattr(app.state, name, None)
             if task:
@@ -355,6 +372,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         await _in_thread(notify_sources.shutdown)
+        await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()

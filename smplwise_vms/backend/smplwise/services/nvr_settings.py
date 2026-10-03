@@ -13,6 +13,10 @@ S2 - the guarded write of ONE stream's encoding (sections 3.4, 3.5, 4, 5) and it
 A device action therefore always has a row; a row left `pending` (crash, busy database at re-lock, an answer that leaves
 the device state unknown) is settled by `settle_pending` from a fresh read - it never writes to the device. Nothing is
 retried. No response, audit row or log line carries a device address, user name, password, serial number or MAC.
+
+S2 phase C (services/nvr_batch.py) runs this same path per camera: `write_stream` / `rollback_stream` take `batch` (kept in
+the audit rows) and `adopt` (the item's `queued` placeholder, claimed atomically in `_insert_pending`); a single write or
+undo is refused 409 `batch_in_progress` while a batch holds the recorder (`batch_guard`).
 """
 from __future__ import annotations
 
@@ -45,6 +49,19 @@ PENDING_SETTLE_S = 120  # a pending row older than this is settled by reading th
 UNKNOWN_SETTLE_MIN_S = 45
 WRITE_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
 REFUSED = ("stale", "nvr_busy", "nvr_not_supported", "nvr_rejected")
+# CR-020 S2 phase C: the recorder-level lock of a multi-camera batch (services/nvr_batch.py). While the key exists, a single
+# write or undo on that recorder is refused 409 `batch_in_progress` - a queued stream's etag must not move under the batch.
+BATCH_ACTIVE_KEY = "nvr.batch.active.{}"
+
+
+def batch_guard(conn: sqlite3.Connection, recorder_id: str) -> None:
+    """409 `batch_in_progress` while a multi-camera batch runs on this recorder (owner decision: "מתבצע שינוי מרובה")."""
+    if conn.execute("SELECT 1 FROM settings WHERE key = ?", (BATCH_ACTIVE_KEY.format(recorder_id),)).fetchone() is not None:
+        raise ApiError(409, "batch_in_progress", "מתבצע שינוי מרובה.", retryable=True)
+
+
+def _batch_details(batch: tuple[str, int] | None) -> dict[str, Any]:
+    return {"batch_id": batch[0], "batch_index": batch[1]} if batch else {}
 
 
 def _recorder_name(conn: sqlite3.Connection, recorder_id: str) -> tuple[str, str | None, str | None]:
@@ -472,7 +489,20 @@ def refuse_attempt(conn: sqlite3.Connection, principal: Any, camera_id: str, str
 
 
 def _insert_pending(conn: sqlite3.Connection, principal: Any, *, rid: str, camera_id: str, stream_ref: str, path: str, before: str, after: str,
-                    fields: dict[str, list[Any]], etag_before: str, rollback_of: str | None = None, note: str = "") -> str:
+                    fields: dict[str, list[Any]], etag_before: str, rollback_of: str | None = None, note: str = "", adopt: str | None = None) -> str:
+    if adopt is not None:  # phase C: a batch item claims its `queued` placeholder (a user stop that won the race leaves 0 rows)
+        try:
+            n = conn.execute(
+                "UPDATE nvr_changes SET status = 'pending', error = NULL, path = ?, before_xml = ?, after_xml = ?, rollback_of = ?, note = ?, actor_id = ?, actor_username = ?,"
+                " created_at = ?, recorder_id = ?, camera_id = ?, stream_ref = ?, fields_json = ?, etag_before = ? WHERE id = ? AND status = 'queued'",
+                (path, before, after, rollback_of, note, getattr(principal, "user_id", None), getattr(principal, "username", None), now_iso(), rid, camera_id, stream_ref,
+                 json.dumps(fields), etag_before, adopt),
+            ).rowcount
+        except sqlite3.IntegrityError as exc:  # the partial unique index: another pending change of this stream
+            raise ApiError(409, "write_in_progress", "שינוי אחר של הזרם הזה עדיין מתבצע.", retryable=True) from exc
+        if not n:
+            raise ApiError(409, "batch_stopped", "השינוי המרובה נעצר.")
+        return adopt
     cid = new_id()
     try:
         conn.execute(
@@ -561,13 +591,18 @@ def _raise_for(status: str, error: ApiError | None, cid: str) -> None:
         raise ApiError(409, "nvr_diverged", "ה־NVR שינה רק חלק מההגדרות. בדקו את הזרם.", details={"change_id": cid})
 
 
-def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, camera_id: str, stream_ref: str, req: WriteRequest, *, request_id: str | None = None) -> dict[str, Any]:
-    """API 3.4 / section 4. The caller has passed `require(nvr.configure, INSTALLATION)`, `require_camera` and the body parse."""
+def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, camera_id: str, stream_ref: str, req: WriteRequest, *, request_id: str | None = None,
+                 batch: tuple[str, int] | None = None, adopt: str | None = None) -> dict[str, Any]:
+    """API 3.4 / section 4. The caller has passed `require(nvr.configure, INSTALLATION)`, `require_camera` and the body parse.
+    Phase C: a batch item passes `batch=(batch_id, index)` (kept in its audit rows) and `adopt` (its queued placeholder row);
+    a single write (`batch` None) is refused while a batch runs on the recorder."""
     cam = _camera_row(conn, camera_id)
     rid = cam["recorder_id"]
     adapter = registry.adapter_for(conn, settings, rid)
-    base = _details(rid, stream_ref, None)
+    base = _details(rid, stream_ref, None, **_batch_details(batch))
     try:
+        if batch is None:
+            batch_guard(conn, rid)
         _clear_pending(conn, settings, rid, stream_ref)
         with unlocked(conn):  # phase 1: fresh device reads, nothing written
             snap = adapter.read_stream(stream_ref)
@@ -591,9 +626,11 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
         return {"change": None, "stream": stream_from_parsed(snap.parsed, opts), "applied_fields": [], "unchanged_fields": unchanged, "reboot_required": False}
     # phase 2: pending row + attempt audit, committed before the device is touched
     try:
+        if batch is None:
+            batch_guard(conn, rid)  # under the write lock again: a batch may have started during the device reads
         _clear_pending(conn, settings, rid, stream_ref)
         cid = _insert_pending(conn, principal, rid=rid, camera_id=camera_id, stream_ref=stream_ref, path=f"{opts.write_via}:{stream_ref}",
-                              before=snap.element, after=document, fields=fields, etag_before=snap.etag)
+                              before=snap.element, after=document, fields=fields, etag_before=snap.etag, adopt=adopt)
     except ApiError as exc:
         raise _refuse(conn, principal, "nvr.stream.write", camera_id, exc, base, request_id) from None
     audit(conn, actor=principal, action="nvr.stream.write", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=request_id,
@@ -606,15 +643,18 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
             "reboot_required": bool(outcome.reboot_required)}
 
 
-def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, orig: sqlite3.Row, *, request_id: str | None = None) -> dict[str, Any]:
+def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, orig: sqlite3.Row, *, request_id: str | None = None,
+                    batch: tuple[str, int] | None = None, adopt: str | None = None) -> dict[str, Any]:
     """API 3.5: undo of an applied `stream_encoding` change - a write of its own (same two phases), allowed only while the
     stream still shows exactly what the change left (etag of its `after`). The caller has checked `nvr.configure` at
     installation scope and on the change's camera, and `confirm`."""
     if orig["kind"] != KIND:
         raise ApiError(409, "not_rollbackable", "השינוי הזה אינו שינוי קידוד.")
     camera_id, stream_ref, rid = orig["camera_id"], orig["stream_ref"], orig["recorder_id"]
-    base = _details(rid, stream_ref, None, rollback_of=orig["id"])
+    base = _details(rid, stream_ref, None, rollback_of=orig["id"], **_batch_details(batch))
     try:
+        if batch is None:
+            batch_guard(conn, rid)
         # review L4: a `diverged` change (the device took only part of it) is undone like an applied one - the same guards,
         # and only while the stream still shows exactly what that change left (its etag_after)
         if orig["status"] not in ("applied", "diverged") or not orig["before_xml"] or not orig["etag_after"] or not stream_ref or not camera_id:
@@ -643,9 +683,11 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
         if not fields:
             raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.")
         document = str(orig["before_xml"])
+        if batch is None:
+            batch_guard(conn, rid)
         _clear_pending(conn, settings, rid, stream_ref)
         cid = _insert_pending(conn, principal, rid=rid, camera_id=camera_id, stream_ref=stream_ref, path=f"{opts.write_via}:{stream_ref}", before=snap.element,
-                              after=document, fields=fields, etag_before=snap.etag, rollback_of=orig["id"], note=f"החזר של {orig['id']}")
+                              after=document, fields=fields, etag_before=snap.etag, rollback_of=orig["id"], note=f"החזר של {orig['id']}", adopt=adopt)
     except ApiError as exc:
         raise _refuse(conn, principal, "nvr.rollback", camera_id or "*", exc, base, request_id) from None
     audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="camera", resource_id=camera_id, request_id=request_id,
