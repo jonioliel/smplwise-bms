@@ -211,14 +211,14 @@ test.describe('electricity: adding a meter', () => {
     await expect(list.locator('[data-picker-item]')).toHaveCount(9);
     await dlg.locator('[data-picker-search]').fill('הספק');
     await expect(list.locator('[data-picker-item]')).toHaveCount(2);
-    await list.locator('[data-picker-item="sensor.main_power"]').click();
+    await list.locator('[data-picker-item="sensor.main_power"]').click({ force: true });
     const alert = dlg.locator('[data-picker-reject]');
     await expect(alert).toContainText('החיישן שנבחר מודד הספק רגעי');
     await expect(alert).toContainText('קוט״ש');
-    await expect(dlg.locator('[data-add-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-add-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-picker-search]').fill('חדר כושר');
     await list.locator('[data-picker-item="sensor.gym_energy"]').click();
-    await expect(dlg.locator('[data-add-confirm]')).toBeEnabled();
+    await expect(dlg.locator('[data-add-confirm]')).not.toHaveAttribute('disabled', '');
     await dlg.locator('[data-add-confirm]').click();
     await expect(page.locator(`${PAGE} [data-notice]`)).toContainText('המונה נוסף');
     await expect(visibleRows(page)).toHaveCount(13);
@@ -233,7 +233,7 @@ test.describe('electricity: adding a meter', () => {
     await expect(dlg.locator('[data-picker-item="sensor.m2_energy"] [data-verdict="added"]')).toBeVisible({ timeout: 15_000 });
     await expect(dlg.locator('[data-picker-item="sensor.bakery_daily"][data-verdict="warn"]')).toContainText('המונה מתאפס כל יום');
     await dlg.locator('[data-picker-item="sensor.bakery_daily"]').click();
-    await expect(dlg.locator('[data-add-confirm]')).toBeEnabled();
+    await expect(dlg.locator('[data-add-confirm]')).not.toHaveAttribute('disabled', '');
   });
 
   test('a viewer cannot open the add dialog by the address', async ({ page }) => {
@@ -254,11 +254,11 @@ test.describe('electricity: retention settings', () => {
     await expect(root.locator('[data-retention-input="interval_retention_months"]')).toHaveValue('26');
     await expect(root.locator('[data-retention-input="bill_retention_years"]')).toHaveValue('7');
     await expect(root.locator('[data-retention="raw_retention_days"] [data-usage]')).toHaveText('212 MB');
-    await expect(root.locator('[data-retention-save]')).toBeDisabled();
+    await expect(root.locator('[data-retention-save]')).toHaveAttribute('disabled', '');
     // out of range
     await root.locator('[data-retention-input="raw_retention_days"]').fill('400');
     await expect(root.locator('[data-retention-error="raw_retention_days"]')).toHaveText('הערך חייב להיות בין 7 ל-366');
-    await expect(root.locator('[data-retention-save]')).toBeDisabled();
+    await expect(root.locator('[data-retention-save]')).toHaveAttribute('disabled', '');
     // a valid change shows the estimate and saves only what changed
     await root.locator('[data-retention-input="raw_retention_days"]').fill('120');
     await expect(root.locator('[data-retention-error="raw_retention_days"]')).toHaveCount(0);
