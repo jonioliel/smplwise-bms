@@ -1,26 +1,25 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
-import '../components/sw-page';
-import '../components/sw-button';
-import '../components/sw-chip';
-import '../components/sw-field';
-import '../components/sw-icon';
-import '../components/sw-toggle';
 import '../components/sw-dialog';
-import '../components/sw-state-panel';
+import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import './schedule-drawer';
 import type { ScheduleActions } from './schedule-drawer';
+import type { DropdownItem } from '../components/sw-dropdown';
+import { aIcon, type AutomationIconName } from '../components/automation-icons';
+import { automationsStyles } from '../styles/automations-glass';
+import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
-import { autoApi, autoReady } from '../api/automations-demo';
+import { applyAutomationsGlass, autoApi, autoReady } from '../api/automations-demo';
 import { visibleKinds } from '../api/automations';
 import type { ItemKind } from '../api/automations';
 import { SEGMENTS, itemPath } from './automations-logic';
 import type { KavarnitSegments } from '../shell/nav';
+import { bidi } from '../i18n/bidi';
 import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type RouteState } from '../router';
-import type { IconName } from '../components/sw-icon';
+import { registerScreenEdit } from '../shell/screen-edit';
 import { DEMO_SUN } from '../api/schedules-mock';
 import {
   DAY_ORDER,
@@ -44,10 +43,12 @@ import {
 } from '../api/schedules';
 import {
   NO_FILTERS,
+  STATE_SEGMENTS,
   activeFilterCount,
   conditionOptions,
   deletedText,
   devicesLine,
+  extraFilterCount,
   filterSchedules,
   filtersToParams,
   groupSchedules,
@@ -60,7 +61,7 @@ import {
   screenState,
   slotChips,
   sortSchedules,
-  summarize,
+  stateCounts,
   tagOptions,
   togglable,
   upcomingToday,
@@ -87,7 +88,7 @@ interface Note {
   action?: { label: string; run: () => void };
 }
 
-const VIEW_ICON: Record<ListView, IconName> = { cards: 'grid', table: 'list', week: 'calendar' };
+const VIEW_ICON: Record<ListView, AutomationIconName> = { cards: 'grid', table: 'list', week: 'calendar' };
 const VIEW_LABEL: Record<ListView, string> = { cards: 'כרטיסים', table: 'טבלה', week: 'שבוע' };
 
 function store(): Storage | null {
@@ -115,15 +116,22 @@ function writeStored(key: string, value: unknown) {
   }
 }
 
+/** The floor of a schedule's devices when they share one ("קומת קרקע"), else '' (the card's bold "where" word). */
+function floorOf(s: Schedule): string {
+  const floors = [...new Set(s.entities.map((e) => e.floor_name).filter((x): x is string => !!x))];
+  return floors.length === 1 ? floors[0] : '';
+}
+
 /**
- * CR-014 "תזמונים": the second tab of the home area (`#/devices/schedules`). The list of the schedules the caller may see,
- * as cards, a table or the week (S4's `<schedules-week-view>`, by tag), with a summary strip, search, filters (area, floor,
- * state, day, tag, the Shabbat / holiday condition), grouping, sorting and a bulk selection bar; the detail drawer
- * (`#/devices/schedules/<id>`), the trash (`.../trash`) and the administrator's review list (`.../review`).
- * Written only against the typed client (api/schedules.ts) - the server decides what is visible and what may change, this
- * screen shows it: a control the caller may not use is disabled with the reason, never hidden behind a client rule.
- * Filtering, sorting and grouping run in the browser over the visible list (docs/architecture/SCHEDULER_API.md §3.2: the
- * server applies visibility before it answers).
+ * CR-014 "תזמונים", the first segment of "קברניט" (`#/devices/schedules`). Owner 2026-10-04: designed exactly like the automations
+ * and scenes screens (docs/design/schedules-parity.md) - the same page frame and glass material (styles/media-page.ts +
+ * styles/automations-glass.ts, light or dark by `devices.scheme`, the bubble skin through its knobs): a large title with the
+ * floors as chips, the segment strip (תזמונים · אוטומציות · סצנות · סקריפטים), the state filter with counts, "סינון", the search and
+ * "+ תזמון חדש"; cards of the automation card's shape (the whole card opens the drawer, the switch and the "⋯" menu on it), the
+ * table and the week as further views, a bulk bar for a selection; the same state boxes, banners and toast. The trash is in the
+ * user menu ("סל מחזור"), as on the automations screen; the administrator's review list opens from its banner.
+ * Written only against the typed client (api/schedules.ts) - the server decides what is visible and what may change.
+ * Filtering, sorting and grouping run in the browser over the visible list (docs/architecture/SCHEDULER_API.md §3.2).
  */
 @customElement('devices-schedules')
 export class DevicesSchedules extends LitElement {
@@ -153,448 +161,356 @@ export class DevicesSchedules extends LitElement {
   @state() private createOpen = false;
   @state() private busy = false;
   @state() private reviewSel = new Set<string>();
+  @state() private menuFor = '';
+  @state() private compactHeader = false;
+  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
 
+  private phoneMq = window.matchMedia('(max-width: 767px)');
+  private onPhone = () => (this.phone = this.phoneMq.matches);
   private offRoute: (() => void) | null = null;
+  private offEdit: (() => void) | null = null;
   private stopWs: (() => void) | null = null;
   private lastWritten = '';
   private urlTimer = 0;
   private noteTimer = 0;
 
-  static styles = [css`
-    :host {
-      display: block;
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    sw-dialog {
+      --sw-surface: var(--mm-sheet-surface);
+      --sw-glass-blur: var(--mm-sheet-blur);
     }
-    .actions {
+    .dh-det .seg.kinds button {
+      padding-inline: 14px;
+    }
+    .dh-det .grow {
+      min-inline-size: 0;
+    }
+    .search {
+      min-inline-size: 200px;
+      flex: 0 1 260px;
+    }
+    .newbtn[disabled] {
+      opacity: 0.5;
+    }
+    .foldbtn small {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--dv-accent-text);
+    }
+    .views button {
+      padding-inline: 12px;
+      min-inline-size: 40px;
+    }
+    .views .ic {
+      font-size: 15px;
+    }
+    /* the filters behind "סינון": the same chips and dropdown chips as the header */
+    .more {
+      flex: 1 1 100%;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
       align-items: center;
+      gap: 8px 10px;
     }
-    .banner {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      padding: 9px 12px;
-      border-radius: var(--sw-r-md);
-      font-size: var(--sw-fs-sm);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      border: 1px solid #d7e4ff;
+    .more .days {
+      display: inline-flex;
+      gap: 4px;
     }
-    .banner.stale {
-      background: var(--sw-stale-soft);
-      color: #92400e;
-      border-color: #fde3b4;
+    .rc.day {
+      inline-size: 38px;
+      padding-inline: 0;
     }
-    /* ---- the summary strip ---- */
-    .strip {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
-      gap: 12px;
+    .more .sep {
+      inline-size: 1px;
+      block-size: 22px;
+      background: var(--dv-border);
     }
-    .strip.two {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr);
+    .dh.compact .more {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
-    .kpi {
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-1);
-      padding: 14px 16px;
+    .stack {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      min-inline-size: 0;
-      text-align: start;
-      font: inherit;
-      color: inherit;
+      gap: 18px;
     }
-    button.kpi {
-      cursor: pointer;
-    }
-    button.kpi:hover {
-      border-color: var(--sw-border-strong);
-    }
-    .kpi .ic {
+    .cgrid {
       display: grid;
-      place-items: center;
-      inline-size: 30px;
-      block-size: 30px;
-      border-radius: 9px;
-      background: var(--sw-success-soft);
-      color: #15803d;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+      gap: var(--dv-gap-lg, 16px);
+      align-items: stretch;
     }
-    .kpi .ic.warn {
-      background: var(--sw-stale-soft);
-      color: #b45309;
-    }
-    .kpi .ic.acc {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .kpi .big {
-      font-size: 28px;
-      font-weight: var(--sw-fw-bold);
-      line-height: 1.1;
-      color: var(--sw-heading, var(--sw-text));
-    }
-    .kpi .big small {
-      font-size: var(--sw-fs-lg);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-medium);
-    }
-    .kpi .lbl {
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-    }
-    .kpi .sm {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .kpi h4 {
-      margin: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
-    }
-    .kpi .head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
+    /* ---- "today" (the runs still to come today): one quiet glass row ---- */
     .upnext {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      align-items: center;
+      gap: 10px 14px;
+      padding: 10px 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .upnext::-webkit-scrollbar {
+      display: none;
+    }
+    .upnext > b {
+      flex: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--dv-text-2);
     }
     .up {
-      display: grid;
-      grid-template-columns: 46px minmax(0, 1fr) auto;
+      flex: none;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 3px 0;
-      font-size: var(--sw-fs-sm);
+      gap: 7px;
+      font-size: 13px;
+      color: var(--dv-text);
+      white-space: nowrap;
     }
     .up time {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
-      direction: ltr;
-      text-align: end;
     }
     .up .what {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .up .nm {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      color: var(--dv-text-2);
     }
     .up i {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
       background: var(--c);
+      flex: none;
     }
-    /* ---- the toolbar ---- */
-    .toolbar {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .trow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .trow sw-field {
-      min-inline-size: 0;
-    }
-    .search {
-      flex: 1 1 220px;
-      max-inline-size: 360px;
-    }
-    .extra {
-      display: contents;
-    }
-    .days {
-      display: inline-flex;
-      gap: 3px;
-    }
-    .dc {
-      inline-size: 26px;
-      block-size: 26px;
-      border-radius: 50%;
-      border: 1px solid var(--sw-border-strong);
-      background: var(--sw-surface);
-      color: var(--sw-text-2);
-      font: inherit;
-      font-size: 11px;
-      cursor: pointer;
-      padding: 0;
-    }
-    .dc[aria-pressed='true'] {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .kseg {
-      display: flex;
-      gap: 4px;
-      padding: 4px;
-      margin-block-end: var(--sw-space-3, 12px);
-      inline-size: fit-content;
-      max-inline-size: 100%;
-      overflow-x: auto;
-      scrollbar-width: none;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-radius-lg, 12px);
-      background: var(--sw-surface);
-    }
-    .kseg button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      flex: 0 0 auto;
-      min-block-size: 44px;
-      padding-inline: 16px;
-      border: 0;
-      border-radius: var(--sw-radius-md, 8px);
-      background: transparent;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .kseg button[aria-selected='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .kseg small {
-      opacity: 0.75;
-      font-size: var(--sw-fs-xs, 12px);
-    }
-    @media (max-width: 767px) {
-      .kseg {
-        inline-size: 100%;
-      }
-      .kseg button {
-        flex: 1 1 0;
-        padding-inline: 8px;
-      }
-    }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
-      overflow: hidden;
-      background: var(--sw-surface);
-      margin-inline-start: auto;
-    }
-    .seg button {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 0;
-      background: transparent;
-      padding: 0 12px;
-      min-block-size: 30px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      font-weight: var(--sw-fw-medium);
-      color: var(--sw-text-2);
-      cursor: pointer;
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
-    }
-    .filter-toggle {
-      display: none;
-    }
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }
-    .chips .sep {
-      inline-size: 1px;
-      block-size: 18px;
-      background: var(--sw-border-strong);
-      margin-inline: 4px;
-    }
-    /* ---- cards ---- */
-    .group h3 {
-      margin: 6px 2px 8px;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: 12px;
-    }
-    .card {
+    /* ---- the card: the automation card's shape (sw-automation-card.ts), a schedule's content ---- */
+    .acard {
       position: relative;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-1);
-      padding: 14px 16px 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      min-inline-size: 0;
-      cursor: pointer;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      gap: 12px;
+      padding: 16px 18px 14px;
+      block-size: 100%;
+      background: var(--mm-sheen), var(--dv-surface);
+      -webkit-backdrop-filter: var(--dv-surface-blur);
+      backdrop-filter: var(--dv-surface-blur);
+      border: 1px solid var(--dv-border);
+      border-radius: 24px;
+      box-shadow: var(--dv-shadow-1);
+      transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
-    .card:hover {
-      border-color: var(--sw-border-strong);
-      box-shadow: var(--sw-shadow-2);
+    .acard:hover {
+      box-shadow: var(--dv-shadow-2);
     }
-    .card.picked {
-      border-color: var(--sw-accent);
-      box-shadow: 0 0 0 2px var(--sw-accent-soft);
+    .acard:focus-within {
+      border-color: color-mix(in srgb, var(--dv-accent) 55%, transparent);
+      box-shadow: var(--dv-shadow-2), 0 0 0 3px var(--dv-accent-soft);
     }
-    .card.off .bar,
-    .card.off .meta {
+    .acard[data-picked] {
+      border-color: var(--dv-accent);
+      box-shadow: var(--dv-shadow-2), 0 0 0 3px var(--dv-accent-soft);
+    }
+    .acard[data-menu] {
+      z-index: 20;
+    }
+    .acard.off .bar,
+    .acard.off .meta {
       opacity: 0.55;
     }
-    .card header {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+    .acard header {
+      display: flex;
+      align-items: flex-start;
       gap: 10px;
-      align-items: center;
+      min-inline-size: 0;
     }
-    .card h3,
-    .name {
+    .ttl {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .acard h3 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     a.name {
-      color: var(--sw-heading, var(--sw-text));
+      color: inherit;
       text-decoration: none;
-      display: block;
     }
-    a.name:hover {
-      color: var(--sw-accent-text);
+    .acard a.name::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
     }
-    .sub {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+    a.name:focus-visible {
+      outline: none;
+    }
+    .where {
+      display: flex;
+      align-items: center;
+      gap: 0 8px;
+      margin-block-start: 3px;
+      font-size: 13.5px;
+      color: var(--dv-text-2);
+      min-inline-size: 0;
+    }
+    .where b {
+      color: var(--dv-text);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .where .ic {
+      font-size: 14px;
+      color: var(--dv-text-3);
+    }
+    .where .ar {
+      min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .ctl,
+    .pick,
+    .bar,
+    .meta,
+    .acard footer {
+      position: relative;
+      z-index: 2;
+    }
+    .ctl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+    }
+    .pick {
+      display: grid;
+      place-items: center;
+      inline-size: 32px;
+      block-size: 32px;
+      margin-block-start: -2px;
+      margin-inline-start: -6px;
+      border-radius: 50%;
+      flex: none;
+      cursor: pointer;
+    }
+    .pick:hover {
+      background: var(--dv-surface-3);
+    }
+    input[type='checkbox'] {
+      inline-size: 17px;
+      block-size: 17px;
+      accent-color: var(--dv-accent);
+      margin: 0;
+      cursor: pointer;
+    }
+    .more-btn {
+      display: grid;
+      place-items: center;
+      inline-size: 36px;
+      block-size: 36px;
+      border-radius: 50%;
+      border: 0;
+      background: transparent;
+      color: var(--dv-text-2);
+    }
+    .more-btn:hover,
+    .more-btn[aria-expanded='true'] {
+      background: var(--dv-surface-3);
+      color: var(--dv-text);
+    }
+    .more-btn .ic {
+      font-size: 20px;
+    }
+    .acard .pop {
+      background: var(--dv-surface-solid, #fff);
+      inset-block-start: 52px;
+      inset-inline-end: 12px;
+      min-inline-size: 190px;
+    }
+    .pop button.dz,
+    .pop button.dz .ic {
+      color: var(--dv-danger);
     }
     .meta {
       display: flex;
       flex-wrap: wrap;
       gap: 6px 8px;
       align-items: center;
-      min-block-size: 24px;
+      min-block-size: 26px;
     }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 2px 9px;
-      border-radius: var(--sw-r-pill);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .pill.warn {
-      background: var(--sw-stale-soft);
-      color: #b45309;
-    }
-    .pill.ok {
-      background: var(--sw-success-soft);
-      color: #15803d;
-    }
-    .pill.mute {
-      background: var(--sw-surface-3);
-      color: var(--sw-text-2);
-    }
-    .card footer {
+    .acard footer {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      border-block-start: 1px solid var(--sw-border);
-      padding-block-start: 8px;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
+      gap: 8px 12px;
+      margin-block-start: auto;
+      font-size: 13px;
+      color: var(--dv-text-2);
     }
-    .card footer b {
-      color: var(--sw-text);
-      font-weight: var(--sw-fw-semibold);
-    }
-    .next {
+    .run {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      font-variant-numeric: tabular-nums;
       min-inline-size: 0;
     }
-    .btns {
-      display: inline-flex;
-      gap: 2px;
+    .run b {
+      color: var(--dv-text);
+      font-weight: 600;
     }
-    input[type='checkbox'] {
-      inline-size: 16px;
-      block-size: 16px;
-      accent-color: var(--sw-accent);
-      margin: 0;
-      cursor: pointer;
-    }
-    /* ---- table ---- */
+    /* ---- the table ---- */
     .tbl {
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-1);
       overflow: hidden;
+      padding: 0;
     }
     .tr {
       display: grid;
-      grid-template-columns: 34px minmax(160px, 1.4fr) auto minmax(230px, 1.9fr) minmax(120px, 1fr) 118px 54px 64px;
+      grid-template-columns: 34px minmax(160px, 1.4fr) auto minmax(230px, 1.9fr) minmax(120px, 1fr) 118px 60px 92px;
       gap: 12px;
       align-items: center;
-      padding: 9px 14px;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
+      padding: 10px 16px;
+      border-block-end: 1px solid var(--dv-border);
+      font-size: 13.5px;
     }
     .tr:last-child {
       border-block-end: 0;
     }
     .tr.h {
-      background: var(--sw-surface-2);
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      padding-block: 8px;
+      background: var(--dv-surface-2);
+      color: var(--dv-text-2);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding-block: 9px;
     }
-    .tr.picked {
-      background: var(--sw-accent-soft);
+    .tr[data-picked] {
+      background: var(--dv-accent-soft);
     }
     .tr.off .name,
     .tr.off .slotrows {
       opacity: 0.6;
+    }
+    .tr .name {
+      display: block;
+      font-weight: 700;
+      font-size: 14.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tr .name:hover {
+      color: var(--dv-accent-text);
+    }
+    .tr .sub {
+      font-size: 12.5px;
+      color: var(--dv-text-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .slotrows {
       display: flex;
@@ -610,7 +526,7 @@ export class DevicesSchedules extends LitElement {
     }
     .sr .w {
       font-variant-numeric: tabular-nums;
-      font-weight: var(--sw-fw-semibold);
+      font-weight: 600;
       direction: ltr;
       text-align: end;
       unicode-bidi: isolate;
@@ -626,211 +542,178 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 5px;
       padding: 1px 8px;
-      border-radius: 6px;
-      font-size: var(--sw-fs-xs);
-      background: color-mix(in srgb, var(--c) 14%, white);
-      color: var(--sw-text);
+      border-radius: 8px;
+      font-size: 12px;
+      background: color-mix(in srgb, var(--c) 16%, transparent);
+      color: var(--dv-text);
       max-inline-size: 100%;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .more {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-accent-text);
+    .linkbtn {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--dv-accent-text);
       background: none;
       border: 0;
       padding: 0;
-      cursor: pointer;
       text-align: start;
-      font-family: inherit;
+      min-block-size: 28px;
     }
-    /* ---- states ---- */
-    .empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      text-align: center;
-      padding: 48px 20px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
+    .ops {
+      display: inline-flex;
+      gap: 2px;
+      justify-content: flex-end;
     }
-    .empty .tile {
-      display: grid;
-      place-items: center;
-      inline-size: 54px;
-      block-size: 54px;
-      border-radius: 14px;
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    .empty h2 {
-      margin: 0;
-      font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-semibold);
-    }
-    .empty p {
-      margin: 0;
-      max-inline-size: 52ch;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
-    }
-    .skel {
-      background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3));
-      background-size: 200% 100%;
-      animation: shimmer 1.4s linear infinite;
-      border-radius: 8px;
-    }
-    .skel-card {
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      padding: 14px 16px;
+    /* ---- trash, review: rows of the drawer's block style ---- */
+    .rows {
       display: flex;
       flex-direction: column;
       gap: 10px;
-    }
-    @keyframes shimmer {
-      to {
-        background-position: -200% 0;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .skel {
-        animation: none;
-      }
-    }
-    /* ---- trash, review ---- */
-    .list {
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-1);
-      overflow: hidden;
     }
     .li {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
-      padding: 11px 14px;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .li:last-child {
-      border-block-end: 0;
+      padding: 14px 16px;
+      border-radius: 18px;
     }
     .li .t {
-      font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-md);
+      font-weight: 700;
+      font-size: 15px;
     }
     .li .d {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--dv-text-2);
+      font-size: 12.5px;
     }
     .li .issues {
       display: flex;
-      gap: 5px;
+      gap: 6px;
       flex-wrap: wrap;
-      margin-block-start: 4px;
+      margin-block-start: 6px;
     }
-    .li .ops {
+    .li .lops {
       display: flex;
       gap: 6px;
       align-items: center;
     }
-    /* ---- bulk bar, note ---- */
+    /* ---- the bulk bar: the edit bar of the glass style, kept at the bottom while scrolling ---- */
     .bulk {
       position: sticky;
-      inset-block-end: 12px;
+      inset-block-end: 14px;
+      z-index: 6;
       align-self: center;
-      z-index: 4;
+      max-inline-size: 100%;
+    }
+    /* the note is a popover (top layer): a modal drawer or dialog is open while most notes appear, and must not dim them */
+    .toast[popover] {
+      inset-block-start: auto;
+      margin-block: 0;
+      padding: 11px 20px 11px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      overflow: visible;
+    }
+    .toast .btn {
+      min-block-size: 28px;
+      padding-inline: 12px;
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: none;
+      margin-inline-start: 6px;
+    }
+    .toast.bad .ic {
+      color: #ff453a;
+    }
+    .dlgform {
       display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      background: var(--sw-text);
-      color: var(--sw-text-inverse);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-3);
-      font-size: var(--sw-fs-sm);
+      flex-direction: column;
+      gap: 12px;
+      padding-block-start: 4px;
+    }
+    .dlgform p {
+      margin: 0;
+      color: var(--dv-text-2);
+      font-size: 14px;
+    }
+    .dlgrow {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
       flex-wrap: wrap;
     }
-    .bulk sw-button {
-      --sw-text: #111827;
-    }
-    .note {
-      position: fixed;
-      inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 16px);
-      inset-inline: 0;
-      margin-inline: auto;
-      inline-size: max-content;
-      max-inline-size: calc(100vw - 32px);
-      z-index: var(--sw-z-toast);
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 9px 14px;
-      background: var(--sw-text);
-      color: var(--sw-text-inverse);
-      border-radius: var(--sw-r-md);
-      box-shadow: var(--sw-shadow-3);
-      font-size: var(--sw-fs-sm);
-    }
-    .note.error {
-      background: #991b1b;
-    }
-    .note button {
-      border: 0;
-      background: transparent;
-      color: #bcd2ff;
-      font: inherit;
-      font-weight: var(--sw-fw-semibold);
-      cursor: pointer;
-      padding: 0;
+    @media (pointer: coarse), (max-width: 767px) {
+      .pick,
+      .more-btn {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      .views button {
+        min-inline-size: 44px;
+      }
+      .rc.day {
+        inline-size: 44px;
+      }
+      .linkbtn {
+        min-block-size: 44px;
+      }
     }
     @media (max-width: 1100px) {
       .tr {
-        grid-template-columns: 34px minmax(140px, 1.4fr) minmax(200px, 2fr) minmax(100px, 1fr) 118px 54px 64px;
+        grid-template-columns: 34px minmax(140px, 1.4fr) minmax(200px, 2fr) minmax(100px, 1fr) 118px 60px 92px;
       }
       .tr > .cdays {
         display: none;
       }
     }
     @media (max-width: 767px) {
-      .strip,
-      .strip.two {
-        grid-template-columns: 1fr 1fr;
+      .dh-det {
+        gap: 10px;
       }
-      .strip .wide {
-        grid-column: 1 / -1;
-        order: 3;
+      .dh-det .seg.kinds {
+        order: 1;
+        inline-size: 100%;
       }
-      .filter-toggle {
-        display: inline-flex;
+      .dh-det .seg.kinds button {
+        flex: 1;
+        padding-inline: 8px;
       }
-      .extra {
+      .dh-det .stf {
+        order: 2;
+        inline-size: 100%;
+        display: none;
+        overflow-x: auto;
+        scrollbar-width: none;
+        justify-content: flex-start;
+      }
+      .dh-det .stf::-webkit-scrollbar {
         display: none;
       }
-      .extra[data-open] {
-        display: contents;
+      .dh-det .stf[data-open] {
+        display: inline-flex;
       }
-      .search {
-        max-inline-size: none;
+      .dh-det .grow {
+        display: none;
       }
-      .seg {
-        margin-inline-start: 0;
+      .dh-det .search {
+        order: 3;
+        flex: 1 1 120px;
+        min-inline-size: 0;
       }
-      .grid {
-        grid-template-columns: 1fr;
+      .dh-det .foldbtn,
+      .dh-det .newbtn {
+        order: 3;
+      }
+      .more {
+        order: 5;
       }
       .tr.h {
         display: none;
       }
       .tr {
-        grid-template-columns: 26px minmax(0, 1fr) auto;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
         grid-template-areas: 'sel name tog' '. slots slots' '. days days' '. cond next';
         row-gap: 8px;
         padding: 12px 14px;
@@ -861,30 +744,79 @@ export class DevicesSchedules extends LitElement {
       .tr > .cops {
         display: none;
       }
-      .note {
-        inset-block-end: calc(var(--sw-bottomnav-h, 50px) + 12px);
+      .acard {
+        padding: 14px 16px 12px;
+        border-radius: 22px;
       }
       .bulk {
-        inset-block-end: calc(var(--sw-bottomnav-h, 50px) + 8px);
+        inset-block-end: calc(var(--sw-bottomnav-h, 66px) + 10px);
       }
     }
-  `, bubbleChrome];
+  `];
 
   // ---------------------------------------------------------------------------- lifecycle
 
   connectedCallback() {
     super.connectedCallback();
+    applyAutomationsGlass(this);
+    this.phoneMq.addEventListener('change', this.onPhone);
+    this.addEventListener('scroll', this.onScroll, { passive: true });
+    window.addEventListener('pointerdown', this.onOutside, true);
+    window.addEventListener('keydown', this.onKey);
+    // the trash is in the user menu, as on the automations screen (screen-edit.ts)
+    this.offEdit = registerScreenEdit({ id: 'schedules-trash', label: 'סל מחזור', icon: 'trash', can: () => screenState(this.status).kind === 'ready' && this.sub !== 'trash', run: () => this.go('trash') });
     const stored = readStored<Partial<ListFilters>>(FILTERS_KEY);
     const storedView = parseView(store()?.getItem(VIEW_KEY) ?? null);
     const params = parseRoute().params;
     // the address carries the state (a link keeps it); without one, this browser's last choice
     this.filters = params.toString() ? parseFilters(params) : stored ? parseFilters(filtersToParams({ ...NO_FILTERS, ...stored })) : { ...NO_FILTERS };
     this.view = parseView(params.get('view')) ?? storedView ?? 'cards';
+    this.filtersOpen = extraFilterCount(this.filters) > 0;
     this.offRoute = onRouteChange((r) => this.onRoute(r));
     void this.load();
     void this.loadSegments();
     this.stopWs = subscribeSchedules(() => void this.refresh());
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.phoneMq.removeEventListener('change', this.onPhone);
+    this.removeEventListener('scroll', this.onScroll);
+    window.removeEventListener('pointerdown', this.onOutside, true);
+    window.removeEventListener('keydown', this.onKey);
+    this.offRoute?.();
+    this.offEdit?.();
+    this.stopWs?.();
+    window.clearTimeout(this.urlTimer);
+    window.clearTimeout(this.noteTimer);
+  }
+
+  protected updated(_c: PropertyValues) {
+    measureHeaderBar(this.renderRoot, this.phone);
+    const t = this.renderRoot.querySelector<HTMLElement>('.toast[popover]');
+    if (t) {
+      try {
+        if (!t.matches(':popover-open')) t.showPopover();
+      } catch {
+        /* no popover support: the note stays in the page */
+      }
+    }
+  }
+
+  private onScroll = () => {
+    const compact = this.scrollTop > 40;
+    if (compact !== this.compactHeader) this.compactHeader = compact;
+  };
+
+  private onOutside = (e: PointerEvent) => {
+    if (!this.menuFor) return;
+    const card = this.renderRoot.querySelector(`[data-schedule="${CSS.escape(this.menuFor)}"]`);
+    if (!card || !e.composedPath().includes(card)) this.menuFor = '';
+  };
+
+  private onKey = (e: KeyboardEvent) => {
+    if (this.menuFor && e.key === 'Escape') this.menuFor = '';
+  };
 
   /** The other segments of "קברניט": which kinds the automations screen offers this caller, with their counts (best effort: no answer = only "אוטומציות"). */
   private async loadSegments() {
@@ -898,26 +830,6 @@ export class DevicesSchedules extends LitElement {
     } catch {
       this.autoKinds = null;
     }
-  }
-
-  /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
-  private renderSegments() {
-    if (this.sub === 'trash' || this.sub === 'review') return nothing;
-    const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
-    if (!others.length) return nothing;
-    const n = this.status?.counts.visible;
-    return html`<div class="kseg" role="tablist" aria-label="קברניט" data-kavarnit-segments>
-      <button type="button" role="tab" aria-selected="true" data-segment="schedules">תזמונים${n === undefined ? nothing : html` <small>${n}</small>`}</button>
-      ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
-    </div>`;
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.offRoute?.();
-    this.stopWs?.();
-    window.clearTimeout(this.urlTimer);
-    window.clearTimeout(this.noteTimer);
   }
 
   // ---------------------------------------------------------------------------- routing
@@ -934,6 +846,7 @@ export class DevicesSchedules extends LitElement {
     }
     if (sub !== this.sub) {
       this.sub = sub;
+      this.menuFor = '';
       void this.onSub();
     }
   }
@@ -1070,7 +983,7 @@ export class DevicesSchedules extends LitElement {
   private say(text: string, tone: Note['tone'] = 'ok', action?: Note['action']) {
     window.clearTimeout(this.noteTimer);
     this.note = { text, tone, action };
-    this.noteTimer = window.setTimeout(() => (this.note = null), action ? 12000 : 5000);
+    this.noteTimer = window.setTimeout(() => (this.note = null), action ? 10000 : 4000);
   }
 
   private get actionsHost(): ScheduleActions | null {
@@ -1101,7 +1014,7 @@ export class DevicesSchedules extends LitElement {
     this.items = (this.items ?? []).filter((s) => s.id !== scheduleId);
     if (this.sub === scheduleId) this.go('');
     void this.refreshStatusOnly();
-    this.say(`התזמון "${name}" נמחק ונשמר בסל המחזור ל־30 יום.`, 'ok', { label: 'שחזור', run: () => void this.restore(trashId) });
+    this.say(`"${name}" נמחק`, 'ok', { label: 'שחזור', run: () => void this.restore(trashId) });
   };
 
   private onCopied = (e: CustomEvent<{ schedule: Schedule }>) => {
@@ -1116,7 +1029,7 @@ export class DevicesSchedules extends LitElement {
   private async restore(trashId: string, item?: TrashItem) {
     try {
       const r = await restoreFromTrash(trashId);
-      this.say(`התזמון "${r.schedule.display_name}" שוחזר.`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
+      this.say(`"${r.schedule.display_name}" שוחזר`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
       await this.refresh();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'lowering_confirmation_required' && item) {
@@ -1138,7 +1051,7 @@ export class DevicesSchedules extends LitElement {
     try {
       const r = await restoreFromTrash(item.trash_id, { confirm_lowering: true, alarm_code: e.detail?.alarm_code ?? null });
       this.trashLowering = null;
-      this.say(`התזמון "${r.schedule.display_name}" שוחזר.`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
+      this.say(`"${r.schedule.display_name}" שוחזר`, 'ok', { label: 'פתיחה', run: () => this.go(r.schedule.id) });
       await this.refresh();
     } catch (err) {
       this.trashLowering = null;
@@ -1151,6 +1064,11 @@ export class DevicesSchedules extends LitElement {
   private setFilter(patch: Partial<ListFilters>, delay = 0) {
     this.filters = { ...this.filters, ...patch };
     this.syncUrl(delay);
+  }
+
+  private clearFilters() {
+    this.filters = { ...NO_FILTERS, sort: this.filters.sort, group: this.filters.group };
+    this.syncUrl();
   }
 
   private setView(v: ListView) {
@@ -1176,7 +1094,7 @@ export class DevicesSchedules extends LitElement {
     const eligible = togglable(picked).filter((s) => (op === 'disable' ? s.enabled : !s.enabled)).filter((s) => op === 'disable' || !s.lowering);
     const skippedLowering = op === 'enable' ? picked.filter((s) => s.lowering && !s.enabled).length : 0;
     if (!eligible.length) {
-      this.say(skippedLowering ? 'תזמונים שפותחים או מנטרלים מופעלים אחד־אחד.' : 'אין בבחירה תזמונים לשינוי.', 'error');
+      this.say(skippedLowering ? 'תזמונים שפותחים או מנטרלים מופעלים אחד־אחד' : 'אין בבחירה תזמונים לשינוי', 'error');
       return;
     }
     this.busy = true;
@@ -1185,7 +1103,7 @@ export class DevicesSchedules extends LitElement {
       const ok = r.results.filter((x) => x.ok).length;
       const bad = r.results.length - ok;
       const verb = op === 'enable' ? 'הופעלו' : 'הושבתו';
-      this.say(bad ? `${verb} ${ok} תזמונים; ${bad} לא שונו.` : `${verb} ${ok} תזמונים${skippedLowering ? `; ${skippedLowering} מופעלים אחד־אחד` : ''}.`, bad ? 'error' : 'ok');
+      this.say(bad ? `${verb} ${ok}; ${bad} לא שונו` : `${verb} ${ok}${skippedLowering ? `; ${skippedLowering} מופעלים אחד־אחד` : ''}`, bad ? 'error' : 'ok');
       this.selected = new Set();
     } catch (err) {
       this.say(scheduleErrorText(err), 'error');
@@ -1202,7 +1120,7 @@ export class DevicesSchedules extends LitElement {
     try {
       const r = await bulkSchedules('disable', picked.map((s) => s.id));
       const ok = r.results.filter((x) => x.ok).length;
-      this.say(`הושבתו ${ok} תזמונים.`, ok === r.results.length ? 'ok' : 'error');
+      this.say(`הושבתו ${ok}`, ok === r.results.length ? 'ok' : 'error');
       this.reviewSel = new Set();
     } catch (err) {
       this.say(scheduleErrorText(err), 'error');
@@ -1220,7 +1138,7 @@ export class DevicesSchedules extends LitElement {
     try {
       await purgeTrash(item.trash_id);
       this.purging = null;
-      this.say(`"${item.name || 'תזמון ללא שם'}" נמחק לצמיתות.`);
+      this.say(`"${item.name || 'תזמון ללא שם'}" נמחק לצמיתות`);
     } catch (err) {
       this.purging = null;
       this.say(scheduleErrorText(err), 'error');
@@ -1228,133 +1146,210 @@ export class DevicesSchedules extends LitElement {
     await this.loadTrash();
   }
 
-  // ---------------------------------------------------------------------------- render: pieces
-
-  private empty(icon: IconName, title: string, text: string, actions: TemplateResult | typeof nothing = nothing, kind = '') {
-    return html`<div class="empty" data-sched-state=${kind}><span class="tile"><sw-icon name=${icon} size=${26}></sw-icon></span><h2>${title}</h2>${text ? html`<p>${text}</p>` : nothing}${actions}</div>`;
+  private toggle(s: Schedule, on: boolean) {
+    void this.actionsHost?.enable(s, on);
   }
 
-  private renderSkeleton() {
-    return html`<div data-sched-state="loading" aria-busy="true" style="display:flex;flex-direction:column;gap:14px">
-      <div class="strip">${[0, 1, 2].map(() => html`<div class="skel-card"><div class="skel" style="block-size:26px;inline-size:30px"></div><div class="skel" style="block-size:26px"></div><div class="skel" style="block-size:10px"></div></div>`)}</div>
-      <div class="grid">${[0, 1, 2, 3, 4, 5].map(() => html`<div class="skel-card"><div class="skel" style="block-size:18px;inline-size:60%"></div><div class="skel" style="block-size:12px;inline-size:40%"></div><div class="skel" style="block-size:14px"></div><div class="skel" style="block-size:22px;inline-size:70%"></div></div>`)}</div>
-    </div>`;
+  private menuAct(s: Schedule, action: 'run' | 'edit' | 'copy' | 'delete') {
+    this.menuFor = '';
+    if (action === 'run') this.actionsHost?.run(s);
+    else if (action === 'edit') navigate(`${BASE}/${s.id}/edit`);
+    else if (action === 'copy') this.actionsHost?.copy(s);
+    else this.actionsHost?.askDelete(s);
   }
 
-  private renderStrip(items: Schedule[], st: ReturnType<typeof screenState>) {
-    const sum = summarize(items);
-    const ups = upcomingToday(items);
-    const attention = st.admin ? this.status?.counts.attention ?? 0 : 0;
-    return html`<div class=${attention ? 'strip' : 'strip two'} data-sched-strip>
-      <div class="kpi" data-kpi="active"><span class="ic"><sw-icon name="check" size=${16}></sw-icon></span><div class="big">${sum.active}<small>/${sum.total}</small></div><div class="lbl">תזמונים פעילים</div>${sum.disabled ? html`<div class="sm">${sum.disabled} מושבתים</div>` : nothing}</div>
-      <div class="kpi wide" data-kpi="upcoming">
-        <div class="head"><h4>ההרצות הבאות היום</h4><span class="ic acc"><sw-icon name="clock" size=${16}></sw-icon></span></div>
-        <div class="upnext">${ups.length
-          ? ups.map((u) => html`<div class="up" data-upcoming=${u.scheduleId}><time>${u.time}</time><span class="nm">${u.name}${u.conditional ? html` <span class="what">· בתנאי</span>` : nothing}</span><span class="what" style="display:inline-flex;align-items:center;gap:6px">${u.what}<i style=${`--c:${toneColor(u.tone)}`}></i></span></div>`)
-          : html`<div class="sm">אין עוד הרצות היום.</div>`}</div>
+  // ---------------------------------------------------------------------------- render: the header (media-page.ts, as on the automations screen)
+
+  private header(scr: ReturnType<typeof screenState>): TemplateResult {
+    const sub = this.sub;
+    if (sub === 'trash' || sub === 'review') {
+      return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-sched-header>
+        <div class="dh-row">
+          <h1 data-sched-title style="display:flex;align-items:center;gap:12px"><a class="rb" href=${`#${BASE}`} aria-label="חזרה לתזמונים" data-back @click=${(e: Event) => { e.preventDefault(); this.go(''); }}>${aIcon('chevron')}</a>${sub === 'trash' ? 'סל מחזור' : 'תזמונים לבדיקה'}</h1>
+          <span class="grow"></span>
+        </div>
+      </header>`;
+    }
+    const all = this.items ?? [];
+    const floors = placeOptions(all, 'floor');
+    const f = this.filters;
+    const tools = scr.kind === 'ready' && this.items !== null;
+    const manage = !!this.status?.can.manage;
+    const extra = extraFilterCount(f);
+    const sc = stateCounts(all);
+    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-sched-header>
+      <div class="dh-row">
+        <h1 data-sched-title>תזמונים</h1>
+        ${tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
+          <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
+          ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
+        </div>` : html`<span class="grow"></span>`}
+        ${tools && all.length ? html`<div class="flwrap">${this.viewSwitch()}</div>` : nothing}
       </div>
-      ${attention
-        ? html`<button class="kpi" data-kpi="attention" @click=${() => this.go('review')}><span class="ic warn"><sw-icon name="warning" size=${16}></sw-icon></span><div class="big">${attention}</div><div class="lbl">דורשים בדיקה</div></button>`
-        : nothing}
+      ${tools ? html`<div class="dh-det" data-sched-toolbar>
+        ${this.renderSegments()}
+        ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
+        ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">סינון</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
+        <span class="grow"></span>
+        ${all.length ? html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-filter="q" placeholder=${this.phone ? 'חיפוש' : 'חיפוש תזמון, התקן או תג'} .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>` : nothing}
+        ${manage ? html`<button type="button" class="btn primary newbtn" data-new-schedule ?disabled=${scr.readOnly} title=${scr.readOnly ? scr.readOnlyText : ''} @click=${() => this.newSchedule()}>${aIcon('plus')}<span class="lbl">חדש</span></button>` : nothing}
+        ${all.length && this.filtersOpen ? this.renderMoreFilters(all) : nothing}
+      </div>` : nothing}
+    </header>`;
+  }
+
+  /** Cards · table · week: the view switch sits where the media pages keep their floor menu (the end of the title row). */
+  private viewSwitch(): TemplateResult {
+    return html`<div class="seg sm views" role="group" aria-label="תצוגה">${(['cards', 'table', 'week'] as ListView[]).map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${String(this.view === v)} aria-label=${VIEW_LABEL[v]} title=${VIEW_LABEL[v]} @click=${() => this.setView(v)}>${aIcon(VIEW_ICON[v])}</button>`)}</div>`;
+  }
+
+  /** The strip of "קברניט": תזמונים (this screen) first, then the automations screen's segments. Shown only when there is a second segment to go to. */
+  private renderSegments() {
+    const others = this.kavarnit.automations ? SEGMENTS.filter((s) => (this.autoKinds ? this.autoKinds.includes(s.kind) : s.id === 'automations')) : [];
+    if (!others.length) return nothing;
+    const n = this.status?.counts.visible;
+    return html`<div class="seg kinds" role="tablist" aria-label="קברניט" data-kavarnit-segments>
+      <button type="button" role="tab" aria-selected="true" data-segment="schedules">תזמונים${n === undefined ? nothing : html` <small>${n}</small>`}</button>
+      ${others.map((s) => html`<button type="button" role="tab" aria-selected="false" data-segment=${s.id} @click=${() => navigate(itemPath(s.id))}>${s.label}${this.autoCounts ? html` <small>${this.autoCounts[s.kind]}</small>` : nothing}</button>`)}
     </div>`;
   }
 
-  private select(label: string, value: string, options: { value: string; label: string }[], onChange: (v: string) => void, attr: string, all = true) {
-    return html`<sw-field><select aria-label=${label} data-filter=${attr} @change=${(e: Event) => onChange((e.target as HTMLSelectElement).value)}>${all ? html`<option value="" .selected=${value === ''}>${label}</option>` : nothing}${options.map((o) => html`<option value=${o.value} .selected=${o.value === value}>${o.label}</option>`)}</select></sw-field>`;
+  private dd(attr: string, label: string, value: string, items: DropdownItem[], on: (v: string) => void): TemplateResult {
+    return html`<sw-dropdown data-filter=${attr} .label=${label} .placeholder=${label} .value=${value} .items=${items} @change=${(e: CustomEvent<{ id: string }>) => on(e.detail.id)}></sw-dropdown>`;
   }
 
-  private renderToolbar(items: Schedule[]) {
+  /** "סינון": the area, the days, the conditions, the tags, grouping and sorting (chips and dropdown chips, never a paragraph). */
+  private renderMoreFilters(items: Schedule[]): TemplateResult {
     const f = this.filters;
     const areas = placeOptions(items, 'area');
-    const floors = placeOptions(items, 'floor');
     const tags = tagOptions(items);
     const conds = conditionOptions(items);
     const sensor = this.status?.settings.shabbat_sensor ?? null;
     const anyPreset = items.some((s) => s.conditions.preset);
     const anyCond = items.some((s) => s.conditions.items.length);
-    const active = activeFilterCount(f);
-    return html`<div class="toolbar" data-sched-toolbar>
-      <div class="trow">
-        <sw-field class="search"><input type="search" data-filter="q" aria-label="חיפוש" placeholder="חיפוש תזמון, התקן או תג" .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></sw-field>
-        <sw-button class="filter-toggle" icon="filter" data-filters-toggle @click=${() => (this.filtersOpen = !this.filtersOpen)}>סינון${active ? ` (${active})` : ''}</sw-button>
-        <span class="extra" ?data-open=${this.filtersOpen}>
-          ${areas.length > 1 ? this.select('כל האזורים', f.area, areas, (v) => this.setFilter({ area: v }), 'area') : nothing}
-          ${floors.length > 1 ? this.select('כל הקומות', f.floor, floors, (v) => this.setFilter({ floor: v }), 'floor') : nothing}
-          ${this.select('כל המצבים', f.state, [{ value: 'enabled', label: 'פעילים' }, { value: 'disabled', label: 'מושבתים' }, { value: 'triggered', label: STATE_LABEL.triggered }, { value: 'completed', label: 'הסתיימו' }], (v) => this.setFilter({ state: v as StateFilter }), 'state')}
-          <span class="days" role="group" aria-label="ימים">${DAY_ORDER.map((d) => html`<button type="button" class="dc" data-day-filter=${d} aria-pressed=${f.day === d} aria-label=${`יום ${DAY_SHORT[d]}`} @click=${() => this.setFilter({ day: f.day === d ? '' : (d as DayId) })}>${DAY_SHORT[d]}</button>`)}</span>
-          ${this.select('ללא קיבוץ', f.group, [{ value: 'area', label: 'לפי אזור' }, { value: 'floor', label: 'לפי קומה' }, { value: 'tag', label: 'לפי תג' }, { value: 'state', label: 'לפי מצב' }], (v) => this.setFilter({ group: v as ListGroup }), 'group')}
-          ${this.select('מיון: הרצה הבאה', f.sort === 'next_run' ? '' : f.sort, [{ value: 'name', label: 'מיון: שם' }, { value: 'order', label: 'מיון: סדר ידני' }, { value: 'updated', label: 'מיון: עודכן לאחרונה' }], (v) => this.setFilter({ sort: (v || 'next_run') as ListSort }), 'sort')}
-        </span>
-        <span class="seg" role="group" aria-label="תצוגה">${(['cards', 'table', 'week'] as ListView[]).map((v) => html`<button type="button" data-view-btn=${v} aria-pressed=${this.view === v} @click=${() => this.setView(v)}><sw-icon name=${VIEW_ICON[v]} size=${14}></sw-icon>${VIEW_LABEL[v]}</button>`)}</span>
-      </div>
-      ${anyCond || tags.length || active
-        ? html`<div class="chips" data-sched-chips>
-            ${sensor || anyPreset ? html`<sw-chip data-chip-preset="only_holy_days" ?selected=${f.preset === 'only_holy_days'} @click=${() => this.setFilter({ preset: f.preset === 'only_holy_days' ? '' : 'only_holy_days' })}>רק בשבת ובחג</sw-chip><sw-chip data-chip-preset="not_holy_days" ?selected=${f.preset === 'not_holy_days'} @click=${() => this.setFilter({ preset: f.preset === 'not_holy_days' ? '' : 'not_holy_days' })}>לא בשבת ובחג</sw-chip>` : nothing}
-            ${anyCond ? html`<sw-chip data-chip-has-cond ?selected=${f.hasConditions} @click=${() => this.setFilter({ hasConditions: !f.hasConditions })}>עם תנאי</sw-chip>` : nothing}
-            ${conds.length > 1 ? html`<span class="extra" ?data-open=${this.filtersOpen}>${this.select('כל התנאים', f.condition, conds, (v) => this.setFilter({ condition: v }), 'condition')}</span>` : nothing}
-            ${tags.length ? html`<span class="sep"></span>${tags.map((t) => html`<sw-chip data-chip-tag=${t.value} ?selected=${f.tag === t.value} @click=${() => this.setFilter({ tag: f.tag === t.value ? '' : t.value })}>${t.label}</sw-chip>`)}` : nothing}
-            ${active ? html`<sw-button variant="ghost" size="sm" data-clear-filters @click=${() => { this.filters = { ...NO_FILTERS, sort: f.sort, group: f.group }; this.syncUrl(); }}>נקה סינון</sw-button>` : nothing}
-          </div>`
-        : nothing}
+    const opts = (all: string, list: { value: string; label: string }[]): DropdownItem[] => [{ id: '', label: all }, ...list.map((o) => ({ id: o.value, label: o.label }))];
+    return html`<div class="more" data-sched-filters>
+      ${areas.length > 1 ? this.dd('area', 'כל האזורים', f.area, opts('כל האזורים', areas), (v) => this.setFilter({ area: v })) : nothing}
+      <span class="days" role="group" aria-label="ימים">${DAY_ORDER.map((d) => html`<button type="button" class="rc day" data-day-filter=${d} aria-pressed=${String(f.day === d)} aria-label=${`יום ${DAY_SHORT[d]}`} @click=${() => this.setFilter({ day: f.day === d ? '' : (d as DayId) })}>${DAY_SHORT[d]}</button>`)}</span>
+      ${sensor || anyPreset ? html`<button type="button" class="rc" data-chip-preset="only_holy_days" aria-pressed=${String(f.preset === 'only_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'only_holy_days' ? '' : 'only_holy_days' })}>רק בשבת ובחג</button><button type="button" class="rc" data-chip-preset="not_holy_days" aria-pressed=${String(f.preset === 'not_holy_days')} @click=${() => this.setFilter({ preset: f.preset === 'not_holy_days' ? '' : 'not_holy_days' })}>לא בשבת ובחג</button>` : nothing}
+      ${anyCond ? html`<button type="button" class="rc" data-chip-has-cond aria-pressed=${String(f.hasConditions)} @click=${() => this.setFilter({ hasConditions: !f.hasConditions })}>עם תנאי</button>` : nothing}
+      ${conds.length > 1 ? this.dd('condition', 'כל התנאים', f.condition, opts('כל התנאים', conds), (v) => this.setFilter({ condition: v })) : nothing}
+      ${tags.length ? html`<span class="sep" aria-hidden="true"></span>${tags.map((t) => html`<button type="button" class="rc" data-chip-tag=${t.value} aria-pressed=${String(f.tag === t.value)} @click=${() => this.setFilter({ tag: f.tag === t.value ? '' : t.value })}>${bidi(t.label)}</button>`)}` : nothing}
+      <span class="sep" aria-hidden="true"></span>
+      ${this.dd('group', 'ללא קיבוץ', f.group, [{ id: '', label: 'ללא קיבוץ' }, { id: 'area', label: 'לפי אזור' }, { id: 'floor', label: 'לפי קומה' }, { id: 'tag', label: 'לפי תג' }, { id: 'state', label: 'לפי מצב' }], (v) => this.setFilter({ group: v as ListGroup }))}
+      ${this.dd('sort', 'מיון: הרצה הבאה', f.sort, [{ id: 'next_run', label: 'מיון: הרצה הבאה' }, { id: 'name', label: 'מיון: שם' }, { id: 'order', label: 'מיון: סדר ידני' }, { id: 'updated', label: 'מיון: עודכן לאחרונה' }], (v) => this.setFilter({ sort: (v || 'next_run') as ListSort }))}
+      ${activeFilterCount(f) ? html`<button type="button" class="btn sm quiet" data-clear-filters @click=${() => this.clearFilters()}>נקה סינון</button>` : nothing}
     </div>`;
   }
 
+  // ---------------------------------------------------------------------------- render: states, banners
+
+  private skeleton(): TemplateResult {
+    const card = html`<div class="glass" style="padding:18px;display:flex;flex-direction:column;gap:12px;border-radius:24px"><span class="skl" style="block-size:20px;inline-size:55%"></span><span class="skl" style="block-size:13px;inline-size:35%"></span><span class="skl" style="block-size:28px"></span><span class="skl" style="block-size:14px;inline-size:60%"></span></div>`;
+    return html`<div data-sched-state="loading" aria-busy="true"><div class="cgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
+  }
+
+  private stateBox(icon: AutomationIconName, title: string, kind: string, action?: TemplateResult): TemplateResult {
+    return html`<div class="statebox glass" role="status" data-sched-state=${kind}><span class="ring">${aIcon(icon)}</span><b>${title}</b>${action ?? nothing}</div>`;
+  }
+
+  private bannerRow(st: ReturnType<typeof screenState>): TemplateResult | typeof nothing {
+    const attention = st.admin ? this.status?.counts.attention ?? 0 : 0;
+    // a viewer sees no banner (the automations screen does the same): the screen simply offers nothing to change
+    const blocked = st.readOnly && !!this.status?.can.manage;
+    if (!st.stale && !blocked && !attention) return nothing;
+    return html`<div class="stack">
+      ${st.stale ? html`<div class="banner warn" role="status" data-sched-stale>${aIcon('wifiOff')}<div>${STALE_TEXT}</div><button type="button" class="btn sm" data-banner-retry @click=${() => void this.refresh()}>${aIcon('refresh')}נסו שוב</button></div>` : nothing}
+      ${blocked ? html`<div class="banner info" role="status" data-sched-readonly>${aIcon('lock')}<div>${st.readOnlyText}</div></div>` : nothing}
+      ${attention ? html`<div class="banner warn" role="status" data-sched-attention>${aIcon('warning')}<div><b>${attention} דורשים בדיקה</b></div><button type="button" class="btn sm" data-open-review @click=${() => this.go('review')}>לבדיקה</button></div>` : nothing}
+    </div>`;
+  }
+
+  private renderUpcoming(items: Schedule[]): TemplateResult | typeof nothing {
+    const ups = upcomingToday(items);
+    if (!ups.length) return nothing;
+    return html`<div class="upnext glass" data-sched-upnext role="list" aria-label="ההרצות הבאות היום"><b>היום</b>${ups.map((u) => html`<span class="up" role="listitem" data-upcoming=${u.scheduleId}><time class="n">${u.time}</time><span>${bidi(u.name)}</span>${u.conditional ? html`<span class="what">· בתנאי</span>` : nothing}<i style=${`--c:${toneColor(u.tone)}`}></i></span>`)}</div>`;
+  }
+
+  // ---------------------------------------------------------------------------- render: the cards
+
   private stateChip(s: Schedule) {
-    if (s.state === 'triggered') return html`<span class="pill ok" data-state-chip="triggered">${STATE_LABEL.triggered}</span>`;
-    if (s.state === 'completed') return html`<span class="pill mute" data-state-chip="completed">הסתיים</span>`;
-    if (s.enabled && s.state === 'unavailable') return html`<span class="pill mute" data-state-chip="unavailable">${STATE_LABEL.unavailable}</span>`;
+    if (s.state === 'triggered') return html`<span class="chip ok" data-state-chip="triggered">${STATE_LABEL.triggered}</span>`;
+    if (s.state === 'completed') return html`<span class="chip" data-state-chip="completed">הסתיים</span>`;
+    if (s.enabled && s.state === 'unavailable') return html`<span class="chip" data-state-chip="unavailable">${STATE_LABEL.unavailable}</span>`;
     return nothing;
   }
 
-  private toggle(s: Schedule, checked: boolean) {
-    void this.actionsHost?.enable(s, checked);
+  private switchOf(s: Schedule): TemplateResult {
+    if (!s.can.toggle) return html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-card-state>${s.enabled ? 'פעיל' : 'מושבת'}</span>`;
+    return html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${`${s.enabled ? 'השבתה' : 'הפעלה'} · ${s.display_name}`} data-toggle=${s.id} ?disabled=${this.busy} @click=${() => this.toggle(s, !s.enabled)}></button>`;
+  }
+
+  private menu(s: Schedule): TemplateResult {
+    const row = (action: 'run' | 'edit' | 'copy' | 'delete', icon: AutomationIconName, label: string, show: boolean, cls = '') =>
+      show ? html`<button type="button" role="menuitem" class=${cls} data-card-action=${action} @click=${() => this.menuAct(s, action)}>${aIcon(icon)}${label}</button>` : nothing;
+    return html`<div class="pop" role="menu" aria-label=${`פעולות · ${s.display_name}`}>
+      ${row('edit', 'edit', 'עריכה', s.can.edit)}
+      ${row('run', 'play', 'הרץ עכשיו', s.can.run)}
+      ${row('copy', 'copy', 'שכפול', s.can.copy)}
+      ${s.can.delete ? html`<hr />` : nothing}
+      ${row('delete', 'trash', 'מחיקה', s.can.delete, 'dz')}
+    </div>`;
   }
 
   private renderCard(s: Schedule) {
     const period = periodLabel(s);
     const sun = isApi() ? null : DEMO_SUN;
-    return html`<article class=${`card${s.enabled ? '' : ' off'}${this.selected.has(s.id) ? ' picked' : ''}`} data-schedule=${s.id} data-enabled=${s.enabled} @click=${() => this.go(s.id)}>
+    const floor = floorOf(s);
+    const hasMenu = s.can.edit || s.can.run || s.can.copy || s.can.delete;
+    const open = this.menuFor === s.id;
+    return html`<article class=${`acard ${s.enabled ? 'on' : 'off'}`} data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)} ?data-menu=${open} aria-label=${s.display_name}>
       <header>
-        <input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} />
-        <div style="min-inline-size:0"><a class="name" href=${this.href(s.id)} @click=${(e: Event) => e.stopPropagation()}>${s.display_name}</a><div class="sub">${devicesLine(s)}</div></div>
-        <span @click=${(e: Event) => e.stopPropagation()}><sw-toggle label=${`${s.enabled ? 'השבתת' : 'הפעלת'} ${s.display_name}`} labelHidden .checked=${live(s.enabled)} ?disabled=${!s.can.toggle || this.busy} data-toggle=${s.id} @change=${(e: CustomEvent<{ checked: boolean }>) => this.toggle(s, e.detail.checked)}></sw-toggle></span>
+        <label class="pick" title="בחירה"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label>
+        <div class="ttl">
+          <h3><a class="name" href=${this.href(s.id)} data-card-open>${bidi(s.display_name)}</a></h3>
+          <div class="where">${aIcon('layers')}${floor ? html`<b>${bidi(floor)}</b>` : nothing}<span class="ar">${bidi(devicesLine(s))}</span></div>
+        </div>
+        <div class="ctl">
+          ${this.switchOf(s)}
+          ${hasMenu ? html`<button type="button" class="more-btn" aria-haspopup="menu" aria-expanded=${String(open)} aria-label=${`עוד · ${s.display_name}`} data-card-menu @click=${() => (this.menuFor = open ? '' : s.id)}>${aIcon('dots')}</button>` : nothing}
+        </div>
+        ${open ? this.menu(s) : nothing}
       </header>
       <div class="bar"><sw-schedule-bar .slots=${s.slots} .sun=${sun}></sw-schedule-bar></div>
       <div class="meta">
         <sw-day-chips .days=${s.days} compact></sw-day-chips>
-        ${period ? html`<span class="pill" data-period><sw-icon name="calendar" size=${12}></sw-icon>${period}</span>` : nothing}
+        ${period ? html`<span class="chip info" data-period>${aIcon('calendar')}${period}</span>` : nothing}
         <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
         <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
         ${this.stateChip(s)}
       </div>
       <footer>
-        <span class="next"><sw-icon name="clock" size=${14}></sw-icon>הרצה הבאה <b data-next-run>${nextRunText(s)}</b></span>
-        <span class="btns" @click=${(e: Event) => e.stopPropagation()}>
-          <sw-button variant="ghost" size="sm" iconOnly icon="play" label=${`הרצה עכשיו: ${s.display_name}`} data-run=${s.id} ?disabled=${!s.can.run} @click=${() => this.actionsHost?.run(s)}></sw-button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${`עריכת ${s.display_name}`} data-edit=${s.id} ?disabled=${!s.can.edit} @click=${() => navigate(`${BASE}/${s.id}/edit`)}></sw-button>
-        </span>
+        <span class="run" data-card-run><i class=${`dot ${s.enabled && s.next_run ? 'ok' : ''}`}></i>הרצה הבאה <b data-next-run>${nextRunText(s)}</b></span>
       </footer>
     </article>`;
   }
 
+  // ---------------------------------------------------------------------------- render: the table
+
   private renderRow(s: Schedule) {
     const shown = s.slots.slice(0, 3);
-    return html`<div class=${`tr${s.enabled ? '' : ' off'}${this.selected.has(s.id) ? ' picked' : ''}`} data-schedule=${s.id} data-enabled=${s.enabled}>
-      <span class="csel"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></span>
-      <span class="cname" style="min-inline-size:0"><a class="name" href=${this.href(s.id)}>${s.display_name}</a><div class="sub">${devicesLine(s)}</div>${s.sensitive || s.lowering ? html`<sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>` : nothing}</span>
+    return html`<div class=${`tr${s.enabled ? '' : ' off'}`} data-schedule=${s.id} data-enabled=${s.enabled} ?data-picked=${this.selected.has(s.id)}>
+      <span class="csel"><label class="pick"><input type="checkbox" data-select=${s.id} aria-label=${`בחירת ${s.display_name}`} .checked=${this.selected.has(s.id)} @change=${(e: Event) => this.toggleSel(s.id, (e.target as HTMLInputElement).checked)} /></label></span>
+      <span class="cname" style="min-inline-size:0"><a class="name" href=${this.href(s.id)}>${bidi(s.display_name)}</a><div class="sub">${bidi(devicesLine(s))}</div>${s.sensitive || s.lowering ? html`<sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>` : nothing}</span>
       <span class="cdays"><sw-day-chips .days=${s.days} compact></sw-day-chips></span>
-      <span class="cslots slotrows">${shown.map((sl) => html`<span class="sr"><span class="w">${windowText(sl)}</span><span class="a">${slotChips(sl, s).map((c) => html`<span class="ac" style=${`--c:${toneColor(c.tone)}`} title=${c.devices.join(', ')}>${c.label}${c.devices.length > 1 ? ` · ${c.devices.length}` : ''}</span>`)}</span></span>`)}${s.slots.length > shown.length ? html`<button class="more" @click=${() => this.go(s.id)}>ועוד ${s.slots.length - shown.length} משבצות</button>` : nothing}</span>
+      <span class="cslots slotrows">${shown.map((sl) => html`<span class="sr"><span class="w">${windowText(sl)}</span><span class="a">${slotChips(sl, s).map((c) => html`<span class="ac" style=${`--c:${toneColor(c.tone)}`} title=${c.devices.join(', ')}>${c.label}${c.devices.length > 1 ? ` · ${c.devices.length}` : ''}</span>`)}</span></span>`)}${s.slots.length > shown.length ? html`<button type="button" class="linkbtn" @click=${() => this.go(s.id)}>ועוד ${s.slots.length - shown.length} משבצות</button>` : nothing}</span>
       <span class="ccond"><schedule-condition-chip .conditions=${s.conditions} compact></schedule-condition-chip></span>
       <span class="cnext"><b data-next-run>${nextRunText(s)}</b></span>
-      <span class="ctog"><sw-toggle label=${`${s.enabled ? 'השבתת' : 'הפעלת'} ${s.display_name}`} labelHidden .checked=${live(s.enabled)} ?disabled=${!s.can.toggle || this.busy} data-toggle=${s.id} @change=${(e: CustomEvent<{ checked: boolean }>) => this.toggle(s, e.detail.checked)}></sw-toggle></span>
-      <span class="cops"><sw-button variant="ghost" size="sm" iconOnly icon="play" label=${`הרצה עכשיו: ${s.display_name}`} data-run=${s.id} ?disabled=${!s.can.run} @click=${() => this.actionsHost?.run(s)}></sw-button><sw-button variant="ghost" size="sm" iconOnly icon="edit" label=${`עריכת ${s.display_name}`} data-edit=${s.id} ?disabled=${!s.can.edit} @click=${() => navigate(`${BASE}/${s.id}/edit`)}></sw-button></span>
+      <span class="ctog">${this.switchOf(s)}</span>
+      <span class="cops ops">${s.can.run ? html`<button type="button" class="rb sm" aria-label=${`הרץ עכשיו · ${s.display_name}`} title="הרץ עכשיו" data-run=${s.id} @click=${() => this.actionsHost?.run(s)}>${aIcon('play')}</button>` : nothing}${s.can.edit ? html`<button type="button" class="rb sm" aria-label=${`עריכה · ${s.display_name}`} title="עריכה" data-edit=${s.id} @click=${() => navigate(`${BASE}/${s.id}/edit`)}>${aIcon('edit')}</button>` : nothing}</span>
     </div>`;
   }
 
   private renderTable(rows: Schedule[]) {
     const all = rows.length > 0 && rows.every((s) => this.selected.has(s.id));
-    return html`<div class="tbl" data-sched-table>
-      <div class="tr h"><span><input type="checkbox" aria-label="בחירת הכול" data-select-all .checked=${all} @change=${(e: Event) => (this.selected = (e.target as HTMLInputElement).checked ? new Set([...this.selected, ...rows.map((s) => s.id)]) : new Set([...this.selected].filter((id) => !rows.some((s) => s.id === id))))} /></span><span>שם</span><span class="cdays">ימים</span><span>משעה · פעולה</span><span>תנאי</span><span>הרצה הבאה</span><span>פעיל</span><span></span></div>
+    return html`<div class="tbl glass" data-sched-table>
+      <div class="tr h"><span><label class="pick"><input type="checkbox" aria-label="בחירת הכול" data-select-all .checked=${all} @change=${(e: Event) => (this.selected = (e.target as HTMLInputElement).checked ? new Set([...this.selected, ...rows.map((s) => s.id)]) : new Set([...this.selected].filter((id) => !rows.some((s) => s.id === id))))} /></label></span><span>שם</span><span class="cdays">ימים</span><span>משעה · פעולה</span><span>תנאי</span><span>הרצה הבאה</span><span>פעיל</span><span></span></div>
       ${rows.map((s) => this.renderRow(s))}
     </div>`;
   }
@@ -1364,54 +1359,56 @@ export class DevicesSchedules extends LitElement {
       return html`<schedules-week-view .schedules=${rows} .sun=${isApi() ? null : DEMO_SUN} .snap=${this.status?.settings.snap_minutes ?? 15} @open-schedule=${(e: CustomEvent<{ id: string }>) => this.go(e.detail.id)}></schedules-week-view>`;
     }
     const groups = groupSchedules(sortSchedules(rows, this.filters.sort), this.filters.group);
-    if (this.view === 'table') return html`${this.filters.group ? groups.map((g) => html`<div class="group" data-group=${g.key}><h3>${g.label}</h3>${this.renderTable(g.items)}</div>`) : this.renderTable(groups[0].items)}`;
-    return html`${groups.map((g) => html`<div class="group" data-group=${g.key}>${g.label ? html`<h3>${g.label}</h3>` : nothing}<div class="grid" data-sched-grid>${g.items.map((s) => this.renderCard(s))}</div></div>`)}`;
+    const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : html`<div class="cgrid" data-sched-grid>${items.map((s) => this.renderCard(s))}</div>`);
+    if (!this.filters.group) return html`<div class="groups"><section class="fsec group" data-group="">${body(groups[0].items)}</section></div>`;
+    return html`<div class="groups">${groups.map((g) => html`<section class="fsec group" data-group=${g.key}><header class="sh"><h2>${bidi(g.label)}</h2></header>${body(g.items)}</section>`)}</div>`;
   }
 
   private renderBulk() {
     const n = this.selected.size;
     if (!n || this.view === 'week') return nothing;
     const can = !!this.status?.can.manage && !!this.status?.writable;
-    return html`<div class="bulk" role="region" aria-label="פעולות על הבחירה" data-bulk-bar>
-      <b>${n} נבחרו</b>
-      ${can ? html`<sw-button size="sm" data-bulk-enable ?disabled=${this.busy} @click=${() => void this.bulk('enable')}>הפעלה</sw-button><sw-button size="sm" data-bulk-disable ?disabled=${this.busy} @click=${() => void this.bulk('disable')}>השבתה</sw-button>` : nothing}
-      <sw-button size="sm" variant="ghost" data-bulk-clear @click=${() => (this.selected = new Set())}><span style="color:#fff">ביטול בחירה</span></sw-button>
+    return html`<div class="editbar bulk" role="region" aria-label="פעולות על הבחירה" data-bulk-bar>
+      <span class="t">${aIcon('check')}${n} נבחרו</span>
+      <span class="grow"></span>
+      ${can ? html`<button type="button" class="btn sm" data-bulk-enable ?disabled=${this.busy} @click=${() => void this.bulk('enable')}>${aIcon('play')}הפעלה</button><button type="button" class="btn sm" data-bulk-disable ?disabled=${this.busy} @click=${() => void this.bulk('disable')}>${aIcon('stop')}השבתה</button>` : nothing}
+      <button type="button" class="btn sm quiet" data-bulk-clear @click=${() => (this.selected = new Set())}>ביטול בחירה</button>
     </div>`;
   }
 
   // ---------------------------------------------------------------------------- render: the sub-views
 
   private renderTrash() {
-    if (this.subError) return html`<sw-state-panel state="error" hint=${this.subError} actionLabel="נסו שוב" @action=${() => void this.loadTrash()}></sw-state-panel>`;
-    if (this.trash === null) return this.renderSkeleton();
-    if (!this.trash.length) return this.empty('trash', 'סל המחזור ריק', 'תזמון שנמחק נשמר כאן 30 יום ואפשר לשחזר אותו.', nothing, 'trash-empty');
+    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadTrash()}>${aIcon('refresh')}נסו שוב</button>`);
+    if (this.trash === null) return this.skeleton();
+    if (!this.trash.length) return this.stateBox('trash', 'סל המחזור ריק', 'trash-empty');
     const canPurge = !!this.status?.can.configure && !!this.status?.can.manage;
-    return html`<div class="list" data-sched-trash>${this.trash.map(
-      (t) => html`<div class="li" data-trash-item=${t.trash_id}>
-        <div><div class="t">${t.name || 'תזמון ללא שם'}</div><div class="d">${t.entities.map((e) => e.name).join(' · ')}</div><div class="d">${deletedText(t.deleted_at)}${t.deleted_by ? ` · ${t.deleted_by.display_name}` : ''} · ${keptText(t.expires_at)}</div></div>
-        <div class="ops">${t.sensitive ? html`<sw-schedule-markers .sensitive=${true}></sw-schedule-markers>` : nothing}
-          <sw-button size="sm" variant="primary" data-restore=${t.trash_id} ?disabled=${!t.can_restore} title=${t.can_restore ? '' : 'אין הרשאה לשחזר תזמון זה.'} @click=${() => void this.restore(t.trash_id, t)}>שחזור</sw-button>
-          ${canPurge ? html`<sw-button size="sm" variant="ghost" iconOnly icon="trash" label="מחיקה לצמיתות" data-purge=${t.trash_id} @click=${() => (this.purging = t)}></sw-button>` : nothing}</div>
+    return html`<div class="rows" data-sched-trash>${this.trash.map(
+      (t) => html`<div class="li glass" data-trash-item=${t.trash_id}>
+        <div><div class="t">${bidi(t.name || 'תזמון ללא שם')}</div><div class="d">${t.entities.map((e) => e.name).join(' · ')}</div><div class="d">${deletedText(t.deleted_at)}${t.deleted_by ? ` · ${t.deleted_by.display_name}` : ''} · ${keptText(t.expires_at)}</div></div>
+        <div class="lops">${t.sensitive ? html`<sw-schedule-markers .sensitive=${true}></sw-schedule-markers>` : nothing}
+          <button type="button" class="btn sm primary" data-restore=${t.trash_id} ?disabled=${!t.can_restore} title=${t.can_restore ? '' : 'אין הרשאה לשחזר תזמון זה'} @click=${() => void this.restore(t.trash_id, t)}>${aIcon('restore')}שחזור</button>
+          ${canPurge ? html`<button type="button" class="rb sm" aria-label="מחיקה לצמיתות" title="מחיקה לצמיתות" data-purge=${t.trash_id} @click=${() => (this.purging = t)}>${aIcon('trash')}</button>` : nothing}</div>
       </div>`,
     )}</div>`;
   }
 
   private renderReview() {
-    if (this.subError) return html`<sw-state-panel state="error" hint=${this.subError} actionLabel="נסו שוב" @action=${() => void this.loadReview()}></sw-state-panel>`;
-    if (this.review === null) return this.renderSkeleton();
-    if (!this.review.length) return this.empty('check', 'אין תזמונים הדורשים בדיקה', '', nothing, 'review-empty');
+    if (this.subError) return this.stateBox('warning', this.subError, 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => void this.loadReview()}>${aIcon('refresh')}נסו שוב</button>`);
+    if (this.review === null) return this.skeleton();
+    if (!this.review.length) return this.stateBox('check', 'אין תזמונים הדורשים בדיקה', 'review-empty');
     const n = this.reviewSel.size;
-    return html`<div class="list" data-sched-review>${this.review.map(
-      (r) => html`<div class="li" data-review-item=${r.schedule.id}>
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <input type="checkbox" data-review-select=${r.schedule.id} aria-label=${`בחירת ${r.schedule.display_name}`} ?disabled=${!r.schedule.enabled || !r.schedule.can.toggle} .checked=${this.reviewSel.has(r.schedule.id)} @change=${(e: Event) => { const next = new Set(this.reviewSel); if ((e.target as HTMLInputElement).checked) next.add(r.schedule.id); else next.delete(r.schedule.id); this.reviewSel = next; }} />
-          <div><div class="t"><a class="name" style="display:inline" href=${this.href(r.schedule.id)}>${r.schedule.display_name}</a></div><div class="d">${devicesLine(r.schedule)}${r.schedule.owner ? ` · ${r.schedule.owner.display_name}` : ''}</div>
-          <div class="issues">${r.issues.map((i) => html`<span class="pill warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>`)}</div></div>
+    return html`<div class="rows" data-sched-review>${this.review.map(
+      (r) => html`<div class="li glass" data-review-item=${r.schedule.id}>
+        <div style="display:flex;gap:10px;align-items:flex-start;min-inline-size:0">
+          <label class="pick"><input type="checkbox" data-review-select=${r.schedule.id} aria-label=${`בחירת ${r.schedule.display_name}`} ?disabled=${!r.schedule.enabled || !r.schedule.can.toggle} .checked=${this.reviewSel.has(r.schedule.id)} @change=${(e: Event) => { const next = new Set(this.reviewSel); if ((e.target as HTMLInputElement).checked) next.add(r.schedule.id); else next.delete(r.schedule.id); this.reviewSel = next; }} /></label>
+          <div style="min-inline-size:0"><div class="t"><a class="name" href=${this.href(r.schedule.id)}>${bidi(r.schedule.display_name)}</a></div><div class="d">${devicesLine(r.schedule)}${r.schedule.owner ? ` · ${r.schedule.owner.display_name}` : ''}</div>
+          <div class="issues">${r.issues.map((i) => html`<span class="chip warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>`)}</div></div>
         </div>
-        <div class="ops"><span class=${r.schedule.enabled ? 'pill ok' : 'pill mute'}>${r.schedule.enabled ? 'פעיל' : 'מושבת'}</span></div>
+        <div class="lops"><span class=${r.schedule.enabled ? 'chip ok' : 'chip'}>${r.schedule.enabled ? 'פעיל' : 'מושבת'}</span></div>
       </div>`,
     )}</div>
-    ${n ? html`<div class="bulk" data-bulk-bar="review"><b>${n} נבחרו</b><sw-button size="sm" data-review-disable ?disabled=${this.busy} @click=${() => void this.bulkReview()}>השבתת הנבחרים</sw-button></div>` : nothing}`;
+    ${n ? html`<div class="editbar bulk" data-bulk-bar="review"><span class="t">${aIcon('check')}${n} נבחרו</span><span class="grow"></span><button type="button" class="btn sm" data-review-disable ?disabled=${this.busy} @click=${() => void this.bulkReview()}>${aIcon('stop')}השבתת הנבחרים</button></div>` : nothing}`;
   }
 
   // ---------------------------------------------------------------------------- render
@@ -1419,54 +1416,34 @@ export class DevicesSchedules extends LitElement {
   private renderReady(st: ReturnType<typeof screenState>) {
     const all = this.items ?? [];
     const rows = filterSchedules(all, this.filters);
-    return html`
-      ${st.stale ? html`<div class="banner stale" role="status" data-sched-stale><sw-icon name="offline" size=${16}></sw-icon>${STALE_TEXT}</div>` : nothing}
-      ${st.readOnly ? html`<div class="banner" role="status" data-sched-readonly><sw-icon name=${this.status?.can.manage ? 'lock' : 'eye'} size=${16}></sw-icon>${st.readOnlyText}</div>` : nothing}
-      ${all.length ? this.renderStrip(all, st) : nothing}
-      ${all.length
-        ? html`${this.renderToolbar(all)}
-          ${rows.length
-            ? this.renderList(rows)
-            : this.empty('search', 'לא נמצאו תזמונים תואמים', '', html`<sw-button size="sm" data-clear-filters @click=${() => (this.filters = { ...NO_FILTERS })}>נקה סינון</sw-button>`, 'no-match')}`
-        : this.empty(
-            'calendar',
-            'אין עדיין תזמונים',
-            st.readOnly ? '' : 'תזמון מפעיל התקנים בשעות קבועות, בימים שבחרתם.',
-            !st.readOnly ? html`<sw-button variant="primary" icon="plus" data-new-schedule @click=${() => this.newSchedule()}>תזמון חדש</sw-button>` : nothing,
-            'empty',
-          )}
-      ${this.renderBulk()}
-    `;
+    const manage = !!this.status?.can.manage;
+    let content: TemplateResult;
+    if (!all.length) {
+      content = this.stateBox('calendar', 'אין עדיין תזמונים', 'empty', manage && !st.readOnly ? html`<button type="button" class="btn primary" data-new-schedule @click=${() => this.newSchedule()}>${aIcon('plus')}תזמון חדש</button>` : undefined);
+    } else if (!rows.length) {
+      content = this.stateBox('search', 'לא נמצאו תזמונים', 'no-match', html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.clearFilters()}>נקה סינון</button>`);
+    } else {
+      content = html`${this.view !== 'week' ? this.renderUpcoming(all) : nothing}${this.renderList(rows)}`;
+    }
+    return html`${this.bannerRow(st)}${content}${this.renderBulk()}`;
   }
 
   private renderBody(st: ReturnType<typeof screenState>) {
-    const settingsBtn = st.admin ? html`<sw-button variant="primary" icon="system" data-open-settings @click=${() => navigate('/system/schedules')}>פתיחת הגדרות התזמונים</sw-button>` : nothing;
+    const settings = st.admin ? html`<button type="button" class="btn sm" data-open-settings @click=${() => navigate('/system/schedules')}>${aIcon('settings')}הגדרות התזמונים</button>` : undefined;
     switch (st.kind) {
       case 'loading':
-        return this.renderSkeleton();
+        return this.skeleton();
       case 'error':
-        return html`<sw-state-panel state="error" hint=${this.failed} actionLabel="נסו שוב" data-sched-state="error" @action=${() => { this.failed = ''; void this.load(); }}></sw-state-panel>`;
+        return this.stateBox('warning', 'לא ניתן לטעון את הרשימה', 'error', html`<button type="button" class="btn sm" data-sched-retry @click=${() => { this.failed = ''; this.items = null; void this.load(); }}>${aIcon('refresh')}נסו שוב</button>`);
       case 'no_view':
-        return html`<sw-state-panel data-sched-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בתזמונים" hint="נדרשת ההרשאה צפייה בתזמונים. פנה למנהל המערכת."></sw-state-panel>`;
+        return this.stateBox('lock', 'אין הרשאה לצפות בתזמונים', 'no_permission');
       case 'feature_disabled':
-        return this.empty('calendar', 'התזמונים כבויים', st.admin ? 'אפשר להפעיל אותם בהגדרות התזמונים.' : 'התזמונים כבויים בהגדרות המערכת.', settingsBtn, 'feature_disabled');
+        return this.stateBox('settings', 'התזמונים כבויים', 'feature_disabled', settings);
       case 'missing':
-        return st.admin
-          ? this.empty('calendar', 'רכיב התזמונים אינו מחובר', 'מסך התזמונים פועל דרך רכיב התזמונים של תשתית המערכת, והוא לא נמצא. ההוראות, בדיקת החיבור ושאר ההגדרות נמצאות בהגדרות המערכת.', settingsBtn, 'missing_admin')
-          : this.empty('calendar', 'אין תזמונים להצגה', 'הפעלת התזמונים מנוהלת בהגדרות.', nothing, 'missing');
+        return st.admin ? this.stateBox('settings', 'רכיב התזמונים אינו מחובר', 'missing_admin', settings) : this.stateBox('calendar', 'אין תזמונים להצגה', 'missing');
       default:
         return this.sub === 'trash' ? this.renderTrash() : this.sub === 'review' ? this.renderReview() : this.renderReady(st);
     }
-  }
-
-  private headerActions(st: ReturnType<typeof screenState>) {
-    if (st.kind !== 'ready' || this.sub === 'trash' || this.sub === 'review') return nothing;
-    const st2 = this.status;
-    return html`<div class="actions" slot="actions">
-      <sw-button variant="ghost" icon="trash" data-open-trash @click=${() => this.go('trash')}>סל מחזור</sw-button>
-      ${st.admin && (st2?.counts.attention ?? 0) > 0 ? html`<sw-button variant="ghost" icon="warning" data-open-review @click=${() => this.go('review')}>לבדיקה</sw-button>` : nothing}
-      <sw-button variant="primary" icon="plus" data-new-schedule ?disabled=${st.readOnly} title=${st.readOnly ? st.readOnlyText : ''} @click=${() => this.newSchedule()}>תזמון חדש</sw-button>
-    </div>`;
   }
 
   render() {
@@ -1474,16 +1451,11 @@ export class DevicesSchedules extends LitElement {
     const listFailed = st.kind === 'ready' && this.items === null && !!this.failed;
     const scr = listFailed ? { ...st, kind: 'error' as const } : st.kind === 'ready' && this.items === null ? { ...st, kind: 'loading' as const } : st;
     const sub = this.sub;
-    const heading = sub === 'trash' ? 'סל מחזור' : sub === 'review' ? 'תזמונים לבדיקה' : 'תזמונים';
-    const summary = this.items && scr.kind === 'ready' && !sub ? summarize(this.items) : null;
-    const areas = this.items && !sub ? new Set(this.items.flatMap((s) => s.entities.map((e) => e.area_id).filter(Boolean))).size : 0;
-    const next = this.items && !sub ? upcomingToday(this.items, new Date(), 1)[0] : undefined;
-    const subheading = summary && summary.total ? [`${summary.total} תזמונים`, `${summary.active} פעילים`, areas ? `${areas} אזורים` : '', next ? `הפעלה הבאה היום ${next.time}` : ''].filter(Boolean).join(' · ') : '';
     const drawerId = sub && sub !== 'trash' && sub !== 'review' ? sub : '';
-    return html`<sw-page heading=${heading} subheading=${subheading} wide data-sched-screen=${scr.kind} backHref=${sub === 'trash' || sub === 'review' ? BASE : ''}>
-      ${this.headerActions(scr)}
-      ${this.renderSegments()}
-      ${this.renderBody(scr)}
+    return html`<div class="page" data-screen="devices-schedules" data-sched-screen=${scr.kind}>
+        ${this.header(scr)}
+        ${this.renderBody(scr)}
+      </div>
       ${scr.kind === 'ready' && this.drawerUsed
         ? html`<schedule-drawer ?open=${!!drawerId} .schedule=${this.detail} .status=${this.status} ?missing=${this.detailMissing} @drawer-close=${() => this.go('')} @edit=${(e: CustomEvent<{ id: string }>) => navigate(`${BASE}/${e.detail.id}/edit`)} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied}></schedule-drawer>`
         : nothing}
@@ -1494,11 +1466,10 @@ export class DevicesSchedules extends LitElement {
         ? html`<schedule-lowering-dialog .open=${true} .summary=${{ entities: this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name), times: [], text: `השחזור יחזיר תזמון שפותח או מנטרל ${this.trashLowering.entities.filter((e) => e.sensitive).map((e) => e.name).join(', ')} גם כשאיש אינו נמצא במקום.` }} .needsCode=${false} @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => void this.confirmTrashLowering(e)} @close=${() => (this.trashLowering = null)}></schedule-lowering-dialog>`
         : nothing}
       ${this.purging
-        ? html`<sw-dialog open heading="מחיקה לצמיתות" @close=${() => (this.purging = null)}><p style="margin:0;font-size:var(--sw-fs-sm)">למחוק את "${this.purging.name || 'תזמון ללא שם'}" מסל המחזור? אי אפשר יהיה לשחזר אותו.</p><sw-button slot="footer" variant="ghost" @click=${() => (this.purging = null)}>ביטול</sw-button><sw-button slot="footer" variant="danger" data-purge-confirm @click=${() => void this.doPurge()}>מחיקה</sw-button></sw-dialog>`
+        ? html`<sw-dialog open heading=${`למחוק לצמיתות את "${this.purging.name || 'תזמון ללא שם'}"?`} data-dialog="purge" @close=${() => (this.purging = null)}><div class="dlgform"><p>אי אפשר יהיה לשחזר אותו.</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.purging = null)}>ביטול</button><button type="button" class="btn danger" data-purge-confirm @click=${() => void this.doPurge()}>מחיקה</button></div></div></sw-dialog>`
         : nothing}
       <schedule-actions .status=${this.status} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied} @result=${this.onResult}></schedule-actions>
-      ${this.note ? html`<div class=${this.note.tone === 'error' ? 'note error' : 'note'} role="status" data-sched-note>${this.note.text}${this.note.action ? html`<button data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}
-    </sw-page>`;
+      ${this.note ? html`<div class=${`toast${this.note.tone === 'error' ? ' bad' : ''}`} popover="manual" role="status" data-sched-note>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}${this.note.text}${this.note.action ? html`<button type="button" class="btn sm" data-note-action @click=${() => { const a = this.note?.action; this.note = null; a?.run(); }}>${this.note.action.label}</button>` : nothing}</div>` : nothing}`;
   }
 }
 

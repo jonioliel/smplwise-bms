@@ -109,7 +109,8 @@ async function open(page: Page, hash: string, control: Control = {}) {
 const phone = (info: Info) => info.project.name === 'mobile';
 const size = (info: Info) => (phone(info) ? '390' : '1440');
 const scr = (page: Page) => page.locator('sw-app devices-schedules');
-const card = (page: Page, id: string) => scr(page).locator(`article.card[data-schedule="${id}"]`);
+const card = (page: Page, id: string) => scr(page).locator(`article.acard[data-schedule="${id}"]`);
+const cardsOf = (page: Page) => scr(page).locator('article.acard');
 const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
 async function shot(page: Page, name: string, info: Info) {
@@ -119,25 +120,33 @@ async function shot(page: Page, name: string, info: Info) {
 }
 
 async function ready(page: Page) {
-  await expect(scr(page).locator('[data-sched-grid], [data-sched-table], .empty')).toBeVisible();
+  await expect(scr(page).locator('[data-sched-grid], [data-sched-table], .statebox').first()).toBeVisible();
 }
 
-/** On the phone the filters sit behind "סינון". */
+/** 2026-10-04 (the automations screen's layout): the area, days, conditions, tags, grouping and sorting sit behind "סינון". */
 async function filters(page: Page) {
   const toggle = scr(page).locator('[data-filters-toggle]');
-  if (await toggle.isVisible()) {
-    if ((await scr(page).locator('.extra[data-open]').count()) === 0) await toggle.click();
-  }
+  if ((await scr(page).locator('[data-sched-filters]').count()) === 0) await toggle.click();
+  await expect(scr(page).locator('[data-sched-filters]')).toBeVisible();
+}
+
+/** A sw-dropdown filter (the owner's rule: dropdown chips, never a native select): open it, choose the option. */
+async function pick(page: Page, filter: string, id: string) {
+  const dd = scr(page).locator(`sw-dropdown[data-filter="${filter}"]`);
+  await dd.locator('[data-dropdown-chip]').click();
+  await dd.locator(`[role="option"][data-id="${id}"]`).click();
 }
 
 test.describe('the schedules list (demo mode)', () => {
-  test('cards: the summary strip, the toolbar, one card per schedule; the home tabs', async ({ page }, info) => {
+  test('cards: the header (title, floors, state filter with counts), "today", one card per schedule; the home tabs', async ({ page }, info) => {
     await open(page, '/devices/schedules');
     await ready(page);
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
-    await expect(scr(page).locator('article.card')).toHaveCount(13);
-    await expect(scr(page).locator('[data-kpi="active"] .big')).toContainText('10');
+    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(scr(page).locator('h1[data-sched-title]')).toHaveText('תזמונים');
+    await expect(scr(page).locator('[data-state-filter="enabled"] small')).toHaveText('10');
+    await expect(scr(page).locator('[data-state-filter="all"] small')).toHaveText('13');
     await expect(scr(page).locator('[data-upcoming]').first()).toBeVisible();
     // the conditional next run says "בתנאי" (never a promise)
     await expect(card(page, '3f9a1c').locator('[data-next-run]')).toContainText('בתנאי');
@@ -209,7 +218,7 @@ test.describe('the schedules list (demo mode)', () => {
     await open(page, '/devices/schedules');
     await ready(page);
     await filters(page);
-    const cards = scr(page).locator('article.card');
+    const cards = cardsOf(page);
     await scr(page).locator('[data-filter="q"]').fill('תריס');
     await expect(cards).toHaveCount(1);
     await expect.poll(() => hashOf(page)).toContain('q=');
@@ -233,12 +242,54 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(cards).toHaveCount(10);
     await scr(page).locator('[data-clear-filters]').first().click();
 
-    await scr(page).locator('[data-filter="group"]').selectOption('tag');
+    await pick(page, 'group', 'tag');
     await expect(scr(page).locator('.group[data-group]')).toHaveCount(5); // שבת-חג, משרדים, חוץ, אולם, and the catch-all "ללא תג"
     await expect(scr(page).locator('.group[data-group]').last()).toHaveAttribute('data-group', 'ללא תג');
-    await scr(page).locator('[data-filter="group"]').selectOption('');
-    await scr(page).locator('[data-filter="sort"]').selectOption('name');
+    await expect(scr(page).locator('.group[data-group] .sh h2').first()).toBeVisible(); // the scenes' section heading
+    await pick(page, 'group', '');
+    await expect(scr(page).locator('.group[data-group]')).toHaveCount(1);
+    await pick(page, 'sort', 'name');
     await expect(cards.first().locator('a.name')).toHaveText('דריכת אזעקה – לילה');
+    await expect.poll(() => hashOf(page)).toContain('sort=name');
+  });
+
+  test('the floors are chips in the title row, as on the automations screen; the state filter narrows the list', async ({ page }) => {
+    await open(page, '/devices/schedules');
+    await ready(page);
+    const floors = scr(page).locator('.dh-row .rooms button[data-floor]');
+    await expect(floors.first()).toHaveText('הכל');
+    expect(await floors.count()).toBeGreaterThan(1);
+    const second = floors.nth(1);
+    const id = await second.getAttribute('data-floor');
+    await second.click();
+    await expect(second).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => hashOf(page)).toContain(`floor=${encodeURIComponent(id ?? '')}`);
+    await floors.first().click();
+    await expect(cardsOf(page)).toHaveCount(13);
+    // the state segments (folded behind "סינון" on the phone, like the automations screen's)
+    if (!(await scr(page).locator('[data-state-filter="disabled"]').isVisible())) await scr(page).locator('[data-filters-toggle]').click();
+    await scr(page).locator('[data-state-filter="disabled"]').click();
+    await expect(cardsOf(page)).toHaveCount(3);
+    await expect.poll(() => hashOf(page)).toContain('state=disabled');
+    await scr(page).locator('[data-state-filter="all"]').click();
+    await expect(cardsOf(page)).toHaveCount(13);
+  });
+
+  test('the card: the automation card\'s shape - the name opens the drawer, the "⋯" menu lists what the caller may do', async ({ page }) => {
+    await open(page, '/devices/schedules');
+    await ready(page);
+    const c = card(page, '4d6e0a');
+    await expect(c.locator('h3 a.name[data-card-open]')).toBeVisible();
+    await expect(c.locator('.where')).toBeVisible();
+    await expect(c.locator('button.tog[role="switch"]')).toHaveAttribute('aria-checked', 'true');
+    await c.locator('[data-card-menu]').click();
+    await expect(c.locator('[role="menu"] [data-card-action]')).toHaveText(['עריכה', 'הרץ עכשיו', 'שכפול', 'מחיקה']);
+    await c.locator('[data-card-action="copy"]').click();
+    await expect(scr(page).locator('schedule-actions [data-copy-name]')).toHaveValue('העתק של תאורת משרדים – שעות עבודה');
+    await scr(page).locator('schedule-actions [data-dialog-cancel]').click();
+    await c.locator('[data-card-menu]').click();
+    await c.locator('[data-card-action="edit"]').click();
+    await expect.poll(() => hashOf(page)).toContain('/devices/schedules/4d6e0a/edit');
   });
 
   test('a filter that matches nothing says so and offers to clear it', async ({ page }) => {
@@ -248,16 +299,16 @@ test.describe('the schedules list (demo mode)', () => {
     await scr(page).locator('[data-filter="q"]').fill('zzzz');
     await expect(scr(page).locator('[data-sched-state="no-match"]')).toBeVisible();
     await scr(page).locator('[data-sched-state="no-match"] [data-clear-filters]').click();
-    await expect(scr(page).locator('article.card')).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(13);
   });
 
   test('a card toggle switches the schedule; the bulk bar disables several at once; a lowering schedule is enabled one by one', async ({ page }) => {
     await installDoubles(page);
     await open(page, '/devices/schedules');
     await ready(page);
-    const toggle = (id: string) => card(page, id).locator('sw-toggle');
+    const toggle = (id: string) => card(page, id).locator('[data-toggle]');
     await expect(card(page, '8b21d4')).toHaveAttribute('data-enabled', 'false');
-    await toggle('8b21d4').locator('button').click();
+    await toggle('8b21d4').click();
     await expect(card(page, '8b21d4')).toHaveAttribute('data-enabled', 'true');
     await expect(scr(page).locator('[data-sched-note]')).toContainText('הופעל');
 
@@ -273,12 +324,12 @@ test.describe('the schedules list (demo mode)', () => {
 
     // a lowering schedule: enabling goes through S4's confirmation, with the summary sentence
     await expect(card(page, 'd8e3a7')).toHaveAttribute('data-enabled', 'false');
-    await toggle('d8e3a7').locator('button').click();
+    await toggle('d8e3a7').click();
     await expect(scr(page).locator('schedule-actions schedule-lowering-dialog')).toContainText('יפתח שער חניה');
     await scr(page).locator('[data-lowering-confirm]').click();
     await expect(card(page, 'd8e3a7')).toHaveAttribute('data-enabled', 'true');
     // and bulk enable skips it
-    await toggle('d8e3a7').locator('button').click();
+    await toggle('d8e3a7').click();
     await expect(scr(page).locator('schedule-lowering-dialog')).toHaveCount(0); // disabling needs no confirmation
     await expect(card(page, 'd8e3a7')).toHaveAttribute('data-enabled', 'false');
     await card(page, 'd8e3a7').locator('input[data-select]').check();
@@ -293,7 +344,7 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(drawer.locator('sw-drawer')).toHaveAttribute('open', '');
     await drawer.locator('[data-drawer-run]').click();
     const confirm = drawer.locator('[data-run-confirm]');
-    await expect(confirm.locator('button')).toBeDisabled(); // two slots: none chosen yet
+    await expect(confirm).toBeDisabled(); // two slots: none chosen yet
     await drawer.locator('[data-run-slot="1"]').check();
     await confirm.click();
     await expect(drawer.locator('[data-drawer-status]')).toContainText('הבקשה נשלחה');
@@ -302,15 +353,15 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(drawer.locator('[data-copy-name]')).toHaveValue('העתק של תריס אולם – קיץ');
     await drawer.locator('[data-copy-confirm]').click();
     await expect(drawer.locator('sw-drawer')).toHaveAttribute('heading', 'העתק של תריס אולם – קיץ');
-    await expect(scr(page).locator('article.card')).toHaveCount(14);
+    await expect(cardsOf(page)).toHaveCount(14);
 
     await drawer.locator('[data-drawer-delete]').click();
     await drawer.locator('[data-delete-confirm]').click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
-    await expect(scr(page).locator('article.card')).toHaveCount(13);
-    await expect(scr(page).locator('[data-sched-note]')).toContainText('נשמר בסל המחזור');
+    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(scr(page).locator('[data-sched-note]')).toContainText('נמחק');
     await scr(page).locator('[data-note-action]').click();
-    await expect(scr(page).locator('article.card')).toHaveCount(14);
+    await expect(cardsOf(page)).toHaveCount(14);
   });
 
   test('the trash: the deleted schedule with its remaining days, restore', async ({ page }, info) => {
@@ -356,7 +407,7 @@ test.describe('states (demo mode)', () => {
     await open(page, '/devices/schedules', { persona: 'viewer', availability: 'component_missing' });
     const s = scr(page).locator('[data-sched-state="missing"]');
     await expect(s).toContainText('אין תזמונים להצגה');
-    await expect(s).toContainText('הפעלת התזמונים מנוהלת בהגדרות.');
+    await expect(s.locator('p')).toHaveCount(0); // a clean operator screen: a title, no explanatory paragraph (the automations screen's state box)
     await expect(s).not.toContainText(/Home Assistant|HA\b/);
     await shot(page, '14-state-missing-operator', info);
 
@@ -369,25 +420,29 @@ test.describe('states (demo mode)', () => {
     await expect.poll(() => hashOf(page)).toBe('#/system/schedules');
   });
 
-  test('view only: read-only banner, nothing to create, toggles and run disabled', async ({ page }, info) => {
+  test('view only: as on the automations screen - nothing to create, a state chip instead of the switch, no "⋯" menu, no banner', async ({ page }, info) => {
     await open(page, '/devices/schedules', { persona: 'viewer' });
     await ready(page);
-    await expect(scr(page).locator('[data-sched-readonly]')).toContainText('מצב צפייה');
-    await expect(scr(page).locator('[data-new-schedule]').first().locator('button')).toBeDisabled();
-    await expect(card(page, '4d6e0a').locator('sw-toggle button')).toBeDisabled();
-    await expect(card(page, '4d6e0a').locator('[data-run] button')).toBeDisabled();
+    await expect(scr(page).locator('[data-sched-readonly]')).toHaveCount(0);
+    await expect(scr(page).locator('[data-new-schedule]')).toHaveCount(0);
+    await expect(card(page, '4d6e0a').locator('[data-toggle]')).toHaveCount(0);
+    await expect(card(page, '4d6e0a').locator('[data-card-state]')).toHaveText('פעיל');
+    await expect(card(page, '4d6e0a').locator('[data-card-menu]')).toHaveCount(0);
     await shot(page, '16-state-view-only', info);
     await card(page, '4d6e0a').locator('a.name').click();
     const drawer = scr(page).locator('schedule-drawer');
     await expect(drawer.locator('[data-drawer-readonly]')).toBeVisible();
-    await expect(drawer.locator('[data-drawer-delete] button')).toBeDisabled();
+    // the drawer keeps every action, disabled with the reason (the schedules contract: the server's reason is shown)
+    await expect(drawer.locator('[data-drawer-delete]')).toBeDisabled();
+    await expect(drawer.locator('[data-drawer-run]')).toBeDisabled();
+    await expect(drawer.locator('[data-drawer-toggle]')).toHaveCount(0);
   });
 
   test('a floor-scoped editor: the sensitive schedule is read only, a condition outside the scope is locked', async ({ page }) => {
     await open(page, '/devices/schedules/e19b70', { persona: 'manager' });
     const drawer = scr(page).locator('schedule-drawer');
     await expect(drawer.locator('[data-drawer-readonly]')).toContainText('הרשאה');
-    await expect(drawer.locator('[data-drawer-edit] button')).toBeDisabled();
+    await expect(drawer.locator('[data-drawer-edit]')).toBeDisabled();
     await open(page, '/devices/schedules/2c9f61', { persona: 'manager' });
     await expect(scr(page).locator('schedule-drawer [data-condition-locked]')).toContainText('מחוץ להרשאתך');
   });
@@ -397,7 +452,8 @@ test.describe('states (demo mode)', () => {
     await ready(page);
     await expect(scr(page).locator('[data-sched-stale]')).toContainText('המידע אינו מעודכן');
     await expect(scr(page).locator('[data-sched-stale]')).not.toContainText(/Home Assistant|HA\b/);
-    await expect(scr(page).locator('[data-new-schedule]').first().locator('button')).toBeDisabled();
+    await expect(scr(page).locator('[data-sched-stale] [data-banner-retry]')).toBeVisible();
+    await expect(scr(page).locator('[data-new-schedule]').first()).toBeDisabled();
   });
 
   test('feature off, and no view permission', async ({ page }) => {
@@ -602,7 +658,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await openApi(page, '/devices/schedules');
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
     const post = (re: RegExp) => st.calls.filter((c) => c.method === 'POST' && re.test(c.path));
-    await page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] sw-toggle button').click();
+    await page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle]').click();
     await expect.poll(() => post(/schedules\/8b21d4\/enable/).length).toBe(1);
     expect(post(/schedules\/8b21d4\/enable/)[0].body).toMatchObject({ confirm_lowering: false, alarm_code: null });
     expect(String((post(/enable/)[0].body as { client_request_id: string }).client_request_id).length).toBeGreaterThanOrEqual(8);
@@ -631,11 +687,11 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
   test('a failing list shows the error state with a retry', async ({ page }, info) => {
     st.listStatus = 500;
     await openApi(page, '/devices/schedules');
-    const panel = page.locator('sw-app devices-schedules sw-state-panel[data-sched-state="error"]');
+    const panel = page.locator('sw-app devices-schedules .statebox[data-sched-state="error"]');
     await expect(panel).toBeVisible();
     await shot(page, '19-state-error', info);
     st.listStatus = 200;
-    await panel.locator('sw-button').click();
+    await panel.locator('[data-sched-retry]').click();
     await expect(page.locator('sw-app devices-schedules [data-sched-grid]')).toBeVisible();
   });
 
@@ -647,7 +703,7 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
 
   test('write failures: entity_unknown (422) and idempotency_conflict (409) get a sensible Hebrew message', async ({ page }) => {
     await openApi(page, '/devices/schedules');
-    const toggle = page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] sw-toggle button');
+    const toggle = page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle]');
     const note = page.locator('sw-app devices-schedules [data-sched-note]');
     st.failEnable = { status: 422, code: 'entity_unknown' };
     await toggle.click();

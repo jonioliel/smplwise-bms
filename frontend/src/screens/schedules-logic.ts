@@ -96,6 +96,28 @@ export function filtersToParams(f: ListFilters, view: ListView | null = null): U
 }
 
 /** How many filters narrow the list (sort and group do not). */
+/** The state filter of the header, a segmented control with counts (the automations screen's "הכל · פעילות · כבויות ...", same
+ * place, same control): '' = all. `unavailable` stays a valid address value (old links) but is not offered as a segment. */
+export const STATE_SEGMENTS: ReadonlyArray<{ id: StateFilter; label: string }> = [
+  { id: '', label: 'הכל' },
+  { id: 'enabled', label: 'פעילים' },
+  { id: 'disabled', label: 'מושבתים' },
+  { id: 'triggered', label: 'מתבצעים' },
+  { id: 'completed', label: 'הסתיימו' },
+];
+
+/** How many of `items` each state segment holds (the counts beside the labels). */
+export function stateCounts(items: Schedule[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const seg of STATE_SEGMENTS) out[seg.id] = items.filter((s) => matchesFilters(s, { ...NO_FILTERS, state: seg.id })).length;
+  return out;
+}
+
+/** The filters behind "סינון" (everything but the search, the floor chips and the state segments): its count badge. */
+export function extraFilterCount(f: ListFilters): number {
+  return [f.area, f.day, f.tag, f.condition, f.preset, f.hasConditions ? '1' : ''].filter(Boolean).length;
+}
+
 export function activeFilterCount(f: ListFilters): number {
   return [f.q.trim(), f.floor, f.area, f.day, f.state, f.tag, f.condition, f.preset, f.hasConditions ? '1' : ''].filter(Boolean).length;
 }

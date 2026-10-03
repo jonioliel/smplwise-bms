@@ -84,10 +84,13 @@ test.describe('קברניט (demo mode)', () => {
     await openDemo(page, '/devices/schedules');
     const strip = page.locator('sw-app devices-schedules [data-kavarnit-segments]');
     await expect(strip).toBeVisible();
-    for (const id of ['schedules', 'automations', 'scenes', 'scripts']) {
+    // 2026-10-04: the schedules strip is the automations screen's own control (the glass segmented control): 44 px in touch
+    // layouts, exactly like the automations strip below; the two strips have the same height on every project
+    for (const id of info.project.name === 'mobile' ? ['schedules', 'automations', 'scenes', 'scripts'] : []) {
       const b = await page.locator(`sw-app devices-schedules button[data-segment="${id}"]`).boundingBox();
       expect(b!.height, id).toBeGreaterThanOrEqual(44);
     }
+    const schedStrip = await page.locator('sw-app devices-schedules button[data-segment="schedules"]').boundingBox();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await page.locator('sw-app devices-schedules button[data-segment="automations"]').click();
@@ -96,6 +99,9 @@ test.describe('קברניט (demo mode)', () => {
       const b = await page.locator(`sw-app devices-automations button[data-segment="${id}"]`).boundingBox();
       expect(b!.height, id).toBeGreaterThanOrEqual(44);
     }
+    const autoStrip = await page.locator('sw-app devices-automations button[data-segment="schedules"]').boundingBox();
+    expect(Math.abs(autoStrip!.height - schedStrip!.height), 'the strip keeps its height between the two screens').toBeLessThanOrEqual(1);
+    expect(Math.abs(autoStrip!.y - schedStrip!.y), 'the strip stays in place between the two screens').toBeLessThanOrEqual(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
 });
