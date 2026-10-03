@@ -50,8 +50,7 @@ def clean_text(value: Any, max_chars: int = MAX_LINE_CHARS, multiline: bool = Fa
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = _BIDI_CONTROLS.sub("", text)
     if multiline:
-        text = text.replace("\t", " ")
-        text = _CTRL.sub("", text.replace("\n", "\x01")).replace("\x01", "\n")
+        text = _CTRL.sub("", text.replace("\t", " "))  # \n is not in _CTRL, so line breaks survive
         text = re.sub(r"\n{3,}", "\n\n", text)
     else:
         text = _CTRL.sub("", text.replace("\n", " ").replace("\t", " "))
