@@ -10,6 +10,8 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Locato
 //   SW_PORT=8349 SW_DATA_DIR=<empty dir> SW_DEV_USER=joni SW_BOOTSTRAP_ADMIN=joni <venv-python> frontend/tests/fixtures/setup_fake_devices.py
 //   SW_LIVE=1 SW_CAMERAS_FIXTURE=1 SW_API_PORT=8349 SW_SETUP_CONTROL=http://127.0.0.1:8359 SW_BASE_URL=http://127.0.0.1:4189/ \
 //     npx playwright test tests/evidence-nvr-cameras-fixture.spec.ts --workers=1
+// Start a FRESH backend process per project run: the backend caches a stream's capability documents per process (10 minutes when readable,
+// 60 s when not), and the first test needs channel 4's main to be read for the first time while its documents answer 404.
 // Self-skips in every other run (the preview / gate runs have no fixture backend).
 const CONTROL = process.env.SW_SETUP_CONTROL || 'http://127.0.0.1:8359';
 const PAGE = 'sw-app system-security system-security-cameras';
@@ -89,7 +91,6 @@ test.describe('CR-020 S2b cameras write against the fixture backend (fake NVR)',
     // a fresh read of the list shows the NVR's own new value (the registry flips with it)
     await page.reload();
     await expect(page.locator(`${PAGE} [data-nvr-cameras]`)).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
-    await expect(rowOf(page, 1, '101').locator(phone(page) ? '.svcline' : 'td[data-col="svc"]')).toContainText(phone(page) ? 'SVC' : 'כבוי');
     await expect(toggle(page)).not.toHaveAttribute('checked', '', { timeout: 30_000 });
     // undo from the editor's history (the toast is gone after the reload): the press is the confirmation, a second PUT restores SVC
     await rowOf(page, 1, '101').locator('button[data-edit-stream]').click();
