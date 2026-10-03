@@ -63,7 +63,7 @@ Evaluated in this order; the first hit wins (the first four are today's hard exc
 | 3 | Alarm-managed control (CR-010 B1) | never | `alarm_managed` | yes |
 | 4 | On the map's door layer (`DOOR_LAYER`) | never | `doors_layer` | yes |
 | 5 | Row in `device_bulk_protected` (and `gone_at IS NULL` is NOT required — a protection row always applies) | no | **`switch_protected`** (new) | new |
-| 6 | No row in `device_switch_classified` (classifier has not seen it yet) | no (fail-safe) | **`switch_unclassified`** (new, transient) | new |
+| 6 | No row in `device_switch_classified` (classifier has not seen it yet) | no (fail-safe) | **`switch_unclassified`** (new, transient) | new | *(superseded by section 16: removed, default is included)*
 | 7 | otherwise | **yes** | `allowed` (replaces `marked`) | new |
 
 Removed: `marked`, `switch_not_marked`, `circuit_not_marked`. A Plan Studio lighting circuit has **no effect** on
@@ -110,7 +110,7 @@ irrigation valve turned **on** unattended.
 | # | Mitigation | Where |
 |---|---|---|
 | M1 | Conservative auto-classifier (§6.3) at upgrade **and for every switch first seen later**; matches are protected immediately (`source='auto'`, `reviewed=0`) | `services/switch_protection.py` |
-| M2 | Fail-safe: a switch the classifier has not seen is excluded (`switch_unclassified`) | `SwitchPolicy` order 6 |
+| M2 | Fail-safe: a switch the classifier has not seen is excluded (`switch_unclassified`) | `SwitchPolicy` order 6 | *(superseded by section 16)*
 | M3 | Protection is sticky: a later HA rename of the entity or its device never removes it; an entity id change is followed by `registry_id` (§6.4); an entity that leaves HA keeps its row (inverse of today's `clear_stale_marks`, because keeping protection is the safe direction); only `system.configure` removes it | §6.4 |
 | M4 | One-time review list in Settings: every switch, protected or not, filter "ממתינים לבדיקה" (auto, not reviewed) and "לא מוגנים", bulk approve / remove / protect; removing protection asks a confirmation that names the consequence | §9.2 |
 | M5 | Unchanged confirmation dialog: the server-resolved set, count per domain ("מתגים: N"), the excluded list with reasons (now `switch_protected`), the digest (`target_changed` 409 if a mark changed after the preview), focus on Cancel, `confirmed: true` only from its button | `devices-bulk.ts`, `bulk_run` |
@@ -327,11 +327,11 @@ Per-id refusals (batch) / errors (single): `not_switch` (422), `not_markable` (s
 
 | Reply | Before | After |
 |---|---|---|
-| `GET /devices/areas/{id}` switch rows | `bulk_safe: bool` (true = included), `bulk_reason: marked \| circuit_not_marked \| switch_not_marked \| doors_layer \| alarm_managed` | `bulk_protected: bool` (the mark), `bulk_reason: allowed \| protected \| unclassified \| doors_layer \| alarm_managed` |
+| `GET /devices/areas/{id}` switch rows | `bulk_safe: bool` (true = included), `bulk_reason: marked \| circuit_not_marked \| switch_not_marked \| doors_layer \| alarm_managed` | `bulk_protected: bool` (the mark), `bulk_reason: allowed \| protected \| unclassified \| doors_layer \| alarm_managed` | *(`unclassified` removed, see section 16)*
 | `GET /devices/areas/{id}` | `can_mark_bulk_safe` | `can_mark_bulk_protected` (unused by the UI today; kept for parity) |
-| `GET /devices/items` rows (switches) | `bulk_safe`, `bulk_reason` | `bulk_protected`, `bulk_reason` (values as above); `bulk_excluded` unchanged (now `switch_protected` / `switch_unclassified` for switches) |
+| `GET /devices/items` rows (switches) | `bulk_safe`, `bulk_reason` | `bulk_protected`, `bulk_reason` (values as above); `bulk_excluded` unchanged (now `switch_protected` / `switch_unclassified` for switches) | *(`switch_unclassified` removed, see section 16)*
 | `GET /devices/items` | `can_mark_bulk_safe` | `can_mark_bulk_protected` |
-| `GET /devices/actions/preview`, `POST /devices/actions`, `GET /devices/actions/{id}` | `excluded[].reason` `switch_not_marked` / `circuit_not_marked` | `switch_protected` / `switch_unclassified`; shape unchanged |
+| `GET /devices/actions/preview`, `POST /devices/actions`, `GET /devices/actions/{id}` | `excluded[].reason` `switch_not_marked` / `circuit_not_marked` | `switch_protected` / `switch_unclassified`; shape unchanged | *(`switch_unclassified` removed, see section 16)*
 
 ### 7.3 `GET /devices/bulk-protected` row
 
@@ -345,7 +345,7 @@ marked_by, marked_at, reviewed_by, reviewed_at}`; `summary: {switches, protected
 | Code | Off kinds | On kinds |
 |---|---|---|
 | `switch_protected` | "מתג מוגן - לא נכלל בפעולה קבוצתית" | same |
-| `switch_unclassified` | "מתג חדש שטרם נבדק - לא נכלל עד לבדיקה" | same |
+| `switch_unclassified` | "מתג חדש שטרם נבדק - לא נכלל עד לבדיקה" | same | *(removed, see section 16)*
 | removed | `switch_not_marked`, `circuit_not_marked` | — |
 
 Schedules: `switch_not_marked` is removed from `schedule_ops.PROMOTED`, `schedule_model._check_action` messages,
@@ -533,7 +533,7 @@ Total 17–23 h. Release gating per the batched-release rule (one release round 
 |---|---|---|
 | R1 | Classifier miss → a sensitive switch goes off with "כבה הכל" | §5.2 M1–M6; the review screen lists every switch; residual, accepted by 1א/2א |
 | R2 | False positives annoy (e.g. "דוד" as a name, "חניה" without a lighting word) | lighting suppression; one bulk "הסר הגנה"; `admin_cleared` is permanent |
-| R3 | Window between upgrade / first appearance and classification | fail-safe `switch_unclassified` (§4.1 order 6); reconcile runs in the same refresh, right after the registry write |
+| R3 | Window between upgrade / first appearance and classification | fail-safe `switch_unclassified` (§4.1 order 6); reconcile runs in the same refresh, right after the registry write | *(superseded by section 16)*
 | R4 | Old backup restore empties protection | §6.6 exception |
 | R5 | Rollback | §6.7 — conservative |
 | R6 | Migration numbering vs CR-017 / CR-018 merges | 0049, gaps are applied by `migrate()` (§6.1) |
