@@ -3,7 +3,8 @@ NVR host (the `ha_only` installation a new install starts in), with the fake NVR
 smplwise_vms/backend/tests/fixtures/fake_devices.py answering the reserved `.test` names on httpx's transport. The connection
 screens then run their whole flow - vendor choice, test, save, restart-required flag, remove, "no NVR" - against the real
 `/nvr/vendors`, `/nvr/connection`, `/nvr/connection/test`, `/system/restart`, `/me` and `/setup/state`, while nothing can reach a
-real device: a host that is not one of the fakes goes to real DNS, where a `.test` name never resolves. No real Home Assistant
+real device: the connection test's resolver knows only the fake NVR's name (any other name resolves to nothing and is never
+connected, security review F3). No real Home Assistant
 (no HA_URL / HA_TOKEN) and no secret is involved. It refuses to start inside the add-on.
 
 Run it (a fresh data dir each time - the specs of one run share the installation, so one backend per Playwright project):
@@ -38,7 +39,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend"))
 sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend" / "tests" / "fixtures"))
 
-from fake_devices import GO2RTC_HOST, FakeDevices  # noqa: E402
+from fake_devices import GO2RTC_HOST, NVR_ADDR, NVR_HOST, FakeDevices  # noqa: E402
 
 # a new installation: no NVR, no options file, nothing from the shell's environment
 for key in ("NVR_HOST", "NVR_USER", "NVR_PASSWORD", "NVR_HTTP_PORT", "NVR_RTSP_PORT", "GO2RTC_API_USER", "GO2RTC_API_PASSWORD", "HA_URL", "HA_TOKEN"):
@@ -50,6 +51,13 @@ PORT = int(os.environ.get("SW_PORT", "8099"))
 
 FAKE = FakeDevices()
 FAKE.install()
+
+# The connection test resolves a name itself and connects only to the checked address (security review F3): the fake NVR's
+# name resolves to its documentation-range address (TEST-NET-1, never routed), which the fake answers; every other name
+# resolves to nothing (`source_unavailable`, never connected) - no real DNS lookup, no real device.
+from smplwise.services import connection_probe  # noqa: E402
+
+connection_probe.RESOLVE = lambda host: [NVR_ADDR] if host.strip().lower().rstrip(".") == NVR_HOST else []
 
 
 class Control(BaseHTTPRequestHandler):

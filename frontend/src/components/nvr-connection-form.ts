@@ -34,7 +34,12 @@ const TEST_TEXT: Record<string, string> = {
   timeout: 'לא ניתן להתחבר',
   source_error: 'לא ניתן להתחבר',
   host_refused: 'כתובת לא מותרת',
+  port_refused: 'פורט לא מותר',
+  username_invalid: 'שם משתמש לא תקין',
+  password_required: 'יש להזין את הסיסמה מחדש',
 };
+/** 422 answers that name one field (`details.field`): the line is short and the field is marked invalid. */
+const FIELD_CODES = new Set(['host_refused', 'host_invalid', 'port_refused', 'port_invalid', 'username_invalid', 'username_required', 'password_required']);
 /** Failures of an unreachable NVR: the only ones that may be saved after a typed confirmation (D6). */
 const UNREACHABLE = new Set(['source_unavailable', 'timeout']);
 
@@ -70,6 +75,8 @@ export class NvrConnectionForm extends LitElement {
   @state() private lockedByServer = false;
   /** Someone else changed the connection meanwhile (409 stale): the form offers "טען מחדש" and sends nothing until then. */
   @state() private stale = false;
+  /** The field a 422 answer named (`details.field`): marked `aria-invalid` until the draft changes. */
+  @state() private invalidField = '';
 
   /** Phone: 44 px targets (the large button size) - the product's touch rule; elsewhere the compact size. */
   private readonly mq = window.matchMedia('(max-width: 767px)');
@@ -98,6 +105,7 @@ export class NvrConnectionForm extends LitElement {
       this.loadError = '';
       this.lockedByServer = false;
       this.stale = false;
+      this.invalidField = '';
       this.loadState = 'ready';
       this.editing = this.context === 'wizard' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable' || view.state === 'refused';
       this.seed();
@@ -136,6 +144,25 @@ export class NvrConnectionForm extends LitElement {
     this.testLine = null;
     this.offerUntested = false;
     this.msg = null;
+    this.invalidField = '';
+  }
+
+  /** A 422 that names a field (security review contract): mark it; `password_required` - also with `details.reason =
+   * destination_changed` - drops the "kept" state so the password has to be typed. Returns the short line, or null. */
+  private fieldError(err: unknown): string | null {
+    if (!(err instanceof ApiError) || !FIELD_CODES.has(err.code)) return null;
+    const field = typeof err.body.details?.field === 'string' ? (err.body.details.field as string) : '';
+    if (err.code === 'password_required') {
+      this.changePassword = true;
+      this.draft = { ...this.draft, password: '' };
+    }
+    this.invalidField = field;
+    return TEST_TEXT[err.code] ?? describeError(err);
+  }
+
+  /** 409 `stale` or 422 `revision_required`: the loaded connection is not the current one - send nothing until "טען מחדש". */
+  private isStale(err: unknown): boolean {
+    return err instanceof ApiError && (err.code === 'stale' || err.code === 'revision_required');
   }
 
   private chooseVendor(id: string) {
@@ -206,7 +233,7 @@ export class NvrConnectionForm extends LitElement {
       this.offerUntested = !r.ok && UNREACHABLE.has(r.code);
     } catch (err) {
       const code = err instanceof ApiError ? err.code : '';
-      this.testLine = { ok: false, text: TEST_TEXT[code] ?? describeError(err) };
+      this.testLine = { ok: false, text: this.fieldError(err) ?? TEST_TEXT[code] ?? describeError(err) };
     } finally {
       this.busy = '';
     }
@@ -235,9 +262,12 @@ export class NvrConnectionForm extends LitElement {
     } catch (err) {
       this.untestedOpen = false;
       this.word = '';
-      if (err instanceof ApiError && err.code === 'stale') {
-        this.msg = { tone: 'err', text: err.body.user_message };
+      const fieldLine = this.fieldError(err);
+      if (this.isStale(err)) {
+        this.msg = { tone: 'err', text: describeError(err) };
         this.stale = true;
+      } else if (fieldLine) {
+        this.msg = { tone: 'err', text: fieldLine };
       } else {
         if (err instanceof ApiError && err.code === 'remove_first') this.lockedByServer = true;
         this.msg = { tone: 'err', text: describeError(err) };
@@ -263,7 +293,7 @@ export class NvrConnectionForm extends LitElement {
     } catch (err) {
       this.removeOpen = false;
       this.msg = { tone: 'err', text: describeError(err) };
-      if (err instanceof ApiError && err.code === 'stale') this.stale = true;
+      if (this.isStale(err)) this.stale = true;
     } finally {
       this.busy = '';
     }
@@ -297,7 +327,7 @@ export class NvrConnectionForm extends LitElement {
     const isPort = f.kind === 'port';
     const value = key === 'host' ? d.host : key === 'http_port' ? d.http_port : key === 'rtsp_port' ? d.rtsp_port : key === 'username' ? d.username : String(d.extra[key] ?? '');
     const set = (s: string) => this.setDraft(key === 'host' ? { host: s } : key === 'http_port' ? { http_port: s } : key === 'rtsp_port' ? { rtsp_port: s } : key === 'username' ? { username: s } : { extra: { ...d.extra, [key]: s } });
-    return html`<sw-field label=${f.label}><input data-ltr data-conn-field=${key} type=${isPort ? 'number' : 'text'} inputmode=${isPort ? 'numeric' : 'text'} autocomplete="off" autocapitalize="off" spellcheck="false" .value=${value} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} /></sw-field>`;
+    return html`<sw-field label=${f.label}><input data-ltr data-conn-field=${key} aria-invalid=${this.invalidField === key ? 'true' : 'false'} type=${isPort ? 'number' : 'text'} inputmode=${isPort ? 'numeric' : 'text'} autocomplete="off" autocapitalize="off" spellcheck="false" .value=${value} @input=${(e: Event) => set((e.target as HTMLInputElement).value)} /></sw-field>`;
   }
 
   /** Write-only: a stored password is "הוגדרה סיסמה" with "שנה"; the input only ever holds what is being typed now. */
@@ -305,7 +335,7 @@ export class NvrConnectionForm extends LitElement {
     if (this.keepsStoredPassword) {
       return html`<div class="pwset" data-conn-password-set><span>${f.label}: הוגדרה סיסמה</span><button type="button" class="linkbtn" data-conn-password-change @click=${() => (this.changePassword = true)}>שנה</button></div>`;
     }
-    return html`<sw-field label=${f.label}><input type="password" data-ltr data-conn-field="password" data-conn-password autocomplete="new-password" .value=${this.draft.password} @input=${(e: Event) => this.setDraft({ password: (e.target as HTMLInputElement).value })} /></sw-field>`;
+    return html`<sw-field label=${f.label}><input type="password" data-ltr data-conn-field="password" data-conn-password aria-invalid=${this.invalidField === 'password' ? 'true' : 'false'} autocomplete="new-password" .value=${this.draft.password} @input=${(e: Event) => this.setDraft({ password: (e.target as HTMLInputElement).value })} /></sw-field>`;
   }
 
   private form(v: NvrConnection) {
@@ -326,7 +356,7 @@ export class NvrConnectionForm extends LitElement {
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       <div class="actions">
         ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
-        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== ''} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button>
+        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button>
         ${this.offerUntested ? html`<sw-button size=${this.btn} variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>שמור בכל זאת</sw-button>` : nothing}
         ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size=${this.btn} variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>ביטול</sw-button>` : nothing}
       </div>

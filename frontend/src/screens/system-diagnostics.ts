@@ -1214,7 +1214,7 @@ export class SystemDiagnostics extends LitElement {
     try {
       const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm });
       const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
-      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים`;
+      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}`;
       this.restoreTarget = null;
       invalidateSettings();
       await this.loadBackups();

@@ -25,6 +25,8 @@ export interface RestoreResult {
   scope: 'project' | 'project+access';
   tables: Record<string, number>;
   files: number;
+  /** CR-022 review F1: file entries of the backup that were not restored (outside the plan-file allow-list). */
+  files_skipped?: number;
   app_version: string | null;
   created_at: string | null;
 }

@@ -44,6 +44,8 @@ interface Mock {
   test: { status: number; body: Record<string, unknown> };
   /** PUT answers in order (an error first, then the default behaviour); null = default. */
   saveFail: { status: number; body: Record<string, unknown> } | null;
+  /** DELETE answer override (null = default: removed). */
+  removeFail: { status: number; body: Record<string, unknown> } | null;
   nvrStep: 'todo' | 'done';
   calls: { vendors: number; connection: number; tests: Record<string, unknown>[]; saves: Record<string, unknown>[]; removes: Record<string, unknown>[]; restarts: number };
 }
@@ -53,7 +55,7 @@ function freshMock(over: Partial<Mock> = {}, view: Partial<View> = {}): Mock {
     perms: ADMIN, mode: 'full', pending: false, comesBack: true, restartStatus: 202,
     view: { vendor: null, host: null, http_port: null, rtsp_port: null, username: null, has_password: false, state: 'not_chosen', revision: null, cameras: 0, vendor_locked: false, legacy_options_differ: false, restart: 'addon', ...view },
     test: { status: 200, body: { ok: true, code: 'ok', model: 'DS-FAKE-7616', firmware: 'V4 fake', channels: 8 } },
-    saveFail: null, nvrStep: 'todo',
+    saveFail: null, removeFail: null, nvrStep: 'todo',
     calls: { vendors: 0, connection: 0, tests: [], saves: [], removes: [], restarts: 0 }, ...over,
   };
 }
@@ -117,6 +119,9 @@ async function mockBackend(page: Page, m: Mock) {
     if (p === 'nvr/connection' && req.method() === 'PUT') {
       const b = body();
       m.calls.saves.push(b);
+      // the final contract (CR-022 section 20.1): if_revision is mandatory, a mismatch is 409 stale
+      if (typeof b.if_revision !== 'number') return json(ENVELOPE('revision_required', 'חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.', { field: 'if_revision' }), 422);
+      if (b.if_revision !== (m.view.revision ?? 0) && !m.saveFail) return json(ENVELOPE('stale', 'פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.', { revision: m.view.revision }), 409);
       if (m.saveFail) {
         const f = m.saveFail;
         if (!b.save_untested) return json(f.body, f.status);
@@ -127,7 +132,10 @@ async function mockBackend(page: Page, m: Mock) {
       return json({ saved: true, restart_required: true, restarting: false, device: b.save_untested ? null : { model: 'DS-FAKE-7616', firmware: 'V4 fake', channels: 8 }, untested: !!b.save_untested, ...m.view, user: m.view.username, extra: {}, source: 'ui', updated_at: null, updated_by: null, pending_restart: true, in_addon: true });
     }
     if (p === 'nvr/connection' && req.method() === 'DELETE') {
-      m.calls.removes.push(body());
+      const b = body();
+      m.calls.removes.push(b);
+      if (typeof b.if_revision !== 'number') return json(ENVELOPE('revision_required', 'חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.', { field: 'if_revision' }), 422);
+      if (m.removeFail) return json(m.removeFail.body, m.removeFail.status);
       m.view = { ...m.view, vendor: 'none', host: null, http_port: null, rtsp_port: null, username: null, has_password: false, state: 'ok', revision: (m.view.revision ?? 0) + 1, vendor_locked: false };
       m.pending = true;
       return json({ removed: true, restart_required: true, revision: m.view.revision, cameras_disabled: m.view.cameras });
@@ -358,6 +366,106 @@ test.describe('NVR connection form (settings card)', () => {
     await page.waitForTimeout(800);
     await expect(page.locator('nvr-connection-form')).toHaveCount(0);
     expect(m.calls.vendors + m.calls.connection).toBe(0);
+  });
+});
+
+test.describe('final contract after the security review (CR-022 section 20.1)', () => {
+  const STORED: Partial<View> = { vendor: 'hikvision', host: 'nvr.fake.test', http_port: 80, rtsp_port: 554, username: 'viewer', has_password: true, state: 'ok', revision: 4 };
+
+  test('the server asks for the password again (password_required, reason destination_changed): the "kept" state goes and a password must be typed', async ({ page }) => {
+    const m = freshMock({}, STORED);
+    await mockBackend(page, m);
+    await open(page, '/system/setup');
+    const form = page.locator(FORM);
+    await expect(form.locator('[data-conn-edit]')).toBeVisible({ timeout: 20000 });
+    await form.locator('[data-conn-edit]').click();
+    await expect(form.locator('[data-conn-password-set]')).toBeVisible();
+    // the client sees the same destination; the server (its own normalisation) says it changed
+    m.test = { status: 422, body: ENVELOPE('password_required', 'הכתובת, הפורט או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש.', { field: 'password', reason: 'destination_changed' }) };
+    await form.locator('[data-conn-test]').click();
+    await expect(form.locator('[data-conn-test-result]')).toHaveText('יש להזין את הסיסמה מחדש');
+    await expect(form.locator('[data-conn-password-set]')).toHaveCount(0);
+    await expect(form.locator('[data-conn-field="password"]')).toHaveValue('');
+    await expect(form.locator('[data-conn-field="password"]')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.locator('[data-conn-save]')).toHaveAttribute('disabled', '');
+    // the same answer on save
+    await form.locator('[data-conn-field="password"]').fill(CANARY);
+    await expect(form.locator('[data-conn-field="password"]')).toHaveAttribute('aria-invalid', 'false');
+    m.saveFail = { status: 422, body: ENVELOPE('password_required', 'הכתובת, הפורט או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש.', { field: 'password', reason: 'destination_changed' }) };
+    await form.locator('[data-conn-save]').click();
+    await expect(form.locator('[data-conn-msg]')).toHaveText('יש להזין את הסיסמה מחדש');
+    await expect(form.locator('[data-conn-field="password"]')).toHaveValue('');
+    expect(m.calls.saves[0]).toMatchObject({ if_revision: 4, password: CANARY });
+  });
+
+  test('a port of the platform services and a user name with control characters get one short line and the field is marked', async ({ page }) => {
+    const m = freshMock();
+    await mockBackend(page, m);
+    await open(page, '/system/setup');
+    const form = page.locator(FORM);
+    await expect(form.locator('[data-conn-vendor]')).toBeVisible({ timeout: 20000 });
+    await fillHikvision(page, FORM);
+    m.test = { status: 422, body: ENVELOPE('port_refused', 'הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.', { field: 'http_port' }) };
+    await form.locator('[data-conn-test]').click();
+    await expect(form.locator('[data-conn-test-result]')).toHaveText('פורט לא מותר');
+    await expect(form.locator('[data-conn-field="http_port"]')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.locator('[data-conn-save-anyway]')).toHaveCount(0);
+    m.saveFail = { status: 422, body: ENVELOPE('username_invalid', 'שם המשתמש מכיל תווים לא חוקיים.', { field: 'username' }) };
+    await form.locator('[data-conn-save]').click();
+    await expect(form.locator('[data-conn-msg]')).toHaveText('שם משתמש לא תקין');
+    await expect(form.locator('[data-conn-field="username"]')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.locator('[data-conn-field="http_port"]')).toHaveAttribute('aria-invalid', 'false');
+    await expect(form.locator('[data-conn-save-anyway]')).toHaveCount(0);
+    expect(m.view.vendor).toBeNull();
+  });
+
+  test('revision_required and a stale removal both ask to reload; the removal is sent with if_revision only (no fallback without it)', async ({ page }) => {
+    const m = freshMock({}, STORED);
+    await mockBackend(page, m);
+    await open(page, '/system/setup');
+    const form = page.locator(FORM);
+    await expect(form.locator('[data-conn-summary]')).toBeVisible({ timeout: 20000 });
+    // removal on a connection that changed meanwhile: 409 stale - one request, then "טען מחדש"
+    m.removeFail = { status: 409, body: ENVELOPE('stale', 'פרטי החיבור השתנו בינתיים; טענו את הדף מחדש.', { revision: 5 }) };
+    await form.locator('[data-conn-remove]').first().click();
+    await form.locator('[data-conn-remove-dialog] [data-conn-remove-word]').fill('הסר');
+    await form.locator('[data-conn-remove-dialog] [data-conn-remove-confirm]').click();
+    await expect(form.locator('[data-conn-msg]')).toContainText('השתנו בינתיים');
+    await expect(form.locator('[data-conn-reload]')).toBeVisible();
+    expect(m.calls.removes).toEqual([{ confirm_text: 'הסר', if_revision: 4 }]);
+    // a 422 naming if_revision (what the pre-review backend answered) is shown, never retried without the revision
+    m.removeFail = { status: 422, body: ENVELOPE('validation', 'בקשה לא תקינה.', { fields: ['if_revision'] }) };
+    await form.locator('[data-conn-reload]').click();
+    await expect(form.locator('[data-conn-reload]')).toHaveCount(0);
+    await form.locator('[data-conn-remove]').first().click();
+    await form.locator('[data-conn-remove-dialog] [data-conn-remove-word]').fill('הסר');
+    await form.locator('[data-conn-remove-dialog] [data-conn-remove-confirm]').click();
+    await expect(form.locator('[data-conn-msg]')).toHaveText('בקשה לא תקינה.');
+    expect(m.calls.removes).toHaveLength(2);
+    expect(m.calls.removes.every((r) => typeof r.if_revision === 'number')).toBe(true);
+    // a save the server answers with revision_required is treated like a stale view: reload first, saving is blocked meanwhile
+    m.removeFail = null;
+    m.saveFail = { status: 422, body: ENVELOPE('revision_required', 'חסר מספר הגרסה של פרטי החיבור; טענו את הדף מחדש.', { field: 'if_revision' }) };
+    await form.locator('[data-conn-edit]').click();
+    await form.locator('[data-conn-field="username"]').fill('viewer5');
+    await form.locator('[data-conn-save]').click();
+    await expect(form.locator('[data-conn-msg]')).toContainText('טענו את הדף מחדש');
+    await expect(form.locator('[data-conn-reload]')).toBeVisible();
+    await expect(form.locator('[data-conn-save]')).toHaveAttribute('disabled', '');
+  });
+
+  test('a stored address refused at start-up (state refused): the form opens for a new address and says why', async ({ page }) => {
+    const m = freshMock({}, { ...STORED, host: '127.0.0.1', state: 'refused' });
+    await mockBackend(page, m);
+    await open(page, '/system/setup');
+    const form = page.locator(FORM);
+    await expect(form.locator('[data-conn-form-root]')).toHaveAttribute('data-conn-state', 'refused', { timeout: 20000 });
+    await expect(form.locator('[data-conn-refused]')).toHaveText('הכתובת השמורה אינה מותרת - יש להזין כתובת מחדש');
+    await expect(form.locator('[data-nvr-connection-form]')).toBeVisible();
+    await form.locator('[data-conn-field="host"]').fill('nvr.fake.test');
+    await expect(form.locator('[data-conn-password-set]')).toHaveCount(0); // a new address: the password is typed again
+    await shot(page, 'settings-refused');
+    await noOverflow(page);
   });
 });
 

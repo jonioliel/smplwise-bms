@@ -1,7 +1,7 @@
 /** CR-022: the NVR connection stored by Arx - the vendor catalogue, the stored connection (never a password), the read-only
  * connection test, "remove NVR" and the system restart that applies a change. Every route needs `system.configure`
  * (installation scope) and none exists on the remote channel. The password is write-only: a response never carries it. */
-import { ApiError, api, get, post, put } from './client';
+import { api, get, post, put } from './client';
 
 export type VendorId = 'hikvision' | 'provision_isr' | 'frigate' | 'none';
 
@@ -32,7 +32,8 @@ export interface NvrConnection {
   user: string | null;
   extra: Record<string, string | number | boolean>;
   has_password: boolean;
-  /** ok | incomplete | unreadable | not_chosen (the stored state of the row). */
+  /** ok | incomplete | unreadable | refused | not_chosen. `refused`: the stored host failed the source policy at start-up
+   * (security review F5) - the NVR is treated as not configured until a new address is saved. */
   state: string;
   source: 'ui' | 'addon_import' | 'legacy' | null;
   revision: number | null;
@@ -62,7 +63,8 @@ export interface ConnectionBody {
 
 export interface TestResult {
   ok: boolean;
-  /** ok | source_unavailable | source_forbidden | source_error | timeout */
+  /** ok | source_unavailable | source_forbidden | source_error | timeout. Field problems (host_refused, port_refused,
+   * username_invalid, password_required with details.reason = destination_changed) are 422 errors, not results. */
   code: string;
   model?: string | null;
   firmware?: string | null;
@@ -85,21 +87,12 @@ export const REMOVE_WORD = 'הסר';
 export const nvrVendors = () => get<{ vendors: Vendor[] }>('nvr/vendors').then((r) => r.vendors);
 export const nvrConnection = () => get<NvrConnection>('nvr/connection');
 export const testNvrConnection = (body: ConnectionBody & { use_stored_password?: boolean }) => post<TestResult>('nvr/connection/test', body);
-export const saveNvrConnection = (body: ConnectionBody & { save_untested?: boolean; confirm_text?: string; if_revision?: number }) => put<SaveResult>('nvr/connection', body);
-/** `DELETE` carries a body (the typed word); the shared `del` helper does not. */
+export const saveNvrConnection = (body: ConnectionBody & { save_untested?: boolean; confirm_text?: string; if_revision: number }) => put<SaveResult>('nvr/connection', body);
+/** `DELETE` carries a body (the typed word and the revision); the shared `del` helper does not. */
 type Removed = { removed: true; restart_required: true; revision: number; cameras_disabled: number };
-const deleteConnection = (body: Record<string, unknown>) => api<Removed>('nvr/connection', { method: 'DELETE', body: JSON.stringify(body) });
-/** The server requires `if_revision` (security review) - a stale one answers 409 `stale`. Compatibility: the slice-B backend (before the
- * security fixes) refuses the unknown key with 422 `validation` naming `if_revision`; then the same request is sent without it.
- * Remove the fallback once the security-fix branch is merged. */
-export const removeNvrConnection = async (confirm_text: string, if_revision: number): Promise<Removed> => {
-  try {
-    return await deleteConnection({ confirm_text, if_revision });
-  } catch (err) {
-    const fields = err instanceof ApiError && err.status === 422 && err.code === 'validation' ? (err.body.details?.fields as string[] | undefined) : undefined;
-    if (fields?.includes('if_revision')) return deleteConnection({ confirm_text });
-    throw err;
-  }
-};
+/** `if_revision` is required (the `revision` of the loaded view, 0 before any save): absent = 422 `revision_required`,
+ * another revision = 409 `stale` (`details.revision`) - the form then offers "טען מחדש". */
+export const removeNvrConnection = (confirm_text: string, if_revision: number): Promise<Removed> =>
+  api<Removed>('nvr/connection', { method: 'DELETE', body: JSON.stringify({ confirm_text, if_revision }) });
 /** 202 = accepted; the process ends after the answer, so its outcome is only seen by the system coming back. */
 export const restartSystem = () => post<{ restarting: true }>('system/restart', { confirm: true });
