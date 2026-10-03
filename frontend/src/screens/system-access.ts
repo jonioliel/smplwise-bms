@@ -21,6 +21,7 @@ import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog
 import { can, isApi, session } from '../api/session';
 import '../components/sw-toggle';
 import { describeError } from '../api/client';
+import { TabsModeController } from '../shell/tabs-mode';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import {
   ACTION_LABEL,
@@ -96,6 +97,8 @@ interface Wizard {
 export class SystemAccess extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** 0.1.157: the permissions sub-tabs (5) follow the tabs mode and the dropdown style of the settings group. */
+  private tabsMode = new TabsModeController(this, 'settings');
   @state() private tab = 'users';
   @state() private selected: string | null = null;
   @state() private assigning = false;
@@ -1112,7 +1115,7 @@ export class SystemAccess extends LitElement {
     return html`
       <sw-page heading="משתמשים והרשאות" subheading=${sub}>
         ${dir.delegated ? nothing : html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון משתמשים מ־HA</sw-button>`}
-        <sw-tabs .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'audit') void this.loadAudit(); }}></sw-tabs>
+        <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} group-label="הרשאות" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'audit') void this.loadAudit(); }}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="ok">${this.message}</span>` : nothing}${this.error ? html`<span class="err">${this.error}</span>` : nothing}</div>` : nothing}
         ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.renderAuditApi()}
@@ -1216,7 +1219,7 @@ export class SystemAccess extends LitElement {
     return html`
       <sw-page heading="משתמשים והרשאות" subheading="זהות מ־Home Assistant · הרשאות בתוך Arx בלבד · נתוני הדגמה">
         <sw-button slot="actions" icon="refresh">סנכרון משתמשים מ־HA</sw-button>
-        <sw-tabs .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+        <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} group-label="הרשאות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.</div>
         ${this.tab === 'users' ? this.renderUsers() : this.tab === 'groups' ? this.renderGroups() : this.tab === 'roles' ? this.renderRoles() : this.tab === 'effective' ? this.renderEffective() : this.renderAudit()}
       </sw-page>
