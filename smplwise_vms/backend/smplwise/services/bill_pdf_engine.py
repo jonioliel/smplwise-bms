@@ -39,6 +39,8 @@ class LockedFetcher:
     relative paths, redirects) is refused and recorded in `blocked`. It deliberately does not derive from WeasyPrint's
     URLFetcher, so no urllib opener, proxy handler or socket code exists in this object at all."""
 
+    _fail_on_errors = False  # read by weasyprint.urls.fetch: a refused URL is a warning-level miss, not a crash
+
     def __init__(self, logo_png: bytes | None):
         self.logo_png = logo_png
         self.blocked: list[str] = []

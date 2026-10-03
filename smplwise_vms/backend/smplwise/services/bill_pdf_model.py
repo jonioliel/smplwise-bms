@@ -32,7 +32,7 @@ MAX_LINE_CHARS = 300
 
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f  ]")
 # Bidi embeddings, overrides and isolates (U+202A-202E, U+2066-2069) can visually reorder the surrounding text.
-_BIDI_CONTROLS = re.compile(r"[‪-‮⁦-⁩﻿￹-￻]")
+_BIDI_CONTROLS = re.compile(r"[\u202a-\u202e\u2066-\u2069\ufeff￹-￻]")
 # 2026-12-0001, 2026-12-0001-2 (revision), 2026-12-0001/2 (running suffix), 2026-12-0001/2-2
 NUMBER_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{4,10}(?:/[0-9]{1,3})?(?:-[0-9]{1,3})?$")
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -350,9 +350,9 @@ def _share_text(coefficient: Decimal) -> str:
     if coefficient == 1:
         return ""
     if coefficient == -1:
-        return "−"
+        return "\u2212"
     pct = format((abs(coefficient) * 100).normalize(), "f")
-    return f"{'−' if coefficient < 0 else ''}{pct}%"
+    return f"{'\u2212' if coefficient < 0 else ''}{pct}%"
 
 
 def coerce_snapshot(snapshot: "BillSnapshot | Mapping[str, Any]", *, logo: bytes | None = None,

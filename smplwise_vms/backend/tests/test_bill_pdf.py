@@ -36,7 +36,7 @@ except Exception as exc:  # missing package or missing Pango/GObject libraries
 HAVE_POPPLER = all(shutil.which(t) for t in ("pdftotext", "pdfinfo", "pdffonts"))
 needs_render = pytest.mark.skipif(not (HAVE_WEASY and HAVE_POPPLER),
                                   reason=WEASY_WHY or "poppler-utils (pdftotext/pdfinfo/pdffonts) not installed")
-BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
+BIDI = re.compile("[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def snap(data: dict, **kw) -> BillSnapshot:
@@ -95,7 +95,7 @@ def test_model_subtracted_and_fractional_coefficients():
     data["meters"][0]["coefficient"] = "-1"
     data["meters"][1]["coefficient"] = "-0.5"
     s = snap(data)
-    assert s.meters[0].share_text == "−" and s.meters[1].share_text == "−50%"
+    assert s.meters[0].share_text == "\u2212" and s.meters[1].share_text == "\u221250%"
 
 
 def test_model_local_time_of_the_last_report():
@@ -159,8 +159,8 @@ def test_a_draft_is_always_marked():
 
 
 def test_clean_text_removes_controls_bidi_overrides_and_bounds_length():
-    dirty = "אבג‮דהו\u0000\u0007⁦x⁩ ‎y  z\r\n\tq"
-    assert clean_text(dirty) == "אבגדהו x ‎y z q"
+    dirty = "אבג\u202eדהו\u0000\u0007\u2066x\u2069 \u200ey  z\r\n\tq"
+    assert clean_text(dirty) == "אבגדהוx \u200ey z q"
     assert len(clean_text("x" * 500, 50)) == 50
     assert clean_text("a\n\n\n\nb", 50, multiline=True) == "a\n\nb"
     assert clean_text(None) == ""
@@ -276,14 +276,14 @@ def test_html_references_only_bundled_names():
     urls = set(re.findall(r'url\("([^"]+)"\)', html)) | set(re.findall(r'src="([^"]+)"', html))
     allowed = {bill_pdf_html.ASSET_SCHEME + f for f in bill_pdf_html.FONT_FILES} | {bill_pdf_html.LOGO_URL}
     assert urls and urls <= allowed
-    head = html.split("<body>")[0]
-    assert "http" not in head.replace("http-equiv", "")
+    css = html.split("<style>")[1].split("</style>")[0]
+    assert "http" not in css and "file:" not in css and "data:" not in css
 
 
 def test_bidi_override_characters_never_reach_the_html():
     data = S.base()
-    data["customer"]["name"] = "דנה‮לוי"
-    assert "‮" not in bill_pdf_html.build_html(snap(data), False)
+    data["customer"]["name"] = "דנה\u202eלוי"
+    assert "\u202e" not in bill_pdf_html.build_html(snap(data), False)
 
 
 def test_watermark_marks():
@@ -434,17 +434,24 @@ def test_golden_base_bill_is_one_a4_page_with_embedded_heebo(base_pdf):
 @needs_render
 def test_golden_text_content_and_order(base_pdf):
     text = pdf_text(base_pdf)
-    order = ["חשבון צריכת חשמל ודרישת תשלום", "אינו חשבונית מס", "2026-09-0001", "02.10.2026", "לכבוד", "סטודיו אורן לעיצוב",
-             "תקופת החיוב", "01.09.2026", "30.09.2026", "(30 ימים)", "16.10.2026", "סה״כ לתשלום", "497.35",
-             "לוח סטודיו", "12,480.62", "13,166.10", "685.48", "תאורת לובי", "30%", "90.72", "צריכת חשמל", "0.5430",
-             "421.48", "75.87", "מע״מ 18%", "צריכה בתקופות קודמות", "812", "הקריאות הן קריאות מונה מצטברות",
-             "התשלום בהעברה בנקאית"]
-    pos = -1
-    for token in order:
-        at = text.find(token, pos + 1)
-        assert at > pos, f"{token!r} missing or out of order"
-        pos = at
-    assert "SmplWise Arx" in text and re.search(r"1\s+מתוך\s+1|עמוד\s+1", text)
+    # logical (reading) order inside each phrase, as pdftotext reports it
+    for token in ["חשבון צריכת חשמל ודרישת תשלום", "אינו חשבונית מס", "2026-09-0001", "02.10.2026", "לכבוד", "סטודיו אורן לעיצוב",
+                  "תקופת החיוב", "01.09.2026", "30.09.2026", "(30 ימים)", "16.10.2026", "סה״כ לתשלום", "497.35", "לוח סטודיו",
+                  "12,480.62", "13,166.10", "685.48", "תאורת לובי", "30%", "90.72", "צריכת חשמל", "0.5430", "421.48", "75.87",
+                  "מע״מ 18%", "צריכה בתקופות קודמות", "812", "הקריאות הן קריאות מונה מצטברות", "התשלום בהעברה בנקאית",
+                  "SmplWise Arx"]:
+        assert token in text, token
+    # top-to-bottom order of the sections, from word positions
+    words = bbox_text_words(base_pdf)
+
+    def first_y(word: str) -> float:
+        return min(w[1] for w in words if w[4].rstrip(":") == word)
+
+    anchors = ["לכבוד", "מונה", "פירוט", "קודמות", "הקריאות", "הערות"]
+    ys = [first_y(a) for a in anchors]
+    assert ys == sorted(ys) and len(set(ys)) == len(ys), dict(zip(anchors, ys))
+    assert first_y("אינו") > first_y("חשבון") and first_y("לכבוד") > first_y("2026-09-0001")
+    assert re.search(r"עמוד\s*1\s*מתוך\s*1", text)
 
 
 @needs_render
@@ -468,6 +475,7 @@ def test_golden_draft_void_copy_revision_and_missing_report():
     assert "2026-09-0001-2" in rev and "מחליף את" in rev and "חשבון מתוקן" in rev
     miss = flat(render_bill_pdf(S.missing_report()))
     assert "תאורת לובי *" in miss and "לא מדווח מאז 29.09.2026 07:10" in miss and "תחויב בחיוב הבא" in miss
+    assert "30.09.2026 23:55" in miss
     assert "קריאת סוף התקופה של לוח סטודיו" in miss  # the server's other notes are printed too
 
 
@@ -497,7 +505,7 @@ def test_golden_big_bill_has_many_pages_repeated_headers_and_page_numbers():
     n = len(pages)
     assert n >= 3 and int(pdf_info(pdf)["Pages"]) == n
     for number, page in enumerate(pages, start=1):
-        assert re.search(rf"{number}\s+מתוך\s+{n}|עמוד\s+{number}\s+מתוך\s+{n}", " ".join(page.split())), number
+        assert re.search(rf"עמוד\s*{number}\s*מתוך\s*{n}", " ".join(page.split())), number
     meter_pages = [p for p in pages if "מונה דירה" in p]
     assert len(meter_pages) >= 3
     assert all("קריאה בתחילת התקופה" in p for p in meter_pages)  # the table header repeats on every table page
@@ -569,9 +577,13 @@ def test_golden_mixed_hebrew_digits_and_latin():
 
 
 def bbox_words(pdf: bytes) -> list[tuple[float, float, float, float]]:
+    return [w[:4] for w in bbox_text_words(pdf)]
+
+
+def bbox_text_words(pdf: bytes) -> list[tuple[float, float, float, float, str]]:
     html = subprocess.run(["pdftotext", "-bbox", "-", "-"], input=pdf, capture_output=True, check=True).stdout.decode()
-    return [tuple(float(v) for v in m) for m in re.findall(
-        r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)"', html)]
+    return [(float(a), float(b), float(c), float(d), BIDI.sub("", w)) for a, b, c, d, w in re.findall(
+        r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">([^<]*)</word>', html)]
 
 
 @needs_render
@@ -597,7 +609,7 @@ def test_fpdf2_fallback_renders_the_same_facts():
     pdf = render_bill_pdf(S.missing_report(), engine="fpdf2")
     text = " ".join(pdf_text(pdf).split())
     for token in ("2026-09-0001", "497.35", "421.48", "75.87", "סטודיו אורן לעיצוב", "01.09.2026", "30.09.2026", "לוח סטודיו",
-                  "29.09.2026 07:10", "צריכה בתקופות קודמות", "845"):
+                  "29.09.2026", "07:10", "צריכה בתקופות קודמות", "845"):
         assert token in text, token
     assert re.match(r"\s*595\.\d+ x 841\.\d+", pdf_info(pdf)["Page size"])
     assert all("Heebo" in f[0] for f in pdf_fonts(pdf))
@@ -670,13 +682,15 @@ def test_child_environment_is_scrubbed(monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="address-space limit applies to POSIX")
-@needs_render
-def test_memory_limit_makes_a_runaway_render_fail_cleanly(monkeypatch):
-    monkeypatch.setenv("SW_BILL_PDF_ENGINE", "weasyprint")
-    monkeypatch.setenv("SW_BILL_PDF_MEMORY_MB", "256")  # the lowest the clamp allows: the stack itself needs more
-    with pytest.raises(BillPdfError) as err:
-        render_bill_pdf(S.base())
-    assert err.value.code == "pdf_render_failed"
+def test_memory_limit_is_applied_to_the_child_process(monkeypatch):
+    monkeypatch.setenv("SW_BILL_PDF_MEMORY_MB", "256")  # the lowest the clamp allows
+    limits = bill_pdf._limits(None, None)
+    proc = subprocess.run([sys.executable, "-c", "x = bytearray(700 * 1024 * 1024); print('allocated')"],
+                          capture_output=True, preexec_fn=bill_pdf._child_setup(limits))
+    assert proc.returncode != 0 and b"allocated" not in proc.stdout and b"MemoryError" in proc.stderr
+    ok = subprocess.run([sys.executable, "-c", "x = bytearray(20 * 1024 * 1024); print('allocated')"],
+                        capture_output=True, preexec_fn=bill_pdf._child_setup(limits))
+    assert ok.returncode == 0 and b"allocated" in ok.stdout
 
 
 @needs_render

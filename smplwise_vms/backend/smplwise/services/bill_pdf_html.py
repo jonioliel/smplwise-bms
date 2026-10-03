@@ -9,6 +9,7 @@ The layout follows the approved A4 mockup (docs/design/mockups/electricity, "bil
 from __future__ import annotations
 
 import html
+import re
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -73,6 +74,16 @@ def num(text: str) -> str:
 def rng(a: date, b: date) -> str:
     """A date range read right-to-left from the first date to the last, like the approved mockup."""
     return f"{num(dmy(a))} - {num(dmy(b))}"
+
+
+_NUM_RE = re.compile(r"\d{2}\.\d{2}\.\d{4}(?: \d{2}:\d{2})?|\d{4}-\d{2}-\d{4,10}(?:/\d+)?(?:-\d+)?|\d[\d,]*\.\d+|\d{1,2}:\d{2}")
+
+
+def rich(text: str) -> str:
+    """Escape a server-written sentence and lay its dates, times, bill numbers and decimals out left-to-right, so a
+    date written 29.09.2026 07:10 inside Hebrew reads in that order. Escaping happens first; the pattern only matches
+    digits and separators, so nothing it wraps can contain markup."""
+    return _NUM_RE.sub(lambda m: f'<span class="n">{m.group(0)}</span>', E(text))
 
 
 def with_shekel(x: Decimal) -> str:
@@ -345,7 +356,7 @@ def build_html(s: BillSnapshot, has_logo: bool) -> str:
         text = (f"* המונה {E(m.name)} לא דיווח בעת הפקת החשבון. תאריך הדיווח האחרון: {num(moment(m.last_report))}. "
                 "החיוב כולל רק מה שנמדד.")
         if m.report_note:  # the server's own sentence says where the rest of the energy goes
-            text = f"* {E(m.report_note)}"
+            text = f"* {rich(m.report_note)}"
             if dmy(m.last_report.date()) not in m.report_note:  # the last report date must always be on the bill
                 text += f" תאריך הדיווח האחרון: {num(moment(m.last_report))}."
         notes_html.append(f'<div class="warn">{text}</div>')
@@ -356,9 +367,9 @@ def build_html(s: BillSnapshot, has_logo: bool) -> str:
     if s.mark == "copy":
         notes_html.append('<div class="note">העתק של החשבון המקורי.</div>')
     for text in s.notes:
-        notes_html.append(f'<div class="note">{E(text)}</div>')
+        notes_html.append(f'<div class="note">{rich(text)}</div>')
     if s.footer_note:
-        notes_html.append(f'<div class="note notes-user"><b>הערות:</b> {E(s.footer_note)}</div>')
+        notes_html.append(f'<div class="note notes-user"><b>הערות:</b> {rich(s.footer_note)}</div>')
     if s.snapshot_hash:  # printed in the page footer of every page through a running element
         notes_html.append(f'<div class="runhash">מזהה חשבון: {num(s.snapshot_hash)}</div>')
 
