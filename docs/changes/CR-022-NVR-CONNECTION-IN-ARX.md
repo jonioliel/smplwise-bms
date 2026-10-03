@@ -157,15 +157,20 @@ pydantic models with `extra=forbid`; the existing `body_limit.py` size cap; abse
 |---|---|---|---|
 | `GET /api/nvr/vendors` | Catalogue | - | `[{id, label, status, default_ports, fields}]` |
 | `GET /api/nvr/connection` | Current connection (path and keys compatible with 0.1.71) | - | `{vendor, host, http_port, rtsp_port, username, extra, has_password, state, source, revision, updated_at, updated_by, pending_restart, legacy_options_differ}` - **never** the password or ciphertext |
-| `PUT /api/nvr/connection` | Save | `{vendor, host, http_port, rtsp_port, username, password?, keep_password?, extra?, save_untested?, confirm_text?, if_revision}` | `{saved:true, restart_required:true, revision}`; 409 `stale` on `if_revision` mismatch |
+| `PUT /api/nvr/connection` | Save | `{vendor, host, http_port, rtsp_port, username, password?, keep_password?, extra?, save_untested?, confirm_text?, if_revision}` | `{saved:true, restart_required:true, revision}`; 422 `revision_required` when `if_revision` is absent, 409 `stale` on a mismatch (also re-checked after the test, §20) |
 | `POST /api/nvr/connection/test` | Test a candidate (§6.3) | as PUT, plus `use_stored_password` | `{ok, code, model?, firmware?, channels?}` |
-| `DELETE /api/nvr/connection` | "Remove NVR" (§6.5) | `{confirm_text}` | `{removed:true, restart_required:true, revision}` |
+| `DELETE /api/nvr/connection` | "Remove NVR" (§6.5) | `{confirm_text, if_revision}` | `{removed:true, restart_required:true, revision}`; 422 `revision_required` / 409 `stale` as PUT |
 | `POST /api/system/restart` | Restart Arx (§8) | `{confirm:true}` | `202`; outside the add-on 409 `restart_manual` |
 
 Validation: `host` matches a host-name / IPv4 / bracket-less IPv6 pattern, at most 253 characters, no scheme, path, port,
 `@` or whitespace (422 `host_invalid`); ports 1-65535 (422 `port_invalid`); vendor must be `available` or `none` (422
-`vendor_not_available`); `password` at most 128 characters, write-only. Omitting `password` with `keep_password:true` keeps
-the stored one; changing `host` with a kept password is allowed (the admin is the same trust level as the stored secret).
+`vendor_not_available`); `password` at most 128 characters, write-only. Omitting `password` with `keep_password:true` (PUT) or sending
+`use_stored_password:true` (test) uses the stored one **only when vendor, host, HTTP port and RTSP port equal the stored row**
+(before any save: the legacy connection the process runs with). Any change of the destination needs the password typed again:
+422 `password_required` with `details.reason = "destination_changed"`, audited. *Deviation, decided by the lead after the
+security review (F2, 2026-10-04):* the earlier text allowed a kept password with a changed host ("the admin is the same trust
+level as the stored secret"); that let any system-administrator session send the stored secret to an arbitrary address, so the
+password was not really write-only.
 
 During slices B-C the old routes in `routers/nvr_write.py` stay untouched (CR-020 S2 edits that file); the new router owns
 the `/nvr/connection` path once mounted, with compatible response keys, and the old handlers are deleted in a follow-up
@@ -178,8 +183,10 @@ commit after S2 merges (§13).
 - **SSRF source policy:** the host is checked by `source_policy.host_refused` before any connection: loopback, link-local
   and cloud metadata addresses, the Supervisor, the Arx host itself and unspecified addresses are refused (`host_refused`);
   RFC 1918 addresses and names are allowed (an NVR is on the LAN). Names are resolved and every resolved address is checked;
-  the connection goes to the checked address (no second resolution). `follow_redirects=False`; timeouts 5 s connect,
-  8 s total.
+  the connection goes to the checked address (no second resolution); a name that does not resolve is not connected at all
+  (`source_unavailable`). The ports of the platform's own services (8123, 1984, 8554, 8555, 4357, 8099) are refused on any
+  host (422 `port_refused`). `follow_redirects=False`; timeouts 5 s connect, 5 s per read, one 8 s wall-clock deadline for the
+  whole test, at most 256 KB read per answer (§20).
 - **Rate limit:** 5 tests per minute per user and 20 per minute per installation; excess 429 `rate_limited`, audited.
 - **Coarse answers only:** `ok` plus `model`, `firmware`, channel count; failures as `source_unavailable`,
   `source_forbidden` (bad credentials), `source_error`, `host_refused`, `timeout`. No response bodies, headers, resolved
@@ -232,7 +239,8 @@ Existing installations behave identically after the upgrade: same host, same mod
 - Save and Remove never swap `app.state.settings` in-process (ends today's half-applied state). The process keeps
   `loaded_revision`; `GET /nvr/connection`, `/me` (for `system.configure` holders) and `/health` expose
   `connection_pending_restart` when the row revision differs, so the banner survives page reloads and other admins see it.
-- The Restart button calls `POST /system/restart` (system_admin, confirmation dialog, rate-limited 1 per 2 minutes, audited
+- The Restart button calls `POST /system/restart` (system_admin, confirmation dialog, at most 1 per 2 minutes - the time of
+  the last accepted restart is stored in `settings`, so the guard survives the restart it guards (§20) -, audited
   `system.restart`) which uses the existing `supervisor_post(settings, "/addons/self/restart")` (`hassio_api` default role;
   verified in code, not live, §15). Outside the add-on the answer is 409 `restart_manual` and the screen says to restart the
   service manually. **No auto-restart** (D3): an installer may be mid-wizard.
@@ -245,7 +253,10 @@ Existing installations behave identically after the upgrade: same host, same mod
 ## 9. Backup and restore
 
 - `recorder_connections` is **not** in `PROJECT_TABLES`; `connections.key` is outside `files/`; neither is ever read from an
-  archive (a restore cannot smuggle a connection in).
+  archive (a restore cannot smuggle a connection in). Since the security review (F1) this holds for files too: a restore
+  writes only the plan files the archive's own rows reference, under `plans/`; an archive member naming `keys/`, a database
+  file, `options.json`, an absolute or `..` path, or any unreferenced file is ignored and counted in `files_skipped`, and an
+  archive row whose file column points outside `plans/` is skipped. Guard test with a forged archive.
 - A new guard test fails if any table with a column named like `password`, `secret`, `token` or `*_enc` enters
   `PROJECT_TABLES` or a diagnostic bundle (covers WisKey and alarm tables too).
 - **Replace** restore keeps the row (keep-when-absent semantics, like `KEEP_WHEN_ABSENT`); `nvr.legacy_import_done` is in
@@ -417,7 +428,8 @@ Recorded deviations, none of them widening a permission or a secret's reach:
    unreadable row. The camera step stays "not applicable" in the NVR-less mode. An NVR-less installation upgraded from an
    older version therefore shows the NVR step as "todo" once, until "no NVR" is chosen explicitly.
 6. **PUT body compatibility:** `user` is accepted as an alias of `username`; an absent `password` keeps the stored one (as in
-   0.1.71); `if_revision` is optional (absent = no stale check). Failure answers: `source_unavailable` / `timeout` /
+   0.1.71) when the destination is unchanged (§6.2, §20). *Superseded by §20:* `if_revision` was optional here; it is now
+   mandatory on PUT and DELETE. Failure answers: `source_unavailable` / `timeout` /
    `source_error` 503, `source_forbidden` 502, `host_refused` / `host_invalid` / `port_invalid` / `vendor_not_available` /
    `username_required` / `password_required` / `extra_invalid` / `confirm_required` 422, `remove_first` / `stale` 409.
 7. **`legacy_options_differ`** is also true after "Remove NVR" while the old options still name a host (they are ignored; the
@@ -433,3 +445,57 @@ Recorded deviations, none of them widening a permission or a secret's reach:
     `ACCESS_TABLES`, `OPTIONAL_TABLES`) for secret-like columns.
 11. **Not in slice B (by plan):** the frontend (slice C); `config.yaml` deprecation marks, user guides, `NVR_LESS_MODE(_HE).md`,
     release notes, test catalogue (slice D); AT-022-16 (real installation, owner's word); AT-022-21 ... 24 (Playwright, C).
+
+## 20. Security review fixes (2026-10-04, branch `pilot/nn4-security-fixes`)
+
+The independent review of slice B (findings F1-F16, private review note of 2026-10-03, base `4d89458b`) was answered on
+`pilot/nn4-security-fixes`. Regression tests: `tests/test_cr022_security_review.py`; each fails on `4d89458b` and passes after,
+except three guards that pass on both. No device, platform or network was contacted.
+
+| # | Finding | Change |
+|---|---|---|
+| F1 | A restore wrote any `files/<path>` (key, database, options) | Allow-list (`backup.restorable`): referenced plan files under `plans/` only; rows pointing elsewhere skipped; `files_skipped` in the answer |
+| F2 | The stored password could be sent to any host | Re-typing required on any change of vendor, host, HTTP or RTSP port (§6.2); a deviation from the earlier CR text |
+| F3 | An unresolved name went to httpx (a second, unchecked resolution) | Never connected: `source_unavailable` |
+| F4 | Per-operation timeout only, no size cap, 4 GETs | Own client: 5 s connect, 5 s read, 8 s deadline, 256 KB per answer, 2 GETs (deviceInfo, channel list) |
+| F5 | The stored name was trusted at run time | Re-checked with the source policy once per start; a refused host = state `refused`, the NVR is treated as not configured |
+| F6 | The restart limiter lived in memory | Persisted timestamp `system.addon_restart_at` (in `SETTINGS_KEEP`); a clock that went back never blocks. CR-021's platform restart is untouched (no guard, owner decision) |
+| F7 | `host_refused` on PUT not audited | Audited (`nvr.connection.update` / `.test`, denied, reason and vendor, never the host) for `host_refused`, `port_refused`, `destination_changed` |
+| F8 | NAT64 / 6to4 / Teredo forms | The IPv4 inside NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`) and 6to4 (`2002::/16`) is judged like a literal; Teredo `2001::/32` and site-local `fec0::/10` refused; IPv4-mapped was already covered |
+| F9 | The machine's own LAN address | Interface addresses (Linux `/proc/net`) refused; the platform's service ports refused on any host |
+| F10 | `if_revision` optional, checked before the probe | Mandatory on PUT and DELETE; re-checked under the write lock after the probe |
+| F11 | `nvr_connection.json` (plaintext) left behind | Zeroed, flushed and deleted at start-up; idempotent; one INFO line without values |
+| F13 | Key file mode, directory flush | Mode tightened to 0600 on read (POSIX); the key directory is fsynced after creation; (c) and (d) accepted as the review proposed |
+| F14 | Device text and user name | Control characters stripped from model / firmware; a user name with control characters is 422 `username_invalid` |
+| F16 | The import could take `NVR_PASSWORD` from the environment | Only values the options file carried (`Settings.nvr_option_keys`); an invalid host or port is not imported (nothing written, the options stay in use) |
+| F12 | `/health.connection_pending_restart` visible to every signed-in user | Kept (a boolean only, deviation 8) |
+| F15 | The old Settings card still says the options apply immediately | Slice C replaces it; B and C ship together (§12) |
+
+### 20.1 Contract changes for the frontend (slice C)
+
+| Route | Change | Kind |
+|---|---|---|
+| `PUT /nvr/connection` | `if_revision` **required** (the `revision` from GET, `0` before any save): absent = 422 `revision_required` (`details.field = "if_revision"`); a mismatch, also one caused by another save while the test ran, = 409 `stale` (`details.revision`) | breaking for a client that omits it |
+| `DELETE /nvr/connection` | The body gains `if_revision` (required, same codes) | breaking for a client that omits it |
+| `PUT` / `POST .../test` | A kept / stored password with a changed vendor, host, HTTP or RTSP port: 422 `password_required` with `details = {field: "password", reason: "destination_changed"}`; the form clears "הוגדרה סיסמה" and asks for the password | new reason on an existing code |
+| `PUT` / `POST .../test` | New 422 `port_refused` (`details.field` = `http_port` or `rtsp_port`): a port of the platform's own services | new code |
+| `PUT` / `POST .../test` | New 422 `username_invalid` (`details.field = "username"`): control characters | new code |
+| `POST .../test`, `PUT` | An unresolvable name: `{ok:false, code:"source_unavailable"}` (PUT: 503, `can_save_untested:true`) without any connection | behaviour, same shape |
+| `GET /nvr/connection`, `/health` (`nvr.state`), `/setup/state` | New state value `refused` (the stored host failed the policy at start-up); wizard problem code `connection_refused` | new value |
+| `POST /backups/{name}/restore` | The answer gains `files_skipped` (integer) | additive |
+| `POST /system/restart` | 429 `rate_limited` also right after a restart (persisted guard) | behaviour |
+
+UI binding requirement (F14): `model`, `firmware`, `username`, `host` and every other device-sourced string are bound as
+**text** only (Lit text bindings, never `unsafeHTML` / `innerHTML`); the password field is never pre-filled.
+
+### 20.2 Open items
+
+1. The platform's internal IPv6 network is not in the refused list: its prefix could not be verified from this repository's
+   documents (the review named one from memory). Needs a read-only check on a real installation, on the owner's word.
+2. Inside the add-on container the host machine's LAN address is not visible (no host network); the refused service ports
+   (F9) are the mitigation. A lookup through the platform's network API was not added (it would be a new outgoing call).
+3. F5 is checked once per start; the NVR client still resolves a stored name on each request afterwards (DNS rebinding after
+   start-up stays a documented residual; an IP address avoids it). The start-up check resolves the name once (at most 2 s).
+4. The legacy-file overwrite (F11) cannot guarantee erasure on copy-on-write or flash storage; the deletion is guaranteed.
+5. The 8 s deadline is enforced between reads; a single read is also bounded by the remaining time where the HTTP library
+   reads its timeout per receive (best effort), otherwise by the 5 s read timeout.
