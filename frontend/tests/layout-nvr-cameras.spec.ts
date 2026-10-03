@@ -17,7 +17,7 @@ const PAGE = 'sw-app system-security system-security-cameras';
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 // decorative / own-layer items the guard must not measure: the toast (floats by design), the switch's inner button (its host is checked), the drawer's focus traps
-const SKIP = 'nvr-undo-toast, sw-toggle, .trap, .vh';
+const SKIP = 'nvr-undo-toast, sw-toggle, sw-button, .trap, .vh';
 
 /** Only this screen is measured (`within`): the shell's own tabs and navigation have their own specs. */
 async function check(page: Page, results: Finding[], ctx: string, keep: Finding['cls'][]) {
@@ -47,24 +47,34 @@ async function drawerCheck(page: Page, results: Finding[], ctx: string) {
   for (const d of bad) results.push({ cls: 'overflow', el: 'editor drawer', detail: d, ctx });
 }
 
-/** The switch's host box (what a finger hits) is at least 44 x 44 in touch layouts; its padded box counts. */
-async function hostTargets(page: Page, results: Finding[], ctx: string) {
+/** The host box of the switch (what a finger hits; its padded box counts) and, in bubble, of every shared sw-button of this screen is at least
+ * 44 x 44 in touch layouts. The guard itself skips both: it measures their inner 24 px / 15 px buttons, which sit inside the 44 px host. */
+async function hostTargets(page: Page, results: Finding[], ctx: string, tags: string[]) {
   if ((page.viewportSize()?.width ?? 1440) > 1100) return;
-  const small = await page.evaluate(() => {
+  const small = await page.evaluate((want) => {
     const out: string[] = [];
-    const walk = (root: Document | ShadowRoot) => {
+    const walk = (root: ShadowRoot) => {
       for (const el of root.querySelectorAll('*')) {
-        if (el.tagName === 'SW-TOGGLE') {
+        if (want.includes(el.tagName)) {
           const r = el.getBoundingClientRect();
-          if (r.width && r.height && (r.width < 43.5 || r.height < 43.5)) out.push(`${Math.round(r.width)}x${Math.round(r.height)}`);
+          if (r.width && r.height && (r.width < 43.5 || r.height < 43.5)) out.push(`${el.tagName.toLowerCase()} ${Math.round(r.width)}x${Math.round(r.height)}`);
         }
         if (el.shadowRoot) walk(el.shadowRoot);
       }
     };
-    walk(document);
+    const find = (root: Document | ShadowRoot): ShadowRoot | null => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.tagName === 'SYSTEM-SECURITY-CAMERAS') return el.shadowRoot;
+        const inner = el.shadowRoot && find(el.shadowRoot);
+        if (inner) return inner;
+      }
+      return null;
+    };
+    const screen = find(document);
+    if (screen) walk(screen);
     return out;
-  });
-  for (const s of small) results.push({ cls: 'target', el: 'sw-toggle (host)', detail: `${s} < 44`, ctx });
+  }, tags);
+  for (const s of small) results.push({ cls: 'target', el: 'host', detail: `${s} < 44`, ctx });
 }
 
 test.describe('layout guard: the cameras screen with its write controls', () => {
@@ -94,8 +104,13 @@ test.describe('layout guard: the cameras screen with its write controls', () => 
         const ctx = `${skin} ${theme} ${w}`;
         runs++;
         await check(page, results, `${ctx} list`, own);
-        await hostTargets(page, results, `${ctx} list`);
+        await hostTargets(page, results, `${ctx} list`, skin === 'bubble' ? ['SW-TOGGLE', 'SW-BUTTON'] : ['SW-TOGGLE']);
         const phone = w < 768;
+        if (!phone) {
+          // the table itself fits its box with the switch and pencil columns (the S1 rule: no scrolling inside the table at tablet widths)
+          const inner = await page.locator(`${PAGE} [data-nvr-table]`).evaluate((el) => el.scrollWidth - el.clientWidth);
+          if (inner > 0) results.push({ cls: 'overflow', el: 'table box', detail: `table scrolls by ${inner}px`, ctx });
+        }
         const scope = `${PAGE} ${phone ? '[data-nvr-cards]' : '[data-nvr-table]'}`;
         const tog = page.locator(`${scope} ${phone ? '[data-stream-card]' : 'tr[data-stream-row]'}[data-camera="nvr-1:1"][data-stream="101"] sw-toggle[data-svc-toggle]`);
         await tog.scrollIntoViewIfNeeded();
@@ -104,6 +119,7 @@ test.describe('layout guard: the cameras screen with its write controls', () => 
         await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-confirm]')).toBeVisible();
         await page.locator('sw-dialog[open][data-nvr-confirm-dialog] details summary').click();
         runs++;
+        await hostTargets(page, results, `${ctx} confirm`, skin === 'bubble' ? ['SW-BUTTON'] : []);
         await check(page, results, `${ctx} confirm`, own);
         await page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-cancel]').click();
         await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog]')).toHaveCount(0);

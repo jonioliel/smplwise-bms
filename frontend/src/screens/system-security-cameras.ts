@@ -359,6 +359,16 @@ export class SystemSecurityCameras extends LitElement {
         inline-size: 44px;
         block-size: 44px;
       }
+      /* the toolbar's fields and the sort headers are 44 px targets in touch layouts (layout guard) */
+      .toolbar sw-field select,
+      .toolbar sw-field input {
+        min-block-size: 44px;
+      }
+      th button {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+        justify-content: center;
+      }
     }
     .cards {
       display: none;
