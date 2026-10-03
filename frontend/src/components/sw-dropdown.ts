@@ -199,7 +199,7 @@ export class SwDropdown extends LitElement {
       }
     }
 
-    /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). `auto` has none of this. ---- */
+    /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). auto has none of this. ---- */
     :host([dd-style]:not([dd-style='auto'])) {
       --_h: max(28px, calc(var(--sw-touch-desktop, 44px) - 12px));
       --_opt: var(--sw-touch-desktop, 44px);
