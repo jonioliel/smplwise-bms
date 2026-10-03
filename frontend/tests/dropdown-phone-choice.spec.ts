@@ -393,3 +393,130 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
     expect(await page.evaluate(() => (window as unknown as { __chg: string[] }).__chg.length)).toBeGreaterThan(0);
   });
 });
+
+/** The bottom sheet slides out for 200 ms after it closes; wait until its popover is really gone (the documented wait for specs that close a sheet). */
+async function sheetGone(page: Page, s: string) {
+  await expect(pop(page, s)).toBeHidden({ timeout: 2000 });
+}
+
+test.describe('the bottom sheet in full: closing, blur, modal page, keyboard', () => {
+  test('closing slides out for 200 ms: aria-expanded is false at once, the sheet is gone after the animation; reduced motion closes at once', async ({ page }) => {
+    await stage(page, fresh(), { width: 390 });
+    await mount(page, ['pill']);
+    await chip(page, 'pill').click();
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Escape');
+    await expect(chip(page, 'pill')).toHaveAttribute('aria-expanded', 'false');
+    const during = await pop(page, 'pill').evaluate((el) => ({ hidden: el.hasAttribute('hidden'), cls: el.className, anim: getComputedStyle(el).animationName, dur: getComputedStyle(el).animationDuration }));
+    expect(during.hidden).toBe(false);
+    expect(during.cls).toContain('closing');
+    expect(during.anim).toBe('dd-sheet-out');
+    expect(during.dur).toBe('0.2s');
+    await sheetGone(page, 'pill');
+    // opening again during the slide-out works and ends in an open sheet
+    await chip(page, 'pill').click();
+    await page.waitForTimeout(400);
+    await page.keyboard.press('Escape');
+    await chip(page, 'pill').click();
+    await page.waitForTimeout(700);
+    await expect(chip(page, 'pill')).toHaveAttribute('aria-expanded', 'true');
+    expect(await pop(page, 'pill').evaluate((el) => el.className.includes('closing'))).toBe(false);
+    await page.keyboard.press('Escape');
+    await sheetGone(page, 'pill');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await chip(page, 'pill').click();
+    await page.keyboard.press('Escape');
+    await expect(pop(page, 'pill')).toBeHidden({ timeout: 300 });
+  });
+
+  test('the page behind is blurred 3 px by the scrim; none in the lite performance tier', async ({ page }) => {
+    await stage(page, fresh(), { width: 390 });
+    await mount(page, ['pill']);
+    await chip(page, 'pill').click();
+    await page.waitForTimeout(500);
+    expect(await pop(page, 'pill').evaluate((el) => getComputedStyle(el, '::backdrop').backdropFilter)).toBe('blur(3px)');
+    await page.keyboard.press('Escape');
+    await sheetGone(page, 'pill');
+    await page.evaluate(() => document.documentElement.style.setProperty('--sw-perf-blur', 'none'));
+    await chip(page, 'pill').click();
+    await page.waitForTimeout(500);
+    expect(await pop(page, 'pill').evaluate((el) => getComputedStyle(el, '::backdrop').backdropFilter)).toBe('none');
+  });
+
+  test('phone: the page behind the sheet is inert and Tab stays inside it; everything is live again after closing', async ({ page }) => {
+    await stage(page, fresh(), { width: 390 });
+    await mount(page, ['auto'], 13);
+    await chip(page, 'auto').click();
+    await page.waitForTimeout(600);
+    const inertNow = await page.evaluate(() => ({ app: (document.querySelector('sw-app') as HTMLElement).inert, stage: (document.querySelector('#stage') as HTMLElement).inert, chip: (document.querySelector('#stage sw-tabs[data-t="auto"]')!.shadowRoot!.querySelector('sw-dropdown')!.shadowRoot!.querySelector('.chip') as HTMLElement).inert }));
+    expect(inertNow.app).toBe(true);
+    expect(inertNow.chip).toBe(true);
+    expect(inertNow.stage).toBe(false); // the stage holds the sheet's own chain
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press(i % 2 ? 'Shift+Tab' : 'Tab');
+      const where = await page.evaluate(() => {
+        const dd = document.querySelector('#stage sw-tabs[data-t="auto"]')!.shadowRoot!.querySelector('sw-dropdown')!;
+        return { inside: dd.shadowRoot!.activeElement?.closest?.('.pop') !== null && !!dd.shadowRoot!.activeElement, open: dd.shadowRoot!.querySelector('.chip')!.getAttribute('aria-expanded') };
+      });
+      expect(where.inside).toBe(true);
+      expect(where.open).toBe('true');
+    }
+    await page.keyboard.press('Escape');
+    await sheetGone(page, 'auto');
+    const after = await page.evaluate(() => ({ app: (document.querySelector('sw-app') as HTMLElement).inert, inerts: document.querySelectorAll('[inert]').length, chip: (document.querySelector('#stage sw-tabs[data-t="auto"]')!.shadowRoot!.querySelector('sw-dropdown')!.shadowRoot!.querySelector('.chip') as HTMLElement).inert }));
+    expect(after.app).toBe(false);
+    expect(after.chip).toBe(false);
+    expect(after.inerts).toBe(0);
+    await expect(chip(page, 'auto')).toBeFocused();
+  });
+
+  test('desktop and tablet are unchanged: nothing becomes inert and Tab still closes the popover', async ({ page }) => {
+    for (const width of [1024, 1440]) {
+      await stage(page, fresh(), { width });
+      await mount(page, ['auto', 'pill'], 13);
+      for (const s of ['auto', 'pill']) {
+        await chip(page, s).click();
+        await page.waitForTimeout(300);
+        expect(await page.evaluate(() => document.querySelectorAll('[inert]').length), `${width}/${s}`).toBe(0);
+        await page.keyboard.press('Tab');
+        await expect(chip(page, s), `${width}/${s}`).toHaveAttribute('aria-expanded', 'false');
+        await expect(pop(page, s)).toBeHidden({ timeout: 300 });
+      }
+    }
+  });
+
+  test('the on-screen keyboard (emulated visualViewport): the sheet rises above it and its height is capped by the visible area', async ({ page }) => {
+    await stage(page, fresh(), { width: 390 });
+    await mount(page, ['auto'], 13);
+    await chip(page, 'auto').click();
+    await page.waitForTimeout(600);
+    const base = await pop(page, 'auto').evaluate((el) => el.getBoundingClientRect().bottom - window.innerHeight);
+    expect(Math.abs(base)).toBeLessThanOrEqual(1);
+    // a 420 px keyboard: the visual viewport is 380 px tall
+    await page.evaluate(() => {
+      const vv = window.visualViewport!;
+      Object.defineProperty(vv, 'height', { configurable: true, get: () => window.innerHeight - 420 });
+      vv.dispatchEvent(new Event('resize'));
+    });
+    await page.waitForTimeout(200);
+    const up = await pop(page, 'auto').evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      return { gap: window.innerHeight - b.bottom, h: b.height, vis: window.innerHeight - 420, top: b.top };
+    });
+    expect(up.gap).toBeGreaterThanOrEqual(418);
+    expect(up.gap).toBeLessThanOrEqual(422);
+    expect(up.h).toBeLessThanOrEqual(up.vis - 16 + 1);
+    expect(up.top).toBeGreaterThanOrEqual(0);
+    // the keyboard goes away: back to the bottom edge
+    await page.evaluate(() => {
+      const vv = window.visualViewport!;
+      Object.defineProperty(vv, 'height', { configurable: true, get: () => window.innerHeight });
+      vv.dispatchEvent(new Event('resize'));
+    });
+    await page.waitForTimeout(200);
+    expect(Math.abs(await pop(page, 'auto').evaluate((el) => el.getBoundingClientRect().bottom - window.innerHeight))).toBeLessThanOrEqual(1);
+    await page.keyboard.press('Escape');
+    await sheetGone(page, 'auto');
+    expect(await pop(page, 'auto').evaluate((el) => (el as HTMLElement).style.getPropertyValue('--dd-kb'))).toBe('');
+  });
+});

@@ -55,6 +55,10 @@ export class SwDropdown extends LitElement {
   @state() private cursor = -1;
   @state() private query = '';
   @state() private present: Present = 'pop';
+  /** The bottom sheet is sliding out (200 ms): `open` is already false, the list is still drawn until the animation ends. */
+  @state() private closing = false;
+  private closeTimer = 0;
+  private inerted: HTMLElement[] = [];
   @state() private pos = { top: 0, left: 0, minWidth: 0, maxHeight: 320 };
   private seq = Math.random().toString(36).slice(2, 8);
   private typed = '';
@@ -233,7 +237,9 @@ export class SwDropdown extends LitElement {
       padding-block-end: env(safe-area-inset-bottom, 0px);
     }
     :host .pop.sheet {
-      inset-block: auto 0;
+      /* the on-screen keyboard: --dd-kb is the height it covers, --dd-vh the visible height (set while the sheet is open, from visualViewport) */
+      inset-block: auto var(--dd-kb, 0px);
+      max-block-size: min(72dvh, calc(var(--dd-vh, 100dvh) - 16px));
     }
     :host .pop.centred {
       inset-inline: 16px;
@@ -254,6 +260,33 @@ export class SwDropdown extends LitElement {
     }
     .pop.sheet::backdrop {
       animation: dd-scrim-in 200ms ease-out backwards;
+      /* the live page behind is blurred a little (the mockups: 3 px); not in the lite performance tier, not under reduced transparency */
+      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-backdrop-blur, blur(3px)));
+      backdrop-filter: var(--sw-perf-blur, var(--sw-backdrop-blur, blur(3px)));
+    }
+    /* closing: 200 ms ease-in down and out (the open attribute is already false; the popover stays up until the animation ends) */
+    :host .pop.sheet.closing {
+      animation: dd-sheet-out 200ms ease-in forwards;
+      pointer-events: none;
+    }
+    .pop.sheet.closing::backdrop {
+      animation: dd-scrim-out 200ms ease-in forwards;
+    }
+    @keyframes dd-sheet-out {
+      to {
+        transform: translateY(100%);
+      }
+    }
+    @keyframes dd-scrim-out {
+      to {
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .pop.sheet::backdrop {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
     }
     @keyframes dd-sheet-in {
       from {
@@ -267,7 +300,9 @@ export class SwDropdown extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       :host .pop.sheet,
-      .pop.sheet::backdrop {
+      .pop.sheet::backdrop,
+      :host .pop.sheet.closing,
+      .pop.sheet.closing::backdrop {
         animation: none;
       }
     }
@@ -649,6 +684,9 @@ export class SwDropdown extends LitElement {
     document.removeEventListener('pointerdown', this.onOutside, true);
     this.skinObserver?.disconnect();
     window.clearTimeout(this.typedTimer);
+    window.clearTimeout(this.closeTimer);
+    this.releasePage();
+    this.unwatchKeyboard();
     super.disconnectedCallback();
   }
 
@@ -741,6 +779,7 @@ export class SwDropdown extends LitElement {
 
   private async openList(cursor?: number) {
     if (this.open || !this.items.length) return;
+    this.finishClosing();
     this.present = this.presentation();
     if (this.present === 'inline') this.setAttribute('data-present', 'inline');
     else this.removeAttribute('data-present');
@@ -764,25 +803,138 @@ export class SwDropdown extends LitElement {
       } catch {
         /* assume a pointer */
       }
+      if (this.present === 'sheet') {
+        this.holdPage();
+        this.watchKeyboard();
+      }
       const q = this.searchEl();
       (q && fine ? q : this.lbEl() ?? pop).focus({ preventScroll: true });
       this.scrollToCursor();
     }
   }
 
+  /** Is the user asking for less motion? (the sheet then closes at once, as before). */
+  private reducedMotion(): boolean {
+    try {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      return false;
+    }
+  }
+
+  /** End a running slide-out now (a new open, a disconnect): the popover goes away, the list is no longer drawn. */
+  private finishClosing() {
+    window.clearTimeout(this.closeTimer);
+    if (!this.closing) return;
+    this.closing = false;
+    try {
+      (this.popEl() as (HTMLElement & { hidePopover?: () => void }) | null)?.hidePopover?.();
+    } catch {
+      /* not showing */
+    }
+  }
+
   private close(refocus: boolean) {
     if (!this.open) return;
     const pop = this.popEl();
-    try {
-      (pop as (HTMLElement & { hidePopover?: () => void }) | null)?.hidePopover?.();
-    } catch {
-      /* not showing */
+    const slide = this.present === 'sheet' && !this.reducedMotion() && !!pop;
+    this.releasePage();
+    this.unwatchKeyboard();
+    if (slide) {
+      // 200 ms slide-out: `open` (aria-expanded) is false at once, the popover is hidden when the animation ends
+      this.closing = true;
+      this.closeTimer = window.setTimeout(() => this.finishClosing(), 230);
+    } else {
+      try {
+        (pop as (HTMLElement & { hidePopover?: () => void }) | null)?.hidePopover?.();
+      } catch {
+        /* not showing */
+      }
     }
     this.open = false;
     this.query = '';
     window.clearTimeout(this.typedTimer);
     this.typed = '';
     if (refocus) void this.updateComplete.then(() => this.chipEl()?.focus({ preventScroll: true }));
+  }
+
+  /**
+   * The bottom sheet is modal on a phone: everything outside it, up through every shadow root, becomes `inert` (not focusable, not
+   * clickable, not read by assistive tech) until it closes. The siblings along the path from this element to the document are marked,
+   * so the sheet itself and its ancestors stay live. Desktop and tablet popovers are not modal and never come here.
+   */
+  private holdPage() {
+    this.releasePage();
+    let node: Node | null = this;
+    while (node && node !== document.documentElement) {
+      const parent: Node | null = node.parentNode;
+      if (!parent) break;
+      for (const sib of Array.from((parent as ParentNode).children ?? [])) {
+        if (sib === node || !(sib instanceof HTMLElement) || sib.inert) continue;
+        if (['STYLE', 'SCRIPT', 'LINK', 'TEMPLATE'].includes(sib.tagName)) continue;
+        sib.inert = true;
+        this.inerted.push(sib);
+      }
+      node = parent instanceof ShadowRoot ? parent.host : parent;
+    }
+    // the chip next to the list in this element's own shadow root is outside the sheet too (marked above as a sibling of .pop)
+    const chip = this.chipEl();
+    if (chip && !chip.inert) {
+      chip.inert = true;
+      this.inerted.push(chip);
+    }
+  }
+
+  private releasePage() {
+    for (const el of this.inerted) el.inert = false;
+    this.inerted = [];
+  }
+
+  /** Tab inside the sheet cycles between the search field and the list (a focus trap); Shift+Tab the other way. */
+  private trapTab(e: KeyboardEvent) {
+    const ring = [this.searchEl(), this.lbEl()].filter((x): x is HTMLElement => !!x);
+    const at = ring.findIndex((x) => x === (this.renderRoot as ShadowRoot).activeElement);
+    const next = ring[(at + (e.shiftKey ? -1 : 1) + ring.length) % ring.length];
+    e.preventDefault();
+    next?.focus({ preventScroll: true });
+  }
+
+  /** The on-screen keyboard: while the sheet is open its bottom edge follows the visible viewport and its height is capped by it. */
+  private vvHandler = () => this.fitKeyboard();
+  private watchingKeyboard = false;
+
+  private watchKeyboard() {
+    const vv = window.visualViewport;
+    if (!vv || this.watchingKeyboard) return;
+    this.watchingKeyboard = true;
+    vv.addEventListener('resize', this.vvHandler);
+    vv.addEventListener('scroll', this.vvHandler);
+    this.fitKeyboard();
+  }
+
+  private unwatchKeyboard() {
+    if (!this.watchingKeyboard) return;
+    this.watchingKeyboard = false;
+    const vv = window.visualViewport;
+    vv?.removeEventListener('resize', this.vvHandler);
+    vv?.removeEventListener('scroll', this.vvHandler);
+    const pop = this.popEl();
+    pop?.style.removeProperty('--dd-kb');
+    pop?.style.removeProperty('--dd-vh');
+  }
+
+  private fitKeyboard() {
+    const vv = window.visualViewport;
+    const pop = this.popEl();
+    if (!vv || !pop || this.present !== 'sheet') return;
+    const kb = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+    if (kb > 40) {
+      pop.style.setProperty('--dd-kb', `${kb}px`);
+      pop.style.setProperty('--dd-vh', `${Math.round(vv.height)}px`);
+    } else {
+      pop.style.removeProperty('--dd-kb');
+      pop.style.removeProperty('--dd-vh');
+    }
   }
 
   private choose(i: number) {
@@ -892,7 +1044,8 @@ export class SwDropdown extends LitElement {
       e.stopPropagation();
       this.close(true);
     } else if (k === 'Tab') {
-      this.close(false);
+      if (this.present === 'sheet') this.trapTab(e);
+      else this.close(false);
     } else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // typeahead: the typed text so far (reset after 600 ms); the same letter again cycles through the options starting with it
       e.preventDefault();
@@ -956,15 +1109,15 @@ export class SwDropdown extends LitElement {
         <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${12}></sw-icon></span>
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}
       </button>
-      <div class="pop ${this.present}" popover=${this.present === 'inline' ? nothing : 'manual'} ?hidden=${!this.open} data-present=${this.present} @keydown=${(e: KeyboardEvent) => this.onListKey(e)} @click=${(e: MouseEvent) => this.onPopClick(e)}>
-        ${this.open && (this.present === 'sheet' || this.present === 'centred')
+      <div class="pop ${this.present}${this.closing ? ' closing' : ''}" popover=${this.present === 'inline' ? nothing : 'manual'} ?hidden=${!(this.open || this.closing)} data-present=${this.present} @keydown=${(e: KeyboardEvent) => this.onListKey(e)} @click=${(e: MouseEvent) => this.onPopClick(e)}>
+        ${(this.open || this.closing) && (this.present === 'sheet' || this.present === 'centred')
           ? html`<div class="hd" data-dd-head @pointerdown=${(e: PointerEvent) => this.onHeadDown(e)} @pointermove=${(e: PointerEvent) => this.onHeadMove(e)} @pointerup=${(e: PointerEvent) => this.onHeadUp(e)} @pointercancel=${(e: PointerEvent) => this.onHeadUp(e)}><div class="grab" aria-hidden="true"></div>${this.label ? html`<div class="ttl" aria-hidden="true">${this.label}</div>` : nothing}</div>`
           : nothing}
-        ${this.open && this.hasSearch
+        ${(this.open || this.closing) && this.hasSearch
           ? html`<label class="search"><sw-icon name="search" size=${14}></sw-icon><input class="q" type="search" data-dd-search placeholder="חיפוש" aria-label=${`חיפוש ב${this.label || 'רשימה'}`} autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
               role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls=${listId} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing} .value=${this.query} @input=${(e: Event) => this.onQuery(e)} /></label>`
           : nothing}
-        <div class="lb" id=${listId} role="listbox" tabindex="-1" aria-label=${this.label || nothing} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing}>${this.open ? this.renderItems() : nothing}</div>
+        <div class="lb" id=${listId} role="listbox" tabindex="-1" aria-label=${this.label || nothing} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing}>${this.open || this.closing ? this.renderItems() : nothing}</div>
       </div>`;
   }
 }
