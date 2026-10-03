@@ -20,9 +20,11 @@ import type {
   Customer, ElecBackend, ElecMeter, FormulaPreview, HistoryPoint, MeterCandidate, PeriodChoice, PriceMode, Tariff, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
-import { addDays, daysInclusive, f2, isIsoDate, monthShort, periodContaining, r2 } from '../electricity/elec-format';
+import { addDays, daysInclusive, isIsoDate, monthShort, periodContaining, r2 } from '../electricity/elec-format';
 
 export const MOCK_TODAY = '2026-10-04';
+/** wire decimals: plain digits, never grouped */
+const dec = (x: number): string => x.toFixed(2);
 const VAT = 0.18;
 
 const err = (status: number, code: string, user_message: string, details: Record<string, unknown> = {}): ApiError => new ApiError(status, { code, user_message, retryable: false, correlation_id: '', details });
@@ -126,12 +128,12 @@ function historyFor(accountId: string, current: { from: string; to: string; kwh:
   const previous: HistoryPoint[] = rows.map(([ym, v], i) => {
     const base = { from: `${ym}-01`, to: monthEnd(ym) };
     if (s.missing === i) return { ...base, kwh: null, status: 'missing', source: null };
-    return { ...base, kwh: f2(v * s.factor), status: s.partial === i ? 'partial' : 'measured', source: i >= rows.length - 3 ? 'bill' : 'readings' };
+    return { ...base, kwh: dec(v * s.factor), status: s.partial === i ? 'partial' : 'measured', source: i >= rows.length - 3 ? 'bill' : 'readings' };
   });
   return {
-    current: current ? { from: current.from, to: current.to, kwh: f2(current.kwh) } : null,
+    current: current ? { from: current.from, to: current.to, kwh: dec(current.kwh) } : null,
     previous,
-    same_period_last_year: s.lastYear !== null && current ? { from: addDays(current.from, -365), to: addDays(current.to, -365), kwh: f2(s.lastYear), status: 'measured', source: 'readings' } : null,
+    same_period_last_year: s.lastYear !== null && current ? { from: addDays(current.from, -365), to: addDays(current.to, -365), kwh: dec(s.lastYear), status: 'measured', source: 'readings' } : null,
   };
 }
 
@@ -216,9 +218,9 @@ function buildSnapshot(a: MA, from: string, to: string, number: string | null, s
     if (stale) notes.push({ code: 'meter_not_reporting', text_he: `${m.name} לא מדווח מאז 03.10.2026 18:40. הצריכה שלאחר מכן תחויב בחיוב הבא.` });
     return {
       meter_id: id, name: m.name, coefficient: String(k),
-      start: { at: `${from}T00:00:00Z`, reading_kwh: f2(r2(end - use)), kind: 'reading' },
-      end: { at: stale ? STALE_AT : `${to}T23:59:00Z`, reading_kwh: f2(end), kind: stale ? 'last_report' : 'reading' },
-      consumption_kwh: f2(use), contribution_kwh: f2(use * k), reported_to_end: !stale, last_report_at: stale ? STALE_AT : null,
+      start: { at: `${from}T00:00:00Z`, reading_kwh: dec(r2(end - use)), kind: 'reading' },
+      end: { at: stale ? STALE_AT : `${to}T23:59:00Z`, reading_kwh: dec(end), kind: stale ? 'last_report' : 'reading' },
+      consumption_kwh: dec(use), contribution_kwh: dec(use * k), reported_to_end: !stale, last_report_at: stale ? STALE_AT : null,
     };
   });
   if (mlines.some((x) => !x.reported_to_end)) notes.push({ code: 'carried_in', text_he: 'לוח מאפייה - פאזה 3 לא דיווח בין 28.09 18:40 ל-29.09 07:10. הצריכה בפער נספרה לפי הקריאה הבאה.' });
@@ -235,9 +237,9 @@ function buildSnapshot(a: MA, from: string, to: string, number: string | null, s
     customer: { id: c.id, customer_number: c.customer_number, name: c.name, address: c.address ?? '', phone: c.phone ?? '', email: c.email ?? '', tax_id: c.tax_id ?? '' },
     account: { id: a.id, name: a.name, tariff: { id: t.id, name: t.name }, formula: { text: textOf(a.ast), sentence_he: sentenceOf(a.ast) } },
     meters: mlines,
-    lines: [{ from, to, kwh: f2(kwh), price_entered: t.versions[0].price, price_mode: t.versions[0].price_mode, unit_price_ex_vat: unit.toFixed(4), amount_ex_vat: f2(ch.amount), vat_rate_percent: String(vatRate() * 100), vat_amount: f2(ch.vat), total: f2(ch.total) }],
+    lines: [{ from, to, kwh: dec(kwh), price_entered: t.versions[0].price, price_mode: t.versions[0].price_mode, unit_price_ex_vat: unit.toFixed(4), amount_ex_vat: dec(ch.amount), vat_rate_percent: String(vatRate() * 100), vat_amount: dec(ch.vat), total: dec(ch.total) }],
     totals: {
-      currency: 'ILS', kwh: f2(kwh), amount_ex_vat: f2(ch.amount), vat_amount: f2(ch.vat), total: f2(ch.total), vat_breakdown: [{ rate_percent: String(vatRate() * 100), base: f2(ch.amount), vat: f2(ch.vat) }],
+      currency: 'ILS', kwh: dec(kwh), amount_ex_vat: dec(ch.amount), vat_amount: dec(ch.vat), total: dec(ch.total), vat_breakdown: [{ rate_percent: String(vatRate() * 100), base: dec(ch.amount), vat: dec(ch.vat) }],
       price_mode_note_he: t.versions[0].price_mode === 'inc_vat' ? 'המחיר נקבע כולל מע״מ' : null,
     },
     notes,
@@ -275,7 +277,7 @@ function pushBill(o: { a: string; from: string; to: string; kwh: number; state: 
   const total = snap.totals.total;
   const b: StoredBill = {
     id, account_id: a.id, account_name: a.name, customer: ref(c), number: o.number, revision: o.revision ?? 1, state: o.state, origin: o.origin ?? 'manual', period: { from: o.from, to: o.to },
-    issue_date: o.issued, due_date: o.issued ? dueDate(o.issued) : null, kwh: f2(o.kwh), total, replaces_bill_id: rep?.bill_id ?? null, replaced_by_bill_id: null, row_version: 1,
+    issue_date: o.issued, due_date: o.issued ? dueDate(o.issued) : null, kwh: dec(o.kwh), total, replaces_bill_id: rep?.bill_id ?? null, replaced_by_bill_id: null, row_version: 1,
     snapshot: snap, snapshot_sha256: o.state === 'draft' ? null : 'a3f9c21e0b7d4455aa10c3d1e9f8b2c7', sent: null, paid: null, void: null, actions: ACTIONS[o.state], _events: o.events ?? [],
   };
   if (o.state === 'sent' || o.state === 'paid') b.sent = { at: `${o.issued}T10:00:00Z`, how: 'email', note: '' };
@@ -398,15 +400,15 @@ const statusWire = (a: MA): AccountStatusWire => {
   const kwh = periodKwh(a, per.from, MOCK_TODAY);
   const w: AccountStatusWire = {
     period: { from: per.from, to: per.to },
-    kwh_so_far: f2(kwh),
+    kwh_so_far: dec(kwh),
     meters: ids.map((id): StatusMeterWire => {
       const m = meter(id);
       const use = meterKwh(m, per.from, MOCK_TODAY);
-      return { meter_id: id, name: m.name, kwh: f2(use), last_report_at: m.status === 'stale' ? STALE_AT : `${MOCK_TODAY}T21:49:00Z`, reporting: m.status !== 'stale', start_reading_kwh: f2(r2(m.reading - use)), end_reading_kwh: f2(m.reading) };
+      return { meter_id: id, name: m.name, kwh: dec(use), last_report_at: m.status === 'stale' ? STALE_AT : `${MOCK_TODAY}T21:49:00Z`, reporting: m.status !== 'stale', start_reading_kwh: dec(r2(m.reading - use)), end_reading_kwh: dec(m.reading) };
     }),
     notes: [],
   };
-  if (moneyAllowed()) w.amount_so_far = f2(charge(tariff(a.tariff_id), kwh).total);
+  if (moneyAllowed()) w.amount_so_far = dec(charge(tariff(a.tariff_id), kwh).total);
   return w;
 };
 
@@ -457,7 +459,7 @@ export const mockBackend: ElecBackend = {
       const b = bills.find((x) => x.account_id === id && x.state !== 'void' && x.period.to === p.to) ?? null;
       const row: AccountHistory['rows'][number] = { label: monthShort(p.to), from: p.from, to: p.to, kwh, change_pct: before ? ((kwh - before) / before) * 100 : null, bill: null };
       if (moneyAllowed()) {
-        row.amount = f2(charge(t, kwh).total);
+        row.amount = dec(charge(t, kwh).total);
         row.bill = b && b.number ? summary(b) : null;
       }
       return row;
@@ -503,7 +505,7 @@ export const mockBackend: ElecBackend = {
     const rows = ids.map((id) => ({ meter_id: id, name: nameOf(id), kwh: meter(id).last }));
     const result = r2(evaluate(ast, (id) => meter(id).last));
     const base = { period_from: '2026-09-01', period_to: '2026-09-30', rows, result_kwh: result, warnings: [] as string[] };
-    if (result < 0) return { ...base, ok: false, errors: [`התוצאה שלילית בתקופה האחרונה (${f2(result)} קוט״ש). בדקו את הסימנים בנוסחה.`], negative: true };
+    if (result < 0) return { ...base, ok: false, errors: [`התוצאה שלילית בתקופה האחרונה (${dec(result)} קוט״ש). בדקו את הסימנים בנוסחה.`], negative: true };
     return { ...base, ok: true, errors: [], negative: false };
   },
   async nextCustomerNumber() {
