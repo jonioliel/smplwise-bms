@@ -1,0 +1,100 @@
+import { test, expect, type Page } from '@playwright/test';
+import { inPageCheck, summarize, type Finding } from './layout-guard';
+import { install, newMock } from './nvr-cameras-write-mock';
+
+// CR-020 S2 phase B: the layout guard (tests/layout-guard.ts) over the cameras screen WITH its write controls - the table / cards
+// with the SVC switch and the pencil, the ONE confirmation, the editor drawer - across widths 320..1440 x light / dark. FAILS on
+// escape / overflow / floating / clipped / target. The undo toast floats over the page by design (bottom, ten seconds) and is skipped
+// for "floating"; its buttons are 44 px by their own CSS. The switch's own 24 px button sits inside a host box padded to 44 px in
+// touch layouts: the guard measures the host (the part a finger hits), see `hostTargets` below.
+// One project runs the whole sweep. Run on the runner (dev server): ~/run_remote.sh spec <branch> tests/layout-nvr-cameras.spec.ts --project=desktop
+const WIDTHS = [320, 360, 390, 480, 600, 768, 820, 1024, 1100, 1280, 1440];
+const THEMES = ['light', 'dark'] as const;
+const PAGE = 'sw-app system-security system-security-cameras';
+const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
+const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+// decorative / own-layer items the guard must not measure: the toast (floats by design), the switch's inner button (its host is checked), the drawer's focus traps
+const SKIP = 'nvr-undo-toast, sw-toggle, .trap, .vh';
+
+async function check(page: Page, results: Finding[], ctx: string) {
+  await settle(page);
+  // the desktop touch dial of the guard: 32 px (the cameras table is a dense settings table; touch layouts need 44 px)
+  await page.evaluate(() => document.documentElement.style.setProperty('--sw-touch-desktop', '32'));
+  results.push(...(await page.evaluate(inPageCheck, { ctx, skip: SKIP, roots: ['system-security-cameras'] })));
+}
+
+/** The switch's host box (what a finger hits) is at least 44 x 44 in touch layouts; its padded box counts. */
+async function hostTargets(page: Page, results: Finding[], ctx: string) {
+  if ((page.viewportSize()?.width ?? 1440) > 1100) return;
+  const small = await page.evaluate(() => {
+    const out: string[] = [];
+    const walk = (root: Document | ShadowRoot) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.tagName === 'SW-TOGGLE') {
+          const r = el.getBoundingClientRect();
+          if (r.width && r.height && (r.width < 43.5 || r.height < 43.5)) out.push(`${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(document);
+    return out;
+  });
+  for (const s of small) results.push({ cls: 'target', el: 'sw-toggle (host)', detail: `${s} < 44`, ctx });
+}
+
+test.describe('layout guard: the cameras screen with its write controls', () => {
+  test.describe.configure({ timeout: 10 * 60_000 });
+
+  test('table / cards, the confirmation and the editor, light and dark, 320..1440', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const results: Finding[] = [];
+    let runs = 0;
+    const st = newMock();
+    await install(page, st);
+    for (const theme of THEMES) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto('about:blank');
+      await page.goto(`/?design=a&scheme=${theme}#/system/security/cameras`);
+      await page.waitForSelector('sw-app');
+      await expect(page.locator(`${PAGE} [data-nvr-cameras]`)).toHaveAttribute('data-state', 'ready');
+      await expect(page.locator(`${PAGE} sw-toggle[data-svc-toggle]`).first()).toBeAttached();
+      await expect.poll(() => st.hits.filter((h) => /^GET nvr\/cameras\/cam-\d$/.test(h)).length).toBeGreaterThanOrEqual(3);
+      await page.evaluate(() => document.fonts.ready);
+      for (const w of WIDTHS) {
+        await page.setViewportSize({ width: w, height: height(w) });
+        await page.waitForTimeout(150);
+        const ctx = `${theme} ${w}`;
+        runs++;
+        await check(page, results, `${ctx} list`);
+        await hostTargets(page, results, `${ctx} list`);
+        const phone = w < 768;
+        const scope = `${PAGE} ${phone ? '[data-nvr-cards]' : '[data-nvr-table]'}`;
+        const tog = page.locator(`${scope} ${phone ? '[data-stream-card]' : 'tr[data-stream-row]'}[data-camera="nvr-1:1"][data-stream="101"] sw-toggle[data-svc-toggle]`);
+        await tog.scrollIntoViewIfNeeded();
+        // the confirmation
+        await tog.click();
+        await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-confirm]')).toBeVisible();
+        await page.locator('sw-dialog[open][data-nvr-confirm-dialog] details summary').click();
+        runs++;
+        await check(page, results, `${ctx} confirm`);
+        await page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-cancel]').click();
+        await expect(page.locator('sw-dialog[open][data-nvr-confirm-dialog]')).toHaveCount(0);
+        // the editor (a modal drawer: side panel / bottom sheet)
+        await page.locator(`${scope} ${phone ? '[data-stream-card]' : 'tr[data-stream-row]'}[data-camera="nvr-1:1"][data-stream="101"] button[data-edit-stream]`).click();
+        await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open] [data-nvr-editor-form]`)).toBeVisible();
+        runs++;
+        await check(page, results, `${ctx} editor`);
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`)).toHaveCount(0);
+      }
+    }
+    const { byCls, lines } = summarize(results);
+    console.log(`cameras write: ${runs} checks, findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
+    for (const l of lines) console.log('  ' + l);
+    expect(errors, 'page errors').toEqual([]);
+    expect(lines, 'layout findings').toEqual([]);
+  });
+});

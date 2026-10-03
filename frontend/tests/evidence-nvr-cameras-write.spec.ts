@@ -306,16 +306,16 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     const field = (f: string) => drawer.locator(`[data-field="${f}"]`);
     for (const f of ['codec', 'profile', 'resolution', 'fps', 'bitrate_mode', 'bitrate_kbps', 'quality', 'gop', 'svc', 'smart_codec']) await expect(field(f)).toHaveCount(1);
     const save = drawer.locator('[data-nvr-editor-save]');
-    await expect(save).toBeDisabled(); // nothing changed yet
+    await expect(save).toHaveAttribute('disabled', ''); // nothing changed yet
     await shot(page, 'write-10-editor');
     // codec change: the resolution / profile lists are re-read for the new codec; the profile High is not offered -> unset, Save stays off
     await field('codec').locator('select').selectOption('H.265');
     await expect.poll(() => st.hits.some((h) => h.includes('/streams/101/options?codec=H.265'))).toBe(true);
     await expect(field('profile').locator('select')).toHaveValue('');
-    await expect(save).toBeDisabled();
+    await expect(save).toHaveAttribute('disabled', '');
     await field('profile').locator('select').selectOption('Main');
     await field('gop').locator('input').fill('60');
-    await expect(save).toBeEnabled();
+    await expect(save).not.toHaveAttribute('disabled');
     await save.click();
     const dlg = page.locator(CONFIRM);
     await expect(dlg).toHaveAttribute('heading', 'לשמור את השינויים?');
