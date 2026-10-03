@@ -119,6 +119,9 @@ export class NvrCameraBatch extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .vl {
+      contain: inline-size;
+      inline-size: 100%;
+      box-sizing: border-box;
       block-size: clamp(180px, 46dvh, 440px);
       overflow-y: auto;
       overflow-x: hidden;
