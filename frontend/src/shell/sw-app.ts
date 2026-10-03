@@ -1528,7 +1528,7 @@ export class SwApp extends LitElement {
     this.stopNavOrder?.();
     this.stopNavSize?.();
     this.stopUpdateMark?.();
-this.stopScreenEdits?.();
+    this.stopScreenEdits?.();
     this.stopScreenViews?.();
     this.railObs?.disconnect();
     this.railObs = null;
