@@ -30,6 +30,10 @@ export type Touch = 32 | 44;
 /** `default` (the skin's own colours), one of the ten ready palette ids, or `custom-<slug>` (an installation's custom palette, design/palette.ts). */
 export type PaletteId = string;
 export type Performance = PerformanceMode;
+/** MD1 material dials (owner 2026-10-03): 0 off, 1 normal / soft, 2 strong (x1.8). */
+export type Level = 0 | 1 | 2;
+/** The material presets of the approved mockups (docs/design/compare/material-dials); Chalk was shown and dropped by the owner. */
+export type Material = 'none' | 'frosted' | 'paper' | 'neon';
 
 export interface Look {
   density: Density;
@@ -45,6 +49,12 @@ export interface Look {
   /** What the glass costs: `lite` = no blur on cards, pills, rows and lists (the dock, rail, tree, scrim and the open pop-up keep theirs); `auto` = this device decides (design/performance.ts). */
   performance: Performance;
   palette: PaletteId;
+  /** The material's relief: the 1 px bevel rim and a soft lift on tiles, cards and the chrome (0 = today's flat look). */
+  depth: Level;
+  /** The state wash on tiles whose state carries a tone (the word and the dot always stay; lists take a side stripe, never a washed row). */
+  tint: Level;
+  /** A preset of the material numbers (sheen, shade, rim, lift, wash, blur, glow, grain); `none` = the base numbers, so depth and tint work alone. */
+  material: Material;
 }
 export type LookDial = keyof Look;
 export type PartialLook = Partial<Look>;
@@ -119,14 +129,49 @@ export const LOOK_DIALS = {
     labelHe: { default: 'ברירת מחדל', ...Object.fromEntries(palettesFile.palettes.map((p) => [p.id, p.name.he])) },
     hintHe: { default: 'הצבעים של סגנון Bubble' },
   } satisfies ChoiceDial<PaletteId>,
+  // MD1 material dials (owner 2026-10-03, mockups docs/design/compare/material-dials): the numbers live in styles/material.ts
+  depth: {
+    kind: 'choice',
+    values: [0, 1, 2],
+    nameHe: 'עומק',
+    labelHe: { 0: 'כבוי', 1: 'רגיל', 2: 'עמוק' },
+    hintHe: { 0: 'משטחים שטוחים, כמו היום', 1: 'שפת זכוכית של פיקסל והצללה עדינה', 2: 'אותה שפה והצללה, חזקות יותר' },
+  } satisfies ChoiceDial<Level>,
+  tint: {
+    kind: 'choice',
+    values: [0, 1, 2],
+    nameHe: 'גוון מצב',
+    labelHe: { 0: 'כבוי', 1: 'עדין', 2: 'חזק' },
+    hintHe: { 0: 'אריח פעיל נשאר ניטרלי', 1: 'שטיפת גוון עדינה על אריח פעיל; המילה והנקודה נשארות', 2: 'שטיפה חזקה; ברשימות הגוון בפס הצד בלבד' },
+  } satisfies ChoiceDial<Level>,
+  material: {
+    kind: 'choice',
+    values: ['none', 'frosted', 'paper', 'neon'],
+    nameHe: 'חומר',
+    labelHe: { none: 'ללא', frosted: 'Frosted', paper: 'Paper', neon: 'Neon' },
+    hintHe: { none: 'עומק וגוון בלבד, בלי קדם-הגדרה', frosted: 'זכוכית עבה: ברק, גרגר, שפה וטשטוש', paper: 'נייר כמעט אטום, בלי טשטוש: לטאבלט קיר', neon: 'שפה חזקה וזוהר עדין סביב אריח פעיל; צבעי אזעקה לעולם לא זוהרים' },
+  } satisfies ChoiceDial<Material>,
 } as const;
+
+/** The transparency a preset suggests when chosen in the settings card (the slider keeps ownership afterwards): the mockups' values. */
+export const MATERIAL_SUGGESTED_TRANSPARENCY: Record<Material, number> = { none: 72, frosted: 62, paper: 96, neon: 56 };
+
+/**
+ * A preset is a MACRO over the dials (owner rule: presets are editable like every other option and never fight the dials): choosing one
+ * writes the preset's name, turns depth and tint on when they were off, and suggests the transparency. `none` only clears the preset.
+ */
+export function materialMacro(current: Pick<Look, 'depth' | 'tint'>, preset: Material): PartialLook {
+  if (preset === 'none') return { material: 'none' };
+  return { material: preset, depth: current.depth === 0 ? 1 : current.depth, tint: current.tint === 0 ? 1 : current.tint, transparency: MATERIAL_SUGGESTED_TRANSPARENCY[preset] };
+}
 
 /** A custom palette's dial value (the backend's CUSTOM_ID_RE): a lower-case kebab slug after `custom-`. */
 export const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette'] as const satisfies readonly LookDial[];
+export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette', 'depth', 'tint', 'material'] as const satisfies readonly LookDial[];
 
-export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default' };
+/** The built-in defaults; the material dials are OFF (today's pixels unchanged until an owner turns one). */
+export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default', depth: 0, tint: 0, material: 'none' };
 
 /** The backend's rule for one dial: a listed value / a whole in-range number, else null. */
 export function normalizeDial<K extends LookDial>(dial: K, v: unknown): Look[K] | null {
@@ -274,6 +319,13 @@ export function setLiteAlpha(v: number) {
   applyLook();
 }
 export const liteAlphaInForce = (): number => liteAlpha;
+/** MD1: the wash cap of the state tint (design/contrast.ts washCap; apply.ts computes it per skin x palette x scheme). Percent. */
+let washCapPct = 50;
+export function setWashCap(v: number) {
+  washCapPct = Math.max(0, Math.min(100, Math.round(v)));
+  applyLook();
+}
+export const washCapInForce = (): number => washCapPct;
 /** The sheet alpha in force: the transparency dial, never below the computed contrast floor. */
 export function effectiveSheetAlpha(): number {
   return Math.max(alphaFloor, lookOf('transparency') / 100);
@@ -294,17 +346,29 @@ export function applyLook(): void {
   if (probeDeferred && lookOf('performance') === 'auto') refreshAutoPerformance(); // the dial turned to auto after boot: resolve it now (cache, free check, probe)
   set('data-bubble-performance', effectivePerformance());
   set('data-bubble-palette', lookOf('palette'));
+  // MD1: the material dials (the bundles of styles/material.ts key on these; bubble and domus read them)
+  set('data-bubble-depth', String(lookOf('depth')));
+  set('data-bubble-tint', String(lookOf('tint')));
+  set('data-bubble-material', lookOf('material'));
   root.style.setProperty('--sw-sheet-alpha', effectiveSheetAlpha().toFixed(2));
   root.style.setProperty('--sw-look-scale', (lookOf('scale') / 100).toFixed(2));
   root.style.setProperty('--sw-touch-desktop', `${lookOf('touch')}px`);
   root.style.setProperty('--sw-lite-alpha', liteAlpha.toFixed(2));
+  root.style.setProperty('--sw-m-wash-cap', `${washCapPct}%`);
 }
 
 /** The dials as inline attributes + custom properties for a PREVIEW box (the settings card shows a draft without touching <html>). */
 export function lookAttributes(l: Look, floor = alphaFloor): { attrs: Record<string, string>; style: Record<string, string> } {
   return {
-    attrs: { 'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-touch': String(l.touch), 'data-bubble-performance': tierOf(l.performance), 'data-bubble-palette': l.palette },
-    style: { '--sw-sheet-alpha': Math.max(floor, l.transparency / 100).toFixed(2), '--sw-look-scale': (l.scale / 100).toFixed(2), '--sw-touch-desktop': `${l.touch}px`, '--sw-lite-alpha': liteAlpha.toFixed(2) },
+    attrs: {
+      'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-touch': String(l.touch), 'data-bubble-performance': tierOf(l.performance), 'data-bubble-palette': l.palette,
+      'data-bubble-depth': String(l.depth), 'data-bubble-tint': String(l.tint), 'data-bubble-material': l.material,
+    },
+    style: {
+      '--sw-sheet-alpha': Math.max(floor, l.transparency / 100).toFixed(2), '--sw-look-scale': (l.scale / 100).toFixed(2), '--sw-touch-desktop': `${l.touch}px`, '--sw-lite-alpha': liteAlpha.toFixed(2),
+      // the material numbers as inline properties too: a preview box inside a shadow root cannot see the document's attribute rules
+      ...MATERIAL_BUNDLE[l.material], ...DEPTH_BUNDLE[l.depth], ...TINT_BUNDLE[l.tint], '--sw-m-wash-cap': `${washCapPct}%`,
+    },
   };
 }
 
@@ -434,20 +498,52 @@ export const PERFORMANCE_BUNDLE: Record<Tier, Record<string, string>> = {
   lite: { '--sw-perf-blur': 'none', '--sw-perf-glass-bg': 'rgba(var(--sw-sheet-rgb), var(--sw-lite-alpha))' },
 };
 
-/** The CSS of the dial bundles: `[data-bubble-density="compact"]{...}` for the bubble skin only (the attribute may sit on any element). */
-export function lookBundlesCss(skinSelector = ':root[data-skin="bubble"]'): string {
+/**
+ * The CSS of the dial bundles: `[data-bubble-density="compact"]{...}` for the bubble skin (the attribute may sit on any element).
+ * The material bundles (MD1: depth, tint, material) are emitted for the bubble AND the domus skin - both draw glass and share the
+ * token layer (the mockups' overlap panel); classic ignores them.
+ */
+export function lookBundlesCss(skinSelector = ':root[data-skin="bubble"]', materialSelectors: readonly string[] = [skinSelector, ':root[data-skin="domus"]']): string {
   let css = '';
-  const emit = (attr: string, bundles: Record<string, Record<string, string>>) => {
+  const emit = (attr: string, bundles: Record<string, Record<string, string>>, selector = skinSelector) => {
     for (const [value, decl] of Object.entries(bundles)) {
       const body = Object.entries(decl)
         .map(([k, v]) => `${k}:${v};`)
         .join('');
       // on <html> itself, and on any descendant that carries the attribute (a preview box)
-      css += `${skinSelector}[${attr}="${value}"],${skinSelector} [${attr}="${value}"]{${body}}\n`;
+      css += `${selector}[${attr}="${value}"],${selector} [${attr}="${value}"]{${body}}\n`;
     }
   };
   emit('data-bubble-density', DENSITY_BUNDLE);
   emit('data-bubble-radius', RADIUS_BUNDLE);
   emit('data-bubble-performance', PERFORMANCE_BUNDLE);
+  for (const sel of materialSelectors) {
+    emit('data-bubble-material', MATERIAL_BUNDLE, sel);
+    emit('data-bubble-depth', DEPTH_BUNDLE, sel);
+    emit('data-bubble-tint', TINT_BUNDLE, sel);
+  }
   return css;
 }
+
+// ---- MD1 material dials: the numbers of the presets and the multipliers (the formula is styles/material.ts) ----
+
+/** The frosted grain: a 160 px fractal-noise SVG at ~5 % alpha (our own, written for the mockup); a data URI, no asset, no network. */
+export const MATERIAL_GRAIN =
+  'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'><filter id=\'n\'><feTurbulence type=\'fractalNoise\' baseFrequency=\'.9\' numOctaves=\'2\' stitchTiles=\'stitch\'/><feColorMatrix values=\'0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .05 0\'/></filter><rect width=\'160\' height=\'160\' filter=\'url(%23n)\'/></svg>")';
+
+/**
+ * The material presets (the mockups' table "How the material is built", README of docs/design/compare/material-dials). `none` is the
+ * base: no sheen or shade, the rim and the lift at their normal numbers and the soft wash, so depth and tint alone give the
+ * mockups' third overlap box. Blur is the glass pill's full-tier blur (the lite tier never blurs a tile, whatever the preset says);
+ * the glow exists in neon only, and only around a tile whose tone is decorative (styles/material.ts switches it off for state tones).
+ */
+export const MATERIAL_BUNDLE: Record<Material, Record<string, string>> = {
+  none: { '--sw-m-sheen': '0', '--sw-m-shade': '0', '--sw-m-rim': '1', '--sw-m-lift': '0.45', '--sw-m-wash': '28%', '--sw-m-blur': '16px', '--sw-m-glow': '0px', '--sw-m-glowa': '0', '--sw-m-grain': 'none', '--sw-m-border': 'transparent' },
+  frosted: { '--sw-m-sheen': '0.07', '--sw-m-shade': '0.06', '--sw-m-rim': '1', '--sw-m-lift': '0.45', '--sw-m-wash': '28%', '--sw-m-blur': '20px', '--sw-m-glow': '0px', '--sw-m-glowa': '0', '--sw-m-grain': MATERIAL_GRAIN, '--sw-m-border': 'transparent' },
+  paper: { '--sw-m-sheen': '0.03', '--sw-m-shade': '0.04', '--sw-m-rim': '0.5', '--sw-m-lift': '0.22', '--sw-m-wash': '18%', '--sw-m-blur': '0px', '--sw-m-glow': '0px', '--sw-m-glowa': '0', '--sw-m-grain': 'none', '--sw-m-border': 'color-mix(in srgb, var(--sw-text) 10%, transparent)' },
+  neon: { '--sw-m-sheen': '0.05', '--sw-m-shade': '0.08', '--sw-m-rim': '1.2', '--sw-m-lift': '0.5', '--sw-m-wash': '34%', '--sw-m-blur': '14px', '--sw-m-glow': '16px', '--sw-m-glowa': '1', '--sw-m-grain': 'none', '--sw-m-border': 'transparent' },
+};
+/** depth: 0 off, 1 normal, 2 = x1.8 (the mockups' numbers). */
+export const DEPTH_BUNDLE: Record<Level, Record<string, string>> = { 0: { '--sw-m-depth': '0' }, 1: { '--sw-m-depth': '1' }, 2: { '--sw-m-depth': '1.8' } };
+/** tint: 0 off, 1 soft, 2 = x1.8 (capped by `--sw-m-wash-cap`, the contrast floor computed in design/contrast.ts). */
+export const TINT_BUNDLE: Record<Level, Record<string, string>> = { 0: { '--sw-m-tint': '0' }, 1: { '--sw-m-tint': '1' }, 2: { '--sw-m-tint': '1.8' } };

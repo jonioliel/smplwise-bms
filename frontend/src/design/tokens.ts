@@ -312,6 +312,22 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the look dials the components read directly (set on <html> by design/look.ts; these are the resting values)
       '--sw-look-scale': same('1'),
       '--sw-touch-desktop': same('44px'),
+      // MD1 material dials (owner 2026-10-03, built from docs/design/compare/material-dials): ONE formula in styles/material.ts, driven by
+      // these numbers. The presets (`material` dial, MATERIAL_BUNDLE) write them, `--sw-m-depth` and `--sw-m-tint` (the depth / tint dials)
+      // multiply them. The resting values are the "none" preset with depth 0 and tint 0: every layer is invisible, today's pixels stay.
+      '--sw-m-depth': same('0'), // depth dial: 0 off, 1 normal, 1.8 strong (multiplies sheen, shade, rim, lift)
+      '--sw-m-tint': same('0'), // tint dial: 0 off, 1 soft, 1.8 strong (multiplies the wash; a tile sets --sw-m-on: 1 when its state carries a tone)
+      '--sw-m-sheen': same('0'), // alpha of the top-left white radial
+      '--sw-m-shade': same('0'), // alpha of the bottom-right dark radial
+      '--sw-m-rim': same('1'), // the 1 px bevel rim (inset top highlight, inner light edge, inner dark edge)
+      '--sw-m-lift': same('0.45'), // the outer drop shadow's alpha
+      '--sw-m-wash': same('28%'), // the state tone's share in the 135deg wash (before the tint multiplier and the contrast cap)
+      '--sw-m-wash-cap': same('50%'), // the highest wash share at which text still reads at 4.5:1 on every tone (design/contrast.ts, set on <html>)
+      '--sw-m-blur': same('16px'), // the glass pill's blur in the full tier (frosted 20, paper 0, neon 14); chrome keeps --sw-glass-blur-nav
+      '--sw-m-glow': same('0px'), // neon: the outer bloom's radius
+      '--sw-m-glowa': same('0'), // neon: the bloom's presence (0 / 1); a tile switches it off when its tone is a state colour
+      '--sw-m-grain': same('none'), // frosted: a 160 px fractal-noise SVG at ~5 % alpha
+      '--sw-m-border': same('transparent'), // paper: a faint ink outline (an inset 1 px ring)
     },
   },
 ];

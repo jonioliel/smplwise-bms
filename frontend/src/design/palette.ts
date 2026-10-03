@@ -503,6 +503,47 @@ export function washRows(s: PaletteScheme): Row[] {
   return rows;
 }
 
+// ---- MD1 material dials: the state wash of a tile (the design document's view of what design/contrast.ts enforces at runtime) ----
+
+/** The palette colours a tile may be washed with: the lit fill, the accent (= the hue rings, RING_MODE accent), the three state tones, the cool climate tone. */
+export const MATERIAL_WASH_TONES = ['slider.fill', 'accent', 'state.success', 'state.warning', 'state.danger', 'entity.climate'] as const;
+/** The soft wash (tint = normal) and the strong wash (28 % x 1.8, rounded) of the mockups, percent; the strongest the dials can ask for is 62 (neon x1.8). */
+export const MATERIAL_WASH = { soft: 28, strong: 50, max: 62 } as const;
+
+/** The wash cap of a palette scheme: the highest share (steps of 2, up to 62) from which every lower share keeps text and muted text at 4.5:1 over every tone on `surface` and `surfaceElevated`. */
+export function materialWashCap(s: PaletteScheme): number {
+  const bases = [col(s, 'surface'), col(s, 'surfaceElevated')];
+  const texts = [col(s, 'text'), col(s, 'textMuted')];
+  const tones = MATERIAL_WASH_TONES.map((p) => col(s, p));
+  const reads = (share: number) => bases.every((b) => tones.every((tn) => texts.every((t) => ratio(t, over([tn[0], tn[1], tn[2], share / 100], b)) >= TEXT_MIN)));
+  let cap = 0;
+  for (let share = 2; share <= MATERIAL_WASH.max; share += 2) {
+    if (reads(share)) cap = share;
+    else break;
+  }
+  return cap;
+}
+
+/** The contrast rows of the material wash as it is DRAWN: text and muted text on every tone at the soft and the strong share, each capped by `materialWashCap` (so the rows pass by construction; the cap itself is the finding). */
+export function materialWashRows(s: PaletteScheme): Row[] {
+  const cap = materialWashCap(s);
+  const rows: Row[] = [];
+  for (const [name, want] of [['soft', MATERIAL_WASH.soft], ['strong', MATERIAL_WASH.strong]] as const) {
+    const share = Math.min(want, cap);
+    for (const p of MATERIAL_WASH_TONES) {
+      const tn = col(s, p);
+      for (const base of ['surface', 'surfaceElevated'] as const) {
+        const b = over([tn[0], tn[1], tn[2], share / 100], col(s, base));
+        for (const t of ['text', 'textMuted'] as const) {
+          const r = ratio(col(s, t), b);
+          rows.push({ group: 'material', what: `${t} on ${p} wash ${name} ${share}% (cap ${cap}%) over ${base}`, fg: t, bg: `material.${name}.${p}.${base}`, ratio: Math.round(r * 100) / 100, min: TEXT_MIN, ok: r >= TEXT_MIN });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
 // ---- the editor's colour choices ----
 
 /** The colour paths of the key colours with recommended swatches: values the ten ready palettes use for it in that scheme (first the accent's). */

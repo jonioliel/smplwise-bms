@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test';
 import { TOKENS, TOKEN_GROUPS, TOKEN_NAMES } from '../src/design/tokens';
 import { SKINS, SKIN_IDS, SKIN_RULE_BUDGET, DEFAULT_SKIN } from '../src/design/skins';
 import { ruleCount, skinRules, skinTable, tokensCss } from '../src/design/css';
-import { DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, PERFORMANCE_BUNDLE, RADIUS_BUNDLE, normalizeDial, normalizeLook } from '../src/design/look';
-import { LITE_MIN_ALPHA, alphaFloor, liteAlpha, liteAlphaFloor, liteLayerModel, sheetModelOf, worstTextContrast } from '../src/design/contrast';
+import { DENSITY_BUNDLE, DEPTH_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, MATERIAL_BUNDLE, MATERIAL_SUGGESTED_TRANSPARENCY, PERFORMANCE_BUNDLE, RADIUS_BUNDLE, TINT_BUNDLE, materialMacro, normalizeDial, normalizeLook } from '../src/design/look';
+import { LITE_MIN_ALPHA, WASH_MAX, WASH_TONES, alphaFloor, liteAlpha, liteAlphaFloor, liteLayerModel, sheetModelOf, washCap, washModelOf, worstTextContrast, worstWashContrast } from '../src/design/contrast';
+import { MATERIAL_LAYERS, MATERIAL_RULE_BUDGET, MATERIAL_SHADOWS, MATERIAL_SKINS, materialRules } from '../src/styles/material';
+import { BUILTIN_PALETTES, paletteTokens } from '../src/design/palette';
 
 // Design foundation (2026-10-01): the token table and the skins. Node only: the table is data, the CSS is generated from it.
 
@@ -235,5 +237,127 @@ test('lite tier contrast: the un-blurred tinted fill reads at >= 4.5:1 for every
     const t = skinTable('bubble');
     const model = sheetModelOf((n) => t[n]?.[mode] ?? '')!;
     expect(liteAlpha(model), `bubble/${mode}`).toBeLessThanOrEqual(1);
+  }
+});
+
+// ---- MD1 material dials (owner 2026-10-03; mockups docs/design/compare/material-dials, built without the Chalk preset) ----
+test('material dials: depth 0|1|2, tint 0|1|2, material none|frosted|paper|neon (no chalk), all OFF by default; the bundles name tokens and the CSS carries them for bubble and domus', () => {
+  expect([...LOOK_DIALS.depth.values]).toEqual([0, 1, 2]);
+  expect([...LOOK_DIALS.tint.values]).toEqual([0, 1, 2]);
+  expect([...LOOK_DIALS.material.values]).toEqual(['none', 'frosted', 'paper', 'neon']);
+  expect((LOOK_DIALS.material.values as readonly string[]).includes('chalk')).toBe(false);
+  expect([LOOK_DEFAULT.depth, LOOK_DEFAULT.tint, LOOK_DEFAULT.material]).toEqual([0, 0, 'none']);
+  expect(LOOK_DIAL_IDS.slice(-3)).toEqual(['depth', 'tint', 'material']);
+  expect(normalizeDial('depth', 2)).toBe(2);
+  expect(normalizeDial('depth', '2')).toBeNull(); // a string level is refused, as the backend refuses it
+  expect(normalizeDial('tint', 3)).toBeNull();
+  expect(normalizeDial('material', 'chalk')).toBeNull();
+  expect(normalizeLook({ material: 'neon', depth: 2, tint: 1 })).toEqual({ depth: 2, tint: 1, material: 'neon' });
+  for (const [name, bundles] of [['material', MATERIAL_BUNDLE], ['depth', DEPTH_BUNDLE], ['tint', TINT_BUNDLE]] as const) {
+    for (const [value, decl] of Object.entries(bundles)) for (const token of Object.keys(decl)) expect(TOKENS[token], `${name}=${value}: ${token} is not a token`).toBeTruthy();
+  }
+  // every preset writes the same set of numbers (a preset never leaves a number of the previous preset behind)
+  const keys = Object.keys(MATERIAL_BUNDLE.none).sort();
+  for (const m of LOOK_DIALS.material.values) expect(Object.keys(MATERIAL_BUNDLE[m]).sort(), m).toEqual(keys);
+  // the resting tokens = the none preset at depth 0 / tint 0: every layer invisible (today's pixels)
+  expect(TOKENS['--sw-m-depth'].light).toBe('0');
+  expect(TOKENS['--sw-m-tint'].light).toBe('0');
+  for (const [k, v] of Object.entries(MATERIAL_BUNDLE.none)) expect(TOKENS[k].light, k).toBe(v);
+  expect(DEPTH_BUNDLE[2]['--sw-m-depth']).toBe('1.8');
+  expect(TINT_BUNDLE[2]['--sw-m-tint']).toBe('1.8');
+  // the mockups' numbers
+  expect(MATERIAL_BUNDLE.frosted['--sw-m-blur']).toBe('20px');
+  expect(MATERIAL_BUNDLE.frosted['--sw-m-grain']).toContain('feTurbulence');
+  expect(MATERIAL_BUNDLE.paper['--sw-m-blur']).toBe('0px');
+  expect(MATERIAL_BUNDLE.paper['--sw-m-rim']).toBe('0.5');
+  expect(MATERIAL_BUNDLE.neon['--sw-m-glow']).toBe('16px');
+  expect(MATERIAL_BUNDLE.neon['--sw-m-glowa']).toBe('1');
+  for (const m of ['none', 'frosted', 'paper'] as const) expect(MATERIAL_BUNDLE[m]['--sw-m-glowa'], m).toBe('0');
+  expect(MATERIAL_SUGGESTED_TRANSPARENCY).toEqual({ none: 72, frosted: 62, paper: 96, neon: 56 });
+  // the macro: a preset turns depth / tint on when they were off, keeps them when set, suggests the transparency; none only clears the preset
+  expect(materialMacro({ depth: 0, tint: 0 }, 'frosted')).toEqual({ material: 'frosted', depth: 1, tint: 1, transparency: 62 });
+  expect(materialMacro({ depth: 2, tint: 1 }, 'paper')).toEqual({ material: 'paper', depth: 2, tint: 1, transparency: 96 });
+  expect(materialMacro({ depth: 2, tint: 2 }, 'none')).toEqual({ material: 'none' });
+  const css = tokensCss();
+  for (const skin of MATERIAL_SKINS) {
+    expect(css).toContain(`:root[data-skin="${skin}"][data-bubble-material="frosted"],:root[data-skin="${skin}"] [data-bubble-material="frosted"]{--sw-m-sheen:0.07;`);
+    expect(css).toContain(`:root[data-skin="${skin}"][data-bubble-depth="2"],:root[data-skin="${skin}"] [data-bubble-depth="2"]{--sw-m-depth:1.8;}`);
+    expect(css).toContain(`:root[data-skin="${skin}"][data-bubble-tint="1"]`);
+  }
+  expect(css).not.toContain(':root[data-skin="classic"][data-bubble-material');
+  expect(css).not.toContain(':root[data-skin="tesla"][data-bubble-material');
+});
+
+test('material layer: one formula appended to the bubble and domus sheets inside its own budget; classic and tesla get none; the rules mitigate the neon reservation (no glow on state tones or in lists), keep lists un-washed and add no bare backdrop-filter', () => {
+  for (const id of SKIN_IDS) {
+    const m = materialRules(id);
+    if ((MATERIAL_SKINS as readonly string[]).includes(id)) {
+      expect(m.length, id).toBeGreaterThan(0);
+      expect(ruleCount(m), `${id} material rules`).toBeLessThanOrEqual(MATERIAL_RULE_BUDGET);
+      expect(skinRules(id).endsWith(m), `${id} sheet ends with the material layer`).toBe(true);
+      expect(ruleCount(SKINS[id].rules), `${id} skin rules keep their own budget`).toBeLessThanOrEqual(SKIN_RULE_BUDGET);
+      expect(m).toContain(MATERIAL_LAYERS);
+      expect(m).toContain(MATERIAL_SHADOWS);
+      // every backdrop-filter is wrapped in the performance switch (the lite tier never blurs a tile) or is none; none is bare
+      for (const line of m.split('\n')) {
+        const n = (line.match(/backdrop-filter:/g) ?? []).length;
+        const wrapped = (line.match(/backdrop-filter: (var\(--sw-perf-blur|none)/g) ?? []).length;
+        expect(wrapped, `bare backdrop-filter in: ${line.slice(0, 80)}`).toBe(n);
+      }
+    } else {
+      expect(m, id).toBe('');
+      expect(skinRules(id)).toBe(SKINS[id].rules);
+    }
+  }
+  const b = materialRules('bubble');
+  // the neon bloom: only around a tile whose tone is decorative (the hue ring, the area's hue) and never in a list; the KPI state tones carry no glow switch
+  expect(b).toMatch(/:host\(sw-pill\[on\]:not\(\[accent\]\):not\(\[data-density='row'\]\)\)[^{]*\{ --sw-m-glow-on: 1; --sw-m-glow-c: var\(--h, var\(--sw-accent\)\); \}/);
+  expect(b).not.toMatch(/sw-kpi[^\n]*--sw-m-glow-on/);
+  expect(MATERIAL_SHADOWS).toContain('var(--sw-m-glow-on, 0)'); // the bloom's alpha is 0 wherever the switch is not set
+  // the wash is capped by the computed contrast floor and multiplied by the tile's own --sw-m-on (0 unless its state carries a tone)
+  expect(b).toContain('--sw-m-w: min(calc(var(--sw-m-wash) * var(--sw-m-t)), var(--sw-m-wash-cap));');
+  expect(b).toContain('--sw-m-t: calc(var(--sw-m-tint) * var(--sw-m-on, 0));');
+  // lists: a side stripe scaled by the tint dial, never a washed row; the chrome never carries a tone
+  expect(b).toContain(":host(sw-pill[data-density='row'][on]:not([accent])) { border-inline-start: calc(6px * min(1, var(--sw-m-tint)))");
+  expect(b).toContain(":host(devices-building[data-skin='bubble']) .arow[data-on='true'] { border-inline-start:");
+  expect(b).toMatch(/nav\.tree, :host\(sw-app\) nav\.rail\.rail \{[^}]*--sw-m-on: 0;/);
+  // the gradient surface takes no wash (two colours on one tile fight)
+  expect(b).toMatch(/sw-pill\[data-surface='gradient'\][^{]*\{[^}]*--sw-m-on: 0;[^}]*box-shadow/);
+  // the domus layer keeps the skin's own sheen and shadows under the material
+  const d = materialRules('domus');
+  expect(d).toContain(`${MATERIAL_LAYERS}, var(--sw-glass-sheen)`);
+  expect(d).toContain('var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight), ' + MATERIAL_SHADOWS);
+});
+
+test('material wash cap: for every skin x scheme and every ready palette x scheme the computed cap keeps text and muted text at >= 4.5:1 on every tone washed at the cap and below, is tight, and leaves the soft wash (28 %) usable on every ready palette', () => {
+  const caps: string[] = [];
+  const check = (label: string, v: (n: string) => string) => {
+    const m = washModelOf(v);
+    expect(m, `${label} wash model`).toBeTruthy();
+    expect(m!.tones.length, `${label} tones`).toBe(WASH_TONES.length);
+    const cap = washCap(m!);
+    caps.push(`${label}: ${cap}%`);
+    expect(cap % 2).toBe(0);
+    expect(cap).toBeLessThanOrEqual(WASH_MAX);
+    for (let s = 2; s <= cap; s += 2) expect(worstWashContrast(m!, s), `${label} wash ${s}%`).toBeGreaterThanOrEqual(4.5);
+    if (cap < WASH_MAX) expect(worstWashContrast(m!, cap + 2), `${label} above the cap`).toBeLessThan(4.5);
+    return cap;
+  };
+  for (const id of SKIN_IDS) {
+    const t = skinTable(id);
+    for (const mode of ['light', 'dark'] as const) {
+      const cap = check(`${id}/${mode}`, (n) => t[n]?.[mode] ?? '');
+      // the skins that draw the material keep a usable wash (the resting bubble dark surface is the tightest: light text over a dark surface loses contrast fastest under a bright tone)
+      if ((MATERIAL_SKINS as readonly string[]).includes(id)) expect(cap, `${id}/${mode} cap ${cap}%`).toBeGreaterThanOrEqual(14);
+    }
+  }
+  const bubble = skinTable('bubble');
+  for (const p of BUILTIN_PALETTES) {
+    for (const mode of ['light', 'dark'] as const) {
+      const pt = paletteTokens(p, mode);
+      const cap = check(`${p.id}/${mode}`, (n) => pt[n] ?? bubble[n]?.[mode] ?? '');
+      // the soft wash of every preset (18-28 % at tint = normal; neon's 34 % is capped) is never silently dead on a ready palette
+      expect(cap, `${p.id}/${mode} cap ${cap}% (${caps.join(', ')})`).toBeGreaterThanOrEqual(28);
+    }
   }
 });

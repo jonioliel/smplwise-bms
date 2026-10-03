@@ -2604,7 +2604,7 @@ export class DevicesBuilding extends LitElement {
       data-area=${a.area_id}
       data-on=${String(on)}
       data-counts=${pills.map((p) => `${p.key}:${p.on === null ? p.total : `${p.on}/${p.total}`}`).join(' ')}
-      style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})` : nothing}
+      style=${bubble && !unassigned ? `--h:var(--sw-hue-${hueOf(a.area_id)})${on ? ';--sw-m-tone:var(--sw-lit);--sw-m-on:1' : ''}` : nothing}
       aria-label=${`${a.name} · ${c.entities} התקנים`}
     >
       <div class="tile-head">
