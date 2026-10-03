@@ -581,6 +581,7 @@ test.describe('skins x schemes', () => {
         await open(page, '/system/setup', `&skin=${skin}&scheme=${scheme}`);
         const form = page.locator(FORM);
         await expect(form.locator('[data-conn-summary]')).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('system-setup sw-button[slot="actions"]')).toContainText('רענון', { timeout: 20000 }); // the page's own loading is over (its button text changes while it loads)
         const findings: Finding[] = [];
         const check = async (label: string) => {
           await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
