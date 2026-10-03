@@ -235,9 +235,7 @@ test.describe('phase 2b: the full queue in the player panel', () => {
     await page.waitForTimeout(500);
     await expect(rows).toHaveCount(n - 2);
     const after = await names(page);
-    expect(after).not.toContain(before[3]);
-    expect(after).not.toContain(before[6]);
-    expect(after).toContain(before[5]);
+    expect(after).toEqual(before.filter((_, i) => i !== 3 && i !== 6)); // rows 3 and 6 went, 5 (ticked then unticked) stayed; the titles repeat, so compare the order
     await expect(q(page, 'media-queue-list [data-qx-select]')).toBeVisible(); // back to the normal header
   });
 
