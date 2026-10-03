@@ -14,6 +14,8 @@ import {
 import { groupScenes, hiddenScenes, isIntegrationScene, sceneLine } from './automations-logic';
 import type { DrawerResult } from './automation-drawer';
 import type { SceneCapture } from '../components/scene-capture';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
  * CR-017 `<scenes-panel .items .status .now .sceneId>`: the scenes of the installation (CR §4.3, owner decision 7א). The grid is grouped by area with
@@ -25,6 +27,8 @@ import type { SceneCapture } from '../components/scene-capture';
  */
 @customElement('scenes-panel')
 export class ScenesPanel extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) items: Item[] = [];
   /** The scenes an administrator hid (not part of the filtered list): shown on demand under "מוסתרות". */
   @property({ attribute: false }) hiddenItems: Item[] = [];
@@ -48,7 +52,7 @@ export class ScenesPanel extends LitElement {
   @query('scene-capture') private capture?: SceneCapture;
   private loadedId = '__none__';
 
-  static styles = [...automationsStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, css`
     :host {
       display: block;
     }

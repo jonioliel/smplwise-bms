@@ -217,8 +217,8 @@ export class DevicesAreaNav extends LitElement {
 
   /** 0.1.153: the areas of the floor in their dropdown form are drawn by the shell, beside the page chip of the home area (shell/tab-pair.ts). */
   protected updated() {
-    if (this.phone && this.areas.length > 1 && this.asDropdown()) {
-      publishPairChip(this, { label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
+    if (this.areaChipInShell()) {
+      publishPairChip(this, { group: 'home', label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
     } else clearPairChip(this);
   }
 
@@ -329,6 +329,13 @@ export class DevicesAreaNav extends LitElement {
     </span>`;
   }
 
+  /** 0.1.157: in the dropdown form the areas of the floor are ONE selectable dropdown chip in the shell's pair row on EVERY width (before:
+   * phone only). On a wide screen it replaces the breadcrumb's area crumb; the floor crumb stays, and so does the floors / areas tree
+   * of the devices screen (its per-floor collapse is not touched by this row). */
+  private areaChipInShell(): boolean {
+    return this.areas.length > 1 && this.asDropdown();
+  }
+
   /** `dropdown`: always; `hybrid`: only a list longer than three areas (a short one stays chips); `tabs`: never. */
   private asDropdown(): boolean {
     const mode = this.tabsMode.value;
@@ -341,9 +348,9 @@ export class DevicesAreaNav extends LitElement {
     return html`<nav aria-label="ניווט: קומה ואזור">
         <a class="crumb" data-crumb="home" href="#/devices/building" @click=${(e: Event) => { e.preventDefault(); navigate('/devices/building'); }}>${this.phone ? html`<sw-icon name="home" size=${16}></sw-icon>` : nothing}<span>חשמל והתקנים</span></a>
         ${sep}${this.trigger('floor', floor, this.phone)}
-        ${this.phone ? nothing : html`${sep}${this.trigger('area', this.areaName, true)}`}
+        ${this.phone || this.areaChipInShell() ? nothing : html`${sep}${this.trigger('area', this.areaName, true)}`}
       </nav>
-      ${this.phone && this.areas.length > 1 && this.asDropdown()
+      ${this.areaChipInShell()
         ? html`<span data-areas-in-shell></span>`
         : this.phone && this.areas.length > 1
         ? html`<div class="areas" role="navigation" aria-label="אזורים בקומה">${this.areas.map(

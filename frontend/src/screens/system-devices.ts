@@ -20,6 +20,8 @@ import { isApi } from '../api/session';
 import { listCameras, registerCamera, syncCameras, updateCamera } from '../api/maps';
 import { describeError, get } from '../api/client';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 interface Row {
   id: string;
@@ -41,6 +43,8 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
 /** SC27 — camera health (board 2 screen 12): registry from the backend (read-only NVR sync) or demo rows. */
 @customElement('system-devices')
 export class SystemDevices extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private selected: string | null = null;
   @state() private filter: 'all' | 'online' | 'offline' | 'issues' = 'all';
   /** Owner 2026-09-29: from the Live overview's cameras tile - every camera, the offline ones first. */
@@ -57,7 +61,7 @@ export class SystemDevices extends LitElement {
   @state() private formAlias = '';
   @state() private alias = '';
 
-  static styles = css`
+  static styles = [css`
     .filters {
       display: flex;
       gap: 6px;
@@ -158,7 +162,7 @@ export class SystemDevices extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

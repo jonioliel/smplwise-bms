@@ -17,6 +17,7 @@ import { getSettings, listSessions, listStreams, patchSettings, syncStreams, typ
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
 import { navigate, parseRoute } from '../router';
+import { TabsModeController } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
@@ -44,6 +45,8 @@ import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
 import { inAndroidApp, switchServer } from '../arx/android-app';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -78,6 +81,10 @@ const TABS = [
 /** SC28 — system settings (board 3 screen 23): underline tabs, label / control rows; the media tab is live against the backend. */
 @customElement('system-diagnostics')
 export class SystemDiagnostics extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
+  /** 0.1.157: the settings sub-tabs (11) follow the tabs mode and the dropdown style of the settings group like every other tab row. */
+  private tabsMode = new TabsModeController(this, 'settings');
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
@@ -114,7 +121,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreConfirm = '';
   @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
-  static styles = css`
+  static styles = [css`
     code {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
       font-size: var(--sw-fs-xs);
@@ -428,7 +435,7 @@ export class SystemDiagnostics extends LitElement {
         inline-size: auto;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1295,7 +1302,7 @@ export class SystemDiagnostics extends LitElement {
   render() {
     return html`
       <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
-        <sw-tabs underline .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
+        <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}

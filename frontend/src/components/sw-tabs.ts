@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
+import type { DdStyle } from './sw-dropdown';
 
 export interface TabItem {
   id: string;
@@ -41,6 +42,8 @@ export class SwTabs extends LitElement {
   @property({ type: Boolean, reflect: true }) block = false;
   /** The accessible name of the dropdown (the group's name). */
   @property({ attribute: 'group-label' }) groupLabel = '';
+  /** Dropdown only (0.1.157): the look of the dropdown (sw-dropdown `dd-style`); `auto` = today's look. */
+  @property({ attribute: 'dd-style' }) ddStyle: DdStyle = 'auto';
 
   static styles = css`
     :host {
@@ -343,7 +346,7 @@ export class SwTabs extends LitElement {
 
   render() {
     if (this.mode === 'dropdown') {
-      return html`<sw-dropdown ?block=${this.block} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
     return html`<div class="row">${this.items.map((it) =>

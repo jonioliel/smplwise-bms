@@ -80,11 +80,16 @@ test.describe('the home areas chip row (devices-area-nav, phone)', () => {
     await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true }); // the group override wins over the global tabs
   });
 
-  test('a screen wider than the phone keeps the chips whatever the mode', async ({ page }) => {
+  test('a screen wider than the phone: the dropdown form is the same chip in the shell (0.1.157, no phone-only gate); tabs keep the breadcrumb', async ({ page }) => {
     await stage(page, 1000);
     await setMode(page, 'dropdown', {});
     await mountNav(page, 5);
-    expect((await state(page)).dropdown).toBe(false);
+    expect((await state(page)).dropdown).toBe(true);
+    // the breadcrumb's area crumb is replaced by that chip (never dropped without one); the floor crumb stays
+    expect(await page.locator('#nav').evaluate((el) => ({ floor: !!el.shadowRoot!.querySelector('[data-crumb=floor]'), area: !!el.shadowRoot!.querySelector('[data-crumb=area]') }))).toEqual({ floor: true, area: false });
+    await setMode(page, 'tabs', {});
+    await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: false });
+    expect(await page.locator('#nav').evaluate((el) => !!el.shadowRoot!.querySelector('[data-crumb=area]'))).toBe(true);
   });
 });
 

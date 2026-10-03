@@ -8,6 +8,8 @@ import { bidi } from '../i18n/bidi';
 import { cardChips, confirmLine, floorLine, areaLine, runLine } from './automations-logic';
 import { mapAutomationError, runNeedsConfirm, runScriptNow, stopScriptNow, type AutomationsStatus, type Item } from '../api/automations';
 import type { DrawerResult } from './automation-drawer';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
  * CR-017 `<scripts-panel .items .status .now>`: the script runner (CR §4.4). A big "הפעל" button per script; a script that has fields opens its sheet
@@ -17,6 +19,8 @@ import type { DrawerResult } from './automation-drawer';
  */
 @customElement('scripts-panel')
 export class ScriptsPanel extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) items: Item[] = [];
   @property({ attribute: false }) status: AutomationsStatus | null = null;
   @property({ attribute: false }) now: Date = new Date();
@@ -27,7 +31,7 @@ export class ScriptsPanel extends LitElement {
   @state() private busy = new Set<string>();
   @state() private confirm: Item | null = null;
 
-  static styles = [...automationsStyles, css`
+  static styles = [bubbleChrome, ...automationsStyles, css`
     :host {
       display: block;
     }

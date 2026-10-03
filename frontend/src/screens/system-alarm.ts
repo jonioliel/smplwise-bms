@@ -25,6 +25,8 @@ import { ApiError, describeError } from '../api/client';
 import { noteAlarmPanels } from '../api/alarm-presence';
 import { invalidateSettings } from '../api/prefs';
 import { isApi, session } from '../api/session';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const STRATEGY: Record<string, string> = {
   device: 'אותו device',
@@ -109,6 +111,8 @@ const shared = css`
  * technical names are shown here on purpose (docs/design/UI_COPY_RULES.md). */
 @customElement('system-alarm-settings')
 export class SystemAlarmSettings extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property({ type: Boolean }) canEdit = false;
   @state() private cfg: AlarmConfig | null = null;
   @state() private error = '';
@@ -117,6 +121,7 @@ export class SystemAlarmSettings extends LitElement {
   @state() private codeDraft: Record<string, string> = {};
 
   static styles = [
+    bubbleChrome,
     shared,
     css`
       .panels {
@@ -287,6 +292,8 @@ export class SystemAlarmSettings extends LitElement {
  * the PIN itself is never shown). system.configure; everything audited server-side without the value. */
 @customElement('system-alarm-user')
 export class SystemAlarmUser extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() userId = '';
   @property({ type: Boolean }) canEdit = false;
   @state() private pol: UserAlarmPolicy | null = null;
@@ -297,7 +304,7 @@ export class SystemAlarmUser extends LitElement {
   /** Security review M3: administrators change their OWN policy / PIN only with their current PIN. */
   @state() private current = '';
 
-  static styles = [shared];
+  static styles = [bubbleChrome, shared];
 
   private get self(): boolean {
     return session.me?.user.id === this.userId;

@@ -24,6 +24,8 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { playerPlan, remoteVideo, remoteVideoFor } from '../api/video-policy';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
  * SC08 — live camera view (board 1 screen 5). With a backend: real stream through the relay
@@ -32,6 +34,8 @@ import type { Camera } from '../api/types';
  */
 @customElement('live-camera')
 export class LiveCamera extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @property() cameraId = 'cam-1';
   @state() private cam: Camera | null = null;
   /** T075: the NVR's detection configuration for this camera (read-only), drawn over the snapshot. */
@@ -420,7 +424,7 @@ export class LiveCamera extends LitElement {
   @state() private ptzMode: 'presets' | 'track' | 'patrol' = 'presets';
   @query('sw-live-player') private player?: SwLivePlayer;
 
-  static styles = css`
+  static styles = [css`
     /* the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
        CSP (style-src-elem 'self', CR-008 P2) refuses inline style elements; static styles are constructed stylesheets */
     .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
@@ -748,7 +752,7 @@ export class LiveCamera extends LitElement {
     .acc-content {
       padding: 0 2px 12px;
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

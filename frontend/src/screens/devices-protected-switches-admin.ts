@@ -11,6 +11,8 @@ import {
   CONFIRM, NO_FILTERS, STATUS_TEXT, actionIds, apiAction, applyFilters, chunks, confirmQuestion, countsLine, filtersActive, rangeIds, readOnly, resultLine, statusOf, suggestedIds,
   type Filters, type ProtectAction, type ProtectedCategory, type ProtectedSummary, type ProtectedSwitchRow, type StatusFilter,
 } from './protected-switches-logic';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PAGE = 100;
 
@@ -32,6 +34,8 @@ interface ListReply {
  */
 @customElement('devices-protected-switches')
 export class DevicesProtectedSwitches extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private rows: ProtectedSwitchRow[] | null = null;
   @state() private summary: ProtectedSummary | null = null;
   @state() private categories: ProtectedCategory[] = [];
@@ -44,7 +48,7 @@ export class DevicesProtectedSwitches extends LitElement {
   @state() private result = '';
   private last: string | null = null;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -175,7 +179,7 @@ export class DevicesProtectedSwitches extends LitElement {
         z-index: 1;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

@@ -297,7 +297,7 @@ async function openShell(page: Page, hash: string, scheme: 'light' | 'dark' = 'l
 }
 
 test.describe('the shell at 390 px (demo mode)', () => {
-  test('mode helper: tabs by default, the user overrides the installation, a group overrides the global value, a wide screen is always tabs', async ({ page }) => {
+  test('mode helper: tabs by default, the user overrides the installation, a group overrides the global value, a wide screen follows the same mode (0.1.157)', async ({ page }) => {
     await page.goto('./');
     await page.waitForSelector('sw-app');
     const r = await page.evaluate(async (url) => {
@@ -322,7 +322,7 @@ test.describe('the shell at 390 px (demo mode)', () => {
     expect(r.ownWins).toEqual(['tabs', 'tabs']);
     expect(r.ownGroup).toEqual(['tabs', 'dropdown']);
     expect(r.followed).toEqual(['hybrid', 'dropdown']);
-    expect(r.wide).toBe('tabs');
+    expect(r.wide).toBe('dropdown');
     expect(r.bogus).toBe('tabs');
   });
 

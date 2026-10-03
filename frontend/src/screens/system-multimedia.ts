@@ -17,6 +17,8 @@ import {
   CONFIDENCE_LABEL, CONTROL_LABEL, KIND_LABEL, PROFILE_LABEL, ROLE_LABEL, mediaAdmin,
   type AdminDevice, type AdminDevicePatch, type AdminList,
 } from '../api/media-admin';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -41,6 +43,8 @@ const EXTRA_KEYS: { id: KeyId; label: string }[] = [
  */
 @customElement('system-multimedia')
 export class SystemMultimedia extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private phase: 'loading' | 'ready' | 'forbidden' | 'error' = 'loading';
   @state() private list: AdminList = { devices: [], suggestions: [] };
   @state() private status: MediaStatus | null = null;
@@ -53,7 +57,7 @@ export class SystemMultimedia extends LitElement {
   @state() private open = new Set<string>();
   private noteTimer = 0;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -240,7 +244,7 @@ export class SystemMultimedia extends LitElement {
         inline-size: 100%;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

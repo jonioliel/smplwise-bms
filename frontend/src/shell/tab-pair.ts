@@ -6,8 +6,11 @@
  * A screen publishes in its dropdown form only (shell/tabs-mode.ts) and clears it when it leaves.
  */
 import type { DropdownItem } from '../components/sw-dropdown';
+import type { TabGroup } from './tabs-mode';
 
 export interface PairChip {
+  /** The tab group the chip belongs to (the shell takes the dropdown style of this group, 0.1.157). */
+  group: TabGroup;
   /** The accessible name of the chip (the list's name: "חדרים"). */
   label: string;
   items: DropdownItem[];

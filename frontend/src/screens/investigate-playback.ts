@@ -29,6 +29,8 @@ import { createExport, estimateExport, formatBytes, type ExportEstimate, type Ex
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
 import type { Camera } from '../api/types';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
@@ -57,6 +59,8 @@ function p95Abs(values: number[]): number {
 
 @customElement('investigate-playback')
 export class InvestigatePlayback extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   /** Route params (#/investigate/playback?camera=<id>&t=<utc iso>) */
   @property() cameraId = '';
   @property() at = '';
@@ -122,7 +126,7 @@ export class InvestigatePlayback extends LitElement {
   private ticker: number | undefined;
   private stopDisplay?: () => void;
 
-  static styles = css`
+  static styles = [css`
     .pick {
       display: flex;
       align-items: center;
@@ -482,7 +486,7 @@ export class InvestigatePlayback extends LitElement {
         flex: none;
       }
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();

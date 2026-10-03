@@ -17,6 +17,8 @@ import {
   DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
   sameLook, setInstallationLook, tierOf, type Look, type LookDial, type PartialLook,
 } from '../design/look';
+import { SkinController } from '../design/skin';
+import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Target = 'own' | 'installation';
 
@@ -30,6 +32,8 @@ type Target = 'own' | 'installation';
  */
 @customElement('system-look')
 export class SystemLook extends LitElement {
+  /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
+  readonly bubbleSkin = new SkinController(this);
   @state() private target: Target = 'own';
   /** The installation draft (every dial) and the own draft (only overridden dials). */
   @state() private draftInst: Look = installationLook();
@@ -41,7 +45,7 @@ export class SystemLook extends LitElement {
   @state() private skin = currentSkin();
   private stops: (() => void)[] = [];
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
     }
@@ -288,7 +292,7 @@ export class SystemLook extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
-  `;
+  `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
