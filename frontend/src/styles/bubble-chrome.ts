@@ -136,6 +136,11 @@ export const bubbleChrome = css`
     min-block-size: var(--sw-touch-desktop, 44px);
     min-inline-size: var(--sw-touch-desktop, 44px);
   }
+  /* the navigation-size card's mini previews (a fixed-width phone bar) never push a 320 px page sideways */
+  :host([data-skin='bubble']) .stage > div {
+    max-inline-size: 100%;
+    overflow: hidden;
+  }
   /* the settings hub's tile preview: two 170 px columns are wider than a 320 px phone */
   :host([data-skin='bubble']) .tile-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
