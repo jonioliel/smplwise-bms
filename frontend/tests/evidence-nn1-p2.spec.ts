@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMBOS, installInstallationMock, type Combo, type HaState } from './nn1-p2-mocks';
+import { inPageCheck, type Finding } from './layout-guard';
 
 // NN1 P2 (docs/architecture/CAPABILITIES.md section 4): the shell reacts to the installation's capabilities. Mocked backend
 // (tests/nn1-p2-mocks.ts), no device, no NVR, no media server, no Home Assistant. Four installations:
@@ -304,6 +305,29 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       expect(r.status, `${combo}: the player says so`).toBe('error');
     }
     expect((await sockets('D')).n, 'D: sockets').toBeGreaterThan(0);
+  });
+
+  test('layout guard on the new states (bubble skin, four widths, light and dark): panels, the unsupported notice, the health notice', async ({ page }) => {
+    test.setTimeout(5 * 60_000);
+    const found: Finding[] = [];
+    const states: [Combo, string, string][] = [['A', '/live/wall', PANEL], ['C', '/live/wall', PANEL], ['C', '/system/wizard', 'system-wizard [data-wizard-unsupported]'], ['C', '/system/diagnostics?tab=health', 'system-diagnostics [data-health-unsupported]']];
+    for (const [combo, hash, sel] of states) {
+      await installInstallationMock(page, combo);
+      for (const theme of ['light', 'dark']) {
+        for (const w of [320, 390, 800, 1440]) {
+          await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
+          await open(page, hash, `&skin=bubble&scheme=${theme}`);
+          await expect(page.locator(sel).first()).toBeVisible({ timeout: 20_000 });
+          await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+          found.push(...(await page.evaluate(inPageCheck, { ctx: `${combo} ${hash} ${theme} ${w}`, roots: ['main'] })));
+        }
+      }
+      await page.unroute('**/api/v1/**');
+    }
+    // the shell's own known items are the guard's concern elsewhere (layout-bubble-screens); here only findings inside what this phase added
+    const mine = found.filter((f) => /state-panel|wizard-unsupported|health-unsupported|\.problem|\.hcard/.test(`${f.el} ${f.ctx} ${f.detail}`) || f.cls === 'overflow');
+    if (found.length) console.log(`layout guard findings (${found.length}): ${JSON.stringify(found.slice(0, 30))}`);
+    expect(mine.map((f) => `${f.cls} ${f.ctx} ${f.el} ${f.detail}`), `${found.length} findings in total`).toEqual([]);
   });
 
   for (const skin of ['classic', 'domus', 'tesla', 'bubble']) {
