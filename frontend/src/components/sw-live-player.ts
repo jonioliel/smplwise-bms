@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
-import { can } from '../api/session';
+import { can, cap, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
@@ -474,6 +474,11 @@ export class SwLivePlayer extends LitElement {
   /** Public: open the stream. `preferMse` is set internally after a WebRTC failure in auto mode. */
   connect(preferMse = false) {
     if ((!this.cameraId && !this.wsUrl && !this.livePath) || !this.active) return;
+    // NN1: no socket without a live source and a media server; the screens are hidden then, this is the last line for a stray tile
+    if (isApi() && !cap('live_video')) {
+      this.fail('וידאו חי אינו זמין', false);
+      return;
+    }
     if (this.laddered && !this.currentStep) {
       this.planExhausted();
       return;

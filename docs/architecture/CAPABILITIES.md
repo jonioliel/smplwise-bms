@@ -1,8 +1,7 @@
 # Installation capabilities (NN1 P0 contract + P1 backend)
 
-Status: P1 (backend) implemented on `pilot/nn1-p1-capabilities`. P2 (frontend gating) is not started: it waits for CR-021
-S3/S4 to merge (shared shell files `nav.ts`, `sw-app.ts`). Plan: `private/nn1/PLAN.md` (not in Git). Predecessor:
-`docs/operations/NVR_LESS_MODE.md` (the binary mode this generalises; still valid).
+Status: P1 (backend) implemented on `pilot/nn1-p1-capabilities`; P2 (frontend shell) implemented on `pilot/nn1-p2-shell` (section 4a). Plan: `private/nn1/PLAN.md` (not in Git).
+Predecessor: `docs/operations/NVR_LESS_MODE.md` (the binary mode this generalises; still valid).
 
 ## 1. Owner decisions (2026-10-03, binding)
 
@@ -87,9 +86,9 @@ capabilities). Never a 5xx for a missing capability.
 
 WebSockets keep their close codes (`4503` without go2rtc).
 
-## 4. Screen contract for P2 (not built yet)
+## 4. Screen contract for P2
 
-The frontend will read `capabilities` from `/me` through one helper and replace `NVR_LESS` / `isNvrHref` with one table
+The frontend reads `capabilities` from `/me` into the session store (`session.capabilities`, `cap(name)`) and replaced `NVR_LESS` / `isNvrHref` with one table
 `href -> required capability`. Hide when an area has no meaningful content; never an operator-screen empty state that
 tells the user to configure something (the "how to add it" text lives in Settings › connections only).
 
@@ -106,6 +105,35 @@ tells the user to configure something (the "how to add it" text lives in Setting
 | Settings › connections | always | NVR card neutral without `nvr`; go2rtc card says "required" in installation C. |
 | Alarm, automations, notifications, multimedia, schedules, backup | always | P0 audit: no direct NVR or go2rtc call (section 5). |
 | Demo / preview (no backend) | all true | As `NVR_LESS = false` today. |
+
+## 4a. P2 as built (`pilot/nn1-p2-shell`)
+
+Code: `frontend/src/api/capabilities.ts` (type, `resolveCapabilities`, fallbacks), `frontend/src/shell/nav-capabilities.ts` (the one table
+`route -> needs`, `needs` = a capability or `supported`), `session.capabilities` / `cap()` / `installationSupported()` in `api/session.ts`.
+Without a backend (demo) everything is on; a backend that sends no block is read through `mode` (`ha_only` = no NVR).
+
+| Route | Needs | A | B | C | D |
+|---|---|---|---|---|---|
+| Live overview, all cameras, saved views, kiosk wall | `nvr`, `supported` | panel "no NVR" | panel "no NVR" | panel "needs a media server" | screen |
+| Camera page | `nvr` | panel | panel | screen (the player opens no socket without `live_video`) | screen |
+| Events, reviews, rules, search, cases, exports, event detail | `events_recorder` | panel | panel | screen | screen |
+| Playback, synchronised playback, historical map | `playback` | panel | panel | panel "needs a media server" | screen |
+| Camera health, camera settings (CR-020) | `nvr` | panel | panel | screen | screen |
+| Everything else (alarm, automations, notifications, media, schedules, backup, map, settings) | none | screen | screen | screen | screen |
+
+Navigation (rail, tab rows, phone bar, start screen) uses the same table: a page the installation cannot serve is not offered, a section with
+no page left disappears, and the security area opens on its first remaining page. Other consumers: camera picker and camera card (leftover NVR
+rows are not offered / drawn without an NVR, D5; HA live only with `ha_cameras_live`), plan editor (camera tool, layer and anchors), floor map (as
+before), live player, WisKey station stills (`go2rtc`), notification matrix (recorder sources hidden without an NVR), wizard (unsupported
+notice, never ready), health tab (unsupported notice), connections page (go2rtc "required" in C).
+
+Deliberate limits: the storage tab stays (it hosts the local disk guard; its NVR parts were already hidden by the NVR-less mode); installation B
+with a WisKey / HA live source has no sources list yet (design question, still open); the "no NVR" panel keeps its earlier wording, which tells the
+operator how to add an NVR (an existing spec asserts it) - NN4 moves that text when the connection moves into Arx settings; a recorder whose
+adapter lacks events would show the "no NVR" panel for the event screens (single vendor today).
+
+Evidence: `docs/design/evidence/nn1-p2/` (fake data only), specs `tests/unit-capabilities.spec.ts`, `tests/evidence-nn1-p2.spec.ts`
+(mock layer `tests/nn1-p2-mocks.ts`: four installations x HA connected / down / not configured).
 
 ## 5. P0 audit (2026-10-03, code-level)
 
@@ -125,7 +153,7 @@ shell is P2 work; it belongs to the P2 evidence.
 
 ## 6. Not built / later
 
-- P2 frontend gating (waits for CR-021 S3/S4).
+- P2 leftovers: see section 4a.
 - HA events in the event centre (D3: future option only).
 - Intercom snapshot 503 → 409 (small follow-up; needs a change to an existing intercom test).
 - Multi-recorder (`recorders[]` with more than one entry), recorder credentials and vendor adapters: P4-P6, migrations 0052+.
