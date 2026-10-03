@@ -63,7 +63,7 @@ test.describe('bubble lists and chrome', () => {
       // the phone's copy of the sections (the sticky row of 0.1.1xx) is static in bubble: nothing floats over the rows
       const row = app(page, 'nav[data-security-row]');
       await expect(row).toBeVisible();
-      expect(await row.evaluate((el) => getComputedStyle(el).position)).toBe('static');
+      expect(await row.evaluate((el) => getComputedStyle(el).position)).toBe('relative');
       await openChrome(page, events, 'light', '', 'classic');
       expect(await app(page, 'nav[data-security-row]').evaluate((el) => getComputedStyle(el).position)).toBe('sticky');
       return;

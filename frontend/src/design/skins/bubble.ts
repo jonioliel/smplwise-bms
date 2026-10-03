@@ -161,7 +161,7 @@ const rules = `
 :host(sw-app) nav.sections.sections { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); padding: 3px; }
 :host(sw-app) nav.sections.sections a { border-radius: var(--sw-r-pill); min-block-size: calc(var(--sw-touch-desktop) - 6px); }
 :host(sw-app) nav.sections.sections a.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-2); }
-:host(sw-app) nav.secrow.secrow, :host(sw-app) nav.sectabs.phone.phone { position: static; background: transparent; border: 0; }
+:host(sw-app) nav.secrow.secrow, :host(sw-app) nav.sectabs.phone.phone { position: relative; inset: auto; z-index: auto; background: transparent; border: 0; }
 :host(sw-app) nav.secrow.secrow::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
 :host(sw-app) nav.secrow.secrow a .pill { border-radius: var(--sw-r-pill); }
 :host(sw-app) nav.secrow.secrow a.on .pill { background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }

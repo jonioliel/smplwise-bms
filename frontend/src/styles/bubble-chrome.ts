@@ -83,6 +83,14 @@ export const bubbleChrome = css`
     background: var(--sw-surface-2);
     box-shadow: none;
   }
+  /* a pressed chip keeps a filled state (shape + text, never a colour alone: the pressed one is also the solid one) */
+  :host([data-skin='bubble']) .chips button[aria-pressed='true'],
+  :host([data-skin='bubble']) .colbtn.on,
+  :host([data-skin='bubble']) .rc[aria-pressed='true'],
+  :host([data-skin='bubble']) .dc[aria-pressed='true'] {
+    background: var(--sw-accent);
+    color: var(--sw-text-inverse);
+  }
   :host([data-skin='bubble']) .chips button,
   :host([data-skin='bubble']) .colbtn,
   :host([data-skin='bubble']) .rc,

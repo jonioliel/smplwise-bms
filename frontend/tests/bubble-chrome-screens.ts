@@ -27,9 +27,10 @@ export const CHROME_SCREENS: ChromeScreen[] = [
   { id: 'automations', hash: '/devices/automations', outer: 'devices-automations', group: 'automations' },
   { id: 'settings', hash: '/system/diagnostics', outer: 'system-diagnostics', group: 'settings' },
   { id: 'access', hash: '/system/access', outer: 'system-access', group: 'settings' },
-  { id: 'look', hash: '/system/look', outer: 'system-look', group: 'settings' },
+  { id: 'settings-tabs', hash: '/system/diagnostics?tab=tabs', outer: 'system-diagnostics', group: 'settings' },
+  { id: 'settings-devices', hash: '/system/diagnostics?tab=devices', outer: 'system-diagnostics', group: 'settings' },
   { id: 'notifications', hash: '/system/notifications', outer: 'system-notifications', group: 'settings' },
-  { id: 'tabs', hash: '/system/tabs', outer: 'system-tabs', group: 'settings' },
+  { id: 'automations-settings', hash: '/system/automations', outer: 'system-automations', group: 'settings' },
 ];
 
 const LOOK_URL = '/src/design/look.ts';
