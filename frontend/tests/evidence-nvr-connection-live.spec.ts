@@ -151,7 +151,7 @@ test.describe('NVR connection against the fixture backend (fake NVR)', () => {
     // remove: the typed word gates the button
     await form.locator('[data-conn-remove]').first().click();
     const dlg = form.locator('[data-conn-remove-dialog]');
-    await expect(dlg.locator('[data-conn-remove-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-conn-remove-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-conn-remove-word]').fill('הסר');
     await dlg.locator('[data-conn-remove-confirm]').click();
     await expect(form.locator('[data-conn-msg]')).toHaveText('ה־NVR הוסר', { timeout: 30000 });
