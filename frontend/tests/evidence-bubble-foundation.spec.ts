@@ -272,15 +272,15 @@ test.describe('bubble foundation', () => {
     await open(page, '/system/diagnostics', '&scheme=light');
     const card = lookCard(page);
     await expect(card).toBeVisible();
-    await expect(card.locator('[data-look-row]')).toHaveCount(8); // 0.1.155: nine dials minus the personal palette (the palette is an installation-wide choice)
+    await expect(card.locator('[data-look-row]')).toHaveCount(11); // 0.1.155: nine dials minus the personal palette (an installation-wide choice); MD1 adds material, depth, tint
     await expect(card.locator('[data-look-target="own"]')).toHaveAttribute('aria-pressed', 'true');
-    for (const d of ['density', 'surface', 'popup', 'radius', 'touch', 'performance', 'transparency', 'scale']) await expect(card.locator(`[data-look-follow="${d}"]`)).toHaveAttribute('aria-pressed', 'true');
+    for (const d of ['density', 'surface', 'popup', 'radius', 'touch', 'performance', 'transparency', 'scale', 'material', 'depth', 'tint']) await expect(card.locator(`[data-look-follow="${d}"]`)).toHaveAttribute('aria-pressed', 'true');
     await card.locator('[data-look-option="density:row"]').click();
     await expect(card.locator('[data-look-message]')).toBeVisible();
     expect(await attr(page, 'data-bubble-density')).toBe('row'); // applied at once, nothing to save
     await card.locator('[data-look-option="touch:32"]').click();
     expect(await rootVar(page, '--sw-touch-desktop')).toBe('32px');
-    await expect(card.locator('[data-look-preview]')).toHaveAttribute('data-look-preview', /^row\/fill\/sheet\/pill\/72\/100\/32$/);
+    await expect(card.locator('[data-look-preview]')).toHaveAttribute('data-look-preview', /^row\/fill\/sheet\/pill\/72\/100\/32\/none\/0\/0$/); // MD1: material / depth / tint follow (off)
     await page.evaluate(() => sessionStorage.setItem('look-keep', '1')); // the init script above clears the stores on every load unless told to keep them
     await page.reload();
     await page.waitForSelector('sw-app');
@@ -321,7 +321,7 @@ test.describe('bubble foundation', () => {
 
 // ---- the mocked backend: what the card sends ----
 const ALL = ['video.live', 'map.read', 'entity.state.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure'];
-const INST = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default' };
+const INST = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default', depth: 0, tint: 0, material: 'none' };
 
 class Mock {
   admin = true;

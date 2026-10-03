@@ -14,8 +14,8 @@
 import { ReactiveElement } from 'lit';
 import { DEFAULT_SKIN, SKIN_IDS, SKINS, isSkinId, type SkinId } from './skins';
 import { skinRules, skinTable, tokensCss } from './css';
-import { alphaFloor, liteAlpha, sheetModelOf } from './contrast';
-import { bootLook, onLook, setAlphaFloor, setLiteAlpha } from './look';
+import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
+import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
 import { activePaletteTokens, bootPalettes, onPalettes, syncPalette } from './palette';
 
 export type Scheme = 'light' | 'dark' | 'auto';
@@ -114,6 +114,9 @@ function apply() {
   // a palette also carries its own minimum glass opacity (high-contrast: 88 %); the computed floor never goes below it
   setAlphaFloor(Math.max(model ? alphaFloor(model) : 1, palette ? palette.schemes[theme].glass.opacity.min : 0));
   setLiteAlpha(model ? liteAlpha(model) : 1); // the lite tier's tinted layers (no blur) keep the same 4.5:1 guard
+  // MD1: the state wash of the tint dial never goes past the share at which text stops reading on a washed tile (per skin x palette x scheme)
+  const wash = washModelOf((n) => pt?.[n] ?? t[n]?.[theme] ?? '');
+  setWashCap(wash ? washCap(wash) : 0);
   listeners.forEach((fn) => fn());
 }
 

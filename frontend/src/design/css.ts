@@ -14,6 +14,7 @@
 import { TOKENS, type TokenTable } from './tokens';
 import { SKINS, SKIN_IDS, type SkinId } from './skins';
 import { lookBundlesCss } from './look';
+import { materialRules } from '../styles/material';
 
 const decls = (t: TokenTable, mode: 'light' | 'dark', onlyDiffering = false): string =>
   Object.entries(t)
@@ -58,9 +59,9 @@ export function skinTable(id: SkinId): TokenTable {
   return { ...TOKENS, ...SKINS[id].tokens };
 }
 
-/** A skin's component rules (the sheet adopted into every shadow root); empty for classic. */
+/** A skin's component rules (the sheet adopted into every shadow root) plus the material layer of the glass-capable skins (MD1, styles/material.ts); empty for classic. */
 export function skinRules(id: SkinId): string {
-  return SKINS[id].rules;
+  return SKINS[id].rules + materialRules(id);
 }
 
 /** Number of rule blocks in a CSS string (the 50-rule budget of a skin counts `{ }` blocks, nested at-rules included). */

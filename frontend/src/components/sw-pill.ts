@@ -502,6 +502,14 @@ export class SwPill extends LitElement {
     else this.style.removeProperty('--fill-c');
     if (this.hue >= 1 && this.hue <= 8) this.style.setProperty('--h', `var(--sw-hue-${this.hue})`);
     else this.style.removeProperty('--h');
+    // MD1 (styles/material.ts): the tone of the state for the tint dial - the fill colour while on (the list stripe reads it always);
+    // the wash itself (--sw-m-on) only on the glass surface: on fill / flat the state already is the fill, on gradient two colours would fight
+    const toned = this.on && !this.accent && !this.unavailable;
+    const surface = this.surface || this.look.of('surface');
+    if (toned) this.style.setProperty('--sw-m-tone', this.fillColor || 'var(--sw-lit)');
+    else this.style.removeProperty('--sw-m-tone');
+    if (toned && surface === 'glass') this.style.setProperty('--sw-m-on', '1');
+    else this.style.removeProperty('--sw-m-on');
   }
 }
 

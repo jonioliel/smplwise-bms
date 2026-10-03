@@ -364,3 +364,46 @@ as chosen; `auto` is resolved on the device by `performance.ts`.
 Cache key: **`sw.ui.performance`** in `localStorage`, value `{ tier, sig, at }`; `sig` = `cores/memoryGb/devicePixelRatio` (a different
 device class invalidates it), valid for 30 days (and not dated in the future). Storage that is unavailable only means the verdict lasts
 for the page view. Thresholds live in `PERF_THRESHOLDS`; they are engineering values, not design values.
+
+## 8. Material layer (added 2026-10-03, MD1 phase 2, branch `pilot/material-dials-build`)
+
+Built from the approved mockups `docs/design/compare/material-dials` (owner decision: everything except the Chalk preset). One
+formula (`frontend/src/styles/material.ts`) appended to the sheets of the glass-capable skins (bubble, domus); the numbers are tokens,
+the dials `material` / `depth` / `tint` of `ui.look` write and multiply them. Defaults OFF: every layer transparent, every shadow at alpha
+0, the 0.1.156 pixels unchanged. Hebrew detail and the preset table: `docs/design/SKIN_AUTHORING_HE.md` §6ב.
+
+### 8.1 Tokens (`design/tokens.ts`, bubble group; resting value = the `none` preset at depth 0 / tint 0)
+
+| Token | Resting | Written by | Meaning |
+|---|---|---|---|
+| `--sw-m-depth` | `0` | depth dial (`0` / `1` / `1.8`) | multiplies sheen, shade, rim, lift |
+| `--sw-m-tint` | `0` | tint dial (`0` / `1` / `1.8`) | multiplies the wash (x the tile's own `--sw-m-on`) |
+| `--sw-m-sheen` / `--sw-m-shade` | `0` / `0` | preset | alpha of the top-left white / bottom-right dark radial |
+| `--sw-m-rim` | `1` | preset | the 1 px bevel (inset top highlight .22, inner light edge .5, inner dark edge .12, each x rim x depth) |
+| `--sw-m-lift` | `0.45` | preset | alpha of the outer drop shadow `0 10px 30px -16px` |
+| `--sw-m-wash` | `28%` | preset | the tone's share at the start of the 135deg wash |
+| `--sw-m-wash-cap` | `50%` | `applyLook()` (computed, `design/contrast.ts washCap`) | the highest share at which text and muted text keep 4.5:1 on every tone over the surface; the wash is `min(wash x tint, cap)` |
+| `--sw-m-blur` | `16px` | preset | the glass pill's full-tier blur radius (frosted 20, paper 0, neon 14); never applied in lite |
+| `--sw-m-glow` / `--sw-m-glowa` | `0px` / `0` | preset (neon 16px / 1) | the bloom's radius / presence |
+| `--sw-m-grain` | `none` | preset (frosted: an SVG data URI) | 160 px fractal noise at ~5 % alpha |
+| `--sw-m-border` | `transparent` | preset (paper: text at 10 %) | an inset 1 px ink ring |
+
+Per element, not tokens: `--sw-m-tone` (the tile's state tone), `--sw-m-on` (1 when the state carries a tone, else unset), `--sw-m-glow-on`
+and `--sw-m-glow-c` (set by the material rules only for decorative tones: never a state colour, never in a list).
+
+### 8.2 Attributes and the dial
+
+`<html data-bubble-material="none|frosted|paper|neon" data-bubble-depth="0|1|2" data-bubble-tint="0|1|2">`, written by `applyLook()`;
+a settings preview box carries the same attributes and the numbers inline (`lookAttributes`). The bundles are emitted for
+`:root[data-skin="bubble"]` and `:root[data-skin="domus"]` (`lookBundlesCss`). `ui.look.depth`, `ui.look.tint`, `ui.look.material`: part of
+the `ui.look` value (installation default, every dial present; personal partial override in `/me/prefs`); validated by `services/look.py`
+(`0 | 1 | 2`, `none | frosted | paper | neon`; unknown values 422). A preset chosen in the settings card is a macro (`materialMacro`): it
+also writes depth 1 and tint 1 when they were off and the suggested transparency (frosted 62, paper 96, neon 56); the stored value is
+the preset's name only.
+
+### 8.3 Rules for designers
+
+- Add a material host by adding its selector to `styles/material.ts` (bubble or domus list), never by writing the layers by hand.
+- A new tile with a state tone sets `--sw-m-tone` and `--sw-m-on: 1` for the toned states only; the word and the dot stay.
+- Lists take the tone in the side stripe, tables nothing; the chrome takes the rim and the lift only.
+- No bare `backdrop-filter` (§7); the material never adds one.
