@@ -1,5 +1,51 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.158 (pilot) — Camera stream editing (SVC switch) from Arx; material, depth and state-tint dials; installation capabilities
+**After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). **One database migration, `0050_nvr_stream_changes`**, runs on start: the NVR change log gains per-stream columns, and custom roles lose the removed `nvr.config.stream` permission (one audit row per stripped role). The new look dials are stored inside the existing `ui.look` value (no migration; an older value reads the defaults). Reload the installed web app once.
+### Camera streams: switch SVC and edit the encoding of one stream (CR-020 S2) - מערכת › אבטחה › מצלמות
+- A holder of the new system permission **`nvr.configure`** (built-in system administrator only; it can never be put in a custom role) sees, per stream on the cameras table, an **SVC switch** and a **pencil** that opens an editor drawer for the stream's encoding (codec, resolution, FPS, bitrate, GOP and the other fields the recorder offers). Everyone else keeps the read-only table.
+- Every write asks for **one confirmation**, is checked against the recorder's own capability options and an etag of the stream's current state, and is recorded before and after the device call; after it succeeds an **undo toast** offers to put the previous values back (the same guards apply). An unknown outcome (timeout, device error) stays pending and is settled from a device read, never retried blindly.
+- A stream whose capability document cannot be read is **not writable**, with the reason on the row; nothing is sent. Below 900 px the table turns into cards for holders of `nvr.configure`.
+- The old `nvr.config.stream` permission is removed (owner decision 2026-10-03); its stream rights live in `nvr.configure`.
+### Material, depth and state tint - הגדרות › כללי › מראה (MD1 phase 2)
+- Three new dials on the look card for the **Bubble** and **Domus** looks: **material** (Frosted / Paper / Neon), **depth** (0-2) and **state tint** (0-2). Tiles, cards, KPI tiles, home area tiles and rows, the tree, rail, dock and security strip take a sheen, a 1 px glass rim, a lift and, when something is on, a wash of its state colour; lists show the tone as a 6 px side stripe only.
+- **Off by default**: with material none, depth 0 and tint 0 nothing changes on screen. Choosing a preset also turns depth and tint on (if they were off) and sets its suggested transparency; the dials stay free afterwards. Installation default and personal override, like every look dial.
+- Text stays readable: the wash is capped per look, palette and scheme so text keeps 4.5:1; the Neon glow never surrounds a state colour (alarm, open door, offline) and never appears in a list; no new blur. Classic and Tesla are unchanged.
+### Installation capabilities (NN1 P0-P1)
+- The server now derives what this installation can do (NVR, go2rtc, the home infrastructure, live video, playback, events, infrastructure cameras) and reports it on `/me`, `/health` and the setup wizard. An NVR without go2rtc is reported as an **unsupported installation** with an operator-worded explanation in the wizard and in health; the wizard is not "ready" until the installation is supported.
+- Media and playback routes that need a missing capability answer **409 `capability_unavailable`** after the permission check (they answered 503 `media_not_configured` before).
+### Fixes and under the hood
+- Security review fixes of the stream write (M1, M2, L1-L6): stream change records are visible only to `nvr.configure` holders whose camera scope holds the camera; an unknown device outcome is settled no sooner than 45 s later; the stream PUT has a read timeout; capability reads are cached (10 min positive, 60 s negative); an unauthorised caller gets 403 before any device call; a project + access restore drops unknown and system permissions from custom roles.
+- The per-camera capability tests (T045) kept their file; the installation capability tests live in their own file.
+### How to turn it on and use it (English)
+1. No restart is needed; reload the installed web app once. The migration runs by itself.
+2. Stream editing: sign in as a system administrator (only that role has `nvr.configure`), open מערכת › אבטחה › מצלמות, use the SVC switch or the pencil on a stream, confirm, and use the undo toast if needed. Turn SVC off on main streams that should play over WebRTC.
+3. Material dials: הגדרות › כללי › מראה, pick the Bubble or Domus look, then a material preset (Frosted / Paper / Neon) or set depth and state tint by hand; for the whole installation or just for yourself. To try without saving: `?look=material:frosted,depth:1,tint:1`.
+4. Installation capabilities: nothing to enable; the wizard and the health page show the result. An installation with an NVR but no go2rtc must add go2rtc to be supported.
+### Known limits
+- Stream editing writes one stream at a time; multi-camera apply is a later slice. It was tested against the fake NVR only; the first real recorder write is done by the lead with the owner's approval.
+- The material layer applies to the Bubble and Domus looks only; the screens that use capabilities to adapt their layout are the next NN1 phase.
+
+## עברית — 0.1.158: עריכת זרמי מצלמה (מתג SVC) מתוך Arx; חוגות חומר, עומק וגוון מצב; יכולות ההתקנה
+**אחרי העדכון אין צורך להפעיל מחדש את התשתית** (הגשר נשאר 0.6.0). **מיגרציה אחת, `0050_nvr_stream_changes`**, רצה בעלייה: יומן השינויים של ה-NVR מקבל עמודות לכל זרם, ותפקידים מותאמים מאבדים את ההרשאה שהוסרה `nvr.config.stream` (שורת ביקורת אחת לכל תפקיד). חוגות המראה החדשות נשמרות בתוך הערך הקיים `ui.look` (בלי מיגרציה; ערך ישן נקרא כברירת המחדל). יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת.
+### זרמי מצלמה: מתג SVC ועריכת הקידוד של זרם אחד (CR-020 S2) - מערכת › אבטחה › מצלמות
+- מי שמחזיק בהרשאת המערכת החדשה **`nvr.configure`** (מנהל המערכת המובנה בלבד; אי אפשר לשים אותה בתפקיד מותאם) רואה בטבלת המצלמות, לכל זרם, **מתג SVC** ו**עיפרון** שפותח מגירת עריכה לקידוד הזרם (קודק, רזולוציה, FPS, קצב, GOP ושאר השדות שהמקליט מציע). כל השאר ממשיכים לראות טבלה לקריאה בלבד.
+- כל כתיבה מבקשת **אישור אחד**, נבדקת מול אפשרויות היכולת של המקליט עצמו ומול חותמת המצב הנוכחי של הזרם, ונרשמת לפני הקריאה להתקן ואחריה; אחרי הצלחה **הודעת "בטל"** מאפשרת להחזיר את הערכים הקודמים (באותן הגנות). תוצאה לא ידועה (פסק זמן, שגיאת התקן) נשארת ממתינה ומוכרעת מקריאה מההתקן, בלי ניסיון חוזר עיוור.
+- זרם שאי אפשר לקרוא את מסמך היכולות שלו **אינו ניתן לעריכה**, והסיבה מוצגת בשורה; שום דבר לא נשלח. מתחת ל-900 פיקסלים הטבלה הופכת לכרטיסים עבור מחזיקי `nvr.configure`.
+- ההרשאה הישנה `nvr.config.stream` הוסרה (החלטת הבעלים 2026-10-03); זכויות הזרם עברו ל-`nvr.configure`.
+### חומר, עומק וגוון מצב - הגדרות › כללי › מראה (MD1 שלב 2)
+- שלוש חוגות חדשות בכרטיס המראה, למראות **בועה** ו**Domus**: **חומר** (Frosted / Paper / Neon), **עומק** (0-2) ו**גוון מצב** (0-2). אריחים, כרטיסים, אריחי מדדים, אריחי ושורות האזורים בבית, העץ, הסרגל, ה-dock ורצועת האבטחה מקבלים ברק, שפת זכוכית של פיקסל, הרמה, וכשמשהו דולק - שטיפה בצבע המצב שלו; ברשימות הגוון מופיע רק כפס צד של 6 פיקסלים.
+- **כבוי כברירת מחדל**: עם חומר none, עומק 0 וגוון 0 שום דבר לא משתנה במסך. בחירת קדם-הגדרה מדליקה גם עומק וגוון (אם היו כבויים) וקובעת את האטימות המוצעת; אחר כך החוגות חופשיות. ברירת מחדל להתקנה ודריסה אישית, כמו כל חוגת מראה.
+- הטקסט נשאר קריא: השטיפה מוגבלת לכל מראה, פלטה וסכמה כך שהטקסט שומר על 4.5:1; זוהר ה-Neon לעולם לא מקיף צבע מצב (אזעקה, דלת פתוחה, מנותק) ולעולם לא מופיע ברשימה; אין טשטוש חדש. Classic ו-Tesla ללא שינוי.
+### יכולות ההתקנה (NN1 שלבים P0-P1)
+- השרת מחשב עכשיו מה ההתקנה הזו יודעת לעשות (NVR, go2rtc, תשתית המערכת, וידאו חי, הקלטות, אירועים, מצלמות התשתית) ומדווח על כך ב-`/me`, ב-`/health` ובאשף ההתקנה. NVR בלי go2rtc מדווח כ**התקנה שאינה נתמכת**, עם הסבר בשפת מפעיל באשף ובמסך התקינות; האשף אינו "מוכן" עד שההתקנה נתמכת.
+- נתיבי מדיה והקלטות שחסרה להם יכולת עונים **409 `capability_unavailable`** אחרי בדיקת ההרשאה (קודם ענו 503 `media_not_configured`).
+### תיקונים
+- תיקוני סקירת האבטחה של כתיבת הזרם (M1, M2, L1-L6): רשומות שינוי זרם גלויות רק למחזיקי `nvr.configure` שהיקף המצלמות שלהם כולל את המצלמה; תוצאה לא ידועה מוכרעת לא לפני 45 שניות; לבקשת הכתיבה יש פסק זמן קריאה; קריאות היכולות נשמרות במטמון (10 דקות חיובי, 60 שניות שלילי); מבקש לא מורשה מקבל 403 לפני כל קריאה להתקן; שחזור פרויקט + הרשאות מסיר מתפקידים מותאמים הרשאות לא מוכרות והרשאות מערכת.
+- בדיקות היכולות לכל מצלמה (T045) נשארו בקובץ שלהן; בדיקות יכולות ההתקנה בקובץ נפרד.
+- **איך מפעילים:** אין צורך בהפעלה מחדש; המיגרציה רצה לבד. עריכת זרמים: נכנסים כמנהל מערכת (רק לו יש `nvr.configure`), מערכת › אבטחה › מצלמות, מתג SVC או עיפרון בזרם, מאשרים, ו"בטל" בהודעה אם צריך; מומלץ לכבות SVC בזרמים הראשיים שצריכים לנגן ב-WebRTC. חוגות החומר: הגדרות › כללי › מראה, בוחרים מראה בועה או Domus, ואז קדם-הגדרת חומר או עומק וגוון ידנית, לכל ההתקנה או לעצמי (לניסיון בלי שמירה: `?look=material:frosted,depth:1,tint:1`). יכולות ההתקנה: אין מה להפעיל; האשף ומסך התקינות מציגים את התוצאה, והתקנה עם NVR בלי go2rtc צריכה להוסיף go2rtc.
+- **מגבלות:** עריכה של זרם אחד בכל פעם (החלה על כמה מצלמות - שלב מאוחר יותר); נבדק מול NVR מדומה בלבד, והכתיבה האמיתית הראשונה תיעשה על ידי המוביל באישור הבעלים. שכבת החומר במראות בועה ו-Domus בלבד; התאמת המסכים לפי היכולות היא השלב הבא של NN1.
+
 ## 0.1.157 (pilot) — Six dropdown styles, per tab group; the Bubble look on 48 more screens
 **After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration; the new settings `ui.dd_style` and `ui.dd_style_groups` (and the same two keys in the personal preferences) are created on first save. Reload the installed web app once.
 ### Dropdown menus: six styles, on every screen width - הגדרות › לשוניות › "סגנון תפריט נפתח"
