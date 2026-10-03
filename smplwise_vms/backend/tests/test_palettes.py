@@ -237,7 +237,7 @@ def test_an_old_personal_palette_value_stays_in_storage_and_is_ignored(settings)
     assert c.put("/api/v1/me/prefs", headers=h, json={"ui.look": {"density": "compact"}}).json()["prefs"]["ui.look"] == {"density": "compact"}
     with app.state.db.connection() as conn:
         raw = [json.loads(r[0]) for r in conn.execute("SELECT value_json FROM user_prefs WHERE key = 'ui.look'").fetchall()]
-    assert raw == [{"density": "card", "palette": "forest"}]  # nothing deleted
+    assert raw == [{"density": "compact", "palette": "forest"}]  # nothing deleted
 
 
 def test_anyone_holding_system_configure_sets_the_installation_palette(settings):
