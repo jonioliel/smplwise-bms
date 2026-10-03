@@ -1,0 +1,540 @@
+{
+  "format": "smplwise-arx/wiskey-trusted-caller/golden-vectors",
+  "format_version": 1,
+  "protocol": "wiskey-trusted-door-v1",
+  "generated_by": "smplwise_vms/backend/tests/test_wiskey_golden_vectors.py (from the existing Arx signers; do not edit by hand)",
+  "test_hmac_key": {
+    "value": "TEST-ONLY-golden-vectors-key-NOT-A-REAL-SECRET",
+    "encoding": "UTF-8 bytes of the string are the HMAC key",
+    "warning": "TEST CONSTANT ONLY. Publicly known. Never use as, or derive, a pairing secret."
+  },
+  "recipe": {
+    "canonical": "json.dumps(body, sort_keys=True, separators=(',', ':'), ensure_ascii=False) -> UTF-8 bytes",
+    "body_sha256": "lower-case hex SHA-256 of the canonical UTF-8 bytes",
+    "hmac_input": "ASCII string f'{ts}.{nonce}.{body_sha256}' (ts = decimal epoch seconds)",
+    "hmac_sha256": "lower-case hex HMAC-SHA256(key=UTF-8(test_hmac_key.value), msg=UTF-8(hmac_input))",
+    "wire": "the signed body plus ts, nonce and sig as top-level fields; the verifier removes ts, nonce and sig before hashing",
+    "envelope_mapping": "envelope.nonce is the signing nonce (in hmac_input, NOT in the hashed body); ts = epoch seconds of issued_at"
+  },
+  "generic_ts": 1791028800,
+  "generic_nonce": "00000000000000000000000000000000",
+  "vectors": [
+    {
+      "id": "key_order_ascii",
+      "expect": "accept",
+      "description": "Keys arrive out of order; output is sorted. ASCII code-point order: digits < upper case < '_' < lower case; a prefix sorts first.",
+      "input_json": "{\"b\":1,\"a\":1,\"B\":1,\"_\":1,\"1\":1,\"aa\":1,\"a_\":1,\"A\":1}",
+      "canonical_utf8": "{\"1\":1,\"A\":1,\"B\":1,\"_\":1,\"a\":1,\"a_\":1,\"aa\":1,\"b\":1}",
+      "canonical_hex": "7b2231223a312c2241223a312c2242223a312c225f223a312c2261223a312c22615f223a312c226161223a312c2262223a317d",
+      "body_sha256": "94323e9087b9a1522f908230c865a3c57e49484694b3f3836f166be6fb5fcf75",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.94323e9087b9a1522f908230c865a3c57e49484694b3f3836f166be6fb5fcf75",
+      "hmac_sha256": "6976e39d4080292d05078228db03920587c113af1446dff9c06227d3d5208fa5",
+      "jcs_utf8": "{\"1\":1,\"A\":1,\"B\":1,\"_\":1,\"a\":1,\"a_\":1,\"aa\":1,\"b\":1}",
+      "jcs_equal": true
+    },
+    {
+      "id": "nested_objects",
+      "expect": "accept",
+      "description": "Every nested object is sorted too; arrays keep their order (arrays of objects included).",
+      "input_json": "{\"z\":{\"y\":{\"x\":1,\"w\":[{\"b\":2,\"a\":1},{\"d\":4,\"c\":3}]},\"a\":[3,1,2]},\"m\":{}}",
+      "canonical_utf8": "{\"m\":{},\"z\":{\"a\":[3,1,2],\"y\":{\"w\":[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4}],\"x\":1}}}",
+      "canonical_hex": "7b226d223a7b7d2c227a223a7b2261223a5b332c312c325d2c2279223a7b2277223a5b7b2261223a312c2262223a327d2c7b2263223a332c2264223a347d5d2c2278223a317d7d7d",
+      "body_sha256": "874584a443f0ca5f1f97757c3cfab8146b03380ae232d9c31a2eab4a3ac49348",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.874584a443f0ca5f1f97757c3cfab8146b03380ae232d9c31a2eab4a3ac49348",
+      "hmac_sha256": "9ef8469a56825194b5d5b6b98f15c1a7933e48194cd2220c0bde734165f5a40b",
+      "jcs_utf8": "{\"m\":{},\"z\":{\"a\":[3,1,2],\"y\":{\"w\":[{\"a\":1,\"b\":2},{\"c\":3,\"d\":4}],\"x\":1}}}",
+      "jcs_equal": true
+    },
+    {
+      "id": "hebrew_values_and_keys",
+      "expect": "accept",
+      "description": "Hebrew in values and keys is emitted as raw UTF-8 (no \\u escapes); Hebrew keys sort after ASCII by code point.",
+      "input_json": "{\"\\u05e9\\u05dd\":\"\\u05d3\\u05dc\\u05ea \\u05e8\\u05d0\\u05e9\\u05d9\\u05ea\",\"name\":\"\\u05d3\\u05dc\\u05ea\",\"\\u05d0\":1}",
+      "canonical_utf8": "{\"name\":\"דלת\",\"א\":1,\"שם\":\"דלת ראשית\"}",
+      "canonical_hex": "7b226e616d65223a22d793d79cd7aa222c22d790223a312c22d7a9d79d223a22d793d79cd7aa20d7a8d790d7a9d799d7aa227d",
+      "body_sha256": "7fb63b4ca5d190de773925f4ffe2347993cdd2a4f3f7ea3a34c7a69d03ce29f2",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.7fb63b4ca5d190de773925f4ffe2347993cdd2a4f3f7ea3a34c7a69d03ce29f2",
+      "hmac_sha256": "351e536c07f4adff5b4b50522f337ac700bee7e1f656085c2073b3f008ede5cb",
+      "jcs_utf8": "{\"name\":\"דלת\",\"א\":1,\"שם\":\"דלת ראשית\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "non_ascii_mixed",
+      "expect": "accept",
+      "description": "Arabic, CJK, accented Latin, a non-BMP emoji (U+1F6AA DOOR) and an RTL mark, all raw UTF-8.",
+      "input_json": "{\"ar\":\"\\u0628\\u0627\\u0628\",\"cjk\":\"\\u95e8\",\"latin\":\"Caf\\u00e9\",\"emoji\":\"\\ud83d\\udeaa\",\"rlm\":\"a\\u200fb\"}",
+      "canonical_utf8": "{\"ar\":\"باب\",\"cjk\":\"门\",\"emoji\":\"🚪\",\"latin\":\"Café\",\"rlm\":\"a‏b\"}",
+      "canonical_hex": "7b226172223a22d8a8d8a7d8a8222c22636a6b223a22e997a8222c22656d6f6a69223a22f09f9aaa222c226c6174696e223a22436166c3a9222c22726c6d223a2261e2808f62227d",
+      "body_sha256": "bb5f3e893c4806460286e19de9054421d4329165e6d70ec448195e362e88a7d2",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.bb5f3e893c4806460286e19de9054421d4329165e6d70ec448195e362e88a7d2",
+      "hmac_sha256": "61b093c1e1ff862aae8c56c02b29525cf52cfd6c71b824cd268f4605a5bc0440",
+      "jcs_utf8": "{\"ar\":\"باب\",\"cjk\":\"门\",\"emoji\":\"🚪\",\"latin\":\"Café\",\"rlm\":\"a‏b\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "unicode_no_normalization_nfc",
+      "expect": "accept",
+      "description": "U+00E9 precomposed: no Unicode normalization is applied (compare with the NFD case).",
+      "input_json": "{\"s\":\"\\u00e9\"}",
+      "canonical_utf8": "{\"s\":\"é\"}",
+      "canonical_hex": "7b2273223a22c3a9227d",
+      "body_sha256": "86028b41ba792eaf82aa26a45b218f6734f7f1096a86f1746c8296e088a0ccb4",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.86028b41ba792eaf82aa26a45b218f6734f7f1096a86f1746c8296e088a0ccb4",
+      "hmac_sha256": "8d6d4d51f160e350de77178c56ad295a15a7527fcf1dc3163fa6ccc170ffece4",
+      "jcs_utf8": "{\"s\":\"é\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "unicode_no_normalization_nfd",
+      "expect": "accept",
+      "description": "e + U+0301 combining: a different byte string and a different hash from the NFC case.",
+      "input_json": "{\"s\":\"e\\u0301\"}",
+      "canonical_utf8": "{\"s\":\"é\"}",
+      "canonical_hex": "7b2273223a2265cc81227d",
+      "body_sha256": "1fc0bd7cc93fca8092a2041d7d01842876422aa7e2838acf42c14578e9f2be05",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.1fc0bd7cc93fca8092a2041d7d01842876422aa7e2838acf42c14578e9f2be05",
+      "hmac_sha256": "7f7e839bf5f8eade7b0ba676dbdb3f7223574f262e32ec64f4b2c77dbd891405",
+      "jcs_utf8": "{\"s\":\"é\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "escape_sequences",
+      "expect": "accept",
+      "description": "Escapes: quote, backslash, \\b \\f \\n \\r \\t short forms, other C0 controls as lower-case \\u00XX; '/', DEL, U+2028/U+2029 stay raw.",
+      "input_json": "{\"q\":\"\\\"\",\"bs\":\"\\\\\",\"ctl\":\"\\b\\f\\n\\r\\t\",\"nul\":\"\\u0000\",\"us\":\"\\u001f\",\"slash\":\"\\/\",\"del\":\"\\u007f\",\"ls\":\"\\u2028\\u2029\"}",
+      "canonical_utf8": "{\"bs\":\"\\\\\",\"ctl\":\"\\b\\f\\n\\r\\t\",\"del\":\"\",\"ls\":\"  \",\"nul\":\"\\u0000\",\"q\":\"\\\"\",\"slash\":\"/\",\"us\":\"\\u001f\"}",
+      "canonical_hex": "7b226273223a225c5c222c2263746c223a225c625c665c6e5c725c74222c2264656c223a227f222c226c73223a22e280a8e280a9222c226e756c223a225c7530303030222c2271223a225c22222c22736c617368223a222f222c227573223a225c7530303166227d",
+      "body_sha256": "05350bc6474a1dd64586d6dd02711eb09feca07f35d1410be36dfaf1c83f810a",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.05350bc6474a1dd64586d6dd02711eb09feca07f35d1410be36dfaf1c83f810a",
+      "hmac_sha256": "1f6dd2da580ffcf05801c0a218e75ca37e17b1617446f83911a10dfa7100299b",
+      "jcs_utf8": "{\"bs\":\"\\\\\",\"ctl\":\"\\b\\f\\n\\r\\t\",\"del\":\"\",\"ls\":\"  \",\"nul\":\"\\u0000\",\"q\":\"\\\"\",\"slash\":\"/\",\"us\":\"\\u001f\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "integers_boundaries",
+      "expect": "accept",
+      "description": "Integers 0, negative, and both ends of the safe range (+/-(2^53-1)) are emitted as plain decimal.",
+      "input_json": "{\"zero\":0,\"neg\":-1,\"min_safe\":-9007199254740991,\"max_safe\":9007199254740991,\"one\":1}",
+      "canonical_utf8": "{\"max_safe\":9007199254740991,\"min_safe\":-9007199254740991,\"neg\":-1,\"one\":1,\"zero\":0}",
+      "canonical_hex": "7b226d61785f73616665223a393030373139393235343734303939312c226d696e5f73616665223a2d393030373139393235343734303939312c226e6567223a2d312c226f6e65223a312c227a65726f223a307d",
+      "body_sha256": "adf6d293ada6c5dd0e1bcd6ab9962ee3cf73f1cf868662a1f27fd26421727b8c",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.adf6d293ada6c5dd0e1bcd6ab9962ee3cf73f1cf868662a1f27fd26421727b8c",
+      "hmac_sha256": "6a834c51a7f5af3e998e55e262f5ff65b7c3900dd1822e870dfde43025badf39",
+      "jcs_utf8": "{\"max_safe\":9007199254740991,\"min_safe\":-9007199254740991,\"neg\":-1,\"one\":1,\"zero\":0}",
+      "jcs_equal": true
+    },
+    {
+      "id": "booleans_null",
+      "expect": "accept",
+      "description": "true/false/null as literals, in objects and arrays.",
+      "input_json": "{\"t\":true,\"f\":false,\"n\":null,\"arr\":[true,false,null]}",
+      "canonical_utf8": "{\"arr\":[true,false,null],\"f\":false,\"n\":null,\"t\":true}",
+      "canonical_hex": "7b22617272223a5b747275652c66616c73652c6e756c6c5d2c2266223a66616c73652c226e223a6e756c6c2c2274223a747275657d",
+      "body_sha256": "e663733a1258b354b27c33555c7e393f51caa498f77f2aa6918623e2487d806f",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.e663733a1258b354b27c33555c7e393f51caa498f77f2aa6918623e2487d806f",
+      "hmac_sha256": "d47ed6c10497c4040307b24d280637236d88649f0e35c190cf83441c005ae5cd",
+      "jcs_utf8": "{\"arr\":[true,false,null],\"f\":false,\"n\":null,\"t\":true}",
+      "jcs_equal": true
+    },
+    {
+      "id": "empty_containers",
+      "expect": "accept",
+      "description": "Empty object (empty params), empty array and empty string.",
+      "input_json": "{\"params\":{},\"list\":[],\"s\":\"\"}",
+      "canonical_utf8": "{\"list\":[],\"params\":{},\"s\":\"\"}",
+      "canonical_hex": "7b226c697374223a5b5d2c22706172616d73223a7b7d2c2273223a22227d",
+      "body_sha256": "a08ce0dbb6811163a312819af7714824b703419d0b6c9a60e0f14a46986e10aa",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.a08ce0dbb6811163a312819af7714824b703419d0b6c9a60e0f14a46986e10aa",
+      "hmac_sha256": "fb9bcc60a2fa02e6072902297ec1de147a1dd9afd312464b29cca5d04f60958f",
+      "jcs_utf8": "{\"list\":[],\"params\":{},\"s\":\"\"}",
+      "jcs_equal": true
+    },
+    {
+      "id": "empty_body",
+      "expect": "accept",
+      "description": "The empty object.",
+      "input_json": "{}",
+      "canonical_utf8": "{}",
+      "canonical_hex": "7b7d",
+      "body_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "hmac_sha256": "9c27674cabeb257d49895bedb494368931831eeefdd3085eef5aeecdc24bc5a9",
+      "jcs_utf8": "{}",
+      "jcs_equal": true
+    },
+    {
+      "id": "envelope_door_open",
+      "expect": "accept",
+      "description": "door_open envelope as carried by the existing signer.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "envelope": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open",
+        "station": "test_station_entrance",
+        "params": {
+          "relay": 1
+        },
+        "request_id": "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b",
+        "issued_at": "2026-10-03T12:00:00Z",
+        "expires_at": "2026-10-03T12:00:30Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a317d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+      "body_sha256": "0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "ts": 1791028800,
+      "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "hmac_input": "1791028800.a1b2c3d4e5f60718293a4b5c6d7e8f90.0c33d122a7a1e1a2fadb23f875c5ab5860b857b25bc3cd3a1cd4de875a63e437",
+      "hmac_sha256": "15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af",
+      "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+      "jcs_equal": true,
+      "wire_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"ts\":1791028800,\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"sig\":\"15d7d47bddfdd07f6f5855c1ef01d9fc27652e91d685cee3eb2eecc30fa862af\"}"
+    },
+    {
+      "id": "envelope_door_open_status",
+      "expect": "accept",
+      "description": "door_open_status envelope (read-only query, empty params).",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{},\"request_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"nonce\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\"}",
+      "envelope": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {},
+        "request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "nonce": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z"
+      },
+      "signed_body": {
+        "protocol": "wiskey-trusted-door-v1",
+        "actor": {
+          "id": "test-user-0001",
+          "display_name": "משתמש בדיקה \"ראשי\""
+        },
+        "action": "door_open_status",
+        "station": "test_station_entrance",
+        "params": {},
+        "request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "issued_at": "2026-10-03T12:00:05Z",
+        "expires_at": "2026-10-03T12:00:35Z"
+      },
+      "canonical_utf8": "{\"action\":\"door_open_status\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:35Z\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"params\":{},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"station\":\"test_station_entrance\"}",
+      "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e5f737461747573222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33355a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30355a222c22706172616d73223a7b7d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2237633965363637392d373432352d343064652d393434622d653037666331663930616537222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+      "body_sha256": "dad7e7c5b687d9dd3712141b06340312f98664e0a12a752aa02e44dadc7bd26a",
+      "ts": 1791028805,
+      "nonce": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "hmac_input": "1791028805.0f1e2d3c4b5a69788796a5b4c3d2e1f0.dad7e7c5b687d9dd3712141b06340312f98664e0a12a752aa02e44dadc7bd26a",
+      "hmac_sha256": "b95a4ec7177fd1f767dc050677b3578bd3b0f87f6b8993c365becea8b95c370b",
+      "jcs_utf8": "{\"action\":\"door_open_status\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:35Z\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"params\":{},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"station\":\"test_station_entrance\"}",
+      "jcs_equal": true,
+      "wire_message_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open_status\",\"station\":\"test_station_entrance\",\"params\":{},\"request_id\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"issued_at\":\"2026-10-03T12:00:05Z\",\"expires_at\":\"2026-10-03T12:00:35Z\",\"ts\":1791028805,\"nonce\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\",\"sig\":\"b95a4ec7177fd1f767dc050677b3578bd3b0f87f6b8993c365becea8b95c370b\"}"
+    },
+    {
+      "id": "jcs_key_order_non_bmp",
+      "expect": "accept_but_not_jcs",
+      "description": "Key order differs from JCS: Python sorts by code point, JCS by UTF-16 code unit, so a non-BMP key (surrogate D83D...) sorts BEFORE U+E000 in JCS and AFTER it here. Not reachable with the envelope's fixed ASCII keys.",
+      "input_json": "{\"\\ue000\":1,\"\\ud83d\\ude00\":2}",
+      "canonical_utf8": "{\"\":1,\"😀\":2}",
+      "canonical_hex": "7b22ee8080223a312c22f09f9880223a327d",
+      "body_sha256": "871954531859c7572c6279f90eb83a594ddc3a289e8bdc28d2a84ffb8c1a1703",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.871954531859c7572c6279f90eb83a594ddc3a289e8bdc28d2a84ffb8c1a1703",
+      "hmac_sha256": "60ae98b7eecb9d7208d052a74a660c26248bc489dfeaa4e5d017e0dc9cca27b5",
+      "jcs_utf8": "{\"😀\":2,\"\":1}",
+      "jcs_equal": false
+    },
+    {
+      "id": "jcs_float_spelling",
+      "expect": "reject",
+      "description": "Floats differ from JCS: Python repr spelling (1.0, 100.0, 1e-07, 1e+16, -0.0) vs ECMAScript (1, 100, 1e-7, 10000000000000000, 0). The contract forbids floats.",
+      "input_json": "{\"a\":1.0,\"b\":100.0,\"c\":1e-7,\"d\":1e16,\"e\":-0.0,\"f\":0.1,\"g\":1.5}",
+      "canonical_utf8": "{\"a\":1.0,\"b\":100.0,\"c\":1e-07,\"d\":1e+16,\"e\":-0.0,\"f\":0.1,\"g\":1.5}",
+      "canonical_hex": "7b2261223a312e302c2262223a3130302e302c2263223a31652d30372c2264223a31652b31362c2265223a2d302e302c2266223a302e312c2267223a312e357d",
+      "body_sha256": "92831cef441f946ee60b7391035a6414d9acc133a964c79ee4bbf2b790ab5848",
+      "ts": 1791028800,
+      "nonce": "00000000000000000000000000000000",
+      "hmac_input": "1791028800.00000000000000000000000000000000.92831cef441f946ee60b7391035a6414d9acc133a964c79ee4bbf2b790ab5848",
+      "hmac_sha256": "74722ff5e4d13506c8711280357fea6906dba7a6c62a7912716c3d03e245de38",
+      "jcs_utf8": "{\"a\":1,\"b\":100,\"c\":1e-7,\"d\":10000000000000000,\"e\":0,\"f\":0.1,\"g\":1.5}",
+      "jcs_equal": false,
+      "reject_reason": "non-integer number"
+    },
+    {
+      "id": "reject_int_2pow53",
+      "expect": "reject",
+      "reject_reason": "integer outside the safe range",
+      "description": "2^53 is outside the safe integer range: reject.",
+      "input_json": "{\"n\":9007199254740992}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"n\":9007199254740992}",
+        "canonical_hex": "7b226e223a393030373139393235343734303939327d",
+        "body_sha256": "66c87d9cb3014e05a11baa97df62282d89d425f22ee15816577c84534e2ef1bb",
+        "hmac_sha256": "29065052c547fb0527132e4f7ff92d08a64d9d03b12898204fdfddb933571865",
+        "jcs_utf8": "{\"n\":9007199254740992}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_int_2pow53_plus1",
+      "expect": "reject",
+      "reject_reason": "integer outside the safe range",
+      "description": "2^53+1: the existing signer emits the exact digits, JCS (IEEE-754) would emit 9007199254740992. Reject.",
+      "input_json": "{\"n\":9007199254740993}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"n\":9007199254740993}",
+        "canonical_hex": "7b226e223a393030373139393235343734303939337d",
+        "body_sha256": "4ac8309cc76123ef6c5325ef925fc873e9b5856ec4f844ef1462f9303960378a",
+        "hmac_sha256": "fe3b47510cb6bef9f9fb9d4c97be6b605d9ce9984ccb1c278a428ef068973a3e",
+        "jcs_utf8": "{\"n\":9007199254740992}",
+        "jcs_equal": false,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_int_neg_2pow53",
+      "expect": "reject",
+      "reject_reason": "integer outside the safe range",
+      "description": "-(2^53): reject.",
+      "input_json": "{\"n\":-9007199254740992}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"n\":-9007199254740992}",
+        "canonical_hex": "7b226e223a2d393030373139393235343734303939327d",
+        "body_sha256": "b05a958438727696a33ea9f819b69ca4ea39b5ee89f0f80a61d5f813875f9734",
+        "hmac_sha256": "496c76e2454051fdb4fd425dfcfe12e44ab0236ba643f7b01d7b925742f9d38a",
+        "jcs_utf8": "{\"n\":-9007199254740992}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_nan",
+      "expect": "reject",
+      "reject_reason": "non-JSON constant",
+      "description": "NaN is not JSON; Python's json accepts and emits it. Reject.",
+      "input_json": "{\"n\":NaN}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"n\":NaN}",
+        "canonical_hex": "7b226e223a4e614e7d",
+        "body_sha256": "df38c4379aa2b6d4a7151668f11c6cdf75dc52f52588502956377adddf9e1a26",
+        "hmac_sha256": "ef98d2023f67cb966674d54c71a5a18902a8e7abffc16defadbb4fcbba5e0fa6",
+        "jcs_utf8": null,
+        "jcs_equal": false,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_infinity",
+      "expect": "reject",
+      "reject_reason": "non-JSON constant",
+      "description": "Infinity is not JSON. Reject.",
+      "input_json": "{\"n\":Infinity}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"n\":Infinity}",
+        "canonical_hex": "7b226e223a496e66696e6974797d",
+        "body_sha256": "118b2cab78badb9e6239321a230c158b3f31bd401885e17dfedbf341a04d99ef",
+        "hmac_sha256": "f3680c816cc51aa4588428e9299f072bc1ffcd2cdfe0f746064d0923c68289a8",
+        "jcs_utf8": null,
+        "jcs_equal": false,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_duplicate_key_flat",
+      "expect": "reject",
+      "reject_reason": "duplicate key",
+      "description": "Duplicate key: Python's json.loads silently keeps the LAST value. Reject.",
+      "input_json": "{\"a\":1,\"a\":2}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"a\":2}",
+        "canonical_hex": "7b2261223a327d",
+        "body_sha256": "7e8059f495589fcd981232cc11d00b00da3802c01d688fa1cf1f6bed6e5bb33c",
+        "hmac_sha256": "74dc99cc70fb53327e40e68384a790cce51f1ac4b518a145c1aae37ab40976aa",
+        "jcs_utf8": "{\"a\":2}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_duplicate_key_nested",
+      "expect": "reject",
+      "reject_reason": "duplicate key",
+      "description": "Duplicate key inside a nested object. Reject.",
+      "input_json": "{\"params\":{\"relay\":1,\"relay\":2}}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"params\":{\"relay\":2}}",
+        "canonical_hex": "7b22706172616d73223a7b2272656c6179223a327d7d",
+        "body_sha256": "3a8c75ffa832a852036294437b427a11277e88b675fc927acc5f0fc8449a62fe",
+        "hmac_sha256": "eceee6c2bdfba446253a92dfa4f9312dfc9cc680a5ba42bbbafee3cbb7779bde",
+        "jcs_utf8": "{\"params\":{\"relay\":2}}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_lone_surrogate",
+      "expect": "reject",
+      "reject_reason": "lone surrogate",
+      "description": "A lone surrogate: the existing signer cannot produce bytes (UnicodeEncodeError). Reject.",
+      "input_json": "{\"s\":\"\\ud800\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": "UnicodeEncodeError: surrogates not allowed"
+      }
+    },
+    {
+      "id": "reject_envelope_duplicate_station",
+      "expect": "reject",
+      "reject_reason": "duplicate key",
+      "description": "door_open with `station` twice. Python's json.loads keeps the last; the HMAC over that collapsed body would VERIFY. Reject at parse time.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"station\":\"test_station_other\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_other\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a317d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f6f74686572227d",
+        "body_sha256": "ee63b6be0e840bf89d4075283b5bff3292f5c2a3c8d223fc3bfc0cefb9855bae",
+        "hmac_sha256": "042a49ab1f4d8874e9de72ec61549579937d863db2a76f20f8990a4974947072",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_other\"}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_envelope_unknown_top_field",
+      "expect": "reject",
+      "reject_reason": "unknown field",
+      "description": "door_open plus an unknown top-level `capability`. The existing signer signs it and the existing verifier ACCEPTS the HMAC. Reject by schema.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"capability\":\"x\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"capability\":\"x\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c226361706162696c697479223a2278222c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a317d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+        "body_sha256": "aa1ce4c46db2b8f8c45b19fabe4c63700fe7801e702612f894e8aaea5e611d27",
+        "hmac_sha256": "2891e7855888dddcb9dd8a8f1e49c4419b9e306a0f15b324195ed15927bd5c08",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"capability\":\"x\",\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_envelope_unknown_actor_field",
+      "expect": "reject",
+      "reject_reason": "unknown field",
+      "description": "Unknown field inside actor (`role`). HMAC valid; reject by schema.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"role\":\"admin\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\",\"role\":\"admin\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031222c22726f6c65223a2261646d696e227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a317d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+        "body_sha256": "d91be53efa7d6927fb0a4b7ad49c8ad7e444902b7a72bbd89d9f7b3ab034fbad",
+        "hmac_sha256": "bb6c04dd393eb68706cadfc53df3bc98eaeb7a99c0dae74d8517a129a92e3f9b",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\",\"role\":\"admin\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_envelope_unknown_params_field",
+      "expect": "reject",
+      "reject_reason": "unknown field",
+      "description": "Unknown field inside params (`duration_s`). HMAC valid; reject by schema.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1,\"duration_s\":5},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"duration_s\":5,\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b226475726174696f6e5f73223a352c2272656c6179223a317d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+        "body_sha256": "32ac33aec2bd0de46cfb82882e86261d92e404d1d222975ab844d301fba22496",
+        "hmac_sha256": "bc60d0c2afa9df70290566a68d30e55e82b1951d9d5065efcb3859d8a9ad537a",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"duration_s\":5,\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_envelope_relay_float",
+      "expect": "reject",
+      "reject_reason": "non-integer number",
+      "description": "relay as 1.0 (a float). Python canonicalizes it as 1.0, a JavaScript parser cannot tell it from 1. Reject.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":1.0},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1.0},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a312e307d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+        "body_sha256": "eb917fb8ce05a3d8fe79b2503e5c0faa18969d401c5c1f74327f71d44709ab7e",
+        "hmac_sha256": "137f3ed471124c91964f2cd08ff0ad3ae6375a75c9785334fc73b45286a13d71",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":1},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "jcs_equal": false,
+        "existing_verifier_accepts_hmac": true
+      }
+    },
+    {
+      "id": "reject_envelope_relay_out_of_range",
+      "expect": "reject",
+      "reject_reason": "integer outside the safe range",
+      "description": "relay = 2^53. Reject.",
+      "input_json": "{\"protocol\":\"wiskey-trusted-door-v1\",\"actor\":{\"id\":\"test-user-0001\",\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\"},\"action\":\"door_open\",\"station\":\"test_station_entrance\",\"params\":{\"relay\":9007199254740992},\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"nonce\":\"a1b2c3d4e5f60718293a4b5c6d7e8f90\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"expires_at\":\"2026-10-03T12:00:30Z\"}",
+      "current_code_if_not_rejected": {
+        "signer_error": null,
+        "canonical_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":9007199254740992},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "canonical_hex": "7b22616374696f6e223a22646f6f725f6f70656e222c226163746f72223a7b22646973706c61795f6e616d65223a22d79ed7a9d7aad79ed7a920d791d793d799d7a7d794205c22d7a8d790d7a9d7995c22222c226964223a22746573742d757365722d30303031227d2c22657870697265735f6174223a22323032362d31302d30335431323a30303a33305a222c226973737565645f6174223a22323032362d31302d30335431323a30303a30305a222c22706172616d73223a7b2272656c6179223a393030373139393235343734303939327d2c2270726f746f636f6c223a227769736b65792d747275737465642d646f6f722d7631222c22726571756573745f6964223a2233663262386331652d396134642d346536662d386237612d316332643365346635613662222c2273746174696f6e223a22746573745f73746174696f6e5f656e7472616e6365227d",
+        "body_sha256": "ff9631ffdecf6fb3dcfbf9b067cb80f1a2e988d50b7d09bd9e786df22873ed5f",
+        "hmac_sha256": "09abcd204a4496e5ce0da9eccdaec962ade9fc88b6fc3788da63981be0112b87",
+        "jcs_utf8": "{\"action\":\"door_open\",\"actor\":{\"display_name\":\"משתמש בדיקה \\\"ראשי\\\"\",\"id\":\"test-user-0001\"},\"expires_at\":\"2026-10-03T12:00:30Z\",\"issued_at\":\"2026-10-03T12:00:00Z\",\"params\":{\"relay\":9007199254740992},\"protocol\":\"wiskey-trusted-door-v1\",\"request_id\":\"3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b\",\"station\":\"test_station_entrance\"}",
+        "jcs_equal": true,
+        "existing_verifier_accepts_hmac": true
+      }
+    }
+  ]
+}
