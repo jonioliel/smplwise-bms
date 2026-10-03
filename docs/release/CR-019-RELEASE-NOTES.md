@@ -13,7 +13,7 @@ Not part of `CHANGELOG.md` - copy into it when the release is cut. Branch `pilot
 ### Changed
 - Switches are schedulable whatever their protection; the "switch not marked" refusal is gone from schedules.
 - The overview master button for switches is enabled by default; when every shown switch is protected it is disabled and the tooltip says so.
-- API: `/devices/bulk-safe` routes are replaced by `/devices/bulk-protected` (old paths answer 404); area and item rows carry `bulk_protected` / `bulk_reason` and `can_mark_bulk_protected`; group-action exclusions read `switch_protected` / `switch_unclassified`.
+- API: `/devices/bulk-safe` routes are replaced by `/devices/bulk-protected` (old paths answer 404); area and item rows carry `bulk_protected` / `bulk_reason` and `can_mark_bulk_protected`; group-action exclusions read `switch_protected` (a switch the classifier has not judged is included; there is no `unclassified` reason, and `bulk_reason` is `allowed | protected | doors_layer | alarm_managed`).
 
 ### Upgrade
 - Migration `0049_switch_protection.sql`. Every switch is included in group actions after the upgrade (those approved before stay unprotected; the classifier only adds suggestions). `device_bulk_safe` is kept untouched, so reinstalling the previous version restores the old opt-in marks.
