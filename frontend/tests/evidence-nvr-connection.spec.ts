@@ -617,6 +617,7 @@ test.describe('skins x schemes', () => {
         });
         await page.locator('nvr-connection-form').evaluate((e) => e.remove());
         await page.locator('sw-app nvr-restart-banner').evaluate((e) => e.remove());
+        await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('main')?.scrollTo(0, 0)); // the same view the first check saw (the page's own top buttons)
         const base: Finding[] = [];
         await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         base.push(...(await page.evaluate(inPageCheck, { ctx: 'baseline', skip: SKIP })));
