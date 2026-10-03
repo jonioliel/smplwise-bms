@@ -1,5 +1,39 @@
 # Changelog — SmplWise Arx add-on
 
+## 0.1.155 (pilot) — Ten colour palettes for the Bubble look, and a palette editor
+**After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration; the new setting `ui.palettes` is created on first save. Reload the installed web app once.
+### Ten ready palettes - הגדרות › כללי › "מראה" › "ערכת צבעים" (works with the Bubble look)
+- Choose between **כחול שקט, סגול ורוד, טורקיז, חול וענבר, גרפיט, אוקיינוס עמוק, יער, שקיעה, קוורץ ורוד and ניגודיות גבוהה**, each with a light and a dark scheme. The default stays the calm blue base palette.
+- **One choice for everybody**: the palette is set once for the installation by whoever may change the installation settings (the `system.configure` permission). Personal palette choices are no longer offered; an old stored personal value is kept untouched and simply ignored.
+- The base palette cannot be deleted or replaced; a custom palette can never take its id or the id of a ready palette.
+### A palette editor - same page, administrators only
+- Start from any palette, edit its 10 key colours in the light and dark schemes with a live preview, pick from **recommended swatches or a free colour picker**, and save under a new name (**"שמור כחדשה"**, up to 12 custom palettes).
+- **A warning, not a block**: a palette with weak contrast can be saved, but the editor lists the worst colour pairs in Hebrew and offers a one-click **"תקן אוטומטית"**.
+- In the dark scheme the accent colour is lifted automatically so it stays readable, and the soft colour washes behind pills were tuned so text keeps at least 4.5:1 contrast in all ten palettes, light and dark.
+### Fixes and under the hood
+- The keyboard step of the tab-order test no longer races with the focus, and the Windows pixel baselines match the new "קברניט" header.
+### How to turn it on and use it (English)
+1. No restart is needed; reload the installed web app once.
+2. Choose the Bubble look first: הגדרות › כללי › "מראה". Then pick the palette in the same card (an administrator sets it for everybody).
+3. To design your own: the palette editor on the same page (administrators).
+
+## עברית — 0.1.155: עשר ערכות צבעים למראה "בועה" ועורך ערכות
+**אחרי העדכון אין צורך להפעיל מחדש את התשתית** (הגשר נשאר 0.6.0). אין מיגרציית מסד נתונים; ההגדרה החדשה `ui.palettes` נוצרת בשמירה הראשונה. יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת.
+### עשר ערכות מוכנות - הגדרות › כללי › "מראה" › "ערכת צבעים" (פועל עם המראה "בועה")
+- בחירה בין **כחול שקט, סגול ורוד, טורקיז, חול וענבר, גרפיט, אוקיינוס עמוק, יער, שקיעה, קוורץ ורוד וניגודיות גבוהה**, לכל אחת ערכה בהירה וכהה. ברירת המחדל נשארת ערכת הבסיס הכחולה השקטה.
+- **בחירה אחת לכולם**: הערכה נקבעת פעם אחת להתקנה, על ידי מי שמורשה לשנות את הגדרות ההתקנה (ההרשאה `system.configure`). בחירה אישית של ערכה כבר לא מוצעת; ערך אישי ישן שנשמר נשאר בלי שינוי ופשוט מתעלמים ממנו.
+- אי אפשר למחוק או להחליף את ערכת הבסיס; ערכה מותאמת לא יכולה לקחת את המזהה שלה או מזהה של ערכה מוכנה.
+### עורך ערכות - באותו עמוד, למנהלים בלבד
+- מתחילים מכל ערכה, עורכים את 10 צבעי המפתח שלה בערכה הבהירה והכהה עם תצוגה חיה, בוחרים **מצבעים מומלצים או בבורר חופשי**, ושומרים בשם חדש (**"שמור כחדשה"**, עד 12 ערכות מותאמות).
+- **אזהרה ולא חסימה**: אפשר לשמור ערכה עם ניגודיות חלשה, אבל העורך מפרט בעברית את צמדי הצבעים הגרועים ומציע **"תקן אוטומטית"** בלחיצה אחת.
+- בערכה הכהה צבע הדגש מובהר אוטומטית כדי שיישאר קריא, והגוונים הרכים מאחורי הגלולות כוונו כך שהטקסט שומר על ניגודיות של 4.5:1 לפחות בכל עשר הערכות, בבהיר ובכהה.
+### תיקונים ומאחורי הקלעים
+- צעד המקלדת בבדיקת סדר הלשוניות כבר לא מתחרה בפוקוס, ובסיסי הפיקסלים של Windows תואמים לכותרת "קברניט".
+### איך מפעילים ומשתמשים (עברית)
+1. אין צורך בהפעלה מחדש; יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת.
+2. קודם בוחרים את המראה "בועה": הגדרות › כללי › "מראה". אחר כך בוחרים את הערכה באותו כרטיס (מנהל קובע לכולם).
+3. לעיצוב ערכה משלך: עורך הערכות באותו עמוד (מנהלים).
+
 ## 0.1.154 (pilot) — The Bubble look on the home, area and multimedia screens, a performance dial, "קברניט" with the schedules inside, a clearer tabs display card
 **After the update no restart of the platform is needed** (the bridge integration stays 0.6.0). There is no database migration. Reload the installed web app once so the new service worker takes over.
 ### The Bubble look on the real screens - הגדרות › כללי › "מראה" (still off until you choose it)

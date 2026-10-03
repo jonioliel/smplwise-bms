@@ -1,5 +1,5 @@
 /**
- * Colour palettes of the Bubble skin (release 0.1.156). A palette is data: a closed set of colour tokens for the light and the dark
+ * Colour palettes of the Bubble skin (release 0.1.155). A palette is data: a closed set of colour tokens for the light and the dark
  * scheme (docs/design/palettes/palettes.schema.json; the ten ready ones are design/palettes.json, a copy of the design asset that a
  * unit spec keeps identical). Backend twin: smplwise_vms/backend/smplwise/services/palettes.py (same schema, same contrast pairs,
  * same Hebrew refusal text; the backend is the authority, this file refuses a bad palette before it is sent and before it is applied).

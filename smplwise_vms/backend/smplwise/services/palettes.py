@@ -1,4 +1,4 @@
-"""Colour palettes of the Bubble skin (release 0.1.156): the ten ready palettes (data: docs/design/palettes/palettes.json, loaded
+"""Colour palettes of the Bubble skin (release 0.1.155): the ten ready palettes (data: docs/design/palettes/palettes.json, loaded
 by the frontend from design/palettes.json) and the CUSTOM palettes an administrator saves per installation (`ui.palettes`).
 
 The palette DIAL is part of `ui.look` (services/look.py): `default` (the skin's own colours), one of the ten ids below, or

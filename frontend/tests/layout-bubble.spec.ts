@@ -323,7 +323,7 @@ test.describe('bubble layout guard', () => {
     expect(lines, 'layout findings').toEqual([]);
   });
 
-  // The palette dimension (release 0.1.156): a palette changes colours only, never geometry, but a palette must not push text out of a bubble
+  // The palette dimension (release 0.1.155): a palette changes colours only, never geometry, but a palette must not push text out of a bubble
   // or hide a target either (a darker surface, a wider glass). Representative palettes only - the default blue, a mauve one and the
   // accessibility one (near-opaque glass) - over three widths, three look combinations and both schemes, one pop-up; each run first checks
   // the palette is really in force (a no-op palette would make this a copy of the main sweep).

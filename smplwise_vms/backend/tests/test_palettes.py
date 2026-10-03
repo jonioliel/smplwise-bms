@@ -1,4 +1,4 @@
-"""Release 0.1.156: the colour palettes of the Bubble skin. The ten ready palettes (data in docs/design/palettes/palettes.json, copied
+"""Release 0.1.155: the colour palettes of the Bubble skin. The ten ready palettes (data in docs/design/palettes/palettes.json, copied
 to frontend/src/design/palettes.json) must stay valid under the contrast rules; the palette dial of `ui.look` accepts default, the ten
 ids and `custom-<slug>`; a custom palette (`ui.palettes`, per installation) is stored when it is well-formed (Hebrew 422 otherwise);
 low contrast is only a WARNING (owner 2026-10-02: saving is allowed); the palette is chosen by the system administrator only, so a

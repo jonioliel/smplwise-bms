@@ -11,7 +11,7 @@ import {
 } from '../src/design/palette';
 import { contrastRatio, parseColor } from '../src/design/contrast';
 
-// Release 0.1.156: the palette loader and validator. Node only: the palettes are data, the checks are pure functions.
+// Release 0.1.155: the palette loader and validator. Node only: the palettes are data, the checks are pure functions.
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const docFile = resolve(ROOT, 'docs', 'design', 'palettes', 'palettes.json');
 const DOC = JSON.parse(readFileSync(docFile, 'utf8')) as { palettes: Palette[] };

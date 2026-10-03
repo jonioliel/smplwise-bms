@@ -59,7 +59,7 @@ DEFAULTS: dict[str, str] = {
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
     "ui.look": json.dumps(look.DEFAULT, separators=(",", ":")),
-    # Release 0.1.156: the custom colour palettes of the Bubble skin - a JSON list, each checked for shape (services/palettes.py; low contrast is only a warning in the editor)
+    # Release 0.1.155: the custom colour palettes of the Bubble skin - a JSON list, each checked for shape (services/palettes.py; low contrast is only a warning in the editor)
     # before it is stored; "[]" = none. A palette id in the look dial (custom-<slug>) points at one of them. Per installation.
     "ui.palettes": "[]",
     # UI round 1 (owner 2026-09-30): the size of the side rail / phone bottom bar - a JSON object, shape and ranges in

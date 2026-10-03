@@ -39,7 +39,7 @@ function setPath(o: Record<string, unknown>, path: string, value: string): void 
 const getPath = (o: unknown, path: string): string => path.split('.').reduce<unknown>((x, k) => (x as Record<string, unknown>)[k], o) as string;
 
 /**
- * הגדרות › כללי › מראה › ערכות צבעים (release 0.1.156): the palette editor. A system administrator starts from any palette, edits the
+ * הגדרות › כללי › מראה › ערכות צבעים (release 0.1.155): the palette editor. A system administrator starts from any palette, edits the
  * key colours of the light and the dark scheme with a live preview, and saves the result as a CUSTOM palette of the installation
  * (`ui.palettes`; the installation's palette dial can then point at it - nobody else chooses a palette). Every key colour offers a few
  * RECOMMENDED swatches (the values the ten ready palettes use) and a free colour picker. A palette that does not pass the contrast

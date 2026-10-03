@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Release 0.1.156: the palette loader and the editor in הגדרות › כללי › מראה (static demo mode; the backend side is test_palettes.py).
+// Release 0.1.155: the palette loader and the editor in הגדרות › כללי › מראה (static demo mode; the backend side is test_palettes.py).
 //   1. the palette dial belongs to the installation's system administrator only: a ready palette chosen there (saved with the button) is in
 //      force on <html> (data attribute + inline tokens), per scheme, ignored by the other skins, keeps the glass above the palette's own
 //      minimum opacity; a personal palette override does not exist (no row on "ההעדפה שלי", a stored one is ignored);
