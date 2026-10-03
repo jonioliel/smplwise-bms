@@ -55,11 +55,11 @@ test.describe('electricity: navigation', () => {
   });
 
   test('an installation without meters hides the area from a viewer, not from a manager', async ({ page }) => {
-    await open(page, '/devices/building', { perms: PERMS.view, meters: 'empty' });
+    await open(page, '/devices/building', { perms: [...PERMS.view, 'devices.read'], meters: 'empty' });
     await page.waitForSelector('sw-app [data-nav="devices"]');
     await expect(page.locator('sw-app [data-nav="infra"]')).toHaveCount(0);
     const page2 = await page.context().newPage();
-    await open(page2, '/devices/building', { perms: PERMS.bills, meters: 'empty' });
+    await open(page2, '/devices/building', { perms: [...PERMS.bills, 'devices.read'], meters: 'empty' });
     await page2.waitForSelector('sw-app [data-nav="devices"]');
     await expect(page2.locator('sw-app [data-nav="infra"]').first()).toBeVisible();
   });

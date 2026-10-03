@@ -279,7 +279,8 @@ export class ElecMeterCard extends LitElement {
   render() {
     const d = this.detail;
     return html`
-      <sw-drawer open modal heading=${d?.name ?? ''} data-meter-drawer @close=${() => this.fire('close')}>
+      <!-- a dialog opened from the card sits above the drawer's top layer only while the drawer steps aside -->
+      <sw-drawer ?open=${!this.dlg} modal heading=${d?.name ?? ''} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
         ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
         ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading="לא ניתן לטעון את המונה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
         ${this.phase === 'ready' && d ? this.renderBody(d) : nothing}
