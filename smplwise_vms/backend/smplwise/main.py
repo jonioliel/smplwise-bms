@@ -73,6 +73,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         ha_camera_streams.reconcile(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("ha live reconcile failed", exc_info=True)
+    try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
+        from .services import update_runs
+
+        update_runs.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("update runs janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -113,6 +119,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
     if pre:
         log.info("pre-upgrade backup written: %s", pre.name)
+    from .services import update_runs  # CR-021 S3 review: a start of an update's target version counts even if a migration crashes next
+
+    update_runs.early_boot(app.state.db)
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
@@ -132,9 +141,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
-    from .services import update_runs  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
-
-    update_runs.on_startup(app.state.db, settings)
+    update_runs.on_startup(app.state.db, settings)  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
     try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
         from .services import notify_policy
 

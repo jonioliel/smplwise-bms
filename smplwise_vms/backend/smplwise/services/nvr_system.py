@@ -381,12 +381,19 @@ def with_connection(settings: Settings, *, host: str, http_port: int, rtsp_port:
     return replace(settings, nvr_host=host, nvr_http_port=http_port, nvr_rtsp_port=rtsp_port, nvr_user=user, nvr_password=password or settings.nvr_password)
 
 
+SUPERVISOR_POST_PATHS = ("/addons/self/options", "/addons/self/restart")
+NVR_OPTION_KEYS = frozenset({"nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username", "nvr_password"})
+
+
 def supervisor_post(settings: Settings, path: str, body: dict[str, Any] | None = None) -> None:
     """A Supervisor API call from inside the add-on (options / restart). Raises ApiError on refusal. CR-021 S3: sent through the single
-    allow-list of `self_update` (only `/addons/self/options` and `/addons/self/restart` are accepted here), never to an arbitrary path."""
+    allow-list of `self_update`, and only `/addons/self/options` and `/addons/self/restart` are accepted HERE (security review 2026-10-04:
+    the global list also holds `/core/restart`, `/store/reload` ... which this helper must never reach)."""
     from . import self_update
 
-    reply = self_update.send("POST", path, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", body=body, timeout=15)
+    if path not in SUPERVISOR_POST_PATHS:
+        raise self_update.ProbeRefused(f"POST {path}: not a call of nvr_system")
+    reply =self_update.send("POST", path, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", body=body, timeout=15)
     if reply.kind in ("unreachable", "dropped") and path != self_update.P_SELF_RESTART:
         raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"path": path, "error": reply.kind})
     if reply.kind in ("forbidden", "error"):
@@ -407,7 +414,11 @@ def save_connection(settings: Settings, new: Settings) -> str:
     into <data>/nvr_connection.json on a developer workstation (merged by load_settings). Returns where it went."""
     values = {"nvr_host": new.nvr_host, "nvr_http_port": new.nvr_http_port, "nvr_rtsp_port": new.nvr_rtsp_port, "nvr_username": new.nvr_user, "nvr_password": new.nvr_password}
     if connection_view(settings)["in_addon"]:
-        options = supervisor_options(settings) | values
+        from .self_update import OPTION_TYPES
+
+        assert set(values) <= NVR_OPTION_KEYS  # only the NVR connection changes; every other option is written back as it was read
+        # an option the manifest no longer declares is dropped (the allow-list refuses unknown keys)
+        options = {k: v for k, v in supervisor_options(settings).items() if k in OPTION_TYPES} | values
         supervisor_post(settings, "/addons/self/options", {"options": options})
         supervisor_post(settings, "/addons/self/restart")
         return "supervisor"

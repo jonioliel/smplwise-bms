@@ -33,6 +33,7 @@ from ..config import Settings
 from ..db import Database, get_setting, now_iso, retry_locked, unlocked
 from ..errors import ApiError
 from . import nvr, recordings
+from .child_env import minimal_env
 from .timeutil import UTC, iso_utc, nvr_wall_to_utc, parse_utc, zone
 
 log = logging.getLogger("smplwise.exports")
@@ -701,7 +702,7 @@ def _is_disk_full(exc: OSError) -> bool:
 
 
 def _ffmpeg(ff: str, args: list[str], cwd: Path | None = None) -> None:
-    proc = subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", *args], cwd=cwd, capture_output=True, text=True, timeout=1800)
+    proc = subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", *args], cwd=cwd, capture_output=True, text=True, timeout=1800, env=minimal_env())
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed ({proc.returncode}): {proc.stderr[-300:]}")
 

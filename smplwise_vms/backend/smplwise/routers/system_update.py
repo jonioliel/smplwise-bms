@@ -7,7 +7,8 @@ usual 403 `forbidden` (the CR called it `permission_denied`). The infrastructure
 numeric status.
 
 S3 request order (the `auth.read_gate` pattern, review L7): the permission on the READ connection first - a refusal is 403 and audited
-before a byte of the body is read -, then a cross-site request is refused (`Sec-Fetch-Site` other than `same-origin`), then the raw body
+before a byte of the body is read -, then a cross-site request is refused (`remote_channel.csrf_ok`: `Sec-Fetch-Site: same-origin`, or
+without it an `Origin` equal to the request's scheme + host; neither header -> refused), then the raw body
 (JSON only, `confirm: true` - plain confirmation everywhere, owner answer 4), and only then the write connection. Refusals after the
 permission are audited as `system.update.apply` / `system.update.restart_platform` with decision `denied`. The remote channel (CR-008) may
 use these routes (owner decision D5); its cookie sessions pass the channel's own CSRF gate first."""
@@ -27,7 +28,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..remote_channel import is_remote
+from ..remote_channel import csrf_ok, is_remote
 from ..services import self_update as svc
 from ..services import update_runs
 
@@ -141,9 +142,12 @@ def _refused(conn: sqlite3.Connection, principal: Principal, request: Request, a
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
-    """Same origin, JSON content type, body shape and `confirm: true` (the JSON literal) - in this order."""
-    site = request.headers.get("sec-fetch-site")
-    if site is not None and site != "same-origin":
+    """Same origin, JSON content type, body shape and `confirm: true` (the JSON literal) - in this order.
+
+    Same origin is the rule of `remote_channel.csrf_ok` (security review 2026-10-04): `Sec-Fetch-Site: same-origin` when the header is
+    present; without it, an `Origin` equal to this request's scheme and host; neither header -> refused (an old browser, a proxy that
+    strips headers or a non-browser client never passes silently)."""
+    if not csrf_ok(request.scope, request.scope.get("headers") or []):
         raise ApiError(403, "cross_site_refused", "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.")
     if not _is_json(request.headers.get("content-type")):
         raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")

@@ -14,6 +14,13 @@ owner answers of 2026-10-03):
   * `POST /core/restart`                body `{}`; the platform restart
   * `POST /addons/self/options`, `POST /addons/self/restart`   the two pre-existing calls of services/nvr_system.py and the Arx restart of
                                         CR-022 (services/addon_restart.py), routed through this list so manager power has exactly one door.
+                                        The options body is `{"options": {...}}` with only the manifest's schema keys (OPTION_TYPES), each
+                                        of its schema type.
+  * `POST /discovery`                   body `{"service": "smplwise_bridge", "config": {addon_url, pairing_code}}` (services/ha_client.py);
+                                        `GET /core/info` is also read by services/ha_user_auth.py (the core's port) - both through this door.
+
+Security review of 2026-10-04: the update slug must equal the slug the infrastructure reported for THIS add-on (`GET /addons/self/info`,
+remembered by `send`), so no other add-on (`core_ssh` ...) can ever be addressed; before that read no update call is possible.
 
 Anything else raises ProbeRefused before a socket is opened: an unknown pair, a body on a call without one, a body key outside BODY_KEYS,
 a non-boolean update flag, a slug that fails SLUG_RE. No request field ever reaches a path; redirects are never followed; an upstream body
@@ -55,6 +62,7 @@ P_CORE_CHECK = "/core/check"
 P_CORE_RESTART = "/core/restart"
 P_OPTIONS = "/addons/self/options"
 P_SELF_RESTART = "/addons/self/restart"
+P_DISCOVERY = "/discovery"
 
 # The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
 ALLOWED: frozenset[tuple[str, str]] = frozenset({
@@ -62,14 +70,31 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset({
     ("POST", P_UPDATE), ("GET", P_JOBS),                                     # S3: the update
     ("GET", P_CORE_INFO), ("POST", P_CORE_CHECK), ("POST", P_CORE_RESTART),  # S3: the platform restart
     ("POST", P_OPTIONS), ("POST", P_SELF_RESTART),                           # pre-existing nvr_system calls / the CR-022 Arx restart
+    ("POST", P_DISCOVERY),                                                   # the bridge announcement (services/ha_client.py)
 })
 # The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
 BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {
     ("POST", P_UPDATE): frozenset({"backup", "background"}),
     ("POST", P_CORE_RESTART): frozenset(),
     ("POST", P_OPTIONS): frozenset({"options"}),
+    ("POST", P_DISCOVERY): frozenset({"service", "config"}),
 }
 SLUG_RE = re.compile(r"[a-z0-9_]{1,64}")
+_SELF_SLUG: str | None = None    # the slug GET /addons/self/info last reported for this add-on (never stored, never returned)
+
+# The add-on options (config.yaml `schema`); a test keeps this equal to the manifest. Kinds: str (required string), str? (string or
+# null), port, bool, bool?, remote_path, log_level.
+OPTION_TYPES: dict[str, str] = {
+    "bootstrap_admin_username": "str", "nvr_host": "str?", "nvr_http_port": "port", "nvr_rtsp_port": "port", "nvr_username": "str?",
+    "nvr_password": "str?", "go2rtc_url": "str?", "go2rtc_api_username": "str?", "go2rtc_api_password": "str?", "wiskey_username": "str?",
+    "wiskey_password": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
+    "log_level": "log_level",
+}
+OPTION_STR_MAX = 1024
+REMOTE_PATH_RE = re.compile(r"^/[a-z0-9][a-z0-9_-]{0,31}$")
+LOG_LEVELS = ("debug", "info", "warning", "error")
+DISCOVERY_SERVICES = frozenset({"smplwise_bridge"})   # config.yaml `discovery`
+DISCOVERY_CONFIG_KEYS = frozenset({"addon_url", "pairing_code"})
 
 VERSION_RE = re.compile(r"[0-9A-Za-z._+-]{1,40}")
 INTERVALS = (0, 1, 3, 6, 12, 24)   # hours; 0 = off (CR-021 section 5.1)
@@ -111,6 +136,47 @@ def _token() -> str | None:
     return TOKEN or os.environ.get("SUPERVISOR_TOKEN") or None
 
 
+def _option_ok(kind: str, value: Any) -> bool:
+    if kind in ("str", "str?", "remote_path"):
+        if value is None:
+            return kind == "str?"
+        if not isinstance(value, str) or len(value) > OPTION_STR_MAX:
+            return False
+        return kind != "remote_path" or bool(REMOTE_PATH_RE.fullmatch(value))
+    if kind == "port":
+        return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 65535
+    if kind in ("bool", "bool?"):
+        return isinstance(value, bool) or (kind == "bool?" and value is None)
+    if kind == "log_level":
+        return value in LOG_LEVELS
+    return False
+
+
+def _check_options(body: Any) -> None:
+    options = body.get("options") if isinstance(body, dict) else None
+    if not isinstance(options, dict):
+        raise ProbeRefused("POST /addons/self/options: options")
+    for key, value in options.items():
+        kind = OPTION_TYPES.get(key) if isinstance(key, str) else None
+        if kind is None or not _option_ok(kind, value):
+            raise ProbeRefused(f"POST /addons/self/options: option {key!r}")
+
+
+def _check_discovery(body: Any) -> None:
+    config = body.get("config") if isinstance(body, dict) else None
+    if (not isinstance(body, dict) or set(body) != BODY_KEYS[("POST", P_DISCOVERY)] or body.get("service") not in DISCOVERY_SERVICES
+            or not isinstance(config, dict) or not set(config) <= DISCOVERY_CONFIG_KEYS
+            or not all(isinstance(v, str) and len(v) <= OPTION_STR_MAX for v in config.values())):
+        raise ProbeRefused("POST /discovery: body")
+
+
+def remember_self(data: dict[str, Any] | None) -> None:
+    """Keep the slug of THIS add-on as the infrastructure reported it (the only slug an update may address)."""
+    global _SELF_SLUG
+    slug = (data or {}).get("slug")
+    _SELF_SLUG = slug if isinstance(slug, str) and SLUG_RE.fullmatch(slug) else None
+
+
 def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None) -> str:
     """The allow-list, the body shape and the slug, checked BEFORE anything is opened. Returns the concrete path."""
     if (method, path) not in ALLOWED:
@@ -121,11 +187,17 @@ def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, sl
             raise ProbeRefused(f"{method} {path}: body")
         if path == P_UPDATE and (set(body) != keys or not all(isinstance(v, bool) for v in body.values())):
             raise ProbeRefused(f"{method} {path}: body values")
-    elif path == P_UPDATE:
-        raise ProbeRefused(f"{method} {path}: the backup flag is always sent explicitly")
+    elif path in (P_UPDATE, P_OPTIONS, P_DISCOVERY):
+        raise ProbeRefused(f"{method} {path}: this call always carries its body")
+    if path == P_OPTIONS:
+        _check_options(body)
+    if path == P_DISCOVERY:
+        _check_discovery(body)
     if "{slug}" in path:
         if not isinstance(slug, str) or not SLUG_RE.fullmatch(slug):
             raise ProbeRefused(f"{method} {path}: slug")
+        if slug != _SELF_SLUG:
+            raise ProbeRefused(f"{method} {path}: not this add-on")
         return path.replace("{slug}", slug)
     if slug is not None:
         raise ProbeRefused(f"{method} {path}: slug")
@@ -154,7 +226,10 @@ def send(method: str, path: str, *, base: str, token: str, transport: Any = None
     except ValueError:
         return Reply("error", r.status_code) if method == "GET" else Reply("ok", r.status_code, {})
     data = payload.get("data") if isinstance(payload, dict) else None
-    return Reply("ok", r.status_code, data if isinstance(data, dict) else {})
+    data = data if isinstance(data, dict) else {}
+    if (method, path) == ("GET", P_INFO):
+        remember_self(data)
+    return Reply("ok", r.status_code, data)
 
 
 def call(settings: Settings, method: str, path: str, *, body: dict[str, Any] | None = None, slug: str | None = None, timeout: float | None = None) -> Reply:

@@ -16,8 +16,22 @@ claimed: the update run goes to `restarting` with step `outcome_unknown` and is 
 timeout (`abandoned`); the platform restart run is settled by polling the platform.
 
 The update kills this very process. The new process calls `on_startup` right after its migrations: the running version equal to the
-target -> `verifying` and the health check (with one retry) -> `succeeded` / `failed`; equal to the source -> `failed/version_unchanged`;
-three starts of the target version without a healthy check -> `failed/restart_loop` (a crash / watchdog loop never ends in "success").
+target -> `verifying` and the health check (with one retry) -> `succeeded` / `failed`; three starts of the target version without a
+healthy check -> `failed/restart_loop` (a crash / watchdog loop never ends in "success"). Starts are counted by `early_boot`, which
+main.py calls BEFORE the migrations, so a version that crashes in a migration or at import still reaches the loop verdict.
+
+Security review of 2026-10-04 (no verdict from one observation):
+* a start on the SOURCE version while the run is `backing_up` / `updating` / `restarting` (an Arx restart - NVR connection saved, the
+  Arx restart button, the watchdog - in the middle of the Supervisor job) does not fail the run: the run stays open (the single-run
+  guard holds) and `_follow` keeps reading the job; `failed/version_unchanged` only when no update job has been running for
+  NO_JOB_GRACE_S and the infrastructure still reports the source version installed;
+* a local build may take longer than UPDATE_EXPECTED_S (20 min, shown to the UI as `expected_s`): the worker keeps following the job up to
+  the ceiling UPDATE_TIMEOUT_S (90 min, `timeout_s`); a run abandoned at the ceiling is reopened and verified when its target version
+  starts within REOPEN_WINDOW_S (audit `phase: "reopened"`); the janitor (main.janitor_tick -> `janitor`) settles runs past the ceiling;
+* `backup` on the run is what was CONFIRMED (the backup child job finished without errors), `backup_requested` what was asked;
+* the 10-minute gap between two updates is part of the INSERT's WHERE (two parallel requests cannot both pass it);
+* a platform restart succeeds only after the core was seen down twice in a row (or the settle time of an accepted restart passed), then
+  `running` twice in a row (the post-restart check), and - when the bridge is paired - a bridge directory push after the core came back.
 
 No rate limit on the platform restart (owner answer 8): the route checks the permission and the confirmation, and the single-active-run
 rule keeps two restarts from overlapping. The update keeps the design's 1 per 10 minutes (DB-backed: it must survive the restart).
@@ -46,7 +60,8 @@ from .timeutil import iso_utc
 log = logging.getLogger(__name__)
 
 TERMINAL = ("succeeded", "failed", "abandoned")
-UPDATE_TIMEOUT_S = 20 * 60        # a locally built add-on image takes minutes (design section 6); lab measures
+UPDATE_EXPECTED_S = 20 * 60       # what a locally built add-on image usually takes (design section 6); shown as `expected_s`; lab measures
+UPDATE_TIMEOUT_S = 90 * 60        # the ceiling of an update run (`timeout_s`): a slow local build (aarch64, wheels compiled) is still followed
 RESTART_TIMEOUT_S = 10 * 60
 APPLY_MIN_GAP_S = 10 * 60         # design section 8; the platform restart has none (owner answer 8)
 POLL_S = 5.0
@@ -54,6 +69,13 @@ HEALTH_RETRY_S = 60.0
 RESTART_SETTLE_S = 30.0           # a platform that answers "running" right after an accepted restart may not have gone down yet
 LOOP_BOOTS = 3
 UPDATE_CALL_TIMEOUT_S = 30.0
+NO_JOB_GRACE_S = 120.0            # no update job seen for this long (and the source version installed) before `version_unchanged`
+DOWN_SAMPLES = 2                  # consecutive non-running answers that count as "the core went down" (one error is no restart)
+UP_SAMPLES = 2                    # consecutive `running` answers after it: the post-restart check
+REOPEN_WINDOW_S = 24 * 3600       # a run abandoned at the ceiling is verified when its target version starts within this window
+UPDATE_JOB_NAME = "addon_manager_update"   # the Supervisor's job name of an add-on update (assumption A3, confirmed in the lab)
+RESUMABLE = ("backing_up", "updating", "restarting")
+BACKUP_NONE, BACKUP_REQUESTED, BACKUP_CONFIRMED = 0, 1, 2   # update_runs.backup
 
 IDEMPOTENCY_RE = re.compile(r"[A-Za-z0-9_-]{8,64}")
 RUN_ID_RE = re.compile(r"[0-9a-f]{16}")
@@ -61,12 +83,13 @@ JOB_ID_RE = re.compile(r"[0-9a-fA-F-]{8,64}")
 
 K_BOOT_RUN = "update.boot_run"
 K_BOOT_COUNT = "update.boot_count"
+K_JOB_ID = "update.job_id"        # the Supervisor job of the open update run (so a restarted process keeps following it)
 
 STEPS = ("sending", "job_running", "backup_done", "job_done", "outcome_unknown", "health_check", "health_retry", "config_check",
          "restart_sent", "restart_accepted", "waiting_for_platform", "bridge_wait")
 ERROR_CODES = ("platform_not_permitted", "infrastructure_unreachable", "infrastructure_busy", "infrastructure_error", "update_job_failed",
                "version_unchanged", "version_unexpected", "interrupted", "restart_loop", "health_check_failed", "timeout",
-               "platform_config_invalid", "platform_not_back", "bridge_not_loaded")
+               "platform_config_invalid", "platform_not_back", "bridge_not_loaded", "restart_not_observed")
 
 
 def _default_spawn(fn: Callable[[], None], name: str) -> None:
@@ -76,6 +99,7 @@ def _default_spawn(fn: Callable[[], None], name: str) -> None:
 SPAWN: Callable[[Callable[[], None], str], None] = _default_spawn
 _sleep: Callable[[float], None] = time.sleep
 _clock: Callable[[], float] = time.monotonic
+_BOOT_COUNTED: str | None = None  # the run whose boot count this process already raised in `early_boot`
 
 
 def _now() -> dt.datetime:
@@ -102,11 +126,23 @@ def timeout_of(row: sqlite3.Row) -> int:
     return RESTART_TIMEOUT_S if row["restart_platform"] else UPDATE_TIMEOUT_S
 
 
+def expected_of(row: sqlite3.Row) -> int:
+    return RESTART_TIMEOUT_S if row["restart_platform"] else UPDATE_EXPECTED_S
+
+
+def backup_state(row: Any) -> str:
+    """`not_requested` | `requested` (asked, not seen to finish) | `confirmed` (the backup child job finished without errors)."""
+    value = int(row["backup"] or 0)
+    return "confirmed" if value >= BACKUP_CONFIRMED else "requested" if value == BACKUP_REQUESTED else "not_requested"
+
+
 def run_view(row: sqlite3.Row) -> dict[str, Any]:
-    """What the status screen polls. No backup name, no slug, no upstream text."""
+    """What the status screen polls. No backup name, no slug, no upstream text. `backup` is true only for a CONFIRMED backup."""
+    bs = backup_state(row)
     return {"run_id": row["id"], "kind": kind_of(row), "state": row["state"], "step": row["step"], "started_at": row["created_at"],
-            "finished_at": row["finished_at"], "from_version": row["from_version"], "to_version": row["to_version"], "backup": bool(row["backup"]),
-            "error_code": row["error_code"], "timeout_s": timeout_of(row)}
+            "finished_at": row["finished_at"], "from_version": row["from_version"], "to_version": row["to_version"], "backup": bs == "confirmed",
+            "backup_requested": bs != "not_requested", "backup_state": bs, "error_code": row["error_code"], "timeout_s": timeout_of(row),
+            "expected_s": expected_of(row)}
 
 
 def get_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
@@ -148,7 +184,12 @@ def _audit_result(conn: sqlite3.Connection, row: sqlite3.Row, state: str, error_
     audit(conn, actor=None, action="system.update.result", decision="allowed" if state == "succeeded" else "denied", resource_type="installation",
           resource_id="update", reason=error_code,
           details={"phase": "outcome", "run_id": row["id"], "kind": kind_of(row), "state": state, "error_code": error_code, "from": row["from_version"],
-                   "to": row["to_version"], "backup": bool(row["backup"]), "actor_user_id": row["actor_user_id"], **(extra or {})})
+                   "to": row["to_version"], "backup": backup_state(row) == "confirmed", "backup_requested": backup_state(row) != "not_requested",
+                   "actor_user_id": row["actor_user_id"], **(extra or {})})
+
+
+def _clear_update_keys(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM settings WHERE key IN (?, ?, ?)", (K_BOOT_RUN, K_BOOT_COUNT, K_JOB_ID))
 
 
 def finish(db: Database, run_id: str, state: str, error_code: str | None = None, step: str | None = None, extra: dict[str, Any] | None = None) -> bool:
@@ -162,7 +203,7 @@ def finish(db: Database, run_id: str, state: str, error_code: str | None = None,
         if state == "succeeded" and row["restart_platform"]:
             platform_restart.clear_after_restart(conn, row["created_at"])
         if row["restart_platform"] == 0:
-            conn.execute("DELETE FROM settings WHERE key IN (?, ?)", (K_BOOT_RUN, K_BOOT_COUNT))
+            _clear_update_keys(conn)
     return True
 
 
@@ -177,8 +218,21 @@ def sweep_overdue(conn: sqlite3.Connection) -> list[str]:
     for row in conn.execute("SELECT * FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned')").fetchall():
         if overdue(row) and _set(conn, row["id"], state="abandoned", error_code="timeout"):
             _audit_result(conn, row, "abandoned", "timeout")
+            if row["restart_platform"] == 0:
+                _clear_update_keys(conn)
             swept.append(row["id"])
     return swept
+
+
+def janitor(db: Database) -> list[str]:
+    """The scheduled clean-up (main.janitor_tick, every 30 s): unfinished runs past their ceiling become `abandoned`. Writes only when
+    there is something to settle."""
+    with db.connection(mode="read", label="update_runs.janitor_read") as conn:
+        rows = conn.execute("SELECT * FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned')").fetchall()
+    if not any(overdue(r) for r in rows):
+        return []
+    with db.connection(label="update_runs.janitor") as conn:
+        return sweep_overdue(conn)
 
 
 # ------------------------------------------------------------------------------------------------ requests
@@ -232,12 +286,26 @@ def _upstream_refusal(reply: su.Reply) -> ApiError:
 
 def _insert(conn: sqlite3.Connection, *, run_id: str, principal: Any, from_version: str, to_version: str | None, backup: bool, restart: bool,
             key: str, step: str | None) -> bool:
-    """The single-active-run rule in ONE statement under the write lock: the row is inserted only when no unfinished run exists."""
+    """The single-active-run rule in ONE statement under the write lock: the row is inserted only when no unfinished run exists - and, for an
+    update, when no other update started within APPLY_MIN_GAP_S (the gap is re-checked here, not only before the unlocked read)."""
+    gap = ""
+    args: list[Any] = [run_id, _iso(), getattr(principal, "user_id", None), from_version, to_version, BACKUP_REQUESTED if backup else BACKUP_NONE,
+                       1 if restart else 0, step, key]
+    if not restart:
+        gap = " AND NOT EXISTS (SELECT 1 FROM update_runs WHERE restart_platform = 0 AND created_at > ?)"
+        args.append(iso_utc(_now() - dt.timedelta(seconds=APPLY_MIN_GAP_S)))
     cur = conn.execute(
         "INSERT INTO update_runs(id, created_at, actor_user_id, from_version, to_version, backup, restart_platform, state, step, idempotency_key) "
-        "SELECT ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ? WHERE NOT EXISTS (SELECT 1 FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned'))",
-        (run_id, _iso(), getattr(principal, "user_id", None), from_version, to_version, 1 if backup else 0, 1 if restart else 0, step, key))
+        "SELECT ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ? WHERE NOT EXISTS (SELECT 1 FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned'))"
+        + gap, args)
     return cur.rowcount == 1
+
+
+def _refuse_gap(conn: sqlite3.Connection) -> None:
+    last = conn.execute("SELECT created_at FROM update_runs WHERE restart_platform = 0 ORDER BY created_at DESC LIMIT 1").fetchone()
+    if last is not None and _age_s(last["created_at"]) < APPLY_MIN_GAP_S:
+        wait = max(1, int(APPLY_MIN_GAP_S - _age_s(last["created_at"])))
+        raise ApiError(429, "rate_limited", "עדכון הופעל זה עתה. נסו שוב בעוד כמה דקות.", retryable=True, details={"retry_after_s": wait})
 
 
 def start_update(conn: sqlite3.Connection, db: Database, settings: Settings, principal: Any, req: ApplyRequest, *, remote: bool,
@@ -248,10 +316,7 @@ def start_update(conn: sqlite3.Connection, db: Database, settings: Settings, pri
         return replay, False
     sweep_overdue(conn)
     _refuse_active(conn)
-    last = conn.execute("SELECT created_at FROM update_runs WHERE restart_platform = 0 ORDER BY created_at DESC LIMIT 1").fetchone()
-    if last is not None and _age_s(last["created_at"]) < APPLY_MIN_GAP_S:
-        wait = max(1, int(APPLY_MIN_GAP_S - _age_s(last["created_at"])))
-        raise ApiError(429, "rate_limited", "עדכון הופעל זה עתה. נסו שוב בעוד כמה דקות.", retryable=True, details={"retry_after_s": wait})
+    _refuse_gap(conn)
     if _nvr_write_pending(conn):
         raise ApiError(409, "nvr_write_in_progress", "שינוי הגדרות מצלמה עדיין מתבצע. נסו שוב בעוד רגע.", retryable=True)
     if not su.configured(settings):
@@ -288,6 +353,7 @@ def start_update(conn: sqlite3.Connection, db: Database, settings: Settings, pri
         raise
     if not inserted:
         _refuse_active(conn)
+        _refuse_gap(conn)  # another update started (and maybe already failed) while this request read unlocked
         raise ApiError(409, "update_in_progress", "פעולת עדכון או הפעלה מחדש אחרת עדיין מתבצעת.", retryable=True)
     audit(conn, actor=principal, action="system.update.apply", decision="allowed", resource_type="installation", resource_id="update", request_id=request_id,
           details={"phase": "attempt", "run_id": run_id, "from": info.installed, "to": req.target_version, "backup": req.backup, "remote": remote})
@@ -366,7 +432,34 @@ def _job_failed(job: dict[str, Any]) -> bool:
 
 
 def _backup_done(job: dict[str, Any]) -> bool:
-    return any(isinstance(c, dict) and "backup" in str(c.get("name") or "") and c.get("done") is True for c in job.get("child_jobs") or [])
+    """A backup child job that FINISHED WITHOUT ERRORS (a failed or unfinished backup is never shown as taken)."""
+    return any(isinstance(c, dict) and "backup" in str(c.get("name") or "") and c.get("done") is True and not _job_failed(c)
+               for c in job.get("child_jobs") or [])
+
+
+def _update_job_running(jobs: Any) -> bool:
+    """Some add-on update job is still running (by name: the job id is unknown after a dropped call). Used only as a reason to WAIT."""
+    for job in jobs if isinstance(jobs, list) else []:
+        if not isinstance(job, dict):
+            continue
+        if job.get("name") == UPDATE_JOB_NAME and job.get("done") is not True:
+            return True
+        if _update_job_running(job.get("child_jobs")):
+            return True
+    return False
+
+
+def _read_run(db: Database, run_id: str) -> sqlite3.Row | None:
+    with db.connection(mode="read", label="update_runs.poll") as conn:
+        return get_run(conn, run_id)
+
+
+def _confirm_backup(db: Database, run_id: str, from_backing_up: bool) -> None:
+    with db.connection(label="update_runs.backup") as conn:
+        conn.execute("UPDATE update_runs SET backup = ? WHERE id = ? AND backup = ? AND state NOT IN ('succeeded', 'failed', 'abandoned')",
+                     (BACKUP_CONFIRMED, run_id, BACKUP_REQUESTED))
+        if from_backing_up:
+            _set(conn, run_id, state="updating", step="backup_done")
 
 
 def update_worker(db: Database, settings: Settings, run_id: str, slug: str, backup: bool) -> None:
@@ -393,31 +486,109 @@ def _update_worker(db: Database, settings: Settings, run_id: str, slug: str, bac
     job_id = str((reply.data or {}).get("job_id") or "")
     advance(db, run_id, step="job_running")
     if not JOB_ID_RE.fullmatch(job_id):
-        return  # no job to follow: the restart of this process (or the timeout) settles the run
-    deadline = _clock() + UPDATE_TIMEOUT_S
+        return  # no job to follow: the restart of this process (or the janitor at the ceiling) settles the run
+    with db.connection(label="update_runs.job") as conn:
+        set_setting(conn, K_JOB_ID, job_id)
+    _follow(db, settings, run_id, job_id)
+
+
+def _follow(db: Database, settings: Settings, run_id: str, job_id: str) -> None:
+    """Follow the Supervisor job of an open update run while this process lives (the old version after `apply`, or the old version
+    started again in the middle of the job). Verdicts only from what is observed:
+    * the job (by id) reports errors -> `failed/update_job_failed`;
+    * no update job has been running for NO_JOB_GRACE_S and the infrastructure reports the SOURCE version installed while this process
+      runs it -> `failed/version_unchanged`;
+    * the job is running, or the target is installed (the Supervisor replaces this process next), or nothing is readable -> keep waiting;
+    * the ceiling (UPDATE_TIMEOUT_S from the run's creation) -> `abandoned/timeout`, reopened by `on_startup` if the target starts."""
+    row = _read_run(db, run_id)
+    if row is None or row["state"] in TERMINAL:
+        return
+    deadline = _clock() + max(0.0, timeout_of(row) - _age_s(row["created_at"]))
+    idle_since: float | None = None
     while _clock() < deadline:
         _sleep(POLL_S)
-        with db.connection(mode="read", label="update_runs.poll") as conn:
-            row = get_run(conn, run_id)
+        row = _read_run(db, run_id)
         if row is None or row["state"] in TERMINAL:
             return
         jr = su.call(settings, "GET", su.P_JOBS)
         if jr.kind != "ok":
-            continue  # progress is optional; the outcome never depends on it
-        job = _find_job((jr.data or {}).get("jobs"), job_id)
-        if job is None:
-            continue
-        if _job_failed(job):
+            continue  # nothing observed: no verdict either way
+        jobs = (jr.data or {}).get("jobs")
+        job = _find_job(jobs, job_id) if job_id else None
+        if job is not None and _job_failed(job):
             finish(db, run_id, "failed", "update_job_failed")
             return
-        if job.get("done") is True:
+        if job is not None and int(row["backup"] or 0) == BACKUP_REQUESTED and _backup_done(job):
+            _confirm_backup(db, run_id, from_backing_up=row["state"] == "backing_up")
+        if (job is not None and job.get("done") is not True) or (job is None and _update_job_running(jobs)):
+            idle_since = None
+            continue
+        if job is not None and job.get("done") is True and row["state"] != "restarting":
             advance(db, run_id, state="restarting", step="job_done")
-        elif backup and row["state"] == "backing_up" and _backup_done(job):
-            advance(db, run_id, state="updating", step="backup_done")
-    finish(db, run_id, "abandoned", "timeout")  # this process outlived the update window: the update did not replace it
+        if idle_since is None:
+            idle_since = _clock()
+            continue
+        if _clock() - idle_since < NO_JOB_GRACE_S:
+            continue
+        info = su.call(settings, "GET", su.P_INFO)
+        installed = str((info.data or {}).get("version") or "") if info.kind == "ok" else ""
+        if installed and installed == row["from_version"] == __version__:
+            finish(db, run_id, "failed", "version_unchanged", extra={"running": __version__})
+            return
+    finish(db, run_id, "abandoned", "timeout")  # the ceiling: never claimed either way; on_startup reopens it if the target starts
 
 
 # ------------------------------------------------------------------------------------------------ the new process: on_startup
+
+def _count_boot(conn: sqlite3.Connection, run_id: str) -> int:
+    count = int(get_setting(conn, K_BOOT_COUNT, "0") or 0) + 1 if get_setting(conn, K_BOOT_RUN) == run_id else 1
+    set_setting(conn, K_BOOT_RUN, run_id)
+    set_setting(conn, K_BOOT_COUNT, str(count))
+    return count
+
+
+def early_boot(db: Database) -> str | None:
+    """Called by main.py BEFORE the migrations: a start of the target version of the open update run is counted here, so a version that
+    crashes in a migration (or anywhere before `on_startup`) still ends in `failed/restart_loop` after LOOP_BOOTS starts. Never raises.
+    Returns `counted`, `restart_loop` or None (nothing to count: no open run, another version, a database without the table yet)."""
+    global _BOOT_COUNTED
+    try:
+        with db.connection(label="update_runs.early_boot") as conn:
+            row = conn.execute("SELECT * FROM update_runs WHERE restart_platform = 0 AND state NOT IN ('succeeded', 'failed', 'abandoned') "
+                               "ORDER BY created_at DESC LIMIT 1").fetchone()
+            if row is None or row["to_version"] != __version__:
+                return None
+            count = _count_boot(conn, row["id"])
+        _BOOT_COUNTED = row["id"]
+        if count >= LOOP_BOOTS:
+            finish(db, row["id"], "failed", "restart_loop", extra={"running": __version__, "stage": "before_start"})
+            return "restart_loop"
+        return "counted"
+    except sqlite3.OperationalError:  # a fresh or very old database: no update_runs table yet
+        return None
+    except Exception:  # noqa: BLE001 - never block the start
+        log.warning("update runs: the early start count failed", exc_info=True)
+        return None
+
+
+def _reopen_abandoned(conn: sqlite3.Connection) -> str | None:
+    """The newest run is an update abandoned at the ceiling, its target is the running version and it is recent: verify it after all
+    (the build outlived the old process's ceiling). Returns the run id when reopened."""
+    last = conn.execute("SELECT * FROM update_runs ORDER BY created_at DESC, rowid DESC LIMIT 1").fetchone()
+    if (last is None or last["restart_platform"] or last["state"] != "abandoned" or last["error_code"] != "timeout"
+            or last["to_version"] != __version__ or _age_s(last["created_at"]) > REOPEN_WINDOW_S):
+        return None
+    cur = conn.execute("UPDATE update_runs SET state = 'verifying', step = 'health_check', finished_at = NULL, error_code = NULL "
+                       "WHERE id = ? AND state = 'abandoned' AND NOT EXISTS (SELECT 1 FROM update_runs WHERE state NOT IN ('succeeded', 'failed', 'abandoned'))",
+                       (last["id"],))
+    if cur.rowcount != 1:
+        return None
+    _count_boot(conn, last["id"])
+    audit(conn, actor=None, action="system.update.result", decision="allowed", resource_type="installation", resource_id="update", reason="reopened",
+          details={"phase": "reopened", "run_id": last["id"], "kind": "update", "state": "verifying", "from": last["from_version"], "to": last["to_version"],
+                   "running": __version__})
+    return last["id"]
+
 
 def on_startup(db: Database, settings: Settings) -> str | None:
     """Called once by main.py's lifespan right after the migrations and `record_version`. Settles the open update run (if any) and resumes
@@ -430,30 +601,51 @@ def on_startup(db: Database, settings: Settings) -> str | None:
 
 
 def _on_startup(db: Database, settings: Settings) -> str | None:
+    global _BOOT_COUNTED
     outcome: str | None = None
+    job_id = ""
+    reopened: str | None = None
     with db.connection(label="update_runs.on_startup") as conn:
         restart = conn.execute("SELECT * FROM update_runs WHERE restart_platform = 1 AND state NOT IN ('succeeded', 'failed', 'abandoned')").fetchone()
         row = conn.execute("SELECT * FROM update_runs WHERE restart_platform = 0 AND state NOT IN ('succeeded', 'failed', 'abandoned') ORDER BY created_at DESC LIMIT 1").fetchone()
         if row is not None:
             if __version__ == row["to_version"]:
-                count = int(get_setting(conn, K_BOOT_COUNT, "0") or 0) + 1 if get_setting(conn, K_BOOT_RUN) == row["id"] else 1
-                set_setting(conn, K_BOOT_RUN, row["id"])
-                set_setting(conn, K_BOOT_COUNT, str(count))
+                if _BOOT_COUNTED == row["id"]:  # early_boot already counted this start
+                    count = int(get_setting(conn, K_BOOT_COUNT, "1") or 1)
+                else:
+                    count = _count_boot(conn, row["id"])
                 if count >= LOOP_BOOTS:
                     outcome = "restart_loop"
                 else:
                     _set(conn, row["id"], state="verifying", step="health_check")
                     outcome = "verifying"
             elif __version__ == row["from_version"]:
-                outcome = "interrupted" if row["state"] == "requested" else "version_unchanged"
+                if row["state"] == "requested":
+                    outcome = "interrupted"
+                elif row["state"] in RESUMABLE:  # restarted in the middle of the job: the job state decides, not this start
+                    outcome = "resumed"
+                    job_id = get_setting(conn, K_JOB_ID, "") or ""
+                else:
+                    outcome = "version_unchanged"
             else:
                 outcome = "version_unexpected"
+        elif restart is None:
+            reopened = _reopen_abandoned(conn)
+            if reopened is not None:
+                outcome = "verifying"
+    _BOOT_COUNTED = None
     if row is not None:
         if outcome in ("restart_loop", "interrupted", "version_unchanged", "version_unexpected"):
             finish(db, row["id"], "failed", outcome, extra={"running": __version__})
         elif outcome == "verifying":
             run_id = row["id"]
             SPAWN(lambda: verify_worker(db, settings, run_id), f"update-verify-{run_id}")
+        elif outcome == "resumed":
+            run_id = row["id"]
+            SPAWN(lambda: update_follow(db, settings, run_id, job_id), f"update-follow-{run_id}")
+    elif reopened is not None:
+        rid_reopened = reopened
+        SPAWN(lambda: verify_worker(db, settings, rid_reopened), f"update-verify-{rid_reopened}")
     if restart is not None:
         rid = restart["id"]
         if restart["state"] == "requested":  # the configuration check never ran or never finished: nothing was restarted by this run
@@ -463,6 +655,13 @@ def _on_startup(db: Database, settings: Settings) -> str | None:
             SPAWN(lambda: _poll_platform(db, settings, rid, sent_ok=True, sent_at=sent_at), f"platform-restart-resume-{rid}")
         outcome = outcome or "platform_resumed"
     return outcome
+
+
+def update_follow(db: Database, settings: Settings, run_id: str, job_id: str) -> None:
+    try:
+        _follow(db, settings, run_id, job_id)
+    except Exception:  # noqa: BLE001 - the run is settled by the next start or the janitor
+        log.exception("update run %s: following the job stopped", run_id)
 
 
 def health(db: Database, settings: Settings, to_version: str) -> tuple[bool, list[str]]:
@@ -554,9 +753,14 @@ def _bridge_paired(db: Database) -> tuple[bool, str]:
 
 
 def _poll_platform(db: Database, settings: Settings, run_id: str, *, sent_ok: bool, sent_at: str) -> None:
-    """Arx keeps running while the platform core restarts. Success: the core reports `running` after it was seen down (or, when the
-    restart was accepted, after RESTART_SETTLE_S), and - when the bridge is paired - the bridge pushed its directory after the restart
-    was sent (it is loaded again). The restart is never resent."""
+    """Arx keeps running while the platform core restarts. The restart is never resent. Success only after the post-restart check:
+    1. the core went down: DOWN_SAMPLES consecutive answers that are not `running` (one transient error is no restart) - or, when the
+       restart was ACCEPTED, RESTART_SETTLE_S passed (the call may return only once the core is back);
+    2. then UP_SAMPLES consecutive `running` answers (a core that falls again right after it came back is not back);
+    3. when the bridge is paired: a bridge directory push at or after the first of those `running` answers (a push of the OLD core
+       between the restart call and its shutdown proves nothing).
+    `sent_at` is kept for the caller's signature (resume after an Arx restart)."""
+    del sent_at
     with db.connection(mode="read", label="update_runs.poll_platform") as conn:
         row = get_run(conn, run_id)
     if row is None or row["state"] in TERMINAL:
@@ -564,6 +768,8 @@ def _poll_platform(db: Database, settings: Settings, run_id: str, *, sent_ok: bo
     start = _clock()
     deadline = start + max(0.0, timeout_of(row) - _age_s(row["created_at"]))
     seen_down = False
+    down_streak = up_streak = 0
+    back_at = ""
     core_back = False
     paired, _ = _bridge_paired(db)
     while _clock() < deadline:
@@ -572,18 +778,32 @@ def _poll_platform(db: Database, settings: Settings, run_id: str, *, sent_ok: bo
             reply = addon_restart.platform_info(settings)
             running = reply.kind == "ok" and (reply.data or {}).get("state") == "running"
             if not running:
-                seen_down = True
+                up_streak = 0
+                down_streak += 1
+                seen_down = seen_down or down_streak >= DOWN_SAMPLES
                 continue
+            down_streak = 0
             if not seen_down and not (sent_ok and _clock() - start >= RESTART_SETTLE_S):
+                continue
+            up_streak += 1
+            if up_streak == 1:
+                back_at = _iso()
+            if up_streak < UP_SAMPLES:
                 continue
             core_back = True
             advance(db, run_id, state="verifying", step="bridge_wait" if paired else "waiting_for_platform")
             if not paired:
                 break
         _, directory_at = _bridge_paired(db)
-        if directory_at >= sent_at:
+        if directory_at >= back_at:
             break
     else:
-        finish(db, run_id, "failed", "bridge_not_loaded" if core_back else "platform_not_back")
+        if core_back:
+            code = "bridge_not_loaded"
+        elif seen_down or sent_ok:
+            code = "platform_not_back"
+        else:
+            code = "restart_not_observed"  # the outcome of the call is unknown and no restart was seen: never claimed
+        finish(db, run_id, "failed", code)
         return
     finish(db, run_id, "succeeded", extra={"bridge_paired": paired})

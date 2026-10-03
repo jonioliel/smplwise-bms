@@ -306,10 +306,11 @@ are a later slice. No new migration (`update_runs` is in 0051; the boot counter 
 |---|---|---|
 | `POST /api/v1/system/update/apply` | `{target_version, backup, confirm: true, idempotency_key}` | `202 {run_id, kind:"update", state:"requested", ...}`; same key -> `200` same run; 409 `update_in_progress` / `update_not_available` / `target_version_mismatch` / `platform_busy` / `nvr_write_in_progress` / `idempotency_key_reused`; 429 `rate_limited` (1 per 10 min, from `update_runs`, survives the restart); 503 `platform_not_permitted` (`required_role: manager`) / `infrastructure_unreachable`; 502 `infrastructure_error` |
 | `POST /api/v1/system/update/restart-platform` | `{confirm: true, idempotency_key}` | `202 {run_id, kind:"platform_restart", step:"config_check", ...}`; 409 `update_in_progress` while any run is active; 503 / 502 as above. No rate limit |
-| `GET /api/v1/system/update/runs/{run_id}` | - | `{run_id, kind, state, step, started_at, finished_at, from_version, to_version, backup, error_code, timeout_s}`; a run past its timeout is settled `abandoned` here |
+| `GET /api/v1/system/update/runs/{run_id}` | - | `{run_id, kind, state, step, started_at, finished_at, from_version, to_version, backup, backup_requested, backup_state, error_code, timeout_s, expected_s}`; a run past its ceiling (`timeout_s`) is settled `abandoned` here (and by the janitor). `backup` is true only for a CONFIRMED backup (13.7) |
 
 Order on both POST routes (the `auth.read_gate` pattern): permission on the read connection (403 + audit before the body is read)
--> body cap 4 KB -> `Sec-Fetch-Site` other than `same-origin` refused (403 `cross_site_refused`) -> JSON only (415) -> body schema
+-> body cap 4 KB -> same origin (the rule of `remote_channel.csrf_ok`: `Sec-Fetch-Site: same-origin` when present, else an `Origin`
+equal to the request's scheme + host, neither -> refused; 403 `cross_site_refused`) -> JSON only (415) -> body schema
 (422 `invalid_request`) -> `confirm` must be the JSON literal `true` (422 `confirm_required`) -> write connection. Every refusal after
 the permission is an audit row (`system.update.apply` / `.restart_platform`, `denied`, `phase:"request"`). The remote channel may use
 the routes (D5); its cookie sessions pass `remote_channel.csrf_ok` first. The routes are not on `BLOCKED_ON_REMOTE`.
@@ -327,12 +328,13 @@ run)` + the audit row `phase:"attempt"`, committed before a worker sends anythin
 arrives (`dropped`) is an UNKNOWN outcome: never resent, never claimed; the update run goes to `restarting/outcome_unknown` and is
 settled by the next start (`update_runs.on_startup`, called once from `main.py` after the migrations): running version = target ->
 `verifying` + health check with one retry after 60 s (schema at the newest migration, database writable, infrastructure reports the
-target version and `started`) -> `succeeded` / `failed/health_check_failed`; running version = source -> `failed/version_unchanged`
-(`interrupted` when the call was never sent); three starts of the target without a healthy check -> `failed/restart_loop`. A process
-that outlives the 20-minute window -> `abandoned/timeout`. The platform restart: the configuration check fails (HTTP 400) ->
-`failed/platform_config_invalid`, no restart; otherwise `POST /core/restart` once, then `GET /core/info` every 5 s up to 10 min:
-`running` after it was seen down (or after 30 s when the restart was accepted) and, when the bridge is paired, a bridge directory push
-after the restart -> `succeeded`; else `platform_not_back` / `bridge_not_loaded`. A successful restart clears the stored reasons.
+target version and `started`) -> `succeeded` / `failed/health_check_failed`; running version = source -> the job state decides (13.7;
+`interrupted` when the call was never sent); three starts of the target without a healthy check -> `failed/restart_loop` (starts are
+counted before the migrations). A run is abandoned only at the 90-minute ceiling (13.7). The platform restart: the configuration check
+fails (HTTP 400) -> `failed/platform_config_invalid`, no restart; otherwise `POST /core/restart` once, then `GET /core/info` every 5 s up
+to 10 min: down twice in a row (or 30 s when the restart was accepted), then `running` twice in a row and, when the bridge is paired, a
+bridge directory push after the core came back -> `succeeded`; else `platform_not_back` / `bridge_not_loaded` / `restart_not_observed`.
+A successful restart clears the stored reasons.
 
 Deviations from the private design: the configuration check runs in the worker (the run row exists first; an Ingress request never
 waits for a slow check) - its failure is on the run, not a synchronous 409; `confirm_text` is gone (answer 4); the platform restart has
@@ -377,3 +379,44 @@ no rate limit (answer 8); `backup_ref` is not filled (no backup name is kept, no
   exists.
 - A refusal while an Arx backup restore is running: there is no restore-in-progress marker to read; the NVR-write interlock is built.
 - Restore / downgrade button (answer 10).
+
+### 13.7 Security review fixes (2026-10-04, branch `pilot/CR021-s3-fixes`)
+
+The independent review of S3 (private, findings with file:line) found code-level gaps; these are fixed. Not changed here (owner
+decisions pending): the `manager` role itself, the supply chain / branch protection item (13.4), and the platform-restart rate limit
+(answer 8 stands: none).
+
+Contract changes for the UI (all additive in shape; one meaning change):
+
+| Where | Change |
+|---|---|
+| run view (`GET /runs/{id}`, the 202 / 200 of the POST routes) | `backup` now means a CONFIRMED backup (the Supervisor's backup child job finished without errors). New `backup_requested` (bool, what the operator asked) and `backup_state` (`not_requested` / `requested` / `confirmed`). The failure screen offers "restore from the platform backup" only for `confirmed`; for `requested` it says the backup was asked but not confirmed and offers Arx's own pre-upgrade copy. |
+| run view | New `expected_s` (update 1200, platform restart 600): what the step usually takes, for the progress text. `timeout_s` of an update is now the ceiling 5400 (90 min); show "still working" between the two, never "failed". |
+| `error_code` vocabulary | New `restart_not_observed` (platform restart: the call's answer was lost and no restart was seen; nothing is claimed). |
+| both POST routes | Without `Sec-Fetch-Site`, an `Origin` equal to the request's scheme + host is required; neither -> 403 `cross_site_refused`. Browsers send these by themselves (assumption A13); a script or a non-browser client must send `Origin`. |
+| on start | An update run whose source version starts again in the middle of the job stays open (state unchanged; `update_in_progress` still answers). |
+
+Behaviour:
+
+- Child processes (`ffmpeg`, `pdftoppm`, `pdfinfo`) run with `services/child_env.minimal_env()` (PATH, TZ, temp dirs, `LANG=C.UTF-8`;
+  never `SUPERVISOR_TOKEN` or any other secret). A guard test fails on a `subprocess` call without it.
+- Restart in the middle of an update (NVR connection save, the Arx restart button, the watchdog): no verdict at start. `_follow` keeps
+  reading `GET /jobs/info` (the job id is kept in the `settings` row `update.job_id`; by name `addon_manager_update` when unknown):
+  job errors -> `update_job_failed`; no update job for 2 min and the source version still installed -> `version_unchanged`; otherwise
+  wait. The single-run guard is not released early and no wrong failure is audited.
+- Long builds: the worker follows the job up to the 90-minute ceiling (`UPDATE_TIMEOUT_S`, documented in `update_runs.py`); a run
+  abandoned at the ceiling whose target version then starts (within 24 h) is reopened and verified (audit `system.update.result`
+  `phase: "reopened"`, then the usual outcome row). `main.janitor_tick` settles runs past their ceiling every 30 s.
+- Restart loop: `update_runs.early_boot` counts a start of the target version BEFORE the migrations, so a crash in a migration or at
+  import still ends in `failed/restart_loop` after three starts.
+- Allow-list: the update slug must equal the slug `GET /addons/self/info` reported for this add-on (no other add-on such as `core_ssh`
+  can be addressed; no update before that read); `nvr_system.supervisor_post` accepts only `/addons/self/options` and
+  `/addons/self/restart`; the options body may carry only the manifest's schema keys, each of its type (`OPTION_TYPES`, kept equal to
+  `config.yaml` by a test), and `save_connection` changes only the NVR keys. `POST /discovery` (body `{service: "smplwise_bridge",
+  config: {addon_url, pairing_code}}`) and the `GET /core/info` read of `ha_user_auth` now go through `self_update.send` too.
+- The 10-minute gap between two updates is part of the INSERT's WHERE (two parallel applies cannot both pass).
+- Not built: refusing the Arx restart / NVR connection save while an update runs (the start-up logic above makes it harmless); an
+  admin notification on each platform restart (finding 4 suggestion; left for the owner's decision).
+
+New lab assumptions: A16 - the Supervisor names the add-on update job `addon_manager_update` and keeps it in `GET /jobs/info` while it
+runs; A17 - a local build fits in 90 minutes on the slowest supported device.
