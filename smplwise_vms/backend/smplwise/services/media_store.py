@@ -52,16 +52,21 @@ def version_tuple(text: str | None) -> tuple[int, ...]:
     return tuple(int(p) for p in re.findall(r"\d+", text or "")[:3])
 
 
+def bridge_search_ready(conn: sqlite3.Connection) -> bool:
+    """MU1: a paired bridge of at least 0.7.0 (`BRIDGE_SEARCH_REQUIRED`) can search the music library (an unknown version fails closed)."""
+    st = bridge_state(conn)
+    return bool(st["paired"]) and version_tuple(st["version"]) >= version_tuple(BRIDGE_SEARCH_REQUIRED)
+
+
 def bridge_state(conn: sqlite3.Connection) -> dict[str, Any]:
-    """`{paired, version, media_ready, players_ready, search_ready}`: screen commands need a paired bridge of at least 0.4.0, the CR-016 commands, groups and
-    reads 0.5.0, the library search through the bridge 0.7.0 (an unknown version fails closed)."""
+    """`{paired, version, media_ready, players_ready}`: screen commands need a paired bridge of at least 0.4.0, the CR-016 commands, groups and
+    reads 0.5.0 (an unknown version fails closed)."""
     row = conn.execute("SELECT key, value FROM settings WHERE key IN ('bridge.secret', 'bridge.paired_at', 'bridge.integration_version')").fetchall()
     s = {r[0]: r[1] for r in row}
     paired = bool(s.get("bridge.secret")) and bool(s.get("bridge.paired_at"))
     version = s.get("bridge.integration_version") or None
     return {"paired": paired, "version": version, "media_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_REQUIRED),
-            "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED),
-            "search_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_SEARCH_REQUIRED)}
+            "players_ready": paired and version_tuple(version) >= version_tuple(BRIDGE_PLAYERS_REQUIRED)}
 
 
 # ------------------------------------------------------------------------------------------------ in-memory index / artwork

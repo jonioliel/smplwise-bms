@@ -251,7 +251,7 @@ def test_a_library_read_uses_the_loaded_entry_inside_the_bridge_and_drops_what_i
 def test_every_refusal_is_a_fixed_code_and_asks_nothing():
     hass = Hass(MA_STATES)
     assert ask(hass, "queue", Verifier("bad_signature"), entity_id="media_player.ma_a")["error"] == "bad_signature"
-    assert ask(hass, "search", entity_id="media_player.ma_a")["error"] == "query_not_allowed"
+    assert ask(hass, "lookup", entity_id="media_player.ma_a")["error"] == "query_not_allowed"
     assert ask(hass, "queue", entity_id="light.x")["error"] == "arguments_invalid"
     assert ask(hass, "library", media_type="playlist", config_entry_id="abc")["error"] == "arguments_invalid"
     assert ask(Hass(MA_STATES, user_active=False), "queue", entity_id="media_player.ma_a")["error"] == "unknown_user"

@@ -66,7 +66,7 @@ def caps_extra(conn: sqlite3.Connection, cat: store.Catalog, item: store.Item, c
     provider = mm.music_provider_of(item.model, cat.ents)
     ma_layer = provider == "ma" and player_id(cat, item) is not None
     direct = ma_layer and ma.usable(conn)
-    via_bridge = ma_layer and store.bridge_state(conn)["search_ready"]  # MU1: the bridge (>= 0.7.0) searches the library when the direct connection is not usable
+    via_bridge = ma_layer and store.bridge_search_ready(conn)  # MU1: the bridge (>= 0.7.0) searches the library when the direct connection is not usable
     browse = provider == "ma" and bool(caps.get("playlists") or caps.get("favourites") or caps.get("stations") or caps.get("up_next"))
     return {"queue_list": bool(direct and caps.get("up_next")), "browse": browse, "search": bool(browse and (direct or via_bridge))}
 

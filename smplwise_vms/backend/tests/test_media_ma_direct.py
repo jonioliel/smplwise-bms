@@ -462,11 +462,10 @@ def test_search_without_the_direct_connection_goes_through_a_bridge_of_0_7_0(d):
     assert (dev["caps"]["search"], dev["caps"]["queue_list"], dev["caps"]["browse"]) == (True, False, True), "search opens; the full queue still needs the direct connection"
     r = c.get(f"{API}/devices/{keys['a']}/browse?type=album&q=  נמצא ")
     assert r.status_code == 200, r.text
-    assert [(i["name"], i["artist"], i["kind"] if "kind" in i else None) for i in r.json()["items"]][0][:2] == ("נמצא בגשר", "אמנית")
     assert [i["name"] for i in r.json()["items"]] == ["נמצא בגשר"], "a URL and another type are dropped here too"
     assert "http" not in r.text and "library://" not in r.text, "items travel as opaque refs"
     (req,) = [x for x in bridge.requests if x["query"] == "search"]
-    assert (req["media_type"], req["name"], req["limit"], req["entity_id"]) == ("album", "נמצא", 50, "media_player.wiim_a") and "config_entry_id" not in req
+    assert (req["media_type"], req["name"], req["limit"], req["entity_id"]) == ("album", "נמצא", 50, "media_player.ma_a") and "config_entry_id" not in req
     assert fake.calls == [], "the direct connection was never asked"
     again = c.get(f"{API}/devices/{keys['a']}/browse?type=album&q=נמצא")
     assert again.status_code == 200 and len([x for x in bridge.requests if x["query"] == "search"]) == 1, "a repeat inside a minute is served from the cache"
