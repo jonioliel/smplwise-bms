@@ -99,6 +99,7 @@ InputProxy. Every UI test needs desktop / phone / RTL screenshots of loading, em
    has `nvr.config.stream` (in `system_admin`, sensitive, grantable to a custom role, used by no route). A custom-role
    grant would contradict D5, so CR-020 uses `nvr.configure` as a **system permission** and proposes removing
    `nvr.config.stream` from `roles.json` in S2 (no route depends on it). Not resolved silently: listed for the coordinator.
+   **Resolved 2026-10-03 (owner):** removed in S2 (roles.json, labels, `NVR_PERMISSIONS`; migration 0050 strips it from custom roles).
 2. **Existing `apply_change` records inside `unlocked`.** `nvr_write.apply_change` inserts `nvr_changes` and audit rows
    while the connection is in autocommit mode inside `with unlocked(conn)`. CR-020 does not reuse that path; it uses the
    two-phase pattern of `start_manual` / `_place_device` (API §4). Migrating the older routes is a separate task.
@@ -149,3 +150,49 @@ Deviations from the S1 row of section 2, recorded rather than resolved silently:
    `<SVC>` element the list carries.
 6. **WebRTC verdict follows the 0.1.151 rule**, not the 2026-09-14 probe: `unknown` (shown as a neutral dash, never a cross) for H.264 SVC and
    H.265 mains because the player tries WebRTC and falls back on a measured failure; `no` only for MJPEG and H.264 with B-frames.
+
+## 9. Slice S2 phase A implementation record (2026-10-03, branch `pilot/CR020-s2-a`, backend only)
+
+Built (fixture-tested against the fake NVR; NOTHING was run against the lab NVR - AT-020-16 stays NOT_RUN until the lead's
+one approved write, plan `private/cr020-s2/PLAN.md` section 9):
+
+- Migration **0050_nvr_stream_changes.sql**: `nvr_changes` gains `recorder_id` (default `nvr-1`), `camera_id`, `stream_ref`,
+  `fields_json`, `etag_before`, `etag_after`, `reboot_required`, `device_status`, `batch_id`, `batch_index` (the last two for the
+  later multi-camera phase), two indexes and the partial unique index "one pending change per recorder + stream". The same file
+  strips `nvr.config.stream` from stored custom roles (0042 pattern: role revision and permission revision move). CR-021 keeps 0051.
+- Permission **`nvr.configure`**: in `system_admin` (roles.json), `SYSTEM_PERMISSIONS` and `PERMISSION_LABELS`; not sensitive,
+  never in a custom role, never delegable. **`nvr.config.stream` is removed** (owner decision 2026-10-03; it was in
+  `NVR_PERMISSIONS` of `routers/nvr_write.py` and granted read access to the NVR state and change log - that read path is gone with it).
+- `PUT /nvr/cameras/{camera_id}/streams/{stream_ref}`, `GET /nvr/cameras/{camera_id}/streams/{stream_ref}/options[?codec=]`,
+  `options` and computed `writable` in `GET /nvr/cameras/{id}`, `can_write` from `nvr.configure`, `GET /nvr/changes?camera_id=`.
+- Undo: `POST /nvr/changes/{id}/rollback` dispatches `kind = stream_encoding` to `nvr_settings.rollback_stream` (nvr.configure at
+  installation AND on the change's camera, literal `confirm: true`, only an `applied` change, etag of `after` must match, two phases).
+  The generic `nvr_write.rollback` refuses a `stream_encoding` row.
+- Hikvision adapter: `stream_options` (direct capability document, then StreamingProxy, else `writable:false` with the device's sub
+  status; cached per process by recorder + firmware + stream + codec), `read_stream`, `write_stream_encoding` (LIST read, etag check,
+  ONE PUT, LIST verify; never retried). Pending janitor `settle_pending` in the 30 s housekeeping pass (first pass 30 s after start-up).
+
+Deviations from the contract (for review):
+1. **Owner rule "no capability document = abort"**: a stream whose capability documents answer 403 / 404 on both paths is not
+   writable; a write answers 503 `capabilities_unreadable` with a Hebrew message, and nothing is sent. A 5xx on the capability
+   path is `source_error` (no guess, nothing cached).
+2. **Confirm on undo** (owner Q3=A, decision "A" of 2026-10-03): the stream rollback requires `{"confirm": true}`; the API text
+   "undo confirms nothing more" is superseded. The generic rollback of other kinds keeps its bodyless shape. Rollback answers 201
+   `{change, stream, rollback_of, reboot_required}`.
+3. **`confirm` is checked by identity with the JSON literal `true`** before the body shape and before any device read (no pydantic
+   coercion of `"true"` / `1`). The body is parsed by hand after the permission checks, so a malformed body of an unauthorized caller is 403, not 422.
+4. **Unknown outcomes stay `pending`**: a timeout after the PUT was sent, a 5xx without a refusal code, or a failed verify read leave
+   the change `pending` with `error:"outcome_unknown"` (503 `source_unavailable`); the next write of that stream settles it at once
+   from a device read, the janitor otherwise. A change whose verify shows only part of the fields is `diverged` (409 `nvr_diverged`, new code).
+5. `nvr_changes.path` of a stream change holds `direct:<sid>` / `proxy:<sid>` (the write route), not the ISAPI path.
+6. A request whose values all equal the device's answers 200 with `change: null` and `unchanged_fields`; no row, no PUT (audited `unchanged`).
+7. A codec change on a stream with a profile element requires the profile to be valid for the new codec (named, or the current one
+   allowed); Arx never picks a profile silently. B-frames are `field_not_supported` (no element written in S2).
+8. Every authorized refusal before the device (confirm, validation, stale, write_in_progress, capabilities_unreadable) leaves ONE
+   denied `nvr.stream.write` / `nvr.rollback` audit row (`phase:"attempt"`, reason = the code) and no change row.
+9. The capability-document and dynamicCap shapes are the contract's (API 5.1) and are **UNVERIFIED on the lab firmware**; the
+   lab pre-check reads them read-only before the one approved write.
+
+Open for the security review: `GET /nvr/changes/{id}` returns `before_xml` / `after_xml` of stream changes to every `_require_read`
+holder (the stream element may carry transport details); `nvr_changes` is not a backup table, but a restored older backup could bring
+back a custom role naming `nvr.config.stream` (the role editor would then refuse it as unknown until it is removed).

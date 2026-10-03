@@ -94,7 +94,9 @@ def _row(r: sqlite3.Row) -> dict[str, Any]:
     return {k: r[k] for k in r.keys() if k not in ("before_xml", "after_xml")} | {"has_before": bool(r["before_xml"]), "has_after": bool(r["after_xml"])}
 
 
-def list_changes(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None) -> list[dict[str, Any]]:
+    if camera_id:
+        return [_row(r) for r in conn.execute("SELECT * FROM nvr_changes WHERE camera_id = ? ORDER BY created_at DESC LIMIT ?", (camera_id, limit)).fetchall()]
     return [_row(r) for r in conn.execute("SELECT * FROM nvr_changes ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()]
 
 
@@ -150,6 +152,10 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     orig = get_change(conn, change_id)
     if not orig:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
+    if orig["kind"] == "stream_encoding":
+        # CR-020 S2: an encoding change is undone only by services/nvr_settings.rollback_stream (nvr.configure on the camera,
+        # confirm, etag-of-after check, two phases). This generic path must never PUT its document.
+        raise ApiError(409, "not_rollbackable", "שינוי קידוד מבוטל רק דרך מסך הגדרות המצלמות.", details={"kind": orig["kind"]})
     if orig["status"] not in ("applied", "rolled_back") or not orig["before_xml"]:
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
     own = client is None

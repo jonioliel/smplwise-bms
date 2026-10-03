@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
@@ -14,7 +14,8 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nvr, nvr_schedule, nvr_system, nvr_write
+from ..services import nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
+from ..services.access import require_camera
 from ..services.timeutil import zone
 from .settings import read_settings
 
@@ -26,7 +27,7 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
-NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule", "nvr.config.stream",
+NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule",
                    "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot")
 
 
@@ -541,9 +542,10 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
 
 
 @router.get("/nvr/changes")
-def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
+                 camera_id: str | None = Query(None, max_length=64)) -> dict[str, Any]:
     _require_read(conn, principal)
-    return {"changes": nvr_write.list_changes(conn, limit)}
+    return {"changes": nvr_write.list_changes(conn, limit, camera_id=camera_id)}
 
 
 @router.get("/nvr/changes/{change_id}")
@@ -557,10 +559,24 @@ def get_change(change_id: str, principal: Principal = Depends(current_principal)
 
 
 @router.post("/nvr/changes/{change_id}/rollback", status_code=201)
-def rollback_change(change_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def rollback_change(change_id: str, request: Request, body: Any = Body(default=None), principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     r = nvr_write.get_change(conn, change_id)
     if not r:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
+    if r["kind"] == nvr_settings.KIND:
+        # CR-020 S2: an encoding undo is a guarded write of its own - nvr.configure at installation AND on the change's camera
+        # (T055), the literal `confirm: true` (owner Q3=A: the undo press is the confirmation), then the two-phase service
+        # path with the etag-of-after check. Never the generic path below (which records inside `unlocked`).
+        require(conn, principal, nvr_settings.WRITE_PERMISSION, INSTALLATION)
+        if r["camera_id"]:
+            require_camera(conn, principal, r["camera_id"], nvr_settings.WRITE_PERMISSION)
+        if not isinstance(body, dict) or body.get("confirm") is not True:
+            raise nvr_settings.refuse_attempt(conn, principal, r["camera_id"] or "*", r["stream_ref"] or "", ApiError(422, "confirm_required", "יש לאשר את הביטול."),
+                                              _rid(request), action="nvr.rollback")
+        settings = settings_of(request)
+        ensure_nvr(settings)
+        return nvr_settings.rollback_stream(conn, settings, principal, r, request_id=_rid(request))
     require(conn, principal, r["permission"], INSTALLATION)
     with unlocked(conn):
         return nvr_write.rollback(settings_of(request), conn, principal, change_id, request_id=_rid(request))

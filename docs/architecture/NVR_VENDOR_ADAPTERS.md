@@ -210,6 +210,10 @@ Home Assistant) and sources `frigate` / `onvif`; the dedup key gains the recorde
 
 ## 7. Data model: migration 0050
 
+> **Status 2026-10-03:** 0050 shipped with CR-020 S2 as `0050_nvr_stream_changes.sql` carrying only the `nvr_changes` columns
+> (and the removal of `nvr.config.stream` from custom roles). The `recorders` / `cameras` columns below move to the first slice
+> that needs them (S3 / second recorder) under the next free number. CR-021 holds 0051.
+
 **Number chosen: 0050.** `g0/intake` ends at `0044_media_players.sql`. Other branches hold `0045_notifications`,
 `0046_notify_settings`, `0047_notify_policies` (`integ/notify`, renumbered for CR-018), an automations migration (CR-017,
 committed as `0045_automations`, to be renumbered after the notification ones) and `0049_switch_protection`

@@ -1,8 +1,8 @@
 """The recorder adapter seam (CR-020, docs/architecture/NVR_VENDOR_ADAPTERS.md).
 
-Slice S1 is read-only: this Protocol carries the read methods only. The write methods of the design (stream encoding
-writes, add / remove a channel) arrive with S2 / S3 and are deliberately not declared yet, so no code path in S1 can reach
-a device write through an adapter.
+Slice S1 brought the read methods; slice S2 adds the ONE guarded write of the design: a single stream's encoding
+(`stream_options` / `read_stream` / `write_stream_encoding`). Add / remove a channel (S3) is deliberately not declared
+yet, so no code path can reach those device writes through an adapter.
 
 Rules every adapter keeps (ADP section 1):
 - device I/O only: an adapter never receives a SQLite connection, never writes audit rows and never decides permissions;
@@ -63,6 +63,35 @@ class StreamEncoding:
     etag: str | None = None
 
 
+@dataclass(frozen=True)
+class StreamOptions:
+    """What the device accepts for one stream (API 3.3), from its capability document. `writable` False when no capability
+    document answers (owner rule: no write without one); `write_via` names the path the document came from."""
+    writable: bool
+    reason: str | None  # why not writable: the device's sub status or "http_<code>"
+    options: dict[str, object] | None
+    write_via: Literal["direct", "proxy"] | None
+    source: str | None = None  # "capabilities" | "proxy_capabilities"
+
+
+@dataclass(frozen=True)
+class StreamSnapshot:
+    """One stream as the device's LIST shows it now: the exact element text, its etag and its parsed fields."""
+    stream_ref: str
+    element: str
+    etag: str
+    parsed: dict[str, object]
+
+
+@dataclass(frozen=True)
+class WriteOutcome:
+    """The device accepted the PUT (statusCode 1 or 7) and the LIST was read again. Whether the fields really changed is
+    decided by the service (applied / no_effect / diverged), which knows what was asked."""
+    device_status: str
+    reboot_required: bool
+    verified: StreamSnapshot
+
+
 class RecorderAdapter(Protocol):
     vendor: ClassVar[str]
     recorder_id: str
@@ -75,4 +104,19 @@ class RecorderAdapter(Protocol):
 
     def read_stream_encodings(self) -> dict[str, list[StreamEncoding]]:
         """Every stream of every channel, by the channel's `source_ref`."""
+        ...
+
+    def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
+        """Capability discovery for one stream (cached per process by recorder + firmware + stream + codec)."""
+        ...
+
+    def read_stream(self, stream_ref: str) -> StreamSnapshot:
+        """One stream from a fresh LIST read (404 `not_found` when the device has no such stream)."""
+        ...
+
+    def write_stream_encoding(self, stream_ref: str, expect_etag: str, element: str, write_via: str) -> WriteOutcome:
+        """Read the LIST again and refuse 409 `stale` when the stream's etag moved; PUT `element`; read the LIST again.
+        Never retried. Refusals are ApiErrors (`nvr_busy`, `nvr_not_supported`, `nvr_rejected`, `source_forbidden`); an
+        answer that leaves the device state unknown (timeout after the PUT was sent, verify read failed) is a 503
+        `source_unavailable` whose `details["outcome"]` is `"unknown"`."""
         ...

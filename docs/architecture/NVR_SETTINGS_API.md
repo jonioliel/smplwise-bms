@@ -28,8 +28,8 @@ returns a device address, a device user name, a password, a serial number or a M
 
 Both are checked at installation scope **and** on the camera's chain (`services.access.require_camera(conn, principal,
 camera_id, perm)`, T055): an explicit deny on the camera, its floor or site removes the camera from lists (filtered) and
-answers 403 on its routes (403 before 404). `nvr.config.stream` (existing, sensitive, unused) is not accepted by these
-routes; CR-020 §6.1 proposes removing it.
+answers 403 on its routes (403 before 404). `nvr.config.stream` (formerly sensitive, unused) was removed in S2 (owner
+decision 2026-10-03; migration 0050 strips it from custom roles). S2 deviations from this contract: CR-020 §9.
 
 ## 3. Routes
 
