@@ -16,7 +16,8 @@ import { COMBOS, installInstallationMock, type Combo, type HaState } from './nn1
 //   6. every skin, light and dark, mobile layout guard, operator wording (no infrastructure branding)
 // Evidence (fake data only) -> docs/design/evidence/nn1-p2/. Works on the dist preview or the Vite dev server:
 //   SW_BASE_URL=http://127.0.0.1:4173/ npx playwright test tests/evidence-nn1-p2.spec.ts --project=desktop --project=tablet --project=mobile
-const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/nn1-p2');
+// SW_EVIDENCE_DIR: a run on the shared runner writes outside the worktree (its runner script restores docs/ after a run)
+const EVIDENCE = process.env.SW_EVIDENCE_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/nn1-p2');
 const RAIL = 'sw-app nav.rail';
 const BOTTOM = 'sw-app nav.bottom';
 const PANEL = 'sw-app sw-state-panel[data-capability-panel]';
@@ -143,18 +144,17 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
       await page.waitForTimeout(500); // the alarm presence answer ("no panel") arrives after the first paint
       const hrefs = await navHrefs(page, sel);
       seen[combo] = hrefs;
-      const live = hrefs.filter((h) => h.startsWith('#/live'));
-      const inv = hrefs.filter((h) => h.startsWith('#/investigate'));
-      if (combo === 'A' || combo === 'B') expect([...live, ...inv], `${combo}: ${hrefs.join(', ')}`).toEqual([]);
-      if (combo === 'C') {
-        expect(live, `C: ${hrefs.join(', ')}`).toEqual([]); // not supported: no live video areas
-        expect(inv.length, `C: ${hrefs.join(', ')}`).toBe(1); // the events, not the playback
-        expect(inv[0]).toBe('#/investigate/events');
-      }
-      if (combo === 'D') expect(live.length + inv.length, `D: ${hrefs.join(', ')}`).toBeGreaterThan(0);
+      // the security area (cameras, investigation) is in the bar only when some page of it exists in this installation
+      if (combo === 'A' || combo === 'B') expect(hrefs, `${combo}: ${hrefs.join(', ')}`).not.toContain('#/security');
+      else expect(hrefs, `${combo}: ${hrefs.join(', ')}`).toContain('#/security');
       for (const h of ['#/devices/building', '#/explore/sites']) expect(hrefs, `${combo} keeps ${h}`).toContain(h);
       expect(await deepText(page), `${combo}: no infrastructure branding in the shell`).not.toMatch(BRAND);
       if (info.project.name !== 'tablet') await shot(page, `${combo}-nav`, info.project.name);
+      if (combo === 'C' || combo === 'D') {
+        // ... and it opens on its first page: C (no live video) on the events, D on the live overview
+        await page.locator(`${sel} a[href="#/security"]`).click();
+        await expect.poll(() => page.evaluate(() => location.hash), { message: `${combo} lands` }).toMatch(combo === 'C' ? /^#\/investigate\/events/ : /^#\/live/);
+      }
       await page.unroute('**/api/v1/**');
     }
     expect(seen.A).toEqual(seen.B); // media server alone changes nothing in the navigation (a sources list is a later design question)
@@ -189,7 +189,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
     await expect(page.locator(`${sel} a[href="#/devices/building"]`)).toBeVisible({ timeout: 20_000 });
     await page.waitForTimeout(400);
     const hrefs = await navHrefs(page, sel);
-    expect(hrefs.filter((h) => h.startsWith('#/live') || h.startsWith('#/investigate')).length).toBeGreaterThan(0);
+    expect(hrefs).toContain('#/security');
   });
 
   test('no request reaches a gated route while the shell is hidden from it (installation A)', async ({ page }) => {
