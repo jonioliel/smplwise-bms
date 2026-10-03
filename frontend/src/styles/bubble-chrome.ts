@@ -126,9 +126,20 @@ export const bubbleChrome = css`
   }
   :host([data-skin='bubble']) a.seeall,
   :host([data-skin='bubble']) a.why,
-  :host([data-skin='bubble']) a.link {
+  :host([data-skin='bubble']) a.link,
+  :host([data-skin='bubble']) .rev a,
+  :host([data-skin='bubble']) .spot .actions a {
     display: inline-flex;
     align-items: center;
+  }
+  :host([data-skin='bubble']) .rev a {
+    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop, 44px);
+  }
+  /* the settings hub's tile preview: two 170 px columns are wider than a 320 px phone */
+  :host([data-skin='bubble']) .tile-preview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-inline-size: 348px;
   }
   /* a wide segmented control wraps inside its track at 320 px instead of pushing the page sideways; a muted note wraps too */
   :host([data-skin='bubble']) .seg {
@@ -321,6 +332,11 @@ export const bubbleChrome = css`
     :host([data-skin='bubble']) .link,
     :host([data-skin='bubble']) .linkbtn,
     :host([data-skin='bubble']) button.link,
+    :host([data-skin='bubble']) .rev a,
+    :host([data-skin='bubble']) a.seeall,
+    :host([data-skin='bubble']) a.why,
+    :host([data-skin='bubble']) button.kiosk,
+    :host([data-skin='bubble']) button.chip,
     :host([data-skin='bubble']) input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']),
     :host([data-skin='bubble']) select,
     :host([data-skin='bubble']) textarea {

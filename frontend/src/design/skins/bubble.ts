@@ -129,7 +129,7 @@ const rules = `
 :host(sw-button) button { border: 0; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); box-shadow: none; background: var(--sw-surface-2); }
 :host(sw-button[variant='primary']) button { background: var(--sw-accent); }
 :host(sw-button[variant='ghost']) button { background: transparent; }
-:host(sw-button[size='sm']) button { min-block-size: var(--sw-touch-desktop); }
+:host(sw-button[size='sm']) button { min-block-size: var(--sw-touch-desktop); min-inline-size: var(--sw-touch-desktop); }
 :host(sw-button[icononly]) button { min-inline-size: var(--sw-touch-desktop); }
 :host(sw-chip) button { border: 0; border-radius: var(--sw-r-pill); background: var(--sw-surface-2); box-shadow: none; min-block-size: var(--sw-touch-desktop); }
 /* bubble 7b - the screens' small round and inline targets follow the touch dial too (the layout guard): the area menu's "⋯", the area breadcrumb */
