@@ -499,7 +499,9 @@ PUBLIC_ON_REMOTE = {("GET", "/api/v1/auth/remote-config"), ("DELETE", "/api/v1/a
 BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/bridge/directory"),  # 404: the bridge's signed calls
                      # CR-022 section 10: the NVR connection, its test and the restart are local-only
                      ("GET", "/api/v1/nvr/vendors"), ("GET", "/api/v1/nvr/connection"), ("PUT", "/api/v1/nvr/connection"), ("DELETE", "/api/v1/nvr/connection"),
-                     ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart")}
+                     ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),
+                     # CR-020 phase D: the bulk encoding change and its preview are local-only
+                     ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview")}
 
 
 def test_every_route_needs_a_remote_session(arx):

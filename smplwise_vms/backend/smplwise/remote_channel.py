@@ -115,7 +115,8 @@ _OWN = {b"content-security-policy-report-only", b"reporting-endpoints"} | {h for
 # machine-to-machine routes with no user identity (the HA bridge integration's signed calls on the internal network):
 # never reachable through the tunnel
 # CR-022 section 10: the NVR connection (its secret, the SSRF-shaped connection test) and the add-on restart are local-only
-BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory", "/api/v1/nvr/connection", "/api/v1/nvr/vendors", "/api/v1/system/restart")
+BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory", "/api/v1/nvr/connection", "/api/v1/nvr/vendors", "/api/v1/system/restart",
+                     "/api/v1/nvr/encoding-batches")  # CR-020 phase D: a bulk encoding change is local-only (its undo too: routers/nvr_batch.py)
 
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
