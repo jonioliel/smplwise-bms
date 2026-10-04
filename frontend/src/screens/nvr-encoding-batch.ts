@@ -250,6 +250,8 @@ export class NvrEncodingBatch extends LitElement {
        high in touch layouts, as the multi-camera checklist's search */
     sw-tabs {
       --sw-tab-min-h: 44px;
+      /* a flex item of the dialog's scrolling body: never squeezed below its own height (it scrolls sideways, so its automatic minimum is 0) */
+      flex: none;
     }
     @media (max-width: 1100px) {
       sw-field input {
