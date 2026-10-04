@@ -112,7 +112,12 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
     name = stream_name(session.id, session.generation)
     from ..recorder_scope import settings_for
 
-    src = playback_rtsp_url(settings_for(settings, session.recorder_id), session.track_id, start, session.end_at, session.tz_name)
+    rs = settings_for(settings, session.recorder_id)
+    src = playback_rtsp_url(rs, session.track_id, start, session.end_at, session.tz_name)
+    from .recorders import vendor_io
+
+    if vendor_io.handles(rs):
+        src = vendor_io.go2rtc_source(rs, src)  # CR-025 live finding: go2rtc plays this NVR through its ffmpeg source
     client.ensure_stream(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))

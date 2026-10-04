@@ -25,7 +25,8 @@ PASSWORD = "fake-pass-1"
 NS = 'xmlns="http://www.ipc.com/ver10"'
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
-         "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig"}
+         "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
+         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 

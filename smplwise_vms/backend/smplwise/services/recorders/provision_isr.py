@@ -911,6 +911,7 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         adv("poll_interval_s", "מרווח דגימה (שניות)", "text"),
         adv("push_port", "פורט קבלת דחיפות", "port"),
         sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),
+        sel("go2rtc_source", "חיבור go2rtc לווידאו", (("ffmpeg", "דרך ffmpeg (מומלץ למכשיר הזה)"), ("rtsp", "RTSP ישיר")), advanced=True),
         adv("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool"),
         adv("suppress_tls_warning", "להסתיר את אזהרת התעודה", "bool"),
     )

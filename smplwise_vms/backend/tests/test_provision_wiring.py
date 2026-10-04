@@ -83,8 +83,9 @@ def test_stream_sync_uses_the_device_paths_and_only_the_namespace(settings, fake
         with app.state.db.connection() as conn:
             r = autosync.ensure_streams(s, conn, reason="manual")
     srcs = dict(seen)
-    assert srcs["smplwise_nvr-1_ch1_main"] == f"rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=main"
-    assert srcs["smplwise_nvr-1_ch1_sub"] == f"rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=sub1"
+    # live finding: go2rtc plays this NVR only through its ffmpeg source (vendor_io.go2rtc_source)
+    assert srcs["smplwise_nvr-1_ch1_main"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=main#video=copy"
+    assert srcs["smplwise_nvr-1_ch1_sub"] == f"ffmpeg:rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=1&streamType=sub1#video=copy"
     assert all(n.startswith("smplwise_") for n in srcs) and r["foreign_streams_untouched"] == 1
 
 
@@ -237,3 +238,9 @@ def test_probe_returns_the_certificate_for_pinning(settings, fake, monkeypatch):
     res = r.json().get("result", r.json())
     assert res["ok"] is True and res["certificate"] == {"sha256": PIN, "self_signed": True, "matches_pin": None}
     assert res["transport"]["scheme"] == "https" and "tls_trust_any" in res["warnings"]
+
+
+def test_go2rtc_source_native_option(settings):
+    url = "rtsp://u:p@h:554/chID=1&streamType=main"
+    assert vendor_io.go2rtc_source(settings_for(settings), url) == f"ffmpeg:{url}#video=copy"
+    assert vendor_io.go2rtc_source(settings_for(settings, go2rtc_source="rtsp"), url) == url

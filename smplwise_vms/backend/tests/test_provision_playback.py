@@ -353,7 +353,7 @@ def test_go2rtc_session_through_the_existing_engine_stays_in_the_namespace(setti
     start = u(2026, 10, 4, 9, 50, 30)
     session = pb.create(s, P(), cam, start, start + dt.timedelta(minutes=5), "Asia/Jerusalem", 4)
     try:
-        assert session.stream.startswith("smplwise_pb_") and sources[-1].endswith("/chID=8&date=2026-10-04&time=12:50:30&timelen=300&streamType=main&action=playback")
+        assert session.stream.startswith("smplwise_pb_") and sources[-1].endswith("/chID=8&date=2026-10-04&time=12:50:30&timelen=300&streamType=main&action=playback#video=copy") and sources[-1].startswith("ffmpeg:rtsp://")  # wiring: go2rtc plays this NVR through ffmpeg
         pb.seek(s, session, start + dt.timedelta(minutes=1), start + dt.timedelta(minutes=5))
         assert session.generation == 1 and "time=12:51:30&timelen=240" in sources[-1]
     finally:

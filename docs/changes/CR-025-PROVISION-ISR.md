@@ -199,6 +199,27 @@ Settings design (owner request): the connection test records the device certific
 **pins** it (a changed certificate refuses the connection until an administrator accepts it). `tls_verify=false` is for
 this validation only.
 
+### 6.3 Wiring on CR-024 (branch pilot/provision-wiring) and the HA2 browser test, 2026-10-04
+
+- Registry: Provision-ISR registered through `register_vendor`, **selectable** (validated read-only); connection form with
+  select fields: HTTPS / HTTP, certificate pin / verify / trust, auth (auto / Basic / Digest), events (sampling / push), time
+  basis (device clock / always Israel time), advanced: pin value, poll interval, push port, RTSP style, go2rtc source,
+  warning suppression. The connection test returns transport facts, warnings and the certificate to pin; saving "pin"
+  without a fingerprint is refused (`tls_pin_required`). Plain-HTTP Basic shows a dismissible warning.
+- Discovery, go2rtc stream sync (`smplwise_` only), snapshot, events (sampling 2 s or push with fallback), health probe,
+  recordings search, playback sessions, thumbnails / frames and exports reach the Provision adapter / playback module
+  through `services/recorders/vendor_io.py`; Hikvision recorders keep their paths. Provision cameras use their channel as
+  recording track. Exports: RTSP backup (MPEG-TS) remuxed to MP4 without video re-encode (owner, corrected decision).
+- Camera identity: v1 names no serial number of the camera behind an NVR channel, so `device_fingerprint` stays empty for
+  Provision cameras (nothing is disabled on a swap); rows match by recorder + channel (CR-024 rule).
+- **HA2 go2rtc (1.9.14) browser test** (owner-approved, one `smplwise_pb_cr025_test` stream created and deleted, no other
+  stream touched, verified before / after): go2rtc's native RTSP client gets **no tracks** from this NVR (playback and
+  live alike, "codecs not matched:  => ..."), while ffprobe from the PC plays the same URLs. Through go2rtc's **ffmpeg
+  source** (`ffmpeg:<url>#video=copy`) the playback request played in headless Chrome over MSE: 1920x1080, currentTime
+  advancing in real time, buffer ahead. So every Provision go2rtc source is wrapped that way by default
+  (`vendor_io.go2rtc_source`; `go2rtc_source: rtsp` per recorder for firmware where the native client works). Audio is not
+  carried by that source yet. Screenshot in `private-evidence/provision-isr-live/ha2-playback/` (real frame, not in Git).
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

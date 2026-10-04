@@ -62,7 +62,7 @@ class LiveSources:
         a = self._adapters.get(recorder_id)
         if a is None:
             a = self._adapters[recorder_id] = adapter(settings, recorder_id)
-        return a.live_source(str(channel), profile)
+        return go2rtc_source(settings, a.live_source(str(channel), profile))
 
 
 def snapshot(settings: Settings, recorder_id: str, channel: int) -> bytes:
@@ -114,3 +114,16 @@ def time_note(settings: Settings, recorder_id: str, tz_name: str) -> dict[str, A
     periods = pt.divergence(tz, iana, now.year) if source != "iana" else []
     return {"basis": basis, "known": True, "device_rule": facts.get("time_zone"), "source": source, "differs_now": bool(differs_now),
             "differs_periods": len(periods)}
+
+
+
+def go2rtc_source(settings: Settings, rtsp_url: str) -> str:
+    """The go2rtc source for a Provision RTSP URL. Live finding 2026-10-04 (owner's NVR, HA2's go2rtc 1.9.14): go2rtc's own
+    RTSP client gets NO tracks from this NVR (live and playback alike: "codecs not matched:  => ..."), while the same URL
+    through go2rtc's ffmpeg source plays (1920x1080 H.264 over MSE in the browser). So the default wraps the URL in
+    `ffmpeg:...#video=copy` (no re-encode; audio is not carried yet). `nvr_extra.go2rtc_source = "rtsp"` uses the native
+    client for a firmware where it works. Only for go2rtc: thumbnails / frames hand the plain URL to the local ffmpeg."""
+    extra = settings.nvr_extra if isinstance(settings.nvr_extra, dict) else {}
+    if str(extra.get("go2rtc_source") or "ffmpeg").lower() == "rtsp":
+        return rtsp_url
+    return f"ffmpeg:{rtsp_url}#video=copy"
