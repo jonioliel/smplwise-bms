@@ -151,6 +151,48 @@ Hikvision fake + one Provision fake.
 - Next step proposed to the owner: switch the API server's authentication to plaintext / Basic temporarily (the v1
   guide's documented scheme) and enable HTTPS, then spend the last approved attempt on Basic.
 
+### 6.2 Live read-only validation, 2026-10-04 (owner set the API server to Base64 = Basic, HTTPS on)
+
+**Result: authenticated at the first attempt (HTTPS 443, Basic, certificate not verified for this test only). Every v1
+read used by P1 answered 200; no write was sent.** 93 requests in the full run + 25 in the re-check after the fixes, about
+one per second. Redacted shape samples: `private-evidence/provision-isr-live/<timestamp>-https/` (address, account,
+serial, MAC, device name and URL host replaced; no image saved).
+
+| Fact | Value |
+|---|---|
+| Model | NVR8-16400AN(1U) |
+| Firmware | 1.4.7.62634B230830.N0S.U2(16A820) (`apiVersion` absent) |
+| Channels | 16 (15 online, 1 offline); 8 alarm inputs, 1 output; 1 disk |
+| Streams per channel | 2 (main 1920x1080 H.264 Baseline 25 fps 2 Mb/s VBR, sub 704x576 H.265 6 fps; one channel 2560x1440) |
+| HTTPS | TLS 1.3, **self-signed** RSA certificate (valid to 2034), fails system-CA verification |
+| v2 | **does not apply** to this unit: NVR v2 core APIs need firmware 1.4.12+ (v2 guide); not probed (v2 calls were not in the approval) |
+
+| v1 command | Live |
+|---|---|
+| GetDeviceInfo, GetChannelList, GetImageOsdConfig, GetStreamCaps, GetVideoStreamConfig, GetSnapshot (16/16 JPEG), GetAlarmStatus, GetDiskInfo, GetRecordStatusInfo, GetPortConfig, GetDateAndTime | 200, parsed |
+| Long polling | not offered (`GetPortConfig` has no `longPollingPort`; no `supportAPILongPolling`) - sampling or device push |
+| Motion sample (10 polls, 2 s) | motion edges on 12 channels, channel-offline alarm on 1; latency = poll interval |
+
+Divergences from the vendor guide found and fixed (adapter + fake, `fake.shape = "live"`, tests
+`test_provision_isr_live_shape.py`), all re-verified on the unit:
+
+1. **Stream ids start at 0** (`<item id="0">` = main, `1` = sub). The first parser dropped id 0 and reported the SUB stream
+   as the main one. Now the position decides `stream_ref` / role; the device id is kept for writes.
+2. **Each stream is named by its RTSP URL** (`rtsp://<device>:554/chID=1&streamType=main`, sub = **`sub1`**). The guide's
+   `?chID=...&streamType=sub` form is wrong for this unit. `live_source` now takes the path from the device and always
+   uses the connection's own host, port and credentials; the URL-shaped name is never kept or written back.
+3. **Channel names are an attribute of `GetChannelList` items** (`name="..."`): no per-channel OSD read is needed.
+4. **`chlOfflineAlarm` is reported in v1 `GetAlarmStatus`** (list shape, active items only); the derived offline event from
+   the channel list is skipped when the device reports it (no duplicates).
+5. **Record status has one item per stream** (same channel id twice) and spells `no recording`; aggregated per channel.
+6. `GetStreamCaps`: profiles in a top-level `encodeLevelCaps` enum list, empty per-stream `encodeTypeCaps`.
+7. `GetDeviceInfo`: no `apiVersion`, no `support*` smart flags beyond fisheye / RS485 / SD (smart events offered: motion
+   and alarm inputs only); `softwareBuildDate` repeats the firmware string.
+
+Settings design (owner request): the connection test records the device certificate's SHA-256 and the recorder then
+**pins** it (a changed certificate refuses the connection until an administrator accepts it). `tls_verify=false` is for
+this validation only.
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

@@ -21,6 +21,11 @@ Change request built on this study: `docs/changes/CR-025-PROVISION-ISR.md`. Adap
 
 ---
 
+> **Live validation 2026-10-04** (owner's NVR8-16400AN, firmware 1.4.7, read-only): every P1 command works over HTTPS +
+> Basic. Seven divergences from the guide were found and fixed - zero-based stream ids, streams named by their RTSP URL
+> (`/chID=<n>&streamType=main|sub1`), channel names in `GetChannelList`, `chlOfflineAlarm` in v1 alarm status, one record
+> status item per stream - see CR-025 section 6.2. Where this study quotes the guide's RTSP form, the device's own URL wins.
+
 ## 1. Executive summary
 
 1. **One protocol family, two editions.** v1 and v2 are the same transport: XML documents over HTTP, `POST

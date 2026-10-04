@@ -320,9 +320,11 @@ class ProvisionIsrAdapter:
         if self.kind() == "ipc":
             return [ChannelInfo(source_ref="1", channel=1, name=self._channel_name(1) or "ערוץ 1", online=True)]
         out = []
-        for ch, status in self._xml("GetChannelList", None, px.parse_channel_list):
+        for ch, status, listed in self._xml("GetChannelList", None, px.parse_channel_list_named):
             online = px.CHANNEL_ONLINE.get(status or "")
-            out.append(ChannelInfo(source_ref=str(ch), channel=ch, name=(self._channel_name(ch) if online is not False else None) or f"ערוץ {ch}", online=online))
+            # live firmware names each channel in the list itself; the OSD read is the fallback for firmware that does not
+            name = listed or (self._channel_name(ch) if online is not False else None)
+            out.append(ChannelInfo(source_ref=str(ch), channel=ch, name=name or f"ערוץ {ch}", online=online))
         return out
 
     def _channel_name(self, ch: int) -> str | None:
@@ -360,7 +362,7 @@ class ProvisionIsrAdapter:
 
     @staticmethod
     def _encoding(s: dict[str, Any]) -> StreamEncoding:
-        enc = {k: v for k, v in s.items() if k not in ("stream_ref", "stream_id", "channel", "role", "fields", "etag", "element", "limits", "name")}
+        enc = {k: v for k, v in s.items() if k not in ("stream_ref", "stream_id", "stream_no", "channel", "role", "fields", "etag", "element", "limits", "name", "url_path")}
         return StreamEncoding(stream_ref=s["stream_ref"], role=s["role"], enabled=True, encoding=enc, fields=s["fields"], etag=s["etag"])
 
     def _find_stream(self, ref: str) -> tuple[int, dict[str, Any]]:
@@ -369,7 +371,7 @@ class ProvisionIsrAdapter:
         except ValueError as exc:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"}) from exc
         for s in self._streams(ch):
-            if s["stream_id"] == sid:
+            if s["stream_no"] == sid:
                 return ch, s
         raise ApiError(404, "not_found", "הזרם לא נמצא ב־NVR.", details={"stream_ref": ref})
 
@@ -388,7 +390,7 @@ class ProvisionIsrAdapter:
         resolutions per codec, fps values, bitrate / GOP bounds, bitrate modes, quality 1..5, smart codec. Built from
         GetStreamCaps + the stream's own bounds and codec tokens. `writable` only when writes are enabled for this recorder."""
         ch, s = self._find_stream(stream_ref)
-        caps = self.stream_caps(ch).get("streams", {}).get(s["stream_id"], {})
+        caps = self.stream_caps(ch).get("streams", {}).get(s["stream_no"], {})
         tokens = [t.lower() for t in (s["limits"]["codecs"] or caps.get("codecs") or [s["codec_raw"] or ""]) if t]
         families: list[str] = []
         for tok in tokens:
@@ -449,7 +451,7 @@ class ProvisionIsrAdapter:
     def _check_limits(self, ch: int, item: str) -> None:
         """fps against the resolution's own maximum (GetStreamCaps), which validate_changes cannot see."""
         p = px.parse_element(item, ch)
-        caps = self.stream_caps(ch).get("streams", {}).get(p["stream_id"], {})
+        caps = next((c for c in self.stream_caps(ch).get("streams", {}).values() if c.get("device_id") == p["stream_id"]), {})
         top = {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", [])}.get(p["resolution"])
         if top and p["fps"] and p["fps"] > top:
             raise ApiError(422, "value_not_allowed", "קצב הפריימים גבוה מהמותר ברזולוציה הזו.", details={"field": "fps", "allowed": {"max": top}})
@@ -468,12 +470,12 @@ class ProvisionIsrAdapter:
             target = px.to_int(px.parse(element).attrib.get("id"))
         except (ValueError, ET.ParseError) as exc:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"}) from exc
-        if target != sid:
-            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"})
         get_xml = self._xml("GetVideoStreamConfig", ch)
-        before = next((s for s in px.parse_video_stream_config(get_xml, ch) if s["stream_id"] == sid), None)
+        before = next((s for s in px.parse_video_stream_config(get_xml, ch) if s["stream_no"] == sid), None)
         if before is None:
             raise ApiError(404, "not_found", "הזרם לא נמצא ב־NVR.", details={"stream_ref": stream_ref})
+        if target != before["stream_id"]:  # the element must name the device's own id of this stream
+            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"})
         if before["etag"] != expect_etag:
             raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before["etag"]})
         self._check_limits(ch, element)
@@ -553,16 +555,23 @@ class ProvisionIsrAdapter:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "source_ref"})
         ch = int(source_ref)
         base = f"rtsp://{quote(s.nvr_user, safe='')}:{quote(s.nvr_password, safe='')}@{s.nvr_host}:{s.nvr_rtsp_port}"
-        if self.kind() == "ipc":
-            sid = {"main": 1, "sub": 2, "third": 3}.get(role)
-            name = self.stream_caps(ch).get("streams", {}).get(sid or 0, {}).get("name") if sid else None
-            if not name:
-                raise ApiError(409, "nvr_not_supported", "הזרם המבוקש אינו קיים במצלמה.", details={"role": role})
-            return f"{base}/{name}"
-        if role not in ("main", "sub"):
-            raise ApiError(409, "nvr_not_supported", "ה־NVR מספק זרם ראשי ומשני בלבד.", details={"role": role})
-        query = f"chID={ch}&streamType={role}"
-        return f"{base}/{query}" if self._extra.get("rtsp_style") == "path" else f"{base}?{query}"
+        no = {"main": 1, "sub": 2, "third": 3}.get(role)
+        style = self._extra.get("rtsp_style")
+        if self.kind() == "nvr" and style in ("query", "path"):  # forced by the connection: no discovery call
+            if role not in ("main", "sub"):
+                raise ApiError(409, "nvr_not_supported", "ה־NVR מספק זרם ראשי ומשני בלבד.", details={"role": role})
+            query = f"chID={ch}&streamType={role}"
+            return f"{base}/{query}" if style == "path" else f"{base}?{query}"
+        stream = self.stream_caps(ch).get("streams", {}).get(no or 0, {}) if no else {}
+        # live 2026-10-04: the NVR names each stream by its own RTSP URL (`/chID=1&streamType=main`, sub = `sub1`); the
+        # path is taken from the device, the host / port / credentials are always the connection's
+        if stream.get("url_path"):
+            return f"{base}{stream['url_path']}"
+        if stream.get("name"):
+            return f"{base}/{stream['name']}"
+        if self.kind() == "nvr" and role in ("main", "sub"):
+            return f"{base}/chID={ch}&streamType={role}"  # the form the live unit uses, when the caps name nothing
+        raise ApiError(409, "nvr_not_supported", "הזרם המבוקש אינו קיים.", details={"role": role})
 
     def snapshot(self, source_ref: str) -> bytes:
         """One JPEG of the channel (GetSnapshot). The device's Content-Type is often application/octet-stream (Postman
@@ -601,8 +610,10 @@ class ProvisionIsrAdapter:
     def poll_events(self, tracker: "AlarmTracker", *, channels: bool = True) -> list[ParsedAlert]:
         """One short-polling round: GetAlarmStatus (+ GetChannelList on an NVR for camera offline / back online), turned
         into edge events by `tracker`. The caller decides the interval (CR-025: 2 s default, never below 1 s)."""
-        alerts = tracker.update(self.alarm_status(), ipc=self.kind() == "ipc")
-        if channels and self.kind() == "nvr":
+        status = self.alarm_status()
+        alerts = tracker.update(status, ipc=self.kind() == "ipc")
+        native_offline = any(k in ("chlOfflineAlarm", "videoLossAlarm") for k, _i in status)  # live 1.4.7 reports it in v1
+        if channels and self.kind() == "nvr" and not native_offline and not tracker.native_offline:
             alerts += tracker.update_channels(self.channel_states())
         return alerts
 
@@ -675,6 +686,7 @@ class AlarmTracker:
 
     def __init__(self) -> None:
         self._last: dict[tuple[str, int | None], bool] = {}
+        self.native_offline = False  # the device has reported chlOfflineAlarm at least once
         self._channels: dict[int, bool | None] = {}
         self._primed = False
 
@@ -683,6 +695,8 @@ class AlarmTracker:
 
     def update(self, status: dict[tuple[str, int | None], bool], *, ipc: bool = False, device_time: str = "") -> list[ParsedAlert]:
         out: list[ParsedAlert] = []
+        if any(k in ("chlOfflineAlarm", "videoLossAlarm") for k, _i in status):
+            self.native_offline = True
         keys = set(status) | {k for k, v in self._last.items() if v}
         for key in sorted(keys, key=lambda k: (k[0], k[1] if k[1] is not None else -1)):
             now = bool(status.get(key, False))

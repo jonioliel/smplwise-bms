@@ -58,6 +58,11 @@ class FakeProvision:
         self.set_after: str | None = None
         self.set_bodies: list[str] = []
         self.alarm_server = {"addr": "", "port": 8010, "heartbeat": False, "interval": 30}
+        # "doc": the guide / Postman shapes. "live": what the owner's NVR (NVR8-16400AN, firmware 1.4.7) answered on
+        # 2026-10-04 - stream ids from 0, each stream named by its RTSP URL (sub = `sub1`), channel names as an attribute
+        # of the channel list, profiles in a top-level encodeLevelCaps, an empty encodeTypeCaps, chlOfflineAlarm in
+        # GetAlarmStatus, one record-status item per stream, "no recording", no apiVersion.
+        self.shape = "doc"
 
     def _state(self, ch: int) -> dict[int, dict[str, Any]]:
         if ch not in self.streams:
@@ -130,13 +135,16 @@ class FakeProvision:
     <SupportHttpPost type="boolean">true</SupportHttpPost>
     <integratedPtz type="boolean">false</integratedPtz>
     <chlMaxCount type="uint32">{8 if nvr else 1}</chlMaxCount>
-    <apiVersion type="string"><![CDATA[1.7]]></apiVersion>
+    {'' if self.shape == "live" else '<apiVersion type="string"><![CDATA[1.7]]></apiVersion>'}
 </deviceInfo>"""))
 
     def _GetChannelList(self, request: httpx.Request, ch: int) -> httpx.Response:
         if self.kind != "nvr":
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="1"/>', 400)
-        items = "\n".join(f'<item channelStatus="{st}">{c}</item>' for c, st in self.channels.items())
+        if self.shape == "live":
+            items = "\n".join(f'<item channelStatus="{st}" name="{self.names.get(c, f"CAM-{c}")}">{c}</item>' for c, st in self.channels.items())
+        else:
+            items = "\n".join(f'<item channelStatus="{st}">{c}</item>' for c, st in self.channels.items())
         return self._xml(request, _doc(f"""<types><channelStatus><enum>online</enum><enum>offline</enum><enum>videoOn</enum><enum>videoLoss</enum></channelStatus></types>
 <channelIDList type="list" count="{len(self.channels)}"/>
 <itemType type="string" maxLen="20"/>
@@ -166,12 +174,16 @@ class FakeProvision:
         if self.kind == "nvr" and self.channels.get(ch) in (None, "offline"):
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
         items = []
+        live = self.shape == "live"
         for sid, s in self._state(ch).items():
             lists, rate, gop = self._CAPS.get(sid, self._CAPS[3])
+            if live:
+                lists, rate, gop = "", '<maxBitRate type="uint32" min="32" max="10240">{}</maxBitRate>', '<GOP type="uint32" min="1" max="400">{}</GOP>'
             level = f"<encodeLevel>{s['encodeLevel']}</encodeLevel>" if s.get("encodeLevel") else ""
-            items.append(f"""    <item id="{sid}">
+            name = f"rtsp://{HOST}:554/chID={ch}&streamType={'main' if sid == 1 else f'sub{sid - 1}'}" if live else s["name"]
+            items.append(f"""    <item id="{sid - 1 if live else sid}">
         <name type="string" maxLen="32">
-            <![CDATA[{s['name']}]]>
+            <![CDATA[{name}]]>
         </name>
         <resolution>{s['resolution']}</resolution>
         <frameRate type="uint32">{s['frameRate']}</frameRate>
@@ -209,7 +221,7 @@ class FakeProvision:
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
         state = self._state(ch)
         for item in streams.findall(f"{ns}item"):
-            sid = int(item.attrib["id"])
+            sid = int(item.attrib["id"]) + (1 if self.shape == "live" else 0)
             if sid not in state or any(c.attrib for c in item):
                 return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
             new = {c.tag.replace(ns, ""): (c.text or "").strip() for c in item}
@@ -244,6 +256,18 @@ class FakeProvision:
                              "interval": int(get("heartbeatInterval"))}
         return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
     def _GetStreamCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.shape == "live":
+            items = []
+            for sid in self._state(ch):
+                res = "".join(f'<item maxFrameRate="25">{r}</item>' for r in (("2592x1520", "1920x1080") if sid == 1 else ("704x576", "640x480", "352x288")))
+                st = "main" if sid == 1 else f"sub{sid - 1}"
+                items.append(f'<item id="{sid - 1}"><streamName type="string"><![CDATA[rtsp://{HOST}:554/chID={ch}&streamType={st}]]></streamName>'
+                             f'<resolutionCaps type="list" count="2"><itemType type="resolution"></itemType>{res}</resolutionCaps>'
+                             '<encodeTypeCaps type="list" count="0"><itemType type="encodeType"></itemType></encodeTypeCaps>'
+                             '<encodeLevelCaps type="list" count="0"><itemType type="encodeLevel"></itemType></encodeLevelCaps></item>')
+            return self._xml(request, _doc('<types><resolution><enum>1920x1080</enum></resolution><encodeType></encodeType><encodeLevel></encodeLevel></types>'
+                                           '<encodeLevelCaps><enum>baseLine</enum><enum>mainProfile</enum></encodeLevelCaps><rtspPort type="uint16">554</rtspPort>'
+                                           f'<streamList type="list" count="{len(items)}">{"".join(items)}</streamList>', "1.0"))
         return self._xml(request, _doc("""<types>
 <resolution><enum>2592x1520</enum><enum>1920x1080</enum><enum>704x576</enum></resolution>
 <encodeType><enum>h264</enum><enum>h265</enum><enum>h264plus</enum><enum>h265plus</enum><enum>mjpeg</enum></encodeType>
@@ -277,6 +301,13 @@ class FakeProvision:
 <diskStatus type="diskStatus">read/write</diskStatus></item></diskInfo>""", "1.0"))
 
     def _GetRecordStatusInfo(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.shape == "live":
+            return self._xml(request, _doc("""<types><recordStatusType><enum>no recording</enum><enum>recording</enum><enum>exception</enum></recordStatusType></types>
+<recordStatusList type="list" count="3"><itemType type="recordStatusType" maxLen="20"></itemType>
+<item id="1" streamType="" resolution="" frameRate="" bitrateType="" imageQuality="" maxBitrate="" recordTypes="">no recording</item>
+<item id="2" streamType="main" resolution="1920x1080" frameRate="25" bitrateType="VBR" imageQuality="higher" maxBitrate="2048" recordTypes="motion">recording</item>
+<item id="2" streamType="sub" resolution="704x576" frameRate="6" bitrateType="VBR" imageQuality="higher" maxBitrate="128" recordTypes="manual,motion">recording</item>
+</recordStatusList>""", "1.0"))
         return self._xml(request, _doc("""<recordStatusList type="list" count="2">
 <item id="1" streamType="main" resolution="2592x1520" frameRate="25" bitrateType="VBR" imageQuality="higher" maxBitrate="3072" recordTypes="motion">recording</item>
 <item id="2" streamType="" resolution="" frameRate="" bitrateType="" imageQuality="" maxBitrate="" recordTypes="">norecording</item>
@@ -306,6 +337,14 @@ class FakeProvision:
         return "<alarmStatusInfo>" + "".join(parts) + "</alarmStatusInfo>"
 
     def _GetAlarmStatus(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.shape == "live":  # only active kinds; channel offline as a list
+            active = {k: v for k, v in self.alarms.items() if v}
+            xml = self._status_xml(active)
+            off = [c for c, st in self.channels.items() if st == "offline"]
+            if off:
+                items = "".join(f'<item id="{c}">true</item>' for c in off)
+                xml = xml.replace("</alarmStatusInfo>", f'<chlOfflineAlarm type="list" count="{len(off)}"><itemType type="boolean"></itemType>{items}</chlOfflineAlarm></alarmStatusInfo>')
+            return self._xml(request, _doc(xml, "1.0"))
         return self._xml(request, _doc(self._status_xml(self.alarms), "1.0"))
 
     # long polling (v1 long-polling guide 2.1-2.4)

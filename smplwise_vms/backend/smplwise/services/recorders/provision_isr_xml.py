@@ -150,8 +150,14 @@ def parse_channel_list(xml: str | bytes) -> list[tuple[int, str | None]]:
     """`GetChannelList` (NVR only) -> [(channel, status)] in document order. The guide's example closes `<channelIDList/>`
     empty and puts the `<item channelStatus="online">1</item>` elements after it; a firmware that nests them inside the
     list is read the same way. Duplicates are dropped."""
+    return [(ch, st) for ch, st, _name in parse_channel_list_named(xml)]
+
+
+def parse_channel_list_named(xml: str | bytes) -> list[tuple[int, str | None, str | None]]:
+    """As parse_channel_list, plus the channel name: the owner's NVR (firmware 1.4.7, live 2026-10-04) puts it in a
+    `name` attribute of each item (not in the guide); None when absent."""
     root = parse(xml)
-    out: list[tuple[int, str | None]] = []
+    out: list[tuple[int, str | None, str | None]] = []
     seen: set[int] = set()
     for el in root.iter():
         if _local(el.tag) != "item":
@@ -161,7 +167,8 @@ def parse_channel_list(xml: str | bytes) -> list[tuple[int, str | None]]:
             continue
         seen.add(ch)
         status = el.attrib.get("channelStatus")
-        out.append((ch, status[:16] if status else None))
+        name = (el.attrib.get("name") or "").strip()[:TEXT_CAP] or None
+        out.append((ch, status[:16] if status else None, name))
         if len(out) >= MAX_ITEMS:
             break
     return out
@@ -221,13 +228,21 @@ def parse_record_status(xml: str | bytes) -> dict[int, dict[str, Any]]:
     """`GetRecordStatusInfo` -> {channel: {state, stream_type, record_types}} (the item's `id` is the channel id)."""
     root = parse(xml)
     out: dict[int, dict[str, Any]] = {}
+    rank = {"recording": 2, "exception": 1, "norecording": 0}
     for item in children(child(root, "recordStatusList"), "item"):
         ch = to_int(item.attrib.get("id"))
         if ch is None:
             continue
-        kinds = (item.attrib.get("recordTypes") or "")[:TEXT_CAP]
-        out[ch] = {"state": text(item), "stream_type": (item.attrib.get("streamType") or None),
-                   "record_types": [k for k in re.split(r"[,\s]+", kinds) if k]}
+        state = (text(item) or "").replace(" ", "").lower() or None  # live firmware writes "no recording"
+        kinds = [k for k in re.split(r"[,\s]+", (item.attrib.get("recordTypes") or "")[:TEXT_CAP]) if k]
+        stype = item.attrib.get("streamType") or None
+        cur = out.setdefault(ch, {"state": state, "stream_type": None, "streams": [], "record_types": []})
+        if rank.get(state or "", -1) > rank.get(cur["state"] or "", -1):
+            cur["state"] = state
+        if stype and state == "recording":
+            cur["streams"].append(stype[:8])
+            cur["stream_type"] = cur["stream_type"] or stype[:8]
+        cur["record_types"] = sorted(set(cur["record_types"]) | set(kinds))
     return out
 
 
@@ -295,11 +310,23 @@ QUALITY_WORDS = ("lowest", "lower", "medium", "higher", "highest")  # v1 enum; A
 _LEVEL_WORDS = {"baseline": "baseLine", "main": "mainProfile", "high": "highProfile"}
 
 
-def parse_stream_item(item: ET.Element, channel: int) -> dict[str, Any] | None:
-    """One `<streams><item id="n">` -> the normalized dict of `parse_video_stream_config` (None for an item without id)."""
-    sid = to_int(item.attrib.get("id"))
-    if sid is None or not 1 <= sid <= 99:
+def stream_url_path(value: str | None) -> str | None:
+    """`rtsp://<host>:554/chID=1&streamType=main` (the live NVR's streamName / name) -> `/chID=1&streamType=main`. Only a
+    strict alphabet passes (the path goes into the URL go2rtc pulls); None for anything else."""
+    if not value or "://" not in value:
         return None
+    m = re.match(r"^rtsp://[^/]+(/[A-Za-z0-9._=&/?-]{1,96})$", value.strip())
+    return m.group(1) if m else None
+
+
+def parse_stream_item(item: ET.Element, channel: int, number: int | None = None) -> dict[str, Any] | None:
+    """One `<streams><item id="n">` -> the normalized dict of `parse_video_stream_config` (None for an item without id).
+    `stream_id` is the device's own id (0-based on the live NVR, 1-based in the guide), `stream_no` the 1-based position
+    that names the stream in Arx (`stream_ref`, role)."""
+    sid = to_int(item.attrib.get("id"))
+    if sid is None or not 0 <= sid <= 99:
+        return None
+    no = number if number is not None else max(sid, 1)
     raw = (text(item, "encodeType") or "")
     codec, smart, plus = _CODECS.get(raw.lower(), (raw or None, None, None))
     level = text(item, "encodeLevel")
@@ -312,9 +339,12 @@ def parse_stream_item(item: ET.Element, channel: int) -> dict[str, Any] | None:
     rate = to_int(text(item, "maxBitRate"))
     gop = to_int(text(item, "GOP"))
     qword = text(item, "quality", cap=16)
+    raw_name = text(item, "name", cap=160)
     enc: dict[str, Any] = {
-        "stream_ref": stream_ref(channel, sid), "stream_id": sid, "channel": channel, "role": stream_role(sid),
-        "name": text(item, "name", cap=32),
+        "stream_ref": stream_ref(channel, no), "stream_id": sid, "stream_no": no, "channel": channel, "role": stream_role(no),
+        # the live NVR's `name` is the stream's RTSP URL with the device address: never kept as a name
+        "name": raw_name if raw_name and SAFE_NAME.match(raw_name) else None,
+        "url_path": stream_url_path(raw_name),
         "codec": codec, "codec_raw": raw or None, "codec_plus": plus, "profile": profile,
         "resolution": res if res and _RES.match(res) else None,
         "fps": float(fps) if fps and fps > 0 else None, "fps_full": False,
@@ -470,8 +500,10 @@ def parse_video_stream_config(xml: str | bytes, channel: int) -> list[dict[str, 
     `fields` (only the unsupported ones), `etag` and `element` (the item as text, for the change log of P2)."""
     root = parse(xml)
     out: list[dict[str, Any]] = []
-    for item in children(child(root, "streams"), "item"):
-        enc = parse_stream_item(item, channel)
+    items = [(to_int(i.attrib.get("id")), i) for i in children(child(root, "streams"), "item")]
+    items = sorted([(sid, i) for sid, i in items if sid is not None and 0 <= sid <= 99], key=lambda x: x[0])
+    for no, (_sid, item) in enumerate(items, start=1):
+        enc = parse_stream_item(item, channel, no)
         if enc is not None:
             out.append(enc)
     return out
@@ -482,21 +514,25 @@ def parse_stream_caps(xml: str | bytes) -> dict[str, Any]:
     "profiles"}}}. The stream name is what an IPC's RTSP path uses (`rtsp://host:port/<streamName>`)."""
     root = parse(xml)
     streams: dict[int, dict[str, Any]] = {}
-    for item in children(child(root, "streamList"), "item"):
-        sid = to_int(item.attrib.get("id"))
-        if sid is None or not 1 <= sid <= 99:
-            continue
-        name = text(item, "streamName", cap=32)
+    top_levels = [t for t in (text(e, cap=16) for e in children(child(root, "encodeLevelCaps"), "enum")) if t]
+    found = [(to_int(i.attrib.get("id")), i) for i in children(child(root, "streamList"), "item")]
+    found = sorted([(sid, i) for sid, i in found if sid is not None and 0 <= sid <= 99], key=lambda x: x[0])
+    for no, (sid, item) in enumerate(found, start=1):
+        raw_name = text(item, "streamName", cap=160)
+        name = raw_name
         resolutions = []
         for r in children(child(item, "resolutionCaps"), "item"):
             value = text(r)
             if value and _RES.match(value):
                 resolutions.append({"resolution": value, "max_fps": to_int(r.attrib.get("maxFrameRate"))})
-        streams[sid] = {
+        levels = [t for t in (text(i, cap=16) for i in children(child(item, "encodeLevelCaps"), "item")) if t] or top_levels
+        streams[no] = {
+            "device_id": sid,
             "name": name if name and SAFE_NAME.match(name) else None,
+            "url_path": stream_url_path(raw_name),
             "resolutions": resolutions,
             "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
-            "profiles": [_PROFILES.get(t.lower(), t) for t in (text(i, cap=16) for i in children(child(item, "encodeLevelCaps"), "item")) if t],
+            "profiles": [_PROFILES.get(t.lower(), t) for t in levels],
         }
     return {"rtsp_port": to_int(text(root, "rtspPort")), "streams": streams}
 

@@ -209,10 +209,11 @@ def test_write_is_refused_and_nothing_is_ever_written(settings, fake):
 # ---------------------------------------------------------------------------------------------- media
 
 def test_live_source_nvr_query_and_path_styles(settings, fake):
-    assert make(settings, fake).live_source("2", "sub") == f"rtsp://{USER}:{PASSWORD}@{HOST}:554?chID=2&streamType=sub"
+    assert make(settings, fake).live_source("2", "sub") == f"rtsp://{USER}:{PASSWORD}@{HOST}:554/profile2", "discovered from GetStreamCaps"
+    assert make(settings, fake, rtsp_style="query").live_source("2", "sub") == f"rtsp://{USER}:{PASSWORD}@{HOST}:554?chID=2&streamType=sub"
     assert make(settings, fake, rtsp_style="path").live_source("2", "main") == f"rtsp://{USER}:{PASSWORD}@{HOST}:554/chID=2&streamType=main"
     with pytest.raises(ApiError):
-        make(settings, fake).live_source("2", "third")
+        make(settings, fake).live_source("2", "other")
     with pytest.raises(ApiError):
         make(settings, fake).live_source("../x", "main")
 
@@ -226,7 +227,7 @@ def test_live_source_ipc_uses_the_stream_name(settings, fake):
 
 def test_live_source_escapes_credentials(settings, fake):
     # device_kind given: building an NVR's URL then needs no device call (the fake would refuse this password)
-    a = pisr.ProvisionIsrAdapter("nvr-2", dataclasses.replace(settings_for(settings, device_kind="nvr"), nvr_password="p@ss:/w"), transport=fake.transport())
+    a = pisr.ProvisionIsrAdapter("nvr-2", dataclasses.replace(settings_for(settings, device_kind="nvr", rtsp_style="path"), nvr_password="p@ss:/w"), transport=fake.transport())
     assert "p%40ss%3A%2Fw@" in a.live_source("1", "main") and fake.hits == []
 
 

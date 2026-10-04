@@ -324,7 +324,10 @@ def test_listener_routes_by_source_and_refuses_others():
         assert _post(lst.port, "/Other", V1_STATUS) == 404
         with httpx.Client(timeout=5) as c:
             assert c.get(f"http://127.0.0.1:{lst.port}/SendAlarmStatus").status_code == 405
-        assert _post(lst.port, "/SendAlarmStatus", b"x" * (600 * 1024)) == 413
+        try:  # refused before the body is read: 413, or the client sees the closed connection while still sending
+            assert _post(lst.port, "/SendAlarmStatus", b"x" * (600 * 1024)) == 413
+        except httpx.TransportError:
+            pass
     finally:
         lst.stop()
     assert got == [("nvr-2", ["VMD"])]
