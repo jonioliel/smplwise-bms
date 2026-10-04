@@ -62,3 +62,33 @@ def test_recorder_health_burst_is_cached(settings, monkeypatch):
         assert sum(1 for h in fake.hits if "GetDeviceInfo" in h) == n, "the burst never reached the device"
         app.state.recorder_health_cache["nvr-1"] = (time.monotonic() - rr.HEALTH_CACHE_S - 1, first.json())
         assert "cached" not in c.get("/api/v1/recorders/nvr-1/health").json(), "expired entries are re-checked"
+
+
+def test_address_document_cdata_cannot_be_closed():
+    """Low: the old single replace("]]>", "") re-formed "]]>" from "]]]]>>>"; px.cdata splits every occurrence."""
+    from smplwise.services import xmlsafe as xs
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    for evil in ("]]]]>>>", "a]]><x/>", "]]>]]>"):
+        root = xs.parse(pisr._address_document(evil))
+        assert px.text(root, "serverAddress") == evil and len(list(root)) == 1
+
+
+def test_ffmpeg_inputs_are_whitelisted_and_env_minimal(monkeypatch):
+    import datetime as dt
+
+    from smplwise.services.recorders import provision_playback as pp
+
+    seen = []
+
+    class P:
+        returncode, stdout = 0, b"\xff\xd8jpeg"
+
+    monkeypatch.setattr(pp.subprocess, "run", lambda args, **kw: seen.append((args, kw)) or P())
+    snap = pp.SnapshotAt(data=b"\x00\x00\x00\x01", content_type="video/h264", codec="h264", requested_at=dt.datetime.now(dt.timezone.utc))
+    assert pp.to_jpeg(snap, ffmpeg="ffmpeg") == b"\xff\xd8jpeg"
+    args, kw = seen[0]
+    assert args[args.index("-protocol_whitelist") + 1] == "pipe" and args.index("-protocol_whitelist") < args.index("-i")
+    assert "SUPERVISOR_TOKEN" not in kw["env"] and "PATH" in kw["env"]
+    src = Path(pp.__file__).read_text(encoding="utf-8")
+    assert '"-protocol_whitelist", "rtsp,rtp,tcp,udp", "-i", playback_uri' in src

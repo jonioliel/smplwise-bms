@@ -872,9 +872,10 @@ def subscribe_document(init_term_s: int = 60, types: tuple[str, ...] = SUBSCRIBE
 
 
 def _address_document(address: str, extra: str = "") -> str:
-    safe = address.replace("]]>", "")
+    # security review Low: a single replace("]]>", "") is bypassed by "]]]]>>>" (the removal re-forms "]]>"); px.cdata splits
+    # every "]]>" across two sections, so the value can never close the section
     return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">'
-            f"<serverAddress><![CDATA[{safe}]]></serverAddress>{extra}</config>")
+            f"<serverAddress>{px.cdata(address)}</serverAddress>{extra}</config>")
 
 
 class PullSubscription:

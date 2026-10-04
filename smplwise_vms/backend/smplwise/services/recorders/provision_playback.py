@@ -48,6 +48,7 @@ from urllib.parse import quote
 
 from ...config import Settings
 from ...errors import ApiError
+from ..child_env import minimal_env
 from ..recordings import SearchResult, Segment, merge
 from ..timeutil import iso_utc
 from . import provision_isr as pisr
@@ -521,10 +522,10 @@ def to_jpeg(snap: SnapshotAt, *, width: int = 480, timeout_s: int = 15, ffmpeg: 
     fmt = {"h264": "h264", "h265": "hevc"}.get(snap.codec)
     if fmt is None:
         raise ApiError(503, "snapshot_unavailable", "פורמט התמונה אינו מוכר.", details={"op": "to_jpeg"})
-    args = [ff, "-hide_banner", "-loglevel", "error", "-f", fmt, "-i", "pipe:0", "-frames:v", "1", "-vf", f"scale={int(width)}:-2",
+    args = [ff, "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", fmt, "-i", "pipe:0", "-frames:v", "1", "-vf", f"scale={int(width)}:-2",
             "-q:v", "5", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]
     try:
-        proc = subprocess.run(args, input=snap.data, capture_output=True, timeout=timeout_s)
+        proc = subprocess.run(args, input=snap.data, capture_output=True, timeout=timeout_s, env=minimal_env())  # security review Low
     except (subprocess.TimeoutExpired, OSError) as exc:
         raise ApiError(503, "snapshot_unavailable", "פענוח התמונה נכשל.", details={"op": "to_jpeg", "error": type(exc).__name__}) from exc
     if proc.returncode != 0 or not proc.stdout.startswith(b"\xff\xd8"):
@@ -548,9 +549,10 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
     ensure_recorder_enabled(settings)  # security review M3: an export of a recorder disabled meanwhile downloads nothing
     playback_uri = export_url(settings, playback_uri)
     dest = Path(dest)
-    args = [ff, "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-timeout", "15000000", "-i", playback_uri,
+    args = [ff, "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-timeout", "15000000",
+            "-protocol_whitelist", "rtsp,rtp,tcp,udp", "-i", playback_uri,  # security review Low: the input can only be RTSP
             "-map", "0", "-c", "copy", "-f", "mpegts", str(dest)]
-    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=minimal_env())
     began = time.monotonic()
     aborted = False
     try:
