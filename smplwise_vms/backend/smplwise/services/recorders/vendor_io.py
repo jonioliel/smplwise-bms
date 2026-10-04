@@ -13,6 +13,15 @@ from .. import nvr
 from .provision_isr import VENDOR as PROVISION, ProvisionIsrAdapter
 
 
+def _enabled(settings: Settings) -> None:
+    """Security review M3 (2026-10-04): every Provision device entry point refuses a recorder disabled or removed while the
+    process runs (409 `recorder_unavailable`), like the Hikvision boundary - not only at the next start."""
+    from ...mode import ensure_nvr, ensure_recorder_enabled
+
+    ensure_nvr(settings)
+    ensure_recorder_enabled(settings)
+
+
 def handles(settings: Settings) -> bool:
     """True when this recorder's connection is a vendor served here (today: Provision-ISR)."""
     return (settings.nvr_vendor or "") == PROVISION
@@ -35,6 +44,7 @@ def discover(settings: Settings, recorder_id: str) -> tuple[dict[str, Any], list
     addressed by channel, CR-025 P3)."""
     from ...errors import ApiError
 
+    _enabled(settings)
     a = adapter(settings, recorder_id)
     info = a.device_info(refresh=True)
     # the recording "track" of a Provision camera is its channel: playback, search, thumbnails and exports address the
@@ -59,6 +69,7 @@ class LiveSources:
         self._adapters: dict[str, ProvisionIsrAdapter] = {}
 
     def url(self, settings: Settings, recorder_id: str, channel: int, profile: str) -> str:
+        _enabled(settings)
         a = self._adapters.get(recorder_id)
         if a is None:
             a = self._adapters[recorder_id] = adapter(settings, recorder_id)
@@ -66,6 +77,7 @@ class LiveSources:
 
 
 def snapshot(settings: Settings, recorder_id: str, channel: int) -> bytes:
+    _enabled(settings)
     return adapter(settings, recorder_id).snapshot(str(channel))
 
 
@@ -80,16 +92,19 @@ def playback_service(settings: Settings, recorder_id: str, tz_name: str):
 
 def search(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str):
     """recordings.SearchResult of a Provision camera (device wall clock per the recorder's time basis)."""
+    _enabled(settings)
     return playback_service(settings, recorder_id, tz_name).search(int(channel), start, end)
 
 
 def playback_url(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str) -> str:
     from .provision_playback import rtsp_playback_url
 
+    _enabled(settings)
     return rtsp_playback_url(settings, int(channel), start, end, tz_name, recorder_id=recorder_id)
 
 
 def export_files(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str):
+    _enabled(settings)
     return playback_service(settings, recorder_id, tz_name).export_files(int(channel), start, end)
 
 

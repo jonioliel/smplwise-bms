@@ -417,6 +417,10 @@ class ProvisionPlayback:
         end = min(end, start + MAX_SPAN)
         timelen = max(1, math.ceil((end - start).total_seconds()))
         s = self.adapter._settings
+        from ...mode import ensure_nvr, ensure_recorder_enabled
+
+        ensure_nvr(s)
+        ensure_recorder_enabled(s)  # security review M3: no playback URL for a recorder disabled while running
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
         tz, _ = self.zone()
@@ -494,9 +498,10 @@ def rtsp_playback_url(settings: Settings, track_id: int, start: dt.datetime, end
     The session engine keeps its go2rtc stream names (`smplwise_pb_<instance>_<session>_g<n>`), so nothing outside the
     product's namespace is touched. Wiring (after CR-024): `_create_stream` picks this when `settings.nvr_vendor` is
     `provision_isr`."""
-    from ...mode import ensure_nvr
+    from ...mode import ensure_nvr, ensure_recorder_enabled
 
     ensure_nvr(settings)
+    ensure_recorder_enabled(settings)  # security review M3
     adapter = pisr.ProvisionIsrAdapter(recorder_id, settings)
     return ProvisionPlayback(adapter, tz_name).playback_request(int(track_id), start, end, stream=stream).url
 
@@ -534,6 +539,9 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
         raise ApiError(503, "export_unavailable", "ffmpeg אינו זמין.", details={"op": "download", "reason": "ffmpeg_missing"})
     if not str(playback_uri).startswith("rtsp://") or "action=backup" not in playback_uri:
         raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "playback_uri"})
+    from ...mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # security review M3: an export of a recorder disabled meanwhile downloads nothing
     dest = Path(dest)
     args = [ff, "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-timeout", "15000000", "-i", playback_uri,
             "-map", "0", "-c", "copy", "-f", "mpegts", str(dest)]

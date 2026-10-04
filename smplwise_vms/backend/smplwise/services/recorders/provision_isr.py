@@ -211,6 +211,9 @@ class ProvisionIsrAdapter:
         from ...mode import ensure_nvr
 
         ensure_nvr(self._settings)  # NVR-less mode: 409 nvr_not_configured
+        from ...mode import ensure_recorder_enabled
+
+        ensure_recorder_enabled(self._settings)  # security review M3: a recorder disabled while running is never contacted
         s = self._settings
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
@@ -588,6 +591,10 @@ class ProvisionIsrAdapter:
         NVR: `rtsp://u:p@host:port?chID=<n>&streamType=main|sub` (guide 3.1.1; `rtsp_style: path` gives
         `.../chID=<n>&streamType=...`, the form the playback URL uses - which one a given firmware accepts is the first item
         of the live validation). IPC: `rtsp://u:p@host:port/<streamName>` with the name from GetStreamCaps."""
+        from ...mode import ensure_nvr, ensure_recorder_enabled
+
+        ensure_nvr(self._settings)
+        ensure_recorder_enabled(self._settings)  # security review M3: no source URL for a disabled recorder
         s = self._settings
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
