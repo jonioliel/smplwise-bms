@@ -1,8 +1,8 @@
 # Changelog — SmplWise Arx add-on
 
-## Unreleased
-
-### Multi-NVR - one system, several recorders (CR-024, `pilot/multi-nvr`)
+## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
+**After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
+### Several recorders in one system (CR-024)
 **Database migration `0055_multi_recorder`** (additive: recorder vendor / enabled / order / time zone / capabilities / removal mark, camera
 `source_ref` + keyed fingerprint, event `recorder_id`). A restart applies every recorder change, as for the NVR connection today.
 - **Recorders as first-class entities.** הגדרות › חיבורים: with one recorder the card is the familiar NVR connection form plus "הוסף NVR";
@@ -43,13 +43,68 @@
     gets a new id; the settings card then shows the add form. The setup wizard follows the same rule: the same recorder (a keyed hash of
     its model and serial, never the serial itself) reconnects as before; a different or unidentifiable device gets a new id.
 - **Not in this change (why):** proven (non-experimental) synchronized playback across recorders (needs a measurement on two real
-  recorders); the Provision-ISR adapter (its API is not available yet; the adapter seam is ready); a per-recorder permission scope;
+  recorders); a per-recorder permission scope;
   applying CONNECTION changes without a restart (owner decision); a per-recorder live budget; the recorder time zone in the single-camera
   recording search / playback (used by the alert stream and the experimental cross-recorder groups).
   See `docs/changes/CR-024-MULTI-NVR.md` section 3.
 - **Known limits:** nothing here ran against a real recorder - every test used two fake recorders and mocked screens.
 
-### עברית - כמה מקליטים במערכת אחת (CR-024)
+### Provision-ISR recorders (CR-025) - הגדרות › חיבורים › "הוסף NVR" › Provision-ISR
+- **Provision-ISR is a selectable recorder type** (it was "coming soon"), next to Hikvision; it can be the first recorder or an added one.
+  Validated read-only against the owner's Provision NVR.
+- **Secure connection:** HTTP Basic authentication over **HTTPS**; the connection test reports the transport, the authentication scheme and
+  the device certificate's SHA-256 fingerprint; **"pin this certificate"** (certificate pinning, checked by a bare TLS handshake before any
+  credential is sent), or verify / trust; saving refuses "pin" without a fingerprint; warnings for Basic over plain HTTP or a trusted
+  certificate. Advanced settings: time basis (the device clock, default, or always Israel time), push mode.
+- **Cameras and live video:** discovery reads the channel names, status and stream encodings; go2rtc plays a Provision stream through
+  its ffmpeg source (`smplwise_` streams only); snapshots.
+- **Recordings:** search and the recordings calendar, RTSP **playback** (with seek), a snapshot at a point in time, thumbnails, and
+  **export** - the device's recording is downloaded and **converted to MP4** like a Hikvision export.
+- **Events:** **sampled** from the device (every 2 s by default), with coverage gaps like the alert stream; an add-on **push listener**
+  for Provision alarms exists but is **off by default** (per recorder; its port is not mapped unless the administrator maps it), and
+  sampling takes over whenever the push path is silent.
+- **Writes stay off** per recorder until the owner approves them; the health screen shows a Provision recorder, its time basis and a
+  warning when the device's clock rule differs from Israel time.
+
+### Schedules: the owner's decisions of 2026-10-04 - sirens, players, values, marked scripts, scheduled disarm allowed by default
+Delta on top of 0.1.162. No database migration; the setting `schedules.script_marks` is created on first use. Needs bridge **0.6.2** (one
+platform restart; 0.1.162's bridge 0.6.1 does not take these actions, and the editor says so).
+- **New schedule actions:** **sirens** (a sensitive class, like the alarm: the sensitive-schedules permission and control of the siren
+  itself; on / off, and a tone / duration only when the siren reports them); **media players and screens** under the multimedia rules
+  (only an approved, visible player, never a group; only what it reports: on / off, play / pause / stop, volume, source; the volume never
+  above the device's ceiling, the lower of the ceiling and the night window's; a hidden source is never offered; the multimedia
+  permissions at the device); **number and select values** from the entity itself (min / max / step, its options; configuration values
+  never offered).
+- **A script that disarms or unlocks needs an administrator's mark:** a script whose steps disarm an alarm, unlock a lock or open a door,
+  or whose content Arx cannot read, can be scheduled only after a system administrator marks it "מותר בתזמונים" in הגדרות › תזמונים ›
+  "סקריפטים שמנטרלים או פותחים". The mark records who and when (audited both ways) and lapses by itself when the script changes ("סקריפט
+  לא מאושר"; run now, copy, split and restore refused until marked again). Ordinary scripts need no mark.
+- **Alarm safety - changed from 0.1.162:** direct disarming in schedules is **allowed by default, with explicit confirmation** (the disarm
+  permission on that panel, the sensitive-schedules permission and the editor's confirmation; the remote channel refuses it where it
+  refuses manual disarming; a disarm that needs a code is never schedulable; codes are never stored). A system administrator may
+  **restrict** it in הגדרות › תזמונים › "נטרול אזעקה בתזמונים" (lifting the restriction needs the typed "אפשר נטרול"); every change is
+  audited. While restricted, an existing disarm schedule is kept (with a warning) and a copy of it is refused.
+- An action whose media player is no longer approved in the multimedia settings is shown as "פעולה לא תקפה", like a removed device.
+
+### How to turn it on and use it (English)
+1. Install the update and **restart once**: the platform (bridge 0.6.2), then the system when the banner asks (migration 0055). Reload the
+   installed web app.
+2. Another recorder: הגדרות › חיבורים → "הוסף NVR" → type (Hikvision or Provision-ISR), name, address, ports, user, password → "בדוק
+   חיבור" (for Provision over HTTPS: "הצמד תעודה זו") → "הוסף" → restart when the banner asks; its cameras appear after the restart.
+3. Optional, experimental: הגדרות › כללי › וידאו ומדיה → "ניגון מסונכרן בין מקליטים (ניסיוני)" → "פעיל (ניסיוני)" (off by default).
+4. Schedules: הגדרות › תזמונים › "סוגי התקנים מותרים בתזמון" (sirens, players and screens, numbers and selects), "סקריפטים שמנטרלים או
+   פותחים" (mark the scripts you want to schedule), "נטרול אזעקה בתזמונים" (restrict scheduled disarming if you want).
+
+### Known limits
+- Multi-recorder: tested with two fake recorders and mocked screens, not against two real recorders; cross-recorder synchronized
+  playback is experimental and unproven.
+- Provision-ISR: validated read-only on one real NVR (connection, discovery, live, playback measured through Arx); export, events and the
+  push listener were tested against the fake device; no write was made to the real NVR.
+- Schedules: tested against the fake scheduler and bridge only; not against a real alarm, siren or player.
+
+## עברית — 0.1.163: כמה מקליטים במערכת אחת; מקליטי Provision-ISR (חיפוש, ניגון, ייצוא ל־MP4, אירועים); תזמונים: צופרים, נגנים, ערכים, סקריפטים מסומנים, נטרול בתזמון מותר כברירת מחדל
+**אחרי ההתקנה מפעילים מחדש פעם אחת (את התשתית, ואת המערכת כשהבאנר מבקש):** **מיגרציה `0055_multi_recorder`** רצה בעלייה (תוספת בלבד), והגשר עולה ל־**0.6.2** (רשימת הפעולות המותרות בתזמון גדלה; עד ההפעלה מחדש צופרים, נגנים, ערכים ובחירות נדחים בתזמון עם "נדרש עדכון של רכיב החיבור" וכל השאר עובד כרגיל). טוענים מחדש את אפליקציית הרשת פעם אחת.
+### כמה מקליטים במערכת אחת
 **מיגרציה `0055_multi_recorder`** (תוספת עמודות בלבד). שינוי פרטי חיבור או הוספת מקליט חלים אחרי הפעלה מחדש; השבתה והפעלה - מיד.
 - **מקליטים כישות מלאה:** הגדרות › חיבורים - עם מקליט אחד הכרטיס הוא טופס החיבור המוכר ועוד "הוסף NVR"; עם שניים ומעלה מוצגת רשימת
   מקליטים (שם, סוג ודגם, מצב, מצלמות) עם "חיבור" (טופס החיבור של אותו מקליט: עריכה, בדיקה, הסרה), "שם" ו"השבת"/"הפעל". ההוספה בטופס
@@ -75,18 +130,56 @@
   - **המזהה של המקליט הראשון לא ניתן למכשיר חדש כשיש לו היסטוריה** (מצלמות, אירועים, שינויים): NVR חדש מקבל מזהה חדש, וכרטיס ההגדרות
     מציג את טופס ההוספה. גם אשף ההתקנה פועל כך: אותו מקליט (חתימה מוצפנת של דגם ומספר סידורי, בלי לשמור את המספר) חוזר כמו קודם; מכשיר
     אחר או מכשיר שלא ניתן לזהות מקבל מזהה חדש.
-- **מה לא נכלל ולמה:** ניגון מסונכרן בין מקליטים כיכולת מוכחת (צריך מדידה על שני מקליטים אמיתיים); מתאם Provision-ISR (ה־API שלו עוד
-  לא זמין, החיבור מוכן); הרשאה בהיקף מקליט; החלת שינוי פרטי חיבור בלי הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד
+- **מה לא נכלל ולמה:** ניגון מסונכרן בין מקליטים כיכולת מוכחת (צריך מדידה על שני מקליטים אמיתיים); 
+  הרשאה בהיקף מקליט; החלת שינוי פרטי חיבור בלי הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד
   למקליט בחיפוש הקלטות ובניגון של מצלמה בודדת.
 - **מגבלות:** שום דבר כאן לא הורץ מול מקליט אמיתי - כל הבדיקות עם שני מקליטים מדומים ומסכים עם שרת מדומה.
 
-### Schedules: the owner's decisions of 2026-10-04 (sirens, players, number and select values, an administrator's mark for scripts that disarm or unlock, scheduled disarming allowed with confirmation)
-Delta on top of 0.1.162 (the 0.1.162 entry below describes scripts and the first set of new actions). No database migration; the setting `schedules.script_marks` is created on first use. The bridge allow-list grows again (sirens, media players, numbers, selects), so the platform needs one restart after installing.
-- **New schedule actions:** **sirens** (a sensitive class, like the alarm: the sensitive-schedules permission and control of the siren itself; on / off, and a tone / duration only when the siren reports them); **media players and screens** under the multimedia rules (only an approved, visible player, never a group; only what it reports: on / off, play / pause / stop, volume, source; the volume never above the device's ceiling, the lower of the ceiling and the night window's; a hidden source is never offered; the multimedia permissions at the device); **number and select values** from the entity itself (min / max / step, its options; configuration values never offered).
-- **A script that disarms or unlocks needs an administrator's mark:** a script whose steps disarm an alarm, unlock a lock or open a door, or whose content Arx cannot read, can be scheduled only after a system administrator marks it "מותר בתזמונים" in הגדרות › תזמונים › "סקריפטים שמנטרלים או פותחים". The mark records who and when (audited both ways) and lapses by itself when the script changes ("סקריפט לא מאושר"; run now, copy, split and restore refused until marked again). Ordinary scripts need no mark.
-- **Alarm safety - changed from 0.1.162:** disarming in schedules is **allowed by default, with explicit confirmation** (the disarm permission on that panel, the sensitive-schedules permission and the editor's confirmation; a disarm that needs a code is never schedulable). A system administrator may **restrict** it in הגדרות › תזמונים › "נטרול אזעקה בתזמונים" (lifting the restriction needs the typed "אפשר נטרול"); every change is audited.
-- An action whose media player is no longer approved in the multimedia settings is shown as "פעולה לא תקפה", like a removed device.
-- Full bilingual draft: `docs/release/UNRELEASED-schedules-followup-RELEASE-NOTES.md` (it still repeats the 0.1.162 text; trim to this delta when the release notes are written).
+### מקליטי Provision-ISR - הגדרות › חיבורים › "הוסף NVR" › Provision-ISR
+- **Provision-ISR הוא סוג מקליט שאפשר לבחור** (היה "בקרוב"), לצד Hikvision; הוא יכול להיות המקליט הראשון או מקליט נוסף. נבדק בקריאה בלבד מול
+  מקליט ה־Provision של הבעלים.
+- **חיבור מאובטח:** אימות Basic מעל **HTTPS**; בדיקת החיבור מציגה את סוג התעבורה, שיטת האימות וטביעת האצבע (SHA-256) של תעודת המכשיר;
+  **"הצמד תעודה זו"** (הצמדת תעודה, נבדקת בלחיצת יד TLS לפני שנשלחים פרטי גישה), או אימות / אמון; שמירה עם "הצמדה" בלי טביעת אצבע נדחית;
+  אזהרות על Basic מעל HTTP רגיל או על תעודה שסומנה כמהימנה. הגדרות מתקדמות: בסיס הזמן (שעון המכשיר כברירת מחדל, או תמיד שעון ישראל), מצב Push.
+- **מצלמות ווידאו חי:** גילוי שמות הערוצים, המצב והקידוד; go2rtc מנגן את הזרם דרך מקור ffmpeg (רק זרמי `smplwise_`); תמונות.
+- **הקלטות:** חיפוש ולוח שנה של הקלטות, **ניגון** RTSP (עם קפיצה), תמונה מנקודת זמן, תמונות ממוזערות ו**ייצוא** - ההקלטה יורדת מהמכשיר
+  ו**מומרת ל־MP4** כמו ייצוא מ־Hikvision.
+- **אירועים:** **נדגמים** מהמכשיר (כל 2 שניות כברירת מחדל), עם סימון פערי כיסוי כמו בזרם האירועים; קיים גם **מאזין Push** לאזעקות
+  Provision, **כבוי כברירת מחדל** (לכל מקליט; היציאה שלו לא ממופה אלא אם המנהל ממפה אותה), והדגימה חוזרת כשה־Push שותק.
+- **כתיבה למקליט כבויה** לכל מקליט עד אישור הבעלים; מסך הבריאות מציג מקליט Provision, את בסיס הזמן שלו ואזהרה כשכלל השעון במכשיר שונה
+  משעון ישראל.
+
+### תזמונים: החלטות הבעלים מ־4.10 - צופרים, נגנים, ערכים, סקריפטים מסומנים, נטרול בתזמון מותר כברירת מחדל
+תוספת על 0.1.162. אין מיגרציה; ההגדרה `schedules.script_marks` נוצרת בשימוש הראשון. נדרש גשר **0.6.2** (הפעלה מחדש אחת של התשתית; הגשר 0.6.1
+של 0.1.162 לא מקבל את הפעולות האלה, והעורך אומר זאת).
+- **פעולות חדשות בתזמון:** **צופרים** (סוג רגיש כמו האזעקה: הרשאה לתזמון פעולות רגישות ושליטה בצופר עצמו; הפעלה / כיבוי, וצליל / משך רק
+  כשהצופר מדווח עליהם); **נגנים ומסכים** לפי כללי המולטימדיה (רק נגן מאושר וגלוי, לא קבוצה; רק מה שהוא מדווח: הדלקה / כיבוי, ניגון /
+  השהיה / עצירה, עוצמה, מקור; העוצמה לעולם לא מעל התקרה, הנמוכה מבין התקרה ותקרת הלילה; מקור מוסתר לא מוצע; הרשאות המולטימדיה בהתקן);
+  **ערכים מספריים ובחירות** לפי ההתקן עצמו (מינימום / מקסימום / קפיצה, האפשרויות שלו; ערכי הגדרה לא מוצעים).
+- **סקריפט שמנטרל או פותח דורש סימון של מנהל מערכת:** סקריפט שמנטרל אזעקה, פותח מנעול או דלת, או שהמערכת לא יכולה לקרוא את תוכנו, ניתן
+  לתזמון רק אחרי שמנהל מערכת סימן אותו "מותר בתזמונים" בהגדרות › תזמונים › "סקריפטים שמנטרלים או פותחים". הסימון שומר מי ומתי (נרשם
+  ביומן בשני הכיוונים) ובטל מעצמו כשהסקריפט משתנה ("סקריפט לא מאושר"; הרץ עכשיו, העתקה, פיצול ושחזור נדחים עד סימון מחדש). סקריפט
+  רגיל לא צריך סימון.
+- **בטיחות אזעקה - שינוי מ־0.1.162:** נטרול ישיר בתזמונים **מותר כברירת מחדל, עם אישור מפורש** (הרשאת נטרול בלוח, הרשאה לתזמון פעולות
+  רגישות ואישור בעורך; הערוץ המרוחק דוחה אותו כשהוא דוחה נטרול ידני; נטרול שדורש קוד לעולם לא ניתן לתזמון; קודים לא נשמרים). מנהל מערכת
+  יכול **להגביל** בהגדרות › תזמונים › "נטרול אזעקה בתזמונים" (הסרת ההגבלה דורשת להקליד "אפשר נטרול"); כל שינוי נרשם ביומן. בזמן הגבלה
+  תזמון נטרול קיים נשמר (עם אזהרה) והעתקה שלו נדחית.
+- פעולה שהנגן שלה כבר לא מאושר בהגדרות המולטימדיה מסומנת "פעולה לא תקפה", כמו התקן שהוסר.
+
+### איך מפעילים (עברית)
+1. מתקינים את העדכון ו**מפעילים מחדש פעם אחת**: את התשתית (גשר 0.6.2), ואת המערכת כשהבאנר מבקש (מיגרציה 0055). טוענים מחדש את
+   אפליקציית הרשת.
+2. מקליט נוסף: הגדרות › חיבורים ← "הוסף NVR" ← סוג (Hikvision או Provision-ISR), שם, כתובת, פורטים, משתמש, סיסמה ← "בדוק חיבור" (ל־Provision
+   מעל HTTPS: "הצמד תעודה זו") ← "הוסף" ← הפעלה מחדש כשהבאנר מבקש; המצלמות מופיעות אחרי ההפעלה מחדש.
+3. אופציונלי, ניסיוני: הגדרות › כללי › וידאו ומדיה ← "ניגון מסונכרן בין מקליטים (ניסיוני)" ← "פעיל (ניסיוני)" (כבוי כברירת מחדל).
+4. תזמונים: הגדרות › תזמונים › "סוגי התקנים מותרים בתזמון" (צופרים, נגנים ומסכים, ערכים ובחירות), "סקריפטים שמנטרלים או פותחים" (מסמנים
+   את הסקריפטים שרוצים לתזמן), "נטרול אזעקה בתזמונים" (הגבלת נטרול בתזמון, אם רוצים).
+
+### מגבלות
+- כמה מקליטים: נבדק עם שני מקליטים מדומים ומסכים עם שרת מדומה, לא מול שני מקליטים אמיתיים; ניגון מסונכרן בין מקליטים ניסיוני ולא הוכח.
+- Provision-ISR: נבדק בקריאה בלבד מול מקליט אמיתי אחד (חיבור, גילוי, וידאו חי, ניגון נמדד דרך המערכת); ייצוא, אירועים ומאזין ה־Push נבדקו
+  מול מכשיר מדומה; לא נכתב דבר למקליט האמיתי.
+- תזמונים: נבדק מול רכיב תזמונים וגשר מדומים בלבד; לא מול אזעקה, צופר או נגן אמיתיים.
 
 ## 0.1.162 (pilot) — Schedules: scripts and every action the integration offers; change the encoding of many cameras at once; the capsule dropdown style; compact media settings lists; a friendly name for every meter; music server connection hardening
 **After installing, restart the platform once:** the bridge integration moves to **0.6.1** (its schedule allow-list grows; Home Assistant loads it on restart). Until then the new schedule actions are refused with "נדרש עדכון של רכיב החיבור" and everything else works as before. **No database migration in this release** (the last one stays `0054_electricity_billing`); the new settings are created on first use. Reload the installed web app once.
