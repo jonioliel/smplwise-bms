@@ -25,7 +25,7 @@ PASSWORD = "fake-pass-1"
 NS = 'xmlns="http://www.ipc.com/ver10"'
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
-         "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus"}
+         "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig"}
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -51,6 +51,25 @@ class FakeProvision:
         self.hits: list[str] = []
         self.writes: list[str] = []
         self.subscriptions = 0
+        # P2 (writes, fake only): per-channel stream state, what SetVideoStreamConfig does with a body ("apply" | "ignore"
+        # | "partial": only the first changed field), a failure after the body arrived ("drop": connection lost -> unknown)
+        self.streams: dict[int, dict[int, dict[str, Any]]] = {}
+        self.set_effect = "apply"
+        self.set_after: str | None = None
+        self.set_bodies: list[str] = []
+        self.alarm_server = {"addr": "", "port": 8010, "heartbeat": False, "interval": 30}
+
+    def _state(self, ch: int) -> dict[int, dict[str, Any]]:
+        if ch not in self.streams:
+            self.streams[ch] = {
+                1: {"name": "profile1", "resolution": "2592x1520", "frameRate": "25", "bitRateType": "VBR", "maxBitRate": "3072",
+                    "encodeType": self.codec.get(ch, "h265"), "encodeLevel": "mainProfile", "quality": "higher", "GOP": "50"},
+                2: {"name": "profile2", "resolution": "704x576", "frameRate": "6", "bitRateType": "CBR", "maxBitRate": "512",
+                    "encodeType": "h264", "encodeLevel": "baseLine", "quality": "medium", "GOP": "12"},
+                3: {"name": "profile3", "resolution": "704x576", "frameRate": "25", "bitRateType": "CBR", "maxBitRate": "512",
+                    "encodeType": "mjpeg", "quality": "higher", "GOP": "50"},
+            }
+        return self.streams[ch]
 
     # ------------------------------------------------------------------ auth
     def _authorized(self, request: httpx.Request) -> bool:
@@ -74,6 +93,8 @@ class FakeProvision:
             cmd = parts[0] if parts else ""
             ch = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
             self.hits.append(f"{request.method} {request.url.path}")
+            if cmd == "ISAPI":  # another vendor's discovery probing this host (app-level tests): not a Provision command
+                return httpx.Response(404, request=request)
             if cmd not in READS and cmd not in SESSION:
                 self.writes.append(cmd)
             if not self._authorized(request):
@@ -131,10 +152,37 @@ class FakeProvision:
 <channelName><switch type="boolean">true</switch><X type="uint32">0</X><Y type="uint32">0</Y>{name_el}</channelName>
 </imageOsd>""", "1.0"))
 
+    _CAPS = {
+        1: ('<bitRateLists><item>1536</item><item>2048</item><item>3072</item><item>5120</item><item>7168</item></bitRateLists>'
+            '<encodeTypeCaps type="list"><itemType type="encodeType" /><item>h264</item><item>h265</item><item>h264plus</item><item>h265plus</item></encodeTypeCaps>',
+            '<maxBitRate type="uint32" min="64" max="8192">{}</maxBitRate>', '<GOP type="uint32" min="25" max="1500">{}</GOP>'),
+        2: ('<bitRateLists><item>128</item><item>256</item><item>512</item><item>768</item><item>1024</item></bitRateLists>'
+            '<encodeTypeCaps type="list"><itemType type="encodeType" /><item>h264</item><item>h265</item><item>mjpeg</item></encodeTypeCaps>',
+            '<maxBitRate type="uint32" min="64" max="8192">{}</maxBitRate>', '<GOP type="uint32" min="6" max="360">{}</GOP>'),
+        3: ('', '<maxBitRate type="uint32" min="64" max="8192">{}</maxBitRate>', '<GOP type="uint32" min="25" max="1500">{}</GOP>'),
+    }
+
     def _GetVideoStreamConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
         if self.kind == "nvr" and self.channels.get(ch) in (None, "offline"):
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
-        main = self.codec.get(ch, "h265")
+        items = []
+        for sid, s in self._state(ch).items():
+            lists, rate, gop = self._CAPS.get(sid, self._CAPS[3])
+            level = f"<encodeLevel>{s['encodeLevel']}</encodeLevel>" if s.get("encodeLevel") else ""
+            items.append(f"""    <item id="{sid}">
+        <name type="string" maxLen="32">
+            <![CDATA[{s['name']}]]>
+        </name>
+        <resolution>{s['resolution']}</resolution>
+        <frameRate type="uint32">{s['frameRate']}</frameRate>
+        <bitRateType type="bitRateType">{s['bitRateType']}</bitRateType>
+        {rate.format(s['maxBitRate'])}
+        {lists}
+        <encodeType>{s['encodeType']}</encodeType>
+        {level}
+        <quality type="quality">{s['quality']}</quality>
+        {gop.format(s['GOP'])}
+    </item>""")
         return self._xml(request, _doc(f"""<types>
 <bitRateType><enum>VBR</enum><enum>CBR</enum></bitRateType>
 <quality><enum>lowest</enum><enum>lower</enum><enum>medium</enum><enum>higher</enum><enum>highest</enum></quality>
@@ -142,48 +190,59 @@ class FakeProvision:
 <encodeLevel><enum>baseLine</enum><enum>mainProfile</enum><enum>highProfile</enum></encodeLevel>
 </types>
 <mutexList type="list" count="1"><item><object type="mutexObjectType">vfd</object><status type="boolean">false</status></item></mutexList>
-<streams type="list" count="3">
-    <item id="1">
-        <name type="string" maxLen="32">
-            <![CDATA[profile1]]>
-        </name>
-        <resolution>2592x1520</resolution>
-        <frameRate type="uint32">25</frameRate>
-        <bitRateType type="bitRateType">VBR</bitRateType>
-        <maxBitRate type="uint32" min="64" max="8192">3072</maxBitRate>
-        <bitRateLists><item>1536</item><item>2048</item><item>3072</item><item>5120</item><item>7168</item></bitRateLists>
-        <encodeTypeCaps type="list"><itemType type="encodeType" /><item>h264</item><item>h265</item><item>h264plus</item><item>h265plus</item></encodeTypeCaps>
-        <encodeType>{main}</encodeType>
-        <encodeLevel>mainProfile</encodeLevel>
-        <quality type="quality">higher</quality>
-        <GOP type="uint32" min="25" max="1500">50</GOP>
-    </item>
-    <item id="2">
-        <name type="string" maxLen="32"><![CDATA[profile2]]></name>
-        <resolution>704x576</resolution>
-        <frameRate type="uint32">6</frameRate>
-        <bitRateType type="bitRateType">CBR</bitRateType>
-        <maxBitRate type="uint32" min="64" max="8192">512</maxBitRate>
-        <bitRateLists><item>128</item><item>256</item><item>512</item><item>768</item><item>1024</item></bitRateLists>
-        <encodeTypeCaps type="list"><itemType type="encodeType" /><item>h264</item><item>h265</item><item>mjpeg</item></encodeTypeCaps>
-        <encodeType>h264</encodeType>
-        <encodeLevel>baseLine</encodeLevel>
-        <quality type="quality">medium</quality>
-        <GOP type="uint32" min="6" max="360">12</GOP>
-    </item>
-    <item id="3">
-        <name type="string" maxLen="32"><![CDATA[profile3]]></name>
-        <resolution>704x576</resolution>
-        <frameRate type="uint32">25</frameRate>
-        <bitRateType type="bitRateType">CBR</bitRateType>
-        <maxBitRate type="uint32" min="64" max="8192">512</maxBitRate>
-        <encodeType>mjpeg</encodeType>
-        <quality type="quality">higher</quality>
-        <GOP type="uint32" min="25" max="1500">50</GOP>
-    </item>
+<streams type="list" count="{len(items)}">
+{chr(10).join(items)}
 </streams>
 <alarmSnapBindStreamId type="uint32">2</alarmSnapBindStreamId>"""))
 
+    def _SetVideoStreamConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        import xml.etree.ElementTree as ET
+
+        body = request.content.decode()
+        self.set_bodies.append(body)
+        if self.set_after == "drop":
+            raise httpx.ReadError("connection lost after the body was sent", request=request)
+        root = ET.fromstring(body)
+        ns = "{http://www.ipc.com/ver10}"
+        streams = root.find(f"{ns}streams")
+        if streams is None or streams.attrib:  # guide 3.3.4: the whole streams element, no attributes
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
+        state = self._state(ch)
+        for item in streams.findall(f"{ns}item"):
+            sid = int(item.attrib["id"])
+            if sid not in state or any(c.attrib for c in item):
+                return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
+            new = {c.tag.replace(ns, ""): (c.text or "").strip() for c in item}
+            if new.get("bitRateType") not in ("CBR", "VBR", None) or not 64 <= int(new.get("maxBitRate", "512")) <= 8192:
+                return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
+            changed = [k for k, v in new.items() if state[sid].get(k) != v]
+            if self.set_effect == "ignore":
+                changed = []
+            elif self.set_effect == "partial":
+                changed = changed[:1]
+            for k in changed:
+                state[sid][k] = new[k]
+            if state[sid].get("encodeType") == "mjpeg":
+                state[sid].pop("encodeLevel", None)
+        return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
+
+    def _GetAlarmServerConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        a = self.alarm_server
+        return self._xml(request, _doc(f"""<alarmServer><serverAddr type="string"><![CDATA[{a['addr']}]]></serverAddr>
+<serverPort type="uint16" min="1" max="65535">{a['port']}</serverPort><enableHeartbeat type="boolean">{'true' if a['heartbeat'] else 'false'}</enableHeartbeat>
+<heartbeatInterval type="uint16" min="10" max="1800">{a['interval']}</heartbeatInterval></alarmServer>"""))
+
+    def _SetAlarmServerConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        import xml.etree.ElementTree as ET
+
+        ns = "{http://www.ipc.com/ver10}"
+        srv = ET.fromstring(request.content.decode()).find(f"{ns}alarmServer")
+        if srv is None:
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
+        get = lambda tag: (srv.findtext(f"{ns}{tag}") or "").strip()  # noqa: E731
+        self.alarm_server = {"addr": get("serverAddr"), "port": int(get("serverPort")), "heartbeat": get("enableHeartbeat") == "true",
+                             "interval": int(get("heartbeatInterval"))}
+        return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
     def _GetStreamCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
         return self._xml(request, _doc("""<types>
 <resolution><enum>2592x1520</enum><enum>1920x1080</enum><enum>704x576</enum></resolution>
@@ -278,6 +337,16 @@ class FakeProvision:
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
+
+    def install(self, monkeypatch: Any) -> None:
+        """Answer HOST for every httpx client of the process (app-level tests); other hosts go to the real transport."""
+        real = httpx.HTTPTransport.handle_request
+        fake = self
+
+        def handle_request(transport: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+            return fake.handle(request) if request.url.host == HOST else real(transport, request)
+
+        monkeypatch.setattr(httpx.HTTPTransport, "handle_request", handle_request)
 
 
 def settings_for(base: Any, **extra: Any) -> Any:

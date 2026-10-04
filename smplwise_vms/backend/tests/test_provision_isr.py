@@ -55,7 +55,8 @@ def test_basic_auth_detected_from_the_challenge(settings, fake):
     a = make(settings, fake)
     h = a.health()
     assert h.online and h.model == "NVR5-8200PX" and h.firmware == "9.9.9.1(00001)" and h.error is None
-    assert a.transport_info() == {"scheme": "http", "auth": "basic", "insecure": True}
+    info = a.transport_info()
+    assert (info["scheme"], info["auth"], info["insecure"]) == ("http", "basic", True) and info["challenge"]["scheme"] == "basic"
     # one unauthenticated probe, then the authenticated read; the scheme is cached for the next calls
     a.health()
     assert [x for x in fake.hits if x == "POST /GetDeviceInfo"] == ["POST /GetDeviceInfo"] * 3
@@ -178,9 +179,11 @@ def test_read_stream_and_options_are_read_only(settings, fake):
     snap = a.read_stream("101")
     assert snap.element.lstrip().startswith("<") and snap.parsed["stream_id"] == 1 and snap.etag == snap.parsed["etag"]
     opts = a.stream_options("102")
-    assert opts.writable is False and opts.reason == "read_only_phase" and opts.write_via is None
-    assert opts.options["resolution"] == ["704x576"] and opts.options["codec"] == ["h264", "h265", "mjpeg"]
-    assert opts.options["bitrate_kbps"] == [128, 256, 512, 768, 1024] and opts.options["gop_bounds"] == {"min": 6, "max": 360}
+    assert opts.writable is False and opts.reason == "writes_disabled" and opts.write_via is None
+    assert opts.options["resolution"] == {"H.264": ["704x576"], "H.265": ["704x576"], "MJPEG": ["704x576"]}
+    assert opts.options["codec"] == ["H.264", "H.265", "MJPEG"] and opts.options["profile"] == {"H.264": ["baseline"]}
+    assert opts.options["bitrate_list"] == [128, 256, 512, 768, 1024] and opts.options["gop"] == {"min": 6, "max": 360}
+    assert opts.options["quality"] == [1, 2, 3, 4, 5] and opts.options["fps"][-1] == 25.0 and opts.options["svc"] is False
     with pytest.raises(ApiError) as e:
         a.read_stream("109")
     assert e.value.status == 404
@@ -319,9 +322,10 @@ def test_ipc_alarms_without_id_are_channel_one(settings, fake):
 
 
 def test_unknown_alarm_kind_is_kept_as_other(settings, fake):
-    fake.alarms = {("loiteringAlarm", 2): True}
-    alerts = make(settings, fake).poll_events(pisr.AlarmTracker(), channels=False)
-    assert alerts[0].raw_type == "loiteringAlarm" and normalize_type(alerts[0])[0] == "other"
+    fake.alarms = {("fooBarAlarm", 2): True, ("loiteringAlarm", 3): True}
+    alerts = {a.raw_tags["kind"]: a for a in make(settings, fake).poll_events(pisr.AlarmTracker(), channels=False)}
+    assert alerts["fooBarAlarm"].raw_type == "fooBarAlarm" and normalize_type(alerts["fooBarAlarm"])[0] == "other"
+    assert alerts["loiteringAlarm"].raw_type == "loitering" and alerts["loiteringAlarm"].channel == 3
 
 
 def test_pull_subscription_session(settings, fake):

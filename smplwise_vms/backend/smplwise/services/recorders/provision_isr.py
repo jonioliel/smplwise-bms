@@ -38,6 +38,7 @@ from ...config import Settings
 from ...errors import ApiError
 from .. import nvr
 from ..events_ingest import ParsedAlert
+from . import provision_isr_auth as pauth
 from . import provision_isr_xml as px
 from .base import ChannelInfo, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions, StreamSnapshot, WriteOutcome
 
@@ -46,11 +47,14 @@ VENDOR = "provision_isr"
 # Every command P1 may send. Nothing here changes device state.
 READ_COMMANDS = frozenset({
     "GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
-    "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus",
+    "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
 })
 # The long-polling session commands: named Set*, but they manage this client's own subscription, not the device's
 # configuration (v1 long-polling guide 2.1-2.4).
 EVENT_SESSION_COMMANDS = frozenset({"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"})
+# Device writes (P2): only with nvr_extra.writes_enabled (owner approval per unit), only through write_stream_encoding /
+# configure_push, never retried. Reads used around them stay in READ_COMMANDS.
+WRITE_COMMANDS = frozenset({"SetVideoStreamConfig", "SetAlarmServerConfig"})
 
 XML_MAX_BYTES = 2_000_000
 SNAPSHOT_MAX_BYTES = 8_000_000
@@ -60,7 +64,8 @@ AUTH_TTL_S = 600.0  # the detected auth scheme is re-probed after this (a firmwa
 
 REFUSED_BACKOFF_S = 300.0  # after the device refuses the credentials, no further login attempt for this long (lockout guard)
 
-_AUTH: dict[str, tuple[float, str]] = {}  # device_key -> (expires at, "basic" | "digest")
+_AUTH: dict[str, tuple[float, str]] = {}  # device_key -> (expires at, scheme)
+_CHALLENGE: dict[str, dict[str, Any]] = {}  # device_key -> non-secret facts of the last challenge (provision_isr_auth.describe)
 _REFUSED: dict[str, float] = {}  # device_key -> no login attempt before this (monotonic)
 _AUTH_LOCK = threading.Lock()
 _monotonic = time.monotonic
@@ -70,6 +75,7 @@ def clear_auth_cache() -> None:
     with _AUTH_LOCK:
         _AUTH.clear()
         _REFUSED.clear()
+        _CHALLENGE.clear()
 
 
 def _unavailable(op: str, exc: Exception) -> ApiError:
@@ -132,10 +138,26 @@ class ProvisionIsrAdapter:
 
     def transport_info(self) -> dict[str, Any]:
         """For the settings screen / health: how this connection authenticates. `insecure`: HTTP Basic over plain HTTP
-        (the password crosses the network in base64 on every request)."""
+        (the password crosses the network in base64 on every request). `challenge`: non-secret facts of the device's last
+        401 (scheme, qop, algorithm, vendor `AuthVersion`)."""
         auth = self._cached_auth()
-        return {"scheme": self.scheme, "auth": auth, "insecure": self.scheme == "http" and auth == "basic"}
+        with _AUTH_LOCK:
+            challenge = dict(_CHALLENGE.get(self.device_key) or {})
+        return {"scheme": self.scheme, "auth": auth, "insecure": self.scheme == "http" and auth == "basic", "challenge": challenge or None}
 
+    def warnings(self) -> list[dict[str, Any]]:
+        """Settings-screen warnings (owner decision 2026-10-04: Basic over HTTP is allowed, with a warning that can be
+        dismissed in the UI or suppressed for this recorder by `nvr_extra.suppress_insecure_warning`)."""
+        out: list[dict[str, Any]] = []
+        info = self.transport_info()
+        if info["insecure"] and not self._extra.get("suppress_insecure_warning"):
+            out.append({"code": "basic_over_http", "severity": "warning", "dismissible": True,
+                        "message": "החיבור ל־NVR שולח את הסיסמה בלי הצפנה (Basic על HTTP). מומלץ להפעיל HTTPS או Digest במכשיר."})
+        challenge = info.get("challenge") or {}
+        if challenge.get("auth_version") and info["auth"] != "vendor_v1_1":
+            out.append({"code": "vendor_auth_version", "severity": "info", "dismissible": True,
+                        "message": "ה־NVR מבקש גרסת אימות של היצרן שעדיין לא מומשה; אם הכניסה נכשלת, החליפו בשרת ה־API של המכשיר את סוג ההצפנה."})
+        return out
     def _base_url(self, port: int | None = None) -> str:
         if self.scheme == "https":
             port = port or int(self._extra.get("https_port") or 443)
@@ -164,7 +186,7 @@ class ProvisionIsrAdapter:
 
     def _cached_auth(self) -> str | None:
         forced = str(self._extra.get("auth") or "").lower()
-        if forced in ("basic", "digest"):
+        if forced in pauth.SCHEMES:
             return forced
         with _AUTH_LOCK:
             hit = _AUTH.get(self.device_key)
@@ -184,10 +206,11 @@ class ProvisionIsrAdapter:
                 if nvr.past_deadline():
                     raise nvr.deadline_error("auth") from exc
                 raise _unavailable("auth", exc) from exc
-        challenge = r.headers.get("www-authenticate", "").strip().lower()
-        scheme = "digest" if challenge.startswith("digest") else "basic"
+        challenge = r.headers.get("www-authenticate", "")
+        scheme = pauth.detect(challenge)
         with _AUTH_LOCK:
             _AUTH[self.device_key] = (_monotonic() + AUTH_TTL_S, scheme)
+            _CHALLENGE[self.device_key] = pauth.describe(challenge)
         return scheme
 
     def _check_refused(self, op: str) -> None:
@@ -202,8 +225,7 @@ class ProvisionIsrAdapter:
     def _auth(self) -> httpx.Auth:
         s = self._settings
         self._check_refused("auth")
-        scheme = self._detect_auth()
-        return httpx.DigestAuth(s.nvr_user or "", s.nvr_password or "") if scheme == "digest" else httpx.BasicAuth(s.nvr_user or "", s.nvr_password or "")
+        return pauth.build(self._detect_auth(), s.nvr_user or "", s.nvr_password or "")
 
     def _forget_auth(self) -> None:
         with _AUTH_LOCK:
@@ -259,13 +281,23 @@ class ProvisionIsrAdapter:
 
     # ------------------------------------------------------------------------------------------ RecorderAdapter
 
+    @property
+    def writes_enabled(self) -> bool:
+        """Device writes are off unless the recorder's connection says `writes_enabled: true` (set only after the owner's
+        approval for that unit). With it off every write method refuses before a request is built."""
+        return self._extra.get("writes_enabled") is True
+
+    def event_mode(self) -> str:
+        """`poll` (default, owner decision 2026-10-04) or `push` (the device posts alarms to the add-on's listener),
+        selected per recorder by `nvr_extra.event_mode`."""
+        return "push" if self._extra.get("event_mode") == "push" else "poll"
+
     def capabilities(self) -> RecorderCapabilities:
         return RecorderCapabilities(
-            vendor=self.vendor, read_encodings=True, write_encodings=False, encoding_fields=frozenset(px.ENCODING_FIELDS),
+            vendor=self.vendor, read_encodings=True, write_encodings=self.writes_enabled, encoding_fields=frozenset(px.ENCODING_FIELDS),
             add_channel=False, remove_channel=False, max_channels=(self._info or {}).get("chl_max_count"),
-            live="rtsp", playback="none", events="poll",
+            live="rtsp", playback="none", events=self.event_mode(),  # type: ignore[arg-type]
         )
-
     def device_info(self, *, refresh: bool = False) -> dict[str, Any]:
         if self._info is None or refresh:
             self._info = self._xml("GetDeviceInfo", None, px.parse_device_info, timeout=HEALTH_TIMEOUT_S)
@@ -352,22 +384,160 @@ class ProvisionIsrAdapter:
         return self._caps[ch]
 
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
-        """What the device lists for one stream (GetStreamCaps + the stream's own bitrate list and bounds). Never writable
-        in P1: the write path (SetVideoStreamConfig) is P2, behind the CR-020 approval gates."""
+        """API 3.3 options for one stream, in the shape `nvr_settings.validate_changes` reads: codec families, profiles and
+        resolutions per codec, fps values, bitrate / GOP bounds, bitrate modes, quality 1..5, smart codec. Built from
+        GetStreamCaps + the stream's own bounds and codec tokens. `writable` only when writes are enabled for this recorder."""
         ch, s = self._find_stream(stream_ref)
         caps = self.stream_caps(ch).get("streams", {}).get(s["stream_id"], {})
-        options = {
-            "codec": caps.get("codecs") or s["limits"]["codecs"],
-            "profile": caps.get("profiles") or [],
-            "resolution": [r["resolution"] for r in caps.get("resolutions", [])],
+        tokens = [t.lower() for t in (s["limits"]["codecs"] or caps.get("codecs") or [s["codec_raw"] or ""]) if t]
+        families: list[str] = []
+        for tok in tokens:
+            fam = {"h264": "H.264", "h265": "H.265", "mjpeg": "MJPEG"}.get(tok.replace("plus", "").replace("smart", ""))
+            if fam and fam not in families:
+                families.append(fam)
+        resolutions = [r["resolution"] for r in caps.get("resolutions", [])] or ([s["resolution"]] if s["resolution"] else [])
+        top = max([r["max_fps"] or 0 for r in caps.get("resolutions", [])] + [int(s["fps"] or 0)])
+        profiles = [p for p in (caps.get("profiles") or []) if p in ("baseline", "main", "high")]
+        smart = any(t.endswith(("plus", "smart")) for t in tokens)
+        options: dict[str, Any] = {
+            "codec": families,
+            "profile": {f: (profiles or ([s["profile"]] if s["profile"] else [])) for f in families if f == "H.264"}
+            | ({"H.265": [s["profile"]]} if "H.265" in families and s["profile"] and s["codec"] == "H.265" else {}),
+            "resolution": {f: list(resolutions) for f in families},
+            "fps": [float(v) for v in range(1, top + 1)],
+            "fps_full": False,
+            "bitrate_mode": ["CBR", "VBR"] if s["bitrate_mode"] else [],
+            "bitrate_kbps": s["limits"]["bitrate"],
+            "bitrate_list": s["limits"]["bitrate_list"],
+            "quality": list(range(1, len(px.QUALITY_WORDS) + 1)) if s["quality"] is not None else [],
+            "gop": s["limits"]["gop"],
+            "svc": False, "smart_codec": smart, "b_frames": False, "locks": {},
             "max_fps": {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", []) if r.get("max_fps")},
-            "bitrate_kbps": s["limits"]["bitrate_list"], "bitrate_bounds": s["limits"]["bitrate"], "gop_bounds": s["limits"]["gop"],
-            "bitrate_mode": ["CBR", "VBR"], "quality": ["lowest", "lower", "medium", "higher", "highest"], "source": "stream_caps",
+            "source": "stream_caps",
         }
-        return StreamOptions(writable=False, reason="read_only_phase", options=options, write_via=None, source="stream_caps")
+        if not self.writes_enabled:
+            return StreamOptions(writable=False, reason="writes_disabled", options=options, write_via=None, source="stream_caps")
+        return StreamOptions(writable=True, reason=None, options=options, write_via="direct", source="stream_caps")
+
+    # -- vendor hooks used by services/nvr_settings.py (getattr seam; Hikvision keeps nvr.stream_document / parse_stream_element)
+
+    @staticmethod
+    def stream_document(element: str, changes: dict[str, Any]) -> str:
+        """The edited stream item (no attributes) for write_stream_encoding. Raises ApiError 422 for a value it cannot write."""
+        try:
+            return px.edited_item(element, changes)
+        except (ValueError, ET.ParseError) as exc:
+            raise ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": str(exc)[:32]}) from exc
+
+    @staticmethod
+    def parse_element(element: str) -> dict[str, Any]:
+        return px.parse_element(element)
+
+    @staticmethod
+    def registry_encoding(element: str) -> dict[str, Any] | None:
+        """The codec-registry entry of a verified stream item (the keys the player reads)."""
+        try:
+            p = px.parse_element(element)
+        except ET.ParseError:
+            return None
+        keep = ("codec", "codec_raw", "profile", "b_frames", "svc", "smart_codec", "resolution", "fps", "gop", "webrtc", "webrtc_reason")
+        out = {k: p.get(k) for k in keep}
+        out["reason"] = out.pop("webrtc_reason")
+        out["source"] = "provision_isr"
+        return out
+
+    def _check_limits(self, ch: int, item: str) -> None:
+        """fps against the resolution's own maximum (GetStreamCaps), which validate_changes cannot see."""
+        p = px.parse_element(item, ch)
+        caps = self.stream_caps(ch).get("streams", {}).get(p["stream_id"], {})
+        top = {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", [])}.get(p["resolution"])
+        if top and p["fps"] and p["fps"] > top:
+            raise ApiError(422, "value_not_allowed", "קצב הפריימים גבוה מהמותר ברזולוציה הזו.", details={"field": "fps", "allowed": {"max": top}})
 
     def write_stream_encoding(self, stream_ref: str, expect_etag: str, element: str, write_via: str) -> WriteOutcome:
-        raise ApiError(409, "nvr_not_supported", "שינוי הגדרות ב־Provision-ISR עדיין אינו זמין.", details={"op": "put", "reason": "read_only_phase"})
+        """CR-020 contract: read the channel again, refuse 409 `stale` when the stream's etag moved, send
+        SetVideoStreamConfig/{ch} with every stream of the channel (v1 guide 3.3.4: the whole `streams` element, no
+        attributes; `element` replaces the target), read again. Never retried; a failure after the request was sent is
+        `outcome: unknown`. Refused locally unless writes are enabled for this recorder."""
+        if not self.writes_enabled:
+            raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": "put", "reason": "writes_disabled"})
+        if write_via != "direct":
+            raise ApiError(409, "nvr_not_supported", "ה־NVR אינו תומך בשינוי הזה בזרם הזה.", details={"op": "put"})
+        try:
+            ch, sid = px.split_stream_ref(stream_ref)
+            target = px.to_int(px.parse(element).attrib.get("id"))
+        except (ValueError, ET.ParseError) as exc:
+            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"}) from exc
+        if target != sid:
+            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"})
+        get_xml = self._xml("GetVideoStreamConfig", ch)
+        before = next((s for s in px.parse_video_stream_config(get_xml, ch) if s["stream_id"] == sid), None)
+        if before is None:
+            raise ApiError(404, "not_found", "הזרם לא נמצא ב־NVR.", details={"stream_ref": stream_ref})
+        if before["etag"] != expect_etag:
+            raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before["etag"]})
+        self._check_limits(ch, element)
+        body = px.set_streams_document(get_xml, element)
+        nvr.check_deadline("put")  # past the deadline before anything was sent: a plain refusal, never unknown
+        try:
+            data, _ = self._call("SetVideoStreamConfig", ch, body=body, allowed=WRITE_COMMANDS, timeout=25.0)
+        except ApiError as exc:
+            if exc.code in ("source_unavailable", "source_timeout", "source_too_large"):
+                exc.retryable = False
+                exc.details = {**exc.details, "op": "put", "outcome": "unknown"}
+            elif exc.code == "source_error" and exc.details.get("device_code") in (3, 15, 16, 18, 19):
+                raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": "put", "device_code": exc.details.get("device_code")}) from exc
+            raise
+        status, code, _desc = px.response_status(data)
+        if status == "failed":
+            raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": "put", "device_code": code})
+        try:
+            verified = self.read_stream(stream_ref)
+        except ApiError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR קיבל את השינוי אבל לא ניתן לאמת אותו. המצב ייבדק מחדש.", retryable=False,
+                           details={"op": "verify", "cause": exc.code, "outcome": "unknown"}) from exc
+        return WriteOutcome(device_status="success", reboot_required=False, verified=verified)
+
+    # ------------------------------------------------------------------------------------------ device push (events)
+
+    def push_config(self) -> dict[str, Any]:
+        """GetAlarmServerConfig: where the device posts alarms today (address redacted to a boolean)."""
+        return self._xml("GetAlarmServerConfig", None, px.parse_alarm_server)
+
+    def configure_push(self, server: str, port: int, *, heartbeat_s: int = 30) -> dict[str, Any]:
+        """SetAlarmServerConfig (a device configuration write: needs writes enabled for this recorder). Points the device's
+        alarm push at the add-on's listener; reads the configuration back to verify."""
+        if not self.writes_enabled:
+            raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": "push_config", "reason": "writes_disabled"})
+        try:
+            body = px.alarm_server_document(server, port, heartbeat_s)
+        except ValueError as exc:
+            raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": str(exc)}) from exc
+        self._xml("SetAlarmServerConfig", None, body=body, allowed=WRITE_COMMANDS)
+        got = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
+        ok = got.get("address") == server and got.get("port") == port and got.get("heartbeat") is True
+        return {"applied": ok, "port": got.get("port"), "heartbeat_s": got.get("heartbeat_s")}
+
+    # ------------------------------------------------------------------------------------------ smart events
+
+    def smart_events(self) -> list[str]:
+        """The smart event kinds this device offers (GetDeviceInfo `support*` flags), as alarm-status element names."""
+        info = self.device_info()
+        offered = [kind for flag, kind in SMART_FLAGS.items() if (info.get("support") or {}).get(flag)]
+        return ["motionAlarm", "sensorAlarmIn"] + sorted(set(offered))
+
+    def subscribe_types(self) -> tuple[str, ...]:
+        """Long-polling smartTypes for what this device offers (falls back to the default list when it says nothing)."""
+        try:
+            kinds = self.smart_events()
+        except ApiError:
+            return SUBSCRIBE_TYPES
+        out: list[str] = []
+        for k in kinds:
+            t = SUBSCRIBE_KIND.get(k)
+            if t and t not in out:
+                out.append(t)
+        return tuple(out) or SUBSCRIBE_TYPES
 
     # ------------------------------------------------------------------------------------------ media
 
@@ -458,8 +628,44 @@ ALARM_TYPES: dict[str, str] = {
     "vfdAlarm": "facedetection",
     "vehicleAlarm": "vehicledetection",
     "sensorAlarmIn": "IO",
+    # every further smart kind the device may report (owner decision 2026-10-04: as many as the device offers). They keep
+    # a vendor-neutral raw type; events_ingest.TYPE_MAP files them as "other" until a product type exists, and the raw kind
+    # stays in raw_tags["kind"] for filters.
+    "vfdMatchAlarm": "faceMatch",
+    "oscAlarm": "objectStatusChange",
+    "cpcAlarm": "peopleCounting",
+    "cddAlarm": "crowdDensity",
+    "passlineAlarm": "lineCounting",
+    "trafficAlarm": "areaCounting",
+    "pvdAlarm": "illegalParking",
+    "loiteringAlarm": "loitering",
+    "asdAlarm": "audioException",
+    "crowdGatheringAlarm": "crowdGathering",
+    "fireAlarm": "fire",
+    "temperatureAlarm": "temperature",
+    "soundAbruptUpAlarm": "audioException",
+    "soundAbruptDownAlarm": "audioException",
+    "chlOfflineAlarm": "IPCDisconnect",
+    "videoLossAlarm": "IPCDisconnect",
 }
 INPUT_KINDS = {"sensorAlarmIn"}  # ids are alarm-input numbers, not channels (guide 5.3.1 tip)
+
+# GetDeviceInfo / GetDeviceDetail support flag (lower-case) -> the alarm-status kind it produces
+SMART_FLAGS: dict[str, str] = {
+    "supportpea": "tripwireAlarm", "supporttripwire": "tripwireAlarm", "supportperimeter": "perimeterAlarm",
+    "supportosc": "oscAlarm", "supportavd": "avdAlarm", "supportvfd": "vfdAlarm", "supportvfdmatch": "vfdMatchAlarm",
+    "supportcpc": "cpcAlarm", "supportcdd": "cddAlarm", "supportipd": "ipdAlarm", "supportvehice": "vehicleAlarm",
+    "supportvehicle": "vehicleAlarm", "supportaoientry": "aoiEntryAlarm", "supportaoileave": "aoiLeaveAlarm",
+    "supportpasslinecount": "passlineAlarm", "supporttraffic": "trafficAlarm", "supportpvd": "pvdAlarm",
+    "supportloitering": "loiteringAlarm", "supportasd": "asdAlarm",
+}
+# alarm kind -> long-polling smartType (v1 guide), for a subscription built from what the device offers
+SUBSCRIBE_KIND: dict[str, str] = {
+    "motionAlarm": "MOTION", "sensorAlarmIn": "SENSOR", "tripwireAlarm": "PEA", "perimeterAlarm": "PEA", "avdAlarm": "AVD",
+    "oscAlarm": "OSC", "cpcAlarm": "CPC", "cddAlarm": "CDD", "ipdAlarm": "IPD", "vfdAlarm": "VFD", "vfdMatchAlarm": "VFD_MATCH",
+    "vehicleAlarm": "VEHICLE", "aoiEntryAlarm": "AOIENTRY", "aoiLeaveAlarm": "AOILEAVE", "passlineAlarm": "PASSLINECOUNT",
+    "trafficAlarm": "TRAFFIC",
+}
 
 
 class AlarmTracker:
@@ -471,6 +677,9 @@ class AlarmTracker:
         self._last: dict[tuple[str, int | None], bool] = {}
         self._channels: dict[int, bool | None] = {}
         self._primed = False
+
+    def active(self) -> list[tuple[str, int | None]]:
+        return [k for k, v in self._last.items() if v]
 
     def update(self, status: dict[tuple[str, int | None], bool], *, ipc: bool = False, device_time: str = "") -> list[ParsedAlert]:
         out: list[ParsedAlert] = []
@@ -565,7 +774,7 @@ class PullSubscription:
         port = self._resolve_port()
         auth = self._a._auth()
         self._client = self._a._client(timeout=self.pull_timeout_s + 10.0, auth=auth, port=port)
-        data, _ = self._a._call("SetSubscribe", body=subscribe_document(init_term_s), client=self._client, allowed=EVENT_SESSION_COMMANDS)
+        data, _ = self._a._call("SetSubscribe", body=subscribe_document(init_term_s, self._a.subscribe_types()), client=self._client, allowed=EVENT_SESSION_COMMANDS)
         try:
             sub = px.parse_subscribe(data)
         except ET.ParseError as exc:
@@ -611,3 +820,30 @@ class PullSubscription:
             finally:
                 self._client.close()
         self._client, self.address = None, None
+
+
+# ---------------------------------------------------------------------------------------------- registration (CR-024 seam)
+
+def register(*, selectable: bool = False) -> Callable[[], None] | None:
+    """Register the adapter and its connection-form spec through CR-024's `registry.register_vendor` when that seam exists
+    (branch pilot/multi-nvr). Returns the undo function, or None on a registry without the seam (g0/intake today), where
+    nothing is changed. `selectable=False` keeps Provision-ISR "coming soon" (CR-022 D1) until the owner's unit is
+    validated; the extra fields map to `recorder_connections` extras (`nvr_extra`)."""
+    from . import registry
+
+    reg = getattr(registry, "register_vendor", None)
+    if reg is None:
+        return None
+    base = tuple(getattr(registry, "_NETWORK_FIELDS", ()))
+    VF = registry.VendorField
+    extra = (
+        VF("scheme", "פרוטוקול (http / https)", "text", False),
+        VF("https_port", "פורט HTTPS", "port", False),
+        VF("tls_verify", "אימות תעודת HTTPS", "bool", False),
+        VF("auth", "שיטת אימות (אוטומטי / basic / digest)", "text", False),
+        VF("rtsp_style", "תבנית כתובת RTSP (query / path)", "text", False),
+        VF("event_mode", "אירועים: דגימה או דחיפה (poll / push)", "text", False),
+        VF("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool", False),
+    )
+    spec = registry.VendorSpec(VENDOR, "Provision-ISR", "available" if selectable else "planned", {"http_port": 80, "rtsp_port": 554}, base + extra)
+    return reg(spec, ProvisionIsrAdapter)

@@ -137,6 +137,9 @@ def parse_device_info(xml: str | bytes) -> dict[str, Any]:
         "support_https": to_bool(text(info, "supportHttps")),
         "support_http_post": to_bool(text(info, "SupportHttpPost")),
         "integrated_ptz": to_bool(text(info, "integratedPtz")),
+        # every support* flag the device states (lower-case names), e.g. smart analytics it offers
+        "support": {_local(c.tag).lower()[:48]: v for c in list(info)[:MAX_ITEMS] if _local(c.tag).lower().startswith("support")
+                    and (v := to_bool(c.text)) is not None},
     }
 
 
@@ -551,3 +554,53 @@ def parse_pull_messages(xml: str | bytes) -> dict[str, Any]:
     for item in children(child(root, "alarmInfoList"), "item"):
         messages.append({"status": parse_alarm_status_info(child(item, "alarmStatusInfo")), "data_time": text(item, "dataTime")})
     return {"termination_time": to_int(text(root, "terminationTime")), "messages": messages}
+
+
+# ------------------------------------------------------------------------------------------------ device push
+
+def parse_alarm_server(xml: str | bytes, raw_address: bool = False) -> dict[str, Any]:
+    """`GetAlarmServerConfig` -> {configured, port, heartbeat, heartbeat_s} (+ `address` only for the verify step after our
+    own write; never returned to a client)."""
+    root = parse(xml)
+    srv = child(root, "alarmServer")
+    if srv is None:
+        raise ET.ParseError("not an alarm server document")
+    address = text(srv, "serverAddr", cap=255)
+    out: dict[str, Any] = {"configured": bool(address), "port": to_int(text(srv, "serverPort")),
+                           "heartbeat": to_bool(text(srv, "enableHeartbeat")), "heartbeat_s": to_int(text(srv, "heartbeatInterval"))}
+    if raw_address:
+        out["address"] = address
+    return out
+
+
+_HOST = re.compile(r"^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)$")
+
+
+def alarm_server_document(server: str, port: int, heartbeat_s: int) -> str:
+    """SetAlarmServerConfig body (guide 5.3.3: the whole alarmServer element, no attributes). Values validated."""
+    if not isinstance(server, str) or not _HOST.match(server) or len(server) > 253:
+        raise ValueError("server")
+    if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+        raise ValueError("port")
+    if not isinstance(heartbeat_s, int) or isinstance(heartbeat_s, bool) or not 10 <= heartbeat_s <= 1800:
+        raise ValueError("heartbeat_s")
+    return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10"><alarmServer>'
+            f"<serverAddr><![CDATA[{server}]]></serverAddr><serverPort>{port}</serverPort>"
+            f"<enableHeartbeat>true</enableHeartbeat><heartbeatInterval>{heartbeat_s}</heartbeatInterval></alarmServer></config>")
+
+
+def parse_push(body: str | bytes) -> dict[str, Any]:
+    """A message the device posts to the alarm server (v1 guide 5.3.2 tips; v2 long-polling / HTTP POST guide):
+    `{"kind": "status" | "heartbeat", "status": {(kind, id): bool}, "data_time": str | None, "channel": int | None}`.
+    v1: `<alarmStatusInfo>` + `<dataTime>` + `<deviceInfo>`; heartbeat = `<deviceInfo>` only. v2: `<messageType>alarmStatus |
+    keepalive` with `deviceInfo/channelId`. The device identity (name, serial, IP, MAC) is dropped."""
+    root = parse(body)
+    mtype = (text(root, "messageType") or "").lower()
+    info = child(root, "alarmStatusInfo")
+    dev = child(root, "deviceInfo")
+    channel = to_int(text(dev, "channelId")) if dev is not None else None
+    if info is not None:
+        return {"kind": "status", "status": parse_alarm_status_info(info), "data_time": text(root, "dataTime"), "channel": channel}
+    if mtype == "keepalive" or (dev is not None and mtype in ("", "keepalive")):
+        return {"kind": "heartbeat", "status": {}, "data_time": None, "channel": channel}
+    raise ET.ParseError("not an alarm push message")
