@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from conftest import as_user
 from test_self_update import NEWER, sup, world  # noqa: F401 - fixtures
-from test_self_update_s3 import KEY, apply_body, audit_rows, j, restart, rig, run_row, updated_process  # noqa: F401 - fixtures
+from test_self_update_s3 import KEY, SAME_ORIGIN, apply_body, audit_rows, j, restart, rig, run_row, updated_process  # noqa: F401 - fixtures
 
 from smplwise import __version__  # noqa: E402
 from smplwise.services import exports, ha_client, ha_user_auth, nvr_system, plan_render, self_update, thumbnails, update_runs  # noqa: E402
@@ -501,3 +501,21 @@ def test_the_apply_gap_is_rechecked_under_the_write_lock(rig, sup, settings):  #
     r = j(c, "post", "/apply", json=apply_body())
     assert r.status_code == 429 and r.json()["code"] == "rate_limited", r.text
     assert drain() == 0 and sup.calls("POST", f"/store/addons/{sup.slug}/update") == 0
+
+
+# ================================================================ nothing that restarts Arx starts while an update runs (owner decision)
+
+def test_saving_the_nvr_connection_is_refused_while_an_update_runs(rig, sup, monkeypatch):  # noqa: F811
+    app, c, drain, *_ = rig
+    sup.latest = NEWER
+    saved: list = []
+    monkeypatch.setattr(nvr_system, "save_connection", lambda *a, **k: saved.append(a) or "file")
+    body = {"host": "nvr.local", "http_port": 80, "user": "writer", "password": "pw"}
+    assert j(c, "post", "/apply", json=apply_body()).status_code == 202  # the run is open (the worker is captured, not run)
+    r = c.put("/api/v1/nvr/connection", headers={**as_user("joni"), **SAME_ORIGIN}, json=body)
+    assert r.status_code == 409 and r.json()["code"] == "update_running", r.text
+    assert "מתבצע עדכון" in r.json()["user_message"] and saved == []
+    # once the run is settled the guard lets go
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE update_runs SET state = 'failed', finished_at = created_at")
+        assert update_runs.refuse_arx_restart_during_update(conn) is None

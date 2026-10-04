@@ -318,6 +318,9 @@ def set_connection(body: ConnectionIn, request: Request, principal: Principal = 
     """D4: test the new connection (deviceInfo), then persist it - Supervisor options + add-on restart inside HA, a
     data-dir file on a workstation - and use it in this process right away."""
     require(conn, principal, "system.configure", INSTALLATION)
+    from ..services import update_runs  # CR-021 S3: saving the connection restarts Arx inside the infrastructure - never in the middle of an update
+
+    update_runs.refuse_arx_restart_during_update(conn)
     settings = settings_of(request)
     new = nvr_system.with_connection(settings, host=body.host, http_port=body.http_port, rtsp_port=body.rtsp_port, user=body.user, password=body.password)
     with unlocked(conn):

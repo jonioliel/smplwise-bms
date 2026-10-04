@@ -397,7 +397,7 @@ test.describe('the restarts card (CR-021 S3)', () => {
     await shot(page, 'run-platform-config-invalid');
   });
 
-  for (const [code, text] of [['platform_not_back', 'תשתית המערכת לא חזרה לפעולה בזמן'], ['bridge_not_loaded', 'הגשר שלה לא נטען']] as const) {
+  for (const [code, text] of [['platform_not_back', 'תשתית המערכת לא חזרה לפעולה בזמן'], ['bridge_not_loaded', 'הגשר שלה לא נטען'], ['restart_not_observed', 'לא נצפתה הפעלה מחדש']] as const) {
     test(`a platform restart that ends with ${code} says why`, async ({ page }) => {
       const mock = freshMock();
       mock.startRun = runView({ kind: 'platform_restart' });
@@ -558,6 +558,49 @@ test.describe('permission gating, RTL, phone', () => {
     expect(mock.applyBodies).toEqual([]);
     expect(mock.restartBodies).toEqual([]);
     expect(mock.arxRestarts).toBe(0);
+  });
+
+  test('a platform restart refused because an update is running says so in plain Hebrew', async ({ page }) => {
+    const mock = freshMock();
+    mock.restartReply = { status: 409, body: ENVELOPE('update_running', 'RAW') };
+    await mockBackend(page, ADMIN_PERMS, mock);
+    await open(page, '/system/update');
+    await card(page).locator('[data-restart-platform]').click();
+    await card(page).locator('[data-restart-confirm]').click();
+    await expect(card(page).locator('[data-restart-error]')).toHaveText('מתבצע עדכון, נסו שוב בסיום.');
+  });
+
+  for (const [backupState, steps, note] of [['confirmed', 3, false], ['requested', 2, true], ['not_requested', 2, false]] as const) {
+    test(`the failure screen offers the infrastructure backup only when it was confirmed (${backupState})`, async ({ page }) => {
+      const mock = withUpdate(freshMock());
+      mock.startRun = runView({ backup: false, backup_requested: backupState !== 'not_requested', backup_state: backupState });
+      mock.runReplies = [runView({ state: 'failed', error_code: 'restart_loop', backup: backupState === 'confirmed', backup_requested: backupState !== 'not_requested', backup_state: backupState, finished_at: new Date().toISOString() })];
+      await mockBackend(page, ADMIN_PERMS, mock);
+      await apply(page, mock);
+      await run(page).locator('[data-run-guidance-open]').click();
+      const g = run(page).locator('[data-run-guidance]');
+      await expect(g).toHaveAttribute('data-run-backup-state', backupState);
+      await expect(g.locator('li')).toHaveCount(steps);
+      if (backupState === 'confirmed') await expect(g).toContainText('לפני העדכון');
+      else await expect(g).not.toContainText('לפני העדכון');
+      await expect(g.locator('[data-run-backup-note]')).toHaveCount(note ? 1 : 0);
+      if (note) await expect(g.locator('[data-run-backup-note]')).toContainText('לא אישרה');
+      await shot(page, `run-guidance-backup-${backupState}`);
+    });
+  }
+
+  test('an update past its usual time but below the ceiling says "still working", not failure', async ({ page }) => {
+    const mock = withUpdate(freshMock());
+    const old = new Date(Date.now() - 25 * 60_000).toISOString();
+    mock.startRun = runView({ state: 'updating', started_at: old });
+    mock.runReplies = [runView({ state: 'updating', step: 'job_running', started_at: old })];
+    await mockBackend(page, ADMIN_PERMS, mock);
+    await apply(page, mock);
+    await expect(run(page).locator('[data-run-still-working]')).toContainText('עדיין עובד', { timeout: 15000 });
+    await expect(run(page).locator('[data-run-state="updating"]')).toBeVisible();
+    await expect(run(page).locator('[data-run-error]')).toHaveCount(0);
+    await noOverflow(page);
+    await shot(page, 'run-still-working');
   });
 
   test('RTL: the page and the dialog run right to left, version numbers stay left to right', async ({ page }) => {

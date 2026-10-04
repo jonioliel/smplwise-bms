@@ -265,6 +265,16 @@ def _refuse_active(conn: sqlite3.Connection) -> None:
                        details={"run_id": row["id"], "kind": kind_of(row), "state": row["state"]})
 
 
+def refuse_arx_restart_during_update(conn: sqlite3.Connection) -> None:
+    """Owner decision 2026-10-04: while an UPDATE run is active, nothing that restarts Arx may start (saving the NVR connection, the Arx
+    restart button): 409 `update_running`. A platform-restart run does not restart Arx and does not block. The Arx restart route of
+    CR-022 (`addon_restart.restart`) must call this before it restarts the add-on."""
+    row = active_run(conn)
+    if row is not None and kind_of(row) == "update":
+        raise ApiError(409, "update_running", "מתבצע עדכון, נסו שוב בסיום.", retryable=True,
+                       details={"run_id": row["id"], "kind": "update", "state": row["state"]})
+
+
 def _nvr_write_pending(conn: sqlite3.Connection) -> bool:
     """CR-020: a guarded NVR write whose outcome is not recorded yet (pending, younger than its settle window)."""
     try:

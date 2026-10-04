@@ -30,17 +30,22 @@ export interface RunViewMock {
   finished_at: string | null;
   from_version: string | null;
   to_version: string | null;
+  /** A CONFIRMED backup; `backup_requested` is what the operator asked for. */
   backup: boolean;
+  backup_requested: boolean;
+  backup_state: 'not_requested' | 'requested' | 'confirmed';
   error_code: string | null;
+  /** The ceiling (update 5400 s, platform restart 600 s) and what the run usually takes. */
   timeout_s: number;
+  expected_s: number;
 }
 
 export function runView(over: Partial<RunViewMock> = {}): RunViewMock {
   const kind = over.kind ?? 'update';
   return {
     run_id: RUN_ID, kind, state: 'requested', step: null, started_at: new Date(Date.now() - 5000).toISOString(), finished_at: null,
-    from_version: kind === 'update' ? '0.1.156' : '2026.10.1', to_version: kind === 'update' ? '0.1.157' : null, backup: kind === 'update', error_code: null,
-    timeout_s: kind === 'update' ? 1200 : 600, ...over,
+    from_version: kind === 'update' ? '0.1.156' : '2026.10.1', to_version: kind === 'update' ? '0.1.157' : null, backup: kind === 'update', backup_requested: kind === 'update', backup_state: kind === 'update' ? 'confirmed' : 'not_requested', error_code: null,
+    timeout_s: kind === 'update' ? 5400 : 600, expected_s: kind === 'update' ? 1200 : 600, ...over,
   };
 }
 

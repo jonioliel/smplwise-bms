@@ -64,7 +64,7 @@ from smplwise.services import self_update, update_runs  # noqa: E402
 
 SUP = FakeSupervisor()
 APP = create_app()
-SETTABLE = {"installed", "latest", "role", "info_state", "update_status", "update_job", "job_done", "job_errors", "job_backup_done", "kill_on_update",
+SETTABLE = {"installed", "latest", "role", "info_state", "update_status", "update_job", "job_done", "job_errors", "job_backup_done", "job_listed", "backup_errors", "kill_on_update",
             "core_version", "core_state", "core_check_status", "core_restart_status", "core_down_polls", "core_info_status", "reload_status", "store_stale"}
 
 

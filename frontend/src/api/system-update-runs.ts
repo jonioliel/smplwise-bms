@@ -19,10 +19,17 @@ export interface RunView {
   finished_at: string | null;
   from_version: string | null;
   to_version: string | null;
+  /** A CONFIRMED backup (the infrastructure's backup job finished without errors); what was only asked for is `backup_requested`. */
   backup: boolean;
+  backup_requested?: boolean;
+  backup_state?: BackupState;
   error_code: string | null;
+  /** The ceiling: an update past `expected_s` and below this is "still working", never a failure. */
   timeout_s: number;
+  /** What the run usually takes (update 1200 s, platform restart 600 s). */
+  expected_s?: number;
 }
+export type BackupState = 'not_requested' | 'requested' | 'confirmed';
 
 /** The open run inside `GET /state` (same fields, fewer of them). */
 export type RunRef = Partial<RunView> & { id?: string; run_id?: string; kind: RunKind; state: RunState };
@@ -54,6 +61,7 @@ export const restartArx = () => post<{ restarting: true }>('system/restart', { c
 
 export type RunFailure =
   | { kind: 'in_progress' }
+  | { kind: 'update_running' }
   | { kind: 'not_available' }
   | { kind: 'version_mismatch' }
   | { kind: 'busy' }
@@ -71,6 +79,7 @@ export function classifyRunError(err: unknown): RunFailure {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'update_in_progress': return { kind: 'in_progress' };
+      case 'update_running': return { kind: 'update_running' };
       case 'update_not_available': return { kind: 'not_available' };
       case 'target_version_mismatch': return { kind: 'version_mismatch' };
       case 'platform_busy': return { kind: 'busy' };
@@ -100,6 +109,7 @@ export function classifyRunError(err: unknown): RunFailure {
 export function runFailureRequestText(f: RunFailure, what: 'update' | 'restart' = 'update'): string {
   switch (f.kind) {
     case 'in_progress': return 'עדכון או הפעלה מחדש אחרת עדיין מתבצעים.';
+    case 'update_running': return 'מתבצע עדכון, נסו שוב בסיום.';
     case 'not_available': return 'אין עדכון זמין. בדקו שוב אם יש עדכון.';
     case 'version_mismatch': return 'הגרסה האחרונה השתנתה. בדקו שוב אם יש עדכון.';
     case 'busy': return 'תשתית המערכת עסוקה כרגע. נסו שוב בעוד כמה דקות.';
@@ -131,12 +141,12 @@ const PLATFORM_STEPS: RunStep[] = [
 ];
 
 /** The steps of a run (no backup step when none was taken) and the index of the one in progress (steps.length once all are done). */
-export function runSteps(run: Pick<RunView, 'kind' | 'state' | 'backup'>): { steps: RunStep[]; current: number } {
+export function runSteps(run: Pick<RunView, 'kind' | 'state'> & { backup?: boolean; backup_requested?: boolean }): { steps: RunStep[]; current: number } {
   if (run.kind === 'platform_restart') {
     const current = run.state === 'succeeded' ? 3 : run.state === 'verifying' ? 2 : run.state === 'restarting' ? 1 : 0;
     return { steps: PLATFORM_STEPS, current };
   }
-  const steps = run.backup ? UPDATE_STEPS : UPDATE_STEPS.filter((s) => s.id !== 'backup');
+  const steps = run.backup || run.backup_requested ? UPDATE_STEPS : UPDATE_STEPS.filter((s) => s.id !== 'backup');
   const id = run.state === 'backing_up' ? 'backup' : run.state === 'verifying' ? 'verify' : run.state === 'restarting' ? 'restart' : 'install';
   const current = run.state === 'succeeded' ? steps.length : Math.max(0, steps.findIndex((s) => s.id === id));
   return { steps, current };
@@ -158,6 +168,7 @@ export function runFailureText(run: Pick<RunView, 'kind' | 'state' | 'error_code
     case 'health_check_failed': return 'המערכת התעדכנה אך בדיקת התקינות נכשלה.';
     case 'timeout': return 'הפעולה לא הסתיימה בזמן.';
     case 'platform_config_invalid': return 'בדיקת התצורה של תשתית המערכת נכשלה, ולכן לא בוצעה הפעלה מחדש. תקנו את התצורה ונסו שוב.';
+    case 'restart_not_observed': return 'לא נצפתה הפעלה מחדש של תשתית המערכת, ולכן לא ידוע אם בוצעה. בדקו את מצב המערכת ונסו שוב אם צריך.';
     case 'platform_not_back': return 'תשתית המערכת לא חזרה לפעולה בזמן.';
     case 'bridge_not_loaded': return 'תשתית המערכת חזרה, אך הגשר שלה לא נטען.';
     default: return 'הפעולה נכשלה.';
@@ -169,8 +180,15 @@ export const needsRollbackGuidance = (run: Pick<RunView, 'kind' | 'state' | 'err
   run.kind === 'update' && (run.state === 'abandoned' || ['version_unchanged', 'version_unexpected', 'interrupted', 'restart_loop', 'health_check_failed', 'timeout', 'update_job_failed'].includes(run.error_code ?? ''));
 
 /** The rollback guidance (CR-021 section 3.3 / design section 6): text only, no restore button (owner decision). */
-export const ROLLBACK_STEPS: string[] = [
-  'בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.',
-  'לחלופין, התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות › גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".',
-  'אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו, או שחזרו את הגיבוי.',
-];
+const GUIDE_PLATFORM_BACKUP = 'בדפי הגיבויים של תשתית המערכת, בחרו את הגיבוי "לפני העדכון" ושחזרו ממנו את התוסף SmplWise Arx. השחזור מחזיר יחד את הגרסה והנתונים.';
+const GUIDE_ARX_COPY = 'התקינו מחדש את הגרסה הקודמת ושחזרו ב-Arx, בהגדרות › גיבוי, את הקובץ האחרון שנקרא "auto-pre-upgrade".';
+const GUIDE_NOT_UP = 'אם Arx אינו עולה: בדפי התוספים של תשתית המערכת הפעילו אותו.';
+
+/** Restoring from the infrastructure's backup is offered only when that backup was CONFIRMED (`backup_state: 'confirmed'`); a backup that was only asked for is said so. */
+export function rollbackSteps(backupState: BackupState | null | undefined): { note: string | null; steps: string[] } {
+  if (backupState === 'confirmed') return { note: null, steps: [GUIDE_PLATFORM_BACKUP, `לחלופין: ${GUIDE_ARX_COPY}`, `${GUIDE_NOT_UP} או שחזרו את הגיבוי.`] };
+  return {
+    note: backupState === 'requested' ? 'ביקשתם גיבוי לפני העדכון, אך תשתית המערכת לא אישרה שהוא נוצר. אל תסתמכו עליו.' : null,
+    steps: [GUIDE_ARX_COPY, GUIDE_NOT_UP],
+  };
+}
