@@ -12,8 +12,9 @@ const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
 const PAGE = 'sw-app system-security system-security-cameras';
 const DLG = `${PAGE} nvr-encoding-batch sw-dialog[open][data-nvr-enc]`;
 
+/** `--update-snapshots` is "changed" by default in this Playwright ("all" when spelled out): both write the baseline. */
 const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
-  info.config.updateSnapshots !== 'all' && !fs.existsSync(info.snapshotPath(name));
+  !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
 async function toSettings(page: Page, skin: string) {
   await page.clock.setFixedTime(new Date('2026-10-04T09:00:00Z'));
