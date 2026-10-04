@@ -33,6 +33,11 @@ from .provision_isr import AlarmTracker
 log = logging.getLogger("smplwise.provision_push")
 
 MAX_BODY = 512 * 1024  # an alarm-status document is a few KB; feature data with images is ignored above this
+# security review M1 (2026-10-04): bounded resources for a port open on the LAN
+HANDLER_TIMEOUT_S = 10  # a client that sends its request line / headers / body slower than this is cut off
+MAX_CONNECTIONS = 16  # concurrent connections in total (each is one thread)
+MAX_PER_SOURCE = 4  # concurrent connections from one source address
+RATE_PER_SOURCE = 20  # requests per second per source address (token bucket, burst = the same number)
 PATHS = {"/SendAlarmStatus", "/SendAlarmData", "/SendKeepalive", "/SubscribeTimeOut", "/"}
 
 
@@ -94,7 +99,8 @@ class PushListener:
         listener = self
 
         class Handler(BaseHTTPRequestHandler):
-            protocol_version = "HTTP/1.1"
+            protocol_version = "HTTP/1.0"  # one request per connection: no keep-alive to hold a thread (M1)
+            timeout = HANDLER_TIMEOUT_S  # socket timeout for every read (slow headers / body are cut off)
 
             def log_message(self, fmt: str, *args: Any) -> None:  # never log request lines (addresses) or bodies
                 return
@@ -108,6 +114,11 @@ class PushListener:
                 self._answer(405)
 
             def do_POST(self) -> None:  # noqa: N802
+                self.close_connection = True
+                if not listener.allow_rate(self.client_address[0]):
+                    listener.limited += 1
+                    self._answer(429)
+                    return
                 receiver, path = listener.route(self.client_address[0], self.path.split("?", 1)[0])
                 if receiver is None:
                     listener.refused += 1
@@ -132,9 +143,68 @@ class PushListener:
                 except Exception:  # noqa: BLE001 - one bad message never stops the listener
                     log.exception("provision push: message handling failed (recorder %s)", receiver.recorder_id)
 
-        self._server = ThreadingHTTPServer((host, port), Handler)
-        self._server.daemon_threads = True
+        class BoundedServer(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def process_request(self, request, client_address):  # noqa: ANN001
+                if not listener.acquire(client_address[0]):
+                    listener.limited += 1
+                    try:
+                        request.close()
+                    finally:
+                        return
+                super().process_request(request, client_address)
+
+            def process_request_thread(self, request, client_address):  # noqa: ANN001
+                try:
+                    super().process_request_thread(request, client_address)
+                finally:
+                    listener.release(client_address[0])
+
+        self.limited = 0
+        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        self._per_source: dict[str, int] = {}
+        self._buckets: dict[str, tuple[float, float]] = {}  # source -> (tokens, last refill)
+        self._lock = threading.Lock()
+        self._server = BoundedServer((host, port), Handler)
         self._thread: threading.Thread | None = None
+
+    def acquire(self, source: str) -> bool:
+        if not self._slots.acquire(blocking=False):
+            return False
+        with self._lock:
+            if self._per_source.get(source, 0) >= MAX_PER_SOURCE:
+                self._slots.release()
+                return False
+            self._per_source[source] = self._per_source.get(source, 0) + 1
+        return True
+
+    def release(self, source: str) -> None:
+        with self._lock:
+            n = self._per_source.get(source, 1) - 1
+            if n <= 0:
+                self._per_source.pop(source, None)
+            else:
+                self._per_source[source] = n
+        self._slots.release()
+
+    def allow_rate(self, source: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            tokens, last = self._buckets.get(source, (float(RATE_PER_SOURCE), now))
+            tokens = min(float(RATE_PER_SOURCE), tokens + (now - last) * RATE_PER_SOURCE)
+            ok = tokens >= 1.0
+            self._buckets[source] = (tokens - 1.0 if ok else tokens, now)
+            if len(self._buckets) > 1024:  # bounded memory under address churn
+                self._buckets.clear()
+        return ok
+
+    def unregister(self, receiver: PushReceiver) -> None:
+        """Security review L4: drop every token / address route of a stopped or removed recorder."""
+        for tok in [t for t, (r, _a) in self.tokens.items() if r is receiver]:
+            self.tokens.pop(tok, None)
+        for addr in [a for a, r in self.sources.items() if r is receiver]:
+            self.sources.pop(addr, None)
 
     def route(self, source: str, raw_path: str) -> tuple[PushReceiver | None, str]:
         """(receiver, the device path without the token) or (None, path) when the push is not authenticated."""

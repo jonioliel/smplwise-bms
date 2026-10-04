@@ -127,11 +127,29 @@ def _register_push(listener: "AlertStreamListener", adapter: ProvisionIsrAdapter
                 log.warning("provision push listener could not start on port %s: %s", port, type(exc).__name__)
                 _PUSH = None
                 return None
+        if mode == "address" and address:
+            holder = _PUSH.sources.get(address)
+            if holder is not None and holder.recorder_id != listener.recorder_id:
+                # security review M2: two recorders behind one address (NAT, different ports) cannot share address
+                # authentication - events would land on the wrong recorder's cameras. Refused; this recorder keeps sampling.
+                log.warning("provision push: recorder %s shares its source address with %s; address mode refused (use token mode)",
+                            listener.recorder_id, holder.recorder_id)
+                _RECEIVERS.pop(listener.recorder_id, None)
+                _SINKS.pop(listener.recorder_id, None)
+                return None
+            _PUSH.sources[address] = receiver
         if token:
             _PUSH.tokens[token] = (receiver, address if mode == "token_and_address" else None)
-        if mode == "address" and address:
-            _PUSH.sources[address] = receiver
     return receiver
+
+
+def unregister_push(recorder_id: str) -> None:
+    """Security review L4: a stopped or removed recorder's token / address no longer routes pushes."""
+    with _PUSH_LOCK:
+        receiver = _RECEIVERS.pop(recorder_id, None)
+        _SINKS.pop(recorder_id, None)
+        if receiver is not None and _PUSH is not None:
+            _PUSH.unregister(receiver)
 
 
 def stop_push() -> None:
@@ -214,3 +232,5 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
                 pass
         wait(interval)
     st.connected = False
+    if receiver is not None:
+        unregister_push(listener.recorder_id)  # L4: the loop ended (recorder stopped, disabled or removed)
