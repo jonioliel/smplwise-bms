@@ -907,6 +907,7 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         adv("tls_pin", "טביעת אצבע של התעודה (SHA-256)", "text"),
         sel("auth", "שיטת אימות", (("", "אוטומטי"), ("basic", "Basic"), ("digest", "Digest"))),
         sel("event_mode", "אירועים", (("poll", "דגימה כל 2 שניות"), ("push", "דחיפה מהמכשיר"))),
+        sel("time_basis", "זמני ההקלטות", (("device", "לפי שעון המכשיר"), ("iana", "תמיד שעון ישראל"))),
         adv("poll_interval_s", "מרווח דגימה (שניות)", "text"),
         adv("push_port", "פורט קבלת דחיפות", "port"),
         sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),

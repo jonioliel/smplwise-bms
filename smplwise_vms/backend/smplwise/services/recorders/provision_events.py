@@ -101,6 +101,7 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
     receiver = _register_push(listener, ad) if ad.event_mode() == "push" else None
     wait = sleep or listener.stop.wait
     backoff = 5.0
+    zone_at = 0.0
     while not listener.stop.is_set():
         if receiver is not None and not receiver.stale():
             st.connected = True
@@ -142,5 +143,13 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
         backoff = 5.0
         for a in alerts:
             listener.submit(a)
+        if time.monotonic() - zone_at > 600 and adapter is None:  # the device clock rule for the health note (1 read / 10 min)
+            zone_at = time.monotonic()
+            try:
+                from .provision_playback import ProvisionPlayback
+
+                ProvisionPlayback(ad, listener.tz_getter()).zone()
+            except Exception:  # noqa: BLE001 - optional
+                pass
         wait(interval)
     st.connected = False

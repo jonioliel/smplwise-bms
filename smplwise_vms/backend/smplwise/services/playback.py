@@ -85,6 +85,14 @@ def stream_name(session_id: str, generation: int) -> str:
 
 
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
+    from .recorders import vendor_io
+
+    if vendor_io.handles(settings):  # CR-025 P3: Provision-ISR plays by channel (track_id = channel) in the device's wall clock
+        return vendor_io.playback_url(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1", track_id, start, end, tz_name)
+    return _hikvision_playback_rtsp_url(settings, track_id, start, end, tz_name)
+
+
+def _hikvision_playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
     """rtsp://user:pass@host:rtsp/Streaming/tracks/<track>?starttime=<local compact>&endtime=<local compact>.
     Times are the NVR's local wall clock (KNOWN_QUIRKS T4). Server-side only."""
     from ..mode import ensure_nvr

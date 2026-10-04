@@ -141,6 +141,14 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
 
 def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, key: tuple[str, str, str], ttl: int) -> SearchResult:
     now = time.time()
+    from ..recorder_scope import camera_settings
+    from .recorders import vendor_io
+
+    rs = camera_settings(settings, cam)
+    if vendor_io.handles(rs):  # CR-025 P3: the Provision search (cursor paging, device clock, DST-safe ends)
+        result = vendor_io.search(rs, cam["recorder_id"], cam["channel"], start, end, tz_name)
+        _cache[key] = (now, result)
+        return result
     tz = zone(tz_name)
     matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
     segments: list[Segment] = []

@@ -37,8 +37,10 @@ def discover(settings: Settings, recorder_id: str) -> tuple[dict[str, Any], list
 
     a = adapter(settings, recorder_id)
     info = a.device_info(refresh=True)
-    channels = [nvr.DiscoveredChannel(channel=int(c.channel or c.source_ref), name=c.name, online=c.online, main_track=None, sub_track=None)
-                for c in a.list_channels()]
+    # the recording "track" of a Provision camera is its channel: playback, search, thumbnails and exports address the
+    # channel (CR-025 P3), so every `main_track` check of the Hikvision paths passes and carries the right number
+    channels = [nvr.DiscoveredChannel(channel=int(c.channel or c.source_ref), name=c.name, online=c.online,
+                                      main_track=int(c.channel or c.source_ref), sub_track=None) for c in a.list_channels()]
     encodings: dict[int, dict[str, Any]] = {}
     error: str | None = None
     try:
@@ -65,3 +67,50 @@ class LiveSources:
 
 def snapshot(settings: Settings, recorder_id: str, channel: int) -> bytes:
     return adapter(settings, recorder_id).snapshot(str(channel))
+
+
+
+# ---------------------------------------------------------------------------------------------- recordings (P3 wiring)
+
+def playback_service(settings: Settings, recorder_id: str, tz_name: str):
+    from .provision_playback import ProvisionPlayback
+
+    return ProvisionPlayback(adapter(settings, recorder_id), tz_name)
+
+
+def search(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str):
+    """recordings.SearchResult of a Provision camera (device wall clock per the recorder's time basis)."""
+    return playback_service(settings, recorder_id, tz_name).search(int(channel), start, end)
+
+
+def playback_url(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str) -> str:
+    from .provision_playback import rtsp_playback_url
+
+    return rtsp_playback_url(settings, int(channel), start, end, tz_name, recorder_id=recorder_id)
+
+
+def export_files(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str):
+    return playback_service(settings, recorder_id, tz_name).export_files(int(channel), start, end)
+
+
+def time_note(settings: Settings, recorder_id: str, tz_name: str) -> dict[str, Any] | None:
+    """The recorder's time basis and whether the device clock rule differs from the installation zone - from the cache
+    the playback module fills (no device call here; health must stay cheap). None before the first device read."""
+    import datetime as dt
+
+    from . import provision_playback as pp
+    from . import provision_time as pt
+
+    a = adapter(settings, recorder_id)
+    basis = "iana" if str(a._extra.get("time_basis") or "").lower() == "iana" else "device"
+    with pp._CACHE_LOCK:
+        hit = pp._ZONES.get(a.device_key)
+    if hit is None:
+        return {"basis": basis, "known": False}
+    _exp, tz, source, facts = hit
+    now = dt.datetime.now(pt.UTC)
+    iana = pt.iana(tz_name)
+    differs_now = tz.utcoffset(now.astimezone(tz).replace(tzinfo=None)) != iana.utcoffset(now.astimezone(iana).replace(tzinfo=None))
+    periods = pt.divergence(tz, iana, now.year) if source != "iana" else []
+    return {"basis": basis, "known": True, "device_rule": facts.get("time_zone"), "source": source, "differs_now": bool(differs_now),
+            "differs_periods": len(periods)}
