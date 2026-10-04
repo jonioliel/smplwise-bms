@@ -153,6 +153,23 @@ NEWER_BRIDGE_SERVICES: frozenset[str] = frozenset({
     "siren.turn_on", "siren.turn_off", "media_player.turn_on", "media_player.turn_off", "media_player.media_play", "media_player.media_pause",
     "media_player.media_stop", "media_player.volume_set", "media_player.select_source", "number.set_value", "select.select_option",
 })
+# integ/0163: 0.1.162 shipped bridge 0.6.1 WITHOUT the follow-up's services, and the add-on copies the bridge only when its version
+# changes (bridge_install), so the follow-up's services need bridge 0.6.2: an installation on the released 0.6.1 gets
+# `bridge_too_old_for_action` (and the restart hint) instead of a refusal from the bridge's older allow-list.
+FOLLOWUP_BRIDGE = "0.6.2"
+FOLLOWUP_BRIDGE_SERVICES: frozenset[str] = frozenset({
+    "siren.turn_on", "siren.turn_off", "media_player.turn_on", "media_player.turn_off", "media_player.media_play", "media_player.media_pause",
+    "media_player.media_stop", "media_player.volume_set", "media_player.select_source", "number.set_value", "select.select_option",
+})
+
+
+def bridge_needed(service: str) -> str | None:
+    """The lowest bridge version whose schedule allow-list takes `service` (None: every supported bridge does)."""
+    if service in FOLLOWUP_BRIDGE_SERVICES:
+        return FOLLOWUP_BRIDGE
+    if service in NEWER_BRIDGE_SERVICES:
+        return NEWER_BRIDGE
+    return None
 
 # Capability discovery (never invent one): the entity feature bit Home Assistant reports for a service (`<Domain>EntityFeature`), and an
 # attribute whose presence proves the same thing. A service without a bit is offered whenever its class is.

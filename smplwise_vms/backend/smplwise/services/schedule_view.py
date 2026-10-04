@@ -1133,7 +1133,7 @@ def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict
             continue  # capability discovery: only what this entity reports it can do
         if service == "media_player.select_source" and not [s for s in (policy._attr_list(info, "source_list") or []) if s not in set(info.get("hidden_sources") or [])]:
             continue  # nothing the administrator left visible to switch to
-        if service in policy.NEWER_BRIDGE_SERVICES and not ctx.bridge_at_least(policy.NEWER_BRIDGE):
+        if (need := policy.bridge_needed(service)) and not ctx.bridge_at_least(need):
             too_old = True
             continue
         if cls == "alarm":

@@ -793,7 +793,7 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
         return [_problem("action_not_allowed", "הפעולה אינה מותרת בתזמון.", f"{path}.service")]
     if not unchanged and not policy.service_capable(service, info):
         return [_problem("service_not_supported", "ההתקן אינו תומך בפעולה זו.", f"{path}.service")]
-    if not unchanged and service in policy.NEWER_BRIDGE_SERVICES and not _bridge_at_least(ctx, policy.NEWER_BRIDGE):
+    if not unchanged and (need := policy.bridge_needed(service)) and not _bridge_at_least(ctx, need):
         return [_problem("bridge_too_old_for_action", "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו.", f"{path}.service")]
     problems, _ = policy.check_arguments(service, data, info, dynamic=not unchanged)
     for p in problems:  # the field-level code stays in the problem; the router promotes only §3.20 codes, else `validation`

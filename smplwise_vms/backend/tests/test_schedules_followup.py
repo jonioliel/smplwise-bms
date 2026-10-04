@@ -85,7 +85,7 @@ def _extra(app, fake) -> None:
 def follow(sched_app):
     app, s, c, fake, tr = sched_app
     _extra(app, fake)
-    assert c.post(f"{API}/ha/bridge/ping", json=ha_bridge.sign(tr.secret, {"version": "0.6.1"})).status_code == 200
+    assert c.post(f"{API}/ha/bridge/ping", json=ha_bridge.sign(tr.secret, {"version": "0.6.2"})).status_code == 200
     return app, s, c, fake, tr
 
 
@@ -228,6 +228,18 @@ def test_only_a_system_administrator_marks_and_an_ordinary_script_needs_none(fol
 
 
 # ================================================================ decision 3: sirens, media players, number / select
+
+def test_the_released_bridge_0_6_1_refuses_the_follow_up_services_with_the_update_hint(follow):
+    """integ/0163: 0.1.162 shipped bridge 0.6.1 without sirens / players / numbers / selects; the add-on copies the bridge only on a
+    version change, so these need 0.6.2 and an installation still on 0.6.1 gets the update hint, not the bridge's refusal."""
+    app, s, c, fake, tr = follow
+    assert policy.bridge_needed("siren.turn_off") == "0.6.2" and policy.bridge_needed("scene.turn_on") == "0.6.1"
+    assert policy.bridge_needed("light.turn_on") is None
+    assert policy.FOLLOWUP_BRIDGE_SERVICES <= policy.NEWER_BRIDGE_SERVICES
+    assert c.post(f"{API}/ha/bridge/ping", json=ha_bridge.sign(tr.secret, {"version": "0.6.1"})).status_code == 200
+    r = _create(c, _one("siren.turn_off", "siren.yard"))
+    assert r.status_code == 503 and r.json()["code"] == "bridge_too_old_for_action"
+
 
 def test_the_allow_list_now_holds_the_new_classes_and_needs_the_newer_bridge(follow):
     app, s, c, fake, tr = follow

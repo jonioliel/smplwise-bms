@@ -139,7 +139,7 @@ def test_the_new_services_and_arguments_equal_the_add_ons_actions():
 
 def test_version_manifest_services_yaml_and_mirror_agree():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.6.1" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
+    assert manifest["version"] == const.VERSION == "0.6.2" == (json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8")))["version"]
     assert const.SERVICE_MEDIA_QUERY == "media_query"
     assert "media_query:" in (SRC / "services.yaml").read_text(encoding="utf-8")
     for name in ("media_policy.py", "media_query_service.py", "__init__.py", "const.py", "services.yaml", "manifest.json"):
