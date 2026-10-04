@@ -98,7 +98,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
   test('without the backup box the backup step is not listed and backup: false is sent', async ({ page }) => {
     const mock = withUpdate(freshMock());
     mock.startRun = runView({ backup: false, backup_requested: false, backup_state: 'not_requested' });
-    mock.runReplies = [runView({ backup: false, state: 'updating', step: 'sending' })];
+    mock.runReplies = [runView({ backup: false, backup_requested: false, backup_state: 'not_requested', state: 'updating', step: 'sending' })];
     await mockBackend(page, ADMIN_PERMS, mock);
     await apply(page, mock, false);
     expect(mock.applyBodies[0]).toMatchObject({ backup: false, confirm: true });
