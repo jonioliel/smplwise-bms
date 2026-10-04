@@ -11,6 +11,16 @@ function deepActive(): HTMLElement | null {
   return a as HTMLElement | null;
 }
 
+/** Whether `node` sits inside `root` in the composed (flattened) tree: through slots and shadow hosts, not only DOM parents. */
+function insideComposed(node: Node | null, root: Node): boolean {
+  let n: Node | null = node;
+  while (n) {
+    if (n === root) return true;
+    n = (n as Element).assignedSlot ?? n.parentNode ?? (n instanceof ShadowRoot ? n.host : null);
+  }
+  return false;
+}
+
 const PHONE = '(max-width: 767px)';
 const reducedMotion = () => {
   try {
@@ -402,7 +412,10 @@ export class SwSheet extends LitElement {
         this.drag = 0;
         requestAnimationFrame(() => {
           const sheet = this.renderRoot.querySelector('.sheet');
-          if (!sheet) return;
+          if (!this.open || !sheet) return;
+          // never steal the focus from a field inside the sheet the user (or a fast tap) already chose: a late frame on a loaded device
+          // moved it to the first field and the rest of the typing landed there (integ/0163: a bill's typed reference was lost)
+          if (insideComposed(deepActive(), sheet)) return;
           const all = deepFocusables(sheet).filter((el) => !el.classList.contains('grab'));
           const target = all.find((el) => !el.hasAttribute('data-sheet-close')) ?? all[0];
           target?.focus({ preventScroll: true });

@@ -613,7 +613,9 @@ def test_session_downgrade_refuses_and_closes_the_lease(tmp_path, monkeypatch):
     # the relay: tell the client it is up, then run until the lease says stop (the real relay polls every second)
     async def fake_relay(websocket, url, headers, on_down, should_stop=None, on_text=None):
         await websocket.send_text('{"type":"ready"}')
-        for _ in range(400):
+        # integ/0163 gate: a 10 s budget ran out in a loaded shard before the revoke reached the lease ("timeout" closes without
+        # access_lost); 120 s is only a safety stop - the loop ends as soon as the lease says stop
+        for _ in range(4800):
             if should_stop and should_stop():
                 return "superseded"
             await asyncio.sleep(0.025)
