@@ -86,7 +86,8 @@ SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # the platform's own services, refused on ANY host (review F9): HA core 8123, go2rtc 1984 / 8554 / 8555, the observer 4357,
 # Arx's own port 8099. None of them is an NVR's HTTP port.
 REFUSED_PORTS = frozenset({8123, 1984, 8554, 8555, 4357, 8099})
-OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported")
+OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported",
+            "tls_pin_required")
 
 # the probe's limits (CR-022 section 6.3, review F4)
 CONNECT_S = 5.0
@@ -608,17 +609,24 @@ def _probe_vendor(cand: Settings, budget: float, backends: list) -> dict[str, An
         certificate["matches_pin"] = (certificate["sha256"] == pin) if pin else None
     ctx = None
     if https:
-        ctx = ssl.create_default_context()
-        if str(extra.get("tls_mode") or "verify").lower() in ("pin", "trust"):
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+        mode = str(extra.get("tls_mode") or "verify").lower()
+        if mode == "pin" and str(extra.get("tls_pin") or "").strip():
+            ctx = pisr.pinned_context(str(extra.get("tls_pin")).strip().lower().replace(":", ""))  # the pin on the probe's own connection
+        else:
+            ctx = ssl.create_default_context()
+            if mode in ("pin", "trust"):
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
     backend = _DeadlineBackend(_budget_left(DEADLINE_S))
     backends.append(backend)
     transport: httpx.BaseTransport = _CappedTransport(TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend, ctx))
     pisr.clear_auth_cache()  # a test never reuses another candidate's detected scheme or refusal
     pin_required = https and str(extra.get("tls_mode") or "").lower() == "pin" and not str(extra.get("tls_pin") or "").strip()
-    if pin_required:  # nothing pinned yet: test without the pin and hand the certificate back so the form can pin it
-        cand = dataclasses.replace(cand, nvr_extra={**extra, "tls_mode": "trust", "suppress_tls_warning": True})
+    if pin_required:
+        # security review (2026-10-04): nothing pinned yet = no credentials to an unverified certificate. Only the certificate
+        # (read by a bare handshake above) goes back; the form pins it and the next test sends credentials over the pin.
+        return {"ok": False, "code": "tls_pin_required", "certificate": certificate, "pin_required": True,
+                "transport": {"scheme": "https", "auth": None, "insecure": False}, "warnings": []}
     a = pisr.ProvisionIsrAdapter("probe", cand, transport=transport)
     try:
         with nvr_mod.deadline(budget):
