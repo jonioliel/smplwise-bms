@@ -67,16 +67,26 @@ ERROR_TEXT = {"source_unavailable": "אין תקשורת", "source_timeout": "א
               "vendor_not_supported": "סוג המקליט אינו נתמך", "recorder_unavailable": "המקליט אינו מחובר"}
 
 
+def _now_ts() -> float:
+    """The notification core's clock (tests move it), so readings, holds and the screen agree on "now"."""
+    from . import notify
+
+    return notify.now_utc().timestamp()
+
+
 def error_text(code: str | None) -> str:
     return ERROR_TEXT.get(code or "", "אין תשובה")
 
 
 # ---------------------------------------------------------------- thresholds (Settings)
 
+def thresholds_defaults() -> dict[str, Any]:
+    return {**{k: v[0] for k, v in THRESHOLDS.items()}, "recording_mode": DEFAULT_RECORDING_MODE}
+
+
 def thresholds(conn: sqlite3.Connection) -> dict[str, Any]:
     """The effective thresholds: the stored values over the defaults (a corrupt or out-of-range value reads as its default)."""
-    out: dict[str, Any] = {k: v[0] for k, v in THRESHOLDS.items()}
-    out["recording_mode"] = DEFAULT_RECORDING_MODE
+    out = thresholds_defaults()
     try:
         stored = json.loads(get_setting(conn, SETTING_KEY) or "{}")
     except (ValueError, sqlite3.Error):
@@ -197,7 +207,7 @@ def fresh(state: RecState, interval_s: int, now_ts: float) -> bool:
 
 def channel_connected(recorder_id: str, channel: int, now_ts: float | None = None, interval_s: int | None = None) -> bool | None:
     """The fresh connectivity of one channel (None: no fresh reading says). Used by notify_sources.cameras_tick."""
-    now_ts = now_ts or time.time()
+    now_ts = now_ts or _now_ts()
     with _LOCK:
         st = STORE.get(recorder_id)
         if st is None or not st.reachable or st.reading is None or st.reading.channels is None or st.reading_at is None:
@@ -455,7 +465,7 @@ def probe(rid: str, name: str, vendor: str, adapter: Any, now_ts: float | None =
                 reading = adapter.read_health()
             except ApiError as exc:
                 online, error = False, exc.code
-    record(st, reachable=bool(online), error=error, latency_ms=latency if online else None, reading=reading, now_ts=now_ts or time.time(),
+    record(st, reachable=bool(online), error=error, latency_ms=latency if online else None, reading=reading, now_ts=now_ts or _now_ts(),
            model=model, firmware=firmware)
     return st
 
@@ -530,7 +540,7 @@ def view(conn: sqlite3.Connection, settings: Settings, now_ts: float | None = No
     does not report it). Names only, never an address."""
     from ..recorder_scope import ready_ids
 
-    now_ts = now_ts or time.time()
+    now_ts = now_ts or _now_ts()
     th = thresholds(conn)
     cams = _cameras_by_recorder(conn)
     with _LOCK:

@@ -63,7 +63,7 @@ class FakeProvision:
         # channel {ch: "recording" | "norecording" | "exception"}, the device wall clock "YYYY-MM-DD HH:MM:SS"
         self.disks: list[tuple[int, int, str]] | None = None
         self.record: dict[int, str] | None = None
-        self.clock: str | None = None
+        self.clock: Any = None  # a string, or a callable returning one (evaluated per request)
         self.alarm_server_url = False  # True: the device form has a url element (path token possible)
         self.set_alarm_bodies: list[str] = []
         # "doc": the guide / Postman shapes. "live": what the owner's NVR (NVR8-16400AN, firmware 1.4.7) answered on
@@ -343,7 +343,7 @@ class FakeProvision:
         return self._xml(request, _doc("""<time><timeFormatMode type="timeFormatModeType">24h</timeFormatMode>
 <timezoneInfo><timeZone type="string" maxLen="127"><![CDATA[IST-2IDT,M3.4.4/26,M10.5.0]]></timeZone><daylightSwitch type="uint32">1</daylightSwitch></timezoneInfo>
 <synchronizeInfo><type type="synchronizeType">NTP</type><ntpServer type="string" maxLen="127"><![CDATA[pool.ntp.org]]></ntpServer>
-<ntpSyncInterval type="uint32" min="30" max="10080">1440</ntpSyncInterval><currentTime type="string"><![CDATA[""" + (self.clock or "2026-10-04 12:00:00") + """]]></currentTime></synchronizeInfo></time>"""))
+<ntpSyncInterval type="uint32" min="30" max="10080">1440</ntpSyncInterval><currentTime type="string"><![CDATA[""" + ((self.clock() if callable(self.clock) else self.clock) or "2026-10-04 12:00:00") + """]]></currentTime></synchronizeInfo></time>"""))
 
     def _status_xml(self, alarms: dict[tuple[str, int | None], bool]) -> str:
         parts: list[str] = []
