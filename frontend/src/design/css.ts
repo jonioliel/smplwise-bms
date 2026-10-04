@@ -47,8 +47,10 @@ export function tokensCss(): string {
   }
   // the look dials (design/look.ts): token bundles keyed on the data attributes, for the bubble skin
   css += lookBundlesCss();
-  // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2)
-  css += '@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms;--sw-t-med:0ms;--sw-t-sheet:0ms;--sw-t-state:0ms;--sw-hover-lift:0px}}\n';
+  // reduced motion: durations become 0 and the hover lift is off (accessibility, TOKEN_CONTRACT §2). !important: a skin's DARK block
+  // (`:root[data-skin="x"][data-theme="dark"]`, and the OS-dark twin) repeats every skin override, motion included, with a higher
+  // specificity than `:root[data-skin]` - without it bubble / domus / tesla kept their durations in dark under reduced motion (0.1.162 gate)
+  css += '@media (prefers-reduced-motion: reduce){:root,:root[data-skin]{--sw-t-fast:0ms !important;--sw-t-med:0ms !important;--sw-t-sheet:0ms !important;--sw-t-state:0ms !important;--sw-hover-lift:0px !important}}\n';
   // reduced transparency: the translucent layers of every skin become their solid twins
   css += '@media (prefers-reduced-transparency: reduce){:root,:root[data-skin]{--sw-sheet-alpha:1 !important;--sw-glass-blur:none;--sw-glass-blur-nav:none;--sw-glass-blur-sheet:none;--sw-backdrop-blur:none}}\n';
   return css;

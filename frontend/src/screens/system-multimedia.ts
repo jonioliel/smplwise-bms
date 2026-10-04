@@ -124,8 +124,10 @@ export class SystemMultimedia extends LitElement {
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it (the profile select's
+         longest option, "זיהוי אוטומטי · ...", is wider than a 320 px phone's row) */
+      max-inline-size: 100%;
       min-inline-size: 0;
-      max-inline-size: 100%; /* a long option ("זיהוי אוטומטי · ...") never widens the form past a 320 px phone (layout guard) */
     }
     .f.inline {
       flex-direction: row;
@@ -147,6 +149,10 @@ export class SystemMultimedia extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       max-inline-size: 100%;
+    }
+    select {
+      max-inline-size: 100%;
+      min-inline-size: 0;
     }
     input[type='text'] {
       min-inline-size: min(200px, 100%);

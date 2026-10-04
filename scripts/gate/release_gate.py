@@ -534,6 +534,9 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
                     count(cat, "fail"); item(cat, ident_of(r), "FAIL", "did not run in the full run (a serial group stopped) and not verified alone: " + (r2["error"] if r2 and r2["error"] else "no result"))
             elif good:
                 count(cat, "flaky"); item(cat, ident_of(r), "FLAKY", "failed in the full run (" + r["error"][:120] + "), passed alone")
+            elif r2 is None and (to2 or rows2 is None):
+                # the retry process was stopped (time budget) or wrote no report: nothing was verified, say so (0.1.162 gate said "failed again")
+                count(cat, "fail"); item(cat, ident_of(r), "FAIL", r["error"] + " (retry alone not completed: " + ("time limit" if to2 else f"no report, rc={rc2}") + ")")
             else:
                 count(cat, "fail"); item(cat, ident_of(r), "FAIL", r["error"] + " (failed again alone)")
 
@@ -546,16 +549,70 @@ def group_by_run(table):
     return g
 
 
+_COSTS = None
+
+
+def prior_costs():
+    """Seconds per spec file from the earlier gates' Playwright reports (summed over tests and projects, the retry reports
+    excluded; per file the newest gate that ran it wins, the last 10 gates are read): the weights the `--workers=1` chunks are
+    balanced by. {} when there is no earlier gate."""
+    global _COSTS
+    if _COSTS is not None:
+        return _COSTS
+    _COSTS = {}
+    mine = f"gate_{TAG}_{STATE['sha']}.logs"
+    dirs = sorted((d for d in RES.glob("gate_*.logs") if d.is_dir() and d.name != mine), key=lambda d: d.stat().st_mtime, reverse=True)
+    for d in dirs[:10]:
+        costs = {}
+        for jp in d.glob("pw_*.json"):
+            if "_retry_" in jp.name:
+                continue
+            try:
+                rep = json.loads(jp.read_text())
+            except Exception:
+                continue
+
+            def walk(s):
+                for sp in s.get("specs", []):
+                    f = os.path.basename(sp.get("file", ""))
+                    for t in sp.get("tests", []):
+                        costs[f] = costs.get(f, 0.0) + sum((r.get("duration") or 0) for r in t.get("results", [])) / 1000.0
+                for c in s.get("suites", []):
+                    walk(c)
+            for s in rep.get("suites", []):
+                walk(s)
+        for f, v in costs.items():
+            _COSTS.setdefault(f, v)
+    return _COSTS
+
+
+def balance(names, n):
+    """Split spec files into n chunks of about equal expected time (longest first onto the lightest chunk). A file without a
+    recorded time weighs the median of the known ones. 0.1.162 gate: round-robin put the heaviest layout sweeps into one chunk
+    (46 min against 16 and 27) and the run ran out of its budget."""
+    costs = prior_costs()
+    known = sorted(costs[x] for x in names if x in costs)
+    dflt = known[len(known) // 2] if known else 60.0
+    bins = [[0.0, i, []] for i in range(n)]
+    for name in sorted(names, key=lambda x: (-costs.get(x, dflt), x)):
+        b = min(bins, key=lambda b: (b[0], b[1]))
+        b[0] += costs.get(name, dflt)
+        b[2].append(name)
+    return [sorted(b[2]) for b in bins]
+
+
 def run_groups(cat, table, fe, logd, base_url, grep_invert=None):
     """Run the spec groups of one server side by side (a `--workers=1` group does not hold the others back; every group is
     its own Playwright process on the same server), then settle each: known / retry alone / flaky / fail."""
     groups = []
     for (projs, w1), names in group_by_run(table).items():
         # a "--workers=1" header keeps ONE worker per Playwright process; a big such group is split into up to 3 processes
-        # (files are independent in demo mode) so it does not serialise the whole run
+        # (files are independent in demo mode) so it does not serialise the whole run, balanced by the previous gate's times
         n = min(3, max(1, len(names) // 4)) if w1 else 1
-        for i in range(n):
-            groups.append(((projs, w1, i if n > 1 else None), names[i::n]))
+        chunks = balance(names, n) if n > 1 else [names]
+        for i, part in enumerate(chunks):
+            if part:
+                groups.append(((projs, w1, i if n > 1 else None), part))
     status("running", f"Playwright {cat}: {len(groups)} process(es), {len(table)} files")
 
     def one(g):
@@ -706,6 +763,17 @@ def main():
             count("build", "pass" if rc == 0 else "fail")
             if rc != 0:
                 item("build", "vite build", "FAIL", f"rc={rc} (see build.log)")
+        # 0.1.162 gate: release_check (seconds, reads the tree only) runs right after the build, before any Playwright run -
+        # at the end it was starved by the budget (rc=124 without running) and it saw the docs the evidence specs rewrite
+        with Phase("release_check", "release_check.py"):
+            rlog = logd / "release_check.log"
+            rc, to = run([PY, "scripts/release_check.py", "--root", ".", "--json", str(logd / "release_check.json")], wt, rlog, timeout=300)
+            txt = rlog.read_text(errors="replace") if rlog.exists() else ""
+            extra["release_check_output"] = txt
+            extra["release_check_rc"] = rc
+            count("release_check", "pass" if rc == 0 else "fail")
+            if rc != 0:
+                item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
         cls = classify(fe, TIER)
         extra["classification"] = {
             "rest": f"{len(cls['rest'])} spec files on the dist preview",
@@ -736,16 +804,8 @@ def main():
                                     rows, rc, to = run_pw(fe, [name], ["desktop", "mobile"], base_url, logd, "pixel", workers=1, grep="pixel-stable", timeout=left())
                                     settle("pixel", rows, rc, to, fe, logd, base_url, {}, "pixel")
                     reap(vp)
-            if cls["dev"]:
-                with Phase("playwright-dev", "Playwright on the Vite dev server"):
-                    port = free_port()
-                    vp, ok = start_vite(fe, "dev", port, logd, dead)
-                    base_url = f"http://127.0.0.1:{port}/"
-                    if not ok:
-                        item("dev", "vite dev server", "FAIL", "did not start"); count("dev", "fail")
-                    else:
-                        run_groups("dev", cls["dev"], fe, logd, base_url)
-                    reap(vp)
+            # 0.1.162 gate: the fixture spec (about a minute) runs BEFORE the long dev-server sweep, so a slow sweep can no longer
+            # starve it of the budget (it used to run last and got 3 s)
             if cls["fixture"]:
                 with Phase("playwright-fixture", "Playwright with the fake-backend fixture"):
                     api = free_port(pair=True)
@@ -770,6 +830,16 @@ def main():
                     if vp:
                         reap(vp)
                     reap(fx)
+            if cls["dev"]:
+                with Phase("playwright-dev", "Playwright on the Vite dev server"):
+                    port = free_port()
+                    vp, ok = start_vite(fe, "dev", port, logd, dead)
+                    base_url = f"http://127.0.0.1:{port}/"
+                    if not ok:
+                        item("dev", "vite dev server", "FAIL", "did not start"); count("dev", "fail")
+                    else:
+                        run_groups("dev", cls["dev"], fe, logd, base_url)
+                    reap(vp)
         else:
             hard_fail.append("build failed: Playwright not run")
         if procs:
@@ -777,15 +847,6 @@ def main():
                 backend_finish(procs, wt, logd)
                 procs = None
                 extra["backend_files"] = nbackend
-        with Phase("release_check", "release_check.py"):
-            rlog = logd / "release_check.log"
-            rc, to = run([PY, "scripts/release_check.py", "--root", ".", "--json", str(logd / "release_check.json")], wt, rlog, timeout=300)
-            txt = rlog.read_text(errors="replace") if rlog.exists() else ""
-            extra["release_check_output"] = txt
-            extra["release_check_rc"] = rc
-            count("release_check", "pass" if rc == 0 else "fail")
-            if rc != 0:
-                item("release_check", "scripts/release_check.py", "FAIL", f"rc={rc}; " + " | ".join(l.strip() for l in txt.splitlines() if re.search(r"fail|missing|differ", l, re.I))[:220])
     except SystemExit as e:
         hard_fail.append(str(e))
     except BaseException as e:  # incl. the SIGTERM that `timeout` sends (turned into KeyboardInterrupt)

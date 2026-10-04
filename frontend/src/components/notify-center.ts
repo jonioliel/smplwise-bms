@@ -457,6 +457,8 @@ export class NotifyCenter extends LitElement {
         color: #ff6961;
       }
       @media (prefers-reduced-motion: reduce) {
+        /* the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
+        :host,
         .panel {
           transition: none;
         }
