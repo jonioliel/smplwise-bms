@@ -59,7 +59,7 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     expect(st.writes.find((w) => w.method === 'PATCH')?.body).toEqual({ name: 'מחסן צפון' });
     // disable: a short confirmation, then the state and the restart
     await page.locator(`${CARD} [data-recorder="nvr-2"] [data-recorder-toggle]`).click();
-    await expect(page.locator(`${CARD} sw-dialog[open][data-recorder-toggle-dialog]`)).toBeVisible();
+    await expect(page.locator(`${CARD} sw-dialog[open][data-recorder-toggle-dialog] [data-recorder-toggle-confirm]`)).toBeVisible();
     await shot(page, 'recorder-disable-dialog');
     await page.locator(`${CARD} [data-recorder-toggle-confirm]`).click();
     await expect(page.locator(`${CARD} [data-recorder="nvr-2"]`)).toHaveAttribute('data-recorder-state', 'disabled');
@@ -106,7 +106,14 @@ test.describe('multi-NVR screens (mocked backend)', () => {
 
   test('the wall and the event log filter by recorder', async ({ page }) => {
     const st = await installMulti(page);
-    await page.addInitScript(() => { localStorage.setItem('sw.wall.count', '32'); localStorage.removeItem('sw.wall.recorder'); });
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sw.wall.count', '32');
+        localStorage.removeItem('sw.wall.recorder');
+      } catch {
+        /* about:blank has no storage */
+      }
+    });
     await open(page, '/live/wall');
     await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(6);
     const wallFilter = page.locator('live-wall select[data-wall-recorder]');

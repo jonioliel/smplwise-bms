@@ -45,7 +45,13 @@ test.describe('multi-NVR layout guard', () => {
       const results: Finding[] = [];
       let runs = 0;
       await installMulti(page);
-      await page.addInitScript(() => localStorage.setItem('sw.wall.count', '9'));
+      await page.addInitScript(() => {
+        try {
+          localStorage.setItem('sw.wall.count', '9');
+        } catch {
+          /* about:blank has no storage */
+        }
+      });
       const keep: Finding['cls'][] = skin === 'bubble' ? ['escape', 'overflow', 'clipped', 'target'] : ['escape', 'overflow', 'clipped'];
       for (const theme of THEMES) {
         for (const s of SCREENS) {
