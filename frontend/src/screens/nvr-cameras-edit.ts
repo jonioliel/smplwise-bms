@@ -104,6 +104,10 @@ export interface ConfirmModel {
   count: string;
   confirmLabel: string;
   details: Detail[];
+  /** CR-020 S2C: the camera names of a multi-camera change, listed (scrolling) under "פרטים" instead of the field list. */
+  names?: string[];
+  /** CR-020 S2C: a second, text button before "ביטול" (the SVC dialog's "החל גם על מצלמות נוספות"); the dialog then also fires `extra`. */
+  extraLabel?: string;
 }
 
 export const countLabel = (n: number): string => (n === 1 ? 'שינוי אחד' : `${n} שינויים`);
@@ -148,6 +152,7 @@ export const isUnknownOutcome = (e: ErrorShape): boolean => e.code === 'source_u
 const LINE: Record<string, string> = {
   stale: 'הערכים השתנו ב־NVR. נטען מחדש.',
   write_in_progress: 'שינוי אחר של הזרם הזה מתבצע. נסו שוב בעוד רגע.',
+  batch_in_progress: 'מתבצע שינוי מרובה',
   nvr_busy: 'ה־NVR עסוק. נסו שוב בעוד רגע.',
   nvr_no_effect: 'ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.',
   nvr_diverged: 'ה־NVR שינה רק חלק מההגדרות. נטען מחדש.',
@@ -174,7 +179,7 @@ export function errorLine(e: ErrorShape): ErrorLine {
 }
 
 /** The error codes that mean the write did not reach the device at all (a safe state to try again by hand). */
-export const NOT_SENT = new Set(['stale', 'write_in_progress', 'confirm_required', 'value_not_allowed', 'field_locked', 'field_not_supported', 'capabilities_unreadable', 'forbidden', 'validation']);
+export const NOT_SENT = new Set(['stale', 'write_in_progress', 'batch_in_progress', 'confirm_required', 'value_not_allowed', 'field_locked', 'field_not_supported', 'capabilities_unreadable', 'forbidden', 'validation']);
 
 // ------------------------------------------------------------------------------------------------ the editor's draft
 
