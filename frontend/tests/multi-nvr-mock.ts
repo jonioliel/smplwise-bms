@@ -55,6 +55,7 @@ const VENDORS = [
 export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Promise<MultiState> {
   const count = opts.count ?? 2;
   const base = newMock();
+  base.perms = [...base.perms, 'video.playback']; // the playback / synchronized-playback screens (CR-024 owner answer 1)
   base.canBatch = true;
   base.cameras = batchCameras(3); // three cameras that qualify for the multi-camera change (SVC on, H.264, online)
   if (count === 2) {

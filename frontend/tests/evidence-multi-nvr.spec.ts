@@ -159,13 +159,13 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     expect(st.writes.find((w) => w.method === 'PATCH' && w.path === 'settings')?.body).toMatchObject({ 'playback.cross_recorder_sync': 'true' });
     // the synchronized-playback picker: off = a camera of another recorder cannot join; on = it can
     st.crossSync = 'false';
-    await open(page, '/investigate/sync');
+    await open(page, '/investigate/playback/sync');
     const chips = page.locator('investigate-sync [data-sync-camera]');
     await expect(chips.first()).toBeVisible();
     await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
     await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).toHaveAttribute('disabled', '');
     st.crossSync = 'true';
-    await open(page, '/investigate/sync');
+    await open(page, '/investigate/playback/sync');
     await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
     await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).not.toHaveAttribute('disabled', '');
   });

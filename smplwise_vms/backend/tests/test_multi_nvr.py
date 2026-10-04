@@ -255,7 +255,8 @@ def test_removing_a_recorder_keeps_its_history_hides_its_cameras_and_never_reuse
     one.writes.clear()
     with Database(base.db_path).connection() as conn:
         res = autosync.ensure_streams(app2.state.settings, conn)
-    assert res["removed"] == 8 and not [n for n in one.go2rtc["streams"] if n.startswith("smplwise_nvr-2_")]
+    # the removal already deleted them at once (owner 2026-10-04); the stream sync after the restart never re-creates them
+    assert res["removed"] == 0 and not [n for n in one.go2rtc["streams"] if n.startswith("smplwise_nvr-2_")]
     assert one.go2rtc["foreign"] == ["intercom_door_1", "intercom_door_2"]
     assert not [w for w in one.writes if not w.split(" ", 2)[2].startswith("smplwise_")], one.writes
     # the next recorder gets a new id
@@ -461,6 +462,7 @@ def test_a_further_vendor_registers_through_the_seam(base, fakes):
     finally:
         undo()
     assert registry.selectable("provision_isr") is False and "provision_isr" not in registry.VENDORS
+    assert [v["id"] for v in registry.catalogue()] == ["hikvision", "provision_isr", "frigate", "none"], "the catalogue order is restored exactly"
 
 
 def test_settings_for_an_unknown_recorder_never_reaches_a_device(base):
