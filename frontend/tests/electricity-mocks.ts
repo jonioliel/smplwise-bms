@@ -188,6 +188,7 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
       if (!c) return err(route, 404, 'not_found', 'החיישן לא נמצא');
       if (c.verdict === 'rejected') return err(route, 422, 'meter_unit_rejected', MSG[CODE[c.reason_code ?? 'unit']], { code: CODE[c.reason_code ?? 'unit'] });
       const typed = ((body as { display_name?: string }).display_name ?? '').trim();
+      if (st.meters.some((o) => o.status !== 'retired' && o.display_name.trim().toLowerCase() === (typed || c.name).toLowerCase())) return err(route, 409, 'meter_name_taken', 'קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם');
       const m: WireMeterM = { id: `m${st.meters.length + 1}`, display_name: typed || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, source_ref: ref, unit: 'kWh', area_id: c.area_id, area_name: c.area_name, status: 'active', status_reason: null, revision: 1, state: 'reporting', last_report_at: '2026-10-04T18:49:00Z', value_kwh: 1204.5, today_kwh: 0, used_in: [], month_kwh: 0, floor: { id: 'f-p', name: 'חניון' } };
       st.meters.push(m);
       return json(route, out(m), 201);
@@ -219,6 +220,7 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
         if (b.display_name !== undefined) {
           const nm = b.display_name.trim();
           if (!nm || nm.length > 120) return err(route, 422, 'validation', 'שם המונה אינו תקין', { fields: ['display_name'] });
+          if (nm !== m.display_name && st.meters.some((o) => o.id !== m.id && o.status !== 'retired' && o.display_name.trim().toLowerCase() === nm.toLowerCase())) return err(route, 409, 'meter_name_taken', 'קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם');
           m.display_name = nm;
         }
         if (b.status) {

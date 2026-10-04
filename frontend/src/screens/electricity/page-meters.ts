@@ -11,7 +11,7 @@ import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../
 import { navigate } from '../../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
-import { checkMeterName, DUPLICATE_NAME_WARNING, meterNames, meterSearchText } from '../../electricity/meter-name';
+import { checkMeterName, meterNames, meterSearchText } from '../../electricity/meter-name';
 import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { SkinController } from '../../design/skin';
@@ -397,13 +397,12 @@ export class ElecMetersPage extends LitElement {
   private renderNames() {
     return html`<div class="names" data-add-names>
       ${this.nameChecks().map((c, i) => {
-        const show = this.nameTouched && c.error;
+        const show = c.error && (this.nameTouched || c.duplicate);
         return html`<div class="fld">
           <label for="mn${i}">${this.picked.length > 1 ? `שם המונה ${i + 1}` : 'שם המונה'}</label>
           <div class="inp ${show ? 'err' : ''}"><input id="mn${i}" data-add-name=${c.id} autocomplete="off" aria-invalid=${show ? 'true' : 'false'} .value=${this.pickedNames[c.id] ?? ''}
             @input=${(e: Event) => (this.pickedNames = { ...this.pickedNames, [c.id]: (e.target as HTMLInputElement).value })} /></div>
           ${show ? html`<div class="msg" role="alert" data-add-name-error>${c.error}</div>` : nothing}
-          ${!c.error && c.duplicate ? html`<div class="msg warn-msg" data-add-name-dup>${DUPLICATE_NAME_WARNING}</div>` : nothing}
         </div>`;
       })}
     </div>`;
@@ -415,7 +414,7 @@ export class ElecMetersPage extends LitElement {
       ${open ? html`<elec-meter-picker mode="register" multi .selected=${this.picked} @change=${(e: CustomEvent<{ selected: string[]; names?: Record<string, string> }>) => this.onPick(e)}></elec-meter-picker>` : nothing}
       ${open && this.picked.length ? this.renderNames() : nothing}
       ${this.addErrors.length ? html`<div class="errs" data-add-errors>${this.addErrors.map((m) => html`<div class="alert err" role="alert">${m}</div>`)}</div>` : nothing}
-      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding} @click=${() => void this.confirmAdd()}>הוספה${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
+      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding || this.nameChecks().some((c) => c.duplicate)} @click=${() => void this.confirmAdd()}>הוספה${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
       <sw-button slot="footer" data-add-cancel @click=${() => this.closeAdd()}>ביטול</sw-button>
     </sw-dialog>`;
   }

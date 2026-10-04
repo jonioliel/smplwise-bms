@@ -40,15 +40,17 @@ export interface NameCheck {
   duplicate: boolean;
 }
 
-/** The friendly name of a meter as typed: trimmed, required, at most 120 characters; `others` are the names of the other meters (duplicates only warn). */
+/** The friendly name of a meter as typed: trimmed, required, at most 120 characters; `others` are the names of the other meters (a name another meter already has is an error). */
 export function checkMeterName(raw: string, others: readonly string[]): NameCheck {
   const name = raw.trim();
   const key = name.toLocaleLowerCase();
   const duplicate = !!name && others.some((o) => o.trim().toLocaleLowerCase() === key);
   if (!name) return { name, error: 'צריך להזין שם למונה', duplicate: false };
   if (name.length > METER_NAME_MAX) return { name, error: `השם ארוך מדי (עד ${METER_NAME_MAX} תווים)`, duplicate };
+  if (duplicate) return { name, error: DUPLICATE_NAME_ERROR, duplicate };
   return { name, error: '', duplicate };
 }
 
-export const DUPLICATE_NAME_WARNING = 'כבר יש מונה בשם הזה. עדיף שם ייחודי, כדי שיהיה קל להבדיל בין המונים בנוסחאות ובחשבוניות.';
+/** Meter names are unique (case-insensitive, paused meters included); the server refuses a colliding name with the code `meter_name_taken`. */
+export const DUPLICATE_NAME_ERROR = 'קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם';
 export const RENAME_HINT = 'השם החדש יופיע במסמכים חדשים. חשבוניות שכבר הונפקו לא ישתנו.';

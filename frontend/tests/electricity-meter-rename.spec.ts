@@ -26,13 +26,14 @@ async function openCard(page: Page, label: string, id: string) {
 }
 
 test.describe('meter name rules (pure)', () => {
-  test('trimmed, required, at most 120, duplicates only warn', () => {
+  test('trimmed, required, at most 120, a name another meter has is refused', () => {
     expect(checkMeterName('   ', [])).toMatchObject({ name: '', duplicate: false });
     expect(checkMeterName('   ', []).error).not.toBe('');
     expect(checkMeterName('  מעלית  ', [])).toEqual({ name: 'מעלית', error: '', duplicate: false });
     expect(checkMeterName('x'.repeat(METER_NAME_MAX), []).error).toBe('');
     expect(checkMeterName('x'.repeat(METER_NAME_MAX + 1), []).error).not.toBe('');
-    expect(checkMeterName('Lift', ['lift ']).duplicate).toBe(true);
+    expect(checkMeterName('Lift', ['lift '])).toMatchObject({ duplicate: true });
+    expect(checkMeterName('Lift', ['lift ']).error).toContain('קיים כבר מונה בשם הזה');
     expect(checkMeterName('Lift', ['Lift 2']).duplicate).toBe(false);
   });
 });
@@ -51,11 +52,16 @@ test.describe('electricity: naming a meter when it is created', () => {
     await dlg.locator('[data-add-confirm]').click();
     await expect(dlg.locator('[data-add-name-error]')).toBeVisible();
     expect(mock.calls.some((c) => c.method === 'POST' && c.path === 'meters')).toBe(false);
-    // a name that is already used: warned, still allowed; the typed name is trimmed
+    // a name that is already used (a paused meter's name counts too) is refused: message, and the button does not proceed
     await input.fill('  מעלית ');
-    await expect(dlg.locator('[data-add-name-dup]')).toBeVisible();
+    await expect(dlg.locator('[data-add-name-error]')).toContainText('קיים כבר מונה בשם הזה');
+    await expect(dlg.locator('[data-add-confirm]')).toHaveAttribute('disabled', '');
+    await input.fill('חניון - תאורה');
+    await expect(dlg.locator('[data-add-name-error]')).toContainText('לא ניתן להקים שני מונים באותו שם');
+    expect(mock.calls.some((c) => c.method === 'POST' && c.path === 'meters')).toBe(false);
+    // the typed name is trimmed
     await input.fill('  חדר כושר ראשי ');
-    await expect(dlg.locator('[data-add-name-dup]')).toHaveCount(0);
+    await expect(dlg.locator('[data-add-name-error]')).toHaveCount(0);
     await dlg.locator('[data-add-confirm]').click();
     await expect(page.locator(`${PAGE} [data-notice]`)).toContainText('המונה נוסף');
     const post = mock.calls.find((c) => c.method === 'POST' && c.path === 'meters');
@@ -80,9 +86,12 @@ test.describe('electricity: renaming a meter', () => {
     await input.fill('x'.repeat(121));
     await dlg.locator('[data-rename-save]').click();
     await expect(dlg.locator('[data-rename-error]')).toContainText('120');
-    // a duplicate of another meter's name warns but does not block
+    // another meter's name is refused (the save button is off and nothing is sent)
     await input.fill('לוח סטודיו');
-    await expect(dlg.locator('[data-rename-dup]')).toBeVisible();
+    await expect(dlg.locator('[data-rename-dup]')).toContainText('קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם');
+    await expect(dlg.locator('[data-rename-save]')).toHaveAttribute('disabled', '');
+    await input.press('Enter');
+    expect(mock.calls.some((c) => c.method === 'PATCH' && c.path.startsWith('meters/m9'))).toBe(false);
     await input.fill('  מעלית ראשית ');
     await expect(dlg.locator('[data-rename-dup]')).toHaveCount(0);
     await input.press('Enter');
@@ -93,16 +102,20 @@ test.describe('electricity: renaming a meter', () => {
     await expect(rows(page).filter({ hasText: 'מעלית ראשית' })).toHaveCount(1);
   });
 
-  test('a duplicate name is saved when the owner insists', async ({ page }) => {
+  test('the server refuses a colliding name even when the screen did not know (another operator renamed first)', async ({ page }) => {
     const mock = await open(page);
     const card = await openCard(page, 'מעלית', 'm9');
     await card.locator('[data-meter-rename]').click();
     const dlg = page.locator(`${PAGE} elec-meter-card [data-meter-rename-dialog]`);
-    await dlg.locator('[data-rename-input]').fill('לוח סטודיו');
-    await expect(dlg.locator('[data-rename-dup]')).toBeVisible();
+    const other = mock.meters.find((x) => x.id === 'm3');
+    if (!other) throw new Error('fixture meter m3 missing');
+    await expect(dlg.locator('[data-rename-input]')).toHaveValue('מעלית');
+    await page.waitForTimeout(600); // the dialog has read the other meters' names by now
+    other.display_name = 'שם חדש של אחר'; // renamed behind the screen's back, after the dialog read the list
+    await dlg.locator('[data-rename-input]').fill('שם חדש של אחר');
     await dlg.locator('[data-rename-save]').click();
-    await expect(dlg).not.toHaveAttribute('open', '');
-    expect(mock.calls.some((c) => c.method === 'PATCH' && (c.body as { display_name?: string }).display_name === 'לוח סטודיו')).toBe(true);
+    await expect(dlg.locator('[data-rename-error]')).toContainText('קיים כבר מונה בשם הזה');
+    expect(mock.meters.find((x) => x.id === 'm9')?.display_name).toBe('מעלית');
   });
 
   test('a conflict (someone else changed the meter) says so in Hebrew and refreshes the card', async ({ page }) => {

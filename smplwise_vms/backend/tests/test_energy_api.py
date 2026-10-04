@@ -254,11 +254,42 @@ def test_rename_validation_conflict_duplicate_and_audit(app):
     d = json.loads(row["details_json"])
     assert row["decision"] == "allowed" and row["resource_id"] == a["id"]
     assert d == {"fields": ["display_name"], "name_from": "לוח ראשי", "name_to": "לוח חשמל ראשי"}
-    # a duplicate name is allowed (the screen only warns)
-    r = c.patch(url, json={"revision": a["revision"] + 1, "display_name": "מזגנים"})
-    assert r.status_code == 200 and r.json()["display_name"] == b["display_name"]
     # the device and entity names are untouched by a rename
-    assert r.json()["entity_name"] == a["entity_name"] and r.json()["source_ref"] == "sensor.main_energy"
+    assert c.get(url).json()["entity_name"] == a["entity_name"] and c.get(url).json()["source_ref"] == "sensor.main_energy"
+    # renaming to the meter's own name (even re-cased or padded) is not a collision
+    assert c.patch(url, json={"revision": a["revision"] + 1, "display_name": " לוח חשמל ראשי "}).status_code == 200
+
+
+def test_duplicate_names_are_refused_on_create_and_rename(app):
+    c, settings = app
+    a = create(c, "sensor.main_energy", display_name="Main Board").json()
+    b = create(c, "sensor.ac_energy_wh", display_name="מזגנים").json()
+    # create: same name, trimmed and case-insensitive, is refused with a stable code and audited as refused
+    r = create(c, "sensor.site_mwh", display_name="  main BOARD ")
+    assert r.status_code == 409 and r.json()["code"] == "meter_name_taken"
+    assert audit_rows(settings, "energy.meter.create")[-1]["decision"] == "refused"
+    assert len(c.get(f"{API}/meters").json()["items"]) == 2
+    # rename to another meter's name is refused, the meter is unchanged
+    r = c.patch(f"{API}/meters/{b['id']}", json={"revision": b["revision"], "display_name": "main board"})
+    assert r.status_code == 409 and r.json()["code"] == "meter_name_taken"
+    assert c.get(f"{API}/meters/{b['id']}").json()["display_name"] == "מזגנים"
+    # a paused meter still owns its name; a retired one does not
+    assert c.patch(f"{API}/meters/{a['id']}", json={"revision": a["revision"], "status": "paused"}).status_code == 200
+    assert create(c, "sensor.site_mwh", display_name="Main Board").status_code == 409
+    assert c.delete(f"{API}/meters/{b['id']}", params={"revision": b["revision"]}).status_code == 200
+    assert create(c, "sensor.site_mwh", display_name="מזגנים").status_code == 201
+    # duplicates that already exist in the data break neither reads nor other edits; only a colliding NEW name is refused
+    with Database(settings.db_path).connection() as conn:
+        conn.execute("UPDATE energy_meters SET display_name = 'Main Board' WHERE source_ref = 'sensor.site_mwh'")
+    items = c.get(f"{API}/meters").json()["items"]
+    assert [i["display_name"] for i in items].count("Main Board") == 2
+    twin = next(i for i in items if i["source_ref"] == "sensor.site_mwh")
+    r = c.patch(f"{API}/meters/{twin['id']}", json={"revision": twin["revision"], "max_kw": 50})
+    assert r.status_code == 200
+    r = c.patch(f"{API}/meters/{twin['id']}", json={"revision": r.json()["revision"], "display_name": "Main Board"})
+    assert r.status_code == 200  # unchanged name
+    r = c.patch(f"{API}/meters/{twin['id']}", json={"revision": r.json()["revision"], "display_name": "Other"})
+    assert r.status_code == 200
 
 
 def test_rename_needs_energy_manage(app):

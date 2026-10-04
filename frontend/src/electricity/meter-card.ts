@@ -7,7 +7,7 @@ import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import { getMeter, listMeters, meterSeries, pauseMeter, removeMeter, renameMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
-import { checkMeterName, DUPLICATE_NAME_WARNING, meterNames, RENAME_HINT } from './meter-name';
+import { checkMeterName, DUPLICATE_NAME_ERROR, meterNames, RENAME_HINT } from './meter-name';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 
@@ -239,7 +239,7 @@ export class ElecMeterCard extends LitElement {
         el?.select();
       }, 80),
     );
-    // the duplicate warning compares with the other meters; a failed read only drops the warning
+    // the duplicate check compares with the other meters (paused ones too); a failed read leaves the check to the server
     void listMeters().then((l) => (this.otherNames = l.filter((m) => m.id !== d.id).map((m) => m.name))).catch(() => undefined);
   }
 
@@ -247,8 +247,8 @@ export class ElecMeterCard extends LitElement {
     const d = this.detail;
     if (!d || this.busy) return;
     const chk = checkMeterName(this.newName, this.otherNames);
+    if (chk.name && chk.name.toLocaleLowerCase() === d.name.trim().toLocaleLowerCase() && chk.name === d.name) return void (this.dlg = '');
     if (chk.error) return void (this.nameError = chk.error);
-    if (chk.name === d.name) return void (this.dlg = '');
     this.busy = true;
     this.nameError = '';
     try {
@@ -353,6 +353,8 @@ export class ElecMeterCard extends LitElement {
       <sw-dialog ?open=${this.dlg === 'rename'} heading="שינוי שם המונה" data-meter-rename-dialog @close=${() => (this.dlg = '')}>
         ${(() => {
           const chk = checkMeterName(this.newName, this.otherNames);
+          const same = chk.name === this.detail?.name; // keeping the current name is never a collision (an old duplicate may exist)
+          if (same) chk.duplicate = false;
           return html`<div class="fld">
             <label for="rn">שם המונה</label>
             <div class="inp ${this.nameError ? 'err' : ''}"><input id="rn" data-rename-input autocomplete="off" aria-invalid=${this.nameError ? 'true' : 'false'} aria-describedby="rn-msg" .value=${this.newName}
@@ -360,12 +362,12 @@ export class ElecMeterCard extends LitElement {
               @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void this.rename(); } }} /></div>
             <div id="rn-msg">
               ${this.nameError ? html`<div class="msg" role="alert" data-rename-error>${this.nameError}</div>` : nothing}
-              ${!this.nameError && !chk.error && chk.duplicate && chk.name !== this.detail?.name ? html`<div class="msg warn-msg" data-rename-dup>${DUPLICATE_NAME_WARNING}</div>` : nothing}
+              ${!this.nameError && chk.duplicate ? html`<div class="msg" role="alert" data-rename-dup>${DUPLICATE_NAME_ERROR}</div>` : nothing}
               <div class="mut" data-rename-hint>${RENAME_HINT}</div>
             </div>
           </div>`;
         })()}
-        <sw-button slot="footer" variant="primary" data-rename-save ?disabled=${this.busy} @click=${() => void this.rename()}>שמירה</sw-button>
+        <sw-button slot="footer" variant="primary" data-rename-save ?disabled=${this.busy || (checkMeterName(this.newName, this.otherNames).duplicate && this.newName.trim() !== this.detail?.name)} @click=${() => void this.rename()}>שמירה</sw-button>
         <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'replace'} heading="החלפת מונה" data-meter-replace-dialog @close=${() => (this.dlg = '')}>
