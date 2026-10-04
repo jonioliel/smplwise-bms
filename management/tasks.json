@@ -3184,7 +3184,9 @@
       "Documentation, known limits and rollback notes",
       "Build screenshots matching design reference"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-10-04 (K58, CR-024 docs/changes/CR-024-MULTI-NVR.md): multi-NVR built on branch pilot/multi-nvr (code head 10799616), not released, migration 0055_multi_recorder. Recorders as entities (/recorders API, per-recorder connection in recorder_connections, per-recorder settings via recorder_scope.settings_for, discovery / stream sync / alert stream per recorder, removal keeps history and hides the cameras, ids never reused), every NVR route on the camera's recorder or ?recorder_id= (default nvr-1), recorder filters in the camera table, wall and event log, batches and sync groups never mix recorders. Fixture evidence only (two fake recorders): backend tests/test_multi_nvr.py; Playwright evidence-multi-nvr.spec.ts (mocked, desktop/tablet/mobile), evidence-multi-nvr-live.spec.ts (fixture backend multi_nvr_backend.py), layout-multi-nvr.spec.ts (4 skins x light/dark x 320..1440). Real two-recorder lab: NOT_RUN (no real device touched). Status stays BACKLOG in this registry because its dependencies T013/T019/T055 are not marked DONE here (project_status rule); acceptance AT115/AT116 need the lab."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null

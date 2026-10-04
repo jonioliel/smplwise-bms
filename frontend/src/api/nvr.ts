@@ -56,6 +56,18 @@ export const setNvrNtp = (body: { host: string; port?: number; interval_min?: nu
 export const pulseNvrOutput = (id: number) => post<NvrChange>(`nvr/outputs/${id}/pulse`);
 export const startSmartTest = (hddId: number, kind: 'short' | 'extended' = 'short') => post<NvrChange>(`nvr/storage/${hddId}/smart-test`, { kind });
 export const rebootNvr = (confirm: string) => post<NvrChange>('nvr/reboot', { confirm });
+/** CR-024 (multi-NVR): the system actions of one recorder (`?recorder_id=`; the first recorder when omitted - the routes' default). */
+export function nvrSystemApi(recorderId?: string) {
+  const q = recorderId && recorderId !== 'nvr-1' ? `?recorder_id=${encodeURIComponent(recorderId)}` : '';
+  return {
+    nvrSystem: () => get<NvrSystem>(`nvr/system${q}`),
+    setNvrTime: (body: { sync_now?: boolean; mode?: 'NTP' | 'manual' }) => put<NvrChange>(`nvr/time${q}`, body),
+    setNvrNtp: (body: { host: string; port?: number; interval_min?: number | null }) => put<NvrChange>(`nvr/ntp${q}`, body),
+    pulseNvrOutput: (id: number) => post<NvrChange>(`nvr/outputs/${id}/pulse${q}`),
+    startSmartTest: (hddId: number, kind: 'short' | 'extended' = 'short') => post<NvrChange>(`nvr/storage/${hddId}/smart-test${q}`, { kind }),
+    rebootNvr: (confirm: string) => post<NvrChange>(`nvr/reboot${q}`, { confirm }),
+  };
+}
 // the NVR connection (vendor, host, ports, user, write-only password) moved to ./nvr-connection.ts (CR-022)
 export interface OsdStatus {
   camera_id: string; channel: number; vms_name: string; nvr_name: string | null; can_write: boolean; date_styles: string[];

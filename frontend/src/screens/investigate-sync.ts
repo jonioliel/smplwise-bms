@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { cameraLabel, sameRecorder } from '../api/recorders';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
@@ -69,6 +70,7 @@ export class InvestigateSync extends LitElement {
   }
 
   private toggle(id: string) {
+    if (!this.picked.includes(id) && !sameRecorder(this.picked, this.cams ?? [], id)) return; // CR-024: one recorder per synchronized set
     this.picked = this.picked.includes(id) ? this.picked.filter((x) => x !== id) : this.picked.length >= 4 ? this.picked : [...this.picked, id];
   }
 
@@ -100,7 +102,7 @@ export class InvestigateSync extends LitElement {
           : html`
             <sw-card heading="מצלמות להשוואה" subheading=${`${this.picked.length} מתוך 4 · הראשונה שנבחרת היא המובילה (שעון הייחוס)`}>
               <div class="filters" data-sync-cameras>
-                ${cams.map((c) => html`<sw-chip ?selected=${this.picked.includes(c.id)} ?disabled=${!this.picked.includes(c.id) && this.picked.length >= 4} data-sync-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggle(c.id)}>${c.name}</sw-chip>`)}
+                ${cams.map((c) => html`<sw-chip ?selected=${this.picked.includes(c.id)} ?disabled=${!this.picked.includes(c.id) && (this.picked.length >= 4 || !sameRecorder(this.picked, cams, c.id))} data-sync-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggle(c.id)}>${cameraLabel(c)}</sw-chip>`)}
               </div>
               ${this.picked.length
                 ? html`<div class="picks">${this.picked.map((id, i) => html`<div class="pick" data-sync-pick=${id}>

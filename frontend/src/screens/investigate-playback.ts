@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { cameraLabel, sameRecorder } from '../api/recorders';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-badge';
@@ -1193,7 +1194,7 @@ export class InvestigatePlayback extends LitElement {
       </div>
       <div class="compare">
         <span>השוואה (עד 4):</span>
-        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} @click=${() => this.toggleExtra(c.id)}>${c.name}</sw-chip>`)}
+        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} ?disabled=${!this.extra.includes(c.id) && !sameRecorder(this.cameraId ? [this.cameraId] : [], this.cams ?? [], c.id)} @click=${() => this.toggleExtra(c.id)}>${cameraLabel(c)}</sw-chip>`)}
         ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
       </div>
       <div class="stage">
@@ -1302,7 +1303,7 @@ export class InvestigatePlayback extends LitElement {
       <sw-page heading=${heading} subheading=${sub} crumbs=${crumbs} wide>
         <div slot="actions" class="pick">
           ${api
-            ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>`
+            ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`
             : html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
           <sw-field><input type="date" .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
           <sw-field style="inline-size:132px"><input type="time" step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>

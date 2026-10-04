@@ -48,6 +48,7 @@ class PlaybackSession:
     bytes_down: int = 0
     ws_open: bool = False
     first_frame_at: float | None = None  # wall-clock when the first media bytes were relayed (this generation)
+    recorder_id: str = "nvr-1"  # CR-024: the camera's recorder - the playback source is built from ITS connection
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -101,7 +102,9 @@ def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end
 def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datetime) -> None:
     client = g2.Go2rtc(settings)
     name = stream_name(session.id, session.generation)
-    src = playback_rtsp_url(settings, session.track_id, start, session.end_at, session.tz_name)
+    from ..recorder_scope import settings_for
+
+    src = playback_rtsp_url(settings_for(settings, session.recorder_id), session.track_id, start, session.end_at, session.tz_name)
     client.ensure_stream(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
@@ -131,6 +134,7 @@ def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, 
             end_at=min(segment_end, start + MAX_SPAN),
             stream="",
             tz_name=tz_name,
+            recorder_id=str(camera["recorder_id"]) if "recorder_id" in camera.keys() else "nvr-1",
         )
         REGISTRY.sessions[session.id] = session
     try:

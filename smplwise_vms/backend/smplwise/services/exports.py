@@ -497,6 +497,11 @@ class Worker:
             row = conn.execute("SELECT * FROM export_jobs WHERE id = ?", (job_id,)).fetchone()
         raw = json.loads(row["payload_json"])
         payload = Payload(**{**raw, "files": [ExportFile(**f) for f in raw["files"]]})
+        from ..recorder_scope import camera_settings
+
+        with self.db.connection(mode="read") as conn:
+            cam = conn.execute("SELECT recorder_id FROM cameras WHERE id = ?", (row["camera_id"],)).fetchone()
+        source = camera_settings(settings, cam)  # CR-024: the files are downloaded from the camera's own recorder
         d = job_dir(settings, job_id)
         d.mkdir(parents=True, exist_ok=True)
         total_expected = sum(f.size or 0 for f in payload.files) or None
@@ -542,7 +547,7 @@ class Worker:
                 return job_id not in self.cancel_flags  # False = abort
 
             try:
-                self.downloader(settings, f.playback_uri, dest, progress)
+                self.downloader(source, f.playback_uri, dest, progress)
                 f.state = "downloaded"
                 f.bytes = dest.stat().st_size
                 done_bytes += f.bytes

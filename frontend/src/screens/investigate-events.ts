@@ -67,6 +67,9 @@ export class InvestigateEvents extends LitElement {
   @state() private placeFloor = '';
   @state() private placeZone = '';
   @state() private source = '';
+  /** CR-024: the recorder filter ('' = every source); offered only when the cameras span two or more recorders. */
+  @state() private recorderId = '';
+  @state() private recorders: { id: string; name: string }[] = [];
   @state() private unsupported: UnsupportedFilter[] = [];
   /** T062 (open corner): free text over the camera name and the event's own details, and a range wider than one
    * day. `date` stays the anchor (its own end); `rangeDays` picks how many days end there. */
@@ -575,6 +578,7 @@ export class InvestigateEvents extends LitElement {
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
       this.cams = list.cameras;
+      this.recorders = list.recorders ?? [];
       void this.loadFacets();
       if (!this.date) this.date = dateInZone(new Date(), this.tz);
       await this.load();
@@ -623,7 +627,7 @@ export class InvestigateEvents extends LitElement {
 
   private async load() {
     try {
-      const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined });
+      const r = await listEvents({ ...this.searchWindow(), cameraId: this.cameraId || undefined, type: this.type || undefined, unacked: this.filter === 'unacked', acked: this.filter === 'acked', limit: 500, floorId: this.placeFloor || undefined, zoneId: this.placeZone || undefined, source: this.source || undefined, query: this.q.trim() || undefined, recorderId: this.recorderId || undefined });
       this.events = r.events;
       this.unsupported = (r as { filters?: { unsupported: UnsupportedFilter[] } }).filters?.unsupported ?? [];
       this.ingest = r.ingest;
@@ -725,6 +729,7 @@ export class InvestigateEvents extends LitElement {
     const today = dateInZone(new Date(ev.occurred_at), this.tz);
     if (this.date && today !== this.date) return;
     if (this.cameraId && ev.camera_id !== this.cameraId) return;
+    if (this.recorderId && ev.recorder_id !== this.recorderId && this.cams?.find((c) => c.id === ev.camera_id)?.recorder_id !== this.recorderId) return;
     if (this.type && ev.type !== this.type) return;
     const name = this.cams?.find((c) => c.id === ev.camera_id)?.name ?? null;
     const row = { ...ev, camera_name: ev.camera_name ?? name };
@@ -793,7 +798,10 @@ export class InvestigateEvents extends LitElement {
       </div>
       <div class="filters">
         <sw-field><input type="search" data-events-q placeholder="חיפוש חופשי (שם מצלמה, התקן, פרטי אירוע)" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
-        <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
+        ${this.recorders.length > 1
+          ? html`<sw-field><select aria-label="NVR" data-filter-recorder @change=${(e: Event) => { this.recorderId = (e.target as HTMLSelectElement).value; this.cameraId = ''; void this.load(); }}><option value="" ?selected=${!this.recorderId}>כל ה־NVR</option>${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderId}>${r.name}</option>`)}</select></sw-field>`
+          : nothing}
+        <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).filter((c) => !this.recorderId || c.recorder_id === this.recorderId).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
         <sw-field><input type="date" .value=${this.date} max=${dateInZone(new Date(), this.tz)} data-ltr aria-label="תאריך" @change=${(e: Event) => { this.date = (e.target as HTMLInputElement).value; void this.load(); }} /></sw-field>
         <span class="rangepick" role="group" aria-label="טווח ימים" data-events-range>

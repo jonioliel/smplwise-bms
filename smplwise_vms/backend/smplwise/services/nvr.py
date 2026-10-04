@@ -9,7 +9,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -27,6 +27,10 @@ class DiscoveredChannel:
     sub_track: int | None
     stream: dict[str, object] | None = None  # from the main track's Description (evidence, not assumption)
     sub_stream: dict[str, object] | None = None  # the sub track's Description, when the device fills it
+    # CR-024 (ADP section 3.3): the physical camera behind the slot, from InputProxyChannel/sourceInputPortDescriptor. Used only
+    # to compute the keyed `cameras.device_fingerprint`; the serial number itself is never stored, logged or returned.
+    device_model: str | None = field(default=None, repr=False)
+    device_serial: str | None = field(default=None, repr=False)
 
 
 def parse_track_description(desc: str) -> dict[str, object]:
@@ -234,7 +238,12 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
             continue
         ch = int(cid)
         ids = sorted(tracks.get(ch, []), key=lambda t: t[0])
+        desc = _child(el, "sourceInputPortDescriptor")
+        dev_model = (_text(desc, "model").strip() or None) if desc is not None else None
+        dev_serial = (_text(desc, "serialNumber").strip() or None) if desc is not None else None
         result.append(DiscoveredChannel(
+            device_model=dev_model,
+            device_serial=dev_serial,
             channel=ch,
             name=re.sub(r"\s+", " ", _text(el, "name")).strip(),
             online=online.get(ch),

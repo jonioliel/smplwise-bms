@@ -203,7 +203,8 @@ export const deleteAnchor = (id: string, fromFloorId?: string) => del(`map-ancho
 
 // ---- cameras ----
 
-export const listCameras = () => get<{ cameras: Camera[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras');
+/** CR-024: `recorders` names the recorders of the visible cameras (a recorder filter is shown only with two or more). */
+export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: string; name: string }[]; recorder: { id: string; name: string; model: string | null; firmware: string | null; last_seen_at: string | null } | null; can_sync: boolean }>('cameras');
 export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');
 export const registerCamera = (body: { channel: number; alias: string }) => post<Camera>('cameras', body);
 export const updateCamera = (id: string, body: { alias?: string; sort_order?: number; enabled?: boolean; grid_col_span?: number; wall_hidden?: boolean }) => patch<Camera>(`cameras/${id}`, body);

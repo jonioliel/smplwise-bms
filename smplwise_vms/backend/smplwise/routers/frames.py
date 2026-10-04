@@ -75,10 +75,13 @@ def camera_frame(camera_id: str, request: Request, at: str = Query(..., min_leng
     if not cam["main_track"]:
         raise ApiError(404, "frame_unavailable", "למצלמה אין מסלול הקלטה ידוע.")
     tz_name = read_settings(conn)["time.zone"]
-    url = playback.playback_rtsp_url(settings, int(cam["main_track"]), bucket, bucket + dt.timedelta(seconds=WINDOW_S), tz_name)
+    from ..recorder_scope import camera_settings
+
+    rs = camera_settings(settings, cam)  # CR-024: the camera's recorder
+    url = playback.playback_rtsp_url(rs, int(cam["main_track"]), bucket, bucket + dt.timedelta(seconds=WINDOW_S), tz_name)
     with unlocked(conn):
         with _sem:
-            ok = out.is_file() or GRAB(url, out, settings, timeout_s=GRAB_TIMEOUT_S)
+            ok = out.is_file() or GRAB(url, out, rs, timeout_s=GRAB_TIMEOUT_S)
     if not ok:
         neg.parent.mkdir(parents=True, exist_ok=True)
         neg.write_text("unavailable", encoding="utf-8")
