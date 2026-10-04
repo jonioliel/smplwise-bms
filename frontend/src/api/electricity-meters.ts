@@ -20,6 +20,11 @@ export interface Meter {
   name: string;
   area_id: string | null;
   area_name: string | null;
+  /** The device the sensor belongs to, as the platform shows it (the user's device name, else its own); null = the sensor has no device. */
+  device_id: string | null;
+  device_name: string | null;
+  /** The sensor's own name (the registered `name` may be the operator's own). */
+  entity_name: string | null;
   /** The floor of the area (from the devices tree; the meters endpoint has none). null = unknown. */
   floor_id: string | null;
   floor_name: string | null;
@@ -57,6 +62,11 @@ export interface MeterCandidate {
   /** The source reference (the infrastructure sensor); what POST /energy/meters takes as `source_ref`. */
   entity_id: string;
   name: string;
+  /** The device the sensor belongs to (the user's device name, else its own); null = no device. */
+  device_id: string | null;
+  device_name: string | null;
+  /** The sensor's own name. */
+  entity_name: string | null;
   area_id: string | null;
   area_name: string | null;
   floor_name: string | null;
@@ -158,6 +168,9 @@ interface WireEpoch {
 interface WireMeter {
   id: string;
   display_name: string;
+  device_id?: string | null;
+  device_name?: string | null;
+  entity_name?: string | null;
   area_id: string | null;
   area_name: string | null;
   status: string;
@@ -174,6 +187,9 @@ interface WireMeter {
 interface WireCandidate {
   ref: string;
   name: string;
+  device_id?: string | null;
+  device_name?: string | null;
+  entity_name?: string | null;
   area_id: string | null;
   area_name: string | null;
   unit: string | null;
@@ -212,6 +228,9 @@ export function wireMeter(w: WireMeter, floors: Map<string, { id: string; name: 
   return {
     id: w.id,
     name: w.display_name,
+    device_id: w.device_id ?? null,
+    device_name: w.device_name ?? null,
+    entity_name: w.entity_name ?? null,
     area_id: w.area_id,
     area_name: w.area_name,
     floor_id: floor?.id ?? null,
@@ -238,6 +257,9 @@ function wireCandidate(c: WireCandidate): MeterCandidate {
   return {
     entity_id: c.ref,
     name: c.name,
+    device_id: c.device_id ?? null,
+    device_name: c.device_name ?? null,
+    entity_name: c.entity_name ?? null,
     area_id: c.area_id,
     area_name: c.area_name,
     floor_name: null,
@@ -373,13 +395,13 @@ const demo: MeterAdapter = {
   detail: (id) => delay({ ...find(id), epochs: demoEpochs.get(id) ?? fixtureEpochs(id) }),
   candidates: (q) => {
     const needle = q.trim().toLowerCase();
-    return delay(fixtureCandidates().filter((c) => !needle || c.name.toLowerCase().includes(needle) || (c.area_name ?? '').toLowerCase().includes(needle)));
+    return delay(fixtureCandidates().filter((c) => !needle || c.name.toLowerCase().includes(needle) || (c.device_name ?? '').toLowerCase().includes(needle) || (c.area_name ?? '').toLowerCase().includes(needle)));
   },
   add: (body) => {
     const c = fixtureCandidates().find((x) => x.entity_id === body.entity_id);
     if (!c) return demoError(404, 'not_found', 'החיישן לא נמצא');
     if (c.verdict === 'rejected') return demoError(422, 'meter_unit_rejected', c.message ?? REASON_TEXT[c.reason_code ?? 'unit']);
-    const m: Meter = { id: `m${dm().length + 1}`, name: body.name?.trim() || c.name, area_id: c.area_id, area_name: c.area_name, floor_id: null, floor_name: c.floor_name, status: 'reporting', reading_kwh: parseFloat((c.value ?? '0').replace(/,/g, '')) || 0, last_report_at: FIXTURE_NOW, today_kwh: 0, month_kwh: 0, accounts: [], accounts_count: 0, revision: 1 };
+    const m: Meter = { id: `m${dm().length + 1}`, name: body.name?.trim() || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, area_id: c.area_id, area_name: c.area_name, floor_id: null, floor_name: c.floor_name, status: 'reporting', reading_kwh: parseFloat((c.value ?? '0').replace(/,/g, '')) || 0, last_report_at: FIXTURE_NOW, today_kwh: 0, month_kwh: 0, accounts: [], accounts_count: 0, revision: 1 };
     dm().push(m);
     return delay({ ...m });
   },

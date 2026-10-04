@@ -128,22 +128,26 @@ def numeric_wh(state: Any, factor: int) -> int | None:
 
 # ---------------------------------------------------------------- candidates
 
+# The device's name as the platform shows it: the user's own name when set, else the device's own (same rule as media_store / automation_scope).
+DEVICE_NAME_SQL = "COALESCE(NULLIF(d.name_by_user, ''), NULLIF(d.name, ''))"
+
 def candidates(conn: sqlite3.Connection, q: str | None, area_id: str | None, include_rejected: bool, limit: int) -> list[dict[str, Any]]:
     """Mirror sensors that could be meters, with their verdict. Searched by name (and entity id); energy-like sensors
     first. Names and the verdict only - never raw attributes."""
     where = ["e.removed_at IS NULL", "e.disabled = 0", "e.domain = 'sensor'"]
     args: list[Any] = []
     if q:
-        where.append("(e.name LIKE ? OR e.original_name LIKE ? OR e.entity_id LIKE ?)")
+        where.append("(e.name LIKE ? OR e.original_name LIKE ? OR e.entity_id LIKE ? OR d.name LIKE ? OR d.name_by_user LIKE ?)")
         like = f"%{q.strip()}%"
-        args += [like, like, like]
+        args += [like, like, like, like, like]
     if area_id:
         where.append("e.area_id = ?")
         args.append(area_id)
     rows = conn.execute(
         f"""SELECT e.entity_id, e.name, e.original_name, e.domain, e.device_class, e.unit, e.state, e.attributes_json, e.area_id, e.area_name, e.device_id,
-                   e.ha_floor_id, e.ha_floor_name
-            FROM ha_entities e WHERE {' AND '.join(where)}
+                   e.ha_floor_id, e.ha_floor_name, {DEVICE_NAME_SQL} AS device_name
+            FROM ha_entities e LEFT JOIN ha_devices d ON d.device_id = e.device_id AND d.removed_at IS NULL
+            WHERE {' AND '.join(where)}
             ORDER BY CASE WHEN lower(COALESCE(e.unit, '')) IN ('kwh', 'wh', 'mwh') THEN 0 WHEN e.device_class = 'energy' THEN 1 ELSE 2 END, e.name, e.entity_id
             LIMIT ?""",
         (*args, max(limit * 4, limit)),
@@ -157,7 +161,8 @@ def candidates(conn: sqlite3.Connection, q: str | None, area_id: str | None, inc
             continue
         attrs = _attrs(r)
         out.append({
-            "ref": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "area_id": r["area_id"], "area_name": r["area_name"],
+            "ref": r["entity_id"], "name": r["name"] or r["original_name"] or r["entity_id"], "device_id": r["device_id"] or None, "device_name": r["device_name"],
+            "entity_name": r["name"] or r["original_name"] or None, "area_id": r["area_id"], "area_name": r["area_name"],
             "floor_id": r["ha_floor_id"], "floor_name": r["ha_floor_name"],
             "unit": r["unit"], "device_class": r["device_class"], "state_class": attrs.get("state_class"), "state": r["state"],
             "verdict": v.verdict, "code": v.code, "message": v.message, "already_meter_id": live.get(r["entity_id"]),
@@ -175,10 +180,12 @@ def _live_devices(conn: sqlite3.Connection) -> set[str]:
 # ---------------------------------------------------------------- registry
 
 COLUMNS = "m.id, m.source_kind, m.source_ref, m.display_name, m.unit, m.unit_factor, m.area_id, m.status, m.status_reason, m.max_kw, m.revision, m.created_at, m.created_by, m.updated_at, m.retired_at"
-AREA_SQL = f"""SELECT {COLUMNS}, COALESCE(a.name, e.area_name) AS area_name, COALESCE(m.area_id, e.area_id) AS eff_area_id,
+AREA_SQL = f"""SELECT {COLUMNS}, e.device_id AS device_id, {DEVICE_NAME_SQL} AS device_name, COALESCE(e.name, e.original_name) AS entity_name,
+                      COALESCE(a.name, e.area_name) AS area_name, COALESCE(m.area_id, e.area_id) AS eff_area_id,
                       CASE WHEN a.area_id IS NOT NULL THEN a.floor_id ELSE e.ha_floor_id END AS floor_id,
                       CASE WHEN a.area_id IS NOT NULL THEN f.name ELSE e.ha_floor_name END AS floor_name
                FROM energy_meters m LEFT JOIN ha_entities e ON e.entity_id = m.source_ref
+               LEFT JOIN ha_devices d ON d.device_id = e.device_id AND d.removed_at IS NULL
                LEFT JOIN ha_areas a ON a.area_id = COALESCE(m.area_id, e.area_id)
                LEFT JOIN ha_floors f ON f.floor_id = a.floor_id"""
 

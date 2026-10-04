@@ -11,6 +11,7 @@ import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../
 import { navigate } from '../../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
+import { meterNames, meterSearchText } from '../../electricity/meter-name';
 import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { SkinController } from '../../design/skin';
@@ -132,6 +133,17 @@ export class ElecMetersPage extends LitElement {
         grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
         gap: 12px;
       }
+      .ent {
+        font-weight: 400;
+        font-size: var(--sw-fs-sm);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-inline-size: 100%;
+      }
+      td .ent {
+        max-inline-size: 320px;
+      }
       .mcard {
         display: flex;
         flex-direction: column;
@@ -243,7 +255,7 @@ export class ElecMetersPage extends LitElement {
   private visible(): Meter[] {
     const needle = this.q.trim().toLowerCase();
     const area = this.areaFilter;
-    return this.meters.filter((m) => (!area || m.area_id === area) && (!needle || m.name.toLowerCase().includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle)));
+    return this.meters.filter((m) => (!area || m.area_id === area) && (!needle || meterSearchText(m).includes(needle) || (m.area_name ?? '').toLowerCase().includes(needle)));
   }
 
   private flash(text: string) {
@@ -324,19 +336,30 @@ export class ElecMetersPage extends LitElement {
     </nav>`;
   }
 
+  /** The sensor's name under the device's name, only when it differs. */
+  private entityLine(m: Meter, cls: string) {
+    const s = meterNames(m).secondary;
+    return s ? html`<div class="${cls} ent" data-meter-entity title="שם הישות">${s}</div>` : nothing;
+  }
+
+  private nameOf(m: Meter) {
+    return html`${meterNames(m).primary}${this.entityLine(m, 'mut')}`;
+  }
+
   private renderTable(list: Meter[]) {
     const showAcc = list.some((m) => m.accounts_count != null);
     return html`<div class="card flush scrollx desk-only"><table class="t" data-meters-table>
       <thead><tr><th>שם</th><th>אזור</th><th class="n">קריאה נוכחית (קוט״ש)</th><th class="n">היום</th><th class="n">מתחילת החודש</th><th>מצב</th>${showAcc ? html`<th class="dsk">בחשבונות</th>` : nothing}</tr></thead>
       <tbody>${list.map((m) => html`<tr class="pick" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-        <td class="b">${m.name}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
+        <td class="b">${this.nameOf(m)}</td><td>${m.area_name ?? '-'}<span class="mut dsk"> · ${m.floor_name ?? ''}</span></td>
         <td class="n"><span class="num">${fmtKwh(m.reading_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.today_kwh)}</span></td><td class="n"><span class="num">${fmtKwh(m.month_kwh)}</span></td>
         <td>${this.statusChip(m)}${this.staleNote(m)}</td>${showAcc ? html`<td class="dsk">${m.accounts_count || html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table></div>`;
   }
 
   private renderCards(list: Meter[]) {
     return html`<div class="cards desk-only" data-meters-cards>${list.map((m) => html`<div class="card mcard" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-      <div class="row"><b>${m.name}</b><span class="sp"></span>${this.statusChip(m)}</div>
+      <div class="row"><b>${meterNames(m).primary}</b><span class="sp"></span>${this.statusChip(m)}</div>
+      ${this.entityLine(m, 'mut')}
       <div class="mut">${m.area_name ?? ''}${m.floor_name ? ` · ${m.floor_name}` : ''}</div>
       <div class="row" style="align-items:baseline"><span class="big num">${fmtKwh(m.today_kwh)}</span><span class="mut">קוט״ש היום</span><span class="sp"></span><span class="mut num">${fmtKwh(m.reading_kwh)}</span></div></div>`)}</div>`;
   }
@@ -344,7 +367,7 @@ export class ElecMetersPage extends LitElement {
   /** The phone's list (the same rows as the table, one line of context). */
   private renderRows(list: Meter[]) {
     return html`<div class="list phone-only" style="flex-direction:column" data-meters-rows>${list.map((m) => html`<div class="li pick" role="button" tabindex="0" data-meter=${m.id} @click=${() => this.open(m)} @keydown=${(e: KeyboardEvent) => this.onKey(e, m)}>
-      <div class="grow"><div class="t1">${m.name}</div><div class="t2">${m.area_name ?? ''} · היום <span class="num">${fmtKwh(m.today_kwh)}</span> קוט״ש</div></div>
+      <div class="grow"><div class="t1">${meterNames(m).primary}</div>${this.entityLine(m, 't2')}<div class="t2">${m.area_name ?? ''} · היום <span class="num">${fmtKwh(m.today_kwh)}</span> קוט״ש</div></div>
       <div style="text-align:end">${this.statusChip(m)}<div class="t2 num" style="margin-block-start:4px">${fmtKwh(m.reading_kwh)}</div></div></div>`)}</div>`;
   }
 

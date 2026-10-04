@@ -257,16 +257,16 @@ money anywhere in these routes. All routes work on the remote channel with the s
 | GET | `/energy/settings` | energy.view (values) | - | `{values: {...}, editable: {key: bool}, ranges: {...}, storage: Storage}` |
 | PATCH | `/energy/settings` | energy.manage; retention keys need system.configure | `{key: value, ...}` (only known keys) | same as GET |
 
-`Candidate`: `{ref, name, area_id, area_name, floor_id, floor_name, unit, device_class, state_class, state, verdict: 'ok'|'warning'|'rejected',
+`Candidate`: `{ref, name, device_id, device_name, entity_name, area_id, area_name, floor_id, floor_name, unit, device_class, state_class, state, verdict: 'ok'|'warning'|'rejected',
 code, message, already_meter_id}`. Codes: `ok`, `domain_rejected`, `power_unit`, `unit_rejected`, `unit_missing`,
 `device_class_rejected`, `measurement`, `state_not_numeric`, `state_negative`, `returned_energy`, `warn_total`,
 `warn_no_device_class`, `warn_unavailable`, `warn_same_device`. Rejected items carry the CR-023 section 5 Hebrew message.
 
-`Meter`: `{id, display_name, source_kind, source_ref, unit, area_id, area_name, floor_id, floor_name, status, status_reason,
+`Meter`: `{id, display_name, source_kind, source_ref, unit, device_id, device_name, entity_name, area_id, area_name, floor_id, floor_name, status, status_reason,
 max_kw, revision, created_at, retired_at, state: 'reporting'|'not_reporting'|'paused'|'retired', last_report_at, value_kwh,
 today_kwh, month_kwh, accounts_count}` (floor/area come from the meter's own area override or the sensor's area, so the UI
 needs no devices permission; `month_kwh` = from local midnight of the 1st of this month to now; `accounts_count` = active
-accounts whose formula uses the meter). `Epoch`: `{id, started_at, ended_at, start_reading_kwh, end_reading_kwh,
+accounts whose formula uses the meter). `device_name` is the device's name as the platform shows it (the user's own name when set, else the device's), null when the sensor has no device or the device was removed; `entity_name` is the sensor's own name; `name` / `display_name` are unchanged. The candidates search `q` also matches the device name. `Epoch`: `{id, started_at, ended_at, start_reading_kwh, end_reading_kwh,
 start_reading_wh, end_reading_wh, reason, note}`.
 
 `Storage`: `{energy_db_bytes, classes: {raw: {rows, bytes_estimate}, intervals: {...}, daily: {...}, drafts: {rows, bytes_estimate}}, estimate:

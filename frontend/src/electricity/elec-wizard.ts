@@ -19,6 +19,7 @@ import type { ElecFormulaEditor, FormulaChange } from './elec-formula-editor';
 import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
 import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
 import { go, href, route } from './elec-routes';
+import { meterNames } from './meter-name';
 
 const STEPS = ['בחירת מונים', 'נוסחת החשבון', 'מחיר ומע״מ', 'תקופת חיוב', 'כרטיס לקוח', 'סיכום והפקה'];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -255,7 +256,7 @@ export class ElecAccountWizard extends ElecBase {
     const chosen = this.chosen();
     return html`<elec-meter-picker mode="choose" multi sensors .meters=${this.meters} .selected=${this.meterIds} data-meter-picker
         @change=${(e: CustomEvent<{ selected: string[] }>) => (this.meterIds = e.detail.selected)}></elec-meter-picker>
-      <div class="row" data-chosen><span class="chip c-acc nodot">נבחרו ${chosen.length} ${chosen.length === 1 ? 'מונה' : 'מונים'}</span><span class="mut">${chosen.map((m) => m.name).join(', ')}</span></div>`;
+      <div class="row" data-chosen><span class="chip c-acc nodot">נבחרו ${chosen.length} ${chosen.length === 1 ? 'מונה' : 'מונים'}</span><span class="mut">${chosen.map((m) => meterNames(m).primary).join(', ')}</span></div>`;
   }
 
   private onFormula = (e: CustomEvent<FormulaChange>) => {
@@ -375,7 +376,7 @@ export class ElecAccountWizard extends ElecBase {
     const last = this.lastPeriod();
     const total = p && t ? (t.current?.price_mode === 'inc_vat' ? r2(kwh * p.inc) : r2(r2(kwh * p.ex) + r2(r2(kwh * p.ex) * p.vat))) : 0;
     const opt = (group: string, id: string, label: string, checked: boolean, on: () => void, dis = false) => html`<label class="li ${checked ? 'sel' : ''} ${dis ? 'dis' : ''}"><input type="radio" name=${group} data-opt=${id} .checked=${checked} ?disabled=${dis} @change=${on} /><span class="ind"></span><div class="grow t1">${label}</div></label>`;
-    return html`<dl class="kv" data-summary><dt>מונים</dt><dd>${this.chosen().map((m) => m.name).join(', ')}</dd><dt>נוסחה</dt><dd>${sentenceTxt}</dd>
+    return html`<dl class="kv" data-summary><dt>מונים</dt><dd>${this.chosen().map((m) => meterNames(m).primary).join(', ')}</dd><dt>נוסחה</dt><dd>${sentenceTxt}</dd>
         <dt>מחיר</dt><dd>${t ? html`${t.name}, ${n(f4(t.current?.price ?? 0) + ' ₪')} ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ, מע״מ ${n(this.vat?.current?.rate_percent ?? '')}%` : ''}</dd>
         <dt>תקופה</dt><dd>${this.months === 1 ? 'חודשית' : 'דו-חודשית'}, מה-${this.anchorDay} בחודש, החל מ-${n(fmtDate(this.firstStart))}</dd>
         <dt>לקוח</dt><dd>${c.name}, מספר ${n(c.number)}</dd><dt>שם החשבון</dt><dd>${this.accName}</dd>
