@@ -179,6 +179,26 @@ def test_every_camera_route_reaches_only_the_cameras_own_recorder(base, fakes):
     assert any("/ISAPI/System/time" in h for h in one.hits) and not two.hits
 
 
+def test_a_stream_write_and_its_undo_reach_only_the_cameras_recorder_and_the_change_log_names_it(base, fakes):
+    one, two = fakes
+    for f in (one, two):  # an H.264 main stream with SVC on (the shape of test_nvr_stream_write.py): "SVC off" is a valid write
+        f.nvr["encodings"] = {"main": {"codec": "H.264", "svc": True, "width": 2560, "height": 1440, "bitrate_kbps": 3072, "quality": 60, "fps": 25, "bitrate_mode": "VBR", "profile": "High"},
+                              "sub": {"codec": "H.264", "svc": None, "width": 640, "height": 360}}
+    app, c = two_recorders(base, fakes)
+    cam2 = rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-2' AND channel = 1")[0]["id"]
+    detail = c.get(f"/api/v1/nvr/cameras/{cam2}").json()
+    main = next(s for s in detail["camera"]["streams"] if s["stream_ref"] == "101")
+    r = c.put(f"/api/v1/nvr/cameras/{cam2}/streams/101", json={"if_match": main["etag"], "confirm": True, "changes": {"svc": False}})
+    assert r.status_code == 200, r.text
+    assert len(two.nvr["put_bodies"]) == 1 and one.nvr["put_bodies"] == [], "the write went to the second recorder only"
+    mine = c.get("/api/v1/nvr/changes", params={"recorder_id": "nvr-2"}).json()["changes"]
+    assert [x["recorder_id"] for x in mine] == ["nvr-2"] and mine[0]["camera_id"] == cam2
+    assert not [x for x in c.get("/api/v1/nvr/changes", params={"recorder_id": "nvr-1"}).json()["changes"] if x["camera_id"] == cam2]
+    undo = c.post(f"/api/v1/nvr/changes/{mine[0]['id']}/rollback", json={"confirm": True})
+    assert undo.status_code == 201, undo.text
+    assert len(two.nvr["put_bodies"]) == 2 and one.nvr["put_bodies"] == [], "the undo too"
+
+
 def test_the_same_name_and_serial_on_two_recorders_are_two_cameras_and_a_swap_is_caught(base, fakes):
     one, two = fakes
     one.nvr["serials"] = {1: "SN-SAME-0001"}

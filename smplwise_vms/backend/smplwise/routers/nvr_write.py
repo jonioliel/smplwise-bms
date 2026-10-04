@@ -555,10 +555,10 @@ def _require_stream_change(conn: sqlite3.Connection, principal: Principal, r: sq
 
 @router.get("/nvr/changes")
 def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
-                 camera_id: str | None = Query(None, max_length=64)) -> dict[str, Any]:
+                 camera_id: str | None = Query(None, max_length=64), recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); ields is an object."""
     _require_read(conn, principal)
-    return {"changes": nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal))}
+    return {"changes": nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal), recorder_id=recorder_id)}
 
 
 @router.get("/nvr/changes/{change_id}")

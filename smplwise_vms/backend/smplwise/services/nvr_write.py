@@ -118,10 +118,18 @@ STREAM_KIND = "stream_encoding"
 
 
 def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None,
-                 stream_visible: Callable[[str | None], bool] | None = None) -> list[dict[str, Any]]:
+                 stream_visible: Callable[[str | None], bool] | None = None, recorder_id: str | None = None) -> list[dict[str, Any]]:
     """The newest changes. A `stream_encoding` row is listed only when `stream_visible(camera_id)` says so (CR-020 S2 review
-    M1: the caller's nvr.configure camera scope); without that predicate no stream change is listed at all."""
-    where, args = ("WHERE camera_id = ?", [camera_id]) if camera_id else ("", [])
+    M1: the caller's nvr.configure camera scope); without that predicate no stream change is listed at all. CR-024:
+    `recorder_id` keeps one recorder's changes."""
+    conds, args = [], []
+    if camera_id:
+        conds.append("camera_id = ?")
+        args.append(camera_id)
+    if recorder_id:
+        conds.append("recorder_id = ?")
+        args.append(recorder_id)
+    where = ("WHERE " + " AND ".join(conds)) if conds else ""
     if stream_visible is None:
         where = (where + " AND" if where else "WHERE") + " kind != ?"
         args.append(STREAM_KIND)
