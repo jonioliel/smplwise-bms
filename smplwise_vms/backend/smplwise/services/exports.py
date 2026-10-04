@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -412,6 +413,9 @@ class Worker:
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
         with db.connection() as conn:
+            n = scrub_credentials(conn)
+            if n:
+                log.warning("%d export job(s) held a URL with credentials; scrubbed", n)
             n = conn.execute("UPDATE export_jobs SET state = 'interrupted', error = 'הופסק בהפעלה מחדש של ה־Add-on', updated_at = ? WHERE state = 'running'", (now_iso(),)).rowcount
         if n:
             log.warning("%d export job(s) were running at shutdown; marked interrupted", n)
@@ -781,3 +785,19 @@ def _aged_cutoff() -> str:
 
 
 WORKER = Worker()
+
+
+
+_CRED_URL = re.compile(r"((?:rtsp|rtsps|http|https)://)[^/@\s\"']+:[^/@\s\"']*@")
+
+
+def scrub_credentials(conn: sqlite3.Connection) -> int:
+    """Security review HIGH (2026-10-04): remove `user:password@` from every URL stored in export_jobs.payload_json (rows a
+    Provision export wrote before the fix). Runs at every worker start; idempotent; returns the rows changed."""
+    n = 0
+    for row in conn.execute("SELECT id, payload_json FROM export_jobs WHERE payload_json LIKE '%@%'").fetchall():
+        clean = _CRED_URL.sub(r"\1", row["payload_json"] or "")
+        if clean != row["payload_json"]:
+            conn.execute("UPDATE export_jobs SET payload_json = ? WHERE id = ?", (clean, row["id"]))
+            n += 1
+    return n
