@@ -9,7 +9,7 @@ import '../components/sw-tabs';
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
-import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable } from './update-marker';
+import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable, restartRequired } from './update-marker';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
@@ -163,6 +163,8 @@ export class SwApp extends LitElement {
   private stopNavSize?: () => void;
   /** CR-021 S2: an update exists (known only to a holder of system.update; shell/update-marker.ts). */
   @state() private updateMark = updateAvailable();
+  /** CR-021 S3: the platform needs a restart (system.update holders only; the user-menu dot). */
+  @state() private restartMark = restartRequired();
   private stopUpdateMark?: () => void;
   private stopScreenEdits?: () => void;
   private stopScreenViews?: () => void;
@@ -1329,7 +1331,7 @@ export class SwApp extends LitElement {
     this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
-    this.stopUpdateMark = onUpdateState(() => (this.updateMark = updateAvailable()));
+    this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
@@ -2240,7 +2242,7 @@ export class SwApp extends LitElement {
     const badge = this.badge();
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
         .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
-        .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
+        .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .restartHref=${!this.gated && api && this.restartMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
         .screenViews=${this.gated ? [] : screenViews()}
         @screen-view=${(e: CustomEvent<{ id: string; value: string }>) => findScreenView(e.detail.id)?.set(e.detail.value)}
