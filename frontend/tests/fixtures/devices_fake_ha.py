@@ -65,6 +65,10 @@ sys.path.insert(0, str(ROOT / "smplwise_vms" / "backend"))
 FAKE_HOST = "fake-devices.test"
 os.environ["HA_URL"] = f"http://{FAKE_HOST}:8123"
 os.environ["HA_TOKEN"] = "fake-fixture-token"
+# NN1 (0.1.158): an installation with an NVR but no go2rtc is unsupported and the shell opens no live socket there, so this
+# fixture declares a media server too. It is answered in process (`_fake_go2rtc`): a stream table only, no media.
+FAKE_G2_HOST = "fake-go2rtc.test"
+os.environ["GO2RTC_URL"] = f"http://{FAKE_G2_HOST}:1984"
 PORT = int(os.environ.get("SW_PORT", "8099"))
 BASE = f"http://127.0.0.1:{PORT}/api/v1"
 
@@ -226,9 +230,31 @@ def _camera_proxy(request: httpx.Request) -> httpx.Response:
 
 
 _real_handle = httpx.HTTPTransport.handle_request
+_G2_STREAMS: dict[str, list[str]] = {}
+_G2_LOCK = threading.Lock()
+
+
+def _fake_go2rtc(request: httpx.Request) -> httpx.Response:
+    """The few go2rtc API calls the backend makes: version, list, put and delete streams. No media is served."""
+    path, method, q = request.url.path, request.method, request.url.params
+    with _G2_LOCK:
+        if method == "GET" and path == "/api":
+            return httpx.Response(200, json={"version": "fixture"}, request=request)
+        if method == "GET" and path == "/api/streams":
+            body = {n: {"producers": [{"url": s} for s in srcs]} for n, srcs in _G2_STREAMS.items()}
+            return httpx.Response(200, json=body, request=request)
+        if method == "PUT" and path == "/api/streams" and q.get("name"):
+            _G2_STREAMS[q["name"]] = [q.get("src", "")]
+            return httpx.Response(200, request=request)
+        if method == "DELETE" and path == "/api/streams":
+            _G2_STREAMS.pop(q.get("src", ""), None)
+            return httpx.Response(200, request=request)
+    return httpx.Response(404, request=request)
 
 
 def handle_request(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+    if request.url.host == FAKE_G2_HOST:
+        return _fake_go2rtc(request)
     if request.url.host == FAKE_HOST:
         if request.method == "POST" and request.url.path == "/api/services/smplwise_bridge/execute":
             return _execute(request)
