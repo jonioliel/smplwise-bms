@@ -4,7 +4,8 @@
 // docs/architecture/DECISIONS.md).
 // `security` (CR-010, 2026-09-29): the security area's own routes - #/security/alarm, and #/security (the last used section).
 // `multimedia` (CR-015, 2026-09-30): the screens and the remote - #/multimedia/screens (players and groups come in 0.1.150).
-export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia';
+// `infra` (CR-023, 2026-10-04): "תשתיות" - #/infra/electricity/<page> (docs/architecture/ELECTRICITY_UI_SHELL.md).
+export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia' | 'infra';
 
 export interface RouteState {
   path: string;
@@ -13,7 +14,7 @@ export interface RouteState {
   mode: Mode | null;
 }
 
-const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia'];
+const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra'];
 
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';

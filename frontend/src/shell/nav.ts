@@ -501,7 +501,22 @@ export function kavarnitSegments(api: boolean, can?: Can): KavarnitSegments {
 // (SECURITY_SETTINGS_TABS; #/security/alarm redirects), and camera health moved from the live pages into the
 // investigation (#/investigate/health; #/system/devices redirects) - see legacyRedirect.
 // ---------------------------------------------------------------------------------------------
-export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia';
+/** CR-023: the infrastructure area ("תשתיות", #/infra/*) with its one sub-tab "מוני חשמל" (water and generators join later), and its settings tab. */
+export const INFRA_METERS_HREF = '#/infra/electricity/meters';
+export const INFRA_SETTINGS_HREF = '#/system/infra';
+export const INFRA_TABS: TabItem[] = [{ id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF }];
+
+/** CR-023: the area is offered to holders of energy.view only when the installation has meters or the user may manage them (an installation
+ * without meters shows nothing). Filled by electricity/visibility.ts; true = no meters and no manage permission. */
+let INFRA_NO_METERS = false;
+export function applyInfraMeters(hasMetersOrManage: boolean): void {
+  const hide = !hasMetersOrManage;
+  if (hide === INFRA_NO_METERS) return;
+  INFRA_NO_METERS = hide;
+  for (const l of tabsListeners) l();
+}
+
+export type AreaId = 'security' | 'explore' | 'system' | 'wiskey' | 'devices' | 'multimedia' | 'infra';
 export type SecuritySection = 'live' | 'investigate' | 'alarm';
 
 export interface AreaEntry {
@@ -526,10 +541,12 @@ export const NAV_A: AreaEntry[] = [
   // CR-015 (owner decision 2a): "מולטימדיה" between the map and WisKey; shown to holders of media.read (TAB_PERMISSIONS)
   { id: 'multimedia', icon: 'media', label: 'מולטימדיה', href: '#/multimedia/screens' },
   { id: 'wiskey', icon: 'door', label: 'WisKey', href: '#/wiskey/overview' },
+  // CR-023: "תשתיות" after WisKey; shown to holders of energy.view (TAB_PERMISSIONS) when the installation has meters or the user may manage them
+  { id: 'infra', icon: 'bolt', label: 'תשתיות', href: INFRA_METERS_HREF },
 ];
 
 /** The ids of the movable tabs, in the default order (the server keeps the same list: services/user_prefs.py). */
-export type NavTabId = 'devices' | 'security' | 'explore' | 'multimedia' | 'wiskey';
+export type NavTabId = 'devices' | 'security' | 'explore' | 'multimedia' | 'wiskey' | 'infra';
 export const NAV_TAB_IDS: NavTabId[] = NAV_A.map((n) => n.id as NavTabId);
 
 /** "מערכת" (the settings area): a route area of its own (crumbs, tabs) but, since CR-013, reached from the user menu. */
@@ -585,6 +602,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
   /** Entry Center/overview, Activity/events and People/people (CR-005 phase 1b), plus WisKey's own screens as embedded
    * tabs (CR-005 recorded decision 2026-09-28) - the same list as WISKEY_TABS. */
   wiskey: WISKEY_TABS,
+  infra: INFRA_TABS,
   system: [
     { id: 'general', label: 'כללי', href: '#/system/diagnostics' },
     // CR-008 P3: per-user push notifications - every signed-in user may set their own (no TAB_PERMISSIONS entry)
@@ -601,6 +619,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
     { id: 'multimedia', label: 'מולטימדיה', href: MULTIMEDIA_SETTINGS_HREF },
+    // CR-023: prices and VAT, business details, data retention of the electricity module (energy.manage, or system.configure for the retention)
+    { id: 'infra', label: 'תשתיות', href: INFRA_SETTINGS_HREF },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -640,6 +660,8 @@ export function activeAreaTab(r: RouteState | null): string {
       return wiskeyActiveTab(r);
     case 'devices':
       return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
+    case 'infra':
+      return 'electricity';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -780,6 +802,9 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/multimedia/players': ['media.read'],
   '#/multimedia/groups': ['media.read'],
   [MULTIMEDIA_SETTINGS_HREF]: ['system.configure'],
+  // CR-023: energy.view / energy.manage are installation-scope in v1; the settings tab is for managers (prices, business) and system administrators (retention)
+  [INFRA_METERS_HREF]: ['energy.view'],
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
@@ -814,7 +839,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -851,7 +876,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the
@@ -907,7 +932,7 @@ export function landingTarget(start: string, api: boolean, can: Can | undefined,
 /** A RouteState for a path, without the router's window dependency (nav.ts stays pure). */
 function parseRouteLite(path: string): RouteState {
   const segments = path.split('?')[0].split('/').filter(Boolean);
-  const modes = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia'];
+  const modes = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra'];
   return { path, segments, params: new URLSearchParams(path.split('?')[1] ?? ''), mode: modes.includes(segments[0]) ? (segments[0] as RouteState['mode']) : null };
 }
 
