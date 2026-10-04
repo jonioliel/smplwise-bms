@@ -15,10 +15,10 @@ import { fileURLToPath } from 'node:url';
 //   SW_BASE_URL=http://127.0.0.1:4391/ npx playwright test tests/evidence-shell.spec.ts
 
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR1-shell');
-const TABS = ['ראשי', 'אבטחה', 'מפה', 'מולטימדיה', 'WisKey']; // the static demo shows every area (CR-015 added מולטימדיה)
-const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey']; // the stored order: every tab, hidden ones included
-/** What a user WITHOUT media.read sees: the same order without the multimedia entry (CR-015). */
-const VISIBLE_ORDER = DEFAULT_ORDER.filter((t) => t !== 'multimedia');
+const TABS = ['ראשי', 'אבטחה', 'מפה', 'מולטימדיה', 'WisKey', 'תשתיות']; // the static demo shows every area (CR-015 added מולטימדיה, CR-023 תשתיות)
+const DEFAULT_ORDER = ['devices', 'security', 'explore', 'multimedia', 'wiskey', 'infra']; // the stored order: every tab, hidden ones included
+/** What a user WITHOUT media.read and energy.view sees: the same order without the multimedia (CR-015) and infrastructure (CR-023) entries. */
+const VISIBLE_ORDER = DEFAULT_ORDER.filter((t) => t !== 'multimedia' && t !== 'infra');
 
 function phone(info: { project: { name: string } }) {
   return info.project.name === 'mobile';
@@ -375,27 +375,27 @@ test.describe('CR-013 shell on the demo data', () => {
     await page.evaluate(() => sessionStorage.setItem('cr013-keep', '1'));
     await openOrder(page, info);
     const dlg = page.locator('sw-app sw-nav-order');
-    await expect(dlg.locator('li[data-tab]')).toHaveCount(5);
+    await expect(dlg.locator('li[data-tab]')).toHaveCount(6);
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(TABS);
     await page.waitForTimeout(250);
     if (phone(info)) await shot(page, 'shell-phone-tab-order');
     // WisKey to the top with the ▲ buttons, then אבטחה down one
     for (let i = 0; i < 4; i++) await dlg.locator('li[data-tab="wiskey"] [data-move="up"]').click();
     await dlg.locator('li[data-tab="security"] [data-move="down"]').click();
-    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['WisKey', 'ראשי', 'מפה', 'אבטחה', 'מולטימדיה']);
+    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['WisKey', 'ראשי', 'מפה', 'אבטחה', 'מולטימדיה', 'תשתיות']);
     await expect(dlg.locator('[data-nav-order-announce]')).toContainText('אבטחה הועבר למקום 4');
     await dlg.locator('[data-nav-order-save]').click();
     await expect(dlg.locator('sw-dialog')).toBeHidden();
-    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia']);
+    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia', 'infra']);
     await page.reload();
     await page.waitForTimeout(500);
-    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia']);
+    expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia', 'infra']);
     // keyboard on the handle
     await openOrder(page, info);
     await dlg.locator('li[data-tab="explore"] .handle').focus();
     await expect(dlg.locator('li[data-tab="explore"] .handle')).toBeFocused();
     await page.keyboard.press('Home');
-    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה', 'מולטימדיה']);
+    await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'WisKey', 'ראשי', 'אבטחה', 'מולטימדיה', 'תשתיות']);
     await dlg.locator('[data-nav-order-reset]').click();
     await expect(dlg.locator('sw-dialog')).toBeHidden();
     expect(await navTabs(page, info)).toEqual(DEFAULT_ORDER);
@@ -672,7 +672,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab] .name')).toHaveText(['מפה', 'ראשי', 'אבטחה', 'WisKey']);
     await dlg.locator('[data-nav-order-save]').click();
     await expect.poll(() => mock.puts.length).toBe(1);
-    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'multimedia', 'wiskey'] } });
+    expect(mock.puts[0]).toEqual({ user: 'u-admin', body: { 'nav.order': ['explore', 'devices', 'security', 'multimedia', 'wiskey', 'infra'] } });
     expect(await navTabs(page, info)).toEqual(['explore', 'devices', 'security', 'wiskey']);
     // another device: no local copy - the server's order applies
     await page.evaluate(() => localStorage.removeItem('sw.nav.order'));
@@ -707,6 +707,6 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await expect(dlg.locator('li[data-tab]')).toHaveCount(3);
     await dlg.locator('li[data-tab="security"] [data-move="up"]').click();
     await dlg.locator('[data-nav-order-save]').click();
-    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices', 'multimedia'] });
+    await expect.poll(() => mock.puts.at(-1)?.body).toEqual({ 'nav.order': ['wiskey', 'explore', 'security', 'devices', 'multimedia', 'infra'] });
   });
 });
