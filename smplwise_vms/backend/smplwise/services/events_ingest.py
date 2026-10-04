@@ -569,6 +569,13 @@ class AlertStreamListener:
     def _loop(self) -> None:
         assert self.settings and self.db
         s = self.settings
+        from .recorders import vendor_io
+
+        if vendor_io.handles(s):  # CR-025: a Provision-ISR recorder polls / receives pushes instead of the ISAPI stream
+            from .recorders.provision_events import run_loop
+
+            run_loop(self)
+            return
         backoff = 5.0
         url = f"http://{s.nvr_host}:{s.nvr_http_port}/ISAPI/Event/notification/alertStream"
         while not self.stop.is_set():

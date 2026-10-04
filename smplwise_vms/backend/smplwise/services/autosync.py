@@ -97,18 +97,23 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
     survive. `settings` is the process-wide settings; the recorder's own connection is taken from it."""
     rid = recorder_id or DEFAULT_RECORDER
     rs = settings_for(settings, rid)
+    from .recorders import vendor_io
+
     with unlocked(conn):
-        info = nvr.device_info(rs)
-        channels = nvr.discover_channels(rs)
-        # CR-008 D7: the main / sub stream encodings (one more read-only GET); a failure never fails the discovery
         encodings: dict[int, dict[str, Any]] = {}
         enc_error: str | None = None
-        try:
-            encodings = nvr.fetch_stream_encodings(rs)
-        except ApiError as exc:
-            enc_error = exc.code
-        except Exception as exc:  # noqa: BLE001 - an unparsable document
-            enc_error = type(exc).__name__
+        if vendor_io.handles(rs):  # CR-025: Provision-ISR discovery through its adapter (names, status, encodings)
+            info, channels, encodings, enc_error = vendor_io.discover(rs, rid)
+        else:
+            info = nvr.device_info(rs)
+            channels = nvr.discover_channels(rs)
+            # CR-008 D7: the main / sub stream encodings (one more read-only GET); a failure never fails the discovery
+            try:
+                encodings = nvr.fetch_stream_encodings(rs)
+            except ApiError as exc:
+                enc_error = exc.code
+            except Exception as exc:  # noqa: BLE001 - an unparsable document
+                enc_error = type(exc).__name__
     ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None, recorder_id=rid)
     _store_capabilities(conn, rs, rid)
     has_source_ref = _has_column(conn, "cameras", "source_ref")
@@ -182,13 +187,17 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     gone = [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute(
         f"SELECT recorder_id, channel FROM cameras WHERE recorder_id IN ({','.join('?' * len(removed_ids))})", removed_ids).fetchall()
         for p in ("sub", "main")] if removed_ids else []
+    from .recorders import vendor_io
+
+    sources = vendor_io.LiveSources()  # CR-025: a Provision recorder's source path comes from the device
     with unlocked(conn):
         for cam in cams:
             rs = settings_for(settings, cam["recorder_id"])
             for profile in ("sub", "main"):
                 name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
                 try:
-                    src = g2.hikvision_rtsp_url(rs, cam["channel"], profile)
+                    src = (sources.url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs)
+                           else g2.hikvision_rtsp_url(rs, cam["channel"], profile))
                 except ApiError:
                     if rs is settings:
                         raise  # the first recorder keeps its old behaviour (the error is the run's outcome)

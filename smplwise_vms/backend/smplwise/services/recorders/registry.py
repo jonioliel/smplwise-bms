@@ -29,9 +29,11 @@ VENDORS: dict[str, Callable[[str, Settings], RecorderAdapter]] = {DEFAULT_VENDOR
 class VendorField:
     key: str
     label: str
-    kind: Literal["host", "port", "text", "password", "bool"]
+    kind: Literal["host", "port", "text", "password", "bool", "select"]
     required: bool
     secret: bool = False
+    options: tuple[tuple[str, str], ...] = ()  # CR-025: (value, label) of a `select` field; the first is the default
+    advanced: bool = False  # CR-025: shown under "הגדרות מתקדמות" in the form
 
 
 @dataclass(frozen=True)
@@ -149,3 +151,14 @@ def adapter_for(conn: sqlite3.Connection, settings: Settings, recorder_id: str) 
         if vendor and vendor != NO_NVR:
             rs = dataclasses.replace(rs, nvr_vendor=vendor)
     return constructor_for(rs)(recorder_id, rs)
+
+
+# CR-025: Provision-ISR registered through the seam above (adapter + connection-form spec). Validated read-only on the
+# owner's NVR 2026-10-04; selectable so a Provision recorder can be added in Settings. Writes stay off per recorder
+# (`writes_enabled`) until the owner approves them.
+from . import provision_isr as _provision_isr  # noqa: E402
+
+_provision_isr.register(selectable=True)
+_ORDER = (DEFAULT_VENDOR, "provision_isr", "frigate", NO_NVR)  # the catalogue order the form shows (late registrations keep it)
+VENDOR_SPECS = tuple(sorted(VENDOR_SPECS, key=lambda s: _ORDER.index(s.id) if s.id in _ORDER else len(_ORDER) - 1))
+SPEC_BY_ID = {s.id: s for s in VENDOR_SPECS}

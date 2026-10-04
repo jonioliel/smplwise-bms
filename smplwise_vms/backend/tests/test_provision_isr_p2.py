@@ -204,11 +204,17 @@ def test_parse_element_and_registry_encoding_of_a_written_item(settings, fake):
 # ---------------------------------------------------------------------------------------------- the shared route
 
 def add_camera(settings, cid="pcam1", channel=1):
-    with Database(settings.db_path).connection() as conn:
-        autosync.ensure_recorder(conn)
-        now = now_iso()
-        conn.execute("INSERT INTO cameras(id, recorder_id, channel, name_source, sort_order, main_track, sub_track, capabilities_json, status, created_at, updated_at) "
-                     "VALUES (?, 'nvr-1', ?, 'Entrance', 1, NULL, NULL, '{}', 'online', ?, ?)", (cid, channel, now, now))
+    """CR-025 wiring: the start-up discovery of a Provision primary creates the camera rows through the adapter; wait for
+    them and give channel 1 a fixed id for the tests (rows are matched by recorder + channel)."""
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        with Database(settings.db_path).connection() as conn:
+            row = conn.execute("SELECT id FROM cameras WHERE recorder_id = 'nvr-1' AND channel = ?", (channel,)).fetchone()
+            if row is not None:
+                conn.execute("UPDATE cameras SET id = ? WHERE id = ?", (cid, row["id"]))
+                return
+        time.sleep(0.05)
+    raise AssertionError("discovery did not create the camera")
 
 
 @pytest.fixture()
@@ -365,7 +371,14 @@ def test_every_mapped_kind_produces_an_event():
 def test_register_is_a_no_op_without_the_seam(monkeypatch):
     monkeypatch.delattr(registry, "register_vendor", raising=False)
     assert pisr.register() is None
-    assert "provision_isr" not in registry.VENDORS or registry.VENDORS["provision_isr"] is not pisr.ProvisionIsrAdapter
+
+
+def test_registered_at_import_and_selectable():
+    assert registry.VENDORS["provision_isr"] is pisr.ProvisionIsrAdapter
+    cat = {c["id"]: c for c in registry.catalogue()}
+    assert cat["provision_isr"]["status"] == "available"
+    keys = {f["key"] for f in cat["provision_isr"]["fields"]}
+    assert {"scheme", "https_port", "tls_mode", "tls_pin", "auth", "event_mode", "suppress_insecure_warning"} <= keys
 
 
 def test_register_through_the_seam_keeps_coming_soon(monkeypatch):

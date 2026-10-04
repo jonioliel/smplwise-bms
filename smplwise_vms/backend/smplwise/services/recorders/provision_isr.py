@@ -25,6 +25,7 @@ owner's unit has been validated live (CR-025 section 6)."""
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -65,7 +66,9 @@ AUTH_TTL_S = 600.0  # the detected auth scheme is re-probed after this (a firmwa
 REFUSED_BACKOFF_S = 300.0  # after the device refuses the credentials, no further login attempt for this long (lockout guard)
 
 _AUTH: dict[str, tuple[float, str]] = {}  # device_key -> (expires at, scheme)
-_CHALLENGE: dict[str, dict[str, Any]] = {}  # device_key -> non-secret facts of the last challenge (provision_isr_auth.describe)
+_CHALLENGE: dict[str, dict[str, Any]] = {}
+_PINNED: dict[str, float] = {}  # device_key -> pinned certificate verified until (monotonic)
+PIN_TTL_S = 600.0  # device_key -> non-secret facts of the last challenge (provision_isr_auth.describe)
 _REFUSED: dict[str, float] = {}  # device_key -> no login attempt before this (monotonic)
 _AUTH_LOCK = threading.Lock()
 _monotonic = time.monotonic
@@ -76,6 +79,7 @@ def clear_auth_cache() -> None:
         _AUTH.clear()
         _REFUSED.clear()
         _CHALLENGE.clear()
+        _PINNED.clear()
 
 
 def _unavailable(op: str, exc: Exception) -> ApiError:
@@ -153,6 +157,9 @@ class ProvisionIsrAdapter:
         if info["insecure"] and not self._extra.get("suppress_insecure_warning"):
             out.append({"code": "basic_over_http", "severity": "warning", "dismissible": True,
                         "message": "החיבור ל־NVR שולח את הסיסמה בלי הצפנה (Basic על HTTP). מומלץ להפעיל HTTPS או Digest במכשיר."})
+        if self.scheme == "https" and self.tls_mode() == "trust" and not self._extra.get("suppress_tls_warning"):
+            out.append({"code": "tls_trust_any", "severity": "warning", "dismissible": True,
+                        "message": "תעודת ה־HTTPS של ה־NVR אינה נבדקת. מומלץ לנעוץ את התעודה בבדיקת החיבור."})
         challenge = info.get("challenge") or {}
         if challenge.get("auth_version") and info["auth"] != "vendor_v1_1":
             out.append({"code": "vendor_auth_version", "severity": "info", "dismissible": True,
@@ -165,10 +172,40 @@ class ProvisionIsrAdapter:
             port = port or self._settings.nvr_http_port
         return f"{self.scheme}://{self._settings.nvr_host}:{port}"
 
+    def tls_mode(self) -> str:
+        """HTTPS certificate handling: `verify` (system CAs; default), `pin` (the device's own certificate, SHA-256 in
+        `tls_pin`, recorded by the connection test - the right fix for a self-signed NVR) or `trust` (any certificate;
+        warned). The legacy `tls_verify: false` means `trust`."""
+        mode = str(self._extra.get("tls_mode") or "").lower()
+        if mode in ("verify", "pin", "trust"):
+            return mode
+        return "trust" if self._extra.get("tls_verify") is False else "verify"
+
     def _verify(self) -> Any:
-        if self.scheme == "https" and self._extra.get("tls_verify") is False:
-            return False
+        if self.scheme == "https" and self.tls_mode() in ("pin", "trust"):
+            return False  # pin: the certificate is checked by its fingerprint before any credentials are sent (_check_pin)
         return nvr._ssl_context()
+
+    def _check_pin(self) -> None:
+        """Pinned HTTPS: one TLS handshake (no HTTP, no credentials) compares the device certificate's SHA-256 with `tls_pin`
+        before a request carrying credentials is sent. A good answer is cached per device for PIN_TTL_S."""
+        if self.scheme != "https" or self.tls_mode() != "pin":
+            return
+        pin = str(self._extra.get("tls_pin") or "").strip().lower().replace(":", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", pin):
+            raise ApiError(409, "tls_pin_missing", "לא נשמרה טביעת אצבע של תעודת ה־NVR. בצעו בדיקת חיבור ושמרו.", details={"op": "tls"})
+        with _AUTH_LOCK:
+            ok_until = _PINNED.get(self.device_key)
+        if ok_until and ok_until > _monotonic():
+            return
+        try:
+            got = PEER_CERTIFICATE(self._settings.nvr_host or "", int(self._extra.get("https_port") or 443), HEALTH_TIMEOUT_S)
+        except OSError as exc:
+            raise _unavailable("tls", exc) from exc
+        if got.get("sha256") != pin:
+            raise ApiError(503, "tls_pin_mismatch", "תעודת ה־NVR השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": "tls"})
+        with _AUTH_LOCK:
+            _PINNED[self.device_key] = _monotonic() + PIN_TTL_S
 
     def _client(self, timeout: float = READ_TIMEOUT_S, auth: httpx.Auth | None = None, port: int | None = None) -> httpx.Client:
         from ...mode import ensure_nvr
@@ -177,6 +214,7 @@ class ProvisionIsrAdapter:
         s = self._settings
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
+        self._check_pin()
         kwargs: dict[str, Any] = {"base_url": self._base_url(port), "timeout": timeout, "verify": self._verify()}
         if auth is not None:
             kwargs["auth"] = auth
@@ -850,14 +888,55 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         return None
     base = tuple(getattr(registry, "_NETWORK_FIELDS", ()))
     VF = registry.VendorField
+    def sel(key: str, label: str, options: tuple[tuple[str, str], ...], advanced: bool = False) -> Any:
+        try:
+            return VF(key, label, "select", False, options=options, advanced=advanced)
+        except TypeError:  # a registry without select fields: plain text
+            return VF(key, label, "text", False)
+
+    def adv(key: str, label: str, kind: str) -> Any:
+        try:
+            return VF(key, label, kind, False, advanced=True)
+        except TypeError:
+            return VF(key, label, kind, False)
+
     extra = (
-        VF("scheme", "פרוטוקול (http / https)", "text", False),
+        sel("scheme", "חיבור", (("https", "HTTPS (מוצפן)"), ("http", "HTTP"))),
         VF("https_port", "פורט HTTPS", "port", False),
-        VF("tls_verify", "אימות תעודת HTTPS", "bool", False),
-        VF("auth", "שיטת אימות (אוטומטי / basic / digest)", "text", False),
-        VF("rtsp_style", "תבנית כתובת RTSP (query / path)", "text", False),
-        VF("event_mode", "אירועים: דגימה או דחיפה (poll / push)", "text", False),
-        VF("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool", False),
+        sel("tls_mode", "תעודת HTTPS", (("pin", "נעיצת תעודת המכשיר"), ("verify", "אימות רגיל"), ("trust", "לסמוך על כל תעודה"))),
+        adv("tls_pin", "טביעת אצבע של התעודה (SHA-256)", "text"),
+        sel("auth", "שיטת אימות", (("", "אוטומטי"), ("basic", "Basic"), ("digest", "Digest"))),
+        sel("event_mode", "אירועים", (("poll", "דגימה כל 2 שניות"), ("push", "דחיפה מהמכשיר"))),
+        adv("poll_interval_s", "מרווח דגימה (שניות)", "text"),
+        adv("push_port", "פורט קבלת דחיפות", "port"),
+        sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),
+        adv("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool"),
+        adv("suppress_tls_warning", "להסתיר את אזהרת התעודה", "bool"),
     )
     spec = registry.VendorSpec(VENDOR, "Provision-ISR", "available" if selectable else "planned", {"http_port": 80, "rtsp_port": 554}, base + extra)
     return reg(spec, ProvisionIsrAdapter)
+
+
+def peer_certificate(host: str, port: int, timeout: float) -> dict[str, Any]:
+    """One TLS handshake without verification (no HTTP request, no credentials): the certificate's SHA-256 (hex) and whether
+    it is self-signed. Used to record a pin at the connection test and to check it before every client."""
+    import socket
+    import ssl
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with socket.create_connection((host, port), timeout=timeout) as sock, ctx.wrap_socket(sock, server_hostname=host) as tls:
+        der = tls.getpeercert(binary_form=True) or b""
+    self_signed: bool | None = None
+    try:
+        from cryptography import x509
+
+        cert = x509.load_der_x509_certificate(der)
+        self_signed = cert.issuer == cert.subject
+    except Exception:  # noqa: BLE001 - optional detail
+        pass
+    return {"sha256": hashlib.sha256(der).hexdigest(), "self_signed": self_signed}
+
+
+PEER_CERTIFICATE = peer_certificate  # tests replace this (no sockets)

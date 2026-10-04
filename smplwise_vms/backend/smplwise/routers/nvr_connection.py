@@ -272,7 +272,7 @@ def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, f
     with unlocked(conn):
         return connection_probe.check_and_probe(fields["host"], settings, lambda target: connection_probe.candidate(
             settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
-            username=fields["username"], password=password))
+            username=fields["username"], password=password, extra=fields.get("extra")))
 
 
 def _revision_now(conn: sqlite3.Connection, rid: str = PRIMARY) -> int:
@@ -390,6 +390,8 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     row = connection_store.get_row(conn, rid)
     _check_vendor_change(conn, settings, row, fields, rid)
     untested = False
+    if result.get("pin_required"):  # CR-025: "pin" chosen but no fingerprint in the body - the form pins it from the test
+        raise ApiError(422, "tls_pin_required", "יש לנעוץ את תעודת ה־NVR (בדיקת חיבור ואז נעיצה) לפני השמירה.", details={"field": "tls_pin"})
     if not result["ok"]:
         code = result["code"]
         if code in UNTESTED_OK and body.save_untested:
@@ -398,7 +400,8 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
             untested = True
         else:
             messages = {"source_forbidden": "ה־NVR דחה את שם המשתמש או הסיסמה.", "source_unavailable": "לא ניתן להתחבר ל־NVR.", "timeout": "ה־NVR לא ענה בזמן.",
-                        "source_error": "ה־NVR החזיר שגיאה."}
+                        "source_error": "ה־NVR החזיר שגיאה.", "tls_pin_mismatch": "תעודת ה־NVR אינה התעודה שננעצה.",
+                        "auth_scheme_unsupported": "שיטת האימות של ה־NVR אינה נתמכת."}
             audit(conn, actor=principal, action="nvr.connection.update", decision="denied", resource_type="nvr", resource_id=_res(rid), reason=code,
                   request_id=_rid(request), details={"vendor": fields["vendor"], "outcome": code})
             raise ApiError(503 if code != "source_forbidden" else 502, code, messages.get(code, "בדיקת החיבור נכשלה."), retryable=code in UNTESTED_OK,
