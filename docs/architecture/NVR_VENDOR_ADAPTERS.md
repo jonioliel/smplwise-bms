@@ -168,6 +168,11 @@ Per-recorder limits (concurrent RTSP sessions, bandwidth) belong to the recorder
 
 ### 5.2 Provision-ISR (later; needs a read-only probe of a real unit first)
 
+> **Superseded 2026-10-04 by CR-025** (`docs/changes/CR-025-PROVISION-ISR.md`): the vendor's own HTTP API v1 / v2.1
+> documentation is now available (study: `docs/integrations/provision-isr/API_STUDY.md`). The adapter is
+> `services/recorders/provision_isr.py` over HTTP API v1 (P1 read-only, built offline), not ONVIF. The text below is the
+> earlier plan, kept for history.
+
 The documented common ground is ONVIF. Provision-ISR's own HTTP API is not publicly documented to us.
 
 | Ability | Via | Expectation |

@@ -134,7 +134,11 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
     client = g2.Go2rtc(settings)
     from ..recorder_scope import camera_settings
 
-    client.ensure_stream(name, g2.hikvision_rtsp_url(camera_settings(settings, cam), cam["channel"], profile))  # CR-024: the camera's recorder
+    from ..services.recorders import vendor_io
+
+    rs = camera_settings(settings, cam)  # CR-024: the camera's recorder
+    src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs) else g2.hikvision_rtsp_url(rs, cam["channel"], profile)
+    client.ensure_stream(name, src)
     return name
 
 

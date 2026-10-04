@@ -2089,6 +2089,43 @@
       "last_seen_version": null
     },
     {
+      "id": "neonplan3d",
+      "name": "NeonPlan 3D (Mastershort, MIT) - design reference",
+      "kind": "design-reference",
+      "status": "planned",
+      "priority": "P3",
+      "owner": "Arx platform lead",
+      "urls": {
+        "repo": "https://github.com/Mastershort/neonplan3d",
+        "releases": "https://github.com/Mastershort/neonplan3d/releases",
+        "docs": "https://mastershort.de/en/neonplan3d/manual/"
+      },
+      "feeds": [
+        {
+          "type": "github_releases",
+          "repo": "Mastershort/neonplan3d"
+        }
+      ],
+      "current": {
+        "version": null,
+        "source": "no code dependency; owner-saved reference (2026-10-04) for design research on the deferred map/3D work",
+        "verify": false,
+        "applicable": false
+      },
+      "dependents": [
+        "docs/changes/CR-006-PLAN-STUDIO-3D-VISUAL-LEVEL.md"
+      ],
+      "watch_keywords": [
+        "license",
+        "breaking",
+        "pro",
+        "removed"
+      ],
+      "note": "Owner-saved design reference (MIT): Home Assistant 3D floor-plan card with a neon look (Vue + Three.js, HA integration). Study interaction and visual ideas only (glowing lights, animated blinds/doors, house-floor-room navigation, zero frames when idle, restore points). Optional paid furniture packs and Pro add-ons are not in the repo; copy no code or assets without keeping the MIT notice.",
+      "last_checked": "2026-10-04",
+      "last_seen_version": null
+    },
+    {
       "id": "domusui",
       "name": "DomusUI (Mattia2399, GPL-3.0) - design reference",
       "kind": "design-reference",

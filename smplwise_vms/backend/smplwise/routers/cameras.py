@@ -133,7 +133,10 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     if not fresh:
         try:
             with unlocked(conn):
-                data = nvr.fetch_snapshot(camera_settings(settings, cam), cam["channel"])
+                from ..services.recorders import vendor_io
+
+                rs = camera_settings(settings, cam)
+                data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
             path.write_bytes(data)
         except ApiError as exc:
             if not stale_ok:

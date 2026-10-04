@@ -80,6 +80,12 @@ class Payload:
 
 def _files_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[ExportFile], str]:
     """Raw NVR files overlapping [start, end) with their playbackURIs and sizes (from the URI's size param)."""
+    from ..recorder_scope import camera_settings
+    from .recorders import vendor_io
+
+    rs = camera_settings(settings, cam)
+    if vendor_io.handles(rs):  # CR-025 P3: one RTSP `backup` request per recording (sizes unknown)
+        return vendor_io.export_files(rs, cam["recorder_id"], cam["channel"], start, end, tz_name)
     tz = zone(tz_name)
     matches, coverage, _pages = recordings.list_matches(settings, cam, start, end, tz_name)
     files: list[ExportFile] = []
@@ -547,7 +553,14 @@ class Worker:
                 return job_id not in self.cancel_flags  # False = abort
 
             try:
-                self.downloader(source, f.playback_uri, dest, progress)
+                from .recorders import vendor_io
+
+                if vendor_io.handles(source) and self.downloader is nvr.download_file:
+                    from .recorders.provision_playback import rtsp_download
+
+                    rtsp_download(source, f.playback_uri, dest, progress)  # CR-025: RTSP backup -> MPEG-TS, no re-encode
+                else:
+                    self.downloader(source, f.playback_uri, dest, progress)
                 f.state = "downloaded"
                 f.bytes = dest.stat().st_size
                 done_bytes += f.bytes
@@ -605,7 +618,9 @@ class Worker:
             self._update(job_id, state="failed", payload=payload, error="אף קובץ לא ירד מה־NVR")
             return
         try:
-            self._finish(job_id, d, payload, ok_files, row)
+            from .recorders import vendor_io
+
+            self._finish(job_id, d, payload, ok_files, row, ts=vendor_io.handles(source))
         except Exception as exc:
             log.exception("export %s post-processing failed", job_id)
             payload.remux = "failed"
@@ -614,16 +629,21 @@ class Worker:
         state = "done" if all(f.state in ("downloaded", "remuxed") for f in payload.files) else "partial"
         self._update(job_id, state=state, progress=1.0, payload=payload, error=None if state == "done" else "חלק מהקבצים לא ירדו; הייצוא חלקי")
 
-    def _finish(self, job_id: str, d: Path, payload: Payload, files: list[ExportFile], row: sqlite3.Row) -> None:
+    def _finish(self, job_id: str, d: Path, payload: Payload, files: list[ExportFile], row: sqlite3.Row, ts: bool = False) -> None:
         ff = ffmpeg_path()
         req_from, req_to = parse_utc(row["requested_from"]), parse_utc(row["requested_to"])
         first_start = parse_utc(files[0].start_at)
-        if ff:
+        if ts and not ff:
+            # CR-025: without ffmpeg a Provision export is handed over as the MPEG-TS the device sent (clip.ts / a zip of .ts)
+            self._deliver_ts(d, payload, files)
+        elif ff:
+            # CR-025 (owner, corrected 2026-10-04): Provision exports are remuxed to MP4 like Hikvision ones - the downloaded
+            # files are MPEG-TS (RTSP backup copied by ffmpeg), so only the input format differs; video is never re-encoded
             parts: list[Path] = []
             for f in files:
                 idx = payload.files.index(f)
                 src, mp4 = d / f"{idx:03d}.ps", d / f"{idx:03d}.mp4"
-                _ffmpeg(ff, ["-f", "mpeg", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy", "-c:a", "aac", "-ar", "8000", "-b:a", "32k", "-movflags", "+faststart", str(mp4)])
+                _ffmpeg(ff, ["-f", "mpegts" if ts else "mpeg", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy", "-c:a", "aac", "-ar", "8000", "-b:a", "32k", "-movflags", "+faststart", str(mp4)])
                 f.state = "remuxed"
                 parts.append(mp4)
                 src.unlink(missing_ok=True)
@@ -667,7 +687,7 @@ class Worker:
             "actual_from": payload.actual_from,
             "actual_to": payload.actual_to,
             "timezone": payload.timezone,
-            "source": {"kind": "hikvision-nvr-download-by-file", "files": [{k: v for k, v in asdict(f).items() if k != "playback_uri"} for f in payload.files]},
+            "source": {"kind": "provision-isr-rtsp-backup" if ts else "hikvision-nvr-download-by-file", "files": [{k: v for k, v in asdict(f).items() if k != "playback_uri"} for f in payload.files]},
             "container": payload.container,
             "remux": payload.remux,
             "output": {"name": payload.output_name, "bytes": out.stat().st_size, "sha256": payload.sha256},
@@ -676,6 +696,27 @@ class Worker:
         }
         (d / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         payload.manifest = "manifest.json"
+
+    def _deliver_ts(self, d: Path, payload: Payload, files: list[ExportFile]) -> None:
+        idxs = [payload.files.index(f) for f in files if (d / f"{payload.files.index(f):03d}.ps").exists()]
+        if not idxs:
+            raise ApiError(500, "export_failed", "לא נשארו קבצים למסירה.")
+        if len(idxs) == 1:
+            out = d / "clip.ts"
+            (d / f"{idxs[0]:03d}.ps").rename(out)
+            payload.output, payload.media_type, payload.container = out.name, "video/mp2t", "mpegts"
+        else:
+            import zipfile
+
+            out = d / "clip.zip"
+            with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
+                for i in idxs:
+                    z.write(d / f"{i:03d}.ps", f"{i:03d}.ts")
+            payload.output, payload.media_type, payload.container = out.name, "application/zip", "zip"
+        payload.remux = "skipped"
+        payload.actual_from = files[0].start_at
+        payload.actual_to = files[-1].end_at
+        payload.note = "הקובץ הוא MPEG-TS כפי שה־NVR שלח אותו (ללא המרה); לא נחתך לטווח."
 
     def _deliver_raw(self, d: Path, payload: Payload, files: list[ExportFile]) -> None:
         """No ffmpeg (or remux failed): hand over the NVR container unchanged, honestly labelled."""

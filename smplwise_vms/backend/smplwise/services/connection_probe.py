@@ -86,7 +86,7 @@ SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # the platform's own services, refused on ANY host (review F9): HA core 8123, go2rtc 1984 / 8554 / 8555, the observer 4357,
 # Arx's own port 8099. None of them is an NVR's HTTP port.
 REFUSED_PORTS = frozenset({8123, 1984, 8554, 8555, 4357, 8099})
-OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused")
+OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported")
 
 # the probe's limits (CR-022 section 6.3, review F4)
 CONNECT_S = 5.0
@@ -252,11 +252,12 @@ def refused_host(host: str, settings: Settings) -> bool:
 
 # ---------------------------------------------------------------- the probe (read-only)
 
-def candidate(settings: Settings, *, vendor: str, target: str, http_port: int, rtsp_port: int, username: str, password: str | None) -> Settings:
+def candidate(settings: Settings, *, vendor: str, target: str, http_port: int, rtsp_port: int, username: str, password: str | None,
+              extra: dict[str, Any] | None = None) -> Settings:
     from .connection_store import connect_host
 
     return dataclasses.replace(settings, nvr_vendor=vendor, nvr_host=connect_host(target), nvr_http_port=http_port, nvr_rtsp_port=rtsp_port,
-                               nvr_user=username, nvr_password=password, nvr_connection_state=None)
+                               nvr_user=username, nvr_password=password, nvr_connection_state=None, nvr_extra=dict(extra or {}))
 
 
 class _Fail(Exception):
@@ -340,10 +341,10 @@ class _DeadlineBackend(httpcore.NetworkBackend):
 class _ProbeTransport(httpx.HTTPTransport):
     """httpx's own transport (exception mapping, response streams) over one connection pool that uses `_DeadlineBackend`."""
 
-    def __init__(self, backend: _DeadlineBackend) -> None:
+    def __init__(self, backend: _DeadlineBackend, ssl_context: Any = None) -> None:
         super().__init__(trust_env=False, retries=0)
         self._pool = httpcore.ConnectionPool(max_connections=1, max_keepalive_connections=1, http1=True, http2=False, retries=0,
-                                             network_backend=backend)
+                                             network_backend=backend, ssl_context=ssl_context)
 
 
 class _CappedStream(httpx.SyncByteStream):
@@ -500,6 +501,11 @@ def probe(cand: Settings) -> dict[str, Any]:
     def work() -> None:
         _BUDGET_END.set(budget_end)  # a new thread starts with an empty context; probe_client reads the budget from it
         try:
+            from .recorders import vendor_io
+
+            if vendor_io.handles(cand):  # CR-025: Provision-ISR is tested through its adapter (its auth / TLS rules)
+                out.append(_probe_vendor(cand, budget, backends))
+                return
             with probe_client(cand) as client:
                 backend = getattr(client, "_sw_probe_backend", None)
                 if backend is not None:
@@ -566,3 +572,65 @@ class Limiter:
 
 def probe_limiter() -> Limiter:
     return Limiter(per_user=5, total=20, window_s=60.0)
+
+
+
+def _probe_vendor(cand: Settings, budget: float, backends: list) -> dict[str, Any]:
+    """CR-025: the connection test of a Provision-ISR candidate - its adapter over the probe's capped, deadline-bound transport:
+    GetDeviceInfo (after one unauthenticated read that names the auth scheme), then the channel list. For HTTPS the device
+    certificate's SHA-256 is read first by a bare TLS handshake (no credentials) and returned so the form can pin it.
+    Coarse result plus the non-secret transport facts (scheme, auth, warnings); never the address."""
+    import ssl
+
+    from . import nvr as nvr_mod
+    from .recorders import provision_isr as pisr
+
+    extra = cand.nvr_extra if isinstance(cand.nvr_extra, dict) else {}
+    https = str(extra.get("scheme") or "http").lower() == "https"
+    result: dict[str, Any] = {"ok": False, "code": "source_error"}
+    certificate: dict[str, Any] | None = None
+    if https:
+        try:
+            certificate = pisr.PEER_CERTIFICATE(cand.nvr_host or "", int(extra.get("https_port") or 443), min(CONNECT_S, _budget_left(DEADLINE_S)))
+        except OSError:
+            return {"ok": False, "code": "source_unavailable"}
+        pin = str(extra.get("tls_pin") or "").lower().replace(":", "")
+        certificate["matches_pin"] = (certificate["sha256"] == pin) if pin else None
+    ctx = None
+    if https:
+        ctx = ssl.create_default_context()
+        if str(extra.get("tls_mode") or "verify").lower() in ("pin", "trust"):
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+    backend = _DeadlineBackend(_budget_left(DEADLINE_S))
+    backends.append(backend)
+    transport: httpx.BaseTransport = _CappedTransport(TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend, ctx))
+    pisr.clear_auth_cache()  # a test never reuses another candidate's detected scheme or refusal
+    pin_required = https and str(extra.get("tls_mode") or "").lower() == "pin" and not str(extra.get("tls_pin") or "").strip()
+    if pin_required:  # nothing pinned yet: test without the pin and hand the certificate back so the form can pin it
+        cand = dataclasses.replace(cand, nvr_extra={**extra, "tls_mode": "trust", "suppress_tls_warning": True})
+    a = pisr.ProvisionIsrAdapter("probe", cand, transport=transport)
+    try:
+        with nvr_mod.deadline(budget):
+            info = a.device_info(refresh=True)
+            try:
+                channels: int | None = len(a.list_channels()) if info.get("kind") == "nvr" else 1
+            except Exception:  # noqa: BLE001 - the device answered GetDeviceInfo; the count is optional
+                channels = None
+        result = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmware")), "channels": channels}
+    except ApiError as exc:
+        code = {"source_timeout": "timeout"}.get(exc.code, exc.code)
+        result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}
+    except Exception:  # noqa: BLE001
+        result = {"ok": False, "code": "source_error"}
+    info_t = a.transport_info()
+    result["transport"] = {"scheme": info_t["scheme"], "auth": info_t["auth"], "insecure": info_t["insecure"]}
+    try:
+        result["warnings"] = [w["code"] for w in a.warnings()]
+    except Exception:  # noqa: BLE001
+        result["warnings"] = []
+    if certificate is not None:
+        result["certificate"] = certificate
+        if pin_required:
+            result["pin_required"] = True
+    return result

@@ -420,7 +420,7 @@ def test_the_installation_stays_full_when_only_a_further_recorder_is_left(base, 
 # ---------------------------------------------------------------- the adapter registration seam (a fake second vendor)
 
 class FakeVendorAdapter:
-    vendor = "provision_isr"
+    vendor = "frigate"
 
     def __init__(self, recorder_id, settings):
         self.recorder_id = recorder_id
@@ -438,18 +438,19 @@ class FakeVendorAdapter:
 
 
 def test_a_further_vendor_registers_through_the_seam(base, fakes):
-    assert registry.selectable("provision_isr") is False, "Provision-ISR stays 'coming soon' until its adapter exists"
-    spec = registry.VendorSpec("provision_isr", "Provision-ISR", "available", {"http_port": 80, "rtsp_port": 554}, registry._NETWORK_FIELDS)
+    # CR-025: Provision-ISR now has its real adapter; the seam is exercised with the vendor that still has none (Frigate)
+    assert registry.selectable("frigate") is False, "Frigate stays 'coming soon' until its adapter exists"
+    spec = registry.VendorSpec("frigate", "Frigate", "available", {"http_port": 80, "rtsp_port": 554}, registry._NETWORK_FIELDS)
     undo = registry.register_vendor(spec, FakeVendorAdapter)
     try:
-        assert registry.selectable("provision_isr") is True
-        assert {v["id"]: v["status"] for v in registry.catalogue()}["provision_isr"] == "available"
+        assert registry.selectable("frigate") is True
+        assert {v["id"]: v["status"] for v in registry.catalogue()}["frigate"] == "available"
         app = create_app(base)
         from smplwise.services import connection_store
 
         with Database(base.db_path).connection() as conn:
-            conn.execute("INSERT INTO recorders(id, name, created_at, vendor) VALUES ('nvr-2', 'פרוויז׳ן', ?, 'provision_isr')", (now_iso(),))
-            connection_store.write_row(conn, base, vendor="provision_isr", host=NVR2_HOST, http_port=80, rtsp_port=554, username="viewer", password=PW2,
+            conn.execute("INSERT INTO recorders(id, name, created_at, vendor) VALUES ('nvr-2', 'פריגייט', ?, 'frigate')", (now_iso(),))
+            connection_store.write_row(conn, base, vendor="frigate", host=NVR2_HOST, http_port=80, rtsp_port=554, username="viewer", password=PW2,
                                        extra=None, source="ui", actor_id=None, recorder_id="nvr-2")
         app = create_app(base)
         with Database(base.db_path).connection(mode="read") as conn:
@@ -458,10 +459,10 @@ def test_a_further_vendor_registers_through_the_seam(base, fakes):
         assert isinstance(adapter, FakeVendorAdapter) and adapter._settings.nvr_host == NVR2_HOST
         assert type(first).__name__ == "HikvisionAdapter"
         caps = {r["id"]: r for r in client(app).get("/api/v1/health").json()["capabilities"]["recorders"]}
-        assert caps["nvr-2"]["vendor"] == "provision_isr" and caps["nvr-2"]["playback"] is False and caps["nvr-1"]["playback"] is True
+        assert caps["nvr-2"]["vendor"] == "frigate" and caps["nvr-2"]["playback"] is False and caps["nvr-1"]["playback"] is True
     finally:
         undo()
-    assert registry.selectable("provision_isr") is False and "provision_isr" not in registry.VENDORS
+    assert registry.selectable("frigate") is False and "frigate" not in registry.VENDORS
     assert [v["id"] for v in registry.catalogue()] == ["hikvision", "provision_isr", "frigate", "none"], "the catalogue order is restored exactly"
 
 

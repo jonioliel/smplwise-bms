@@ -88,6 +88,14 @@ def _probe_nvr(settings: Settings) -> dict[str, Any]:
     if not (settings.nvr_host and settings.nvr_user):
         return {"status": "warn", "detail": "ה־NVR לא מוגדר בהגדרות התוסף.", "configured": False}
     t0 = time.time()
+    from .recorders import vendor_io
+
+    if vendor_io.handles(settings):  # CR-025: a Provision-ISR recorder answers through its adapter
+        h = vendor_io.adapter(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1").health()
+        if not h.online:
+            return {"status": "error", "detail": f"אין תשובה מה־NVR ({h.error}).", "configured": True, "error": h.error}
+        return {"status": "ok", "detail": f"מחובר · {h.model or 'דגם לא ידוע'} · קושחה {h.firmware or '?'}", "configured": True, "model": h.model, "firmware": h.firmware,
+                "ms": int((time.time() - t0) * 1000)}
     try:
         info = nvr.device_info(settings)
     except Exception as exc:  # noqa: BLE001 - the report must never fail because a device is down
@@ -175,7 +183,11 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     else:
         nvr = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
         go = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
-    checks.append(_check("nvr", "NVR (Hikvision ISAPI)", nvr["status"], nvr["detail"], **{k: v for k, v in nvr.items() if k not in ("status", "detail")}))
+    from .recorders import vendor_io
+
+    nvr_label = "NVR (Provision-ISR)" if vendor_io.handles(settings) else "NVR (Hikvision ISAPI)"
+    checks.append(_check("nvr", nvr_label, nvr["status"], nvr["detail"], **{k: v for k, v in nvr.items() if k not in ("status", "detail")}))
+    checks.extend(_recorder_time_checks(settings, conn))
     checks.append(_check("go2rtc", "go2rtc (מדיה)", go["status"], go["detail"], **{k: v for k, v in go.items() if k not in ("status", "detail")}))
 
     # Home Assistant sync + bridge
@@ -303,3 +315,34 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             break
         worst = "warn"
     return {"status": worst, "mode": installation_mode(settings), "items": items, "checked_at": now_iso(), "version": __version__}
+
+
+
+def _recorder_time_checks(settings: Settings, conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """CR-025 (owner decision 2026-10-04): per Provision recorder, the time basis (device clock or Israel time) and a note
+    when the device's clock rule differs from the installation zone. Cached facts only, never a device call."""
+    from ..recorder_scope import configured_ids, settings_for
+    from .recorders import vendor_io
+
+    try:
+        tz_name = get_setting(conn, "time.zone") or "Asia/Jerusalem"
+    except Exception:  # noqa: BLE001
+        tz_name = "Asia/Jerusalem"
+    out = []
+    for rid in configured_ids(settings):
+        rs = settings_for(settings, rid)
+        if not vendor_io.handles(rs):
+            continue
+        note = vendor_io.time_note(rs, rid, str(tz_name))
+        if note is None:
+            continue
+        basis = "שעון ישראל" if note["basis"] == "iana" else "שעון המכשיר"
+        if not note.get("known"):
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "ok", f"לפי {basis} · כלל השעון של המכשיר טרם נקרא", **note))
+        elif note.get("differs_now") or note.get("differs_periods"):
+            when = "כרגע" if note.get("differs_now") else "בחלק מהשנה (מעבר שעון)"
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "warn",
+                              f"לפי {basis} · שעון המכשיר שונה משעון ישראל {when}; זמני החיפוש והניגון מומרים לפי {basis}", **note))
+        else:
+            out.append(_check(f"recorder_time_{rid}", f"שעון ההקלטות ({rid})", "ok", f"לפי {basis} · שעון המכשיר תואם לשעון ישראל", **note))
+    return out

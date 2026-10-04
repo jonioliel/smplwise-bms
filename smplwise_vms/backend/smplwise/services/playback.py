@@ -88,6 +88,14 @@ def stream_name(session_id: str, generation: int) -> str:
 
 
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
+    from .recorders import vendor_io
+
+    if vendor_io.handles(settings):  # CR-025 P3: Provision-ISR plays by channel (track_id = channel) in the device's wall clock
+        return vendor_io.playback_url(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1", track_id, start, end, tz_name)
+    return _hikvision_playback_rtsp_url(settings, track_id, start, end, tz_name)
+
+
+def _hikvision_playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
     """rtsp://user:pass@host:rtsp/Streaming/tracks/<track>?starttime=<local compact>&endtime=<local compact>.
     Times are the NVR's local wall clock (KNOWN_QUIRKS T4). Server-side only."""
     from ..mode import ensure_nvr
@@ -110,8 +118,13 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
     name = stream_name(session.id, session.generation)
     from ..recorder_scope import settings_for
 
-    off = dt.timedelta(seconds=session.clock_offset_s or 0)
-    src = playback_rtsp_url(settings_for(settings, session.recorder_id), session.track_id, start + off, session.end_at + off, session.tz_name)
+    off = dt.timedelta(seconds=session.clock_offset_s or 0)  # CR-024: the recorder's clock offset (cross-recorder sync)
+    rs = settings_for(settings, session.recorder_id)
+    src = playback_rtsp_url(rs, session.track_id, start + off, session.end_at + off, session.tz_name)
+    from .recorders import vendor_io
+
+    if vendor_io.handles(rs):
+        src = vendor_io.go2rtc_source(rs, src)  # CR-025 live finding: go2rtc plays this NVR through its ffmpeg source
     client.ensure_stream(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
