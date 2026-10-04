@@ -1,5 +1,12 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased — Settings › Multimedia: the lists of screens and of speakers / players are compact and filterable
+No migration (the registry platform was already stored on every endpoint; the list now reads it). No restart of the platform is needed.
+- **Compact rows:** each screen / speaker / player is one dense row (name, type, integration, entity id and device id with a copy key, room, status, approval, connections count); the full form opens under the row on demand. Every field, action, permission and the "approve all" buttons are unchanged.
+- **Integration and ids (settings only):** the registry platform of each component (the vendor's first, "+n" for others) and the platform's entity id and device id. API: `GET multimedia/admin/devices` adds `integrations`, `ha_device_id` and `available` to every device (`available` was players-only before).
+- **Filters:** free text (also matches ids and integration names), integration (multi-select), room, type, approval, availability, with a count of shown devices and "נקה סינון".
+- **Sort and group:** by name, type, integration, room, id or status, either direction (also from the column headers); group by integration, room or type with collapsible headers and counts.
+- **Comfort:** sticky header, copy-id, an open form stays open while filtering, the last view (not the free text) is remembered per section and per user in the browser, cards on a phone, keyboard operable, RTL, four skins.
 ## Unreleased
 ### Change the encoding of many cameras at once (CR-020 phase D) - מערכת › אבטחה › מצלמות › "שינוי קידוד לכמה מצלמות"
 - A holder of `nvr.configure` chooses streams (main, sub or both; filters by codec, SVC and WebRTC; "select all"), sets the new values - codec (H.264 / H.265), resolution, frame rate, bitrate mode, bitrate, quality, GOP, SVC, smart codec, each "ללא שינוי" by default - and sees a **preview** before anything is written: per stream before → after, values adjusted to what that camera allows (the closest resolution, a bitrate inside its range, the profile the new codec needs), streams that cannot be changed and why. **One confirmation**, then the same server-side batch as the multi-camera SVC change: one camera at a time, live progress, "עצור", a result list and undo-all.

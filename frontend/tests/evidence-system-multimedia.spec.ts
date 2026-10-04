@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ADMIN, EDITOR, OUT, fresh, install, open, type St } from './media-players-harness';
+import { ADMIN, EDITOR, OUT, expandAll, fresh, install, open, type St } from './media-players-harness';
 
 // CR-016 S2: the new sections of הגדרות › מולטימדיה - נגנים ורמקולים (kind, approval, room, linked amplifier, volume ceiling WITHOUT a
 // default, night window), איחוד כפילויות (the merge wizard fed by the suggestions, the folded non-physical entries), קבוצות שמורות
@@ -46,6 +46,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await expect(sys(page).locator('[data-mm-devices] [data-mm-admin-device]')).toHaveCount(6);
     await expect(sys(page).locator('[data-mm-players] [data-mm-admin-device]')).toHaveCount(19);
     await expect(sys(page).locator('[data-mm-players-count]')).toHaveText('17 מאושרים · 2 ממתינים · 6 ללא חדר · 2 לא זמינים');
+    await row(page, 'mp-new1').locator('[data-mm-edit]').click();
     await expect(row(page, 'mp-new1')).toContainText('חלש');
     await tall(page, 'settings-ma', 1440, 4600);
     await tall(page, 'settings-ma', 390, 7600);
@@ -56,6 +57,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('"אשר את כל הנגנים שזוהו": one action for every device still waiting', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const btn = sys(page).locator('[data-mm-approve-players]');
     await expect(btn).toContainText('(2)');
     await expect(sys(page).locator('[data-mm-approve-all]')).toContainText('(1)'); // the screens' own button is a different one
@@ -71,6 +73,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('the volume ceiling is EMPTY unless an administrator sets it - there is no default; invalid input is refused', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const field = (k: string) => row(page, k).locator(`[data-mm-volmax="${k}"]`);
     for (const k of ['mp-kit', 'mp-per', 'mp-ampl', 'mp-new1']) {
       await expect(field(k)).toHaveValue('');
@@ -94,6 +97,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('the night window: a second ceiling inside a time window, set per speaker', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     await expect(row(page, 'mp-par').locator('[data-mm-night-from]')).toHaveValue('22:00');
     await expect(row(page, 'mp-par').locator('[data-mm-night-to]')).toHaveValue('07:00');
     await expect(row(page, 'mp-par').locator('[data-mm-night-max]')).toHaveValue('25');
@@ -118,6 +122,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('a device without a room is placed from the settings (an administrator action); a placed one shows its place', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     await expect(row(page, 'mp-liv').locator('[data-mm-place="mp-liv"]')).toHaveText('קומת קרקע › סלון');
     await expect(row(page, 'mp-liv').locator('[data-mm-area]')).toHaveCount(0);
     await expect(row(page, 'mp-balc').locator('[data-mm-area]')).toHaveCount(1);
@@ -130,6 +135,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('kinds, a receiver with zones, the linked amplifier, the connections of a device', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     await expect(row(page, 'mp-ampl').locator('[data-mm-kind]')).toHaveValue('receiver');
     await expect(row(page, 'mp-ampl')).toContainText('ראשי · אזור 2');
     await expect(row(page, 'mp-ampl').locator('[data-mm-link]')).toHaveCount(0); // a receiver has no amplifier of its own
@@ -148,6 +154,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('the merge wizard: one row per pair with its reason; "אחד" or "התעלם"; the counter follows', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const w = sys(page).locator('[data-mm-wizard]');
     await expect(w.locator('[data-mm-wizard-count]')).toHaveText('3 הצעות');
     await expect(w.locator('[data-mm-wizard-row]')).toHaveCount(3);
@@ -168,6 +175,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     st = fresh(ADMIN, 'sonos');
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const w = sys(page).locator('[data-mm-wizard]');
     await expect(w.locator('[data-mm-nonphysical]')).toContainText('11 רשומות');
     await expect(w.locator('[data-mm-np-row]')).toHaveCount(0);
@@ -185,6 +193,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('saved groups: list, new, edit, delete', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const c = sys(page).locator('[data-mm-presets]');
     await expect(c.locator('[data-mm-preset]')).toHaveCount(4);
     await expect(c.locator('[data-mm-preset]', { hasText: 'מסיבה' })).toContainText('2 קומות · דורש אישור בהפעלה');
@@ -209,6 +218,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('favourites and radio: which lists appear, and per item the order and the show / hide - one list for everyone', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const f = sys(page).locator('[data-mm-favs]');
     await expect(f.locator('[data-mm-fav-kind]')).toHaveCount(3);
     await expect(f.locator('[data-mm-fav-group="favourites"] [data-mm-fav]')).toHaveCount(6);
@@ -237,6 +247,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     st = fresh(ADMIN, 'sonos');
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const f = sys(page).locator('[data-mm-favs]');
     await expect(f.locator('[data-mm-fav-kind]')).toHaveCount(2);
     await expect(f.locator('[data-mm-fav-kind="playlists"]')).toHaveCount(0);
@@ -247,6 +258,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('connection: with a music library (MA), without one (Sonos), and with the library unavailable', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const c = sys(page).locator('[data-mm-connection]');
     await expect(c).toContainText('Music Assistant דרך Home Assistant');
     await expect(c.locator('sw-badge[label="מחובר"]')).toHaveCount(1);
@@ -271,6 +283,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   test('permissions: the line names media.group and leads to the roles; no announcements', async ({ page }) => {
     await install(page, st);
     await open(page, '/system/multimedia');
+    await expandAll(page);
     const p = sys(page).locator('[data-mm-permissions]');
     await expect(p).toContainText('media.group');
     await expect(p).toContainText('קבוצה של 4 חדרים ומעלה');
@@ -292,6 +305,7 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
     await page.route('**/api/v1/multimedia/admin/suggestions', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found', user_message: 'x', retryable: false, correlation_id: '', details: {} }) }));
     await page.route('**/api/v1/multimedia/groups/presets', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'not_found', user_message: 'x', retryable: false, correlation_id: '', details: {} }) }));
     await open(page, '/system/multimedia');
+    await expandAll(page);
     await expect(sys(page).locator('[data-mm-players]')).toBeVisible();
     await expect(sys(page).locator('[data-mm-wizard]')).toHaveCount(0);
     await expect(sys(page).locator('[data-mm-presets]')).toHaveCount(0);
