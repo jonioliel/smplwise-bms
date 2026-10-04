@@ -24,7 +24,8 @@ const SKIP = 'nvr-undo-toast, sw-toggle, sw-button, sw-dropdown, .trap, .vh';
 
 async function check(page: Page, results: Finding[], ctx: string, keep: Finding['cls'][]) {
   await settle(page);
-  await page.evaluate(() => document.documentElement.style.setProperty('--sw-touch-desktop', '32'));
+  // with its unit: a unitless value makes every var(--sw-touch-desktop) size invalid (the bubble skin's tab buttons then collapse to their text)
+  await page.evaluate(() => document.documentElement.style.setProperty('--sw-touch-desktop', '32px'));
   const found = await page.evaluate(inPageCheck, { ctx, skip: SKIP, roots: ['system-security-cameras'], within: 'system-security-cameras' });
   results.push(...found.filter((f) => keep.includes(f.cls)));
 }
