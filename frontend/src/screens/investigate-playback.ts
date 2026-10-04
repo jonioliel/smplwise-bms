@@ -78,6 +78,8 @@ export class InvestigatePlayback extends LitElement {
 
   // api
   @state() private cams: Camera[] | null = null;
+  /** CR-024: the experimental cross-recorder synchronized playback setting (off: extra tiles of the same recorder only). */
+  @state() private crossSync = false;
   @state() private tz = 'Asia/Jerusalem';
   @state() private date = '';
   @state() private rec: RecordingsResponse | null = null;
@@ -536,7 +538,8 @@ export class InvestigatePlayback extends LitElement {
     try {
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
-      this.cams = list.cameras.filter((c) => c.enabled);
+      this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false);
+      this.crossSync = String(settings['playback.cross_recorder_sync'] ?? 'false') === 'true';
       const first = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
       const at = this.at ? new Date(this.at) : null;
       const validAt = !!at && !Number.isNaN(at.getTime());
@@ -1194,7 +1197,7 @@ export class InvestigatePlayback extends LitElement {
       </div>
       <div class="compare">
         <span>השוואה (עד 4):</span>
-        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} ?disabled=${!this.extra.includes(c.id) && !sameRecorder(this.cameraId ? [this.cameraId] : [], this.cams ?? [], c.id)} @click=${() => this.toggleExtra(c.id)}>${cameraLabel(c)}</sw-chip>`)}
+        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} ?disabled=${!this.extra.includes(c.id) && !sameRecorder(this.cameraId ? [this.cameraId] : [], this.cams ?? [], c.id, this.crossSync)} @click=${() => this.toggleExtra(c.id)}>${cameraLabel(c)}</sw-chip>`)}
         ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
       </div>
       <div class="stage">

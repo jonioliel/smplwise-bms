@@ -153,6 +153,8 @@ export interface Camera {
   can_view_live?: boolean;
   /** CR-024: the recorder's name, given only when the installation has two or more recorders. */
   recorder_name?: string | null;
+  /** CR-024: false while the camera's recorder is disabled (the camera stays listed, not offered for live). */
+  recorder_enabled?: boolean;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */

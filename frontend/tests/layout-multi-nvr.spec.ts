@@ -24,6 +24,8 @@ interface Screen {
   /** the desktop touch dial for this screen in every skin (the camera settings table is a dense settings table: 32 px, as in
    * layout-nvr-cameras.spec.ts; touch layouts below 768 px still need 44) */
   dial?: string;
+  /** the shadow root to walk when `within` is a selector inside a screen rather than the screen's own tag */
+  root?: string;
 }
 const CARD = 'sw-app system-setup nvr-recorders-card';
 const SCREENS: Screen[] = [
@@ -35,6 +37,9 @@ const SCREENS: Screen[] = [
   { name: 'cameras-table', route: '/system/security/cameras', ready: 'sw-app system-security-cameras [data-nvr-cameras][data-state="ready"]', within: 'system-security-cameras', dial: '32px' },
   { name: 'wall', route: '/live/wall', ready: 'live-wall sw-camera-tile[data-cam]', within: 'live-wall' },
   { name: 'events', route: '/investigate/events', ready: 'investigate-events select[data-filter-recorder]', within: 'investigate-events' },
+  // CR-024 owner answer 1: the experimental cross-recorder sync row in הגדרות › כללי › וידאו ומדיה (only that row is measured)
+  { name: 'cross-sync-setting', route: '/system/diagnostics', ready: 'system-diagnostics sw-tabs', within: '[data-set-cross-sync-row]', root: 'system-diagnostics',
+    prep: async (p) => { await p.locator('system-diagnostics sw-tabs').getByText('וידאו ומדיה').first().click(); await p.locator('system-diagnostics [data-set-cross-sync-row]').waitFor(); } },
 ];
 
 test.describe('multi-NVR layout guard', () => {
@@ -70,7 +75,7 @@ test.describe('multi-NVR layout guard', () => {
             await settle(page);
             await page.waitForTimeout(80);
             runs++;
-            const found = await page.evaluate(inPageCheck, { ctx: `${s.name} ${skin} ${theme} ${w}`, skip: SKIP, roots: [s.within], within: s.within });
+            const found = await page.evaluate(inPageCheck, { ctx: `${s.name} ${skin} ${theme} ${w}`, skip: SKIP, roots: [s.root ?? s.within], within: s.within });
             results.push(...found.filter((f) => keep.includes(f.cls)));
           }
         }

@@ -146,6 +146,54 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     await expect(page.locator('investigate-events')).not.toContainText(FORBIDDEN);
   });
 
+  test('the experimental cross-recorder sync setting: off by default, saved on, and the sync picker follows it', async ({ page }) => {
+    const st = await installMulti(page);
+    await open(page, '/system/diagnostics');
+    await page.locator('system-diagnostics sw-tabs').getByText('וידאו ומדיה').first().click();
+    const sel = page.locator('system-diagnostics select[data-set-cross-sync]');
+    await expect(sel).toHaveValue('false');
+    await shot(page, 'cross-sync-setting');
+    await sel.selectOption('true');
+    await page.locator('system-diagnostics sw-button', { hasText: 'שמור' }).first().click();
+    await expect.poll(() => st.crossSync).toBe('true');
+    expect(st.writes.find((w) => w.method === 'PATCH' && w.path === 'settings')?.body).toMatchObject({ 'playback.cross_recorder_sync': 'true' });
+    // the synchronized-playback picker: off = a camera of another recorder cannot join; on = it can
+    st.crossSync = 'false';
+    await open(page, '/investigate/sync');
+    const chips = page.locator('investigate-sync [data-sync-camera]');
+    await expect(chips.first()).toBeVisible();
+    await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
+    await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).toHaveAttribute('disabled', '');
+    st.crossSync = 'true';
+    await open(page, '/investigate/sync');
+    await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
+    await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).not.toHaveAttribute('disabled', '');
+  });
+
+  test('a recorder disabled while running leaves the wall at once; a removed first recorder with history is re-added under a new id', async ({ page }) => {
+    const st = await installMulti(page);
+    st.disabled = ['nvr-2'];
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sw.wall.count', '32');
+        localStorage.removeItem('sw.wall.recorder');
+      } catch {
+        /* about:blank has no storage */
+      }
+    });
+    await open(page, '/live/wall');
+    await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(3);
+    expect(await page.locator('live-wall sw-camera-tile[data-cam]').evaluateAll((els) => els.every((e) => !(e.getAttribute('data-cam') ?? '').startsWith('w-')))).toBe(true);
+    // no recorder left, history under nvr-1: the card is the add form (a new id), never the first recorder's connection form
+    st.disabled = [];
+    st.noRecorders = true;
+    st.primaryHistory = true;
+    await open(page, '/system/setup');
+    const add = page.locator(`${CARD} [data-recorder-add-new] nvr-connection-form`);
+    await expect(add.locator('[data-conn-name]')).toBeVisible();
+    await shot(page, 'readd-after-history');
+  });
+
   test('one recorder: the operator screens stay as they were (no recorder filter, the familiar connection card)', async ({ page }) => {
     await installMulti(page, { count: 1 });
     await open(page, '/live/wall');
