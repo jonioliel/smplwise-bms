@@ -10,6 +10,7 @@ import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
+import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess } from '../api/session';
@@ -1129,6 +1130,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
         <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
       </sw-card>
+      ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
     </div>`;
   }
 
