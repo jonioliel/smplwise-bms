@@ -257,6 +257,10 @@ export class NvrEncodingBatch extends LitElement {
       sw-field input {
         min-block-size: 44px;
       }
+      /* touch layouts: 44 px whatever the desktop touch dial (the bubble skin sizes tab buttons by it; the shell does the same, bubble.ts) */
+      sw-tabs {
+        --sw-touch-desktop: 44px;
+      }
     }
   `;
 
