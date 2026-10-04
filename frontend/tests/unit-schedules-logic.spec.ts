@@ -78,7 +78,7 @@ test('the header\'s state segments (the automations screen\'s control): counts t
 
 test('filtering: text (name, device, area, condition, tag), place, day, state, tag, condition presets', () => {
   const ids = (f: Partial<typeof NO_FILTERS>) => filterSchedules(items, { ...NO_FILTERS, ...f }).map((s) => s.id).sort();
-  expect(items.length).toBe(13);
+  expect(items.length).toBe(14);
   expect(ids({ q: 'תריס' })).toEqual(['5a13f2']);
   expect(ids({ q: 'אולם מאוורר' })).toEqual(['2c9f61']); // every word must match, anywhere
   expect(ids({ q: 'איסור מלאכה' }).length).toBeGreaterThan(3); // a condition's name is searchable
@@ -107,13 +107,13 @@ test('sorting: next run (disabled last), name, manual order, last change', () =>
   expect([...times].sort()).toEqual(times);
   expect(sortSchedules(items, 'name')[0].display_name.localeCompare(sortSchedules(items, 'name')[1].display_name, 'he')).toBeLessThanOrEqual(0);
   expect(sortSchedules(items, 'order').map((s) => s.order)).toEqual([...items.map((s) => s.order)].sort((a, b) => (a ?? 1e9) - (b ?? 1e9)));
-  expect(items.length).toBe(13); // sorting copies
+  expect(items.length).toBe(14); // sorting copies
 });
 
 test('grouping: by tag, area, state; the catch-all groups go last', () => {
   const tag = groupSchedules(sortSchedules(items, 'name'), 'tag');
   expect(tag.map((g) => g.label).at(-1)).toBe('ללא תג');
-  expect(tag.reduce((n, g) => n + g.items.length, 0)).toBe(13);
+  expect(tag.reduce((n, g) => n + g.items.length, 0)).toBe(14);
   const area = groupSchedules(items, 'area');
   const labels = area.map((g) => g.label);
   expect(labels).toContain('סלון');
@@ -142,7 +142,8 @@ test('tones and the 24 h bar: off is grey, blinds teal; contiguous slots span th
   expect(point.to - point.from).toBeLessThan(0.2);
   expect(point.tone).toBe('alarm');
   expect(slotSegments(byId('5a13f2').slots).map((x) => x.tone)).toEqual(['cover', 'cover']);
-  expect(slotTone(byId('a0f4c9').slots[0])).toBe('other'); // the script without a device
+  expect(slotTone(byId('a0f4c9').slots[0])).toBe('script'); // a script called as its own service: a script action since 2026-10-04
+  expect(slotTone(byId('6e2d90').slots[0])).toBe('other'); // content the system truly cannot model
   expect(actionTone({ service: 'climate.set_hvac_mode', class: 'climate', supported: true, data: { hvac_mode: 'off' } })).toBe('off');
   // sun-based slots use today's sun values
   const sun = slotSegments(byId('71c2b8').slots, { sunrise: 390, sunset: 1092 });
@@ -192,7 +193,7 @@ test('the next run of a schedule with conditions says "בתנאי" - never a pro
 });
 
 test('the summary strip: counts, and today\'s remaining runs soonest first (conditional ones marked)', () => {
-  expect(summarize(items)).toEqual({ total: 13, active: 10, disabled: 3 });
+  expect(summarize(items)).toEqual({ total: 14, active: 11, disabled: 3 });
   const noon = new Date();
   noon.setHours(0, 5, 0, 0);
   const up = upcomingToday(items, noon, 50);
@@ -245,7 +246,7 @@ test('markers, the lowering confirmation sentence, what a run confirms', () => {
 });
 
 test('bulk: only what the caller may toggle is offered; trash wording', () => {
-  expect(togglable(items).length).toBe(13);
+  expect(togglable(items).length).toBe(14);
   const readOnly = { ...byId('3f9a1c'), can: { ...byId('3f9a1c').can, toggle: false } };
   expect(togglable([readOnly, byId('4d6e0a')]).map((s) => s.id)).toEqual(['4d6e0a']);
   const now = new Date('2026-09-30T12:00:00Z');

@@ -22,6 +22,11 @@ const TONE_VAR: Record<Tone, string> = {
   alarm: 'var(--sw-danger)',
   lock: 'var(--sw-danger)',
   door: 'var(--sw-danger)',
+  script: 'var(--sw-circuit-2)',
+  scene: 'var(--sw-circuit-4)',
+  helper: 'var(--sw-live)',
+  humidifier: 'var(--sw-accent)',
+  vacuum: 'var(--sw-circuit-5)',
   off: 'var(--sw-offline)',
   other: 'var(--sw-unknown)',
 };

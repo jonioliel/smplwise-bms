@@ -3,7 +3,7 @@ the bridge. docs/architecture/SCHEDULER_API.md is the contract (section numbers 
 
 Reads: `GET /schedules/status` (never 403), `/schedules`, `/schedules/{id}`, `/schedules/catalog`, `/schedules/condition-candidates`,
 `/schedules/trash`, `/schedules/runs`, `/schedules/review`, `/schedules/tags`, `/schedules/organisation`. Writes: `POST /schedules`
-(create), `PUT /schedules/{id}`, `POST /schedules/{id}/enable|disable|run|split|delete|copy`, the trash restore / purge, `POST
+(create), `PUT /schedules/{id}`, `POST /schedules/{id}/enable|disable|run|split|delete|copy|acknowledge`, the trash restore / purge, `POST
 /schedules/bulk`, `PUT /schedules/organisation`, and `POST /schedules/preview` (data, never a write).
 
 The permission comes before the body; JSON only; the caller's own alarm code (`alarm_code`) is taken out of the body before
@@ -90,6 +90,11 @@ class CopyBody(_Body):
 class RestoreBody(_Body):
     client_request_id: str = RID
     confirm_lowering: bool = False
+
+
+class AckBody(_Body):
+    issue: Literal["no_owner_sensitive", "unsupported_content"]
+    undo: bool = False
 
 
 class PurgeBody(_Body):
@@ -255,7 +260,7 @@ def list_schedules(
 
 @router.get("/schedules/catalog")
 def catalog(request: Request, principal: Principal = Depends(_manager), conn: sqlite3.Connection = Depends(get_conn), q: str | None = Query(None, max_length=80),
-            floor: str | None = Query(None, max_length=100), area: str | None = Query(None, max_length=100), cls: str | None = Query(None, alias="class", pattern="^(light|switch|cover|climate|fan|alarm|lock|door)$")) -> dict[str, Any]:
+            floor: str | None = Query(None, max_length=100), area: str | None = Query(None, max_length=100), cls: str | None = Query(None, alias="class", pattern="^(light|switch|cover|climate|fan|alarm|lock|door|script|scene|helper|humidifier|vacuum)$")) -> dict[str, Any]:
     """§3.4 - the editor's action-entity picker (one server-side source of classes, allow-list and door / alarm rules)."""
     ctx = _ctx(request, conn, principal, sync=False)
     _feature_or_409(ctx)
@@ -408,6 +413,13 @@ def split_schedule(schedule_id: str, request: Request, principal: Principal = De
 def delete_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     body, _ = _parse(request, raw, DeleteBody)
     return _reply(ops.delete(_writer(request, conn, principal), schedule_id, body.base_revision, body.confirm, body.client_request_id))
+
+
+@router.post("/schedules/{schedule_id}/acknowledge")
+def acknowledge_schedule(schedule_id: str, request: Request, principal: Principal = Depends(_manager_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A system administrator silences (or, with `undo`, restores) a review warning of one schedule; bound to its content (2026-10-04)."""
+    body, _ = _parse(request, raw, AckBody)
+    return ops.acknowledge(_writer(request, conn, principal), schedule_id, body.issue, body.undo)
 
 
 @router.post("/schedules/{schedule_id}/copy")

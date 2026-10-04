@@ -66,7 +66,7 @@ def test_a_user_without_any_schedule_permission_gets_the_audited_403_but_status_
     bind(c, s, "vera", "viewer", "installation", "*")
     v = {"X-SW-Dev-User": "vera"}
     st = c.get(f"{API}/schedules/status", headers=v).json()
-    assert st["can"] == {"view": False, "manage": False, "sensitive": False, "configure": False} and st["counts"]["visible"] == 0 and st["counts"]["hidden"] is None and "admin" not in st
+    assert st["can"] == {"view": False, "manage": False, "sensitive": False, "configure": False, "acknowledge": False} and st["counts"]["visible"] == 0 and st["counts"]["hidden"] is None and "admin" not in st
     for path in ("/schedules", "/schedules/trash", "/schedules/runs", "/schedules/tags", "/schedules/organisation"):
         r = c.get(f"{API}{path}", headers=v)
         assert r.status_code == 403 and r.json()["code"] == "forbidden", path
@@ -94,7 +94,7 @@ def test_visibility_is_decided_by_action_entities_only(sched_app):
     hidden = _by_name(c, "Gym shutter")
     assert c.get(f"{API}/schedules/{hidden['id']}", headers=OMER).status_code == 404
     st = c.get(f"{API}/schedules/status", headers=OMER).json()
-    assert st["counts"]["visible"] == 6 and st["counts"]["hidden"] is None and st["can"] == {"view": True, "manage": True, "sensitive": False, "configure": False}
+    assert st["counts"]["visible"] == 6 and st["counts"]["hidden"] is None and st["can"] == {"view": True, "manage": True, "sensitive": False, "configure": False, "acknowledge": False}
     assert {t["name"]: t["count"] for t in c.get(f"{API}/schedules/tags", headers=OMER).json()["tags"]} == {"shabbat": 2, "offices": 2, "outdoor": 1}
     # the administrator sees the difference
     adm = c.get(f"{API}/schedules/status").json()
@@ -199,7 +199,7 @@ def test_a_view_only_holder_sees_everything_it_may_and_changes_nothing(sched_app
     sch = _by_name(c, "Hall lights on rest days", OMER)
     assert sch["can"] == {"edit": False, "toggle": False, "run": False, "delete": False, "copy": False} and sch["read_only"]["reasons"][0]["code"] == "no_manage_permission"
     st = c.get(f"{API}/schedules/status", headers=OMER).json()
-    assert st["can"] == {"view": True, "manage": False, "sensitive": False, "configure": False} and st["writable"] is True
+    assert st["can"] == {"view": True, "manage": False, "sensitive": False, "configure": False, "acknowledge": False} and st["writable"] is True
     for method, path, body in (("post", f"/schedules/{sch['id']}/disable", {"client_request_id": rid()}), ("post", "/schedules", {"draft": draft_of("x"), "enabled": True, "client_request_id": rid()}),
                                ("post", f"/schedules/{sch['id']}/run", {"slot_index": 0, "confirm": True, "client_request_id": rid()})):
         r = getattr(c, method)(f"{API}{path}", json=body, headers=OMER)
@@ -262,6 +262,7 @@ def test_control_door_and_alarm_rules(sched_app):
     assert c.put(f"{API}/alarm/users/dev-omer/policy", json={"arm_policy": "no_code", "disarm_policy": "no_code"}).status_code == 200  # no code to verify: this test is about the rights
     assert c.post(f"{API}/schedules", json={"draft": arm, "enabled": True, "client_request_id": rid()}, headers=OMER).status_code == 201
     disarm = draft_of("D", [slot("06:00:00", None, act("alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel"))])
+    allow_disarm(c)
     r = c.post(f"{API}/schedules", json={"draft": disarm, "enabled": True, "client_request_id": rid(), "confirm_lowering": True}, headers=OMER)
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and "ניטרול אזעקה" in r.json()["user_message"]
 
@@ -406,6 +407,7 @@ def test_the_remote_channel_follows_the_alarm_settings(sched_app):
         assert gate["can"]["edit"] is False and gate["read_only"]["reasons"][0]["code"] == "entity_not_controllable"
         app.dependency_overrides.pop(current_principal); app.dependency_overrides.pop(current_principal_ro)
         assert c.patch(f"{API}/settings", json={"alarm.remote_control": "true", "alarm.remote_disarm": "false"}).status_code == 200
+        allow_disarm(c)
         app.dependency_overrides[current_principal] = app.dependency_overrides[current_principal_ro] = _remote_joni
         assert c.post(f"{API}/schedules", json={"draft": _arm_draft("Remote arm"), "enabled": True, "client_request_id": rid()}).status_code == 201
         disarm = draft_of("Remote disarm", [slot("06:00:00", None, act("alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel"))])

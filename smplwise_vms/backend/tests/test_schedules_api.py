@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from smplwise.services import schedules
 from schedules_fixture import *  # noqa: F401,F403
 from schedules_fixture import sched_app  # noqa: F401  (the fixture itself)
 
@@ -30,9 +31,9 @@ def test_status_when_feature_is_off_and_on(sched_app):
     st = c.get(f"{API}/schedules/status").json()
     assert st["available"] == "ok" and st["feature_enabled"] is True and st["writable"] is True and st["write_block"] is None
     assert st["capabilities"] == {"tags": True, "negative_sun_offset": True}
-    assert st["can"] == {"view": True, "manage": True, "sensitive": True, "configure": True}
+    assert st["can"] == {"view": True, "manage": True, "sensitive": True, "configure": True, "acknowledge": True}
     assert st["counts"]["visible"] == 12 and st["counts"]["hidden"] == 0
-    assert st["settings"]["shabbat_sensor"]["entity_id"] == SHABBAT and st["settings"]["classes"] == ["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door"]
+    assert st["settings"]["shabbat_sensor"]["entity_id"] == SHABBAT and st["settings"]["classes"] == ["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum"]
     assert st["admin"]["bridge_required"] == "0.3.0" and st["admin"]["component"] == "found"
     assert c.patch(f"{API}/settings", json={"schedules.enabled": "false"}).status_code == 200
     off = c.get(f"{API}/schedules/status").json()
@@ -79,13 +80,21 @@ def test_read_model_of_a_v_live_shaped_schedule(sched_app):
 
 def test_unsupported_content_is_shown_read_only_and_never_rewritten(sched_app):
     app, s, c, fake, tr = sched_app
-    sid = fake.items and next(i for i, it in fake.items.items() if it["name"] == "")
+    # 2026-10-04: the live pattern "a script called as its own service, no entity" is a SCRIPT action now (its script is gone here: the action
+    # is shown, editable and marked as not runnable) - the read-only "original platform" mode is for content Arx truly cannot model
+    seven = next(i for i, it in fake.items.items() if it["name"] == "")
+    d7 = c.get(f"{API}/schedules/{seven}").json()
+    assert d7["read_only"] is None and d7["slots"][0]["actions"][0]["entity_id"] == "script.missing_script" and d7["slots"][0]["actions"][0]["invalid"]["code"] == "entity_missing"
+    assert d7["can"]["edit"] is True and d7["can"]["run"] is False
+    sid = fake._add({"name": "", "weekdays": ["daily"], "repeat_type": "repeat", "timeslots": [
+        {"start": "05:30:00", "stop": None, "conditions": [], "condition_type": None, "track_conditions": False, "actions": [{"service": "notify.notify", "entity_id": None, "service_data": {"message": "hi"}}]}]})
+    schedules.MIRROR.pull(None, "t")
     d = c.get(f"{API}/schedules/{sid}").json()
     assert d["display_name"] == "תזמון ללא שם" and d["can"]["edit"] is False and d["can"]["run"] is False
     assert d["slots"][0]["supported"] is False and d["slots"][0]["unsupported"][0]["code"] == "action_without_entity"
     assert d["slots"][0]["actions"][0]["entity_id"] is None and d["slots"][0]["actions"][0]["class"] is None
     assert [r["code"] for r in d["read_only"]["reasons"]] == ["unsupported_content"]
-    assert d["raw"]["timeslots"][0]["actions"][0]["service"] == "script.missing_script"
+    assert d["raw"]["timeslots"][0]["actions"][0]["service"] == "notify.notify"
     # an edit attempt is refused, and nothing reaches the bridge
     before = len(fake.bridge_calls)
     r = put_draft(c, sid, draft_of("x"), d["revision"])
@@ -117,7 +126,7 @@ def test_list_filters_sort_and_pagination(sched_app):
     assert {s["name"] for s in _list(c, q="gym")["items"]} == {"Gym shutter"}  # entity name / schedule name
     assert {s["name"] for s in _list(c, area="sch_bedrooms")["items"]} >= {"Bedroom 1 cooling on rest days", "All bedrooms off"}
     assert _list(c, floor="sch_upper")["total"] >= 2 and _list(c, day="sat")["total"] == 11
-    assert _list(c, sensitive="true")["total"] == 2 and _list(c, editable="false")["total"] == 1 and _list(c, source="arx")["total"] == 0
+    assert _list(c, sensitive="true")["total"] == 2 and _list(c, editable="false")["total"] == 0 and _list(c, source="arx")["total"] == 0  # 2026-10-04: the script pattern is editable
     names = [s["display_name"] for s in _list(c, sort="name", limit=500)["items"]]
     assert names == sorted(names, key=str.casefold)
     page = _list(c, sort="name", limit=5, offset=5)
@@ -154,7 +163,7 @@ def test_catalog_selectability_and_reasons(sched_app):
     # an alarm panel that needs a code to disarm offers arming only; a lock that needs a code offers nothing
     panel = {a["service"] for a in by["alarm_control_panel.home_panel"]["actions"]}
     assert "alarm_control_panel.alarm_arm_home" in panel and "alarm_control_panel.alarm_disarm" not in panel
-    assert {a["service"] for a in by["alarm_control_panel.shed_panel"]["actions"]} >= {"alarm_control_panel.alarm_disarm"}
+    assert "alarm_control_panel.alarm_disarm" not in {a["service"] for a in by["alarm_control_panel.shed_panel"]["actions"]}  # 2026-10-04: not by default
     assert by["lock.side_door"]["selectable"] is False and by["lock.side_door"]["reason"]["code"] == "lock_code_needed"
     # the schedules' own switches never appear
     assert not any(e["entity_id"].startswith("switch.schedule_") for e in cat["entities"]) and cat["truncated"] is False
@@ -271,6 +280,8 @@ def test_create_validation_errors_use_the_contract_codes(sched_app):
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office")), slot("18:30:00", "19:30:00", act("light.turn_off", "light.office"))]))) == (422, "slots_overlap")
     assert create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office")), slot("18:30:00", "19:30:00", act("light.turn_off", "light.office"))])).json()["user_message"] == "משבצות חופפות באותו תזמון."
     assert code(create(draft_of("x", conditions=[cond(entity="light.office")]))) == (422, "condition_domain_not_allowed")
+    assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"))]))) == (422, "disarm_not_allowed")
+    allow_disarm(c)
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"))]))) == (422, "alarm_code_needed")
     assert code(create(draft_of("x", [slot("18:00:00", None, act("lock.unlock", "lock.side_door"))]))) == (422, "lock_code_needed")
     assert code(create(draft_of("x", [slot("18:00:00", None, act("alarm_control_panel.alarm_arm_vacation", "alarm_control_panel.shed_panel"))]))) == (422, "arm_mode_not_supported")

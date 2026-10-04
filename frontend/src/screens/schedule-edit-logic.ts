@@ -176,6 +176,12 @@ const climateData = (mode: string | undefined, temperature: number, e: EntityMet
   return mode ? { hvac_mode: mode, temperature: t } : { temperature: t };
 };
 
+/** A device without an on / off reading (a humidifier, an input_number): its first offered action with the required arguments. */
+function firstOffered(e: EntityMeta): DraftAction | null {
+  const first = e.actions[0];
+  return first ? { service: first.service, entity_id: e.entity_id, data: defaultDataFor(first.args, e) } : null;
+}
+
 /** The action a device does for an intent, or null when its class has no such thing. */
 export function actionForIntent(intent: Intent, e: EntityMeta): DraftAction | null {
   const dom = e.domain;
@@ -185,11 +191,16 @@ export function actionForIntent(intent: Intent, e: EntityMeta): DraftAction | nu
       if (dom === 'light' || dom === 'switch' || dom === 'fan') return make(`${dom}.turn_on`);
       if (dom === 'climate') return make('climate.set_temperature', climateData(climateModeFor('cool', e), 23, e));
       if (dom === 'cover') return make('cover.open_cover');
+      if (dom === 'script' || dom === 'scene' || dom === 'input_boolean') return make(`${dom}.turn_on`);
+      if (dom === 'vacuum') return make('vacuum.start');
+      if (dom === 'humidifier' || dom === 'input_number' || dom === 'input_select') return firstOffered(e);
       return null;
     case 'off':
       if (dom === 'light' || dom === 'switch' || dom === 'fan') return make(`${dom}.turn_off`);
       if (dom === 'climate') return make('climate.turn_off');
       if (dom === 'cover') return make('cover.close_cover');
+      if (dom === 'input_boolean') return make('input_boolean.turn_off');
+      if (dom === 'vacuum') return make('vacuum.return_to_base');
       return null;
     case 'open':
       return dom === 'cover' ? make('cover.open_cover') : dom === 'light' || dom === 'switch' || dom === 'fan' ? make(`${dom}.turn_on`) : null;
@@ -314,7 +325,9 @@ export function isLoweringAction(a: DraftAction, cls: ScheduleClass | null, cata
   return ['cover.open_cover', 'switch.turn_on', 'switch.turn_off', 'button.press'].includes(a.service);
 }
 
-export function isSensitiveAction(a: DraftAction, cls: ScheduleClass | null): boolean {
+export function isSensitiveAction(a: DraftAction, cls: ScheduleClass | null, meta?: EntityMeta): boolean {
+  // a script / scene is sensitive when what it drives is (the server says so per entity: an alarm script, a scene with a lock)
+  if ((cls === 'script' || cls === 'scene') && meta) return meta.sensitive;
   return (!!cls && SENSITIVE_CLASSES.includes(cls)) || a.service.startsWith('alarm_control_panel.') || a.service.startsWith('lock.');
 }
 
@@ -345,7 +358,7 @@ export function loweringSummary(draft: ScheduleDraft, meta: MetaMap): LoweringSu
     for (const a of s.actions) {
       const m = a.entity_id ? meta.get(a.entity_id) : undefined;
       const cls = m?.class ?? null;
-      if (isSensitiveAction(a, cls)) sensitive = true;
+      if (isSensitiveAction(a, cls, m)) sensitive = true;
       if (isLoweringAction(a, cls, m?.actions)) {
         slotLowers = true;
         const n = m?.name ?? a.entity_id ?? '';
@@ -374,7 +387,8 @@ export interface ValidationCtx {
 }
 
 function argLabel(name: string): string {
-  return ({ brightness: 'בהירות', brightness_pct: 'בהירות', position: 'מיקום', tilt_position: 'הטיה', temperature: 'טמפרטורה', hvac_mode: 'מצב פעולה', percentage: 'עוצמה', fan_mode: 'מצב מאוורר', preset_mode: 'מצב מוגדר' } as Record<string, string>)[name] ?? name;
+  return ({ brightness: 'בהירות', brightness_pct: 'בהירות', position: 'מיקום', tilt_position: 'הטיה', temperature: 'טמפרטורה', hvac_mode: 'מצב פעולה', percentage: 'עוצמה', fan_mode: 'מצב מאוורר', preset_mode: 'מצב מוגדר',
+    swing_mode: 'מצב נדנוד', humidity: 'לחות', mode: 'מצב', value: 'ערך', option: 'אפשרות', variables: 'משתני הסקריפט' } as Record<string, string>)[name] ?? name;
 }
 
 function sameAction(a: DraftAction, b: DraftAction): boolean {
@@ -421,8 +435,15 @@ export function validateDraft(draft: ScheduleDraft, ctx: ValidationCtx): { error
       if (m.actions.length && !svc) err(`${path}.service`, 'action_not_allowed', 'הפעולה אינה מותרת בתזמון.');
       if ('code' in a.data) err(`${path}.data.code`, 'code_not_allowed', 'אסור לשמור קוד בתוך תזמון.');
       for (const spec of svc?.args ?? []) {
+        if (spec.type === 'vars') {
+          // a script's variables: the required ones present, nothing the script does not declare (the server checks types and ranges)
+          const vars = (a.data.variables ?? {}) as Record<string, unknown>;
+          for (const f of spec.fields ?? []) if (f.required && (vars[f.name] === undefined || vars[f.name] === '')) err(`${path}.data.variables`, 'required', `חסר משתנה חובה של הסקריפט: ${f.label ?? f.name}`);
+          for (const k of Object.keys(vars)) if (!(spec.fields ?? []).some((f) => f.name === k)) err(`${path}.data.variables`, 'argument_not_allowed', `לסקריפט אין משתנה בשם ${k}.`);
+          continue;
+        }
         const v = a.data[spec.name];
-        const label = argLabel(spec.name);
+        const label = spec.label ?? argLabel(spec.name);
         if (v === undefined || v === null || v === '') {
           // brightness / brightness_pct are alternatives; hvac_mode is optional for set_temperature
           if (spec.required) err(`${path}.data.${spec.name}`, 'required', `נדרש ערך: ${label}.`);
@@ -675,6 +696,20 @@ const SERVICE_WORDS: Record<string, string> = {
   'lock.lock': 'נעילה',
   'lock.unlock': 'פתיחת נעילה',
   'button.press': 'לחיצה',
+  'cover.open_cover_tilt': 'פתיחת הטיה',
+  'cover.close_cover_tilt': 'סגירת הטיה',
+  'climate.set_swing_mode': 'מצב נדנוד',
+  'climate.set_humidity': 'לחות יעד',
+  'script.turn_on': 'הפעלת סקריפט',
+  'scene.turn_on': 'הפעלת סצנה',
+  'input_boolean.turn_on': 'הפעלה',
+  'input_boolean.turn_off': 'כיבוי',
+  'input_number.set_value': 'קביעת ערך',
+  'input_select.select_option': 'בחירה',
+  'humidifier.set_humidity': 'לחות יעד',
+  'humidifier.set_mode': 'מצב לחות',
+  'vacuum.start': 'התחלת ניקוי',
+  'vacuum.return_to_base': 'חזרה לעמדה',
 };
 
 export function serviceWord(service: string, catalogLabel?: string): string {
@@ -707,13 +742,26 @@ export function plainSlots(slots: EditSlot[]): DraftSlot[] {
 export function defaultDataFor(specs: ArgSpec[], meta: EntityMeta | undefined): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const s of specs) {
+    if (s.type === 'vars') {
+      // a script's required variables start at their default (or a sensible value); the optional ones stay out until set
+      const vars: Record<string, unknown> = {};
+      for (const f of s.fields ?? []) {
+        if (!f.required) continue;
+        if (f.default !== undefined) vars[f.name] = f.default;
+        else if (f.choices?.length) vars[f.name] = f.choices[0];
+        else if (f.type === 'int' || f.type === 'float') vars[f.name] = f.min ?? 0;
+        else if (f.type === 'bool') vars[f.name] = false;
+      }
+      if (Object.keys(vars).length) out.variables = vars;
+      continue;
+    }
     if (!s.required) continue;
     if (s.name === 'temperature') {
       const min = Number(meta?.attributes.min_temp ?? s.min ?? 16);
       const max = Number(meta?.attributes.max_temp ?? s.max ?? 30);
       out.temperature = Math.min(max, Math.max(min, 23));
     } else if (s.choices?.length) out[s.name] = s.name === 'hvac_mode' ? (['cool', 'heat_cool', 'heat', 'auto'].find((m) => s.choices!.includes(m)) ?? s.choices.find((m) => m !== 'off') ?? s.choices[0]) : s.choices[0];
-    else if (s.type === 'int' || s.type === 'float') out[s.name] = Math.min(s.max ?? 100, Math.max(s.min ?? 0, 50));
+    else if (s.type === 'int' || s.type === 'float') out[s.name] = s.name === 'value' && s.min !== undefined ? s.min : Math.min(s.max ?? 100, Math.max(s.min ?? 0, 50));
     else if (s.type === 'enum' || s.type === 'str') out[s.name] = '';
   }
   return out;

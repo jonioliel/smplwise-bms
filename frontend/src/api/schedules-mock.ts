@@ -2,8 +2,9 @@
  * CR-014 demo data and in-memory store for the schedules API (docs/architecture/SCHEDULER_API.md). Used when no backend
  * answers (static preview, design review) and by the UI specs. The shapes follow the verified item structure of a live
  * installation (contiguous day slots, "HH:MM:SS" / "sunset+HH:MM:SS" times, schedule-wide conditions on a Shabbat /
- * holiday binary sensor, climate "set temperature" / "off" pairs, a code-free alarm arming, a script action without an
- * entity) - with invented Hebrew names only; nothing here comes from a real installation.
+ * holiday binary sensor, climate "set temperature" / "off" pairs, a code-free alarm arming, a script called as its own
+ * service without an entity - read as a script action since 2026-10-04 - and one action Arx truly cannot model) - with
+ * invented Hebrew names only; nothing here comes from a real installation.
  *
  * The rules applied here (classes, allow-list, lowering, permissions) only imitate the server for demo purposes; the
  * server is the authority.
@@ -15,6 +16,7 @@
 import { ApiError } from './client';
 import {
   ALL_CLASSES,
+  ALLOW_DISARM_WORD,
   DAY_ORDER,
   SENSITIVE_CLASSES,
   actionLabel,
@@ -26,6 +28,8 @@ import {
   findOverlaps,
   parseTime,
   resolveDays,
+  type AckableIssue,
+  type Acknowledgement,
   type ArgSpec,
   type Availability,
   type BulkResult,
@@ -82,6 +86,11 @@ interface DemoEntity {
   selectable?: boolean;
   reason?: Problem;
   attributes?: Record<string, unknown>;
+  /** A script / scene that drives an alarm / lock / door (the server reads it from the automations mirror). */
+  sensitive?: boolean;
+  lowering?: boolean;
+  /** A script's fields (the server's `vars` argument). */
+  fields?: ArgSpec[];
 }
 
 const F0 = { floor_id: 'f0', floor_name: 'קומת קרקע' };
@@ -106,6 +115,19 @@ export const DEMO_ENTITIES: DemoEntity[] = [
   { entity_id: 'cover.parking_gate', name: 'שער חניה', domain: 'cover', class: 'door', area_id: 'parking', area_name: 'חניה', ...F0, attributes: { device_class: 'gate', current_position: 0 } },
   { entity_id: 'lock.main_door', name: 'מנעול דלת ראשית', domain: 'lock', class: 'lock', area_id: 'lobby', area_name: 'לובי', ...F0 },
   { entity_id: 'alarm_control_panel.house', name: 'אזעקה – בית', domain: 'alarm_control_panel', class: 'alarm', area_id: 'lobby', area_name: 'לובי', ...F0, attributes: { code_arm_required: false, arm_modes: ['arm_home', 'arm_away', 'arm_night'] } },
+  // 2026-10-04: scripts (an alarm script is an ordinary script), a scene, a helper, a vacuum
+  {
+    entity_id: 'script.morning_routine', name: 'שגרת בוקר', domain: 'script', class: 'script', area_id: 'living', area_name: 'סלון', ...F0,
+    fields: [
+      { name: 'minutes', label: 'דקות', type: 'int', min: 1, max: 60, required: true },
+      { name: 'room', label: 'חדר', type: 'enum', choices: ['סלון', 'משרדים'], required: false },
+      { name: 'loud', label: 'בקול', type: 'bool', required: false },
+    ],
+  },
+  { entity_id: 'script.night_alarm', name: 'סקריפט אזעקת לילה', domain: 'script', class: 'script', area_id: 'lobby', area_name: 'לובי', ...F0, sensitive: true },
+  { entity_id: 'scene.evening', name: 'סצנת ערב', domain: 'scene', class: 'scene', area_id: 'living', area_name: 'סלון', ...F0 },
+  { entity_id: 'input_boolean.guest_mode', name: 'מצב אורחים', domain: 'input_boolean', class: 'helper', area_id: 'living', area_name: 'סלון', ...F0 },
+  { entity_id: 'vacuum.robot', name: 'שואב רובוטי', domain: 'vacuum', class: 'vacuum', area_id: 'living', area_name: 'סלון', ...F0 },
 ];
 
 export const DEMO_CONDITION_ENTITIES: ConditionCandidate[] = [
@@ -131,6 +153,11 @@ const ALLOW: Record<ScheduleClass, Record<string, ArgSpec[]>> = {
     'cover.set_cover_position': [int('position', 0, 100)],
     'cover.set_cover_tilt_position': [int('tilt_position', 0, 100)],
   },
+  script: { 'script.turn_on': [{ name: 'variables', type: 'vars', required: false }] },
+  scene: { 'scene.turn_on': [] },
+  helper: { 'input_boolean.turn_on': [], 'input_boolean.turn_off': [] },
+  humidifier: {},
+  vacuum: { 'vacuum.start': [], 'vacuum.return_to_base': [] },
   climate: {
     'climate.set_hvac_mode': [{ name: 'hvac_mode', type: 'enum', choices: [], required: true }],
     'climate.set_temperature': [{ name: 'temperature', type: 'float', min: 16, max: 30, required: true }, { name: 'hvac_mode', type: 'enum', choices: [], required: false }],
@@ -149,8 +176,9 @@ const ALLOW: Record<ScheduleClass, Record<string, ArgSpec[]>> = {
   door: { 'cover.open_cover': [], 'cover.close_cover': [], 'cover.stop_cover': [], 'cover.set_cover_position': [int('position', 0, 100)], 'switch.turn_on': [], 'switch.turn_off': [], 'button.press': [] },
 };
 
-function isLowering(cls: ScheduleClass | null, service: string, data: Record<string, unknown>): boolean {
+function isLowering(cls: ScheduleClass | null, service: string, data: Record<string, unknown>, e?: DemoEntity): boolean {
   if (service === 'alarm_control_panel.alarm_disarm' || service === 'lock.unlock') return true;
+  if (cls === 'script' || cls === 'scene') return !!e?.lowering;
   if (cls !== 'door') return false;
   if (service === 'cover.set_cover_position') return Number(data.position ?? 0) > 0;
   return ['cover.open_cover', 'switch.turn_on', 'switch.turn_off', 'button.press'].includes(service);
@@ -242,7 +270,8 @@ function seeds(): Seed[] {
     {
       ...base, id: 'a0f4c9', entity_id: 'switch.schedule_a0f4c9', name: '', enabled: true, weekdays: ['daily'], repeat: 'repeat', tags: [],
       conditions: NONE, source: 'external', owner: null, order: 7,
-      slots: [slot('05:00:00', null, act('script.morning_routine_old', null))],
+      // the owner's case: a script called as its own service, no entity - a script action since 2026-10-04
+      slots: [slot('06:15:00', null, act('script.morning_routine', null, { minutes: 10 }))],
     },
     {
       ...base, id: '71c2b8', entity_id: 'switch.schedule_tavrt_khvts', name: 'תאורת חוץ – שקיעה עד חצות', enabled: true, weekdays: ['daily'], repeat: 'repeat', tags: ['חוץ'],
@@ -284,8 +313,31 @@ function seeds(): Seed[] {
       conditions: NONE, source: 'arx', owner: JONI, created_at: '2026-09-26T21:00:00Z', order: 13,
       slots: [slot('23:00:00', null, act('lock.lock', 'lock.main_door'))],
     },
+    {
+      ...base, id: '6e2d90', entity_id: 'switch.schedule_6e2d90', name: 'הודעת בוקר לטלפון', enabled: true, weekdays: SUN_THU, repeat: 'repeat', tags: [],
+      conditions: NONE, source: 'external', owner: null, order: 14,
+      // content Arx truly cannot model (a notification): shown, never edited here
+      slots: [slot('07:00:00', null, act('notify.mobile_app_phone', null, { message: 'בוקר טוב' }))],
+    },
   ];
 }
+
+const SCRIPT_RESERVED = ['turn_on', 'turn_off', 'toggle', 'reload'];
+
+/** The server's `canonical_action`: a script called as its own service is `script.turn_on` on that script, its data the variables. */
+function canonicalAction(a: DraftAction): DraftAction {
+  const m = /^script\.([a-z0-9_]+)$/.exec(a.service);
+  if (m && !SCRIPT_RESERVED.includes(m[1]) && (a.entity_id === null || a.entity_id === `script.${m[1]}`)) {
+    return { service: 'script.turn_on', entity_id: `script.${m[1]}`, data: Object.keys(a.data).length ? { variables: { ...a.data } } : {} };
+  }
+  return a;
+}
+
+function canonicalDraft(d: ScheduleDraft): ScheduleDraft {
+  return { ...d, slots: d.slots.map((s) => ({ ...s, actions: s.actions.map(canonicalAction) })) };
+}
+
+const sensitiveOf = (e: DemoEntity | undefined): boolean => !!e && (SENSITIVE_CLASSES.includes(e.class) || ((e.class === 'script' || e.class === 'scene') && !!e.sensitive));
 
 // ------------------------------------------------------------------------------------------------ helpers
 
@@ -371,7 +423,7 @@ interface DemoTrash {
 export class ScheduleDemoStore {
   persona: DemoPersona = 'admin';
   availability: Availability = 'ok';
-  settings: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: DEMO_SHABBAT_SENSOR };
+  settings: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: DEMO_SHABBAT_SENSOR, allowDisarm: false };
   private items: Seed[] = [];
   private trashItems: DemoTrash[] = [];
   private runItems: DemoRun[] = [];
@@ -450,19 +502,23 @@ export class ScheduleDemoStore {
     const slots: ScheduleSlot[] = s.slots.map((sl, index) => {
       const start = parseTime(sl.start) ?? ({ kind: 'fixed', time: '00:00', raw: sl.start } as TimeSpec);
       const stop = sl.stop ? parseTime(sl.stop) : null;
-      const actions = sl.actions.map((a) => {
+      const actions = sl.actions.map(canonicalAction).map((a) => {
         const e = a.entity_id ? ENTITY.get(a.entity_id) : undefined;
         const cls = e ? e.class : null;
-        const supported = !!e && !!cls && a.service in ALLOW[cls] && !('code' in a.data);
-        return { service: a.service, entity_id: a.entity_id, data: { ...a.data }, supported, class: supported ? cls : null, sensitive: !!cls && SENSITIVE_CLASSES.includes(cls), lowering: isLowering(cls, a.service, a.data) };
+        const known = Object.values(ALLOW).some((svcs) => a.service in svcs);
+        const gone = !!a.entity_id && !e && known && a.service.split('.')[0] === a.entity_id.split('.')[0];
+        const supported = gone || (!!e && !!cls && a.service in ALLOW[cls] && !('code' in a.data));
+        const out: Schedule['slots'][number]['actions'][number] = { service: a.service, entity_id: a.entity_id, data: { ...a.data }, supported, class: supported && cls ? cls : null, sensitive: sensitiveOf(e), lowering: isLowering(cls, a.service, a.data, e) };
+        if (gone) out.invalid = { code: 'entity_missing', message: 'ההתקן של הפעולה אינו קיים עוד במערכת.' };
+        return out;
       });
       const unsupported: Problem<'action_without_entity' | 'action_not_allowed'>[] = actions
         .filter((a) => !a.supported)
-        .map((a, i) => (a.entity_id ? { code: 'action_not_allowed', message: 'הפעולה אינה נתמכת בתזמון.', path: `slots[${index}].actions[${i}]` } : { code: 'action_without_entity', message: 'פעולה ללא התקן (למשל סקריפט) - ניתנת לעריכה רק ברכיב המקורי.', path: `slots[${index}].actions[${i}]` }));
+        .map((a, i) => (a.entity_id ? { code: 'action_not_allowed', message: 'הפעולה אינה נתמכת בתזמון.', path: `slots[${index}].actions[${i}]` } : { code: 'action_without_entity', message: 'פעולה ללא התקן שהמערכת אינה מציגה.', path: `slots[${index}].actions[${i}]` }));
       return { index, start, stop, actions, supported: unsupported.length === 0, unsupported };
     });
     const understood = slots.every((x) => x.supported);
-    const ids = [...new Set(s.slots.flatMap((sl) => sl.actions.map((a) => a.entity_id)).filter((x): x is string => !!x))];
+    const ids = [...new Set(s.slots.flatMap((sl) => sl.actions.map((a) => canonicalAction(a).entity_id)).filter((x): x is string => !!x))];
     const entities = ids.map((id) => {
       const e = ENTITY.get(id);
       return {
@@ -475,7 +531,7 @@ export class ScheduleDemoStore {
         floor_id: e?.floor_id ?? null,
         floor_name: e?.floor_name ?? null,
         class: e?.class ?? null,
-        sensitive: !!e && SENSITIVE_CLASSES.includes(e.class),
+        sensitive: sensitiveOf(e),
         available: e?.available ?? true,
       };
     });
@@ -489,6 +545,7 @@ export class ScheduleDemoStore {
     const allActions = slots.flatMap((x) => x.actions);
     const sensitiveClasses = [...new Set(allActions.filter((a) => a.sensitive && a.class).map((a) => a.class as ScheduleClass))];
     const sensitive = sensitiveClasses.length > 0;
+    const invalid = allActions.filter((a) => a.invalid);
     const lowering = allActions.some((a) => a.lowering);
     const upcoming = approximateUpcoming(draftOf(s), now, DEMO_SUN).map((u) => ({ ...u, summary: this.slotSummary(s.slots[u.slot_index]) }));
     const state: ScheduleState = s.state ?? (s.enabled ? (upcoming.length ? 'on' : 'unavailable') : 'off');
@@ -539,19 +596,19 @@ export class ScheduleDemoStore {
       can: {
         edit: rights && understood,
         toggle: understood ? rights : wide && s.enabled,
-        run: rights && understood,
+        run: rights && understood && !invalid.length,
         delete: understood ? rights : wide,
         copy: rights && understood,
       },
       read_only: reasons.length ? { reasons } : null,
-      warnings: s.repeat === 'single' ? [{ code: 'single_deletes', message: 'התזמון יימחק אחרי ההרצה האחרונה.' }] : [],
+      warnings: [...invalid.map((a) => ({ code: a.invalid!.code, message: a.invalid!.message })), ...(s.repeat === 'single' ? [{ code: 'single_deletes', message: 'התזמון יימחק אחרי ההרצה האחרונה.' }] : [])],
       raw: { ...(contentOf(s) as Record<string, unknown>), entity_id: s.entity_id, enabled: s.enabled, timestamps: upcoming.map((u) => u.at), next_entries: upcoming.map((u) => u.slot_index) },
     };
   }
 
   private slotSummary(sl: DraftSlot | undefined): string {
     if (!sl) return '';
-    return sl.actions.map((a) => `${actionLabel(a)} · ${(a.entity_id && ENTITY.get(a.entity_id)?.name) || 'ללא התקן'}`).join(', ');
+    return sl.actions.map(canonicalAction).map((a) => `${actionLabel(a)} · ${(a.entity_id && ENTITY.get(a.entity_id)?.name) || 'ללא התקן'}`).join(', ');
   }
 
   private find(id: string): Seed {
@@ -583,15 +640,16 @@ export class ScheduleDemoStore {
       writable: this.writable,
       write_block: !this.settings.enabled ? 'feature_disabled' : this.availability === 'ok' ? null : this.availability === 'ha_unavailable' ? 'ha_unavailable' : 'component_missing',
       capabilities: { tags: false, negative_sun_offset: false },
-      can: { view: this.canView, manage: this.canManage, sensitive: this.canSensitive, configure: admin },
-      counts: { visible: visible.length, enabled: visible.filter((s) => s.enabled).length, attention: admin ? 1 : 0, hidden: admin ? 0 : null },
+      can: { view: this.canView, manage: this.canManage, sensitive: this.canSensitive, configure: admin, acknowledge: admin },
+      counts: { visible: visible.length, enabled: visible.filter((s) => s.enabled).length, attention: admin ? this.reviewRows().filter((r) => r.issues.length).length : 0, hidden: admin ? 0 : null },
       settings: {
         snap_minutes: this.settings.snapMinutes,
         default_repeat: this.settings.defaultRepeat,
         classes: [...this.settings.classes],
         shabbat_sensor: sensor ? { entity_id: sensor.entity_id, name: sensor.name, state: sensor.state, available: true } : null,
+        allow_disarm: this.settings.allowDisarm,
       },
-      admin: admin ? { component: this.availability === 'component_missing' ? 'missing' : 'found', component_version: this.availability === 'component_missing' ? null : '3.3.8', bridge_version: '0.3.0', bridge_required: '0.3.0', ha_version: '2026.9.4' } : undefined,
+      admin: admin ? { component: this.availability === 'component_missing' ? 'missing' : 'found', component_version: this.availability === 'component_missing' ? null : '3.3.8', bridge_version: '0.6.1', bridge_required: '0.3.0', ha_version: '2026.9.4' } : undefined,
     };
   }
 
@@ -647,16 +705,21 @@ export class ScheduleDemoStore {
       .filter((e) => !text || e.name.toLowerCase().includes(text) || e.entity_id.includes(text))
       .filter((e) => (!q.floor || e.floor_id === q.floor) && (!q.area || e.area_id === q.area) && (!q.class || e.class === q.class))
       .map((e): CatalogEntity => {
-        const sensitive = SENSITIVE_CLASSES.includes(e.class);
+        const sensitive = sensitiveOf(e);
         const blocked: Problem | null = e.reason ?? (sensitive && !this.canSensitive ? { code: 'sensitive_permission_required', message: 'דורש הרשאה לתזמון פעולות רגישות.' } : null);
-        const services = Object.entries(ALLOW[e.class]).filter(([svc]) => svc.split('.')[0] === e.domain);
+        const services = Object.entries(ALLOW[e.class])
+          .filter(([svc]) => svc.split('.')[0] === e.domain)
+          .filter(([svc]) => svc !== 'alarm_control_panel.alarm_disarm' || this.settings.allowDisarm); // disarming only when a system administrator allowed it
         const actions: CatalogAction[] = blocked
           ? []
           : services.map(([service, args]) => ({
               service,
               label: actionLabel({ service }),
-              lowering: isLowering(e.class, service, service === 'cover.set_cover_position' ? { position: 50 } : {}),
-              args: args.map((a) => (a.type === 'enum' && a.name === 'hvac_mode' ? { ...a, choices: ((e.attributes?.hvac_modes as string[]) ?? []).filter((m) => m !== 'off') } : a)),
+              lowering: isLowering(e.class, service, service === 'cover.set_cover_position' ? { position: 50 } : {}, e),
+              args: args
+                .map((a) => (a.type === 'enum' && a.name === 'hvac_mode' ? { ...a, choices: ((e.attributes?.hvac_modes as string[]) ?? []).filter((m) => m !== 'off') } : a))
+                .map((a) => (a.type === 'vars' ? { ...a, label: 'משתני הסקריפט', fields: e.fields ?? [] } : a))
+                .filter((a) => a.type !== 'vars' || (a.fields ?? []).length > 0),
             }));
         return {
           entity_id: e.entity_id,
@@ -698,6 +761,7 @@ export class ScheduleDemoStore {
     if (!draft.slots.length) errors.push({ path: 'slots', code: 'required', message: 'נדרשת לפחות משבצת אחת.' });
     if (draft.start_date && draft.end_date && draft.start_date > draft.end_date) errors.push({ path: 'end_date', code: 'order', message: 'תאריך הסיום לפני תאריך ההתחלה.' });
     if (draft.repeat === 'single') warnings.push({ path: 'repeat', code: 'single_deletes', message: 'התזמון יימחק אחרי ההרצה האחרונה.' });
+    draft = canonicalDraft(draft);
     draft.slots.forEach((sl, i) => {
       if (!parseTime(sl.start)) errors.push({ path: `slots[${i}].start`, code: 'time', message: 'שעת התחלה לא תקינה.' });
       if (sl.stop && !parseTime(sl.stop)) errors.push({ path: `slots[${i}].stop`, code: 'time', message: 'שעת סיום לא תקינה.' });
@@ -713,10 +777,22 @@ export class ScheduleDemoStore {
         if (!(a.service in ALLOW[e.class])) errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'action_not_allowed', message: 'הפעולה אינה מותרת בתזמון.' });
         if (e.selectable === false) errors.push({ path: `slots[${i}].actions[${j}].entity_id`, code: e.reason?.code ?? 'action_not_allowed', message: e.reason?.message ?? 'לא ניתן לתזמן.' });
         if ('code' in a.data) errors.push({ path: `slots[${i}].actions[${j}].data.code`, code: 'code_not_allowed', message: 'אסור לשמור קוד בתוך תזמון.' });
+        if (a.service === 'alarm_control_panel.alarm_disarm' && !this.settings.allowDisarm) {
+          errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'disarm_not_allowed', message: 'נטרול אזעקה אינו ניתן לתזמון. רק מנהל מערכת יכול לאפשר זאת בהגדרות › תזמונים, עם אישור מוקלד.' });
+        }
+        if (a.service === 'script.turn_on') {
+          const vars = (a.data.variables ?? {}) as Record<string, unknown>;
+          for (const f of e.fields ?? []) {
+            if (f.required && vars[f.name] === undefined) errors.push({ path: `slots[${i}].actions[${j}].data.variables`, code: 'required', message: `חסר משתנה חובה של הסקריפט: ${f.label ?? f.name}` });
+          }
+          for (const k of Object.keys(vars)) {
+            if (!(e.fields ?? []).some((f) => f.name === k)) errors.push({ path: `slots[${i}].actions[${j}].data.variables`, code: 'argument_not_allowed', message: `לסקריפט אין משתנה בשם ${k}.` });
+          }
+        }
         const t = a.data.temperature;
         if (typeof t === 'number' && (t < 16 || t > 30)) errors.push({ path: `slots[${i}].actions[${j}].data.temperature`, code: 'out_of_range', message: 'טמפרטורה מחוץ לטווח 16–30.' });
-        if (SENSITIVE_CLASSES.includes(e.class)) sensitive = true;
-        if (isLowering(e.class, a.service, a.data)) lowering = true;
+        if (sensitiveOf(e)) sensitive = true;
+        if (isLowering(e.class, a.service, a.data, e)) lowering = true;
       });
     });
     for (const [a, b] of findOverlaps(draft.slots, DEMO_SUN)) errors.push({ path: `slots[${b}]`, code: 'slots_overlap', message: `משבצת ${b + 1} חופפת למשבצת ${a + 1}.` });
@@ -753,6 +829,7 @@ export class ScheduleDemoStore {
       const first = v.errors[0];
       if (first.code === 'sensitive_permission_required') fail(403, first.code, first.message);
       if (first.code === 'slots_overlap') fail(422, 'slots_overlap', 'משבצות חופפות באותו תזמון.', { errors: v.errors });
+      if (first.code === 'disarm_not_allowed') fail(422, 'disarm_not_allowed', first.message, { errors: v.errors });
       fail(422, 'validation', `ערך לא תקין — ${first.path}: ${first.message}`, { errors: v.errors });
     }
     if (v.lowering && !confirmLowering) fail(409, 'lowering_confirmation_required', 'תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.');
@@ -775,7 +852,7 @@ export class ScheduleDemoStore {
       repeat: draft.repeat,
       tags: [...draft.tags],
       conditions: clone(draft.conditions),
-      slots: clone(draft.slots),
+      slots: clone(canonicalDraft(draft).slots),
       source: 'arx',
       owner: JONI,
       created_at: now,
@@ -809,7 +886,7 @@ export class ScheduleDemoStore {
       repeat: draft.repeat,
       tags: [...draft.tags],
       conditions: clone(draft.conditions),
-      slots: clone(draft.slots),
+      slots: clone(canonicalDraft(draft).slots),
       updated_at: new Date().toISOString(),
       owner: JONI,
     });
@@ -834,6 +911,8 @@ export class ScheduleDemoStore {
     const s = this.find(id);
     this.requireWrite(s);
     const b = this.build(s);
+    const bad = b.slots.flatMap((x) => x.actions).find((a) => a.invalid);
+    if (bad) fail(409, 'action_invalid', bad.invalid!.message);
     if (!b.can.run) fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
     if (slotIndex === null && s.slots.length > 1) fail(422, 'slot_required', 'בחרו איזו משבצת להריץ.');
     const index = slotIndex ?? 0;
@@ -961,19 +1040,50 @@ export class ScheduleDemoStore {
     return { items: clone(rows.slice(0, q.limit ?? 50)) };
   }
 
-  async review(): Promise<{ items: ReviewItem[] }> {
-    await delay();
-    if (this.persona !== 'admin') fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
+  /** The administrator's acknowledgements: schedule id -> issue -> the content revision it holds for. */
+  private acks = new Map<string, Map<AckableIssue, { revision: string; at: string; by: PersonRef }>>();
+
+  private reviewRows(): ReviewItem[] {
     const out: ReviewItem[] = [];
     for (const s of this.items) {
       const b = this.build(s);
       const issues: ReviewItem['issues'] = [];
       if (b.slots.some((x) => !x.supported)) issues.push('unsupported_content');
+      if (b.slots.some((x) => x.actions.some((a) => a.invalid))) issues.push('action_invalid');
       if (b.sensitive && !b.owner) issues.push('no_owner_sensitive');
       if (s.id === 'd8e3a7') issues.push('owner_lost_rights'); // demo: the gate schedule's owner lost the door grant
-      if (issues.length) out.push({ schedule: clone(b), issues });
+      if (!issues.length) continue;
+      const held = this.acks.get(s.id);
+      const acknowledged: Acknowledgement[] = [];
+      for (const [issue, rec] of held ?? []) if (rec.revision === b.revision && issues.includes(issue)) acknowledged.push({ issue, by: rec.by, at: rec.at });
+      out.push({ schedule: clone(b), issues: issues.filter((i) => !acknowledged.some((a) => a.issue === i)), acknowledged });
     }
-    return { items: out };
+    return out;
+  }
+
+  async review(): Promise<{ items: ReviewItem[] }> {
+    await delay();
+    if (this.persona !== 'admin') fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
+    return { items: this.reviewRows() };
+  }
+
+  async acknowledge(id: string, issue: AckableIssue, undo: boolean): Promise<{ schedule_id: string; issue: AckableIssue; acknowledged: boolean; acknowledgement: Acknowledgement | null }> {
+    await delay(80);
+    if (this.persona !== 'admin') fail(403, 'forbidden', 'רק מנהל מערכת יכול לאשר אזהרה של תזמון.');
+    const s = this.find(id);
+    const held = this.acks.get(id) ?? new Map();
+    if (undo) {
+      if (!held.has(issue)) fail(409, 'not_acknowledged', 'האזהרה אינה מאושרת.');
+      held.delete(issue);
+      this.acks.set(id, held);
+      return { schedule_id: id, issue, acknowledged: false, acknowledgement: null };
+    }
+    const row = this.reviewRows().find((r) => r.schedule.id === id);
+    if (!row || !row.issues.includes(issue)) fail(409, 'issue_not_present', 'לתזמון אין כרגע אזהרה כזו.');
+    const rec = { revision: this.build(s).revision, at: new Date().toISOString(), by: JONI };
+    held.set(issue, rec);
+    this.acks.set(id, held);
+    return { schedule_id: id, issue, acknowledged: true, acknowledgement: { issue, by: rec.by, at: rec.at } };
   }
 
   async tags(): Promise<{ tags: { name: string; count: number }[] }> {
@@ -983,9 +1093,12 @@ export class ScheduleDemoStore {
     return { tags: [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count) };
   }
 
-  async saveSettings(to: ScheduleSettings): Promise<ScheduleSettings> {
+  async saveSettings(to: ScheduleSettings, disarmConfirm = ''): Promise<ScheduleSettings> {
     await delay(100);
     if (this.persona !== 'admin') fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
+    if (to.allowDisarm && !this.settings.allowDisarm && disarmConfirm.trim() !== ALLOW_DISARM_WORD) {
+      fail(422, 'confirm_required', `כדי לאפשר נטרול אזעקה בתזמונים יש להקליד "${ALLOW_DISARM_WORD}".`, { field: 'schedules.allow_disarm_confirm' });
+    }
     this.settings = clone(to);
     return clone(this.settings);
   }

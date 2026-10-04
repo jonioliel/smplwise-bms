@@ -22,10 +22,12 @@ import { onRouteChange, parseRoute, navigate, pushRoute, replaceRoute, type Rout
 import { registerScreenEdit } from '../shell/screen-edit';
 import { DEMO_SUN } from '../api/schedules-mock';
 import {
+  ACKABLE_ISSUES,
   DAY_ORDER,
   DAY_SHORT,
   REVIEW_LABEL,
   STATE_LABEL,
+  acknowledgeScheduleIssue,
   bulkSchedules,
   getSchedule,
   getScheduleReview,
@@ -35,6 +37,7 @@ import {
   purgeTrash,
   restoreFromTrash,
   subscribeSchedules,
+  type AckableIssue,
   type DayId,
   type ReviewItem,
   type Schedule,
@@ -622,6 +625,20 @@ export class DevicesSchedules extends LitElement {
       gap: 6px;
       align-items: center;
     }
+    /* 2026-10-04: an administrator's "fine from our side" - the warning chip gives way to a small muted state */
+    .li .issues .iss {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-inline-size: 100%;
+    }
+    .li .issues .chip.acked {
+      background: transparent;
+      color: var(--dv-text-2);
+      border: 1px solid var(--dv-line, var(--sw-border));
+      font-weight: 500;
+    }
     /* ---- the bulk bar: the edit bar of the glass style, kept at the bottom while scrolling ---- */
     .bulk {
       position: sticky;
@@ -1144,6 +1161,21 @@ export class DevicesSchedules extends LitElement {
     }
   }
 
+  /** Acknowledge (or restore) one review warning: a system administrator's decision, bound by the server to the schedule's content. */
+  private async ack(scheduleId: string, issue: AckableIssue, undo: boolean) {
+    this.busy = true;
+    try {
+      await acknowledgeScheduleIssue(scheduleId, issue, undo);
+      this.say(undo ? 'האזהרה הוחזרה' : 'סומן כתקין');
+    } catch (err) {
+      this.say(scheduleErrorText(err), 'error');
+    } finally {
+      this.busy = false;
+      await this.loadReview();
+      await this.refresh();
+    }
+  }
+
   private async bulkReview() {
     const picked = (this.review ?? []).map((r) => r.schedule).filter((s) => this.reviewSel.has(s.id) && s.enabled && s.can.toggle);
     if (!picked.length) return;
@@ -1354,6 +1386,7 @@ export class DevicesSchedules extends LitElement {
         ${period ? html`<span class="chip info" data-period>${aIcon('calendar')}${period}</span>` : nothing}
         <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
         <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
+        ${s.slots.some((sl) => sl.actions.some((a) => a.invalid)) ? html`<span class="chip warn" data-invalid title=${s.warnings.find((w) => w.code === 'entity_missing' || w.code === 'service_unsupported')?.message ?? ''}>${aIcon('warning')}פעולה לא תקפה</span>` : nothing}
         ${this.stateChip(s)}
       </div>
       <footer>
@@ -1430,12 +1463,16 @@ export class DevicesSchedules extends LitElement {
     if (this.review === null) return this.skeleton();
     if (!this.review.length) return this.stateBox('check', 'אין תזמונים הדורשים בדיקה', 'review-empty');
     const n = this.reviewSel.size;
+    const canAck = !!this.status?.can.acknowledge;
     return html`<div class="rows" data-sched-review>${this.review.map(
       (r) => html`<div class="li glass" data-review-item=${r.schedule.id}>
         <div style="display:flex;gap:10px;align-items:flex-start;min-inline-size:0">
           <label class="pick"><input type="checkbox" data-review-select=${r.schedule.id} aria-label=${`בחירת ${r.schedule.display_name}`} ?disabled=${!r.schedule.enabled || !r.schedule.can.toggle} .checked=${this.reviewSel.has(r.schedule.id)} @change=${(e: Event) => { const next = new Set(this.reviewSel); if ((e.target as HTMLInputElement).checked) next.add(r.schedule.id); else next.delete(r.schedule.id); this.reviewSel = next; }} /></label>
           <div style="min-inline-size:0"><div class="t"><a class="name" href=${this.href(r.schedule.id)}>${bidi(r.schedule.display_name)}</a></div><div class="d">${devicesLine(r.schedule)}${r.schedule.owner ? ` · ${r.schedule.owner.display_name}` : ''}</div>
-          <div class="issues">${r.issues.map((i) => html`<span class="chip warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>`)}</div></div>
+          <div class="issues">${r.issues.map((i) => {
+            const ackable = canAck && (ACKABLE_ISSUES as string[]).includes(i);
+            return html`<span class="iss"><span class="chip warn" data-issue=${i}>${REVIEW_LABEL[i]}</span>${ackable ? html`<button type="button" class="linkbtn" data-ack=${i} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, i as AckableIssue, false)}>אשר כתקין</button>` : nothing}</span>`;
+          })}${(r.acknowledged ?? []).map((a) => html`<span class="iss"><span class="chip acked" data-acked=${a.issue} title=${`${REVIEW_LABEL[a.issue]} · אושר${a.by?.display_name ? ` על ידי ${a.by.display_name}` : ''}`}>${aIcon('check')}אושר</span>${canAck ? html`<button type="button" class="linkbtn" data-unack=${a.issue} ?disabled=${this.busy} @click=${() => void this.ack(r.schedule.id, a.issue, true)}>בטל אישור</button>` : nothing}</span>`)}</div></div>
         </div>
         <div class="lops"><span class=${r.schedule.enabled ? 'chip ok' : 'chip'}>${r.schedule.enabled ? 'פעיל' : 'מושבת'}</span></div>
       </div>`,

@@ -1411,3 +1411,81 @@ phases 1+2: 94–118; the increase is the sensitive classes and first-class cond
 Targeted tests actually run and reported (NOT_RUN is not PASS); UI screenshots at 1440 / 820 / 390 and loading /
 empty / error / ready; no product names on operator screens; no secrets, lab data or private evidence in fixtures;
 commit on the agent's own branch with the CLAUDE.md trailer; a closing report per AGENTS.md.
+
+## 14. Schedules: more actions (contract change, 2026-10-04)
+
+Owner request 2026-10-04 ("in schedules add support for scheduling alarm scripts and any component the integration actually
+supports"), assigned by the coordinator to branch `pilot/schedules-more-actions`. Design note: `docs/design/schedules-more-actions.md`.
+This section changes §2.1, §3.1, §3.4, §3.17, §5.1–§5.6, §6.6 and §8.3 as follows; everything else stands.
+
+### 14.1 Classes, services and the bridge (§5.1, §5.2, §8.3)
+
+- New classes: `script` (`script.turn_on`, argument `variables`), `scene` (`scene.turn_on`), `helper` (`input_boolean.turn_on|turn_off`,
+  `input_number.set_value` `value`, `input_select.select_option` `option`), `humidifier` (`set_humidity` `humidity`, `set_mode` `mode`),
+  `vacuum` (`start`, `return_to_base`). New services on existing classes: `cover.open_cover_tilt|close_cover_tilt`,
+  `climate.set_swing_mode` `swing_mode`, `climate.set_humidity` `humidity`. The full allow-list is listed explicitly in
+  `tests/test_schedules_more_actions.py` (`EXPECTED_SERVICES`): a service added without being listed there fails the suite.
+- A service is offered and accepted only on an entity of its own domain (a class spans domains) and only when the entity reports it
+  (`schedule_policy.service_capable`: the entity feature bit, or an attribute that proves it). A new action on a service added here needs
+  positive evidence; the original services keep working on an entity that reports no feature bits at all.
+- Argument ranges come from the entity: `input_number` `min` / `max` / `step`, `min_humidity` / `max_humidity`, `swing_modes`,
+  `available_modes`, `options`; a light that is on/off only takes no brightness.
+- `variables` (type `vars`): a flat object of at most 10 plain values (text up to 200 characters, a number, true / false); never a code key.
+  A NEW or changed script action may carry only the fields the script declares (read from the automations mirror, `ha_config_items`), each
+  checked against its selector (number range, boolean, select options, text length); a required field without a default must be given; a
+  script whose fields are not known runs without variables; a required field of a kind the schedules do not model (an entity picker)
+  makes the script unschedulable (`script_field_unsupported`).
+- Bridge 0.6.1 accepts these services (`ACTION_ARGS`; `vars` checked by shape) - the bridge copies under `custom_components/` and
+  `smplwise_vms/integration/` stay byte-identical. A new or changed action on a service of `NEWER_BRIDGE_SERVICES` is refused with
+  `bridge_too_old_for_action` (503) while `bridge.integration_version` < 0.6.1; the catalogue lists such entities with that reason.
+  `BRIDGE_REQUIRED` for the original writes stays 0.3.0. Installing 0.6.1 needs one restart of the platform.
+
+### 14.2 Scripts and scenes: rights and sensitivity (§4.4, §5.3)
+
+Scheduling a script or a scene asks what running it asks (`automation_scope.run_reasons`): `script.run` at every device it drives, control
+there, and the same grant manual control needs for every sensitive step (`alarm.disarm` for a disarm step, `door.unlock`, the remote
+channel's alarm refusal). A script / scene is **sensitive** when it drives an alarm / lock / door or its effects are not known (a script
+Arx cannot read counts as sensitive): `schedule.sensitive` is required and the bridge call carries `sensitive: true`. It is **lowering**
+when a known step disarms, unlocks or opens a door: the lowering confirmation applies. A scene Arx has no config for (an integration's
+scene) needs control of the scene entity.
+
+### 14.3 Disarm policy (§5.6)
+
+`alarm_control_panel.alarm_disarm` in a NEW or changed action is refused with `disarm_not_allowed` (422) unless the setting
+`schedules.allow_disarm` is `"true"` (default `"false"`). Only a system administrator (`rbac.is_system_admin`) may change it, and switching
+it on needs `schedules.allow_disarm_confirm` = `"אפשר נטרול"` (never stored); each change is audited on its own row
+(`schedules.allow_disarm`, allowed / denied). A disarm that needs a code stays refused whatever the setting (`alarm_code_needed`). An
+existing, unchanged disarm action is kept with the warning `disarm_kept`; a copy / split / restore is a new action. The catalogue offers
+disarming only while the setting is on. `GET /schedules/status` → `settings.allow_disarm`.
+
+### 14.4 Older stored forms (§2.1, §6.4)
+
+`normalize` reads a script called as its own service (`service: "script.<object_id>"`, no entity or that script - the platform card's
+form) as `script.turn_on` on `script.<object_id>` with the data as `variables`, and a target that sits only in `service_data.entity_id`
+as the action's entity. Such actions are marked `legacy_form`: an untouched slot holding one is re-sent in the canonical form, never
+verbatim (the bridge would refuse it). Writes (`create`, `update`, `preview`) canonicalise the client's draft the same way. The read-only
+"original platform" mode (`unsupported_content`) remains only for content Arx truly cannot model.
+
+### 14.5 Invalid actions and run-time revalidation (§2.1, §3.9, §6.6)
+
+An action whose entity is gone (`entity_missing`) or no longer reports the service (`service_unsupported`) is a modelled action that
+cannot run: `actions[].invalid = {code, message}`, a warning of the same code, `can.run = false` (editing stays possible, to fix it), the
+review issue `action_invalid`. `POST /schedules/{id}/run` on such a slot → 409 `action_invalid` (audited). When the platform fires the slot
+anyway, the derived run is recorded at once as `not_confirmed` with `detail.invalid = true` and the entity's `invalid` code, audited
+(`schedule.run_invalid`, denied) and signalled to the administrators (`schedule.not_confirmed`). A script / scene run is confirmed from its
+own stamp (`last_triggered`, a scene's state) at or after the run's start.
+
+### 14.6 Acknowledging a review warning (§3.17)
+
+`POST /schedules/{id}/acknowledge` `{issue: "no_owner_sensitive" | "unsupported_content", undo?: bool}` - system administrators only
+(403 otherwise, audited), `schedule.manage` first. It stores `{hash: <the schedule's revision>, by, by_name, at}` in the setting
+`schedules.acks` (no migration); it never changes the schedule and never makes it editable. `GET /schedules/review` → each item's `issues`
+lists the open issues and `acknowledged` the held ones (`{issue, by, at}`); an acknowledgement whose hash is not the current revision no
+longer holds, so a change made outside Arx brings the warning back by itself (any content change does). `counts.attention` counts items
+with open issues. `status.can.acknowledge`. 409 `issue_not_present` / `not_acknowledged`, 422 for another issue. Audit
+`schedule.acknowledge` / `schedule.unacknowledge` with the issue and the revision.
+
+### 14.7 Settings (§10.1)
+
+`schedules.classes` gains the five classes. A stored list saved before this change that holds all eight original classes reads as "every
+class" (the new ones on); once saved again (`schedules.classes_rev` = 2) it is read as saved.
