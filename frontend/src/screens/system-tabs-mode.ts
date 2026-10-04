@@ -7,9 +7,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  DD_PHONES, DD_PHONE_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPhone, asDdSize, asDdStyle, asTabMode, installationDdPhone, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPhone, ownDdSize, ownDdStyle, ownTabsMode, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPhone, saveOwnDdSize, saveOwnDdStyle,
+  DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_RINGS, DD_RING_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdRing, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdRing, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdRing, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdRing, saveOwnDdSize, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
-  type DdPhone, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
+  type DdPanel, type DdPanelGroups, type DdPhone, type DdRing, type DdRingGroups, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -47,6 +47,10 @@ export class SystemTabsMode extends LitElement {
   @state() private ddOwn = ownDdStyle();
   @state() private szInst = installationDdSize();
   @state() private szOwn = ownDdSize();
+  @state() private ringInst = installationDdRing();
+  @state() private ringOwn = ownDdRing();
+  @state() private panelInst = installationDdPanel();
+  @state() private panelOwn = ownDdPanel();
   @state() private phInst: DdPhone = installationDdPhone();
   @state() private phOwn: DdPhone | null = ownDdPhone();
   @state() private canEdit = false;
@@ -194,6 +198,10 @@ export class SystemTabsMode extends LitElement {
       this.ddOwn = ownDdStyle();
       this.szInst = installationDdSize();
       this.szOwn = ownDdSize();
+      this.ringInst = installationDdRing();
+      this.ringOwn = ownDdRing();
+      this.panelInst = installationDdPanel();
+      this.panelOwn = ownDdPanel();
       this.phInst = installationDdPhone();
       this.phOwn = ownDdPhone();
     });
@@ -319,6 +327,71 @@ export class SystemTabsMode extends LitElement {
       </fieldset>`;
   }
 
+  /** Ring thickness and open-panel width (capsule style only): one generic save and one generic select block for both, as the size dial. */
+  private async saveDialInstallation(key: 'ring' | 'panel', value: string, groups: Record<string, string>) {
+    this.scope = 'style';
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ [`ui.dd_${key}`]: value, [`ui.dd_${key}_groups`]: groups } as Parameters<typeof patchSettings>[0]);
+      invalidateSettings();
+      setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
+      this.flash('ברירת המחדל נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async saveDialOwn(key: 'ring' | 'panel', value: string | null, groups: Record<string, string>) {
+    this.scope = 'style';
+    this.busy = true;
+    this.error = '';
+    try {
+      if (key === 'ring') await saveOwnDdRing(asDdRing(value), groups as DdRingGroups);
+      else await saveOwnDdPanel(asDdPanel(value), groups as DdPanelGroups);
+      this.flash('ההעדפה נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private dialWithGroup(groups: Record<string, string>, g: TabGroup, v: string, ok: (v: unknown) => unknown): Record<string, string> {
+    const next = { ...groups };
+    if (ok(v)) next[g] = v;
+    else delete next[g];
+    return next;
+  }
+
+  private dialSelects(key: 'ring' | 'panel', scope: 'inst' | 'own', value: string | null, groups: Record<string, string>, disabled: boolean) {
+    const ring = key === 'ring';
+    const ids: readonly string[] = ring ? DD_RINGS : DD_PANELS;
+    const label = (id: string): string => (ring ? DD_RING_LABEL[id as DdRing] : DD_PANEL_LABEL[id as DdPanel]);
+    const ok = ring ? asDdRing : asDdPanel;
+    const inheritedValue = ring ? this.ringInst.ring : this.panelInst.panel;
+    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
+    const title = ring ? 'עובי הטבעת (סגנון קפסולה)' : 'רוחב התפריט הפתוח (סגנון קפסולה)';
+    const opts = (cur: string | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${ids.map((m) => html`<option value=${m} ?selected=${cur === m}>${label(m)}</option>`)}`;
+    const onGlobal = (v: string) => (scope === 'inst' ? ok(v) && void this.saveDialInstallation(key, v, groups) : void this.saveDialOwn(key, ok(v) ? v : null, groups));
+    const onGroup = (g: TabGroup, v: string) => {
+      const next = this.dialWithGroup(groups, g, v, ok);
+      if (scope === 'inst') void this.saveDialInstallation(key, value ?? inheritedValue, next);
+      else void this.saveDialOwn(key, value, next);
+    };
+    return html`<fieldset data-dd-dial-fieldset=${key}><legend>${title}</legend>
+        ${ring ? html`<span class="muted">טבעת דקה מאוד (1 או 1.5 פיקסל) נראית רק במסכי רטינה</span>` : nothing}
+        <div class="grp"><span>לכל הקבוצות</span>
+          <select data-dd-dial-global=${`${key}:${scope}`} aria-label=${`${title}: לכל הקבוצות`} ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(value, scope === 'own' ? `${follow} (כרגע: ${label(inheritedValue)})` : null)}</select></div>
+        ${TAB_GROUPS.map(
+          (g) => html`<div class="grp" data-dd-dial-group-row=${`${key}:${g}`}><span>${TAB_GROUP_LABEL[g]}</span>
+            <select data-dd-dial-group=${`${key}:${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: ${title}`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+        )}
+      </fieldset>`;
+  }
+
   private async savePhoneInstallation(mode: DdPhone) {
     this.scope = 'phone';
     this.busy = true;
@@ -421,6 +494,8 @@ export class SystemTabsMode extends LitElement {
     const ddEffective: DdStyle = this.ddOwn.style ?? this.ddInst.style;
     const ddInstDisabled = !this.canEdit || this.busy || !api;
     const szEffective: DdSize = this.szOwn.size ?? this.szInst.size;
+    const ringEffective: DdRing = this.ringOwn.ring ?? this.ringInst.ring;
+    const panelEffective: DdPanel = this.panelOwn.panel ?? this.panelInst.panel;
     return html`<sw-card heading="תצוגת לשוניות" subheading="לשוניות, משולב או תפריטים נפתחים, לכל הקבוצות או לכל קבוצה בנפרד. הניווט הראשי אינו חלק מזה" data-tabs-mode>
       <div class="grid">
         <div data-tabs-mode-installation>
@@ -449,9 +524,9 @@ export class SystemTabsMode extends LitElement {
       </div>
       <div class="preview" data-tabs-mode-preview=${effective} aria-label="תצוגה מקדימה">
         <span class="muted">תצוגה מקדימה: ${TAB_MODE_LABEL[effective]}</span>
-        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
-        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
-        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
+        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
+        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
+        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
       </div>
     </sw-card>
     <sw-card heading="סגנון תפריט נפתח" subheading="המראה של תפריט נפתח, לכל הקבוצות או לכל קבוצה בנפרד" data-dd-style-card>
@@ -459,10 +534,14 @@ export class SystemTabsMode extends LitElement {
         <div data-dd-style-installation>
           ${this.ddSelects('inst', this.ddInst.style, this.ddInst.groups, ddInstDisabled, (v) => { const m = asDdStyle(v); if (m) void this.saveDdInstallation(m, this.ddInst.groups); }, (g, v) => void this.saveDdInstallation(this.ddInst.style, this.ddWithGroup(this.ddInst.groups, g, v)))}
           ${this.sizeSelects('inst', this.szInst.size, this.szInst.groups, ddInstDisabled, (v) => { const m = asDdSize(v); if (m) void this.saveSizeInstallation(m, this.szInst.groups); }, (g, v) => void this.saveSizeInstallation(this.szInst.size, this.sizeWithGroup(this.szInst.groups, g, v)))}
+          ${this.dialSelects('ring', 'inst', this.ringInst.ring, this.ringInst.groups, ddInstDisabled)}
+          ${this.dialSelects('panel', 'inst', this.panelInst.panel, this.panelInst.groups, ddInstDisabled)}
         </div>
         <div data-dd-style-own>
           ${this.ddSelects('own', this.ddOwn.style, this.ddOwn.groups, this.busy, (v) => void this.saveDdOwn(asDdStyle(v), this.ddOwn.groups), (g, v) => void this.saveDdOwn(this.ddOwn.style, this.ddWithGroup(this.ddOwn.groups, g, v)))}
           ${this.sizeSelects('own', this.szOwn.size, this.szOwn.groups, this.busy, (v) => void this.saveSizeOwn(asDdSize(v), this.szOwn.groups), (g, v) => void this.saveSizeOwn(this.szOwn.size, this.sizeWithGroup(this.szOwn.groups, g, v)))}
+          ${this.dialSelects('ring', 'own', this.ringOwn.ring, this.ringOwn.groups, this.busy)}
+          ${this.dialSelects('panel', 'own', this.panelOwn.panel, this.panelOwn.groups, this.busy)}
         </div>
       </div>
       <div class="effective" data-dd-style-effective>
@@ -470,7 +549,9 @@ export class SystemTabsMode extends LitElement {
         <ul>${TAB_GROUPS.map((g) => {
           const r = resolveDdStyle(g);
           const z = resolveDdSize(g);
-          return html`<li data-dd-effective-group=${g} data-dd-style=${r.style} data-dd-size=${z.size} data-dd-size-source=${z.source} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${DD_STYLE_LABEL[r.style]}, ${DD_SIZE_LABEL[z.size]} <span class="muted">${SOURCE_LABEL[r.source]}</span></span></li>`;
+          const rg = resolveDdRing(g);
+          const pn = resolveDdPanel(g);
+          return html`<li data-dd-effective-group=${g} data-dd-style=${r.style} data-dd-size=${z.size} data-dd-size-source=${z.source} data-dd-ring=${rg.ring} data-dd-panel=${pn.panel} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${DD_STYLE_LABEL[r.style]}, ${DD_SIZE_LABEL[z.size]}${r.style === 'capsule' ? html`, ${DD_RING_LABEL[rg.ring]}, ${DD_PANEL_LABEL[pn.panel]}` : nothing} <span class="muted">${SOURCE_LABEL[r.source]}</span></span></li>`;
         })}</ul>
         ${this.ddOwn.style || Object.keys(this.ddOwn.groups).length
           ? html`<button type="button" class="reset" data-dd-own-reset ?disabled=${this.busy} @click=${() => void this.saveDdOwn(null, {})}>אפס את ההעדפות שלי</button>`
@@ -478,12 +559,18 @@ export class SystemTabsMode extends LitElement {
         ${this.szOwn.size || Object.keys(this.szOwn.groups).length
           ? html`<button type="button" class="reset" data-dd-size-own-reset ?disabled=${this.busy} @click=${() => void this.saveSizeOwn(null, {})}>אפס את הגדלים שלי</button>`
           : nothing}
+        ${this.ringOwn.ring || Object.keys(this.ringOwn.groups).length
+          ? html`<button type="button" class="reset" data-dd-ring-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('ring', null, {})}>אפס את עובי הטבעת שלי</button>`
+          : nothing}
+        ${this.panelOwn.panel || Object.keys(this.panelOwn.groups).length
+          ? html`<button type="button" class="reset" data-dd-panel-own-reset ?disabled=${this.busy} @click=${() => void this.saveDialOwn('panel', null, {})}>אפס את רוחב התפריט שלי</button>`
+          : nothing}
       </div>
       <div class="styles" data-dd-style-previews>${DD_STYLES.map(
-        (m) => html`<div data-dd-preview=${m}><span class="muted">${DD_STYLE_LABEL[m]}</span><sw-tabs variant="dropdown" dd-style=${m} dd-size=${szEffective} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
+        (m) => html`<div data-dd-preview=${m}><span class="muted">${DD_STYLE_LABEL[m]}</span><sw-tabs variant="dropdown" dd-style=${m} dd-size=${szEffective} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
       )}</div>
       <div class="styles" data-dd-size-previews>${DD_SIZES.map(
-        (z) => html`<div data-dd-size-preview=${z}><span class="muted">${DD_SIZE_LABEL[z]}${z === szEffective ? ' (הפעיל)' : ''}</span><sw-tabs variant="dropdown" dd-style="capsule" dd-size=${z} .items=${SAMPLE_CAPSULE} active="all" group-label="קומה"></sw-tabs></div>`,
+        (z) => html`<div data-dd-size-preview=${z}><span class="muted">${DD_SIZE_LABEL[z]}${z === szEffective ? ' (הפעיל)' : ''}</span><sw-tabs variant="dropdown" dd-style="capsule" dd-size=${z} dd-ring=${ringEffective} dd-panel=${panelEffective} .items=${SAMPLE_CAPSULE} active="all" group-label="קומה"></sw-tabs></div>`,
       )}</div>
       <div aria-live="polite">${this.message && this.scope === 'style' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'style' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
     </sw-card>

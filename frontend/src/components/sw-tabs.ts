@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
-import type { DdSize, DdStyle } from './sw-dropdown';
+import type { DdPanel, DdRing, DdSize, DdStyle } from './sw-dropdown';
 import type { IconName } from './sw-icon';
 
 export interface TabItem {
@@ -51,6 +51,9 @@ export class SwTabs extends LitElement {
   @property({ attribute: 'dd-style' }) ddStyle: DdStyle = 'auto';
   /** Dropdown only (Unreleased): the size of the dropdown (sw-dropdown `dd-size`); `md` = the reference size. */
   @property({ attribute: 'dd-size' }) ddSize: DdSize = 'md';
+  /** Dropdown only (Unreleased, capsule style): the ring thickness and the open panel width (sw-dropdown `dd-ring`, `dd-panel`). */
+  @property({ attribute: 'dd-ring' }) ddRing: DdRing = '2';
+  @property({ attribute: 'dd-panel' }) ddPanel: DdPanel = '240';
 
   static styles = css`
     :host {
@@ -353,7 +356,7 @@ export class SwTabs extends LitElement {
 
   render() {
     if (this.mode === 'dropdown') {
-      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} dd-size=${this.ddSize} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
     return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>

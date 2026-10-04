@@ -20,8 +20,10 @@ const ITEMS = [
   { id: 'f2', label: 'גג', icon: 'layers', count: 3 },
 ];
 
-type Server = { inst: { size: string; groups: Record<string, string> }; own: { size: string | null; groups: Record<string, string> | null }; patches: Record<string, unknown>[]; puts: Record<string, unknown>[] };
-const fresh = (): Server => ({ inst: { size: 'md', groups: {} }, own: { size: null, groups: null }, patches: [], puts: [] });
+type Server = { inst: { size: string; groups: Record<string, string> }; own: { size: string | null; groups: Record<string, string> | null }; patches: Record<string, unknown>[]; puts: Record<string, unknown>[]; xi: Record<string, unknown>; xo: Record<string, unknown> };
+// xi / xo: the installation's and the user's values of the ring / panel keys (ui.dd_ring*, ui.dd_panel*), kept generically
+const fresh = (): Server => ({ inst: { size: 'md', groups: {} }, own: { size: null, groups: null }, patches: [], puts: [], xi: {}, xo: {} });
+const isDial = (k: string) => k.startsWith('ui.dd_ring') || k.startsWith('ui.dd_panel');
 
 async function mock(page: Page, srv: Server) {
   await page.route('**/api/v1/**', (route) => {
@@ -39,13 +41,15 @@ async function mock(page: Page, srv: Server) {
       const stored: string[] = [];
       if (srv.own.size) stored.push('ui.dd_size');
       if (srv.own.groups && Object.keys(srv.own.groups).length) stored.push('ui.dd_size_groups');
-      return { prefs: { 'nav.order': ['devices', 'security', 'explore', 'multimedia', 'wiskey'], 'ui.dd_size': srv.own.size, 'ui.dd_size_groups': srv.own.groups }, stored, updated_at: null };
+      for (const [k, v] of Object.entries(srv.xo)) if (v !== null && !(typeof v === 'object' && Object.keys(v as object).length === 0)) stored.push(k);
+      return { prefs: { 'nav.order': ['devices', 'security', 'explore', 'multimedia', 'wiskey'], 'ui.dd_size': srv.own.size, 'ui.dd_size_groups': srv.own.groups, 'ui.dd_ring': null, 'ui.dd_ring_groups': null, 'ui.dd_panel': null, 'ui.dd_panel_groups': null, ...srv.xo }, stored, updated_at: null };
     };
     if (p === 'me/prefs' && req.method() === 'PUT') {
       const b = req.postDataJSON() as Record<string, unknown>;
       srv.puts.push(b);
       if ('ui.dd_size' in b) srv.own.size = b['ui.dd_size'] as string | null;
       if ('ui.dd_size_groups' in b) srv.own.groups = b['ui.dd_size_groups'] as Record<string, string> | null;
+      for (const [k, v] of Object.entries(b)) if (isDial(k)) srv.xo[k] = v;
       return json(prefs());
     }
     if (p === 'me/prefs') return json(prefs());
@@ -54,8 +58,9 @@ async function mock(page: Page, srv: Server) {
       srv.patches.push(b);
       if ('ui.dd_size' in b) srv.inst.size = b['ui.dd_size'] as string;
       if ('ui.dd_size_groups' in b) srv.inst.groups = b['ui.dd_size_groups'] as Record<string, string>;
+      for (const [k, v] of Object.entries(b)) if (isDial(k)) srv.xi[k] = v;
     }
-    if (p === 'settings') return json({ settings: { 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.tabs': {}, 'multimedia.enabled': 'true', 'schedules.enabled': 'true', 'automations.enabled': 'true', 'ui.tabs_mode': 'tabs', 'ui.tabs_mode_groups': {}, 'ui.dd_style': 'auto', 'ui.dd_style_groups': {}, 'ui.dd_size': srv.inst.size, 'ui.dd_size_groups': srv.inst.groups }, can_edit: true });
+    if (p === 'settings') return json({ settings: { 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.tabs': {}, 'multimedia.enabled': 'true', 'schedules.enabled': 'true', 'automations.enabled': 'true', 'ui.tabs_mode': 'tabs', 'ui.tabs_mode_groups': {}, 'ui.dd_style': 'auto', 'ui.dd_style_groups': {}, 'ui.dd_size': srv.inst.size, 'ui.dd_size_groups': srv.inst.groups, ...srv.xi }, can_edit: true });
     if (p === 'multimedia/status') return json({ enabled: true, counts: { screens: 1, players: 2, groups: 1 } });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-09-30T00:00:00Z', version: 'test' });
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
@@ -580,6 +585,249 @@ test.describe('הגדרות › כללי › לשוניות › סגנון תפ�
   test('works on a phone width too', async ({ page }) => {
     const card = await openCard(page, fresh(), 390);
     await expect(card.locator('[data-dd-size-previews]')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});
+
+
+// ---- Unreleased (owner decisions 2026-10-04): the pill style is labelled "כדור מלא"; the capsule gets a ring thickness and an open-panel width ----
+const DD_URL = '/src/components/dd-style.ts';
+const PANEL_BASE = { button: 0, '240': 240, '300': 300 } as const;
+
+test.describe('capsule polish: the ring thickness and the open-panel width (components)', () => {
+  test('ring: 1 / 2 / 3 px draw as set (2 px is the default; an unknown value reads as 2 px); the other styles ignore it', async ({ page }) => {
+    await stage(page);
+    await mount(page, ['capsule:md'], { 'dd-ring': '1' });
+    await mount(page, ['capsule:md'], {});
+    // two capsules share a data-t: tell them apart by order
+    const ring = (i: number) => tabs(page, 'capsule:md').nth(i).locator('sw-dropdown').evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('.chip')!, '::before').borderTopWidth);
+    expect(await ring(0)).toBe('1px');
+    expect(await ring(1), 'default').toBe('2px');
+    await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+    for (const r of ['2', '3', 'bogus']) {
+      await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+      await mount(page, ['capsule:md'], { 'dd-ring': r });
+      expect(await ring(0), r).toBe(r === '3' ? '3px' : '2px');
+    }
+    await expect(tabs(page, 'capsule:md').locator('sw-dropdown')).toHaveAttribute('dd-ring', '2'); // the stray value reads back as the default
+    // the other styles: the thickness does nothing
+    await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+    await mount(page, ['pill:md', 'field:md', 'auto:md'], { 'dd-ring': '3' });
+    const plain = (k: string) => measure(page, k, (root) => { const c = getComputedStyle(root.querySelector('.chip')!); return [c.borderTopWidth, getComputedStyle(root.querySelector('.chip')!, '::before').borderTopWidth].join('|'); });
+    const withRing = [await plain('pill:md'), await plain('field:md'), await plain('auto:md')];
+    await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.setAttribute('dd-ring', '1')));
+    await page.waitForTimeout(150);
+    expect([await plain('pill:md'), await plain('field:md'), await plain('auto:md')]).toEqual(withRing);
+  });
+
+  // The browser snaps a fractional border to whole device pixels, and Playwright's emulated scale factor does not change that snapping (even at
+  // devicePixelRatio 2 the computed width of 1.5px reads 1px), so a real 1.5 px ring cannot be measured here: what is checked is the dial itself
+  // (the unsnapped custom property the border reads). The retina look is a manual check on a real retina screen.
+  test('ring 1.5 px: the dial reaches the border (the custom property), whatever the screen snaps it to', async ({ page }) => {
+    await stage(page);
+    const got: Record<string, string> = {};
+    for (const r of ['1', '1.5', '2', '3']) {
+      await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+      await mount(page, ['capsule:md'], { 'dd-ring': r });
+      got[r] = await measure(page, 'capsule:md', (_root, host) => getComputedStyle(host).getPropertyValue('--_cring').trim());
+    }
+    expect(got).toEqual({ '1': '1px', '1.5': '1.5px', '2': '2px', '3': '3px' });
+  });
+
+  test('panel: as wide as the button / 240 / 300 px at md; scales with the size dial; the default is 240; the other styles ignore it', async ({ page }) => {
+    await stage(page);
+    const popW = async (extra: Record<string, string>, size: string) => {
+      await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+      await mount(page, [`capsule:${size}`], extra);
+      const chipW = (await chip(page, `capsule:${size}`).boundingBox())!.width;
+      await chip(page, `capsule:${size}`).click();
+      const w = await measure(page, `capsule:${size}`, (root) => root.querySelector('.pop')!.getBoundingClientRect().width);
+      await page.keyboard.press('Escape');
+      return { w, chipW };
+    };
+    const md = await popW({}, 'md');
+    expect(md.w, 'default 240').toBeCloseTo(240, 0);
+    const btn = await popW({ 'dd-panel': 'button' }, 'md');
+    // "as wide as the button" is a floor: never narrower than the button (a long label can still make the panel wider)
+    expect(btn.w, 'never narrower than the button').toBeGreaterThanOrEqual(btn.chipW - 1);
+    expect(btn.w, 'narrower than the 240 panel for this short list').toBeLessThan(md.w);
+    expect((await popW({ 'dd-panel': '240' }, 'md')).w).toBeCloseTo(240, 0);
+    expect((await popW({ 'dd-panel': '300' }, 'md')).w).toBeCloseTo(300, 0);
+    // the size dial scales it as it does today (200 / 240 / 280 for the 240 base)
+    expect((await popW({ 'dd-panel': '240' }, 'sm')).w).toBeCloseTo(200, 0);
+    expect((await popW({ 'dd-panel': '240' }, 'lg')).w).toBeCloseTo(280, 0);
+    expect((await popW({ 'dd-panel': '300' }, 'sm')).w).toBeCloseTo(250, 0);
+    expect((await popW({ 'dd-panel': '300' }, 'lg')).w).toBeCloseTo(350, 0);
+    expect((await popW({ 'dd-panel': 'bogus' }, 'md')).w, 'an unknown value reads as 240').toBeCloseTo(240, 0);
+    // pill: the panel keeps its own width whatever the attribute says
+    await page.evaluate(() => document.querySelectorAll('#stage sw-tabs').forEach((e) => e.remove()));
+    await mount(page, ['pill:md'], { 'dd-panel': '300' });
+    await chip(page, 'pill:md').click();
+    const pw = await measure(page, 'pill:md', (root) => root.querySelector('.pop')!.getBoundingClientRect().width);
+    expect(pw).toBeLessThan(260);
+  });
+
+  test('the floor helper: button = no floor; the dial scales 240 / 300', async ({ page }) => {
+    await mock(page, fresh());
+    await page.goto('./?design=a#/devices/building');
+    await page.waitForSelector('sw-app');
+    const r = await page.evaluate(async (url) => {
+      const m = await import(/* @vite-ignore */ url);
+      return { button: m.ddPanelFloor('button', 'lg'), a: ['sm', 'md', 'lg'].map((z) => m.ddPanelFloor('240', z)), b: ['sm', 'md', 'lg'].map((z) => m.ddPanelFloor('300', z)), d: [m.DD_RING_DEFAULT, m.DD_PANEL_DEFAULT] };
+    }, DD_URL);
+    expect(r).toEqual({ button: 0, a: [200, 240, 280], b: [250, 300, 350], d: ['2', '240'] });
+    expect(PANEL_BASE['240']).toBe(240);
+  });
+});
+
+test.describe('capsule polish: the resolver and the label', () => {
+  test('ring / panel: defaults 2 / 240; user group > user global > installation group > installation global; a bogus stored value reads as the default; the pill label', async ({ page }) => {
+    await mock(page, fresh());
+    await page.goto('./?design=a#/devices/building');
+    await page.waitForSelector('sw-app');
+    const r = await page.evaluate(async (url) => {
+      const m = await import(/* @vite-ignore */ url);
+      const out: Record<string, unknown> = {};
+      const groups = ['home', 'area', 'multimedia', 'security', 'settings'];
+      const ring = () => groups.map((g) => m.ddRingOf(g));
+      const panel = () => groups.map((g) => m.ddPanelOf(g));
+      m.setInstallationTabsMode({});
+      await m.saveOwnDdRing(null, {});
+      await m.saveOwnDdPanel(null, {});
+      out.fresh = [ring(), panel()];
+      m.setInstallationTabsMode({ 'ui.dd_ring': '3', 'ui.dd_ring_groups': { security: '1' }, 'ui.dd_panel': '300', 'ui.dd_panel_groups': { security: 'button' } });
+      out.inst = [ring(), panel()];
+      await m.saveOwnDdRing('1.5', {});
+      await m.saveOwnDdPanel('240', {});
+      out.ownGlobal = [ring(), panel()];
+      await m.saveOwnDdRing('1.5', { settings: '3' });
+      await m.saveOwnDdPanel('240', { settings: 'button' });
+      out.ownGroup = [ring(), panel()];
+      await m.saveOwnDdRing(null, {});
+      await m.saveOwnDdPanel(null, {});
+      out.followed = [ring(), panel()];
+      out.source = [m.resolveDdRing('security').source, m.resolveDdRing('area').source, m.resolveDdPanel('security').source];
+      m.setInstallationTabsMode({ 'ui.dd_ring': 'bogus', 'ui.dd_ring_groups': { ghost: '1', home: '7' }, 'ui.dd_panel': '999', 'ui.dd_panel_groups': '{not json' });
+      out.bogus = [ring(), panel()];
+      out.pill = m.DD_STYLE_LABEL.pill;
+      out.ids = [m.DD_STYLES.includes('pill'), m.DD_STYLE_LABEL.capsule];
+      out.labels = [m.DD_RINGS.map((x: string) => m.DD_RING_LABEL[x]), m.DD_PANELS.map((x: string) => m.DD_PANEL_LABEL[x])];
+      return out;
+    }, MODE_URL);
+    expect(r.fresh).toEqual([['2', '2', '2', '2', '2'], ['240', '240', '240', '240', '240']]);
+    expect(r.inst).toEqual([['3', '3', '3', '1', '3'], ['300', '300', '300', 'button', '300']]);
+    expect(r.ownGlobal).toEqual([['1.5', '1.5', '1.5', '1.5', '1.5'], ['240', '240', '240', '240', '240']]);
+    expect(r.ownGroup).toEqual([['1.5', '1.5', '1.5', '1.5', '3'], ['240', '240', '240', '240', 'button']]);
+    expect(r.followed).toEqual([['3', '3', '3', '1', '3'], ['300', '300', '300', 'button', '300']]);
+    expect(r.source).toEqual(['installation-group', 'installation', 'installation-group']);
+    expect(r.bogus).toEqual([['2', '2', '2', '2', '2'], ['240', '240', '240', '240', '240']]);
+    expect(r.pill, 'the style id stays pill, only its label changes').toBe('כדור מלא');
+    expect(r.ids).toEqual([true, 'קפסולה']);
+    expect(r.labels).toEqual([['1 פיקסל', '1.5 פיקסל', '2 פיקסלים', '3 פיקסלים'], ['ברוחב הכפתור', '240 פיקסלים', '300 פיקסלים']]);
+  });
+
+  test('the shell: the chips of a group carry its ring and panel', async ({ page }) => {
+    await mock(page, fresh());
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('./?design=a#/live');
+    await page.waitForSelector('sw-app');
+    await page.waitForTimeout(1000);
+    await page.evaluate(async (url) => {
+      const m = await import(/* @vite-ignore */ url);
+      await m.saveOwnTabsMode(null, { security: 'dropdown' });
+      await m.saveOwnDdStyle('capsule', {});
+      await m.saveOwnDdRing(null, { security: '3' });
+      await m.saveOwnDdPanel(null, { security: '300' });
+    }, MODE_URL);
+    await expect.poll(() => page.evaluate(() => {
+      const out: string[] = [];
+      const walk = (root: ParentNode) => {
+        root.querySelectorAll('*').forEach((e) => {
+          if (e.tagName === 'SW-DROPDOWN' && e.getAttribute('dd-style') === 'capsule') out.push(`${e.getAttribute('dd-ring')}/${e.getAttribute('dd-panel')}`);
+          if (e.shadowRoot) walk(e.shadowRoot);
+        });
+      };
+      walk(document);
+      return out.length > 0 && out.every((s) => s === '3/300');
+    })).toBe(true);
+  });
+});
+
+test.describe('הגדרות › כללי › לשוניות › סגנון תפריט נפתח: the ring thickness and the panel width', () => {
+  async function openCard(page: Page, srv: Server, width = 1280) {
+    await mock(page, srv);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('./?design=a#/system/diagnostics?tab=tabs');
+    await page.waitForSelector('system-tabs-mode');
+    await page.waitForTimeout(1200);
+    return page.locator('system-tabs-mode');
+  }
+
+  test('the pill style reads "כדור מלא" in the style list, capsule stays "קפסולה"; ring has 4 options and the retina note, panel has 3', async ({ page }) => {
+    const card = await openCard(page, fresh());
+    await expect(card.locator('[data-dd-global=inst] option[value=pill]')).toHaveText('כדור מלא');
+    await expect(card.locator('[data-dd-preview=pill] .muted')).toHaveText('כדור מלא');
+    await expect(card.locator('[data-dd-global=inst] option[value=capsule]')).toHaveText('קפסולה');
+    await expect(card.locator('[data-dd-dial-global="ring:inst"] option')).toHaveText(['1 פיקסל', '1.5 פיקסל', '2 פיקסלים', '3 פיקסלים']);
+    await expect(card.locator('[data-dd-dial-global="ring:inst"]')).toHaveValue('2');
+    await expect(card.locator('[data-dd-dial-global="panel:inst"] option')).toHaveText(['ברוחב הכפתור', '240 פיקסלים', '300 פיקסלים']);
+    await expect(card.locator('[data-dd-dial-global="panel:inst"]')).toHaveValue('240');
+    await expect(card.locator('[data-dd-dial-global="ring:own"] option')).toHaveCount(5); // follow + 4
+    await expect(card.locator('[data-dd-dial-global="panel:own"] option')).toHaveCount(4);
+    await expect(card.locator('[data-dd-dial-fieldset=ring]').first()).toContainText('רטינה');
+    await expect(card.locator('[data-dd-dial-group-row^="ring:"]')).toHaveCount(10); // 5 groups, installation + own
+    await expect(card.locator('[data-dd-dial-group-row^="panel:"]')).toHaveCount(10);
+  });
+
+  test('the installation default and a per-group override save to ui.dd_ring* / ui.dd_panel* and show in the live preview', async ({ page }) => {
+    const srv = fresh();
+    const card = await openCard(page, srv);
+    await card.locator('[data-dd-dial-global="ring:inst"]').selectOption('3');
+    await expect.poll(() => srv.patches.length).toBe(1);
+    expect(srv.patches[0]).toEqual({ 'ui.dd_ring': '3', 'ui.dd_ring_groups': {} });
+    await card.locator('[data-dd-dial-group="ring:inst:settings"]').selectOption('1');
+    await expect.poll(() => srv.xi['ui.dd_ring_groups']).toEqual({ settings: '1' });
+    await card.locator('[data-dd-dial-global="panel:inst"]').selectOption('300');
+    await expect.poll(() => srv.xi['ui.dd_panel']).toBe('300');
+    expect(srv.patches[2]).toEqual({ 'ui.dd_panel': '300', 'ui.dd_panel_groups': {} });
+    await card.locator('[data-dd-dial-group="panel:inst:security"]').selectOption('button');
+    await expect.poll(() => srv.xi['ui.dd_panel_groups']).toEqual({ security: 'button' });
+    await expect(card.locator('[data-dd-effective-group=settings]')).toHaveAttribute('data-dd-ring', '1');
+    await expect(card.locator('[data-dd-effective-group=area]')).toHaveAttribute('data-dd-ring', '3');
+    await expect(card.locator('[data-dd-effective-group=security]')).toHaveAttribute('data-dd-panel', 'button');
+    await expect(card.locator('[data-dd-size-preview=md] sw-tabs')).toHaveAttribute('dd-ring', '3');
+    await expect(card.locator('[data-dd-size-preview=md] sw-tabs')).toHaveAttribute('dd-panel', '300');
+    const ring = await card.locator('[data-dd-size-preview=md] sw-tabs').evaluate((e) => getComputedStyle((e.shadowRoot!.querySelector('sw-dropdown') as HTMLElement).shadowRoot!.querySelector('.chip')!, '::before').borderTopWidth);
+    expect(ring).toBe('3px');
+    await card.locator('[data-dd-dial-group="ring:inst:settings"]').selectOption('');
+    await expect.poll(() => srv.xi['ui.dd_ring_groups']).toEqual({});
+  });
+
+  test('"ההעדפה שלי": its own choice (/me/prefs), wins over the installation, has its own reset; the installation is untouched', async ({ page }) => {
+    const srv = fresh();
+    srv.xi = { 'ui.dd_ring': '3', 'ui.dd_panel': '300' };
+    const card = await openCard(page, srv);
+    await expect(card.locator('[data-dd-ring-own-reset]')).toHaveCount(0);
+    await card.locator('[data-dd-dial-global="ring:own"]').selectOption('1.5');
+    await expect.poll(() => srv.xo['ui.dd_ring']).toBe('1.5');
+    expect(srv.puts[0]).toEqual({ 'ui.dd_ring': '1.5', 'ui.dd_ring_groups': null });
+    await card.locator('[data-dd-dial-group="panel:own:security"]').selectOption('240');
+    await expect.poll(() => srv.xo['ui.dd_panel_groups']).toEqual({ security: '240' });
+    await expect(card.locator('[data-dd-effective-group=area]')).toHaveAttribute('data-dd-ring', '1.5');
+    await expect(card.locator('[data-dd-effective-group=security]')).toHaveAttribute('data-dd-panel', '240');
+    await expect(card.locator('[data-dd-effective-group=area]')).toHaveAttribute('data-dd-panel', '300');
+    expect(srv.patches).toHaveLength(0);
+    await card.locator('[data-dd-ring-own-reset]').click();
+    await expect.poll(() => [srv.xo['ui.dd_ring'], srv.xo['ui.dd_ring_groups']]).toEqual([null, null]);
+    await card.locator('[data-dd-panel-own-reset]').click();
+    await expect.poll(() => [srv.xo['ui.dd_panel'], srv.xo['ui.dd_panel_groups']]).toEqual([null, null]);
+    await expect(card.locator('[data-dd-effective-group=area]')).toHaveAttribute('data-dd-ring', '3');
+    await expect(card.locator('[data-dd-effective-group=security]')).toHaveAttribute('data-dd-panel', '300');
+  });
+
+  test('works on a phone width too', async ({ page }) => {
+    const card = await openCard(page, fresh(), 390);
+    await expect(card.locator('[data-dd-dial-global="ring:inst"]')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
