@@ -206,10 +206,15 @@ def patch_meter(meter_id: str, request: Request, principal: Principal = Depends(
     require(conn, principal, MANAGE, INSTALLATION)
     fields = body.model_dump(exclude_unset=True)
     revision = fields.pop("revision")
+    before = meters.get(conn, meter_id)
     changed = meters.update(conn, meter_id, revision, fields)
     if changed:
+        details: dict[str, Any] = {"fields": changed}
+        if "display_name" in changed and before is not None:  # a meter's friendly name is not a secret; the audit trail shows old and new
+            details["name_from"] = before["display_name"]
+            details["name_to"] = meters.require(conn, meter_id)["display_name"]
         audit(conn, actor=principal, action="energy.meter.update", decision="allowed", resource_type="energy_meter", resource_id=meter_id, request_id=_rid(request),
-              details={"fields": changed})
+              details=details)
     return _one(request, conn, meter_id, detail=True)
 
 

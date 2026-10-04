@@ -223,10 +223,24 @@ def _check_source(conn: sqlite3.Connection, ref: str, *, ignore_meter: str | Non
     return v
 
 
+NAME_TAKEN_MESSAGE = "קיים כבר מונה בשם הזה, לא ניתן להקים שני מונים באותו שם"
+
+
+def check_name_free(conn: sqlite3.Connection, name: str, exclude_id: str | None = None) -> None:
+    """A meter name must be unique among the meters that are not retired (active and paused ones count); trimmed, case-insensitive.
+    Only the NEW name is checked: duplicates that already exist in the data never break a read or another edit."""
+    key = name.strip().casefold()
+    for r in conn.execute("SELECT id, display_name FROM energy_meters WHERE status != 'retired'").fetchall():
+        if r["id"] != exclude_id and (r["display_name"] or "").strip().casefold() == key:
+            raise conflict("meter_name_taken", NAME_TAKEN_MESSAGE, fields=["display_name"])
+
+
 def create(conn: sqlite3.Connection, *, source_ref: str, display_name: str | None, area_id: str | None, max_kw: float | None, actor: str | None) -> tuple[str, Verdict]:
     v = _check_source(conn, source_ref)
     row = _mirror(conn, source_ref)
     name = (display_name or "").strip() or (row["name"] if row is not None else "") or source_ref
+    name = name[:120]
+    check_name_free(conn, name)
     mid, now = new_id(), now_iso()
     conn.execute(
         """INSERT INTO energy_meters(id, source_kind, source_ref, display_name, unit, unit_factor, area_id, status, max_kw, revision, created_at, created_by, updated_at)
@@ -255,6 +269,8 @@ def update(conn: sqlite3.Connection, meter_id: str, revision: int, fields: dict[
         name = str(fields["display_name"]).strip()
         if not name:
             raise ApiError(422, "validation", "שם המונה חסר.", details={"fields": ["display_name"]})
+        if name[:120].casefold() != (row["display_name"] or "").strip().casefold():  # an unchanged name never trips over an old duplicate
+            check_name_free(conn, name[:120], meter_id)
         sets.append("display_name = ?"); args.append(name[:120]); changed.append("display_name")
     if "area_id" in fields:
         sets.append("area_id = ?"); args.append(fields["area_id"] or None); changed.append("area_id")

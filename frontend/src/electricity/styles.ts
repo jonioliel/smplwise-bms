@@ -332,6 +332,14 @@ export const elecCss = css`
     font-size: var(--sw-fs-sm);
     color: var(--sw-danger-text);
   }
+  .fld .msg.warn-msg {
+    color: var(--sw-warning-text);
+  }
+  .names {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .fld .unit {
     display: flex;
     align-items: center;
