@@ -166,3 +166,18 @@ class FakeEnergyProvider:
 
 
 __all__ = ["FakeEnergyProvider", "HistoryWindow"]
+
+
+def seed_account(conn, account_id: str, name: str, meter_ids: Sequence[str], *, status: str = "active", draft_period: tuple[str, str] | None = None) -> None:
+    """A customer, a tariff and an account using `meter_ids` in the real billing tables (migration 0055), optionally with a
+    draft bill of [period_start, period_end) - what the meters side's guards (meter in use, retention) look at."""
+    now = "2026-10-04T00:00:00Z"
+    conn.execute("INSERT OR IGNORE INTO energy_customers(id, customer_number, name, created_at, updated_at) VALUES ('c-seed', '9999', 'לקוח', ?, ?)", (now, now))
+    conn.execute("INSERT OR IGNORE INTO energy_tariffs(id, name, created_at, updated_at) VALUES ('t-seed', 'תעריף', ?, ?)", (now, now))
+    conn.execute("INSERT INTO energy_accounts(id, name, customer_id, formula_json, tariff_id, period_months, period_anchor_day, first_period_start, timezone, status, created_at, updated_at) "
+                 "VALUES (?, ?, 'c-seed', '{}', 't-seed', 1, 1, '2026-01-01', 'Asia/Jerusalem', ?, ?, ?)", (account_id, name, status, now, now))
+    for m in meter_ids:
+        conn.execute("INSERT INTO energy_account_meters(account_id, meter_id) VALUES (?, ?)", (account_id, m))
+    if draft_period:
+        conn.execute("INSERT INTO energy_bills(id, account_id, customer_id, period_start, period_end, state, snapshot_json, created_at, updated_at) "
+                     "VALUES (?, ?, 'c-seed', ?, ?, 'draft', '{}', ?, ?)", (f"b-{account_id}", account_id, draft_period[0], draft_period[1], now, now))

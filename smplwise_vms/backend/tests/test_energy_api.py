@@ -176,13 +176,16 @@ def test_patch_pause_retire_and_in_use(app):
     assert r.status_code == 409 and r.json()["code"] == "revision_conflict"
     r = c.patch(f"{API}/meters/{m['id']}", json={"revision": 1, "status": "paused"})
     assert r.json()["status"] == "paused" and r.json()["state"] == "paused" and r.json()["status_reason"] == "manual"
-    with Database(settings.db_path).connection() as conn:  # the billing branch's tables (contract 2.3)
-        conn.execute("CREATE TABLE energy_accounts(id TEXT PRIMARY KEY, name TEXT, status TEXT, deleted_at TEXT)")
-        conn.execute("CREATE TABLE energy_account_meters(account_id TEXT, meter_id TEXT)")
-        conn.execute("INSERT INTO energy_accounts VALUES ('a1', 'דירה 3', 'active', NULL)")
-        conn.execute("INSERT INTO energy_account_meters VALUES ('a1', ?)", (m["id"],))
+    from energy_fake import seed_account
+
+    with Database(settings.db_path).connection() as conn:  # the billing tables (migration 0055, contract 2.3)
+        seed_account(conn, "a1", "דירה 3", [m["id"]])
     r = c.delete(f"{API}/meters/{m['id']}", params={"revision": 2})
     assert r.status_code == 409 and r.json()["code"] == "meter_in_use" and r.json()["details"]["accounts"][0]["name"] == "דירה 3"
+    with Database(settings.db_path).connection() as conn:  # an account is active or paused only; a paused one still uses its meters
+        conn.execute("UPDATE energy_accounts SET status = 'paused'")
+    r = c.delete(f"{API}/meters/{m['id']}", params={"revision": 2})
+    assert r.status_code == 409 and r.json()["code"] == "meter_in_use"
     assert c.get(f"{API}/meters/{m['id']}").json()["used_in"] == [{"account_id": "a1", "name": "דירה 3"}]
     listed = c.get(f"{API}/meters").json()["items"][0]
     assert listed["accounts_count"] == 1 and {"floor_id", "floor_name", "area_name", "month_kwh", "today_kwh"} <= set(listed)

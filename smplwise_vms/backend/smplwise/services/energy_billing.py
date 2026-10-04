@@ -29,6 +29,7 @@ from ..errors import ApiError, conflict, not_found
 from . import energy_formula as fx
 from . import energy_periods as per
 from . import energy_pricing as px
+from . import energy_settings as es
 from .energy_billing_provider import BillingReadings, get_provider
 from .energy_consumption import MeterWindow, meter_window
 
@@ -36,9 +37,9 @@ log = logging.getLogger("smplwise.energy_billing")
 
 SCHEMA = "arx.energy.bill_snapshot/1"
 ENGINE = "arx.energy.billing/1"
-SETTINGS_KEY = "energy.billing"
+SETTINGS_KEY = "energy.billing"  # registered in the energy settings registry below (own route /energy/billing-settings)
 ISSUED_STATES = ("issued", "sent", "paid")
-NOT_REPORTING_AFTER = dt.timedelta(minutes=60)
+NOT_REPORTING_AFTER = dt.timedelta(minutes=60)  # the default; the effective value is energy.stale_after_minutes (stale_after(conn))
 HISTORY_PERIODS = 12
 AUTO_MAX_PER_ACCOUNT = 24
 AUTO_RETRY = dt.timedelta(hours=6)
@@ -102,6 +103,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "logo": None,
 }
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+# One registry of energy.* settings (services/energy_settings.py): the billing document is registered there with its own route.
+es.register(es.SettingSpec(SETTINGS_KEY, DEFAULT_SETTINGS, "json", es.MANAGE, read_permission=es.BILLS, max_length=20000,
+                           label_he="הגדרות חיוב", own_route="/energy/billing-settings"))
+
+
+def stale_after(conn: sqlite3.Connection) -> dt.timedelta:
+    """A meter whose last report is older than this before the period end is 'not reporting' (energy.stale_after_minutes)."""
+    try:
+        return dt.timedelta(minutes=es.stale_after_minutes(conn))
+    except sqlite3.Error:
+        return NOT_REPORTING_AFTER
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -166,29 +178,31 @@ def _store_settings(conn: sqlite3.Connection, s: dict[str, Any]) -> None:
 
 # ---------------------------------------------------------------- logo (content addressed, never deleted while referenced)
 
-LOGO_MAX_BYTES = 1024 * 1024
-LOGO_MAX_PX = 800
+LOGO_MAX_PX = 800  # services/bill_pdf_logo.MAX_LOGO_SIDE
+LOGO_ERROR_HE = {
+    "logo_empty": "לא נבחר קובץ לוגו.",
+    "logo_too_large": "הלוגו חייב להיות PNG או JPEG עד 1MB.",
+    "logo_type": "הלוגו חייב להיות PNG או JPEG עד 1MB.",
+    "logo_dimensions": "תמונת הלוגו גדולה מדי.",
+    "logo_undecodable": "לא ניתן לקרוא את קובץ הלוגו.",
+}
 
 
 def store_logo(conn: sqlite3.Connection, data_dir: Path, content: bytes) -> dict[str, Any]:
-    if not content or len(content) > LOGO_MAX_BYTES:
-        raise _err(422, "logo_invalid", "הלוגו חייב להיות PNG או JPEG עד 1MB.")
-    if not (content.startswith(b"\x89PNG\r\n\x1a\n") or content.startswith(b"\xff\xd8\xff")):
-        raise _err(422, "logo_invalid", "הלוגו חייב להיות PNG או JPEG עד 1MB.")
-    try:
-        from PIL import Image
+    """The upload goes through the PDF renderer's own logo rules (services/bill_pdf_logo.sanitize_logo: PNG/JPEG by magic bytes,
+    <= 1 MB, <= 25 megapixels, scaled to <= 800 px, metadata dropped, re-encoded as a new PNG), so a logo that is accepted
+    here is never dropped at render time."""
+    from PIL import Image
 
-        Image.MAX_IMAGE_PIXELS = 40_000_000
-        with Image.open(io.BytesIO(content)) as im:
-            im.load()
-            im = im.convert("RGBA")
-            im.thumbnail((LOGO_MAX_PX, LOGO_MAX_PX))
-            buf = io.BytesIO()
-            im.save(buf, format="PNG", optimize=True)  # re-encoded: metadata stripped
+    from .bill_pdf_logo import LogoError, sanitize_logo
+
+    try:
+        png = sanitize_logo(content)
+        with Image.open(io.BytesIO(png)) as im:
             width, height = im.size
-    except Exception:  # noqa: BLE001 - any decoder failure is an invalid logo
-        raise _err(422, "logo_invalid", "לא ניתן לקרוא את קובץ הלוגו.") from None
-    png = buf.getvalue()
+    except LogoError as exc:
+        code = str(exc)
+        raise _err(422, "logo_invalid", LOGO_ERROR_HE.get(code, LOGO_ERROR_HE["logo_undecodable"]), code=code) from None
     digest = hashlib.sha256(png).hexdigest()
     rel = f"energy/assets/{digest}.png"
     path = data_dir / rel
@@ -646,6 +660,7 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     # meters and notes
     notes: list[dict[str, Any]] = []
     meters_out: list[dict[str, Any]] = []
+    stale = stale_after(conn)
     for mid in comp.meter_ids:
         w = windows[mid]
         name = names_all.get(mid, mid)
@@ -659,9 +674,9 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
             "consumption_kwh": px.s2(cons), "contribution_kwh": px.s2(cons * coef), "carried_in_kwh": px.s2(_kwh(w.carried_in_wh)),
             "resets": [{"at": _iso(r)} for r in w.resets],
             "last_report_at": _iso(last_report),
-            "reported_to_end": bool(last_report is not None and last_report >= w_end - NOT_REPORTING_AFTER),
+            "reported_to_end": bool(last_report is not None and last_report >= w_end - stale),
         })
-        if last_report is None or last_report < w_end - NOT_REPORTING_AFTER:
+        if last_report is None or last_report < w_end - stale:
             since = f"מאז {_fmt_local(last_report, tz)}" if last_report else "מעולם"
             notes.append({"code": "meter_not_reporting", "meter_id": mid, "at": _iso(last_report),
                           "text_he": f"המונה {name} לא מדווח {since}. הצריכה שלאחר מכן תחויב בחיוב הבא."})
@@ -714,51 +729,88 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     return Computed(snapshot, totals["kwh"], totals["total"], {k: _iso(v) or "" for k, v in caps.items()})
 
 
-def compute_history(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, period: per.Period, comp: fx.Compiled, current_kwh: str) -> dict[str, Any]:
+def period_kwh(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled) -> dict[str, Any]:
+    """kWh of the account in one period: from an issued bill of exactly that period when there is one, else from the readings
+    store (raw readings / quarter-hour buckets / daily totals, allocated by time) with the account formula. Missing data stays
+    null - never invented; partial coverage is 'partial'."""
+    tz = account["timezone"]
+    row = conn.execute(
+        "SELECT kwh FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
+        (account["id"], p.start.isoformat(), p.end.isoformat()),
+    ).fetchone()
+    base = {"from": p.start.isoformat(), "to": p.last_day.isoformat()}
+    if row and row["kwh"] is not None:
+        return {**base, "kwh": row["kwh"], "status": "measured", "source": "bill"}
+    a, b = per.utc_window(p, tz)
+    total = Decimal(0)
+    complete = True
+    got = 0
+    for mid, coef in comp.coefficients.items():
+        try:
+            c = provider.consumption(mid, a, b)
+        except ValueError:  # e.g. edges not day-aligned beyond the quarter-hour retention: no data, never a guess
+            continue
+        if getattr(c, "wh", None) is None or getattr(c, "coverage", "none") == "none":
+            continue
+        got += 1
+        total += coef * Decimal(int(c.wh))
+        complete = complete and c.coverage == "full"
+    if got == 0 or got < len(comp.coefficients):
+        return {**base, "kwh": None, "status": "missing", "source": None}
+    kwh = px.r2(_kwh(total))
+    if kwh < 0:
+        return {**base, "kwh": None, "status": "missing", "source": None}
+    return {**base, "kwh": str(kwh), "status": "measured" if complete else "partial", "source": "readings"}
+
+
+def compute_history(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, period: per.Period, comp: fx.Compiled, current_kwh: str | None) -> dict[str, Any]:
     """Owner round 3: up to 12 previous periods and the same period last year - from issued bills of the account when one
     covers exactly that period, else from the readings store's long-term totals; missing data stays null (never invented)."""
-    tz = account["timezone"]
     try:
         cycle = cycle_of(account)
     except (TypeError, ValueError):
         cycle = None
-
-    def entry(p: per.Period) -> dict[str, Any]:
-        row = conn.execute(
-            "SELECT kwh FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state IN ('issued','sent','paid') ORDER BY revision DESC LIMIT 1",
-            (account["id"], p.start.isoformat(), p.end.isoformat()),
-        ).fetchone()
-        base = {"from": p.start.isoformat(), "to": p.last_day.isoformat()}
-        if row and row["kwh"] is not None:
-            return {**base, "kwh": row["kwh"], "status": "measured", "source": "bill"}
-        a, b = per.utc_window(p, tz)
-        total = Decimal(0)
-        complete = True
-        got = 0
-        for mid, coef in comp.coefficients.items():
-            try:
-                c = provider.consumption(mid, a, b)
-            except ValueError:  # e.g. edges not day-aligned beyond the quarter-hour retention: no data, never a guess
-                continue
-            if getattr(c, "wh", None) is None or getattr(c, "coverage", "none") == "none":
-                continue
-            got += 1
-            total += coef * Decimal(int(c.wh))
-            complete = complete and c.coverage == "full"
-        if got == 0 or got < len(comp.coefficients):
-            return {**base, "kwh": None, "status": "missing", "source": None}
-        kwh = px.r2(_kwh(total))
-        if kwh < 0:
-            return {**base, "kwh": None, "status": "missing", "source": None}
-        return {**base, "kwh": str(kwh), "status": "measured" if complete else "partial", "source": "readings"}
-
-    previous = [entry(p) for p in per.previous_like(period, cycle, HISTORY_PERIODS)]
+    previous = [period_kwh(conn, provider, account, p, comp) for p in per.previous_like(period, cycle, HISTORY_PERIODS)]
     # trim leading entries that have no data at all (before the account / the meters existed)
     while previous and previous[0]["kwh"] is None:
         previous.pop(0)
-    last_year = entry(per.same_period_last_year(period))
+    last_year = period_kwh(conn, provider, account, per.same_period_last_year(period), comp)
     return {"current": {"from": period.start.isoformat(), "to": period.last_day.isoformat(), "kwh": current_kwh},
             "previous": previous, "same_period_last_year": last_year if last_year["kwh"] is not None else None}
+
+
+def account_history(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, past: int, money: bool, now: dt.datetime | None = None) -> dict[str, Any]:
+    """Owner round 6: consumption per billing period for the account page, also for periods WITHOUT a bill (computed from the
+    readings with the account formula), oldest first, ending with the latest ended period; plus the chart comparison (previous
+    periods and the same period last year) of that latest period. Periods before any data are trimmed; gaps stay null."""
+    now = now or now_utc()
+    cycle = cycle_of(account)
+    today = per.local_date(now, account["timezone"])
+    ref = per.period_containing(cycle, max(today, cycle.first_start))
+    out: dict[str, Any] = {"periods": [], "comparison": None}
+    if ref is None:
+        return out
+    names_all = meter_names(provider)
+    try:
+        comp = fx.compile_formula(json.loads(account["formula_json"]), known=names_all.keys())
+    except (fx.FormulaError, ValueError):
+        return out
+    rows: list[dict[str, Any]] = []
+    for p in per.previous_like(ref, cycle, past):
+        if p.end > today:
+            continue  # only ended periods
+        entry = period_kwh(conn, provider, account, p, comp)
+        b = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? AND period_start = ? AND period_end = ? AND state != 'void' ORDER BY revision DESC LIMIT 1",
+                         (account["id"], p.start.isoformat(), p.end.isoformat())).fetchone()
+        entry["bill"] = bill_summary(conn, b, money) if b is not None else None
+        rows.append(entry)
+    while rows and rows[0]["kwh"] is None and rows[0]["bill"] is None:
+        rows.pop(0)
+    out["periods"] = rows
+    if rows:
+        latest = per.Period(_date(rows[-1]["from"]), _date(rows[-1]["to"]) + dt.timedelta(days=1))
+        out["comparison"] = compute_history(conn, provider, account, latest, comp, rows[-1]["kwh"])
+    return out
 
 
 # ====================================================================== bills: rows and serialisation
@@ -800,6 +852,41 @@ def bill_summary(conn: sqlite3.Connection, row: sqlite3.Row, money: bool = True)
     return out
 
 
+def pdf_engine_name() -> str | None:
+    from . import energy_billing_pdf as pdfseam
+
+    st = pdfseam.engine_status() or {}
+    return st.get("last_render_engine") or st.get("active")
+
+
+def pdf_event(conn: sqlite3.Connection, bid: str, action: str, actor: Any | None, details: dict[str, Any] | None = None) -> None:
+    _event(conn, bid, action, actor, details)
+
+
+def pdf_state(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
+    """Owner round 6: is the PDF of this bill there, producible, failed, or impossible in this build.
+    stored = the PDF of an issued bill is saved; ready = produced on request; failed = the last attempt failed (with the code);
+    unavailable = no PDF engine works on this installation."""
+    from . import energy_billing_pdf as pdfseam
+
+    engine = pdf_engine_name()
+    out: dict[str, Any] = {"state": "ready", "error_code": None, "failed_at": None, "engine": engine}
+    if row["pdf_path"]:
+        out["state"] = "stored"
+        return out
+    last = conn.execute("SELECT at, action, details_json FROM energy_bill_events WHERE bill_id = ? AND action IN ('pdf', 'pdf_failed') "
+                        "ORDER BY at DESC, rowid DESC LIMIT 1", (row["id"],)).fetchone()
+    if not pdfseam.available():
+        out.update(state="unavailable", error_code="pdf_unavailable")
+    elif last is not None and last["action"] == "pdf_failed":
+        try:
+            code = (json.loads(last["details_json"] or "{}") or {}).get("code")
+        except ValueError:
+            code = None
+        out.update(state="failed", error_code=code or "pdf_render_failed", failed_at=last["at"])
+    return out
+
+
 def bill_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     out = bill_summary(conn, row)
     out.update({
@@ -809,6 +896,7 @@ def bill_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
         "paid": {"at": row["paid_at"], "reference": row["paid_ref"]} if row["paid_at"] else None,
         "void": {"at": row["voided_at"], "reason": row["void_reason"]} if row["state"] == "void" else None,
         "actions": bill_actions(row),
+        "pdf": pdf_state(conn, row),
     })
     return out
 
@@ -1151,9 +1239,10 @@ RETENTION_EVERY_S = 3600
 
 
 def _int_setting(conn: sqlite3.Connection, key: str, default: int, lo: int, hi: int) -> int:
+    """A retention key of the energy settings registry (validated and defaulted there)."""
     try:
-        v = int(get_setting(conn, key) or default)
-    except (TypeError, ValueError):
+        v = int(es.value(conn, key))
+    except (KeyError, TypeError, ValueError):
         v = default
     return min(max(v, lo), hi)
 

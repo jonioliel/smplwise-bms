@@ -1,6 +1,6 @@
 -- CR-023 phase P1 (electricity meters and readings): the meter registry in the main database.
--- PLACEHOLDER NUMBER 0054: the lead renumbers at integration (0050-0053 belong to other branches; the billing branch has
--- its own 0054_electricity_* placeholder). The time-series itself lives in its own file energy.db
+-- Number 0054 set at integration (0050-0053 belong to other branches; billing is 0055_electricity_billing.sql).
+-- The time-series itself lives in its own file energy.db
 -- (services/energy_store.py, migrations_energy/), never here. Contract: docs/architecture/ELECTRICITY_INTERFACES.md.
 
 CREATE TABLE energy_meters (

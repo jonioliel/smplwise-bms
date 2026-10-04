@@ -1,8 +1,8 @@
 -- CR-023 P2 (docs/changes/CR-023-ELECTRICITY-METERS-BILLS.md sections 4.3, 6, 7, 9-13; owner decisions 2026-10-04 rounds 1-3):
 -- electricity billing in the main database - customers, accounts (meters combined by a formula), fixed-price tariffs with
 -- effective dates, VAT rates with effective dates, bills with their sealed snapshot, the automatic-generation runs and the
--- ledger of bill numbers ever used. PLACEHOLDER NUMBER 0054: the lead renumbers at integration (the meters/readings branch
--- has its own migration; this file references meters by their text id only, no foreign key across the two).
+-- ledger of bill numbers ever used. Number 0055 set at integration (the meters/readings migration is
+-- 0054_electricity_meters.sql; this file references meters by their text id only, no foreign key across the two).
 -- Money, prices and kWh are decimal TEXT (never REAL). Dates of periods are local dates; instants are UTC ISO-8601 'Z'.
 
 -- the customer card (D2): one or more accounts per customer

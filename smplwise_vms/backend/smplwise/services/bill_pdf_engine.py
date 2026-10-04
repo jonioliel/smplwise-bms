@@ -323,9 +323,45 @@ def run_job(job: dict[str, Any]) -> tuple[bytes, str]:
     return render_fpdf2(s, logo, max_pages), "fpdf2"
 
 
+def self_check(engine: str) -> int:
+    """Start-up self-check job: which engine can render here. Prints `engine=<name>` (and `reason=` for a fallback)."""
+    reason = ""
+    if engine in ("auto", "weasyprint"):
+        try:
+            import logging
+
+            from weasyprint import HTML
+
+            logging.getLogger("weasyprint").setLevel(logging.ERROR)
+            HTML(string="<p>\u05d1\u05d3\u05d9\u05e7\u05d4 123</p>", base_url=None, url_fetcher=LockedFetcher(None)).render().write_pdf()
+            sys.stdout.write("engine=weasyprint\n")
+            return 0
+        except Exception as exc:  # noqa: BLE001 - any failure of the stack means the fallback is in force
+            reason = f"weasyprint unavailable: {type(exc).__name__}: {str(exc)[:100]}"
+            if engine == "weasyprint":
+                sys.stdout.write(f"reason={reason}\n")
+                return 4
+    try:
+        from fpdf import FPDF
+
+        pdf = FPDF(format="A4")
+        pdf.add_font("HeeboHe", fname=str(FONT_DIR / "Heebo-he-400.ttf"))
+        pdf.add_page()
+        pdf.set_font("HeeboHe", size=10)
+        pdf.cell(0, 6, "123")
+        pdf.output()
+        sys.stdout.write("engine=fpdf2\n" + (f"reason={reason}\n" if reason else ""))
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        sys.stdout.write(f"reason={reason + '; ' if reason else ''}fpdf2 unavailable: {type(exc).__name__}\n")
+        return 4
+
+
 def main() -> int:
     deny_network()
     job = json.loads(sys.stdin.buffer.read())
+    if job.get("selfcheck"):
+        return self_check(str(job.get("engine") or "auto"))
     if job.get("memory_bytes"):
         apply_limits(int(job["memory_bytes"]), int(job.get("cpu_seconds") or 30), int(job.get("fsize_bytes") or 12_000_000))
     try:

@@ -8,6 +8,11 @@ address-space and file-size limits, a scrubbed environment and its own process g
 fault can neither hang nor exhaust the add-on. Limits (all overridable through the environment, see `_limits`):
 timeout 20 s, 1.5 GiB address space, 40 pages, 10 MB of PDF. Engine: WeasyPrint, with fpdf2 as the fallback when the
 WeasyPrint stack cannot load on the target (SW_BILL_PDF_ENGINE = auto | weasyprint | fpdf2).
+
+Owner decision (round 4): in `auto`, a WeasyPrint render that exceeds 5 s (SW_BILL_PDF_FALLBACK_S, 1-60) is stopped and the
+bill is rendered again with the simple engine (fpdf2). Which engine is active is never silent: `self_check()` runs once at
+start-up (main.create_app, background thread), logs the result and `engine_status()` exposes it (billing settings and every
+bill's `pdf` field), together with the engine of the last render and the number of slow fallbacks.
 """
 from __future__ import annotations
 
@@ -19,6 +24,8 @@ import re
 import signal
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -28,10 +35,17 @@ from .bill_pdf_model import NUMBER_RE, BillSnapshot, BillSnapshotError
 
 log = logging.getLogger("smplwise.bill_pdf")
 
-__all__ = ["render_bill_pdf", "bill_pdf_filename", "BillPdfError", "BillSnapshotError", "LogoError", "sanitize_logo"]
+__all__ = ["render_bill_pdf", "bill_pdf_filename", "BillPdfError", "BillSnapshotError", "LogoError", "sanitize_logo", "self_check", "engine_status"]
 
 _PACKAGE_PARENT = str(Path(__file__).resolve().parent.parent.parent)
 _STDERR_KEEP = 2000
+SELF_CHECK_TIMEOUT_S = 60
+
+_STATUS_LOCK = threading.Lock()
+# What the add-on really renders with (never a silent fallback): filled by self_check() and by every render.
+_STATUS: dict[str, Any] = {"configured": None, "active": None, "checked": False, "checked_at": None, "detail": "",
+                           "check_seconds": None, "last_render_engine": None, "last_render_at": None, "slow_fallbacks": 0,
+                           "fallback_after_s": None}
 
 
 class BillPdfError(Exception):
@@ -111,8 +125,31 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
            "watermark": watermark, "max_pages": limits.max_pages, "engine": limits.engine,
            "memory_bytes": limits.memory_bytes, "cpu_seconds": int(limits.timeout_s) + 5,
            "fsize_bytes": limits.max_pdf_bytes + 1_000_000}
-    payload = json.dumps(job, default=str).encode("utf-8")
+    fallback_s = _env_number("SW_BILL_PDF_FALLBACK_S", 5, 1, 60)
+    if limits.engine == "auto" and fallback_s < limits.timeout_s:
+        try:
+            out, used = _run_child(job, fallback_s)
+        except BillPdfError as exc:
+            if exc.code != "pdf_timeout":
+                raise
+            # owner round 4: WeasyPrint over 5 s on the target -> the simple engine, automatically
+            log.warning("bill pdf: WeasyPrint exceeded %.0f s; rendering again with the simple engine (fpdf2)", fallback_s)
+            with _STATUS_LOCK:
+                _STATUS["slow_fallbacks"] += 1
+            out, used = _run_child({**job, "engine": "fpdf2"}, limits.timeout_s)
+    else:
+        out, used = _run_child(job, limits.timeout_s)
+    if len(out) > limits.max_pdf_bytes:
+        raise BillPdfError("pdf_too_large", retryable=False)
+    with _STATUS_LOCK:
+        _STATUS["last_render_engine"] = used
+        _STATUS["last_render_at"] = time.time()
+    return out
 
+
+def _run_child(job: Mapping[str, Any], timeout_s: float) -> tuple[bytes, str | None]:
+    """One render process: (pdf bytes, the engine it used)."""
+    payload = json.dumps(job, default=str).encode("utf-8")
     kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
                               "env": _child_env(), "cwd": _PACKAGE_PARENT}
     if os.name == "posix":
@@ -124,11 +161,11 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
         log.error("bill pdf: cannot start the render process: %s", exc)
         raise BillPdfError("pdf_render_failed") from exc
     try:
-        out, err = proc.communicate(payload, timeout=limits.timeout_s)
+        out, err = proc.communicate(payload, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         _kill_group(proc)
         proc.communicate()
-        log.error("bill pdf: render timed out after %.0f s", limits.timeout_s)
+        log.error("bill pdf: render timed out after %.1f s", timeout_s)
         raise BillPdfError("pdf_timeout") from None
     finally:
         if proc.poll() is None:  # defensive: never leave the child behind
@@ -140,9 +177,63 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
     if proc.returncode != 0 or not out.startswith(b"%PDF-"):
         log.error("bill pdf: render failed (exit %s): %s", proc.returncode, tail[-400:])
         raise BillPdfError("pdf_render_failed")
-    if len(out) > limits.max_pdf_bytes:
-        raise BillPdfError("pdf_too_large", retryable=False)
-    return out
+    m = re.search(r"engine=(weasyprint|fpdf2)", tail)
+    return out, (m.group(1) if m else None)
+
+
+def self_check(timeout_s: float = SELF_CHECK_TIMEOUT_S) -> dict[str, Any]:
+    """Which engine this installation really renders with: a tiny render in the isolated child (WeasyPrint first unless
+    SW_BILL_PDF_ENGINE says otherwise, fpdf2 when WeasyPrint cannot load). Logged once; never raises."""
+    configured = _limits(None, None).engine
+    job = {"selfcheck": True, "engine": configured}
+    started = time.perf_counter()
+    active: str | None = None
+    detail = ""
+    try:
+        kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
+                                  "env": _child_env(), "cwd": _PACKAGE_PARENT}
+        if os.name == "posix":
+            kwargs["start_new_session"] = True
+        proc = subprocess.Popen([sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"], **kwargs)
+        try:
+            out, err = proc.communicate(json.dumps(job).encode("utf-8"), timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            proc.communicate()
+            out, err = b"", b"self-check timed out"
+        finally:
+            if proc.poll() is None:
+                _kill_group(proc)
+        text = (out + b"\n" + err).decode("utf-8", "replace")
+        m = re.search(r"engine=(weasyprint|fpdf2)", text)
+        active = m.group(1) if m else None
+        r = re.search(r"reason=([^\n]{0,160})", text)
+        detail = r.group(1).strip() if r else ("" if active else text.strip()[-160:])
+    except OSError as exc:
+        detail = f"cannot start the render process: {type(exc).__name__}"
+    seconds = round(time.perf_counter() - started, 2)
+    with _STATUS_LOCK:
+        _STATUS.update(configured=configured, active=active, checked=True, checked_at=time.time(), detail=detail,
+                       check_seconds=seconds, fallback_after_s=_env_number("SW_BILL_PDF_FALLBACK_S", 5, 1, 60))
+        snap = dict(_STATUS)
+    if active == "weasyprint":
+        log.info("bill pdf engine: WeasyPrint (self-check %.2f s)", seconds)
+    elif active == "fpdf2":
+        log.warning("bill pdf engine: the SIMPLE engine fpdf2 is active (configured %s; %s)", configured, detail or "WeasyPrint not loadable")
+    else:
+        log.error("bill pdf engine: NO PDF engine works on this installation (%s)", detail or "unknown")
+    return snap
+
+
+def engine_status() -> dict[str, Any]:
+    """The PDF engine state for the API: configured / active engine, whether the self-check ran, the last render."""
+    with _STATUS_LOCK:
+        s = dict(_STATUS)
+    if s["configured"] is None:
+        s["configured"] = _limits(None, None).engine
+    if s["fallback_after_s"] is None:
+        s["fallback_after_s"] = _env_number("SW_BILL_PDF_FALLBACK_S", 5, 1, 60)
+    return s
 
 
 def _kill_group(proc: subprocess.Popen) -> None:

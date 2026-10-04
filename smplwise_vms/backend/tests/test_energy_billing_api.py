@@ -520,7 +520,7 @@ def test_pdf_is_stored_once_for_an_issued_bill_and_watermarked_otherwise(w):
     assert w.c.get(f"{API}/bills/{b['id']}/pdf").content == r1.content  # served from the stored file
     copy = w.c.get(f"{API}/bills/{b['id']}/pdf?copy=1")
     assert copy.status_code == 503 and copy.json()["code"] == "pdf_render_failed" and copy.json()["retryable"] is True
-    pdfseam.set_renderer(None)
+    pdfseam.set_renderer(pdfseam.UNAVAILABLE)  # a build without any PDF engine (None means the real renderer since integration)
     assert w.c.get(f"{API}/bills/{b['id']}/pdf?copy=1").json()["code"] == "pdf_unavailable"
     assert row["state"] == "issued"
 

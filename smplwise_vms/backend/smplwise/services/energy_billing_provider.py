@@ -13,14 +13,18 @@ Semantics relied on (section 2.1 there): energy between readings is allocated by
 `wh` counts only the covered time (a meter that stopped reporting is measured up to its last report); `None` = no data.
 
 The dataclasses below mirror the field names of that contract so the test fake and the real provider are interchangeable.
-Until the meters branch is merged, `get_provider` answers with `NullReadings` ("no meters"): nothing can be billed and no
-energy is ever invented."""
+`get_provider` obtains the real provider through services/energy_billing_adapter.provider(conn, settings) (the one seam);
+when the store is not configured it answers with `NullReadings` ("no meters"): nothing can be billed and no energy is ever
+invented."""
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
+
+log = logging.getLogger("smplwise.energy_billing")
 
 Coverage = Literal["full", "partial", "none"]
 
@@ -110,11 +114,11 @@ def get_provider(conn: Any = None, settings: Any = None) -> BillingReadings:
     with _LOCK:
         if _OVERRIDE is not None:
             return _OVERRIDE
+    from . import energy_billing_adapter  # the one seam to the readings store (EnergyReadingsProvider)
+
     try:
-        from . import energy_provider  # type: ignore[attr-defined]  # the meters branch (pilot/elec-server)
-    except ImportError:
-        return NullReadings()
-    try:
-        return energy_provider.provider_for(conn, settings)
+        real = energy_billing_adapter.provider(conn, settings)
     except Exception:  # noqa: BLE001 - an unready store means "no data", never a crash of billing
+        log.warning("readings store not available to billing", exc_info=True)
         return NullReadings()
+    return real if real is not None else NullReadings()

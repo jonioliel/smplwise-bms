@@ -22,8 +22,8 @@ Binding owner decisions that shape this interface:
 
 | Store | Owner branch | Objects |
 |---|---|---|
-| main DB `smplwise.db`, migration `0054_electricity_meters.sql` (placeholder number; the lead renumbers at integration) | elec-server | `energy_meters`, `energy_meter_epochs` |
-| main DB, the billing migration (its own placeholder `0054_electricity_billing*.sql` or similar) | elec-billing | customers, accounts, `energy_account_meters`, tariffs, VAT, bills, bill lines |
+| main DB `smplwise.db`, migration `0054_electricity_meters.sql` (number set at integration) | elec-server | `energy_meters`, `energy_meter_epochs` |
+| main DB, migration `0055_electricity_billing.sql` | elec-billing | customers, accounts, `energy_account_meters`, tariffs, VAT, bills, bill lines |
 | main DB `settings` table, keys `energy.*` | elec-server owns the registry (`services/energy_settings.py`); billing registers its own keys there (section 5) | |
 | `energy.db` (own file next to `smplwise.db`, own migration series `migrations_energy/E001_*.sql`, own write gate) | elec-server | `meter_map`, `readings`, `intervals`, `daily`, `cursor`, `energy_schema_migrations` |
 
@@ -205,7 +205,8 @@ use the real store: `tests/test_energy_store.py::make_store` shows how to feed r
 ### 2.3 Hooks billing provides to this branch
 
 - **Meter in use.** Retiring a meter is refused (409 `meter_in_use`, with the account names) when it appears in
-  `energy_account_meters` of an account whose `deleted_at` is null and `status != 'closed'` (if that table exists; the query is
+  `energy_account_meters` of an account whose `deleted_at` is null (status is `'active'` or `'paused'` only; a paused account
+  still uses its meters) (the query is
   in `services/energy_meters.accounts_using(conn, meter_id)` - keep the table and column names `energy_account_meters
   (account_id, meter_id)`, `energy_accounts (id, name, deleted_at, status)` or tell me).
 - **Retention guard.** Quarter-hour pruning never deletes buckets inside an open draft's period: `energy_retention`

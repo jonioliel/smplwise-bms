@@ -12,6 +12,8 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # CR-023: the electricity sampler thread stays off in tests (they call energy_sampler.tick with explicit instants)
 os.environ.setdefault("SW_ENERGY_SAMPLER", "0")
+# CR-023: the bill PDF engine self-check (one child render per app start) stays off; tests call bill_pdf.self_check() directly
+os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402

@@ -565,7 +565,7 @@ def test_the_migrations_apply_on_a_0_1_148_database_and_give_custom_roles_the_me
             conn.execute("INSERT INTO custom_roles(id, name_he, permissions_json, sensitive_json, created_at, updated_at) VALUES (?,?,?,?,?,?)", (rid, rid, json.dumps(perms), json.dumps(sens), now, now))
         rev = dbmod.permission_revision(conn)
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 54], "0054 (CR-023 meters, placeholder number), 0040 (climate), 0043 (camera wall), 0044 (CR-016 players), 0045-0047 (CR-018 notifications), 0048 (CR-017 automations) and 0049 (switch protection) are in the real set too"
+    assert database.migrate() == [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 54, 55], "0054-0055 (CR-023 meters, billing), 0040 (climate), 0043 (camera wall), 0044 (CR-016 players), 0045-0047 (CR-018 notifications), 0048 (CR-017 automations) and 0049 (switch protection) are in the real set too"
     with database.connection() as conn:
         roles = {r["id"]: (json.loads(r["permissions_json"]), json.loads(r["sensitive_json"])) for r in conn.execute("SELECT * FROM custom_roles")}
         assert roles["r-read"][0] == ["devices.read", "map.read", "media.read"]

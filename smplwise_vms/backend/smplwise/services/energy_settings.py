@@ -5,7 +5,10 @@ Owner decision D4 (2026-10-04): raw 90 days, quarter-hour 26 months, bills and f
 Owner round 3: daily totals are kept as long as bills (`energy.bill_retention_years`) so the bill's history chart (previous
 periods, same period last year) survives raw / quarter-hour retention.
 
-Other electricity branches add their keys with `register(SettingSpec(...))` at import time (contract section 5)."""
+Other electricity modules add their keys with `register(SettingSpec(...))` at import time (contract section 5). A key with
+`own_route` (billing: `energy.billing`, a structured document with its own revision and validation behind
+`/energy/billing-settings`) is registered here so the registry knows every `energy.*` key, its default and its permissions,
+but the generic GET/PATCH `/energy/settings` neither shows nor accepts it."""
 from __future__ import annotations
 
 import json
@@ -31,6 +34,7 @@ class SettingSpec:
     max_length: int = 2000
     read_permission: str = VIEW   # who may read it (money-related keys of the billing branch: energy.bills)
     label_he: str = ""
+    own_route: str | None = None  # edited only through this route (not through GET/PATCH /energy/settings)
 
 
 SPECS: dict[str, SettingSpec] = {}
@@ -80,6 +84,8 @@ def values(conn: sqlite3.Connection, readable: set[str] | None = None) -> dict[s
     """Every registered key with its effective value; keys whose read permission the caller lacks are left out."""
     out: dict[str, Any] = {}
     for key, spec in SPECS.items():
+        if spec.own_route is not None:
+            continue
         if readable is not None and spec.read_permission not in readable:
             continue
         out[key] = _decode(spec, get_setting(conn, key))
@@ -89,7 +95,7 @@ def values(conn: sqlite3.Connection, readable: set[str] | None = None) -> dict[s
 def validate(key: str, raw: Any) -> str:
     """The stored text of a new value, or 422 with a Hebrew message."""
     spec = SPECS.get(key)
-    if spec is None:
+    if spec is None or spec.own_route is not None:
         raise ApiError(422, "validation", f"הגדרה לא מוכרת: {key}", details={"fields": [key]})
     bad = ApiError(422, "validation", f"ערך לא תקין עבור {spec.label_he or key}", details={"fields": [key]})
     if spec.kind == "int":
@@ -116,6 +122,11 @@ def validate(key: str, raw: Any) -> str:
     return raw
 
 
+def stale_after_minutes(conn: sqlite3.Connection) -> int:
+    """The one not-reporting threshold of the module (meters screen, provider and billing notes)."""
+    return int(value(conn, "energy.stale_after_minutes"))
+
+
 def store(conn: sqlite3.Connection, changes: dict[str, str]) -> None:
     for key, text in changes.items():
         set_setting(conn, key, text)
@@ -123,7 +134,7 @@ def store(conn: sqlite3.Connection, changes: dict[str, str]) -> None:
 
 def ranges() -> dict[str, dict[str, Any]]:
     return {k: {"min": s.minimum, "max": s.maximum, "kind": s.kind, "choices": list(s.choices) or None, "label_he": s.label_he}
-            for k, s in SPECS.items()}
+            for k, s in SPECS.items() if s.own_route is None}
 
 
 # ---------------------------------------------------------------- storage estimate (contract section 6)

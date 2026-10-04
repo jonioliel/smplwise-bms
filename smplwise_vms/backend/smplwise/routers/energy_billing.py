@@ -403,6 +403,15 @@ def account_periods(aid: str, principal: Principal = Depends(_view), conn: sqlit
     return {"periods": out}
 
 
+@router.get("/energy/accounts/{aid}/history")
+def account_history(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn),
+                    past: int = Query(12, ge=1, le=24)) -> dict[str, Any]:
+    """Consumption per billing period, also for periods without a bill (from the readings with the account formula), and the
+    chart comparison of the latest ended period (previous periods, same period last year). energy.view; money only with energy.bills."""
+    acc = eb.get_account(conn, aid)
+    return eb.account_history(conn, get_provider(conn, settings_of(request)), acc, past, _has(conn, principal, BILLS))
+
+
 @router.get("/energy/accounts/{aid}/status")
 def account_status(aid: str, request: Request, principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     acc = eb.get_account(conn, aid)
@@ -420,7 +429,7 @@ def account_status(aid: str, request: Request, principal: Principal = Depends(_v
     snap = comp.snapshot
     out["kwh_so_far"] = snap["totals"]["kwh"]
     out["meters"] = [{"meter_id": m["meter_id"], "name": m["name"], "kwh": m["consumption_kwh"], "last_report_at": m["last_report_at"],
-                      "reporting": m["reported_to_end"] or (m["last_report_at"] is not None and m["last_report_at"] >= eb._iso(eb.now_utc() - eb.NOT_REPORTING_AFTER))} for m in snap["meters"]]
+                      "reporting": m["reported_to_end"] or (m["last_report_at"] is not None and m["last_report_at"] >= eb._iso(eb.now_utc() - eb.stale_after(conn)))} for m in snap["meters"]]
     out["notes"] = [n for n in snap["notes"] if n["code"] != "meter_not_reporting"]
     if _has(conn, principal, BILLS):
         out["amount_so_far"] = snap["totals"]["total"]
@@ -470,7 +479,7 @@ def formula_check(request: Request, principal: Principal = Depends(_view_or_mana
         values[mid] = w.wh
         meters.append({"meter_id": mid, "name": names.get(mid, mid), "kwh": px.s2(w.wh / 1000)})
         last = provider.last_report_at(mid)
-        if last is None or last < eb.now_utc() - eb.NOT_REPORTING_AFTER:
+        if last is None or last < eb.now_utc() - eb.stale_after(conn):
             out["warnings"].append({"code": "meter_not_reporting", "message": "המונה לא מדווח כרגע.", "meter_id": mid})
     result = px.r2(comp.evaluate(values) / 1000)
     out["preview"] = {"period": p.as_api(), "meters": meters, "result_kwh": str(result), "negative": result < 0}
@@ -593,7 +602,8 @@ def delete_vat(vid: str, request: Request, principal: Principal = Depends(_manag
 
 @router.get("/energy/billing-settings")
 def get_settings(principal: Principal = Depends(_money_read), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    return eb.read_settings(conn)
+    # pdf_engine: which PDF engine this installation really renders with (start-up self-check; a silent fallback is visible)
+    return {**eb.read_settings(conn), "pdf_engine": pdfseam.engine_status()}
 
 
 @router.put("/energy/billing-settings")
@@ -818,6 +828,23 @@ def correct(bid: str, request: Request, principal: Principal = Depends(_bills), 
         return JSONResponse(status_code=201, content=eb.bill_dict(w, eb.get_bill(w, nid)))
 
 
+PDF_ERROR_HE = {
+    "pdf_render_failed": "הפקת ה-PDF נכשלה. אפשר לנסות שוב.",
+    "pdf_timeout": "הפקת ה-PDF ארכה זמן רב מדי. אפשר לנסות שוב.",
+    "pdf_page_limit": "החיוב ארוך מדי לקובץ PDF (יותר מ-40 עמודים).",
+    "pdf_too_large": "קובץ ה-PDF גדול מדי.",
+}
+
+
+def _pdf_failed(request: Request, bid: str, code: str) -> None:
+    """Owner round 6: a PDF failure is visible on the bill (Bill.pdf.state = failed) - recorded as a bill event."""
+    try:
+        with _db(request).write_aside(label="energy.bill.pdf.failed") as w:
+            eb.pdf_event(w, bid, "pdf_failed", None, {"code": code, "engine": eb.pdf_engine_name()})
+    except Exception:  # noqa: BLE001 - the failure answer itself must never be lost over the bookkeeping
+        pass
+
+
 @router.get("/energy/bills/{bid}/pdf")
 def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     bill = eb.get_bill(conn, bid)
@@ -837,9 +864,11 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
         try:
             content = pdfseam.render(snap, logo=logo, watermark=watermark)
         except pdfseam.PdfUnavailable:
+            _pdf_failed(request, bid, "pdf_unavailable")
             raise ApiError(503, "pdf_unavailable", "הפקת PDF אינה זמינה בגרסה זו.") from None
-        except pdfseam.PdfFailed:
-            raise ApiError(503, "pdf_render_failed", "הפקת ה-PDF נכשלה. אפשר לנסות שוב.", retryable=True) from None
+        except pdfseam.PdfFailed as exc:
+            _pdf_failed(request, bid, exc.code)
+            raise ApiError(exc.status, exc.code, PDF_ERROR_HE.get(exc.code, PDF_ERROR_HE["pdf_render_failed"]), retryable=exc.retryable) from None
         if watermark is None and bill["state"] in eb.ISSUED_STATES and not bill["pdf_path"]:
             rel = eb.pdf_rel_path(bill)
             path = data_dir / rel
@@ -852,7 +881,9 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
                 pass
             tmp.replace(path)
             with _db(request).write_aside(label="energy.bill.pdf.store") as w:
-                w.execute("UPDATE energy_bills SET pdf_path = ?, pdf_sha256 = ? WHERE id = ? AND pdf_path IS NULL", (rel, hashlib.sha256(content).hexdigest(), bid))
+                cur = w.execute("UPDATE energy_bills SET pdf_path = ?, pdf_sha256 = ? WHERE id = ? AND pdf_path IS NULL", (rel, hashlib.sha256(content).hexdigest(), bid))
+                if cur.rowcount:
+                    eb.pdf_event(w, bid, "pdf", None, {"engine": eb.pdf_engine_name()})
     audit(conn, actor=principal, action="energy.bill.pdf", decision="allowed", resource_type="energy_bill", resource_id=bid, request_id=_rid(request), details={"watermark": watermark})
     name = (bill["number"] or f"draft-{bid}").replace("/", "_")
     return Response(content=content, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}.pdf"', "Cache-Control": "private, no-store"})

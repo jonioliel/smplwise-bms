@@ -270,22 +270,11 @@ def update(conn: sqlite3.Connection, meter_id: str, revision: int, fields: dict[
 
 
 def accounts_using(conn: sqlite3.Connection, meter_id: str) -> list[dict[str, Any]]:
-    """Active accounts of the billing branch whose formula uses the meter (contract section 2.3); [] before that table exists."""
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('energy_account_meters', 'energy_accounts')").fetchall()}
-    if "energy_account_meters" not in tables:
-        return []
-    if "energy_accounts" in tables:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(energy_accounts)").fetchall()}
-        cond = []
-        if "deleted_at" in cols:
-            cond.append("a.deleted_at IS NULL")
-        if "status" in cols:
-            cond.append("COALESCE(a.status, '') <> 'closed'")
-        where = (" AND " + " AND ".join(cond)) if cond else ""
-        rows = conn.execute(f"SELECT DISTINCT a.id, a.name FROM energy_account_meters am JOIN energy_accounts a ON a.id = am.account_id WHERE am.meter_id = ?{where} ORDER BY a.name", (meter_id,)).fetchall()
-        return [{"account_id": r[0], "name": r[1]} for r in rows]
-    rows = conn.execute("SELECT DISTINCT account_id FROM energy_account_meters WHERE meter_id = ?", (meter_id,)).fetchall()
-    return [{"account_id": r[0], "name": None} for r in rows]
+    """Accounts whose formula uses the meter (contract section 2.3). An account is 'active' or 'paused' (migration 0055 has
+    no 'closed'); a paused account still uses its meters, so only a deleted account (deleted_at set) releases them."""
+    rows = conn.execute("SELECT DISTINCT a.id, a.name FROM energy_account_meters am JOIN energy_accounts a ON a.id = am.account_id "
+                        "WHERE am.meter_id = ? AND a.deleted_at IS NULL ORDER BY a.name", (meter_id,)).fetchall()
+    return [{"account_id": r[0], "name": r[1]} for r in rows]
 
 
 def accounts_counts(conn: sqlite3.Connection, meter_ids: list[str]) -> dict[str, int]:

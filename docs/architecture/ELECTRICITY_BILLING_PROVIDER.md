@@ -39,5 +39,5 @@ like; beyond the quarter-hour retention a non-midnight edge raises `ValueError`,
    `energy_backup.MAIN_TABLES` (not on this branch). One list must win at the merge.
 3. Both branches add `energy.view`, `energy.manage`, `energy.bills` to `roles.json`, the contract role catalogue and the
    permission labels: identical meaning; keep one copy.
-4. Both migrations use the placeholder number 0054 (`0054_electricity_meters.sql`, `0054_electricity_billing.sql`); the lead
-   renumbers. No foreign key crosses them (meters are referenced by text id).
+4. Both migrations used the placeholder number 0054; resolved at integration: `0054_electricity_meters.sql`,
+   `0055_electricity_billing.sql`. No foreign key crosses them (meters are referenced by text id).

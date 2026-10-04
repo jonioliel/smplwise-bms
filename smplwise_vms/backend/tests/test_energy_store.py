@@ -241,11 +241,10 @@ def test_retention_prunes_each_class_and_keeps_open_drafts(env):
     old = local(2026, 1, 10)
     for m in (keep, drop):
         feed(store, m, [(old, 0), (old + dt.timedelta(hours=1), 1000)])
-    with db.connection() as conn:  # a minimal shape of the billing branch's tables (contract 2.3)
-        conn.execute("CREATE TABLE energy_account_meters(account_id TEXT, meter_id TEXT)")
-        conn.execute("CREATE TABLE energy_bills(id TEXT, account_id TEXT, state TEXT, period_start TEXT, period_end TEXT)")
-        conn.execute("INSERT INTO energy_account_meters VALUES ('a1', ?)", (keep,))
-        conn.execute("INSERT INTO energy_bills VALUES ('b1', 'a1', 'draft', '2026-01-01', '2026-02-01')")
+    from energy_fake import seed_account
+
+    with db.connection() as conn:  # the billing tables (migration 0055, contract 2.3): an open draft of an account using `keep`
+        seed_account(conn, "a1", "דירה", [keep], draft_period=("2026-01-01", "2026-02-01"))
         conn.execute("INSERT INTO settings(key, value) VALUES ('energy.interval_retention_months', '3'), ('energy.raw_retention_days', '7')")
     out = energy_sampler.retention(db, settings, now=ts(local(2026, 10, 1)))
     assert out["removed"]["readings"] == 4 and out["kept_drafts"] == 1
@@ -292,36 +291,24 @@ def test_sampler_load_200_meters_and_main_gate_untouched(env, monkeypatch):
         cm.__exit__(None, None, None)
 
 
-def test_billing_adapter_segments_and_history(env):
-    """The adapter the billing branch looks up (services/energy_billing_adapter.provider): segments of accepted readings,
-    a reset pair carries the energy since the restart, nothing across a replacement, quarter-hour fallback after the raw
-    retention, history from the daily totals."""
+def test_billing_adapter_answers_with_the_readings_provider(env):
+    """The one seam billing uses (services/energy_billing_adapter.provider): the store's EnergyReadingsProvider bound to the
+    caller's connection; no provider without a configured store or a connection (billing then bills nothing)."""
     from smplwise.services import energy_billing_adapter as ad
+    from smplwise.services.energy_billing_provider import NullReadings, get_provider, set_provider
 
     db, store, settings = env
     ad.configure(settings)
     mid = add_meter(db)
     feed(store, mid, [(local(2026, 9, 1, 10), 500_000), (local(2026, 9, 1, 11), 501_000), (local(2026, 9, 1, 12), 300)])  # reset
-    rd = ad.provider()
-    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
-    assert [(s.wh, s.reset) for s in segs] == [(1000, False), (300, True)] and segs[0].v0_wh == 500_000
-    # replacement at 13:00 with typed readings: no segment crosses it
-    with db.connection() as conn:
-        conn.execute("INSERT INTO energy_meter_epochs(id, meter_id, started_at, start_reading_wh, reason, source_ref, created_at) VALUES ('e2', ?, ?, 0, 'replaced', 'x', ?)",
-                     (mid, iso_z(local(2026, 9, 1, 13)), now_iso()))
-    store.start_epoch(mid, at=ts(local(2026, 9, 1, 13)), epoch_id="e2", tz=TZ, final_wh=400, start_wh=0)
-    feed(store, mid, [(local(2026, 9, 1, 14), 250)])
-    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
-    assert [s.wh for s in segs] == [1000, 300, 100, 250]
-    assert sum(s.wh for s in segs) == ep.EnergyProvider(db._open(), store).consumption(mid, local(2026, 9, 1), local(2026, 9, 2)).wh
-    info = rd.meters([mid])[mid]
-    assert info.name == "לוח ראשי" and info.last_report_at == local(2026, 9, 1, 14).astimezone(UTC)
-    assert rd.history_wh(mid, local(2026, 9, 1), local(2026, 9, 2)) == (1650, False)  # the day is covered from 10:00 only
-    assert rd.history_wh(mid, local(2026, 8, 1), local(2026, 9, 1)) is None
-    # after the raw retention the quarter-hour buckets stand in
-    store.prune(raw_before=ts(local(2026, 9, 2)), intervals_before=0, daily_before=dt.date(2000, 1, 1))
-    segs = rd.segments(mid, local(2026, 9, 1), local(2026, 9, 2))
-    assert segs and all((s.t1 - s.t0).total_seconds() == 900 for s in segs) and sum(s.wh for s in segs) == 1650
+    set_provider(None)
+    with db.connection(mode="read") as conn:
+        p = ad.provider(conn)
+        assert isinstance(p, ep.EnergyProvider) and isinstance(get_provider(conn, settings), ep.EnergyProvider)
+        c = p.consumption(mid, local(2026, 9, 1), local(2026, 9, 2))
+        assert c.wh == 1300 and any(e.kind == "reset" for e in c.events)  # 1000 Wh, then the 300 Wh since the restart
+        assert p.get_meter(mid).display_name == "לוח ראשי" and p.last_report_at(mid) == local(2026, 9, 1, 12).astimezone(UTC)
+    assert ad.provider(None) is None and isinstance(get_provider(None, settings), NullReadings)
 
 
 def iso_z(x: dt.datetime) -> str:

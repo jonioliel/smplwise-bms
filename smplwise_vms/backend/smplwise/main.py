@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import mimetypes
+import threading
 import uuid
 from pathlib import Path
 
@@ -311,6 +312,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
+        if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
+            from .services import bill_pdf
+
+            threading.Thread(target=bill_pdf.self_check, name="bill-pdf-selfcheck", daemon=True).start()
         from .services import bridge_install, thumbnails
 
         if not ha_only:
