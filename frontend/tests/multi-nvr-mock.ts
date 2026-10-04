@@ -17,6 +17,8 @@ export interface MultiState {
   writes: { method: string; path: string; body: any }[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** the event list's last `recorder_id` query value */
   eventRecorder: string | null;
+  /** the NVR system card's last `recorder_id` query value (null = the first recorder) */
+  systemRecorder: string | null;
 }
 
 const rec = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
@@ -51,7 +53,7 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
   if (count === 2) {
     base.cameras = [...base.cameras, ...base.cameras.map((c) => ({ ...JSON.parse(JSON.stringify(c)), camera_id: `w-${c.camera_id}`, recorder_id: 'nvr-2', name: c.name }))];
   }
-  const st: MultiState = { base, recorders: count === 2 ? [rec('nvr-1', 'NVR ראשי'), rec('nvr-2', 'NVR מחסן')] : [rec('nvr-1', 'NVR ראשי')], hits: [], writes: [], eventRecorder: null };
+  const st: MultiState = { base, recorders: count === 2 ? [rec('nvr-1', 'NVR ראשי'), rec('nvr-2', 'NVR מחסן')] : [rec('nvr-1', 'NVR ראשי')], hits: [], writes: [], eventRecorder: null, systemRecorder: null };
   await install(page, base);
   await page.route('**/api/v1/**', async (route: Route) => {
     const req = route.request();
@@ -138,6 +140,11 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
         home_assistant: { configured: true, connected: true, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 1, entities: 10, started_at: null, ha_version: '2026.9' },
         identity_source: 'ingress', renderer: 'fake', recorders: live.map((r) => ({ id: r.id, discovery_last_ok: '2026-10-04T08:00:00Z', discovery_last_error: null, events_connected: true, events_last_error: null })),
       });
+    }
+    if (p === 'nvr/system') {
+      st.systemRecorder = url.searchParams.get('recorder_id');
+      return json({ time: { local_time: '2026-10-04T10:00:00', mode: 'NTP', drift_s: 0, ntp: null }, disks: [], outputs: [], errors: {},
+        can: { time: false, storage: false, alarm: false, reboot: false, osd: false, connection: true }, recorder_id: st.systemRecorder ?? 'nvr-1' });
     }
     if (p === 'nvr/notify') return json({ channels: [], permission: 'nvr.config.events', can_write: false, labels: {}, recorder_id: 'nvr-1' });
     if (p === 'nvr/changes') return json({ changes: [] });

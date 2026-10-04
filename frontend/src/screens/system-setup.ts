@@ -12,7 +12,7 @@ import { ApiError, get, describeError } from '../api/client';
 import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
 import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
-import { listNvrChanges, notifyStatus, nvrSystem, pulseNvrOutput, rebootNvr, rollbackNvrChange, setNotify, setNvrNtp, setNvrTime, startSmartTest, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
+import { listNvrChanges, notifyStatus, nvrSystemApi, rollbackNvrChange, setNotify, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -71,6 +71,12 @@ export class SystemSetup extends LitElement {
   @state() private notifyResult = '';
   // 0.1.71: system card + connection editor
   @state() private sys: NvrSystem | null = null;
+  /** CR-024: the recorder the NVR system card reads and acts on (a selector appears with two or more recorders). */
+  @state() private sysRecorder = 'nvr-1';
+  @state() private sysRecorders: { id: string; name: string }[] = [];
+  private get sysApi() {
+    return nvrSystemApi(this.sysRecorder);
+  }
   @state() private sysError = '';
   @state() private sysMsg = '';
   @state() private sysBusy = false;
@@ -104,7 +110,9 @@ export class SystemSetup extends LitElement {
     }
     // extra facts when the caller may see them; neither is required for the page
     try {
-      this.recorder = nvrLess() ? null : (await listCameras()).recorder;
+      const cams = nvrLess() ? null : await listCameras();
+      this.recorder = cams?.recorder ?? null;
+      this.sysRecorders = cams?.recorders ?? [];
     } catch {
       this.recorder = null;
     }
@@ -144,7 +152,7 @@ export class SystemSetup extends LitElement {
 
   private async loadSystem() {
     try {
-      this.sys = await nvrSystem();
+      this.sys = await this.sysApi.nvrSystem();
       this.sysError = '';
     } catch (err) {
       this.sysError = describeError(err);
@@ -173,6 +181,11 @@ export class SystemSetup extends LitElement {
     const drift = s?.time?.drift_s ?? null;
     const driftTone = drift === null ? '' : Math.abs(drift) <= 2 ? 'ok' : Math.abs(drift) <= 30 ? 'warn' : 'err';
     return html`<sw-card heading="מערכת ה־NVR" subheading="שעון ו־NTP, דיסקים ובדיקת S.M.A.R.T., יציאות אזעקה, הפעלה מחדש · כל כתיבה דורשת הרשאה רגישה ונרשמת" data-nvr-system>
+      ${this.sysRecorders.length > 1
+        ? html`<sw-field label="NVR"><select data-nvr-system-recorder ?disabled=${this.sysBusy} @change=${(e: Event) => { this.sysRecorder = (e.target as HTMLSelectElement).value; this.sys = null; this.sysMsg = ''; void this.loadSystem(); }}>
+            ${this.sysRecorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.sysRecorder}>${r.name}</option>`)}
+          </select></sw-field>`
+        : nothing}
       ${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
       ${!s
         ? this.sysError ? nothing : html`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`
@@ -184,14 +197,14 @@ export class SystemSetup extends LitElement {
                 ${this.row('שרת NTP', s.time.ntp ? `${s.time.ntp.host ?? '—'}:${s.time.ntp.port} · כל ${s.time.ntp.interval_min} דק׳` : '—')}
                 ${s.can.time
                   ? html`<div class="actions">
-                      <sw-button size="sm" icon="clock" ?disabled=${this.sysBusy} data-nvr-sync-clock @click=${() => this.sysAction('סנכרון השעון', () => setNvrTime({ sync_now: true }))}>סנכרן לשעון השרת עכשיו</sw-button>
+                      <sw-button size="sm" icon="clock" ?disabled=${this.sysBusy} data-nvr-sync-clock @click=${() => this.sysAction('סנכרון השעון', () => this.sysApi.setNvrTime({ sync_now: true }))}>סנכרן לשעון השרת עכשיו</sw-button>
                       <sw-button size="sm" variant="ghost" ?disabled=${this.sysBusy} data-nvr-ntp-edit @click=${() => (this.ntpForm = this.ntpForm ? null : { host: s.time?.ntp?.host ?? '', port: s.time?.ntp?.port ?? 123, interval_min: s.time?.ntp?.interval_min || 1440 })}>שרת NTP…</sw-button>
                     </div>
                     ${this.ntpForm
                       ? html`<div class="two" data-nvr-ntp-form>
                           <sw-field label="שרת NTP"><input data-ltr .value=${this.ntpForm.host} @input=${(e: Event) => (this.ntpForm = { ...this.ntpForm!, host: (e.target as HTMLInputElement).value })} /></sw-field>
                           <sw-field label="מרווח (דקות)"><input type="number" min="1" max="10080" data-ltr .value=${String(this.ntpForm.interval_min)} @input=${(e: Event) => (this.ntpForm = { ...this.ntpForm!, interval_min: Number((e.target as HTMLInputElement).value) })} /></sw-field>
-                          <div class="actions"><sw-button size="sm" variant="primary" ?disabled=${this.sysBusy || !this.ntpForm.host} data-nvr-ntp-save @click=${() => { const f = this.ntpForm!; void this.sysAction('שרת NTP', async () => { await setNvrNtp({ host: f.host.trim(), port: f.port, interval_min: f.interval_min }); this.ntpForm = null; }); }}>כתוב ל־NVR</sw-button></div>
+                          <div class="actions"><sw-button size="sm" variant="primary" ?disabled=${this.sysBusy || !this.ntpForm.host} data-nvr-ntp-save @click=${() => { const f = this.ntpForm!; void this.sysAction('שרת NTP', async () => { await this.sysApi.setNvrNtp({ host: f.host.trim(), port: f.port, interval_min: f.interval_min }); this.ntpForm = null; }); }}>כתוב ל־NVR</sw-button></div>
                         </div>`
                       : nothing}`
                   : html`<div class="hint">כתיבת שעון / NTP: הרשאה nvr.config.time (תפקיד מותאם).</div>`}`
@@ -203,7 +216,7 @@ export class SystemSetup extends LitElement {
                 ${d.smart
                   ? this.row('S.M.A.R.T.', `${d.smart.all_eval ?? '—'} · ${d.smart.temperature_c ?? '—'}°C · ${d.smart.power_on_days ?? '—'} ימי פעילות${d.smart.test_status ? ` · בדיקה: ${d.smart.test_status} ${d.smart.test_percent}%` : ''}`, d.smart.all_eval === 'functional' ? 'ok' : 'warn')
                   : this.row('S.M.A.R.T.', 'לא זמין')}
-                ${s.can.storage ? html`<div class="actions"><sw-button size="sm" icon="storage" ?disabled=${this.sysBusy} data-nvr-smart-test=${d.id} @click=${() => this.sysAction('בדיקת S.M.A.R.T. קצרה', () => startSmartTest(d.id, 'short'))}>בדיקת S.M.A.R.T. קצרה</sw-button><span class="hint">מעמיסה את הדיסק בזמן ריצתה; מומלץ בשעות שקטות</span></div>` : nothing}
+                ${s.can.storage ? html`<div class="actions"><sw-button size="sm" icon="storage" ?disabled=${this.sysBusy} data-nvr-smart-test=${d.id} @click=${() => this.sysAction('בדיקת S.M.A.R.T. קצרה', () => this.sysApi.startSmartTest(d.id, 'short'))}>בדיקת S.M.A.R.T. קצרה</sw-button><span class="hint">מעמיסה את הדיסק בזמן ריצתה; מומלץ בשעות שקטות</span></div>` : nothing}
               </div>`)
             : html`<div class="hint">לא נקראו דיסקים${s.errors.disks ? ` (${s.errors.disks})` : ''}.</div>`}
           ${this.sectionHead('bell', 'יציאות אזעקה')}
@@ -211,7 +224,7 @@ export class SystemSetup extends LitElement {
             ? s.outputs.map((o) => html`<div class="check" data-nvr-output=${o.id}><span>יציאה ${o.id}${o.name ? ` · ${o.name}` : ''} <span class="hint">${o.io_type === 'local' ? 'ממסר ב־NVR' : 'במצלמה'} · ${o.use_type === 'whiteLight' ? 'אור לבן' : o.use_type === 'disable' ? 'לא בשימוש' : o.use_type}${o.pulse_ms ? ` · פולס ${o.pulse_ms / 1000} שנ׳` : ''}</span></span>
                 ${!o.pulse_supported
                   ? html`<span class="val" data-nvr-output-unsupported>הפעלה דרך המצלמה בלבד (ה־NVR לא מעביר)</span>`
-                  : s.can.alarm ? html`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy || !o.enabled} data-nvr-pulse=${o.id} @click=${() => this.sysAction(`הפעלת יציאה ${o.id}`, () => pulseNvrOutput(o.id))}>הפעל (pulse)</sw-button>` : html`<span class="val">${o.enabled ? 'פעיל' : 'כבוי'}</span>`}
+                  : s.can.alarm ? html`<sw-button size="sm" icon="bell" ?disabled=${this.sysBusy || !o.enabled} data-nvr-pulse=${o.id} @click=${() => this.sysAction(`הפעלת יציאה ${o.id}`, () => this.sysApi.pulseNvrOutput(o.id))}>הפעל (pulse)</sw-button>` : html`<span class="val">${o.enabled ? 'פעיל' : 'כבוי'}</span>`}
               </div>`)
             : html`<div class="hint">אין יציאות${s.errors.outputs ? ` (${s.errors.outputs})` : ''}.</div>`}
           ${this.sectionHead('refresh', 'הפעלה מחדש')}
@@ -223,7 +236,7 @@ export class SystemSetup extends LitElement {
         ? html`<sw-dialog open heading="הפעלה מחדש של ה־NVR" subheading="במשך 1–2 דקות אין לייב ואין הקלטה" data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>
             <sw-field label="אישור"><input data-ltr data-nvr-reboot-word .value=${this.rebootWord} @input=${(e: Event) => (this.rebootWord = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy || this.rebootWord.trim().toUpperCase() !== 'RESTART'} data-nvr-reboot-run @click=${() => { const w = this.rebootWord; this.rebootOpen = false; void this.sysAction('הפעלה מחדש', () => rebootNvr(w)); }}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy || this.rebootWord.trim().toUpperCase() !== 'RESTART'} data-nvr-reboot-run @click=${() => { const w = this.rebootWord; this.rebootOpen = false; void this.sysAction('הפעלה מחדש', () => this.sysApi.rebootNvr(w)); }}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
     </sw-card>`;

@@ -83,6 +83,11 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     expect(add?.body).toMatchObject({ name: 'NVR חניון', vendor: 'hikvision', host: 'fake-nvr-3.test', username: 'viewer' });
     await expect(page.locator(`${CARD} [data-recorder="nvr-3"]`)).toHaveAttribute('data-recorder-state', 'pending_restart');
     expect(await page.locator(CARD).evaluate((el) => el.shadowRoot!.innerHTML)).not.toContain('canary-add-3301');
+    // the NVR system card (clock, disks, outputs, reboot) reads and acts on the recorder chosen above it
+    const sysSel = page.locator('sw-app system-setup [data-nvr-system] select[data-nvr-system-recorder]');
+    await expect(sysSel).toBeVisible();
+    await sysSel.selectOption('nvr-2');
+    await expect.poll(() => st.systemRecorder).toBe('nvr-2');
     await expect(page.locator(CARD)).not.toContainText(FORBIDDEN);
   });
 
@@ -152,6 +157,7 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     await open(page, '/system/setup');
     await expect(page.locator(`${CARD} [data-nvr-connection] nvr-connection-form`)).toBeAttached();
     await expect(page.locator(`${CARD} [data-recorder]`)).toHaveCount(0);
+    await expect(page.locator('sw-app system-setup select[data-nvr-system-recorder]')).toHaveCount(0);
     await expect(page.locator(`${CARD} [data-recorder-add]`)).toBeVisible();
     await shot(page, 'single-recorder-card');
   });
