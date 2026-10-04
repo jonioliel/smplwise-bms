@@ -392,6 +392,10 @@ test.describe('CR-013 shell on the demo data', () => {
     expect(await navTabs(page, info)).toEqual(['wiskey', 'devices', 'explore', 'security', 'multimedia']);
     // keyboard on the handle
     await openOrder(page, info);
+    // sw-dialog moves the focus into itself one animation frame AFTER it opens (first button = the first row's handle). Focusing
+    // the target handle before that frame is a race: the dialog then steals the focus and the keyboard goes to the wrong row.
+    // Wait for the dialog's own focus move first, then take the focus.
+    await expect(dlg.locator('li[data-tab]').first().locator('.handle')).toBeFocused();
     await dlg.locator('li[data-tab="explore"] .handle').focus();
     await expect(dlg.locator('li[data-tab="explore"] .handle')).toBeFocused();
     await page.keyboard.press('Home');
