@@ -35,11 +35,15 @@ interface Case {
   /** an open layer over the list (the drawer, the card menu): what lies under it is not "floating", and the guard reads a fixed drawer
    *  inside the scrolling screen host as "clipped" by that host, which it is not (checked on screenshots at 820 px) */
   modal?: boolean;
+  /** the element under test when it is not the list (the editor, the settings page) */
+  root?: string;
 }
 
 const scr = (page: Page) => page.locator('sw-app devices-schedules');
 // the editor keeps its own controls (only its material changed): its 44 px targets are an open item of the editor, not of this redesign
-const BUBBLE_CLASSES = (c: Case): Finding['cls'][] => (c.id === 'editor' ? ['escape', 'overflow', 'floating', 'clipped'] : ['escape', 'overflow', 'floating', 'clipped', 'target']);
+// 2026-10-04 follow-up: הגדרות › תזמונים (the scripts' "allowed in schedules" list, the disarm card) is checked for the geometry classes; its
+// small buttons are the settings pages' shared ones (an open item of every settings page, not of this change)
+const BUBBLE_CLASSES = (c: Case): Finding['cls'][] => (c.id === 'editor' || c.id === 'settings' ? ['escape', 'overflow', 'floating', 'clipped'] : ['escape', 'overflow', 'floating', 'clipped', 'target']);
 
 const CASES: Case[] = [
   { id: 'cards', hash: '/devices/schedules' },
@@ -67,7 +71,8 @@ const CASES: Case[] = [
   { id: 'trash', hash: '/devices/schedules/trash' },
   { id: 'review', hash: '/devices/schedules/review' },
   { id: 'empty', hash: '/devices/schedules' },
-  { id: 'editor', hash: '/devices/schedules/4d6e0a/edit' },
+  { id: 'editor', hash: '/devices/schedules/4d6e0a/edit', root: 'schedule-editor' },
+  { id: 'settings', hash: '/system/schedules', root: 'system-schedules' },
 ];
 
 async function openCase(page: Page, c: Case, skin: string, theme: string, empty = false) {
@@ -84,7 +89,7 @@ async function openCase(page: Page, c: Case, skin: string, theme: string, empty 
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=${skin}&scheme=${theme}#${c.hash}`);
   await page.waitForSelector('sw-app');
-  const outer = c.id === 'editor' ? 'schedule-editor' : 'devices-schedules';
+  const outer = c.root ?? 'devices-schedules';
   await page.waitForFunction((o) => {
     const el = document.querySelector('sw-app')?.shadowRoot?.querySelector(o);
     return !!el && !!el.shadowRoot && el.shadowRoot.childElementCount > 0;
@@ -98,7 +103,7 @@ const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAni
 async function scrollScreen(page: Page, to: 'top' | 'bottom') {
   await page.evaluate((t) => {
     const app = document.querySelector('sw-app')?.shadowRoot;
-    for (const el of [app?.querySelector('main'), app?.querySelector('devices-schedules'), app?.querySelector('schedule-editor')]) {
+    for (const el of [app?.querySelector('main'), app?.querySelector('devices-schedules'), app?.querySelector('schedule-editor'), app?.querySelector('system-schedules')]) {
       if (el) (el as HTMLElement).scrollTop = t === 'top' ? 0 : (el as HTMLElement).scrollHeight;
     }
   }, to);
@@ -107,7 +112,7 @@ async function scrollScreen(page: Page, to: 'top' | 'bottom') {
 
 async function check(page: Page, results: Finding[], ctx: string, c: Case, classes: Finding['cls'][]) {
   await settle(page);
-  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots: [c.id === 'editor' ? 'schedule-editor' : 'devices-schedules'] });
+  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots: [c.root ?? 'devices-schedules'] });
   // the editor's day row overflows a 320 px page on the base branch too (measured on origin/g0/intake): an open item of the editor
   const preexisting = (f: Finding) => c.id === 'editor' && f.cls === 'overflow' && / 320( |$)/.test(ctx);
   results.push(...found.filter((f) => !preexisting(f) && classes.includes(f.cls) && !(c.modal && (f.cls === 'floating' || (f.cls === 'clipped' && c.id === 'drawer')))));
@@ -169,7 +174,7 @@ test.describe('layout guard: the schedules screen in the automations screen\'s d
           await scrollScreen(page, 'top');
           if (c.prep) await c.prep(page);
           runs++;
-          const classes: Finding['cls'][] = w <= 480 && c.id !== 'editor' ? ['escape', 'overflow', 'floating', 'clipped', 'target'] : ['escape', 'overflow', 'floating', 'clipped'];
+          const classes: Finding['cls'][] = w <= 480 && c.id !== 'editor' && c.id !== 'settings' ? ['escape', 'overflow', 'floating', 'clipped', 'target'] : ['escape', 'overflow', 'floating', 'clipped'];
           await check(page, results, `${c.id} ${skin} ${theme} ${w}`, c, classes);
         }
       }

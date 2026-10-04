@@ -639,6 +639,22 @@ test.describe('the device picker', () => {
     await editor(page).locator('sw-schedule-grid .slot').first().click();
     await expect(editor(page).locator('schedule-slot-panel .ent')).toHaveCount(2);
   });
+
+  test('2026-10-04 decisions: sirens, players, numbers and selects are listed; an unmarked disarming script is disabled with the reason', async ({ page }) => {
+    await mount(page, '4d6e0a');
+    await editor(page).locator('[data-open-picker]').click();
+    const picker = editor(page).locator('schedule-entity-picker');
+    for (const id of ['siren.yard', 'media_player.lobby_speaker', 'number.boiler_temp', 'select.irrigation_program']) {
+      await expect(picker.locator(`[data-picker-item="${id}"] input`)).toBeEnabled();
+    }
+    const night = picker.locator('[data-picker-item="script.night_alarm"]');
+    await expect(night).toContainText('מותר בתזמונים');
+    await expect(night.locator('input')).toBeDisabled();
+    await picker.locator('[data-picker-search]').fill('צופר');
+    await expect(picker.locator('[data-picker-item="siren.yard"]')).toBeVisible();
+    await picker.locator('[data-picker-search]').fill('סקריפט');
+    await shot(page, 'editor-picker-script-not-marked-1440');
+  });
 });
 
 test.describe('create flow', () => {
