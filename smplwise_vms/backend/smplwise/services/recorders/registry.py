@@ -105,11 +105,14 @@ def recorder_ids(conn: sqlite3.Connection) -> list[str]:
     """The recorders to read: the rows of `recorders` that were not removed (CR-024), or the add-on's NVR when discovery has
     not created its row yet."""
     try:
-        rows = conn.execute("SELECT id FROM recorders WHERE removed_at IS NULL ORDER BY sort_order, id").fetchall()
+        rows = conn.execute("SELECT id, removed_at FROM recorders ORDER BY sort_order, id").fetchall()
+        ids = [r["id"] for r in rows if not r["removed_at"]]
     except sqlite3.OperationalError:  # a database before migration 0055
         rows = conn.execute("SELECT id FROM recorders ORDER BY id").fetchall()
-    ids = [r["id"] for r in rows]
-    return ids or [DEFAULT_RECORDER]
+        ids = [r["id"] for r in rows]
+    if DEFAULT_RECORDER not in {r["id"] for r in rows}:
+        ids.insert(0, DEFAULT_RECORDER)  # the first recorder exists before its first discovery creates its row (CR-024)
+    return ids
 
 
 def constructor_for(settings: Settings) -> Callable[[str, Settings], RecorderAdapter]:

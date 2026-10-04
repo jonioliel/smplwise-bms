@@ -9,7 +9,7 @@ audit row, log line or error carries it or its ciphertext. A save or a removal n
 `restart_required` and `/me` / `/health` report `connection_pending_restart` until the next start (section 8).
 
 CR-024 (multi-NVR): the handlers take a recorder id. These `/nvr/connection*` paths are the first recorder's (`nvr-1`,
-unchanged); routers/recorders.py serves `/nvr/recorders/{id}/connection*` for every recorder through the same functions. Only
+unchanged); routers/recorders.py serves `/recorders/{id}/connection*` for every recorder through the same functions. Only
 the first recorder may fall back to the legacy connection the process started with; a further recorder has its row or nothing."""
 from __future__ import annotations
 
@@ -312,7 +312,7 @@ def test_connection(request: Request, principal: Principal = Depends(_admin_ro),
 
 
 def do_test(request: Request, principal: Principal, raw: bytes, conn: sqlite3.Connection, rid: str) -> dict[str, Any]:
-    """The connection test of recorder `rid` (CR-024: shared by `/nvr/connection/test` and `/nvr/recorders/{id}/connection/test`).
+    """The connection test of recorder `rid` (CR-024: shared by `/nvr/connection/test` and `/recorders/{id}/connection/test`).
     The caller has checked `system.configure`."""
     body: TestIn = _parse(request, raw, TestIn)
     settings = settings_of(request)
@@ -352,8 +352,8 @@ def save_connection(request: Request, principal: Principal = Depends(_admin_ro),
 
 def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite3.Connection, rid: str,
             before_write: Any = None, allow_none: bool = True) -> dict[str, Any]:
-    """The save of recorder `rid`'s connection (CR-024: shared by `PUT /nvr/connection`, `PUT /nvr/recorders/{id}/connection`
-    and `POST /nvr/recorders`). The caller has checked `system.configure` and parsed the body. `before_write(conn, fields)` runs
+    """The save of recorder `rid`'s connection (CR-024: shared by `PUT /nvr/connection`, `PUT /recorders/{id}/connection`
+    and `POST /recorders`). The caller has checked `system.configure` and parsed the body. `before_write(conn, fields)` runs
     right before the row is written, under the write lock after the probe (the add route creates the recorder row there and
     refuses a duplicate destination). `allow_none` False refuses "no NVR" (a further recorder is removed, never set to none)."""
     settings = settings_of(request)

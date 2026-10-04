@@ -186,7 +186,7 @@ def _primary_present(conn: sqlite3.Connection) -> bool:
 
 # ---------------------------------------------------------------- routes
 
-@router.get("/nvr/recorders")
+@router.get("/recorders")
 def list_recorders(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
                    include_removed: bool = False) -> dict[str, Any]:
     """Every recorder of the installation with its status, camera counts and declared capabilities (removed ones on request)."""
@@ -198,7 +198,7 @@ def list_recorders(request: Request, principal: Principal = Depends(current_prin
             "restart": nc._restart_mode(settings), "pending_restart": any(r["pending_restart"] for r in items)}
 
 
-@router.get("/nvr/recorders/{recorder_id}")
+@router.get("/recorders/{recorder_id}")
 def get_recorder(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _may_read(conn, principal)
     admin = authorize(conn, principal, PERMISSION, INSTALLATION).allowed
@@ -227,7 +227,7 @@ def _primary_free(conn: sqlite3.Connection, settings: Any) -> bool:
     return not (settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER)
 
 
-@router.post("/nvr/recorders", status_code=201)
+@router.post("/recorders", status_code=201)
 def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add a recorder: vendor, connection, name. Tested server-side first (CR-022 section 6.4: an unreachable NVR only with
@@ -262,7 +262,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
             "recorder": recorder_view(conn, request, rid, _row(conn, rid), admin=True)}
 
 
-@router.patch("/nvr/recorders/{recorder_id}")
+@router.patch("/recorders/{recorder_id}")
 def update_recorder(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Rename, reorder, set the recorder's time zone, enable / disable (a disabled recorder is not contacted after the restart:
@@ -301,7 +301,7 @@ def update_recorder(recorder_id: str, request: Request, principal: Principal = D
     return {"saved": True, "restart_required": view["pending_restart"], "recorder": view}
 
 
-@router.delete("/nvr/recorders/{recorder_id}")
+@router.delete("/recorders/{recorder_id}")
 def remove_recorder(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove (typed "הסר" + `if_revision` of the connection): secrets cleared, the recorder marked removed, its cameras disabled
@@ -320,14 +320,14 @@ def remove_recorder(recorder_id: str, request: Request, principal: Principal = D
     return {"removed": True, "restart_required": True, "recorder_id": recorder_id, "revision": revision, "cameras_disabled": disabled}
 
 
-@router.get("/nvr/recorders/{recorder_id}/connection")
+@router.get("/recorders/{recorder_id}/connection")
 def get_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
     _known(conn, recorder_id)
     return nc.connection_view(conn, request, recorder_id)
 
 
-@router.post("/nvr/recorders/{recorder_id}/connection/test")
+@router.post("/recorders/{recorder_id}/connection/test")
 def test_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -335,7 +335,7 @@ def test_recorder_connection(recorder_id: str, request: Request, principal: Prin
     return nc.do_test(request, principal, raw, conn, recorder_id)
 
 
-@router.put("/nvr/recorders/{recorder_id}/connection")
+@router.put("/recorders/{recorder_id}/connection")
 def save_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -350,7 +350,7 @@ def save_recorder_connection(recorder_id: str, request: Request, principal: Prin
     return nc.do_save(request, principal, body, conn, recorder_id, before_write=unique, allow_none=recorder_id == PRIMARY)
 
 
-@router.get("/nvr/recorders/{recorder_id}/health")
+@router.get("/recorders/{recorder_id}/health")
 def recorder_health(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """A live, read-only check of one recorder (one deviceInfo GET, at most 4 s). Model, firmware and the outcome code only."""
     _may_read(conn, principal)

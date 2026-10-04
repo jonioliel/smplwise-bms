@@ -44,10 +44,10 @@ Paths: `B/` = `smplwise_vms/backend/smplwise/`, `F/` = `frontend/src/`.
    recorder is `nvr-3`), matching go2rtc's name rule. Stream names already carry the id
    (`smplwise_{recorder_id}_ch{n}_{main|sub}`).
 3. **Routes** (new router `B/routers/recorders.py`, all under `/api/v1`):
-   `GET /nvr/recorders` (list with status, camera counts, capabilities; connection detail for `system.configure` only),
-   `POST /nvr/recorders` (add: vendor, connection, name; tested server-side like CR-022 section 6.4, offline save with the
-   typed word), `PATCH /nvr/recorders/{id}` (name, order, time zone, enable / disable), `GET|PUT /nvr/recorders/{id}/connection`,
-   `POST /nvr/recorders/{id}/connection/test`, `DELETE /nvr/recorders/{id}` (typed word "הסר"; O2), `GET /nvr/recorders/{id}/health`
+   `GET /recorders` (list with status, camera counts, capabilities; connection detail for `system.configure` only),
+   `POST /recorders` (add: vendor, connection, name; tested server-side like CR-022 section 6.4, offline save with the
+   typed word), `PATCH /recorders/{id}` (name, order, time zone, enable / disable), `GET|PUT /recorders/{id}/connection`,
+   `POST /recorders/{id}/connection/test`, `DELETE /recorders/{id}` (typed word "הסר"; O2), `GET /recorders/{id}/health`
    (read-only, one `deviceInfo` GET). The CR-022 routes `/nvr/connection*` stay as the `nvr-1` aliases, unchanged.
 4. **Every existing NVR API gains an explicit recorder id, `nvr-1` by default:** camera-bound routes (snapshot, zones,
    capabilities, OSD, schedules, smart, motion, manual recording, recordings search, playback, frames, exports, thumbnails,
