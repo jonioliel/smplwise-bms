@@ -38,7 +38,8 @@ test.describe('pixel: the bulk encoding change', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   for (const skin of SKINS) {
-    test(`${skin}: settings and preview`, async ({ page }, info) => {
+    // "pixel-stable" in the title: the release gate runs its pixel group with --grep pixel-stable (a title without it ran zero tests)
+    test(`${skin} is pixel-stable: settings and preview`, async ({ page }, info) => {
       test.skip(info.project.name === 'tablet', 'desktop and phone only');
       const st = newMock();
       st.canBatch = true;
