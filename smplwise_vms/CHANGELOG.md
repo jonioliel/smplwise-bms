@@ -1,5 +1,9 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+### Fix - correcting a price in הגדרות › תשתיות › מחירים ומע״מ
+- A new price on the date of an existing price no longer fails with "כבר קיים מחיר מאותו תאריך": it replaces that price after one confirmation that states what changes (old price ← new price). The editor's version list has a "תיקון" button per version to correct its price, whether it includes VAT and its start date. A bill that was already issued never changes: when an issued bill used the price, the corrected price starts the day after the last issued period (the confirmation says so: "החשבונות שכבר הופקו לא ישתנו"), and when a later price leaves no room the correction is refused with a short reason. Drafts, the forecast and later periods use the corrected price (a draft recomputes on recalculation). Every correction is audited (who, when, old and new value, energy.tariff.version.correct); permission energy.manage; no migration.
+
 ## 0.1.160 (pilot) — Electricity meters and consumption bills (תשתיות › מוני חשמל); music queue actions; the schedules screen in the automations design
 No restart of the platform is needed (the bridge integration stays 0.6.0). **Two database migrations run on start: `0053_electricity_meters`** (the meter registry and the counter lives) **and `0054_electricity_billing`** (customers, accounts, prices and VAT, bills, the ledger of bill numbers). The meter readings live in a separate file, `energy.db`, next to the main database. Reload the installed web app once.
 ### Electricity meters and bills (CR-023) - a new area "תשתיות" with the sub-tab "מוני חשמל"

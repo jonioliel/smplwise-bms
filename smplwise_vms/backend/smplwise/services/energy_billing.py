@@ -385,6 +385,60 @@ def add_tariff_version(conn: sqlite3.Connection, tid: str, actor_id: str | None,
     return vid
 
 
+def _hdate(day: dt.date) -> str:
+    return day.strftime("%d.%m.%Y")
+
+
+def _sealed_periods(conn: sqlite3.Connection, version_ids: set[str]) -> list[tuple[dt.date, dt.date]]:
+    """Periods (start inclusive, end exclusive) of sealed bills whose lines used one of `version_ids`."""
+    out: list[tuple[dt.date, dt.date]] = []
+    for row in conn.execute("SELECT period_start, period_end, snapshot_json FROM energy_bills WHERE state IN ('issued','sent','paid','void') AND number IS NOT NULL").fetchall():
+        try:
+            lines = json.loads(row["snapshot_json"]).get("lines") or []
+        except ValueError:
+            continue
+        if any(ln.get("tariff_version_id") in version_ids for ln in lines):
+            out.append((_date(row["period_start"]), _date(row["period_end"])))
+    return out
+
+
+def plan_version_change(conn: sqlite3.Connection, tid: str, target: sqlite3.Row, effective_from: dt.date, price: Decimal, mode: str) -> dict[str, Any]:
+    """What a correction of `target` would do. A sealed bill never changes: when one covers the span the correction touches,
+    the old price stays and the corrected one starts after the last sealed period (`later_only`)."""
+    old_from = _date(target["effective_from"])
+    if effective_from == old_from and price == Decimal(target["price"]) and mode == target["price_mode"]:
+        raise conflict("nothing_changed", "לא בוצע שינוי במחיר.")
+    others = [_date(r["effective_from"]) for r in conn.execute("SELECT effective_from FROM energy_tariff_versions WHERE tariff_id = ? AND id != ?", (tid, target["id"])).fetchall()]
+    if effective_from in others:
+        raise conflict("version_exists", "כבר קיים מחיר מהתאריך הזה. יש לערוך אותו במקום.")
+    lo, anchor = min(old_from, effective_from), max(old_from, effective_from)
+    nxt = min((d for d in others if d > anchor), default=None)
+    ids = {r["id"] for r in conn.execute("SELECT id FROM energy_tariff_versions WHERE tariff_id = ?", (tid,)).fetchall()}
+    sealed = [(a, b) for a, b in _sealed_periods(conn, ids) if b > lo and (nxt is None or a < nxt)]
+    old = {"effective_from": old_from.isoformat(), "price": target["price"], "price_mode": target["price_mode"]}
+    new = {"effective_from": effective_from.isoformat(), "price": str(price), "price_mode": mode}
+    if not sealed:
+        return {"kind": "in_place", "applies_from": effective_from.isoformat(), "old": old, "new": new,
+                "message_he": "המחיר יוחלף. טיוטות, תחזית וחיובים עתידיים יחושבו במחיר החדש."}
+    sealed_through = max(b for _, b in sealed)
+    apply_from = max(effective_from, sealed_through)
+    if apply_from in others or (nxt is not None and apply_from >= nxt):
+        raise conflict("tariff_period_sealed", "החשבונות שכבר הופקו נשענים על המחיר הזה ולא ניתן לתקן אותו. הוסיפו מחיר חדש מתאריך מאוחר יותר.")
+    new["effective_from"] = apply_from.isoformat()
+    return {"kind": "later_only", "applies_from": apply_from.isoformat(), "old": old, "new": new,
+            "message_he": f"החשבונות שכבר הופקו לא ישתנו. המחיר המתוקן יחול מ-{_hdate(apply_from)}."}
+
+
+def apply_version_change(conn: sqlite3.Connection, tid: str, actor_id: str | None, target: sqlite3.Row, plan: dict[str, Any]) -> str:
+    new = plan["new"]
+    if plan["kind"] == "in_place":
+        conn.execute("UPDATE energy_tariff_versions SET effective_from = ?, price = ?, price_mode = ? WHERE id = ?",
+                     (new["effective_from"], new["price"], new["price_mode"], target["id"]))
+        conn.execute("UPDATE energy_tariffs SET updated_at = ? WHERE id = ?", (now_iso(), tid))
+        return target["id"]
+    return add_tariff_version(conn, tid, actor_id, _date(new["effective_from"]), Decimal(new["price"]), new["price_mode"])
+
+
 def delete_tariff_version(conn: sqlite3.Connection, tid: str, vid: str) -> None:
     row = conn.execute("SELECT * FROM energy_tariff_versions WHERE id = ? AND tariff_id = ?", (vid, tid)).fetchone()
     if not row:

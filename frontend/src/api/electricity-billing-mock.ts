@@ -20,7 +20,7 @@ import { ApiError } from './client';
 import { buildHistory, buildStatus, demoControl, ERROR_TEXT, PDF_RETRYABLE } from './electricity-billing';
 import type {
   Account, AccountBody, AccountHistoryWire, AccountRow, AccountStatusWire, AutoMode, Bill, BillAction, BillEvent, BillHistory, BillList, BillPdf, BillSnapshot, BillState, BillSummary, BillsQuery, BillingSettings,
-  Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, Tariff, VatRates, StatusMeterWire,
+  Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, Tariff, TariffVersionPlan, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, baseNumber, daysInclusive, isIsoDate, periodContaining, r2 } from '../electricity/elec-format';
@@ -78,7 +78,9 @@ let tariffs: Tariff[] = [
   { id: 't1', name: 'תעריף מסחרי', currency: 'ILS', kind: 'fixed', used_by: 0, versions: [tv('t1v3', '2026-07-01', '0.5430', 'ex_vat'), tv('t1v2', '2026-01-01', '0.5384', 'ex_vat'), tv('t1v1', '2025-07-01', '0.5291', 'ex_vat')], current: null },
   { id: 't2', name: 'שטחים משותפים', currency: 'ILS', kind: 'fixed', used_by: 0, versions: [tv('t2v2', '2026-07-01', '0.6402', 'inc_vat'), tv('t2v1', '2026-01-01', '0.6353', 'inc_vat')], current: null },
 ];
-let vatItems = [{ id: 'v2', effective_from: '2025-01-01', rate_percent: '18' }, { id: 'v1', effective_from: '2013-06-02', rate_percent: '17' }];
+/** Mock only: price versions a sealed bill used, with the end (exclusive) of the last sealed period. */
+const SEALED_THROUGH: Record<string, string> = { t1v2: '2026-07-01', t2v1: '2026-04-01' };
+let vatItems =[{ id: 'v2', effective_from: '2025-01-01', rate_percent: '18' }, { id: 'v1', effective_from: '2013-06-02', rate_percent: '17' }];
 
 const F = (m: string): FormulaAst => ({ m });
 const K = (k: string, m: string): FormulaAst => ({ op: '*', args: [{ n: k }, { m }] });
@@ -632,6 +634,41 @@ export const mockBackend: ElecBackend = {
     t.name = b.name.trim();
     t.versions = [{ id: `tv${Date.now() % 100000}`, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode }, ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
     return tariff(id);
+  },
+  async correctTariffVersion(id, b, o) {
+    await tick();
+    guardManage();
+    checkTariff(b);
+    const t = tariffs.find((x) => x.id === id);
+    if (!t) throw err(404, 'not_found', 'התעריף לא נמצא.');
+    const target = o.replaceId ? t.versions.find((v) => v.id === o.replaceId) : t.versions.find((v) => v.effective_from === b.effective_from);
+    if (o.replaceId && !target) throw err(404, 'not_found', 'גרסת המחיר לא נמצאה.');
+    if (!target) {
+      if (o.confirm) t.name = b.name.trim();
+      t.versions = [{ id: `tv${Date.now() % 100000}`, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode }, ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
+      return { applied: true, plan: null };
+    }
+    if (o.base && (o.base.price !== target.price || o.base.price_mode !== target.price_mode || o.base.effective_from !== target.effective_from)) throw err(409, 'revision_conflict', 'המחיר שונה בינתיים. יש לרענן ולנסות שוב.');
+    if (Number(b.price) === Number(target.price) && b.price_mode === target.price_mode && b.effective_from === target.effective_from) throw err(409, 'nothing_changed', 'לא בוצע שינוי במחיר.');
+    if (t.versions.some((v) => v !== target && v.effective_from === b.effective_from)) throw err(409, 'version_exists', 'כבר קיים מחיר מהתאריך הזה. יש לערוך אותו במקום.');
+    const sealedThrough = SEALED_THROUGH[target.id];
+    const applyFrom = sealedThrough && sealedThrough > b.effective_from ? sealedThrough : b.effective_from;
+    if (sealedThrough && t.versions.some((v) => v !== target && v.effective_from >= applyFrom && v.effective_from <= applyFrom)) {
+      throw err(409, 'tariff_period_sealed', 'החשבונות שכבר הופקו נשענים על המחיר הזה ולא ניתן לתקן אותו. הוסיפו מחיר חדש מתאריך מאוחר יותר.');
+    }
+    const plan: TariffVersionPlan = {
+      kind: sealedThrough ? 'later_only' : 'in_place',
+      applies_from: applyFrom,
+      old: { effective_from: target.effective_from, price: target.price, price_mode: target.price_mode },
+      new: { effective_from: applyFrom, price: b.price, price_mode: b.price_mode },
+      message_he: sealedThrough ? `החשבונות שכבר הופקו לא ישתנו. המחיר המתוקן יחול מ-${applyFrom.split('-').reverse().join('.')}.` : 'המחיר יוחלף. טיוטות, תחזית וחיובים עתידיים יחושבו במחיר החדש.',
+    };
+    if (!o.confirm) return { applied: false, plan };
+    t.name = b.name.trim();
+    if (plan.kind === 'in_place') Object.assign(target, { effective_from: b.effective_from, price: b.price, price_mode: b.price_mode });
+    else t.versions.push({ id: `tv${Date.now() % 100000}`, effective_from: applyFrom, price: b.price, price_mode: b.price_mode });
+    t.versions.sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
+    return { applied: true, plan };
   },
   async getVat(): Promise<VatRates> {
     await tick();
