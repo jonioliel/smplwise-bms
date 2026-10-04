@@ -97,6 +97,17 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     const all = await page.locator(`${TABLE} ${scope}`).count();
     await expect(page.locator(`${TABLE} ${scope} [data-nvr-recorder]`).first()).toBeVisible();
     await shot(page, 'cameras-table-all');
+    // the multi-camera checklist opened from a camera of the first recorder lists only that recorder's cameras
+    const toggle = page.locator(`${TABLE} ${scope}[data-camera="nvr-1:1"][data-stream="101"] sw-toggle[data-svc-toggle]`);
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    await page.locator('sw-dialog[open][data-nvr-confirm-dialog] [data-nvr-extra]').click();
+    const sel = page.locator(`${TABLE} nvr-camera-batch sw-dialog[open][data-nvr-batch-select]`);
+    await expect(sel.locator('[data-nvr-batch-next]')).toBeVisible();
+    const ids = await sel.locator('[data-nvr-batch-cam]').evaluateAll((els) => els.map((e) => e.getAttribute('data-nvr-batch-cam') ?? ''));
+    expect(ids.length).toBeGreaterThan(1);
+    expect(ids.every((id) => !id.startsWith('w-')), ids.join(',')).toBe(true);
+    await sel.locator('[data-nvr-batch-cancel]').click();
     await filter.selectOption('nvr-2');
     await expect.poll(() => page.locator(`${TABLE} ${scope}`).count()).toBe(all / 2);
     expect(await page.locator(`${TABLE} ${scope}`).evaluateAll((els) => els.every((e) => (e.getAttribute('data-camera') ?? '').startsWith('nvr-2:')))).toBe(true);
