@@ -56,14 +56,14 @@ test.describe('account wizard', () => {
     await expect(meterRows).toHaveCount(12);
     await picker.locator('[data-picker-search]').fill('הספק');
     await expect(meterRows).toHaveCount(0);
-    await picker.locator('[data-picker-item][data-sensor][data-verdict="rejected"]').first().click();
+    await picker.locator('[data-picker-item][data-sensor][data-verdict="rejected"]').first().click({ force: true }); // aria-disabled row: the click shows the reason
     await expect(picker.locator('[data-picker-reject]')).toContainText('הספק רגעי');
     await shot(page, info, 'wizard-1-kw-rejected');
     await expect(page.locator('[data-next]')).toBeDisabled();
     await expect(page.locator('[data-chosen]')).toContainText('נבחרו 0');
     await picker.locator('[data-picker-search]').fill('צריכה יומית');
     await expect(picker.locator('[data-picker-item][data-sensor][data-verdict="warn"]')).toContainText('מתאפס כל יום');
-    await picker.locator('[data-picker-item][data-sensor][data-verdict="warn"]').click();
+    await picker.locator('[data-picker-item][data-sensor][data-verdict="warn"]').click({ force: true });
     await expect(page.locator('[data-chosen]')).toContainText('נבחרו 0'); // a sensor that is not a registered meter is never chosen here
     await picker.locator('[data-picker-search]').fill('לוח סטודיו');
     await expect(picker.locator('[data-picker-item="m2"]')).toBeVisible();

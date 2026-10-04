@@ -499,6 +499,7 @@ export const elecCss = css`
     gap: 8px;
   }
   .li {
+    flex: none; /* a row never shrinks inside a scrolling list (rows overlapped on the phone without it) */
     display: flex;
     gap: 10px;
     align-items: center;
