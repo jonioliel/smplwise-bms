@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import re
 import shutil
 import subprocess
 import threading
@@ -417,6 +418,10 @@ class ProvisionPlayback:
         end = min(end, start + MAX_SPAN)
         timelen = max(1, math.ceil((end - start).total_seconds()))
         s = self.adapter._settings
+        from ...mode import ensure_nvr, ensure_recorder_enabled
+
+        ensure_nvr(s)
+        ensure_recorder_enabled(s)  # security review M3: no playback URL for a recorder disabled while running
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
         tz, _ = self.zone()
@@ -472,8 +477,11 @@ class ProvisionPlayback:
             while pos < e:  # a recording longer than one RTSP request is split
                 part_end = min(e, pos + MAX_SPAN)
                 req = self.playback_request(channel, pos, part_end, stream=stream, action="backup")
+                # security review HIGH (2026-10-04): only the device-side request is stored (export_jobs.payload_json must hold
+                # no credentials, migration 0002); the download rebuilds the URL from the camera's CURRENT recorder connection
                 files.append(ExportFile(name=f"ch{req.channel}_{req.wall_date}_{req.wall_time.replace(':', '')}", start_at=iso_utc(pos),
-                                        end_at=iso_utc(part_end), start_raw=seg.start_raw, end_raw=seg.end_raw, size=None, playback_uri=req.url))
+                                        end_at=iso_utc(part_end), start_raw=seg.start_raw, end_raw=seg.end_raw, size=None,
+                                        playback_uri=device_request(req.url)))
                 pos = part_end
         return files, result.coverage
 
@@ -494,9 +502,10 @@ def rtsp_playback_url(settings: Settings, track_id: int, start: dt.datetime, end
     The session engine keeps its go2rtc stream names (`smplwise_pb_<instance>_<session>_g<n>`), so nothing outside the
     product's namespace is touched. Wiring (after CR-024): `_create_stream` picks this when `settings.nvr_vendor` is
     `provision_isr`."""
-    from ...mode import ensure_nvr
+    from ...mode import ensure_nvr, ensure_recorder_enabled
 
     ensure_nvr(settings)
+    ensure_recorder_enabled(settings)  # security review M3
     adapter = pisr.ProvisionIsrAdapter(recorder_id, settings)
     return ProvisionPlayback(adapter, tz_name).playback_request(int(track_id), start, end, stream=stream).url
 
@@ -532,8 +541,12 @@ def rtsp_download(settings: Settings, playback_uri: str, dest: Any, progress: Ca
     ff = ffmpeg or shutil.which("ffmpeg")
     if not ff:
         raise ApiError(503, "export_unavailable", "ffmpeg אינו זמין.", details={"op": "download", "reason": "ffmpeg_missing"})
-    if not str(playback_uri).startswith("rtsp://") or "action=backup" not in playback_uri:
+    if not (str(playback_uri).startswith("rtsp://") or str(playback_uri).startswith("/")) or "action=backup" not in playback_uri:
         raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "playback_uri"})
+    from ...mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # security review M3: an export of a recorder disabled meanwhile downloads nothing
+    playback_uri = export_url(settings, playback_uri)
     dest = Path(dest)
     args = [ff, "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-timeout", "15000000", "-i", playback_uri,
             "-map", "0", "-c", "copy", "-f", "mpegts", str(dest)]
@@ -601,3 +614,25 @@ def _zone_label(tz: dt.tzinfo, source: str, iana_name: str) -> str:
 
 __all__ = ["ProvisionPlayback", "PlaybackRequest", "SnapshotAt", "media_anchor", "rtsp_playback_url", "to_jpeg", "rtsp_download",
            "parse_record_types", "parse_record_dates", "parse_time_sections", "search_document", "kind_of", "PLAYBACK_COMMANDS"]
+
+
+
+_DEVICE_REQUEST = re.compile(r"^/chID=\d{1,3}&date=\d{4}-\d{2}-\d{2}&time=\d{2}:\d{2}:\d{2}&timelen=\d{1,6}&streamType=(?:main|sub)&action=(?:playback|backup)$")
+
+
+def device_request(url: str) -> str:
+    """The credential-free device request of a playback URL: `/chID=..&date=..&time=..&timelen=..&streamType=..&action=..`."""
+    m = re.match(r"^rtsp://[^/]+(/.*)$", url or "")
+    path = m.group(1) if m else (url or "")
+    if not _DEVICE_REQUEST.match(path):
+        raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "playback_uri"})
+    return path
+
+
+def export_url(settings: Settings, stored: str) -> str:
+    """The full RTSP URL for a stored export request, from the recorder's CURRENT connection (an old row that still holds a
+    full URL is reduced to its device request first, so stored credentials are never used)."""
+    path = device_request(stored)
+    if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
+        raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
+    return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}{path}"

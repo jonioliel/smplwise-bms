@@ -480,7 +480,9 @@ def test_rtsp_download_cancel_kills_ffmpeg_and_removes_the_file(settings, tmp_pa
     monkeypatch.setattr(pp.subprocess, "Popen", Proc)
     dest = tmp_path / "x.ts"
     with pytest.raises(ApiError) as exc:
-        pp.rtsp_download(settings, "rtsp://h/chID=1&action=backup", dest, lambda n: False, ffmpeg="ffmpeg", poll_s=0)
+        # security review HIGH: the stored request is credential-free; the URL is rebuilt from the recorder connection
+        pp.rtsp_download(settings_for(settings), "/chID=1&date=2026-10-04&time=10:00:00&timelen=60&streamType=sub&action=backup", dest, lambda n: False,
+                         ffmpeg="ffmpeg", poll_s=0)
     assert exc.value.code == "export_cancelled" and killed and not dest.exists()
 
 
