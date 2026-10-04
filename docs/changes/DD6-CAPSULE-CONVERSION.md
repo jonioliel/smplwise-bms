@@ -20,7 +20,7 @@ The old `.floorbtn` / `.flwrap .pop` CSS and the open / outside-click / Escape h
 | Place | Why |
 |---|---|
 | About 250 native `<select>` in forms and settings (diagnostics, plan studio, access, investigate, schedules, ...) | Form fields, not menus: the platform picker is right on phones, keeps form semantics and validation. A different job from the navigation / filter dropdown. |
-| `components/notify-center.ts` source filter (`data-source-menu`) | A single-choice filter, a conversion candidate, but the notification centre belongs to no tab group, so there is no style / size setting to follow. Needs an owner decision (see the report). |
+| `components/notify-center.ts` source filter (`data-source-menu`) | **Deliberately not converted (owner decision 2026-10-04).** A single-choice filter, but the notification centre belongs to no tab group, so there is no style / size setting for it to follow. It stays a small hand-built menu until the owner decides to give the centre its own group. |
 | `screens/devices-area-nav.ts` breadcrumb menus (floor / area crumbs) | Breadcrumb navigation menus with link targets on the desktop; the areas of a floor are already the dropdown in the dropdown form. Converting would change the breadcrumb's meaning. |
 | `components/media-player-card.ts`, `media-screen-card.ts` source menus; `media-player-panel.ts` transfer menu | Action menus with live-loaded content ("loading..." state, shake feedback); not a choice of one value. |
 | "more" menus (`sw-automation-card`, `devices-schedules` card menu, `notify-row`, `devices-bulk`) | Action menus (several different commands), not a selection. |
