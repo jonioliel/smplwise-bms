@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
 
 log = logging.getLogger("smplwise")
 
@@ -173,12 +173,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("attached %s Home Assistant NVR events to their cameras", fixed)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("HA event camera backfill failed")
+    # CR-022: the NVR connection stored in Arx (recorder_connections), overlaid ONCE here - after the migrations, before any
+    # background worker - and the one-time import of the add-on options. Every later reader sees the effective settings; a
+    # save or a removal waits for the next start (connection_pending_restart).
+    from .services import connection_probe, connection_store
+
+    settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
+    app.state.settings = settings
+    app.state.legacy_options_differ = legacy_differ
+    app.state.connection_probe_limiter = connection_probe.probe_limiter()
     if settings.nvr_host == DEV_NVR_PLACEHOLDER:
         log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
                  "SW_MODE=ha_only starts the NVR-less mode")
     if is_ha_only(settings):
-        log.info("installation mode: ha_only (no nvr_host in the add-on options) - NVR discovery, alert stream, "
-                 "recording-derived events, exports and event thumbnails are off; set nvr_host and restart to add an NVR")
+        log.info("installation mode: ha_only (no NVR connection) - NVR discovery, alert stream, "
+                 "recording-derived events, exports and event thumbnails are off; connect an NVR in Settings and restart to add one")
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
@@ -247,6 +256,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
+    app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import remote as remote_router

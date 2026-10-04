@@ -657,7 +657,7 @@ export class LiveWall extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length && hiddenCount) return html`<sw-state-panel state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
-    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדוק את פרטי ה־NVR בהגדרות ה־Add-on ואת יומן ה־Add-on, או הרץ סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length) return html`<sw-state-panel state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות › חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
     // a selection from the map is an explicit choice: it still shows a camera hidden in the wall
     const pool = wanted.length ? enabled.filter((c) => wanted.includes(c.id)) : cams;

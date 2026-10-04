@@ -9,6 +9,7 @@ import '../components/sw-tabs';
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
+import '../components/nvr-restart-banner';
 import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable, restartRequired } from './update-marker';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
@@ -2073,9 +2074,10 @@ export class SwApp extends LitElement {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     // NN1: a recorder installation without its media server is not a supported installation (owner decision D2): say so, in operator words
     if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
     return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
-      actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+      hint="ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל."
+      actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
   // ---- CR-013: the user (avatar) as the navigation's last item, its menu and the tab order ----
@@ -2338,6 +2340,7 @@ export class SwApp extends LitElement {
       ${this.renderSysBanner()}
       <main>
         ${this.renderSetupHint()}
+        ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
         ${this.renderGate() || html`
           ${this.renderChrome(section, tabs, editor, rowMode, rowStyle, showSections)}
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}

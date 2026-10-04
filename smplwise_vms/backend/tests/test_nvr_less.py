@@ -228,24 +228,30 @@ def test_off_checks_never_lower_the_overall_status(ha_only, monkeypatch):
 # ---------------------------------------------------------------- the setup wizard
 
 def test_wizard_skips_the_nvr_and_camera_steps_on_purpose(ha_only):
+    """CR-022: without an NVR host the NVR step asks for an explicit choice (todo until "no NVR" or a connection is stored);
+    the camera step stays skipped on purpose. No platform-options wording anywhere."""
     c = TestClient(create_app(ha_only))
     body = c.get(STATE).json()
     nvr_step, cam, go = step_of(body, "nvr"), step_of(body, "camera"), step_of(body, "go2rtc")
-    for s in (nvr_step, cam):
-        assert s["status"] == "not_applicable" and s["status_label"] == "דילוג - מצב ללא NVR", s
-        assert s["problem"]["code"] == "nvr_less_mode" and "nvr_host" in s["problem"]["action"]
-    assert nvr_step["summary"].startswith("לא מוגדר - דילוג מכוון")
+    assert cam["status"] == "not_applicable" and cam["status_label"] == "דילוג - מצב ללא NVR", cam
+    assert cam["problem"]["code"] == "nvr_less_mode" and "nvr_host" not in cam["problem"]["action"] and "הגדרות › חיבורים" in cam["problem"]["action"]
+    assert nvr_step["status"] == "todo" and nvr_step["problem"]["code"] == "nvr_choice_needed", nvr_step
     assert nvr_step["problem"]["link"]["href"] == "#/system/setup"
     assert go["status"] == "not_applicable" and go["problem"]["code"] == "go2rtc_optional"
-    assert body["total"] == 3 and body["done"] == 1 and body["next"] == "ha", "install, ha and floor remain"
+    assert body["total"] == 4 and body["done"] == 1 and body["next"] == "nvr", "install, nvr (choose), ha and floor remain"
     assert all(s["status"] != "failed" for s in body["steps"] if s["id"] in ("nvr", "camera", "go2rtc"))
+    # the explicit "no NVR" choice completes the step
+    r = c.put("/api/v1/nvr/connection", json={"vendor": "none", "if_revision": 0})
+    assert r.status_code == 200 and r.json()["restart_required"] is True, r.text
+    after = step_of(c.get(STATE).json(), "nvr")
+    assert after["status"] == "done" and after["evidence"]["choice"] == "none"
 
 
 def test_wizard_nvr_check_probes_nothing(ha_only, monkeypatch):
     monkeypatch.setattr(nvr, "device_info", lambda *a, **k: pytest.fail("no NVR probe in the NVR-less mode"))
     c = TestClient(create_app(ha_only))
     r = c.post("/api/v1/setup/check/nvr")
-    assert r.status_code == 200 and step_of(r.json(), "nvr")["status"] == "not_applicable"
+    assert r.status_code == 200 and step_of(r.json(), "nvr")["status"] == "todo", "nothing chosen yet (CR-022); still no probe"
 
 
 def test_wizard_is_ready_with_the_remaining_steps(ha_only, monkeypatch):
@@ -262,18 +268,19 @@ def test_wizard_is_ready_with_the_remaining_steps(ha_only, monkeypatch):
         set_setting(conn, "bridge.integration_version", "0.3.0")
     for sid in ("ha", "go2rtc"):
         assert step_of(c.post(f"/api/v1/setup/check/{sid}").json(), sid)["status"] == "done", sid
+    assert c.put("/api/v1/nvr/connection", json={"vendor": "none", "if_revision": 0}).status_code == 200  # CR-022: the explicit "no NVR" choice
     body = c.get(STATE).json()
     go = step_of(body, "go2rtc")
     assert go["status"] == "done", "a configured go2rtc is a real step (WisKey station video)"
     assert "no_cameras_yet" not in {w["code"] for w in go["warnings"]}, "no camera streams are expected without an NVR"
-    assert body["total"] == 4 and body["done"] == 4 and body["ready"] is True and body["next"] is None
-    assert [x["status"] for x in body["steps"]] == ["done", "not_applicable", "done", "done", "done", "not_applicable"]
+    assert body["total"] == 5 and body["done"] == 5 and body["ready"] is True and body["next"] is None
+    assert [x["status"] for x in body["steps"]] == ["done", "done", "done", "done", "done", "not_applicable"]
     # past the live cache (no stream sync runs without an NVR): go2rtc stays done on its last successful check
     real = time.time
     monkeypatch.setattr(wizard.time, "time", lambda: real() + wizard.LIVE_TTL_S + 60)
     later = c.get(STATE).json()
     assert step_of(later, "go2rtc")["status"] == "done" and step_of(later, "go2rtc")["source"] == "background"
-    assert later["ready"] is True and later["total"] == 4
+    assert later["ready"] is True and later["total"] == 5
     # a later failed check forgets the success: once its own cache expires the step is not "done" again
     monkeypatch.setattr(wizard.time, "time", real)
     fake.go2rtc["up"] = False
@@ -288,7 +295,7 @@ def test_wizard_needs_go2rtc_when_wiskey_station_video_is_configured(ha_only):
     body = TestClient(create_app(s)).get(STATE).json()
     go = step_of(body, "go2rtc")
     assert go["status"] == "failed" and go["problem"]["code"] == "media_not_configured", "WisKey stills and video go through go2rtc"
-    assert body["total"] == 4
+    assert body["total"] == 5
 
 
 # ---------------------------------------------------------------- the NVR routes: clean 409, never 500 or a timeout
@@ -348,7 +355,7 @@ def test_nvr_routes_answer_409_nvr_not_configured(method, path, body, ha_only, m
     r = c.request(method, path, json=body)
     assert r.status_code == 409, (path, r.status_code, r.text)
     j = r.json()
-    assert j["code"] == "nvr_not_configured" and j["details"] == {"mode": "ha_only"} and "nvr_host" in j["user_message"]
+    assert j["code"] == "nvr_not_configured" and j["details"] == {"mode": "ha_only"} and "הגדרות › חיבורים" in j["user_message"] and "nvr_host" not in j["user_message"]
     assert time.time() - t0 < 5 * sw_time_factor(), "an immediate answer, never a device timeout (8 s per NVR call)"
 
 

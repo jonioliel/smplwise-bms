@@ -129,31 +129,40 @@ def test_connection_edit_tests_first_then_saves(settings, monkeypatch, tmp_path)
     fake = FakeNvr()
     seen: list[str] = []
 
+    # TEST-NET addresses (RFC 5737, never routed) stand in for what the names resolve to; the probe connects to them
+    addresses = {"nvr.local": "192.0.2.10", "bad": "192.0.2.11"}
+
     def fake_client(s):
         seen.append(f"{s.nvr_host}:{s.nvr_http_port}:{s.nvr_user}:{s.nvr_password}")
-        if s.nvr_host == "bad":
+        if s.nvr_host == addresses["bad"]:
             return httpx.Client(transport=httpx.MockTransport(lambda _r: httpx.Response(401, text="")), base_url="http://nvr")
         return fake.client(s)
 
-    monkeypatch.setattr(nvr, "_client", fake_client)
+    from smplwise.services import connection_probe
+
+    monkeypatch.setattr(connection_probe, "probe_client", fake_client)
+    monkeypatch.setattr(connection_probe, "RESOLVE", lambda h: [addresses[h]] if h in addresses else [])  # no DNS from a test
+    monkeypatch.setattr(connection_probe, "LOCAL_ADDRESSES", lambda: set())
     app = create_app(settings)
     with TestClient(app) as c:
         assert c.get("/api/v1/nvr/connection").json()["has_password"] in (True, False)
-        r = c.put("/api/v1/nvr/connection", json={"host": "bad", "user": "u", "password": "p"})
+        r = c.put("/api/v1/nvr/connection", json={"host": "bad", "user": "u", "password": "p", "if_revision": 0})
         assert r.status_code in (502, 503), r.text
-        r = c.put("/api/v1/nvr/connection", json={"host": "nvr.local", "http_port": 8080, "user": "writer", "password": "s3cret"})
+        # the 0.1.71 body (`user`, no vendor) is still accepted; `if_revision` is mandatory since the CR-022 review (F10)
+        r = c.put("/api/v1/nvr/connection", json={"host": "nvr.local", "http_port": 8080, "user": "writer", "password": "s3cret", "if_revision": 0})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["saved"] == "file" and body["device"]["model"] == "DS-TEST" and body["host"] == "nvr.local" and body["restarting"] is False
-        assert seen[-1] == "nvr.local:8080:writer:s3cret"
-        saved = json.loads((settings.data_dir / "nvr_connection.json").read_text(encoding="utf-8"))
-        assert saved["nvr_host"] == "nvr.local" and saved["nvr_username"] == "writer"
-        # the process uses it right away; the password never shows
+        # CR-022: stored in Arx (no Supervisor options, no workstation file) and applied by a restart, never in-process
+        assert body["saved"] is True and body["device"]["model"] == "DS-TEST" and body["host"] == "nvr.local" and body["restarting"] is False
+        assert body["restart_required"] is True and body["pending_restart"] is True and body["revision"] == 1
+        assert seen[-1] == "192.0.2.10:8080:writer:s3cret", "the probe connects to the checked address"
+        assert not (settings.data_dir / "nvr_connection.json").exists()
+        assert app.state.settings.nvr_host == settings.nvr_host, "the running process keeps its connection until the restart"
         v = c.get("/api/v1/nvr/connection").json()
-        assert v["host"] == "nvr.local" and v["http_port"] == 8080 and v["has_password"] is True and "s3cret" not in r.text
+        assert v["host"] == "nvr.local" and v["http_port"] == 8080 and v["has_password"] is True and "s3cret" not in r.text and "s3cret" not in json.dumps(v)
         # keeping the password: absent field
-        r = c.put("/api/v1/nvr/connection", json={"host": "nvr.local", "http_port": 8080, "user": "writer"})
-        assert r.status_code == 200 and seen[-1].endswith(":writer:s3cret")
+        r = c.put("/api/v1/nvr/connection", json={"host": "nvr.local", "http_port": 8080, "user": "writer", "if_revision": 1})
+        assert r.status_code == 200 and seen[-1].endswith(":writer:s3cret") and r.json()["revision"] == 2
 
 
 def test_device_instant_reads_the_wall_clock_in_the_installation_zone():

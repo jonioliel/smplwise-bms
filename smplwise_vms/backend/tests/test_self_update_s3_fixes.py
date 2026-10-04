@@ -341,16 +341,17 @@ def test_the_update_slug_must_be_this_add_ons_own(settings, sup, monkeypatch):  
             self_update.check_allowed("POST", self_update.P_UPDATE, body, other)
 
 
-def test_supervisor_post_reaches_only_its_two_calls(settings, monkeypatch):
+def test_nvr_system_has_no_supervisor_door(settings, monkeypatch):
+    """Was: nvr_system.supervisor_post reaches only its two calls. Since CR-022 (merged in 0.1.159) the NVR connection is stored in Arx
+    and nvr_system makes no infrastructure call at all; the Arx restart is addon_restart's single fixed path."""
     def never(*a, **kw):
         raise AssertionError("a request was about to be sent")
 
     monkeypatch.setattr(self_update, "send", never)
-    for path in ("/core/restart", "/store/reload", "/core/check", "/store/addons/{slug}/update", "/jobs/info", "/discovery"):
-        with pytest.raises(self_update.ProbeRefused):
-            nvr_system.supervisor_post(settings, path, {})
-        with pytest.raises(self_update.ProbeRefused):
-            nvr_system.supervisor_post(settings, path)
+    for name in ("supervisor_post", "supervisor_options", "save_connection", "SUPERVISOR_POST_PATHS"):
+        assert not hasattr(nvr_system, name), name
+    text = (PKG / "services" / "nvr_system.py").read_text(encoding="utf-8")
+    assert "self_update" not in text and "/addons/self/" not in text
 
 
 def _options(**over):
@@ -383,17 +384,13 @@ def test_option_types_match_the_manifest_schema():
     assert set(self_update.OPTION_TYPES) == keys
 
 
-def test_save_connection_changes_only_the_nvr_keys(settings, monkeypatch):
-    sent = []
-    current = _options(bootstrap_admin_username="owner", stale_key="x")
-    monkeypatch.setattr(nvr_system, "supervisor_options", lambda s: dict(current))
-    monkeypatch.setattr(nvr_system, "supervisor_post", lambda s, path, body=None: sent.append((path, body)))
-    monkeypatch.setattr(nvr_system, "connection_view", lambda s: {"in_addon": True})
-    new = nvr_system.with_connection(settings, host="nvr2.invalid", http_port=8080, rtsp_port=8554, user="v", password="pw")
-    assert nvr_system.save_connection(settings, new) == "supervisor"
-    opts = sent[0][1]["options"]
-    assert opts["bootstrap_admin_username"] == "owner" and "stale_key" not in opts and opts["nvr_host"] == "nvr2.invalid"
-    self_update.check_allowed("POST", self_update.P_OPTIONS, sent[0][1])
+def test_nothing_in_the_product_writes_the_add_on_options():
+    """Was: saving the NVR connection rewrote only the NVR keys of the add-on options. Since CR-022 (merged in 0.1.159) the connection
+    lives in Arx's own database and no product module sends POST /addons/self/options; the allow-list entry and its content check stay
+    (test_options_content_is_validated) so a future caller is still bounded."""
+    users = sorted(f.relative_to(PKG).as_posix() for f in PKG.rglob("*.py")
+                   if f.name != "self_update.py" and ("P_OPTIONS" in f.read_text(encoding="utf-8") or "/addons/self/options" in f.read_text(encoding="utf-8")))
+    assert users == [], users
 
 
 # ================================================================ discovery and /core/info through the central door
@@ -505,16 +502,16 @@ def test_the_apply_gap_is_rechecked_under_the_write_lock(rig, sup, settings):  #
 
 # ================================================================ nothing that restarts Arx starts while an update runs (owner decision)
 
-def test_saving_the_nvr_connection_is_refused_while_an_update_runs(rig, sup, monkeypatch):  # noqa: F811
+def test_the_arx_restart_is_refused_while_an_update_runs(rig, sup, monkeypatch):  # noqa: F811
+    """Was: saving the NVR connection is refused while an update runs (the 0.1.71 save restarted Arx). Since CR-022 (merged in 0.1.159)
+    saving only stores the connection; the restart is the separate POST /system/restart, which is the one refused now."""
     app, c, drain, *_ = rig
     sup.latest = NEWER
-    saved: list = []
-    monkeypatch.setattr(nvr_system, "save_connection", lambda *a, **k: saved.append(a) or "file")
-    body = {"host": "nvr.local", "http_port": 80, "user": "writer", "password": "pw"}
     assert j(c, "post", "/apply", json=apply_body()).status_code == 202  # the run is open (the worker is captured, not run)
-    r = c.put("/api/v1/nvr/connection", headers={**as_user("joni"), **SAME_ORIGIN}, json=body)
+    before = sup.calls("POST", "/addons/self/restart")
+    r = c.post("/api/v1/system/restart", headers={**as_user("joni"), **SAME_ORIGIN}, json={"confirm": True})
     assert r.status_code == 409 and r.json()["code"] == "update_running", r.text
-    assert "מתבצע עדכון" in r.json()["user_message"] and saved == []
+    assert "מתבצע עדכון" in r.json()["user_message"] and sup.calls("POST", "/addons/self/restart") == before
     # once the run is settled the guard lets go
     with app.state.db.connection() as conn:
         conn.execute("UPDATE update_runs SET state = 'failed', finished_at = created_at")

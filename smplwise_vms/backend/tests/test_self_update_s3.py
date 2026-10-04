@@ -153,9 +153,12 @@ def test_redirects_are_never_followed(settings, monkeypatch):
 
 
 def test_nvr_system_supervisor_calls_go_through_the_allow_list(settings):
+    # CR-022 (0.1.159 merge): nvr_system no longer calls the infrastructure at all (the NVR connection is stored in Arx); the remaining
+    # Supervisor helper (addon_restart) refuses anything outside the allow-list before a request exists
+    assert not hasattr(nvr_system, "supervisor_post") and not hasattr(nvr_system, "supervisor_options")
     for path in ("/addons/self/stdin", "/host/reboot", "/addons/self/uninstall", "/store/repositories"):
         with pytest.raises(self_update.ProbeRefused):
-            nvr_system.supervisor_post(settings, path, {"x": 1})
+            addon_restart._send(settings, "POST", path, body={"x": 1})
 
 
 def test_http_supervisor_appears_only_in_the_known_modules():

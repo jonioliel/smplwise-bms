@@ -22,7 +22,10 @@ export interface Me {
   /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
    * NVR areas for everyone. Absent on an older backend (= full). */
   mode?: 'full' | 'ha_only';
-  /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work. */
+  /** CR-022 section 8: a saved / removed NVR connection waits for a restart. Present only for holders of system.configure. */
+  connection_pending_restart?: boolean;
+  /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work.
+   * Booleans for everyone; `recorders` only for whoever may read the NVR configuration (CR-022). */
   capabilities?: import('./capabilities').Capabilities;
 }
 

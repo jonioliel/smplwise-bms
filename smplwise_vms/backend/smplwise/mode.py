@@ -1,9 +1,11 @@
 """Installation mode (NVR-less mode, owner request 2026-09-29): an installation may run with Home Assistant only - device
 control, floor plans and WisKey - and no Hikvision NVR ("only for electricity control").
 
-The mode is derived from the add-on options on every start, never stored: no `nvr_host` means `ha_only`, a host means
-`full`. Adding an NVR later is an options change plus a restart; nothing in the database depends on the mode, so the
-switch needs no migration in either direction.
+The mode is derived from the EFFECTIVE NVR connection on every start, never stored: no NVR host means `ha_only`, a host
+means `full`. CR-022: the connection is the stored `recorder_connections` row (services/connection_store.py, overlaid
+once at start-up; vendor `none` = the installer's explicit "no NVR"), else the legacy add-on options / NVR_* values.
+Adding an NVR later is a connection change in Arx plus a restart; nothing else in the database depends on the mode, so
+the switch needs no migration in either direction.
 
 In `ha_only`:
 - the NVR background work never starts (camera discovery, the alertStream listener, recording-derived events, the
@@ -27,13 +29,16 @@ from .errors import ApiError
 FULL = "full"
 HA_ONLY = "ha_only"
 
-NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד). כדי להשתמש ב־NVR מלאו nvr_host, nvr_username "
-                              "ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש.")
+# CR-022: operator language only - the connection is entered in Arx (הגדרות › חיבורים), never in the platform's options
+NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR. כדי להשתמש ב־NVR בחרו את סוג ה־NVR והזינו את פרטי החיבור "
+                              "בהגדרות › חיבורים, ואז הפעילו את המערכת מחדש.")
 NVR_LESS_LABEL = "לא מוגדר - מצב ללא NVR"
+UNREADABLE_LABEL = "לא ניתן לקרוא את פרטי החיבור השמורים - יש להזין את הסיסמה מחדש"
+REFUSED_LABEL = "הכתובת השמורה של ה־NVR אינה מותרת - יש להזין כתובת אחרת"
 
 
 def installation_mode(settings: Settings) -> str:
-    """`ha_only` when the add-on options name no NVR host, `full` otherwise (a host without credentials is a full
+    """`ha_only` when the effective connection names no NVR host, `full` otherwise (a host without credentials is a full
     installation whose NVR is not configured yet - the existing "not configured" wording applies to it).
     NN1: a thin compatibility wrapper over the `nvr` capability (capabilities.py, the one place that reads the NVR host)."""
     return FULL if nvr_host(settings) else HA_ONLY
@@ -56,6 +61,10 @@ def is_placeholder(settings: Settings) -> bool:
 def describe(settings: Settings) -> dict[str, Any]:
     """The mode block the API reports (/me, /health, /setup/state)."""
     ha_only = is_ha_only(settings)
+    if settings.nvr_connection_state == "unreadable":  # CR-022: fail closed - the NVR is treated as not configured
+        return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "unreadable", "label": UNREADABLE_LABEL}}
+    if settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
+        return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "refused", "label": REFUSED_LABEL}}
     state = "not_configured" if ha_only else "placeholder" if is_placeholder(settings) else "configured" if nvr_ready(settings) else "incomplete"
     label = NVR_LESS_LABEL if ha_only else "כתובת NVR זמנית של סביבת פיתוח (לא NVR אמיתי)" if state == "placeholder" else ""
     return {"mode": installation_mode(settings), "nvr": {"configured": nvr_ready(settings), "state": state, "label": label}}

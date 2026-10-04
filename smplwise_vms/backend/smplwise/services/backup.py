@@ -1,6 +1,8 @@
 """Project backups (T026 / T036): one zip with the project tables as JSON and the plan files. Written before
 every version upgrade (rollback safety), once a day, on request, or uploaded by an administrator; restored in
-a single transaction. Never contains secrets (they live in the add-on options) and never video."""
+a single transaction. Never contains secrets (the NVR connection's table and every key file stay out, CR-022 section 9) and
+never video. A restore writes only the plan files its own rows reference (`restorable`): an archive member naming a key, the
+database, the add-on options or any other path is ignored (CR-022 security review F1)."""
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +33,17 @@ FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path",
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
-                 "multimedia.ma_direct"}  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "multimedia.ma_direct",  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "nvr.legacy_import_done",  # CR-022 section 7: a restore never re-arms the one-time import of the add-on options
+                 "system.addon_restart_at"}  # CR-022 review F6: the restart guard is local state, never restored
+# CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
+# never written to an archive, never read from one, and a `replace` restore leaves the row alone (it is not in PROJECT_TABLES).
+# Its key file lives in keys/, which never enters an archive (`_rel`).
+# CR-022 security review F1: what a restore may write into the data directory. Only the plan files the archive's own rows
+# reference (FILE_COLUMNS), under these roots, never the key folder, a database file or the add-on options - whatever the
+# archive contains. The same rule drops an archive row whose file column points anywhere else (it could steer a later read).
+RESTORABLE_ROOTS = ("plans/",)
+_NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|-shm$|-journal$|\.key$)", re.IGNORECASE)
 MAX_UPLOAD = 200 * 1024 * 1024
 DAILY_SECONDS = 24 * 3600
 
@@ -91,6 +103,20 @@ def _rel(settings: Settings, ref: str) -> str | None:
     if rel == "keys" or rel.startswith("keys/"):
         return None  # private signing keys never enter a backup (T067); a restored installation gets its own key
     return rel
+
+
+def restorable(rel: str | None) -> bool:
+    """True when `rel` (a path relative to the data directory, `/`-separated) is a file a restore may write: under
+    RESTORABLE_ROOTS; no absolute path, drive, backslash, NUL, empty / `.` / `..` segment; never a `keys` folder, a database
+    file, a key file or `options.json` (review F1)."""
+    if not isinstance(rel, str) or not rel or rel.startswith("/") or "\\" in rel or ":" in rel or "\x00" in rel:
+        return False
+    parts = rel.split("/")
+    if any(p in ("", ".", "..") for p in parts) or any(p.lower() == "keys" for p in parts):
+        return False
+    if not rel.startswith(RESTORABLE_ROOTS):
+        return False
+    return _NEVER_RESTORED_NAME.search(parts[-1]) is None
 
 
 def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "") -> Path:
@@ -248,6 +274,11 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
         for r in rows:
             fid = r.get("floor_id") if isinstance(r, dict) else None
             unsafe = not isinstance(r, dict) or (table == "floors" and not plain(r.get("id"))) or (fid is not None and (not isinstance(fid, str) or fid in bad_floors))
+            if not unsafe and table in FILE_COLUMNS:  # review F1: a file column outside the restorable set could steer a later read
+                for c in FILE_COLUMNS[table]:
+                    v = r.get(c)
+                    if v is not None and (not isinstance(v, str) or not restorable(_rel(settings, v))):
+                        unsafe = True
             if not unsafe and table.startswith("plan_skin") and r.get("path") is not None:
                 try:
                     skins_store.confine_stored(settings, r["path"])
@@ -308,11 +339,15 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 _insert_rows(conn, t, rows, replace=False)
         roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
         files = 0
+        files_skipped = 0
+        # review F1: only the files the archive's own (kept) rows reference, each inside the restorable set
+        wanted = {rel for rel in (_rel(settings, ref) for ref in _file_refs(data)) if rel is not None and restorable(rel)}
         for member in names:
             if not member.startswith("files/") or member.endswith("/"):
                 continue
             rel = member[len("files/"):]
-            if rel.startswith("/") or ".." in rel.split("/") or "\\" in rel or ":" in rel:
+            if rel not in wanted or not restorable(rel):
+                files_skipped += 1
                 continue
             dest = settings.data_dir / rel
             base = settings.data_dir.resolve()
@@ -330,8 +365,10 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current,
-            "roles_pruned": roles_pruned, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    if files_skipped:
+        log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "skipped_unsafe": skipped,
+            "kept_current": kept_current, "roles_pruned": roles_pruned, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
 def _prune_role_permissions(conn: sqlite3.Connection) -> list[dict[str, Any]]:

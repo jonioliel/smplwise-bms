@@ -57,6 +57,17 @@ class Settings:
     # user access tokens are validated here. None inside the add-on = discovered from the Supervisor's /core/info.
     ha_core_url: str | None = None
     extra: dict = field(default_factory=dict)
+    # CR-022: the NVR connection the process runs with. `load_settings` fills the legacy add-on options / NVR_* values;
+    # connection_store.load_effective() overlays the stored `recorder_connections` row once at start-up (the only place
+    # that decides where the connection comes from) and records which row revision it loaded.
+    nvr_vendor: str = "hikvision"
+    nvr_extra: dict = field(default_factory=dict)
+    nvr_from_options: bool = False  # the NVR host came from the add-on options file (the one-time import reads only this)
+    # which NVR option keys the options file itself carried (not an NVR_* environment fallback): the import takes only these
+    # (CR-022 security review F16)
+    nvr_option_keys: frozenset = frozenset()
+    nvr_connection_state: str | None = None  # None = legacy options / env; ok | incomplete | unreadable = the stored row
+    nvr_connection_revision: int | None = None  # the row revision this process loaded (pending restart = it differs)
 
     @property
     def plans_dir(self) -> Path:
@@ -116,14 +127,9 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         in_addon = path == Path("/data/options.json")
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
-    # D4 (0.1.71): outside the add-on the connections page saves the NVR connection next to the data; inside, it goes
-    # through the Supervisor options, so this file is never consulted there.
-    override = data_dir / "nvr_connection.json"
-    if not in_addon and override.exists():
-        try:
-            options = {**options, **{k: v for k, v in json.loads(override.read_text(encoding="utf-8")).items() if v not in (None, "")}}
-        except ValueError:
-            pass
+    # CR-022: the workstation file <data>/nvr_connection.json of 0.1.71 is gone - the NVR connection is a database row
+    # everywhere (services/connection_store.py; a leftover file is wiped and deleted at start-up, review F11); NVR_*
+    # environment variables stay as the development and test fallback and are never imported (review F16).
     www_raw = os.environ.get("SW_WWW_DIR") or ("/app/www" if in_addon else None)
     www_dir = Path(www_raw) if www_raw else None
 
@@ -144,6 +150,8 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         nvr_http_port=int(_opt(options, "nvr_http_port", "NVR_HTTP_PORT", "80") or 80),
         nvr_user=_opt(options, "nvr_username", "NVR_USER"),
         nvr_password=_opt(options, "nvr_password", "NVR_PASSWORD"),
+        nvr_from_options=options.get("nvr_host") not in (None, ""),
+        nvr_option_keys=frozenset(k for k in ("nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username", "nvr_password") if options.get(k) not in (None, "")),
         go2rtc_url=_opt(options, "go2rtc_url", "GO2RTC_URL"),
         log_level=(_opt(options, "log_level", "SW_LOG_LEVEL", "info") or "info").lower(),
         nvr_rtsp_port=int(_opt(options, "nvr_rtsp_port", "NVR_RTSP_PORT", "554") or 554),

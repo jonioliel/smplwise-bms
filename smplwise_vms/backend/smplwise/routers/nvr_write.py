@@ -14,7 +14,7 @@ from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
+from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
 from ..services.access import require_camera
@@ -301,41 +301,8 @@ def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(
         return nvr_system.reboot(settings_of(request), conn, principal, request_id=_rid(request))
 
 
-@router.get("/nvr/connection")
-def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    require(conn, principal, "system.configure", INSTALLATION)
-    return nvr_system.connection_view(settings_of(request))
-
-
-class ConnectionIn(BaseModel):
-    host: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9.\-]+$")
-    http_port: int = Field(default=80, ge=1, le=65535)
-    rtsp_port: int = Field(default=554, ge=1, le=65535)
-    user: str = Field(min_length=1, max_length=64)
-    password: str | None = Field(default=None, max_length=128)  # absent = keep the current one
-
-
-@router.put("/nvr/connection")
-def set_connection(body: ConnectionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """D4: test the new connection (deviceInfo), then persist it - Supervisor options + add-on restart inside HA, a
-    data-dir file on a workstation - and use it in this process right away."""
-    require(conn, principal, "system.configure", INSTALLATION)
-    from ..services import update_runs  # CR-021 S3: saving the connection restarts Arx inside the infrastructure - never in the middle of an update
-
-    update_runs.refuse_arx_restart_during_update(conn)
-    settings = settings_of(request)
-    new = nvr_system.with_connection(settings, host=body.host, http_port=body.http_port, rtsp_port=body.rtsp_port, user=body.user, password=body.password)
-    with unlocked(conn):
-        info = nvr.device_info(new)  # raises source_unavailable / source_forbidden when the details are wrong
-        where = nvr_system.save_connection(settings, new)
-    request.app.state.settings = new
-    audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
-          details={"host": body.host, "http_port": body.http_port, "rtsp_port": body.rtsp_port, "user": body.user, "password_changed": body.password is not None, "saved": where})
-    # NVR-less mode -> full: the NVR routes answer at once, but discovery, the alert stream and the other NVR background
-    # work start with the process - inside Home Assistant the Supervisor restarts the add-on; on a workstation, restart it
-    was_ha_only = is_ha_only(settings)
-    return {"saved": where, "device": info, "restarting": where == "supervisor", "mode": installation_mode(new),
-            "restart_required": was_ha_only and where != "supervisor", **nvr_system.connection_view(new)}
+# CR-022: GET / PUT /nvr/connection moved to routers/nvr_connection.py (stored in Arx, encrypted password, restart to apply);
+# the 0.1.71 handlers that wrote the add-on options through the Supervisor are gone.
 
 
 class OsdIn(BaseModel):

@@ -1,16 +1,14 @@
 """Owner-approved NVR system writes (0.1.71): clock / NTP (D2), OSD and channel name (D1), alarm outputs (A3),
-disk S.M.A.R.T. test (C3), reboot (D3) and the VMS-side connection edit (D4). Every device write goes through the
+disk S.M.A.R.T. test (C3) and reboot (D3); the VMS-side connection edit (D4) moved to services/connection_store.py and
+routers/nvr_connection.py with CR-022 (stored in Arx, no Supervisor options write). Every device write goes through the
 change log in `nvr_write` (GET → mutate → PUT → verify, audited); one-shot commands (pulse, test, reboot, clock)
 are recorded without a "before" document, so they cannot be rolled back by mistake."""
 from __future__ import annotations
 
 import datetime as dt
 import html
-import json
 import re
 import sqlite3
-from dataclasses import replace
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -27,7 +25,6 @@ NTP_PATH = "/ISAPI/System/time/ntpServers/1"
 IO_OUTPUTS = "/ISAPI/System/IO/outputs"
 HDD_LIST = "/ISAPI/ContentMgmt/Storage/hdd"
 REBOOT_PATH = "/ISAPI/System/reboot"
-CONNECTION_FILE = "nvr_connection.json"
 CLOCK_VERIFY_S = 120  # a clock write that leaves the device further off than this is reported as failed
 XMLNS = 'xmlns="http://www.hikvision.com/ver20/XMLSchema"'
 
@@ -366,62 +363,3 @@ def reboot(settings: Settings, conn: sqlite3.Connection, principal: Any, *, requ
     audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id="system", request_id=request_id, details={"kind": "reboot", "change_id": rec["id"]})
     return rec
 
-
-# ---------------------------------------------------------------- D4: connection (VMS side)
-
-def connection_view(settings: Settings) -> dict[str, Any]:
-    from ..mode import is_placeholder
-
-    # the developer placeholder host (config.DEV_NVR_PLACEHOLDER) is not an NVR: never shown as one
-    return {"host": None if is_placeholder(settings) else settings.nvr_host, "placeholder": is_placeholder(settings), "http_port": settings.nvr_http_port, "rtsp_port": settings.nvr_rtsp_port, "user": settings.nvr_user,
-            "has_password": bool(settings.nvr_password), "in_addon": bool(settings.ha_url and settings.ha_url.startswith("http://supervisor"))}
-
-
-def with_connection(settings: Settings, *, host: str, http_port: int, rtsp_port: int, user: str, password: str | None) -> Settings:
-    return replace(settings, nvr_host=host, nvr_http_port=http_port, nvr_rtsp_port=rtsp_port, nvr_user=user, nvr_password=password or settings.nvr_password)
-
-
-SUPERVISOR_POST_PATHS = ("/addons/self/options", "/addons/self/restart")
-NVR_OPTION_KEYS = frozenset({"nvr_host", "nvr_http_port", "nvr_rtsp_port", "nvr_username", "nvr_password"})
-
-
-def supervisor_post(settings: Settings, path: str, body: dict[str, Any] | None = None) -> None:
-    """A Supervisor API call from inside the add-on (options / restart). Raises ApiError on refusal. CR-021 S3: sent through the single
-    allow-list of `self_update`, and only `/addons/self/options` and `/addons/self/restart` are accepted HERE (security review 2026-10-04:
-    the global list also holds `/core/restart`, `/store/reload` ... which this helper must never reach)."""
-    from . import self_update
-
-    if path not in SUPERVISOR_POST_PATHS:
-        raise self_update.ProbeRefused(f"POST {path}: not a call of nvr_system")
-    reply =self_update.send("POST", path, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", body=body, timeout=15)
-    if reply.kind in ("unreachable", "dropped") and path != self_update.P_SELF_RESTART:
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"path": path, "error": reply.kind})
-    if reply.kind in ("forbidden", "error"):
-        raise ApiError(502, "supervisor_refused", "ה־Supervisor דחה את הבקשה.", details={"path": path, "status": reply.status})
-
-
-def supervisor_options(settings: Settings) -> dict[str, Any]:
-    from . import self_update
-
-    reply = self_update.send("GET", self_update.P_INFO, base=self_update.DEFAULT_BASE, token=settings.ha_token or "", timeout=15)
-    if reply.kind != "ok":
-        raise ApiError(503, "supervisor_unavailable", "ה־Supervisor אינו זמין.", details={"error": reply.kind})
-    return dict((reply.data or {}).get("options") or {})
-
-
-def save_connection(settings: Settings, new: Settings) -> str:
-    """Persist the new NVR connection: through the Supervisor (add-on options + restart) inside Home Assistant, or
-    into <data>/nvr_connection.json on a developer workstation (merged by load_settings). Returns where it went."""
-    values = {"nvr_host": new.nvr_host, "nvr_http_port": new.nvr_http_port, "nvr_rtsp_port": new.nvr_rtsp_port, "nvr_username": new.nvr_user, "nvr_password": new.nvr_password}
-    if connection_view(settings)["in_addon"]:
-        from .self_update import OPTION_TYPES
-
-        assert set(values) <= NVR_OPTION_KEYS  # only the NVR connection changes; every other option is written back as it was read
-        # an option the manifest no longer declares is dropped (the allow-list refuses unknown keys)
-        options = {k: v for k, v in supervisor_options(settings).items() if k in OPTION_TYPES} | values
-        supervisor_post(settings, "/addons/self/options", {"options": options})
-        supervisor_post(settings, "/addons/self/restart")
-        return "supervisor"
-    path = Path(settings.data_dir) / CONNECTION_FILE
-    path.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
-    return "file"

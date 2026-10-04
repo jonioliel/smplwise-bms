@@ -41,14 +41,19 @@ CAPABILITY_MESSAGES = {
 # ---------------------------------------------------------------- the connection sources (the only place that reads them)
 
 def nvr_host(settings: Settings) -> str | None:
-    """The NVR host of this installation, or None. Today: the add-on options (`Settings.nvr_host`, which a developer
-    launch fills with config.DEV_NVR_PLACEHOLDER). NN4 moves the source into the product's settings - change it here."""
+    """The NVR host of this installation, or None. CR-022 (NN4): `Settings.nvr_host` is the EFFECTIVE connection -
+    the stored `recorder_connections` row overlaid once at start-up by connection_store.load_effective (else the legacy
+    add-on options / NVR_* environment, else config.DEV_NVR_PLACEHOLDER for a developer launch). An explicit "no NVR"
+    choice (vendor `none`) and an unreadable stored connection are no host."""
+    if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused"):  # refused: review F5
+        return None
     host = (settings.nvr_host or "").strip()
     return host or None
 
 
 def go2rtc_url(settings: Settings) -> str | None:
-    """The go2rtc address of this installation, or None (same single-source rule as `nvr_host`)."""
+    """The go2rtc address of this installation, or None (same single-source rule as `nvr_host`). CR-022 moves only the
+    NVR connection into Arx; go2rtc stays an add-on option for now."""
     url = (settings.go2rtc_url or "").strip()
     return url or None
 
@@ -103,9 +108,12 @@ class Capabilities:
 def _recorders(settings: Settings) -> tuple[RecorderCaps, ...]:
     """One recorder today (the add-on's Hikvision NVR, `nvr-1`); the abilities are the adapter's own declaration, so a
     vendor with `playback="none"` or `"hls"` plugs in later without a new mechanism."""
-    from .services.recorders.registry import DEFAULT_RECORDER, DEFAULT_VENDOR, VENDORS
+    from .services.recorders.registry import DEFAULT_RECORDER, constructor_for
 
-    caps = VENDORS[DEFAULT_VENDOR](DEFAULT_RECORDER, settings).capabilities()
+    try:  # CR-022: the installation's chosen vendor (a vendor without an adapter cannot be saved; refused defensively)
+        caps = constructor_for(settings)(DEFAULT_RECORDER, settings).capabilities()
+    except ApiError:
+        return ()
     return (RecorderCaps(id=DEFAULT_RECORDER, vendor=caps.vendor, live=caps.live != "none", playback=caps.playback != "none",
                          events=caps.events != "none", write_encodings=caps.write_encodings),)
 

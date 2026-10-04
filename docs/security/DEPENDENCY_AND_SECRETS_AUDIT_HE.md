@@ -1,4 +1,4 @@
-Source: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md @ 196baedc41d6b5f6b97b3f562f1c35a0a785f042
+Source: docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md @ 544b975b
 
 > תרגום של `docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md`; המקור באנגלית קובע במקרה של סתירה.
 
@@ -56,10 +56,17 @@ Assistant.
 
 ## 3. סודות
 
-- סודות לעולם אינם חיים במאגר או במסד הנתונים. אישורי NVR, אישורי go2rtc וטוקן ה-HA (בפיתוח)
+- סודות לעולם אינם חיים במאגר או במסד הנתונים, למעט חריגה שבקשת שינוי מאושרת מגדירה במפורש, כולל
+  ההגנה והמגבלות שלה. אישורי NVR, אישורי go2rtc וטוקן ה-HA (בפיתוח)
   מגיעים מאפשרויות ה-add-on / `secrets/lab.env`, המוסתר מגיט יחד עם `private-evidence/` ו-`data/`.
   הסוד המשותף של הגשר נשמר בטבלת ההגדרות של מסד הנתונים של ה-add-on ומוחרג מגיבויים
   (`SETTINGS_KEEP` ב-`services/backup.py`).
+- חריגה מאושרת (CR-022, החלטת הבעלים 2026-10-04; צד השרת מומש ב-`pilot/nn4-backend`, ייצא בשחרור של CR-022): סיסמת חיבור ה-NVR עוברת מאפשרויות
+  ה-add-on אל `recorder_connections.password_enc`, מוצפנת ב-AES-256-GCM עם קובץ מפתח משלה
+  `<data>/keys/connections.key`; לא הטבלה ולא המפתח נכנסים לגיבוי או לחבילת אבחון של Arx, והסיסמה
+  לעולם אינה מוחזרת ב-API ואינה נכתבת ליומן או לרשומת הביקורת. ההגנה היא מפני דליפה של קובץ המסד או
+  של גיבוי Arx, לא מפני מי שקורא את כל תיקיית הנתונים. היקף, מודל איומים ובדיקות:
+  `docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md` סעיף 3. עד השחרור הזה אפשרויות ה-add-on נשארות המקור.
 - סריקת מאגר (`git grep` עבור `password=`, `token=`, תבניות כתובת מעבדה; סריקת ה-pre-commit
   שבשימוש לולאת קטע העבודה מסרבת ל-commit המכיל כתובות מעבדה או מזהי התקן): אין פגיעות מלבד
   מחרוזת fixture מזויפת ומובהקת ב-`tests/test_media.py`.
