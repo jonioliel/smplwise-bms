@@ -193,7 +193,7 @@ export class SystemDiagnostics extends LitElement {
     }
     .hgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); /* CR-026 guard: a 300px column overflowed a 320px phone */
       gap: 10px;
     }
     .hcard {

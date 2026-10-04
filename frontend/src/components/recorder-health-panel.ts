@@ -7,6 +7,7 @@ import './sw-field';
 import { describeError } from '../api/client';
 import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
 import type { StateKind } from './sw-badge';
+import { SkinController } from '../design/skin';
 
 const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error: 'offline', unknown: 'unknown', off: 'neutral' };
 const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
@@ -30,6 +31,7 @@ const names = (list: { name: string }[] | undefined) => (list ?? []).slice(0, 2)
  */
 @customElement('recorder-health-panel')
 export class RecorderHealthPanel extends LitElement {
+  readonly skin = new SkinController(this);
   /** Show the thresholds card (the host passes whether the user may change settings). */
   @property({ type: Boolean }) manage = false;
   @state() private cards: RecorderHealthCard[] | null = null;
@@ -185,6 +187,17 @@ export class RecorderHealthPanel extends LitElement {
       inline-size: 100%;
       box-sizing: border-box;
     }
+    :host([data-skin='bubble']) .ths input,
+    :host([data-skin='bubble']) .ths select {
+      min-block-size: 44px; /* the bubble skin's touch target */
+    }
+    :host([data-skin='bubble']) .card {
+      border-color: transparent;
+      background: var(--sw-surface-2, var(--sw-surface));
+    }
+    :host([data-skin='bubble']) .r {
+      border-block-start-color: transparent;
+    }
     .actions {
       display: flex;
       align-items: center;
@@ -214,7 +227,8 @@ export class RecorderHealthPanel extends LitElement {
     const ch = c.channels;
     const cams = !ch || ch.state === 'unknown' ? 'לא ידוע' : ch.disconnected?.length ? `מנותקות: ${names(ch.disconnected)}` : `${ch.connected ?? 0}/${ch.total ?? 0}`;
     const k = c.clock;
-    const clock = !k || k.drift_s == null ? 'לא ידוע' : `${k.drift_s > 0 ? '+' : ''}${Math.round(k.drift_s)} שנ׳`;
+    const drift = k?.drift_s == null ? null : Math.round(k.drift_s);
+    const clock = drift == null ? 'לא ידוע' : drift === 0 ? 'מדויק' : `${drift > 0 ? 'מקדים' : 'מאחר'} ${Math.abs(drift)} שנ׳`;
     const t = c.certificate;
     const cert = !t || t.days_left == null ? '' : t.days_left <= 0 ? 'פגה' : `עוד ${t.days_left} ימים`;
     return html`<div class="card" data-rh-card=${c.id} data-status=${c.status}>
