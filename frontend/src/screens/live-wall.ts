@@ -81,6 +81,9 @@ export class LiveWall extends LitElement {
   private observed = new WeakSet<Element>();
   @state() private view = 'all';
   @state() private cams: Camera[] | null = null;
+  /** CR-024: the recorders of the visible cameras and the wall's recorder filter ('' = all; kept in this browser). */
+  @state() private recorders: { id: string; name: string }[] = [];
+  @state() private recorderFilter = (() => { try { return localStorage.getItem('sw.wall.recorder') ?? ''; } catch { return ''; } })();
   @state() private settings: ProductSettings | null = null;
   @state() private error = '';
   @state() private posterBust = Date.now();
@@ -534,6 +537,8 @@ export class LiveWall extends LitElement {
       this.error = ''; // N6: a stale error panel must not linger once a retry actually succeeds
       this.allCams = list.cameras;
       this.cams = list.cameras.filter((c) => c.enabled);
+      this.recorders = list.recorders ?? [];
+      if (this.recorderFilter && !this.recorders.some((r) => r.id === this.recorderFilter)) this.recorderFilter = '';
       this.canManage = list.can_sync;
       this.settings = settings;
       this.restartSnapTimer();
@@ -650,8 +655,26 @@ export class LiveWall extends LitElement {
     </sw-dialog>`;
   }
 
+  private setRecorder(id: string) {
+    this.recorderFilter = id;
+    try {
+      localStorage.setItem('sw.wall.recorder', id);
+    } catch {
+      /* private mode */
+    }
+  }
+
+  /** CR-024: the recorder filter - only when the visible cameras span two or more recorders. */
+  private recorderSelect(phone: boolean) {
+    if (this.recorders.length < 2) return nothing;
+    return html`<sw-field slot=${phone ? '' : 'actions'}><select aria-label="NVR" data-wall-recorder @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
+      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
+      ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
+    </select></sw-field>`;
+  }
+
   private renderApi() {
-    const enabled = this.cams;
+    const enabled = this.cams && this.recorderFilter ? this.cams.filter((c) => c.recorder_id === this.recorderFilter) : this.cams;
     const cams = enabled ? wallCameras(enabled) : enabled; // "לא להציג" cameras are out of the wall grid, its stream budget and its footer count
     const hiddenCount = enabled && cams ? enabled.length - cams.length : 0;
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
@@ -783,19 +806,22 @@ export class LiveWall extends LitElement {
       ${api ? html`<sw-field><select aria-label="עמודות" data-wall-cols-select @change=${(e: Event) => this.setCols(Number((e.target as HTMLSelectElement).value))}>
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<option value=${n} ?selected=${this.colsOverride === n}>עמודות: ${n === 0 ? 'אוטו' : n}</option>`)}
       </select></sw-field>` : nothing}
+      ${api ? this.recorderSelect(true) : nothing}
       <button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}><sw-icon name="expand" size=${18}></sw-icon></button>
     </div>`;
   }
 
   render() {
     const api = isApi();
-    const total = api ? (this.cams ? wallCameras(this.cams).length : 0) : demoWall.length;
+    const pool = this.cams && this.recorderFilter ? this.cams.filter((c) => c.recorder_id === this.recorderFilter) : this.cams;
+    const total = api ? (pool ? wallCameras(pool).length : 0) : demoWall.length;
     const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
         ${this.phone.matches ? this.renderPhoneBar(api) : nothing}
         ${api || this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
         ${this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
+        ${api && !this.phone.matches ? this.recorderSelect(false) : nothing}
         ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
         ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה">
           ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}

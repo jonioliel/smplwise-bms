@@ -435,7 +435,9 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
             raise ApiError(503, "nvr_unconfigured", "לא הוגדר NVR; אין ממה לצלם.")
         cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
         with unlocked(conn):
-            data = SNAPSHOT(settings, int(cam["channel"]))
+            from ..recorder_scope import camera_settings
+
+            data = SNAPSHOT(camera_settings(settings, cam), int(cam["channel"]))  # CR-024: the camera's recorder
         if not data or not data.startswith(b"\xff\xd8\xff"):
             raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה.", retryable=True)
         rel = pathlib.Path("cases") / case_id / f"{iid}.jpg"

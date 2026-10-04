@@ -151,6 +151,8 @@ export interface Camera {
   /** CR-008 D7: the main / sub stream encodings the discovery read from the NVR, with the WebRTC verdict of each. */
   encoding?: CameraEncoding | null;
   can_view_live?: boolean;
+  /** CR-024: the recorder's name, given only when the installation has two or more recorders. */
+  recorder_name?: string | null;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */

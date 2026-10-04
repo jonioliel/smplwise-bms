@@ -68,25 +68,31 @@ def schedule_summary(t: nvr.TrackSchedule | None) -> str:
     return f"{modes} · {coverage}"
 
 
-def report(settings: Settings, conn: sqlite3.Connection, fresh: bool = False, now: dt.datetime | None = None) -> dict[str, Any]:
-    """Cached for CACHE_S seconds (the oldest-recording searches cost one NVR query per camera)."""
+def report(settings: Settings, conn: sqlite3.Connection, fresh: bool = False, now: dt.datetime | None = None, recorder_id: str | None = None) -> dict[str, Any]:
+    """Cached for CACHE_S seconds (the oldest-recording searches cost one NVR query per camera). CR-024: one report per
+    recorder (`recorder_id`, default the first), over that recorder's cameras, read from its own connection."""
+    from ..recorder_scope import PRIMARY, settings_for
+
+    rid = recorder_id or PRIMARY
+    key = "report" if rid == PRIMARY else f"report:{rid}"
     if not fresh:
         with _lock:
-            hit = _cache.get("report")
+            hit = _cache.get(key)
         if hit and time.time() - hit[0] < CACHE_S:
             return {**hit[1], "cached": True}
     tz_name = read_settings(conn)["time.zone"]
-    cams = [dict(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()]
+    cams = [dict(r) for r in conn.execute("SELECT * FROM cameras WHERE recorder_id = ? ORDER BY sort_order, channel", (rid,)).fetchall()]
+    rs = settings_for(settings, rid)
     with unlocked(conn):
         with _build_lock:  # one build at a time: concurrent first callers wait and reuse it instead of each asking the NVR (T068)
             if not fresh:
                 with _lock:
-                    hit = _cache.get("report")
+                    hit = _cache.get(key)
                 if hit and time.time() - hit[0] < CACHE_S:
                     return {**hit[1], "cached": True}
-            out = build(settings, tz_name, cams, now or dt.datetime.now(dt.timezone.utc))
+            out = {**build(rs, tz_name, cams, now or dt.datetime.now(dt.timezone.utc)), "recorder_id": rid}
             with _lock:
-                _cache["report"] = (time.time(), out)
+                _cache[key] = (time.time(), out)
     return out
 
 

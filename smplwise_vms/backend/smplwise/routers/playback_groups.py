@@ -80,6 +80,11 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     cams = [camera_for_playback(conn, principal, cid) for cid in ids]
     if any(not c["main_track"] for c in cams):
         raise ApiError(409, "no_track", "לאחת המצלמות אין track הקלטה ידוע.")
+    recorders = sorted({str(c["recorder_id"]) for c in cams})
+    if len(recorders) > 1:
+        # CR-024 section 3: synchronized playback across recorders is not offered - each recorder has its own clock, zone and
+        # drift, and no measurement of anchors / seek generations / rendered time on two real recorders exists (AGENTS)
+        raise ApiError(409, "sync_cross_recorder_unproven", "ניגון מסונכרן אפשרי רק למצלמות של אותו NVR.", details={"recorders": recorders})
     try:
         start = parse_utc(body.start_at)
     except ValueError:

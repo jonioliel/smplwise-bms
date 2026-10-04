@@ -131,6 +131,12 @@ normalized position. Hikvision: id `N01` = main, `N02` = sub, `N03` = third, hig
 
 ## 4. More than one recorder
 
+> **Status 2026-10-04 (CR-024, `docs/changes/CR-024-MULTI-NVR.md`, migration 0055):** built - every recorder has its
+> `recorder_connections` row; `recorder_scope.settings_for` gives each recorder its own effective connection (overlaid at start-up)
+> and the Hikvision adapter is built with it (`registry.adapter_for`, the device lock key per destination); the `nvr-1` literals are
+> the camera's `recorder_id`; discovery and the alert stream run per recorder; the Settings recorders list exists. Not built: the
+> per-recorder live budget, `adapter.live_source` (the RTSP URL builder still takes the recorder's settings), Provision-ISR / Frigate.
+
 Phase 1 keeps one recorder and changes nothing for users. What the second recorder will need (not built in CR-020):
 
 | Today | Needed for recorder n |

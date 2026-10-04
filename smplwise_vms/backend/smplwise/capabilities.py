@@ -45,7 +45,7 @@ def nvr_host(settings: Settings) -> str | None:
     the stored `recorder_connections` row overlaid once at start-up by connection_store.load_effective (else the legacy
     add-on options / NVR_* environment, else config.DEV_NVR_PLACEHOLDER for a developer launch). An explicit "no NVR"
     choice (vendor `none`) and an unreadable stored connection are no host."""
-    if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused"):  # refused: review F5
+    if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused", "disabled"):  # refused: review F5; disabled: CR-024
         return None
     host = (settings.nvr_host or "").strip()
     return host or None
@@ -106,21 +106,28 @@ class Capabilities:
 
 
 def _recorders(settings: Settings) -> tuple[RecorderCaps, ...]:
-    """One recorder today (the add-on's Hikvision NVR, `nvr-1`); the abilities are the adapter's own declaration, so a
-    vendor with `playback="none"` or `"hls"` plugs in later without a new mechanism."""
-    from .services.recorders.registry import DEFAULT_RECORDER, constructor_for
+    """Every configured recorder (CR-024: the primary `nvr-1` and each further one loaded at start-up); the abilities are the
+    adapter's own declaration, so a vendor with `playback="none"` or `"hls"` plugs in later without a new mechanism."""
+    from .recorder_scope import configured_ids, settings_for
+    from .services.recorders.registry import constructor_for
 
-    try:  # CR-022: the installation's chosen vendor (a vendor without an adapter cannot be saved; refused defensively)
-        caps = constructor_for(settings)(DEFAULT_RECORDER, settings).capabilities()
-    except ApiError:
-        return ()
-    return (RecorderCaps(id=DEFAULT_RECORDER, vendor=caps.vendor, live=caps.live != "none", playback=caps.playback != "none",
-                         events=caps.events != "none", write_encodings=caps.write_encodings),)
+    out: list[RecorderCaps] = []
+    for rid in configured_ids(settings):
+        rs = settings_for(settings, rid)
+        try:  # CR-022: the recorder's chosen vendor (a vendor without an adapter cannot be saved; refused defensively)
+            caps = constructor_for(rs)(rid, rs).capabilities()
+        except ApiError:
+            continue
+        out.append(RecorderCaps(id=rid, vendor=caps.vendor, live=caps.live != "none", playback=caps.playback != "none",
+                                events=caps.events != "none", write_encodings=caps.write_encodings))
+    return tuple(out)
 
 
 def resolve(settings: Settings) -> Capabilities:
     """The capability set of this installation, from its connection settings. Pure apart from reading `settings`."""
-    has_nvr = nvr_host(settings) is not None
+    from .recorder_scope import any_configured
+
+    has_nvr = nvr_host(settings) is not None or any_configured(settings)
     has_go2rtc = go2rtc_url(settings) is not None
     has_ha = ha_configured(settings)
     recorders = _recorders(settings) if has_nvr else ()

@@ -68,6 +68,12 @@ class Settings:
     nvr_option_keys: frozenset = frozenset()
     nvr_connection_state: str | None = None  # None = legacy options / env; ok | incomplete | unreadable = the stored row
     nvr_connection_revision: int | None = None  # the row revision this process loaded (pending restart = it differs)
+    # CR-024 (multi-NVR): which recorder the nvr_* fields above describe - `nvr-1` for the process-wide settings - and the
+    # effective settings of every FURTHER recorder, overlaid once at start-up from its recorder_connections row
+    # (connection_store.apply_at_startup). Read through recorder_scope.settings_for(settings, recorder_id) only. A child's own
+    # `recorder_settings` is always empty. Never in a repr (the children carry passwords).
+    nvr_recorder_id: str = "nvr-1"
+    recorder_settings: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def plans_dir(self) -> Path:

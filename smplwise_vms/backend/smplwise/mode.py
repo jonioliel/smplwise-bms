@@ -35,13 +35,19 @@ NVR_NOT_CONFIGURED_MESSAGE = ("ההתקנה פועלת במצב ללא NVR. כד
 NVR_LESS_LABEL = "לא מוגדר - מצב ללא NVR"
 UNREADABLE_LABEL = "לא ניתן לקרוא את פרטי החיבור השמורים - יש להזין את הסיסמה מחדש"
 REFUSED_LABEL = "הכתובת השמורה של ה־NVR אינה מותרת - יש להזין כתובת אחרת"
+DISABLED_LABEL = "ה־NVR מושבת"
 
 
 def installation_mode(settings: Settings) -> str:
     """`ha_only` when the effective connection names no NVR host, `full` otherwise (a host without credentials is a full
     installation whose NVR is not configured yet - the existing "not configured" wording applies to it).
-    NN1: a thin compatibility wrapper over the `nvr` capability (capabilities.py, the one place that reads the NVR host)."""
-    return FULL if nvr_host(settings) else HA_ONLY
+    NN1: a thin compatibility wrapper over the `nvr` capability (capabilities.py, the one place that reads the NVR host).
+    CR-024: any configured recorder makes the installation `full` (the first one may be removed while another stays)."""
+    if nvr_host(settings):
+        return FULL
+    from .recorder_scope import any_configured, is_child
+
+    return FULL if not is_child(settings) and any_configured(settings) else HA_ONLY
 
 
 def is_ha_only(settings: Settings) -> bool:
@@ -65,6 +71,8 @@ def describe(settings: Settings) -> dict[str, Any]:
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "unreadable", "label": UNREADABLE_LABEL}}
     if settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "refused", "label": REFUSED_LABEL}}
+    if settings.nvr_connection_state == "disabled":  # CR-024: the administrator disabled the first recorder
+        return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "disabled", "label": DISABLED_LABEL}}
     state = "not_configured" if ha_only else "placeholder" if is_placeholder(settings) else "configured" if nvr_ready(settings) else "incomplete"
     label = NVR_LESS_LABEL if ha_only else "כתובת NVR זמנית של סביבת פיתוח (לא NVR אמיתי)" if state == "placeholder" else ""
     return {"mode": installation_mode(settings), "nvr": {"configured": nvr_ready(settings), "state": state, "label": label}}
@@ -74,8 +82,23 @@ def nvr_not_configured() -> ApiError:
     return ApiError(409, "nvr_not_configured", NVR_NOT_CONFIGURED_MESSAGE, details={"mode": HA_ONLY})
 
 
+RECORDER_UNAVAILABLE_MESSAGE = "ה־NVR הזה אינו מחובר כעת (מושבת, הוסר, או שפרטי החיבור שלו ממתינים להפעלה מחדש)."
+
+
+def recorder_unavailable(recorder_id: str) -> ApiError:
+    return ApiError(409, "recorder_unavailable", RECORDER_UNAVAILABLE_MESSAGE, details={"recorder_id": recorder_id})
+
+
 def ensure_nvr(settings: Settings) -> None:
     """409 nvr_not_configured in the NVR-less mode. Called at the NVR boundary and by handlers that reach no device -
-    always after the handler's own permission check, never instead of it."""
+    always after the handler's own permission check, never instead of it.
+    CR-024: the settings of a further recorder (recorder_scope.settings_for) without a usable connection answer 409
+    `recorder_unavailable` - never another recorder's device."""
+    from .recorder_scope import has_host, is_child
+
+    if is_child(settings):
+        if not has_host(settings):
+            raise recorder_unavailable(settings.nvr_recorder_id)
+        return
     if is_ha_only(settings):
         raise nvr_not_configured()

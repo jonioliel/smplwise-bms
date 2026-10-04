@@ -52,9 +52,10 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
     extra: dict = {}
     if "system.configure" in installation_permissions:
         # CR-022 section 8: a saved / removed NVR connection waits for a restart; the banner survives reloads and other admins see it
-        from ..services.connection_store import pending_restart
+        # CR-024: a change to any recorder (connection, enable / disable, removal) counts
+        from ..services.connection_store import any_pending_restart
 
-        extra["connection_pending_restart"] = pending_restart(conn, settings_of(request))
+        extra["connection_pending_restart"] = any_pending_restart(conn, settings_of(request))
     return {
         **extra,
         "channel": channel,
