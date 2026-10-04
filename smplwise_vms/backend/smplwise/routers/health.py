@@ -96,7 +96,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
         "installation": installation_block(resolve_capabilities(settings)),
         # CR-024: one entry per recorder this process runs - discovery and alert-stream state only (no address, no credential)
-        "recorders": _recorders_view(settings),
+        # security review L2: per-recorder state (incl. error codes) only for who may see recorders, like the capability block
+        "recorders": _recorders_view(settings) if may_see_recorders(permissions_anywhere(conn, principal)) else [],
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 
