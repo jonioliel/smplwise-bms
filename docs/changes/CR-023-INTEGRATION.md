@@ -1,7 +1,8 @@
 # CR-023 electricity meters and bills - integration report
 
-Branch: `integ/electricity`, created from `origin/g0/intake` at `b6295645` (release 0.1.157). No version bump, no CHANGELOG
-entry, no tag (the release lead does that when this branch joins a release). `g0/intake` and `main` were not touched.
+Branch: `integ/electricity`, created from `origin/g0/intake` at `b6295645` (release 0.1.157); after 0.1.159 was released,
+`origin/main` (`8de8054a`) was merged in and the branch became the 0.1.160 release candidate (section 7). No tag; `g0/intake` and
+`main` were not touched.
 
 ## 1. Branches merged (normal merges, in this order)
 
@@ -63,14 +64,15 @@ Textual conflicts arose only when merging `pilot/elec-billing` onto `pilot/elec-
 10. **Evidence screenshots.** All kept except 27 stale `-state-` files of the bills UI that no spec writes any more (21 byte-identical
     to the file without `-state-`, 6 older renders). Total added PNGs about 41 MB.
 
-## 4. Verification
+## 4. Verification (runner, Ubuntu; fakes only)
 
-See the test table in the branch report (commit SHAs, commands, pass/fail counts). Summary at the time of writing:
-- backend: electricity tests and the full suite on the runner; `release_check.py`.
-- frontend: `tsc --noEmit`; electricity Playwright specs on desktop, tablet and mobile; layout guard for the electricity screens.
-
-Known, expected red on this branch: `release_check.py` "migrations contiguous" (and `tests/test_release_check.py`, which asserts it)
-fails only because 0050-0053 are not in this base; it turns green when the branch is rebased onto the 0.1.159 integration.
+- Tier-L release gate at `0b10526a` (0.1.160 candidate): **PASS in 64 min** - tsc 1/1; vite build 1/1; Playwright on the dist preview
+  4609 passed, 0 failed; pixel baselines 8/8; Playwright on the Vite dev server 500 passed, 0 failed, 1 flaky (the prices test of
+  `electricity-accounts` on mobile, passed alone); fake-backend fixture 15/15; backend 4582 passed, 0 failed; `release_check.py` ok.
+- Earlier on the branch: electricity backend tests and the full backend suite; electricity Playwright specs on the three projects;
+  the layout guards of both electricity halves (4 skins x light/dark x 10 widths; 0 findings); `tsc --noEmit`.
+- `tests/test_rbac_camera_scope.py::test_session_downgrade_refuses_and_closes_the_lease` is timing-flaky under load on the runner
+  (1/12 on `g0/intake`, 1-3/12 on the electricity branches); it passed in the gate.
 
 ## 5. NOT verified
 
@@ -83,10 +85,30 @@ fails only because 0050-0053 are not in this base; it turns green when the branc
 
 ## 6. Open items
 
-- Rebase onto the 0.1.159 integration (migrations 0050-0053) and re-run `release_check.py`.
 - First-install checks on the real image (engine, size, ARM timing).
 - Not built (owner rounds 5-7): "draft ready" notification, live bill state over the WebSocket (screens poll), rate limits on
   recalculate / PDF, a separate segments display for a swapped meter, manual readings / calibration.
 - The PDF of an issued bill is rendered on first request (not at issue time); a failure is visible as `pdf.state = failed`.
 - `tests/test_rbac_camera_scope.py::test_session_downgrade_refuses_and_closes_the_lease` is timing-flaky on the runner under load:
   1/12 on `g0/intake`, 1-3/12 on the electricity branches; it passes when re-run. Pre-existing, not caused by this integration.
+
+## 7. Release candidate 0.1.160 (same branch, after 0.1.159 was released)
+
+- `origin/main` (0.1.159, `8de8054a`) merged in. Conflicts: `main.py` (routers and janitor steps of both sides kept),
+  `services/backup.py` (0.1.159's `restorable()` file rule plus the energy part; `energy/bills/` and `energy/assets/` join
+  `RESTORABLE_ROOTS` through `energy_backup.RESTORABLE_ROOTS`, otherwise a restore would drop stored bill PDFs, logos and the rows
+  that name them), `nav.ts` / `sw-app.ts` (0.1.159's capability model plus the infrastructure area), the migration lists of four
+  tests, the API inventory (regenerated: 513 routes).
+- Migrations renumbered to follow 0052 directly: `0053_electricity_meters.sql`, `0054_electricity_billing.sql`. `release_check.py`:
+  migrations contiguous (54 files).
+- Also merged, cleanly: `pilot/schedules-parity` (`6361f036`) and `pilot/music-queue-actions` (`b915a0d2`).
+- Version 0.1.160, CHANGELOG, bilingual `docs/release/0.1.160-RELEASE-NOTES.md`, UI rebuilt (`npm run build:addon` on the runner).
+- Consequences of the sixth area, found by the full Playwright run and fixed: nav-order expectations in the shell specs; the bubble
+  phone dock (seven 44 px items: tighter paddings below 420 px, the room-picker button steps aside below 368 px); the classic phone
+  bar caps its labels at 10.5 px and the icon pill at its item, so no label is cut; classic pixel baselines (linux) regenerated.
+- The first tier-L gate (`b6d11855`) failed on the run-time budget, not on a product defect: the three harness specs
+  (`electricity-accounts`, `-bills`, `-wizard`) need the Vite dev server (`/tests/electricity-harness/`) but lacked the header the gate
+  classifies by, so they ran on the dist preview: 132 tests x 60 s timeout plus single retries took the preview phase to 5230 s and
+  the 90-minute budget ran out before the dev, pixel, fixture and release_check phases. The header now sends them to the dev phase
+  on all three projects (preview phase then 1236 s). The one backend failure was 0.1.159's child-process guard: the bill PDF child now
+  gets `env=minimal_env(...)` (`child_env.minimal_env` accepts fixed, non-secret extras).
