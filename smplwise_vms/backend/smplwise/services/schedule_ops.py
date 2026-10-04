@@ -53,6 +53,10 @@ PROMOTED = {
     "condition_domain_not_allowed": (422, "אפשר להתנות רק בחיישנים, חיישנים בינאריים, מתגי עזר או מצב השמש."),
     "slots_overlap": (422, "משבצות חופפות באותו תזמון."),
     "tags_not_supported": (422, "רכיב התזמונים בגרסה זו אינו שומר תגיות."),
+    "disarm_not_allowed": (422, model.DISARM_REFUSAL),
+    "service_not_supported": (422, "ההתקן אינו תומך בפעולה זו."),
+    "bridge_too_old_for_action": (503, "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו."),
+    "script_field_unsupported": (422, "לסקריפט משתנה חובה שהמערכת אינה מציגה; אפשר לתזמן אותו רק ברכיב המקורי."),
 }
 BRIDGE_UNAVAILABLE = {
     "feature_disabled": ApiError(409, "feature_disabled", "התזמונים כבויים בהגדרות המערכת."),
@@ -104,7 +108,7 @@ class W:
         """T055: an allowed row names the binding, role and scope it was authorised under - the schedule.manage grant at the
         first action entity (and schedule.sensitive at the first sensitive one), noted last-wins for `audit`."""
         a = self.ctx.access
-        sensitive = next((e for e in entity_ids if (self.ctx.entity(e) or {}).get("class") in policy.SENSITIVE_CLASSES), None)
+        sensitive = next((e for e in entity_ids if policy.is_sensitive((self.ctx.entity(e) or {}).get("class"), self.ctx.entity(e))), None)
         if sensitive:
             note_grant(a.decision(view.SENSITIVE, sensitive), view.SENSITIVE)
         note_grant(a.decision(view.MANAGE, entity_ids[0]) if entity_ids else authorize(self.conn, self.principal, view.MANAGE, INSTALLATION), view.MANAGE)
@@ -201,7 +205,7 @@ def evaluate(w: W, draft: dict[str, Any], old_core: dict[str, Any] | None, *, cr
             eid = a.get("entity_id")
             info = sctx.entity(eid) if eid else None
             cls = info["class"] if info else None
-            if not eid or cls is None or not policy.service_allowed(cls, a.get("service") or ""):
+            if not eid or cls is None or not policy.service_allowed(cls, a.get("service") or "", eid):
                 continue
             if eid not in ev.entities:
                 ev.entities.append(eid)
@@ -210,10 +214,11 @@ def evaluate(w: W, draft: dict[str, Any], old_core: dict[str, Any] | None, *, cr
                 ev.pairs.append(pair)
             if cls not in classes:
                 classes.append(cls)
-            if policy.is_lowering(a["service"], cls, a.get("data") or {}):
+            if policy.is_lowering(a["service"], cls, a.get("data") or {}, info):
                 ev.lowering = True
+            if policy.is_sensitive(cls, info):
+                ev.sensitive = True
     ev.classes = [c for c in policy.ALL_CLASSES if c in classes]
-    ev.sensitive = any(c in policy.SENSITIVE_CLASSES for c in ev.classes)
     if ev.errors:
         return ev
     seen: set[str] = set()
@@ -483,7 +488,7 @@ def snapshot_entities(w: W, core: dict[str, Any]) -> list[dict[str, Any]]:
         info = w.ctx.entity(e)
         out.append({"entity_id": e, "name": info["name"] if info else e, "domain": e.split(".", 1)[0], "role": "action", "area_id": info["area_id"] if info else None,
                     "area_name": info["area_name"] if info else None, "floor_id": info["floor_id"] if info else None, "floor_name": info["floor_name"] if info else None,
-                    "class": info["class"] if info else None, "sensitive": bool(info and info["class"] in policy.SENSITIVE_CLASSES), "available": bool(info and info["available"])})
+                    "class": info["class"] if info else None, "sensitive": bool(info and policy.is_sensitive(info["class"], info)), "available": bool(info and info["available"])})
     return out
 
 
@@ -568,6 +573,7 @@ def _created(w: W, row: sqlite3.Row | None, op_id: str, warnings: list[dict[str,
 
 def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, confirm_lowering: bool, alarm_code: Any) -> tuple[int, dict[str, Any]]:
     w.require_manage()
+    draft = model.canonical_draft(draft)  # an action shown from an older stored form comes back in the one form Arx writes
     with w.audited("schedule.create"):
         w.feature_on()
         prev = _prev(w, client_request_id)
@@ -613,6 +619,7 @@ def create(w: W, draft: dict[str, Any], enabled: bool, client_request_id: str, c
 
 def update(w: W, schedule_id: str, draft: dict[str, Any], base_revision: str, client_request_id: str, confirm_lowering: bool, alarm_code: Any) -> tuple[int, dict[str, Any]]:
     w.require_manage()
+    draft = model.canonical_draft(draft)
     with w.audited("schedule.update", schedule_id):
         w.feature_on()
         find_visible(w, schedule_id)
@@ -748,6 +755,9 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         if not 0 <= slot_index < len(core["slots"]):
             raise ApiError(422, "validation", "משבצת לא קיימת.", details={"path": "slot_index"})
         slot_res = cls["slots"][slot_index]
+        if slot_res.get("invalid"):
+            # run-time revalidation: an entity that disappeared or lost the service is never run "anyway" - the caller sees why
+            raise ApiError(409, "action_invalid", slot_res["invalid"][0]["message"], details={"invalid": slot_res["invalid"]})
         pairs = [(a["service"], a["entity_id"], a["class"]) for a in slot_res["actions"] if a["entity_id"] and a["class"]]
         risky = any(ha_bridge.ACTIONS.get(s, {}).get("risk", "routine") != "routine" for s, _, _ in pairs) or any(a["sensitive"] for a in slot_res["actions"])
         if risky and confirm is not True:
@@ -850,7 +860,7 @@ def split(w: W, schedule_id: str, base_revision: str, days: list[str], name: str
         check_lowering(ev.lowering, confirm_lowering)
         verify_creator_codes(w, ev.pairs, alarm_code)
         alarm_code = None
-        new_payload = {"weekdays": moving, "timeslots": [model.component_slot(t) for t in item.get("timeslots") or [] if isinstance(t, dict)], "repeat_type": core["repeat"], "name": new_name}
+        new_payload = {"weekdays": moving, "timeslots": [model.writable_slot(t) for t in item.get("timeslots") or [] if isinstance(t, dict)], "repeat_type": core["repeat"], "name": new_name}
         if core["start_date"]:
             new_payload["start_date"] = core["start_date"]
         if core["end_date"]:
@@ -1159,6 +1169,50 @@ def bulk(w: W, op: str, ids: list[str], confirm: bool, client_request_id: str) -
         return {"results": results}
 
 
+# ---------------------------------------------------------------- acknowledge a review warning (2026-10-04)
+
+def acknowledge(w: W, schedule_id: str, issue: str, undo: bool) -> dict[str, Any]:
+    """A system administrator's "fine from our side" on a review warning (`no_owner_sensitive` - a sensitive schedule made outside Arx -, or
+    `unsupported_content`), bound to the schedule's CURRENT content (its revision): the chip is silenced and comes back by itself when the
+    content changes outside Arx. It never changes the schedule and never makes it editable. `undo` restores the warning. Audited both ways."""
+    action = "schedule.unacknowledge" if undo else "schedule.acknowledge"
+    w.require_manage()
+    with w.audited(action, schedule_id):
+        w.feature_on()
+        from ..rbac import is_system_admin
+
+        if not is_system_admin(w.conn, w.principal.user_id):
+            raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לאשר אזהרה של תזמון.")
+        if issue not in view.ACKABLE:
+            raise ApiError(422, "validation", "אפשר לאשר רק תזמון רגיש שנוצר מחוץ למערכת או תוכן שהמערכת אינה מציגה במלואו.", details={"path": "issue"})
+        rate_limit(w.principal.user_id, "write", WRITES_PER_MIN)
+        row, core = find_visible(w, schedule_id)
+        stored = view.read_acks(w.conn)
+        present = {s: v for s, v in stored.items() if isinstance(v, dict) and store.cache_row(w.conn, s) is not None}  # what is gone is forgotten
+        mine = dict(present.get(schedule_id) or {})
+        if undo:
+            if issue not in mine:
+                raise ApiError(409, "not_acknowledged", "האזהרה אינה מאושרת.")
+            mine.pop(issue, None)
+        else:
+            cls = model.classify(core, w.ctx.resolver)
+            issues = view._issues(w.ctx, view.Row(row, store.meta_rows(w.conn).get(schedule_id)), cls)
+            if issue not in issues:
+                raise ApiError(409, "issue_not_present", "לתזמון אין כרגע אזהרה כזו.")
+            mine[issue] = {"hash": row["revision"], "by": w.principal.user_id, "by_name": w.principal.username, "at": store.stamp()}
+        if mine:
+            present[schedule_id] = mine
+        else:
+            present.pop(schedule_id, None)
+        from ..db import set_setting
+
+        set_setting(w.conn, view.ACK_KEY, json.dumps(present, ensure_ascii=False, separators=(",", ":")))
+        w.audit(action, "allowed", schedule_id, issue=issue, revision=row["revision"])
+        ha_sync.publish({"type": "schedules_changed"})
+        rec = view.ack_of(present, schedule_id, issue, row["revision"])
+        return {"schedule_id": schedule_id, "issue": issue, "acknowledged": rec is not None, "acknowledgement": rec}
+
+
 # ---------------------------------------------------------------- organisation (§3.15)
 
 def org_get(w: W) -> dict[str, Any]:
@@ -1231,6 +1285,7 @@ def preview(w: W, draft: dict[str, Any], schedule_id: str | None, count: int) ->
     """Always data: problems are returned, never raised (a well-formed body is always 200)."""
     w.feature_on()
     rate_limit(w.principal.user_id, "preview", PREVIEWS_PER_MIN)
+    draft = model.canonical_draft(draft)
     old_core = None
     if schedule_id:
         _, old_core = find_visible(w, schedule_id)

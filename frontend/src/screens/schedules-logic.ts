@@ -236,9 +236,9 @@ export function conditionOptions(items: Schedule[]): FilterOption[] {
 
 // ------------------------------------------------------------------------------------------------ actions, tones, the 24 h bar
 
-export type Tone = 'light' | 'switch' | 'climate' | 'cover' | 'fan' | 'alarm' | 'lock' | 'door' | 'off' | 'other';
+export type Tone = 'light' | 'switch' | 'climate' | 'cover' | 'fan' | 'alarm' | 'lock' | 'door' | 'script' | 'scene' | 'helper' | 'humidifier' | 'vacuum' | 'off' | 'other';
 
-const OFF_SERVICES = new Set(['light.turn_off', 'switch.turn_off', 'fan.turn_off', 'climate.turn_off']);
+const OFF_SERVICES = new Set(['light.turn_off', 'switch.turn_off', 'fan.turn_off', 'climate.turn_off', 'input_boolean.turn_off', 'vacuum.return_to_base']);
 
 /** One action's colour class: the "turn off" services are grey whatever the device; the rest follow the device class
  * (blinds, locks, alarm and doors keep their own colour, closing or locking included: they are not "off"). */

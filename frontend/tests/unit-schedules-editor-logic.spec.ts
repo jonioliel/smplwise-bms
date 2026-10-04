@@ -497,7 +497,8 @@ test.describe('the slot panel and the conflict dialog', () => {
   test('service words fall back to the server label', () => {
     expect(serviceWord('climate.set_temperature', 'יעד °')).toBe('טמפרטורת יעד');
     expect(serviceWord('light.turn_on')).toBe('הדלקה');
-    expect(serviceWord('humidifier.set_humidity', 'לחות')).toBe('לחות');
+    expect(serviceWord('number.set_value', 'קביעת ערך')).toBe('קביעת ערך');
+    expect(serviceWord('script.turn_on')).toBe('הפעלת סקריפט');
     expect(serviceWord('x.y')).toBe('x.y');
   });
 

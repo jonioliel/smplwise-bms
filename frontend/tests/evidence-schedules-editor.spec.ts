@@ -464,8 +464,21 @@ test.describe('sensitive schedules', () => {
 });
 
 test.describe('read-only content and states', () => {
-  test('a script slot is shown locked and explained; the schedule is read-only', async ({ page }) => {
+  test('a script called as its own service is an ordinary, editable script action with its variables (2026-10-04)', async ({ page }) => {
     await mount(page, 'a0f4c9');
+    await expect(editor(page).locator('[data-readonly-banner]')).toHaveCount(0);
+    await expect(editor(page).locator('sw-schedule-grid .slot.locked')).toHaveCount(0);
+    await editor(page).locator('sw-schedule-grid .slot').first().click();
+    const panel = editor(page).locator('schedule-slot-panel');
+    await expect(panel.locator('[data-slot-locked]')).toHaveCount(0);
+    await expect(panel.locator('[data-service]')).toHaveValue('script.turn_on');
+    await expect(panel.locator('[data-var="minutes"] input')).toHaveValue('10');
+    await expect(editor(page).locator('[data-editor-save]')).toHaveCount(1);
+    await shot(page, 'editor-script-1440');
+  });
+
+  test('content the system truly cannot model is shown locked and explained; the schedule is read-only', async ({ page }) => {
+    await mount(page, '6e2d90');
     await expect(editor(page).locator('[data-readonly-banner]')).toContainText('תוכן שהמערכת אינה מציגה במלואו');
     await expect(editor(page).locator('sw-schedule-grid .slot.locked').first()).toBeVisible();
     await editor(page).locator('sw-schedule-grid .slot').first().click();

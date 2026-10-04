@@ -24,14 +24,24 @@ from . import ha_bridge
 # `sunrise-00:15:00` works as start and stop (`sunset` without an offset is rejected: canonical_time always writes one).
 CAPABILITIES: dict[str, bool] = {"tags": True, "negative_sun_offset": True}
 
-ALL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
+ALL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
 SENSITIVE_CLASSES = frozenset({"alarm", "lock", "door"})
+# 2026-10-04 (schedules: more actions): the classes added with bridge 0.6.1. A script or a scene is sensitive PER ENTITY (what it drives, read
+# from the automations mirror - `is_sensitive`), never by its class alone.
+ITEM_CLASSES = frozenset({"script", "scene"})
+NEWER_CLASSES: tuple[str, ...] = ("script", "scene", "helper", "humidifier", "vacuum")
+# the ORIGINAL eight: an installation whose stored `schedules.classes` lists all of them had "every class on", and keeps it (routers/settings)
+ORIGINAL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})  # = services/devices.DOOR_COVER_CLASSES (kept here: this module stays pure)
 
 # a key that carries a code / secret anywhere inside a schedule: never stored (HA keeps service_data in clear text)
 _CODE_KEYS = frozenset({"code", "alarm_code", "pin", "pin_code", "passcode", "password"})
 
 LOWERING_ARM_OFF = "alarm_control_panel.alarm_disarm"
+
+# script variables (`script.turn_on` `variables`): what a schedule may carry - never a code (the `_CODE_KEYS` rule), plain values only
+MAX_VARS, MAX_VAR_TEXT = 10, 200
+VAR_KEY = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 
 
 def _arg(kind: str, lo: float | None = None, hi: float | None = None, *, required: bool = False, choices: list[str] | None = None) -> dict[str, Any]:
@@ -65,12 +75,16 @@ SCHEDULE_ACTIONS: dict[str, dict[str, dict[str, Any]]] = {
     "cover": {
         **{k: f() for k, f in _COVER_MOVES.items()},
         "cover.set_cover_tilt_position": _svc("cover.set_cover_tilt_position", {"tilt_position": _arg("int", 0, 100, required=True)}),
+        "cover.open_cover_tilt": _svc("cover.open_cover_tilt"),
+        "cover.close_cover_tilt": _svc("cover.close_cover_tilt"),
     },
     "climate": {
         "climate.set_hvac_mode": _svc("climate.set_hvac_mode", {"hvac_mode": _arg("enum", required=True, choices=ha_bridge.HVAC_MODES)}),
         "climate.set_temperature": _svc("climate.set_temperature", {"temperature": _arg("float", required=True), "hvac_mode": _arg("enum", choices=ha_bridge.HVAC_MODES)}),
         "climate.set_fan_mode": _svc("climate.set_fan_mode", {"fan_mode": _arg("str", 1, 40, required=True)}),
         "climate.set_preset_mode": _svc("climate.set_preset_mode", {"preset_mode": _arg("str", 1, 40, required=True)}),
+        "climate.set_swing_mode": _svc("climate.set_swing_mode", {"swing_mode": _arg("str", 1, 40, required=True)}),
+        "climate.set_humidity": _svc("climate.set_humidity", {"humidity": _arg("int", 0, 100, required=True)}),
         "climate.turn_off": _svc("climate.turn_off"),
     },
     "fan": {
@@ -87,10 +101,88 @@ SCHEDULE_ACTIONS: dict[str, dict[str, dict[str, Any]]] = {
         "switch.turn_off": _svc("switch.turn_off"),
         "button.press": _svc("button.press"),
     },
+    # 2026-10-04 (bridge 0.6.1): scripts (an alarm script is an ordinary script), scenes, helpers, humidifiers, vacuums
+    "script": {"script.turn_on": _svc("script.turn_on", {"variables": _arg("vars")})},
+    "scene": {"scene.turn_on": _svc("scene.turn_on")},
+    "helper": {
+        "input_boolean.turn_on": _svc("input_boolean.turn_on"),
+        "input_boolean.turn_off": _svc("input_boolean.turn_off"),
+        "input_number.set_value": _svc("input_number.set_value", {"value": _arg("float", -1e9, 1e9, required=True)}),
+        "input_select.select_option": _svc("input_select.select_option", {"option": _arg("str", 1, 80, required=True)}),
+    },
+    "humidifier": {
+        "humidifier.set_humidity": _svc("humidifier.set_humidity", {"humidity": _arg("int", 0, 100, required=True)}),
+        "humidifier.set_mode": _svc("humidifier.set_mode", {"mode": _arg("str", 1, 40, required=True)}),
+    },
+    "vacuum": {"vacuum.start": _svc("vacuum.start"), "vacuum.return_to_base": _svc("vacuum.return_to_base")},
 }
 SCHEDULE_ACTION_SERVICES: frozenset[str] = frozenset(s for c in SCHEDULE_ACTIONS.values() for s in c)
 SERVICE_ARGS: dict[str, dict[str, dict[str, Any]]] = {s: spec["args"] for c in SCHEDULE_ACTIONS.values() for s, spec in c.items()}
 SERVICE_EXCLUSIVE: dict[str, list[list[str]]] = {s: spec["exclusive"] for c in SCHEDULE_ACTIONS.values() for s, spec in c.items()}
+
+# The services a bridge OLDER than 0.6.1 refuses in a schedule (its allow-list stops at the original eight classes): a new or changed action
+# on one of them is refused with `bridge_too_old_for_action` until the bridge is updated (tests/test_schedules_more_actions.py lists them).
+NEWER_BRIDGE = "0.6.1"
+NEWER_BRIDGE_SERVICES: frozenset[str] = frozenset({
+    "cover.open_cover_tilt", "cover.close_cover_tilt", "climate.set_swing_mode", "climate.set_humidity", "script.turn_on", "scene.turn_on",
+    "input_boolean.turn_on", "input_boolean.turn_off", "input_number.set_value", "input_select.select_option", "humidifier.set_humidity", "humidifier.set_mode",
+    "vacuum.start", "vacuum.return_to_base",
+})
+
+# Capability discovery (never invent one): the entity feature bit Home Assistant reports for a service (`<Domain>EntityFeature`), and an
+# attribute whose presence proves the same thing. A service without a bit is offered whenever its class is.
+FEATURE_BITS: dict[str, int] = {
+    "cover.open_cover": 1, "cover.close_cover": 2, "cover.set_cover_position": 4, "cover.stop_cover": 8, "cover.open_cover_tilt": 16, "cover.close_cover_tilt": 32,
+    "cover.set_cover_tilt_position": 128, "climate.set_temperature": 1 | 2, "climate.set_humidity": 4, "climate.set_fan_mode": 8, "climate.set_preset_mode": 16,
+    "climate.set_swing_mode": 32, "fan.set_percentage": 1, "humidifier.set_mode": 1, "vacuum.start": 8192, "vacuum.return_to_base": 16,
+}
+FEATURE_EVIDENCE: dict[str, str] = {
+    "cover.set_cover_position": "current_position", "cover.set_cover_tilt_position": "current_tilt_position", "climate.set_fan_mode": "fan_modes",
+    "climate.set_preset_mode": "preset_modes", "climate.set_swing_mode": "swing_modes", "humidifier.set_mode": "available_modes",
+}
+# A NEW action on one of these needs positive evidence (the bit or the attribute). The others predate capability discovery: with no feature
+# bits reported at all (0 in the mirror) they keep working as before; with bits reported, a missing bit refuses them too.
+STRICT_CAPABILITY: frozenset[str] = NEWER_BRIDGE_SERVICES | {"cover.set_cover_position", "cover.set_cover_tilt_position"}
+
+
+def service_capable(service: str, entity: dict[str, Any] | None, *, strict: bool | None = None) -> bool:
+    """Whether the entity really offers `service`: its feature bit, or the attribute that proves it. `strict` (default: the service is in
+    STRICT_CAPABILITY) refuses when the entity reports no feature bits at all; otherwise "nothing reported" is not a refusal."""
+    bit = FEATURE_BITS.get(service)
+    if bit is None or entity is None:
+        return True
+    feats = int(entity.get("supported_features") or 0)
+    if feats & bit:
+        return True
+    attr = FEATURE_EVIDENCE.get(service)
+    value = (entity.get("attributes") or {}).get(attr) if attr else None
+    if value is not None and value != []:
+        return True
+    if strict is None:
+        strict = service in STRICT_CAPABILITY
+    return feats == 0 and not strict
+
+
+def arg_capable(service: str, arg: str, entity: dict[str, Any] | None) -> bool:
+    """Whether an optional argument is something the entity can take: a light's brightness (not an on/off-only light), a fan's speed."""
+    if entity is None:
+        return True
+    attrs = entity.get("attributes") or {}
+    if service == "light.turn_on" and arg in ("brightness", "brightness_pct"):
+        modes = attrs.get("supported_color_modes")
+        return not (isinstance(modes, list) and modes and all(m == "onoff" for m in modes))
+    if service == "fan.turn_on" and arg == "percentage":
+        feats = int(entity.get("supported_features") or 0)
+        return feats == 0 or bool(feats & 1)
+    return True
+
+
+def is_sensitive(cls: str | None, entity: dict[str, Any] | None = None) -> bool:
+    """A sensitive action: an alarm / lock / door class, or a script / scene that drives one (or whose effects are not known)."""
+    if cls in SENSITIVE_CLASSES:
+        return True
+    return bool(cls in ITEM_CLASSES and entity and entity.get("sensitive"))
+
 
 # alarm service -> the alarm section's arm-mode name (services/alarm.ARM_MODES)
 ARM_MODE_OF = {f"alarm_control_panel.alarm_{m}": m for m in ("arm_home", "arm_away", "arm_night", "arm_vacation", "arm_custom_bypass")}
@@ -98,6 +190,7 @@ ARM_MODE_OF = {f"alarm_control_panel.alarm_{m}": m for m in ("arm_home", "arm_aw
 ARG_LABELS = {
     "temperature": "טמפרטורה", "brightness": "בהירות", "brightness_pct": "בהירות באחוזים", "position": "מיקום", "tilt_position": "מיקום הטיה",
     "hvac_mode": "מצב פעולה", "fan_mode": "מצב מאוורר", "preset_mode": "מצב מוגדר מראש", "percentage": "עוצמה",
+    "swing_mode": "מצב נדנוד", "humidity": "לחות", "mode": "מצב", "value": "ערך", "option": "אפשרות", "variables": "משתני הסקריפט",
 }
 
 
@@ -141,17 +234,34 @@ def classify_entity(entity: dict[str, Any], *, on_door_layer: bool, alarm_manage
         return "switch", None  # CR-019: the group-action protection mark never gates a schedule
     if domain == "button" and on_door_layer:
         return "door", None
+    if domain == "script":
+        return "script", None
+    if domain == "scene":
+        return "scene", None
+    if domain in ("input_boolean", "input_number", "input_select"):
+        return "helper", None
+    if domain == "humidifier":
+        return "humidifier", None
+    if domain == "vacuum":
+        return "vacuum", None
     return None, "action_not_allowed"
 
 
-def service_allowed(cls: str | None, service: str) -> bool:
-    return cls is not None and service in SCHEDULE_ACTIONS.get(cls, {})
+def service_allowed(cls: str | None, service: str, entity_id: str | None = None) -> bool:
+    """The class offers the service - and, given the entity, the service is of the entity's own domain (a class spans several domains: the
+    helpers, the door layer's covers / switches / buttons; the bridge refuses a service on another domain's entity)."""
+    if cls is None or service not in SCHEDULE_ACTIONS.get(cls, {}):
+        return False
+    return entity_id is None or service.split(".", 1)[0] == entity_id.split(".", 1)[0]
 
 
-def is_lowering(service: str, cls: str | None, data: dict[str, Any]) -> bool:
-    """§5.3: an action that removes protection - disarm, unlock, and on the door class opening / driving / pressing."""
+def is_lowering(service: str, cls: str | None, data: dict[str, Any], entity: dict[str, Any] | None = None) -> bool:
+    """§5.3: an action that removes protection - disarm, unlock, and on the door class opening / driving / pressing; a script / scene whose
+    known steps disarm, unlock or open a door (read from the automations mirror: `entity["lowering"]`)."""
     if service == LOWERING_ARM_OFF or service == "lock.unlock":
         return True
+    if cls in ITEM_CLASSES:
+        return bool(entity and entity.get("lowering"))
     if cls != "door":
         return False
     if service == "cover.open_cover":
@@ -208,6 +318,8 @@ def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] |
             lo, hi = spec.get("min"), spec.get("max")
             if name == "temperature":
                 lo, hi = _temperature_range(entity if dynamic else None)
+            elif dynamic and entity is not None and name in ("value", "humidity"):
+                lo, hi = _entity_range(entity, name, lo, hi)
             if lo is not None and hi is not None and not lo <= num <= hi:
                 problems.append({"code": "out_of_range", "message": f"{arg_label(name)} מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", "arg": name})
                 continue
@@ -230,11 +342,30 @@ def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] |
                 continue
             value = value.strip()
             if dynamic:
-                offered = _attr_list(entity, {"fan_mode": "fan_modes", "preset_mode": "preset_modes"}.get(name, ""))
+                offered = _attr_list(entity, OFFERED_LIST.get(name, ""))
                 if offered is not None and value not in offered:
                     problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך שההתקן אינו מציע.", "arg": name})
                     continue
             cleaned[name] = value
+        elif kind == "vars":
+            bad = _check_vars(value, entity if dynamic else None, dynamic)
+            if bad:
+                problems.append({**bad, "arg": name})
+                continue
+            cleaned[name] = dict(value)
+        else:  # an unknown spec type is never accepted
+            problems.append({"code": "argument_not_allowed", "message": f"ארגומנט לא מאושר: {name}", "arg": name})
+    if dynamic and entity is not None:
+        for name in list(cleaned):
+            if not arg_capable(service, name, entity):
+                problems.append({"code": "argument_not_allowed", "message": f"{arg_label(name)}: ההתקן אינו תומך בכך.", "arg": name})
+                cleaned.pop(name, None)
+        if service == "script.turn_on":
+            fields = entity.get("script_fields")
+            given = (data or {}).get("variables") if isinstance((data or {}).get("variables"), dict) else {}
+            for key, f in (fields or {}).items():
+                if f.get("required") and "default" not in f and key not in given:
+                    problems.append({"code": "required", "message": f"חסר משתנה חובה של הסקריפט: {f.get('name') or key}", "arg": "variables"})
     if service in SERVICE_ARGS:
         for name, spec in specs.items():
             if spec.get("required") and name not in (data or {}):
@@ -257,6 +388,61 @@ def _temperature_range(entity: dict[str, Any] | None) -> tuple[float, float]:
     attrs = (entity or {}).get("attributes") or {}
     lo, hi = _number(attrs.get("min_temp")), _number(attrs.get("max_temp"))
     return (lo if lo is not None else 5.0, hi if hi is not None else 35.0)
+
+
+OFFERED_LIST = {"fan_mode": "fan_modes", "preset_mode": "preset_modes", "swing_mode": "swing_modes", "mode": "available_modes", "option": "options"}
+
+
+def _entity_range(entity: dict[str, Any], name: str, lo: float | None, hi: float | None) -> tuple[float | None, float | None]:
+    """The entity's own bounds: an input_number's `min` / `max`, a humidifier's / climate's `min_humidity` / `max_humidity`."""
+    attrs = entity.get("attributes") or {}
+    keys = ("min", "max") if name == "value" else ("min_humidity", "max_humidity")
+    a, b = _number(attrs.get(keys[0])), _number(attrs.get(keys[1]))
+    return (a if a is not None else lo, b if b is not None else hi)
+
+
+def _check_vars(value: Any, entity: dict[str, Any] | None, dynamic: bool) -> dict[str, str] | None:
+    """A script's `variables`: a flat object of at most MAX_VARS plain values (text, number, true / false), keys like Home Assistant's
+    field keys, never a code. With `dynamic` (a new or changed action) every key must be one of the script's own fields as the mirror knows
+    them (`entity["script_fields"]`, None = unknown: no variables at all) and every value must fit that field's selector."""
+    if not isinstance(value, dict) or len(value) > MAX_VARS:
+        return {"code": "invalid_value", "message": f"משתני הסקריפט: עד {MAX_VARS} ערכים."}
+    for k, v in value.items():
+        if not isinstance(k, str) or not VAR_KEY.match(k) or k.lower() in _CODE_KEYS:
+            return {"code": "argument_not_allowed", "message": f"משתנה לא מאושר: {k}"}
+        if isinstance(v, str):
+            if len(v) > MAX_VAR_TEXT or any(ord(c) < 32 or ord(c) == 127 for c in v):
+                return {"code": "invalid_value", "message": f"{k}: טקסט של עד {MAX_VAR_TEXT} תווים."}
+        elif isinstance(v, bool):
+            pass
+        elif _number(v) is None:
+            return {"code": "invalid_value", "message": f"{k}: ערך פשוט בלבד (טקסט, מספר, כן / לא)."}
+    if not dynamic:
+        return None
+    fields = (entity or {}).get("script_fields")
+    if value and fields is None:
+        return {"code": "argument_not_allowed", "message": "המשתנים של הסקריפט אינם ידועים למערכת; אפשר להפעיל אותו בלי משתנים."}
+    for k, v in value.items():
+        f = (fields or {}).get(k)
+        if f is None:
+            return {"code": "argument_not_allowed", "message": f"לסקריפט אין משתנה בשם {k}."}
+        label, kind = f.get("name") or k, f.get("kind")
+        if kind == "number":
+            num = _number(v)
+            if num is None or (f.get("min") is not None and num < f["min"]) or (f.get("max") is not None and num > f["max"]):
+                return {"code": "out_of_range", "message": f"{label}: מחוץ לטווח {_fmt(f.get('min', 0))}–{_fmt(f.get('max', 0))}."}
+        elif kind == "boolean":
+            if not isinstance(v, bool):
+                return {"code": "invalid_value", "message": f"{label}: כן / לא."}
+        elif kind == "select":
+            if v not in (f.get("options") or []):
+                return {"code": "invalid_value", "message": f"{label}: ערך שהסקריפט אינו מציע."}
+        elif kind == "text":
+            if not isinstance(v, str) or (f.get("max") is not None and len(v) > int(f["max"])):
+                return {"code": "invalid_value", "message": f"{label}: טקסט באורך מתאים."}
+        else:
+            return {"code": "argument_not_allowed", "message": f"{label}: סוג משתנה שהמערכת אינה מציגה."}
+    return None
 
 
 def _attr_list(entity: dict[str, Any] | None, key: str) -> list[str] | None:

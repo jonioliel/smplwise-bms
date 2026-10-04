@@ -34,6 +34,10 @@ MATCH_TYPES = ("is", "not", "above", "below")
 CONDITION_DOMAINS = frozenset({"binary_sensor", "sensor", "sun", "input_boolean"})
 ATTRIBUTE = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]{1,100}$")
+# A script called as its own service (`script.<object_id>`, no entity - what the platform's own card writes) is the same action as
+# `script.turn_on` on `script.<object_id>` with the data as its variables; these are the script domain's own services, never a script.
+SCRIPT_DIRECT = re.compile(r"^script\.([a-z0-9_]{1,100})$")
+SCRIPT_DOMAIN_SERVICES = frozenset({"turn_on", "turn_off", "toggle", "reload"})
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # caps (§3.19)
@@ -180,11 +184,15 @@ def normalize(item: dict[str, Any]) -> dict[str, Any]:
         for raw_action in raw_slot.get("actions") or []:
             raw_action = raw_action if isinstance(raw_action, dict) else {}
             data, had_entity = _clean_data(raw_action.get("service_data"))
+            service = raw_action.get("service") if isinstance(raw_action.get("service"), str) else ""
+            entity = raw_action.get("entity_id") if isinstance(raw_action.get("entity_id"), str) and raw_action.get("entity_id") else None
+            service, entity, data, legacy = canonical_action(service, entity, data, (raw_action.get("service_data") or {}).get("entity_id") if had_entity else None)
             actions.append({
-                "service": raw_action.get("service") if isinstance(raw_action.get("service"), str) else "",
-                "entity_id": raw_action.get("entity_id") if isinstance(raw_action.get("entity_id"), str) and raw_action.get("entity_id") else None,
+                "service": service,
+                "entity_id": entity,
                 "data": data,
                 "data_had_entity_id": had_entity,
+                "legacy_form": legacy or had_entity,  # (a target also inside service_data would not pass the bridge's argument schema verbatim)
                 "unknown_keys": sorted(str(k) for k in raw_action if k not in ACTION_KEYS),
             })
         conditions = [_condition(c) for c in (raw_slot.get("conditions") or [])]
@@ -222,6 +230,52 @@ def normalize(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def canonical_action(service: str, entity: str | None, data: dict[str, Any], data_entity: Any = None) -> tuple[str, str | None, dict[str, Any], bool]:
+    """(service, entity, data, rewritten) - the ONE form Arx models and writes for an action stored in an equivalent older form:
+    - the target only inside the service data (`service_data.entity_id`, a single id of the service's own domain) -> the action's entity;
+    - a script called as its own service (`script.<object_id>`, no entity or that script) -> `script.turn_on` on `script.<object_id>`, the data
+      as its `variables`.
+    Anything else is returned as it is. The rewrite changes how the action is written, never what it does."""
+    rewritten = False
+    if entity is None and isinstance(data_entity, str) and ENTITY_ID.match(data_entity) and service.split(".", 1)[0] == data_entity.split(".", 1)[0]:
+        entity, rewritten = data_entity, True
+    m = SCRIPT_DIRECT.match(service)
+    if m and m.group(1) not in SCRIPT_DOMAIN_SERVICES and entity in (None, f"script.{m.group(1)}"):
+        return "script.turn_on", f"script.{m.group(1)}", ({"variables": dict(data)} if data else {}), True
+    return service, entity, data, rewritten
+
+
+def canonical_draft(draft: dict[str, Any]) -> dict[str, Any]:
+    """A draft whose actions are in Arx's one written form (`canonical_action`): what a client sends back after showing a schedule that was
+    stored in an older form, before it is validated and written."""
+    out = copy.deepcopy(draft)
+    for slot in out.get("slots") or []:
+        acts = []
+        for a in slot.get("actions") or []:
+            if not isinstance(a, dict):
+                acts.append(a)
+                continue
+            service, entity, data, _ = canonical_action(a.get("service") or "", a.get("entity_id") or None, dict(a.get("data") or {}))
+            acts.append({**a, "service": service, "entity_id": entity, "data": data})
+        slot["actions"] = acts
+    return out
+
+
+def has_legacy_form(slot: dict[str, Any]) -> bool:
+    """A normalised slot holds an action stored in an older form: re-sending it verbatim would not pass the bridge's schema."""
+    return any(a.get("legacy_form") for a in slot["actions"])
+
+
+def writable_slot(raw: dict[str, Any]) -> dict[str, Any]:
+    """`component_slot` of a stored slot, its actions in the canonical form (a split re-creates the slots through the bridge)."""
+    core = normalize({"timeslots": [raw]})
+    s = core["slots"][0]
+    if not has_legacy_form(s):
+        return component_slot(raw)
+    form = _core_slot_form(s)
+    return component_slot({**form, "conditions": s["conditions"], "condition_type": s["condition_type"], "track_conditions": s["track"]})
+
+
 def action_entities(core: dict[str, Any]) -> list[str]:
     """Distinct action entity ids of a core, in first-seen order."""
     seen: list[str] = []
@@ -238,51 +292,72 @@ def classify(core: dict[str, Any], resolve: Callable[[str], dict[str, Any] | Non
     fields of the read model. A schedule is understood only when every slot is (whole-schedule read-only otherwise)."""
     out_slots: list[dict[str, Any]] = []
     classes: list[str] = []
+    sensitive_cls: list[str] = []
+    invalid_all: list[dict[str, str]] = []
     lowering = False
     base_signature = canonical([core["slots"][0]["conditions"], core["slots"][0]["condition_type"], core["slots"][0]["track"]]) if core["slots"] else ""
     for slot in core["slots"]:
         unsupported: list[dict[str, str]] = []
+        invalid: list[dict[str, str]] = []
         actions_out = []
         for ai, a in enumerate(slot["actions"]):
             path = f"slots[{slot['index']}].actions[{ai}]"
             info = resolve(a["entity_id"]) if a["entity_id"] else None
             cls = info["class"] if info else None
             problem: dict[str, str] | None = None
+            bad: dict[str, str] | None = None  # a modelled action that cannot run as it stands (its entity is gone / lost the service)
             if policy.contains_code(a["data"]) or policy.contains_code(a["service"]):
                 problem = {"code": "contains_code", "message": "הפעולה כוללת קוד השמור בתוך התזמון.", "path": path}
             elif not a["entity_id"]:
-                problem = {"code": "action_without_entity", "message": "פעולה ללא התקן (למשל סקריפט).", "path": path}
+                problem = {"code": "action_without_entity", "message": "פעולה ללא התקן שהמערכת אינה מציגה.", "path": path}
             elif info is None:
-                problem = {"code": "action_not_allowed", "message": "ההתקן אינו מוכר למערכת.", "path": path}
+                if a["service"] in policy.SCHEDULE_ACTION_SERVICES and a["service"].split(".", 1)[0] == a["entity_id"].split(".", 1)[0] and not a["unknown_keys"]:
+                    bad = {"code": "entity_missing", "message": "ההתקן של הפעולה אינו קיים עוד במערכת.", "path": path}
+                else:
+                    problem = {"code": "action_not_allowed", "message": "ההתקן אינו מוכר למערכת.", "path": path}
             elif cls is None:
                 code = info.get("refusal") if info.get("refusal") in ("alarm_managed_control", "media_managed_control") else "action_not_allowed"
                 problem = {"code": code, "message": {"alarm_managed_control": "רכיב זה נשלט ממסך האזעקה.", "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה."}.get(code, "סוג ההתקן אינו מותר בתזמונים."), "path": path}
-            elif not policy.service_allowed(cls, a["service"]):
+            elif not policy.service_allowed(cls, a["service"], a["entity_id"]):
                 problem = {"code": "action_not_allowed", "message": "הפעולה אינה מותרת בתזמון.", "path": path}
             else:
-                bad, _ = policy.check_arguments(a["service"], a["data"], None, dynamic=False)
-                if bad:
-                    code = "contains_code" if bad[0]["code"] == "code_not_allowed" else "argument_not_allowed"
-                    problem = {"code": code, "message": bad[0]["message"], "path": path}
+                arg_bad, _ = policy.check_arguments(a["service"], a["data"], None, dynamic=False)
+                if arg_bad:
+                    code = "contains_code" if arg_bad[0]["code"] == "code_not_allowed" else "argument_not_allowed"
+                    problem = {"code": code, "message": arg_bad[0]["message"], "path": path}
+                elif not policy.service_capable(a["service"], info, strict=False):
+                    bad = {"code": "service_unsupported", "message": "ההתקן אינו תומך עוד בפעולה זו.", "path": path}
             if a["unknown_keys"] and problem is None:
                 problem = {"code": "unknown_fields", "message": "לפעולה שדות שהמערכת אינה מכירה.", "path": path}
+                bad = None
             if problem:
                 unsupported.append(problem)
-            sensitive = cls in policy.SENSITIVE_CLASSES if cls else False
-            low = bool(problem is None and policy.is_lowering(a["service"], cls, a["data"]))
+            elif bad:
+                invalid.append(bad)
+            sensitive = policy.is_sensitive(cls, info) if cls else (bad is not None and a["entity_id"].split(".", 1)[0] in ("alarm_control_panel", "lock"))
+            low = bool(problem is None and policy.is_lowering(a["service"], cls, a["data"], info))
             lowering = lowering or low
             if cls and problem is None:
                 classes.append(cls)
-            actions_out.append({"service": a["service"], "entity_id": a["entity_id"], "data": dict(a["data"]), "supported": problem is None, "class": cls if problem is None else None,
-                                "sensitive": sensitive if problem is None else False, "lowering": low})
+                if sensitive:
+                    sensitive_cls.append(cls)
+            out = {"service": a["service"], "entity_id": a["entity_id"], "data": dict(a["data"]), "supported": problem is None, "class": cls if problem is None else None,
+                   "sensitive": sensitive if problem is None else False, "lowering": low}
+            if bad is not None and problem is None:
+                out["invalid"] = {"code": bad["code"], "message": bad["message"]}
+            actions_out.append(out)
         if slot["unknown_keys"] or slot["condition_unknown_keys"] or slot["time_issues"]:
             unsupported.append({"code": "unknown_fields", "message": "במשבצת שדות או זמנים שהמערכת אינה מכירה.", "path": f"slots[{slot['index']}]"})
         sig = canonical([slot["conditions"], slot["condition_type"], slot["track"]])
         if sig != base_signature:
             unsupported.append({"code": "conditions_differ", "message": "תנאים שונים במשבצות שונות.", "path": f"slots[{slot['index']}]"})
-        out_slots.append({"actions": actions_out, "supported": not unsupported, "unsupported": unsupported})
-    sensitive_classes = [c for c in policy.ALL_CLASSES if c in classes and c in policy.SENSITIVE_CLASSES]
-    return {"slots": out_slots, "understood": all(s["supported"] for s in out_slots), "sensitive_classes": sensitive_classes, "sensitive": bool(sensitive_classes), "lowering": lowering}
+        out_slots.append({"actions": actions_out, "supported": not unsupported, "unsupported": unsupported, "invalid": invalid})
+        invalid_all.extend(invalid)
+    sensitive_classes = [c for c in policy.ALL_CLASSES if c in sensitive_cls]
+    sensitive_any = bool(sensitive_classes) or any(a["sensitive"] for s in out_slots for a in s["actions"]) or any(
+        a.get("invalid") is not None and a["entity_id"].split(".", 1)[0] in ("alarm_control_panel", "lock") for s in out_slots for a in s["actions"])
+    return {"slots": out_slots, "understood": all(s["supported"] for s in out_slots), "sensitive_classes": sensitive_classes, "sensitive": sensitive_any, "lowering": lowering,
+            "invalid": invalid_all}
 
 
 # ---------------------------------------------------------------- upcoming (§6.5)
@@ -513,12 +588,13 @@ def to_component_payload(draft: dict[str, Any], current_item: dict[str, Any] | N
     new_block = (canonical(cond_items), cond_type, cond_track)
     conditions_changed = old_block != new_block
     draft_slots = draft.get("slots") or []
-    slots_changed = len(draft_slots) != len(core["slots"]) or any(draft_slot_form(d) != _core_slot_form(c) for d, c in zip(draft_slots, core["slots"]))
+    slots_changed = len(draft_slots) != len(core["slots"]) or any(draft_slot_form(d) != _core_slot_form(c) or has_legacy_form(c) for d, c in zip(draft_slots, core["slots"]))
     if conditions_changed or slots_changed:
         raw_slots = current_item.get("timeslots") or []
         out = []
         for i, d in enumerate(draft_slots):
-            same = i < len(core["slots"]) and draft_slot_form(d) == _core_slot_form(core["slots"][i]) and not conditions_changed and isinstance(raw_slots[i], dict)
+            same = (i < len(core["slots"]) and draft_slot_form(d) == _core_slot_form(core["slots"][i]) and not conditions_changed and isinstance(raw_slots[i], dict)
+                    and not has_legacy_form(core["slots"][i]))
             out.append(component_slot(raw_slots[i]) if same else build_slot(d))
         payload["timeslots"] = out
     if payload:
@@ -690,16 +766,39 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
         return [_problem(code, msgs.get(code, msgs["action_not_allowed"]), f"{path}.entity_id")]
     if cls not in enabled and not unchanged:
         return [_problem("class_not_allowed", "סוג ההתקן אינו מותר בתזמונים (הגדרות › תזמונים).", f"{path}.entity_id")]
-    if not policy.service_allowed(cls, service):
+    if not policy.service_allowed(cls, service, eid):
         return [_problem("action_not_allowed", "הפעולה אינה מותרת בתזמון.", f"{path}.service")]
+    if not unchanged and not policy.service_capable(service, info):
+        return [_problem("service_not_supported", "ההתקן אינו תומך בפעולה זו.", f"{path}.service")]
+    if not unchanged and service in policy.NEWER_BRIDGE_SERVICES and not _bridge_at_least(ctx, policy.NEWER_BRIDGE):
+        return [_problem("bridge_too_old_for_action", "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו.", f"{path}.service")]
     problems, _ = policy.check_arguments(service, data, info, dynamic=not unchanged)
     for p in problems:  # the field-level code stays in the problem; the router promotes only §3.20 codes, else `validation`
         out.append(_problem(p["code"], p["message"], f"{path}.data.{p['arg']}"))
+    if cls == "alarm" and service == policy.LOWERING_ARM_OFF and not problems:
+        if not _allow_disarm(ctx):
+            if not unchanged:
+                return [_problem("disarm_not_allowed", DISARM_REFUSAL, f"{path}.service")]
+            warnings.append(_problem("disarm_kept", "התזמון כולל נטרול אזעקה שנוצר לפני שהנטרול נחסם בתזמונים; הוא נשמר כפי שהוא.", path))
     if cls in ("alarm", "lock") and not problems:
         out.extend(_code_rules(cls, service, eid, path, info, ctx, unchanged, warnings))
     if info.get("available") is False:
         warnings.append(_problem("entity_unavailable", "ההתקן אינו זמין כרגע.", f"{path}.entity_id"))
     return out
+
+
+DISARM_REFUSAL = "נטרול אזעקה אינו ניתן לתזמון. רק מנהל מערכת יכול לאפשר זאת בהגדרות › תזמונים, עם אישור מוקלד."
+
+
+def _allow_disarm(ctx: Any) -> bool:
+    """`schedules.allow_disarm` (default off, a system administrator's typed decision): may a NEW schedule disarm a panel directly."""
+    fn = getattr(ctx, "allow_disarm", None)
+    return bool(fn()) if callable(fn) else False
+
+
+def _bridge_at_least(ctx: Any, version: str) -> bool:
+    fn = getattr(ctx, "bridge_at_least", None)
+    return bool(fn(version)) if callable(fn) else True
 
 
 def _code_rules(cls: str, service: str, eid: str, path: str, info: dict[str, Any], ctx: DraftContext, unchanged: bool, warnings: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -785,7 +884,7 @@ def _check_conditions(draft: dict[str, Any], ctx: DraftContext, old: dict[str, A
     for slot in draft.get("slots") or []:
         for a in slot.get("actions") or []:
             info = ctx.entity(a.get("entity_id") or "") if a.get("entity_id") else None
-            if info and info.get("class") in policy.SENSITIVE_CLASSES:
+            if info and policy.is_sensitive(info.get("class"), info):
                 has_sensitive = True
     for ci, c in enumerate(items):
         path = f"conditions.items[{ci}]"

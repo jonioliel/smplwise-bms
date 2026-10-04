@@ -52,12 +52,16 @@ def test_copy_of_a_legacy_disarm_on_a_panel_that_needs_a_code_is_refused(sched_a
     assert d["can"]["edit"] is True  # tolerated where it stands
     n = len(fake.bridge_calls)
     r = post_json(c, f"/schedules/{sid}/copy", {"name": "Copy", "client_request_id": rid(), "confirm_lowering": True})
+    assert r.status_code == 422 and r.json()["code"] == "disarm_not_allowed" and len(fake.bridge_calls) == n  # 2026-10-04: a copy is a new disarm
+    allow_disarm(c)
+    r = post_json(c, f"/schedules/{sid}/copy", {"name": "Copy", "client_request_id": rid(), "confirm_lowering": True})
     assert r.status_code == 422 and r.json()["code"] == "alarm_code_needed" and len(fake.bridge_calls) == n
 
 
 def test_copy_needs_the_lowering_confirmation_and_the_creators_code(sched_app):
     app, s, c, fake, tr = sched_app
     _boss(c, s)
+    allow_disarm(c)
     sid = _legacy(app, fake, "Shed disarm", [_slot("06:00:00", None, "alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel")])
     body = lambda **kw: {"name": "Shed disarm 2", "client_request_id": rid(), **kw}  # noqa: E731
     r = post_json(c, f"/schedules/{sid}/copy", body())
@@ -76,6 +80,7 @@ def test_copy_needs_the_lowering_confirmation_and_the_creators_code(sched_app):
 def test_split_needs_the_same_confirmation_and_code(sched_app):
     app, s, c, fake, tr = sched_app
     _boss(c, s)
+    allow_disarm(c)
     sid = _legacy(app, fake, "Split disarm", [_slot("06:00:00", None, "alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel")], weekdays=["sun", "mon", "tue"])
     cur = c.get(f"{API}/schedules/{sid}").json()
     body = lambda **kw: {"base_revision": cur["revision"], "days": ["tue"], "name": None, "confirm": True, "client_request_id": rid(), **kw}  # noqa: E731

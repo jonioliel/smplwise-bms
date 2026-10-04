@@ -593,6 +593,7 @@ class Mirror:
         stamp = str(row.get("last_changed") or _iso(now))
         run_id = "r" + hashlib.sha1(f"{sid}|{stamp}".encode("utf-8")).hexdigest()[:14]
         sensitive = 0
+        invalid: list[dict[str, Any]] = []
         cached = cache_row(conn, sid)
         if cached is not None:
             try:
@@ -601,8 +602,28 @@ class Mirror:
                 core = model.normalize(item_of(cached))
                 cls = model.classify(core, Ctx(conn, None).resolver)
                 sensitive = 1 if cls["sensitive"] else 0
+                # run-time revalidation (2026-10-04): the platform runs the slot whatever Arx thinks, so an action whose entity disappeared or lost
+                # the service is recorded at once as a run that did not happen as planned - visibly, never left to "confirm" later
+                index = slot if slot is not None else (0 if len(core["slots"]) == 1 else None)
+                for si, s in enumerate(cls["slots"]):
+                    if index is None or core["slots"][si]["index"] == index:
+                        invalid.extend({"entity_id": a["entity_id"], "expected": None, "observed": None, "result": "not_confirmed", "invalid": a["invalid"]["code"]}
+                                       for a in s["actions"] if a.get("invalid"))
             except Exception:  # noqa: BLE001
                 log.exception("could not classify the run of %s", sid)
+        if invalid:
+            cur = conn.execute("INSERT OR IGNORE INTO schedule_runs(id, schedule_id, slot_index, started_at, settled_at, result, sensitive, via, detail_json) VALUES (?,?,?,?,?, 'not_confirmed', ?, 'component', ?)",
+                               (run_id, sid, slot, _iso(now), _iso(now), sensitive, json.dumps({"entities": invalid, "invalid": True}, ensure_ascii=False)))
+            if cur.rowcount:
+                audit(conn, actor=None, action="schedule.run_invalid", decision="denied", resource_type="schedule", resource_id=sid, reason=invalid[0]["invalid"],
+                      details={"slot_index": slot, "run_id": run_id, "entities": [e["entity_id"] for e in invalid]})
+                from . import notify_sources  # the administrators hear of it like a sensitive run that was not confirmed, whatever the schedule
+
+                meta = conn.execute("SELECT created_by, updated_by FROM schedule_meta WHERE schedule_id = ?", (sid,)).fetchone()
+                name = str(model.normalize(item_of(cached)).get("name") or "") if cached is not None else ""
+                notify_sources.on_schedule_run(conn, sid, name, "not_confirmed", True, [e["entity_id"] for e in invalid], (meta["updated_by"] or meta["created_by"]) if meta else None, run_id)
+            ha_sync.publish({"type": "schedules_changed"})
+            return
         skipped = cached is not None and self._conditions_fail(conn, item_of(cached), slot)
         cur = conn.execute("INSERT OR IGNORE INTO schedule_runs(id, schedule_id, slot_index, started_at, settled_at, result, sensitive, via, detail_json) VALUES (?,?,?,?,?,?,?, 'component', ?)",
                            (run_id, sid, slot, _iso(now), _iso(now) if skipped else None, "skipped" if skipped else "pending", sensitive, json.dumps({"entities": [], "conditions": False}) if skipped else None))
@@ -681,7 +702,7 @@ def settle_runs(conn: sqlite3.Connection, now: dt.datetime | None = None) -> int
             sched_name = str(core.get("name") or "")
             slot = next((s for s in core["slots"] if s["index"] == run["slot_index"]), None)
             slots = [slot] if slot is not None else ([core["slots"][0]] if len(core["slots"]) == 1 else [])
-            entities = [_judge_action(conn, a) for s in slots for a in s["actions"] if a["entity_id"]]
+            entities = [_judge_action(conn, a, run["started_at"]) for s in slots for a in s["actions"] if a["entity_id"]]
             result = _overall([e["result"] for e in entities])
         conn.execute("UPDATE schedule_runs SET result = ?, settled_at = ?, detail_json = ? WHERE id = ?", (result, _iso(now), json.dumps({"entities": entities}, ensure_ascii=False), run["id"]))
         settled += 1
@@ -703,7 +724,7 @@ def _overall(results: list[str]) -> str:
     return "confirmed" if all(r == "confirmed" for r in known) else "not_confirmed"
 
 
-def _judge_action(conn: sqlite3.Connection, action: dict[str, Any]) -> dict[str, Any]:
+def _judge_action(conn: sqlite3.Connection, action: dict[str, Any], started_at: str | None = None) -> dict[str, Any]:
     eid, service, data = action["entity_id"], action["service"], action["data"]
     r = conn.execute("SELECT state, attributes_json, available FROM ha_entities WHERE entity_id = ?", (eid,)).fetchone()
     if r is None or not r["available"] or r["state"] in (None, "unavailable"):
@@ -712,6 +733,14 @@ def _judge_action(conn: sqlite3.Connection, action: dict[str, Any]) -> dict[str,
         attrs = json.loads(r["attributes_json"] or "{}")
     except ValueError:
         attrs = {}
+    if service in ("script.turn_on", "scene.turn_on") and started_at:
+        # a script reports `last_triggered`, a scene's state IS the moment it was last activated: a stamp at or after the run's start confirms it
+        stamp_ = attrs.get("last_triggered") if service == "script.turn_on" else r["state"]
+        at, start = _parse(stamp_) if isinstance(stamp_, str) else None, _parse(started_at)
+        if at is None or start is None:
+            return {"entity_id": eid, "expected": None, "observed": None, "result": "unknown"}
+        ok = at >= start - dt.timedelta(seconds=5)
+        return {"entity_id": eid, "expected": "triggered", "observed": stamp_, "result": "confirmed" if ok else "not_confirmed"}
     spec = ha_bridge.ACTIONS.get(service)
     if not spec:
         return {"entity_id": eid, "expected": None, "observed": r["state"], "result": "unknown"}

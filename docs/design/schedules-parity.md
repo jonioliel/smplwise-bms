@@ -49,6 +49,10 @@ Status column: **same** = the schedules screen now uses the same element / class
 | 30 | RTL Hebrew | logical properties, `bidi()` on names, numbers isolated | Same (`bidi()` added on names, floors, tags) | same |
 | 31 | Branding | no Home Assistant / HA wording on operator screens | none | same |
 | 32 | Floors / areas tree | automations and scenes show the floors as chips and group scenes by area; no tree | floors as chips; grouping by area or floor | same |
+| 33 | Script / scene / helper actions (2026-10-04, `docs/design/schedules-more-actions.md`) | the script / scene editors | the slot panel's action select lists only what the entity reports; a script's variables are fields under "משתני הסקריפט" (`.vars`, the same `sw-field`-style inputs as the other arguments); the picker shows the new classes with their own icons | same (the editors' own pattern) |
+| 34 | An action that is no longer valid | none | a `.chip.warn` "פעולה לא תקפה" on the card (the reason as its title), the drawer's warning banner, "הרץ עכשיו" refused with the reason | kept (capability) |
+| 35 | Review: acknowledge a warning | none | beside an acknowledgeable chip a `.linkbtn` "אשר כתקין" (system administrator); an acknowledged one becomes a muted `.chip.acked` "אושר" with "בטל אישור"; 44 px targets on touch / phone | kept (capability) |
+| 36 | Settings: disarm in schedules | none | a card "נטרול אזעקה בתזמונים" with the `sw-toggle`; switching on opens an `sw-dialog` asking for the typed word | same (the settings pages' pattern) |
 
 ## Contradiction recorded (owner to confirm)
 

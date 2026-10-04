@@ -1,4 +1,4 @@
-"""Schedule policy for `smplwise_bridge.schedule` (CR-014, bridge 0.3.0): what the bridge accepts for the scheduler
+"""Schedule policy for `smplwise_bridge.schedule` (CR-014, bridge 0.3.0; more actions in 0.6.1): what the bridge accepts for the scheduler
 component, decided WITHOUT trusting the add-on. Dependency-free (standard library only) so the same functions run inside
 Home Assistant Core and in plain unit tests, like `signing.py`.
 
@@ -71,6 +71,11 @@ FORBIDDEN_KEYS = frozenset({"code", "alarm_code", "pin", "pin_code", "password",
 
 HVAC_MODES = ("off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only")
 
+# 0.6.1: a script's `variables` - a flat object of plain values (no code key: find_forbidden_key walks it too)
+MAX_VARS = 10
+MAX_VAR_TEXT = 200
+VAR_KEY_RE = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
+
 # ---------------------------------------------------------------- the allow-list (contract 5.2)
 
 
@@ -130,6 +135,22 @@ ACTION_ARGS: dict[str, tuple[Arg, ...]] = {
     "lock.unlock": (),
     # the door layer's buttons (a plain button is not schedulable; the add-on decides which are door buttons)
     "button.press": (),
+    # 0.6.1 (schedules: more actions): tilt, swing / humidity, scripts (variables only), scenes, helpers, humidifiers, vacuums. The add-on
+    # judges each against the entity's own capabilities first; here the shapes and ranges are checked again without trusting it.
+    "cover.open_cover_tilt": (),
+    "cover.close_cover_tilt": (),
+    "climate.set_swing_mode": (_a("swing_mode", "str", 1, 40, required=True),),
+    "climate.set_humidity": (_a("humidity", "int", 0, 100, required=True),),
+    "script.turn_on": (_a("variables", "vars"),),
+    "scene.turn_on": (),
+    "input_boolean.turn_on": (),
+    "input_boolean.turn_off": (),
+    "input_number.set_value": (_a("value", "float", -1e9, 1e9, required=True),),
+    "input_select.select_option": (_a("option", "str", 1, 80, required=True),),
+    "humidifier.set_humidity": (_a("humidity", "int", 0, 100, required=True),),
+    "humidifier.set_mode": (_a("mode", "str", 1, 40, required=True),),
+    "vacuum.start": (),
+    "vacuum.return_to_base": (),
 }
 
 SCHEDULE_ACTION_SERVICES: frozenset[tuple[str, str]] = frozenset(tuple(sid.split(".", 1)) for sid in ACTION_ARGS)  # type: ignore[misc]
@@ -239,10 +260,30 @@ def _check_arg(arg: Arg, value: Any, path: str) -> None:
         ok = _is_str(value) and value in arg.choices
     elif arg.type == "str":
         ok = _valid_text(value, int(arg.hi or 0), min_len=int(arg.lo or 0))
+    elif arg.type == "vars":
+        ok = _valid_vars(value)
     else:  # unknown spec type: never accept
         ok = False
     if not ok:
         raise PolicyError("argument_not_allowed", path)
+
+
+def _valid_vars(value: Any) -> bool:
+    """0.6.1: a script's variables - at most MAX_VARS keys like field keys, each a plain value (text without control characters, a finite
+    number, true / false). Nothing nested: a variable is never a structure a caller could smuggle a call through."""
+    if not isinstance(value, Mapping) or len(value) > MAX_VARS:
+        return False
+    for k, v in value.items():
+        if not (_is_str(k) and VAR_KEY_RE.match(k)):
+            return False
+        if isinstance(v, bool):
+            continue
+        if _is_str(v):
+            if not _valid_text(v, MAX_VAR_TEXT):
+                return False
+        elif not _is_number(v):
+            return False
+    return True
 
 
 def validate_service_data(service_id: str, data: Any, path: str) -> None:

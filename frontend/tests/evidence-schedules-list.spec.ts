@@ -143,10 +143,10 @@ test.describe('the schedules list (demo mode)', () => {
     await ready(page);
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'קברניט']);
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
-    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(14);
     await expect(scr(page).locator('h1[data-sched-title]')).toHaveText('תזמונים');
-    await expect(scr(page).locator('[data-state-filter="enabled"] small')).toHaveText('10');
-    await expect(scr(page).locator('[data-state-filter="all"] small')).toHaveText('13');
+    await expect(scr(page).locator('[data-state-filter="enabled"] small')).toHaveText('11');
+    await expect(scr(page).locator('[data-state-filter="all"] small')).toHaveText('14');
     await expect(scr(page).locator('[data-upcoming]').first()).toBeVisible();
     // the conditional next run says "בתנאי" (never a promise)
     await expect(card(page, '3f9a1c').locator('[data-next-run]')).toContainText('בתנאי');
@@ -159,7 +159,7 @@ test.describe('the schedules list (demo mode)', () => {
     await open(page, '/devices/schedules');
     await ready(page);
     await scr(page).locator('[data-view-btn="table"]').click();
-    await expect(scr(page).locator('[data-sched-table] .tr[data-schedule]')).toHaveCount(13);
+    await expect(scr(page).locator('[data-sched-table] .tr[data-schedule]')).toHaveCount(14);
     await expect.poll(() => hashOf(page)).toContain('view=table');
     await expect(scr(page).locator('.tr[data-schedule="3f9a1c"] schedule-condition-chip')).toHaveCount(1);
     await expect(scr(page).locator('.tr[data-schedule="3f9a1c"] .sr')).toHaveCount(3); // three slots shown, the rest behind "ועוד"
@@ -173,7 +173,7 @@ test.describe('the schedules list (demo mode)', () => {
     await installDoubles(page);
     await open(page, '/devices/schedules?view=week');
     const week = scr(page).locator('schedules-week-view');
-    await expect(week).toHaveAttribute('data-count', '13');
+    await expect(week).toHaveAttribute('data-count', '14');
     await expect(week).toHaveAttribute('data-snap', '15');
     await week.evaluate((el) => el.dispatchEvent(new CustomEvent('open-schedule', { detail: { id: '4d6e0a' }, bubbles: true })));
     await expect.poll(() => hashOf(page)).toContain('/devices/schedules/4d6e0a');
@@ -223,7 +223,7 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(cards).toHaveCount(1);
     await expect.poll(() => hashOf(page)).toContain('q=');
     await scr(page).locator('[data-filter="q"]').fill('');
-    await expect(cards).toHaveCount(13);
+    await expect(cards).toHaveCount(14);
 
     await scr(page).locator('[data-chip-preset="not_holy_days"]').click();
     await expect(cards).toHaveCount(3);
@@ -232,7 +232,7 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(cards).toHaveCount(3);
     await scr(page).locator('[data-chip-has-cond]').click();
     await scr(page).locator('[data-clear-filters]').first().click();
-    await expect(cards).toHaveCount(13);
+    await expect(cards).toHaveCount(14);
 
     await scr(page).locator('[data-chip-tag="שבת-חג"]').click();
     await expect(cards).toHaveCount(4);
@@ -265,14 +265,14 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(second).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => hashOf(page)).toContain(`floor=${encodeURIComponent(id ?? '')}`);
     await floors.first().click();
-    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(14);
     // the state segments (folded behind "סינון" on the phone, like the automations screen's)
     if (!(await scr(page).locator('[data-state-filter="disabled"]').isVisible())) await scr(page).locator('[data-filters-toggle]').click();
     await scr(page).locator('[data-state-filter="disabled"]').click();
     await expect(cardsOf(page)).toHaveCount(3);
     await expect.poll(() => hashOf(page)).toContain('state=disabled');
     await scr(page).locator('[data-state-filter="all"]').click();
-    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(14);
   });
 
   test('the card: the automation card\'s shape - the name opens the drawer, the "⋯" menu lists what the caller may do', async ({ page }) => {
@@ -299,7 +299,7 @@ test.describe('the schedules list (demo mode)', () => {
     await scr(page).locator('[data-filter="q"]').fill('zzzz');
     await expect(scr(page).locator('[data-sched-state="no-match"]')).toBeVisible();
     await scr(page).locator('[data-sched-state="no-match"] [data-clear-filters]').click();
-    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(14);
   });
 
   test('a card toggle switches the schedule; the bulk bar disables several at once; a lowering schedule is enabled one by one', async ({ page }) => {
@@ -353,15 +353,15 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(drawer.locator('[data-copy-name]')).toHaveValue('העתק של תריס אולם – קיץ');
     await drawer.locator('[data-copy-confirm]').click();
     await expect(drawer.locator('sw-drawer')).toHaveAttribute('heading', 'העתק של תריס אולם – קיץ');
-    await expect(cardsOf(page)).toHaveCount(14);
+    await expect(cardsOf(page)).toHaveCount(15);
 
     await drawer.locator('[data-drawer-delete]').click();
     await drawer.locator('[data-delete-confirm]').click();
     await expect.poll(() => hashOf(page)).toBe('#/devices/schedules');
-    await expect(cardsOf(page)).toHaveCount(13);
+    await expect(cardsOf(page)).toHaveCount(14);
     await expect(scr(page).locator('[data-sched-note]')).toContainText('נמחק');
     await scr(page).locator('[data-note-action]').click();
-    await expect(cardsOf(page)).toHaveCount(14);
+    await expect(cardsOf(page)).toHaveCount(15);
   });
 
   test('the trash: the deleted schedule with its remaining days, restore', async ({ page }, info) => {
@@ -383,9 +383,23 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(scr(page).locator('[data-issue="owner_lost_rights"]')).toBeVisible();
     await expect(scr(page).locator('[data-issue="unsupported_content"]')).toBeVisible();
     await shot(page, '11-review', info);
-    await scr(page).locator('input[data-review-select="a0f4c9"]').check();
+    await scr(page).locator('input[data-review-select="6e2d90"]').check();
     await scr(page).locator('[data-review-disable]').click();
     await expect(scr(page).locator('[data-sched-note]')).toContainText('הושבתו 1');
+  });
+
+  test('the review list: an administrator acknowledges a warning ("אושר"), and undoes it', async ({ page }, info) => {
+    await open(page, '/devices/schedules/review');
+    const row = scr(page).locator('[data-review-item="6e2d90"]');
+    await expect(row.locator('[data-issue="unsupported_content"]')).toBeVisible();
+    await expect(scr(page).locator('[data-review-item="d8e3a7"] [data-ack]')).toHaveCount(0); // "owner lost rights" is not acknowledgeable
+    await row.locator('[data-ack="unsupported_content"]').click();
+    await expect(row.locator('[data-acked="unsupported_content"]')).toHaveText(/אושר/);
+    await expect(row.locator('[data-issue="unsupported_content"]')).toHaveCount(0);
+    await shot(page, '11b-review-acknowledged', info);
+    await row.locator('[data-unack="unsupported_content"]').click();
+    await expect(row.locator('[data-issue="unsupported_content"]')).toBeVisible();
+    await expect(row.locator('[data-acked]')).toHaveCount(0);
   });
 });
 
@@ -486,7 +500,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await expect(s.locator('[data-schedules-settings]')).toBeVisible();
     await expect(s.locator('[data-component-line]')).toContainText('גרסה 3.3.8');
     await expect(s.locator('[data-shabbat-sensor] option')).toContainText(['ללא חיישן', 'איסור מלאכה']); // the suggested sensor first, in its own group
-    await expect(s.locator('[data-class]')).toHaveCount(8);
+    await expect(s.locator('[data-class]')).toHaveCount(13); // 2026-10-04: + scripts, scenes, helpers, humidifiers, vacuums
     await expect(s.locator('[data-sched-roles] tbody tr')).toHaveCount(5);
     await shot(page, '12-settings', info);
     await expect(s.locator('[data-settings-bar]')).toHaveCount(0);
@@ -500,6 +514,26 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await expect(s.locator('[data-settings-save]')).toHaveCount(0);
     await s.locator('[data-help-toggle]').click();
     await expect(s.locator('[data-help]')).toContainText('2024.11.0');
+  });
+
+  test('הגדרות › תזמונים: disarming in schedules is off by default and needs the typed word to switch on', async ({ page }, info) => {
+    await open(page, '/system/schedules');
+    const s = page.locator('sw-app system-schedules');
+    const card = s.locator('[data-sched-disarm]');
+    await expect(card).toContainText('חסום');
+    await card.locator('[data-allow-disarm]').locator('button').click();
+    const dlg = s.locator('[data-disarm-confirm]');
+    await expect(dlg.locator('[data-disarm-word]')).toBeVisible();
+    await expect(dlg.locator('[data-disarm-ok] button')).toBeDisabled();
+    await dlg.locator('[data-disarm-word]').fill('אפשר');
+    await expect(dlg.locator('[data-disarm-ok] button')).toBeDisabled();
+    await dlg.locator('[data-disarm-word]').fill('אפשר נטרול');
+    await shot(page, '12b-settings-disarm-confirm', info);
+    await dlg.locator('[data-disarm-ok]').click();
+    await expect(s.locator('[data-disarm-confirm]')).toHaveCount(0);
+    await expect(card).toContainText('מאופשר');
+    await card.locator('[data-allow-disarm]').locator('button').click(); // off needs no word
+    await expect(card).toContainText('חסום');
   });
 
   test('הגדרות › תזמונים: a sensor that is not a calendar one is confirmed before it is saved', async ({ page }) => {
