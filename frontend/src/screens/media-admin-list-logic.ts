@@ -26,11 +26,76 @@ export interface ListView {
   group: GroupKey;
   /** Group ids folded by the user. */
   collapsed: string[];
+  /** The user's column choices (only the ones that differ from the default); a missing key means the per-width default. */
+  cols: ColPrefs;
 }
+
+/** The optional columns (name, the edit key, approval are always there). `room` shows "floor › room" until `floor` has a column of its own. */
+export type ColKey = 'type' | 'integration' | 'entityId' | 'deviceId' | 'room' | 'floor' | 'status' | 'connections';
+export type ColPrefs = Partial<Record<ColKey, boolean>>;
+export const COL_KEYS: ColKey[] = ['type', 'integration', 'entityId', 'deviceId', 'room', 'floor', 'status', 'connections'];
+export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 'אינטגרציה', entityId: 'מזהה ישות', deviceId: 'מזהה התקן', room: 'חדר', floor: 'קומה', status: 'מצב', connections: 'חיבורים' };
+/** Table widths: `wide` above 1280 px, `md` (tablet) from 861 to 1280 px; at 860 px and below the rows are cards and every column choice is ignored. */
+export type Bp = 'wide' | 'md';
+export const BREAKPOINT_MD = 1280;
+export const BREAKPOINT_PHONE = 860;
+
+/** Today's behaviour: everything shows, except the separate floor column, and the room on a tablet width. */
+export function defaultVisible(k: ColKey, bp: Bp): boolean {
+  if (k === 'floor') return false;
+  if (k === 'room') return bp === 'wide';
+  return true;
+}
+
+export function colVisible(prefs: ColPrefs, k: ColKey, bp: Bp): boolean {
+  const p = prefs[k];
+  return typeof p === 'boolean' ? p : defaultVisible(k, bp);
+}
+
+/** The class a cell of this column carries: hw = hidden above 1280 px, hm = hidden from 861 to 1280 px (the card layout ignores both). */
+export function hideClass(prefs: ColPrefs, k: ColKey): string {
+  return [colVisible(prefs, k, 'wide') ? '' : 'hw', colVisible(prefs, k, 'md') ? '' : 'hm'].filter(Boolean).join(' ');
+}
+
+const W: Record<Bp, Record<string, string>> = {
+  wide: { x: 'var(--hit)', name: 'minmax(150px, 1.5fr)', type: '96px', integration: '130px', id: 'minmax(200px, 1.9fr)', floor: '110px', room: 'minmax(110px, 1fr)', status: '90px', ap: '64px', connections: '110px' },
+  md: { x: 'var(--hit)', name: 'minmax(130px, 1.4fr)', type: '84px', integration: '110px', id: 'minmax(170px, 1.7fr)', floor: '100px', room: 'minmax(100px, 1fr)', status: '80px', ap: '60px', connections: '104px' },
+};
+
+/** The grid template of one width for the user's choices (the id column exists while either id shows). */
+export function gridColumns(prefs: ColPrefs, bp: Bp): string {
+  const on = (k: ColKey) => colVisible(prefs, k, bp);
+  const w = W[bp];
+  const parts = [w.x, w.name];
+  if (on('type')) parts.push(w.type);
+  if (on('integration')) parts.push(w.integration);
+  if (on('entityId') || on('deviceId')) parts.push(w.id);
+  if (on('floor')) parts.push(w.floor);
+  if (on('room')) parts.push(w.room);
+  if (on('status')) parts.push(w.status);
+  parts.push(w.ap);
+  if (on('connections')) parts.push(w.connections);
+  return parts.join(' ');
+}
+
+/** The classes the table carries so the room cell drops its "floor ›" prefix at the widths where the floor has its own column. */
+export function floorSplitClass(prefs: ColPrefs): string {
+  return [colVisible(prefs, 'floor', 'wide') ? 'fl-w' : '', colVisible(prefs, 'floor', 'md') ? 'fl-m' : ''].filter(Boolean).join(' ');
+}
+
+/** A choice is stored only when it differs from the default at the width the user is looking at; choosing the default again forgets it. */
+export function setColPref(prefs: ColPrefs, k: ColKey, on: boolean, bp: Bp): ColPrefs {
+  const next = { ...prefs };
+  if (on === defaultVisible(k, bp)) delete next[k];
+  else next[k] = on;
+  return next;
+}
+
+export const hasColPrefs = (prefs: ColPrefs): boolean => Object.keys(prefs).length > 0;
 
 export const NO_AREA = '__none__';
 export const NO_INTEGRATION = '__none__';
-export const DEFAULT_VIEW: ListView = { q: '', integrations: [], area: '', type: '', approval: 'all', avail: 'all', sort: 'name', dir: 'asc', group: 'none', collapsed: [] };
+export const DEFAULT_VIEW: ListView = { q: '', integrations: [], area: '', type: '', approval: 'all', avail: 'all', sort: 'name', dir: 'asc', group: 'none', collapsed: [], cols: {} };
 export const SORT_KEYS: SortKey[] = ['name', 'type', 'integration', 'area', 'id', 'status'];
 export const GROUP_KEYS: GroupKey[] = ['none', 'integration', 'area', 'type'];
 
@@ -181,6 +246,13 @@ export function isFiltered(v: ListView): boolean {
 
 const KEY = 'sw.media-admin.view.';
 
+function parseCols(x: unknown): ColPrefs {
+  const o = (x && typeof x === 'object' && !Array.isArray(x) ? x : {}) as Record<string, unknown>;
+  const out: ColPrefs = {};
+  for (const k of COL_KEYS) if (typeof o[k] === 'boolean') out[k] = o[k] as boolean;
+  return out;
+}
+
 /** Coerces anything stored (old version, hand-edited, another type) to a valid view. */
 export function parseView(raw: unknown): ListView {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -198,6 +270,7 @@ export function parseView(raw: unknown): ListView {
     dir: pick(o.dir, ['asc', 'desc'] as const, 'asc'),
     group: pick(o.group, GROUP_KEYS, 'none'),
     collapsed: strs(o.collapsed),
+    cols: parseCols(o.cols),
   };
 }
 

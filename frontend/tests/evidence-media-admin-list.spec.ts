@@ -211,6 +211,82 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     await expect(screens(page).locator('[data-mm-admin-device]').first()).toBeVisible();
   });
 
+  test('columns control: show / hide room, floor, ids and the rest; remembered per list; keyboard; hidden on the phone', async ({ page }) => {
+    await go(page);
+    const list = screens(page);
+    const first = st.admin.find((d) => d.kind === 'screen')!;
+    const ctl = list.locator('[data-mm-cols]');
+    if (phone(page) && test.info().project.name === 'mobile') {
+      await expect(ctl).toBeHidden();
+      await expect(row(page, first.key).locator('.c-area')).toBeVisible(); // the cards keep every field
+      return;
+    }
+    // the tablet project opens at 820 px (cards); the table band the control is for starts above 860 px
+    const width = test.info().project.name === 'tablet' ? 1024 : 1440;
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(300);
+    const wide = width > 1280;
+    const roomCell = row(page, first.key).locator('.c-area');
+    if (wide) await expect(roomCell).toBeVisible();
+    else await expect(roomCell).toBeHidden(); // today's default: the room hides on a tablet width
+    await ctl.focus();
+    await page.keyboard.press('Enter');
+    const panel = list.locator('[data-mm-cols-panel]');
+    await expect(panel).toBeVisible();
+    await expect(ctl).toHaveAttribute('aria-expanded', 'true');
+    await expect(panel.locator('[data-mm-col]')).toHaveCount(8);
+    await expect(panel.locator('[data-mm-col="room"]')).toBeChecked({ checked: wide });
+    await expect(list.locator('[data-mm-cols-reset]')).toHaveCount(0); // nothing chosen yet
+    // the room: flip it from the keyboard
+    await panel.locator('[data-mm-col="room"]').focus();
+    await page.keyboard.press('Space');
+    if (wide) await expect(roomCell).toBeHidden();
+    else await expect(roomCell).toBeVisible();
+    // the floor gets its own column, the room comes back; the grid keeps its geometry (no horizontal overflow)
+    await panel.locator('[data-mm-col="floor"]').check();
+    await panel.locator('[data-mm-col="room"]').setChecked(true);
+    await expect(row(page, first.key).locator('.c-fl')).toBeVisible();
+    await expect(roomCell).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    // ids and the connections count
+    await panel.locator('[data-mm-col="entityId"]').uncheck();
+    await expect(row(page, first.key).locator('[data-mm-entity-id]')).toBeHidden();
+    await expect(row(page, first.key).locator('[data-mm-device-id]')).toBeVisible();
+    await panel.locator('[data-mm-col="connections"]').uncheck();
+    await expect(row(page, first.key).locator('[data-mm-toggle-endpoints]')).toBeHidden();
+    await expect(list.locator('.th.c-cn')).toBeHidden(); // the header follows the cells
+    // the grid has one track per visible header cell
+    const tracks = await list.locator('.thead').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    const cells = await list.locator('.thead > .th').evaluateAll((els) => els.filter((e) => getComputedStyle(e).display !== 'none').length);
+    expect(tracks).toBe(cells);
+    // Escape closes and returns the focus to the button
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await expect(ctl).toBeFocused();
+    // remembered for this list only, across a reload
+    await page.reload();
+    await page.waitForSelector('sw-app');
+    await expect(row(page, first.key).locator('[data-mm-toggle-endpoints]')).toBeHidden();
+    await expect(row(page, first.key).locator('.c-fl')).toBeVisible();
+    await expect(players(page).locator('[data-mm-admin-device]').first().locator('[data-mm-toggle-endpoints]')).toBeVisible();
+    // reset returns to today's behaviour
+    await list.locator('[data-mm-cols]').click();
+    await list.locator('[data-mm-cols-reset]').click();
+    await expect(row(page, first.key).locator('[data-mm-toggle-endpoints]')).toBeVisible();
+    await expect(row(page, first.key).locator('.c-fl')).toBeHidden();
+    if (wide) await expect(row(page, first.key).locator('.c-area')).toBeVisible();
+    else await expect(row(page, first.key).locator('.c-area')).toBeHidden();
+    // an outside click closes the panel
+    await expect(list.locator('[data-mm-cols-panel]')).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(list.locator('[data-mm-cols-panel]')).toBeHidden();
+    // screenshot with the floor column on
+    fs.mkdirSync(OUT, { recursive: true });
+    await list.locator('[data-mm-cols]').click();
+    await list.locator('[data-mm-cols-panel] [data-mm-col="floor"]').check();
+    await page.screenshot({ path: path.join(OUT, `columns-${width}-${test.info().project.name}.png`) });
+  });
+
   test('the phone shows cards; nothing leaves the page; screenshots', async ({ page }) => {
     await go(page);
     await expect(screens(page).locator('[data-mm-admin-device]').first()).toBeVisible();

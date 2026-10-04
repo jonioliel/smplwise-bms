@@ -7,7 +7,7 @@
  * Both sections (`<system-multimedia>` and `<system-multimedia-players>`) draw their rows with `adminTable()` and share `mediaAdminListCss`.
  */
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dropdown';
 import '../components/sw-icon';
@@ -16,7 +16,8 @@ import '../components/sw-toggle';
 import type { DropdownItem } from '../components/sw-dropdown';
 import type { AdminDevice } from '../api/media-admin';
 import {
-  DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, isFiltered, optionsOf,
+  BREAKPOINT_MD, COL_KEYS, COL_LABEL, DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, colVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, isFiltered, optionsOf, setColPref,
+  type Bp, type ColKey,
   type AvailFilter, type ApprovalFilter, type Group, type GroupKey, type ListView, type LiveAvail, type RowFacts, type SortKey,
 } from './media-admin-list-logic';
 
@@ -33,6 +34,32 @@ export class MediaAdminToolbar extends LitElement {
   @property({ type: Number }) shown = 0;
   /** `data-` scope of the two lists on one screen. */
   @property() scope = '';
+  @state() private colsOpen = false;
+  /** The width class the table is in right now (the columns panel shows what the table shows). */
+  @state() private bp: Bp = 'wide';
+  private mq?: MediaQueryList;
+  private readonly onMq = () => { this.bp = this.mq?.matches ? 'md' : 'wide'; };
+  private readonly onDocDown = (e: Event) => {
+    if (this.colsOpen && !e.composedPath().includes(this)) this.colsOpen = false;
+  };
+
+  connectedCallback() {
+    super.connectedCallback();
+    try {
+      this.mq = window.matchMedia(`(max-width: ${BREAKPOINT_MD}px)`);
+      this.onMq();
+      this.mq.addEventListener('change', this.onMq);
+    } catch {
+      /* no matchMedia: the wide defaults */
+    }
+    document.addEventListener('pointerdown', this.onDocDown, true);
+  }
+
+  disconnectedCallback() {
+    this.mq?.removeEventListener('change', this.onMq);
+    document.removeEventListener('pointerdown', this.onDocDown, true);
+    super.disconnectedCallback();
+  }
 
   static styles = css`
     :host {
@@ -102,6 +129,72 @@ export class MediaAdminToolbar extends LitElement {
       min-block-size: var(--hit);
       padding-inline: 6px;
     }
+    .colswrap {
+      position: relative;
+    }
+    .colspanel {
+      position: absolute;
+      inset-block-start: calc(100% + 4px);
+      inset-inline-end: 0;
+      z-index: 5;
+      display: grid;
+      gap: 2px;
+      min-inline-size: 190px;
+      padding: 6px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 10px;
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.18));
+    }
+    .colspanel.flip {
+      inset-inline-end: auto;
+      inset-inline-start: 0;
+    }
+    .colopt {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: var(--hit);
+      padding-inline: 8px;
+      border-radius: 6px;
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
+      cursor: pointer;
+    }
+    .colopt:hover {
+      background: var(--sw-surface-2);
+    }
+    .colopt:focus-within {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .colopt input {
+      inline-size: 16px;
+      block-size: 16px;
+      margin: 0;
+      accent-color: var(--sw-accent);
+    }
+    .colreset {
+      border: 0;
+      background: none;
+      color: var(--sw-accent-text);
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+      min-block-size: var(--hit);
+      text-align: start;
+      padding-inline: 8px;
+    }
+    .colreset:focus-visible,
+    .ib[aria-expanded='true'] {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: 1px;
+    }
+    @media (max-width: 860px) {
+      .colswrap {
+        display: none;
+      }
+    }
     .ints {
       display: flex;
       flex-wrap: wrap;
@@ -161,6 +254,43 @@ export class MediaAdminToolbar extends LitElement {
     this.emit({ integrations: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
   }
 
+  /** The panel hangs from the button's end edge; when that pushes it out of the window (the button wrapped to the start of a row) it hangs from the other edge. */
+  protected override updated(): void {
+    const panel = this.renderRoot.querySelector<HTMLElement>('[data-mm-cols-panel]');
+    if (!panel) return;
+    panel.classList.remove('flip');
+    const out = () => { const r = panel.getBoundingClientRect(); return r.left < 4 || r.right > window.innerWidth - 4; };
+    if (out()) {
+      panel.classList.add('flip');
+      if (out()) panel.classList.remove('flip');
+    }
+  }
+
+  private pickCol(k: ColKey, on: boolean) {
+    this.emit({ cols: setColPref(this.view.cols, k, on, this.bp) });
+  }
+
+  private onColsKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && this.colsOpen) {
+      e.stopPropagation();
+      this.colsOpen = false;
+      this.renderRoot.querySelector<HTMLElement>('[data-mm-cols]')?.focus();
+    }
+  }
+
+  private columnsControl() {
+    const v = this.view;
+    return html`<div class="colswrap" @keydown=${(e: KeyboardEvent) => this.onColsKey(e)}>
+      <button type="button" class="ib" data-mm-cols aria-label="עמודות" title="עמודות" aria-haspopup="true" aria-expanded=${String(this.colsOpen)} aria-controls=${`cols-panel-${this.scope}`}
+        @click=${() => { this.colsOpen = !this.colsOpen; }}><sw-icon name="grid" size="16"></sw-icon></button>
+      ${this.colsOpen ? html`<div class="colspanel" id=${`cols-panel-${this.scope}`} role="group" aria-label="עמודות" data-mm-cols-panel>
+        ${COL_KEYS.map((k) => html`<label class="colopt"><input type="checkbox" data-mm-col=${k} .checked=${colVisible(v.cols, k, this.bp)}
+          @change=${(e: Event) => this.pickCol(k, (e.target as HTMLInputElement).checked)} />${COL_LABEL[k]}</label>`)}
+        ${hasColPrefs(v.cols) ? html`<button type="button" class="colreset" data-mm-cols-reset @click=${() => this.emit({ cols: {} })}>ברירת מחדל</button>` : nothing}
+      </div>` : nothing}
+    </div>`;
+  }
+
   render() {
     const v = this.view;
     const o = optionsOf(this.devices, this.live);
@@ -183,6 +313,7 @@ export class MediaAdminToolbar extends LitElement {
       <button type="button" class="ib" data-mm-dir aria-label=${v.dir === 'asc' ? 'סדר עולה, לחץ להיפוך' : 'סדר יורד, לחץ להיפוך'} @click=${() => this.emit({ dir: v.dir === 'asc' ? 'desc' : 'asc' })}>
         <sw-icon name=${v.dir === 'asc' ? 'arrowUp' : 'arrowDown'} size="16"></sw-icon></button>
       <sw-dropdown label="קיבוץ" data-mm-group .items=${groupItems} .value=${v.group} @change=${(e: CustomEvent<{ id: string }>) => this.emit({ group: e.detail.id as GroupKey, collapsed: [] })}></sw-dropdown>
+      ${this.columnsControl()}
       ${isFiltered(v) ? html`<button type="button" class="clear" data-mm-clear @click=${() => this.emit({ q: '', integrations: [], area: '', type: '', approval: 'all', avail: 'all' })}>נקה סינון</button>` : nothing}
       <span class="count" data-mm-shown role="status">${this.shown === this.devices.length ? `${this.devices.length}` : `${this.shown} מתוך ${this.devices.length}`}</span>
     </div>
@@ -217,17 +348,27 @@ export interface TableCtx {
   none: string;
 }
 
-const COLS: { key: SortKey | 'x'; label: string; cls: string }[] = [
-  { key: 'x', label: '', cls: 'c-x' }, { key: 'name', label: 'שם', cls: 'c-name' }, { key: 'type', label: 'סוג', cls: 'c-type' },
-  { key: 'integration', label: 'אינטגרציה', cls: 'c-int' }, { key: 'id', label: 'מזהה', cls: 'c-id' }, { key: 'area', label: 'חדר', cls: 'c-area' },
-  { key: 'status', label: 'מצב', cls: 'c-st' }, { key: 'x', label: 'מאושר', cls: 'c-ap' }, { key: 'x', label: 'חיבורים', cls: 'c-cn' },
+const COLS: { key: SortKey | 'x'; label: string; cls: string; opt?: ColKey | 'id' }[] = [
+  { key: 'x', label: '', cls: 'c-x' }, { key: 'name', label: 'שם', cls: 'c-name' }, { key: 'type', label: 'סוג', cls: 'c-type', opt: 'type' },
+  { key: 'integration', label: 'אינטגרציה', cls: 'c-int', opt: 'integration' }, { key: 'id', label: 'מזהה', cls: 'c-id', opt: 'id' }, { key: 'x', label: 'קומה', cls: 'c-fl', opt: 'floor' },
+  { key: 'area', label: 'חדר', cls: 'c-area', opt: 'room' },
+  { key: 'status', label: 'מצב', cls: 'c-st', opt: 'status' }, { key: 'x', label: 'מאושר', cls: 'c-ap' }, { key: 'x', label: 'חיבורים', cls: 'c-cn', opt: 'connections' },
 ];
+
+/** The hide classes of a cell: its own column's, or (the id column) the ones both ids share. */
+function hideOf(cols: ListView['cols'], opt: ColKey | 'id' | undefined): string {
+  if (!opt) return '';
+  if (opt !== 'id') return hideClass(cols, opt);
+  const a = hideClass(cols, 'entityId').split(' ');
+  const b = hideClass(cols, 'deviceId').split(' ');
+  return a.filter((c) => c && b.includes(c)).join(' ');
+}
 
 function head(ctx: TableCtx): TemplateResult {
   const v = ctx.view;
-  return html`<div class="thead" role="row">${COLS.map((c) => c.key === 'x'
-    ? html`<div role="columnheader" class=${`th ${c.cls}`}>${c.label}</div>`
-    : html`<div role="columnheader" class=${`th ${c.cls}`} aria-sort=${v.sort === c.key ? (v.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+  return html`<div class="thead" role="row">${COLS.map((c) => ({ ...c, h: hideOf(v.cols, c.opt) })).map((c) => c.key === 'x'
+    ? html`<div role="columnheader" class=${`th ${c.cls} ${c.h}`}>${c.label}</div>`
+    : html`<div role="columnheader" class=${`th ${c.cls} ${c.h}`} aria-sort=${v.sort === c.key ? (v.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
         <button type="button" class="sortb" data-mm-th=${c.key} @click=${() => ctx.onView({ ...v, sort: c.key as SortKey, dir: v.sort === c.key && v.dir === 'asc' ? 'desc' : 'asc' })}>${c.label}${v.sort === c.key ? html`<sw-icon name=${v.dir === 'asc' ? 'arrowUp' : 'arrowDown'} size="12"></sw-icon>` : nothing}</button></div>`)}</div>`;
 }
 
@@ -236,24 +377,28 @@ function row(ctx: TableCtx, d: AdminDevice, f: RowFacts): TemplateResult {
   const conn = ctx.endpoints.has(d.key);
   const st = ctx.status ? ctx.status(d, f) : f.available === null ? null : f.available ? { kind: 'ok' as const, label: 'זמין' } : { kind: 'stale' as const, label: 'לא זמין' };
   const extra = f.integrations.length - 1;
+  const cols = ctx.view.cols;
+  const hz = (k: ColKey) => hideClass(cols, k);
+  const hid = hideOf(cols, 'id');
   return html`<div class=${`item${editing ? ' sel' : ''}`} role="rowgroup" data-mm-admin-device=${d.key}>
     <div class="tr" role="row">
       <div role="cell" class="c c-x"><button type="button" class="eb" data-mm-edit=${d.key} aria-expanded=${String(editing)} aria-label=${`${editing ? 'סגור עריכה' : 'עריכה'}: ${d.name}`} @click=${() => ctx.onEdit(d.key)}>
         <sw-icon name=${editing ? 'chevronDown' : 'chevronBack'} size="14"></sw-icon></button></div>
       <div role="cell" class="c c-name"><span class="nm" title=${d.name} data-mm-row-name=${d.key}>${d.name}</span>${ctx.saved === d.key ? html`<span class="ok" role="status">נשמר</span>` : nothing}</div>
-      <div role="cell" class="c c-type"><span class="lb">סוג</span>${ctx.typeLabel(d)}</div>
-      <div role="cell" class="c c-int" data-mm-int-cell=${d.key}><span class="lb">אינטגרציה</span>${f.integrations.length
+      <div role="cell" class=${`c c-type ${hz('type')}`}><span class="lb">סוג</span>${ctx.typeLabel(d)}</div>
+      <div role="cell" class=${`c c-int ${hz('integration')}`} data-mm-int-cell=${d.key}><span class="lb">אינטגרציה</span>${f.integrations.length
         ? html`<span class="mono" title=${f.integrations.join(', ')}>${f.primary}</span>${extra > 0 ? html`<span class="more">+${extra}</span>` : nothing}` : html`<span class="muted">—</span>`}</div>
-      <div role="cell" class="c c-id" data-mm-id-cell=${d.key}>
-        ${f.entityId ? html`<span class="idl"><span class="mono" title=${f.entityId} data-mm-entity-id>${f.entityId}</span>
+      <div role="cell" class=${`c c-id ${hid}`} data-mm-id-cell=${d.key}>
+        ${f.entityId ? html`<span class=${`idl ${hz('entityId')}`}><span class="mono" title=${f.entityId} data-mm-entity-id>${f.entityId}</span>
           <button type="button" class="cp" data-mm-copy=${d.key} aria-label=${`העתק מזהה: ${f.entityId}`} @click=${() => ctx.onCopy(f.entityId)}><sw-icon name="copy" size="14"></sw-icon></button></span>` : nothing}
-        ${f.deviceId ? html`<span class="idl"><span class="mono dim" title=${f.deviceId} data-mm-device-id>${f.deviceId}</span>
+        ${f.deviceId ? html`<span class=${`idl ${hz('deviceId')}`}><span class="mono dim" title=${f.deviceId} data-mm-device-id>${f.deviceId}</span>
           <button type="button" class="cp" data-mm-copy-device=${d.key} aria-label=${`העתק מזהה התקן: ${f.deviceId}`} @click=${() => ctx.onCopy(f.deviceId)}><sw-icon name="copy" size="14"></sw-icon></button></span>` : nothing}
         ${!f.entityId && !f.deviceId ? html`<span class="muted">—</span>` : nothing}</div>
-      <div role="cell" class="c c-area"><span class="lb">חדר</span>${f.area ? [d.floor_name, f.area].filter(Boolean).join(' › ') : html`<span class="muted">—</span>`}</div>
-      <div role="cell" class="c c-st" data-mm-status=${d.key}>${st ? html`<sw-badge kind=${st.kind} label=${st.label}></sw-badge>` : html`<span class="muted">—</span>`}</div>
+      <div role="cell" class=${`c c-fl ${hz('floor')}`} data-mm-floor-cell=${d.key}>${d.floor_name ? html`<span class="floor" title=${d.floor_name}>${d.floor_name}</span>` : html`<span class="muted">—</span>`}</div>
+      <div role="cell" class=${`c c-area ${hz('room')}`}><span class="lb">חדר</span>${f.area ? html`${d.floor_name ? html`<span class="fp">${d.floor_name} › </span>` : nothing}${f.area}` : html`<span class="muted">—</span>`}</div>
+      <div role="cell" class=${`c c-st ${hz('status')}`} data-mm-status=${d.key}>${st ? html`<sw-badge kind=${st.kind} label=${st.label}></sw-badge>` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class="c c-ap"><sw-toggle label=${`מאושר: ${d.name}`} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => ctx.onApprove(d, e.detail.checked)}></sw-toggle></div>
-      <div role="cell" class="c c-cn"><button type="button" class="cnb" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(conn)} @click=${() => ctx.onEndpoints(d.key)}>חיבורים (${d.endpoints.length}) ${conn ? '▴' : '◂'}</button></div>
+      <div role="cell" class=${`c c-cn ${hz('connections')}`}><button type="button" class="cnb" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(conn)} @click=${() => ctx.onEndpoints(d.key)}>חיבורים (${d.endpoints.length}) ${conn ? '▴' : '◂'}</button></div>
     </div>
     ${editing || conn ? html`<div class="detail" role="row"><div role="cell" class="dcell">
       ${editing ? ctx.form(d) : nothing}${conn ? ctx.connections(d) : nothing}</div></div>` : nothing}
@@ -272,7 +417,7 @@ function groupHead(ctx: TableCtx, g: Group): TemplateResult {
 export function adminTable(ctx: TableCtx): TemplateResult {
   const { groups, shown } = buildView(ctx.devices, ctx.view, ctx.live);
   return html`<media-admin-toolbar scope=${ctx.scope} .devices=${ctx.devices} .view=${ctx.view} .live=${ctx.live} .shown=${shown} @view-change=${(e: CustomEvent<ListView>) => ctx.onView(e.detail)}></media-admin-toolbar>
-    <div class="tbl" role="table" aria-label=${ctx.scope === 'screens' ? 'מסכים' : 'נגנים ורמקולים'} data-mm-table=${ctx.scope}>
+    <div class=${`tbl ${floorSplitClass(ctx.view.cols)}`} style=${`--cols-w: ${gridColumns(ctx.view.cols, 'wide')}; --cols-m: ${gridColumns(ctx.view.cols, 'md')}`} role="table" aria-label=${ctx.scope === 'screens' ? 'מסכים' : 'נגנים ורמקולים'} data-mm-table=${ctx.scope}>
       ${head(ctx)}
       ${shown === 0 ? html`<div class="none muted" data-mm-no-match>${ctx.devices.length ? 'אין התאמות לסינון' : ctx.none}</div>` : nothing}
       ${ctx.view.group === 'none'
@@ -287,7 +432,32 @@ export const mediaAdminListCss = css`
     --hit: var(--sw-touch-desktop, 36px);
     display: block;
     margin-block-start: 10px;
-    --cols: var(--hit) minmax(150px, 1.5fr) 96px 130px minmax(200px, 1.9fr) minmax(110px, 1fr) 90px 64px 110px;
+    --cols: var(--cols-w);
+  }
+  /* the user's column choices (columns control in the toolbar): hw = hidden above 1280 px, hm = hidden on a tablet width; the phone cards ignore both */
+  @media (min-width: 1281px) {
+    .hw {
+      display: none !important;
+    }
+    .tbl.fl-w .fp {
+      display: none;
+    }
+  }
+  @media (min-width: 861px) and (max-width: 1280px) {
+    .hm {
+      display: none !important;
+    }
+    .tbl.fl-m .fp {
+      display: none;
+    }
+  }
+  .fp {
+    color: var(--sw-text-3);
+  }
+  .floor {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .thead,
   .tr {
@@ -466,11 +636,7 @@ export const mediaAdminListCss = css`
   }
   @media (max-width: 1280px) {
     .tbl {
-      --cols: var(--hit) minmax(130px, 1.4fr) 84px 110px minmax(170px, 1.7fr) 80px 60px 104px;
-    }
-    .c-area,
-    .th.c-area {
-      display: none;
+      --cols: var(--cols-m);
     }
   }
   @media (max-width: 1100px) {
@@ -479,7 +645,8 @@ export const mediaAdminListCss = css`
     }
   }
   @media (max-width: 860px) {
-    .thead {
+    .thead,
+    .c-fl {
       display: none;
     }
     .tr {
