@@ -1717,7 +1717,8 @@ def install() -> None:
     real_handle = httpx.HTTPTransport.handle_request
 
     def handle_request(self: Any, request: Any) -> Any:
-        if request.url.host == FAKE_MA_HOST:  # CR-016 phase 2b: the direct Music Assistant connection
+        # CR-016 phase 2b: the direct Music Assistant connection. Since section 18 the client connects to the CHECKED address and names the server in the Host header.
+        if request.url.host == FAKE_MA_HOST or request.headers.get("host", "").split(":")[0] == FAKE_MA_HOST:
             if MODEL.ma_down:
                 raise httpx.ConnectError("media_fake_ha: the fake Music Assistant server is down", request=request)
             status, answer = ma_http(request.method, request.url.path, request.headers, request.content)
@@ -1742,6 +1743,12 @@ def install() -> None:
         return real_handle(self, request)
 
     httpx.HTTPTransport.handle_request = handle_request  # type: ignore[method-assign]
+
+    from smplwise.services import connection_probe
+
+    real_resolve = connection_probe.RESOLVE
+    # the address check (CR-016 section 18) wants a private LAN address: the fake music server lives at a documentation-style LAN address, no DNS is asked
+    connection_probe.RESOLVE = lambda host: ["192.168.1.50"] if host == FAKE_MA_HOST else real_resolve(host)  # type: ignore[assignment]
 
     def connect(url: str, **_kw: Any) -> Any:
         if threading.current_thread().name == "ha-sync":  # only the HA sync gets the fake Home Assistant

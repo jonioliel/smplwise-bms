@@ -755,6 +755,16 @@ def put_ma_connection(request: Request, background: BackgroundTasks, principal: 
     cleared`, `enabled`) and never a value."""
     body: MaConnectionBody = _parse(request, raw, MaConnectionBody)
     fields = {f: getattr(body, f) for f in body.model_fields_set}
+    if fields.get("url") not in (None, ""):  # SSRF defences before anything is stored: scheme, no user-info, a private LAN address (CR-016 section 18)
+        try:
+            new_url = ma_direct.validate_url(fields["url"])
+            with unlocked(conn):  # the name lookup runs without the request's write lock
+                ma_direct.check_address(new_url)
+        except ApiError as exc:
+            if exc.code in ("host_refused", "port_refused", "host_unresolved"):
+                audit(conn, actor=principal, action="media.ma_connection", decision="denied", resource_type="installation", resource_id="*", reason=exc.code,
+                      request_id=_rid(request), details={"op": "update", "outcome": exc.code})
+            raise
     view, changed = ma_direct.update_config(conn, fields)
     audit(conn, actor=principal, action="media.ma_connection", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"op": "update", **changed})
@@ -765,7 +775,13 @@ def put_ma_connection(request: Request, background: BackgroundTasks, principal: 
 
 @router.post("/multimedia/admin/ma-connection/test")
 def test_ma_connection(request: Request, principal: Principal = Depends(_configure_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """"בדוק חיבור": the server's schema gate and the number of players the account sees (no names). Audited with the state only."""
+    """"בדוק חיבור": the address check, the server's schema gate and the number of players the account sees (no names). Audited with the state only.
+    5 tests a minute per user and 20 per installation (the NVR connection test's numbers); one hard time budget."""
+    wait = request.app.state.ma_test_limiter.take(principal.user_id or principal.username or "?")
+    if wait:
+        audit(conn, actor=principal, action="media.ma_connection", decision="denied", resource_type="installation", resource_id="*", reason="rate_limited",
+              request_id=_rid(request), details={"op": "test", "outcome": "rate_limited"})
+        raise ApiError(429, "rate_limited", f"יותר מדי בדיקות חיבור; אפשר לנסות שוב בעוד {wait} שניות.", retryable=True, details={"retry_after_s": wait})
     with unlocked(conn):
         out = ma_direct.probe(conn)
     ma_direct.save_test(conn, out)

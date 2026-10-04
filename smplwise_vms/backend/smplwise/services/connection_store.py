@@ -146,20 +146,18 @@ def _aad(recorder_id: str, field: str) -> bytes:
     return f"{recorder_id}|{field}".encode("utf-8")
 
 
-def encrypt(settings: Settings, recorder_id: str, field: str, plaintext: str) -> str:
-    if field not in SECRET_FIELDS:
-        raise SecretError("not a secret field")
+def _seal(settings: Any, aad: bytes, plaintext: str) -> str:
     try:
         key = _load_or_create_key(settings, create=True)
     except OSError:
         raise SecretError("the connection key cannot be created") from None
     assert key is not None
     nonce = secrets.token_bytes(12)
-    ct = AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), _aad(recorder_id, field))
+    ct = AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), aad)
     return "v1:" + base64.b64encode(nonce + ct).decode("ascii")
 
 
-def decrypt(settings: Settings, recorder_id: str, field: str, blob: str) -> str:
+def _open(settings: Any, aad: bytes, blob: str) -> str:
     try:
         key = _load_or_create_key(settings, create=False)
     except OSError:
@@ -170,9 +168,47 @@ def decrypt(settings: Settings, recorder_id: str, field: str, blob: str) -> str:
         raw = base64.b64decode(blob[3:], validate=True)
         if len(raw) < 12 + 16:
             raise ValueError("short")
-        return AESGCM(key).decrypt(raw[:12], raw[12:], _aad(recorder_id, field)).decode("utf-8")
+        return AESGCM(key).decrypt(raw[:12], raw[12:], aad).decode("utf-8")
     except (InvalidTag, ValueError, UnicodeDecodeError):
         raise SecretError("the stored connection secret cannot be read") from None
+
+
+def encrypt(settings: Settings, recorder_id: str, field: str, plaintext: str) -> str:
+    if field not in SECRET_FIELDS:
+        raise SecretError("not a secret field")
+    return _seal(settings, _aad(recorder_id, field), plaintext)
+
+
+def decrypt(settings: Settings, recorder_id: str, field: str, blob: str) -> str:
+    return _open(settings, _aad(recorder_id, field), blob)
+
+
+# ---------------------------------------------------------------- other services' secrets (the music server token, CR-016 section 18)
+# The same key file and the same `v1:` format; the associated data is `"<kind>|<id>|<field>"`, which can never equal a recorder's
+# `"<recorder_id>|<field>"` (one separator only), so a blob moved between an NVR row and another service does not decrypt.
+
+class _Home:
+    """The key location of a data folder when no Settings object is at hand (the key file is `<data>/keys/connections.key`)."""
+
+    def __init__(self, data_dir: Path) -> None:
+        self.data_dir = data_dir
+
+
+SERVICE_FIELDS = {("music_assistant", "default", "token")}
+
+
+def _service_aad(kind: str, ident: str, field: str) -> bytes:
+    if (kind, ident, field) not in SERVICE_FIELDS:
+        raise SecretError("not a secret field")
+    return f"{kind}|{ident}|{field}".encode("utf-8")
+
+
+def seal_service_secret(data_dir: Path, kind: str, ident: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _service_aad(kind, ident, field), plaintext)
+
+
+def open_service_secret(data_dir: Path, kind: str, ident: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _service_aad(kind, ident, field), blob)
 
 
 # ---------------------------------------------------------------- rows

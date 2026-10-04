@@ -693,3 +693,41 @@ between rooms stay on the bridge. Screens: a tap on a row plays it; "בחר" tur
 question; "נקה תור" asks which clear ("נקה את הבאים - השיר הנוכחי ממשיך" / "נקה הכול - הניגון ייעצר").
 Unverified against a real server (build from documentation): the command names above, `play_index` accepting a queue item id, and whether
 a deleted row that MA already buffered is refused.
+
+## 18. Music hardening: encrypted token, checked address, local-only, hard budget (added 2026-10-04; unreleased)
+
+Owner-approved part of the direct Music Assistant connection (sections 17.3 and 17.5 are amended where stated here). No migration, no new table.
+
+- **Token at rest.** The write-only token is encrypted with the NVR connection's store (`services/connection_store`: AES-256-GCM, the key file
+  `<data>/keys/connections.key`, `v1:` blobs). Associated data `music_assistant|default|token` (a recorder's blob is `<recorder_id>|<field>`, so a blob
+  never decrypts in the other place). It is kept as `token_enc` inside the setting `multimedia.ma_direct`, which stays out of every backup (and the key
+  folder never enters one). Never returned, logged or audited; the plaintext exists only inside one outgoing call. The NVR blobs are unchanged.
+  Honest limit (as CR-022 3.3): the key sits beside the database - this protects a leaked database or backup, not a reader of the whole data folder.
+- **One-time move.** At start-up (`ma_direct.migrate_legacy_token`, after the migrations) a plain `<data>/secrets/music_assistant_token` of an older
+  version is encrypted into `token_enc`, read back and compared, and only then deleted; one `media.ma_connection` audit row `{op: token_import, token:
+  moved}`. A failure keeps the file (the connection keeps working from it, one fixed log line, never a value) and the next start tries again. A file
+  found next to an existing blob (a downgrade that was upgraded again) is newer and wins. Saving or clearing a token also removes a leftover file.
+- **Downgrade note.** Going back to a version before this one: that version reads only the plain file, so the direct connection shows "not set" until the
+  token is pasted again in Settings (which writes the plain file again); nothing else is affected, the encrypted blob is ignored. Upgrading again moves the
+  newer file into the store as above. Restoring a backup never brings the token back (as before).
+- **Unreadable.** A blob that does not decrypt (key lost, data folder copied to another machine) is the state `unreadable`: direct features off, the
+  settings card asks for the token again, start-up never fails. New states: `unreadable`, `host_refused`.
+- **Address (SSRF).** `http`/`https` only, no user-info, path, query or fragment (as before) plus `ma_direct.check_address`: the NVR connection's source
+  policy (no loopback, unspecified, link-local, metadata, the platform's internal network, trusted proxies, this host or its name, shared address space,
+  numeric spellings, NAT64/6to4) AND the resolved address must be a private LAN address (10/8, 172.16/12, 192.168/16, fc00::/7). The platform's own ports
+  and MA's Ingress port 8094 are refused. 422 `host_refused` / `port_refused` / `host_unresolved` (a name that does not resolve: "enter the IP"), each
+  an audited `denied` row with the reason only. The name is resolved ONCE and the call connects to the checked address (Host header and SNI keep the
+  name, no redirects, no proxy from the environment); the check repeats at least every 60 s, so a DNS answer that turns bad is refused (`host_refused`,
+  nothing sent). Residual risk: a change inside the 60 s window is not followed until the window ends (the call keeps using the address it checked).
+  `https` with a certificate that does not match the name fails (no "ignore certificate" switch).
+- **Local only.** `/api/v1/multimedia/admin/ma-connection` (and `/test`) are in `remote_channel.BLOCKED_ON_REMOTE` (404 on the remote channel). Queue
+  reads and edits on the remote channel are unchanged (open owner question).
+- **Budget and rates.** Every call (address check, schema gate, command) runs inside ONE wall-clock budget (`BUDGET_S` = 10 s): every socket read and
+  write waits at most the time left (the NVR probe's deadline backend), and a trickling answer is cut. The 2 MB answer cap stays. Rates stay: edits per
+  device and per user, rows removed one by one 50 a second per installation (burst 200), search 0.5/s. The test route is 5 a minute per user and 20 per
+  installation (429 `rate_limited`, audited).
+- **Hebrew refusals.** A 503 `ma_unavailable` carries the state and one clear sentence per state (`ma_direct.STATE_MESSAGES_HE`): off, unreachable,
+  unauthorized, schema too old, unreadable, host refused, error.
+- **Permissions.** Unchanged: `system.configure` for the connection, answered 403 (audited) before the body is read (`read_gate`).
+- **Tests.** `tests/test_media_ma_hardening.py` (fakes only, failure injection: key failure, failed move, database failure during the move, DNS change,
+  redirect, trickling answer, silent socket) and the updated `tests/test_media_ma_direct.py`, `tests/test_remote_access.py`.
