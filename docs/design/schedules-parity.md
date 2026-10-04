@@ -42,7 +42,7 @@ Status column: **same** = the schedules screen now uses the same element / class
 | 23 | Trash | user menu "סל מחזור" (registerScreenEdit) opening a drawer | user menu "סל מחזור" (registerScreenEdit), opening the existing trash page `.../trash` in the same frame (back button + title, glass rows, restore, purge for administrators) | deviation: the page and its address are kept (old links, the 30-day list with purge); the entry point is the same |
 | 24 | Review list | none | `.../review`, same frame and rows, bulk disable in the `.editbar` | kept (capability) |
 | 25 | "Today" | none | one quiet glass row with the runs still to come today (time, name, "בתנאי", tone dot) above the cards / table; not in the week view | kept (capability) |
-| 26 | Phone | header grid (title, rows of chips), kinds full width, state filter folded, search + סינון + חדש on one row, one card column, 44 px targets | Same layout; the view switch sits beside the title | same |
+| 26 | Phone | header grid (title, rows of chips), kinds full width, state filter folded, search + סינון + חדש on one row, one card column, 44 px targets | Same layout; the view switch shares the floors' row, so the title row and the segment strip stay exactly where the automations screen has them | same |
 | 27 | Tablet / desktop | auto-fill grid `minmax(360px)`, header in two rows | Same | same |
 | 28 | Skins | classic / domus / tesla: the glass material (light / dark by `devices.scheme`); bubble: the bubble knobs and bubble-chrome | Same mechanism, same result | same |
 | 29 | Light / dark | glass light / dark from `devices.scheme`, not the app theme (bubble follows its own scheme) | Same | same |

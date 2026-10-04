@@ -197,6 +197,9 @@ export class DevicesSchedules extends LitElement {
       font-weight: 700;
       color: var(--dv-accent-text);
     }
+    .vwrap {
+      flex: none;
+    }
     .views button {
       padding-inline: 12px;
       min-inline-size: 40px;
@@ -669,6 +672,25 @@ export class DevicesSchedules extends LitElement {
       }
     }
     @media (max-width: 767px) {
+      /* the phone: the view switch shares the floors' row (the title row keeps the automations screen's height, so the
+         segment strip below stays in place when switching between the two screens) */
+      .dh-row {
+        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
+        grid-template-areas: 't t .' 'r f f';
+      }
+      .dh-row .rooms {
+        margin-inline-end: 0;
+        padding-inline-end: 6px;
+      }
+      .dh-row .vwrap {
+        grid-area: f;
+        align-self: center;
+      }
+      .dh.compact .vwrap {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
       .dh-det {
         gap: 10px;
       }
@@ -1184,7 +1206,7 @@ export class DevicesSchedules extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
-        ${tools && all.length ? html`<div class="flwrap">${this.viewSwitch()}</div>` : nothing}
+        ${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
       </div>
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
