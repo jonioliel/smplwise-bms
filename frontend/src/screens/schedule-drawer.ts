@@ -3,10 +3,10 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
-import '../components/sw-button';
-import '../components/sw-icon';
-import '../components/sw-toggle';
 import '../components/sw-schedule-bar';
+import { aIcon } from '../components/automation-icons';
+import { automationsStyles } from '../styles/automations-glass';
+import { applyAutomationsGlass } from '../api/automations-demo';
 import { ApiError } from '../api/client';
 import { isApi } from '../api/session';
 import { DEMO_SUN } from '../api/schedules-mock';
@@ -64,9 +64,26 @@ type Dialog =
 export class ScheduleActions extends LitElement {
   @state() private dialog: Dialog | null = null;
 
-  static styles = css`
+  static styles = [...automationsStyles, css`
     :host {
       display: contents;
+    }
+    /* the confirmations carry the sheet material, as on the automations screen */
+    sw-dialog {
+      --sw-surface: var(--mm-sheet-surface);
+      --sw-glass-blur: var(--mm-sheet-blur);
+    }
+    .dlgform {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-block-start: 4px;
+    }
+    .dlgrow {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
     }
     .slots {
       display: flex;
@@ -75,49 +92,56 @@ export class ScheduleActions extends LitElement {
     }
     label.opt {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       align-items: flex-start;
-      padding: 8px 10px;
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm);
-      font-size: var(--sw-fs-sm);
+      min-block-size: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--dv-border);
+      border-radius: 14px;
+      background: var(--dv-surface);
+      font-size: 14px;
       cursor: pointer;
     }
     label.opt:has(input:checked) {
-      border-color: var(--sw-accent);
-      background: var(--sw-accent-soft);
+      border-color: color-mix(in srgb, var(--dv-accent) 55%, transparent);
+      background: var(--dv-accent-soft);
     }
     label.opt small {
       display: block;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--dv-text-2);
+      font-size: 12.5px;
     }
     label.check {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
-      font-size: var(--sw-fs-sm);
+      min-block-size: 44px;
+      font-size: 14px;
+    }
+    input[type='radio'],
+    input[type='checkbox'] {
+      inline-size: 17px;
+      block-size: 17px;
+      accent-color: var(--dv-accent);
+      margin: 2px 0 0;
     }
     p {
       margin: 0;
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-text-2);
+      font-size: 14px;
+      color: var(--dv-text-2);
     }
     .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-sm);
+      color: var(--dv-danger);
+      font-size: 13px;
+      font-weight: 600;
     }
-    input[type='text'] {
-      inline-size: 100%;
-      box-sizing: border-box;
-      min-block-size: 32px;
-      padding: 5px 10px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-    }
-  `;
+  `];
+
+  connectedCallback() {
+    super.connectedCallback();
+    applyAutomationsGlass(this);
+  }
+
 
   // ---------------------------------------------------------------------------- entry points
 
@@ -157,7 +181,7 @@ export class ScheduleActions extends LitElement {
     try {
       const r = await setScheduleEnabled(s.id, on, opts);
       this.emit('changed', { schedule: r.schedule });
-      this.result(on ? `התזמון "${s.display_name}" הופעל.` : `התזמון "${s.display_name}" הושבת.`);
+      this.result(on ? `"${s.display_name}" הופעל` : `"${s.display_name}" הושבת`);
       return true;
     } catch (err) {
       this.emit('changed', { schedule: null });
@@ -185,7 +209,7 @@ export class ScheduleActions extends LitElement {
         const r = await copySchedule(d.s.id, d.name.trim() || `העתק של ${d.s.display_name}`);
         this.dialog = null;
         this.emit('copied', { schedule: r.schedule });
-        this.result(`נוצר עותק: "${r.schedule.display_name}".`);
+        this.result('שוכפל');
       }
     } catch (err) {
       const stale = err instanceof ApiError && err.code === 'schedule_changed';
@@ -206,7 +230,7 @@ export class ScheduleActions extends LitElement {
         const r = await setScheduleEnabled(d.s.id, true, { confirm_lowering: true, alarm_code: code });
         this.dialog = null;
         this.emit('changed', { schedule: r.schedule });
-        this.result(`התזמון "${d.s.display_name}" הופעל.`);
+        this.result(`"${d.s.display_name}" הופעל`);
       } else {
         const r = await runSchedule(d.s.id, d.slot, { confirm: true, alarm_code: code });
         this.dialog = null;
@@ -232,24 +256,28 @@ export class ScheduleActions extends LitElement {
     this.dialog = null;
   };
 
-  // ---------------------------------------------------------------------------- render
+
+  // ---------------------------------------------------------------------------- render (the automations screen's dialog form: a line, the buttons)
+
+  private buttons(okAttr: string, okLabel: string, busyLabel: string, d: { busy: boolean }, onOk: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) {
+    return html`<div class="dlgrow"><button type="button" class="btn" data-dialog-cancel @click=${this.close}>ביטול</button><button type="button" class=${`btn ${opts.danger ? 'danger' : 'primary'}`} data-dialog-ok data-run-confirm=${okAttr === 'run' ? '' : nothing} data-delete-confirm=${okAttr === 'delete' ? '' : nothing} data-copy-confirm=${okAttr === 'copy' ? '' : nothing} ?disabled=${!!opts.disabled || d.busy} @click=${onOk}>${d.busy ? busyLabel : okLabel}</button></div>`;
+  }
 
   private renderRun(d: Extract<Dialog, { kind: 'run' }>) {
     const s = d.s;
     const lowering = runIsLowering(d.slot === null ? undefined : s.slots[d.slot]);
     const can = d.slot !== null;
-    return html`<sw-dialog open heading=${`הרצה עכשיו · ${s.display_name}`} @close=${this.close}>
+    return html`<sw-dialog open heading=${`להריץ עכשיו את "${s.display_name}"?`} data-dialog="run" @close=${this.close}><div class="dlgform">
       ${s.slots.length > 1
         ? html`<div class="slots" role="radiogroup" aria-label="משבצת להרצה">${s.slots.map(
-            (sl) => html`<label class="opt"><input type="radio" name="slot" .checked=${d.slot === sl.index} @change=${() => (this.dialog = { ...d, slot: sl.index })} data-run-slot=${sl.index} /><span>${windowText(sl)}<small>${slotChips(sl, s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}</small></span></label>`,
+            (sl) => html`<label class="opt"><input type="radio" name="slot" .checked=${d.slot === sl.index} @change=${() => (this.dialog = { ...d, slot: sl.index })} data-run-slot=${sl.index} /><span><span class="n">${windowText(sl)}</span><small>${slotChips(sl, s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}</small></span></label>`,
           )}</div>`
         : html`<p>${s.slots[0] ? `${windowText(s.slots[0])} · ${slotChips(s.slots[0], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}` : ''}</p>`}
-      <p>${runNeedsConfirm(d.slot === null ? undefined : s.slots[d.slot]) ? 'הפעולה תפעיל התקנים פיזיים מיד.' : 'הפעולות של המשבצת ירוצו מיד.'}</p>
+      ${runNeedsConfirm(d.slot === null ? undefined : s.slots[d.slot]) ? html`<p>הפעולה תפעיל התקנים פיזיים מיד.</p>` : nothing}
       ${s.conditions.items.length ? html`<label class="check"><input type="checkbox" .checked=${d.skip} @change=${(e: Event) => (this.dialog = { ...d, skip: (e.target as HTMLInputElement).checked })} data-run-skip />להריץ גם אם התנאים אינם מתקיימים</label>` : nothing}
       ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${this.close}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-run-confirm ?disabled=${!can || d.busy} @click=${() => (lowering ? this.askLoweringForRun(d) : void this.submit())}>${d.busy ? 'מריץ…' : 'הרצה'}</sw-button>
-    </sw-dialog>`;
+      ${this.buttons('run', 'הרץ', 'מריץ…', d, () => (lowering ? this.askLoweringForRun(d) : void this.submit()), { disabled: !can })}
+    </div></sw-dialog>`;
   }
 
   /** A run of a slot that opens or disarms: the lowering confirmation replaces the plain one. */
@@ -262,19 +290,17 @@ export class ScheduleActions extends LitElement {
     if (!d) return nothing;
     if (d.kind === 'run') return this.renderRun(d);
     if (d.kind === 'delete')
-      return html`<sw-dialog open heading="מחיקת תזמון" @close=${this.close}>
-        <p>למחוק את "${d.s.display_name}"? התזמון יפסיק לפעול ויועבר לסל המחזור ל־30 יום, ואפשר לשחזר אותו משם.</p>
+      return html`<sw-dialog open heading=${`למחוק את "${d.s.display_name}"?`} data-dialog="delete" @close=${this.close}><div class="dlgform">
+        <p>התזמון יישמר בסל המחזור 30 יום וניתן לשחזר אותו.</p>
         ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-        <sw-button slot="footer" variant="ghost" @click=${this.close}>ביטול</sw-button>
-        <sw-button slot="footer" variant="danger" data-delete-confirm ?disabled=${d.busy} @click=${() => void this.submit()}>${d.busy ? 'מוחק…' : 'מחיקה'}</sw-button>
-      </sw-dialog>`;
+        ${this.buttons('delete', 'מחיקה', 'מוחק…', d, () => void this.submit(), { danger: true })}
+      </div></sw-dialog>`;
     if (d.kind === 'copy')
-      return html`<sw-dialog open heading="שכפול תזמון" @close=${this.close}>
-        <label class="check" style="flex-direction:column;align-items:stretch">שם העותק<input type="text" maxlength="80" .value=${live(d.name)} data-copy-name @input=${(e: Event) => (this.dialog = { ...d, name: (e.target as HTMLInputElement).value })} /></label>
+      return html`<sw-dialog open heading="שכפול" data-dialog="copy" @close=${this.close}><div class="dlgform">
+        <label class="fld">שם העותק<input class="inp" type="text" maxlength="80" .value=${live(d.name)} data-copy-name @input=${(e: Event) => (this.dialog = { ...d, name: (e.target as HTMLInputElement).value })} /></label>
         ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-        <sw-button slot="footer" variant="ghost" @click=${this.close}>ביטול</sw-button>
-        <sw-button slot="footer" variant="primary" data-copy-confirm ?disabled=${d.busy || !d.name.trim()} @click=${() => void this.submit()}>${d.busy ? 'משכפל…' : 'שכפול'}</sw-button>
-      </sw-dialog>`;
+        ${this.buttons('copy', 'שכפול', 'משכפל…', d, () => void this.submit(), { disabled: !d.name.trim() })}
+      </div></sw-dialog>`;
     // lowering: S4's dialog, by tag (the summary sentence, the checkbox and - when the panel needs it - the code field)
     return html`<schedule-lowering-dialog .open=${true} .summary=${d.summary} .needsCode=${d.needsCode} @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => void this.confirmLowering(e)} @close=${this.close}></schedule-lowering-dialog>`;
   }
@@ -283,10 +309,10 @@ export class ScheduleActions extends LitElement {
 /** A condition line of the drawer: the name, what it must be, and how it stands now (or that it is out of the caller's reach). */
 function conditionLine(c: ConditionView) {
   const want = c.attribute === 'state' && (c.value === 'on' || c.value === 'off') ? `${c.match_type === 'is' ? '' : 'לא '}${c.value === 'on' ? 'פעיל' : 'כבוי'}` : `${MATCH_LABEL[c.match_type]} ${c.value}`;
-  if (!c.readable) return html`<div class="cond" data-condition-locked><span class="cn">${c.name}<small>${want}</small></span><span class="cs muted"><sw-icon name="lock" size=${12}></sw-icon>מחוץ להרשאתך</span></div>`;
+  if (!c.readable) return html`<div class="blk locked cond" data-condition-locked><span class="bi">${aIcon('lock')}</span><span class="bt">${c.name}<small>${want}</small></span><span class="chip">${aIcon('lock')}מחוץ להרשאתך</span></div>`;
   const holds = conditionHolds(c);
   const now = holds === null ? 'לא זמין כרגע' : holds ? 'כרגע: מתקיים' : 'כרגע: לא מתקיים';
-  return html`<div class="cond"><span class="cn">${c.name}<small>${want}</small></span><span class=${holds === true ? 'cs ok' : 'cs muted'}>${now}</span></div>`;
+  return html`<div class="blk cond"><span class="bi">${aIcon('help')}</span><span class="bt">${c.name}<small>${want}</small></span><span class=${holds === true ? 'chip ok' : 'chip'}>${now}</span></div>`;
 }
 
 /**
@@ -307,202 +333,119 @@ export class ScheduleDrawer extends LitElement {
   @state() private conflict = false;
   private runsFor = '';
 
-  static styles = css`
+
+  static styles = [...automationsStyles, css`
     :host {
       display: contents;
     }
+    sw-dialog {
+      --sw-surface: var(--mm-sheet-surface);
+      --sw-glass-blur: var(--mm-sheet-blur);
+    }
     /* the drawer's body is a flex column with a limit (the phone's bottom sheet): nothing in it may shrink to nothing */
-    .banner,
-    .row,
-    .meta,
-    .slots,
-    .list,
-    .tags,
-    .foot,
-    .status,
-    h4,
-    sw-schedule-bar {
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
       flex: none;
     }
-    .banner {
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      padding: 9px 11px;
-      border-radius: var(--sw-r-md);
-      font-size: var(--sw-fs-sm);
-      background: var(--sw-stale-soft);
-      color: #92400e;
-      border: 1px solid #fde3b4;
+    .stack > * {
+      flex: none;
     }
-    .banner.info {
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-      border-color: #d7e4ff;
-    }
-    .banner.bad {
-      background: var(--sw-danger-soft);
-      color: #b91c1c;
-      border-color: #f8caca;
-    }
-    .banner sw-icon {
-      margin-block-start: 1px;
-    }
-    .row {
+    .swrow {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
+      min-block-size: 52px;
+      padding: 8px 14px;
+      border-radius: 14px;
+      background: var(--dv-surface);
+      border: 1px solid var(--dv-border);
+      font-size: 15px;
+      font-weight: 600;
     }
-    .row b {
-      font-size: var(--sw-fs-md);
-    }
-    .meta {
+    .chips {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 8px;
+      gap: 6px;
       align-items: center;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 2px 9px;
-      border-radius: var(--sw-r-pill);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
-    }
-    h4 {
-      margin: 6px 0 0;
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-2);
-    }
-    .slots {
-      border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      overflow: hidden;
-    }
-    .slot {
-      display: grid;
-      grid-template-columns: 96px minmax(0, 1fr);
-      gap: 8px;
-      align-items: start;
-      padding: 8px 11px;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .slot:last-child {
-      border-block-end: 0;
     }
     .slot .w {
-      font-weight: var(--sw-fw-semibold);
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
       direction: ltr;
-      text-align: end;
       unicode-bidi: isolate;
+      flex: none;
+      min-inline-size: 86px;
+      text-align: end;
     }
     .slot .acts {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 4px;
       min-inline-size: 0;
+      flex: 1;
     }
-    .chip {
+    .slot .act {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      max-inline-size: 100%;
+      gap: 7px;
+      min-inline-size: 0;
     }
-    .chip i {
+    .slot .act i {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
       background: var(--c);
       flex: none;
     }
-    .chip small,
-    .cond small {
+    .slot .act small,
+    .slot .bad-note {
       display: block;
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--dv-text-3);
+      font-size: 12px;
     }
-    .slot.bad {
-      background: var(--sw-stale-soft);
-    }
-    .cond {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 7px 10px;
-      background: var(--sw-surface-2);
-      border-radius: var(--sw-r-sm);
-      font-size: var(--sw-fs-sm);
-    }
-    .cs {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      white-space: nowrap;
-      font-size: var(--sw-fs-xs);
-    }
-    .cs.ok {
-      color: #15803d;
-    }
-    .muted {
-      color: var(--sw-text-3);
-    }
-    .list {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+    .blk.slot.bad {
+      border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
+      background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface);
     }
     .li {
       display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 6px 10px;
-      background: var(--sw-surface-2);
-      border-radius: var(--sw-r-sm);
-      font-size: var(--sw-fs-sm);
+      min-block-size: 44px;
+      padding: 8px 12px;
+      border-radius: 14px;
+      background: var(--dv-surface);
+      border: 1px solid var(--dv-border);
+      font-size: 13.5px;
     }
     .li span:last-child {
-      color: var(--sw-text-2);
+      color: var(--dv-text-2);
       font-variant-numeric: tabular-nums;
+      flex: none;
     }
-    .tags {
+    .muted {
+      color: var(--dv-text-3);
+    }
+    .by {
+      font-size: 12.5px;
+      color: var(--dv-text-3);
+    }
+    .foot2 {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 8px;
     }
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 10px;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .foot {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .status {
-      font-size: var(--sw-fs-sm);
-      padding: 6px 10px;
-      border-radius: var(--sw-r-sm);
-      background: var(--sw-success-soft);
-      color: #15803d;
-    }
-    .status.error {
-      background: var(--sw-danger-soft);
-      color: #b91c1c;
-    }
-  `;
+  `];
+
+  connectedCallback() {
+    super.connectedCallback();
+    applyAutomationsGlass(this);
+  }
+
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('schedule') && this.schedule?.id !== this.runsFor) {
@@ -572,54 +515,77 @@ export class ScheduleDrawer extends LitElement {
     return s.read_only?.reasons[0]?.message ?? 'אין הרשאה לפעולה זו.';
   }
 
+
   private renderBody(s: Schedule) {
     const upcoming = s.upcoming.slice(0, 5);
     const readOnly = s.read_only?.reasons ?? [];
-    return html`
-      ${readOnly.length ? html`<div class="banner info" data-drawer-readonly><sw-icon name=${s.sensitive ? 'lock' : 'eye'} size=${16}></sw-icon><span>לקריאה בלבד: ${readOnly[0].message}</span></div>` : nothing}
-      ${this.conflict ? html`<div class="banner bad" role="alert" data-drawer-conflict><sw-icon name="warning" size=${16}></sw-icon><span>התזמון שונה במקום אחר. מוצגת הגרסה העדכנית.</span></div>` : nothing}
-      ${s.warnings.map((w) => html`<div class="banner" data-drawer-warning><sw-icon name="warning" size=${16}></sw-icon><span>${w.message}</span></div>`)}
-      ${this.note ? html`<div class=${this.note.tone === 'error' ? 'status error' : 'status'} role="status" data-drawer-status>${this.note.text}</div>` : nothing}
-      <div class="row"><b>פעיל</b><sw-toggle label="פעיל" labelHidden .checked=${live(s.enabled)} ?disabled=${!s.can.toggle} title=${this.disabledWhy(s, 'toggle')} data-drawer-toggle @change=${(e: CustomEvent<{ checked: boolean }>) => void this.actions?.enable(s, e.detail.checked)}></sw-toggle></div>
-      <sw-schedule-bar .slots=${s.slots} .sun=${isApi() ? null : DEMO_SUN}></sw-schedule-bar>
-      <div class="meta">
-        <sw-day-chips .days=${s.days}></sw-day-chips>
-        ${periodLabel(s) ? html`<span class="pill" data-period><sw-icon name="calendar" size=${12}></sw-icon>${periodLabel(s)}</span>` : nothing}
-        <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
-        <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
-      </div>
-      <h4>משבצות</h4>
-      <div class="slots" data-drawer-slots>
-        ${s.slots.map(
-          (sl) => html`<div class=${sl.supported ? 'slot' : 'slot bad'} data-slot-row=${sl.index}>
-            <span class="w">${windowText(sl)}</span>
-            <span class="acts">${slotChips(sl, s).map(
-              (c) => html`<span class="chip"><i style=${`--c:${toneColor(c.tone)}`}></i><span>${c.label}<small>${c.devices.join(', ')}</small></span></span>`,
-            )}${sl.unsupported.map((u) => html`<small class="muted">${u.message}</small>`)}</span>
-          </div>`,
-        )}
-      </div>
+    const period = periodLabel(s);
+    return html`<div class="stack" data-drawer-detail>
+      ${readOnly.length ? html`<div class="banner info" data-drawer-readonly>${aIcon(s.sensitive ? 'lock' : 'eye')}<div>${readOnly[0].message}</div></div>` : nothing}
+      ${this.conflict ? html`<div class="banner bad" role="alert" data-drawer-conflict>${aIcon('warning')}<div><b>התזמון שונה במקום אחר</b><small>מוצגת הגרסה העדכנית</small></div></div>` : nothing}
+      ${s.warnings.map((w) => html`<div class="banner warn" data-drawer-warning>${aIcon('warning')}<div>${w.message}</div></div>`)}
+      ${this.note ? html`<div class=${`banner ${this.note.tone === 'error' ? 'bad' : 'info'}`} role="status" data-drawer-status>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}<div>${this.note.text}</div></div>` : nothing}
+      <div class="swrow"><span>פעיל</span>${s.can.toggle
+        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label="פעיל" data-drawer-toggle @click=${() => void this.actions?.enable(s, !s.enabled)}></button>`
+        : html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-drawer-toggle-state title=${this.disabledWhy(s, 'toggle')}>${s.enabled ? 'פעיל' : 'מושבת'}</span>`}</div>
+      <section class="sect" data-section="when">
+        <h4>${aIcon('clock')}מתי</h4>
+        <sw-schedule-bar .slots=${s.slots} .sun=${isApi() ? null : DEMO_SUN}></sw-schedule-bar>
+        <div class="chips">
+          <sw-day-chips .days=${s.days}></sw-day-chips>
+          ${period ? html`<span class="chip info" data-period>${aIcon('calendar')}${period}</span>` : nothing}
+          <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
+          <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
+        </div>
+      </section>
+      <section class="sect" data-section="slots">
+        <h4>${aIcon('play')}משבצות <span class="num">${s.slots.length}</span></h4>
+        <div class="stack" style="gap:8px" data-drawer-slots>
+          ${s.slots.map(
+            (sl) => html`<div class=${sl.supported ? 'blk slot' : 'blk slot bad'} data-slot-row=${sl.index}>
+              <span class="w">${windowText(sl)}</span>
+              <span class="acts">${slotChips(sl, s).map(
+                (c) => html`<span class="act"><i style=${`--c:${toneColor(c.tone)}`}></i><span>${c.label}<small>${c.devices.join(', ')}</small></span></span>`,
+              )}${sl.unsupported.map((u) => html`<small class="bad-note">${u.message}</small>`)}</span>
+            </div>`,
+          )}
+        </div>
+      </section>
       ${s.conditions.items.length
-        ? html`<h4>תנאים${s.conditions.items.length > 1 ? (s.conditions.type === 'and' ? ' · כולם' : ' · אחד מהם') : ''}</h4>
-            <div class="list" data-drawer-conditions>${s.conditions.items.map((c) => conditionLine(c))}${s.conditions.track ? html`<small class="muted">ממשיך לבדוק עד סוף החלון</small>` : nothing}</div>`
+        ? html`<section class="sect" data-section="conditions"><h4>${aIcon('help')}תנאים${s.conditions.items.length > 1 ? (s.conditions.type === 'and' ? ' · כולם' : ' · אחד מהם') : ''}</h4>
+            <div class="stack" style="gap:8px" data-drawer-conditions>${s.conditions.items.map((c) => conditionLine(c))}${s.conditions.track ? html`<small class="muted">ממשיך לבדוק עד סוף החלון</small>` : nothing}</div></section>`
         : nothing}
-      <h4>ההרצות הבאות</h4>
-      <div class="list" data-drawer-upcoming>
-        ${upcoming.length
-          ? upcoming.map((u) => html`<div class="li"><span>${s.slots[u.slot_index] ? slotChips(s.slots[u.slot_index], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ') : ''}</span><span>${whenLabel(u.at)}${s.conditions.items.length ? ' · בתנאי' : ''}</span></div>`)
-          : html`<div class="li"><span class="muted">${nextRunText(s)}</span></div>`}
-      </div>
-      <h4>הרצות אחרונות</h4>
-      <div class="list" data-drawer-runs>
-        ${this.runs === null
-          ? html`<div class="li"><span class="muted">טוען…</span></div>`
-          : this.runs.length
-            ? this.runs.map((r) => html`<div class="li"><span>${whenLabel(r.started_at)}${r.via === 'run_now' ? ' · הרצה ידנית' : ''}</span><span>${RESULT_LABEL[r.result]}</span></div>`)
-            : html`<div class="li"><span class="muted">עדיין לא נרשמו הרצות.</span></div>`}
-      </div>
-      ${s.tags.length ? html`<div class="tags">${s.tags.map((t) => html`<span class="tag"><sw-icon name="bookmark" size=${11}></sw-icon>${t}</span>`)}</div>` : nothing}
-      ${s.owner || s.updated_at ? html`<div class="foot">${s.owner ? `עודכן לאחרונה על ידי ${s.owner.display_name}` : 'נוצר מחוץ למערכת'}${s.updated_at ? ` · ${whenLabel(s.updated_at)}` : ''}</div>` : nothing}
-    `;
+      <section class="sect" data-section="upcoming">
+        <h4>${aIcon('calendar')}ההרצות הבאות</h4>
+        <div class="stack" style="gap:6px" data-drawer-upcoming>
+          ${upcoming.length
+            ? upcoming.map((u) => html`<div class="li"><span>${s.slots[u.slot_index] ? slotChips(s.slots[u.slot_index], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ') : ''}</span><span>${whenLabel(u.at)}${s.conditions.items.length ? ' · בתנאי' : ''}</span></div>`)
+            : html`<div class="li"><span class="muted">${nextRunText(s)}</span></div>`}
+        </div>
+      </section>
+      <section class="sect" data-section="runs">
+        <h4>${aIcon('history')}הרצות אחרונות</h4>
+        <div class="stack" style="gap:6px" data-drawer-runs>
+          ${this.runs === null
+            ? html`<div class="li"><span class="muted">טוען…</span></div>`
+            : this.runs.length
+              ? this.runs.map((r) => html`<div class="li"><span>${whenLabel(r.started_at)}${r.via === 'run_now' ? ' · הרצה ידנית' : ''}</span><span>${RESULT_LABEL[r.result]}</span></div>`)
+              : html`<div class="li"><span class="muted">אין הרצות</span></div>`}
+        </div>
+      </section>
+      ${s.tags.length ? html`<div class="chips">${s.tags.map((t) => html`<span class="chip">${aIcon('list')}${t}</span>`)}</div>` : nothing}
+      ${s.owner || s.updated_at ? html`<div class="by">${s.owner ? `עודכן על ידי ${s.owner.display_name}` : 'נוצר מחוץ למערכת'}${s.updated_at ? ` · ${whenLabel(s.updated_at)}` : ''}</div>` : nothing}
+    </div>`;
+  }
+
+  /** The footer: the automation drawer's buttons (עריכה first, primary); a control the caller may not use stays, disabled with the reason. */
+  private footer(s: Schedule) {
+    return html`<div class="foot2" slot="footer">
+      <button type="button" class="btn primary" data-drawer-edit ?disabled=${!s.can.edit} title=${this.disabledWhy(s, 'edit')} @click=${() => this.emit('edit', { id: s.id })}>${aIcon('edit')}עריכה</button>
+      <button type="button" class="btn" data-drawer-run ?disabled=${!s.can.run} title=${this.disabledWhy(s, 'run')} @click=${() => this.actions?.run(s)}>${aIcon('play')}הרץ עכשיו</button>
+      <button type="button" class="btn quiet" data-drawer-copy ?disabled=${!s.can.copy} title=${this.disabledWhy(s, 'copy')} @click=${() => this.actions?.copy(s)}>${aIcon('copy')}שכפול</button>
+      <button type="button" class="btn quiet dz" data-drawer-delete ?disabled=${!s.can.delete} title=${this.disabledWhy(s, 'delete')} @click=${() => this.actions?.askDelete(s)}>${aIcon('trash')}מחיקה</button>
+    </div>`;
   }
 
   render() {
@@ -633,13 +599,10 @@ export class ScheduleDrawer extends LitElement {
       ${s
         ? html`${this.renderBody(s)}
             <schedule-actions .status=${this.status} @result=${this.onResult} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied}></schedule-actions>
-            <sw-button slot="footer" variant="primary" icon="edit" data-drawer-edit ?disabled=${!s.can.edit} title=${this.disabledWhy(s, 'edit')} @click=${() => this.emit('edit', { id: s.id })}>עריכה מלאה</sw-button>
-            <sw-button slot="footer" icon="play" data-drawer-run ?disabled=${!s.can.run} title=${this.disabledWhy(s, 'run')} @click=${() => this.actions?.run(s)}>הרצה עכשיו</sw-button>
-            <sw-button slot="footer" icon="layers" data-drawer-copy ?disabled=${!s.can.copy} title=${this.disabledWhy(s, 'copy')} @click=${() => this.actions?.copy(s)}>שכפול</sw-button>
-            <sw-button slot="footer" variant="danger" icon="trash" data-drawer-delete ?disabled=${!s.can.delete} title=${this.disabledWhy(s, 'delete')} @click=${() => this.actions?.askDelete(s)}>מחיקה</sw-button>`
+            ${this.footer(s)}`
         : this.missing
-          ? html`<div class="banner bad" data-drawer-missing><sw-icon name="warning" size=${16}></sw-icon><span>התזמון לא נמצא. ייתכן שנמחק או שאינו זמין לך.</span></div>`
-          : html`<div class="muted">טוען…</div>`}
+          ? html`<div class="statebox" data-drawer-missing>${aIcon('search', 30)}<b>התזמון לא נמצא</b></div>`
+          : html`<div class="stack" data-drawer-state="loading" aria-busy="true"><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:52px"></span></div>`}
     </sw-drawer>`;
   }
 }

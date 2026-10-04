@@ -58,6 +58,9 @@ import {
   type SunTimes,
 } from '../api/schedules';
 import { navigate, parseRoute } from '../router';
+import { devicesStyleTokens } from './devices-style';
+import { mediaGlassKnobs, mediaBubbleKnobs } from '../styles/media-glass';
+import { applyAutomationsGlass } from '../api/automations-demo';
 import {
   addEntitiesToSlots,
   classOfEntity,
@@ -210,7 +213,7 @@ export class ScheduleEditor extends LitElement {
   private loadedKey = '\u0000';
   private savedOk = false;
 
-  static styles = css`
+  static styles = [...devicesStyleTokens, mediaGlassKnobs, mediaBubbleKnobs, css`
     :host {
       display: block;
       min-block-size: 100%;
@@ -740,12 +743,16 @@ export class ScheduleEditor extends LitElement {
         padding: 5px 9px;
       }
     }
-  `;
+  `];
 
   // ------------------------------------------------------------------------------------------------ lifecycle
 
   connectedCallback() {
     super.connectedCallback();
+    // owner 2026-10-04 (docs/design/schedules-parity.md): the editor wears the automations area's material - the glass knobs bridged
+    // to the v2 tokens every rule below and every nested component reads (styles/devices-themes.ts), light or dark by devices.scheme,
+    // the bubble skin through its knobs. Only the token layer: the editor keeps its own layout (the week board needs the full page).
+    applyAutomationsGlass(this);
     this.mq = window.matchMedia('(max-width: 767px)');
     this.phone = this.mq.matches;
     this.mq.addEventListener('change', this.onMq);

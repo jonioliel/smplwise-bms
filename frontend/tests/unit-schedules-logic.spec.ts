@@ -3,6 +3,9 @@ import { ScheduleDemoStore } from '../src/api/schedules-mock';
 import type { Schedule, ScheduleStatus } from '../src/api/schedules';
 import {
   NO_FILTERS,
+  STATE_SEGMENTS,
+  extraFilterCount,
+  stateCounts,
   actionTone,
   activeFilterCount,
   conditionHolds,
@@ -60,6 +63,17 @@ test('filters round-trip through the address query; unknown values are ignored',
   expect(parseView('week')).toBe('week');
   expect(parseView('grid')).toBeNull();
   expect(activeFilterCount({ ...NO_FILTERS, q: 'a', tag: 't', sort: 'name', group: 'area' })).toBe(2); // sort and group do not narrow
+});
+
+test('the header\'s state segments (the automations screen\'s control): counts that match the filter; "סינון" counts only what it hides', () => {
+  expect(STATE_SEGMENTS.map((s) => s.id)).toEqual(['', 'enabled', 'disabled', 'triggered', 'completed']);
+  const c = stateCounts(items);
+  expect(c['']).toBe(items.length);
+  expect(c.enabled + c.disabled).toBe(items.length);
+  for (const s of STATE_SEGMENTS) expect(c[s.id], s.id).toBe(filterSchedules(items, { ...NO_FILTERS, state: s.id }).length);
+  // the search, the floor chips and the state segments sit in the header: they are not "סינון"'s count
+  expect(extraFilterCount({ ...NO_FILTERS, q: 'x', floor: 'f0', state: 'enabled', sort: 'name', group: 'tag' })).toBe(0);
+  expect(extraFilterCount({ ...NO_FILTERS, area: 'a', day: 'sat', tag: 't', condition: 'c', preset: 'only_holy_days', hasConditions: true })).toBe(6);
 });
 
 test('filtering: text (name, device, area, condition, tag), place, day, state, tag, condition presets', () => {
