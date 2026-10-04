@@ -208,6 +208,7 @@ def test_sampler_series_consumption_and_status(app, monkeypatch):
     for k in range(5):
         set_state(settings, "sensor.main_energy", f"{12345.678 + k * 0.25:.3f}")
         assert _tick(settings, t + dt.timedelta(minutes=k))["samples"] == 1
+    monkeypatch.setattr(ha_sync.STATE, "connected", False)  # other tests leave the shared flag on
     assert energy_sampler.tick(Database(settings.db_path), settings, now=t.timestamp())["skipped"] == "disconnected"  # no session, no sample
     r = c.get(f"{API}/meters/{m['id']}/readings", params={"from": iso(t), "to": iso(t + dt.timedelta(hours=1))})
     assert [i["wh"] for i in r.json()["items"]] == [12345678, 12345928, 12346178, 12346428, 12346678]
