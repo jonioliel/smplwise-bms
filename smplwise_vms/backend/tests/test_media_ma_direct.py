@@ -101,7 +101,11 @@ def lan_resolver(monkeypatch):
     monkeypatch.setattr(connection_probe, "HOSTNAME", lambda: "arx-test-host")
     monkeypatch.setattr(connection_probe, "LOCAL_ADDRESSES", lambda: set(), raising=False)
     ma_direct.SETTINGS[0] = None
+    ma_direct._PINNED.set(None)  # tests that drive the transport by hand set these context variables in the test thread
+    ma_direct._END.set(None)
     yield
+    ma_direct._PINNED.set(None)
+    ma_direct._END.set(None)
     ma_direct.reset()
 
 
