@@ -19,6 +19,15 @@ DEFAULT_STYLE = "auto"
 SIZES: tuple[str, ...] = ("sm", "md", "lg")
 DEFAULT_SIZE = "md"
 
+# Unreleased (owner decisions 2026-10-04, capsule style only): the RING THICKNESS in px (ids are strings: "1", "1.5", "2", "3"; default "2")
+# and the width of the OPEN PANEL (`button` = as wide as the button, or "240" / "300" px at the normal size; default "240", scaled with the
+# size dial in the frontend). Same shape as the size: global + per tab group, installation (`ui.dd_ring`, `ui.dd_ring_groups`, `ui.dd_panel`,
+# `ui.dd_panel_groups`) and personal (/me/prefs; null = follow the installation). Other styles ignore both.
+RINGS: tuple[str, ...] = ("1", "1.5", "2", "3")
+DEFAULT_RING = "2"
+PANELS: tuple[str, ...] = ("button", "240", "300")
+DEFAULT_PANEL = "240"
+
 # How a dropdown opens on a phone (owner decision 2026-10-03): `sheet` = a bottom sheet that slides up (the default, thumb-friendly),
 # `list` = the regular small list under the field. One global value (no per-group override): `ui.dd_phone` as the installation's default
 # and as a user's own choice (null = follow the installation). Presentation only; desktop and tablet widths are unaffected.
@@ -109,3 +118,70 @@ def stored_groups(raw: Any) -> dict[str, str]:
         return normalize_groups(json.loads(raw) if isinstance(raw, str) else raw)
     except (ValueError, TypeError):
         return {}
+
+
+def _normalize_choice(value: Any, allowed: tuple[str, ...], what: str) -> str:
+    if isinstance(value, str) and value in allowed:
+        return value
+    raise ValueError(f"dropdown {what} must be one of {', '.join(allowed)}")
+
+
+def _normalize_choice_groups(value: Any, normalize: Any, what: str) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError(f"dd_{what}_groups must be an object {{group: {what}}}")
+    out: dict[str, str] = {}
+    for group, item in value.items():
+        if group not in GROUPS:
+            raise ValueError(f"unknown tab group: {str(group)[:32]}")
+        out[group] = normalize(item)
+    return {g: out[g] for g in GROUPS if g in out}
+
+
+def _stored_choice(raw: Any, normalize: Any, default: str) -> str:
+    try:
+        return normalize(raw)
+    except ValueError:
+        return default
+
+
+def _stored_choice_groups(raw: Any, normalize_groups_fn: Any) -> dict[str, str]:
+    try:
+        return normalize_groups_fn(json.loads(raw) if isinstance(raw, str) else raw)
+    except (ValueError, TypeError):
+        return {}
+
+
+def normalize_ring(value: Any) -> str:
+    """Exactly one of RINGS (a string, no trimming); else refused. Capsule style only."""
+    return _normalize_choice(value, RINGS, "ring thickness")
+
+
+def normalize_ring_groups(value: Any) -> dict[str, str]:
+    """A per-group override {group: ring}; an unknown group or value is refused; {} = no override."""
+    return _normalize_choice_groups(value, normalize_ring, "ring")
+
+
+def stored_ring(raw: Any) -> str:
+    return _stored_choice(raw, normalize_ring, DEFAULT_RING)
+
+
+def stored_ring_groups(raw: Any) -> dict[str, str]:
+    return _stored_choice_groups(raw, normalize_ring_groups)
+
+
+def normalize_panel(value: Any) -> str:
+    """Exactly one of PANELS (a string, no trimming); else refused. Capsule style only."""
+    return _normalize_choice(value, PANELS, "panel width")
+
+
+def normalize_panel_groups(value: Any) -> dict[str, str]:
+    """A per-group override {group: panel}; an unknown group or value is refused; {} = no override."""
+    return _normalize_choice_groups(value, normalize_panel, "panel")
+
+
+def stored_panel(raw: Any) -> str:
+    return _stored_choice(raw, normalize_panel, DEFAULT_PANEL)
+
+
+def stored_panel_groups(raw: Any) -> dict[str, str]:
+    return _stored_choice_groups(raw, normalize_panel_groups)

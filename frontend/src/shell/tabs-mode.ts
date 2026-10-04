@@ -17,7 +17,7 @@
  * Backend validation: services/dd_style.py.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
-import { DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle } from '../components/dd-style';
+import { DD_PANEL_DEFAULT, DD_PANEL_IDS, DD_RING_DEFAULT, DD_RING_IDS, DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle } from '../components/dd-style';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
@@ -42,7 +42,7 @@ export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 export type { DdStyle };
 export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
 export const DD_STYLE_DEFAULT: DdStyle = 'auto';
-export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כמוסה', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה', capsule: 'קפסולה' };
+export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כדור מלא', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה', capsule: 'קפסולה' };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
 
 /** Unreleased (owner request 2026-10-04): the SIZE of a dropdown, `md` = the reference size. Same shape as the style: global + per tab group,
@@ -53,6 +53,22 @@ export const DD_SIZE_LABEL: Record<DdSize, string> = { sm: 'קטן', md: 'רגי
 export type DdSizeGroups = Partial<Record<TabGroup, DdSize>>;
 export function asDdSize(v: unknown): DdSize | null {
   return typeof v === 'string' && (DD_SIZES as readonly string[]).includes(v) ? (v as DdSize) : null;
+}
+
+/** Unreleased (owner decisions 2026-10-04, capsule style only): the ring thickness and the open-panel width. Same shape as the size dial (global + per tab
+ * group, installation `ui.dd_<key>` / `ui.dd_<key>_groups` and personal /me/prefs, null = follow the installation), kept by one small generic store. Backend twin: services/dd_style.py. */
+export type { DdRing, DdPanel };
+export const DD_RINGS: readonly DdRing[] = DD_RING_IDS;
+export const DD_RING_LABEL: Record<DdRing, string> = { '1': '1 פיקסל', '1.5': '1.5 פיקסל', '2': '2 פיקסלים', '3': '3 פיקסלים' };
+export const DD_PANELS: readonly DdPanel[] = DD_PANEL_IDS;
+export const DD_PANEL_LABEL: Record<DdPanel, string> = { button: 'ברוחב הכפתור', '240': '240 פיקסלים', '300': '300 פיקסלים' };
+export type DdRingGroups = Partial<Record<TabGroup, DdRing>>;
+export type DdPanelGroups = Partial<Record<TabGroup, DdPanel>>;
+export function asDdRing(v: unknown): DdRing | null {
+  return typeof v === 'string' && (DD_RINGS as readonly string[]).includes(v) ? (v as DdRing) : null;
+}
+export function asDdPanel(v: unknown): DdPanel | null {
+  return typeof v === 'string' && (DD_PANELS as readonly string[]).includes(v) ? (v as DdPanel) : null;
 }
 
 /** How a dropdown opens on a PHONE (owner decision 2026-10-03): a bottom sheet (default) or the regular small list under the field.
@@ -261,6 +277,13 @@ export class TabsModeController {
   get ddSize(): DdSize {
     return ddSizeOf(this.group);
   }
+  /** The capsule ring thickness and open-panel width of this group's dropdown chips. */
+  get ddRing(): DdRing {
+    return ddRingOf(this.group);
+  }
+  get ddPanel(): DdPanel {
+    return ddPanelOf(this.group);
+  }
   private tick = () => this.host.requestUpdate();
   hostConnected() {
     this.stop = onTabsMode(this.tick);
@@ -276,6 +299,128 @@ export class TabsModeController {
     this.mq?.removeEventListener('change', this.tick);
     this.mq = null;
   }
+}
+
+type DialGroups<T extends string> = Partial<Record<TabGroup, T>>;
+class Dial<T extends string> {
+  inst: { value: T; groups: DialGroups<T> };
+  own: { value: T | null; groups: DialGroups<T> } = { value: null, groups: {} };
+  constructor(private key: string, private as: (v: unknown) => T | null, private def: T, private cacheKey: string) {
+    this.inst = { value: def, groups: {} };
+  }
+  groupsOf(raw: unknown): DialGroups<T> {
+    let value = raw;
+    if (typeof value === 'string') {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        return {};
+      }
+    }
+    const out: DialGroups<T> = {};
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const g of TAB_GROUPS) {
+        const m = this.as((value as Record<string, unknown>)[g]);
+        if (m) out[g] = m;
+      }
+    }
+    return out;
+  }
+  resolve(group: TabGroup): { value: T; source: TabModeSource } {
+    const og = this.own.groups[group];
+    if (og) return { value: og, source: 'own-group' };
+    if (this.own.value) return { value: this.own.value, source: 'own' };
+    const ig = this.inst.groups[group];
+    if (ig) return { value: ig, source: 'installation-group' };
+    return { value: this.inst.value, source: 'installation' };
+  }
+  setInstallation(settings: Record<string, unknown> | null | undefined): void {
+    this.inst = { value: this.as(settings?.[`ui.dd_${this.key}`]) ?? this.def, groups: this.groupsOf(settings?.[`ui.dd_${this.key}_groups`]) };
+  }
+  private write(u: string, v: { value: T | null; groups: DialGroups<T> }): void {
+    try {
+      if (!v.value && !Object.keys(v.groups).length) localStorage.removeItem(this.cacheKey);
+      else localStorage.setItem(this.cacheKey, JSON.stringify({ u, value: v.value, groups: v.groups }));
+    } catch {
+      /* storage unavailable: the server copy still applies after load */
+    }
+  }
+  loadCache(userId: string): void {
+    this.own = { value: null, groups: {} };
+    try {
+      const raw = localStorage.getItem(this.cacheKey);
+      if (!raw) return;
+      const c = JSON.parse(raw) as { u?: unknown; value?: unknown; groups?: unknown };
+      if (c.u === userId) this.own = { value: this.as(c.value), groups: this.groupsOf(c.groups) };
+    } catch {
+      /* unreadable cache: follow the installation */
+    }
+  }
+  loadServer(userId: string, prefs: Record<string, unknown>, stored: string[]): void {
+    const next = {
+      value: stored.includes(`ui.dd_${this.key}`) ? this.as(prefs[`ui.dd_${this.key}`]) : null,
+      groups: stored.includes(`ui.dd_${this.key}_groups`) ? this.groupsOf(prefs[`ui.dd_${this.key}_groups`]) : {},
+    };
+    this.write(userId, next);
+    this.own = next;
+  }
+  async save(value: T | null, groups: DialGroups<T>): Promise<void> {
+    const before = this.own;
+    this.own = { value, groups };
+    if (user) this.write(user, this.own);
+    notify();
+    if (!remote) return;
+    const who = user;
+    try {
+      await putMyPrefs({ [`ui.dd_${this.key}`]: value, [`ui.dd_${this.key}_groups`]: Object.keys(groups).length ? (groups as Record<string, string>) : null } as Parameters<typeof putMyPrefs>[0]);
+    } catch (err) {
+      if (user !== who) return;
+      this.own = before;
+      if (user) this.write(user, before);
+      notify();
+      throw err;
+    }
+  }
+}
+const ringDial = new Dial<DdRing>('ring', asDdRing, DD_RING_DEFAULT, 'sw.dd.ring');
+const panelDial = new Dial<DdPanel>('panel', asDdPanel, DD_PANEL_DEFAULT, 'sw.dd.panel');
+
+export function resolveDdRing(group: TabGroup): { ring: DdRing; source: TabModeSource } {
+  const r = ringDial.resolve(group);
+  return { ring: r.value, source: r.source };
+}
+/** The ring thickness (px, as an id) a group's capsule dropdowns get now; other styles ignore it. */
+export function ddRingOf(group: TabGroup): DdRing {
+  return ringDial.resolve(group).value;
+}
+export function installationDdRing(): { ring: DdRing; groups: DdRingGroups } {
+  return { ring: ringDial.inst.value, groups: ringDial.inst.groups };
+}
+export function ownDdRing(): { ring: DdRing | null; groups: DdRingGroups } {
+  return { ring: ringDial.own.value, groups: ringDial.own.groups };
+}
+export const saveOwnDdRing = (ring: DdRing | null, groups: DdRingGroups): Promise<void> => ringDial.save(ring, groups);
+export function normalizeDdRingGroups(raw: unknown): DdRingGroups {
+  return ringDial.groupsOf(raw);
+}
+
+export function resolveDdPanel(group: TabGroup): { panel: DdPanel; source: TabModeSource } {
+  const r = panelDial.resolve(group);
+  return { panel: r.value, source: r.source };
+}
+/** The open-panel width a group's capsule dropdowns get now; other styles ignore it. */
+export function ddPanelOf(group: TabGroup): DdPanel {
+  return panelDial.resolve(group).value;
+}
+export function installationDdPanel(): { panel: DdPanel; groups: DdPanelGroups } {
+  return { panel: panelDial.inst.value, groups: panelDial.inst.groups };
+}
+export function ownDdPanel(): { panel: DdPanel | null; groups: DdPanelGroups } {
+  return { panel: panelDial.own.value, groups: panelDial.own.groups };
+}
+export const saveOwnDdPanel = (panel: DdPanel | null, groups: DdPanelGroups): Promise<void> => panelDial.save(panel, groups);
+export function normalizeDdPanelGroups(raw: unknown): DdPanelGroups {
+  return panelDial.groupsOf(raw);
 }
 
 /** The effective phone choice: the user's own over the installation's. */
@@ -324,6 +469,8 @@ export function setInstallationTabsMode(settings: Record<string, unknown> | null
   installation = { mode: asTabMode(settings?.['ui.tabs_mode']) ?? TAB_MODE_DEFAULT, groups: normalizeTabModeGroups(settings?.['ui.tabs_mode_groups']) };
   ddInstallation = { style: asDdStyle(settings?.['ui.dd_style']) ?? DD_STYLE_DEFAULT, groups: normalizeDdStyleGroups(settings?.['ui.dd_style_groups']) };
   ddSizeInstallation = { size: asDdSize(settings?.['ui.dd_size']) ?? DD_SIZE_DEFAULT, groups: normalizeDdSizeGroups(settings?.['ui.dd_size_groups']) };
+  ringDial.setInstallation(settings);
+  panelDial.setInstallation(settings);
   ddPhoneInstallation = asDdPhone(settings?.['ui.dd_phone']) ?? DD_PHONE_DEFAULT;
   notify();
 }
@@ -422,6 +569,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   ddOwn = ddCached && ddCached.u === userId ? { style: ddCached.style, groups: ddCached.groups } : { style: null, groups: {} };
   const sizeCached = readDdSizeCache();
   ddSizeOwn = sizeCached && sizeCached.u === userId ? { size: sizeCached.size, groups: sizeCached.groups } : { size: null, groups: {} };
+  ringDial.loadCache(userId);
+  panelDial.loadCache(userId);
   const phoneCached = readDdPhoneCache();
   ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
@@ -448,6 +597,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     };
     writeDdSizeCache(userId, sizeNext);
     ddSizeOwn = sizeNext;
+    ringDial.loadServer(userId, p.prefs as Record<string, unknown>, stored);
+    panelDial.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
     writeDdPhoneCache(userId, ddPhoneOwn);
     notify();

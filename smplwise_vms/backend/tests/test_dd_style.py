@@ -262,3 +262,93 @@ def test_size_a_database_without_the_key_needs_no_migration(settings):
         s = c.get("/api/v1/settings").json()["settings"]
         assert s["ui.dd_size"] == "md" and s["ui.dd_size_groups"] == {}
         assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.dd_size"] is None
+
+
+
+BAD_RINGS = ["", "2.0", "01", " 2", 2, 1.5, True, ["2"], "1|3", ".*", "2\n"]
+BAD_PANELS = ["", "Button", "320", 240, True, ["240"], "240\n", ".*", "button|300"]
+RING_PANEL = {
+    "ring": (dd_style.RINGS, "2", dd_style.normalize_ring, dd_style.normalize_ring_groups, dd_style.stored_ring, dd_style.stored_ring_groups, BAD_RINGS),
+    "panel": (dd_style.PANELS, "240", dd_style.normalize_panel, dd_style.normalize_panel_groups, dd_style.stored_panel, dd_style.stored_panel_groups, BAD_PANELS),
+}
+
+
+@pytest.mark.parametrize("kind", ["ring", "panel"])
+def test_ring_and_panel_validators_and_stored_reading(kind):
+    allowed, default, norm, norm_groups, stored, stored_groups, bad_values = RING_PANEL[kind]
+    for v in allowed:
+        assert norm(v) == v
+    assert norm_groups({}) == {}
+    assert norm_groups({"settings": allowed[-1], "home": allowed[0]}) == {"home": allowed[0], "settings": allowed[-1]}
+    for bad in bad_values:
+        with pytest.raises(ValueError):
+            norm(bad)
+    for bad in [allowed[0], ["home"], {"nav": allowed[0]}, {"home": "huge"}, {"home": 1}, {"home": None}]:
+        with pytest.raises(ValueError):
+            norm_groups(bad)
+    assert stored("nonsense") == default and stored(None) == default and stored(allowed[0]) == allowed[0]
+    assert stored_groups("{not json") == {}
+    assert stored_groups('{"home":"%s","ghost":"%s"}' % (allowed[0], allowed[0])) == {}
+    assert stored_groups('{"home":"%s"}' % allowed[0]) == {"home": allowed[0]}
+    assert dd_style.DEFAULT_RING == "2" and dd_style.DEFAULT_PANEL == "240"
+
+
+@pytest.mark.parametrize("kind", ["ring", "panel"])
+def test_ring_and_panel_settings_route_and_prefs_accept_exactly_the_validator_strings(settings, kind):
+    allowed, default, norm, norm_groups, stored, stored_groups, bad_values = RING_PANEL[kind]
+    key = f"ui.dd_{kind}"
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    for probe in [*allowed, *bad_values]:
+        try:
+            norm(probe)
+            valid = True
+        except ValueError:
+            valid = False
+        assert valid == (isinstance(probe, str) and probe in allowed), repr(probe)
+        assert (c.patch("/api/v1/settings", json={key: probe}).status_code == 200) == valid, probe
+        assert (c.put("/api/v1/me/prefs", json={key: probe}).status_code == 200) == valid, probe
+
+
+@pytest.mark.parametrize("kind", ["ring", "panel"])
+def test_ring_and_panel_installation_default_round_trips_and_refuses_unknown_values(settings, kind):
+    allowed, default, norm, norm_groups, stored, stored_groups, bad_values = RING_PANEL[kind]
+    key = f"ui.dd_{kind}"
+    with TestClient(create_app(settings)) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s[key] == default and s[key + "_groups"] == {}
+        r = c.patch("/api/v1/settings", json={key: allowed[-1], key + "_groups": {"security": allowed[0], "area": default}})
+        assert r.status_code == 200, r.text
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s[key] == allowed[-1] and s[key + "_groups"] == {"area": default, "security": allowed[0]}
+        for bad in bad_values:
+            assert c.patch("/api/v1/settings", json={key: bad}).status_code == 422, bad
+        for bad in [allowed[0], {"nav": allowed[0]}, {"home": "huge"}, {"home": 1}]:
+            assert c.patch("/api/v1/settings", json={key + "_groups": bad}).status_code == 422, bad
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s[key] == allowed[-1] and s[key + "_groups"] == {"area": default, "security": allowed[0]}
+        assert c.patch("/api/v1/settings", json={key + "_groups": {}}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"][key + "_groups"] == {}
+
+
+@pytest.mark.parametrize("kind", ["ring", "panel"])
+def test_ring_and_panel_need_system_configure_and_user_pref_is_per_user_and_clearable(settings, kind):
+    allowed, default, norm, norm_groups, stored, stored_groups, bad_values = RING_PANEL[kind]
+    key = f"ui.dd_{kind}"
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", headers=as_user("dana"), json={key: allowed[0]}).status_code == 403
+    assert c.get("/api/v1/settings").json()["settings"][key] == default
+    body = c.get("/api/v1/me/prefs").json()
+    assert body["prefs"][key] is None and body["prefs"][key + "_groups"] is None and key not in body["stored"]
+    r = c.put("/api/v1/me/prefs", json={key: allowed[0], key + "_groups": {"multimedia": allowed[-1]}})
+    assert r.status_code == 200, r.text
+    assert r.json()["prefs"][key] == allowed[0] and r.json()["prefs"][key + "_groups"] == {"multimedia": allowed[-1]}
+    assert key not in c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["stored"]
+    for bad in bad_values:
+        assert c.put("/api/v1/me/prefs", json={key: bad}).status_code == 422, bad
+    assert c.put("/api/v1/me/prefs", json={key + "_groups": {"ghost": allowed[0]}}).status_code == 422
+    assert c.get("/api/v1/me/prefs").json()["prefs"][key] == allowed[0]
+    r = c.put("/api/v1/me/prefs", json={key: None, key + "_groups": None})
+    assert r.status_code == 200 and not {key, key + "_groups"} & set(r.json()["stored"])

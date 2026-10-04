@@ -212,12 +212,14 @@ a dropdown for four or more) and `dropdown`.
   the alarm one tap away as its own button in `dropdown` mode while it is not the section shown.
 - **UI**: הגדרות › כללי › לשוניות › "תצוגת לשוניות" (installation default, "ההעדפה שלי", per-group selects, a live preview).
 
-## The dropdown look and size: `ui.dd_style`, `ui.dd_size` (release 0.1.157, extended in the Unreleased capsule change)
+## The dropdown look, size, ring and panel: `ui.dd_style`, `ui.dd_size`, `ui.dd_ring`, `ui.dd_panel` (release 0.1.157, extended in the Unreleased capsule change)
 
 The LOOK of a dropdown is its own setting: `ui.dd_style` (+ `ui.dd_style_groups`), installation default and the user's own
 (`/me/prefs`, null = follow), resolved user group > user global > installation group > installation global > `auto`
 (`resolveDdStyle`). Closed list (`services/dd_style.py` STYLES, `components/dd-style.ts`, `shell/tabs-mode.ts` DD_STYLES):
 `auto` (today's look, the default), `pill`, `field`, `underline`, `text`, `prefix`, `tonal`, `capsule`. Unknown values are refused with a 422.
+Hebrew labels (`DD_STYLE_LABEL`): the id `pill` is labelled **"כדור מלא"** (renamed from "כמוסה" in the Unreleased polish, label only: id, stored values
+and behaviour unchanged) so that it is not confused with `capsule` ("קפסולה").
 
 - **`capsule`** (owner reference 2026-10-04, floor chip "כל הקומות" of another product). Closed: a capsule with a 2 px accent ring (a fractional
   border is snapped to 1 px on a 1x screen, so the ring is 2 px; the open state adds a soft halo), a white-to-accent-tinted fill, a soft bottom
@@ -239,8 +241,21 @@ The LOOK of a dropdown is its own setting: `ui.dd_style` (+ `ui.dd_style_groups`
   migration: settings JSON (an absent value reads `md`). Capsule: trigger 38 / 46 / 58 px, label 14 / 16 / 18 px, icon 17 / 20 / 24 px, rows 44 / 52 /
   62 px, panel padding 6 / 8 / 10 px, panel width 200 / 240 / 280 px. Other styles: the chip is 26 / 32 / 40 px (the 44 px hit area is kept), the
   label and the rows follow; rows never go under the touch dial.
-- **UI**: הגדרות › לשוניות › "סגנון תפריט נפתח": the style selects, the size selects (installation, personal, per group), the effective style and
-  size of every group, a live preview of every style at the effective size, and a preview of the three capsule sizes.
+- **Ring thickness** (`dd-ring` on `sw-dropdown` / `sw-tabs`, **capsule only**): `"1"` | `"1.5"` | `"2"` | `"3"` px, default `"2"`. Settings `ui.dd_ring` +
+  `ui.dd_ring_groups`; the same two owners, groups and resolution as the size (`resolveDdRing`, `ddRingOf`, one generic `Dial` store in
+  `shell/tabs-mode.ts` shared with the panel), backend twin `services/dd_style.py` (RINGS, `normalize_ring`, `normalize_ring_groups`, `stored_*`) and
+  the same refusals (ids are strings: a number or `"2.0"` is refused). CSS: `--_cring` on the host, the capsule `::before` border. A fractional
+  border is snapped to a whole device pixel, so 1 and 1.5 px are only distinguishable (and very thin) on a retina screen; the Settings card says so.
+- **Open-panel width** (`dd-panel`, **capsule only**): `"button"` (as wide as the chip) | `"240"` | `"300"` px at `md`, default `"240"`; the size dial
+  scales the px values (`ddPanelFloor` in `components/dd-style.ts`: 240 -> 200 / 240 / 280, 300 -> 250 / 300 / 350 for sm / md / lg; the panel is
+  never narrower than the chip and never wider than the viewport). Settings `ui.dd_panel` + `ui.dd_panel_groups`, backend PANELS /
+  `normalize_panel*`, same owners and resolution (`resolveDdPanel`, `ddPanelOf`). The other styles ignore both attributes.
+  No migration: settings JSON (an absent value reads `"2"` / `"240"`; `/me/prefs` null = follow the installation).
+- **UI**: הגדרות › לשוניות › "סגנון תפריט נפתח": the style selects, the size selects, the ring-thickness selects ("עובי הטבעת (סגנון קפסולה)") and the
+  panel-width selects ("רוחב התפריט הפתוח (סגנון קפסולה)") (installation, personal, per group), the effective style, size, ring and panel of every
+  group, a reset button for the personal size / ring / panel, a live preview of every style at the effective size / ring / panel, and a preview of the
+  three capsule sizes.
 - **Checks**: `tests/dropdown-capsule.spec.ts` (items API, look, keyboard, sizes, resolver, the card), `tests/layout-dropdown-capsule.spec.ts` (the layout
   guard: four skins x light / dark x three sizes x 320 / 390 / 1280 px x touch dial 44 / 32, closed and open), `tests/evidence-dropdown-capsule.spec.ts`
-  (screenshots in `docs/evidence/dropdown-capsule/`), `backend/tests/test_dd_style.py`.
+  (screenshots in `docs/evidence/dropdown-capsule/`), `backend/tests/test_dd_style.py` (ring / panel validators, route parity, installation + personal
+  round trips, permission, no-migration read); the ring / panel specs are in `tests/dropdown-capsule.spec.ts` ("capsule polish").

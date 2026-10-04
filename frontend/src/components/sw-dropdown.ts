@@ -8,8 +8,8 @@ import type { IconName } from './sw-icon';
  * skin's resting style; nothing changes until a style is chosen). The styles live HERE, not in the skins: tokens only, so the four
  * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
  */
-import { DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle } from './dd-style';
-export { DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle };
+import { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, ddPanelFloor, type DdPanel, type DdRing, type DdSize, type DdStyle } from './dd-style';
+export { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle };
 /** A list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items). */
 export const DD_SEARCH_MIN_ITEMS = 8;
 type Present = 'pop' | 'sheet' | 'centred' | 'inline';
@@ -60,6 +60,10 @@ export class SwDropdown extends LitElement {
   @property({ attribute: 'dd-style', reflect: true }) ddStyle: DdStyle = 'auto';
   /** Unreleased: the size (attribute `dd-size`, reflected): `md` = the reference size (and today's size of every other style), `sm` smaller, `lg` bigger. */
   @property({ attribute: 'dd-size', reflect: true }) ddSize: DdSize = 'md';
+  /** Unreleased (capsule only): the ring thickness in px, 1 | 1.5 | 2 (default) | 3 (attribute `dd-ring`, reflected). */
+  @property({ attribute: 'dd-ring', reflect: true }) ddRing: DdRing = '2';
+  /** Unreleased (capsule only): the open panel's width - `button` (as wide as the button) | 240 (default) | 300 px at the normal size, scaled by the size dial (attribute `dd-panel`, reflected). */
+  @property({ attribute: 'dd-panel', reflect: true }) ddPanel: DdPanel = '240';
   @state() private open = false;
   @state() private cursor = -1;
   @state() private query = '';
@@ -660,6 +664,16 @@ export class SwDropdown extends LitElement {
       --_cgap: 10px;
       --_cchev: 16px;
       --_cpscale: 1.3;
+      --_cring: 2px;
+    }
+    :host([dd-style='capsule'][dd-ring='1']) {
+      --_cring: 1px;
+    }
+    :host([dd-style='capsule'][dd-ring='1.5']) {
+      --_cring: 1.5px;
+    }
+    :host([dd-style='capsule'][dd-ring='3']) {
+      --_cring: 3px;
     }
     :host([dd-style='capsule'][dd-size='sm']) {
       --_ch: 38px;
@@ -722,7 +736,7 @@ export class SwDropdown extends LitElement {
       block-size: var(--_ch);
       transform: translateY(-50%);
       box-sizing: border-box;
-      border: 2px solid var(--sw-dd-accent, var(--sw-accent));
+      border: var(--_cring) solid var(--sw-dd-accent, var(--sw-accent));
       border-radius: var(--sw-r-pill);
       background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 11%, var(--sw-surface-solid)) 100%);
       box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--sw-accent) 42%, transparent), 0 1px 2px color-mix(in srgb, var(--sw-text) 10%, transparent);
@@ -935,6 +949,8 @@ export class SwDropdown extends LitElement {
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('ddStyle') && !(DD_STYLE_IDS as readonly string[]).includes(this.ddStyle)) this.ddStyle = 'auto';
     if (changed.has('ddSize') && !(DD_SIZE_IDS as readonly string[]).includes(this.ddSize)) this.ddSize = 'md';
+    if (changed.has('ddRing') && !(DD_RING_IDS as readonly string[]).includes(this.ddRing)) this.ddRing = '2';
+    if (changed.has('ddPanel') && !(DD_PANEL_IDS as readonly string[]).includes(this.ddPanel)) this.ddPanel = '240';
   }
 
   /** The icon size (px) of the options and of the chip: the capsule follows the size dial, the other styles keep 15. */
@@ -1015,7 +1031,7 @@ export class SwDropdown extends LitElement {
     const capsule = this.ddStyle === 'capsule';
     const size = this.ddSize;
     // capsule: the panel is at least as wide as the chip and wider than the other styles' (the reference); rows are taller, the gap larger
-    const floor = capsule ? { sm: 200, md: 240, lg: 280 }[size] : this.ddStyle === 'text' ? 240 : 200;
+    const floor = capsule ? ddPanelFloor(this.ddPanel, size) : this.ddStyle === 'text' ? 240 : 200;
     const minWidth = Math.min(Math.max(r.width, floor), vw - pad * 2);
     // anchored to the chip's inline-start edge (the right edge in RTL), then kept inside the viewport
     let left = rtl ? r.right - minWidth : r.left;

@@ -87,6 +87,13 @@ VALIDATORS["ui.dd_size"] = dd_style.normalize_size
 VALIDATORS["ui.dd_size_groups"] = dd_style.normalize_size_groups
 DEFAULTS["ui.dd_size"] = None
 DEFAULTS["ui.dd_size_groups"] = None
+# `ui.dd_ring*` / `ui.dd_panel*` (Unreleased): capsule-style ring thickness and open-panel width, globally and per tab group (services/dd_style.py); null = follow the installation.
+VALIDATORS["ui.dd_ring"] = dd_style.normalize_ring
+VALIDATORS["ui.dd_ring_groups"] = dd_style.normalize_ring_groups
+VALIDATORS["ui.dd_panel"] = dd_style.normalize_panel
+VALIDATORS["ui.dd_panel_groups"] = dd_style.normalize_panel_groups
+for _k in ("ui.dd_ring", "ui.dd_ring_groups", "ui.dd_panel", "ui.dd_panel_groups"):
+    DEFAULTS[_k] = None
 # `ui.dd_phone` (owner 2026-10-03): how a dropdown opens on a phone, sheet | list; null = follow the installation.
 VALIDATORS["ui.dd_phone"] = dd_style.normalize_phone
 DEFAULTS["ui.dd_phone"] = None
