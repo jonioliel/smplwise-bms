@@ -6,6 +6,7 @@ No migration (the registry platform was already stored on every endpoint; the li
 - **Integration and ids (settings only):** the registry platform of each component (the vendor's first, "+n" for others) and the platform's entity id and device id. API: `GET multimedia/admin/devices` adds `integrations`, `ha_device_id` and `available` to every device (`available` was players-only before).
 - **Filters:** free text (also matches ids and integration names), integration (multi-select), room, type, approval, availability, with a count of shown devices and "נקה סינון".
 - **Sort and group:** by name, type, integration, room, id or status, either direction (also from the column headers); group by integration, room or type with collapsible headers and counts.
+- **Columns:** a "עמודות" control in the toolbar shows or hides type, integration, entity id, device id, room, floor (its own column; otherwise the room cell reads "floor › room"), status and connections. Defaults are today's (the room is hidden on a tablet width), so nothing changes until the user picks; "ברירת מחדל" resets. Remembered per user and per list with the view; not shown on a phone (cards keep every field). No migration.
 - **Comfort:** sticky header, copy-id, an open form stays open while filtering, the last view (not the free text) is remembered per section and per user in the browser, cards on a phone, keyboard operable, RTL, four skins.
 ## Unreleased
 ### Change the encoding of many cameras at once (CR-020 phase D) - מערכת › אבטחה › מצלמות › "שינוי קידוד לכמה מצלמות"

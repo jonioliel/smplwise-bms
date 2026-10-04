@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { AdminDevice, AdminEndpoint } from '../src/api/media-admin';
 import {
-  DEFAULT_VIEW, NO_AREA, NO_INTEGRATION, buildView, factsOf, integrationsOf, isFiltered, loadView, matchesText, optionsOf, parseView, saveView, typeBucket,
+  DEFAULT_VIEW, NO_AREA, NO_INTEGRATION, buildView, colVisible, defaultVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, setColPref, factsOf, integrationsOf, isFiltered, loadView, matchesText, optionsOf, parseView, saveView, typeBucket,
   type ListView,
 } from '../src/screens/media-admin-list-logic';
 
@@ -164,5 +164,83 @@ test.describe('settings lists: the remembered view', () => {
     expect(parseView({ sort: 'bogus', dir: 5, group: 'x', type: 'tv', approval: 'zzz', integrations: [1, 'a'], collapsed: 'no' })).toEqual({ ...DEFAULT_VIEW, integrations: ['a'] });
     expect(parseView(null)).toEqual(DEFAULT_VIEW);
     expect(parseView('str')).toEqual(DEFAULT_VIEW);
+  });
+});
+
+test.describe('settings lists: column visibility', () => {
+  const mem = () => {
+    const m = new Map<string, string>();
+    return { m, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  };
+
+  test("the defaults are today's behaviour: everything but the separate floor, and the room only on a wide screen", () => {
+    expect(DEFAULT_VIEW.cols).toEqual({});
+    for (const k of ['type', 'integration', 'entityId', 'deviceId', 'status', 'connections'] as const) {
+      expect(colVisible({}, k, 'wide')).toBe(true);
+      expect(colVisible({}, k, 'md')).toBe(true);
+    }
+    expect(colVisible({}, 'room', 'wide')).toBe(true);
+    expect(colVisible({}, 'room', 'md')).toBe(false);
+    expect(colVisible({}, 'floor', 'wide')).toBe(false);
+    expect(colVisible({}, 'floor', 'md')).toBe(false);
+    expect(hideClass({}, 'room')).toBe('hm');
+    expect(hideClass({}, 'floor')).toBe('hw hm');
+    expect(hideClass({}, 'status')).toBe('');
+  });
+
+  test("today's grid templates are reproduced exactly by the defaults", () => {
+    expect(gridColumns({}, 'wide')).toBe('var(--hit) minmax(150px, 1.5fr) 96px 130px minmax(200px, 1.9fr) minmax(110px, 1fr) 90px 64px 110px');
+    expect(gridColumns({}, 'md')).toBe('var(--hit) minmax(130px, 1.4fr) 84px 110px minmax(170px, 1.7fr) 80px 60px 104px');
+  });
+
+  test('an explicit choice wins at every width; the grid follows the visible columns', () => {
+    const tracks = (g: string) => g.replace(/, /g, ',').split(' ').length;
+    const shownRoom = { room: true };
+    expect(colVisible(shownRoom, 'room', 'md')).toBe(true);
+    expect(hideClass(shownRoom, 'room')).toBe('');
+    expect(tracks(gridColumns(shownRoom, 'md'))).toBe(tracks(gridColumns({}, 'md')) + 1);
+    const noRoom = { room: false };
+    expect(hideClass(noRoom, 'room')).toBe('hw hm');
+    expect(tracks(gridColumns(noRoom, 'wide'))).toBe(tracks(gridColumns({}, 'wide')) - 1);
+    const lean = { type: false, integration: false, status: false, connections: false };
+    expect(gridColumns(lean, 'wide')).toBe('var(--hit) minmax(150px, 1.5fr) minmax(200px, 1.9fr) minmax(110px, 1fr) 64px');
+  });
+
+  test('the id column stays while either id shows and goes when both are off; the floor gets its own column', () => {
+    expect(gridColumns({ entityId: false }, 'wide')).toBe(gridColumns({}, 'wide'));
+    expect(gridColumns({ entityId: false, deviceId: false }, 'wide')).not.toContain('1.9fr');
+    expect(gridColumns({ floor: true }, 'wide')).toContain('110px minmax(110px, 1fr)');
+    expect(floorSplitClass({})).toBe('');
+    expect(floorSplitClass({ floor: true })).toBe('fl-w fl-m');
+  });
+
+  test('a choice is stored only when it differs from the default at the current width; the default again forgets it', () => {
+    expect(setColPref({}, 'room', true, 'md')).toEqual({ room: true });
+    expect(setColPref({ room: true }, 'room', false, 'md')).toEqual({});
+    expect(setColPref({}, 'status', false, 'wide')).toEqual({ status: false });
+    expect(setColPref({ status: false }, 'status', true, 'wide')).toEqual({});
+    expect(setColPref({ type: false }, 'room', true, 'wide')).toEqual({ type: false });
+    expect(defaultVisible('room', 'wide')).toBe(true);
+    expect(hasColPrefs({})).toBe(false);
+    expect(hasColPrefs({ room: true })).toBe(true);
+  });
+
+  test('remembered per list and per user with the view; junk is ignored, a failing store changes nothing', () => {
+    const s = mem();
+    saveView('screens', 'u1', { ...DEFAULT_VIEW, cols: { room: true, status: false } }, s);
+    expect(loadView('screens', 'u1', s).cols).toEqual({ room: true, status: false });
+    expect(loadView('players', 'u1', s).cols).toEqual({});
+    expect(loadView('screens', 'u2', s).cols).toEqual({});
+    expect(parseView({ cols: { room: 'yes', bogus: true, floor: true, type: false } }).cols).toEqual({ floor: true, type: false });
+    expect(parseView({ cols: ['room'] }).cols).toEqual({});
+    expect(parseView({ cols: 5 }).cols).toEqual({});
+    expect(parseView({ sort: 'name' }).cols).toEqual({});
+    const boom = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+    expect(loadView('screens', 'u', boom).cols).toEqual({});
+    expect(() => saveView('screens', 'u', { ...DEFAULT_VIEW, cols: { room: true } }, boom)).not.toThrow();
+  });
+
+  test('column choices do not count as a filter', () => {
+    expect(isFiltered({ ...DEFAULT_VIEW, cols: { room: false } })).toBe(false);
   });
 });
