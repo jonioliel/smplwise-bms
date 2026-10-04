@@ -124,6 +124,8 @@ export class SystemMultimedia extends LitElement {
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      min-inline-size: 0;
+      max-inline-size: 100%; /* a long option ("זיהוי אוטומטי · ...") never widens the form past a 320 px phone (layout guard) */
     }
     .f.inline {
       flex-direction: row;
@@ -144,9 +146,10 @@ export class SystemMultimedia extends LitElement {
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
+      max-inline-size: 100%;
     }
     input[type='text'] {
-      min-inline-size: 200px;
+      min-inline-size: min(200px, 100%);
     }
     input[type='number'] {
       inline-size: 88px;
