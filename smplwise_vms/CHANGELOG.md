@@ -1,5 +1,13 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased — Settings › Multimedia: the lists of screens and of speakers / players are compact and filterable
+No migration (the registry platform was already stored on every endpoint; the list now reads it). No restart of the platform is needed.
+- **Compact rows:** each screen / speaker / player is one dense row (name, type, integration, entity id and device id with a copy key, room, status, approval, connections count); the full form opens under the row on demand. Every field, action, permission and the "approve all" buttons are unchanged.
+- **Integration and ids (settings only):** the registry platform of each component (the vendor's first, "+n" for others) and the platform's entity id and device id. API: `GET multimedia/admin/devices` adds `integrations`, `ha_device_id` and `available` to every device (`available` was players-only before).
+- **Filters:** free text (also matches ids and integration names), integration (multi-select), room, type, approval, availability, with a count of shown devices and "נקה סינון".
+- **Sort and group:** by name, type, integration, room, id or status, either direction (also from the column headers); group by integration, room or type with collapsible headers and counts.
+- **Comfort:** sticky header, copy-id, an open form stays open while filtering, the last view (not the free text) is remembered per section and per user in the browser, cards on a phone, keyboard operable, RTL, four skins.
+
 ## 0.1.160 (pilot) — Electricity meters and consumption bills (תשתיות › מוני חשמל); music queue actions; the schedules screen in the automations design
 No restart of the platform is needed (the bridge integration stays 0.6.0). **Two database migrations run on start: `0053_electricity_meters`** (the meter registry and the counter lives) **and `0054_electricity_billing`** (customers, accounts, prices and VAT, bills, the ledger of bill numbers). The meter readings live in a separate file, `energy.db`, next to the main database. Reload the installed web app once.
 ### Electricity meters and bills (CR-023) - a new area "תשתיות" with the sub-tab "מוני חשמל"
