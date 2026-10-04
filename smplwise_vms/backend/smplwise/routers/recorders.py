@@ -206,6 +206,10 @@ def get_recorder(recorder_id: str, request: Request, principal: Principal = Depe
     return recorder_view(conn, request, recorder_id, row, admin=admin)
 
 
+def destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str, Any], rid: str) -> bool:
+    return _destination_taken(conn, settings, fields, rid)
+
+
 def _destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str, Any], rid: str) -> bool:
     """Another active recorder already names this device (host + HTTP port): two rows on one device would register its
     cameras twice and let two write batches run on it at once."""
@@ -220,11 +224,7 @@ def _destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str
 
 
 def _primary_free(conn: sqlite3.Connection, settings: Any) -> bool:
-    """No first recorder in use: no stored connection (or "no NVR") and no legacy host the process started with."""
-    row = connection_store.get_row(conn, PRIMARY)
-    if row is not None:
-        return row["vendor"] == registry.NO_NVR
-    return not (settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER)
+    return connection_store.primary_free(conn, settings)
 
 
 def _other_recorders(conn: sqlite3.Connection) -> bool:
@@ -235,17 +235,16 @@ def _other_recorders(conn: sqlite3.Connection) -> bool:
 
 
 def primary_has_history(conn: sqlite3.Connection) -> bool:
-    """CR-024 (owner 2026-10-04): the first recorder id carries history - its recorder row, cameras, events or change-log rows.
-    Such an id is never handed to a NEW device (its old cameras, events and changes must not attach to it): the add route issues
-    a new id instead."""
-    for sql in ("SELECT 1 FROM recorders WHERE id = ? LIMIT 1", "SELECT 1 FROM cameras WHERE recorder_id = ? LIMIT 1",
-                "SELECT 1 FROM events WHERE recorder_id = ? LIMIT 1", "SELECT 1 FROM nvr_changes WHERE recorder_id = ? LIMIT 1"):
-        try:
-            if conn.execute(sql, (PRIMARY,)).fetchone():
-                return True
-        except sqlite3.OperationalError:  # a table or column a test database lacks
-            continue
-    return False
+    return connection_store.primary_has_history(conn)
+
+
+def create_recorder_row(conn: sqlite3.Connection, rid: str, name: str, vendor: str) -> None:
+    """The recorders row of a recorder being added (or revived); the connection row is written by the caller."""
+    order = conn.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM recorders").fetchone()[0]
+    conn.execute("""INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at, vendor, enabled, sort_order)
+                    VALUES (?, ?, NULL, NULL, NULL, ?, ?, 1, ?)
+                    ON CONFLICT(id) DO UPDATE SET name = excluded.name, vendor = excluded.vendor, enabled = 1, removed_at = NULL""",
+                 (rid, name, now_iso(), vendor, order))
 
 
 @router.post("/recorders", status_code=201)
@@ -270,11 +269,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     def create(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, rid):
             raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
-        order = c.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM recorders").fetchone()[0]
-        c.execute("""INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at, vendor, enabled, sort_order)
-                     VALUES (?, ?, NULL, NULL, NULL, ?, ?, 1, ?)
-                     ON CONFLICT(id) DO UPDATE SET name = excluded.name, vendor = excluded.vendor, enabled = 1, removed_at = NULL""",
-                  (rid, name, now_iso(), fields["vendor"], order))
+        create_recorder_row(c, rid, name, fields["vendor"])
 
     out = nc.do_save(request, principal, body, conn, rid, before_write=create, allow_none=False)
     audit(conn, actor=principal, action="nvr.recorder.add", decision="allowed", resource_type="recorder", resource_id=rid, request_id=_rid(request),

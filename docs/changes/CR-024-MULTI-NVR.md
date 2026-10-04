@@ -204,11 +204,25 @@ screens, `tsc --noEmit`.
 - `POST /recorders` hands out `nvr-1` only when no recorder is in use AND nothing references `nvr-1` (its recorder row, cameras,
   events, change-log rows). Otherwise a new id (`nvr-<n>` above every id ever used). The settings card, with no recorder left and
   history under `nvr-1` (`GET /recorders` `primary_has_history`), shows the add form instead of the first recorder's form.
-- Open point (recorded, not changed): the CR-022 route `PUT /nvr/connection` (the setup wizard's NVR step) still writes the first
-  recorder - CR-022 D7 defines it as "the same NVR reconnected after Remove", its cameras kept disabled until rediscovery and review.
-  Owner question in the report.
-- Tests: `tests/test_multi_nvr_live.py` (fresh installation gets `nvr-1`; a removed `nvr-1` with history gets `nvr-2`, its old
-  cameras keep `nvr-1` and stay disabled, the new device discovers its own rows).
+- **CR-022 contract change (owner 2026-10-04, option ב): the wizard follows the same rule.** `PUT /nvr/connection` (the setup
+  wizard's NVR step and the first recorder's form) amends CR-022 D7 "the same NVR reconnected after Remove": when `nvr-1` is free
+  (removed / "no NVR") AND has history, the save reconnects `nvr-1` only for the SAME physical recorder. Identity =
+  `recorders.device_fingerprint` = HMAC-SHA256(installation salt, "recorder" | model | serial)[:16] (column added to the unreleased
+  migration 0055), stored at every tested save and every discovery; the serial comes from deviceInfo (the test's `_serial`, stripped
+  from every answer by `connection_probe.public`) and is never stored, logged or returned; the address is not part of it (the same
+  recorder at a new address is still the same device). The candidate is compared with the stored identity of `nvr-1`: equal = same
+  device, `nvr-1` (its cameras come back disabled for review, as CR-022 D7). Different, a device without a serial, an untested save
+  ("שמור" while unreachable) or no stored identity = unsure = a NEW id (`nvr-<n>`, audited `nvr.recorder.add` with reason
+  `history_under_first_id`); the answer carries `recorder_id` and `new_recorder: true`; the old cameras keep `nvr-1` and stay
+  disabled, and the new device's discovery creates its own rows. An edit of an ACTIVE `nvr-1` (not after a removal) is unchanged,
+  and a fresh installation still gets `nvr-1`.
+- The wizard's NVR step follows a recorder that runs under its new id: `todo / restart_pending` until the restart, then `done` by
+  its discovery (`setup_wizard.further_recorders_step`), never "ללא NVR".
+- Tests: `tests/test_multi_nvr_live.py` (add route: fresh installation gets `nvr-1`; a removed `nvr-1` with history gets `nvr-2`)
+  and `tests/test_multi_nvr_identity.py` (wizard route: fresh gets `nvr-1` and no serial in any answer; the same device reconnected
+  keeps `nvr-1` and its camera rows; the same device at a new address keeps `nvr-1`; a different device gets `nvr-2` and its channels
+  are new rows while the old ones stay `nvr-1`, disabled, and the wizard step is `done`; no serial or an untested save = a new id;
+  an edit of an active `nvr-1` is unchanged).
 
 ---
 
@@ -224,7 +238,8 @@ screens, `tsc --noEmit`.
 
 **עדכון לפי תשובות הבעלים (4.10):** ניגון מסונכרן בין מקליטים נבנה כהגדרה ניסיונית, כבויה כברירת מחדל ("לא הוכח"),
 עם אזור זמן וסטיית שעון לכל מקליט וכללי הגנה (סטייה גדולה, אזור זמן סותר, שעון לא קריא). השבתה והפעלה של מקליט חלות מיד בלי
-הפעלה מחדש (זרם אירועים, זרמי go2rtc, קיר ובוררים). המזהה nvr-1 לא מוצמד למכשיר חדש כשקיימת לו היסטוריה.
+הפעלה מחדש (זרם אירועים, זרמי go2rtc, קיר ובוררים). המזהה nvr-1 לא מוצמד למכשיר חדש כשקיימת לו היסטוריה - גם באשף ההתקנה: אותו מכשיר
+(לפי חתימה מוצפנת של דגם ומספר סידורי, בלי לשמור את המספר עצמו) חוזר ל־nvr-1; מכשיר אחר או מכשיר שלא ניתן לזהות מקבל מזהה חדש.
 
 **מה לא נבנה ולמה (במקור):** ניגון מסונכרן בין שני מקליטים (לא הוכח על שני מקליטים אמיתיים, אסור לגעת בציוד אמיתי במשימה הזו;
 ניגון מצלמה בודדת מכל מקליט עובד); מתאם Provision-ISR (ה־API שלו עוד לא זמין); הרשאה בהיקף "מקליט" (ההרשאות

@@ -227,6 +227,44 @@ def any_pending_restart(conn: sqlite3.Connection, settings: Settings) -> bool:
     return False
 
 
+def primary_free(conn: sqlite3.Connection, settings: Settings) -> bool:
+    """CR-024: no first recorder in use - no stored connection (or "no NVR") and no legacy host the process started with."""
+    row = get_row(conn, DEFAULT_RECORDER)
+    if row is not None:
+        return row["vendor"] == NO_NVR
+    return not (settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER)
+
+
+def primary_has_history(conn: sqlite3.Connection) -> bool:
+    """CR-024 (owner 2026-10-04): the first recorder id carries history - its recorder row, cameras, events or change-log rows.
+    Such an id is never handed to another device."""
+    for sql in ("SELECT 1 FROM recorders WHERE id = ? LIMIT 1", "SELECT 1 FROM cameras WHERE recorder_id = ? LIMIT 1",
+                "SELECT 1 FROM events WHERE recorder_id = ? LIMIT 1", "SELECT 1 FROM nvr_changes WHERE recorder_id = ? LIMIT 1"):
+        try:
+            if conn.execute(sql, (DEFAULT_RECORDER,)).fetchone():
+                return True
+        except sqlite3.OperationalError:  # a table or column a test database lacks
+            continue
+    return False
+
+
+def stored_identity(conn: sqlite3.Connection, recorder_id: str) -> str | None:
+    try:
+        row = conn.execute("SELECT device_fingerprint FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return (row["device_fingerprint"] if row else None) or None
+
+
+def next_free_id(conn: sqlite3.Connection) -> str:
+    """`nvr-<n>` above every recorder id ever used (in `recorders` or `recorder_connections`)."""
+    from ..recorder_scope import next_id
+
+    used = [r[0] for r in conn.execute("SELECT id FROM recorders").fetchall()]
+    used += [r[0] for r in conn.execute("SELECT recorder_id FROM recorder_connections").fetchall()]
+    return next_id(used)
+
+
 def readable(conn: sqlite3.Connection, settings: Settings, row: sqlite3.Row | None) -> bool:
     if row is None or not row["password_enc"]:
         return True

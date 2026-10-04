@@ -77,6 +77,24 @@ def fingerprint(conn: sqlite3.Connection, recorder_id: str, model: str | None, s
     return hmac.new(_salt(conn), msg, hashlib.sha256).hexdigest()[:16]
 
 
+def device_identity(conn: sqlite3.Connection, model: str | None, serial: str | None) -> str | None:
+    """CR-024: the keyed identity of a RECORDER (not of a slot): HMAC-SHA256(installation salt, "recorder" | model | serial)[:16].
+    None without a serial - an unknown identity is never treated as "the same device". Neither the serial nor an address is kept."""
+    if not serial or not str(serial).strip():
+        return None
+    msg = f"recorder|{(model or '').strip()}|{str(serial).strip()}".encode("utf-8")
+    return hmac.new(_salt(conn), msg, hashlib.sha256).hexdigest()[:16]
+
+
+def store_identity(conn: sqlite3.Connection, recorder_id: str, fp: str | None) -> None:
+    if not fp:
+        return
+    try:
+        conn.execute("UPDATE recorders SET device_fingerprint = ? WHERE id = ?", (fp, recorder_id))
+    except sqlite3.OperationalError:  # a database before 0055
+        pass
+
+
 def _store_capabilities(conn: sqlite3.Connection, settings: Settings, recorder_id: str) -> None:
     """The recorder row keeps the adapter's last declaration (CR-024 / NN1 P5: the per-recorder capability model)."""
     from dataclasses import asdict
@@ -110,6 +128,7 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
         except Exception as exc:  # noqa: BLE001 - an unparsable document
             enc_error = type(exc).__name__
     ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None, recorder_id=rid)
+    store_identity(conn, rid, device_identity(conn, info.get("model"), info.get("serial")))  # CR-024: which physical recorder this is
     _store_capabilities(conn, rs, rid)
     has_source_ref = _has_column(conn, "cameras", "source_ref")
     now = now_iso()
