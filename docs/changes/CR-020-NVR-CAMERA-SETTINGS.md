@@ -99,6 +99,7 @@ InputProxy. Every UI test needs desktop / phone / RTL screenshots of loading, em
    has `nvr.config.stream` (in `system_admin`, sensitive, grantable to a custom role, used by no route). A custom-role
    grant would contradict D5, so CR-020 uses `nvr.configure` as a **system permission** and proposes removing
    `nvr.config.stream` from `roles.json` in S2 (no route depends on it). Not resolved silently: listed for the coordinator.
+   **Resolved 2026-10-03 (owner):** removed in S2 (roles.json, labels, `NVR_PERMISSIONS`; migration 0050 strips it from custom roles).
 2. **Existing `apply_change` records inside `unlocked`.** `nvr_write.apply_change` inserts `nvr_changes` and audit rows
    while the connection is in autocommit mode inside `with unlocked(conn)`. CR-020 does not reuse that path; it uses the
    two-phase pattern of `start_manual` / `_place_device` (API §4). Migrating the older routes is a separate task.
@@ -149,3 +150,107 @@ Deviations from the S1 row of section 2, recorded rather than resolved silently:
    `<SVC>` element the list carries.
 6. **WebRTC verdict follows the 0.1.151 rule**, not the 2026-09-14 probe: `unknown` (shown as a neutral dash, never a cross) for H.264 SVC and
    H.265 mains because the player tries WebRTC and falls back on a measured failure; `no` only for MJPEG and H.264 with B-frames.
+
+## 9. Slice S2 phase A implementation record (2026-10-03, branch `pilot/CR020-s2-a`, backend only)
+
+Built (fixture-tested against the fake NVR; NOTHING was run against the lab NVR - AT-020-16 stays NOT_RUN until the lead's
+one approved write, plan `private/cr020-s2/PLAN.md` section 9):
+
+- Migration **0050_nvr_stream_changes.sql**: `nvr_changes` gains `recorder_id` (default `nvr-1`), `camera_id`, `stream_ref`,
+  `fields_json`, `etag_before`, `etag_after`, `reboot_required`, `device_status`, `batch_id`, `batch_index` (the last two for the
+  later multi-camera phase), two indexes and the partial unique index "one pending change per recorder + stream". The same file
+  strips `nvr.config.stream` from stored custom roles (0042 pattern: role revision and permission revision move). CR-021 keeps 0051.
+- Permission **`nvr.configure`**: in `system_admin` (roles.json), `SYSTEM_PERMISSIONS` and `PERMISSION_LABELS`; not sensitive,
+  never in a custom role, never delegable. **`nvr.config.stream` is removed** (owner decision 2026-10-03; it was in
+  `NVR_PERMISSIONS` of `routers/nvr_write.py` and granted read access to the NVR state and change log - that read path is gone with it).
+- `PUT /nvr/cameras/{camera_id}/streams/{stream_ref}`, `GET /nvr/cameras/{camera_id}/streams/{stream_ref}/options[?codec=]`,
+  `options` and computed `writable` in `GET /nvr/cameras/{id}`, `can_write` from `nvr.configure`, `GET /nvr/changes?camera_id=`.
+- Undo: `POST /nvr/changes/{id}/rollback` dispatches `kind = stream_encoding` to `nvr_settings.rollback_stream` (nvr.configure at
+  installation AND on the change's camera, literal `confirm: true`, only an `applied` change, etag of `after` must match, two phases).
+  The generic `nvr_write.rollback` refuses a `stream_encoding` row.
+- Hikvision adapter: `stream_options` (direct capability document, then StreamingProxy, else `writable:false` with the device's sub
+  status; cached per process by recorder + stream + codec - positive 10 min, negative 60 s, dropped after a change the device applied; a hit makes no device call), `read_stream`, `write_stream_encoding` (LIST read, etag check,
+  ONE PUT, LIST verify; never retried). Pending janitor `settle_pending` in the 30 s housekeeping pass (first pass 30 s after start-up).
+
+Deviations from the contract (for review):
+1. **Owner rule "no capability document = abort"**: a stream whose capability documents answer 403 / 404 on both paths is not
+   writable; a write answers 503 `capabilities_unreadable` with a Hebrew message, and nothing is sent. A 5xx on the capability
+   path is `source_error` (no guess, nothing cached).
+2. **Confirm on undo** (owner Q3=A, decision "A" of 2026-10-03): the stream rollback requires `{"confirm": true}`; the API text
+   "undo confirms nothing more" is superseded. The generic rollback of other kinds keeps its bodyless shape. Rollback answers 201
+   `{change, stream, rollback_of, reboot_required}`.
+3. **`confirm` is checked by identity with the JSON literal `true`** before the body shape and before any device read (no pydantic
+   coercion of `"true"` / `1`). Since the review fix L2 the PUT and the rollback read the RAW body (`routers/nvr_write.py::_raw_body`)
+   after a permission gate on the read connection (`_writer_ro` / `_rollback_gate`, the `auth.read_gate` pattern of review L7) and
+   before the write connection, and the PUT checks the `stream_ref` path segment by hand too: an unauthorised caller gets the audited
+   403 for ANY body (malformed JSON included) and any stream id, and no device call. (Before the fix FastAPI's own validation answered
+   422 for a body that was not JSON or a stream id that was not digits, before the handler ran - no device call either, but the
+   wrong code.) An authorised caller with a body that is not JSON gets 422 `confirm_required`, with a bad stream id 422 `validation`.
+4. **Unknown outcomes stay `pending`**: a timeout after the PUT was sent, a 5xx without a refusal code, or a failed verify read leave
+   the change `pending` with `error:"outcome_unknown"` (503 `source_unavailable`, `details.outcome:"unknown"`, ALWAYS `retryable:false`);
+   it is settled from a device read no sooner than 45 s after it was recorded (review M2) - by the next write of that stream or by
+   the janitor; until then a second write of the stream is 409 `write_in_progress`. The PUT waits 25 s for the device's answer. A change whose verify shows only part of the fields is `diverged` (409 `nvr_diverged`, new code).
+5. `nvr_changes.path` of a stream change holds `direct:<sid>` / `proxy:<sid>` (the write route), not the ISAPI path.
+6. A request whose values all equal the device's answers 200 with `change: null` and `unchanged_fields`; no row, no PUT (audited `unchanged`).
+7. A codec change on a stream with a profile element requires the profile to be valid for the new codec (named, or the current one
+   allowed); Arx never picks a profile silently. B-frames are `field_not_supported` (no element written in S2).
+8. Every authorized refusal before the device (confirm, validation, stale, write_in_progress, capabilities_unreadable) leaves ONE
+   denied `nvr.stream.write` / `nvr.rollback` audit row (`phase:"attempt"`, reason = the code) and no change row.
+9. The capability-document and dynamicCap shapes are the contract's (API 5.1) and are **UNVERIFIED on the lab firmware**; the
+   lab pre-check reads them read-only before the one approved write.
+
+### 9.1 Security review fixes (2026-10-03, branch `pilot/CR020-s2-a-fix`, test-first)
+
+An independent Opus review of phase A found two medium and six low items; all are fixed, each with a test written first
+(`tests/test_nvr_stream_review_fixes.py`, plus `tests/test_migrations.py::test_0050_*`):
+
+- **M1 change log disclosure.** `GET /nvr/changes` lists a `stream_encoding` row only to a holder of `nvr.configure` at installation
+  scope whose nvr.configure camera scope (T055) holds the change's camera; `GET /nvr/changes/{id}` of such a row is 403 (audited)
+  otherwise, so `before_xml` / `after_xml` (the whole `<StreamingChannel>` incl. its transport section) never reach a caller without
+  `nvr.configure`. Other kinds keep their read path (`_require_read`). Pinned for a custom role holding only `nvr.record.manual`
+  (with and without a camera deny) and for a `system_admin` with a camera deny.
+- **M2 unknown outcomes.** Settled no sooner than 45 s after the change was recorded (`UNKNOWN_SETTLE_MIN_S`; before that 409
+  `write_in_progress` and the janitor waits), the stream PUT has a 25 s read timeout (`PUT_READ_TIMEOUT_S`), and every unknown outcome
+  is `retryable:false` (timeout, 5xx without a refusal code, a failed verify read - the last is now always 503 `source_unavailable`
+  with `details.cause`, never a 404). Tested with a moved clock (`nvr_settings._utcnow`).
+- **L1 capability cache.** Keyed by recorder + stream + codec (the deviceInfo GET per call is gone: a hit makes no device call); a
+  negative answer lives 60 s, a positive one 10 min; a change the device applied (or the janitor found applied / diverged) drops the
+  stream's entries.
+- **L2** see deviation 3 above (auth before the body; test that an unauthorised malformed body is 403 with no device call).
+- **L3** migration 0050 writes one audit row `rbac.role.update` (reason `migration_0050`, no actor, details
+  `{"migration":"0050","removed":["nvr.config.stream"],"revision":n}`) per custom role it stripped, in the migration's own transaction.
+- **L4** a `diverged` change can be undone with the same guards (nvr.configure + camera, `confirm:true`) while the stream's etag still
+  equals the change's `etag_after`; the undo reverts only the fields the device really changed.
+- **L5** when the janitor settled the row while the request was still running, the request writes no second outcome audit row and no
+  registry update; it answers with the janitor's verdict (a janitor `failed` = 409 `nvr_no_effect`).
+- **L6** a restore (`project+access`) drops permissions this version does not know - and system permissions - from custom roles
+  (`roles_pruned` in the answer and in the `backup.restore` audit row), so an archive from before 0050 never leaves a role whose
+  next edit fails with 422 `permission_unknown`.
+- Missing tests added: the undo checks the permission BEFORE `confirm` and makes zero device calls for an unauthorised caller;
+  capability-cache expiry; janitor vs a long-running request.
+
+### 9.2 Frozen API shape for the UI (phase B builds against exactly this)
+
+- `GET /nvr/cameras`: every stream has `writable: null` and `not_writable_reason: null` (the list never discovers capabilities;
+  the top-level `stale` says when the device could not be read). `can_write` (bool) at the top.
+- `GET /nvr/cameras/{id}` and `GET /nvr/cameras/{id}/streams/{ref}/options[?codec=]`: `writable` is a boolean and
+  `not_writable_reason` a code or null; the detail carries `options: {stream_ref: object | null}` and `can_write`.
+- `PUT /nvr/cameras/{id}/streams/{ref}` body `{"if_match": "<16 hex>", "confirm": true, "changes": {field: value, ...}}`; fields:
+  codec, profile, resolution, fps (number or "full"), bitrate_mode, bitrate_kbps, quality, gop, svc, smart_codec, b_frames. 200
+  `{change, stream, applied_fields, unchanged_fields, reboot_required}`; a request whose values all equal the device's answers 200
+  with `change: null`.
+- `POST /nvr/changes/{id}/rollback` body `{"confirm": true}` for a `stream_encoding` change: **201**
+  `{change, stream, rollback_of, reboot_required}`; allowed for an `applied` or `diverged` change.
+- A change record (`change` above, `GET /nvr/changes`, `GET /nvr/changes/{id}`) carries `fields` as an OBJECT
+  (`{"svc": [true, false]}`, null for other kinds) - never the raw `fields_json` string; the list rows carry `has_before` /
+  `has_after` instead of the documents.
+- Error codes of the write and the undo (the envelope `{code, user_message, retryable, details}`; `details.change_id` once a change
+  row exists): `stale` 409 (`details.stream` = the current stream), `write_in_progress` 409, `nvr_busy` 409, `nvr_no_effect` 409,
+  `nvr_diverged` 409, `nvr_not_supported` 409, `nvr_rejected` 409, `not_rollbackable` 409 (undo only), `capabilities_unreadable`
+  503, `source_unavailable` 503 (with `details.outcome:"unknown"` when the PUT may have landed; then `retryable:false`),
+  `source_forbidden` 503, `confirm_required` 422, `validation` 422, `value_not_allowed` 422 (`details.field`, `details.allowed`),
+  `field_locked` 422 (`details.field`, `details.by`), `field_not_supported` 422 (`details.field`), `forbidden` 403, `not_found` 404,
+  `nvr_not_configured` 409 (NVR-less mode).
+### 9.3 Phase B (UI) implementation record (2026-10-03, branch `pilot/CR020-s2-b`)
+
+SVC switch + pencil per stream for holders of `nvr.configure` (`can_write`), one confirmation (count, two buttons, details under "פרטים"), undo toast (10 s, press = `confirm:true`), editor drawer with the last five changes, error lines per code, unknown outcome = "הסטטוס נבדק" and never retried. Deviations: the confirmation is a centred `sw-dialog` also on phones (nesting-safe inside the modal drawer); the editor is the shared modal `sw-drawer` (side panel / bottom sheet) instead of a full-screen `sw-sheet`; holders of `nvr.configure` get the cards below 900 px; no disk-days line in the confirmation (no retention data in the API); no XML view. Specs: `evidence-nvr-cameras-write` (stateful mock), `evidence-nvr-cameras-fixture` (real backend + fake NVR, fresh backend per project), `layout-nvr-cameras`, `unit-nvr-cameras-edit`. Evidence: `docs/evidence/CR-020-s2/`.

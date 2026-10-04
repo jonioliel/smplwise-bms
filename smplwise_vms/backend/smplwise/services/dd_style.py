@@ -13,6 +13,27 @@ from .tabs_mode import GROUPS
 STYLES: tuple[str, ...] = ("auto", "pill", "field", "underline", "text", "prefix", "tonal")
 DEFAULT_STYLE = "auto"
 
+# How a dropdown opens on a phone (owner decision 2026-10-03): `sheet` = a bottom sheet that slides up (the default, thumb-friendly),
+# `list` = the regular small list under the field. One global value (no per-group override): `ui.dd_phone` as the installation's default
+# and as a user's own choice (null = follow the installation). Presentation only; desktop and tablet widths are unaffected.
+PHONE_MODES: tuple[str, ...] = ("sheet", "list")
+DEFAULT_PHONE = "sheet"
+
+
+def normalize_phone(value: Any) -> str:
+    """Exactly one of PHONE_MODES (no trimming, no case folding); else refused."""
+    if isinstance(value, str) and value in PHONE_MODES:
+        return value
+    raise ValueError(f"phone dropdown mode must be one of {', '.join(PHONE_MODES)}")
+
+
+def stored_phone(raw: Any) -> str:
+    """The stored installation value as read back; a corrupt or foreign value reads as the default."""
+    try:
+        return normalize_phone(raw)
+    except ValueError:
+        return DEFAULT_PHONE
+
 
 def normalize_style(value: Any) -> str:
     """Exactly one of STYLES (no trimming, no case folding: the settings route's pattern accepts the same strings); else refused."""

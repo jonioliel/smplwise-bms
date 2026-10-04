@@ -44,6 +44,9 @@ async function mountDropdown(page: Page, items = ITEMS, value = 'live') {
       dd.label = 'אבטחה';
       (window as unknown as { __changes: string[] }).__changes = [];
       dd.addEventListener('change', (e) => (window as unknown as { __changes: string[] }).__changes.push((e as CustomEvent).detail.id));
+      // these specs measure the popover under the chip; on a phone width the owner's setting (2026-10-03) now opens a bottom sheet by default
+      // (covered by dropdown-phone-choice.spec.ts), so the popover case is the `list` choice
+      document.documentElement.setAttribute('data-dd-phone', 'list');
       document.querySelector('#stage')!.appendChild(dd);
     },
     [items, value] as const,

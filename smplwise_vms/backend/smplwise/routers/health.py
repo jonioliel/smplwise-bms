@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
 from ..db import database_of, lock_stats, permission_revision, unlocked
 from ..mode import describe as describe_mode
-from ..rbac import INSTALLATION, Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
 from ..services import health_report as health_report_svc
 from .storage import local_state
@@ -76,6 +77,9 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "identity_source": principal.source,
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
         **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
+        # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
+        "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
+        "installation": installation_block(resolve_capabilities(settings)),
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 

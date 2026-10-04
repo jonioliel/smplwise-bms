@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from smplwise.main import create_app
 from smplwise.services import look
 
-FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "transparency": 60, "scale": 110, "touch": 32, "performance": "lite", "palette": "default"}
+FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "transparency": 60, "scale": 110, "touch": 32, "performance": "lite", "palette": "default", "depth": 1, "tint": 2, "material": "frosted"}
 
 BAD_FULL = [
     "compact",
@@ -47,6 +47,20 @@ BAD_FULL = [
     {**FULL, "palette": 3},
     {**FULL, "accent": "#ff0000"},  # unknown dial
     {k: v for k, v in FULL.items() if k != "radius"},  # the installation default needs every dial
+    # MD1 (material dials): depth / tint are 0 | 1 | 2 whole numbers, material a closed set without chalk (dropped by the owner)
+    {**FULL, "depth": 3},
+    {**FULL, "depth": -1},
+    {**FULL, "depth": "1"},
+    {**FULL, "depth": 1.0},
+    {**FULL, "depth": True},
+    {**FULL, "tint": 3},
+    {**FULL, "tint": "strong"},
+    {**FULL, "tint": None},
+    {**FULL, "material": "chalk"},
+    {**FULL, "material": "Frosted"},
+    {**FULL, "material": ""},
+    {**FULL, "material": None},
+    {**FULL, "material": 1},
 ]
 
 
@@ -64,6 +78,12 @@ def test_defaults_and_the_frontend_lists_agree():
     assert re.search(r"scale:\s*\{[^}]*range:\s*\[80,\s*130\]", front, re.S)
     assert re.search(r"touch:\s*\{[^}]*values:\s*\[32,\s*44\]", front, re.S)
     assert look.PERFORMANCES == ("auto", "full", "lite") and look.DEFAULT["performance"] == "auto"  # the performance tier: auto is the default
+    # MD1 material dials: the same levels and presets on both sides, off by default (today's pixels unchanged), no chalk
+    assert re.search(r"depth:\s*\{[^}]*values:\s*\[0,\s*1,\s*2\]", front, re.S)
+    assert re.search(r"tint:\s*\{[^}]*values:\s*\[0,\s*1,\s*2\]", front, re.S)
+    assert look.MATERIALS == ("none", "frosted", "paper", "neon") and "chalk" not in look.MATERIALS
+    assert (look.DEFAULT["depth"], look.DEFAULT["tint"], look.DEFAULT["material"]) == (0, 0, "none")
+    assert look.KEYS[-3:] == ("depth", "tint", "material")
 
 
 @pytest.mark.parametrize("value", [FULL, look.DEFAULT, {**FULL, "transparency": 40, "scale": 80}, {**FULL, "transparency": 100, "scale": 130, "touch": 44}])
@@ -85,6 +105,14 @@ def test_partial_and_stored():
             look.normalize_partial({"performance": bad})
     # a default stored before the performance dial existed reads as "auto" for that dial
     assert look.stored(json.dumps({k: v for k, v in FULL.items() if k != "performance"}))["performance"] == "auto"
+    # a default stored before the material dials existed (0.1.156 and earlier) reads as off: no migration, no pixel change
+    old = {k: v for k, v in FULL.items() if k not in ("depth", "tint", "material")}
+    assert look.stored(json.dumps(old)) == {**old, "depth": 0, "tint": 0, "material": "none"}
+    assert look.normalize_partial({"material": "neon", "depth": 2}) == {"depth": 2, "material": "neon"}
+    assert look.normalize_own({"tint": 1, "palette": "forest"}) == {"tint": 1}
+    for bad in ({"depth": 2.5}, {"tint": "1"}, {"material": "chalk"}):
+        with pytest.raises(ValueError):
+            look.normalize_partial(bad)
     assert look.normalize_partial({"density": "row"}) == {"density": "row"}
     with pytest.raises(ValueError):
         look.normalize_partial({"density": "row", "x": 1})
@@ -130,7 +158,7 @@ def test_user_override_is_partial_per_user_validated_and_clearable(settings):
     # an empty override is a stored "nothing overridden"
     assert c.put("/api/v1/me/prefs", headers=as_user("dana"), json={"ui.look": {}}).json()["prefs"]["ui.look"] == {}
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}  # another user is untouched
-    for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"performance": "turbo"}, {"palette": "x"}, {"colour": "red"}, "compact", []):
+    for bad in ({"density": "huge"}, {"transparency": 30}, {"scale": "100"}, {"touch": 36}, {"performance": "turbo"}, {"palette": "x"}, {"depth": 3}, {"tint": "soft"}, {"material": "chalk"}, {"colour": "red"}, "compact", []):
         assert c.put("/api/v1/me/prefs", json={"ui.look": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.look"] == {"density": "row", "touch": 32}
     # a full object is fine too (the palette is the installation administrator's alone, so it is dropped), and null = "לפי ההתקנה": the key is gone again

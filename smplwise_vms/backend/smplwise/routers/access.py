@@ -146,7 +146,12 @@ PERMISSION_LABELS: dict[str, str] = {
     "nvr.config.privacy": "NVR: עריכת מסכות פרטיות",
     "nvr.config.smart": "NVR: עריכת כללי Smart Event",
     "nvr.config.schedule": "NVR: עריכת לוח ההקלטה",
-    "nvr.config.stream": "NVR: תצורת זרם (רזולוציה, bitrate)",
+    # nvr.configure (CR-020 S2, owner decision 2026-10-03): changing a camera stream's encoding on the NVR (SVC, codec,
+    # resolution, bitrate ...) and undoing such a change. The installer's job: a SYSTEM permission (SYSTEM_PERMISSIONS
+    # below), held by the built-in system_admin only, never by a custom role, never delegable; checked at installation
+    # scope AND on the camera's own chain (T055). It replaced the unused sensitive nvr.config.stream (removed from
+    # roles.json; migration 0050 strips it from stored custom roles).
+    "nvr.configure": "NVR: שינוי קידוד הזרמים של המצלמות",
     "nvr.config.osd": "NVR: שם ערוץ ו־OSD",
     "nvr.config.time": "NVR: שעון ו־NTP",
     "nvr.record.manual": "NVR: הקלטה ידנית",
@@ -189,7 +194,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # role naming it among its sensitive permissions plus a binding is the per-person grant path), installation scope.
     "access.cards.capture": "קריאת כרטיס מקורא בעמדת WisKey (מפעיל את הקורא בדלת; דורש גם ניהול אנשים)",
 }
-SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage"}  # rbac.assign is delegable (T082)
+SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key
 # `rbac.delegable_roles` (shipped in 0.1.36 - kept, so an allow-list the owner already edited survives); the default
 # narrowed to viewer + operator. Never on it, whatever the setting says: system_admin / site_admin, a role with a

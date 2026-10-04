@@ -5,6 +5,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-pill';
+import '../components/sw-kpi';
 import { describeError } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -14,8 +15,8 @@ import './system-palette-editor';
 import { allPalettes, onPalettes, paletteById, paletteTokens, setCustomPalettes, type Palette } from '../design/palette';
 import { skinTable } from '../design/css';
 import {
-  DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
-  sameLook, setInstallationLook, tierOf, type Look, type LookDial, type PartialLook,
+  DENSITY_BUNDLE, LOOK_DEFAULT, LOOK_DIALS, LOOK_DIAL_IDS, RADIUS_BUNDLE, effectiveSheetAlpha, installationLook, lookAttributes, materialMacro, normalizeDial, onLook, ownLook, saveDemoInstallationLook, saveOwnLook,
+  sameLook, setInstallationLook, tierOf, type Look, type LookDial, type Material, type PartialLook,
 } from '../design/look';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -376,7 +377,34 @@ export class SystemLook extends LitElement {
     this.message = '';
   }
 
+  /** MD1: a material preset is a macro - it also turns depth and tint on (when off) and suggests the transparency; the dials stay free afterwards. */
+  private pickMaterial(value: Material | null) {
+    if (this.target === 'installation') {
+      if (value !== null) {
+        this.draftInst = { ...this.draftInst, ...materialMacro(this.draftInst, value) };
+        this.message = '';
+      }
+      return;
+    }
+    if (value === null) {
+      void this.setOwn('material', null);
+      return;
+    }
+    const base = { ...installationLook(), ...this.own };
+    const next: PartialLook = { ...this.own, ...materialMacro(base, value) };
+    this.busy = true;
+    this.error = '';
+    void saveOwnLook(next)
+      .then(() => this.flash('ההעדפה נשמרה'))
+      .catch((err) => (this.error = describeError(err)))
+      .finally(() => (this.busy = false));
+  }
+
   private pick<K extends LookDial>(dial: K, value: Look[K] | null) {
+    if (dial === 'material') {
+      this.pickMaterial(value as Material | null);
+      return;
+    }
     if (this.target === 'installation') {
       if (value !== null) this.setInst(dial, value);
     } else void this.setOwn(dial, value);
@@ -487,7 +515,7 @@ export class SystemLook extends LitElement {
     const l = this.preview;
     const attrs = lookAttributes(l).attrs;
     const instDisabled = !this.canEdit || this.busy;
-    return html`<sw-card heading="מראה" subheading="צפיפות, משטח, חלונות קופצים, פינות, אטימות, גודל ויעד לחיצה - לכל ההתקנה ולעצמי" data-look-card>
+    return html`<sw-card heading="מראה" subheading="צפיפות, משטח, חלונות קופצים, פינות, אטימות, גודל, יעד לחיצה, חומר, עומק וגוון מצב - לכל ההתקנה ולעצמי" data-look-card>
       <div class="row">
         <span class="lbl">למי<span class="muted">${this.target === 'own' ? 'ההעדפה שלי: כל שינוי נשמר מיד' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
         <span class="seg" role="group" aria-label="למי">
@@ -504,11 +532,16 @@ export class SystemLook extends LitElement {
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}
       ${this.choiceRow('performance')}
+      ${this.choiceRow('material')}
+      ${this.choiceRow('depth')}
+      ${this.choiceRow('tint')}
       ${this.paletteRow()}
-      <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
-        data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}>
+      <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}/${l.material}/${l.depth}/${l.tint}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
+        data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}
+        data-bubble-material=${attrs['data-bubble-material']} data-bubble-depth=${attrs['data-bubble-depth']} data-bubble-tint=${attrs['data-bubble-tint']}>
         <div class="pv-col">
           <sw-pill variant="slider" icon="light" label="תאורה מרכזית" state="דולק · 72%" .value=${0.72} on .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1" data-preview-pill></sw-pill>
+          <sw-kpi label="אזעקה" value="דרוכה" tone="live" icon="shield" data-preview-kpi></sw-kpi>
           <sw-pill variant="plain" icon="coverOpen" label="תריס חלון" state="פתוח · 60%" .value=${0.6} on fill-color="var(--sw-accent-soft)" .hue=${4} .density=${l.density} .surface=${l.surface} tabindex="-1">
             <button slot="subs" class="sb" tabindex="-1" aria-hidden="true"><sw-icon name="arrowUp" size=${18}></sw-icon></button>
             <button slot="subs" class="sb" tabindex="-1" aria-hidden="true"><sw-icon name="arrowDown" size=${18}></sw-icon></button>

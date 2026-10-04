@@ -4,6 +4,9 @@ Owner request, 2026-09-29: "I want the system to come up without an NVR, in case
 control" - an installation with Home Assistant only (device control, floor plans, WisKey) and no Hikvision NVR.
 Branch `pilot/nvr-less-mode` (from `g0/intake` at `ed76db1`).
 
+> NN1 (2026-10-03): the binary mode is now a thin wrapper over a derived capability set (`/me.capabilities`); an NVR
+> without go2rtc is not a supported installation. See `docs/architecture/CAPABILITIES.md`. Everything below still holds.
+
 ## 1. What happened without `nvr_host` before this change (investigation)
 
 Method: the backend at `ed76db1` started with empty NVR / go2rtc / HA options against a fresh temporary data dir

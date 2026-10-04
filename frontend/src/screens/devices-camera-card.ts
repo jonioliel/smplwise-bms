@@ -12,6 +12,7 @@ import { snapshotUrl, type ProductSettings } from '../api/media';
 import { snapshotRefreshMs } from '../api/live-budget';
 import { playerPlan } from '../api/video-policy';
 import { navigate } from '../router';
+import { cap, isApi } from '../api/session';
 import { bidi } from '../i18n/bidi';
 import { CARD_QUALITY_LABEL, HA_LIVE_CHANGED, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
 
@@ -386,7 +387,7 @@ export class DevicesCameraCard extends LitElement {
   /** The card's source is a live NVR channel that is online (what `renderLive` streams). */
   private get canStream(): boolean {
     const r = this.resolved;
-    if (r?.state === 'ha_live') return !!r.live_path && r.status !== 'offline' && !this.haFailedAt;
+    if (r?.state === 'ha_live') return (!isApi() || cap('ha_cameras_live')) && !!r.live_path && r.status !== 'offline' && !this.haFailedAt;
     return !!r && r.state === 'live' && !!r.camera_id && r.status !== 'offline' && r.status !== 'unknown';
   }
 
@@ -507,6 +508,8 @@ export class DevicesCameraCard extends LitElement {
   }
 
   render() {
+    // NN1 (D5): an NVR channel is not drawn without an NVR - the rows stay, invisible, and come back with the NVR
+    if (isApi() && this.source?.kind === 'nvr' && !cap('nvr')) return nothing;
     if (this.phase === 'loading') return this.message('loading', 'camera', 'טוען מצלמה…');
     if (this.phase === 'error') {
       return html`<div class="msg" data-camera-state="error">
@@ -528,7 +531,7 @@ export class DevicesCameraCard extends LitElement {
       case 'still_only':
         return this.renderStill(r);
       case 'ha_live':
-        return this.renderHaLive(r);
+        return isApi() && !cap('ha_cameras_live') ? this.renderStill(r) : this.renderHaLive(r); // no media server: the picture only
       default:
         return this.renderLive(r);
     }

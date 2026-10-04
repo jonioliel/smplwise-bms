@@ -117,3 +117,54 @@ export const liteAlphaFloor = (m: SheetModel, min = WCAG_TEXT): number => alphaF
 
 /** The alpha the lite tier draws its tinted layers at (`--sw-lite-alpha`): the computed floor, never below LITE_MIN_ALPHA. */
 export const liteAlpha = (m: SheetModel): number => Math.max(LITE_MIN_ALPHA, liteAlphaFloor(m));
+
+// ---- MD1 material dials: the state wash on a tile (styles/material.ts) ----
+
+/** The strongest wash the dials can ask for: the neon preset's 34 % at tint = strong (x1.8), rounded up to the step. */
+export const WASH_MAX = 62;
+/** The tones a tile may be washed with: the lit fill, the accent, the state colours, the climate pair and the eight decorative hues. */
+export const WASH_TONES = ['--sw-lit', '--sw-accent', '--sw-success', '--sw-warning', '--sw-danger', '--sw-cool', '--sw-heat', '--sw-hue-1', '--sw-hue-2', '--sw-hue-3', '--sw-hue-4', '--sw-hue-5', '--sw-hue-6', '--sw-hue-7', '--sw-hue-8'];
+
+export interface WashModel {
+  /** The opaque surfaces a washed tile sits on (a translucent skin surface is composited over the page background first). */
+  bases: RGBA[];
+  tones: RGBA[];
+  texts: RGBA[];
+}
+
+/** The wash model of a skin's merged token table (with a palette's inline tokens over it) in one scheme. */
+export function washModelOf(v: (name: string) => string): WashModel | null {
+  const bg = parseColor(v('--sw-bg'));
+  if (!bg) return null;
+  const opaque = (c: RGBA | null): RGBA | null => (c ? (c[3] >= 1 ? c : over(c, bg)) : null);
+  const bases = ['--sw-surface', '--sw-surface-solid'].map((n) => opaque(parseColor(v(n)))).filter((c): c is RGBA => !!c);
+  const tones = WASH_TONES.map((n) => parseColor(v(n))).filter((c): c is RGBA => !!c);
+  const texts = ['--sw-text', '--sw-text-2'].map((n) => parseColor(v(n))).filter((c): c is RGBA => !!c);
+  return bases.length && tones.length && texts.length ? { bases, tones, texts } : null;
+}
+
+/** The lowest contrast of any text over any tone washed at `share` percent (the start of the 135deg wash, its strongest point) on any base. */
+export function worstWashContrast(m: WashModel, share: number): number {
+  let worst = Infinity;
+  for (const base of m.bases) {
+    for (const tone of m.tones) {
+      const washed = over(withAlpha(tone, share / 100), base);
+      for (const t of m.texts) worst = Math.min(worst, contrastRatio(over(t, washed), washed));
+    }
+  }
+  return worst;
+}
+
+/**
+ * The wash cap (`--sw-m-wash-cap`, percent): the highest share, from WASH_MAX down in steps of 2, from which every lower share keeps
+ * every text at `min` over every tone on every base. 0 when even the faintest wash fails (the surface pair itself is wrong: the
+ * solid-surface contrast test catches that). design/apply.ts sets it on <html>; the tile's wash is min(wash x tint, cap).
+ */
+export function washCap(m: WashModel, min = WCAG_TEXT, step = 2): number {
+  let cap = 0;
+  for (let s = step; s <= WASH_MAX; s += step) {
+    if (worstWashContrast(m, s) >= min) cap = s;
+    else break;
+  }
+  return cap;
+}

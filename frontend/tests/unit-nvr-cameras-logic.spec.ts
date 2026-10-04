@@ -148,10 +148,10 @@ test('startsGroup marks the first row of each camera in the shown order', () => 
   expect(rows.map((_, i) => startsGroup(rows, i))).toEqual([true, false, false, true, false, true, true]);
 });
 
-test('the demo answers in the lab shape: read-only, no address or secret in the data', async () => {
+test('the demo answers in the lab shape (S2: writable), no address or secret in the data', async () => {
   resetNvrSettingsDemo();
   const list = await nvrSettings().cameras();
-  expect(list.can_write).toBe(false);
+  expect(list.can_write).toBe(true); // the demo implements the S2 write calls in memory
   expect(list.stale).toBe(false);
   expect(list.cameras.length).toBeGreaterThanOrEqual(4);
   const text = JSON.stringify(list);

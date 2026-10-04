@@ -111,7 +111,7 @@ export class SystemWizard extends LitElement {
     const steps = this.data.steps.map((x) => (x.id === id ? fresh : x));
     const required = steps.filter((x) => x.status !== 'not_applicable'); // NVR-less mode: a step skipped on purpose is not counted
     const done = required.filter((x) => x.status === 'done').length;
-    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
+    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length && s.installation?.supported !== false, installation: s.installation ?? this.data.installation, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
   }
 
   private checkAll() {
@@ -133,7 +133,18 @@ export class SystemWizard extends LitElement {
     </ol>`;
   }
 
+  /** NN1 (owner decision D2): an NVR without a media server is not a supported installation - never "ready", and the reason is shown. */
   private renderSummary(d: SetupState) {
+    const inst = d.installation;
+    return html`${inst && !inst.supported
+      ? html`<div class="problem failed" role="alert" data-wizard-unsupported=${inst.reason ?? ''}>
+          <sw-icon name="warning" size=${16}></sw-icon>
+          <div><b>${inst.message ?? ''}</b><span>מה עושים: ${inst.action ?? ''}</span></div>
+        </div>`
+      : nothing}${this.renderProgress(d)}`;
+  }
+
+  private renderProgress(d: SetupState) {
     const skipped = d.steps.filter((s) => s.status === 'not_applicable').length;
     if (d.ready && d.mode === 'ha_only') {
       return html`<div class="summary ready" role="status" data-wizard-ready data-wizard-mode="ha_only">

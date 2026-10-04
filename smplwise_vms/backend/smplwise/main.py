@@ -80,6 +80,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         from .services import nvr_write
 
         nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
+        try:  # CR-020 S2: stream changes left pending (crash, busy database, unknown device answer) - settled by a read, never a write
+            from .services import nvr_settings
+
+            nvr_settings.settle_pending(db, settings)
+        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+            log.warning("nvr stream janitor failed", exc_info=True)
     db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
 
 

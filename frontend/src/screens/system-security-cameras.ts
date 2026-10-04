@@ -4,8 +4,17 @@ import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-state-panel';
+import '../components/sw-toggle';
+import '../components/sw-icon';
+import './nvr-camera-editor';
+import './nvr-confirm';
+import './nvr-undo-toast';
+import { keyed } from 'lit/directives/keyed.js';
 import { ApiError, describeError } from '../api/client';
-import { nvrSettings, type CameraList, type Recorder } from '../api/nvr-settings';
+import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
+import type { SwToggle } from '../components/sw-toggle';
+import { runUndo, runWrite, type ActionResult } from './nvr-cameras-actions';
+import { confirmModel, control, type Control, type ConfirmModel } from './nvr-cameras-edit';
 import {
   DASH,
   DEFAULT_SORT,
@@ -39,6 +48,15 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 
 const STALE_NOTE = 'ה־NVR אינו זמין. מוצגים הערכים האחרונים.';
 
+interface Toast {
+  /** A new number per toast: the element is re-created, so its 10 s timer starts again. */
+  n: number;
+  message: string;
+  undo?: { changeId: string; cameraId: string; ref: string };
+  reboot?: boolean;
+  busy?: boolean;
+}
+
 /** Table columns in display order; `sort` is the column's sort key (none: not sortable). */
 const COLUMNS: { id: string; label: string; sort?: SortKey }[] = [
   { id: 'channel', label: 'ערוץ', sort: 'channel' },
@@ -59,8 +77,15 @@ const CROSS = html`<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="
 /**
  * הגדרות › אבטחה › מצלמות (CR-020 slice S1): every camera of the NVR with the video settings of each of its streams - codec,
  * SVC, resolution, frame rate, bitrate, GOP, profile, stream type and whether the browser plays it over WebRTC - in one
- * read-only table with a search, filters and column sort. System administrators only (`system.configure`; the server
- * checks it, the tab is only offered to them). Nothing on this screen writes to the NVR: changing an encoding is slice S2.
+ * table with a search, filters and column sort. System administrators only (`system.configure`; the server checks it, the tab is
+ * only offered to them).
+ *
+ * Slice S2 phase B (single-stream write): whoever holds `nvr.configure` (the list's `can_write`) also gets, per stream, an SVC
+ * switch and a pencil that opens the editor drawer. The switch never moves by itself: a press opens the ONE confirmation, then the
+ * row is pending, then the data decides (success: the switch moves and a toast offers "בטל" for 10 s - that press is the undo's
+ * confirmation; failure: the switch stays and one muted line says why). A control is offered only after the camera's detail was
+ * read (`writable` is null in the list); one that cannot act is disabled with the reason in its tooltip only. Nothing is ever
+ * retried: an unknown outcome says "הסטטוס נבדק" and the camera is read again (a read). Everyone else sees the S1 table, unchanged.
  * Values the device does not report show "—" (never a guessed default). Technical names are exact (H.264, SVC, GOP):
  * this is a settings screen. Numbers, codecs and resolutions stay left-to-right inside the right-to-left page.
  */
@@ -75,7 +100,18 @@ export class SystemSecurityCameras extends LitElement {
   @state() private failure: { status: number; code: string; message: string } | null = null;
   @state() private filters: Filters = { ...NO_FILTERS };
   @state() private sort: Sort = { ...DEFAULT_SORT };
+  /** By camera id: the detail (options, `writable`) once read, or 'error'. Only read for a holder of `nvr.configure`. */
+  @state() private details = new Map<string, CameraDetail | 'error'>();
+  /** Rows with a write in flight (`cameraId:streamRef`). */
+  @state() private busy = new Set<string>();
+  /** The one muted line under a row (row key -> text); cleared by the next action on that row. */
+  @state() private lines = new Map<string, string>();
+  /** The pending confirmation of an SVC switch (the editor has its own, inside its drawer). */
+  @state() private confirm: { model: ConfirmModel; cameraId: string; ref: string; changes: EncodingChanges } | null = null;
+  @state() private editing: { cameraId: string; ref: string } | null = null;
+  @state() private toast: Toast | null = null;
   private seq = 0;
+  private toasts = 0;
 
   static styles = [css`
     :host {
@@ -237,6 +273,107 @@ export class SystemSecurityCameras extends LitElement {
         padding: 7px 6px;
       }
     }
+    /* S2: the SVC switch, the pencil, the pending spinner and the one muted line under a row */
+    .vh {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    td.act {
+      inline-size: 1%;
+      text-align: end;
+    }
+    .swc {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    sw-toggle {
+      vertical-align: middle;
+    }
+    .spin {
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--sw-border-strong);
+      border-block-start-color: var(--sw-accent);
+      animation: nvr-spin 0.8s linear infinite;
+    }
+    @keyframes nvr-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spin {
+        animation: none;
+      }
+    }
+    .pen {
+      all: unset;
+      box-sizing: border-box;
+      display: inline-grid;
+      place-items: center;
+      inline-size: 32px;
+      block-size: 32px;
+      border-radius: var(--sw-r-sm);
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .pen:hover:not([disabled]) {
+      background: var(--sw-surface-3);
+      color: var(--sw-text);
+    }
+    .pen:focus-visible {
+      outline: 2px solid var(--sw-accent);
+      outline-offset: -2px;
+    }
+    .pen[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    tr.msg td {
+      white-space: normal;
+      color: var(--sw-text-2);
+      background: var(--sw-surface-2);
+      font-size: var(--sw-fs-sm);
+      padding-block: 6px;
+    }
+    .msgline {
+      color: var(--sw-text-2);
+      background: var(--sw-surface-2);
+      border-radius: var(--sw-r-sm);
+      padding: 6px 8px;
+      font-size: var(--sw-fs-sm);
+    }
+    .svcline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* touch layouts: the switch's box and the pencil are 44 px targets */
+    @media (max-width: 1100px) {
+      sw-toggle {
+        padding: 10px 1px;
+      }
+      .pen {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+      /* the toolbar's fields and the sort headers are 44 px targets in touch layouts (layout guard) */
+      .toolbar sw-field select,
+      .toolbar sw-field input {
+        min-block-size: 44px;
+      }
+      th button {
+        min-block-size: 44px;
+        min-inline-size: 44px;
+        justify-content: center;
+      }
+    }
     .cards {
       display: none;
     }
@@ -285,11 +422,36 @@ export class SystemSecurityCameras extends LitElement {
         margin: 0;
       }
     }
+    /* S2: with the switch and pencil columns the table needs about 900 px; a holder of nvr.configure gets the cards below that */
+    @media (max-width: 899px) {
+      :host([data-rw]) .wrap {
+        display: none;
+      }
+      :host([data-rw]) .cards {
+        display: grid;
+        gap: 8px;
+      }
+      :host([data-rw]) .toolbar sw-field,
+      :host([data-rw]) .toolbar sw-field.search {
+        inline-size: calc(50% - 4px);
+      }
+      :host([data-rw]) .toolbar sw-field.search {
+        inline-size: 100%;
+      }
+      :host([data-rw]) .count {
+        inline-size: 100%;
+        margin: 0;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('data-rw', !!this.data?.can_write);
   }
 
   private async load() {
@@ -302,11 +464,13 @@ export class SystemSecurityCameras extends LitElement {
       this.data = list;
       this.recorder = recs?.recorders[0] ?? null;
       this.failure = null;
+      this.details = new Map();
+      this.lines = new Map();
       // the device could not be read and the registry knows nothing: the same as an error with nothing to show
       if (list.stale && !list.cameras.length) {
         this.data = null;
         this.failure = { status: 503, code: list.error ?? 'source_unavailable', message: STALE_NOTE };
-      }
+      } else void this.prefetch(list, mine);
     } catch (err) {
       if (mine !== this.seq) return;
       this.data = null;
@@ -314,6 +478,169 @@ export class SystemSecurityCameras extends LitElement {
     } finally {
       if (mine === this.seq) this.loading = false;
     }
+  }
+
+  // ---------------------------------------------------------------------------------------------- S2: detail, controls, writes
+
+  /** `writable` is null in the list: a holder of `nvr.configure` reads each camera's detail (three at a time) before a switch is offered. */
+  private async prefetch(list: CameraList, mine: number) {
+    if (!list.can_write || list.stale) return;
+    const ids = list.cameras.filter((c) => c.camera_id && c.streams.length).map((c) => c.camera_id as string);
+    let next = 0;
+    const worker = async () => {
+      while (next < ids.length && mine === this.seq) await this.readCamera(ids[next++], mine);
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  /** A READ of one camera (the options and `writable`); also how a row is refreshed after stale / diverged / an unknown outcome. */
+  private async readCamera(id: string, mine = this.seq) {
+    try {
+      const d = await nvrSettings().camera(id);
+      if (mine !== this.seq) return;
+      this.details = new Map(this.details).set(id, d);
+      if (this.data && d.camera.streams.length) this.data = { ...this.data, cameras: this.data.cameras.map((c) => (c.camera_id === id ? { ...c, streams: d.camera.streams } : c)) };
+    } catch {
+      if (mine === this.seq) this.details = new Map(this.details).set(id, 'error');
+    }
+  }
+
+  private cameraById(id: string): NvrCamera | null {
+    return this.data?.cameras.find((c) => c.camera_id === id) ?? null;
+  }
+
+  private streamOf(id: string, ref: string): StreamEncoding | null {
+    return this.cameraById(id)?.streams.find((s) => s.stream_ref === ref) ?? null;
+  }
+
+  private ctrl(kind: 'svc' | 'edit', r: StreamRow): Control {
+    const d = this.data;
+    if (!d || !r.cameraId) return { show: false, enabled: false, reason: '' };
+    return control(kind, { camera_id: r.cameraId, online: r.online }, r.stream, { canWrite: d.can_write, stale: d.stale, detail: this.details.get(r.cameraId) ?? null });
+  }
+
+  private isBusy(r: StreamRow): boolean {
+    return !!r.cameraId && !!r.stream && this.busy.has(`${r.cameraId}:${r.stream.stream_ref}`);
+  }
+
+  private setBusy(key: string, on: boolean) {
+    const b = new Set(this.busy);
+    if (on) b.add(key);
+    else b.delete(key);
+    this.busy = b;
+  }
+
+  private setLine(rowKey: string, text: string | null) {
+    const m = new Map(this.lines);
+    if (text) m.set(rowKey, text);
+    else m.delete(rowKey);
+    this.lines = m;
+  }
+
+  /** The new stream of a write / undo / stale answer replaces the row's (the list and the detail copy); `writable` is kept when the answer has none. */
+  private replaceStream(cameraId: string, s: StreamEncoding) {
+    const merge = (old?: StreamEncoding): StreamEncoding => ({ ...s, writable: s.writable ?? old?.writable ?? null, not_writable_reason: s.not_writable_reason ?? old?.not_writable_reason ?? null });
+    const swap = (c: NvrCamera): NvrCamera => ({ ...c, streams: c.streams.map((x) => (x.stream_ref === s.stream_ref ? merge(x) : x)) });
+    if (this.data) this.data = { ...this.data, cameras: this.data.cameras.map((c) => (c.camera_id === cameraId ? swap(c) : c)) };
+    const d = this.details.get(cameraId);
+    if (d && d !== 'error') this.details = new Map(this.details).set(cameraId, { ...d, camera: swap(d.camera) });
+  }
+
+  private showToast(message: string, extra: Partial<Toast> = {}) {
+    this.toast = { n: ++this.toasts, message, ...extra };
+  }
+
+  /** What a finished write / undo does to the screen. `from`: the row's switch / toast (a line under the row) or the editor (its own line). */
+  private applyResult(cameraId: string, ref: string, r: ActionResult, from: 'row' | 'editor') {
+    const rowKey = `${this.cameraById(cameraId)?.recorder_id ?? 'nvr-1'}:${this.cameraById(cameraId)?.source_ref ?? ''}:${ref}`;
+    if (r.ok) {
+      this.replaceStream(cameraId, r.stream);
+      if (from === 'editor') this.editing = null;
+      this.setLine(rowKey, null);
+      if (r.kind === 'undo') this.showToast(r.rebootRequired ? 'השינוי בוטל. ה־NVR מבקש הפעלה מחדש.' : 'השינוי בוטל', r.rebootRequired ? { reboot: true } : {});
+      else if (r.unchanged || !r.change) this.showToast('ללא שינוי');
+      else this.showToast(r.rebootRequired ? 'נשמר. ה־NVR מבקש הפעלה מחדש.' : 'נשמר', { undo: { changeId: r.change.id, cameraId, ref }, ...(r.rebootRequired ? { reboot: true } : {}) });
+      return;
+    }
+    if (r.stream) this.replaceStream(cameraId, r.stream);
+    if (from === 'row') this.setLine(rowKey, r.line.text);
+    // a READ of the camera (never a repeat of the write): the server's own state replaces ours
+    if (r.line.reload) void this.readCamera(cameraId);
+  }
+
+  private onSvc(e: Event, r: StreamRow) {
+    const s = r.stream;
+    // the switch flips itself on a press: put it back at once - the data (the device's answer) decides where it stands
+    (e.target as SwToggle).checked = s?.svc === true;
+    if (!s || !r.cameraId || this.isBusy(r) || !this.ctrl('svc', r).enabled) return;
+    const changes: EncodingChanges = { svc: s.svc !== true };
+    this.setLine(r.key, null);
+    this.confirm = { model: confirmModel(r.cameraName, s, changes), cameraId: r.cameraId, ref: s.stream_ref, changes };
+  }
+
+  private async confirmed() {
+    const c = this.confirm;
+    this.confirm = null;
+    const s = c && this.streamOf(c.cameraId, c.ref);
+    if (!c || !s) return;
+    const key = `${c.cameraId}:${c.ref}`;
+    this.toast = null;
+    this.setBusy(key, true);
+    const r = await runWrite(c.cameraId, s, c.changes);
+    this.setBusy(key, false);
+    this.applyResult(c.cameraId, c.ref, r, 'row');
+  }
+
+  private async undoToast() {
+    const t = this.toast;
+    if (!t?.undo || t.busy) return;
+    const { changeId, cameraId, ref } = t.undo;
+    this.toast = { ...t, busy: true };
+    this.setBusy(`${cameraId}:${ref}`, true);
+    const r = await runUndo(changeId); // the press on the toast IS the confirmation: `confirm: true` goes with it
+    this.setBusy(`${cameraId}:${ref}`, false);
+    this.toast = null;
+    this.applyResult(cameraId, ref, r, 'row');
+  }
+
+  private openEditor(r: StreamRow) {
+    if (!r.cameraId || !r.stream || !this.ctrl('edit', r).enabled || this.isBusy(r)) return;
+    this.toast = null;
+    this.setLine(r.key, null);
+    this.editing = { cameraId: r.cameraId, ref: r.stream.stream_ref };
+  }
+
+  private renderSvc(r: StreamRow) {
+    const c = this.ctrl('svc', r);
+    const s = r.stream;
+    if (!c.show || !s) return svcLabel(s);
+    const busy = this.isBusy(r);
+    const name = `SVC · ${r.cameraName} · ${ROLE_HE[s.role]}`;
+    return html`<span class="swc ${busy ? 'pending' : ''}"><sw-toggle data-svc-toggle .checked=${s.svc === true} ?disabled=${!c.enabled || busy} label=${name} labelHidden title=${c.reason || nothing}
+      aria-busy=${busy ? 'true' : 'false'} @change=${(e: Event) => this.onSvc(e, r)}></sw-toggle>${busy ? html`<span class="spin" role="status" aria-label="שומר" data-pending></span>` : nothing}</span>`;
+  }
+
+  private renderPen(r: StreamRow) {
+    const c = this.ctrl('edit', r);
+    if (!c.show || !r.stream) return nothing;
+    return html`<button type="button" class="pen" data-edit-stream aria-label=${`עריכה · ${r.cameraName} · ${ROLE_HE[r.stream.role]}`} title=${c.reason || 'עריכה'} ?disabled=${!c.enabled || this.isBusy(r)} @click=${() => this.openEditor(r)}><sw-icon name="edit" size="16"></sw-icon></button>`;
+  }
+
+  private renderEditor() {
+    const e = this.editing;
+    const cam = e ? this.cameraById(e.cameraId) : null;
+    const s = e ? this.streamOf(e.cameraId, e.ref) : null;
+    const d = e ? this.details.get(e.cameraId) : null;
+    const options = s && d && d !== 'error' ? d.options?.[s.stream_ref] ?? null : null;
+    return html`<nvr-camera-editor ?open=${!!(e && cam && s && options)} .camera=${cam} .stream=${s} .options=${options}
+      @close=${() => (this.editing = null)} @written=${(ev: CustomEvent<{ result: ActionResult }>) => e && this.applyResult(e.cameraId, e.ref, ev.detail.result, 'editor')}></nvr-camera-editor>`;
+  }
+
+  private renderToast() {
+    const t = this.toast;
+    if (!t) return nothing;
+    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.undo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
+      @undo=${() => void this.undoToast()} @dismiss=${() => !t.busy && (this.toast = null)}></nvr-undo-toast>`);
   }
 
   private patch(p: Partial<Filters>) {
@@ -358,28 +685,31 @@ export class SystemSecurityCameras extends LitElement {
     const r = rows[i];
     const s = r.stream;
     const first = startsGroup(rows, i);
+    const line = this.lines.get(r.key);
     return html`<tr class="${first ? 'first' : 'repeat'} ${r.enabledInArx ? '' : 'off'}" data-stream-row data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
       <td class="muted c-chan" data-col="channel"><span class="ltr">${r.channel}</span></td>
       <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span><span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
       <td data-col="role">${s ? ROLE_HE[s.role] : html`<span class="muted" data-unread>לא נקרא</span>`}</td>
       <td data-col="codec"><span class="ltr"><bdi>${codecLabel(s)}</bdi>${s?.profile ? html` <bdi class="muted">${s.profile}</bdi>` : nothing}</span></td>
-      <td data-col="svc">${svcLabel(s)}</td>
+      <td data-col="svc">${this.renderSvc(r)}</td>
       <td data-col="resolution"><bdi class="ltr">${resolutionLabel(s)}</bdi></td>
       <td data-col="fps"><span class="ltr">${fpsLabel(s)}</span></td>
       <td data-col="bitrate"><span class="ltr"><bdi>${bitrateLabel(s)}</bdi>${s?.bitrate_mode && s.bitrate_kbps ? html` <span class="muted">${s.bitrate_mode}</span>` : nothing}</span></td>
       <td data-col="gop"><span class="ltr">${numberLabel(s?.gop)}</span></td>
       <td data-col="webrtc">${this.verdict(r)}</td>
-    </tr>`;
+      ${this.data?.can_write ? html`<td data-col="edit" class="act">${this.renderPen(r)}</td>` : nothing}
+    </tr>${line ? html`<tr class="msg" data-row-line-row><td colspan=${COLUMNS.length + 1} data-nvr-line role="status">${line}</td></tr>` : nothing}`;
   }
 
   private renderCard(r: StreamRow) {
     const s = r.stream;
     return html`<div class="card ${r.enabledInArx ? '' : 'off'}" data-stream-card data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
-      <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span><span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto">${this.verdict(r)}</span></div>
+      <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span><span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px">${this.verdict(r)}${this.renderPen(r)}</span></div>
       ${s
         ? html`<div class="line"><span>${ROLE_HE[s.role]}</span><bdi class="ltr">${codecLabel(s)}</bdi><bdi class="ltr">${resolutionLabel(s)}</bdi><span class="ltr">${fpsLabel(s)}</span></div>
-          <div class="line facts"><span>SVC ${svcLabel(s)}</span><bdi class="ltr">${bitrateLabel(s)}${s.bitrate_mode && s.bitrate_kbps ? ` ${s.bitrate_mode}` : ''}</bdi><span>GOP <span class="ltr">${numberLabel(s.gop)}</span></span>${s.profile ? html`<bdi class="ltr muted">${s.profile}</bdi>` : nothing}</div>`
+          <div class="line facts"><span class="svcline">SVC ${this.renderSvc(r)}</span><bdi class="ltr">${bitrateLabel(s)}${s.bitrate_mode && s.bitrate_kbps ? ` ${s.bitrate_mode}` : ''}</bdi><span>GOP <span class="ltr">${numberLabel(s.gop)}</span></span>${s.profile ? html`<bdi class="ltr muted">${s.profile}</bdi>` : nothing}</div>`
         : html`<div class="line muted" data-unread>לא נקרא</div>`}
+      ${this.lines.get(r.key) ? html`<div class="msgline" data-nvr-line role="status">${this.lines.get(r.key)}</div>` : nothing}
     </div>`;
   }
 
@@ -395,7 +725,7 @@ export class SystemSecurityCameras extends LitElement {
         ? html`<sw-state-panel state="empty" heading="אין זרמים שמתאימים לסינון." actionLabel="נקה סינון" data-nvr-no-match @action=${() => (this.filters = { ...NO_FILTERS })}></sw-state-panel>`
         : html`<div class="wrap" data-nvr-table>
               <table>
-                <thead><tr>${COLUMNS.map((col) => this.headerCell(col))}</tr></thead>
+                <thead><tr>${COLUMNS.map((col) => this.headerCell(col))}${data.can_write ? html`<th scope="col" data-col="edit"><span class="vh">עריכה</span></th>` : nothing}</tr></thead>
                 <tbody>${shown.map((_, i) => this.renderRow(shown, i))}</tbody>
               </table>
             </div>
@@ -421,7 +751,10 @@ export class SystemSecurityCameras extends LitElement {
       content = html`<sw-state-panel state="empty" heading="אין NVR מחובר" actionLabel="לחיבורים" data-nvr-none @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel>`;
     else if (f) content = html`<sw-state-panel state="error" heading="ה־NVR אינו זמין." hint=${f.status === 503 ? '' : f.message} actionLabel="נסה שוב" data-nvr-error @action=${() => void this.load()}></sw-state-panel>`;
     else content = this.renderBody();
-    return html`<sw-page heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>`;
+    return html`<sw-page heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>
+      ${this.data?.can_write ? this.renderEditor() : nothing}
+      <nvr-confirm .model=${this.confirm?.model ?? null} @confirm=${() => void this.confirmed()} @cancel=${() => (this.confirm = null)}></nvr-confirm>
+      ${this.renderToast()}`;
   }
 }
 

@@ -5,8 +5,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LOOK_DIALS, lookOf, normalizeDial, normalizeLook, saveOwnLook, setInstallationLook } from '../src/design/look';
 import { TOKENS } from '../src/design/tokens';
 import {
-  BUILTIN_IDS, BUILTIN_PALETTES, DARK_ACCENT_MIN_RATIO, DEFAULTS_FOR_OPEN_QUESTIONS, MAX_CUSTOM, WASH_DEFAULT, autoFixPalette, checkScheme, customPalettes, describeFailures, effectiveScheme, failingPairs,
-  mixOklab, normalizeCustoms, paletteById, paletteTokens, recommendedColors, resolvePalette, schemaErrors, setCustomPalettes, surface3Of, syncPalette, validatePalette, washRows, washShares, activePaletteTokens,
+  BUILTIN_IDS, BUILTIN_PALETTES, DARK_ACCENT_MIN_RATIO, DEFAULTS_FOR_OPEN_QUESTIONS, MATERIAL_WASH, MATERIAL_WASH_TONES, MAX_CUSTOM, WASH_DEFAULT, autoFixPalette, checkScheme, customPalettes, describeFailures, effectiveScheme, failingPairs,
+  materialWashCap, materialWashRows, mixOklab, normalizeCustoms, paletteById, paletteTokens, recommendedColors, resolvePalette, schemaErrors, setCustomPalettes, surface3Of, syncPalette, validatePalette, washRows, washShares, activePaletteTokens,
   type Palette,
 } from '../src/design/palette';
 import { contrastRatio, parseColor } from '../src/design/contrast';
@@ -65,6 +65,31 @@ test('the frontend checks agree with the design validator (validate_palettes.mjs
     }
   }
   expect(failingPairs(broken).length).toBeGreaterThan(2);
+});
+
+// MD1 material dials (2026-10-03): the state wash's contrast cap, the same in the app and in the design validator
+test('material wash: the frontend and validate_palettes.mjs agree on the wash cap and its rows for every ready palette; the capped rows pass; the soft wash is available on every ready palette', async () => {
+  const mjs = await import(/* @vite-ignore */ pathToFileURL(resolve(ROOT, 'docs', 'design', 'palettes', 'validate_palettes.mjs')).href);
+  for (const p of BUILTIN_PALETTES) {
+    for (const sc of ['light', 'dark'] as const) {
+      const cap = materialWashCap(p.schemes[sc]);
+      expect(cap, `${p.id} ${sc} cap`).toBe(mjs.materialWashCap(p.schemes[sc]));
+      expect(cap, `${p.id} ${sc} soft wash available`).toBeGreaterThanOrEqual(MATERIAL_WASH.soft);
+      const ours = materialWashRows(p.schemes[sc]);
+      const ref = mjs.materialWashRows(p.schemes[sc]) as { what: string; ratio: number; ok: boolean; min: number }[];
+      expect(ours.length).toBe(MATERIAL_WASH_TONES.length * 2 * 2 * 2);
+      expect(ours.map((r) => [r.what, r.ok, r.min])).toEqual(ref.map((r) => [r.what, r.ok, r.min]));
+      for (let i = 0; i < ref.length; i++) expect(Math.abs(ours[i].ratio - ref[i].ratio), `${p.id} ${sc} ${ref[i].what}`).toBeLessThanOrEqual(0.011);
+      expect(ours.filter((r) => !r.ok), `${p.id} ${sc}`).toEqual([]);
+    }
+  }
+  // a palette with muted text that barely reads on the plain surface has a small cap (never a negative or an odd one)
+  const broken = custom('custom-broken');
+  broken.schemes.light.textMuted = '#8a909c';
+  const cap = materialWashCap(broken.schemes.light);
+  expect(cap % 2).toBe(0);
+  expect(cap).toBeGreaterThanOrEqual(0);
+  expect(cap).toBeLessThan(MATERIAL_WASH.soft);
 });
 
 test('a custom palette that fails the contrast checks only WARNS (Hebrew, worst pairs): it is valid, listed and saveable (owner 2026-10-02)', () => {

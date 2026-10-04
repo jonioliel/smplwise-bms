@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
+from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, go2rtc_url, installation_block
+from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import get_setting, now_iso, permission_revision
 from ..errors import reason_of
@@ -155,6 +157,7 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
 
     # devices (probed, cached)
     ha_only = is_ha_only(settings)
+    caps = resolve_capabilities(settings)
     if ha_only:
         # NVR-less mode (mode.py): the NVR is not part of this installation - a neutral "off", never a warning; go2rtc is
         # optional (WisKey station video) and is probed only when it is configured
@@ -164,6 +167,11 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     elif probe:
         nvr = _cached("nvr", lambda: _probe_nvr(settings))
         go = _cached("go2rtc", lambda: _probe_go2rtc(settings))
+        if caps.unsupported_reason == NVR_WITHOUT_GO2RTC and settings.nvr_user:
+            # NN1, owner decision 2026-10-03: a connected NVR without go2rtc is not a supported installation - an error that
+            # says why (a fresh install whose NVR is not connected yet keeps the "not configured" warning above)
+            go = {"status": "error", "detail": UNSUPPORTED_MESSAGES[NVR_WITHOUT_GO2RTC] + " " + UNSUPPORTED_ACTIONS[NVR_WITHOUT_GO2RTC],
+                  "configured": False, "required": True}
     else:
         nvr = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
         go = {"status": "warn", "detail": "לא נבדק בבקשה זו."}
@@ -236,7 +244,9 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
             break
         if c["status"] == "warn":
             worst = "warn"
-    return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S, "checks": checks}
+    return {"status": worst, "mode": installation_mode(settings), "version": __version__, "uptime_s": int(time.time() - STARTED), "checked_at": now_iso(), "probe_ttl_s": PROBE_TTL_S,
+            # NN1: the report is for system administrators only, so the recorder detail is included
+            "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps), "checks": checks}
 
 
 def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
@@ -256,7 +266,10 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             items.append({"id": "discovery", "status": "error", "label": "גילוי המצלמות מה־NVR נכשל"})
         elif ds.get("cameras_last_error"):
             items.append({"id": "discovery", "status": "warn", "label": "גילוי המצלמות האחרון נכשל; משתמשים ברשימה הקודמת"})
-        if ds.get("streams_last_error"):
+        if not go2rtc_url(settings):
+            # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation (operator wording)
+            items.append({"id": "go2rtc", "status": "error", "label": "שרת המדיה (go2rtc) לא הוגדר — אין וידאו חי ואין ניגון הקלטות; התקנה עם NVR אינה נתמכת בלעדיו"})
+        elif ds.get("streams_last_error"):
             items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
     else:
         items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})

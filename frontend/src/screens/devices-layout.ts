@@ -6,7 +6,7 @@ import '../components/sw-dialog';
 import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
-import { can, canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, cap, isApi } from '../api/session';
 import { CARD_QUALITIES, CARD_QUALITY_LABEL, cameraSources, isCardQuality, type CardQuality } from '../api/camera-card';
 import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
@@ -761,7 +761,7 @@ export class DevicesLayoutController implements ReactiveController {
     if (this.camCount === null && canAnywhere('video.live')) {
       void cameraSources().then(
         (s) => {
-          this.camCount = s.recorders.reduce((n, r) => n + r.cameras.length, 0) + s.ha_cameras.length;
+          this.camCount = (cap('nvr') ? s.recorders.reduce((n, r) => n + r.cameras.length, 0) : 0) + s.ha_cameras.length; // NN1 D5: no NVR channels without an NVR
           this.update();
         },
         () => {

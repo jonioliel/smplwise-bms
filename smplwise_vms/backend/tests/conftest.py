@@ -103,6 +103,17 @@ def daytime_clock(monkeypatch):
     return day_now
 
 
+@pytest.fixture(autouse=True)
+def _clear_stream_options_cache():
+    """CR-020 S2: the Hikvision adapter caches capability discovery per process; every test starts without it (the fake
+    NVR's capability answers differ from test to test)."""
+    from smplwise.services.recorders import hikvision
+
+    hikvision.clear_options_cache()
+    yield
+    hikvision.clear_options_cache()
+
+
 @pytest.fixture()
 def client(settings: Settings) -> TestClient:
     return TestClient(create_app(settings))
