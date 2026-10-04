@@ -37,7 +37,12 @@ export interface BatchItem {
   error_code?: string | null;
   /** The server's one line; shown as text only. */
   user_message?: string | null;
+  /** CR-020 phase D: the item's `{field: [from, to]}` (field names and values only). */
+  fields?: Record<string, [unknown, unknown]> | null;
 }
+
+/** CR-020 phase D: `svc` = the SVC-off batch of phase C; `encoding` = a bulk encoding change (older servers send no mode: svc). */
+export type BatchMode = 'svc' | 'encoding';
 
 export interface Batch {
   batch_id: string;
@@ -58,6 +63,82 @@ export interface Batch {
   can_rollback?: boolean;
   /** Who started it (shown nowhere: the audit has it). */
   started_by?: string | null;
+  /** CR-020 phase D: what kind of change the batch makes (absent: svc). */
+  mode?: BatchMode;
+  /** CR-020 phase D: the target settings of an encoding batch. */
+  settings?: EncodingSettings | null;
+}
+
+// ------------------------------------------------------------------------------------------------ CR-020 phase D: bulk encoding
+
+/** The target settings of a bulk encoding change; an absent field is "leave as is" (the server's whitelist). */
+export interface EncodingSettings {
+  codec?: 'H.264' | 'H.265';
+  resolution?: string;
+  fps?: number | 'full';
+  bitrate_mode?: 'CBR' | 'VBR';
+  bitrate_kbps?: number;
+  quality?: number;
+  gop?: number;
+  svc?: boolean;
+  smart_codec?: boolean;
+}
+
+export interface StreamRef {
+  camera_id: string;
+  stream_ref: string;
+}
+
+export interface PlanNote {
+  /** adjusted: another value than the one asked (the closest valid one); kept: this stream keeps the field as it is. */
+  kind: 'adjusted' | 'kept';
+  field: string;
+  reason: string;
+  /** The server's short Hebrew line (text only). */
+  message: string;
+  requested?: unknown;
+  value?: unknown;
+}
+
+export interface PlanItem {
+  index: number;
+  camera_id: string;
+  stream_ref: string;
+  role: string | null;
+  status: 'change' | 'unchanged' | 'skip';
+  /** Send back as the target's `if_match`. */
+  if_match: string | null;
+  /** Exactly what the start must carry for this stream. */
+  changes: Record<string, unknown>;
+  fields: Record<string, [unknown, unknown]>;
+  notes: PlanNote[];
+  /** A skip's code and Hebrew line. */
+  reason: string | null;
+  message: string | null;
+  before?: Record<string, unknown> | null;
+}
+
+export interface EncodingPreview {
+  recorder_id: string;
+  settings: EncodingSettings;
+  items: PlanItem[];
+  counts: { change: number; unchanged: number; skip: number };
+  changes_total: number;
+  adjusted: number;
+  batch_in_progress: boolean;
+}
+
+export interface EncodingPreviewRequest {
+  settings: EncodingSettings;
+  targets: StreamRef[];
+  recorder_id?: string;
+}
+
+export interface EncodingStartRequest {
+  confirm: true;
+  settings: EncodingSettings;
+  targets: (StreamRef & { if_match: string; changes: Record<string, unknown> })[];
+  recorder_id?: string;
 }
 
 export interface BatchTarget {
@@ -83,6 +164,10 @@ export interface NvrBatchAdapter {
   stop(batchId: string): Promise<Batch | null>;
   /** The whole undo (202, a new batch of kind `rollback`). The press on the toast / the result's confirmation IS the confirm: `confirm: true` goes with it. */
   undo(batchId: string): Promise<Batch>;
+  /** CR-020 phase D: the read-only plan of a bulk encoding change (nothing is written). */
+  previewEncoding(req: EncodingPreviewRequest): Promise<EncodingPreview>;
+  /** CR-020 phase D: starts the bulk encoding change exactly as previewed (202). Sent ONCE. */
+  startEncoding(req: EncodingStartRequest): Promise<Batch>;
 }
 
 const enc = encodeURIComponent;
@@ -135,6 +220,8 @@ const http: NvrBatchAdapter = {
     return b ? normalizeBatch(b) : null;
   },
   undo: async (id) => normalizeBatch(await post<Batch>(`nvr/stream-batches/${enc(id)}/rollback`, { confirm: true })),
+  previewEncoding: (req) => post<EncodingPreview>('nvr/encoding-batches/preview', req),
+  startEncoding: async (req) => normalizeBatch(await post<Batch>('nvr/encoding-batches', req)),
 };
 
 /** The adapter in force. (The static demo has no batch: its camera list carries no `can_batch`, so no control exists to call it.) */

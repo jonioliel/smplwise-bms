@@ -80,6 +80,8 @@ export class NvrCameraBatch extends LitElement {
   /** Cameras that can be chosen (the screen's `batchCandidates`). */
   @property({ attribute: false }) candidates: BatchCandidate[] = [];
   @property({ attribute: false }) info: Record<string, CameraInfo> = {};
+  /** CR-020 phase D: `camera_id:stream_ref` -> the stream's role label (an encoding batch may hold the main AND the sub of one camera). */
+  @property({ attribute: false }) streams: Record<string, string> = {};
 
   @state() private phase: Phase = 'closed';
   @state() private selected = new Set<string>();
@@ -359,6 +361,18 @@ export class NvrCameraBatch extends LitElement {
     await this.runUndo(batchId);
   }
 
+  /** CR-020 phase D: a bulk encoding batch the encoding dialog just started - followed here exactly like an SVC batch (progress, "עצור", result,
+   * undo-all). A batch that already finished by the first read is a live completion (the toast). */
+  async follow(b: Batch) {
+    this.line = '';
+    this.phase = 'progress';
+    try {
+      this.adopt(await this.full(b), false, true);
+    } catch {
+      this.adopt(b, false, true); // the start's own answer until the next poll reads the whole batch
+    }
+  }
+
   // ---------------------------------------------------------------------------------------------- the batch's life
 
   /** The server pages a batch's items and the start / listing answers carry at most a page: the screen always reads the whole batch by id. */
@@ -472,7 +486,11 @@ export class NvrCameraBatch extends LitElement {
 
   // ---------------------------------------------------------------------------------------------- start, stop, undo
 
-  private nameOf = (i: BatchItem): string => (i.camera_id ? this.info[i.camera_id]?.name ?? i.camera_id : '—');
+  private nameOf = (i: BatchItem): string => {
+    const cam = i.camera_id ? this.info[i.camera_id]?.name ?? i.camera_id : '—';
+    const role = this.batch?.mode === 'encoding' && i.camera_id ? this.streams[`${i.camera_id}:${i.stream_ref}`] : '';
+    return role ? `${cam} · ${role}` : cam;
+  };
 
   private pickedNames(): string[] {
     return chosen(this.candidates, this.selected).map((c) => c.name);
@@ -552,7 +570,7 @@ export class NvrCameraBatch extends LitElement {
     if (!sourceId) return;
     const names = (b.items ?? []).filter((i) => (b.kind === 'rollback' ? toneOf(i) !== 'ok' : i.status === 'applied')).map(this.nameOf);
     this.line = '';
-    this.confirmFor = { model: undoConfirmModel(names), run: () => void this.runUndo(sourceId) };
+    this.confirmFor = { model: undoConfirmModel(names, b.mode), run: () => void this.runUndo(sourceId) };
     this.phase = 'undo-confirm';
   }
 
@@ -665,6 +683,10 @@ export class NvrCameraBatch extends LitElement {
               ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'מצלמות')
               : html`<p class="msg" data-nvr-batch-none role="status">אין מצלמות שמתאימות לחיפוש.</p>`}
             ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
+            <div><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
+              this.phase = 'closed';
+              this.emit('encoding-open');
+            }}>שינוי קידוד לכמה מצלמות</sw-button></div>
             <sw-button slot="footer" variant="ghost" data-nvr-batch-cancel @click=${() => (this.phase = 'closed')}>ביטול</sw-button>
             <sw-button slot="footer" variant="primary" data-nvr-batch-next ?disabled=${ticked < MIN_BATCH} @click=${() => this.askStart()}>המשך</sw-button>`
         : nothing}

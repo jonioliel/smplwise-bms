@@ -10,9 +10,12 @@ import './nvr-camera-editor';
 import './nvr-confirm';
 import './nvr-undo-toast';
 import './nvr-camera-batch';
+import './nvr-encoding-batch';
 import { keyed } from 'lit/directives/keyed.js';
 import type { Batch } from '../api/nvr-batch';
 import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
+import type { NvrEncodingBatch } from './nvr-encoding-batch';
+import { encodingStreams } from './nvr-encoding-logic';
 import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
 import { ApiError, describeError } from '../api/client';
 import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
@@ -577,6 +580,24 @@ export class SystemSecurityCameras extends LitElement {
     return out;
   }
 
+  /** CR-020 phase D: `camera_id:stream_ref` -> the role label, for the rows of an encoding batch (main and sub of one camera). */
+  private streamRoles(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const c of this.data?.cameras ?? []) if (c.camera_id) for (const s of c.streams) out[`${c.camera_id}:${s.stream_ref}`] = ROLE_HE[s.role];
+    return out;
+  }
+
+  private encEl(): NvrEncodingBatch | null {
+    return this.renderRoot.querySelector<NvrEncodingBatch>('nvr-encoding-batch');
+  }
+
+  /** "שינוי קידוד לכמה מצלמות": the toolbar's button and the multi-camera checklist's link. */
+  private openEncoding() {
+    if (this.batchRunning) return;
+    this.toast = null;
+    this.encEl()?.open();
+  }
+
   private isBusy(r: StreamRow): boolean {
     return !!r.cameraId && !!r.stream && this.busy.has(`${r.cameraId}:${r.stream.stream_ref}`);
   }
@@ -750,6 +771,9 @@ export class SystemSecurityCameras extends LitElement {
       ${this.select('SVC', 'svc', [['', 'כל ה־SVC'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
       ${this.select('WebRTC', 'webrtc', [['', 'כל ה־WebRTC'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
       ${filtersActive(f) ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => (this.filters = { ...NO_FILTERS })}>נקה</sw-button>` : nothing}
+      ${this.data?.can_batch === true && !this.data.stale
+        ? html`<sw-button size="sm" data-nvr-encoding-open ?disabled=${this.batchRunning} title=${this.batchRunning ? BATCH_BUSY : ''} @click=${() => this.openEncoding()}>שינוי קידוד לכמה מצלמות</sw-button>`
+        : nothing}
       <sw-button size="sm" icon="refresh" data-nvr-refresh ?disabled=${this.loading} @click=${() => void this.load()}>רענון</sw-button>
       <span class="count" data-nvr-count>${filtersActive(f) ? `${shown} מתוך ${total} זרמים` : `${total} זרמים`}</span>
     </div>`;
@@ -834,10 +858,15 @@ export class SystemSecurityCameras extends LitElement {
   private renderBatch() {
     const d = this.data;
     if (!d?.can_write) return nothing;
-    return html`<nvr-camera-batch .candidates=${this.batchCandidates()} .info=${this.cameraInfo()}
+    return html`<nvr-camera-batch .candidates=${this.batchCandidates()} .info=${this.cameraInfo()} .streams=${this.streamRoles()}
       @batch-change=${(e: CustomEvent<{ batch: Batch | null }>) => (this.batch = e.detail.batch)}
       @batch-finished=${(e: CustomEvent<{ batch: Batch }>) => this.onBatchFinished(e.detail.batch)}
-      @batch-refresh=${() => void this.load()}></nvr-camera-batch>`;
+      @batch-refresh=${() => void this.load()}
+      @encoding-open=${() => this.openEncoding()}></nvr-camera-batch>
+      ${d.can_batch === true
+        ? html`<nvr-encoding-batch .rows=${encodingStreams(d.cameras, this.details, d.stale)} .details=${this.details}
+            @encoding-started=${(e: CustomEvent<{ batch: Batch }>) => void this.batchEl()?.follow(e.detail.batch)}></nvr-encoding-batch>`
+        : nothing}`;
   }
 
   private subheading(): string {
