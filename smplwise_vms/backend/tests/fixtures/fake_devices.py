@@ -98,6 +98,8 @@ class FakeDevices:
                 "list_inject": None, "drip_from": None, "drip_s": 0.2,
                 # CR-024: the camera behind each slot ({channel: serial}; the model is "DS-2CD-FAKE") and the snapshot endpoint
                 "serials": {}, "picture": True,
+                # CR-024: the recorder's own serial in deviceInfo (None = the device does not report one)
+                "serial": None,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -136,7 +138,8 @@ class FakeDevices:
         path = request.url.path
         chans = range(1, n["channels"] + 1)
         if path == "/ISAPI/System/deviceInfo":
-            return self._ok(request, f"<DeviceInfo version=\"2.0\" {NS}><deviceName>fake</deviceName><model>{n['model']}</model><firmwareVersion>{n['firmware']}</firmwareVersion><deviceType>NVR</deviceType></DeviceInfo>")
+            serial = f"<serialNumber>{n['serial']}</serialNumber>" if n.get("serial") else ""
+            return self._ok(request, f"<DeviceInfo version=\"2.0\" {NS}><deviceName>fake</deviceName><model>{n['model']}</model>{serial}<firmwareVersion>{n['firmware']}</firmwareVersion><deviceType>NVR</deviceType></DeviceInfo>")
         if path == "/ISAPI/ContentMgmt/InputProxy/channels":
             def desc(c: int) -> str:
                 serial = n["serials"].get(c)

@@ -71,7 +71,9 @@ def describe(settings: Settings) -> dict[str, Any]:
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "unreadable", "label": UNREADABLE_LABEL}}
     if settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "refused", "label": REFUSED_LABEL}}
-    if settings.nvr_connection_state == "disabled":  # CR-024: the administrator disabled the first recorder
+    from .recorder_scope import DISABLED
+
+    if settings.nvr_connection_state == "disabled" or settings.nvr_recorder_id in DISABLED:  # CR-024: the administrator disabled the first recorder
         return {"mode": installation_mode(settings), "nvr": {"configured": False, "state": "disabled", "label": DISABLED_LABEL}}
     state = "not_configured" if ha_only else "placeholder" if is_placeholder(settings) else "configured" if nvr_ready(settings) else "incomplete"
     label = NVR_LESS_LABEL if ha_only else "כתובת NVR זמנית של סביבת פיתוח (לא NVR אמיתי)" if state == "placeholder" else ""
@@ -102,3 +104,13 @@ def ensure_nvr(settings: Settings) -> None:
         return
     if is_ha_only(settings):
         raise nvr_not_configured()
+
+
+def ensure_recorder_enabled(settings: Settings) -> None:
+    """CR-024: the device boundary (ISAPI client, RTSP URL builders) of a recorder an administrator disabled while the process
+    runs: 409 `recorder_unavailable`, nothing is sent. Kept apart from `ensure_nvr`, which routes also call with the first
+    recorder's settings only to ask "is there an NVR at all" - a disabled first recorder must not block the other recorders."""
+    from .recorder_scope import DISABLED
+
+    if settings.nvr_recorder_id in DISABLED:
+        raise recorder_unavailable(settings.nvr_recorder_id)

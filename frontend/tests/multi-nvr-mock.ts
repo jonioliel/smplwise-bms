@@ -19,6 +19,13 @@ export interface MultiState {
   eventRecorder: string | null;
   /** the NVR system card's last `recorder_id` query value (null = the first recorder) */
   systemRecorder: string | null;
+  /** the experimental setting playback.cross_recorder_sync ('true' | 'false') - PATCH /settings changes it */
+  crossSync: string;
+  /** a recorder disabled while running: its cameras come with recorder_enabled false and can_view_live false */
+  disabled: string[];
+  /** GET /recorders answers primary_has_history (and the recorders list is empty when `noRecorders`) */
+  primaryHistory: boolean;
+  noRecorders: boolean;
 }
 
 const rec = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
@@ -48,12 +55,13 @@ const VENDORS = [
 export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Promise<MultiState> {
   const count = opts.count ?? 2;
   const base = newMock();
+  base.perms = [...base.perms, 'video.playback']; // the playback / synchronized-playback screens (CR-024 owner answer 1)
   base.canBatch = true;
   base.cameras = batchCameras(3); // three cameras that qualify for the multi-camera change (SVC on, H.264, online)
   if (count === 2) {
     base.cameras = [...base.cameras, ...base.cameras.map((c) => ({ ...JSON.parse(JSON.stringify(c)), camera_id: `w-${c.camera_id}`, recorder_id: 'nvr-2', name: c.name }))];
   }
-  const st: MultiState = { base, recorders: count === 2 ? [rec('nvr-1', 'NVR ראשי'), rec('nvr-2', 'NVR מחסן')] : [rec('nvr-1', 'NVR ראשי')], hits: [], writes: [], eventRecorder: null, systemRecorder: null };
+  const st: MultiState = { base, recorders: count === 2 ? [rec('nvr-1', 'NVR ראשי'), rec('nvr-2', 'NVR מחסן')] : [rec('nvr-1', 'NVR ראשי')], hits: [], writes: [], eventRecorder: null, systemRecorder: null, crossSync: 'false', disabled: [], primaryHistory: false, noRecorders: false };
   await install(page, base);
   await page.route('**/api/v1/**', async (route: Route) => {
     const req = route.request();
@@ -63,9 +71,9 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     st.hits.push(`${method} ${p}${url.search}`);
     if (method !== 'GET') st.writes.push({ method, path: p, body: req.postDataJSON?.() ?? null });
-    const live = st.recorders.filter((r) => !r.removed);
+    const live = st.noRecorders ? [] : st.recorders.filter((r) => !r.removed);
 
-    if (p === 'recorders' && method === 'GET') return json({ recorders: live, count: live.length, can_manage: true, restart: 'manual', pending_restart: live.some((r) => r.pending_restart) });
+    if (p === 'recorders' && method === 'GET') return json({ recorders: live, count: live.length, can_manage: true, restart: 'manual', pending_restart: live.some((r) => r.pending_restart), primary_has_history: st.primaryHistory });
     if (p === 'recorders' && method === 'POST') {
       const body = req.postDataJSON() as Record<string, unknown>;
       const r = rec(`nvr-${st.recorders.length + 1}`, String(body.name), { pending_restart: true, cameras: 0, cameras_enabled: 0, status: { state: 'pending_restart', error: null, events_connected: false, discovery_last_ok: null } });
@@ -111,14 +119,20 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
       const names = Object.fromEntries(live.map((r) => [r.id, r.name]));
       const cams = base.cameras.filter((c) => live.some((r) => r.id === c.recorder_id)).map((c, i) => ({
         id: c.camera_id, recorder_id: c.recorder_id, channel: c.channel, name: c.name, name_source: c.name, alias: null, enabled: true, sort_order: i, grid_col_span: 1, wall_hidden: false,
-        main_track: c.channel * 100 + 1, sub_track: c.channel * 100 + 2, status: 'offline', last_seen_at: null, can_view_live: false, recorder_name: multi ? names[c.recorder_id] : null,
+        main_track: c.channel * 100 + 1, sub_track: c.channel * 100 + 2, status: 'offline', last_seen_at: null, can_view_live: !st.disabled.includes(c.recorder_id),
+        recorder_enabled: !st.disabled.includes(c.recorder_id), recorder_name: multi ? names[c.recorder_id] : null,
       }));
       return json({ cameras: cams, recorders: [...new Set(cams.map((c) => c.recorder_id))].map((id) => ({ id, name: names[id] })), recorder: null, can_sync: true, media: {} });
     }
     if (/^cameras\/[^/]+\/snapshot\.jpg$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/gif', body: GIF });
+    if (p === 'settings' && method === 'PATCH') {
+      const body = req.postDataJSON() as Record<string, unknown>;
+      if (typeof body['playback.cross_recorder_sync'] === 'string') st.crossSync = body['playback.cross_recorder_sync'] as string;
+      return json({ settings: { 'playback.cross_recorder_sync': st.crossSync }, can_edit: true, warnings: {} });
+    }
     if (p === 'settings' && method === 'GET') {
-      return json({ settings: { 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.tabs': {},
-        'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'time.zone': 'Asia/Jerusalem' }, can_edit: false });
+      return json({ settings: { 'playback.cross_recorder_sync': st.crossSync, 'ui.design': 'a', 'ui.start_route': 'devices', 'ui.hide_map': 'false', 'ui.hide_wiskey': 'false', 'ui.hide_search': 'false', 'ui.tabs': {},
+        'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'time.zone': 'Asia/Jerusalem', 'playback.max_sessions': 4, 'playback.lease_s': 600 }, can_edit: true });
     }
     if (p === 'events' && method === 'GET') {
       st.eventRecorder = url.searchParams.get('recorder_id');

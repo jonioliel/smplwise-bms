@@ -77,6 +77,24 @@ def fingerprint(conn: sqlite3.Connection, recorder_id: str, model: str | None, s
     return hmac.new(_salt(conn), msg, hashlib.sha256).hexdigest()[:16]
 
 
+def device_identity(conn: sqlite3.Connection, model: str | None, serial: str | None) -> str | None:
+    """CR-024: the keyed identity of a RECORDER (not of a slot): HMAC-SHA256(installation salt, "recorder" | model | serial)[:16].
+    None without a serial - an unknown identity is never treated as "the same device". Neither the serial nor an address is kept."""
+    if not serial or not str(serial).strip():
+        return None
+    msg = f"recorder|{(model or '').strip()}|{str(serial).strip()}".encode("utf-8")
+    return hmac.new(_salt(conn), msg, hashlib.sha256).hexdigest()[:16]
+
+
+def store_identity(conn: sqlite3.Connection, recorder_id: str, fp: str | None) -> None:
+    if not fp:
+        return
+    try:
+        conn.execute("UPDATE recorders SET device_fingerprint = ? WHERE id = ?", (fp, recorder_id))
+    except sqlite3.OperationalError:  # a database before 0055
+        pass
+
+
 def _store_capabilities(conn: sqlite3.Connection, settings: Settings, recorder_id: str) -> None:
     """The recorder row keeps the adapter's last declaration (CR-024 / NN1 P5: the per-recorder capability model)."""
     from dataclasses import asdict
@@ -115,6 +133,7 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
             except Exception as exc:  # noqa: BLE001 - an unparsable document
                 enc_error = type(exc).__name__
     ensure_recorder(conn, model=info.get("model") or None, firmware=info.get("firmware") or None, recorder_id=rid)
+    store_identity(conn, rid, device_identity(conn, info.get("model"), info.get("serial")))  # CR-024: which physical recorder this is
     _store_capabilities(conn, rs, rid)
     has_source_ref = _has_column(conn, "cameras", "source_ref")
     now = now_iso()
@@ -182,8 +201,11 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     so its credentials do not stay in go2rtc. Nothing outside the `smplwise_` namespace is ever created, changed or deleted."""
     client = g2.Go2rtc(settings)
     result: dict[str, Any] = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0, "removed": 0, "streams": []}
-    cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel").fetchall()
-    removed_ids = _removed_recorders(conn)
+    from ..recorder_scope import DISABLED
+
+    disabled = set(DISABLED)  # CR-024: a disabled recorder's streams leave go2rtc (by exact name) and are not re-created
+    cams = [c for c in conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel").fetchall() if c["recorder_id"] not in disabled]
+    removed_ids = sorted(set(_removed_recorders(conn)) | disabled)
     gone = [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute(
         f"SELECT recorder_id, channel FROM cameras WHERE recorder_id IN ({','.join('?' * len(removed_ids))})", removed_ids).fetchall()
         for p in ("sub", "main")] if removed_ids else []

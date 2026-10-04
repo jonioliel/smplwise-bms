@@ -473,7 +473,7 @@ def _probe_with(client: httpx.Client, deadline: float) -> dict[str, Any]:
     info: dict[str, str] = {}
     for el in root.iter():
         name = _local(el.tag)
-        if name in ("model", "firmwareVersion") and name not in info and el.text:
+        if name in ("model", "firmwareVersion", "serialNumber") and name not in info and el.text:
             info[name] = el.text.strip()
     channels: int | None
     try:
@@ -481,7 +481,17 @@ def _probe_with(client: httpx.Client, deadline: float) -> dict[str, Any]:
         channels = sum(1 for el in listing.iter() if _local(el.tag) == "InputProxyChannel")
     except Exception:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
         channels = None
-    return {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels}
+    # `_serial` is internal (CR-024 device identity): the routes hash it and strip every `_` key before answering (`public`)
+    out = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels}
+    serial = _clip(info.get("serialNumber"))
+    if serial:  # only when the device reports one (the result's public shape is unchanged)
+        out["_serial"] = serial
+    return out
+
+
+def public(result: dict[str, Any]) -> dict[str, Any]:
+    """A probe result without its internal keys (the device serial never leaves the server)."""
+    return {k: v for k, v in result.items() if not str(k).startswith("_")}
 
 
 def probe(cand: Settings) -> dict[str, Any]:

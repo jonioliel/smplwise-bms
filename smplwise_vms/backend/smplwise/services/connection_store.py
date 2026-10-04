@@ -210,21 +210,59 @@ def any_pending_restart(conn: sqlite3.Connection, settings: Settings) -> bool:
     for r in rows:
         rid = r["id"]
         if rid == DEFAULT_RECORDER:
-            if not r["removed_at"] and bool(r["enabled"]) == (settings.nvr_connection_state == "disabled"):
-                return True
-            continue
+            continue  # enable / disable of the first recorder applies at once (recorder_scope.DISABLED); its connection: above
         if r["removed_at"]:
             if rid in loaded:
-                return True
+                return True  # stopped at once, but its connection leaves memory only with the restart
             continue
         row = get_row(conn, rid)
         if row is None or row["vendor"] == NO_NVR:
             continue
-        if bool(r["enabled"]) != (rid in loaded):
-            return True
-        if r["enabled"] and pending_restart(conn, settings_for(settings, rid), rid):
-            return True
+        if rid not in loaded:
+            if r["enabled"]:
+                return True  # added (or enabled) after this process started: its connection is loaded by the restart
+            continue
+        if pending_restart(conn, settings_for(settings, rid), rid):
+            return True  # its connection changed since the start
     return False
+
+
+def primary_free(conn: sqlite3.Connection, settings: Settings) -> bool:
+    """CR-024: no first recorder in use - no stored connection (or "no NVR") and no legacy host the process started with."""
+    row = get_row(conn, DEFAULT_RECORDER)
+    if row is not None:
+        return row["vendor"] == NO_NVR
+    return not (settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER)
+
+
+def primary_has_history(conn: sqlite3.Connection) -> bool:
+    """CR-024 (owner 2026-10-04): the first recorder id carries history - its recorder row, cameras, events or change-log rows.
+    Such an id is never handed to another device."""
+    for sql in ("SELECT 1 FROM recorders WHERE id = ? LIMIT 1", "SELECT 1 FROM cameras WHERE recorder_id = ? LIMIT 1",
+                "SELECT 1 FROM events WHERE recorder_id = ? LIMIT 1", "SELECT 1 FROM nvr_changes WHERE recorder_id = ? LIMIT 1"):
+        try:
+            if conn.execute(sql, (DEFAULT_RECORDER,)).fetchone():
+                return True
+        except sqlite3.OperationalError:  # a table or column a test database lacks
+            continue
+    return False
+
+
+def stored_identity(conn: sqlite3.Connection, recorder_id: str) -> str | None:
+    try:
+        row = conn.execute("SELECT device_fingerprint FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return (row["device_fingerprint"] if row else None) or None
+
+
+def next_free_id(conn: sqlite3.Connection) -> str:
+    """`nvr-<n>` above every recorder id ever used (in `recorders` or `recorder_connections`)."""
+    from ..recorder_scope import next_id
+
+    used = [r[0] for r in conn.execute("SELECT id FROM recorders").fetchall()]
+    used += [r[0] for r in conn.execute("SELECT recorder_id FROM recorder_connections").fetchall()]
+    return next_id(used)
 
 
 def readable(conn: sqlite3.Connection, settings: Settings, row: sqlite3.Row | None) -> bool:
@@ -299,6 +337,9 @@ def remove(conn: sqlite3.Connection, settings: Settings, actor_id: str | None, r
     # CR-024 (owner decision): the recorder row stays, marked removed - its cameras are left out of every camera list, their
     # history (events, cases, anchors, bindings, the change log) is kept
     _mark_recorder(conn, recorder_id, "UPDATE recorders SET removed_at = COALESCE(removed_at, ?) WHERE id = ?", (now_iso(), recorder_id))
+    from ..recorder_scope import set_disabled
+
+    set_disabled(recorder_id, True)  # CR-024: never contacted again from this moment (its loaded connection leaves memory at the restart)
     return revision, disabled
 
 
@@ -403,9 +444,11 @@ def load_effective(settings: Settings, conn: sqlite3.Connection) -> Settings:
     if get_row(conn) is None:
         import_legacy(conn, settings)
     effective = overlay(settings, get_row(conn))
+    from ..recorder_scope import DISABLED
+
+    DISABLED.clear()  # CR-024: the disabled set of THIS process starts from the database (disable / enable then apply at once)
     if _primary_disabled(conn):
-        # CR-024: the administrator disabled the first recorder - not contacted until it is enabled again (and a restart)
-        effective = dataclasses.replace(effective, nvr_host=None, nvr_user=None, nvr_password=None, nvr_connection_state="disabled")
+        DISABLED.add(DEFAULT_RECORDER)  # its connection stays loaded, so enabling it again needs no restart
     return dataclasses.replace(effective, recorder_settings=load_children(effective, conn))
 
 
@@ -418,9 +461,10 @@ def _primary_disabled(conn: sqlite3.Connection) -> bool:
 
 
 def further_recorders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """CR-024: the recorders other than the primary that this process may run: not removed, enabled. Empty before 0055."""
+    """CR-024: the recorders other than the primary that this process loads: not removed (a disabled one is loaded too and kept
+    in `recorder_scope.DISABLED`, so enabling it applies at once). Empty before 0055."""
     try:
-        return conn.execute("SELECT id FROM recorders WHERE id <> ? AND removed_at IS NULL AND enabled = 1 ORDER BY sort_order, id",
+        return conn.execute("SELECT id, enabled FROM recorders WHERE id <> ? AND removed_at IS NULL ORDER BY sort_order, id",
                             (DEFAULT_RECORDER,)).fetchall()
     except sqlite3.OperationalError:
         return []
@@ -430,7 +474,7 @@ def load_children(primary: Settings, conn: sqlite3.Connection) -> dict[str, Sett
     """CR-024: the effective settings of every further recorder - the primary's settings (go2rtc, Home Assistant, data folder)
     with that recorder's own connection overlaid by `overlay` (the same decryption, the same source-policy re-check, the same
     fail-closed states). A recorder without a connection row, or with "no NVR", is not loaded (its device calls answer 409)."""
-    from ..recorder_scope import unconfigured
+    from ..recorder_scope import DISABLED, unconfigured
 
     out: dict[str, Settings] = {}
     for r in further_recorders(conn):
@@ -439,6 +483,8 @@ def load_children(primary: Settings, conn: sqlite3.Connection) -> dict[str, Sett
         if row is None or row["vendor"] == NO_NVR:
             continue
         out[rid] = overlay(unconfigured(primary, rid), row)
+        if not r["enabled"]:
+            DISABLED.add(rid)
     return out
 
 
@@ -478,6 +524,9 @@ def apply_at_startup(db: Any, settings: Settings) -> tuple[Settings, bool]:
             effective = load_effective(settings, conn)
             differ = legacy_options_differ(settings, get_row(conn))
     except Exception:  # noqa: BLE001 - never block the start
+        from ..recorder_scope import DISABLED
+
+        DISABLED.clear()
         log.exception("could not load the stored NVR connection; the NVR is treated as not configured until the next start")
         return dataclasses.replace(settings, nvr_host=None, nvr_user=None, nvr_password=None, nvr_connection_state="unreadable"), False
     if differ:

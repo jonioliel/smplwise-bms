@@ -47,6 +47,10 @@ def nvr_host(settings: Settings) -> str | None:
     choice (vendor `none`) and an unreadable stored connection are no host."""
     if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused", "disabled"):  # refused: review F5; disabled: CR-024
         return None
+    from .recorder_scope import DISABLED
+
+    if settings.nvr_recorder_id in DISABLED:  # CR-024: disabled by an administrator while the process runs
+        return None
     host = (settings.nvr_host or "").strip()
     return host or None
 

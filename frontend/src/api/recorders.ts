@@ -34,6 +34,8 @@ export interface Recorder {
 
 export interface RecorderList {
   recorders: Recorder[];
+  /** No recorder left and history under the first id: a new recorder gets a new id (the card shows the add form). */
+  primary_has_history?: boolean;
   count: number;
   can_manage: boolean;
   restart: 'addon' | 'manual';
@@ -79,7 +81,8 @@ export function cameraLabel(c: { name: string; recorder_name?: string | null }):
 
 /** Synchronized playback is offered only within one recorder (CR-024 section 3): a camera of another recorder than the ones
  * already picked cannot join. */
-export function sameRecorder(picked: string[], cams: { id: string; recorder_id: string }[], id: string): boolean {
+export function sameRecorder(picked: string[], cams: { id: string; recorder_id: string }[], id: string, crossAllowed = false): boolean {
+  if (crossAllowed) return true; // the experimental setting playback.cross_recorder_sync is on
   const first = cams.find((c) => c.id === picked[0]);
   const cam = cams.find((c) => c.id === id);
   return !first || !cam || first.recorder_id === cam.recorder_id;

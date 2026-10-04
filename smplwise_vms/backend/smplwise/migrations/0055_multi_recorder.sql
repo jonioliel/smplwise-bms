@@ -10,6 +10,7 @@ ALTER TABLE recorders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE recorders ADD COLUMN time_zone TEXT;                                -- NULL = the installation's zone
 ALTER TABLE recorders ADD COLUMN capabilities_json TEXT NOT NULL DEFAULT '{}';  -- the adapter's last RecorderCapabilities
 ALTER TABLE recorders ADD COLUMN removed_at TEXT;                               -- NULL = active
+ALTER TABLE recorders ADD COLUMN device_fingerprint TEXT;                       -- keyed hash of the recorder's model + serial (never the serial)
 
 -- cameras: the vendor's own channel key (ADP section 3.2) and the keyed fingerprint of the physical camera (never the serial)
 ALTER TABLE cameras ADD COLUMN source_ref TEXT;

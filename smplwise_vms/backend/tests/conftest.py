@@ -175,6 +175,16 @@ def bind(client: TestClient, settings: Settings, username: str, role: str, scope
 
 
 @pytest.fixture(autouse=True)
+def _recorders_disabled_set_is_per_test():
+    """CR-024: `recorder_scope.DISABLED` is process state (set at start-up and by PATCH /recorders); a test never inherits another's."""
+    from smplwise import recorder_scope
+
+    recorder_scope.DISABLED.clear()
+    yield
+    recorder_scope.DISABLED.clear()
+
+
+@pytest.fixture(autouse=True)
 def _storage_report_cache_is_per_test():
     """`services.storage` keeps a process-wide 10-minute report cache, and the start-up warm-up fills it from a daemon thread that
     can finish after its test is over. Without this, a report built for another test's settings (an NVR, disks) leaks into the next
