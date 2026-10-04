@@ -217,7 +217,17 @@ export class DevicesSchedules extends LitElement {
     }
     .more .days {
       display: inline-flex;
+      flex-wrap: wrap;
       gap: 4px;
+      max-inline-size: 100%;
+    }
+    /* the bubble skin: the card's selection box and "..." key meet the touch dial on every width (the skin's rule) */
+    @media (min-width: 1101px) and (pointer: fine) {
+      :host([data-skin='bubble']) .pick,
+      :host([data-skin='bubble']) .more-btn {
+        inline-size: var(--sw-touch-desktop, 44px);
+        block-size: var(--sw-touch-desktop, 44px);
+      }
     }
     .rc.day {
       inline-size: 38px;
@@ -598,6 +608,14 @@ export class DevicesSchedules extends LitElement {
       gap: 6px;
       flex-wrap: wrap;
       margin-block-start: 6px;
+    }
+    /* an issue is a sentence-long chip: it wraps inside the row on a narrow phone */
+    .li .issues .chip {
+      white-space: normal;
+      block-size: auto;
+      min-block-size: 26px;
+      padding-block: 3px;
+      max-inline-size: 100%;
     }
     .li .lops {
       display: flex;
