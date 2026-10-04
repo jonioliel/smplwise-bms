@@ -230,6 +230,46 @@ def test_patch_pause_retire_and_in_use(app):
     assert create(c, "sensor.main_energy").status_code == 201  # the entity may be registered again after retirement
 
 
+def test_rename_validation_conflict_duplicate_and_audit(app):
+    c, settings = app
+    a = create(c, "sensor.main_energy", display_name="  לוח ראשי  ").json()
+    assert a["display_name"] == "לוח ראשי"  # trimmed on create
+    b = create(c, "sensor.ac_energy_wh", display_name="מזגנים").json()
+    url = f"{API}/meters/{a['id']}"
+    # empty, whitespace-only and too long are refused; the name stays
+    for bad in ("", "   "):
+        r = c.patch(url, json={"revision": a["revision"], "display_name": bad})
+        assert r.status_code == 422 and r.json()["code"] == "validation", bad
+    r = c.patch(url, json={"revision": a["revision"], "display_name": "x" * 121})
+    assert r.status_code == 422 and r.json()["code"] == "validation"
+    assert c.get(url).json()["display_name"] == "לוח ראשי" and c.get(url).json()["revision"] == a["revision"]
+    # a stale revision is a 409 with the current revision, and nothing changes
+    r = c.patch(url, json={"revision": a["revision"] + 5, "display_name": "אחר"})
+    assert r.status_code == 409 and r.json()["code"] == "revision_conflict" and r.json()["details"]["current_revision"] == a["revision"]
+    assert c.get(url).json()["display_name"] == "לוח ראשי"
+    # a rename: trimmed, revision bumped, audited with the old and the new name
+    r = c.patch(url, json={"revision": a["revision"], "display_name": "  לוח חשמל ראשי "})
+    assert r.status_code == 200 and r.json()["display_name"] == "לוח חשמל ראשי" and r.json()["revision"] == a["revision"] + 1
+    row = audit_rows(settings, "energy.meter.update")[-1]
+    d = json.loads(row["details_json"])
+    assert row["decision"] == "allowed" and row["resource_id"] == a["id"]
+    assert d == {"fields": ["display_name"], "name_from": "לוח ראשי", "name_to": "לוח חשמל ראשי"}
+    # a duplicate name is allowed (the screen only warns)
+    r = c.patch(url, json={"revision": a["revision"] + 1, "display_name": "מזגנים"})
+    assert r.status_code == 200 and r.json()["display_name"] == b["display_name"]
+    # the device and entity names are untouched by a rename
+    assert r.json()["entity_name"] == a["entity_name"] and r.json()["source_ref"] == "sensor.main_energy"
+
+
+def test_rename_needs_energy_manage(app):
+    c, settings = app
+    mid = create(c, "sensor.main_energy").json()["id"]
+    bind(c, settings, "omer", "operator", "installation", "*")
+    r = c.patch(f"{API}/meters/{mid}", headers=as_user("omer"), json={"revision": 1, "display_name": "פרצה"})
+    assert r.status_code == 403
+    assert c.get(f"{API}/meters/{mid}").json()["display_name"] != "פרצה"
+
+
 # ---------------------------------------------------------------- sampling from the mirror
 
 def _tick(settings, at: dt.datetime):

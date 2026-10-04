@@ -31,7 +31,7 @@ interface Pick {
  *   mode 'register'  the sensors of the infrastructure (GET energy/candidates, searched on the server); selected ids are entity ids
  *   mode 'choose'    only the meters already registered (GET energy/meters, or `.meters` when the host already holds them); selected ids are meter
  *                    ids (wizard step 1). With `sensors`, the sensors that are not meters are listed too, unselectable, with their reason.
- * Event `change` with detail `{ selected: string[] }`.
+ * Event `change` with detail `{ selected: string[], names }`; `names` maps each selected id to the suggested friendly name (the device's name, else the sensor's).
  */
 @customElement('elec-meter-picker')
 export class ElecMeterPicker extends LitElement {
@@ -223,7 +223,12 @@ export class ElecMeterPicker extends LitElement {
     const has = this.selected.includes(p.id);
     const next = this.multi ? (has ? this.selected.filter((x) => x !== p.id) : [...this.selected, p.id]) : has ? [] : [p.id];
     this.selected = next;
-    this.dispatchEvent(new CustomEvent('change', { detail: { selected: next }, bubbles: true, composed: true }));
+    const names: Record<string, string> = {};
+    for (const id of next) {
+      const it = this.items.find((x) => x.id === id);
+      if (it) names[id] = meterNames({ name: it.name, device_name: it.device, entity_name: it.entity }).primary;
+    }
+    this.dispatchEvent(new CustomEvent('change', { detail: { selected: next, names }, bubbles: true, composed: true }));
   }
 
   private chip(p: Pick) {

@@ -28,3 +28,27 @@ export function meterNames(x: NamedMeter): MeterNames {
 export function meterSearchText(x: NamedMeter): string {
   return [x.name, x.device_name, x.entity_name].filter(Boolean).join(' ').toLowerCase();
 }
+
+export const METER_NAME_MAX = 120;
+
+export interface NameCheck {
+  /** the trimmed name to send */
+  name: string;
+  /** a Hebrew sentence when the name cannot be saved, else '' */
+  error: string;
+  /** true when another meter already carries the same name (allowed, but the screen warns) */
+  duplicate: boolean;
+}
+
+/** The friendly name of a meter as typed: trimmed, required, at most 120 characters; `others` are the names of the other meters (duplicates only warn). */
+export function checkMeterName(raw: string, others: readonly string[]): NameCheck {
+  const name = raw.trim();
+  const key = name.toLocaleLowerCase();
+  const duplicate = !!name && others.some((o) => o.trim().toLocaleLowerCase() === key);
+  if (!name) return { name, error: 'צריך להזין שם למונה', duplicate: false };
+  if (name.length > METER_NAME_MAX) return { name, error: `השם ארוך מדי (עד ${METER_NAME_MAX} תווים)`, duplicate };
+  return { name, error: '', duplicate };
+}
+
+export const DUPLICATE_NAME_WARNING = 'כבר יש מונה בשם הזה. עדיף שם ייחודי, כדי שיהיה קל להבדיל בין המונים בנוסחאות ובחשבוניות.';
+export const RENAME_HINT = 'השם החדש יופיע במסמכים חדשים. חשבוניות שכבר הונפקו לא ישתנו.';

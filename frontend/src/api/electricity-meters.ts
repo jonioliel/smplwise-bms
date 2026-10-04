@@ -148,6 +148,7 @@ export interface MeterAdapter {
   candidates(q: string, area?: string): Promise<MeterCandidate[]>;
   add(body: AddMeterBody): Promise<Meter>;
   setStatus(id: string, status: 'active' | 'paused', revision: number): Promise<Meter>;
+  rename(id: string, name: string, revision: number): Promise<Meter>;
   remove(id: string, revision: number): Promise<void>;
   replace(id: string, body: ReplaceMeterBody): Promise<MeterDetail>;
   series(id: string, step: SeriesStep, from: string, to: string): Promise<SeriesPoint[]>;
@@ -349,6 +350,9 @@ const http: MeterAdapter = {
   async setStatus(id, status, revision) {
     return wireMeter(await patch<WireMeter>(`energy/meters/${encodeURIComponent(id)}`, { revision, status }), new Map(), new Map());
   },
+  async rename(id, name, revision) {
+    return wireMeter(await patch<WireMeter>(`energy/meters/${encodeURIComponent(id)}`, { revision, display_name: name }), new Map(), new Map());
+  },
   async remove(id, revision) {
     await del(`energy/meters/${encodeURIComponent(id)}?revision=${revision}`);
   },
@@ -411,6 +415,13 @@ const demo: MeterAdapter = {
     m.revision += 1;
     return delay({ ...m });
   },
+  rename: (id, name, revision) => {
+    const m = find(id);
+    if (m.revision !== revision) return demoError(409, 'revision_conflict', 'המונה השתנה בינתיים. רעננו ונסו שוב.');
+    m.name = name;
+    m.revision += 1;
+    return delay({ ...m });
+  },
   remove: (id) => {
     const m = find(id);
     if (m.accounts.length) return demoError(409, 'meter_in_use', 'המונה משמש בחשבון ולכן אי אפשר להסיר אותו');
@@ -454,6 +465,7 @@ export const meterCandidates = (q: string, area?: string) => meters().candidates
 export const addMeter = (body: AddMeterBody) => meters().add(body);
 export const pauseMeter = (m: Pick<Meter, 'id' | 'revision'>) => meters().setStatus(m.id, 'paused', m.revision);
 export const resumeMeter = (m: Pick<Meter, 'id' | 'revision'>) => meters().setStatus(m.id, 'active', m.revision);
+export const renameMeter = (m: Pick<Meter, 'id' | 'revision'>, name: string) => meters().rename(m.id, name, m.revision);
 export const removeMeter = (m: Pick<Meter, 'id' | 'revision'>) => meters().remove(m.id, m.revision);
 export const replaceMeter = (m: Pick<Meter, 'id' | 'revision'>, body: Omit<ReplaceMeterBody, 'revision'>) => meters().replace(m.id, { ...body, revision: m.revision });
 export const meterSeries = (id: string, step: SeriesStep, from: string, to: string) => meters().series(id, step, from, to);

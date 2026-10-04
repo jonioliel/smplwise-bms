@@ -77,6 +77,26 @@ def test_billing_reads_the_real_store_through_the_adapter(world, settings):
     assert hist["same_period_last_year"]["kwh"] == "500.00" and hist["same_period_last_year"]["source"] == "readings"
 
 
+def test_renaming_a_meter_never_changes_a_sealed_bill(world):
+    """The friendly name is read live for drafts and new documents; an issued bill keeps the name it was sealed with."""
+    c, settings, db, store, mid, acc = world
+    b = _draft(c, acc["id"])
+    issued = c.post(f"{API}/bills/{b['id']}/issue", json={"row_version": b["row_version"], "client_request_id": rid()})
+    assert issued.status_code == 200, issued.text
+    sealed = issued.json()
+    assert sealed["snapshot"]["meters"][0]["name"] == "לוח ראשי"
+    meter = c.get(f"{API}/meters/{mid}").json()
+    r = c.patch(f"{API}/meters/{mid}", json={"revision": meter["revision"], "display_name": "לוח ראשי קומה 2"})
+    assert r.status_code == 200 and r.json()["display_name"] == "לוח ראשי קומה 2"
+    again = c.get(f"{API}/bills/{sealed['id']}").json()
+    assert again["snapshot"] == sealed["snapshot"] and again["snapshot_sha256"] == sealed["snapshot_sha256"]
+    assert again["snapshot"]["meters"][0]["name"] == "לוח ראשי"
+    # the account's formula follows the meter by id, so its text now shows the new name; a new document carries it
+    new = _draft(c, acc["id"], "2026-10-01", "2026-10-02")
+    assert new["snapshot"]["meters"][0]["name"] == "לוח ראשי קומה 2"
+    assert c.get(f"{API}/bills/{sealed['id']}").json()["snapshot_sha256"] == sealed["snapshot_sha256"]
+
+
 def test_account_history_covers_periods_without_a_bill(world):
     c, settings, db, store, mid, acc = world
     h = c.get(f"{API}/accounts/{acc['id']}/history", params={"past": 12})
