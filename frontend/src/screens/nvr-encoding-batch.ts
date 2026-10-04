@@ -195,6 +195,10 @@ export class NvrEncodingBatch extends LitElement {
       direction: ltr;
       text-align: start;
     }
+    /* the Hebrew "ללא שינוי" placeholder reads right-to-left; a typed number stays left-to-right */
+    .form input:placeholder-shown {
+      direction: rtl;
+    }
     .msg {
       margin: 0;
       padding: 6px 8px;
