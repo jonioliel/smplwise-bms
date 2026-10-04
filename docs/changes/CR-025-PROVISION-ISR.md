@@ -122,6 +122,18 @@ Hikvision fake + one Provision fake.
 9. Long-polling port reachable? (`GetPortConfig`), only if a camera is directly reachable.
 10. Recorded fixtures: redacted captures into `private-evidence/` first, then into `tests/fixtures/` after review.
 
+### 6.1 First live attempt, 2026-10-04 (read-only, owner's NVR, address and account in secrets only)
+
+- Probe: `GetDeviceInfo`, `GetPortConfig`, `GetDateAndTime`, `GetDiskInfo`, `GetRecordStatusInfo`, `GetAlarmStatus`,
+  `GetVideoStreamConfig/1`, `GetSnapshot/1` through the P1 adapter, about one request per second, no write.
+- Result: **every request answered 401 with a `Digest` challenge**; Digest with the stored account was refused each time.
+  No endpoint, model, firmware or channel count could be read. Finding 1: the unit is configured for **Digest** (not the
+  v1 guide's Basic). Finding 2 (bug, fixed): the adapter re-tried the login on every call after a refusal (~17 refused
+  attempts in the probe) — a lockout risk; one refusal now blocks further login attempts for 5 minutes
+  (`REFUSED_BACKOFF_S`, test `test_refused_credentials_stop_further_logins`).
+- Redacted request log (no bodies were returned): `private-evidence/provision-isr-live/<timestamp>/summary.json`.
+- Blocked until the owner confirms the account works in the NVR web UI and is not locked.
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

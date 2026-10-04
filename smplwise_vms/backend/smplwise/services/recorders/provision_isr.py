@@ -58,7 +58,10 @@ READ_TIMEOUT_S = 8.0
 HEALTH_TIMEOUT_S = 4.0
 AUTH_TTL_S = 600.0  # the detected auth scheme is re-probed after this (a firmware change or a device reconfiguration)
 
+REFUSED_BACKOFF_S = 300.0  # after the device refuses the credentials, no further login attempt for this long (lockout guard)
+
 _AUTH: dict[str, tuple[float, str]] = {}  # device_key -> (expires at, "basic" | "digest")
+_REFUSED: dict[str, float] = {}  # device_key -> no login attempt before this (monotonic)
 _AUTH_LOCK = threading.Lock()
 _monotonic = time.monotonic
 
@@ -66,6 +69,7 @@ _monotonic = time.monotonic
 def clear_auth_cache() -> None:
     with _AUTH_LOCK:
         _AUTH.clear()
+        _REFUSED.clear()
 
 
 def _unavailable(op: str, exc: Exception) -> ApiError:
@@ -186,8 +190,18 @@ class ProvisionIsrAdapter:
             _AUTH[self.device_key] = (_monotonic() + AUTH_TTL_S, scheme)
         return scheme
 
+    def _check_refused(self, op: str) -> None:
+        """Live finding 2026-10-04: a device that refuses the credentials must not see another login per call (the account
+        locks after repeated failures, v2 error 10). Until REFUSED_BACKOFF_S has passed every call fails locally."""
+        with _AUTH_LOCK:
+            until = _REFUSED.get(self.device_key)
+        if until is not None and until > _monotonic():
+            raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה. ניסיון נוסף יתאפשר בעוד כמה דקות.",
+                           details={"op": op, "reason": "credentials_refused_backoff"})
+
     def _auth(self) -> httpx.Auth:
         s = self._settings
+        self._check_refused("auth")
         scheme = self._detect_auth()
         return httpx.DigestAuth(s.nvr_user or "", s.nvr_password or "") if scheme == "digest" else httpx.BasicAuth(s.nvr_user or "", s.nvr_password or "")
 
@@ -225,7 +239,9 @@ class ProvisionIsrAdapter:
                 c.close()
         if status != 200:
             if status == 401:
-                self._forget_auth()  # the scheme may have changed; the next call probes again
+                self._forget_auth()  # the scheme may have changed; the next attempt (after the backoff) probes again
+                with _AUTH_LOCK:
+                    _REFUSED[self.device_key] = _monotonic() + REFUSED_BACKOFF_S
             raise _device_error(command, status, data.decode("utf-8", "replace"))
         return data, ctype
 

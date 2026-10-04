@@ -83,6 +83,26 @@ def test_wrong_password_is_source_forbidden_and_unreachable_is_unavailable(setti
     assert make(settings, fake).health().error == "source_unavailable"
 
 
+def test_refused_credentials_stop_further_logins(settings, fake):
+    """Live finding 2026-10-04: every call re-tried the login after a 401 (lockout risk). Now one refusal = no login
+    attempt for REFUSED_BACKOFF_S; later calls fail locally without touching the device."""
+    a = pisr.ProvisionIsrAdapter("nvr-2", dataclasses.replace(settings_for(settings), nvr_password="wrong"), transport=fake.transport())
+    assert a.health().error == "source_forbidden"
+    sent = len(fake.hits)
+    for call in (a.storage, a.list_channels, a.alarm_status, lambda: a.snapshot("1")):
+        with pytest.raises(ApiError) as e:
+            call()
+        assert e.value.code == "source_forbidden" and e.value.details["reason"] == "credentials_refused_backoff"
+    assert len(fake.hits) == sent
+    pisr._monotonic, real = (lambda: real() + pisr.REFUSED_BACKOFF_S + 1), pisr._monotonic
+    try:
+        with pytest.raises(ApiError):
+            a.storage()
+        assert len(fake.hits) > sent  # after the backoff one new attempt is allowed
+    finally:
+        pisr._monotonic = real
+
+
 def test_no_secret_in_any_error(settings, fake):
     fake.fail["GetChannelList"] = 4
     a = make(settings, fake)
