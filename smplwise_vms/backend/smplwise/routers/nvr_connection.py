@@ -401,7 +401,8 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
         else:
             messages = {"source_forbidden": "ה־NVR דחה את שם המשתמש או הסיסמה.", "source_unavailable": "לא ניתן להתחבר ל־NVR.", "timeout": "ה־NVR לא ענה בזמן.",
                         "source_error": "ה־NVR החזיר שגיאה.", "tls_pin_mismatch": "תעודת ה־NVR אינה התעודה שננעצה.",
-                        "auth_scheme_unsupported": "שיטת האימות של ה־NVR אינה נתמכת."}
+                        "auth_scheme_unsupported": "שיטת האימות של ה־NVR אינה נתמכת.",
+                        "auth_downgrade_refused": "ה־NVR ביקש שיטת אימות חלשה מבעבר. בחרו את שיטת האימות במפורש."}
             audit(conn, actor=principal, action="nvr.connection.update", decision="denied", resource_type="nvr", resource_id=_res(rid), reason=code,
                   request_id=_rid(request), details={"vendor": fields["vendor"], "outcome": code})
             raise ApiError(503 if code != "source_forbidden" else 502, code, messages.get(code, "בדיקת החיבור נכשלה."), retryable=code in UNTESTED_OK,

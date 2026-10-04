@@ -43,6 +43,7 @@ const TEST_TEXT: Record<string, string> = {
   tls_pin_mismatch: 'תעודת ה־NVR אינה התעודה שננעצה',
   tls_pin_required: 'יש לנעוץ את תעודת ה־NVR לפני השמירה',
   auth_scheme_unsupported: 'שיטת האימות של ה־NVR אינה נתמכת',
+  auth_downgrade_refused: 'ה־NVR ביקש שיטת אימות חלשה מבעבר. בחרו את שיטת האימות במפורש',
 };
 /** CR-025: the warnings a connection test can return; each can be closed for this session (suppressing it for good is a
  * checkbox under "הגדרות מתקדמות"). */

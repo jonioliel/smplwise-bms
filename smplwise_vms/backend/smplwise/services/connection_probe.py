@@ -87,7 +87,7 @@ SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # Arx's own port 8099. None of them is an NVR's HTTP port.
 REFUSED_PORTS = frozenset({8123, 1984, 8554, 8555, 4357, 8099})
 OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported",
-            "tls_pin_required")
+            "tls_pin_required", "auth_downgrade_refused")
 
 # the probe's limits (CR-022 section 6.3, review F4)
 CONNECT_S = 5.0
