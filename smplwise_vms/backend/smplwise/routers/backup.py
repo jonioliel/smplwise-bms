@@ -110,5 +110,6 @@ def restore_backup(name: str, body: RestoreIn, request: Request, principal: Prin
         result = svc.restore(settings_of(request), conn, p, body.mode, body.scope, actor_user_id=principal.user_id)
     except ValueError as exc:
         raise ApiError(409, "restore_refused", f"השחזור נדחה: {exc}")
-    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"]})
+    audit(conn, actor=principal, action="backup.restore", decision="allowed", resource_type="backup", resource_id=name, request_id=_rid(request), details={"mode": body.mode, "scope": body.scope, "tables": result["tables"], "files": result["files"],
+                   **({"roles_pruned": result["roles_pruned"]} if result.get("roles_pruned") else {})})
     return {"name": name, **result}

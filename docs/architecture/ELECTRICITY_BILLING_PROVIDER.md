@@ -39,5 +39,5 @@ like; beyond the quarter-hour retention a non-midnight edge raises `ValueError`,
    `backup`'s lists.
 3. Permissions: resolved - one copy of `energy.view`, `energy.bills`, `energy.manage` in `roles.json`, the contract role
    catalogue and the permission labels.
-4. Both migrations used the placeholder number 0054; resolved at integration: `0054_electricity_meters.sql`,
-   `0055_electricity_billing.sql`. No foreign key crosses them (meters are referenced by text id).
+4. Both migrations used the placeholder number 0054; resolved at integration: `0053_electricity_meters.sql`,
+   `0054_electricity_billing.sql` (directly after 0.1.159's 0052). No foreign key crosses them (meters are referenced by text id).

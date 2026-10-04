@@ -3,6 +3,8 @@ import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import type { WiskeyCatalog, WiskeyLocation } from '../wiskey/embed-connector';
 import type { TabGroup } from './tabs-mode';
+import { ALL_CAPABILITIES } from '../api/capabilities';
+import { applyCapabilities, capHiddenHref, needsOfSegments, segmentsOfHref } from './nav-capabilities';
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
@@ -173,28 +175,26 @@ export function applyWiskeyHidden(settings: Record<string, unknown> | null | und
   return WISKEY_HIDDEN;
 }
 
-/** NVR-less mode (owner request 2026-09-29): the installation runs with Home Assistant only (no `nvr_host` in the add-on
- * options; /me says `mode: ha_only`). Every NVR area - the live overview and cameras, events and everything under
- * "חקירה" (history, recordings, sync, cases, rules, exports, search) and the camera health page - leaves the navigation
- * for everyone, like `ui.hide_wiskey` hides WisKey; `sw-app.ts` answers their URLs with a "מצב ללא NVR" panel. Hidden is
- * not unprotected: the server refuses the NVR routes itself (409 nvr_not_configured). Filled by the shell from the
- * session. */
-export let NVR_LESS = false;
+/** NN1 P2: the installation's capabilities decide which areas are offered (nav-capabilities.ts holds the one table
+ * `route -> needs`). It generalises the NVR-less mode of 2026-09-29: with no NVR the live area, the camera pages and the
+ * investigate area leave the navigation for everyone; with no media server the video screens do. `sw-app.ts` answers a direct
+ * URL with a neutral panel. Hidden is not unprotected: the server refuses those routes itself (409). */
+export { applyCapabilities };
+
+/** Compatibility (NVR-less mode): `on` = an installation with no NVR. */
 export function applyNvrLess(on: boolean): boolean {
-  NVR_LESS = on;
-  return NVR_LESS;
+  applyCapabilities(on ? { ...ALL_CAPABILITIES, nvr: false, live_video: false, playback: false, events_recorder: false } : null);
+  return on;
 }
 
-/** An href of an area that needs the NVR (see NVR_LESS). */
+/** An href of an area this installation cannot serve (see nav-capabilities.ts). */
 export function isNvrHref(href: string): boolean {
-  return href === '#/live' || href.startsWith('#/live/') || href.startsWith('#/investigate/') || href === '#/system/devices' || href === SECURITY_CAMERAS_HREF;
+  return needsOfSegments(segmentsOfHref(href)).length > 0;
 }
 
-/** A route of an area that needs the NVR: live and cameras, the whole investigate mode, camera health, the kiosk wall. */
+/** A route of an area that needs the NVR or its media server. */
 export function isNvrRoute(r: RouteState | null): boolean {
-  if (!r) return false;
-  if (r.segments[0] === 'kiosk') return true;
-  return r.mode === 'live' || r.mode === 'investigate' || (r.mode === 'system' && (r.segments[1] === 'devices' || (r.segments[1] === 'security' && r.segments[2] === 'cameras')));
+  return !!r && needsOfSegments(r.segments).length > 0;
 }
 
 /** SMPLWISE route segment (#/wiskey/<segment>) → the WisKey panel's own tab id (panel.ts `_tab`; "people" is the
@@ -428,6 +428,8 @@ export const MULTIMEDIA_SCREENS_HREF = '#/multimedia/screens';
 export const MULTIMEDIA_PLAYERS_HREF = '#/multimedia/players';
 export const MULTIMEDIA_GROUPS_HREF = '#/multimedia/groups';
 export const MULTIMEDIA_SETTINGS_HREF = '#/system/multimedia';
+/** CR-021 S2: הגדרות › עדכונים. */
+export const UPDATE_SETTINGS_HREF = '#/system/update';
 export const MULTIMEDIA_TABS: TabItem[] = [
   { id: 'screens', label: 'מסכים', href: MULTIMEDIA_SCREENS_HREF },
   { id: 'players', label: 'נגנים ורמקולים', href: MULTIMEDIA_PLAYERS_HREF },
@@ -611,6 +613,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'security', label: 'אבטחה', href: SECURITY_SETTINGS_HREF },
     { id: 'audit', label: 'אודיט', href: '#/system/audit' },
     { id: 'storage', label: 'אחסון', href: '#/system/storage' },
+    // CR-021 S2: the self-update page (system.update, installation scope: system administrators only)
+    { id: 'update', label: 'עדכונים', href: UPDATE_SETTINGS_HREF },
     { id: 'wizard', label: 'אשף התקנה', href: '#/system/wizard' },
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
@@ -805,6 +809,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   // CR-023: energy.view / energy.manage are installation-scope in v1; the settings tab is for managers (prices, business) and system administrators (retention)
   [INFRA_METERS_HREF]: ['energy.view'],
   [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure'],
+  // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
+  [UPDATE_SETTINGS_HREF]: ['system.update'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
   // panels placed on their floors (routers/alarm.py), so the entry is not installation-only. Its management is what it
   // always was (routers/alarm.py `_configurer`: system.configure); the NVR page follows הגדרות › חיבורים. The section's own
@@ -839,7 +845,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -876,7 +882,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !(NVR_LESS && isNvrHref(t.href ?? '')) && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the

@@ -6,15 +6,17 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
-import { can, isApi, nvrLess } from '../api/session';
+import { can, installationSupported, isApi, nvrLess } from '../api/session';
+import { UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ApiError, get, describeError } from '../api/client';
 import { clearIntercomCredentials, getIntercomCredentials, setIntercomCredentials, type IntercomCredentialsList, type IntercomStationCredentials } from '../api/intercom';
 import { listCameras } from '../api/maps';
 import { healthReport, type HealthReport } from '../api/health';
-import { listNvrChanges, notifyStatus, nvrConnection, nvrSystem, pulseNvrOutput, rebootNvr, rollbackNvrChange, setNotify, setNvrConnection, setNvrNtp, setNvrTime, startSmartTest, type NotifyStatus, type NvrChange, type NvrConnection, type NvrSystem } from '../api/nvr';
+import { listNvrChanges, notifyStatus, nvrSystem, pulseNvrOutput, rebootNvr, rollbackNvrChange, setNotify, setNvrNtp, setNvrTime, startSmartTest, type NotifyStatus, type NvrChange, type NvrSystem } from '../api/nvr';
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import '../components/nvr-connection-form';
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -34,11 +36,6 @@ interface RawHealth {
 }
 
 const OPTIONS: { key: string; label: string }[] = [
-  { key: 'nvr_host', label: 'כתובת ה־NVR' },
-  { key: 'nvr_http_port', label: 'פורט ISAPI (HTTP)' },
-  { key: 'nvr_rtsp_port', label: 'פורט RTSP' },
-  { key: 'nvr_username', label: 'משתמש NVR (קריאה)' },
-  { key: 'nvr_password', label: 'סיסמת NVR' },
   { key: 'go2rtc_url', label: 'כתובת go2rtc' },
   { key: 'go2rtc_api_username', label: 'משתמש go2rtc (אם מוגן)' },
   { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
@@ -79,10 +76,6 @@ export class SystemSetup extends LitElement {
   @state() private ntpForm: { host: string; port: number; interval_min: number } | null = null;
   @state() private rebootWord = '';
   @state() private rebootOpen = false;
-  @state() private connection: NvrConnection | null = null;
-  @state() private connForm: { host: string; http_port: number; rtsp_port: number; user: string; password: string } | null = null;
-  @state() private connMsg = '';
-  @state() private connBusy = false;
   @state() private changes: NvrChange[] = [];
   /** WisKey station RTSP accounts (0.1.109 API; this screen is the follow-up): the list is loaded only for a system
    * administrator; the form never holds a stored value, only what is being typed. */
@@ -136,11 +129,7 @@ export class SystemSetup extends LitElement {
 
   private async loadNvr() {
     if (!isApi()) return;
-    if (nvrLess()) {
-      // NVR-less mode: nothing to read from an NVR; only the connection details (the way to add one later outside HA)
-      void nvrConnection().then((v) => (this.connection = v)).catch(() => (this.connection = null));
-      return;
-    }
+    if (nvrLess()) return; // NVR-less mode: nothing to read from an NVR (the connection form loads itself)
     try {
       const [n, c] = await Promise.all([notifyStatus(), listNvrChanges(10)]);
       this.notify = n;
@@ -150,7 +139,6 @@ export class SystemSetup extends LitElement {
       this.notifyError = describeError(err);
     }
     void this.loadSystem();
-    void nvrConnection().then((v) => (this.connection = v)).catch(() => (this.connection = null));
   }
 
   private async loadSystem() {
@@ -175,26 +163,6 @@ export class SystemSetup extends LitElement {
       this.sysMsg = `${label}: ${describeError(err)}`;
     } finally {
       this.sysBusy = false;
-    }
-  }
-
-  private async saveConnection() {
-    const f = this.connForm;
-    if (!f || this.connBusy) return;
-    this.connBusy = true;
-    this.connMsg = '';
-    try {
-      const r = await setNvrConnection({ host: f.host.trim(), http_port: f.http_port, rtsp_port: f.rtsp_port, user: f.user.trim(), ...(f.password ? { password: f.password } : {}) });
-      this.connection = r;
-      this.connForm = null;
-      this.connMsg = r.restarting
-        ? `החיבור נבדק (${r.device.model} · ${r.device.firmware}) ונשמר ב־Add-on options; ה־Add-on מופעל מחדש כעת.`
-        : `החיבור נבדק (${r.device.model} · ${r.device.firmware}) ונשמר; בתוקף מיד.`;
-      void this.loadSystem();
-    } catch (err) {
-      this.connMsg = `לא נשמר: ${describeError(err)}`;
-    } finally {
-      this.connBusy = false;
     }
   }
 
@@ -345,7 +313,7 @@ export class SystemSetup extends LitElement {
     if (!can('system.configure')) return nothing;
     const w = this.wiskey;
     const c = this.wiskeyClear;
-    return html`<sw-card heading="מצלמות עמדות WisKey" subheading="חשבון ה־RTSP שאיתו go2rtc מושך את מצלמת כל עמדה: המשותף מה־Add-on options, או חשבון משלה לעמדה שצריכה אחר · הערכים עצמם אינם מוצגים" data-wiskey-credentials>
+    return html`<sw-card heading="מצלמות עמדות WisKey" subheading="חשבון ה־RTSP שאיתו go2rtc מושך את מצלמת כל עמדה: המשותף שהוגדר בתשתית המערכת, או חשבון משלה לעמדה שצריכה אחר · הערכים עצמם אינם מוצגים" data-wiskey-credentials>
       ${this.wiskeyError ? html`<div class="hint" data-wiskey-cred-error>${this.wiskeyError}</div>` : nothing}
       ${!w
         ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
@@ -355,36 +323,18 @@ export class SystemSetup extends LitElement {
           ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
       ${c
         ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name || c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של Arx.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף מה־Add-on options, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של Arx.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
             <div slot="footer"><sw-button variant="danger" ?disabled=${this.wiskeyBusy} data-wiskey-cred-confirm-run @click=${() => this.clearWiskey()}>${this.wiskeyBusy ? 'מסיר…' : 'הסר'}</sw-button><sw-button variant="ghost" @click=${() => (this.wiskeyClear = null)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
     </sw-card>`;
   }
 
+  /** CR-022: the NVR connection - vendor, address, ports, user, write-only password - lives in the shared form. Only a holder of
+   * system.configure sees anything (the form renders nothing otherwise); the restart banner is the shell's. */
   private renderConnectionCard() {
-    const v = this.connection;
-    if (!v) return nothing;
-    const f = this.connForm;
-    return html`<sw-card heading="חיבור ל־NVR" subheading=${v.in_addon ? 'נשמר ב־Add-on options דרך ה־Supervisor; שמירה מפעילה מחדש את ה־Add-on' : 'נשמר ליד הנתונים (nvr_connection.json); בתוקף מיד'} data-nvr-connection>
-      ${this.row('כתובת · פורט HTTP · RTSP', `${v.placeholder ? 'כתובת זמנית של סביבת פיתוח (לא NVR)' : v.host ?? '—'} · ${v.http_port} · ${v.rtsp_port}`)}
-      ${this.row('משתמש', `${v.user ?? '—'} · ${v.has_password ? 'סיסמה מוגדרת' : 'ללא סיסמה'}`, v.has_password ? 'ok' : 'warn')}
-      ${f
-        ? html`<div class="two" data-nvr-connection-form>
-            <sw-field label="כתובת"><input data-ltr data-conn-host .value=${f.host} @input=${(e: Event) => (this.connForm = { ...f, host: (e.target as HTMLInputElement).value })} /></sw-field>
-            <sw-field label="פורט HTTP"><input type="number" data-ltr .value=${String(f.http_port)} @input=${(e: Event) => (this.connForm = { ...f, http_port: Number((e.target as HTMLInputElement).value) })} /></sw-field>
-            <sw-field label="פורט RTSP"><input type="number" data-ltr .value=${String(f.rtsp_port)} @input=${(e: Event) => (this.connForm = { ...f, rtsp_port: Number((e.target as HTMLInputElement).value) })} /></sw-field>
-            <sw-field label="משתמש"><input data-ltr data-conn-user .value=${f.user} @input=${(e: Event) => (this.connForm = { ...f, user: (e.target as HTMLInputElement).value })} /></sw-field>
-            <sw-field label="סיסמה (ריק = ללא שינוי)"><input type="password" data-ltr data-conn-password .value=${f.password} @input=${(e: Event) => (this.connForm = { ...f, password: (e.target as HTMLInputElement).value })} /></sw-field>
-            <div class="actions">
-              <sw-button size="sm" variant="primary" icon="check" ?disabled=${this.connBusy || !f.host || !f.user} data-conn-save @click=${() => this.saveConnection()}>${this.connBusy ? 'בודק…' : 'בדוק ושמור'}</sw-button>
-              <sw-button size="sm" variant="ghost" ?disabled=${this.connBusy} @click=${() => (this.connForm = null)}>ביטול</sw-button>
-            </div>
-            <div class="hint">הבדיקה קוראת deviceInfo עם הפרטים החדשים; בלי הצלחה לא נשמר דבר.</div>
-          </div>`
-        : html`<div class="actions"><sw-button size="sm" icon="edit" data-conn-edit @click=${() => (this.connForm = { host: v.host ?? '', http_port: v.http_port, rtsp_port: v.rtsp_port, user: v.user ?? '', password: '' })}>עריכת פרטי החיבור</sw-button></div>`}
-      ${this.connMsg ? html`<div class="hint" data-conn-msg>${this.connMsg}</div>` : nothing}
-    </sw-card>`;
+    if (!can('system.configure')) return nothing;
+    return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><nvr-connection-form context="settings"></nvr-connection-form></sw-card>`;
   }
 
   private planNotify(channels: number[] | null, smart: boolean, enabled: boolean) {
@@ -452,7 +402,7 @@ export class SystemSetup extends LitElement {
               ${c.status === 'applied' && n.can_write ? html`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${c.id} @click=${() => this.rollback(c)}>החזר</sw-button>` : nothing}</li>`)}</ul>` : nothing}`}
       ${this.notifyPlan
         ? html`<sw-dialog open heading="כתיבה ל־NVR" subheading=${this.notifyPlan.label} data-nvr-confirm @close=${() => (this.notifyPlan = null)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.5">השינוי נכתב להגדרות ה־NVR בזהות המשתמש המוגדר ב־Add-on, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
+            <div style="font-size:var(--sw-fs-sm);line-height:1.5">השינוי נכתב להגדרות ה־NVR בזהות המשתמש של חיבור ה־NVR, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
             <div slot="footer"><sw-button variant="primary" ?disabled=${this.notifyBusy} data-nvr-confirm-run @click=${() => this.runNotify()}>${this.notifyBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.notifyPlan = null)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
@@ -462,7 +412,7 @@ export class SystemSetup extends LitElement {
   private renderApi() {
     const h = this.raw;
     return html`
-      <sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד · הערכים עצמם מוגדרים ב־Home Assistant › Add-ons › SmplWise Arx › Configuration">
+      <sw-page heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · פרטי חיבור ה־NVR נשמרים כאן">
         <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.load()}>${this.busy ? 'בודק…' : 'רענון'}</sw-button>
         ${this.error ? html`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
         ${!h
@@ -471,13 +421,13 @@ export class SystemSetup extends LitElement {
               <div class="grouplabel">מערכת ה־NVR</div>
               ${h.mode === 'ha_only'
                 ? html`<sw-card heading="NVR - מצב ללא NVR" subheading="לא מוגדר - דילוג מכוון" data-nvr-less-connections>
-                    ${this.row('מצב ההתקנה', 'Home Assistant בלבד (ללא NVR)')}
-                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on. הנתונים נשארים כמו שהם.</div>
+                    ${this.row('מצב ההתקנה', 'תשתית המערכת בלבד (ללא NVR)')}
+                    <div class="hint">מצלמות, לייב, אירועים, הקלטות, תיקים וייצוא מוסתרים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל.</div>
                   </sw-card>
                   ${this.renderConnectionCard()}`
                 : html`
               <sw-card heading="NVR (Hikvision, ISAPI + RTSP)" subheading=${h.nvr_configured ? 'מוגדר · קריאה בלבד' : 'לא מוגדר'}>
-                ${this.row('מוגדר ב־Add-on options', h.nvr_configured ? 'כן' : 'לא', h.nvr_configured ? 'ok' : 'err')}
+                ${this.row('חיבור מוגדר', h.nvr_configured ? 'כן' : 'לא', h.nvr_configured ? 'ok' : 'err')}
                 ${this.recorder ? this.row('דגם · קושחה', `${this.recorder.model ?? '—'} · ${this.recorder.firmware ?? '—'}`) : nothing}
                 ${this.row('גילוי מצלמות', `${h.discovery.cameras} ערוצים · כל ${Math.round(h.discovery.interval_s / 60)} דק׳`)}
                 ${this.row('גילוי אחרון תקין', when(h.discovery.cameras_last_ok), h.discovery.cameras_last_error ? 'warn' : 'ok')}
@@ -491,9 +441,10 @@ export class SystemSetup extends LitElement {
               ${this.renderSystemCard()}
               ${this.renderConnectionCard()}`}
               <div class="grouplabel">שירותים ותשתית נוספים</div>
-              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : 'לא מוגדר'}>
-                ${this.row('מוגדר ב־Add-on options', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : h.mode === 'ha_only' ? '' : 'err')}
+              <sw-card heading="go2rtc (relay לווידאו)" subheading=${h.go2rtc_configured ? 'מוגדר' : h.mode === 'ha_only' ? 'לא מוגדר - רשות במצב ללא NVR' : !installationSupported() ? 'לא מוגדר - נדרש כשיש NVR' : 'לא מוגדר'}>
+                ${this.row('חיבור מוגדר', h.go2rtc_configured ? 'כן' : 'לא', h.go2rtc_configured ? 'ok' : h.mode === 'ha_only' ? '' : 'err')}
                 ${!h.go2rtc_configured && h.mode === 'ha_only' ? html`<div class="hint" data-go2rtc-optional>במצב ללא NVR go2rtc נדרש רק לווידאו של עמדות WisKey.</div>` : nothing}
+                ${!installationSupported() ? html`<div class="hint" data-go2rtc-required>${UNSUPPORTED_NVR_WITHOUT_GO2RTC}</div>` : nothing}
                 ${this.row('סנכרון זרמים אחרון תקין', when(h.discovery.streams_last_ok), h.discovery.streams_last_error ? 'warn' : 'ok')}
                 ${h.discovery.streams_last_error ? this.row('שגיאת סנכרון זרמים', h.discovery.streams_last_error, 'err') : nothing}
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
@@ -517,11 +468,11 @@ export class SystemSetup extends LitElement {
                 ${this.check('backups') ? this.row('גיבויים', this.check('backups')!.detail, this.check('backups')!.status === 'ok' ? 'ok' : 'warn') : nothing}
               </sw-card>
             </div>
-            <sw-card heading="איפה מגדירים" subheading="הערכים אינם מוצגים כאן ואינם נשמרים ב־Arx; שינוי דורש הפעלה מחדש של ה־Add-on">
+            <sw-card heading="איפה מגדירים" subheading="חיבורים נוספים מוגדרים בהגדרות SmplWise Arx בתשתית המערכת; הערכים אינם מוצגים כאן ושינוי דורש הפעלה מחדש">
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>
-              <div class="hint">Home Assistant › הגדרות › Add-ons › SmplWise Arx › Configuration. משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
+              <div class="hint">משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
             </sw-card>`}
       </sw-page>
     `;
@@ -656,7 +607,7 @@ export class SystemSetup extends LitElement {
     if (isApi()) return this.renderApi();
     // T071: the demo onboarding wizard that lived here became the real wizard (system-wizard.ts, #/system/wizard);
     // this page lists live connection facts, which a design preview without a backend does not have.
-    return html`<sw-page heading="חיבורים" subheading="מצב החיבורים של ה־Add-on: NVR, go2rtc, Home Assistant ואחסון · קריאה בלבד">
+    return html`<sw-page heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
       <sw-state-panel state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
     </sw-page>`;
   }

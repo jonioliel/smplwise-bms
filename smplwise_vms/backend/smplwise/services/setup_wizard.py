@@ -33,6 +33,8 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from .. import __version__
+from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, installation_block
+from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
@@ -273,8 +275,8 @@ def _tz_name(conn: sqlite3.Connection) -> str:
 # ---------------------------------------------------------------- step 2: NVR
 
 NVR_ERRORS = {
-    "source_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SmplWise Arx › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
-    "nvr_not_configured": ("פרטי ה־NVR לא הוגדרו.", "מלאו כתובת, משתמש וסיסמה ב־Home Assistant › Add-ons › SmplWise Arx › Configuration (nvr_host, nvr_username, nvr_password), או ב"),
+    "source_not_configured": ("פרטי ה־NVR לא הוגדרו.", "בחרו את סוג ה־NVR והזינו כתובת, משתמש וסיסמה ב"),
+    "nvr_not_configured": ("פרטי ה־NVR לא הוגדרו.", "בחרו את סוג ה־NVR והזינו כתובת, משתמש וסיסמה ב"),
     "source_unavailable": ("ה־NVR לא ענה.", "ודאו שה־NVR דולק ומחובר לרשת, ושהכתובת ופורט ה־HTTP נכונים; לתיקון הכתובת: "),
     "source_forbidden": ("ה־NVR דחה את שם המשתמש או הסיסמה.", "בדקו את המשתמש והסיסמה (מומלץ משתמש ייעודי עם הרשאות צפייה והקלטות בלבד) ועדכנו אותם ב"),
     "source_error": ("ה־NVR החזיר שגיאה לבקשת קריאה.", "ודאו שלמשתמש ה־NVR יש הרשאות צפייה והקלטות ושה־ISAPI פעיל ב־NVR; פרטי החיבור ב"),
@@ -311,14 +313,14 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
     link = _link("connections")
     if not _nvr_configured(settings):
         p = _nvr_problem("nvr_not_configured")
-        return _step("nvr", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
+        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
     rec = _recorder(conn)
     cams = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0]
     evidence = {"configured": True, "model": rec["model"] if rec else None, "firmware": rec["firmware"] if rec else None, "channels": cams,
                 "discovery_last_ok": ds.get("cameras_last_ok"), "discovery_last_error": ds.get("cameras_last_error"), "time": None}
     facts = [_fact("דגם · קושחה", f"{evidence['model'] or '—'} · {evidence['firmware'] or '—'}"), _fact("ערוצים רשומים", cams),
-             _fact("גילוי אחרון תקין", ds.get("cameras_last_ok")), _fact("שעון מול ה־Add-on", "לא נבדק עדיין — לחצו \"בדוק שוב\"")]
+             _fact("גילוי אחרון תקין", ds.get("cameras_last_ok")), _fact("שעון מול המערכת", "לא נבדק עדיין — לחצו \"בדוק שוב\"")]
     codecs = stream_codecs.summary(conn, with_names=True)
     evidence["video_codecs"] = {k: v for k, v in codecs.items() if k != "main_not_webrtc"}
     if codecs["checked"]:
@@ -330,7 +332,7 @@ def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, An
     if ds.get("cameras_last_ok"):
         return _step("nvr", "done", f"{evidence['model'] or 'NVR'} · {cams} ערוצים (לפי הגילוי האחרון)", facts=facts, evidence=evidence, settings_link=link,
                      warnings=warnings, source="background", checked_at=ds.get("cameras_last_ok"))
-    p = _problem("not_checked", "ה־NVR עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לקרוא את פרטי ה־NVR, הערוצים והשעון עכשיו.", link)
+    p = _problem("not_checked", "ה־NVR עוד לא נבדק מאז שהמערכת עלתה.", "לחצו \"בדוק שוב\" כדי לקרוא את פרטי ה־NVR, הערוצים והשעון עכשיו.", link)
     return _step("nvr", "todo", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, warnings=warnings, source="background")
 
 
@@ -344,7 +346,7 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
         info = nvr.device_info(settings)
     except ApiError as exc:
         p = _nvr_problem(exc.code, (exc.details or {}).get("error"))
-        return _step("nvr", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "כן", "ok"), _fact("תשובה", "אין", "err")],
+        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן", "ok"), _fact("תשובה", "אין", "err")],
                      evidence={"configured": True, "reachable": False, "error": exc.code}, settings_link=link, problem=p, source="live")
     except Exception as exc:  # noqa: BLE001 - an unparsable answer is a failed step, never a 500
         p = _nvr_problem("source_error", type(exc).__name__)
@@ -410,7 +412,7 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
         _fact("ערוצים עם זרם ראשי ומשני", f"{with_tracks} מתוך {len(channels)}", "ok" if channels and with_tracks == len(channels) else "warn"),
         _fact("פרופילי וידאו שנמצאו", " · ".join(profiles[:4]) if profiles else "—"),
         *([_codec_fact(codec_main, len(codec_channels))] if codec_channels else []),
-        _drift_fact("שעון ה־NVR מול ה־Add-on", time_check),
+        _drift_fact("שעון ה־NVR מול המערכת", time_check),
         _fact("אזור זמן (היסט)", f"{time_check.get('offset') or '?'} · צפוי {time_check.get('expected_offset')} ({tz.key})",
               {"ok": "ok", "mismatch": "err"}.get(time_check.get("dst"), "warn")),
     ]
@@ -423,7 +425,7 @@ def nvr_probe(settings: Settings, tz_name: str, now: dt.datetime | None = None, 
                      "עד שזה יתוקן, חיפוש הקלטות ואירועים יסטה בשעה. תקנו את אזור הזמן ואת שעון הקיץ בהגדרות ה־NVR (Configuration › System › Time Settings), ואז בדקו שוב.", link)
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     if time_check.get("level") == "fail":
-        p = _problem("nvr_clock_drift", f"שעון ה־NVR סוטה ב־{_signed(time_check['drift_s'])} שניות משעון ה־Add-on (מותר עד {DRIFT_FAIL_S}).",
+        p = _problem("nvr_clock_drift", f"שעון ה־NVR סוטה ב־{_signed(time_check['drift_s'])} שניות משעון המערכת (מותר עד {DRIFT_FAIL_S}).",
                      f"אירועים והקלטות יוצגו בזמן שגוי. הגדירו NTP ב־NVR או סנכרנו את השעון עכשיו ב{link['label']} › מערכת ה־NVR › שעון.", link)
         return _step("nvr", "failed", p["message"], facts=facts, evidence=evidence, settings_link=link, problem=p, source="live")
     if time_check.get("level") == "warn":
@@ -568,7 +570,8 @@ def _with_nvr_gap(live: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- step 4: go2rtc
 
 GO2RTC_ERRORS = {
-    "media_not_configured": ("כתובת go2rtc לא הוגדרה.", "מלאו go2rtc_url (למשל http://<כתובת HA>:1984) ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש."),
+    # NN1: operator wording without infrastructure branding (the connection settings move into the product with NN4)
+    "media_not_configured": ("כתובת שרת המדיה (go2rtc) לא הוגדרה.", "השלימו את כתובת שרת המדיה (go2rtc_url, בדרך כלל בפורט 1984) בהגדרות החיבור של ההתקנה והפעילו את המערכת מחדש."),
     "media_unavailable": ("go2rtc לא ענה.", "ודאו שה־Add-on של go2rtc מותקן ופועל ושהכתובת go2rtc_url נכונה (כולל הפורט, בדרך כלל 1984)."),
     "media_error": ("go2rtc החזיר שגיאה.", "אם ה־API של go2rtc מוגן בסיסמה, מלאו go2rtc_api_username ו־go2rtc_api_password ב־Configuration של ה־Add-on."),
 }
@@ -587,7 +590,10 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
     link = _link("media")
     if not settings.go2rtc_url:
         p = _go2rtc_problem("media_not_configured")
-        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
+        if resolve_capabilities(settings).unsupported_reason == NVR_WITHOUT_GO2RTC:
+            # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation - say why, keep the code
+            p = _problem("media_not_configured", UNSUPPORTED_MESSAGES[NVR_WITHOUT_GO2RTC], UNSUPPORTED_ACTIONS[NVR_WITHOUT_GO2RTC], link)
+        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     if is_ha_only(settings):
         # NVR-less mode: no camera streams exist or are synced; the step is go2rtc answering (WisKey station video)
         with _lock:
@@ -597,7 +603,7 @@ def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str,
             return _step("go2rtc", "done", f"go2rtc {ev.get('version') or '?'} ענה בבדיקה האחרונה", facts=ok.get("facts") or [], evidence=ev, settings_link=link,
                          source="background", checked_at=ok.get("checked_at"))
         p = _problem("not_checked", "go2rtc עוד לא נבדק מאז שה־Add-on עלה.", "לחצו \"בדוק שוב\" כדי לבדוק שהוא עונה.", link)
-        return _step("go2rtc", "todo", p["message"], facts=[_fact("מוגדר ב־Add-on options", "כן", "ok")], evidence={"configured": True}, settings_link=link, problem=p, source="background")
+        return _step("go2rtc", "todo", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "כן", "ok")], evidence={"configured": True}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
     expected = len(_expected_streams(conn))
     evidence = {"configured": True, "expected_streams": expected, "sync_last_ok": ds.get("streams_last_ok"), "sync_last_error": ds.get("streams_last_error")}
@@ -622,7 +628,7 @@ def go2rtc_probe(settings: Settings, expected: list[str]) -> dict[str, Any]:
         streams = client.list_streams()
     except ApiError as exc:
         p = _go2rtc_problem(exc.code, str((exc.details or {}).get("status") or (exc.details or {}).get("error") or "") or None)
-        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר ב־Add-on options", "כן", "ok"), _fact("תשובה", "אין", "err")],
+        return _step("go2rtc", "failed", p["message"], facts=[_fact("מוגדר בהגדרות ההתקנה", "כן", "ok"), _fact("תשובה", "אין", "err")],
                      evidence={"configured": True, "reachable": False, "error": exc.code}, settings_link=link, problem=p, source="live")
     except Exception as exc:  # noqa: BLE001
         p = _go2rtc_problem("media_error", type(exc).__name__)
@@ -756,24 +762,60 @@ def camera_step(conn: sqlite3.Connection, nvr_status: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- NVR-less mode (mode.py)
 
 NVR_LESS_SKIP = "דילוג - מצב ללא NVR"
-NVR_LESS_ACTION = ("להוספת NVR בהמשך: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › "
-                   "Configuration והפעילו מחדש את ה־Add-on. הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
+# CR-022: the connection is entered in Arx (הגדרות › חיבורים), never in the platform's options
+NVR_LESS_ACTION = ("להוספת NVR בהמשך: בחרו את סוג ה־NVR והזינו את פרטי החיבור בהגדרות › חיבורים, ואז הפעילו את המערכת מחדש. "
+                   "הנתונים (מפות, תוכניות, הרשאות) נשארים כמו שהם, בלי הסבה.")
+NVR_CHOICE_ACTION = "בחרו בהגדרות › חיבורים את סוג ה־NVR והזינו את פרטי החיבור, או בחרו \"ללא NVR\" אם אין NVR בהתקנה."
+NVR_RESTART_ACTION = "לחצו \"הפעל מחדש\" בהודעה שבראש המסך, או הפעילו את השירות מחדש ידנית."
+NVR_UNREADABLE_ACTION = "פרטי החיבור השמורים אינם קריאים (קובץ המפתח חסר או הוחלף). הזינו את הסיסמה מחדש בהגדרות › חיבורים והפעילו את המערכת מחדש."
+NVR_REFUSED_ACTION = "הזינו את כתובת ה־NVR מחדש בהגדרות › חיבורים (כתובת ברשת המקומית) והפעילו את המערכת מחדש."
 
 
 def not_applicable_step(step_id: str, summary: str, problem: dict[str, Any], link: dict[str, str], *, label: str = NVR_LESS_SKIP) -> dict[str, Any]:
     """A step that is not part of this installation: neither done nor failed, and not counted in `total`."""
-    return _step(step_id, "not_applicable", summary, facts=[_fact("מצב ההתקנה", "Home Assistant בלבד (ללא NVR)")], evidence={"configured": False, "mode": "ha_only"},
+    return _step(step_id, "not_applicable", summary, facts=[_fact("מצב ההתקנה", "ללא NVR")], evidence={"configured": False, "mode": "ha_only"},
                  settings_link=link, problem=problem) | {"status_label": label}
 
 
-def nvr_less_steps(settings: Settings) -> dict[str, dict[str, Any]]:
+def nvr_choice_step(conn: sqlite3.Connection | None, settings: Settings | None = None) -> dict[str, Any]:
+    """CR-022 section 11: the NVR step of an installation without an NVR host. `done` for the installer's explicit "no NVR"
+    (vendor `none` stored), `failed` for a stored connection that cannot be decrypted or whose host was refused at start-up
+    (review F5, `connection_refused`), `todo` while nothing was chosen - and
+    `todo` for a connection that was just saved and waits for the restart that applies it (slice C: it is not unreadable)."""
+    from .connection_store import get_row, readable
+
+    link = _link("connections")
+    row = get_row(conn) if conn is not None else None
+    if row is not None and row["vendor"] == "none":
+        return _step("nvr", "done", "ללא NVR - נבחר במפורש.", facts=[_fact("סוג NVR", "ללא NVR", "ok")], evidence={"configured": False, "mode": "ha_only", "choice": "none"},
+                     settings_link=link) | {"status_label": "ללא NVR"}
+    # `refused` describes the row this process loaded at start-up; a row saved since (another revision) waits for the restart
+    loaded = row is not None and settings is not None and settings.nvr_connection_revision == int(row["revision"])
+    if loaded and settings.nvr_connection_state == "refused":  # CR-022 review F5: the stored host failed the source policy at start-up
+        p = _problem("connection_refused", "הכתובת השמורה של ה־NVR אינה מותרת לחיבור.", NVR_REFUSED_ACTION, link)
+        return _step("nvr", "failed", p["message"], facts=[_fact("כתובת NVR שמורה", "לא מותרת", "err")], evidence={"configured": False, "state": "refused"},
+                     settings_link=link, problem=p)
+    if row is not None and conn is not None and settings is not None and readable(conn, settings, row):
+        p = _problem("restart_pending", "פרטי החיבור נשמרו; נדרשת הפעלה מחדש כדי להחיל אותם.", NVR_RESTART_ACTION, link)
+        return _step("nvr", "todo", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן - ממתינים להפעלה מחדש", "warn")], evidence={"configured": False, "state": "pending_restart"},
+                     settings_link=link, problem=p)
+    if row is not None:
+        p = _problem("connection_unreadable", "לא ניתן לקרוא את פרטי החיבור השמורים של ה־NVR.", NVR_UNREADABLE_ACTION, link)
+        return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא קריאים", "err")], evidence={"configured": False, "state": "unreadable"},
+                     settings_link=link, problem=p)
+    p = _problem("nvr_choice_needed", "עדיין לא נבחר סוג NVR להתקנה.", NVR_CHOICE_ACTION, link)
+    return _step("nvr", "todo", p["message"], facts=[_fact("סוג NVR", "לא נבחר", "warn")], evidence={"configured": False, "mode": "ha_only", "choice": None},
+                 settings_link=link, problem=p)
+
+
+def nvr_less_steps(settings: Settings, conn: sqlite3.Connection | None = None) -> dict[str, dict[str, Any]]:
     """The NVR and camera steps (and go2rtc while it is not configured - optional here, only WisKey station video uses it)
-    in the NVR-less mode."""
+    in the NVR-less mode. CR-022: the NVR step itself asks for an explicit choice (`nvr_choice_step`)."""
     conn_link = _link("connections")
-    p = _problem("nvr_less_mode", "ההתקנה פועלת במצב ללא NVR (Home Assistant בלבד) - הדילוג מכוון.", NVR_LESS_ACTION, conn_link)
+    p = _problem("nvr_less_mode", "ההתקנה פועלת במצב ללא NVR - הדילוג מכוון.", NVR_LESS_ACTION, conn_link)
     out = {
-        "nvr": not_applicable_step("nvr", "לא מוגדר - דילוג מכוון: ההתקנה פועלת ללא NVR.", p, conn_link),
-        "camera": not_applicable_step("camera", "אין מצלמות NVR במצב ללא NVR; המפה מציגה ישויות Home Assistant.", p, _link("sites")),
+        "nvr": nvr_choice_step(conn, settings),
+        "camera": not_applicable_step("camera", "אין מצלמות NVR במצב ללא NVR; המפה מציגה את ישויות תשתית המערכת.", p, _link("sites")),
     }
     if not settings.go2rtc_url and not settings.wiskey_user:  # WisKey station stills and video need go2rtc
         g = _problem("go2rtc_optional", "go2rtc לא מוגדר - במצב ללא NVR הוא רשות.", "go2rtc נדרש רק לווידאו של עמדות WisKey; להפעלה מלאו go2rtc_url ב־Configuration של ה־Add-on והפעילו מחדש.", _link("media"))
@@ -810,7 +852,7 @@ BACKGROUND: dict[str, Callable[[Settings, sqlite3.Connection], dict[str, Any]]] 
 def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: str, *, deep_install: bool = False) -> dict[str, Any]:
     """Every step without touching a device: local steps now, device steps from the last live probe or the background."""
     steps: dict[str, dict[str, Any]] = {"install": install_step(settings, conn, identity_source, deep=deep_install)}
-    skipped = nvr_less_steps(settings) if is_ha_only(settings) else {}
+    skipped = nvr_less_steps(settings, conn) if is_ha_only(settings) else {}
     for sid in DEVICE_STEPS:
         if sid in skipped:
             steps[sid] = skipped[sid]
@@ -828,9 +870,12 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     required = [s for s in ordered if s["status"] != "not_applicable"]  # a step skipped on purpose is not counted
     done = sum(1 for s in required if s["status"] == "done")
     nxt = next((s["id"] for s in required if s["status"] != "done"), None)
+    caps = resolve_capabilities(settings)
     return {
         "version": __version__, "mode": installation_mode(settings), "checked_at": now_iso(), "steps": ordered, "done": done, "total": len(required),
-        "ready": done == len(required), "next": nxt,
+        # NN1: an unsupported installation (an NVR without go2rtc) never reaches "ready", whatever the steps say
+        "ready": done == len(required) and caps.supported, "next": nxt,
+        "capabilities": caps.as_dict(with_recorders=True), "installation": installation_block(caps),  # system.configure only
         "thresholds": {"drift_ok_s": DRIFT_OK_S, "drift_fail_s": DRIFT_FAIL_S}, "check_every_s": CHECK_EVERY_S, "live_ttl_s": LIVE_TTL_S,
     }
 

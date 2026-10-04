@@ -82,6 +82,9 @@ VALIDATORS["ui.dd_style"] = dd_style.normalize_style
 VALIDATORS["ui.dd_style_groups"] = dd_style.normalize_groups
 DEFAULTS["ui.dd_style"] = None
 DEFAULTS["ui.dd_style_groups"] = None
+# `ui.dd_phone` (owner 2026-10-03): how a dropdown opens on a phone, sheet | list; null = follow the installation.
+VALIDATORS["ui.dd_phone"] = dd_style.normalize_phone
+DEFAULTS["ui.dd_phone"] = None
 
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal

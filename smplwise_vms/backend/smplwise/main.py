@@ -21,7 +21,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
 
 log = logging.getLogger("smplwise")
 
@@ -86,6 +86,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy janitor failed", exc_info=True)
+    try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
+        from .services import update_runs
+
+        update_runs.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("update runs janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -93,6 +99,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         from .services import nvr_write
 
         nvr_write.stop_expired_manual(db, settings)  # A1: manual recordings past their planned stop
+        try:  # CR-020 S2: stream changes left pending (crash, busy database, unknown device answer) - settled by a read, never a write
+            from .services import nvr_settings
+
+            nvr_settings.settle_pending(db, settings)
+        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+            log.warning("nvr stream janitor failed", exc_info=True)
+        try:  # CR-020 S2C: a multi-camera batch whose runner is gone (stale heartbeat) ends `interrupted` - never resumed
+            from .services import nvr_batch
+
+            nvr_batch.recover_batches(db, settings)
+        except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+            log.warning("nvr batch recovery failed", exc_info=True)
     db.checkpoint()  # PASSIVE; a TRUNCATE only when the WAL grew past its size limit and nobody writes or waits
 
 
@@ -123,6 +141,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
     if pre:
         log.info("pre-upgrade backup written: %s", pre.name)
+    from .services import update_runs  # CR-021 S3 review: a start of an update's target version counts even if a migration crashes next
+
+    update_runs.early_boot(app.state.db)
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
@@ -142,6 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
+    update_runs.on_startup(app.state.db, settings)  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
     try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
         from .services import notify_policy
 
@@ -173,12 +195,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("attached %s Home Assistant NVR events to their cameras", fixed)
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("HA event camera backfill failed")
+    # CR-022: the NVR connection stored in Arx (recorder_connections), overlaid ONCE here - after the migrations, before any
+    # background worker - and the one-time import of the add-on options. Every later reader sees the effective settings; a
+    # save or a removal waits for the next start (connection_pending_restart).
+    from .services import connection_probe, connection_store
+
+    settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
+    app.state.settings = settings
+    app.state.legacy_options_differ = legacy_differ
+    app.state.connection_probe_limiter = connection_probe.probe_limiter()
     if settings.nvr_host == DEV_NVR_PLACEHOLDER:
         log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
                  "SW_MODE=ha_only starts the NVR-less mode")
     if is_ha_only(settings):
-        log.info("installation mode: ha_only (no nvr_host in the add-on options) - NVR discovery, alert stream, "
-                 "recording-derived events, exports and event thumbnails are off; set nvr_host and restart to add an NVR")
+        log.info("installation mode: ha_only (no NVR connection) - NVR discovery, alert stream, "
+                 "recording-derived events, exports and event thumbnails are off; connect an NVR in Settings and restart to add one")
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
@@ -237,6 +268,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(skins.router, prefix=api, tags=["plans"])
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
+    app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
     app.include_router(frames.router, prefix=api, tags=["recordings"])
     app.include_router(cases.router, prefix=api, tags=["cases"])
     app.include_router(storage.router, prefix=api, tags=["storage"])
@@ -247,11 +279,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
+    app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
 
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
+    from .routers import nvr_batch as nvr_batch_router
+
+    app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
     from .routers import remote as remote_router
 
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
@@ -279,6 +315,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return iid
 
         pb.set_instance_id(await run_in_threadpool(_instance))
+        from .services import nvr_batch
+
+        # CR-020 S2C: a batch left running by the previous process ends `interrupted` (its pending item settled by a read when
+        # due); a write is never resumed after a restart
+        await run_in_threadpool(lambda: nvr_batch.recover_batches(app.state.db, settings, startup=True))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
         ha_only = is_ha_only(settings)  # NVR-less mode: none of the NVR background work starts (mode.py)
@@ -350,6 +391,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _stop_janitor() -> None:
+        from .services import nvr_batch
+
+        nvr_batch.signal_shutdown()  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
         for name in ("janitor", "remote_revalidation"):
             task = getattr(app.state, name, None)
             if task:
@@ -379,6 +423,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         await _in_thread(notify_sources.shutdown)
+        await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()

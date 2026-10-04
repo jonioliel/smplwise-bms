@@ -167,6 +167,42 @@ export function checkScheme(s) {
   return rows;
 }
 
+// ---------- MD1 material dials (2026-10-03): text on a state-washed tile ----------
+// The tint dial washes a tile whose state carries a tone with that tone (a 135deg wash from `share` % at the corner to transparent).
+// The app caps the share per palette x scheme (design/contrast.ts, `--sw-m-wash-cap`) so text and muted text keep 4.5:1 at the
+// wash's strongest point over `surface` and `surfaceElevated`; design/palette.ts `materialWashRows` is the same function. The rows
+// are reported at the CAPPED soft (28 %) and strong (50 %) shares, so they pass by construction: the cap itself is the finding
+// (a palette whose cap is under 28 % cannot show even the soft wash in full). Not part of checkScheme: the 1,900-pair count stays.
+export const MATERIAL_WASH_TONES = ['slider.fill', 'accent', 'state.success', 'state.warning', 'state.danger', 'entity.climate'];
+export const MATERIAL_WASH = { soft: 28, strong: 50, max: 62 };
+export function materialWashCap(s) {
+  const C = (p) => parse(get(s, p));
+  const bases = [C('surface'), C('surfaceElevated')], texts = [C('text'), C('textMuted')], tones = MATERIAL_WASH_TONES.map(C);
+  const reads = (share) => bases.every((b) => tones.every((tn) => texts.every((t) => ratio(t, over([...tn.slice(0, 3), share / 100], b)) >= TEXT)));
+  let cap = 0;
+  for (let share = 2; share <= MATERIAL_WASH.max; share += 2) { if (reads(share)) cap = share; else break; }
+  return cap;
+}
+export function materialWashRows(s) {
+  const C = (p) => parse(get(s, p));
+  const cap = materialWashCap(s);
+  const rows = [];
+  for (const [name, want] of [['soft', MATERIAL_WASH.soft], ['strong', MATERIAL_WASH.strong]]) {
+    const share = Math.min(want, cap);
+    for (const p of MATERIAL_WASH_TONES) {
+      const tn = C(p);
+      for (const base of ['surface', 'surfaceElevated']) {
+        const b = over([...tn.slice(0, 3), share / 100], C(base));
+        for (const t of ['text', 'textMuted']) {
+          const r = ratio(C(t), b);
+          rows.push({ group: 'material', what: `${t} on ${p} wash ${name} ${share}% (cap ${cap}%) over ${base}`, fg: t, bg: `material.${name}.${p}.${base}`, fgHex: toHex(C(t)), bgHex: toHex(b), ratio: +r.toFixed(2), min: TEXT, ok: r >= TEXT });
+        }
+      }
+    }
+  }
+  return rows;
+}
+
 // nearest passing value for a token: walk OKLCH lightness up and down (hue and chroma kept), first value passing every
 // check in which the token is the foreground.
 export function suggest(s, path) {
@@ -223,6 +259,15 @@ if (isMain) {
       const sg = suggest(s, x.fg);
       console.log(`  ${pad(x.palette, 16)}${pad(x.scheme, 7)}${pad(x.fg, 22)}${get(s, x.fg)} -> ${sg ? `${sg.value} (dL ${sg.dL > 0 ? '+' : ''}${sg.dL})` : 'no lightness passes; change the background or the hue'}`);
     }
+  }
+  // MD1 material dials: the wash cap per palette x scheme (informational; the app enforces it at runtime)
+  console.log(`\nMaterial wash cap (tint dial; text 4.5:1 on every tone over surface / surfaceElevated; soft asks 28 %, strong 50 %):`);
+  console.log(`${pad('palette', 16)}${pad('light cap', 10)}${pad('dark cap', 10)}lowest text on the capped wash (light / dark)`);
+  for (const pal of palettes.filter((p) => !only || p.id === only)) {
+    if (schemaErrors(pal).length) continue;
+    const caps = ['light', 'dark'].map((sc) => materialWashCap(pal.schemes[sc]));
+    const lows = ['light', 'dark'].map((sc) => materialWashRows(pal.schemes[sc]).sort((x, y) => x.ratio - y.ratio)[0]);
+    console.log(`${pad(pal.id, 16)}${pad(caps[0] + '%', 10)}${pad(caps[1] + '%', 10)}${lows[0].ratio} ${lows[0].what} / ${lows[1].ratio} ${lows[1].what}`);
   }
   console.log(`\n${report.length / 2 || 0} palettes x 2 schemes: ${total} pairs checked, ${failed} failed${schemaBad ? `, ${schemaBad} palettes with schema errors` : ''}.`);
   if (opt('--json')) writeFileSync(opt('--json'), JSON.stringify(report, null, 2));

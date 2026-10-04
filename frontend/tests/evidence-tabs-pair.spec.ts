@@ -26,6 +26,9 @@ async function setMode(page: Page, mode: string | null, groups: Record<string, s
     [MODE_URL, mode, groups] as const,
   );
   await page.waitForTimeout(500);
+  // the pair specs measure the popover under each chip; the phone setting (owner 2026-10-03) defaults to a bottom sheet
+  // (covered by dropdown-phone-choice.spec.ts), so the popover case is the `list` choice
+  await page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'list'));
 }
 
 async function openShell(page: Page, hash: string, width: number) {

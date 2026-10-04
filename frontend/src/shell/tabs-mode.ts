@@ -45,6 +45,16 @@ export const DD_STYLE_DEFAULT: DdStyle = 'auto';
 export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כמוסה', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה' };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
 
+/** How a dropdown opens on a PHONE (owner decision 2026-10-03): a bottom sheet (default) or the regular small list under the field.
+ * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
+export type DdPhone = 'sheet' | 'list';
+export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
+export const DD_PHONE_DEFAULT: DdPhone = 'sheet';
+export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: 'גיליון שעולה מלמטה', list: 'רשימה קטנה מתחת לשדה' };
+export function asDdPhone(v: unknown): DdPhone | null {
+  return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
+}
+
 export function asTabMode(v: unknown): TabMode | null {
   return typeof v === 'string' && (TAB_MODES as readonly string[]).includes(v) ? (v as TabMode) : null;
 }
@@ -98,11 +108,23 @@ let installation: { mode: TabMode; groups: TabModeGroups } = { mode: TAB_MODE_DE
 let own: { mode: TabMode | null; groups: TabModeGroups } = { mode: null, groups: {} };
 let ddInstallation: { style: DdStyle; groups: DdStyleGroups } = { style: DD_STYLE_DEFAULT, groups: {} };
 let ddOwn: { style: DdStyle | null; groups: DdStyleGroups } = { style: null, groups: {} };
+let ddPhoneInstallation: DdPhone = DD_PHONE_DEFAULT;
+let ddPhoneOwn: DdPhone | null = null;
 let user: string | null = null;
 let remote = false;
 const listeners = new Set<() => void>();
 
+/** The effective phone choice (user over installation) as an attribute of <html>, which `sw-dropdown` reads when a list opens. */
+function applyDdPhone(): void {
+  try {
+    document.documentElement.setAttribute('data-dd-phone', ddPhoneOwn ?? ddPhoneInstallation);
+  } catch {
+    /* no document (unit specs under node) */
+  }
+}
+
 function notify(): void {
+  applyDdPhone();
   for (const l of listeners) l();
 }
 
@@ -205,6 +227,20 @@ export class TabsModeController {
   }
 }
 
+/** The effective phone choice: the user's own over the installation's. */
+export function resolveDdPhone(): { mode: DdPhone; source: 'own' | 'installation' } {
+  return ddPhoneOwn ? { mode: ddPhoneOwn, source: 'own' } : { mode: ddPhoneInstallation, source: 'installation' };
+}
+
+export function installationDdPhone(): DdPhone {
+  return ddPhoneInstallation;
+}
+
+/** The user's own phone choice; null = follows the installation. */
+export function ownDdPhone(): DdPhone | null {
+  return ddPhoneOwn;
+}
+
 export function installationDdStyle(): { style: DdStyle; groups: DdStyleGroups } {
   return ddInstallation;
 }
@@ -227,6 +263,7 @@ export function ownTabsMode(): { mode: TabMode | null; groups: TabModeGroups } {
 export function setInstallationTabsMode(settings: Record<string, unknown> | null | undefined): void {
   installation = { mode: asTabMode(settings?.['ui.tabs_mode']) ?? TAB_MODE_DEFAULT, groups: normalizeTabModeGroups(settings?.['ui.tabs_mode_groups']) };
   ddInstallation = { style: asDdStyle(settings?.['ui.dd_style']) ?? DD_STYLE_DEFAULT, groups: normalizeDdStyleGroups(settings?.['ui.dd_style_groups']) };
+  ddPhoneInstallation = asDdPhone(settings?.['ui.dd_phone']) ?? DD_PHONE_DEFAULT;
   notify();
 }
 
@@ -242,6 +279,27 @@ function readCache(): { u: string; mode: TabMode | null; groups: TabModeGroups }
 }
 
 const DD_CACHE_KEY = 'sw.dd.style';
+const DD_PHONE_CACHE_KEY = 'sw.dd.phone';
+
+function readDdPhoneCache(): { u: string; mode: DdPhone | null } | null {
+  try {
+    const raw = localStorage.getItem(DD_PHONE_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { u?: unknown; mode?: unknown };
+    return typeof c.u === 'string' ? { u: c.u, mode: asDdPhone(c.mode) } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDdPhoneCache(u: string, mode: DdPhone | null): void {
+  try {
+    if (!mode) localStorage.removeItem(DD_PHONE_CACHE_KEY);
+    else localStorage.setItem(DD_PHONE_CACHE_KEY, JSON.stringify({ u, mode }));
+  } catch {
+    /* storage unavailable: the server copy still applies after load */
+  }
+}
 
 function readDdCache(): { u: string; style: DdStyle | null; groups: DdStyleGroups } | null {
   try {
@@ -280,6 +338,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   own = cached && cached.u === userId ? { mode: cached.mode, groups: cached.groups } : { mode: null, groups: {} };
   const ddCached = readDdCache();
   ddOwn = ddCached && ddCached.u === userId ? { style: ddCached.style, groups: ddCached.groups } : { style: null, groups: {} };
+  const phoneCached = readDdPhoneCache();
+  ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
   if (!api) return;
   try {
@@ -298,6 +358,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     };
     writeDdCache(userId, ddNext);
     ddOwn = ddNext;
+    ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
+    writeDdPhoneCache(userId, ddPhoneOwn);
     notify();
   } catch {
     /* an older backend, or offline: keep the cached copy */
@@ -340,6 +402,25 @@ export async function saveOwnDdStyle(style: DdStyle | null, groups: DdStyleGroup
     if (user !== who) return;
     ddOwn = before;
     if (user) writeDdCache(user, before);
+    notify();
+    throw err;
+  }
+}
+
+/** Save the user's own phone choice: null = follow the installation. Optimistic, reverted on refusal (as saveOwnDdStyle). */
+export async function saveOwnDdPhone(mode: DdPhone | null): Promise<void> {
+  const before = ddPhoneOwn;
+  ddPhoneOwn = mode;
+  if (user) writeDdPhoneCache(user, mode);
+  notify();
+  if (!remote) return;
+  const who = user;
+  try {
+    await putMyPrefs({ 'ui.dd_phone': mode });
+  } catch (err) {
+    if (user !== who) return;
+    ddPhoneOwn = before;
+    if (user) writeDdPhoneCache(user, before);
     notify();
     throw err;
   }

@@ -135,7 +135,7 @@ Phase 1 keeps one recorder and changes nothing for users. What the second record
 
 | Today | Needed for recorder n |
 |---|---|
-| NVR connection in the add-on options / `data_dir/nvr_connection.json` (`Settings.nvr_*`) | `nvr-1` keeps that (`recorders.connection_ref = 'addon'`); others: a `recorder_credentials` secret table (pattern of `wiskey_station_credentials`: system administrator only, never returned, not in backups) |
+| ~~NVR connection in the add-on options / `data_dir/nvr_connection.json`~~ - since CR-022 (migration 0052): `recorder_connections`, one row per recorder (vendor, host, ports, user, AES-GCM `password_enc`), overlaid onto `Settings.nvr_*` once at start-up (`services/connection_store.py`) | every recorder, `nvr-1` included, gets its row in `recorder_connections`; `connection_ref` and the planned `recorder_credentials` table are redundant (CR-022 section 4: it IS that table, vendor-agnostic, system administrator only, never returned, not in backups) |
 | `nvr.py` functions take `Settings` | the Hikvision adapter builds a per-recorder `Settings`-like connection and calls the same functions (no rewrite of the proven ISAPI code) |
 | `'nvr-1'` literals: `routers/cameras.py` (5), `services/autosync.py` (5), `routers/nvr_write.py`, `services/events_ingest.py`, `services/go2rtc.py`, `services/setup_wizard.py`, `frontend/src/screens/devices-camera-card.ts` | each becomes "the camera's `recorder_id`" or "for each recorder"; discovery and the alert stream run per recorder |
 | `stream_codecs.recorder_model` reads the first recorder | the camera's own recorder |
@@ -209,6 +209,14 @@ Home Assistant) and sources `frigate` / `onvif`; the dedup key gains the recorde
 (`capabilities.events`). Not in migration 0050 (no consumer yet).
 
 ## 7. Data model: migration 0050
+
+> **Status 2026-10-03:** 0050 shipped with CR-020 S2 as `0050_nvr_stream_changes.sql` carrying only the `nvr_changes` columns
+> (and the removal of `nvr.config.stream` from custom roles). The `recorders` / `cameras` columns below move to the first slice
+> that needs them (S3 / second recorder) under the next free number. CR-021 holds 0051.
+>
+> **CR-022 (2026-10-03):** 0052 is `0052_recorder_connections.sql` (the NVR connection stored in Arx). When the `recorders`
+> columns below land (NN1 P4, from 0053), drop `connection_ref`: the connection of every recorder lives in
+> `recorder_connections`, and `vendor` there is the installer's choice (`hikvision` | `provision_isr` | `frigate` | `none`).
 
 **Number chosen: 0050.** `g0/intake` ends at `0044_media_players.sql`. Other branches hold `0045_notifications`,
 `0046_notify_settings`, `0047_notify_policies` (`integ/notify`, renumbered for CR-018), an automations migration (CR-017,

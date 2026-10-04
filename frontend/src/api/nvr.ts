@@ -56,10 +56,7 @@ export const setNvrNtp = (body: { host: string; port?: number; interval_min?: nu
 export const pulseNvrOutput = (id: number) => post<NvrChange>(`nvr/outputs/${id}/pulse`);
 export const startSmartTest = (hddId: number, kind: 'short' | 'extended' = 'short') => post<NvrChange>(`nvr/storage/${hddId}/smart-test`, { kind });
 export const rebootNvr = (confirm: string) => post<NvrChange>('nvr/reboot', { confirm });
-export interface NvrConnection { host: string | null; http_port: number; rtsp_port: number; user: string | null; has_password: boolean; in_addon: boolean; /** the developer placeholder host (full mode, no real NVR) */ placeholder?: boolean }
-export const nvrConnection = () => get<NvrConnection>('nvr/connection');
-export const setNvrConnection = (body: { host: string; http_port: number; rtsp_port: number; user: string; password?: string }) =>
-  put<NvrConnection & { saved: 'supervisor' | 'file'; device: { model: string; firmware: string }; restarting: boolean }>('nvr/connection', body);
+// the NVR connection (vendor, host, ports, user, write-only password) moved to ./nvr-connection.ts (CR-022)
 export interface OsdStatus {
   camera_id: string; channel: number; vms_name: string; nvr_name: string | null; can_write: boolean; date_styles: string[];
   screen: { width: number; height: number };

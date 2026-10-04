@@ -27,8 +27,9 @@ Textual conflicts arose only when merging `pilot/elec-billing` onto `pilot/elec-
 
 ## 3. Integration decisions (semantic, beyond textual conflicts)
 
-1. **Migrations.** `0054_electricity_meters.sql` (meters) and `0055_electricity_billing.sql` (billing; renamed from the placeholder
-   0054). SQL unchanged except the header comments. The release chain will be 0050-0053 (other branches) then 0054-0055.
+1. **Migrations.** `0053_electricity_meters.sql` (meters) and `0054_electricity_billing.sql` (billing), directly after 0.1.159's
+   0052 (both branches had used the placeholder 0054; the number 0053 reserved for the capability model's last phase was free -
+   that phase is not built and will be renumbered later). SQL unchanged except the header comments.
 2. **Settings.** The billing document (`energy.billing`) is registered in the energy settings registry with `own_route =
    /energy/billing-settings`: one registry knows every `energy.*` key, but the billing document keeps its own revision and validation
    and is neither shown nor accepted by the generic `/energy/settings`. Billing's retention and the not-reporting threshold now read

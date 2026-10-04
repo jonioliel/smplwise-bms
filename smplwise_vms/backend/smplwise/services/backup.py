@@ -1,6 +1,8 @@
 """Project backups (T026 / T036): one zip with the project tables as JSON and the plan files. Written before
 every version upgrade (rollback safety), once a day, on request, or uploaded by an administrator; restored in
-a single transaction. Never contains secrets (they live in the add-on options) and never video."""
+a single transaction. Never contains secrets (the NVR connection's table and every key file stay out, CR-022 section 9) and
+never video. A restore writes only the plan files its own rows reference (`restorable`): an archive member naming a key, the
+database, the add-on options or any other path is ignored (CR-022 security review F1)."""
 from __future__ import annotations
 
 import asyncio
@@ -36,7 +38,27 @@ FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path",
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
-                 "multimedia.ma_direct"}  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "multimedia.ma_direct",  # CR-016 17.3: the Music Assistant server address (its token is a file outside the archive)
+                 "nvr.legacy_import_done",  # CR-022 section 7: a restore never re-arms the one-time import of the add-on options
+                 "system.addon_restart_at"}  # CR-022 review F6: the restart guard is local state, never restored
+# CR-022 section 9: `recorder_connections` (the NVR connection with its encrypted password) is deliberately NOT a backup table:
+# never written to an archive, never read from one, and a `replace` restore leaves the row alone (it is not in PROJECT_TABLES).
+# Its key file lives in keys/, which never enters an archive (`_rel`).
+# CR-022 security review F1: what a restore may write into the data directory. Only the plan files the archive's own rows
+# reference (FILE_COLUMNS), under these roots, never the key folder, a database file or the add-on options - whatever the
+# archive contains. The same rule drops an archive row whose file column points anywhere else (it could steer a later read).
+RESTORABLE_ROOTS = ("plans/",) + _energy_backup.RESTORABLE_ROOTS  # CR-023: stored bill PDFs and business logos (energy/bills/, energy/assets/)
+_NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|-shm$|-journal$|\.key$)", re.IGNORECASE)
+# CR-020 S2C security review finding 4: runtime state of the multi-camera batches (the batch record with who started it and
+# the request id, its heartbeat, the device lock). Never exported, never restored, never deleted by a `replace` restore -
+# a restore in the middle of a batch must not drop the device lock, and an old archive must not bring back a stale one.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.",)
+
+
+def _kept_setting(key: Any) -> bool:
+    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES))
+
+
 MAX_UPLOAD = 200 * 1024 * 1024
 DAILY_SECONDS = 24 * 3600
 
@@ -67,7 +89,7 @@ def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audi
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
     out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
     if "settings" in out:  # review M3: what a restore never writes back (secrets, identity, pairing) never leaves in an archive either
-        out["settings"] = [r for r in out["settings"] if r.get("key") not in SETTINGS_KEEP]
+        out["settings"] = [r for r in out["settings"] if not _kept_setting(r.get("key"))]
     return out
 
 
@@ -96,6 +118,20 @@ def _rel(settings: Settings, ref: str) -> str | None:
     if rel == "keys" or rel.startswith("keys/"):
         return None  # private signing keys never enter a backup (T067); a restored installation gets its own key
     return rel
+
+
+def restorable(rel: str | None) -> bool:
+    """True when `rel` (a path relative to the data directory, `/`-separated) is a file a restore may write: under
+    RESTORABLE_ROOTS; no absolute path, drive, backslash, NUL, empty / `.` / `..` segment; never a `keys` folder, a database
+    file, a key file or `options.json` (review F1)."""
+    if not isinstance(rel, str) or not rel or rel.startswith("/") or "\\" in rel or ":" in rel or "\x00" in rel:
+        return False
+    parts = rel.split("/")
+    if any(p in ("", ".", "..") for p in parts) or any(p.lower() == "keys" for p in parts):
+        return False
+    if not rel.startswith(RESTORABLE_ROOTS):
+        return False
+    return _NEVER_RESTORED_NAME.search(parts[-1]) is None
 
 
 def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False) -> Path:
@@ -226,7 +262,7 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
     n = 0
     verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
     for row in rows:
-        if table == "settings" and row.get("key") in SETTINGS_KEEP:
+        if table == "settings" and _kept_setting(row.get("key")):
             continue
         keys = [k for k in row.keys() if k in cols_now]
         if not keys:
@@ -259,6 +295,11 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
         for r in rows:
             fid = r.get("floor_id") if isinstance(r, dict) else None
             unsafe = not isinstance(r, dict) or (table == "floors" and not plain(r.get("id"))) or (fid is not None and (not isinstance(fid, str) or fid in bad_floors))
+            if not unsafe and table in FILE_COLUMNS:  # review F1: a file column outside the restorable set could steer a later read
+                for c in FILE_COLUMNS[table]:
+                    v = r.get(c)
+                    if v is not None and (not isinstance(v, str) or not restorable(_rel(settings, v))):
+                        unsafe = True
             if not unsafe and table.startswith("plan_skin") and r.get("path") is not None:
                 try:
                     skins_store.confine_stored(settings, r["path"])
@@ -302,7 +343,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
-                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})", list(SETTINGS_KEEP))
+                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})"
+                                 + "".join(" AND substr(key, 1, ?) <> ?" for _ in SETTINGS_KEEP_PREFIXES),
+                                 [*SETTINGS_KEEP, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)
@@ -317,12 +360,17 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
         for t, rows in keep.items():
             if rows:
                 _insert_rows(conn, t, rows, replace=False)
+        roles_pruned = _prune_role_permissions(conn) if "custom_roles" in data else []
         files = 0
+        files_skipped = 0
+        # review F1: only the files the archive's own (kept) rows reference, each inside the restorable set
+        wanted = {rel for rel in (_rel(settings, ref) for ref in _file_refs(data)) if rel is not None and restorable(rel)}
         for member in names:
             if not member.startswith("files/") or member.endswith("/"):
                 continue
             rel = member[len("files/"):]
-            if rel.startswith("/") or ".." in rel.split("/") or "\\" in rel or ":" in rel:
+            if rel not in wanted or not restorable(rel):
+                files_skipped += 1
                 continue
             dest = settings.data_dir / rel
             base = settings.data_dir.resolve()
@@ -346,7 +394,38 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    if files_skipped:
+        log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "skipped_unsafe": skipped,
+            "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+
+
+def _prune_role_permissions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """CR-020 S2 review L6: a restored archive from an older version can carry custom roles naming a permission this version
+    no longer has (nvr.config.stream, removed by migration 0050) or one that only built-in roles may hold. Such a role would
+    grant nothing for it and its next edit would fail (422 permission_unknown), so the permission is dropped here - the same
+    rule migration 0050 applied - and the role's revision moves. Returns [{role_id, removed}] for the answer and the audit row."""
+    from ..routers.access import PERMISSION_LABELS, SYSTEM_PERMISSIONS  # local import: the permission catalogue lives with the roles API
+
+    def keep(p: Any) -> bool:
+        return isinstance(p, str) and p in PERMISSION_LABELS and p not in SYSTEM_PERMISSIONS
+
+    out: list[dict[str, Any]] = []
+    for r in conn.execute("SELECT id, permissions_json, sensitive_json FROM custom_roles").fetchall():
+        try:
+            perms = json.loads(r["permissions_json"] or "[]")
+            sens = json.loads(r["sensitive_json"] or "[]")
+        except ValueError:
+            continue
+        if not isinstance(perms, list) or not isinstance(sens, list):
+            continue
+        removed = sorted({str(p)[:64] for p in perms + sens if not keep(p)})
+        if not removed:
+            continue
+        conn.execute("UPDATE custom_roles SET permissions_json = ?, sensitive_json = ?, revision = revision + 1 WHERE id = ?",
+                     (json.dumps([p for p in perms if keep(p)]), json.dumps([p for p in sens if keep(p)]), r["id"]))
+        out.append({"role_id": r["id"], "removed": removed})
+    return out
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:

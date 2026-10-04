@@ -18,6 +18,7 @@ from typing import Any, Iterable
 from ..config import Settings
 from ..db import Database
 from . import events_ingest, playback
+from .child_env import minimal_env
 from .timeutil import parse_utc
 
 import datetime as dt
@@ -170,7 +171,7 @@ def _grab(url: str, out: Path, settings: Settings, timeout_s: int = 40) -> bool:
     tmp = out.with_name(out.stem + ".tmp.jpg")
     args = [ff, "-hide_banner", "-loglevel", "error", "-y", "-rtsp_transport", "tcp", "-i", url, "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "5", "-f", "image2", str(tmp)]
     try:
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout_s)
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout_s, env=minimal_env())
     except subprocess.TimeoutExpired:
         STATE["last_error"] = "timeout"
         tmp.unlink(missing_ok=True)

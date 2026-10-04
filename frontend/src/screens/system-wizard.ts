@@ -6,7 +6,8 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { openArchitectRequest } from '../components/architect-request-dialog';
-import { isApi } from '../api/session';
+import { can, isApi } from '../api/session';
+import '../components/nvr-connection-form';
 import { ApiError, describeError } from '../api/client';
 import { demoSetupState, setupCheck, setupState, STATUS_TEXT, type SetupState, type SetupStep, type StepId } from '../api/setup';
 import { SkinController } from '../design/skin';
@@ -18,7 +19,7 @@ export function announceSetup(s: SetupState) {
 }
 
 const STATUS_ICON: Record<SetupStep['status'], string> = { done: 'check', todo: 'info', failed: 'warning', skipped: 'minus', not_applicable: 'minus' };
-const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: 'נבדק מול המכשיר', background: 'לפי עבודות הרקע של ה־Add-on', local: 'לפי בסיס הנתונים של ה־Add-on' };
+const SOURCE_TEXT: Record<SetupStep['source'], string> = { live: 'נבדק מול המכשיר', background: 'לפי עבודות הרקע של המערכת', local: 'לפי בסיס הנתונים של המערכת' };
 
 /** The floor step's problem codes (backend services/setup_wizard.py) that mean the installation has no plan yet: the request to the
  * architect is offered next to the step's action. A draft that only waits for publishing (`plan_not_published`) has a plan already. */
@@ -111,7 +112,7 @@ export class SystemWizard extends LitElement {
     const steps = this.data.steps.map((x) => (x.id === id ? fresh : x));
     const required = steps.filter((x) => x.status !== 'not_applicable'); // NVR-less mode: a step skipped on purpose is not counted
     const done = required.filter((x) => x.status === 'done').length;
-    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
+    this.set({ ...this.data, steps, done, total: required.length, ready: done === required.length && s.installation?.supported !== false, installation: s.installation ?? this.data.installation, next: required.find((x) => x.status !== 'done')?.id ?? null, checked_at: s.checked_at, checked: id });
   }
 
   private checkAll() {
@@ -133,7 +134,18 @@ export class SystemWizard extends LitElement {
     </ol>`;
   }
 
+  /** NN1 (owner decision D2): an NVR without a media server is not a supported installation - never "ready", and the reason is shown. */
   private renderSummary(d: SetupState) {
+    const inst = d.installation;
+    return html`${inst && !inst.supported
+      ? html`<div class="problem failed" role="alert" data-wizard-unsupported=${inst.reason ?? ''}>
+          <sw-icon name="warning" size=${16}></sw-icon>
+          <div><b>${inst.message ?? ''}</b><span>מה עושים: ${inst.action ?? ''}</span></div>
+        </div>`
+      : nothing}${this.renderProgress(d)}`;
+  }
+
+  private renderProgress(d: SetupState) {
     const skipped = d.steps.filter((s) => s.status === 'not_applicable').length;
     if (d.ready && d.mode === 'ha_only') {
       return html`<div class="summary ready" role="status" data-wizard-ready data-wizard-mode="ha_only">
@@ -192,6 +204,9 @@ export class SystemWizard extends LitElement {
           </div>`
         : nothing}
       ${note ? html`<div class="note" data-step-note>${note}</div>` : nothing}
+      ${s.id === 'nvr' && (s.status === 'todo' || s.status === 'failed') && isApi() && can('system.configure')
+        ? html`<div class="conn" data-wizard-nvr-form><nvr-connection-form context="wizard" @nvr-connection-saved=${() => void this.load(false)} @nvr-connection-removed=${() => void this.load(false)}></nvr-connection-form></div>`
+        : nothing}
       ${s.warnings.length
         ? html`<ul class="warnings" data-step-warnings>${s.warnings.map((w) => html`<li data-warning=${w.code}><sw-icon name="info" size=${13}></sw-icon><span>${b(w.message)}${w.link ? html` <a href=${w.link.href}>${w.link.label} ›</a>` : nothing}</span></li>`)}</ul>`
         : nothing}
@@ -205,7 +220,7 @@ export class SystemWizard extends LitElement {
   render() {
     const d = this.data;
     const anyBusy = this.busy.size > 0;
-    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה › Home Assistant › go2rtc › קומה · שלבי ה־NVR והמצלמה מדולגים' : 'התקנה › NVR › Home Assistant › go2rtc › קומה › מצלמה';
+    const sub = d?.mode === 'ha_only' ? 'מצב ללא NVR · התקנה › NVR › תשתית המערכת › go2rtc › קומה · שלב המצלמה מדולג' : 'התקנה › NVR › תשתית המערכת › go2rtc › קומה › מצלמה';
     return html`<sw-page heading="אשף התקנה" subheading=${`${sub} · הבדיקות קוראות בלבד מהמכשירים${isApi() ? '' : ' · נתוני הדגמה'}`}>
       <sw-button slot="actions" icon="refresh" ?disabled=${!d || anyBusy} data-check-all @click=${() => this.checkAll()}>${anyBusy ? 'בודק…' : 'בדוק הכול'}</sw-button>
       ${this.error ? html`<sw-state-panel state="error" heading="מצב ההתקנה לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
@@ -510,6 +525,10 @@ export class SystemWizard extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-danger);
+    }
+    .conn {
+      padding-block: 4px;
+      min-inline-size: 0;
     }
     .warnings {
       list-style: none;

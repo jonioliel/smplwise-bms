@@ -12,6 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from ..errors import ApiError
+from .child_env import minimal_env
 
 Image.MAX_IMAGE_PIXELS = 60_000_000
 
@@ -62,7 +63,7 @@ def _pdftoppm() -> str | None:
 def pdf_page_count(path: Path) -> int:
     info = shutil.which("pdfinfo")
     if info:
-        out = subprocess.run([info, str(path)], capture_output=True, text=True, timeout=20, check=False).stdout
+        out = subprocess.run([info, str(path)], capture_output=True, text=True, timeout=20, check=False, env=minimal_env()).stdout
         for line in out.splitlines():
             if line.startswith("Pages:"):
                 return int(line.split(":", 1)[1].strip())
@@ -83,7 +84,7 @@ def render_pdf_page(path: Path, page: int, out_png: Path, max_px: int, timeout_s
         prefix = out_png.with_suffix("")
         cmd = [tool, "-f", str(page), "-l", str(page), "-png", "-scale-to", str(max_px), "-singlefile", str(path), str(prefix)]
         try:
-            subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=True)
+            subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=True, env=minimal_env())
         except subprocess.TimeoutExpired as exc:
             raise ApiError(504, "render_timeout", "רינדור ה־PDF עבר את מגבלת הזמן.", retryable=True) from exc
         except subprocess.CalledProcessError as exc:

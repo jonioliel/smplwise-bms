@@ -2,19 +2,22 @@
 rollback. Reading the state needs system.configure; writing needs the sensitive permission of the capability."""
 from __future__ import annotations
 
+import json
 import sqlite3
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
-from ..mode import ensure_nvr, installation_mode, is_ha_only  # NVR-less mode: 409 nvr_not_configured
+from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import nvr, nvr_schedule, nvr_system, nvr_write
+from ..services import nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
+from ..services.access import require_camera
 from ..services.timeutil import zone
 from .settings import read_settings
 
@@ -26,7 +29,7 @@ def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
 
 
-NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule", "nvr.config.stream",
+NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule",
                    "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot")
 
 
@@ -298,38 +301,8 @@ def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(
         return nvr_system.reboot(settings_of(request), conn, principal, request_id=_rid(request))
 
 
-@router.get("/nvr/connection")
-def get_connection(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    require(conn, principal, "system.configure", INSTALLATION)
-    return nvr_system.connection_view(settings_of(request))
-
-
-class ConnectionIn(BaseModel):
-    host: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9.\-]+$")
-    http_port: int = Field(default=80, ge=1, le=65535)
-    rtsp_port: int = Field(default=554, ge=1, le=65535)
-    user: str = Field(min_length=1, max_length=64)
-    password: str | None = Field(default=None, max_length=128)  # absent = keep the current one
-
-
-@router.put("/nvr/connection")
-def set_connection(body: ConnectionIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """D4: test the new connection (deviceInfo), then persist it - Supervisor options + add-on restart inside HA, a
-    data-dir file on a workstation - and use it in this process right away."""
-    require(conn, principal, "system.configure", INSTALLATION)
-    settings = settings_of(request)
-    new = nvr_system.with_connection(settings, host=body.host, http_port=body.http_port, rtsp_port=body.rtsp_port, user=body.user, password=body.password)
-    with unlocked(conn):
-        info = nvr.device_info(new)  # raises source_unavailable / source_forbidden when the details are wrong
-        where = nvr_system.save_connection(settings, new)
-    request.app.state.settings = new
-    audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
-          details={"host": body.host, "http_port": body.http_port, "rtsp_port": body.rtsp_port, "user": body.user, "password_changed": body.password is not None, "saved": where})
-    # NVR-less mode -> full: the NVR routes answer at once, but discovery, the alert stream and the other NVR background
-    # work start with the process - inside Home Assistant the Supervisor restarts the add-on; on a workstation, restart it
-    was_ha_only = is_ha_only(settings)
-    return {"saved": where, "device": info, "restarting": where == "supervisor", "mode": installation_mode(new),
-            "restart_required": was_ha_only and where != "supervisor", **nvr_system.connection_view(new)}
+# CR-022: GET / PUT /nvr/connection moved to routers/nvr_connection.py (stored in Arx, encrypted password, restart to apply);
+# the 0.1.71 handlers that wrote the add-on options through the Supervisor are gone.
 
 
 class OsdIn(BaseModel):
@@ -540,27 +513,98 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
     return results
 
 
+def _stream_visible(conn: sqlite3.Connection, principal: Principal) -> Callable[[str | None], bool] | None:
+    """CR-020 S2 review M1: which `stream_encoding` changes this caller may see - the documents of such a change carry the
+    stream's whole element (transport ports, multicast address). Only holders of `nvr.configure` at installation scope,
+    and of those only the changes of cameras in their nvr.configure camera scope (T055). None = no stream change at all."""
+    if not authorize(conn, principal, nvr_settings.WRITE_PERMISSION, INSTALLATION).allowed:
+        return None
+    from ..services.access import camera_scope
+
+    scope = camera_scope(conn, principal, nvr_settings.WRITE_PERMISSION)
+    return lambda camera_id: scope.everything if not camera_id else scope.allows(camera_id)
+
+
+def _require_stream_change(conn: sqlite3.Connection, principal: Principal, r: sqlite3.Row) -> None:
+    """A `stream_encoding` change (its documents, its undo) needs nvr.configure at installation AND on its camera: 403, audited."""
+    require(conn, principal, nvr_settings.WRITE_PERMISSION, INSTALLATION)
+    if r["camera_id"]:
+        require_camera(conn, principal, r["camera_id"], nvr_settings.WRITE_PERMISSION)
+
+
 @router.get("/nvr/changes")
-def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
+                 camera_id: str | None = Query(None, max_length=64)) -> dict[str, Any]:
+    """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); ields is an object."""
     _require_read(conn, principal)
-    return {"changes": nvr_write.list_changes(conn, limit)}
+    return {"changes": nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal))}
 
 
 @router.get("/nvr/changes/{change_id}")
 def get_change(change_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The change with both documents (for the "before / after" view)."""
+    """The change with both documents (for the "before / after" view). A stream change only for its installer (review M1)."""
     _require_read(conn, principal)
     r = nvr_write.get_change(conn, change_id)
     if not r:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
-    return {k: r[k] for k in r.keys()}
+    if r["kind"] == nvr_settings.KIND:
+        _require_stream_change(conn, principal, r)
+    return nvr_write.change_detail(r)
 
 
-@router.post("/nvr/changes/{change_id}/rollback", status_code=201)
-def rollback_change(change_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+async def _raw_body(request: Request) -> bytes:
+    """The request body, unparsed (review L2 / L7). Declared AFTER the read-connection permission gate and BEFORE the write
+    connection: an unauthorised caller gets the audited 403 whatever they sent (never FastAPI's bare 422 for a body that is
+    not JSON), and a slow client never holds SQLite's write lock while its body streams in."""
+    return await request.body()
+
+
+def json_body(raw: bytes) -> Any:
+    """The JSON value of a raw body; None when empty, `MALFORMED` when it is not JSON (the handler refuses it, audited).
+    CR-020 S2C review finding 7: a deeply nested body (inside the 1 MB cap) raises RecursionError, not ValueError - it is
+    MALFORMED too (a clean audited 422, never a bare 500); so is a body the parser runs out of memory on."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, RecursionError, MemoryError):
+        return MALFORMED
+
+
+MALFORMED = object()
+
+
+def _rollback_gate(change_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
+    """The undo's permission, on the read connection before the body is read: a `stream_encoding` change needs nvr.configure
+    at installation AND on its camera (CR-020 S2), any other change the sensitive permission it was made with."""
     r = nvr_write.get_change(conn, change_id)
     if not r:
         raise ApiError(404, "not_found", "השינוי לא נמצא.")
-    require(conn, principal, r["permission"], INSTALLATION)
+    if r["kind"] == nvr_settings.KIND:
+        _require_stream_change(conn, principal, r)
+    else:
+        require(conn, principal, r["permission"], INSTALLATION)
+    return principal
+
+
+@router.post("/nvr/changes/{change_id}/rollback", status_code=201, openapi_extra={"requestBody": {"required": False, "content": {"application/json": {"schema": {
+    "type": "object", "properties": {"confirm": {"type": "boolean", "enum": [True], "description": "required for a stream_encoding change (CR-020 S2)"}}}}}}})
+def rollback_change(change_id: str, request: Request, principal: Principal = Depends(_rollback_gate), raw: bytes = Depends(_raw_body),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Undo. stream_encoding: nvr.configure + camera, body {"confirm": true}, 201 {change, stream, rollback_of, reboot_required}."""
+    r = nvr_write.get_change(conn, change_id)
+    if not r:
+        raise ApiError(404, "not_found", "השינוי לא נמצא.")
+    if r["kind"] == nvr_settings.KIND:
+        # CR-020 S2: an encoding undo is a guarded write of its own - nvr.configure at installation AND on the change's camera
+        # (T055, checked by the gate), the literal `confirm: true` (owner Q3=A: the undo press is the confirmation), then the
+        # two-phase service path with the etag-of-after check. Never the generic path below (which records inside `unlocked`).
+        body = json_body(raw)
+        if not isinstance(body, dict) or body.get("confirm") is not True:
+            raise nvr_settings.refuse_attempt(conn, principal, r["camera_id"] or "*", r["stream_ref"] or "", ApiError(422, "confirm_required", "יש לאשר את הביטול."),
+                                              _rid(request), action="nvr.rollback")
+        settings = settings_of(request)
+        ensure_nvr(settings)
+        return nvr_settings.rollback_stream(conn, settings, principal, r, request_id=_rid(request))
     with unlocked(conn):
         return nvr_write.rollback(settings_of(request), conn, principal, change_id, request_id=_rid(request))

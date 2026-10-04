@@ -22,8 +22,8 @@ Binding owner decisions that shape this interface:
 
 | Store | Owner branch | Objects |
 |---|---|---|
-| main DB `smplwise.db`, migration `0054_electricity_meters.sql` (number set at integration) | elec-server | `energy_meters`, `energy_meter_epochs` |
-| main DB, migration `0055_electricity_billing.sql` | elec-billing | customers, accounts, `energy_account_meters`, tariffs, VAT, bills, bill lines |
+| main DB `smplwise.db`, migration `0053_electricity_meters.sql` (number set at integration) | elec-server | `energy_meters`, `energy_meter_epochs` |
+| main DB, migration `0054_electricity_billing.sql` | elec-billing | customers, accounts, `energy_account_meters`, tariffs, VAT, bills, bill lines |
 | main DB `settings` table, keys `energy.*` | elec-server owns the registry (`services/energy_settings.py`); billing registers its own keys there (section 5) | |
 | `energy.db` (own file next to `smplwise.db`, own migration series `migrations_energy/E001_*.sql`, own write gate) | elec-server | `meter_map`, `readings`, `intervals`, `daily`, `cursor`, `energy_schema_migrations` |
 
@@ -334,8 +334,8 @@ daily ≈ 20 MB. Typical sites (10-30 meters) need tens of MB.
   read-only from a temp copy and must carry the expected schema version; anything else in it is ignored.
 
 ## Change log
-- 2026-10-04 (integration, `integ/electricity`): migrations are `0054_electricity_meters.sql` and
-  `0055_electricity_billing.sql`; section 2.4 is the shared-provider seam (the segments adapter was removed); billing's settings key
+- 2026-10-04 (integration, `integ/electricity`): migrations are `0053_electricity_meters.sql` and
+  `0054_electricity_billing.sql` (after 0.1.159's 0052); section 2.4 is the shared-provider seam (the segments adapter was removed); billing's settings key
   is registered with `own_route` (section 5); one backup table list (section 7); a paused account still uses its meters (2.3).
 - 2026-10-04: first version (elec-server).
 - 2026-10-04: meters list adds floor_id/floor_name, month_kwh, accounts_count; epochs add the Wh readings; candidates add

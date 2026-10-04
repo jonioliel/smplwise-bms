@@ -33,6 +33,9 @@ MAIN_TABLES = ["energy_meters", "energy_meter_epochs",
 KEEP_WHEN_ABSENT = frozenset(MAIN_TABLES)
 # Stored bill PDFs and business logos travel as files in the archive.
 FILE_COLUMNS = {"energy_bills": ["pdf_path"], "energy_assets": ["storage_path"]}
+# Where those files live under the data directory; backup.RESTORABLE_ROOTS adds them, so a restore writes them back (and keeps the
+# rows that reference them). energy.db itself is never a restored file (the allow-listed import below handles it).
+RESTORABLE_ROOTS = ("energy/bills/", "energy/assets/")
 DAILY_MEMBER = "energy/daily.json"
 DB_MEMBER = "energy/energy.db"
 MAX_DB_BYTES = 4 * 1024 * 1024 * 1024

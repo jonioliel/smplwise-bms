@@ -13,7 +13,7 @@ import '../components/sw-dialog';
 import '../components/sw-field';
 import type { PanelState } from '../components/sw-state-panel';
 import type { StateKind } from '../components/sw-badge';
-import { can, isApi } from '../api/session';
+import { can, cap, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import {
   actionOutcome,
@@ -58,7 +58,7 @@ const STILL_TEXT: Record<Exclude<IntercomCameraAccess, 'ready'> | 'offline' | 'u
   unavailable: 'אין תמונה מהמצלמה כרגע',
   no_credentials: 'לא הוגדרו פרטי גישה למצלמות העמדות (הגדרות ה־Add-on)',
   no_host: 'WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה',
-  no_media: 'go2rtc לא הוגדר, ולכן אין תמונות מצלמה',
+  no_media: 'שרת המדיה לא הוגדר, ולכן אין תמונות מצלמה',
 };
 const ARM_MS = 4000; // a call control's second tap must follow the first within this long ...
 const ARM_MIN_MS = 500; // ... and not sooner: a double-click / double-tap is one gesture, not a confirmation
@@ -645,7 +645,7 @@ export class WiskeyOverview extends LitElement {
   private renderStill(s: IntercomStation) {
     if (!s.camera_entity) return nothing;
     const bust = this.posterBust;
-    const access = this.cameraAccess[s.id] ?? 'ready';
+    const access = !cap('go2rtc') ? 'no_media' : (this.cameraAccess[s.id] ?? 'ready'); // NN1: station video needs the media server
     const state = !s.online ? 'offline' : access !== 'ready' ? access : this.stillFailed[s.id] === bust ? 'unavailable' : 'image';
     return html`<div class="still" data-wiskey-camera=${s.id} data-camera-state=${state}>
       ${state === 'image'

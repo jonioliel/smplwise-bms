@@ -47,10 +47,17 @@ the dependency is updated or the exposure is documented as not reachable.
 
 ## 3. Secrets
 
-- Secrets never live in the repository or the database. NVR credentials, go2rtc credentials and (in
+- Secrets never live in the repository or the database, except where an approved change request names the
+  exception, its protection and its limits. NVR credentials, go2rtc credentials and (in
   development) the HA token come from the add-on options / `secrets/lab.env`, which is git-ignored together
   with `private-evidence/` and `data/`. The bridge shared secret is stored in the settings table of the
   add-on database and excluded from backups (`SETTINGS_KEEP` in `services/backup.py`).
+- Approved exception (CR-022, owner decision 2026-10-04; backend implemented on `pilot/nn4-backend`, ships with the CR-022 release): the NVR connection password
+  moves from the add-on options into `recorder_connections.password_enc`, encrypted with AES-256-GCM under its
+  own key file `<data>/keys/connections.key`; neither the table nor the key enters an Arx backup or bundle, and
+  the password is never returned by an API or written to a log or the audit trail. It protects against a leaked
+  database file or Arx backup, not against a reader of the whole data folder. Scope, threat model and tests:
+  `docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md` §3. Until that release the add-on options remain the source.
 - Repository scan (`git grep` for `password=`, `token=`, lab address patterns; the pre-commit scan used by
   the segment loop refuses commits containing lab addresses or device identifiers): no hits apart from an
   obviously fake fixture string in `tests/test_media.py`.
@@ -72,6 +79,7 @@ the dependency is updated or the exposure is documented as not reachable.
 | Bridge install → Home Assistant `custom_components/smplwise_bridge` | only when the `homeassistant_config` mapping is granted, only that directory, version-marked, re-copy on version change; documented in DOCS.md |
 | go2rtc streams | only names with the `smplwise_` prefix are created, updated or deleted; foreign streams are listed but never touched |
 | NVR | read-only ISAPI calls; no configuration writes, no reboots (AGENTS.md rule; `nvr.config.write` is a sensitive permission that no role grants) |
+| Add-on infrastructure API (Supervisor), **approved exception** (CR-021 owner decision D1; S3 backend on `pilot/CR021-s3`, ships with the S3 release) | the manifest requests `hassio_role: manager`, which in principle allows backups, other add-ons, host and store-repository calls. Arx confines itself to ONE egress door, `services/self_update.py`: an exact (method, path) allow-list (`/addons/self/info`, `/store/reload`, `/store/addons/{slug}/update`, `/jobs/info`, `/core/info`, `/core/check`, `/core/restart`, `/addons/self/options`, `/addons/self/restart`), exact body keys, a slug pattern for the one templated path, no redirects, no upstream text echoed or stored; a CI test fails when an infrastructure write path is spelled anywhere else. Only `system.update` holders (system administrators, never delegable) trigger the two actions; permission and audit before the body is read; one active run at a time; the update can only go to the store's latest version (never an attacker-chosen one); the platform restart runs only after a passed configuration check. Residual risk (accepted by D1): a compromised Arx process could use the role directly - see `docs/changes/CR-021-SELF-UPDATE.md` sections 3.2, 11 and 13. Release gate: branch protection + required review on the store repository (owner answer 11) |
 
 ## 5. Findings and follow-ups
 

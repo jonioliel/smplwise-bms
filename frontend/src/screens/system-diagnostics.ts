@@ -684,7 +684,7 @@ export class SystemDiagnostics extends LitElement {
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
-      <div class="muted">ההתקנה פועלת עם Home Assistant בלבד, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password ב־Home Assistant › Add-ons › SmplWise Arx › Configuration והפעילו מחדש את ה־Add-on; ההגדרות יחזרו כמו שהיו.</div>
+      <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות › חיבורים.</div>
     </sw-card>`;
   }
 
@@ -1125,6 +1125,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
         <div class="hsum"><sw-badge kind=${STATUS_KIND[r.status]} label=${r.status === 'ok' ? 'הכל תקין' : r.status === 'warn' ? 'יש מה לבדוק' : 'יש תקלה'}></sw-badge><span>גרסה <span class="ltr">${r.version}</span> · פעיל ${fmtUptime(r.uptime_s)} · נבדק <span class="ltr" data-health-checked>${checked}</span></span><span class="grow"></span><sw-button size="sm" icon="refresh" ?disabled=${this.reportBusy} @click=${() => this.loadReport(true)}>${this.reportBusy ? 'בודק…' : 'בדוק עכשיו'}</sw-button></div>
+        ${r.installation && !r.installation.supported ? html`<div class="hcard error" role="alert" data-health-unsupported=${r.installation.reason ?? ""}><div class="hh"><span>התקנה לא נתמכת</span></div><div class="hd">${r.installation.message} ${r.installation.action}</div></div>` : nothing}
         <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
         <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
       </sw-card>
@@ -1221,7 +1222,7 @@ export class SystemDiagnostics extends LitElement {
     try {
       const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm });
       const parts = Object.entries(r.tables).filter(([k]) => TABLE_LABEL[k]).map(([k, n]) => `${n} ${TABLE_LABEL[k]}`);
-      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים`;
+      this.backupMsg = `שוחזר מ־${b.name} (${r.mode === 'replace' ? 'החלפה' : 'מיזוג'}): ${parts.join(', ')} · ${r.files} קבצים${r.files_skipped ? ` · ${r.files_skipped} קבצים לא שוחזרו` : ''}`;
       this.restoreTarget = null;
       invalidateSettings();
       await this.loadBackups();

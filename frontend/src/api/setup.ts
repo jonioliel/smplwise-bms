@@ -2,6 +2,7 @@
  * the same shapes come from the fixture below: five steps pass, the camera step waits for a placement, and "בדוק שוב"
  * on it finds the camera placed - so the design review sees both an explanation and the "ready" summary. */
 import { get, post } from './client';
+import type { InstallationBlock } from './health';
 
 export type StepId = 'install' | 'nvr' | 'ha' | 'go2rtc' | 'floor' | 'camera';
 /** not_applicable: skipped on purpose (NVR-less mode) - neither done nor failed, and not counted in `total`. */
@@ -44,6 +45,8 @@ export interface SetupState {
   check_every_s: number;
   live_ttl_s: number;
   checked?: StepId;
+  /** NN1: an NVR without a media server is not a supported installation - the wizard never reaches "ready" and says why. */
+  installation?: InstallationBlock;
 }
 
 export const setupState = () => get<SetupState>('setup/state');

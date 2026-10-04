@@ -25,6 +25,8 @@ export interface GuardArgs {
   skip?: string;
   /** Selectors (inside sw-app's shadow root) whose horizontal overflow is a finding, beyond `main`. */
   roots?: string[];
+  /** Only elements inside an element matching this selector are measured (one screen of a shell full of other, known layouts). */
+  within?: string;
 }
 
 /** Runs inside the page. */
@@ -117,7 +119,8 @@ export function inPageCheck(args: GuardArgs): Finding[] {
 
   // the scope: inside the open modal sheet (its section + slotted content), else the whole page
   const sheetSection = modalSheet?.shadowRoot?.querySelector('.sheet') ?? null;
-  const inScope = (el: Element) => (sheetSection ? el === sheetSection || ancestors(el).includes(sheetSection) : true);
+  const inWithin = (el: Element) => !args.within || matches(el, args.within) || ancestors(el).some((a) => matches(a, args.within as string));
+  const inScope = (el: Element) => inWithin(el) && (sheetSection ? el === sheetSection || ancestors(el).includes(sheetSection) : true);
   const scoped = all.filter((e) => inScope(e) && !hidden(e));
 
   // escape: elements and text runs must stay inside their bubble

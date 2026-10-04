@@ -20,6 +20,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..config import Settings
 from ..db import unlocked, Database
 from ..errors import ApiError
+from ..capabilities import ensure_capability  # NN1: 409 capability_unavailable, after ensure_nvr
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import go2rtc as g2
@@ -85,8 +86,7 @@ def create_session(body: CreateBody, request: Request, principal: Principal = De
         raise ApiError(422, "validation", "start_at חייב להיות UTC (Z).")
     s = read_settings(conn)
     ensure_nvr(settings)  # NVR-less mode: 409 after the camera permission, before the go2rtc check
-    if not settings.go2rtc_url:
-        raise ApiError(503, "media_not_configured", "כתובת go2rtc לא הוגדרה בהגדרות ה־Add-on.")
+    ensure_capability(settings, "playback")  # NN1: no go2rtc = 409 capability_unavailable (was 503 media_not_configured)
     actual_start, seg_end = _segment_for(settings, conn, cam, start, s["time.zone"])
     with unlocked(conn):
         session = pb.create(settings, principal, cam, actual_start, seg_end, s["time.zone"], s["playback.max_sessions"])

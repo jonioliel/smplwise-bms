@@ -31,6 +31,7 @@ import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, delete
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
+import { cap } from '../api/session';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, MAX_STAIR_STEPS, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
@@ -881,7 +882,7 @@ export class ExplorePlanEditor extends LitElement {
           if (isNewFloor && this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
         })
         .catch(() => {}); // settings unavailable: keep the default (estimates shown, every level)
-      this.anchors = b.anchors.map((a) => ({ ...a, position: { ...a.position } }));
+      this.anchors = b.anchors.filter((a) => a.resource_type !== 'camera' || cap('nvr')).map((a) => ({ ...a, position: { ...a.position } })); // NN1 D5: leftover camera rows are not drawn without an NVR
       this.zones = b.zones;
       void this.loadVersions();
       if (this.selectedZoneId && !this.zones.some((z) => z.id === this.selectedZoneId)) this.selectedZoneId = null;
@@ -4567,7 +4568,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     if (this.tool === 'layers') {
       return html`<sw-card heading="שכבות" subheading="מה מוצג בעורך (לא משפיע על הצופים)">
-        <div class="layerlist">${LAYERS.map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
+        <div class="layerlist">${LAYERS.filter((l) => l.id !== 'cameras' || cap('nvr')).map((l) => html`<label><input type="checkbox" .checked=${this.layers.has(l.id)} @change=${(e: Event) => { const next = new Set(this.layers); if ((e.target as HTMLInputElement).checked) next.add(l.id); else next.delete(l.id); this.layers = next; }} /> ${l.label} <span class="note">(${this.anchors.filter((a) => this.layerOf(a) === l.id).length})</span></label>`)}
           <label><input type="checkbox" .checked=${this.showZones} @change=${(e: Event) => (this.showZones = (e.target as HTMLInputElement).checked)} /> חדרים ואזורים <span class="note">(${this.zones.length})</span></label>
           ${b.imageUrl ? html`<label><input type="checkbox" data-plan-background .checked=${this.planImage} @change=${(e: Event) => this.setPlanImage(b.floorId, (e.target as HTMLInputElement).checked)} /> תמונת התוכנית <span class="note">(${this.planImage ? 'מתחת לשרטוט' : 'מוסתרת, רקע נקי'})</span></label>` : nothing}</div>
         ${this.studio.doc
@@ -4811,7 +4812,7 @@ export class ExplorePlanEditor extends LitElement {
                 <div class="floorchip"><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
                 ${this.studio.doc && b.permissions.structure ? html`<div class="levelbar">${renderLevelChips(this.studio.doc.levels.filter((l) => this.sharedLevels || !l.shared), this.activeLevel, (id) => this.setLevelFilter(id), () => this.openNewLevel(), (id) => this.openLevelEdit(id))}${this.phone.matches ? nothing : html`<sw-chip data-grid-chip icon="grid" ?selected=${this.grid.on} aria-pressed=${this.grid.on ? 'true' : 'false'} title="רשת עזר: גרירה והצבה של עצם נצמדות אליה (המרווח בכלי השכבות)" @click=${() => this.setGrid(b.floorId, { on: !this.grid.on })}>רשת</sw-chip>`}${!this.phone.matches && this.shownTags.length ? renderTagPicker(this.shownTags, (t) => this.selectByTag(t)) : nothing}</div>` : nothing}
                 <div class="rail" role="toolbar" aria-label="כלי עריכה">
-                  ${TOOLS.map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
+                  ${TOOLS.filter((tl) => tl.id !== 'camera' || cap('nvr')).map((tl) => html`<button class=${tl.id === this.tool ? 'on' : ''} data-tool=${tl.id} ?disabled=${!tl.ready || (STUDIO_TOOLS.includes(tl.id) && !b.permissions.structure) || (this.detectBusy && tl.id !== this.tool)} title=${tl.label} aria-label=${tl.label} aria-pressed=${tl.id === this.tool} @click=${() => this.pickTool(tl.id)}><sw-icon .name=${tl.icon} size=${18}></sw-icon></button>`)}
                   <hr />
                   <button title="ביטול (Ctrl+Z)" aria-label="ביטול" data-rail-undo ?disabled=${this.detectBusy || !this.undoTarget} @click=${() => this.undoAny()}><sw-icon name="history" size=${18}></sw-icon></button>
                   <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>

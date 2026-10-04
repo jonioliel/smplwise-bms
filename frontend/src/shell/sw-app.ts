@@ -9,6 +9,8 @@ import '../components/sw-tabs';
 import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
+import '../components/nvr-restart-banner';
+import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable, restartRequired } from './update-marker';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
 import { findScreenEdit, onScreenEdits, screenEdits } from './screen-edit';
@@ -71,6 +73,7 @@ import '../screens/system-devices';
 import '../screens/system-diagnostics';
 import '../screens/system-security';
 import '../screens/system-storage';
+import '../screens/system-update';
 import '../pwa/notifications-settings';
 import '../screens/system-notifications'; // CR-018: הגדרות › התראות (the administrator's eight sections; everyone else keeps the device registration)
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
@@ -82,11 +85,13 @@ import { navigate, onRouteChange, type RouteState, parseRoute } from '../router'
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
 import { setupState } from '../api/setup';
-import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyNvrLess, isNvrRoute, NVR_LESS, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { AREA_TABS, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaRowSection, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId } from './nav';
+import { blockKind, routeMissing, type BlockKind } from './nav-capabilities';
+import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
-import { can, canNav, isApi, loadSession, nvrLess, onSession, watchPermissions, type Session } from '../api/session';
+import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
 import { applyPlaybackDisplay } from '../api/playback-display';
@@ -114,7 +119,7 @@ import '../components/sw-page';
 @customElement('sw-app')
 export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
-  @state() private session: Session = { mode: 'loading', me: null, error: null };
+  @state() private session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
   @state() private sys: HealthSummary | null = null;
   private sysTimer = 0;
   /** T071: "complete the setup" for a system administrator while wizard steps remain; dismissed per browser session. */
@@ -162,6 +167,11 @@ export class SwApp extends LitElement {
   /** UI round 1b: the navigation's size (shell/nav-size.ts: the user's own over the installation's), as pixel sizes. */
   @state() private nav: NavDims = navDims(navSize());
   private stopNavSize?: () => void;
+  /** CR-021 S2: an update exists (known only to a holder of system.update; shell/update-marker.ts). */
+  @state() private updateMark = updateAvailable();
+  /** CR-021 S3: the platform needs a restart (system.update holders only; the user-menu dot). */
+  @state() private restartMark = restartRequired();
+  private stopUpdateMark?: () => void;
   private stopScreenEdits?: () => void;
   private stopScreenViews?: () => void;
   private railObs: ResizeObserver | null = null;
@@ -1370,6 +1380,7 @@ export class SwApp extends LitElement {
     this.stopNotify = notifyStore.subscribe((s) => (this.notifySummary = s.summary));
     this.stopNavOrder = onNavOrder((o) => (this.navOrder = o));
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
+    this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
     this.stopScreenViews = onScreenViews(() => this.requestUpdate()); // a screen registered / dropped / changed its view choice
@@ -1379,7 +1390,7 @@ export class SwApp extends LitElement {
     this.stopMobileOptions = onMobileOptions(() => this.requestUpdate()); // הגדרות › כללי › אפשרויות נייד: the phone guards follow at once
     this.stopSession = onSession((s) => {
       this.session = s;
-      applyNvrLess(nvrLess()); // NVR-less mode: the NVR areas leave the navigation for everyone (nav.ts)
+      applyCapabilities(s.mode === 'api' ? s.capabilities : null); // NN1: what the installation has decides which areas are offered (nav-capabilities.ts)
       // CR-013: this user's tab order (cached copy at once, the server's copy when it answers) and open alerts
       const who = s.mode === 'demo' ? 'demo' : s.me?.user.id ?? null;
       if (who && who !== this.navOrderUser) {
@@ -1428,7 +1439,7 @@ export class SwApp extends LitElement {
           const start = START_ROUTES[String(ps['ui.start_route'] ?? 'devices')] ?? START_ROUTES.devices;
           let target = hideMap && start.startsWith('/explore') ? '/live/wall' : start;
           // NVR-less mode: a start screen that needs the NVR opens the map (or, with the map hidden, the device control)
-          if (NVR_LESS && isNvrRoute(parseRoute(`#${target}`))) target = hideMap ? START_ROUTES.devices : START_ROUTES.explore;
+          if (routeMissing(parseRoute(`#${target}`)).length) target = hideMap ? START_ROUTES.devices : START_ROUTES.explore;
           target = landingTarget(target, true, canNav, navOrder());
           if (this.landedDefault) this.land(target);
           this.requestUpdate();
@@ -1568,6 +1579,7 @@ export class SwApp extends LitElement {
     notifyStore.stop();
     this.stopNavOrder?.();
     this.stopNavSize?.();
+    this.stopUpdateMark?.();
     this.stopScreenEdits?.();
     this.stopScreenViews?.();
     this.railObs?.disconnect();
@@ -1928,7 +1940,7 @@ export class SwApp extends LitElement {
       queueMicrotask(() => window.location.replace(`#${moved}`));
       return html`<sw-state-panel state="loading"></sw-state-panel>`;
     }
-    if (this.session.mode === 'api' && NVR_LESS && isNvrRoute(r)) return this.renderNvrLess();
+    if (this.session.mode === 'api') { const gap = routeMissing(r); if (gap.length) return this.renderNvrLess(blockKind(gap)); }
     // Mobile options (owner 2026-09-30, הגדרות › כללי › אפשרויות נייד): a screen that creates, edits or deletes things is not
     // offered on a phone while its option is on. A UX guard, NOT a security boundary: the server still enforces every permission.
     const guarded = routeGuardKind(s);
@@ -1964,6 +1976,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
+        if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
@@ -2071,11 +2084,14 @@ export class SwApp extends LitElement {
 
   /** NVR-less mode: a URL of an NVR area (a bookmark, an old link, the Lovelace card) lands here instead of a screen that
    * would only fail. Inside the Lovelace card (embed=1) the card degrades to the map, its only view that needs no NVR. */
-  private renderNvrLess() {
+  private renderNvrLess(kind: BlockKind = 'no_nvr') {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
-    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR (תשתית המערכת בלבד): לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל. להוספת NVR: מלאו nvr_host, nvr_username ו־nvr_password בהגדרות SmplWise Arx בתשתית המערכת והפעילו מחדש - הנתונים נשארים כמו שהם."
-      actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    // NN1: a recorder installation without its media server is not a supported installation (owner decision D2): say so, in operator words
+    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
+    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
+      hint="ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל."
+      actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
   // ---- CR-013: the user (avatar) as the navigation's last item, its menu and the tab order ----
@@ -2235,6 +2251,7 @@ export class SwApp extends LitElement {
     this.menuOpen = true;
     if (this.phone) this.pushOverlay();
     void this.pollAlerts();
+    void refreshUpdateMarker();
   }
 
   private closeMenu(restoreFocus = true, dropEntry = true) {
@@ -2283,7 +2300,7 @@ export class SwApp extends LitElement {
     const badge = this.badge();
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
         .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
-        .settingsHref=${settings?.href ?? ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
+        .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .restartHref=${!this.gated && api && this.restartMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
         .screenViews=${this.gated ? [] : screenViews()}
         @screen-view=${(e: CustomEvent<{ id: string; value: string }>) => findScreenView(e.detail.id)?.set(e.detail.value)}
@@ -2337,6 +2354,7 @@ export class SwApp extends LitElement {
       ${this.renderSysBanner()}
       <main>
         ${this.renderSetupHint()}
+        ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
         ${this.renderGate() || html`
           ${this.renderChrome(section, tabs, editor, rowMode, rowStyle, showSections)}
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}

@@ -120,7 +120,7 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
       await open(page, hash);
       const panel = page.locator('sw-app sw-state-panel[data-nvr-less]');
       await expect(panel, hash).toBeVisible({ timeout: 30000 });
-      await expect(panel).toHaveAttribute('hint', /nvr_host/);
+      await expect(panel).not.toHaveAttribute('hint', /nvr_host|Add-on|Home Assistant/); // CR-022: the connection is entered in Arx, the panel says nothing about options
       await expect(page.locator('live-wall, investigate-events, investigate-playback, live-overview')).toHaveCount(0);
     }
     await open(page, '/live/wall');
@@ -137,16 +137,18 @@ test.describe('NVR-less mode (Home Assistant only)', () => {
     await expect(page.locator('sw-app nav.rail')).toHaveCount(0);
   });
 
-  test('the setup wizard skips the NVR and camera steps on purpose and counts the remaining ones', async ({ page }, testInfo) => {
+  test('the setup wizard asks for the NVR choice (nothing is chosen for the installer), skips the camera step on purpose and counts the rest', async ({ page }, testInfo) => {
     await open(page, '/system/wizard');
-    for (const id of ['nvr', 'camera']) {
-      const step = page.locator(`system-wizard section[data-step="${id}"]`);
-      await expect(step).toHaveAttribute('data-status', 'not_applicable', { timeout: 30000 });
-      await expect(step.locator('[data-step-status]')).toHaveText('דילוג - מצב ללא NVR');
-      await expect(step.locator('[data-check]')).toHaveCount(0);
-      await expect(step.locator('[data-step-link]')).toHaveAttribute('href', '#/system/setup');
-    }
-    await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מתוך 3');
+    const cam = page.locator('system-wizard section[data-step="camera"]');
+    await expect(cam).toHaveAttribute('data-status', 'not_applicable', { timeout: 30000 });
+    await expect(cam.locator('[data-step-status]')).toHaveText('דילוג - מצב ללא NVR');
+    await expect(cam.locator('[data-check]')).toHaveCount(0);
+    await expect(cam.locator('[data-step-link]')).toHaveAttribute('href', '#/system/setup');
+    // CR-022: the NVR step is a real step again - "todo" until an explicit choice (a type, or "ללא NVR"), with the form inside
+    const nvr = page.locator('system-wizard section[data-step="nvr"]');
+    await expect(nvr).toHaveAttribute('data-status', 'todo');
+    await expect(nvr.locator('nvr-connection-form [data-conn-vendor]')).toBeVisible();
+    await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מתוך 4');
     await expect(page.locator('system-wizard [data-wizard-progress]')).toContainText('מצב ללא NVR');
     await expect(page.locator('system-wizard section[data-status="failed"][data-step="nvr"]')).toHaveCount(0);
     await shot(page, 'wizard', testInfo.project.name);

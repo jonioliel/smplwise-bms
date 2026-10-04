@@ -136,7 +136,7 @@ export interface BubbleMockState {
 
 /** Installs the mocked API on `page`; returns the recorded state. */
 export async function installBubbleMock(page: Page, opts: { perms?: string[]; look?: Record<string, unknown> } = {}): Promise<BubbleMockState> {
-  const st: BubbleMockState = { actions: [], look: opts.look ?? { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, palette: 'default' } };
+  const st: BubbleMockState = { actions: [], look: opts.look ?? { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, palette: 'default', depth: 0, tint: 0, material: 'none' } };
   const perms = opts.perms ?? AREA_PERMS;
   let seq = 0;
   await page.route('**/api/v1/**', async (route) => {

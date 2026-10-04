@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..capabilities import may_see_recorders, resolve as resolve_capabilities
 from ..db import Database, get_setting, now_iso, permission_revision
 from ..errors import forbidden, validation
 from ..mode import installation_mode
@@ -47,7 +48,15 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.ha_user_auth import remote_settings
 
         remote = {k: v for k, v in remote_settings(conn).items() if k not in ("remote.require_mfa_admin", "remote.admins_default")}
+    installation_permissions = effective_permissions(conn, principal, INSTALLATION)
+    extra: dict = {}
+    if "system.configure" in installation_permissions:
+        # CR-022 section 8: a saved / removed NVR connection waits for a restart; the banner survives reloads and other admins see it
+        from ..services.connection_store import pending_restart
+
+        extra["connection_pending_restart"] = pending_restart(conn, settings_of(request))
     return {
+        **extra,
         "channel": channel,
         "remote": remote,
         "user": {
@@ -58,7 +67,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         },
         "active": _active(conn, principal),
         "bindings": bindings_of(conn, principal),
-        "permissions_installation": effective_permissions(conn, principal, INSTALLATION),
+        "permissions_installation": installation_permissions,
         "permissions_any": permissions_anywhere(conn, principal),  # what the shell may show at all (any scope)
         "has_access": has_any_binding(conn, principal),
         "permission_revision": permission_revision(conn),
@@ -67,6 +76,9 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         "bootstrap_state": get_setting(conn, "bootstrap_state", "pending"),
         # NVR-less mode (mode.py): `ha_only` hides the NVR areas in the shell; every route still checks permissions itself
         "mode": installation_mode(settings_of(request)),
+        # NN1 (capabilities.py): what this installation has - booleans for everyone, the recorder detail only for whoever
+        # may read the NVR configuration. Not authorisation: every route checks its own permission first.
+        "capabilities": resolve_capabilities(settings_of(request)).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
     }
 
 
@@ -82,6 +94,7 @@ class PrefsPatch(BaseModel):
     ui_tabs_mode: str | None = Field(default=None, alias="ui.tabs_mode")  # release 0.1.153: tabs | hybrid | dropdown (services/tabs_mode.py); null = follow the installation
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # the same per tab group
     ui_dd_style: str | None = Field(default=None, alias="ui.dd_style")  # release 0.1.157: auto | pill | field | underline | text | prefix | tonal (services/dd_style.py); null = follow the installation
+    ui_dd_phone: str | None = Field(default=None, alias="ui.dd_phone")  # owner 2026-10-03: sheet | list, how a dropdown opens on a phone (services/dd_style.py); null = follow the installation
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget

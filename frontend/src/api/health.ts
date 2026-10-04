@@ -12,7 +12,16 @@ export interface HealthCheck {
   meta: Record<string, unknown>;
 }
 
+/** NN1: is this a supported installation (an NVR without a media server is not), and if not why, in operator wording from the server. */
+export interface InstallationBlock {
+  supported: boolean;
+  reason: string | null;
+  message: string | null;
+  action: string | null;
+}
+
 export interface HealthReport {
+  installation?: InstallationBlock;
   status: CheckStatus;
   version: string;
   uptime_s: number;

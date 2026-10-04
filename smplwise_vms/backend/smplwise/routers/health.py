@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, Request
 
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
 from ..db import database_of, lock_stats, permission_revision, unlocked
 from ..mode import describe as describe_mode
-from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import autosync, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
+from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
 from ..services import health_report as health_report_svc
 from .storage import local_state
 
@@ -64,6 +65,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),  # the placeholder host (no user) is not configured
         "go2rtc_configured": bool(settings.go2rtc_url),
+        # CR-022 section 8: the stored NVR connection changed since this process started (a boolean; never a connection detail)
+        "connection_pending_restart": connection_store.pending_restart(conn, settings),
         "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
         # CR-008 D7: how many main / sub streams play over WebRTC (ok / no / unknown), from the last discovery - counts
         # only; the cameras and their hints are in /health/report (system.configure)
@@ -76,6 +79,9 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "identity_source": principal.source,
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
         **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
+        # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
+        "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
+        "installation": installation_block(resolve_capabilities(settings)),
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 

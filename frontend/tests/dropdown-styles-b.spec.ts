@@ -163,6 +163,7 @@ test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a po
     await chip(page, 'pill').click();
     const pop = popOf(page, 'pill');
     await expect(pop).toHaveAttribute('data-present', 'sheet');
+    await page.waitForTimeout(700); // the slide-up is over
     const r = await pop.evaluate((el) => {
       const b = el.getBoundingClientRect();
       const root = el.getRootNode() as ShadowRoot;
@@ -205,7 +206,8 @@ test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a po
     expect(inl.popover).toBe(false);
     expect(inl.top).toBeGreaterThanOrEqual(inl.chipBottom - 1);
     await page.keyboard.press('Escape');
-    // `auto` is today's look: a popover under its chip even on the phone and with the dial on inline
+    // `auto` follows the phone setting (owner 2026-10-03, `data-dd-phone`): the regular list under the field with `list`
+    await page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'list'));
     await chip(page, 'auto').click();
     await expect(popOf(page, 'auto')).toHaveAttribute('data-present', 'pop');
     await page.keyboard.press('Escape');

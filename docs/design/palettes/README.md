@@ -114,6 +114,16 @@ fail (for example `accent` and `accentContrast`), apply one and re-run. The modu
 `checkScheme` and `suggest` (pure functions; only the CLI part uses `node:fs`), so the colour editor can lift the same
 rules into the browser.
 
+## Material wash (MD1 material dials, 2026-10-03)
+
+The `tint` dial washes a tile whose state carries a tone with that tone (`frontend/src/styles/material.ts`). The app caps the share
+per skin x palette x scheme (`design/contrast.ts washCap`, token `--sw-m-wash-cap`) so `text` and `textMuted` keep 4.5:1 at the wash's
+strongest point over `surface` and `surfaceElevated`; the validator reports the same cap per palette (`materialWashCap`,
+`materialWashRows` - the palette-field view: `slider.fill`, `accent`, the three state tones, `entity.climate`). The rows are not part
+of `checkScheme` (the 1,900-pair count stays); they are printed as their own section. Predicted caps (the script's method, 2026-10-03,
+to be confirmed by the runner's `unit-palettes.spec.ts`): light 30-32 % (high-contrast 58), dark 28 % (high-contrast 48). The soft
+wash (28 %) is therefore available on every ready palette; the strong wash (50 %) is capped to about 30 % on all but high-contrast.
+
 ## Results (actually run)
 
 `validate_palettes.mjs`: **1,900 pairs checked (10 palettes x 2 schemes), 0 failed.** Lowest per palette (light / dark):
