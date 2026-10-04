@@ -189,6 +189,12 @@ Divergences from the vendor guide found and fixed (adapter + fake, `fake.shape =
 7. `GetDeviceInfo`: no `apiVersion`, no `support*` smart flags beyond fisheye / RS485 / SD (smart events offered: motion
    and alarm inputs only); `softwareBuildDate` repeats the firmware string.
 
+8. **RTSP checked with ffprobe** (one read-only session per form, channel 1): the device's form
+   `/chID=1&streamType=main` plays (H.264 **High**, 1920x1080, 25 fps, no B-frames) and `streamType=sub1` / `sub` play
+   (H.265 Main 704x576 6 fps); the guide's `?chID=1&streamType=main` answers **404 Stream Not Found**. The API reported
+   `baseLine` for that High stream, so the API's profile is not used as WebRTC evidence any more (verdict `unknown`,
+   the player measures). go2rtc itself was not run against the unit (the lab go2rtc is shared; no stream was created).
+
 Settings design (owner request): the connection test records the device certificate's SHA-256 and the recorder then
 **pins** it (a changed certificate refuses the connection until an administrator accepts it). `tls_verify=false` is for
 this validation only.

@@ -289,8 +289,8 @@ def webrtc_verdict(codec: str | None, profile: str | None) -> tuple[str, str]:
         return "unknown", "h265"
     if codec != "H.264":
         return "unknown", "codec_other"
-    if profile == "baseline":
-        return "ok", "h264_no_b_frames"
+    # live 2026-10-04: the NVR reported encodeLevel baseLine for a stream that ffprobe reads as H.264 High (no B-frames):
+    # the API's profile is not evidence, so no H.264 stream is "ok" on it alone - the player tries WebRTC and measures
     return "unknown", "b_frames_unknown"
 
 

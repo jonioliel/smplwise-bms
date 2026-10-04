@@ -198,7 +198,7 @@ def test_parse_element_and_registry_encoding_of_a_written_item(settings, fake):
     p = a.parse_element(item)
     assert (p["stream_id"], p["gop"], p["codec"]) == (2, 20, "H.264")
     reg = a.registry_encoding(item)
-    assert reg["codec"] == "H.264" and reg["webrtc"] == "ok" and reg["source"] == "provision_isr"
+    assert reg["codec"] == "H.264" and reg["webrtc"] == "unknown" and reg["source"] == "provision_isr"
 
 
 # ---------------------------------------------------------------------------------------------- the shared route

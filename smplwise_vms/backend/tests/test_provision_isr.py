@@ -167,7 +167,7 @@ def test_read_stream_encodings_normalized(settings, fake):
     assert main.encoding["svc"] is None and main.encoding["b_frames"] is None
     assert main.fields == {"svc": {"supported": False, "editable": False}, "b_frames": {"supported": False, "editable": False}}
     assert main.encoding["webrtc"] == "unknown" and main.encoding["webrtc_reason"] == "h265"
-    assert sub.encoding["codec"] == "H.264" and sub.encoding["profile"] == "baseline" and sub.encoding["webrtc"] == "ok"
+    assert sub.encoding["codec"] == "H.264" and sub.encoding["profile"] == "baseline" and sub.encoding["webrtc"] == "unknown"  # profile not trusted (live)
     assert third.encoding["codec"] == "MJPEG" and third.encoding["webrtc"] == "no" and "profile" in third.fields
     plus = enc["2"][0].encoding
     assert plus["codec"] == "H.265" and plus["smart_codec"] is True and plus["codec_plus"] is True
