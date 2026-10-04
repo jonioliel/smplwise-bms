@@ -220,6 +220,26 @@ this validation only.
   (`vendor_io.go2rtc_source`; `go2rtc_source: rtsp` per recorder for firmware where the native client works). Audio is not
   carried by that source yet. Screenshot in `private-evidence/provision-isr-live/ha2-playback/` (real frame, not in Git).
 
+### 6.4 End-to-end playback through Arx's own screen (HA2 go2rtc, 2026-10-04, owner-approved)
+
+A throwaway Arx backend on the PC (real NVR read-only, HA2's go2rtc; a guard refused every go2rtc write outside
+`smplwise_pb_*`, live stream sync / derived events / thumbnails / event loop off) and the playback screen in headless Chrome,
+channel 2 (1920x1080 H.264):
+
+| Measure | Result |
+|---|---|
+| Recording search (3 h, 39 segments, gaps 4-40 s visible) | 0.3-1.1 s, coverage complete, device clock rule |
+| Open playback -> first frame | 6.1-6.3 s (MSE) |
+| Real-time advance | 5.7-6.0 s of media in 6 s |
+| Seek through the screen's own seek (3 targets, 17 min to 2 h back) | new generation each, playing again after 5.1-5.2 s |
+| Displayed time vs the camera's OSD after the last seek | screen 18:51:24, OSD 18:51:25 (about 1 s, key-frame start) |
+| Close | session closed, no `smplwise_pb_` stream left in HA2's go2rtc (checked: 0) |
+
+Finding fixed: the adapter still declared `playback: "none"`, so the installation's playback capability was off and the
+screen said "requires a media server"; it now declares `rtsp`. A seek sent to the API from outside the screen ends the
+screen's player ("session replaced") - expected: the screen owns its session. Not measured: frame accuracy, speeds other than
+x1, reconnect after a network drop, two cameras in sync.
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

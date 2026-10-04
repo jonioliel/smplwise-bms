@@ -37,7 +37,7 @@ def test_adapter_satisfies_the_recorder_protocol(settings, fake):
     caps = a.capabilities()
     assert caps.vendor == "provision_isr" and caps.read_encodings and not caps.write_encodings
     assert not caps.add_channel and not caps.remove_channel
-    assert caps.live == "rtsp" and caps.events == "poll" and caps.playback == "none"
+    assert caps.live == "rtsp" and caps.events == "poll" and caps.playback == "rtsp"
     assert "svc" not in caps.encoding_fields and "b_frames" not in caps.encoding_fields
     assert fake.hits == []  # declaring capabilities makes no device call
 

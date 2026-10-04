@@ -334,7 +334,7 @@ class ProvisionIsrAdapter:
         return RecorderCapabilities(
             vendor=self.vendor, read_encodings=True, write_encodings=self.writes_enabled, encoding_fields=frozenset(px.ENCODING_FIELDS),
             add_channel=False, remove_channel=False, max_channels=(self._info or {}).get("chl_max_count"),
-            live="rtsp", playback="none", events=self.event_mode(),  # type: ignore[arg-type]
+            live="rtsp", playback="rtsp", events=self.event_mode(),  # P3: RTSP playback (provision_playback)  # type: ignore[arg-type]
         )
     def device_info(self, *, refresh: bool = False) -> dict[str, Any]:
         if self._info is None or refresh:
