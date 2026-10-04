@@ -233,3 +233,99 @@ this validation only.
 **מה לא נבנה ולמה:** חיבור למסכים, ל־go2rtc ולזרם האירועים (מחכה למיזוג ניהול מספר מקליטים, כדי לא לחווט פעמיים);
 כתיבת הגדרות (שלב 2, מאחורי שערי האישור הקיימים, אחרי בדיקה על המכשיר); ניגון (שלב 3); מהדורה 2 (שלב 4); דחיפת
 אירועים מהמכשיר (דורשת כתיבה למכשיר ופורט נכנס — החלטה שלך); PTZ, דיבור, יציאות התראה ואתחול (פעולות פיזיות).
+
+---
+
+## Appendix P3 — playback and recording search (branch `pilot/provision-playback`)
+
+**Status:** P3 core implemented offline and validated read-only on the owner's NVR (2026-10-04); not wired into routes or
+the session engine (waits for CR-024, like P2 step 1); not merged, not released. The P1 adapter file was **not edited**:
+the playback commands go through the adapter's `_call(..., allowed=PLAYBACK_COMMANDS)` per call, so the adapter's own
+allow-list stays the P1 one.
+
+Files: `smplwise_vms/backend/smplwise/services/recorders/provision_playback.py` (search, calendar, playback request,
+snapshot at a time, export source), `.../provision_time.py` (device wall clock <-> UTC, POSIX TZ rule, DST), tests
+`tests/test_provision_playback.py` (56) and `tests/test_provision_time.py` (24), fake
+`tests/fixtures/fake_provision_playback.py` (a `FakeProvision` subclass; `fake_provision.py` untouched).
+
+### P3.1 What the real unit does (read-only: 18 HTTP requests + 3 RTSP sessions, about one per 1.5 s)
+
+Redacted shape samples: `private-evidence/provision-isr-live/20261004-2018*-playback*/` (no image saved; address and account
+replaced).
+
+| # | Fact | Consequence in the code |
+|---|---|---|
+| L1 | `SearchByTime` caps at **1000** items, oldest first, `count="1000"`, no `maxCount` (a 3.8-day window on a motion channel hit it) | cursor paging from the end of the last item; `MAX_REQUESTS` 30, then `coverage: partial` (never "empty") |
+| L2 | v1 items carry `starttime` + `seconds` + `recType` only | end = start + seconds (real seconds); `end_raw = "<start_raw>+<n>s"`, or the v2 `endtime` when present |
+| L3 | items are **clipped to the query window** (12:48:37 / 36 s comes back as 12:49:00 / 5 s for a 12:49:00-12:49:05 query) | clipped pieces merge again (`recordings.merge`: same kind, gap <= 2 s) |
+| L4 | a window **without recordings = HTTP 400 errorCode 3**; so is `GetSnapshotByTime` in a gap (with `Content-Type: image/png`) | errorCode 3 on these two commands = "nothing recorded" (empty list / 404 `no_recording`) |
+| L5 | `SearchRecordDate` writes `2026-9-19` (no zero padding); 16 days on the unit | tolerant date parser |
+| L6 | `GetRecordType`: `manual, schedule, motion, sensor, intel detection` (v1 names) | kind mapping; the v2 spelling `intelligentDetection` is sent only when the device lists it |
+| L7 | `GetSnapshotByTime` answers `image/h264` (Annex-B key frame, 45-125 KB), not a JPEG | `to_jpeg` decodes it with ffmpeg over pipes (live: a 125 KB key frame became a 40 KB JPEG) |
+| L8 | playback RTSP `/chID=<n>&date=&time=&timelen=&streamType=main|sub&action=playback` works with **1-based** chID (chID=8 played the 2560x1440 camera of channel 8; the guide's example shows chID=0) and `streamType=sub` (704x576; live view needs `sub1`, playback does not) | `nvr_extra.playback_channel_base` (default 1) for a firmware that counts from 0 |
+| L9 | the device does NOT play only "the first segment": it concatenates every recording in [time, time + timelen], starts at the **first recorded frame at or after `time`**, and keeps the real gaps in the PTS (a 65 s gap = a 65.8 s PTS jump) | `media_anchor(search, t)` = the instant PTS 0 shows; precision stays `keyframe_limited` |
+| L10 | `action=backup`: 300 s of the sub stream in 35 s (about 8x); no speed parameter; no HTTP video download | export = RTSP backup copied by ffmpeg (`rtsp_download`, same signature as `exports.Worker.downloader`); playback speeds stay the engine's MSE-side 0.25 / 0.5 / 1 |
+| L11 | the unit records on **motion** only (`recordTypes="motion"`, `manual,motion` on one channel); a `continuous` search answers empty | the UI must not promise a continuous timeline on such a unit (partial coverage is real coverage) |
+| L12 | device clock rule `IST-2IDT,M3.5.5/2,M10.5.0/2`, NTP | see P3.2 |
+
+The module end to end on the unit (6 requests, 10.6 s including the pacing): zone source `device`, a 3-day search on channel
+8 = 1 page, 772 items -> 741 merged motion segments, a snapshot at a time decoded to JPEG.
+
+### P3.2 Time (device wall clock, DST)
+
+The device writes local wall-clock digits without an offset, produced by ITS POSIX rule. `M3.5.5` (last Friday of March)
+is not Israel's rule (the Friday before the last Sunday of March): the two differ in 2023, **2028**, 2029, 2034 and 2035
+(one week, e.g. 2028-03-24 to 03-31), when recordings are stamped one hour off the IANA zone. Conversions therefore use the
+device's rule by default (`time_basis: "device"`, read from `GetDateAndTime`, cached 10 minutes), fall back to the
+recorder's IANA zone when the rule is missing or unreadable, and `zone_report()` lists the periods where the two disagree
+(for the health screen). `nvr_extra.time_basis = "iana"` forces the IANA zone. AGENTS rule kept: no fixed offset, raw
+strings kept. Spring forward: a time inside the gap is read with the offset before the change (shifted forward). Fall
+back: an item in the repeated hour is placed by the device's own end time (v2) when that decides it, else by list order
+(a later item never starts before an earlier one ended), else on the earlier pass, and the result note says how many were
+placed by assumption. Query windows near a change are widened by one DST step and filtered by UTC (the plain wall window
+can even come out inverted).
+
+### P3.3 Interfaces (for the wiring after CR-024)
+
+| Function | Use |
+|---|---|
+| `ProvisionPlayback(adapter, tz_name).search(ch, start, end, kinds)` | -> `recordings.SearchResult` (the Hikvision `Segment` model; `track_id` = channel); kinds `continuous / motion / alarm / event / manual` |
+| `.day(ch, date)`, `.record_days(ch)` | calendar (device-local days, 23 / 25 hours on DST days) |
+| `.playback_request(ch, start, end, stream, action)` | RTSP URL (server-side only, at most 6 h, `ambiguous` flag in the repeated hour) |
+| `rtsp_playback_url(settings, track_id, start, end, tz_name)` | drop-in for `playback.playback_rtsp_url`; the session engine keeps its `smplwise_pb_*` names (test: go2rtc receives only `smplwise_pb_*` writes, a foreign `door_station_1` stream is untouched, seek = a new generation) |
+| `.snapshot_at(ch, t)` + `to_jpeg(snap)` | event thumbnails without an ffmpeg RTSP session |
+| `.export_files(ch, start, end)` + `rtsp_download` | `exports.ExportFile`s with RTSP backup URIs + the matching downloader |
+| `media_anchor(result, t)` | the instant PTS 0 shows |
+| `.zone_report(year)` | device rule vs IANA zone |
+
+Wiring list (one call site each, in files CR-024 is changing): `playback._create_stream` picks `rtsp_playback_url` for
+`provision_isr`; `recordings.search_segments` calls `ProvisionPlayback.search` for a Provision camera (the cache stays in
+`recordings`); `thumbnails.generate` uses `snapshot_at` + `to_jpeg`; `exports._files_for` / `Worker.downloader` use
+`export_files` / `rtsp_download`; the adapter's `capabilities().playback` becomes `"rtsp"` once wired.
+
+### P3.4 Cuts, with reasons
+
+| Item | Why | Needed |
+|---|---|---|
+| Route / engine wiring | those files are being made per-recorder on `pilot/multi-nvr` | CR-024 merge, then the wiring list above (half a day) |
+| "Seekable synchronized" claim | AGENTS: anchors, seek generations, rendered time and reconnect must be measured through go2rtc in a browser | one browser session on the unit through go2rtc (owner approval for `smplwise_pb_*` streams on the lab go2rtc) |
+| Fast-forward / reverse playback | the API has no speed or direction parameter | none (MSE-side slow motion and frame step stay) |
+| Export container | the existing pipeline remuxes downloaded files; Provision files arrive as MPEG-TS from ffmpeg | check `Worker._finish` with `.ts` inputs during the wiring |
+| v2 search | v1 covers everything on this unit; v2 adds only `endtime` (already parsed when present) | none |
+
+### P3.5 Tests (2026-10-04, Windows workstation, repo `.venv`, Python 3.12, from `smplwise_vms/backend`)
+
+`python -m pytest tests/test_provision_time.py tests/test_provision_playback.py`: 80 passed (offline against the fake; the
+ffmpeg decode test uses a key frame generated by the local ffmpeg, not a camera frame). With the regression set
+`tests/test_provision_isr.py tests/test_provision_isr_p2.py tests/test_provision_isr_live_shape.py
+tests/test_playback_race.py tests/test_playback_release.py tests/test_recordings.py`: 154 passed. Full suite and runner
+gate: NOT_RUN (the runner is busy with a tier-L gate; this slice adds new files only).
+
+### סיכום בעברית (ניגון)
+
+נבנה: חיפוש הקלטות לפי ערוץ, טווח זמן וסוג (רציף, תנועה, התראה, אירוע חכם, ידני) במודל המקטעים של המערכת, עם דפדוף מעבר
+לתקרת 1000 התוצאות של המכשיר; לוח ימים עם הקלטות; כתובת ניגון RTSP שאומתה על המכשיר האמיתי (ערוצים מ־1, זרם ראשי ומשני);
+חיבור למנוע הניגון הקיים דרך go2rtc בשמות smplwise_pb_ בלבד; תמונה מזמן נתון (המכשיר מחזיר פריים H.264 ואנחנו ממירים
+ל־JPEG); מקור לייצוא (RTSP במצב גיבוי, פי 8 מהזמן האמיתי). זמנים: המכשיר כותב שעון מקומי בלי אזור; ההמרה לפי חוק השעון
+של המכשיר עצמו, כולל מעבר לשעון קיץ וחזרה ממנו, ודיווח על שבוע ב־2028 שבו חוק המכשיר שונה מחוק ישראל. עדיין לא חובר
+למסכים (מחכה למיזוג ניהול מספר מקליטים).
