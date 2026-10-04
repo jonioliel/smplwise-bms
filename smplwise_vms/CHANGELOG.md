@@ -1,5 +1,59 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+
+### Multi-NVR - one system, several recorders (CR-024, `pilot/multi-nvr`)
+**Database migration `0055_multi_recorder`** (additive: recorder vendor / enabled / order / time zone / capabilities / removal mark, camera
+`source_ref` + keyed fingerprint, event `recorder_id`). A restart applies every recorder change, as for the NVR connection today.
+- **Recorders as first-class entities.** הגדרות › חיבורים: with one recorder the card is the familiar NVR connection form plus "הוסף NVR";
+  with two or more it is a list of recorders - name, type and model, state, cameras - with "חיבור" (that recorder's own connection form:
+  edit, test, remove), "שם" and "השבת"/"הפעל". Adding uses the connection form (type → fields → test → save), the same rules as the first
+  NVR (encrypted password, read-only test, typed "שמור" for an unreachable NVR). Ids are `nvr-1`, `nvr-2`... and never reused.
+- **Removing a recorder keeps its history:** its connection secrets are cleared, its cameras are disabled and left out of every camera
+  list; events, cases, map placements, permissions and the change log stay. Saving a connection for that recorder again brings it back
+  (its cameras stay disabled for review).
+- **Every NVR operation reaches the right recorder:** snapshots, live and playback streams, recordings, exports, frames, thumbnails,
+  camera settings and stream changes use the camera's own recorder; system pages (`/nvr/system`, time, NTP, outputs, disk test,
+  reboot, notify linkage, storage report, camera sync) take `recorder_id` (default the first recorder, so a single-recorder system is
+  unchanged). Discovery, the go2rtc stream sync and the alert stream run per recorder; one recorder that is down never stops another.
+- **Screens:** the camera settings table names the recorder and filters by it; the all-cameras wall and the event log get a recorder
+  filter; camera pickers name the recorder. Nothing of this appears while the system has one recorder.
+- **Never mixed:** a multi-camera stream change holds the cameras of one recorder (the screen limits its checklist, the server refuses a
+  mix); synchronized playback is offered within one recorder only (409 `sync_cross_recorder_unproven` across recorders).
+- **Fixed on the way:** the camera-offline notification source and the WebRTC hint read only the first recorder; both follow each
+  camera's own recorder now.
+- **API:** new `GET|POST /recorders`, `GET|PATCH|DELETE /recorders/{id}`, `GET|PUT /recorders/{id}/connection`,
+  `POST /recorders/{id}/connection/test`, `GET /recorders/{id}/health` (all local-only, management `system.configure`); `GET /cameras`
+  adds `recorders` and `recorder_name` and takes `recorder_id`; `GET /events` takes `recorder_id` and rows carry `recorder_id`; `/health`
+  adds `recorders`. The CR-022 `/nvr/connection*` routes stay the first recorder's.
+- **How to use (English):** install, restart once (migration 0055 runs). הגדרות › חיבורים → "הוסף NVR" → name, type, address, ports, user,
+  password → "בדוק חיבור" → "הוסף" → restart the system when the banner asks. The new recorder's cameras appear after the restart (discovery).
+  To take one out: its row → "חיבור" → "הסר NVR" → type "הסר".
+- **Not in this change (why):** synchronized playback across recorders (not proven on two real recorders); the Provision-ISR adapter (its
+  API is not available yet; the adapter seam is ready); a per-recorder permission scope; applying changes without a restart (owner
+  decision); a per-recorder live budget; the recorder time zone in recording search / playback URLs (stored, used by the alert stream).
+  See `docs/changes/CR-024-MULTI-NVR.md` section 3.
+- **Known limits:** nothing here ran against a real recorder - every test used two fake recorders and mocked screens.
+
+### עברית - כמה מקליטים במערכת אחת (CR-024)
+**מיגרציה `0055_multi_recorder`** (תוספת עמודות בלבד). כל שינוי במקליט חל אחרי הפעלה מחדש, כמו חיבור ה־NVR היום.
+- **מקליטים כישות מלאה:** הגדרות › חיבורים - עם מקליט אחד הכרטיס הוא טופס החיבור המוכר ועוד "הוסף NVR"; עם שניים ומעלה מוצגת רשימת
+  מקליטים (שם, סוג ודגם, מצב, מצלמות) עם "חיבור" (טופס החיבור של אותו מקליט: עריכה, בדיקה, הסרה), "שם" ו"השבת"/"הפעל". ההוספה בטופס
+  החיבור (סוג ← שדות ← בדיקה ← שמירה) ובאותם כללים של ה־NVR הראשון (סיסמה מוצפנת, בדיקה לקריאה בלבד, הקלדת "שמור" כשה־NVR לא זמין).
+- **הסרת מקליט שומרת את ההיסטוריה:** פרטי הגישה נמחקים, המצלמות מושבתות ולא מוצגות ברשימות; אירועים, תיקים, מיקומים במפה, הרשאות ויומן
+  השינויים נשארים. שמירת חיבור לאותו מקליט מחזירה אותו (המצלמות נשארות מושבתות לבדיקה).
+- **כל פעולה מגיעה למקליט הנכון:** תמונה, וידאו חי, ניגון, חיפוש הקלטות, ייצוא, הגדרות מצלמה ושינויי זרם - לפי המקליט של המצלמה. גילוי
+  מצלמות, זרמי go2rtc וזרם האירועים רצים לכל מקליט בנפרד; מקליט שלא עונה לא עוצר את האחרים.
+- **מסכים:** טבלת הגדרות המצלמות מציגה את המקליט ומסננת לפיו; לקיר המצלמות וליומן האירועים נוסף סינון לפי מקליט; בבוררי מצלמות מופיע שם
+  המקליט. כשיש מקליט אחד - שום דבר מזה לא מוצג.
+- **לעולם לא מעורבב:** שינוי מרובה של זרמים כולל מצלמות של מקליט אחד בלבד; ניגון מסונכרן - רק למצלמות של אותו מקליט.
+- **איך מפעילים:** מתקינים ומפעילים מחדש פעם אחת (המיגרציה רצה). הגדרות › חיבורים ← "הוסף NVR" ← שם, סוג, כתובת, פורטים, משתמש, סיסמה ←
+  "בדוק חיבור" ← "הוסף" ← הפעלה מחדש כשהבאנר מבקש. המצלמות של המקליט החדש מופיעות אחרי ההפעלה מחדש. להסרה: השורה שלו ← "חיבור" ←
+  "הסר NVR" ← מקלידים "הסר".
+- **מה לא נכלל ולמה:** ניגון מסונכרן בין מקליטים (לא הוכח על שני מקליטים אמיתיים); מתאם Provision-ISR (ה־API שלו עוד לא זמין, החיבור מוכן);
+  הרשאה בהיקף מקליט; החלה בלי הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד למקליט בחיפוש הקלטות ובניגון.
+- **מגבלות:** שום דבר כאן לא הורץ מול מקליט אמיתי - כל הבדיקות עם שני מקליטים מדומים ומסכים עם שרת מדומה.
+
 ## 0.1.161 (pilot) — Correcting an electricity price; the device name of every meter sensor; the camera stream editor saves after a codec change
 No restart of the platform is needed (the bridge integration stays 0.6.0). **No database migration in this release** (the last one stays `0054_electricity_billing`). Reload the installed web app once.
 ### Correcting a price - הגדרות › תשתיות › מחירים ומע״מ

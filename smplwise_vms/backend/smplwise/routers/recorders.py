@@ -200,6 +200,7 @@ def list_recorders(request: Request, principal: Principal = Depends(current_prin
 
 @router.get("/recorders/{recorder_id}")
 def get_recorder(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One recorder (status, cameras, capabilities; the connection detail for system.configure only)."""
     _may_read(conn, principal)
     admin = authorize(conn, principal, PERMISSION, INSTALLATION).allowed
     row = _known(conn, recorder_id, include_removed=admin)
@@ -322,6 +323,7 @@ def remove_recorder(recorder_id: str, request: Request, principal: Principal = D
 
 @router.get("/recorders/{recorder_id}/connection")
 def get_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The recorder's stored connection (the shape of GET /nvr/connection; never the password)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _known(conn, recorder_id)
     return nc.connection_view(conn, request, recorder_id)
@@ -330,6 +332,7 @@ def get_recorder_connection(recorder_id: str, request: Request, principal: Princ
 @router.post("/recorders/{recorder_id}/connection/test")
 def test_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A read-only test of a candidate connection for this recorder (CR-022 section 6.3 rules); one audit row, no other write."""
     require(conn, principal, PERMISSION, INSTALLATION)
     _known(conn, recorder_id)
     return nc.do_test(request, principal, raw, conn, recorder_id)
@@ -338,6 +341,7 @@ def test_recorder_connection(recorder_id: str, request: Request, principal: Prin
 @router.put("/recorders/{recorder_id}/connection")
 def save_recorder_connection(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Test, then store this recorder's connection (if_revision required; a destination another recorder uses = 409 recorder_duplicate)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: nc.SaveIn = nc._parse(request, raw, nc.SaveIn)
     _known(conn, recorder_id)

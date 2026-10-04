@@ -80,9 +80,11 @@ Paths: `B/` = `smplwise_vms/backend/smplwise/`, `F/` = `frontend/src/`.
 
 ### 2.3 Settings UI
 
-- **Recorders list** in Settings › connections (replaces the single connection card): name, vendor, status, cameras,
-  "pending restart"; add (the existing connection form in a wizard sheet: type → fields → test → save), edit connection,
-  rename, disable / enable, remove (typed "הסר", one line that the cameras stay disabled).
+- **Recorders card** in Settings › connections: with one recorder it is the familiar connection form plus "הוסף NVR" (a
+  single-NVR installation looks as before); with two or more, a recorders list - name, vendor and model, state, cameras,
+  "pending restart" - with "חיבור" (that recorder's connection form: edit, test, remove with the typed "הסר" and one line that
+  the cameras stay disabled), rename, disable / enable. Add = the existing connection form in a sheet (name → type → fields →
+  test → save).
 - **Camera screens show the recorder:** the camera settings table gets a recorder column and a recorder filter; camera
   pickers name the recorder when there is more than one; duplicate names across recorders are disambiguated with the
   recorder name.
