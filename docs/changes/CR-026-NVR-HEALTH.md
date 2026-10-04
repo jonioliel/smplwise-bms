@@ -1,7 +1,7 @@
 # CR-026 — Recorder health monitoring (Provision-ISR first, any vendor through the adapter seam)
 
-Status: implemented on `pilot/nvr-health` (base `pilot/provision-wiring`), target release 2.0.0. Fake-device tests only; the
-live read check was BLOCKED (TLS handshake to the lab NVR timed out from the workstation; no credentials were sent).
+Status: implemented on `pilot/nvr-health` (base `pilot/provision-wiring`), target release 2.0.0. Fake-device tests plus one
+live read-only pass on the owner's NVR (section 8). Owner decisions of 2026-10-05 applied (section 7).
 Related: CR-024 (multi-recorder core), CR-025 (Provision-ISR adapter), CR-018 (notification core).
 
 ## 1. What it does
@@ -15,8 +15,8 @@ and the notification monitor turns conditions into notifications:
 | API latency | time of `health()` | same | `recorder.slow` (info, inbox only, 300 s hold) |
 | Disk state | — | `GetDiskInfo`: read/write → ok, read → read-only, locked, unformat, formatting, exception → error; no disk on an NVR → missing | `recorder.disk` (critical for error / unformatted / missing, alert for read-only / locked; 60 s hold) |
 | Disk alarms | — | `GetAlarmStatus` kinds containing "disk"/"hdd" | `recorder.disk` (critical) |
-| Free space trend | — | samples every 10 min for 48 h, least squares over ≥ 6 h | `recorder.disk_space` (info) when full within `disk_fill_days` |
-| Recording per channel | — | `GetRecordStatusInfo`: recording / no recording / exception | `recorder.recording` (alert, subject = the camera) |
+| Free space trend | — | samples every 10 min for 48 h, least squares over ≥ 6 h | `recorder.disk_space` (info) when full within `disk_fill_days` (**off by default**) |
+| Recording per channel | — | `GetRecordStatusInfo`: recording / no recording / exception | `recorder.recording` (alert, subject = the camera): a device-reported exception always; "not recording for `recording_gap_min`" only on recorders marked continuous |
 | Channel connectivity | — | `GetChannelList` + `chlOfflineAlarm` / video loss in `GetAlarmStatus` | **`camera.offline`** (existing source; see 3) |
 | Clock drift | — | `GetDateAndTime` read with the device's own POSIX rule, minus the host clock at the request midpoint | `recorder.clock` (alert, 600 s hold) |
 | Certificate expiry | — | pinned HTTPS only: one TLS handshake (no credentials) every 6 h | `recorder.certificate` (alert; critical once expired) |
@@ -59,11 +59,11 @@ Every source is a normal CR-018 policy row: the administrator can change severit
 
 | Key | Default | Range |
 |---|---|---|
-| `recording_mode` | `continuous` (every connected, enabled camera should record) | `continuous` / `exceptions` (device-reported faults only) |
+| `continuous_recorders` | none (only recording faults the recorder reports) | recorder ids whose connected, enabled cameras should record all the time (chips per recorder in the card) |
 | `recording_gap_min` | 30 | 5–1440 |
 | `clock_drift_s` | 60 | 5–3600 |
 | `latency_ms` | 1500 | 200–10000 |
-| `disk_fill_days` | 3 (0 = off) | 0–60 |
+| `disk_fill_days` | 0 = off | 0–60 |
 | `cert_days` | 30 | 1–365 |
 | `recover_s` | 120 | 0–3600 |
 | `interval_s` | 60 (6 reads per Provision recorder per pass) | 30–900 |
@@ -86,9 +86,17 @@ alert open, stale reading, camera disconnect / reconnect via `camera.offline`, c
 `nvr.offline`; the API (cards, no secrets in the answer, 403 for an operator, ranges, 422, audit row); Hikvision
 reachability-only. Every scenario asserts `fake.writes == []`.
 
-## 7. Open points (owner)
+## 7. Owner decisions (2026-10-05)
 
-1. Default recording expectation: `continuous` alerts on a motion-only camera that is quiet for 30 minutes.
-2. Whether the free-space trend alert should exist at all for overwriting NVRs (default on, 3 days).
-3. Hikvision detail (HDD status / recording state via ISAPI) is not implemented; Hikvision recorders show reachability only.
-4. Live validation on the owner's NVR (one read pass, ~6 requests) once it is reachable from the workstation.
+1. Recording: by default only recording faults the recorder itself reports are alerts. The continuous-recording expectation
+   is a per-recorder choice, off by default (many units, the owner's included, record on motion only).
+2. The disk-fill forecast is off by default (an overwriting NVR is always full); the setting stays.
+3. Hikvision detail comes after Provision; Hikvision recorders show reachability and latency only for now.
+
+## 8. Live read-only pass (owner's Provision NVR, 2026-10-05)
+
+HTTPS 443, Basic, certificate not verified for this test only; one TLS handshake (no credentials) for the expiry, then six
+API reads (GetDeviceInfo, GetDiskInfo, GetRecordStatusInfo, GetChannelList, GetAlarmStatus, GetDateAndTime); no 401, no write.
+Result: answering, 250 ms; no part failed; one disk `read/write` with **0 % free** (the unit overwrites - confirms decision
+2); no disk alarm; 16 channels, 15 connected, 1 disconnected; 14 recording, 2 idle (motion-only recording - confirms decision
+1); clock drift 0 s (NTP); certificate self-signed, about 2,650 days left. No address, account or serial number recorded.
