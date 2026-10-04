@@ -346,7 +346,7 @@ def test_policy_refusals_carry_a_path_and_reach_no_component():
     out = call(hass, body("edit", payload=bad))
     assert (out["ok"], out["error"], out["path"]) == (False, "argument_not_allowed", "timeslots[1].actions[0].service_data.temperature")
     bad = payload()
-    bad["timeslots"][0]["actions"] = [act("siren.turn_on", "siren.hall")]
+    bad["timeslots"][0]["actions"] = [act("siren.toggle", "siren.hall")]
     assert call(hass, body("edit", payload=bad))["error"] == "service_not_allowed"
     bad = payload()
     bad["timeslots"][0]["actions"] = [act("lock.unlock", "lock.front", {"code": "1234"})]

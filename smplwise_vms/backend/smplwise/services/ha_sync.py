@@ -81,6 +81,8 @@ ATTR_ALLOW = {
     # CR-017 (automations, scenes, scripts): an automation's / scene's config id (`id`), a script's / automation's running count (`current`) and
     # parallel-run limit (`max`); a scene's member list (`entity_id`, kept for the scene domain only - see trim_attributes). `last_triggered` and `mode` are above.
     "id", "current", "max",
+    # schedules follow-up (2026-10-04, owner decision 3): a siren's own tones - the only tones a schedule may offer it (a list, or id -> name)
+    "available_tones",
 }
 AUTOMATION_PREFIXES = ("automation.", "script.", "scene.")  # CR-017
 AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_triggered", "script_started")

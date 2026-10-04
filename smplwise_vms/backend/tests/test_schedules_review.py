@@ -51,8 +51,9 @@ def test_copy_of_a_legacy_disarm_on_a_panel_that_needs_a_code_is_refused(sched_a
     d = c.get(f"{API}/schedules/{sid}").json()
     assert d["can"]["edit"] is True  # tolerated where it stands
     n = len(fake.bridge_calls)
+    restrict_disarm(c)  # owner decision 2026-10-04: allowed by default; restricted here, a copy is a NEW disarm and is refused
     r = post_json(c, f"/schedules/{sid}/copy", {"name": "Copy", "client_request_id": rid(), "confirm_lowering": True})
-    assert r.status_code == 422 and r.json()["code"] == "disarm_not_allowed" and len(fake.bridge_calls) == n  # 2026-10-04: a copy is a new disarm
+    assert r.status_code == 422 and r.json()["code"] == "disarm_not_allowed" and len(fake.bridge_calls) == n
     allow_disarm(c)
     r = post_json(c, f"/schedules/{sid}/copy", {"name": "Copy", "client_request_id": rid(), "confirm_lowering": True})
     assert r.status_code == 422 and r.json()["code"] == "alarm_code_needed" and len(fake.bridge_calls) == n

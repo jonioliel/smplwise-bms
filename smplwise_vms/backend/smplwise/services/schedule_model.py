@@ -294,11 +294,13 @@ def classify(core: dict[str, Any], resolve: Callable[[str], dict[str, Any] | Non
     classes: list[str] = []
     sensitive_cls: list[str] = []
     invalid_all: list[dict[str, str]] = []
+    blocked_all: list[dict[str, str]] = []
     lowering = False
     base_signature = canonical([core["slots"][0]["conditions"], core["slots"][0]["condition_type"], core["slots"][0]["track"]]) if core["slots"] else ""
     for slot in core["slots"]:
         unsupported: list[dict[str, str]] = []
         invalid: list[dict[str, str]] = []
+        blocked: list[dict[str, str]] = []
         actions_out = []
         for ai, a in enumerate(slot["actions"]):
             path = f"slots[{slot['index']}].actions[{ai}]"
@@ -316,8 +318,12 @@ def classify(core: dict[str, Any], resolve: Callable[[str], dict[str, Any] | Non
                 else:
                     problem = {"code": "action_not_allowed", "message": "ההתקן אינו מוכר למערכת.", "path": path}
             elif cls is None:
-                code = info.get("refusal") if info.get("refusal") in ("alarm_managed_control", "media_managed_control") else "action_not_allowed"
-                problem = {"code": code, "message": {"alarm_managed_control": "רכיב זה נשלט ממסך האזעקה.", "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה."}.get(code, "סוג ההתקן אינו מותר בתזמונים."), "path": path}
+                code = info.get("refusal") if info.get("refusal") in REFUSAL_MESSAGES else "action_not_allowed"
+                if code in ("media_not_approved", "media_disabled") and a["service"] in policy.SCHEDULE_ACTION_SERVICES and not a["unknown_keys"]:
+                    # a player that was approved when the schedule was made and is not any more: a modelled action that cannot run (fix or remove it)
+                    bad = {"code": code, "message": REFUSAL_MESSAGES[code], "path": path}
+                else:
+                    problem = {"code": code, "message": REFUSAL_MESSAGES.get(code, REFUSAL_MESSAGES["action_not_allowed"]), "path": path}
             elif not policy.service_allowed(cls, a["service"], a["entity_id"]):
                 problem = {"code": "action_not_allowed", "message": "הפעולה אינה מותרת בתזמון.", "path": path}
             else:
@@ -345,19 +351,35 @@ def classify(core: dict[str, Any], resolve: Callable[[str], dict[str, Any] | Non
                    "sensitive": sensitive if problem is None else False, "lowering": low}
             if bad is not None and problem is None:
                 out["invalid"] = {"code": bad["code"], "message": bad["message"]}
+            elif problem is None and cls == "script" and info and info.get("approval_required") and not info.get("approval_ok"):
+                # owner decision 2 (2026-10-04): a script that disarms / unlocks (or whose content is not known) runs from a schedule only while a system
+                # administrator's "allowed in schedules" mark holds for its CURRENT content
+                out["blocked"] = {"code": "script_not_approved", "message": SCRIPT_NOT_APPROVED}
+                blocked.append({**out["blocked"], "path": path})
             actions_out.append(out)
         if slot["unknown_keys"] or slot["condition_unknown_keys"] or slot["time_issues"]:
             unsupported.append({"code": "unknown_fields", "message": "במשבצת שדות או זמנים שהמערכת אינה מכירה.", "path": f"slots[{slot['index']}]"})
         sig = canonical([slot["conditions"], slot["condition_type"], slot["track"]])
         if sig != base_signature:
             unsupported.append({"code": "conditions_differ", "message": "תנאים שונים במשבצות שונות.", "path": f"slots[{slot['index']}]"})
-        out_slots.append({"actions": actions_out, "supported": not unsupported, "unsupported": unsupported, "invalid": invalid})
+        out_slots.append({"actions": actions_out, "supported": not unsupported, "unsupported": unsupported, "invalid": invalid, "blocked": blocked})
         invalid_all.extend(invalid)
+        blocked_all.extend(blocked)
     sensitive_classes = [c for c in policy.ALL_CLASSES if c in sensitive_cls]
     sensitive_any = bool(sensitive_classes) or any(a["sensitive"] for s in out_slots for a in s["actions"]) or any(
         a.get("invalid") is not None and a["entity_id"].split(".", 1)[0] in ("alarm_control_panel", "lock") for s in out_slots for a in s["actions"])
     return {"slots": out_slots, "understood": all(s["supported"] for s in out_slots), "sensitive_classes": sensitive_classes, "sensitive": sensitive_any, "lowering": lowering,
-            "invalid": invalid_all}
+            "invalid": invalid_all, "blocked": blocked_all}
+
+
+REFUSAL_MESSAGES = {
+    "alarm_managed_control": "רכיב זה נשלט ממסך האזעקה.",
+    "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה.",
+    "media_not_approved": "הנגן אינו מאושר או מוסתר בהגדרות המולטימדיה.",
+    "media_disabled": "המולטימדיה כבויה בהגדרות המערכת.",
+    "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים.",
+}
+SCRIPT_NOT_APPROVED = "הסקריפט מנטרל אזעקה או פותח נעילה (או שתוכנו אינו ידוע), ולכן אפשר לתזמן אותו רק אחרי שמנהל מערכת סימן אותו \"מותר בתזמונים\"."
 
 
 # ---------------------------------------------------------------- upcoming (§6.5)
@@ -762,8 +784,9 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
     if cls is None:
         code = refusal or "action_not_allowed"
         msgs = {"alarm_managed_control": "רכיב זה נשלט ממסך האזעקה ואינו נכנס לתזמון.",
-                "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה ואינו נכנס לתזמון.", "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים."}
-        return [_problem(code, msgs.get(code, msgs["action_not_allowed"]), f"{path}.entity_id")]
+                "media_managed_control": "רכיב זה נשלט ממסך המולטימדיה ואינו נכנס לתזמון.", "action_not_allowed": "סוג ההתקן אינו מותר בתזמונים.",
+                "media_not_approved": REFUSAL_MESSAGES["media_not_approved"], "media_disabled": REFUSAL_MESSAGES["media_disabled"]}
+        return [_problem(code if code in msgs else "action_not_allowed", msgs.get(code, msgs["action_not_allowed"]), f"{path}.entity_id")]
     if cls not in enabled and not unchanged:
         return [_problem("class_not_allowed", "סוג ההתקן אינו מותר בתזמונים (הגדרות › תזמונים).", f"{path}.entity_id")]
     if not policy.service_allowed(cls, service, eid):
@@ -779,7 +802,11 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
         if not _allow_disarm(ctx):
             if not unchanged:
                 return [_problem("disarm_not_allowed", DISARM_REFUSAL, f"{path}.service")]
-            warnings.append(_problem("disarm_kept", "התזמון כולל נטרול אזעקה שנוצר לפני שהנטרול נחסם בתזמונים; הוא נשמר כפי שהוא.", path))
+            warnings.append(_problem("disarm_kept", "התזמון כולל נטרול אזעקה שנוצר לפני שמנהל המערכת הגביל נטרול בתזמונים; הוא נשמר כפי שהוא.", path))
+    if cls == "script" and not problems and info.get("approval_required") and not info.get("approval_ok"):
+        if not unchanged:
+            return [_problem("script_not_approved", SCRIPT_NOT_APPROVED, f"{path}.entity_id")]
+        warnings.append(_problem("script_not_approved", SCRIPT_NOT_APPROVED, path))
     if cls in ("alarm", "lock") and not problems:
         out.extend(_code_rules(cls, service, eid, path, info, ctx, unchanged, warnings))
     if info.get("available") is False:
@@ -787,13 +814,15 @@ def _check_action(act: dict[str, Any], path: str, ctx: DraftContext, enabled: se
     return out
 
 
-DISARM_REFUSAL = "נטרול אזעקה אינו ניתן לתזמון. רק מנהל מערכת יכול לאפשר זאת בהגדרות › תזמונים, עם אישור מוקלד."
+DISARM_REFUSAL = "מנהל המערכת הגביל נטרול אזעקה בתזמונים (הגדרות › תזמונים)."
 
 
 def _allow_disarm(ctx: Any) -> bool:
-    """`schedules.allow_disarm` (default off, a system administrator's typed decision): may a NEW schedule disarm a panel directly."""
+    """`schedules.allow_disarm` (owner decision 2026-10-04: allowed by default, a system administrator may restrict it): may a NEW schedule
+    disarm a panel directly. The other rules stay whatever this says: the disarm grant at the panel, schedule.sensitive, the explicit
+    confirmation, the remote channel's refusal, no code ever stored, and a panel that needs a code to disarm is never schedulable."""
     fn = getattr(ctx, "allow_disarm", None)
-    return bool(fn()) if callable(fn) else False
+    return bool(fn()) if callable(fn) else True
 
 
 def _bridge_at_least(ctx: Any, version: str) -> bool:

@@ -1386,7 +1386,8 @@ export class DevicesSchedules extends LitElement {
         ${period ? html`<span class="chip info" data-period>${aIcon('calendar')}${period}</span>` : nothing}
         <schedule-condition-chip .conditions=${s.conditions}></schedule-condition-chip>
         <sw-schedule-markers .sensitive=${s.sensitive} .lowering=${s.lowering}></sw-schedule-markers>
-        ${s.slots.some((sl) => sl.actions.some((a) => a.invalid)) ? html`<span class="chip warn" data-invalid title=${s.warnings.find((w) => w.code === 'entity_missing' || w.code === 'service_unsupported')?.message ?? ''}>${aIcon('warning')}פעולה לא תקפה</span>` : nothing}
+        ${s.slots.some((sl) => sl.actions.some((a) => a.invalid)) ? html`<span class="chip warn" data-invalid title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.invalid)?.invalid?.message ?? ''}>${aIcon('warning')}פעולה לא תקפה</span>` : nothing}
+        ${s.slots.some((sl) => sl.actions.some((a) => a.blocked)) ? html`<span class="chip warn" data-script-blocked title=${s.slots.flatMap((sl) => sl.actions).find((a) => a.blocked)?.blocked?.message ?? ''}>${aIcon('lock')}סקריפט לא מאושר</span>` : nothing}
         ${this.stateChip(s)}
       </div>
       <footer>

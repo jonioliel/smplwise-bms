@@ -1489,3 +1489,72 @@ with open issues. `status.can.acknowledge`. 409 `issue_not_present` / `not_ackno
 
 `schedules.classes` gains the five classes. A stored list saved before this change that holds all eight original classes reads as "every
 class" (the new ones on); once saved again (`schedules.classes_rev` = 2) it is read as saved.
+
+## 15. The owner's decisions of 2026-10-04 (contract change on top of §14)
+
+Branch `pilot/schedules-followup` (based on `pilot/schedules-more-actions`). Design note: `docs/design/schedules-more-actions.md` ("Owner
+decisions taken"). This section changes §14.1, §14.2, §14.3 and §14.7 as follows; everything else stands.
+
+### 15.1 Disarm: allowed by default, restrictable (decision 1, option ג; changes §14.3)
+
+`schedules.allow_disarm` defaults to `"true"`. A NEW or changed `alarm_control_panel.alarm_disarm` passes the policy unless a system administrator
+restricted it (`"false"` -> `disarm_not_allowed`, 422, message "מנהל המערכת הגביל נטרול אזעקה בתזמונים (הגדרות › תזמונים)."). Unchanged:
+`alarm.disarm` at the panel (own placements), `schedule.sensitive`, `confirm_lowering`, the remote channel's `remote_control_disabled` /
+`remote_disarm_disabled`, no code stored, `alarm_code_needed` for a panel that needs a code to disarm. Changing the setting stays a system
+administrator's act, audited on its own row (`schedules.allow_disarm`, allowed / denied, `{to}`); lifting a restriction still needs
+`schedules.allow_disarm_confirm` = `"אפשר נטרול"` (never stored); restricting needs none. A stored value is read as stored - no migration (the
+earlier `"false"` default existed only on the unreleased branch; nothing rewrites a stored row). The settings card reads "נטרול אזעקה בתזמונים:
+מותר (ניתן להגביל)" / "...: מוגבל". `status.settings.allow_disarm` and the frontend default (`SCHEDULE_SETTINGS_DEFAULT.allowDisarm`) follow.
+
+### 15.2 A script that disarms / unlocks: the administrator's per-script mark (decision 2, option ב; changes §14.2)
+
+- **Which scripts:** a script whose known steps disarm, unlock or open a door (`lowering`, read from the automations mirror), or whose content Arx
+  cannot read (`effects_known` false). Every other script stays freely schedulable as in §14.2. Catalogue / listing field
+  `approval = {required, approved, stale, by, at}`.
+- **The mark:** `schedules.script_marks` (settings table, no migration) = `{entity_id: {hash, by, by_name, at}}`. `hash` =
+  `schedule_view.script_content_hash`: SHA-256 (16 hex) of the canonical JSON `{entity_id, config}` where `config` is the script's
+  `ha_config_items.config_json` (parsed; raw text if it is not JSON; null when there is no row). A mark holds only while its hash is the script's
+  current hash: any change of the script revokes it by itself (`approval.stale = true`, the record kept for who / when). A script with no config row
+  hashes to its id only - recorded as a known limit (a change Arx cannot see cannot revoke its mark).
+- **Routes:** `GET /schedules/scripts` (schedule.manage; the scripts the caller may manage and read, with `lowering`, `effects_known`, `sensitive`,
+  `approval`; `can_mark` = the caller is a system administrator). `POST /schedules/scripts/{entity_id}/mark` `{undo?: bool}` - system
+  administrators only (403 otherwise, audited `schedule.script_mark` / `schedule.script_unmark` denied); 404 `not_found` for an unknown or unreadable
+  script; 409 `mark_not_needed` (an ordinary script) / `not_marked` (undo without a mark); audit allowed rows carry `script`, `hash`, `lowering`,
+  `effects_known`. Answer `{entity_id, approval}`.
+- **Enforcement:** `validate_draft` refuses a NEW or changed script action without a holding mark with `script_not_approved` (422; promoted); create,
+  edit, copy, split and restore are all covered (copy / split / restore are new actions). An unchanged existing action is kept with the warning
+  `script_not_approved`. `classify` marks such an action `blocked = {code: "script_not_approved", message}` (list `cls.blocked`); `can.run` is false and
+  the schedule's `warnings` carry it; `POST /schedules/{id}/run` -> 409 `script_not_approved` (audited). The catalogue lists the script with
+  `selectable: false` and `reason.code = "script_not_approved"`. The bridge cannot see the mark: this is an add-on rule.
+
+### 15.3 Sirens, media players, number / select (decision 3; changes §14.1 and §14.7)
+
+- **Classes** `siren` (SENSITIVE: `schedule.sensitive`, the bridge's `sensitive: true`, `ha.entity.control` at the siren - `devices.control` is not
+  enough - and the remote channel's alarm rule `remote_block(ctx, "arm")`), `media`, `number`, `select`. `schedules.classes` gains them (17 classes;
+  an installation saved with every original class on keeps every class on).
+- **Services (explicit allow-list, `tests/test_schedules_more_actions.py::EXPECTED_SERVICES`):** `siren.turn_on` (`tone` str, `duration` int 1-3600,
+  `volume_level` float 0-1, all optional), `siren.turn_off`; `media_player.turn_on|turn_off|media_play|media_pause|media_stop`,
+  `media_player.volume_set` (`volume_level` 0-1, required), `media_player.select_source` (`source`, required); `number.set_value` (`value`);
+  `select.select_option` (`option`). All are in `NEWER_BRIDGE_SERVICES` (bridge 0.6.1).
+- **Capabilities:** sirens by `SirenEntityFeature` (TURN_ON 1, TURN_OFF 2; the arguments by TONES 4 / VOLUME_SET 8 / DURATION 16 - `ARG_BITS`, no
+  bit = argument not offered and refused), tones only from `available_tones` (a list or an id -> name mapping; the id is the value; the add-on mirror
+  now keeps this attribute: `ha_sync.ATTR_ALLOW`). Media players by `MediaPlayerEntityFeature` (PAUSE 1, VOLUME_SET 4, TURN_ON 128, TURN_OFF 256,
+  SELECT_SOURCE 2048, STOP 4096, PLAY 16384), sources from `source_list`. Number / input_number values within `min` / `max` and on the `step` grid
+  (`min + k * step`); select options from `options`.
+- **Media rules:** a `media_player` is class `media` only as a NOT hidden endpoint of an APPROVED media device of kind screen / speaker / player /
+  receiver, with multimedia on; otherwise refusal `media_not_approved` / `media_disabled` (422, promoted). A schedule whose player lost its approval
+  keeps the action as INVALID (`invalid.code = media_not_approved`), like a missing entity (§14.5). The volume maximum is the device's ceiling: the
+  lower of `volume_max` and the night window's `max` (a schedule can fire inside the window), as 0-1. A source the administrator hid
+  (`sources_json[].hidden`) is never offered or accepted. Rights (`schedule_view.media_reasons`): `media.read` + `media.power` (turn on / off, source)
+  or `media.control` (the rest) at the device's anchor; a source on a public device also `media.public`. A media player's own sibling switches /
+  selects / numbers stay `media_managed_control` (CR-016 M4), and an alarm-managed select stays `alarm_managed_control`.
+- **Number / select:** an entity with an `entity_category` (configuration / diagnostic) is never a schedule action (`action_not_allowed`).
+- **Bridge 0.6.1** (still unreleased; both copies byte-identical): `ACTION_ARGS` gains the services with the outer bounds; `SENSITIVE_DOMAINS` gains
+  `siren` (a siren action without `sensitive: true` is refused). One restart of the platform installs it.
+- **Frontend contract** (`frontend/src/api/schedules.ts`): `ScheduleClass` + 4, `SENSITIVE_CLASSES` + siren, `ScheduleAction.blocked`,
+  `invalid.code` + `media_not_approved` / `media_disabled`, `CatalogEntity.approval`, `ScriptApproval`, `ScheduleScriptItem`, `listScheduleScripts`,
+  `markScheduleScript`, error codes `script_not_approved`, `media_not_approved`, `media_disabled`, `not_marked`, `mark_not_needed`.
+
+### 15.4 Acknowledgement after an edit in Arx (decision 4)
+
+Unchanged (§14.6): any content change brings the warning back, also an edit made through Arx.

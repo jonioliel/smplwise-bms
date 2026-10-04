@@ -27,6 +27,10 @@ const TONE_VAR: Record<Tone, string> = {
   helper: 'var(--sw-live)',
   humidifier: 'var(--sw-accent)',
   vacuum: 'var(--sw-circuit-5)',
+  siren: 'var(--sw-danger)',
+  media: 'var(--sw-circuit-3)',
+  number: 'var(--sw-circuit-1)',
+  select: 'var(--sw-circuit-1)',
   off: 'var(--sw-offline)',
   other: 'var(--sw-unknown)',
 };
