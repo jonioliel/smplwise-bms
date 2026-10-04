@@ -579,7 +579,8 @@ def add_version(tid: str, request: Request, principal: Principal = Depends(_mana
     vid = eb.apply_version_change(conn, tid, principal.user_id, target, plan)
     audit(conn, actor=principal, action="energy.tariff.version.correct", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
           details={"version_id": vid, "corrected_version_id": target["id"], "kind": plan["kind"], "applies_from": plan["applies_from"], "old": plan["old"], "new": plan["new"]})
-    return JSONResponse({**eb.tariff_dict(conn, eb.get_tariff(conn, tid), today), "applied": True, "plan": plan}, status_code=200)
+    drafts = eb.recompute_drafts(conn, get_provider(conn, settings_of(request)), tid, plan, principal, _rid(request))
+    return JSONResponse({**eb.tariff_dict(conn, eb.get_tariff(conn, tid), today), "applied": True, "plan": plan, "drafts": drafts}, status_code=200)
 
 
 @router.delete("/energy/tariffs/{tid}/versions/{vid}", status_code=204)

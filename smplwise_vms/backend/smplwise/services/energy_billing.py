@@ -418,15 +418,53 @@ def plan_version_change(conn: sqlite3.Connection, tid: str, target: sqlite3.Row,
     old = {"effective_from": old_from.isoformat(), "price": target["price"], "price_mode": target["price_mode"]}
     new = {"effective_from": effective_from.isoformat(), "price": str(price), "price_mode": mode}
     if not sealed:
-        return {"kind": "in_place", "applies_from": effective_from.isoformat(), "old": old, "new": new,
-                "message_he": "המחיר יוחלף. טיוטות, תחזית וחיובים עתידיים יחושבו במחיר החדש."}
+        n = len(_drafts_in_range(conn, tid, lo, nxt))
+        return {"kind": "in_place", "applies_from": effective_from.isoformat(), "old": old, "new": new, "drafts": n, "range_to": nxt.isoformat() if nxt else None,
+                "message_he": "המחיר יוחלף. התחזית וחיובים עתידיים יחושבו במחיר החדש." + _drafts_he(n)}
     sealed_through = max(b for _, b in sealed)
     apply_from = max(effective_from, sealed_through)
     if apply_from in others or (nxt is not None and apply_from >= nxt):
         raise conflict("tariff_period_sealed", "החשבונות שכבר הופקו נשענים על המחיר הזה ולא ניתן לתקן אותו. הוסיפו מחיר חדש מתאריך מאוחר יותר.")
     new["effective_from"] = apply_from.isoformat()
-    return {"kind": "later_only", "applies_from": apply_from.isoformat(), "old": old, "new": new,
-            "message_he": f"החשבונות שכבר הופקו לא ישתנו. המחיר המתוקן יחול מ-{_hdate(apply_from)}."}
+    n = len(_drafts_in_range(conn, tid, apply_from, nxt))
+    return {"kind": "later_only", "applies_from": apply_from.isoformat(), "old": old, "new": new, "drafts": n, "range_to": nxt.isoformat() if nxt else None,
+            "message_he": f"החשבונות שכבר הופקו לא ישתנו. המחיר המתוקן יחול מ-{_hdate(apply_from)}." + _drafts_he(n)}
+
+
+def _drafts_he(n: int) -> str:
+    return "" if n == 0 else (" טיוטה אחת תחושב מחדש." if n == 1 else f" {n} טיוטות יחושבו מחדש.")
+
+
+def _drafts_in_range(conn: sqlite3.Connection, tid: str, lo: dt.date, hi: dt.date | None) -> list[sqlite3.Row]:
+    """Draft bills (never issued ones) of accounts on this tariff whose period touches [lo, hi)."""
+    rows = conn.execute("""SELECT b.* FROM energy_bills b JOIN energy_accounts a ON a.id = b.account_id
+                           WHERE b.state = 'draft' AND a.tariff_id = ? AND a.deleted_at IS NULL AND b.period_end > ?""", (tid, lo.isoformat())).fetchall()
+    return [r for r in rows if hi is None or _date(r["period_start"]) < hi]
+
+
+def recompute_drafts(conn: sqlite3.Connection, provider: Any, tid: str, plan: dict[str, Any], actor: Any | None, request_id: str | None) -> dict[str, Any]:
+    """After a correction: recompute the draft bills in the corrected range, one savepoint each. A failing draft is reported and
+    never rolls the correction back."""
+    lo = _date(plan["applies_from"]) if plan["kind"] == "later_only" else _date(min(plan["old"]["effective_from"], plan["new"]["effective_from"]))
+    hi = _date(plan["range_to"]) if plan.get("range_to") else None
+    done: list[str] = []
+    failed: list[dict[str, str]] = []
+    for bill in _drafts_in_range(conn, tid, lo, hi):
+        conn.execute("SAVEPOINT recompute_draft")
+        try:
+            acc = get_account(conn, bill["account_id"])
+            p = per.Period(_date(bill["period_start"]), _date(bill["period_end"]))
+            replaces = get_bill(conn, bill["replaces_bill_id"]) if bill["replaces_bill_id"] else None
+            comp = compute(conn, provider, acc, p, origin=bill["origin"], replaces=replaces, bill_id=bill["id"])
+            store_recalculated(conn, bill, comp, actor, request_id, bill["row_version"])
+            _audit(conn, actor, "energy.bill.recalculate_after_price_correction", "energy_bill", bill["id"], request_id, {"tariff_id": tid})
+            conn.execute("RELEASE SAVEPOINT recompute_draft")
+            done.append(bill["id"])
+        except Exception as e:  # noqa: BLE001 - reported to the caller, the correction stays
+            conn.execute("ROLLBACK TO SAVEPOINT recompute_draft")
+            conn.execute("RELEASE SAVEPOINT recompute_draft")
+            failed.append({"bill_id": bill["id"], "reason": getattr(e, "user_message", None) or "החישוב נכשל"})
+    return {"recomputed": len(done), "failed": failed}
 
 
 def apply_version_change(conn: sqlite3.Connection, tid: str, actor_id: str | None, target: sqlite3.Row, plan: dict[str, Any]) -> str:

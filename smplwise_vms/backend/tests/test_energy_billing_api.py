@@ -735,3 +735,34 @@ def test_correcting_a_price_needs_energy_manage(w):
     r = w.c.post(f"{API}/tariffs/{s['tariff']['id']}/versions", json={"effective_from": "2026-01-01", "price": "0.7", "confirm": True}, headers=as_user("op"))
     assert r.status_code == 403
     assert _versions(w, s["tariff"]["id"])[0]["price"] == "0.5430"
+
+
+def test_correction_recomputes_drafts_but_never_issued_bills_and_a_failing_draft_is_reported(w, monkeypatch):
+    golden_readings(w)
+    s = setup_billing(w)
+    tid, vid = s["tariff"]["id"], s["tariff"]["versions"][0]["id"]
+    sept = issue(w, draft(w, s["account"]["id"], SEPT).json()).json()
+    oct_d = draft(w, s["account"]["id"], {"from": "2026-10-01", "to": "2026-10-01"}).json()
+    assert oct_d["snapshot"]["lines"][0]["price_entered"] == "0.5430"
+    body = {"effective_from": "2026-01-01", "price": "0.6000", "price_mode": "ex_vat", "replace_version_id": vid}
+    plan = w.c.post(f"{API}/tariffs/{tid}/versions", json=body).json()["plan"]
+    assert plan["drafts"] == 1 and "טיוטה אחת תחושב מחדש" in plan["message_he"]
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "confirm": True}).json()
+    assert r["drafts"] == {"recomputed": 1, "failed": []}
+    fresh = w.c.get(f"{API}/bills/{oct_d['id']}").json()
+    assert fresh["snapshot"]["lines"][0]["price_entered"] == "0.6000"
+    assert w.c.get(f"{API}/bills/{sept['id']}").json()["snapshot_sha256"] == sept["snapshot_sha256"]
+    with w.db.connection(mode="read") as conn:
+        n = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'energy.bill.recalculate_after_price_correction' AND resource_id = ?", (oct_d["id"],)).fetchone()[0]
+    assert n == 1
+    # one draft failing does not roll the correction back and is reported
+    new_vid = next(v["id"] for v in r["versions"] if v["effective_from"] == "2026-10-01")
+    real = eb.compute
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(eb, "compute", boom)
+    r2 = w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-10-01", "price": "0.7000", "price_mode": "ex_vat", "replace_version_id": new_vid, "confirm": True}).json()
+    monkeypatch.setattr(eb, "compute", real)
+    assert r2["applied"] is True and r2["drafts"]["recomputed"] == 0 and r2["drafts"]["failed"][0]["bill_id"] == oct_d["id"]
+    assert [v["price"] for v in r2["versions"] if v["effective_from"] == "2026-10-01"] == ["0.7000"]
