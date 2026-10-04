@@ -122,7 +122,7 @@ Read: manage or bills. Write: manage.
 | POST | `/tariffs` | `{name, price, price_mode?, effective_from}` (price: up to 4 decimals, > 0; mode default from settings) |
 | PATCH | `/tariffs/{id}` | `{name}` |
 | DELETE | `/tariffs/{id}` | – (409 `tariff_in_use` while an active account uses it) |
-| POST | `/tariffs/{id}/versions` | `{effective_from, price, price_mode}` |
+| POST | `/tariffs/{id}/versions` | `{effective_from, price, price_mode, replace_version_id?, base?, confirm?}`. A date with no version adds one (201). A date that has a version, or `replace_version_id`, is a correction: `confirm: false` returns 200 `{applied: false, plan}` and writes nothing; `confirm: true` applies it and returns the tariff plus `{applied: true, plan}`. `plan = {kind: in_place or later_only, applies_from, old, new, message_he}`: when an issued/sent/paid/void bill used the price, the old version stays and the corrected one starts at the end of the last sealed period (`later_only`); 409 `tariff_period_sealed` when a later version leaves no room, `version_exists` when the new date is another version's, `nothing_changed`, `revision_conflict` when `base` no longer matches. Audit `energy.tariff.version.correct` (old and new value). |
 | DELETE | `/tariffs/{id}/versions/{version_id}` | – (409 when an issued bill used it, or it is the only version) |
 | GET | `/vat-rates` | – → `{items: [{id, effective_from, rate_percent}], current}` |
 | POST | `/vat-rates` | `{effective_from, rate_percent}` (0-50, up to 2 decimals) |

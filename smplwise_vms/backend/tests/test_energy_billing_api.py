@@ -659,3 +659,110 @@ def test_backup_carries_billing_but_never_the_number_ledger(w):
     with w.db.connection(mode="read") as conn:
         data = backup.snapshot(conn)
     assert len(data["energy_bills"]) == 1 and "energy_bill_numbers" not in data
+
+
+# ---------------------------------------------------------------- correcting a price version
+
+def _versions(w: W, tid: str) -> list[dict]:
+    t = next(x for x in w.c.get(f"{API}/tariffs").json()["items"] if x["id"] == tid)
+    return t["versions"]
+
+
+def test_same_date_version_replaces_after_one_confirmation_and_is_audited(w):
+    s = setup_billing(w)
+    tid, vid = s["tariff"]["id"], s["tariff"]["versions"][0]["id"]
+    body = {"effective_from": "2026-01-01", "price": "0.6600", "price_mode": "inc_vat"}
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json=body)
+    assert r.status_code == 200 and r.json()["applied"] is False and r.json()["plan"]["kind"] == "in_place"
+    assert _versions(w, tid)[0]["price"] == "0.5430"  # nothing written before the confirmation
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "confirm": True, "base": {"effective_from": "2026-01-01", "price": "0.5430", "price_mode": "ex_vat"}})
+    assert r.status_code == 200 and r.json()["applied"] is True
+    vs = _versions(w, tid)
+    assert len(vs) == 1 and vs[0]["id"] == vid and vs[0]["price"] == "0.6600" and vs[0]["price_mode"] == "inc_vat"
+    with w.db.connection(mode="read") as conn:
+        row = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'energy.tariff.version.correct'").fetchone()
+    d = json.loads(row["details_json"])
+    assert row["actor_user_id"] and d["old"]["price"] == "0.5430" and d["new"]["price"] == "0.6600" and d["new"]["price_mode"] == "inc_vat"
+    # an unchanged value is not a correction, and a stale base is a conflict
+    assert w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "confirm": True}).json()["code"] == "nothing_changed"
+    stale = w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "price": "0.7", "confirm": True, "replace_version_id": vid,
+                                                            "base": {"effective_from": "2026-01-01", "price": "0.5430", "price_mode": "ex_vat"}})
+    assert stale.status_code == 409 and stale.json()["code"] == "revision_conflict"
+
+
+def test_correction_can_move_the_date_but_not_onto_another_version(w):
+    s = setup_billing(w)
+    tid = s["tariff"]["id"]
+    w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-06-01", "price": "0.7", "price_mode": "ex_vat"})
+    late = next(v for v in _versions(w, tid) if v["effective_from"] == "2026-06-01")
+    ok = w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-07-01", "price": "0.7", "price_mode": "ex_vat", "replace_version_id": late["id"], "confirm": True})
+    assert ok.status_code == 200 and sorted(v["effective_from"] for v in _versions(w, tid)) == ["2026-01-01", "2026-07-01"]
+    clash = w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-01-01", "price": "0.7", "price_mode": "ex_vat", "replace_version_id": late["id"], "confirm": True})
+    assert clash.status_code == 409 and clash.json()["code"] == "version_exists"
+
+
+def test_correcting_a_price_a_sealed_bill_used_applies_only_to_later_periods(w):
+    golden_readings(w)
+    s = setup_billing(w)
+    tid, vid = s["tariff"]["id"], s["tariff"]["versions"][0]["id"]
+    sealed = issue(w, draft(w, s["account"]["id"], SEPT).json()).json()
+    body = {"effective_from": "2026-01-01", "price": "0.6000", "price_mode": "ex_vat", "replace_version_id": vid}
+    plan = w.c.post(f"{API}/tariffs/{tid}/versions", json=body).json()["plan"]
+    assert plan["kind"] == "later_only" and plan["applies_from"] == "2026-10-01" and "החשבונות שכבר הופקו לא ישתנו" in plan["message_he"]
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "confirm": True})
+    assert r.status_code == 200 and r.json()["applied"] is True
+    vs = _versions(w, tid)
+    assert [(v["effective_from"], v["price"]) for v in vs] == [("2026-01-01", "0.5430"), ("2026-10-01", "0.6000")]
+    assert w.c.get(f"{API}/bills/{sealed['id']}").json()["snapshot_sha256"] == sealed["snapshot_sha256"]
+    # October (unbilled) uses the corrected price
+    snap = draft(w, s["account"]["id"], {"from": "2026-10-01", "to": "2026-10-01"}).json()["snapshot"]
+    assert snap["lines"][0]["price_entered"] == "0.6000"
+
+
+def test_correction_refused_when_a_later_version_leaves_no_room_after_sealed_periods(w):
+    golden_readings(w)
+    s = setup_billing(w)
+    tid, vid = s["tariff"]["id"], s["tariff"]["versions"][0]["id"]
+    w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-10-01", "price": "0.9", "price_mode": "ex_vat"})
+    issue(w, draft(w, s["account"]["id"], SEPT).json())
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-01-01", "price": "0.6", "price_mode": "ex_vat", "replace_version_id": vid, "confirm": True})
+    assert r.status_code == 409 and r.json()["code"] == "tariff_period_sealed" and _versions(w, tid)[0]["price"] == "0.5430"
+
+
+def test_correcting_a_price_needs_energy_manage(w):
+    s = setup_billing(w)
+    bind(w.c, w.settings, "op", "operator", "installation", "*")
+    r = w.c.post(f"{API}/tariffs/{s['tariff']['id']}/versions", json={"effective_from": "2026-01-01", "price": "0.7", "confirm": True}, headers=as_user("op"))
+    assert r.status_code == 403
+    assert _versions(w, s["tariff"]["id"])[0]["price"] == "0.5430"
+
+
+def test_correction_recomputes_drafts_but_never_issued_bills_and_a_failing_draft_is_reported(w, monkeypatch):
+    golden_readings(w)
+    s = setup_billing(w)
+    tid, vid = s["tariff"]["id"], s["tariff"]["versions"][0]["id"]
+    sept = issue(w, draft(w, s["account"]["id"], SEPT).json()).json()
+    oct_d = draft(w, s["account"]["id"], {"from": "2026-10-01", "to": "2026-10-01"}).json()
+    assert oct_d["snapshot"]["lines"][0]["price_entered"] == "0.5430"
+    body = {"effective_from": "2026-01-01", "price": "0.6000", "price_mode": "ex_vat", "replace_version_id": vid}
+    plan = w.c.post(f"{API}/tariffs/{tid}/versions", json=body).json()["plan"]
+    assert plan["drafts"] == 1 and "טיוטה אחת תחושב מחדש" in plan["message_he"]
+    r = w.c.post(f"{API}/tariffs/{tid}/versions", json={**body, "confirm": True}).json()
+    assert r["drafts"] == {"recomputed": 1, "failed": []}
+    fresh = w.c.get(f"{API}/bills/{oct_d['id']}").json()
+    assert fresh["snapshot"]["lines"][0]["price_entered"] == "0.6000"
+    assert w.c.get(f"{API}/bills/{sept['id']}").json()["snapshot_sha256"] == sept["snapshot_sha256"]
+    with w.db.connection(mode="read") as conn:
+        n = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'energy.bill.recalculate_after_price_correction' AND resource_id = ?", (oct_d["id"],)).fetchone()[0]
+    assert n == 1
+    # one draft failing does not roll the correction back and is reported
+    new_vid = next(v["id"] for v in r["versions"] if v["effective_from"] == "2026-10-01")
+    real = eb.compute
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(eb, "compute", boom)
+    r2 = w.c.post(f"{API}/tariffs/{tid}/versions", json={"effective_from": "2026-10-01", "price": "0.7000", "price_mode": "ex_vat", "replace_version_id": new_vid, "confirm": True}).json()
+    monkeypatch.setattr(eb, "compute", real)
+    assert r2["applied"] is True and r2["drafts"]["recomputed"] == 0 and r2["drafts"]["failed"][0]["bill_id"] == oct_d["id"]
+    assert [v["price"] for v in r2["versions"] if v["effective_from"] == "2026-10-01"] == ["0.7000"]

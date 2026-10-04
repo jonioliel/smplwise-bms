@@ -257,8 +257,11 @@ test.describe('billing settings', () => {
     await d.locator('[data-tariff-from]').fill('2026-07-01');
     await shot(page, info, 'settings-tariff-edit');
     await d.locator('[data-save]').click();
-    await expect(d.locator('.alert.err')).toContainText('תאריך התחלה זהה');
+    // the same date as an existing price is a correction: one confirmation says what changes, nothing is written before it
+    await expect(d.locator('.alert.warn')).toContainText('המחיר יוחלף');
+    await expect(d.locator('[data-save]')).toHaveText('אישור והחלפה');
     await d.locator('[data-tariff-from]').fill('2026-10-01');
+    await expect(d.locator('.alert.warn')).toHaveCount(0);
     await d.locator('[data-save]').click();
     await expect(page.locator('[data-tariff-row="t1"]')).toContainText('כולל מע״מ');
     await page.locator('[data-new-vat]').click();
@@ -273,6 +276,46 @@ test.describe('billing settings', () => {
     await expect(page.locator('[data-default-mode="inc_vat"]')).toBeChecked();
   });
 
+  test('prices: correcting a price version - same-date replace with one confirmation, per-version correction, sealed periods', async ({ page }) => {
+    await open(page, '/system/infra/prices');
+    const d = page.locator('[data-dialog="tariff"]');
+    // same date as the current price: the price is replaced after one confirmation (the history keeps one row for it)
+    await page.locator('[data-tariff-row="t1"]').click();
+    await expect(d.locator('[data-tariff-versions] .ver')).toHaveCount(3);
+    await d.locator('[data-tariff-price]').fill('0.5600');
+    await d.locator('[data-tariff-from]').fill('2026-07-01');
+    await d.locator('[data-save]').click();
+    await expect(d.locator('.alert.warn')).toContainText('0.5430');
+    await expect(d.locator('.alert.warn')).toContainText('0.5600');
+    await expect(d.locator('[data-tariff-versions] .ver').first()).toContainText('0.5430');
+    await d.locator('[data-save]').click();
+    await expect(d).toBeHidden();
+    await expect(page.locator('[data-tariff-row="t1"]')).toContainText('0.5600');
+    // a version in the history can be loaded and corrected; a price a sealed bill used keeps its old value for the issued bills
+    await page.locator('[data-tariff-row="t2"]').click();
+    await d.locator('[data-version-edit="t2v1"]').click();
+    await expect(d.locator('[data-tariff-price]')).toHaveValue('0.6353');
+    await d.locator('[data-tariff-price]').fill('0.6400');
+    await d.locator('[data-save]').click();
+    await expect(d.locator('.alert.warn')).toContainText('החשבונות שכבר הופקו לא ישתנו');
+    await expect(d.locator('.alert.warn')).toContainText('01.04.2026');
+    await d.locator('[data-save]').click();
+    await expect(d).toBeHidden();
+    await page.locator('[data-tariff-row="t2"]').click();
+    await expect(d.locator('[data-tariff-versions] .ver')).toHaveCount(3);
+    await expect(d.locator('[data-version="t2v1"]')).toContainText('0.6353');
+  });
+
+  test('prices: a correction that cannot be applied after issued bills is refused with a short reason', async ({ page }) => {
+    await open(page, '/system/infra/prices');
+    const d = page.locator('[data-dialog="tariff"]');
+    await page.locator('[data-tariff-row="t1"]').click();
+    await d.locator('[data-version-edit="t1v2"]').click();
+    await d.locator('[data-tariff-price]').fill('0.5000');
+    await d.locator('[data-save]').click();
+    await expect(d.locator('.alert.err')).toContainText('החשבונות שכבר הופקו');
+    await expect(d.locator('.alert.warn')).toHaveCount(0);
+  });
   test('business: details, brand colour picker, payment terms (days or a fixed day), automatic generation, logo, numbering', async ({ page }, info) => {
     const errs = watchErrors(page);
     await open(page, '/system/infra/business');

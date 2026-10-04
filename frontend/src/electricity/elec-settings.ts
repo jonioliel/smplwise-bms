@@ -9,7 +9,7 @@
 import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
-import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type VatRates } from '../api/electricity-billing';
+import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
@@ -33,6 +33,10 @@ export class ElecSettingsPrices extends ElecBase {
   @state() private tEdit: Tariff | null = null;
   @state() private tf = { name: '', price: '', mode: 'ex_vat' as PriceMode, from: '' };
   @state() private tErr: Record<string, string> = {};
+  /** The price version being corrected (null = a new price). */
+  @state() private tVer: TariffVersion | null = null;
+  /** The plan the server returned for a correction; shown for one confirmation. */
+  @state() private tPlan: TariffVersionPlan | null = null;
   @state() private vOpen = false;
   @state() private vf = { rate: '', from: '' };
   @state() private vErr: Record<string, string> = {};
@@ -67,8 +71,27 @@ export class ElecSettingsPrices extends ElecBase {
     this.tEdit = t;
     this.tf = t?.current ? { name: t.name, price: t.current.price, mode: t.current.price_mode, from: elecToday() } : { name: '', price: '', mode: this.settings?.default_price_mode ?? 'ex_vat', from: elecToday() };
     this.tErr = {};
+    this.tVer = null;
+    this.tPlan = null;
     this.error = '';
     this.tOpen = true;
+  }
+  /** Load one existing price version into the form so it can be corrected. */
+  private editVersion(v: TariffVersion) {
+    if (!this.tEdit) return;
+    this.tVer = v;
+    this.tPlan = null;
+    this.tErr = {};
+    this.error = '';
+    this.tf = { name: this.tEdit.name, price: v.price, mode: v.price_mode, from: v.effective_from };
+  }
+  private setTf(patch: Partial<{ name: string; price: string; mode: PriceMode; from: string }>) {
+    this.tf = { ...this.tf, ...patch };
+    this.tPlan = null;
+  }
+  private planText(p: TariffVersionPlan): string {
+    const part = (x: { price: string; price_mode: PriceMode }) => `${f4(x.price)} ₪ ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ`;
+    return `${part(p.old)} ← ${part(p.new)}. ${p.message_he}`;
   }
   private async saveTariff() {
     const f = this.tf;
@@ -82,8 +105,15 @@ export class ElecSettingsPrices extends ElecBase {
     this.error = '';
     try {
       const body = { name: f.name.trim(), price: f.price, price_mode: f.mode, effective_from: f.from };
-      if (this.tEdit) await elec().addTariffVersion(this.tEdit.id, body);
-      else await elec().createTariff(body);
+      if (this.tEdit) {
+        // a correction (or a new price on an existing date) is shown once for confirmation before anything is written
+        const r = await elec().correctTariffVersion(this.tEdit.id, body, { replaceId: this.tVer?.id ?? null, base: this.tVer, confirm: !!this.tPlan });
+        if (!r.applied && r.plan) {
+          this.tPlan = r.plan;
+          return;
+        }
+      } else await elec().createTariff(body);
+      this.tPlan = null;
       this.tOpen = false;
       this.tariffs = await elec().listTariffs();
     } catch (er) {
@@ -155,15 +185,16 @@ export class ElecSettingsPrices extends ElecBase {
       </div>
       <elec-dialog heading=${this.tEdit ? 'עריכת תעריף' : 'תעריף חדש'} ?open=${this.tOpen} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
         <div class="form">
-          <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => (this.tf = { ...this.tf, name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
-          <div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => (this.tf = { ...this.tf, price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>
-          <div class="fld"><span class="lbl">המחיר שהוזן</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => (this.tf = { ...this.tf, mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => (this.tf = { ...this.tf, mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
-          <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => (this.tf = { ...this.tf, from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
+          <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
+          <div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>
+          <div class="fld"><span class="lbl">המחיר שהוזן</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
+          <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
         </div>
         ${cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>לפני מע״מ</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>מע״מ ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
-        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver"><span class="num">${f4(v.price)} ₪</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span></div>`)}</div>` : nothing}
+        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${f4(v.price)} ₪</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label="תיקון המחיר" @click=${() => this.editVersion(v)}>תיקון</button>` : nothing}</div>`)}</div>` : nothing}
+        ${this.tPlan ? alertBox('warn', this.planText(this.tPlan)) : nothing}
         ${this.error ? alertBox('err', this.error) : nothing}
-        <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>שמירה</button>
+        <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? 'אישור והחלפה' : this.tVer ? 'שמירת תיקון' : 'שמירה'}</button>
         <button slot="actions" type="button" class="btn" @click=${() => (this.tOpen = false)}>ביטול</button>
       </elec-dialog>
       <elec-dialog heading="שיעור מע״מ חדש" ?open=${this.vOpen} data-dialog="vat" @close=${() => (this.vOpen = false)}>

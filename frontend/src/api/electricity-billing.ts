@@ -92,6 +92,20 @@ export interface TariffVersion {
   price: string;
   price_mode: PriceMode;
 }
+export interface TariffVersionBody {
+  name: string;
+  price: string;
+  price_mode: PriceMode;
+  effective_from: string;
+}
+/** What saving a corrected price does: `later_only` = sealed bills keep the old price and the new one starts at `applies_from`. */
+export interface TariffVersionPlan {
+  kind: 'in_place' | 'later_only';
+  applies_from: string;
+  old: { effective_from: string; price: string; price_mode: PriceMode };
+  new: { effective_from: string; price: string; price_mode: PriceMode };
+  message_he: string;
+}
 export interface Tariff {
   id: string;
   name: string;
@@ -480,6 +494,8 @@ export interface ElecBackend {
   listTariffs(): Promise<Tariff[]>;
   createTariff(body: { name: string; price: string; price_mode: PriceMode; effective_from: string }): Promise<Tariff>;
   addTariffVersion(id: string, body: { name: string; price: string; price_mode: PriceMode; effective_from: string }): Promise<Tariff>;
+  /** A correction of one price version (or a new price on the date of an existing one). `confirm: false` only returns the plan. */
+  correctTariffVersion(id: string, body: TariffVersionBody, opts: { replaceId: string | null; base: TariffVersion | null; confirm: boolean }): Promise<{ applied: boolean; plan: TariffVersionPlan | null }>;
   getVat(): Promise<VatRates>;
   addVat(rate_percent: string, effective_from: string): Promise<VatRates>;
   listBills(q?: BillsQuery): Promise<BillList>;
@@ -679,6 +695,18 @@ const rest: ElecBackend = {
   addTariffVersion: async (id, b) => {
     await patch(`${E}tariffs/${id}`, { name: b.name });
     return post<Tariff>(`${E}tariffs/${id}/versions`, { effective_from: b.effective_from, price: b.price, price_mode: b.price_mode });
+  },
+  correctTariffVersion: async (id, b, o) => {
+    if (o.confirm) await patch(`${E}tariffs/${id}`, { name: b.name });
+    const r = await post<{ applied?: boolean; plan?: TariffVersionPlan }>(`${E}tariffs/${id}/versions`, {
+      effective_from: b.effective_from,
+      price: b.price,
+      price_mode: b.price_mode,
+      confirm: o.confirm,
+      ...(o.replaceId ? { replace_version_id: o.replaceId } : {}),
+      ...(o.base ? { base: { effective_from: o.base.effective_from, price: o.base.price, price_mode: o.base.price_mode } } : {}),
+    });
+    return { applied: r.applied !== false, plan: r.plan ?? null };
   },
   getVat: () => get<VatRates>(`${E}vat-rates`),
   addVat: async (rate_percent, effective_from) => {

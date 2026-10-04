@@ -119,10 +119,19 @@ class TariffPatch(_Body):
     name: str = Field(min_length=1, max_length=120)
 
 
+class VersionBase(_Body):
+    effective_from: dt.date
+    price: str | int | float
+    price_mode: Literal["ex_vat", "inc_vat"]
+
+
 class VersionCreate(_Body):
     effective_from: dt.date
     price: str | int | float
     price_mode: Literal["ex_vat", "inc_vat"] | None = None
+    replace_version_id: str | None = Field(default=None, max_length=64)  # a correction of this version (the date may change)
+    base: VersionBase | None = None  # the values the editor saw; a mismatch means someone changed them meanwhile
+    confirm: bool = False
 
 
 class VatCreate(_Body):
@@ -545,15 +554,33 @@ def delete_tariff(tid: str, request: Request, principal: Principal = Depends(_ma
 
 
 @router.post("/energy/tariffs/{tid}/versions", status_code=201)
-def add_version(tid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def add_version(tid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)):
     body = _parse(request, raw, VersionCreate)
     eb.get_tariff(conn, tid)
     price = _price(body.price)
     mode = body.price_mode or eb.read_settings(conn)["default_price_mode"]
-    vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode)
-    audit(conn, actor=principal, action="energy.tariff.version.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
-          details={"version_id": vid, "effective_from": body.effective_from.isoformat()})
-    return eb.tariff_dict(conn, eb.get_tariff(conn, tid), _today(_tz(conn)))
+    today = _today(_tz(conn))
+    if body.replace_version_id:
+        target = conn.execute("SELECT * FROM energy_tariff_versions WHERE id = ? AND tariff_id = ?", (body.replace_version_id, tid)).fetchone()
+        if not target:
+            raise ApiError(404, "not_found", "גרסת המחיר לא נמצאה.")
+    else:
+        target = conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from = ?", (tid, body.effective_from.isoformat())).fetchone()
+    if not target:
+        vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode)
+        audit(conn, actor=principal, action="energy.tariff.version.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
+              details={"version_id": vid, "effective_from": body.effective_from.isoformat()})
+        return eb.tariff_dict(conn, eb.get_tariff(conn, tid), today)
+    if body.base and (body.base.effective_from.isoformat() != target["effective_from"] or px.parse_price(body.base.price) != px.Decimal(target["price"]) or body.base.price_mode != target["price_mode"]):
+        raise ApiError(409, "revision_conflict", "המחיר שונה בינתיים. יש לרענן ולנסות שוב.")
+    plan = eb.plan_version_change(conn, tid, target, body.effective_from, price, mode)
+    if not body.confirm:
+        return JSONResponse({"applied": False, "plan": plan}, status_code=200)
+    vid = eb.apply_version_change(conn, tid, principal.user_id, target, plan)
+    audit(conn, actor=principal, action="energy.tariff.version.correct", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
+          details={"version_id": vid, "corrected_version_id": target["id"], "kind": plan["kind"], "applies_from": plan["applies_from"], "old": plan["old"], "new": plan["new"]})
+    drafts = eb.recompute_drafts(conn, get_provider(conn, settings_of(request)), tid, plan, principal, _rid(request))
+    return JSONResponse({**eb.tariff_dict(conn, eb.get_tariff(conn, tid), today), "applied": True, "plan": plan, "drafts": drafts}, status_code=200)
 
 
 @router.delete("/energy/tariffs/{tid}/versions/{vid}", status_code=204)
