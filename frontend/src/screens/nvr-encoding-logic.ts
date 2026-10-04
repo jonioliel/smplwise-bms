@@ -269,11 +269,11 @@ export const keptNotes = (it: PlanItem): { label: string; why: string }[] =>
 
 export type PreviewTab = 'change' | 'skip' | 'unchanged';
 
-/** The preview's numbers in one line: "ישתנו 12 זרמים · 3 ידלגו · 2 ללא שינוי". */
+/** The preview's numbers in one line: "ישתנו 12 זרמים · לא ניתן: 3 זרמים · כבר מוגדרים: 2 זרמים". */
 export function previewSummary(p: EncodingPreview): string {
   const n = p.counts;
   const streams = (k: number) => (k === 1 ? 'זרם אחד' : `${k} זרמים`);
-  return [n.change ? `ישתנו ${streams(n.change)}` : 'אין מה לשנות', n.skip ? `${streams(n.skip)} לא ישתנו (לא ניתן)` : '', n.unchanged ? `${streams(n.unchanged)} כבר מוגדרים כך` : '']
+  return [n.change ? `ישתנו ${streams(n.change)}` : 'אין מה לשנות', n.skip ? `לא ניתן: ${streams(n.skip)}` : '', n.unchanged ? `כבר מוגדרים: ${streams(n.unchanged)}` : '']
     .filter(Boolean)
     .join(' · ');
 }

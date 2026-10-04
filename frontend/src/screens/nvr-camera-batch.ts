@@ -363,7 +363,7 @@ export class NvrCameraBatch extends LitElement {
 
   /** CR-020 phase D: a bulk encoding batch the encoding dialog just started - followed here exactly like an SVC batch (progress, "עצור", result,
    * undo-all). A batch that already finished by the first read is a live completion (the toast). */
-  async follow(b: Batch) {
+  async followBatch(b: Batch) {
     this.line = '';
     this.phase = 'progress';
     try {

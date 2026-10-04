@@ -771,7 +771,7 @@ export class SystemSecurityCameras extends LitElement {
       ${this.select('SVC', 'svc', [['', 'כל ה־SVC'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
       ${this.select('WebRTC', 'webrtc', [['', 'כל ה־WebRTC'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
       ${filtersActive(f) ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => (this.filters = { ...NO_FILTERS })}>נקה</sw-button>` : nothing}
-      ${this.data?.can_batch === true && !this.data.stale
+      ${this.data?.can_write && this.data.can_batch === true && !this.data.stale
         ? html`<sw-button size="sm" data-nvr-encoding-open ?disabled=${this.batchRunning} title=${this.batchRunning ? BATCH_BUSY : ''} @click=${() => this.openEncoding()}>שינוי קידוד לכמה מצלמות</sw-button>`
         : nothing}
       <sw-button size="sm" icon="refresh" data-nvr-refresh ?disabled=${this.loading} @click=${() => void this.load()}>רענון</sw-button>
@@ -865,7 +865,7 @@ export class SystemSecurityCameras extends LitElement {
       @encoding-open=${() => this.openEncoding()}></nvr-camera-batch>
       ${d.can_batch === true
         ? html`<nvr-encoding-batch .rows=${encodingStreams(d.cameras, this.details, d.stale)} .details=${this.details}
-            @encoding-started=${(e: CustomEvent<{ batch: Batch }>) => void this.batchEl()?.follow(e.detail.batch)}></nvr-encoding-batch>`
+            @encoding-started=${(e: CustomEvent<{ batch: Batch }>) => void this.batchEl()?.followBatch(e.detail.batch)}></nvr-encoding-batch>`
         : nothing}`;
   }
 
