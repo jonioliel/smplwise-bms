@@ -603,7 +603,8 @@ def parse_alarm_server(xml: str | bytes, raw_address: bool = False) -> dict[str,
         raise ET.ParseError("not an alarm server document")
     address = text(srv, "serverAddr", cap=255)
     out: dict[str, Any] = {"configured": bool(address), "port": to_int(text(srv, "serverPort")),
-                           "heartbeat": to_bool(text(srv, "enableHeartbeat")), "heartbeat_s": to_int(text(srv, "heartbeatInterval"))}
+                           "heartbeat": to_bool(text(srv, "enableHeartbeat")), "heartbeat_s": to_int(text(srv, "heartbeatInterval")),
+                           "fields": sorted(_local(c.tag) for c in srv), "has_url": child(srv, "url") is not None}
     if raw_address:
         out["address"] = address
     return out
@@ -612,8 +613,26 @@ def parse_alarm_server(xml: str | bytes, raw_address: bool = False) -> dict[str,
 _HOST = re.compile(r"^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)$")
 
 
-def alarm_server_document(server: str, port: int, heartbeat_s: int) -> str:
-    """SetAlarmServerConfig body (guide 5.3.3: the whole alarmServer element, no attributes). Values validated."""
+def alarm_server_document(server: str, port: int, heartbeat_s: int, *, path: str | None = None, fields: set[str] | None = None) -> str:
+    """SetAlarmServerConfig body (guide 5.3.3: the whole alarmServer element, no attributes). Values validated. `fields` = the
+    elements the device's own GetAlarmServerConfig carried (the owner's NVR: serverAddr + serverPort only) - nothing else is
+    sent; `path` goes into `url` only when the device has that element."""
+    if fields is not None:
+        if not isinstance(server, str) or not _HOST.match(server) or len(server) > 253:
+            raise ValueError("server")
+        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            raise ValueError("port")
+        if path is not None and not re.fullmatch(r"/[A-Za-z0-9/_-]{1,96}", path):
+            raise ValueError("path")
+        parts = [f"<serverAddr><![CDATA[{server}]]></serverAddr>", f"<serverPort>{port}</serverPort>"]
+        if "url" in fields and path:
+            parts.append(f"<url><![CDATA[{path}]]></url>")
+        if "enableHeartbeat" in fields:
+            parts.append("<enableHeartbeat>true</enableHeartbeat>")
+        if "heartbeatInterval" in fields and 10 <= int(heartbeat_s) <= 1800:
+            parts.append(f"<heartbeatInterval>{int(heartbeat_s)}</heartbeatInterval>")
+        return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10"><alarmServer>'
+                + "".join(parts) + "</alarmServer></config>")
     if not isinstance(server, str) or not _HOST.match(server) or len(server) > 253:
         raise ValueError("server")
     if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:

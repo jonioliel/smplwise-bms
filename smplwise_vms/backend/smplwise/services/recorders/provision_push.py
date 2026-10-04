@@ -8,7 +8,13 @@ and its path is fixed, so the listener authenticates by SOURCE ADDRESS: only the
 answered, everything else gets 403 and is counted (never logged with its body).
 
 `PushReceiver` is per recorder (pure: bytes in, `ParsedAlert` edges out, heartbeat watchdog); `PushListener` is the small
-threaded HTTP server that routes by source address. The listener is not started by the add-on yet - the per-recorder
+threaded HTTP server. Routing / authentication (add-on side, 2026-10-04):
+- **path token** (default): the device posts to `/<token>/SendAlarmStatus` (or `/<token>` / `/<token>/<anything>`), the token
+  is the recorder's own secret (`push_token`, derived from the installation key - never stored, never logged). A wrong or
+  missing token is 403. A device whose alarm-server form has a URL / path field (v2 firmware, `url` on NVRs) uses this;
+- **source address** (`push_auth: address`): for firmware that can only set address + port (the owner's NVR, firmware 1.4.7,
+  answers GetAlarmServerConfig with serverAddr / serverPort only) - the recorder's resolved address is the credential;
+- both can be required together (`push_auth: token_and_address`). The listener is not started by the add-on yet - the per-recorder
 event loop of CR-024 starts it for recorders whose `event_mode` is `push` (hook, CR-025 section 5)."""
 from __future__ import annotations
 
@@ -79,8 +85,10 @@ class PushReceiver:
 
 
 class PushListener:
-    def __init__(self, sources: dict[str, PushReceiver], sink: Callable[[str, list[ParsedAlert]], None], *, host: str = "0.0.0.0", port: int = 0) -> None:
-        self.sources = dict(sources)  # source address -> receiver
+    def __init__(self, sources: dict[str, PushReceiver], sink: Callable[[str, list[ParsedAlert]], None], *, host: str = "0.0.0.0", port: int = 0,
+                 tokens: dict[str, tuple[PushReceiver, str | None]] | None = None) -> None:
+        self.sources = dict(sources)  # source address -> receiver (address-authenticated recorders)
+        self.tokens = dict(tokens or {})  # path token -> (receiver, required source address or None)
         self.sink = sink
         self.refused = 0
         listener = self
@@ -100,13 +108,12 @@ class PushListener:
                 self._answer(405)
 
             def do_POST(self) -> None:  # noqa: N802
-                receiver = listener.sources.get(self.client_address[0])
+                receiver, path = listener.route(self.client_address[0], self.path.split("?", 1)[0])
                 if receiver is None:
                     listener.refused += 1
                     self.close_connection = True
                     self._answer(403)
                     return
-                path = self.path.split("?", 1)[0]
                 length = self.headers.get("Content-Length", "")
                 if path not in PATHS or not length.isdigit():
                     self._answer(404 if path not in PATHS else 411)
@@ -128,6 +135,20 @@ class PushListener:
         self._server = ThreadingHTTPServer((host, port), Handler)
         self._server.daemon_threads = True
         self._thread: threading.Thread | None = None
+
+    def route(self, source: str, raw_path: str) -> tuple[PushReceiver | None, str]:
+        """(receiver, the device path without the token) or (None, path) when the push is not authenticated."""
+        parts = [p for p in raw_path.split("/") if p]
+        if parts:
+            hit = self.tokens.get(parts[0])
+            if hit is not None:
+                receiver, need_source = hit
+                if need_source is not None and need_source != source:
+                    return None, raw_path
+                rest = "/" + "/".join(parts[1:])
+                return receiver, rest if rest != "/" else "/SendAlarmStatus"
+        receiver = self.sources.get(source)
+        return receiver, raw_path
 
     @property
     def port(self) -> int:
