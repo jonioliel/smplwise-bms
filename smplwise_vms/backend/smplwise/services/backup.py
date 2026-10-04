@@ -22,16 +22,17 @@ log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
 PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies", "device_bulk_protected", "device_switch_classified"]
-# CR-023: the electricity tables (meters; the billing branch appends its own in services/energy_backup.MAIN_TABLES)
-from .energy_backup import MAIN_TABLES as _ENERGY_TABLES  # noqa: E402
+# CR-023: every electricity table (meters and billing) is listed ONCE, in services/energy_backup (MAIN_TABLES,
+# KEEP_WHEN_ABSENT, FILE_COLUMNS); the restore allow-list below is built from these lists.
+from . import energy_backup as _energy_backup  # noqa: E402
 
-PROJECT_TABLES = PROJECT_TABLES + [t for t in _ENERGY_TABLES if t not in PROJECT_TABLES]
+PROJECT_TABLES = PROJECT_TABLES + [t for t in _energy_backup.MAIN_TABLES if t not in PROJECT_TABLES]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified"})
+KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified"}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
-FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"]}
+FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",

@@ -1,6 +1,7 @@
 """CR-023: what the electricity module adds to the project backup (contract section 7).
 
-- The main-DB tables in MAIN_TABLES join `backup.PROJECT_TABLES` (the billing branch appends its tables here, in one place).
+- The main-DB tables in MAIN_TABLES (meters and billing, one list) join `backup.PROJECT_TABLES`; KEEP_WHEN_ABSENT and
+  FILE_COLUMNS are merged into backup's lists the same way.
 - Every archive carries `energy/daily.json` (the daily totals keyed by meter id; small, kept as long as bills), so a
   restore without the time-series still shows history and the bill chart.
 - With the setting `energy.include_history_in_backup` (default off: the file can be hundreds of MB) the archive also
@@ -22,7 +23,16 @@ from . import energy_store as st
 
 log = logging.getLogger("smplwise.energy")
 
-MAIN_TABLES = ["energy_meters", "energy_meter_epochs"]
+# The ONE list of electricity tables in the main DB that join the project backup (meters + billing). energy_bill_numbers stays
+# OUT on purpose: the ledger of used bill numbers is never restored or emptied, so a restore can never make a number reusable.
+MAIN_TABLES = ["energy_meters", "energy_meter_epochs",
+               "energy_customers", "energy_tariffs", "energy_tariff_versions", "energy_vat_rates", "energy_accounts", "energy_account_meters",
+               "energy_bills", "energy_bill_events", "energy_auto_runs", "energy_assets"]
+# Issued bills are financial records and accounts reference meters by id: a `replace` restore of an archive written before the
+# electricity module existed keeps the current rows instead of emptying them.
+KEEP_WHEN_ABSENT = frozenset(MAIN_TABLES)
+# Stored bill PDFs and business logos travel as files in the archive.
+FILE_COLUMNS = {"energy_bills": ["pdf_path"], "energy_assets": ["storage_path"]}
 DAILY_MEMBER = "energy/daily.json"
 DB_MEMBER = "energy/energy.db"
 MAX_DB_BYTES = 4 * 1024 * 1024 * 1024

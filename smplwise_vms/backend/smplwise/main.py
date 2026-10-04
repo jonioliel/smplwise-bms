@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones
 
 log = logging.getLogger("smplwise")
 
@@ -67,6 +67,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         media_store.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("media janitor failed", exc_info=True)
+    try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)
+        from .services import energy_billing
+
+        energy_billing.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("energy billing janitor failed", exc_info=True)
     try:  # a standalone HA camera shown live: drop the opt-in of a camera that is gone, delete go2rtc streams nobody wants (throttled)
         from .services import ha_camera_streams
 
@@ -235,6 +241,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(storage.router, prefix=api, tags=["storage"])
     app.include_router(rules.router, prefix=api, tags=["rules"])
     app.include_router(push.router, prefix=api, tags=["push"])
+    app.include_router(energy_billing.router, prefix=api, tags=["energy"])  # CR-023 P2: electricity billing - customers, accounts, prices, bills
     app.include_router(notifications.router, prefix=api, tags=["notifications"])  # CR-018: התראות - the inbox, the push action endpoint, administration (notify.manage)
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
