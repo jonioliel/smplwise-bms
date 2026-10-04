@@ -1059,7 +1059,7 @@ export const elecCss = css`
     flex: 1;
     inline-size: auto;
     min-inline-size: 0;
-    min-block-size: max(36px, calc(var(--elec-touch) - 2px));
+    min-block-size: max(36px, var(--elec-touch)); /* the control itself is the hit target (44 px in touch layouts) */
     padding: 0;
     border: 0;
     border-radius: 0;
