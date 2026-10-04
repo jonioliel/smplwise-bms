@@ -42,14 +42,17 @@ SETTING_KEY = "recorder_health.thresholds"
 THRESHOLDS: dict[str, tuple[int, int, int]] = {
     "interval_s": (60, 30, 900),           # how often each recorder is read (6 reads per Provision recorder per pass)
     "latency_ms": (1500, 200, 10000),      # an answer slower than this is "slow" (clear below 70 % of it)
-    "recording_gap_min": (30, 5, 1440),    # a connected camera that has not recorded this long (continuous mode)
+    "recording_gap_min": (30, 5, 1440),    # a connected camera of a continuous-recording recorder that has not recorded this long
     "clock_drift_s": (60, 5, 3600),        # device clock off the host's by more than this (clear below half of it)
-    "disk_fill_days": (3, 0, 60),          # the disks will be full within this many days at the current rate (0 = off)
+    # owner 2026-10-05: off by default - an NVR that overwrites its oldest recordings is full all the time
+    "disk_fill_days": (0, 0, 60),          # the disks will be full within this many days at the current rate (0 = off)
     "cert_days": (30, 1, 365),             # the pinned certificate expires within this many days
     "recover_s": (120, 0, 3600),           # a condition must stay clear this long before its notification is resolved
 }
-RECORDING_MODES = ("continuous", "exceptions")  # continuous: every connected camera should record; exceptions: device-reported only
-DEFAULT_RECORDING_MODE = "continuous"
+# owner 2026-10-05: by default only the recording faults the recorder itself reports ("exception") are alerts; the expectation that
+# every connected camera records all the time is a per-recorder choice, off by default (many units record on motion only)
+CONTINUOUS_KEY = "continuous_recorders"
+CONTINUOUS_MAX = 64
 
 SOURCES = ("recorder.unreachable", "recorder.slow", "recorder.disk", "recorder.disk_space", "recorder.recording", "recorder.clock", "recorder.certificate")
 DETAIL_SOURCES = SOURCES[2:]
@@ -81,7 +84,18 @@ def error_text(code: str | None) -> str:
 # ---------------------------------------------------------------- thresholds (Settings)
 
 def thresholds_defaults() -> dict[str, Any]:
-    return {**{k: v[0] for k, v in THRESHOLDS.items()}, "recording_mode": DEFAULT_RECORDING_MODE}
+    return {**{k: v[0] for k, v in THRESHOLDS.items()}, CONTINUOUS_KEY: []}
+
+
+def continuous(th: dict[str, Any], recorder_id: str) -> bool:
+    """Whether every connected, enabled camera of this recorder is expected to record all the time."""
+    return recorder_id in (th.get(CONTINUOUS_KEY) or ())
+
+
+def _valid_ids(v: Any) -> bool:
+    from ..recorder_scope import valid_id
+
+    return isinstance(v, list) and len(v) <= CONTINUOUS_MAX and all(valid_id(x) for x in v)
 
 
 def thresholds(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -96,8 +110,8 @@ def thresholds(conn: sqlite3.Connection) -> dict[str, Any]:
             v = stored.get(k)
             if isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi:
                 out[k] = v
-        if stored.get("recording_mode") in RECORDING_MODES:
-            out["recording_mode"] = stored["recording_mode"]
+        if _valid_ids(stored.get(CONTINUOUS_KEY)):
+            out[CONTINUOUS_KEY] = sorted(set(stored[CONTINUOUS_KEY]))
     return out
 
 
@@ -107,10 +121,10 @@ def validate(body: Any) -> dict[str, Any]:
         raise ApiError(422, "validation", "ערכים לא תקינים.")
     out: dict[str, Any] = {}
     for k, v in body.items():
-        if k == "recording_mode":
-            if v not in RECORDING_MODES:
-                raise ApiError(422, "validation", "מצב הקלטה לא מוכר.", details={"field": k})
-            out[k] = v
+        if k == CONTINUOUS_KEY:
+            if not _valid_ids(v):
+                raise ApiError(422, "validation", "רשימת מקליטים לא תקינה.", details={"field": k})
+            out[k] = sorted(set(v))
             continue
         spec = THRESHOLDS.get(k)
         if spec is None:
@@ -321,7 +335,7 @@ def evaluate(state: RecState, th: dict[str, Any], now_ts: float, cameras: dict[i
             if c.connected is not False:  # a disconnected camera is `camera.offline`, not a recording fault
                 if c.record_state == "exception":
                     stopped = True
-                elif th["recording_mode"] == "continuous" and c.record_state == "idle":
+                elif continuous(th, rid) and c.record_state == "idle":
                     stopped = now_ts - state.idle_since.get(c.channel, now_ts) >= gap
             cname = _camera_name(cam, c.channel)
             detail = "תקלת הקלטה" if c.record_state == "exception" else f"לא מקליט יותר מ־{th['recording_gap_min']} דקות"
@@ -588,13 +602,13 @@ def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[i
                 nm = _camera_name(cams.get(c.channel), c.channel)
                 if c.record_state == "exception":
                     exception.append({"channel": c.channel, "name": nm})
-                elif c.record_state == "idle" and th["recording_mode"] == "continuous" and now_ts - st.idle_since.get(c.channel, now_ts) >= th["recording_gap_min"] * 60:
+                elif c.record_state == "idle" and continuous(th, st.recorder_id) and now_ts - st.idle_since.get(c.channel, now_ts) >= th["recording_gap_min"] * 60:
                     stopped.append({"channel": c.channel, "name": nm, "since": _iso(st.idle_since.get(c.channel))})
             rec_n = sum(1 for c in watched if c.record_state == "recording")
             reported = [c for c in watched if c.record_state is not None and c.connected is not False]
             recording_ok = not stopped and not exception
             recording = _section("error" if exception else "warn" if stopped else "ok" if reported else "unknown", recording=rec_n, watched=len(reported),
-                                 stopped=stopped, exception=exception, mode=th["recording_mode"])
+                                 stopped=stopped, exception=exception, continuous=continuous(th, st.recorder_id))
             down = [{"channel": c.channel, "name": _camera_name(cams.get(c.channel), c.channel)} for c in watched if c.connected is False]
             known = [c for c in watched if c.connected is not None]
             channels = _section("warn" if down else "ok" if known else "unknown", total=len(known), connected=sum(1 for c in known if c.connected), disconnected=down)

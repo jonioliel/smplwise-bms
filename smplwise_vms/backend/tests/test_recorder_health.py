@@ -116,10 +116,28 @@ def test_fill_projection_needs_six_hours_and_a_shrinking_disk():
 
 
 def test_thresholds_validate_and_fall_back_to_defaults():
-    assert rh.validate({"clock_drift_s": 30, "recording_mode": "exceptions"}) == {"clock_drift_s": 30, "recording_mode": "exceptions"}
-    for bad in ({"clock_drift_s": 1}, {"clock_drift_s": True}, {"nope": 1}, {"recording_mode": "x"}):
+    assert rh.validate({"clock_drift_s": 30, "continuous_recorders": ["nvr-2", "nvr-1", "nvr-2"]}) == {"clock_drift_s": 30, "continuous_recorders": ["nvr-1", "nvr-2"]}
+    for bad in ({"clock_drift_s": 1}, {"clock_drift_s": True}, {"nope": 1}, {"continuous_recorders": "nvr-1"}, {"continuous_recorders": ["ha_x"]},
+                {"continuous_recorders": [""]}, {"recording_mode": "continuous"}):
         with pytest.raises(Exception):
             rh.validate(bad)
+    d = rh.thresholds_defaults()
+    assert d["disk_fill_days"] == 0 and d["continuous_recorders"] == [], "owner 2026-10-05: both off by default"
+
+
+def test_disk_fill_forecast_is_off_by_default_and_works_when_set(w, settings, fake):
+    st = rh.state_of("nvr-1")
+    st.name, st.detail_supported = "מקליט ראשי", True
+    t0 = w.clock.now.timestamp()
+    for i in range(13):  # 12 hours, 100 MB an hour less: the last 800 MB last about 8 hours
+        st.samples.append((t0 - (12 - i) * 3600, 2000 - i * 100, 4000))
+    fake.disks = [(4000, 800, "read/write")]
+    for _ in range(3):
+        step(w, settings, fake, seconds=1)
+    assert w.rows("recorder.disk_space") == []
+    assert w.c.put(f"{API}/recorder-health/settings", json={"disk_fill_days": 10}).status_code == 200
+    step(w, settings, fake, seconds=1)
+    assert "ימים" in w.one("recorder.disk_space")["body"]
 
 
 # ---------------------------------------------------------------- notifications (World: the real app, database and notification core)
@@ -179,7 +197,9 @@ def test_disk_full_with_recording_continuing_is_not_a_fault(w, settings, fake):
     assert disks["full"] is True and disks["state"] == "ok"
 
 
-def test_recording_stopped_after_the_gap_and_back(w, settings, fake):
+def test_recording_stopped_after_the_gap_and_back_for_a_continuous_recorder(w, settings, fake):
+    r = w.c.put(f"{API}/recorder-health/settings", json={"continuous_recorders": ["nvr-1"]})
+    assert r.status_code == 200 and r.json()["values"]["continuous_recorders"] == ["nvr-1"], r.text
     fake.record = {1: "norecording"}
     step(w, settings, fake)
     step(w, settings, fake, minutes=20)
@@ -195,9 +215,9 @@ def test_recording_stopped_after_the_gap_and_back(w, settings, fake):
     assert w.one("recorder.recording")["state"] == "resolved"
 
 
-def test_recording_exception_counts_at_once_and_exceptions_mode_ignores_idle(w, settings, fake):
-    r = w.c.put(f"{API}/recorder-health/settings", json={"recording_mode": "exceptions"})
-    assert r.status_code == 200, r.text
+def test_by_default_only_device_reported_recording_faults_alert(w, settings, fake):
+    """Owner 2026-10-05: a camera that records on motion only is idle most of the time - no alert unless its recorder is marked
+    continuous; a recording exception the device reports alerts at once."""
     fake.record = {1: "norecording"}
     step(w, settings, fake)
     step(w, settings, fake, minutes=45)

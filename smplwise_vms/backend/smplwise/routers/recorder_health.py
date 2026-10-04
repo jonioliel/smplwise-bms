@@ -49,7 +49,7 @@ def check(request: Request, principal: Principal = Depends(current_principal), c
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-026: the recorder health thresholds with their defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
-    return {"values": rh.thresholds(conn), "ranges": rh.ranges(), "recording_modes": list(rh.RECORDING_MODES)}
+    return {"values": rh.thresholds(conn), "ranges": rh.ranges()}
 
 
 @router.put("/recorder-health/settings")
@@ -61,4 +61,4 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: 
     values = rh.save_thresholds(conn, changes)
     audit(conn, actor=principal, action="recorder_health.settings", decision="allowed", resource_type="settings", resource_id=rh.SETTING_KEY,
           request_id=getattr(request.state, "correlation_id", None), details={"changed": sorted(changes)})
-    return {"values": values, "ranges": rh.ranges(), "recording_modes": list(rh.RECORDING_MODES)}
+    return {"values": values, "ranges": rh.ranges()}
