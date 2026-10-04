@@ -284,6 +284,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import recorders as recorders_router
 
     app.include_router(recorders_router.router, prefix=api, tags=["nvr"])  # CR-024: recorders (multi-NVR) - list, add, edit, remove, connection, health
+    from .routers import recorder_health as recorder_health_router
+
+    app.include_router(recorder_health_router.router, prefix=api, tags=["nvr"])  # CR-026: recorder health cards and thresholds
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
@@ -390,6 +393,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         notify_sources.start(app.state.db, settings)  # CR-018 S2: the source monitors (health, faults, sensors) and the writer of queued signals
+        if not ha_only:
+            from .services import recorder_health
+
+            recorder_health.POLLER.start(app.state.db, settings)  # CR-026: read-only health reads of every recorder (default once a minute)
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
 
         async def loop() -> None:
@@ -444,6 +451,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         await _in_thread(notify_sources.shutdown)
+        from .services import recorder_health
+
+        await _in_thread(recorder_health.POLLER.shutdown)
         await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 

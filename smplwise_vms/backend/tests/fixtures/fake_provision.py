@@ -59,6 +59,11 @@ class FakeProvision:
         self.set_after: str | None = None
         self.set_bodies: list[str] = []
         self.alarm_server = {"addr": "", "port": 8010, "heartbeat": False, "interval": 30}
+        # CR-026 health scenarios (None = the guide-shaped default answer): disks [(total_mb, free_mb, status)], record state per
+        # channel {ch: "recording" | "norecording" | "exception"}, the device wall clock "YYYY-MM-DD HH:MM:SS"
+        self.disks: list[tuple[int, int, str]] | None = None
+        self.record: dict[int, str] | None = None
+        self.clock: str | None = None
         self.alarm_server_url = False  # True: the device form has a url element (path token possible)
         self.set_alarm_bodies: list[str] = []
         # "doc": the guide / Postman shapes. "live": what the owner's NVR (NVR8-16400AN, firmware 1.4.7) answered on
@@ -302,6 +307,11 @@ class FakeProvision:
         return httpx.Response(200, content=JPEG, headers={"Content-Type": "application/octet-stream", "Connection": "close"}, request=request)
 
     def _GetDiskInfo(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.disks is not None:
+            items = "".join(f"""<item><id type="string"><![CDATA[{{00000000-0000-0000-0000-00000000000{i}}}]]></id>
+<totalSpace type="uint32">{t}</totalSpace><freeSpace type="uint32">{f}</freeSpace><diskStatus type="diskStatus">{s}</diskStatus></item>"""
+                            for i, (t, f, s) in enumerate(self.disks, 1))
+            return self._xml(request, _doc(f'<diskInfo type="list" count="{len(self.disks)}">{items}</diskInfo>', "1.0"))
         return self._xml(request, _doc("""<types><diskStatus><enum>read</enum><enum>read/write</enum><enum>unformat</enum></diskStatus></types>
 <diskInfo type="list" count="1"><item>
 <id type="string"><![CDATA[{00000000-0000-0000-0000-000000000001}]]></id>
@@ -309,6 +319,10 @@ class FakeProvision:
 <diskStatus type="diskStatus">read/write</diskStatus></item></diskInfo>""", "1.0"))
 
     def _GetRecordStatusInfo(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.record is not None:
+            items = "".join(f'<item id="{c}" streamType="{"main" if st == "recording" else ""}" recordTypes="{"manual" if st == "recording" else ""}">{st}</item>'
+                            for c, st in self.record.items())
+            return self._xml(request, _doc(f'<recordStatusList type="list" count="{len(self.record)}">{items}</recordStatusList>', "1.0"))
         if self.shape == "live":
             return self._xml(request, _doc("""<types><recordStatusType><enum>no recording</enum><enum>recording</enum><enum>exception</enum></recordStatusType></types>
 <recordStatusList type="list" count="3"><itemType type="recordStatusType" maxLen="20"></itemType>
@@ -329,7 +343,7 @@ class FakeProvision:
         return self._xml(request, _doc("""<time><timeFormatMode type="timeFormatModeType">24h</timeFormatMode>
 <timezoneInfo><timeZone type="string" maxLen="127"><![CDATA[IST-2IDT,M3.4.4/26,M10.5.0]]></timeZone><daylightSwitch type="uint32">1</daylightSwitch></timezoneInfo>
 <synchronizeInfo><type type="synchronizeType">NTP</type><ntpServer type="string" maxLen="127"><![CDATA[pool.ntp.org]]></ntpServer>
-<ntpSyncInterval type="uint32" min="30" max="10080">1440</ntpSyncInterval><currentTime type="string"><![CDATA[2026-10-04 12:00:00]]></currentTime></synchronizeInfo></time>"""))
+<ntpSyncInterval type="uint32" min="30" max="10080">1440</ntpSyncInterval><currentTime type="string"><![CDATA[""" + (self.clock or "2026-10-04 12:00:00") + """]]></currentTime></synchronizeInfo></time>"""))
 
     def _status_xml(self, alarms: dict[tuple[str, int | None], bool]) -> str:
         parts: list[str] = []
