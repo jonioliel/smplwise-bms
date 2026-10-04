@@ -6,7 +6,7 @@ import './sw-badge';
 import { describeError } from '../api/client';
 import { MA_STATE_LABEL, players, type MaConnection, type MaState, type MaTest } from '../api/media-players';
 
-const BADGE: Record<MaState, string> = { off: 'neutral', ready: 'live', unreachable: 'error', unauthorized: 'error', schema_too_old: 'error', error: 'error' };
+const BADGE: Record<MaState, string> = { off: 'neutral', ready: 'live', unreachable: 'error', unauthorized: 'error', schema_too_old: 'error', error: 'error', unreadable: 'error', host_refused: 'error' };
 
 /**
  * CR-016 phase 2b (docs/changes/CR-016-MEDIA-PLAYERS.md section 17.3 / 17.8): הגדרות › מולטימדיה › חיבור - the direct Music Assistant connection, for the

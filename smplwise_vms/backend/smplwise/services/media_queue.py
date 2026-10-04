@@ -287,7 +287,7 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
             ma.note_done(principal.user_id, crid, 200, answer)
             return 200, answer
         _audit(conn, principal, request_id, item.key, op, "denied", "ma_unavailable", state=exc.state, **({"count": done} if partial else {}))
-        raise _err(503, *UNAVAILABLE, state=exc.state, **partial) from None
+        raise _err(503, UNAVAILABLE[0], ma.refusal_message(exc.state), state=exc.state, **partial) from None
     ma.forget_queue(pid)
     if limited:
         answer = {"status": "refused", "op": op, "error": None, "done": done}
@@ -329,7 +329,7 @@ def _search_items(conn: sqlite3.Connection, media_type: str, q: str) -> list[dic
     try:
         raw = ma.search(conn, media_type, q, BROWSE_PAGE)
     except ma.MaError as exc:
-        raise _err(503, "search_unavailable", "החיפוש אינו זמין כרגע.", state=exc.state) from None
+        raise _err(503, "search_unavailable", ma.refusal_message(exc.state).replace("התור המלא", "החיפוש"), state=exc.state) from None
     items = [i for i in raw if i["media_type"] == media_type and profiles.ma_uri_problem(i["uri"]) is None]
     _SEARCH[key] = (media_query.MONO(), items)
     if len(_SEARCH) > 200:

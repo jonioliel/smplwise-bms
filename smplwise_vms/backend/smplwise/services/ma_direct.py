@@ -8,17 +8,28 @@ circuit (nothing is sent while it is open); a write is NEVER retried.
 
 Rules this module keeps:
 - A fixed command allow-list (`COMMANDS`): anything else raises `CommandRefused` before a byte is sent.
-- The token is write-only: a 0600 file `<data>/secrets/music_assistant_token`, never returned, logged, audited or backed up. The server address is
-  the setting `multimedia.ma_direct` (`system.configure` only, excluded from backups) and is never written to a log line or an audit row.
+- The token is write-only and encrypted at rest (CR-016 section 18): AES-256-GCM through the NVR connection's key file and `v1:` format
+  (services/connection_store, associated data `music_assistant|default|token`), stored as `token_enc` inside the setting `multimedia.ma_direct`
+  (excluded from backups; the key folder never enters a backup). It is never returned, logged or audited; the plaintext exists only inside one
+  outgoing call. A token that no longer decrypts (key lost) is the state `unreadable`: direct features off until it is entered again. A plain
+  `<data>/secrets/music_assistant_token` file of an older version is imported once at start-up (`migrate_legacy_token`) and then removed. The server
+  address is the same setting (`system.configure` only) and is never written to a log line or an audit row.
+- The address is checked (`check_address`): http(s) only, no user-info, a private LAN address (10/8, 172.16/12, 192.168/16, fc00::/7) after the NVR
+  connection's source policy (no loopback, link-local, metadata, the platform's internal network, this host). The name is resolved once and the call
+  goes to the checked address (Host header and SNI keep the name), re-checked at most every minute; no redirects.
+- Every call has ONE hard wall-clock budget (`BUDGET_S`, also for the name lookup and the schema gate): every socket read and write waits at most
+  the time left.
 - Every player id sent is derived on the server from an approved device's MA entity (`unique_id`); a queue id comes from MA's own answer; a queue
   item is named by the browser only through an opaque `item` issued to that user for that device (10 minutes).
 - Errors carry a state (`unreachable`, `unauthorized`, `schema_too_old`, `error`) and at most MA's numeric error code - never a text (an MA error text
   may carry provider details or an address)."""
 from __future__ import annotations
 
+import contextvars
 import datetime as dt
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -28,25 +39,46 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 import httpx
 
+from ..audit import audit
 from ..db import get_setting, now_iso, set_setting
 from ..errors import ApiError
+from . import connection_probe, connection_store
+from .connection_store import SecretError
 
 log = logging.getLogger("smplwise.media")
 
 CONFIG_KEY = "multimedia.ma_direct"
 SECRET_NAME = "music_assistant_token"
 MIN_SCHEMA_VERSION = 27  # the lowest schema the commands below are documented for (UNVERIFIED on the owner's server: raise once his number is known)
-TIMEOUT_S = 8.0
+TIMEOUT_S = 8.0  # kept for readers of older notes; the hard limit is BUDGET_S
+BUDGET_S = 10.0  # ONE wall-clock budget for a whole call: schema gate + command (every socket read and write is bounded by what is left)
+CONNECT_S = 3.0
+RESOLVE_BUDGET_S = 4.0  # the name lookup of an address check (this host's name and the typed name, each at most 2 s)
+PIN_S = 60.0  # a checked address is reused this long, then the name is resolved and checked again
+LAN_NETWORKS = (ipaddress.ip_network("10.0.0.0/8"), ipaddress.ip_network("172.16.0.0/12"), ipaddress.ip_network("192.168.0.0/16"), ipaddress.ip_network("fc00::/7"))
+REFUSED_PORTS = connection_probe.REFUSED_PORTS | {8094}  # the platform's own ports and MA's Ingress port (it trusts Home Assistant user headers)
 CIRCUIT_S = 30.0  # after `unreachable` / `error` nothing is sent for this long
 TOKEN_WARN_DAYS = 330  # MA long-lived tokens live 365 days without renewal
 ANSWER_MAX = 2_000_000
 TOKEN_MAX = 4096
-STATES = ("off", "ready", "unreachable", "unauthorized", "schema_too_old", "error")
+STATES = ("off", "ready", "unreachable", "unauthorized", "schema_too_old", "error", "unreadable", "host_refused")
+# one clear Hebrew sentence per state, for the refusal an operator or the settings screen shows
+STATE_MESSAGES_HE = {
+    "off": "החיבור הישיר לשרת המוזיקה כבוי או לא מוגדר.",
+    "unreachable": "שרת המוזיקה אינו מגיב כרגע; נסו שוב בעוד דקה.",
+    "unauthorized": "שרת המוזיקה דחה את האסימון; יש להזין אסימון חדש בהגדרות.",
+    "schema_too_old": "גרסת שרת המוזיקה ישנה מדי לפעולה זו.",
+    "unreadable": "האסימון השמור אינו ניתן לקריאה (מפתח ההצפנה השתנה); יש להזין אותו שוב בהגדרות.",
+    "host_refused": "כתובת שרת המוזיקה אינה מותרת (חייבת להיות כתובת פרטית ברשת הביתית).",
+    "error": "שרת המוזיקה החזיר תשובה לא תקינה.",
+}
+
 COMMANDS = frozenset({
     "players/all",                     # the connection test only: a COUNT is kept
     "player_queues/get_active_queue",  # the queue header of a player
@@ -81,16 +113,51 @@ class Transport(Protocol):
     def call(self, url: str, token: str, command: str, args: dict[str, Any]) -> Any: ...
 
 
-def _bounded(method: str, url: str, **kw: Any) -> tuple[int, bytes]:
-    """One request, its body read in chunks and refused past ANSWER_MAX (an answer is never buffered whole before its size is known)."""
+# the one budget and the one checked address of the call in progress (set by `call` / `probe`, read by the transport)
+_END: contextvars.ContextVar[float | None] = contextvars.ContextVar("sw_ma_budget_end", default=None)  # time.monotonic() - never the test clock MONO
+_PINNED: contextvars.ContextVar[str | None] = contextvars.ContextVar("sw_ma_pinned", default=None)
+HTTP_TRANSPORT: list[httpx.BaseTransport | None] = [None]  # tests put an httpx.MockTransport here; None = the real socket transport with the hard deadline
+
+
+def refusal_message(state_: str) -> str:
+    return STATE_MESSAGES_HE.get(state_, "התור המלא אינו זמין כרגע.")
+
+
+def _left() -> float:
+    end = _END.get()
+    return 0.0 if end is None else end - time.monotonic()
+
+
+def _bounded(method: str, base: str, path: str, **kw: Any) -> tuple[int, bytes]:
+    """One request to the CHECKED address (`_PINNED`; the name is never resolved again here), its body read in chunks and refused past ANSWER_MAX,
+    the whole of it inside the call's hard budget."""
+    ip = _PINNED.get()
+    left = _left()
+    if ip is None:
+        raise MaError("host_refused")
+    if left <= 0:
+        raise MaError("unreachable")
+    parts = urlsplit(base)
+    host = parts.hostname or ""
+    netloc_ip = f"[{ip}]" if ":" in ip else ip
+    target = f"{parts.scheme}://{netloc_ip}" + (f":{parts.port}" if parts.port else "") + path
+    host_header = (f"[{host}]" if ":" in host else host) + (f":{parts.port}" if parts.port else "")
+    headers = {**kw.pop("headers", {}), "Host": host_header, "Accept-Encoding": "identity"}
+    backend = connection_probe._DeadlineBackend(left)
+    transport = HTTP_TRANSPORT[0] or connection_probe._ProbeTransport(backend)
+    step = max(0.05, min(5.0, left))
     try:
-        with httpx.stream(method, url, timeout=TIMEOUT_S, follow_redirects=False, **kw) as r:
-            buf = bytearray()
-            for chunk in r.iter_bytes():
-                buf += chunk
-                if len(buf) > ANSWER_MAX:
-                    raise MaError("error")
-            return r.status_code, bytes(buf)
+        with httpx.Client(transport=transport, timeout=httpx.Timeout(connect=min(CONNECT_S, step), read=step, write=step, pool=step), follow_redirects=False,
+                          trust_env=False) as client:
+            with client.stream(method, target, headers=headers, extensions={"sni_hostname": host}, **kw) as r:
+                buf = bytearray()
+                for chunk in r.iter_bytes():
+                    buf += chunk
+                    if len(buf) > ANSWER_MAX:
+                        raise MaError("error")
+                    if _left() <= 0:  # a trickling answer cannot hold the call past its budget
+                        raise MaError("unreachable")
+                return r.status_code, bytes(buf)
     except httpx.HTTPError as exc:
         raise MaError("unreachable") from exc
 
@@ -99,7 +166,7 @@ class HttpTransport:
     """The real transport (httpx). Nothing here logs a URL, a token, a body or an MA error text."""
 
     def info(self, url: str) -> dict[str, Any]:
-        status, content = _bounded("GET", url + "/info")
+        status, content = _bounded("GET", url, "/info")
         if status != 200:
             raise MaError("error")
         try:
@@ -111,7 +178,7 @@ class HttpTransport:
         return body
 
     def call(self, url: str, token: str, command: str, args: dict[str, Any]) -> Any:
-        status, content = _bounded("POST", url + "/api", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        status, content = _bounded("POST", url, "/api", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                                    content=json.dumps({"message_id": uuid.uuid4().hex[:12], "command": command, "args": args}))
         if status in (401, 403):
             raise MaError("unauthorized")
@@ -140,6 +207,7 @@ def reset() -> None:
     _QUEUES.clear()
     _ITEMS.clear()
     _DONE.clear()
+    _PIN.clear()
 
 
 # ------------------------------------------------------------------------------------------------ settings and the token file
@@ -159,7 +227,8 @@ def secret_path(data_dir: Path) -> Path:
     return data_dir / "secrets" / SECRET_NAME
 
 
-def read_token(data_dir: Path | None) -> str | None:
+def legacy_token(data_dir: Path | None) -> str | None:
+    """The plain-text token file of versions before CR-016 section 18 (read only: it is imported once and removed, never written again)."""
     if data_dir is None:
         return None
     try:
@@ -167,24 +236,6 @@ def read_token(data_dir: Path | None) -> str | None:
     except OSError:
         return None
     return text or None
-
-
-def write_token(data_dir: Path, token: str) -> None:
-    """The token, write-only: a 0600 file in a 0700 directory, written through a temporary file renamed into place."""
-    p = secret_path(data_dir)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.chmod(p.parent, 0o700)
-    except OSError:
-        pass
-    tmp = p.with_name(f".{SECRET_NAME}.{_secrets.token_hex(4)}.tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-    try:
-        os.write(fd, token.encode("utf-8"))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, p)
 
 
 def clear_token(data_dir: Path) -> None:
@@ -202,11 +253,12 @@ def load_config(conn: sqlite3.Connection) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     return {"enabled": raw.get("enabled") is True, "url": raw.get("url") if isinstance(raw.get("url"), str) else None,
             "token_set_at": raw.get("token_set_at") if isinstance(raw.get("token_set_at"), str) else None,
+            "token_enc": raw.get("token_enc") if isinstance(raw.get("token_enc"), str) and raw.get("token_enc") else None,
             "last_test": raw.get("last_test") if isinstance(raw.get("last_test"), dict) else None}
 
 
 def _save_config(conn: sqlite3.Connection, cfg: dict[str, Any]) -> None:
-    set_setting(conn, CONFIG_KEY, json.dumps({k: cfg[k] for k in ("enabled", "url", "token_set_at", "last_test")}, separators=(",", ":")))
+    set_setting(conn, CONFIG_KEY, json.dumps({k: cfg[k] for k in ("enabled", "url", "token_set_at", "token_enc", "last_test")}, separators=(",", ":")))
 
 
 _HOST_RE = re.compile(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?")
@@ -231,19 +283,45 @@ def validate_url(value: Any) -> str:
     return f"{parts.scheme.lower()}://{host}" + (f":{port}" if port is not None else "")
 
 
+AAD = ("music_assistant", "default", "token")
+
+
+def token_of(conn: sqlite3.Connection, cfg: dict[str, Any] | None = None) -> tuple[str | None, str]:
+    """`(token, status)`: `ok` (decrypted), `unreadable` (a stored blob that does not decrypt), `legacy` (the plain file of an older version, still in
+    use because its import has not run or failed), `none`. The plaintext leaves this function only to `call` / `probe` for one outgoing request."""
+    cfg = cfg or load_config(conn)
+    ddir = data_dir_of(conn)
+    if cfg["token_enc"]:
+        if ddir is None:
+            return None, "unreadable"
+        try:
+            return connection_store.open_service_secret(ddir, *AAD, cfg["token_enc"]), "ok"
+        except SecretError:
+            return None, "unreadable"
+    legacy = legacy_token(ddir)
+    return (legacy, "legacy") if legacy else (None, "none")
+
+
 def configured(conn: sqlite3.Connection) -> bool:
     cfg = load_config(conn)
-    return bool(cfg["enabled"] and cfg["url"] and read_token(data_dir_of(conn)))
+    return bool(cfg["enabled"] and cfg["url"] and token_of(conn, cfg)[1] in ("ok", "legacy"))
 
 
 def state(conn: sqlite3.Connection) -> str:
-    """`off` (not configured or switched off), else the connection's last word while it holds (`ready` when nothing failed lately)."""
-    if not configured(conn):
+    """`off` (not configured or switched off), `unreadable` (the stored token cannot be decrypted), else the connection's last word while it holds
+    (`ready` when nothing failed lately)."""
+    cfg = load_config(conn)
+    if not (cfg["enabled"] and cfg["url"]):
         return "off"
+    status = token_of(conn, cfg)[1]
+    if status == "none":
+        return "off"
+    if status == "unreadable":
+        return "unreadable"
     s = _STATE["state"]
     if s in ("unauthorized", "schema_too_old") and _STATE["sticky"]:
         return s
-    if s in ("unreachable", "error") and MONO() - _STATE["at"] < CIRCUIT_S:
+    if s in ("unreachable", "error", "host_refused") and MONO() - _STATE["at"] < CIRCUIT_S:
         return s
     return "ready"
 
@@ -260,7 +338,7 @@ def _note(state_: str) -> None:
 def admin_view(conn: sqlite3.Connection) -> dict[str, Any]:
     """`MaConnection` of the settings screen (system.configure only): never the token, the address only here."""
     cfg = load_config(conn)
-    ddir = data_dir_of(conn)
+    status = token_of(conn, cfg)[1]
     expiring = False
     if cfg["token_set_at"]:
         try:
@@ -268,32 +346,98 @@ def admin_view(conn: sqlite3.Connection) -> dict[str, Any]:
             expiring = (dt.datetime.now(dt.timezone.utc) - set_at).days >= TOKEN_WARN_DAYS
         except ValueError:
             pass
-    return {"enabled": cfg["enabled"], "url": cfg["url"], "token_set": read_token(ddir) is not None, "token_set_at": cfg["token_set_at"], "token_expiring": expiring,
+    return {"enabled": cfg["enabled"], "url": cfg["url"], "token_set": status in ("ok", "legacy"), "token_set_at": cfg["token_set_at"], "token_expiring": expiring,
+            "token_storage": {"ok": "encrypted", "legacy": "file", "unreadable": "unreadable", "none": "none"}[status],
             "state": state(conn), "min_schema": MIN_SCHEMA_VERSION, "last_test": cfg["last_test"]}
 
 
+# ------------------------------------------------------------------------------------------------ the address (SSRF defences)
+
+SETTINGS: list[Any] = [None]  # main.create_app binds the Settings (the policy reads the trusted proxies); None in a bare unit test
+_PIN: dict[str, tuple[float, str]] = {}  # url -> (time.monotonic() of the check, the checked address)
+HOST_REFUSED_HE = "הכתובת אינה מותרת: שרת המוזיקה חייב להיות כתובת פרטית ברשת הביתית (לא האינטרנט, לא המערכת עצמה)."
+
+
+def _policy_settings() -> Any:
+    return SETTINGS[0] if SETTINGS[0] is not None else SimpleNamespace(trusted_proxies=())
+
+
+def lan_address(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return any(ip.version == n.version and ip in n for n in LAN_NETWORKS)
+
+
+def check_address(url: str) -> str:
+    """The address `url` (already `validate_url`-clean) points at, after the NVR connection's source policy and the LAN rule: 422 `host_refused`,
+    `port_refused` or `host_unresolved` (nothing is ever connected to on a refusal). The name is resolved ONCE here; the caller connects to the
+    returned address. Bounded by `RESOLVE_BUDGET_S` and by the call's own budget."""
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    if parts.scheme not in ("http", "https") or "@" in parts.netloc or not host:
+        raise ApiError(422, "validation", "כתובת השרת: http(s)://שם-מארח:פורט בלבד.", details={"fields": ["url"]})
+    if port in REFUSED_PORTS:
+        raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לשרת המוזיקה.", details={"field": "url"})
+    end = time.monotonic() + RESOLVE_BUDGET_S
+    outer = _END.get()
+    if outer is not None:
+        end = min(end, outer)
+    token = connection_probe._BUDGET_END.set(end)
+    try:
+        target = connection_probe.connect_target(host, _policy_settings())
+    except ApiError:
+        raise ApiError(422, "host_refused", HOST_REFUSED_HE, details={"field": "url"}) from None
+    finally:
+        connection_probe._BUDGET_END.reset(token)
+    if target is None:
+        raise ApiError(422, "host_unresolved", "לא ניתן לפענח את שם השרת; הזינו את כתובת ה-IP של השרת ברשת הביתית.", details={"field": "url"})
+    if not lan_address(ipaddress.ip_address(target)):
+        raise ApiError(422, "host_refused", HOST_REFUSED_HE, details={"field": "url"})
+    return target
+
+
+def _pin(url: str) -> str:
+    """The checked address for a runtime call: reused for PIN_S, then resolved and checked again. A refusal is the state `host_refused`."""
+    hit = _PIN.get(url)
+    now = time.monotonic()
+    if hit and now - hit[0] < PIN_S:
+        return hit[1]
+    _PIN.pop(url, None)
+    try:
+        ip = check_address(url)
+    except ApiError as exc:
+        raise MaError("host_refused" if exc.code in ("host_refused", "port_refused") else "unreachable") from None
+    _PIN[url] = (now, ip)
+    return ip
+
+
 def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Apply `{enabled?, url?, token?, clear_token?}`; returns (the admin view, what changed for the audit row: names and `set` / `cleared`, never a value)."""
+    """Apply `{enabled?, url?, token?, clear_token?}`; returns (the admin view, what changed for the audit row: names and `set` / `cleared`, never a value).
+    The router has already run `check_address` on a new address (outside the write lock); every runtime call checks it again."""
     ddir = data_dir_of(conn)
     if ddir is None:
         raise ApiError(503, "storage_unavailable", "אין מקום לשמירת האסימון.")
     cfg = load_config(conn)
     changed: dict[str, Any] = {}
+    drop_file = False
     if "url" in body:
         url = validate_url(body["url"]) if body["url"] not in (None, "") else None
         if url != cfg["url"]:
             cfg["url"], changed["url_changed"] = url, True
     if body.get("clear_token") is True:
-        if read_token(ddir) is not None:
-            clear_token(ddir)
+        if token_of(conn, cfg)[1] != "none":
             changed["token"] = "cleared"
-        cfg["token_set_at"] = None
+        cfg["token_enc"], cfg["token_set_at"], drop_file = None, None, True
     elif "token" in body and body["token"] is not None:
         token = body["token"]
         if not isinstance(token, str) or not 16 <= len(token.strip()) <= TOKEN_MAX or any(ord(c) < 33 or ord(c) == 127 for c in token.strip()):
             raise ApiError(422, "validation", "אסימון לא תקין.", details={"fields": ["token"]})
-        write_token(ddir, token.strip())
-        cfg["token_set_at"] = now_iso()
+        try:  # encrypted BEFORE anything is written: a key failure changes nothing
+            cfg["token_enc"] = connection_store.seal_service_secret(ddir, *AAD, token.strip())
+        except (SecretError, OSError):
+            raise ApiError(503, "storage_unavailable", "לא ניתן להצפין ולשמור את האסימון (מפתח ההצפנה אינו זמין).") from None
+        cfg["token_set_at"], drop_file = now_iso(), True
         changed["token"] = "set"
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
@@ -306,7 +450,42 @@ def update_config(conn: sqlite3.Connection, body: dict[str, Any]) -> tuple[dict[
         cfg["last_test"] = None if ("url_changed" in changed or "token" in changed) else cfg["last_test"]
         _save_config(conn, cfg)
         reset()
+        if drop_file:
+            clear_token(ddir)  # the plain copy of an older version goes with every token change
     return admin_view(conn), changed
+
+
+def migrate_legacy_token(db: Any, settings: Any) -> str:
+    """Start-up (main.create_app, after the migrations): import the plain `<data>/secrets/music_assistant_token` of an older version ONCE into
+    `token_enc`, check that the stored blob decrypts to the same value, then remove the file. Returns `moved`, `none` or `failed`. On a failure the file
+    stays (the connection keeps working from it) and one fixed line is logged; never raises, never logs a value. A file found next to an existing
+    `token_enc` (a downgrade that was upgraded again) is newer than the blob and wins."""
+    try:
+        ddir = Path(settings.data_dir)
+        plain = legacy_token(ddir)
+        if plain is None:
+            return "none"
+        blob = connection_store.seal_service_secret(ddir, *AAD, plain)
+        with db.connection(label="ma_direct.token_import") as conn:
+            cfg = load_config(conn)
+            cfg["token_enc"] = blob
+            if not cfg["token_set_at"]:
+                try:
+                    cfg["token_set_at"] = dt.datetime.fromtimestamp(secret_path(ddir).stat().st_mtime, dt.timezone.utc).isoformat().replace("+00:00", "Z")
+                except OSError:
+                    cfg["token_set_at"] = now_iso()
+            _save_config(conn, cfg)
+            audit(conn, actor=None, action="media.ma_connection", decision="allowed", resource_type="installation", resource_id="*", details={"op": "token_import", "token": "moved"})
+        with db.connection(mode="read", label="ma_direct.token_verify") as conn:
+            if token_of(conn)[0] != plain:
+                raise SecretError("verify")
+        clear_token(ddir)
+        reset()
+        log.info("the music server token was moved from a plain file into the encrypted store")
+        return "moved"
+    except Exception:  # noqa: BLE001 - never block the start; fixed text, no value
+        log.warning("the music server token could not be moved into the encrypted store; the plain file is kept and still used until it can be")
+        return "failed"
 
 
 # ------------------------------------------------------------------------------------------------ calls
@@ -326,15 +505,19 @@ def _schema_gate(url: str) -> None:
 
 
 def call(conn: sqlite3.Connection, command: str, args: dict[str, Any]) -> Any:
-    """One allow-listed command. Raises MaError (`off` when not configured, the circuit's state while it is open). Never retried."""
+    """One allow-listed command. Raises MaError (`off` when not configured, the circuit's state while it is open). Never retried. The whole call - the
+    address check, the schema gate and the command - runs inside ONE hard budget (BUDGET_S)."""
     if command not in COMMANDS:
         raise CommandRefused(command)
     s = state(conn)
     if s != "ready":
         raise MaError(s)
     cfg = load_config(conn)
-    token = read_token(data_dir_of(conn)) or ""
+    token = token_of(conn, cfg)[0] or ""
+    end_t = _END.set(time.monotonic() + BUDGET_S)
+    pin_t = _PINNED.set(None)
     try:
+        _PINNED.set(_pin(cfg["url"]))
         _schema_gate(cfg["url"])
         result = TRANSPORT[0].call(cfg["url"], token, command, args)
     except MaError as exc:
@@ -346,6 +529,9 @@ def call(conn: sqlite3.Connection, command: str, args: dict[str, Any]) -> Any:
         _note("error")
         log.warning("music assistant %s failed: %s", command, type(exc).__name__)
         raise MaError("error") from None
+    finally:
+        _PINNED.reset(pin_t)
+        _END.reset(end_t)
     _STATE.update(state="ready", at=MONO(), sticky=False)
     return result
 
@@ -364,17 +550,24 @@ def save_test(conn: sqlite3.Connection, out: dict[str, Any]) -> None:
 
 
 def probe(conn: sqlite3.Connection) -> dict[str, Any]:
-    """The settings' "בדוק חיבור": the schema gate and a player COUNT (more players than the product manages means the account has no `player_filter`).
-    Reads only; `save_test` stores the outcome as `last_test` (no address, no names)."""
+    """The settings' "בדוק חיבור": the address check, the schema gate and a player COUNT (more players than the product manages means the account has no
+    `player_filter`). Reads only, inside one hard budget; `save_test` stores the outcome as `last_test` (no address, no names)."""
     cfg = load_config(conn)
-    if not (cfg["url"] and read_token(data_dir_of(conn))):
-        out: dict[str, Any] = {"state": "off", "server_version": None, "schema_version": None, "players": None}
+    token, status = token_of(conn, cfg)
+    out: dict[str, Any] = {"state": "ready", "server_version": None, "schema_version": None, "players": None}
+    if not cfg["url"] or status == "none":
+        out["state"] = "off"
+    elif status == "unreadable":
+        out["state"] = "unreadable"
     else:
         _STATE.update(state=None, at=0.0, schema=None, sticky=False)
-        out = {"state": "ready", "server_version": None, "schema_version": None, "players": None}
+        end_t = _END.set(time.monotonic() + BUDGET_S)
+        pin_t = _PINNED.set(None)
         try:
+            _PIN.pop(cfg["url"], None)  # a test always checks the address afresh
+            _PINNED.set(_pin(cfg["url"]))
             _schema_gate(cfg["url"])
-            players = TRANSPORT[0].call(cfg["url"], read_token(data_dir_of(conn)) or "", "players/all", {})
+            players = TRANSPORT[0].call(cfg["url"], token or "", "players/all", {})
             out["players"] = len(players) if isinstance(players, list) else None
             _STATE.update(state="ready", at=MONO(), sticky=False)
         except MaError as exc:
@@ -383,6 +576,9 @@ def probe(conn: sqlite3.Connection) -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             out["state"] = "error"
             _note("error")
+        finally:
+            _PINNED.reset(pin_t)
+            _END.reset(end_t)
         out["server_version"] = _STATE["server"]
         out["schema_version"] = _STATE["schema"]
     return out

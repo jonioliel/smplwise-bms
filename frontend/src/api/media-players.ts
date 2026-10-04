@@ -254,7 +254,7 @@ export const SEARCH_MAX = 60;
 export const LIBRARY_TAB = 'library' as const;
 export const LIBRARY_TAB_TEXT = 'ספרייה';
 
-export type MaState = 'off' | 'ready' | 'unreachable' | 'unauthorized' | 'schema_too_old' | 'error';
+export type MaState = 'off' | 'ready' | 'unreachable' | 'unauthorized' | 'schema_too_old' | 'error' | 'unreadable' | 'host_refused';
 /** GET /multimedia/admin/ma-connection (system.configure): the token is never returned. */
 export interface MaConnection {
   enabled: boolean;
@@ -262,6 +262,8 @@ export interface MaConnection {
   token_set: boolean;
   token_set_at: string | null;
   token_expiring: boolean;
+  /** where the token is kept: encrypted (normal), file (an older install until the one-time move), unreadable (key lost), none */
+  token_storage?: 'encrypted' | 'file' | 'unreadable' | 'none';
   state: MaState;
   min_schema: number;
   last_test: (MaTest & { at: string }) | null;
@@ -270,7 +272,7 @@ export interface MaTest { state: MaState; server_version: string | null; schema_
 export interface MaConnectionBody { enabled?: boolean; url?: string | null; token?: string; clear_token?: boolean }
 /** Settings wording (technical names are allowed in settings only). */
 export const MA_STATE_LABEL: Record<MaState, string> = {
-  off: 'כבוי', ready: 'מחובר', unreachable: 'השרת אינו נגיש', unauthorized: 'האסימון נדחה', schema_too_old: 'גרסת השרת ישנה מדי', error: 'שגיאה',
+  off: 'כבוי', ready: 'מחובר', unreachable: 'השרת אינו נגיש', unauthorized: 'האסימון נדחה', schema_too_old: 'גרסת השרת ישנה מדי', error: 'שגיאה', unreadable: 'האסימון השמור אינו קריא - יש להזין שוב', host_refused: 'הכתובת אינה מותרת',
 };
 
 /** The tab "ספרייה" is offered: the device browses (caps) and the caller holds media.browse. */
