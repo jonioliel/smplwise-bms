@@ -128,6 +128,35 @@ screens, `tsc --noEmit`.
 | R3 | Merge conflicts with `pilot/nvr-bulk-encoding` | no edit to `nvr_batch.py` / `nvr_settings.py` logic; the recorder dimension sits in `registry.py` |
 | R4 | Start-up time with several recorders (source policy re-check resolves names) | at most 2 s per stored name, as CR-022; IP addresses avoid it |
 
+## 6. Implementation notes and recorded deviations (2026-10-04)
+
+1. **Route path.** The management routes are `/recorders...` (not `/nvr/recorders`): `GET /nvr/recorders` already serves the CR-020 S1
+   recorder cards (`routers/nvr_settings.py`) and the frontend's CR-020 S3 client uses `/nvr/recorders/{id}/channels`. Remote channel:
+   the prefix `/api/v1/recorders` is blocked like the CR-022 routes.
+2. **The first recorder stays special.** `nvr-1` is the process-wide connection (CR-022 overlay, legacy import, setup wizard). Adding
+   an NVR to an installation without one fills `nvr-1` (the same id comes back; its old cameras stay disabled for review) - every
+   further recorder gets a new id. "No NVR" is a choice for the first recorder only; a further recorder is removed instead.
+3. **Disable = restart semantics.** A disabled recorder is not loaded at the next start (no discovery, alert stream, device call;
+   409 `recorder_unavailable`); its cameras stay listed. Enabling it again also waits for a restart (`pending_restart`).
+4. **CR-022 "Remove NVR" marks the recorder removed too** (`recorders.removed_at`), so the first recorder follows the same
+   keep-history / invisible rule as the others; saving a connection again clears the mark.
+5. **Device lock (CR-020 S2C review finding 6).** The test that assumed "every recorder row is the add-on's NVR" was rewritten:
+   recorder rows now carry their own connection; a row without one is not the first device (409 `recorder_unavailable`, nothing sent).
+   `nvr-1` keeps the lock key `addon-nvr` (a lock written by an older version still matches); a further recorder's key is a hash of
+   its destination. Two rows naming one device (host + HTTP port) are refused 409 `recorder_duplicate` (also against the legacy
+   connection of the first recorder).
+6. **Map.** The cameras of a removed recorder leave the CURRENT floor map and its camera list (`GET /floors/{id}/map`, `.../anchors`);
+   their anchor rows stay and the history view (`?at=`) still shows them.
+7. **Single-recorder UI unchanged.** With one recorder the settings card is the CR-022 connection form plus "הוסף NVR"; recorder
+   filters and names appear only with two or more recorders (`GET /cameras` `recorders`).
+8. **Bulk-encoding branch (`pilot/nvr-bulk-encoding`).** Read, not merged. Its `_recorder_of` already refuses a mixed batch; the
+   recorder dimension it needs comes from `registry.adapter_for` (per-recorder adapter) - no edit to `nvr_batch.py` or
+   `nvr_settings.py`. Expected merge conflicts: `smplwise_vms/CHANGELOG.md` (both add "## Unreleased"),
+   `remote_channel.py` (adjacent tuple lines - this branch adds a separate line), `system-security-cameras.ts` (toolbar region;
+   both add one element), `contracts/API_INVENTORY.md` (regenerate).
+9. **Fixed on the way:** the camera-offline notification source (`notify_sources`) and the WebRTC hint (`stream_codecs.hints`)
+   read only the first recorder.
+
 ---
 
 ## סיכום בעברית
