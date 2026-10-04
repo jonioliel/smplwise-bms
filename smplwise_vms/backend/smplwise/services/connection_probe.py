@@ -481,8 +481,11 @@ def _probe_with(client: httpx.Client, deadline: float) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 - the device answered deviceInfo; the channel count is optional
         channels = None
     # `_serial` is internal (CR-024 device identity): the routes hash it and strip every `_` key before answering (`public`)
-    return {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels,
-            "_serial": _clip(info.get("serialNumber"))}
+    out = {"ok": True, "code": "ok", "model": _clip(info.get("model")), "firmware": _clip(info.get("firmwareVersion")), "channels": channels}
+    serial = _clip(info.get("serialNumber"))
+    if serial:  # only when the device reports one (the result's public shape is unchanged)
+        out["_serial"] = serial
+    return out
 
 
 def public(result: dict[str, Any]) -> dict[str, Any]:
