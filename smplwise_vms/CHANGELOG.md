@@ -17,7 +17,8 @@
   reboot, notify linkage, storage report, camera sync) take `recorder_id` (default the first recorder, so a single-recorder system is
   unchanged). Discovery, the go2rtc stream sync and the alert stream run per recorder; one recorder that is down never stops another.
 - **Screens:** the camera settings table names the recorder and filters by it; the all-cameras wall and the event log get a recorder
-  filter; camera pickers name the recorder. Nothing of this appears while the system has one recorder.
+  filter; camera pickers name the recorder; the NVR system card in הגדרות › חיבורים (clock, disks, outputs, reboot) picks the
+  recorder. Nothing of this appears while the system has one recorder.
 - **Never mixed:** a multi-camera stream change holds the cameras of one recorder (the screen limits its checklist, the server refuses a
   mix); synchronized playback is offered within one recorder only (409 `sync_cross_recorder_unproven` across recorders).
 - **Fixed on the way:** the camera-offline notification source and the WebRTC hint read only the first recorder; both follow each
@@ -45,7 +46,7 @@
 - **כל פעולה מגיעה למקליט הנכון:** תמונה, וידאו חי, ניגון, חיפוש הקלטות, ייצוא, הגדרות מצלמה ושינויי זרם - לפי המקליט של המצלמה. גילוי
   מצלמות, זרמי go2rtc וזרם האירועים רצים לכל מקליט בנפרד; מקליט שלא עונה לא עוצר את האחרים.
 - **מסכים:** טבלת הגדרות המצלמות מציגה את המקליט ומסננת לפיו; לקיר המצלמות וליומן האירועים נוסף סינון לפי מקליט; בבוררי מצלמות מופיע שם
-  המקליט. כשיש מקליט אחד - שום דבר מזה לא מוצג.
+  המקליט; בכרטיס מערכת ה־NVR (שעון, דיסקים, יציאות, הפעלה מחדש) בוחרים את המקליט. כשיש מקליט אחד - שום דבר מזה לא מוצג.
 - **לעולם לא מעורבב:** שינוי מרובה של זרמים כולל מצלמות של מקליט אחד בלבד; ניגון מסונכרן - רק למצלמות של אותו מקליט.
 - **איך מפעילים:** מתקינים ומפעילים מחדש פעם אחת (המיגרציה רצה). הגדרות › חיבורים ← "הוסף NVR" ← שם, סוג, כתובת, פורטים, משתמש, סיסמה ←
   "בדוק חיבור" ← "הוסף" ← הפעלה מחדש כשהבאנר מבקש. המצלמות של המקליט החדש מופיעות אחרי ההפעלה מחדש. להסרה: השורה שלו ← "חיבור" ←

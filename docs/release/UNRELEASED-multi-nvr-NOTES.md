@@ -15,7 +15,8 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
   the first recorder). Discovery, the go2rtc stream sync and the alert stream run per recorder; a recorder that is down does not
   affect the others.
 - **Screens:** recorder names and a recorder filter in the camera settings table; a recorder filter on the all-cameras wall and in the
-  event log; recorder names in camera pickers - only when there are two or more recorders.
+  event log; recorder names in camera pickers; a recorder selector on the NVR system card (clock, disks, outputs, reboot) - only
+  when there are two or more recorders.
 - **Safety rules kept:** a multi-camera stream change never mixes recorders; synchronized playback only within one recorder;
   every new route is local-only and its management needs `system.configure`; refusals are audited.
 
@@ -50,8 +51,8 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
 - **הסרה שומרת היסטוריה:** פרטי הגישה נמחקים, המצלמות מושבתות ולא מוצגות; אירועים, תיקים, מיקומים במפה, הרשאות ויומן השינויים נשארים.
 - **תמיד המקליט הנכון:** כל פעולה על מצלמה הולכת למקליט שלה; גילוי מצלמות, זרמי go2rtc וזרם האירועים לכל מקליט בנפרד; מקליט שלא
   עונה לא משפיע על האחרים.
-- **מסכים:** שם המקליט וסינון בטבלת הגדרות המצלמות; סינון לפי מקליט בקיר המצלמות וביומן האירועים; שם המקליט בבוררי מצלמות - רק כשיש
-  שניים ומעלה.
+- **מסכים:** שם המקליט וסינון בטבלת הגדרות המצלמות; סינון לפי מקליט בקיר המצלמות וביומן האירועים; שם המקליט בבוררי מצלמות; בחירת מקליט בכרטיס
+  מערכת ה־NVR (שעון, דיסקים, יציאות, הפעלה מחדש) - רק כשיש שניים ומעלה.
 - **כללי בטיחות:** שינוי מרובה לא מערבב מקליטים; ניגון מסונכרן רק בתוך מקליט אחד; הניהול דורש הרשאת מנהל מערכת והוא מקומי בלבד.
 
 ### באגים שתוקנו בדרך
