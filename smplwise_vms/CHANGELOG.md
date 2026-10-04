@@ -1,5 +1,48 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased — The capsule dropdown style and a size dial for every dropdown
+No restart of the platform is needed and there is **no database migration**: the new settings `ui.dd_size` and `ui.dd_size_groups` (and the same two keys in the personal preferences) are created on first save; an absent value reads the defaults. Reload the installed web app once. Nothing changes until a style or a size is chosen.
+### A new dropdown style: capsule (קפסולה) - הגדרות › לשוניות › "סגנון תפריט נפתח"
+- **Closed:** a capsule with a clear blue ring, a soft white-to-lavender fill, a subtle bottom shadow, an icon at the start, the label in a larger, confident weight and a small chevron at the other end (right-to-left: icon on the right, chevron on the left); while open the chevron points up and the ring stays.
+- **Open:** a floating, rounded, translucent panel (as wide as the chip or wider); the chosen row is a tinted row in the accent colour with its icon; every row has its icon at the start and a **count** at the other end; a thin divider can follow the first ("all") row; generous row height. On a phone it opens as the bottom sheet (or the small list, per "תפריט נפתח בטלפון").
+- Works in all four looks (classic, Domus, Tesla, Bubble), light and dark, the ten palettes and the radius / touch / performance dials; keyboard (arrows, Home / End, type-ahead, Enter, Esc) and screen-reader behaviour are unchanged.
+- The **area chip** of the devices screens and the **rooms chips** of the multimedia pages now supply icons (and the count) - they show them when the capsule style is chosen; a divider follows "הכל" in the rooms chips. No other style changes.
+- Of the existing styles none looks like this one (the nearest, "pill" - shown as "כמוסה" - is a filled pill without ring, icon, counts column or a floating tinted panel); the capsule is a new style.
+### Dropdown size: קטן / רגיל / גדול (small / regular / large)
+- A new setting for the size of every dropdown: trigger height, font, icon, row height and panel padding. **Regular is the reference size** (and today's size of every other style); small and large are a step down and up. For all tab groups at once or for each group separately; installation default (`ui.dd_size`, `ui.dd_size_groups`, system administrator) and a personal choice ("ההעדפה שלי"), exactly like the style; a live preview of the three sizes sits in the same card.
+- Touch targets keep 44 px on a phone and on the 44 px desktop dial, also at "small".
+### Under the hood
+- Dropdown items accept `icon` and `divider` (and `count`, as before); a divider is never an option (not selectable, skipped by the keys, the type-ahead and the search).
+- Checks: a layout-guard sweep of the capsule (four looks x light / dark x three sizes x 320 / 390 / 1280 px x both desktop touch dials, closed and open), Playwright specs with a mocked backend, backend tests for the new settings; the existing dropdown style specs include the capsule. No pixel baseline changed.
+### How to turn it on (English)
+1. Reload the installed web app once; no restart.
+2. Style: הגדרות › לשוניות › "סגנון תפריט נפתח" › choose **קפסולה** for all groups, or for one group. Dropdown mode itself is the existing "תצוגת לשוניות" card on the same page (the groups must be set to "תפריטים נפתחים" or "משולב" to show a dropdown).
+3. Size: the same card › "גודל התפריט הנפתח" › קטן / רגיל / גדול, for all groups or per group. "ההעדפה שלי" applies to you only.
+### Known limits
+- The floor chips with their own menu on the multimedia players and screens pages ("כל הקומות") are separate hand-built menus, not this component; they are not restyled by the setting.
+- The built web app in `www/` is rebuilt at release time, not in this change.
+
+## עברית — לא שוחרר: סגנון "קפסולה" לתפריט נפתח וחוגת גודל לכל תפריט נפתח
+אין צורך בהפעלה מחדש של התשתית ו**אין מיגרציית מסד נתונים**: ההגדרות החדשות `ui.dd_size` ו-`ui.dd_size_groups` (ואותם שני מפתחות בהעדפות האישיות) נוצרות בשמירה הראשונה; ערך חסר נקרא כברירת המחדל. יש לטעון מחדש את אפליקציית הרשת המותקנת פעם אחת. שום דבר לא משתנה עד שבוחרים סגנון או גודל.
+### סגנון חדש לתפריט נפתח: קפסולה - הגדרות › לשוניות › "סגנון תפריט נפתח"
+- **סגור:** קפסולה עם טבעת כחולה ברורה, מילוי רך מלבן ללבנדר, צל עדין בתחתית, סמל בהתחלה, התווית בעובי גדול ובטוח וחץ קטן בצד הנגדי (מימין לשמאל: הסמל מימין והחץ משמאל); כשהתפריט פתוח החץ מצביע למעלה והטבעת נשארת.
+- **פתוח:** לוח צף, מעוגל ושקוף למחצה (ברוחב הכפתור או רחב ממנו); השורה הנבחרת צבועה בגוון ההדגשה עם הסמל שלה; בכל שורה סמל בהתחלה ו**מספר** (למשל מספר החדרים) בצד השני; קו מפריד דק אחרי השורה הראשונה ("הכל"); שורות גבוהות ונוחות. בטלפון הוא נפתח כגיליון תחתון (או כרשימה קטנה, לפי "תפריט נפתח בטלפון").
+- עובד בארבעת המראות (קלאסי, Domus, Tesla, בועה), בבהיר ובכהה, בעשר הפלטות ובחוגות הפינות / המגע / הביצועים; המקלדת (חצים, Home / End, חיפוש בהקלדה, Enter, Esc) וקוראי המסך ללא שינוי.
+- **כפתור האזורים** במסכי ההתקנים ו**כפתורי החדרים** בדפי המולטימדיה מספקים עכשיו סמלים (ואת המספר) - הם מוצגים כשבוחרים בסגנון הקפסולה; בכפתורי החדרים יש קו מפריד אחרי "הכל". סגנונות אחרים לא משתנים.
+- אף סגנון קיים לא נראה כך (הקרוב ביותר, "pill" שמוצג כ"כמוסה", הוא כדור מלא בלי טבעת, בלי סמלים, בלי עמודת מספרים ובלי לוח צף וצבוע); הקפסולה היא סגנון חדש.
+### גודל התפריט הנפתח: קטן / רגיל / גדול
+- הגדרה חדשה לגודל של כל תפריט נפתח: גובה הכפתור, הגופן, הסמל, גובה השורה ומרווח הלוח. **"רגיל" הוא הגודל של ההפניה** (וגם הגודל הנוכחי של כל סגנון אחר); "קטן" ו"גדול" הם מדרגה למטה ולמעלה. לכל הקבוצות יחד או לכל קבוצה בנפרד; ברירת מחדל להתקנה (`ui.dd_size`, `ui.dd_size_groups`, מנהל מערכת) ובחירה אישית ("ההעדפה שלי"), בדיוק כמו הסגנון; תצוגה מקדימה חיה של שלושת הגדלים באותו כרטיס.
+- אזורי המגע נשארים 44 פיקסלים בטלפון ובחוגת 44 בשולחן העבודה, גם ב"קטן".
+### מאחורי הקלעים
+- פריטי תפריט נפתח מקבלים `icon` ו-`divider` (ו-`count` כמו קודם); קו מפריד אינו אפשרות (לא ניתן לבחירה, המקשים, החיפוש בהקלדה והחיפוש מדלגים עליו).
+- בדיקות: סריקת מגן הפריסה של הקפסולה (ארבעה מראות x בהיר / כהה x שלושה גדלים x 320 / 390 / 1280 x שתי חוגות המגע, סגור ופתוח), בדיקות Playwright מול שרת מדומה, בדיקות צד שרת להגדרות החדשות; בדיקות סגנונות התפריט הקיימות כוללות את הקפסולה. אף תמונת ייחוס לא השתנתה.
+### איך מפעילים (עברית)
+1. טוענים מחדש את אפליקציית הרשת המותקנת פעם אחת; אין הפעלה מחדש.
+2. סגנון: הגדרות › לשוניות › "סגנון תפריט נפתח" › בוחרים **קפסולה** לכל הקבוצות או לקבוצה אחת. מצב התפריט הנפתח עצמו הוא הכרטיס הקיים "תצוגת לשוניות" באותו עמוד (צריך להגדיר את הקבוצות ל"תפריטים נפתחים" או "משולב" כדי שיוצג תפריט נפתח).
+3. גודל: אותו כרטיס › "גודל התפריט הנפתח" › קטן / רגיל / גדול, לכל הקבוצות או לפי קבוצה. "ההעדפה שלי" חלה עליך בלבד.
+### מגבלות ידועות
+- תפריטי הקומות עם התפריט הייעודי שלהם בדפי נגני המולטימדיה והמסכים ("כל הקומות") הם תפריטים נפרדים שנבנו ביד, לא הרכיב הזה, ולכן ההגדרה אינה משנה אותם.
+- האפליקציה הבנויה בתיקיית `www/` נבנית בזמן השחרור, לא בשינוי הזה.
 ## Unreleased — Settings › Multimedia: the lists of screens and of speakers / players are compact and filterable
 No migration (the registry platform was already stored on every endpoint; the list now reads it). No restart of the platform is needed.
 - **Compact rows:** each screen / speaker / player is one dense row (name, type, integration, entity id and device id with a copy key, room, status, approval, connections count); the full form opens under the row on demand. Every field, action, permission and the "approve all" buttons are unchanged.

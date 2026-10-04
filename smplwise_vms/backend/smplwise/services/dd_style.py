@@ -10,8 +10,14 @@ from typing import Any
 
 from .tabs_mode import GROUPS
 
-STYLES: tuple[str, ...] = ("auto", "pill", "field", "underline", "text", "prefix", "tonal")
+STYLES: tuple[str, ...] = ("auto", "pill", "field", "underline", "text", "prefix", "tonal", "capsule")
 DEFAULT_STYLE = "auto"
+
+# Unreleased (owner request 2026-10-04): the SIZE of a dropdown, `md` being the reference size (and the size every style has had so far).
+# Same shape as the style: one global value plus a per-group override, as the installation's default (`ui.dd_size`, `ui.dd_size_groups`
+# product settings) and as a user's own choice (the same keys in /me/prefs; null = follow the installation).
+SIZES: tuple[str, ...] = ("sm", "md", "lg")
+DEFAULT_SIZE = "md"
 
 # How a dropdown opens on a phone (owner decision 2026-10-03): `sheet` = a bottom sheet that slides up (the default, thumb-friendly),
 # `list` = the regular small list under the field. One global value (no per-group override): `ui.dd_phone` as the installation's default
@@ -52,6 +58,41 @@ def normalize_groups(value: Any) -> dict[str, str]:
             raise ValueError(f"unknown tab group: {str(group)[:32]}")
         out[group] = normalize_style(style)
     return {g: out[g] for g in GROUPS if g in out}
+
+
+def normalize_size(value: Any) -> str:
+    """Exactly one of SIZES (no trimming, no case folding: the settings route's pattern accepts the same strings); else refused."""
+    if isinstance(value, str) and value in SIZES:
+        return value
+    raise ValueError(f"dropdown size must be one of {', '.join(SIZES)}")
+
+
+def normalize_size_groups(value: Any) -> dict[str, str]:
+    """A per-group override: an object {group: size}. An unknown group or size is refused (never silently dropped); {} = no override."""
+    if not isinstance(value, dict):
+        raise ValueError("dd_size_groups must be an object {group: size}")
+    out: dict[str, str] = {}
+    for group, size in value.items():
+        if group not in GROUPS:
+            raise ValueError(f"unknown tab group: {str(group)[:32]}")
+        out[group] = normalize_size(size)
+    return {g: out[g] for g in GROUPS if g in out}
+
+
+def stored_size(raw: Any) -> str:
+    """The stored installation size as read back; a corrupt or foreign value reads as the default."""
+    try:
+        return normalize_size(raw)
+    except ValueError:
+        return DEFAULT_SIZE
+
+
+def stored_size_groups(raw: Any) -> dict[str, str]:
+    """The stored installation size overrides as an object; a corrupt value reads as no override."""
+    try:
+        return normalize_size_groups(json.loads(raw) if isinstance(raw, str) else raw)
+    except (ValueError, TypeError):
+        return {}
 
 
 def stored_style(raw: Any) -> str:

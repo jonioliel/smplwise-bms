@@ -7,9 +7,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  DD_PHONES, DD_PHONE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPhone, asDdStyle, asTabMode, installationDdPhone, installationDdStyle, installationTabsMode, onTabsMode, ownDdPhone, ownDdStyle, ownTabsMode, resolveDdStyle, resolveTabMode, saveOwnDdPhone, saveOwnDdStyle,
+  DD_PHONES, DD_PHONE_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPhone, asDdSize, asDdStyle, asTabMode, installationDdPhone, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPhone, ownDdSize, ownDdStyle, ownTabsMode, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPhone, saveOwnDdSize, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
-  type DdPhone, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
+  type DdPhone, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -18,6 +18,15 @@ const SOURCE_LABEL: Record<TabModeSource, string> = { 'own-group': 'ההעדפה
 
 const SAMPLE_3 = [{ id: 'a', label: 'ראשון', count: 4 }, { id: 'b', label: 'שני' }, { id: 'c', label: 'שלישי' }];
 const SAMPLE_6 = [{ id: 'a', label: 'סלון', count: 6 }, { id: 'b', label: 'מטבח' }, { id: 'c', label: 'חדר שינה' }, { id: 'd', label: 'משרד', alert: true as const }, { id: 'e', label: 'מרפסת' }, { id: 'f', label: 'חצר' }];
+
+/** The capsule's own sample (Unreleased): the floors of a house, an "all" row with a divider after it, an icon and a count on every row. */
+const SAMPLE_CAPSULE = [
+  { id: 'all', label: 'כל הקומות', icon: 'home' as const, count: 14 },
+  { id: 'd1', label: '', divider: true as const },
+  { id: 'f0', label: 'קומת קרקע', icon: 'layers' as const, count: 6 },
+  { id: 'f1', label: 'קומה ראשונה', icon: 'layers' as const, count: 5 },
+  { id: 'f2', label: 'גג', icon: 'layers' as const, count: 3 },
+];
 
 /**
  * הגדרות › כללי › לשוניות › "תצוגת לשוניות" (0.1.153, owner decision; every width since 0.1.157): how a group of tabs is presented - as tabs (today, the
@@ -36,6 +45,8 @@ export class SystemTabsMode extends LitElement {
   @state() private own = ownTabsMode();
   @state() private ddInst = installationDdStyle();
   @state() private ddOwn = ownDdStyle();
+  @state() private szInst = installationDdSize();
+  @state() private szOwn = ownDdSize();
   @state() private phInst: DdPhone = installationDdPhone();
   @state() private phOwn: DdPhone | null = ownDdPhone();
   @state() private canEdit = false;
@@ -181,6 +192,8 @@ export class SystemTabsMode extends LitElement {
       this.own = ownTabsMode();
       this.ddInst = installationDdStyle();
       this.ddOwn = ownDdStyle();
+      this.szInst = installationDdSize();
+      this.szOwn = ownDdSize();
       this.phInst = installationDdPhone();
       this.phOwn = ownDdPhone();
     });
@@ -252,6 +265,58 @@ export class SystemTabsMode extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  private async saveSizeInstallation(size: DdSize, groups: DdSizeGroups) {
+    this.scope = 'style';
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings({ 'ui.dd_size': size, 'ui.dd_size_groups': groups as Record<string, string> });
+      invalidateSettings();
+      setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
+      this.flash('ברירת המחדל נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async saveSizeOwn(size: DdSize | null, groups: DdSizeGroups) {
+    this.scope = 'style';
+    this.busy = true;
+    this.error = '';
+    try {
+      await saveOwnDdSize(size, groups);
+      this.flash('ההעדפה נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private sizeWithGroup(groups: DdSizeGroups, g: TabGroup, v: string): DdSizeGroups {
+    const next = { ...groups };
+    const m = asDdSize(v);
+    if (m) next[g] = m;
+    else delete next[g];
+    return next;
+  }
+
+  /** The size selects: one for the whole system, one per tab group ("" = follow the level above); the same two owners as the style. */
+  private sizeSelects(scope: 'inst' | 'own', size: DdSize | null, groups: DdSizeGroups, disabled: boolean, onGlobal: (v: string) => void, onGroup: (g: TabGroup, v: string) => void) {
+    const follow = scope === 'inst' ? 'לפי ברירת המחדל הכללית' : 'לפי ההתקנה';
+    const opts = (cur: DdSize | null, withFollow: string | null) => html`${withFollow ? html`<option value="" ?selected=${!cur}>${withFollow}</option>` : nothing}${DD_SIZES.map((m) => html`<option value=${m} ?selected=${cur === m}>${DD_SIZE_LABEL[m]}</option>`)}`;
+    return html`<fieldset><legend>גודל התפריט הנפתח</legend>
+        <div class="grp"><span>לכל הקבוצות</span>
+          <select data-dd-size-global=${scope} aria-label="גודל תפריט נפתח: לכל הקבוצות" ?disabled=${disabled} @change=${(e: Event) => onGlobal((e.target as HTMLSelectElement).value)}>${opts(size, scope === 'own' ? `${follow} (כרגע: ${DD_SIZE_LABEL[this.szInst.size]})` : null)}</select></div>
+        ${TAB_GROUPS.map(
+          (g) => html`<div class="grp" data-dd-size-group-row=${g}><span>${TAB_GROUP_LABEL[g]}</span>
+            <select data-dd-size-group=${`${scope}:${g}`} aria-label=${`${TAB_GROUP_LABEL[g]}: גודל תפריט נפתח`} ?disabled=${disabled} @change=${(e: Event) => onGroup(g, (e.target as HTMLSelectElement).value)}>${opts(groups[g] ?? null, follow)}</select></div>`,
+        )}
+      </fieldset>`;
   }
 
   private async savePhoneInstallation(mode: DdPhone) {
@@ -355,6 +420,7 @@ export class SystemTabsMode extends LitElement {
     const ownDisabled = this.busy;
     const ddEffective: DdStyle = this.ddOwn.style ?? this.ddInst.style;
     const ddInstDisabled = !this.canEdit || this.busy || !api;
+    const szEffective: DdSize = this.szOwn.size ?? this.szInst.size;
     return html`<sw-card heading="תצוגת לשוניות" subheading="לשוניות, משולב או תפריטים נפתחים, לכל הקבוצות או לכל קבוצה בנפרד. הניווט הראשי אינו חלק מזה" data-tabs-mode>
       <div class="grid">
         <div data-tabs-mode-installation>
@@ -383,32 +449,41 @@ export class SystemTabsMode extends LitElement {
       </div>
       <div class="preview" data-tabs-mode-preview=${effective} aria-label="תצוגה מקדימה">
         <span class="muted">תצוגה מקדימה: ${TAB_MODE_LABEL[effective]}</span>
-        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
-        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
-        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
+        <sw-tabs .items=${SAMPLE_3} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} group-label="דוגמה: שלוש אפשרויות" data-preview="3"></sw-tabs>
+        <sw-tabs .items=${SAMPLE_6} active="a" .variant=${effective === 'dropdown' ? 'dropdown' : 'pill'} ?adaptive=${effective === 'hybrid'} dd-style=${ddEffective} dd-size=${szEffective} group-label="דוגמה: שש אפשרויות" data-preview="6"></sw-tabs>
+        ${effective === 'dropdown' ? html`<div class="pair" data-preview="pair"><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} .items=${SAMPLE_3} active="a" group-label="דוגמה: רמה ראשונה"></sw-tabs><sw-tabs block variant="dropdown" dd-style=${ddEffective} dd-size=${szEffective} .items=${SAMPLE_6} active="a" group-label="דוגמה: רמה שנייה"></sw-tabs></div>` : nothing}
       </div>
     </sw-card>
     <sw-card heading="סגנון תפריט נפתח" subheading="המראה של תפריט נפתח, לכל הקבוצות או לכל קבוצה בנפרד" data-dd-style-card>
       <div class="grid">
         <div data-dd-style-installation>
           ${this.ddSelects('inst', this.ddInst.style, this.ddInst.groups, ddInstDisabled, (v) => { const m = asDdStyle(v); if (m) void this.saveDdInstallation(m, this.ddInst.groups); }, (g, v) => void this.saveDdInstallation(this.ddInst.style, this.ddWithGroup(this.ddInst.groups, g, v)))}
+          ${this.sizeSelects('inst', this.szInst.size, this.szInst.groups, ddInstDisabled, (v) => { const m = asDdSize(v); if (m) void this.saveSizeInstallation(m, this.szInst.groups); }, (g, v) => void this.saveSizeInstallation(this.szInst.size, this.sizeWithGroup(this.szInst.groups, g, v)))}
         </div>
         <div data-dd-style-own>
           ${this.ddSelects('own', this.ddOwn.style, this.ddOwn.groups, this.busy, (v) => void this.saveDdOwn(asDdStyle(v), this.ddOwn.groups), (g, v) => void this.saveDdOwn(this.ddOwn.style, this.ddWithGroup(this.ddOwn.groups, g, v)))}
+          ${this.sizeSelects('own', this.szOwn.size, this.szOwn.groups, this.busy, (v) => void this.saveSizeOwn(asDdSize(v), this.szOwn.groups), (g, v) => void this.saveSizeOwn(this.szOwn.size, this.sizeWithGroup(this.szOwn.groups, g, v)))}
         </div>
       </div>
       <div class="effective" data-dd-style-effective>
         <strong>מה פעיל אצלי עכשיו</strong>
         <ul>${TAB_GROUPS.map((g) => {
           const r = resolveDdStyle(g);
-          return html`<li data-dd-effective-group=${g} data-dd-style=${r.style} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${DD_STYLE_LABEL[r.style]} <span class="muted">${SOURCE_LABEL[r.source]}</span></span></li>`;
+          const z = resolveDdSize(g);
+          return html`<li data-dd-effective-group=${g} data-dd-style=${r.style} data-dd-size=${z.size} data-dd-size-source=${z.source} data-source=${r.source}><span>${TAB_GROUP_LABEL[g]}</span><span>${DD_STYLE_LABEL[r.style]}, ${DD_SIZE_LABEL[z.size]} <span class="muted">${SOURCE_LABEL[r.source]}</span></span></li>`;
         })}</ul>
         ${this.ddOwn.style || Object.keys(this.ddOwn.groups).length
           ? html`<button type="button" class="reset" data-dd-own-reset ?disabled=${this.busy} @click=${() => void this.saveDdOwn(null, {})}>אפס את ההעדפות שלי</button>`
           : nothing}
+        ${this.szOwn.size || Object.keys(this.szOwn.groups).length
+          ? html`<button type="button" class="reset" data-dd-size-own-reset ?disabled=${this.busy} @click=${() => void this.saveSizeOwn(null, {})}>אפס את הגדלים שלי</button>`
+          : nothing}
       </div>
       <div class="styles" data-dd-style-previews>${DD_STYLES.map(
-        (m) => html`<div data-dd-preview=${m}><span class="muted">${DD_STYLE_LABEL[m]}</span><sw-tabs variant="dropdown" dd-style=${m} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
+        (m) => html`<div data-dd-preview=${m}><span class="muted">${DD_STYLE_LABEL[m]}</span><sw-tabs variant="dropdown" dd-style=${m} dd-size=${szEffective} .items=${SAMPLE_6} active="a" group-label="אבטחה"></sw-tabs></div>`,
+      )}</div>
+      <div class="styles" data-dd-size-previews>${DD_SIZES.map(
+        (z) => html`<div data-dd-size-preview=${z}><span class="muted">${DD_SIZE_LABEL[z]}${z === szEffective ? ' (הפעיל)' : ''}</span><sw-tabs variant="dropdown" dd-style="capsule" dd-size=${z} .items=${SAMPLE_CAPSULE} active="all" group-label="קומה"></sw-tabs></div>`,
       )}</div>
       <div aria-live="polite">${this.message && this.scope === 'style' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'style' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
     </sw-card>

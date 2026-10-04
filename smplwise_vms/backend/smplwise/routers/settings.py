@@ -82,6 +82,10 @@ DEFAULTS: dict[str, str] = {
     "ui.dd_style_groups": "{}",
     # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet, default) | list (the small list under the field). services/dd_style.py.
     "ui.dd_phone": "sheet",
+    # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
+    # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
+    "ui.dd_size": "md",
+    "ui.dd_size_groups": "{}",
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
@@ -277,6 +281,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.dd_style"] = dd_style.stored_style(out["ui.dd_style"])
     out["ui.dd_style_groups"] = dd_style.stored_groups(out["ui.dd_style_groups"])
     out["ui.dd_phone"] = dd_style.stored_phone(out["ui.dd_phone"])
+    out["ui.dd_size"] = dd_style.stored_size(out["ui.dd_size"])
+    out["ui.dd_size_groups"] = dd_style.stored_size_groups(out["ui.dd_size_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
@@ -463,6 +469,8 @@ class SettingsPatch(BaseModel):
     ui_dd_style: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.STYLES) + ")$", alias="ui.dd_style")
     ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
+    ui_dd_size: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SIZES) + ")$", alias="ui.dd_size")
+    ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # validated in full by services/dd_style.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
@@ -622,6 +630,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.dd_style_groups"] = dd_style.normalize_groups(changes["ui.dd_style_groups"])
         except ValueError as exc:
             raise ApiError(422, "validation", "סגנון תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_style_groups": str(exc)})
+    if "ui.dd_size_groups" in changes:
+        try:
+            changes["ui.dd_size_groups"] = dd_style.normalize_size_groups(changes["ui.dd_size_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "גודל תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_size_groups": str(exc)})
     if "ui.mobile" in changes:
         try:
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
@@ -709,7 +722,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 

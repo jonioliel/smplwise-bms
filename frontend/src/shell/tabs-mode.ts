@@ -17,7 +17,7 @@
  * Backend validation: services/dd_style.py.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
-import { DD_STYLE_IDS, type DdStyle } from '../components/dd-style';
+import { DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle } from '../components/dd-style';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
@@ -42,8 +42,18 @@ export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 export type { DdStyle };
 export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
 export const DD_STYLE_DEFAULT: DdStyle = 'auto';
-export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כמוסה', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה' };
+export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כמוסה', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה', capsule: 'קפסולה' };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
+
+/** Unreleased (owner request 2026-10-04): the SIZE of a dropdown, `md` = the reference size. Same shape as the style: global + per tab group,
+ * installation (`ui.dd_size`, `ui.dd_size_groups`) and personal (/me/prefs). Backend twin: services/dd_style.py. */
+export type { DdSize };
+export const DD_SIZES: readonly DdSize[] = DD_SIZE_IDS;
+export const DD_SIZE_LABEL: Record<DdSize, string> = { sm: 'קטן', md: 'רגיל', lg: 'גדול' };
+export type DdSizeGroups = Partial<Record<TabGroup, DdSize>>;
+export function asDdSize(v: unknown): DdSize | null {
+  return typeof v === 'string' && (DD_SIZES as readonly string[]).includes(v) ? (v as DdSize) : null;
+}
 
 /** How a dropdown opens on a PHONE (owner decision 2026-10-03): a bottom sheet (default) or the regular small list under the field.
  * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
@@ -83,6 +93,26 @@ export function normalizeDdStyleGroups(raw: unknown): DdStyleGroups {
   return out;
 }
 
+/** The stored per-group dropdown sizes, reduced to known groups and sizes (a stored string is parsed); never throws. */
+export function normalizeDdSizeGroups(raw: unknown): DdSizeGroups {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  const out: DdSizeGroups = {};
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const g of TAB_GROUPS) {
+      const m = asDdSize((value as Record<string, unknown>)[g]);
+      if (m) out[g] = m;
+    }
+  }
+  return out;
+}
+
 /** The stored per-group overrides, reduced to known groups and modes (a stored string is parsed); never throws. */
 export function normalizeTabModeGroups(raw: unknown): TabModeGroups {
   let value = raw;
@@ -108,6 +138,8 @@ let installation: { mode: TabMode; groups: TabModeGroups } = { mode: TAB_MODE_DE
 let own: { mode: TabMode | null; groups: TabModeGroups } = { mode: null, groups: {} };
 let ddInstallation: { style: DdStyle; groups: DdStyleGroups } = { style: DD_STYLE_DEFAULT, groups: {} };
 let ddOwn: { style: DdStyle | null; groups: DdStyleGroups } = { style: null, groups: {} };
+let ddSizeInstallation: { size: DdSize; groups: DdSizeGroups } = { size: DD_SIZE_DEFAULT, groups: {} };
+let ddSizeOwn: { size: DdSize | null; groups: DdSizeGroups } = { size: null, groups: {} };
 let ddPhoneInstallation: DdPhone = DD_PHONE_DEFAULT;
 let ddPhoneOwn: DdPhone | null = null;
 let user: string | null = null;
@@ -185,10 +217,25 @@ export function ddStyleOf(group: TabGroup): DdStyle {
   return resolveDdStyle(group).style;
 }
 
-/** What a tab bar of a group gets for sw-tabs: the bar's own style while the mode is `tabs` (nothing changes), `dropdown`, or `adaptive` for the hybrid; `ddStyle` is the look of the dropdown. */
-export function tabModeProps<S extends string>(group: TabGroup, style: S, _phone?: boolean): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle } {
+/** Where a group's dropdown size comes from: user's group, user's global, installation's group, installation's global, `md`. */
+export function resolveDdSize(group: TabGroup): { size: DdSize; source: TabModeSource } {
+  const og = ddSizeOwn.groups[group];
+  if (og) return { size: og, source: 'own-group' };
+  if (ddSizeOwn.size) return { size: ddSizeOwn.size, source: 'own' };
+  const ig = ddSizeInstallation.groups[group];
+  if (ig) return { size: ig, source: 'installation-group' };
+  return { size: ddSizeInstallation.size, source: 'installation' };
+}
+
+/** The dropdown size a group's chips get now (`md` = the reference size). */
+export function ddSizeOf(group: TabGroup): DdSize {
+  return resolveDdSize(group).size;
+}
+
+/** What a tab bar of a group gets for sw-tabs: the bar's own style while the mode is `tabs` (nothing changes), `dropdown`, or `adaptive` for the hybrid; `ddStyle` is the look of the dropdown, `ddSize` its size. */
+export function tabModeProps<S extends string>(group: TabGroup, style: S, _phone?: boolean): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle; ddSize: DdSize } {
   const mode = tabModeOf(group);
-  return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: ddStyleOf(group) };
+  return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: ddStyleOf(group), ddSize: ddSizeOf(group) };
 }
 
 /** A Lit reactive controller for a screen that draws its own tab / chip row: it re-renders the host when the mode or the style changes
@@ -203,12 +250,16 @@ export class TabsModeController {
     return tabModeOf(this.group);
   }
   /** `variant` / `adaptive` for an sw-tabs of this group. */
-  props<S extends string>(style: S): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle } {
+  props<S extends string>(style: S): { variant: S | 'dropdown'; adaptive: boolean; ddStyle: DdStyle; ddSize: DdSize } {
     return tabModeProps(this.group, style);
   }
   /** The look of this group's dropdown chips. */
   get ddStyle(): DdStyle {
     return ddStyleOf(this.group);
+  }
+  /** The size of this group's dropdown chips. */
+  get ddSize(): DdSize {
+    return ddSizeOf(this.group);
   }
   private tick = () => this.host.requestUpdate();
   hostConnected() {
@@ -250,6 +301,15 @@ export function ownDdStyle(): { style: DdStyle | null; groups: DdStyleGroups } {
   return ddOwn;
 }
 
+export function installationDdSize(): { size: DdSize; groups: DdSizeGroups } {
+  return ddSizeInstallation;
+}
+
+/** The user's own dropdown sizes: `size` null = follows the installation; `groups` holds only the groups they set. */
+export function ownDdSize(): { size: DdSize | null; groups: DdSizeGroups } {
+  return ddSizeOwn;
+}
+
 export function installationTabsMode(): { mode: TabMode; groups: TabModeGroups } {
   return installation;
 }
@@ -263,6 +323,7 @@ export function ownTabsMode(): { mode: TabMode | null; groups: TabModeGroups } {
 export function setInstallationTabsMode(settings: Record<string, unknown> | null | undefined): void {
   installation = { mode: asTabMode(settings?.['ui.tabs_mode']) ?? TAB_MODE_DEFAULT, groups: normalizeTabModeGroups(settings?.['ui.tabs_mode_groups']) };
   ddInstallation = { style: asDdStyle(settings?.['ui.dd_style']) ?? DD_STYLE_DEFAULT, groups: normalizeDdStyleGroups(settings?.['ui.dd_style_groups']) };
+  ddSizeInstallation = { size: asDdSize(settings?.['ui.dd_size']) ?? DD_SIZE_DEFAULT, groups: normalizeDdSizeGroups(settings?.['ui.dd_size_groups']) };
   ddPhoneInstallation = asDdPhone(settings?.['ui.dd_phone']) ?? DD_PHONE_DEFAULT;
   notify();
 }
@@ -280,6 +341,27 @@ function readCache(): { u: string; mode: TabMode | null; groups: TabModeGroups }
 
 const DD_CACHE_KEY = 'sw.dd.style';
 const DD_PHONE_CACHE_KEY = 'sw.dd.phone';
+const DD_SIZE_CACHE_KEY = 'sw.dd.size';
+
+function readDdSizeCache(): { u: string; size: DdSize | null; groups: DdSizeGroups } | null {
+  try {
+    const raw = localStorage.getItem(DD_SIZE_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { u?: unknown; size?: unknown; groups?: unknown };
+    return typeof c.u === 'string' ? { u: c.u, size: asDdSize(c.size), groups: normalizeDdSizeGroups(c.groups) } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDdSizeCache(u: string, v: { size: DdSize | null; groups: DdSizeGroups }): void {
+  try {
+    if (!v.size && !Object.keys(v.groups).length) localStorage.removeItem(DD_SIZE_CACHE_KEY);
+    else localStorage.setItem(DD_SIZE_CACHE_KEY, JSON.stringify({ u, size: v.size, groups: v.groups }));
+  } catch {
+    /* storage unavailable: the server copy still applies after load */
+  }
+}
 
 function readDdPhoneCache(): { u: string; mode: DdPhone | null } | null {
   try {
@@ -338,6 +420,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   own = cached && cached.u === userId ? { mode: cached.mode, groups: cached.groups } : { mode: null, groups: {} };
   const ddCached = readDdCache();
   ddOwn = ddCached && ddCached.u === userId ? { style: ddCached.style, groups: ddCached.groups } : { style: null, groups: {} };
+  const sizeCached = readDdSizeCache();
+  ddSizeOwn = sizeCached && sizeCached.u === userId ? { size: sizeCached.size, groups: sizeCached.groups } : { size: null, groups: {} };
   const phoneCached = readDdPhoneCache();
   ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
@@ -358,6 +442,12 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     };
     writeDdCache(userId, ddNext);
     ddOwn = ddNext;
+    const sizeNext = {
+      size: stored.includes('ui.dd_size') ? asDdSize(p.prefs['ui.dd_size']) : null,
+      groups: stored.includes('ui.dd_size_groups') ? normalizeDdSizeGroups(p.prefs['ui.dd_size_groups']) : {},
+    };
+    writeDdSizeCache(userId, sizeNext);
+    ddSizeOwn = sizeNext;
     ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
     writeDdPhoneCache(userId, ddPhoneOwn);
     notify();
@@ -402,6 +492,25 @@ export async function saveOwnDdStyle(style: DdStyle | null, groups: DdStyleGroup
     if (user !== who) return;
     ddOwn = before;
     if (user) writeDdCache(user, before);
+    notify();
+    throw err;
+  }
+}
+
+/** Save the user's own dropdown size: `size` null = follow the installation, `groups` only the overrides. Optimistic, reverted on refusal (as saveOwnDdStyle). */
+export async function saveOwnDdSize(size: DdSize | null, groups: DdSizeGroups): Promise<void> {
+  const before = ddSizeOwn;
+  ddSizeOwn = { size, groups };
+  if (user) writeDdSizeCache(user, ddSizeOwn);
+  notify();
+  if (!remote) return;
+  const who = user;
+  try {
+    await putMyPrefs({ 'ui.dd_size': size, 'ui.dd_size_groups': Object.keys(groups).length ? (groups as Record<string, string>) : null });
+  } catch (err) {
+    if (user !== who) return;
+    ddSizeOwn = before;
+    if (user) writeDdSizeCache(user, before);
     notify();
     throw err;
   }

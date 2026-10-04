@@ -14,7 +14,7 @@ BAD_GROUPS = ["pill", ["home"], {"nav": "pill"}, {"home": "list"}, {"home": 1}, 
 
 
 def test_normalize_styles_and_groups():
-    assert dd_style.STYLES == ("auto", "pill", "field", "underline", "text", "prefix", "tonal")
+    assert dd_style.STYLES == ("auto", "pill", "field", "underline", "text", "prefix", "tonal", "capsule")
     for s in dd_style.STYLES:
         assert dd_style.normalize_style(s) == s
     assert dd_style.normalize_groups({}) == {}
@@ -160,3 +160,105 @@ def test_phone_a_database_without_the_key_needs_no_migration(settings):
     with TestClient(create_app(settings)) as c:
         assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
         assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.dd_phone"] is None
+
+
+# ---- Unreleased (owner 2026-10-04): the SIZE of a dropdown (`ui.dd_size`: sm | md | lg, `ui.dd_size_groups`) and the `capsule` style ----
+
+BAD_SIZES = ["", "SM", "Md", " md", "lg ", "small", "large", "xl", "auto", 1, True, ["md"], {"a": 1}]
+BAD_SIZE_GROUPS = ["md", ["home"], {"nav": "md"}, {"home": "xl"}, {"home": 1}, {"home": None}, {"area": "lg", "bottom": "sm"}]
+
+
+def test_the_capsule_style_is_accepted_everywhere(settings):
+    assert "capsule" in dd_style.STYLES and dd_style.normalize_style("capsule") == "capsule"
+    with TestClient(create_app(settings)) as c:
+        assert c.patch("/api/v1/settings", json={"ui.dd_style": "capsule", "ui.dd_style_groups": {"home": "capsule", "settings": "pill"}}).status_code == 200
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.dd_style"] == "capsule" and s["ui.dd_style_groups"] == {"home": "capsule", "settings": "pill"}
+        assert c.put("/api/v1/me/prefs", json={"ui.dd_style": "capsule"}).status_code == 200
+
+
+def test_size_validator_and_stored_reading():
+    assert dd_style.SIZES == ("sm", "md", "lg") and dd_style.DEFAULT_SIZE == "md"
+    for s in dd_style.SIZES:
+        assert dd_style.normalize_size(s) == s
+    assert dd_style.normalize_size_groups({}) == {}
+    assert dd_style.normalize_size_groups({"settings": "lg", "home": "sm"}) == {"home": "sm", "settings": "lg"}
+    for bad in BAD_SIZES:
+        with pytest.raises(ValueError):
+            dd_style.normalize_size(bad)
+    for bad in BAD_SIZE_GROUPS:
+        with pytest.raises(ValueError):
+            dd_style.normalize_size_groups(bad)
+    assert dd_style.stored_size("nonsense") == "md" and dd_style.stored_size(None) == "md" and dd_style.stored_size("lg") == "lg"
+    assert dd_style.stored_size_groups("{not json") == {}
+    assert dd_style.stored_size_groups('{"home":"sm","ghost":"sm"}') == {}
+    assert dd_style.stored_size_groups('{"home":"sm"}') == {"home": "sm"}
+
+
+def test_the_settings_route_and_the_validator_accept_exactly_the_same_size_strings(settings):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    for probe in [*dd_style.SIZES, *BAD_SIZES, "sm\n", "md|lg", ".*"]:
+        try:
+            dd_style.normalize_size(probe)
+            valid = True
+        except ValueError:
+            valid = False
+        assert valid == (probe in dd_style.SIZES), repr(probe)
+        assert (c.patch("/api/v1/settings", json={"ui.dd_size": probe}).status_code == 200) == valid, probe
+        assert (c.put("/api/v1/me/prefs", json={"ui.dd_size": probe}).status_code == 200) == valid, probe
+
+
+def test_size_installation_default_round_trips_and_refuses_unknown_values(settings):
+    with TestClient(create_app(settings)) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.dd_size"] == "md" and s["ui.dd_size_groups"] == {}
+        r = c.patch("/api/v1/settings", json={"ui.dd_size": "lg", "ui.dd_size_groups": {"security": "sm", "area": "md"}})
+        assert r.status_code == 200, r.text
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.dd_size"] == "lg" and s["ui.dd_size_groups"] == {"area": "md", "security": "sm"}
+        for bad in BAD_SIZES:
+            assert c.patch("/api/v1/settings", json={"ui.dd_size": bad}).status_code == 422, bad
+        for bad in BAD_SIZE_GROUPS:
+            assert c.patch("/api/v1/settings", json={"ui.dd_size_groups": bad}).status_code == 422, bad
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.dd_size"] == "lg" and s["ui.dd_size_groups"] == {"area": "md", "security": "sm"}
+        assert c.patch("/api/v1/settings", json={"ui.dd_size_groups": {}}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_size_groups"] == {}
+
+
+def test_size_installation_default_needs_system_configure(settings):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.dd_size": "lg"}).status_code == 403
+    assert c.get("/api/v1/settings").json()["settings"]["ui.dd_size"] == "md"
+
+
+def test_size_user_preference_is_per_user_validated_and_clearable(settings):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    body = c.get("/api/v1/me/prefs").json()
+    assert body["prefs"]["ui.dd_size"] is None and body["prefs"]["ui.dd_size_groups"] is None
+    assert "ui.dd_size" not in body["stored"]
+    r = c.put("/api/v1/me/prefs", json={"ui.dd_size": "sm", "ui.dd_size_groups": {"multimedia": "lg"}})
+    assert r.status_code == 200, r.text
+    assert r.json()["prefs"]["ui.dd_size"] == "sm" and r.json()["prefs"]["ui.dd_size_groups"] == {"multimedia": "lg"}
+    assert {"ui.dd_size", "ui.dd_size_groups"} <= set(r.json()["stored"])
+    assert "ui.dd_size" not in c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["stored"]
+    for bad in BAD_SIZES:
+        assert c.put("/api/v1/me/prefs", json={"ui.dd_size": bad}).status_code == 422, bad
+    for bad in BAD_SIZE_GROUPS:
+        assert c.put("/api/v1/me/prefs", json={"ui.dd_size_groups": bad}).status_code == 422, bad
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.dd_size"] == "sm"
+    r = c.put("/api/v1/me/prefs", json={"ui.dd_size": None, "ui.dd_size_groups": None})
+    assert r.status_code == 200 and not {"ui.dd_size", "ui.dd_size_groups"} & set(r.json()["stored"])
+
+
+def test_size_a_database_without_the_key_needs_no_migration(settings):
+    """A database written before these keys existed has no row: the installation reads `md`, a user reads null (follow). No migration."""
+    with TestClient(create_app(settings)) as c:
+        s = c.get("/api/v1/settings").json()["settings"]
+        assert s["ui.dd_size"] == "md" and s["ui.dd_size_groups"] == {}
+        assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.dd_size"] is None

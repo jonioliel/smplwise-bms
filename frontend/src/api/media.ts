@@ -36,6 +36,9 @@ export interface ProductSettings {
   'ui.dd_style'?: string;
   'ui.dd_style_groups'?: Record<string, string>;
   'ui.dd_phone'?: string;
+  /** Unreleased: the size of a dropdown, `sm` | `md` (default) | `lg`, and a per-group override. shell/tabs-mode.ts. */
+  'ui.dd_size'?: string;
+  'ui.dd_size_groups'?: Record<string, string>;
   /** The phone UX guards (הגדרות › כללי › אפשרויות נייד, owner 2026-09-30): which kinds of management the phone UI hides - shell/phone.ts. */
   'ui.mobile'?: Record<string, boolean>;
   /** The colour of each thing the investigation timeline draws (owner 2026-10-01): option -> palette name | #rrggbb; api/timeline-colors.ts. */

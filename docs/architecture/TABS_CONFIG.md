@@ -211,3 +211,36 @@ a dropdown for four or more) and `dropdown`.
   targets, the selected item's count in the chip, a dot on the chip when a hidden option has an alert). The security sections keep
   the alarm one tap away as its own button in `dropdown` mode while it is not the section shown.
 - **UI**: הגדרות › כללי › לשוניות › "תצוגת לשוניות" (installation default, "ההעדפה שלי", per-group selects, a live preview).
+
+## The dropdown look and size: `ui.dd_style`, `ui.dd_size` (release 0.1.157, extended in the Unreleased capsule change)
+
+The LOOK of a dropdown is its own setting: `ui.dd_style` (+ `ui.dd_style_groups`), installation default and the user's own
+(`/me/prefs`, null = follow), resolved user group > user global > installation group > installation global > `auto`
+(`resolveDdStyle`). Closed list (`services/dd_style.py` STYLES, `components/dd-style.ts`, `shell/tabs-mode.ts` DD_STYLES):
+`auto` (today's look, the default), `pill`, `field`, `underline`, `text`, `prefix`, `tonal`, `capsule`. Unknown values are refused with a 422.
+
+- **`capsule`** (owner reference 2026-10-04, floor chip "כל הקומות" of another product). Closed: a capsule with a 2 px accent ring (a fractional
+  border is snapped to 1 px on a 1x screen, so the ring is 2 px; the open state adds a soft halo), a white-to-accent-tinted fill, a soft bottom
+  shadow, the icon at the start (the chip's `icon`, else the selected item's `icon`, else `layers`), a confident label (16 px / 600 at `md`) and a
+  small chevron at the end that turns up while open (RTL: icon right, chevron left). Open: a floating, rounded (about 18 px at `md`, scaled by the
+  radius dial), translucent panel at least as wide as the chip (240 px at `md`), the selected row a tinted row in the accent colour, every row with
+  its `icon` at the start and its `count` as a plain number at the other end, a thin divider for a `divider` item, 52 px rows at `md`. The visible
+  capsule is the chip's `::before`: the chip box itself is never under the touch target (44 px on a phone and on the 44 px desktop dial), so a
+  small capsule keeps its hit area. Tokens only (four skins, ten palettes, light and dark, the radius / touch / performance dials); on a phone it
+  opens as the bottom sheet (`ui.dd_phone`) with 48 px rows. Keyboard and listbox / option roles are those of every style.
+- **Items API** (`DropdownItem` in `components/sw-dropdown.ts`, `TabItem` in `components/sw-tabs.ts`): `count` (existing: "(6)" in the other styles,
+  a plain number in the capsule), `icon` (an `IconName`; only the capsule draws it), `divider: true` (a separator line instead of an option: not
+  selectable, skipped by the arrows, type-ahead and search, not drawn while the search narrows the list; the other styles and the tab bars skip it).
+  Backward compatible: nothing changes for a list without them. First users: the area chip of the devices screens (a door icon + the entity count) and
+  the multimedia rooms chips (a house icon on "הכל", a divider after it, a door icon + the device count on each room).
+- **Size** (`dd-size` on `sw-dropdown` / `sw-tabs`): `sm` | `md` | `lg`, `md` being the reference size and, for every other style, today's size.
+  Settings `ui.dd_size` (default `md`) + `ui.dd_size_groups` (`{group: size}`), the same two owners, the same groups and the same resolution
+  (`resolveDdSize`, `ddSizeOf`), backend twin `services/dd_style.py` (SIZES, `normalize_size`, `normalize_size_groups`) and the same refusals. No
+  migration: settings JSON (an absent value reads `md`). Capsule: trigger 38 / 46 / 58 px, label 14 / 16 / 18 px, icon 17 / 20 / 24 px, rows 44 / 52 /
+  62 px, panel padding 6 / 8 / 10 px, panel width 200 / 240 / 280 px. Other styles: the chip is 26 / 32 / 40 px (the 44 px hit area is kept), the
+  label and the rows follow; rows never go under the touch dial.
+- **UI**: הגדרות › לשוניות › "סגנון תפריט נפתח": the style selects, the size selects (installation, personal, per group), the effective style and
+  size of every group, a live preview of every style at the effective size, and a preview of the three capsule sizes.
+- **Checks**: `tests/dropdown-capsule.spec.ts` (items API, look, keyboard, sizes, resolver, the card), `tests/layout-dropdown-capsule.spec.ts` (the layout
+  guard: four skins x light / dark x three sizes x 320 / 390 / 1280 px x touch dial 44 / 32, closed and open), `tests/evidence-dropdown-capsule.spec.ts`
+  (screenshots in `docs/evidence/dropdown-capsule/`), `backend/tests/test_dd_style.py`.
