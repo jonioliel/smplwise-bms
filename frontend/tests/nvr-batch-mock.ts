@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { err, install as installWrite, stream, type Mock, type Stream } from './nvr-cameras-write-mock';
+import { err, install as installWrite, options, stream, type Mock, type Stream } from './nvr-cameras-write-mock';
 
 // CR-020 S2 phase C: a STATEFUL mocked backend of the multi-camera change (POST /nvr/stream-batches, GET status, POST stop, POST rollback),
 // layered on the phase-B mock. It follows the contract of the backend on branch pilot/CR020-s2c (7068b093, docs/architecture/NVR_SETTINGS_API.md
@@ -19,9 +19,14 @@ export interface MItem {
   change_id: string | null;
   error_code: string | null;
   user_message: string | null;
+  /** CR-020 phase D: the item's planned `{field: [from, to]}` (an encoding batch). */
+  fields?: Record<string, [unknown, unknown]>;
 }
 
 export interface MBatch {
+  /** CR-020 phase D: 'encoding' for a bulk encoding batch (absent: svc). */
+  mode?: 'svc' | 'encoding';
+  settings?: Record<string, unknown> | null;
   batch_id: string;
   kind: 'write' | 'rollback';
   state: string;
@@ -52,9 +57,94 @@ export interface BatchMock {
   pageMax: number;
   /** GET requests of one batch: "offset,limit" */
   pages: string[];
+  /** CR-020 phase D: the bodies of every accepted POST /nvr/encoding-batches */
+  encodingStarts: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  /** CR-020 phase D: `camera_id:stream_ref` -> a skip reason code the preview answers for that stream */
+  encSkip: Record<string, string>;
 }
 
-export const newBatchMock = (): BatchMock => ({ batches: [], seq: 0, gate: true, activeShape: 'batches', startFault: null, undoFault: null, calls: [], refusedSingles: [], getDown: false, pageMax: 500, pages: [] });
+export const newBatchMock = (): BatchMock => ({ batches: [], seq: 0, gate: true, activeShape: 'batches', startFault: null, undoFault: null, calls: [], refusedSingles: [], getDown: false, pageMax: 500, pages: [], encodingStarts: [], encSkip: {} });
+
+// ------------------------------------------------------------------------------------------------ CR-020 phase D: the mock planner
+
+const SKIP_HE: Record<string, string> = {
+  codec_not_offered: 'המצלמה אינה תומכת בקידוד הזה.', offline: 'המצלמה אינה מקוונת.', not_found: 'הזרם לא נמצא ב־NVR.', capabilities_unreadable: 'ה־NVR אינו מפרסם את יכולות הזרם.',
+};
+const NOTE_HE: Record<string, string> = {
+  closest: 'הערך אינו נתמך במצלמה; נבחר הקרוב ביותר.', clamped: 'מחוץ לטווח של המצלמה; הותאם לגבול.', profile_codec: 'הפרופיל הנוכחי אינו קיים בקידוד החדש.',
+  codec_resolution: 'הרזולוציה הנוכחית אינה קיימת בקידוד החדש.', not_in_stream: 'לא קיים בזרם הזה; נשאר כמו שהוא.', quality_cbr: 'איכות קיימת רק בקצב משתנה; נשארה כמו שהיא.',
+};
+const pxOf = (r: string) => {
+  const m = /^(\d+)x(\d+)$/.exec(r || '');
+  return m ? Number(m[1]) * Number(m[2]) : 0;
+};
+
+/** A small model of the server's plan (services/nvr_encoding_batch.plan_stream) over the mock's cameras and the write mock's options. */
+export function planEncoding(st: Mock, bm: BatchMock, body: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const settings = (body?.settings ?? {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const items = ((body?.targets ?? []) as { camera_id: string; stream_ref: string }[]).map((t, index) => {
+    const cam = st.cameras.find((c) => c.camera_id === t.camera_id);
+    const s: Stream | undefined = cam?.streams.find((x: Stream) => x.stream_ref === t.stream_ref);
+    const base = { index, camera_id: t.camera_id, stream_ref: t.stream_ref, role: s?.role ?? null, if_match: s?.etag ?? null, changes: {} as Record<string, unknown>, fields: {} as Record<string, [unknown, unknown]>, notes: [] as any[], reason: null as string | null, message: null as string | null }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const skip = (reason: string) => ({ ...base, status: 'skip', reason, message: SKIP_HE[reason] ?? 'השינוי אינו תקין למצלמה הזו.' });
+    if (!s) return skip('not_found');
+    if (cam?.online === false) return skip('offline');
+    const forced = bm.encSkip[`${t.camera_id}:${t.stream_ref}`];
+    if (forced) return skip(forced);
+    const o = options('H.264', s.role === 'main');
+    const want: Record<string, unknown> = {};
+    const note = (kind: string, field: string, reason: string) => base.notes.push({ kind, field, reason, message: NOTE_HE[reason] });
+    const codecAfter = settings.codec ?? s.codec;
+    if (settings.codec) want.codec = settings.codec;
+    if (codecAfter !== s.codec && s.profile && !(o.profile[codecAfter] ?? []).includes(s.profile)) {
+      want.profile = 'Main';
+      note('adjusted', 'profile', 'profile_codec');
+    }
+    const allowed: string[] = o.resolution[codecAfter] ?? [];
+    const closest = (r: string) => allowed.slice().sort((a, b) => Math.abs(pxOf(a) - pxOf(r)) - Math.abs(pxOf(b) - pxOf(r)) || pxOf(a) - pxOf(b))[0];
+    if (settings.resolution) {
+      want.resolution = allowed.includes(settings.resolution) ? settings.resolution : closest(settings.resolution);
+      if (want.resolution !== settings.resolution) note('adjusted', 'resolution', 'closest');
+    } else if (codecAfter !== s.codec && s.resolution && !allowed.includes(s.resolution)) {
+      want.resolution = closest(s.resolution);
+      note('adjusted', 'resolution', 'codec_resolution');
+    }
+    if (settings.fps !== undefined) want.fps = settings.fps === 'full' ? 'full' : o.fps.slice().sort((a: number, b: number) => Math.abs(a - settings.fps) - Math.abs(b - settings.fps) || a - b)[0];
+    const modeAfter = settings.bitrate_mode ?? s.bitrate_mode;
+    if (settings.bitrate_mode) want.bitrate_mode = settings.bitrate_mode;
+    if (settings.bitrate_kbps !== undefined) {
+      want.bitrate_kbps = Math.max(o.bitrate_kbps.min, Math.min(o.bitrate_kbps.max, settings.bitrate_kbps));
+      if (want.bitrate_kbps !== settings.bitrate_kbps) note('adjusted', 'bitrate_kbps', 'clamped');
+    }
+    if (settings.quality !== undefined) {
+      if (modeAfter !== 'VBR') note('kept', 'quality', 'quality_cbr');
+      else want.quality = settings.quality;
+    }
+    if (settings.gop !== undefined) want.gop = Math.max(o.gop.min, Math.min(o.gop.max, settings.gop));
+    if (settings.svc !== undefined) {
+      if (s.svc === null) note('kept', 'svc', 'not_in_stream');
+      else want.svc = settings.svc;
+    }
+    if (settings.smart_codec !== undefined) {
+      if (!o.smart_codec) note('kept', 'smart_codec', 'not_in_stream');
+      else want.smart_codec = settings.smart_codec;
+    }
+    for (const [k, v] of Object.entries(want)) {
+      const cur = k === 'fps' ? (s.fps_full ? 'full' : s.fps) : s[k];
+      if (cur !== v) {
+        base.changes[k] = v;
+        base.fields[k] = [cur, v];
+      }
+    }
+    return { ...base, status: Object.keys(base.changes).length ? 'change' : 'unchanged' };
+  });
+  const counts = { change: 0, unchanged: 0, skip: 0 } as Record<string, number>;
+  for (const i of items) counts[i.status] += 1;
+  return {
+    recorder_id: 'nvr-1', settings, items, counts, changes_total: items.reduce((a, i) => a + (i.status === 'change' ? Object.keys(i.fields).length : 0), 0),
+    adjusted: items.filter((i) => i.status === 'change' && i.notes.some((n: { kind: string }) => n.kind === 'adjusted')).length, batch_in_progress: bm.batches.some((b) => b.state === 'running'),
+  };
+}
 
 /** `n` cameras whose main stream is H.264 with SVC on (channels 1..n); channel `h265` is H.265 and `off` has SVC already off. */
 export function batchCameras(n: number, opt: { h265?: number[]; off?: number[]; offline?: number[]; names?: Record<number, string> } = {}): Record<string, any>[] { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -95,6 +185,7 @@ const view = (b: MBatch, offset = 0, limit = 500, withItems = true) => {
     batch_id: b.batch_id, kind: b.kind, state: b.state, recorder_id: 'nvr-1', total: b.items.length, done: b.items.filter((i) => ['applied', 'unchanged', 'rolled_back'].includes(i.status)).length,
     current_index: cur < 0 ? null : cur, counts: counts(b), hidden: 0, offset, limit, next_offset: next, ...(page ? { items: clone(page) } : {}),
     created_at: '2026-10-03T09:00:00Z', started_by: 'joni', stopped_at: null, stopped_reason: b.stopped_reason, source_batch_id: b.source_batch_id, can_rollback: canRollback(b),
+    mode: b.mode ?? 'svc', settings: b.settings ?? null,
   };
 };
 
@@ -120,6 +211,36 @@ export class BatchDriver {
     f.s.svc = on;
     [f.s.webrtc, f.s.webrtc_reason] = on ? ['unknown', 'svc'] : ['ok', 'h264'];
     f.s.etag = `${f.s.stream_ref}e${++this.st.seq + 1}`;
+  }
+
+  /** CR-020 phase D: an encoding item writes its own fields (a rollback writes them back); an SVC item switches SVC. `back`: the undo direction. */
+  private applyItem(b: MBatch, it: MItem, back: boolean) {
+    if (b.mode !== 'encoding' || !it.fields) {
+      this.setSvc(it.camera_id, back);
+      return;
+    }
+    const s = this.st.cameras.find((c) => c.camera_id === it.camera_id)?.streams.find((x: Stream) => x.stream_ref === it.stream_ref);
+    if (!s) return;
+    for (const [k, [from, to]] of Object.entries(it.fields)) {
+      const v = back ? from : to;
+      if (k === 'fps') [s.fps_full, s.fps] = v === 'full' ? [true, null] : [false, v];
+      else s[k] = v;
+      if (k === 'codec') s.codec_raw = v;
+      if (k === 'svc') [s.webrtc, s.webrtc_reason] = v === true ? ['unknown', 'svc'] : ['ok', 'h264'];
+    }
+    if (s.codec === 'H.265') [s.webrtc, s.webrtc_reason] = ['unknown', 'h265'];
+    else if (s.codec === 'H.264' && s.svc !== true) [s.webrtc, s.webrtc_reason] = ['ok', 'h264'];
+    s.etag = `${s.stream_ref}e${++this.st.seq + 1}`;
+  }
+
+  /** CR-020 phase D: a batch of explicit streams (main and / or sub), each with its planned fields. */
+  startItems(list: { camera_id: string; stream_ref: string; fields?: Record<string, [unknown, unknown]> }[], kind: 'write' | 'rollback' = 'write', source: string | null = null,
+             mode: 'svc' | 'encoding' = 'encoding', settings: Record<string, unknown> | null = null): MBatch {
+    const items: MItem[] = list.map((t, index) => ({ index, camera_id: t.camera_id, stream_ref: t.stream_ref, status: 'queued', change_id: null, error_code: null, user_message: null, fields: t.fields }));
+    const b: MBatch = { batch_id: `batch-${++this.bm.seq}`, kind, state: 'running', items, source_batch_id: source, stopped_reason: null, mode, settings };
+    this.bm.batches.push(b);
+    this.claim(b);
+    return b;
   }
 
   /** Claims the next queued item (the runner's pending row), or ends the batch when none is left. */
@@ -164,13 +285,13 @@ export class BatchDriver {
     }
     if (outcome === 'unchanged') cur.status = 'unchanged';
     else if (b.kind === 'write') {
-      this.setSvc(cur.camera_id, false);
+      this.applyItem(b, cur, false);
       cur.status = 'applied';
       cur.change_id = `chg-${++this.bm.seq}`;
     } else {
-      this.setSvc(cur.camera_id, true);
+      this.applyItem(b, cur, true);
       cur.status = 'applied'; // a rollback's own change row
-      const src = this.bm.batches.find((x) => x.batch_id === b.source_batch_id)?.items.find((i) => i.camera_id === cur.camera_id);
+      const src = this.bm.batches.find((x) => x.batch_id === b.source_batch_id)?.items.find((i) => i.camera_id === cur.camera_id && (b.mode !== 'encoding' || i.stream_ref === cur.stream_ref));
       if (src) src.status = 'rolled_back';
     }
     if (stopped) {
@@ -192,7 +313,7 @@ export class BatchDriver {
     const it = b.items.find((i) => i.status === 'unknown');
     if (!it) return;
     if (result === 'applied') {
-      this.setSvc(it.camera_id, b.kind === 'rollback');
+      this.applyItem(b, it, b.kind === 'rollback');
       it.status = 'applied';
       this.claim(b);
     } else if (result === 'not_applied') {
@@ -206,7 +327,7 @@ export class BatchDriver {
     const it = b.items.find((i) => i.status === 'unknown');
     if (!it) return;
     if (status === 'applied') {
-      this.setSvc(it.camera_id, b.kind === 'rollback');
+      this.applyItem(b, it, b.kind === 'rollback');
       it.status = 'applied';
     } else [it.status, it.error_code, it.user_message] = ['failed', 'nvr_no_effect', 'ה־NVR אישר את השינוי אבל לא שינה את ההגדרה.'];
   }
@@ -216,7 +337,7 @@ export class BatchDriver {
     if (!b) return;
     const cur = b.items.find((i) => i.status === 'running');
     if (cur) {
-      this.setSvc(cur.camera_id, b.kind === 'rollback');
+      this.applyItem(b, cur, b.kind === 'rollback');
       cur.status = 'applied';
     }
     this.endWith(b, 'interrupted', 'interrupted', 'interrupted');
@@ -238,7 +359,7 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
     const method = req.method();
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    const isBatch = p.startsWith('nvr/stream-batches');
+    const isBatch = p.startsWith('nvr/stream-batches') || p.startsWith('nvr/encoding-batches');
     // a single change (a PUT of one stream, the undo of one change) while a batch runs is refused by the server
     if (!isBatch && ((method === 'PUT' && /^nvr\/cameras\/[^/]+\/streams\/\d+$/.test(p)) || (method === 'POST' && /^nvr\/changes\/[^/]+\/rollback$/.test(p))) && d.running) {
       bm.refusedSingles.push(`${method} ${p}`);
@@ -277,6 +398,25 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       const b = d.start(targets.map((t) => t.camera_id));
       return json(view(b), 202);
     }
+    if (p === 'nvr/encoding-batches/preview' && method === 'POST') return json(planEncoding(st, bm, body));
+    if (p === 'nvr/encoding-batches' && method === 'POST') {
+      if (body?.confirm !== true) return json(err('confirm_required', 'נדרש אישור.'), 422);
+      const fault = bm.startFault;
+      bm.startFault = null;
+      if (fault === 'abort') return route.abort('failed');
+      if (fault === 'in_progress' || d.running) return json(err('batch_in_progress', 'מתבצע שינוי מרובה'), 409);
+      const targets = (body?.targets ?? []) as { camera_id: string; stream_ref: string; if_match: string; changes: Record<string, unknown> }[];
+      const plan = planEncoding(st, bm, { settings: body.settings, targets });
+      for (let index = 0; index < targets.length; index++) {
+        const it = plan.items[index];
+        if (fault === 'stale' || it.if_match !== targets[index].if_match) return json(err('stale', 'ההגדרות השתנו ב־NVR. יש להציג שוב את התצוגה המקדימה.', { index }), 409);
+        if (it.status !== 'change') return json(err('batch_target_not_allowed', 'הזרם הזה אינו מתאים לשינוי.', { index }), 422);
+        if (JSON.stringify(it.changes) !== JSON.stringify(targets[index].changes)) return json(err('plan_changed', 'התוכנית השתנתה.', { index }), 409);
+      }
+      bm.encodingStarts.push(clone(body));
+      const b = d.startItems(plan.items.map((i) => ({ camera_id: i.camera_id, stream_ref: i.stream_ref, fields: i.fields })), 'write', null, 'encoding', body.settings);
+      return json(view(b), 202);
+    }
     let m = /^nvr\/stream-batches\/([^/]+)$/.exec(p);
     if (m && method === 'GET') {
       if (bm.getDown) return json(err('source_unavailable', 'השרת אינו זמין כרגע.'), 503);
@@ -308,6 +448,10 @@ export async function installBatch(page: Page, st: Mock, bm: BatchMock): Promise
       if (fault === 'in_progress' || d.running) return json(err('batch_in_progress', 'מתבצע שינוי מרובה'), 409);
       const ids = src.items.filter((i) => i.status === 'applied').map((i) => i.camera_id).reverse();
       if (!ids.length || !canRollback(src)) return json(err('not_rollbackable', 'אי אפשר לבטל את השינוי הזה.'), 409);
+      if (src.mode === 'encoding') {
+        const back = src.items.filter((i) => i.status === 'applied').reverse().map((i) => ({ camera_id: i.camera_id, stream_ref: i.stream_ref, fields: i.fields }));
+        return json(view(d.startItems(back, 'rollback', src.batch_id, 'encoding', src.settings ?? null)), 202);
+      }
       const b = d.start(ids, 'rollback', src.batch_id);
       return json(view(b), 202);
     }

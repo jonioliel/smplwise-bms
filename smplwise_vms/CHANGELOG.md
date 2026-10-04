@@ -1,5 +1,10 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+### Change the encoding of many cameras at once (CR-020 phase D) - מערכת › אבטחה › מצלמות › "שינוי קידוד לכמה מצלמות"
+- A holder of `nvr.configure` chooses streams (main, sub or both; filters by codec, SVC and WebRTC; "select all"), sets the new values - codec (H.264 / H.265), resolution, frame rate, bitrate mode, bitrate, quality, GOP, SVC, smart codec, each "ללא שינוי" by default - and sees a **preview** before anything is written: per stream before → after, values adjusted to what that camera allows (the closest resolution, a bitrate inside its range, the profile the new codec needs), streams that cannot be changed and why. **One confirmation**, then the same server-side batch as the multi-camera SVC change: one camera at a time, live progress, "עצור", a result list and undo-all.
+- Safety: the server re-plans from a fresh reading at the start and refuses when a camera changed since the preview (`stale` / `plan_changed`); every planned value passes the single-stream validation, so an invalid write is never sent; all the protections of the multi-camera change stay (stop at the first failure, the unknown-outcome check after 45 s, a hard deadline per camera, single changes refused while it runs, the permission re-checked before each camera, batch state never in a backup). The two new routes (`POST /api/v1/nvr/encoding-batches/preview`, `POST /api/v1/nvr/encoding-batches`) and the undo of such a batch are refused on the remote channel. No database migration.
+- Tested against a fake NVR and a mocked screen backend only; no real camera was written.
 ## Unreleased - Music server connection hardening (CR-016 section 18)
 No database migration. The version is not bumped here.
 ### Added / שונה (עברית)

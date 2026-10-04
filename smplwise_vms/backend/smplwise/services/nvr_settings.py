@@ -630,11 +630,14 @@ def _with_codec_lists(options: dict[str, Any], for_codec: dict[str, Any] | None,
 
 
 def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, camera_id: str, stream_ref: str, req: WriteRequest, *, request_id: str | None = None,
-                 batch: tuple[str, int] | None = None, adopt: str | None = None, authorize: Callable[[sqlite3.Connection], None] | None = None) -> dict[str, Any]:
+                 batch: tuple[str, int] | None = None, adopt: str | None = None, authorize: Callable[[sqlite3.Connection], None] | None = None,
+                 options_codec: str | None = None) -> dict[str, Any]:
     """API 3.4 / section 4. The caller has passed `require(nvr.configure, INSTALLATION)`, `require_camera` and the body parse.
     Phase C: a batch item passes `batch=(batch_id, index)` (kept in its audit rows), `adopt` (its queued placeholder row) and
     `authorize` (re-run under the write lock right before the claim - review finding 11); a single write (`batch` None) is
-    refused while a batch runs on the same device."""
+    refused while a batch runs on the same device. Phase D (bulk encoding): `options_codec` reads the stream's options for
+    the codec the change switches to (the device's resolution list of that codec, API 3.3 `?codec=`), the same reading the
+    preview planned against; None (every single write) keeps the codec-less reading."""
     cam = _camera_row(conn, camera_id)
     rid = cam["recorder_id"]
     adapter = registry.adapter_for(conn, settings, rid)
@@ -646,7 +649,7 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
         _clear_pending(conn, settings, rid, stream_ref)
         with unlocked(conn):  # phase 1: fresh device reads, nothing written
             snap = adapter.read_stream(stream_ref)
-            opts = adapter.stream_options(stream_ref) if snap.parsed.get("channel") == cam["channel"] else None
+            opts = adapter.stream_options(stream_ref, options_codec) if snap.parsed.get("channel") == cam["channel"] else None
         base["role"] = snap.parsed.get("role")
         if snap.parsed.get("channel") != cam["channel"]:  # the stream belongs to another camera: never written through this one
             raise ApiError(404, "not_found", "הזרם אינו שייך למצלמה הזו.", details={"stream_ref": stream_ref})

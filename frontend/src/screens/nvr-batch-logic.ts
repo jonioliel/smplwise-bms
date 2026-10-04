@@ -173,6 +173,11 @@ export function tally(b: Batch): Tally {
 export const camerasLabel = (n: number): string => (n === 1 ? 'מצלמה אחת' : `${n} מצלמות`);
 /** "in N cameras": "במצלמה אחת" / "ב־3 מצלמות". */
 export const inCameras = (n: number): string => (n === 1 ? 'במצלמה אחת' : `ב־${n} מצלמות`);
+/** CR-020 phase D: an encoding batch counts STREAMS (main and sub of one camera are two items). */
+const inStreamsOf = (n: number): string => (n === 1 ? 'בזרם אחד' : `ב־${n} זרמים`);
+export const isEncoding = (b: Pick<Batch, 'mode'>): boolean => b.mode === 'encoding';
+/** "in N cameras" for an SVC batch, "in N streams" for an encoding batch. */
+export const inUnits = (b: Pick<Batch, 'mode'>, n: number): string => (isEncoding(b) ? inStreamsOf(n) : inCameras(n));
 
 /** The icon of a row. */
 export function toneOf(i: BatchItem): Tone {
@@ -261,9 +266,10 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
   if (b.state === 'running') {
     return { ...base, tone: 'running', title: `${t.processed} מתוך ${t.total}`, sub: stopping ? 'עוצר אחרי המצלמה הנוכחית' : t.unknown ? 'נבדק מול ה־NVR' : '', canStop: !stopping };
   }
+  const inN = (n: number) => inUnits(b, n);
   const counts = rb
-    ? join([t.restored > 0 && `הוחזר ${inCameras(t.restored)}`, left > 0 && `לא הוחזר ${inCameras(left)}`])
-    : join([t.applied > 0 && `נשמר ${inCameras(t.applied)}`, t.bad > 0 && `נכשל ${inCameras(t.bad)}`, t.unknown > 0 && `לא ברור אם בוצע ${inCameras(t.unknown)}`,t.notAttempted > 0 && `לא בוצע ${inCameras(t.notAttempted)}`]);
+    ? join([t.restored > 0 && `הוחזר ${inN(t.restored)}`, left > 0 && `לא הוחזר ${inN(left)}`])
+    : join([t.applied > 0 && `נשמר ${inN(t.applied)}`, t.bad > 0 && `נכשל ${inN(t.bad)}`, t.unknown > 0 && `לא ברור אם בוצע ${inN(t.unknown)}`, t.notAttempted > 0 && `לא בוצע ${inN(t.notAttempted)}`]);
   const undo = !rb && t.applied > 0 ? { showUndo: true, canUndo: !undoWait } : {};
   const retry = rb && left > 0 && !!b.rollback_of && b.state !== 'completed' ? { showRetry: true } : {};
   // the check found the camera still on the old value: a plain failure at that camera
@@ -273,8 +279,10 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
     case 'completed':
       return {
         ...base, ...undo, tone: 'done',
-        title: rb ? `SVC הוחזר ${inCameras(t.restored)}` : t.applied > 0 ? `SVC כבוי ${inCameras(t.applied)}` : 'ללא שינוי',
-        sub: !rb && t.applied > 0 && t.ok > t.applied ? `ללא שינוי ${inCameras(t.ok - t.applied)}` : '',
+        title: isEncoding(b)
+          ? rb ? `הקידוד הוחזר ${inN(t.restored)}` : t.applied > 0 ? `הקידוד עודכן ${inN(t.applied)}` : 'ללא שינוי'
+          : rb ? `SVC הוחזר ${inCameras(t.restored)}` : t.applied > 0 ? `SVC כבוי ${inCameras(t.applied)}` : 'ללא שינוי',
+        sub: !rb && t.applied > 0 && t.ok > t.applied ? `ללא שינוי ${inN(t.ok - t.applied)}` : '',
       };
     case 'stopped':
       return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? 'ההחזרה נעצרה בבקשתך' : 'נעצר בבקשתך', sub: counts };
@@ -288,9 +296,9 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
 /** The toast after a batch that completed in front of the person. */
 export function doneToast(b: Batch): { message: string; undo: boolean } {
   const t = tally(b);
-  if (b.kind === 'rollback') return { message: `בוטל ${inCameras(t.restored)}`, undo: false };
+  if (b.kind === 'rollback') return { message: `בוטל ${inUnits(b, t.restored)}`, undo: false };
   if (t.applied === 0) return { message: 'ללא שינוי', undo: false };
-  return { message: `נשמר ${inCameras(t.applied)}`, undo: true };
+  return { message: `נשמר ${inUnits(b, t.applied)}`, undo: true };
 }
 
 /** The line shown when starting (or undoing) the batch was refused. `reload`: the camera list is stale and should be read again. */
@@ -344,7 +352,10 @@ export function batchConfirmModel(names: string[]): BatchConfirm {
   return { heading: `לכבות SVC ${inCameras(names.length)}?`, lead: CONFIRM_LEAD, count: camerasLabel(names.length), confirmLabel: 'כבה', details: [], names };
 }
 
-export function undoConfirmModel(names: string[]): BatchConfirm {
+export function undoConfirmModel(names: string[], mode: Batch['mode'] = 'svc'): BatchConfirm {
+  if (mode === 'encoding') {
+    return { heading: `להחזיר את הקידוד ${inStreamsOf(names.length)}?`, lead: UNDO_LEAD, count: names.length === 1 ? 'זרם אחד' : `${names.length} זרמים`, confirmLabel: 'החזר', details: [], names };
+  }
   return { heading: `להחזיר SVC ${inCameras(names.length)}?`, lead: UNDO_LEAD, count: camerasLabel(names.length), confirmLabel: 'החזר', details: [], names };
 }
 

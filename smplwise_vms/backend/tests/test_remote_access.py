@@ -502,7 +502,9 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("POST", "/api/v1/nvr/connection/test"), ("POST", "/api/v1/system/restart"),
                      # CR-016 section 18: the music server connection (address, write-only token, SSRF-shaped test) is local-only
                      ("GET", "/api/v1/multimedia/admin/ma-connection"), ("PUT", "/api/v1/multimedia/admin/ma-connection"),
-                     ("POST", "/api/v1/multimedia/admin/ma-connection/test")}
+                     ("POST", "/api/v1/multimedia/admin/ma-connection/test"),
+                     # CR-020 phase D: the bulk encoding change and its preview are local-only
+                     ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview")}
 
 
 def test_every_route_needs_a_remote_session(arx):
