@@ -83,6 +83,11 @@ class FakeDevices:
                          "modes": ["CBR", "VBR"], "kbps": (32, 16384), "quality": [10, 30, 45, 60, 75, 90], "gop": (1, 400),
                          "h264_profiles": ["Baseline", "Main", "High"], "h265_profiles": ["Main"], "svc": True, "smart": True},
                 "caps_status": {"direct": 200, "proxy": 404}, "caps_status_by_stream": {}, "dynamic_cap": None,
+                # CR-020 S2C: put_unknown_at: n makes the nth PUT a timeout (applied or not per `timeout_applies`) - an unknown outcome
+                "put_unknown_at": None,
+                # CR-020 S2C review fixes: list_inject (text put right after the LIST root's start tag, e.g. a forged
+                # comment); drip_from: n makes the nth and later LIST reads arrive slowly (drip_s per 64-byte piece)
+                "list_inject": None, "drip_from": None, "drip_s": 0.2,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -140,8 +145,11 @@ class FakeDevices:
         if path == "/ISAPI/Streaming/channels" and n["streaming"] and n["streaming_xml"] is not None:
             return self._ok(request, n["streaming_xml"])
         if path == "/ISAPI/Streaming/channels" and n["streaming"]:
-            return self._ok(request, f"<StreamingChannelList version=\"1.0\" {NS}>" + "".join(
+            doc = (f"<StreamingChannelList version=\"1.0\" {NS}>" + (n.get("list_inject") or "") + "".join(
                 self._streaming_channel(c, kind) for c in chans for kind in ("main", "sub")) + "</StreamingChannelList>")
+            if n.get("drip_from") is not None and n["list_reads"] >= n["drip_from"]:
+                return self._dripping(request, _xml(doc), float(n.get("drip_s") or 0.2))
+            return self._ok(request, doc)
         if path == "/ISAPI/System/time":
             if n["time_error"]:
                 return httpx.Response(500, text="error", request=request)
@@ -226,6 +234,8 @@ class FakeDevices:
         mode = (n["put"] or {}).get("status", "ok")
         if n["put_fail_at"] is not None and n["put_count"] == n["put_fail_at"]:
             mode = "busy"
+        if n.get("put_unknown_at") is not None and n["put_count"] == n["put_unknown_at"]:
+            mode = "timeout"
         if mode == "busy":
             return status_doc(2, "deviceBusy", 503)
         if mode == "invalid":
@@ -306,6 +316,19 @@ class FakeDevices:
     @staticmethod
     def _ok(request: httpx.Request, body: str) -> httpx.Response:
         return httpx.Response(200, text=_xml(body), headers={"Content-Type": "application/xml"}, request=request)
+
+    @staticmethod
+    def _dripping(request: httpx.Request, text: str, drip_s: float, piece: int = 64) -> httpx.Response:
+        """A slow device: the body arrives `piece` bytes at a time, `drip_s` apart (each piece is well inside any per-read
+        timeout, so only a whole-request deadline can stop it)."""
+        raw = text.encode("utf-8")
+
+        def pieces():
+            for i in range(0, len(raw), piece):
+                time.sleep(drip_s)
+                yield raw[i:i + piece]
+
+        return httpx.Response(200, content=pieces(), headers={"Content-Type": "application/xml"}, request=request)
 
     # ------------------------------------------------------------ go2rtc
 

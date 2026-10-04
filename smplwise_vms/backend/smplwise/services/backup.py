@@ -44,6 +44,16 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
 # archive contains. The same rule drops an archive row whose file column points anywhere else (it could steer a later read).
 RESTORABLE_ROOTS = ("plans/",)
 _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|-shm$|-journal$|\.key$)", re.IGNORECASE)
+# CR-020 S2C security review finding 4: runtime state of the multi-camera batches (the batch record with who started it and
+# the request id, its heartbeat, the device lock). Never exported, never restored, never deleted by a `replace` restore -
+# a restore in the middle of a batch must not drop the device lock, and an old archive must not bring back a stale one.
+SETTINGS_KEEP_PREFIXES = ("nvr.batch.",)
+
+
+def _kept_setting(key: Any) -> bool:
+    return isinstance(key, str) and (key in SETTINGS_KEEP or key.startswith(SETTINGS_KEEP_PREFIXES))
+
+
 MAX_UPLOAD = 200 * 1024 * 1024
 DAILY_SECONDS = 24 * 3600
 
@@ -74,7 +84,7 @@ def snapshot(conn: sqlite3.Connection, include_access: bool = True, include_audi
     tables = PROJECT_TABLES + (ACCESS_TABLES if include_access else []) + (OPTIONAL_TABLES["audit"] if include_audit else []) + (OPTIONAL_TABLES["events"] if include_events else [])
     out = {t: [dict(r) for r in conn.execute(f"SELECT * FROM {t}").fetchall()] for t in tables if t in existing}
     if "settings" in out:  # review M3: what a restore never writes back (secrets, identity, pairing) never leaves in an archive either
-        out["settings"] = [r for r in out["settings"] if r.get("key") not in SETTINGS_KEEP]
+        out["settings"] = [r for r in out["settings"] if not _kept_setting(r.get("key"))]
     return out
 
 
@@ -241,7 +251,7 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
     n = 0
     verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
     for row in rows:
-        if table == "settings" and row.get("key") in SETTINGS_KEEP:
+        if table == "settings" and _kept_setting(row.get("key")):
             continue
         keys = [k for k in row.keys() if k in cols_now]
         if not keys:
@@ -322,7 +332,9 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 if t in kept_current:
                     continue  # CR-019: never emptied by an archive that does not have it
                 if t == "settings":
-                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})", list(SETTINGS_KEEP))
+                    conn.execute(f"DELETE FROM settings WHERE key NOT IN ({', '.join('?' * len(SETTINGS_KEEP))})"
+                                 + "".join(" AND substr(key, 1, ?) <> ?" for _ in SETTINGS_KEEP_PREFIXES),
+                                 [*SETTINGS_KEEP, *(v for p in SETTINGS_KEEP_PREFIXES for v in (len(p), p))])
                 else:
                     conn.execute(f"DELETE FROM {t}")
         skipped = _unsafe_rows(settings, data)

@@ -164,6 +164,117 @@ permission). For `kind = stream_encoding` it additionally: refuses 409 `stale` w
 etag of the change's `after` document (someone changed it since); runs the same two-phase path as §4 (rollback is a
 write); refreshes the registry (§5.3). `GET /nvr/changes?camera_id=` filters the existing change log (new query param).
 The UI offers undo on the success toast (10 s) and in the change log.
+Security review 2026-10-04 (finding 1): the undo document is the stream's CURRENT reading with only the fields the change
+modified put back (`stream_document`), never the stored whole `before` document - a field someone else changed meanwhile is
+kept. A change settled after an unknown outcome (§4, janitor) is `applied` only when its fields have the new values AND
+every other encoding field still has its value from before the change; otherwise it is `diverged` (audit `phase:"settle"`
+with `foreign_change: true`). Response shapes unchanged.
+
+### 3.7 The same change on many cameras (S2 phase C, backend 2026-10-03)
+
+Implemented in `routers/nvr_batch.py` and `services/nvr_batch.py` (record: CR-020 §9.4). The batch runs on the SERVER in
+a background thread, one camera at a time; closing the page never stops it; every decision is read from the database.
+All four routes need `nvr.configure` at installation scope (system_admin only). Batches are always on (owner 2026-10-03):
+`GET /nvr/cameras` and `GET /nvr/cameras/{id}` carry `can_batch` (= `can_write`).
+
+`POST /nvr/stream-batches` → **202**
+
+```json
+{ "confirm": true, "changes": { "svc": false }, "recorder_id": "nvr-1",
+  "targets": [ { "camera_id": "a1b2…", "stream_ref": "101", "if_match": "<16 hex>" }, { "camera_id": "c3d4…", "stream_ref": "201", "if_match": "…" } ] }
+```
+
+Order: permission (read connection, before the body) → `confirm` literal `true` (422 `confirm_required`, audited, no
+device read) → shape: `changes` must be exactly `{"svc": false}` (422 `batch_field_not_allowed`), 2 or more targets
+(the input-size guard is 1024; there is NO product cap), no camera or stream twice, strict types (422 `validation`) →
+`nvr.configure` on EVERY target camera's chain (the first deny is 403 for the whole batch, audited) → NVR-less mode →
+all targets on one recorder (422) → 409 `batch_in_progress` when a batch already runs on that recorder → read-only
+preflight: ONE LIST read for the recorder, then per target: the stream belongs to the camera (404), role `main`, codec
+`H.264`, SVC on now (422 `batch_target_not_allowed`, `details.reason` `role|codec|svc`), etag = `if_match` (409 `stale`,
+`details.index` + the current `stream`), a capability document (503 `capabilities_unreadable`), the §3.4 validation →
+under the write lock: 409 `write_in_progress` when a single change is pending on a target stream; one `queued` placeholder
+row per target (`batch_id`, `batch_index`), the batch record, the recorder lock, ONE audit row `nvr.stream.batch`
+`phase:"attempt"` naming the actor - committed before the runner starts. Any refusal writes nothing but its audit row.
+Every check of the preflight is repeated by the item at its own turn (devices change between items).
+
+`GET /nvr/stream-batches/{batch_id}?offset=0&limit=200` (limit ≤ 500) and `GET /nvr/stream-batches[?active=1]`:
+
+```json
+{ "batch_id": "…", "kind": "write", "state": "running", "recorder_id": "nvr-1", "total": 3, "done": 1, "current_index": 1,
+  "counts": { "applied": 1, "running": 1, "queued": 1 }, "hidden": 0, "offset": 0, "limit": 200, "next_offset": null,
+  "items": [ { "index": 0, "camera_id": "…", "stream_ref": "101", "status": "applied", "change_id": "…", "rollback_of": null,
+               "error_code": null, "user_message": "נשמר." } ],
+  "created_at": "…", "started_by": "joni", "stopped_at": null, "stopped_reason": null, "source_batch_id": null, "can_rollback": false }
+```
+
+Item `status`: `queued | running | unknown | applied | unchanged | refused | failed | no_effect | diverged | not_attempted |
+rolled_back`; `error_code` e.g. `nvr_busy`, `stale`, `forbidden`, `earlier_failure`, `earlier_unknown`, `stopped`,
+`interrupted`. Batch `state`: `running | completed | stopped | failed | interrupted`; `stopped_reason`: `user_stop`,
+`item_failed`, `item_refused`, `forbidden`, `unknown_not_applied`, `unknown_unverified`, `unknown_diverged` (2026-10-04),
+`deadline` (2026-10-04), `interrupted` (restart / dead runner), `shutdown`, `error`. Each item also has `reboot_required`
+(bool) and the status a `reboot_required` count (2026-10-04). Items of a camera outside the caller's `nvr.configure` camera scope are left out (`hidden`).
+The list form answers `{batches: [summary…]}` (running ones with `active=1`, else the latest 20).
+
+`POST /nvr/stream-batches/{batch_id}/stop` → 200 status. No confirmation (the safe direction), idempotent: the still
+`queued` items become `not_attempted` (`stopped`); the camera in flight is never interrupted. Audited `phase:"stop"`.
+
+`POST /nvr/stream-batches/{batch_id}/rollback` body `{"confirm": true}` → **202**: undo-all as a NEW batch (`kind:
+"rollback"`) of single undos (§3.5) of the source batch's `applied` items in REVERSE index order, `nvr.configure` on every
+camera. ONE confirmation for all (the toast press is that confirmation). Items not applied are skipped. 409
+`not_rollbackable` when the source is a rollback batch, has nothing applied, or still has a `running` / `unknown` item;
+409 `batch_in_progress` while a batch runs on the recorder.
+
+Runner rules: per item, again `nvr.configure` + the camera (a deny added mid-batch stops it, item `refused/forbidden`);
+then the unchanged §4 path through `write_stream(..., batch, adopt)` / `rollback_stream(...)` - the placeholder is claimed
+`queued → pending` atomically (a stop that won the race leaves it `not_attempted`; no PUT). The first non-success stops
+the batch; the rest `not_attempted` (`earlier_failure`). No retry, no re-order, no skip. An item already set as asked
+counts `unchanged` and the batch goes on. **Unknown outcome** (§5.2 timeout after the PUT): the batch stops, waits
+`UNKNOWN_SETTLE_MIN_S` (45 s, the device may still be applying the PUT), makes ONE read-only check of that camera
+(`_settle_one`) and continues by itself only when the reading PROVES the new value (`applied`); not applied, partial or
+unreadable → state `interrupted` (`unknown_not_applied` / `unknown_unverified`), the rest `not_attempted`
+(`earlier_unknown`); an unreadable item stays `unknown` until the janitor settles it, and undo-all waits for that.
+While a batch runs on a recorder, a single `PUT` (§3.4) or single undo (§3.5) there is refused 409 `batch_in_progress`
+("מתבצע שינוי מרובה"). **Restart**: at start-up every batch left `running` becomes `interrupted` (its one pending item
+settled by a read when due, the queued items `not_attempted/interrupted`); the janitor does the same for a batch whose
+heartbeat (`settings` key `nvr.batch.<id>.beat`, written before every item) is older than 180 s and whose runner is not in
+this process. A write is never resumed. Shutdown: each runner ends after its current camera.
+
+Storage (no migration): items are `nvr_changes` rows (0050's `batch_id`, `batch_index`); `queued` placeholders are outside
+the partial unique index of pending rows and invisible to `settle_pending`. The batch record (`nvr.batch.<id>`), its
+heartbeat and the device lock (`nvr.batch.active.<device_key>`) are `settings` keys, never returned by the settings API,
+never written to a backup and never deleted or brought back by a restore.
+
+**Security review fixes (2026-10-04, branch `pilot/CR020-s2c-fixes`) - contract changes, all backward compatible
+(additive fields / values; no field removed or renamed):**
+- Unknown outcome: the check counts `applied` only when SVC is off AND every other encoding field is unchanged from the
+  reading before the PUT; otherwise the item is `diverged` and the batch ends `interrupted` with the NEW `stopped_reason`
+  `unknown_diverged` (the rest `not_attempted/earlier_unknown`). Undo / undo-all restore only our field on the current
+  reading (§3.5).
+- Hard time limit: each item's device work runs under a wall-clock deadline (90 s; a trickling device cannot hold it).
+  Past it before the PUT: item `refused`, NEW `error_code` `source_timeout`, batch `interrupted` with the NEW
+  `stopped_reason` `deadline`; past it after the PUT: the existing unknown-outcome rule. A runner still inside one item
+  150 s after it began is abandoned by `POST .../stop` or by the periodic recovery: batch `interrupted` / `deadline`, the
+  device lock released at once, its queued items `not_attempted` (`interrupted`) and never sent; an item whose PUT was in
+  flight stays `running` until the janitor settles it by a read.
+- `GET /nvr/stream-batches[/{id}]` and `POST .../stop` answer on a READ connection; a GET never ends a dead batch and never
+  reads the device. A batch whose runner is gone is ended by the periodic maintenance (every 30 s) or at once by a stop
+  (`stopped_reason` `interrupted`). The UI therefore may see `state: "running"` for up to ~30 s after a crash.
+- NEW fields: every item carries `reboot_required` (bool, the NVR answered "reboot required"); the status carries
+  `reboot_required` (count of such items). The UI should show it (owner: "show the operator").
+- The lock is per DEVICE (`adapter.device_key`; today every recorder row is the add-on's NVR, so all rows share one key):
+  a batch through one recorder row refuses single writes through another row of the same NVR (409 `batch_in_progress`).
+- The permission (`nvr.configure` at installation + the camera) is checked again under the write lock right before the
+  item is claimed; a deny added during the item's device reads stops it (`refused/forbidden`, no PUT).
+- `POST .../{id}/rollback` with an id that is not 16 lowercase hex: 404 `not_found` BEFORE the confirmation check (was
+  422 `confirm_required` audited with the raw id); nothing about the id is audited.
+- A body that is not JSON, or nested too deeply for the parser (inside the 1 MB cap), is refused 422 `confirm_required`
+  (not a JSON object), audited - never a bare 500. Same for the single write (§3.4).
+- Not changed (accepted, documented): `total`, `counts`, `current_index` and `hidden` still count items of cameras outside
+  the caller's scope (only system_admin holds `nvr.configure`). The add-on runs ONE worker process: start-up recovery
+  interrupts every running batch, and "is the runner alive" is this process's memory; a second worker needs a per-process
+  id first.
+- Open: an index on `nvr_changes(batch_id, batch_index)` needs a migration (0052 is the NVR connection feature, 0053 is
+  reserved) - not added; the status queries scan `nvr_changes`, which is small (one row per change).
 
 ### 3.6 Add and remove a camera (S3)
 
@@ -223,6 +334,9 @@ Never retried automatically (AGENTS: no blind retry of device commands). One wri
 | `nvr.channel.remove` | `camera` / `camera_id` | attempt + outcome | `phase`, `source_ref`, `change_id` |
 | `cameras.replaced` | `camera` / `camera_id` | discovery sees a new fingerprint | `recorder_id`, `source_ref` |
 | `nvr.configure` (denied) | as targeted | `require` refuses | the standard denied row |
+| `nvr.stream.batch` | `recorder` / `recorder_id` | attempt (WHO started it), stop, check (after an unknown outcome), outcome; `settle` (recovery, no actor) | `phase`, `batch_id`, `total`, `fields`, `targets` [{camera_id, stream_ref}], outcome `state`, `stopped_reason`, `counts` |
+| `nvr.stream.batch.rollback` | `recorder` / `recorder_id` | as above, for undo-all | plus `source_batch_id`, targets carry `rollback_of` |
+| `nvr.stream.write` / `nvr.rollback` of a batch item | `camera` / `camera_id` | attempt + outcome per item | the rows above plus `batch_id`, `batch_index` |
 
 ## 5. Device behaviour (Hikvision adapter)
 
@@ -275,6 +389,8 @@ The next discovery run (every 10 min) re-reads everything anyway.
 | 409 | `nvr_not_configured` | NVR-less mode |
 | 409 | `stale` | `if_match` / rollback etag does not match the device |
 | 409 | `write_in_progress` | a pending change on the same stream |
+| 409 | `batch_in_progress` | a multi-camera batch runs on the recorder (§3.7): a second batch, a single write or a single undo there |
+| 422 | `batch_field_not_allowed` / `batch_target_not_allowed` | §3.7: a change other than `{"svc": false}` / a target that is not an H.264 main stream with SVC on |
 | 409 | `nvr_busy` / `nvr_not_supported` / `nvr_rejected` / `nvr_no_effect` | §5.2 |
 | 409 | `not_rollbackable` | removal, or a change without a `before` document |
 | 409 | `channel_slots_full` | add: no free InputProxy slot |
@@ -295,3 +411,4 @@ The next discovery run (every 10 min) re-reads everything anyway.
 | Rollback hook for `stream_encoding` | `routers/nvr_write.py::rollback_change` |
 | Permission | `roles.json` (`system_admin`), `routers/access.py` `SYSTEM_PERMISSIONS`, `PERMISSION_LABELS` |
 | Fake device | `tests/fixtures/fake_devices.py`: PUT of streaming channels, capabilities, statusCode knobs, InputProxy POST/DELETE |
+| Multi-camera batch (S2C) | `routers/nvr_batch.py`, `services/nvr_batch.py`; hooks `batch` / `adopt` in `write_stream` / `rollback_stream`, `batch_guard`; `main.py` start-up / janitor recovery and shutdown; tests `test_nvr_stream_batch*.py` (fake knob `put_unknown_at`) |
