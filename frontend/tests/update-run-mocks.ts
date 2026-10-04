@@ -84,7 +84,8 @@ export function freshMock(): UpdateMock {
     applyReply: null,
     restartReply: null,
     arxRestartReply: null,
-    startRun: runView(),
+    // the 202 of an apply: the backup is only requested, never confirmed yet
+    startRun: runView({ backup: false, backup_state: 'requested' }),
     applyBodies: [],
     restartBodies: [],
     arxRestarts: 0,

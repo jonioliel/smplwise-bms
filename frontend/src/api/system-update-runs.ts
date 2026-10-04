@@ -188,7 +188,7 @@ const GUIDE_NOT_UP = 'אם Arx אינו עולה: בדפי התוספים של �
 export function rollbackSteps(backupState: BackupState | null | undefined): { note: string | null; steps: string[] } {
   if (backupState === 'confirmed') return { note: null, steps: [GUIDE_PLATFORM_BACKUP, `לחלופין: ${GUIDE_ARX_COPY}`, `${GUIDE_NOT_UP} או שחזרו את הגיבוי.`] };
   return {
-    note: backupState === 'requested' ? 'ביקשתם גיבוי לפני העדכון, אך תשתית המערכת לא אישרה שהוא נוצר. אל תסתמכו עליו.' : null,
+    note: backupState === 'requested' ? 'ביקשתם גיבוי, אך תשתית המערכת לא אישרה שהוא נוצר. אל תסתמכו עליו.' : null,
     steps: [GUIDE_ARX_COPY, GUIDE_NOT_UP],
   };
 }

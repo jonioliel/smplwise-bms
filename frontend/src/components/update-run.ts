@@ -5,7 +5,7 @@ import './sw-card';
 import './sw-icon';
 import { ApiError } from '../api/client';
 import { getUpdateState } from '../api/system-update';
-import { getRun, rollbackSteps, isTerminal, needsRollbackGuidance, runFailureText, runSteps, type RunKind, type RunView } from '../api/system-update-runs';
+import { getRun, rollbackSteps, type BackupState, isTerminal, needsRollbackGuidance, runFailureText, runSteps, type RunKind, type RunView } from '../api/system-update-runs';
 
 /** The page that follows one run: shown while it runs (also across the restart of Arx), then its outcome. Events: `run-dismiss` (the person closes the outcome). */
 const POLL_FAST_MS = 2_000;
@@ -299,8 +299,8 @@ export class SwUpdateRun extends LitElement {
   }
 
   private renderGuidance() {
-    const g = rollbackSteps(this.run?.backup_state);
-    return html`<sw-card heading="הוראות שחזור" data-run-guidance data-run-backup-state=${this.run?.backup_state ?? 'unknown'}>
+    const g = rollbackSteps(this.run?.backup_state ?? (this.initial?.backup_state as BackupState | undefined));
+    return html`<sw-card heading="הוראות שחזור" data-run-guidance data-run-backup-state=${this.run?.backup_state ?? this.initial?.backup_state ?? 'unknown'}>
       ${g.note ? html`<p class="reason" data-run-backup-note>${g.note}</p>` : nothing}
       <ol class="how">${g.steps.map((s) => html`<li>${s}</li>`)}</ol>
     </sw-card>`;

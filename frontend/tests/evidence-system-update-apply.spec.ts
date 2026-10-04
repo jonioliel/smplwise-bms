@@ -97,7 +97,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
 
   test('without the backup box the backup step is not listed and backup: false is sent', async ({ page }) => {
     const mock = withUpdate(freshMock());
-    mock.startRun = runView({ backup: false });
+    mock.startRun = runView({ backup: false, backup_requested: false, backup_state: 'not_requested' });
     mock.runReplies = [runView({ backup: false, state: 'updating', step: 'sending' })];
     await mockBackend(page, ADMIN_PERMS, mock);
     await apply(page, mock, false);
@@ -290,7 +290,9 @@ test.describe('the status screen of a run', () => {
     const out = run(page).locator('[data-run-state="abandoned"]');
     await expect(out).toBeVisible({ timeout: 20000 });
     await run(page).locator('[data-run-guidance-open]').click();
-    await expect(run(page).locator('[data-run-guidance] li')).toHaveCount(3);
+    // the backup was only requested (the 202), never seen confirmed: the infrastructure copy is not offered
+    await expect(run(page).locator('[data-run-guidance] li')).toHaveCount(2);
+    await expect(run(page).locator('[data-run-backup-note]')).toBeVisible();
   });
 
   test('the page reloads once when the update finished on another version and still shows the result', async ({ page }) => {

@@ -166,7 +166,7 @@ test('an update that comes back on the same version: "version unchanged" with th
   await root(page).locator('[data-update-confirm]').click();
   await expect(run(page).locator('[data-run-step="restart"]')).toHaveAttribute('data-run-step-state', 'current', { timeout: 20_000 });
   const started = await control('/fixture/new-process', { version: '0.1.157' });
-  expect(started.outcome).toBe('version_unchanged');
+  expect(started.outcome).toBe('resumed'); // the job decides, not the start: no update job for the (shortened) grace and the old version installed
   const out = run(page).locator('[data-run-state="failed"]');
   await expect(out).toBeVisible({ timeout: 20_000 });
   await expect(out).toHaveAttribute('data-run-error', 'version_unchanged');
