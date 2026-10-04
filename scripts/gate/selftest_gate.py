@@ -184,6 +184,16 @@ fin, bp = g.write_reports("abc1234", g.compute_verdict([]), {"baseline_warnings"
 md = Path(str(bp) + ".md").read_text()
 check("report: the md lists each category (also the vanished one) with counts and baseline", "| preview | 5 |" in md and "| dev | 0 |" in md and "100%" in md, md[:600])
 
+# ---- workers=1 chunks are balanced by the earlier gates' times (0.1.162: round-robin gave 46 / 16 / 27 minutes)
+g._COSTS = {"heavy1.spec.ts": 1200.0, "heavy2.spec.ts": 1100.0, "mid.spec.ts": 600.0, "a.spec.ts": 60.0, "b.spec.ts": 50.0, "c.spec.ts": 40.0}
+names = ["a.spec.ts", "b.spec.ts", "c.spec.ts", "heavy1.spec.ts", "heavy2.spec.ts", "mid.spec.ts", "new.spec.ts"]
+parts = g.balance(names, 3)
+loads = [sum(g._COSTS.get(x, 60.0) for x in p) for p in parts]
+check("balance: every file lands in exactly one chunk", sorted(x for p in parts for x in p) == sorted(names), parts)
+check("balance: the two heaviest files never share a chunk", not any("heavy1.spec.ts" in p and "heavy2.spec.ts" in p for p in parts), parts)
+check("balance: the longest chunk is the heaviest single file plus at most the light ones", max(loads) <= 1200 + 60 + 60, loads)
+g._COSTS = None
+
 print()
 print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)

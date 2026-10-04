@@ -19,7 +19,8 @@
 #        rest    dist preview (vite preview on a free port), all three projects
 #   4. RETRY: every failed test is re-run once alone (workers=1); passes on retry -> FLAKY (not a failure)
 #   5. ~/known_issues.json allowlist: listed failures are KNOWN, not FAIL (a known test is not retried)
-#   6. scripts/release_check.py from the worktree with the repo venv
+#   6. scripts/release_check.py from the worktree with the repo venv (right after the build; the fixture specs run before the
+#      dev-server sweep; the --workers=1 chunks are balanced by the earlier gates' per-file times - 0.1.162 budget fix)
 #   7. FALSE-GREEN GUARDS (see release_gate.py): a Playwright/pytest process that crashed at load time, ran zero tests, timed out or
 #      exited non-zero without a failed test is a FAIL; every category's passed count is compared with gate_baselines.json (the
 #      previous accepted release) and below 70 percent (GATE_DROP_THRESHOLD) it is a FAIL unless --allow-count-drop "<reason>" is given
