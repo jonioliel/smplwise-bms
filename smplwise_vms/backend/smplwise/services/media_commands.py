@@ -136,6 +136,19 @@ class _Buckets:
                     del self.state[k]
             return True
 
+    def take_n(self, kind: str, key: str, limit: tuple[float, float], n: int) -> bool:
+        """`n` tokens at once or none (a multi-row edit): refused when `n` exceeds what the bucket holds."""
+        rate, burst = limit
+        now = MONO()
+        with self.lock:
+            tokens, last = self.state.get((kind, key), (burst, now))
+            tokens = min(burst, tokens + max(0.0, now - last) * rate)
+            if tokens < n:
+                self.state[(kind, key)] = (tokens, now)
+                return False
+            self.state[(kind, key)] = (tokens - n, now)
+            return True
+
     def refund(self, kind: str, key: str, limit: tuple[float, float]) -> None:
         rate, burst = limit
         with self.lock:

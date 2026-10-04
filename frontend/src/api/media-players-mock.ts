@@ -262,6 +262,8 @@ export class PlayersMockStore implements PlayersAdapter {
   canBrowse = true;
   /** Queue reads fail (`confirmed: false`). */
   failQueue = false;
+  /** Rows of the invented queue (set before the first read of a leader's queue; tests use a very long one). */
+  queueLength = QUEUE_LEN;
   /** leader id -> the invented queue (row id, track id); built on first read. */
   private queues: Record<string, { id: string; track: string }[]> = {};
   /** Opens everything phase 2b offers (the evidence specs and the mock bar). */
@@ -501,7 +503,7 @@ export class PlayersMockStore implements PlayersAdapter {
   private queueOf(leaderId: string, index = 0, current: string | null = null): { id: string; track: string }[] {
     const t = Object.keys(tracks()).filter((k) => !tracks()[k].station);
     const shift = current && t.includes(current) ? (t.indexOf(current) - (index % t.length) + t.length) % t.length : 0;
-    return (this.queues[leaderId] ??= Array.from({ length: QUEUE_LEN }, (_, n) => ({ id: `${leaderId}-${n}`, track: t[(n + shift) % t.length] })));
+    return (this.queues[leaderId] ??= Array.from({ length: this.queueLength }, (_, n) => ({ id: `${leaderId}-${n}`, track: t[(n + shift) % t.length] })));
   }
 
   private queueHead(key: string): { lead: Row; leaderId: string; rows: { id: string; track: string }[]; index: number; lockedTo: number } {
@@ -510,7 +512,7 @@ export class PlayersMockStore implements PlayersAdapter {
     if (!d.caps.queue_list) fail(this.ma.state === 'ready' ? 422 : 503, this.ma.state === 'ready' ? 'not_supported' : 'ma_unavailable', 'התור המלא אינו זמין.');
     const leaderId = this.leaderId(r.seed.id);
     const lead = this.row(keyOf(leaderId));
-    const index = lead.track ? Math.min(lead.queue?.index ?? 0, QUEUE_LEN - 1) : -1;
+    const index = lead.track ? Math.min(lead.queue?.index ?? 0, this.queueLength - 1) : -1;
     const rows = this.queueOf(leaderId, Math.max(0, index), lead.track && !tracks()[lead.track].station ? lead.track : null);
     return { lead, leaderId, rows, index, lockedTo: index < 0 ? -1 : Math.min(rows.length - 1, index + 1) };
   }
@@ -531,19 +533,44 @@ export class PlayersMockStore implements PlayersAdapter {
       const d = this.build(this.row(key));
       if (!d.can.queue) fail(403, 'forbidden', 'אין הרשאה לערוך את התור.');
       const h = this.queueHead(key);
-      if (body.op === 'clear') {
-        if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: Math.max(0, h.rows.length - (h.lockedTo + 1)) });
-        h.rows.splice(h.lockedTo + 1);
-        return { status: 'accepted', op: 'clear' } as QueueEditResult;
+      if (body.op === 'clear' || body.op === 'clear_upcoming') {
+        const pending = Math.max(0, h.rows.length - (h.lockedTo + 1));
+        if (body.op === 'clear_upcoming' && pending === 0) return { status: 'accepted', op: body.op, count: 0 } as QueueEditResult;
+        if (body.confirmed !== true) fail(409, 'confirm_required', 'לנקות את התור?', { count: pending });
+        h.rows.splice(body.op === 'clear' ? 0 : h.lockedTo + 1); // clear everything stops the player; clear upcoming keeps the current song
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
+        if (body.op === 'clear') h.lead.st = 'idle';
+        return { status: 'accepted', op: body.op, count: pending } as QueueEditResult;
+      }
+      if (body.op === 'delete_many') {
+        const ids = body.items ?? [];
+        if (!ids.length || ids.length > 25 || new Set(ids).size !== ids.length) fail(422, 'validation', 'אפשר לבחור עד 25 שירים.', { fields: ['items'] });
+        const ats = ids.map((id) => h.rows.findIndex((row) => hex(`q:${row.id}`, 24) === id));
+        if (ats.some((a) => a < 0)) fail(422, 'unknown_item', 'הפריט אינו מוכר.');
+        if (ats.some((a) => a <= h.lockedTo)) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
+        const gone = new Set(ats);
+        h.rows.splice(0, h.rows.length, ...h.rows.filter((_, n) => !gone.has(n)));
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
+        return { status: 'accepted', op: 'delete_many', count: ids.length } as QueueEditResult;
       }
       const at = h.rows.findIndex((row) => hex(`q:${row.id}`, 24) === body.item);
       if (at < 0) fail(422, 'unknown_item', 'הפריט אינו מוכר.');
+      if (body.op === 'play') {
+        if (at === h.index) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
+        h.lead.queue = { count: h.rows.length, index: at };
+        h.lead.track = h.rows[at].track;
+        h.lead.pos = 0;
+        h.lead.posAt = new Date().toISOString();
+        h.lead.st = 'playing';
+        return { status: 'accepted', op: 'play' } as QueueEditResult;
+      }
       if (at <= h.lockedTo) fail(409, 'locked', 'השיר הזה כבר מתנגן.');
       if (body.op === 'delete') {
         h.rows.splice(at, 1);
+        if (h.lead.queue) h.lead.queue.count = h.rows.length;
         return { status: 'accepted', op: 'delete' } as QueueEditResult;
       }
-      const to = body.op === 'next' ? h.lockedTo + 1 : body.to;
+      const to = body.op === 'next' || body.op === 'top' ? h.lockedTo + 1 : body.to;
       if (typeof to !== 'number' || to <= h.lockedTo || to > h.rows.length - 1) fail(422, 'validation', 'מיקום לא תקין בתור.', { fields: ['to'] });
       const [row] = h.rows.splice(at, 1);
       h.rows.splice(to as number, 0, row);

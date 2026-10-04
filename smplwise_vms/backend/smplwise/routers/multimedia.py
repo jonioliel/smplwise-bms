@@ -46,6 +46,7 @@ LIBRARY_USER = (0.5, 4.0)
 DETAIL_QUEUE_USER = (0.2, 3.0)
 RID = Field(min_length=8, max_length=80)
 PERSONALIZE = "screen.personalize"
+QUEUE_BODY_MAX = 4096  # a queue edit names at most 25 rows of 24 characters
 
 
 # ---------------------------------------------------------------- plumbing
@@ -686,8 +687,9 @@ def get_queue(key: str, request: Request, offset: int | None = Query(None, ge=0,
 
 
 class QueueEditBody(_Body):
-    op: Literal["move", "next", "delete", "clear"]
+    op: Literal["move", "next", "top", "delete", "play", "delete_many", "clear_upcoming", "clear"]
     item: str | None = Field(None, max_length=24)
+    items: list[str] | None = Field(None, max_length=media_queue.MANY_MAX)
     to: Any = None
     confirmed: Any = None
     client_request_id: str = Field(pattern=COMMAND_ID)
@@ -706,10 +708,12 @@ _queue_gate = read_gate(_check_queue)
 
 @router.post("/multimedia/devices/{key}/queue", status_code=202)
 def post_queue(key: str, request: Request, principal: Principal = Depends(_queue_gate), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
-    """One queue edit (`op` move | next | delete | clear) through the direct Music Assistant connection: 202 `{status: accepted, op}`; 200 `{status: refused,
+    """One queue edit (`op` move | next | top | delete | play | delete_many (`items`, up to 25) | clear_upcoming | clear) through the direct Music Assistant connection: 202 `{status: accepted, op}`; 200 `{status: refused,
     op, error}` when Music Assistant said no (its numeric code only). media.queue + media.control at the device (and at every follower of a live leader);
     `clear` needs `confirmed: true` (409 confirm_required + `count`); 409 locked / queue_changed / expired, 422 unknown_item / validation, 429, 503
     ma_unavailable. Every attempt is one audited `media.queue` row (never an item name or id)."""
+    if len(raw) > QUEUE_BODY_MAX:
+        raise ApiError(413, "payload_too_large", "הבקשה גדולה מדי.")
     body: QueueEditBody = _parse(request, raw, QueueEditBody)
     cat, item, access = store.find_visible(conn, principal, key, tuple(mm.AUDIO_KINDS))
     status, out = media_queue.edit(conn, settings_of(request), principal, _rid(request), cat, item, access, body.model_dump())

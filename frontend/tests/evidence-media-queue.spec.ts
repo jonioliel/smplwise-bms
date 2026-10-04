@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADMIN, fresh, install, open } from './media-players-harness';
+import { inPageCheck, summarize, type Finding } from './layout-guard';
 
 // CR-016 phase 2b evidence (docs/changes/CR-016-MEDIA-PLAYERS.md section 17.8): the FULL queue in the player panel (drag to reorder, play next, delete,
 // clear with one question, locked rows, read-only without media.queue, "לא זמין" when the read fails), the "ספרייה" tab (types, search, play / next /
@@ -189,9 +190,153 @@ test.describe('phase 2b: the full queue in the player panel', () => {
     await expect(q(page, 'media-queue-list [data-qx-ask]')).toContainText('לנקות');
     await scrollTo(q(page, 'media-queue-list [data-qx-ask]'));
     await shots(page, 'queue-clear-ask', [1440, 390]);
-    await q(page, 'media-queue-list [data-qx-ask-yes]').click();
+    await q(page, 'media-queue-list [data-qx-clear-upcoming]').click();
     await page.waitForTimeout(400);
     await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="false"]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="true"]')).toHaveCount(2); // the current song and the buffered one stay
+  });
+
+  test('tapping a row plays it now; the current row is not a button; a buffered row can be played', async ({ page }) => {
+    await stage(page);
+    await openPanel(page, 'mp-liv');
+    const rows = q(page, 'media-queue-list [data-qx-row]');
+    await expect(rows.nth(0).locator('[data-qx-play]')).toHaveCount(0);
+    await expect(rows.nth(1).locator('[data-qx-play]')).toHaveCount(1);
+    const before = await names(page);
+    await rows.nth(5).locator('[data-qx-play]').click();
+    await page.waitForTimeout(500);
+    const after = await names(page);
+    expect(after[0]).toBe(before[5]); // the list starts at the new current row
+    await expect(rows.nth(0).locator('[data-qx-play]')).toHaveCount(0);
+  });
+
+  test('"בחר": tick several rows, one question, one removal; locked rows cannot be ticked', async ({ page }) => {
+    await stage(page);
+    await openPanel(page, 'mp-liv');
+    const rows = q(page, 'media-queue-list [data-qx-row]');
+    const n = await rows.count();
+    const before = await names(page);
+    await q(page, 'media-queue-list [data-qx-select]').click();
+    await expect(rows.locator('[data-qx-grip]')).toHaveCount(0); // no per-row actions while selecting
+    await expect(rows.nth(0).locator('[data-qx-pick]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-remove-sel]')).toBeDisabled();
+    for (const i of [3, 5, 6]) await rows.nth(i).locator('[data-qx-pick]').click();
+    await expect(q(page, 'media-queue-list [data-qx-sel-count]')).toHaveText('3 נבחרו');
+    await expect(rows.nth(3).locator('[data-qx-pick]')).toHaveAttribute('aria-checked', 'true');
+    await rows.nth(5).locator('[data-qx-pick]').click(); // untick
+    await expect(q(page, 'media-queue-list [data-qx-sel-count]')).toHaveText('2 נבחרו');
+    await scrollTo(q(page, 'media-queue-list [data-pn-upnext="queue"]'));
+    await shots(page, 'queue-select', [1440, 390]);
+    await noOverflow(page);
+    await q(page, 'media-queue-list [data-qx-remove-sel]').click();
+    await expect(q(page, 'media-queue-list [data-qx-ask="remove"]')).toContainText('להסיר 2 שירים');
+    await shots(page, 'queue-remove-ask', [1440, 390]);
+    await q(page, 'media-queue-list [data-qx-remove-yes]').click();
+    await page.waitForTimeout(500);
+    await expect(rows).toHaveCount(n - 2);
+    const after = await names(page);
+    expect(after).toEqual(before.filter((_, i) => i !== 3 && i !== 6)); // rows 3 and 6 went, 5 (ticked then unticked) stayed; the titles repeat, so compare the order
+    await expect(q(page, 'media-queue-list [data-qx-select]')).toBeVisible(); // back to the normal header
+  });
+
+  test('"נקה תור" asks which clear: the upcoming songs (the current continues) or everything (stops); cancel changes nothing', async ({ page }) => {
+    await stage(page);
+    await openPanel(page, 'mp-liv');
+    const rows = q(page, 'media-queue-list [data-qx-row]');
+    const n = await rows.count();
+    await q(page, 'media-queue-list [data-qx-clear]').click();
+    const ask = q(page, 'media-queue-list [data-qx-ask="clear"]');
+    await expect(ask).toContainText('לנקות את התור?');
+    await expect(ask.locator('[data-qx-clear-upcoming]')).toContainText('השיר הנוכחי ממשיך');
+    await expect(ask.locator('[data-qx-clear-all]')).toContainText('הניגון ייעצר');
+    await ask.locator('[data-qx-ask-no]').click();
+    await expect(ask).toHaveCount(0);
+    await expect(rows).toHaveCount(n);
+    await scrollTo(q(page, 'media-queue-list [data-qx-clear]'));
+    await q(page, 'media-queue-list [data-qx-clear]').click();
+    await q(page, 'media-queue-list [data-qx-clear-all]').click();
+    await page.waitForTimeout(500);
+    await expect(q(page, 'media-queue-list [data-qx-empty]')).toBeVisible();
+    await expect(q(page, 'media-queue-list [data-qx-clear]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-select]')).toHaveCount(0);
+  });
+
+  test('a very long queue (1000 rows): the clear question counts every upcoming song and clearing them leaves the current and the buffered one', async ({ page }) => {
+    await stage(page);
+    await withMock(page, (m) => void (m.queueLength = 1000));
+    await openPanel(page, 'mp-liv');
+    await expect(q(page, 'media-queue-list [data-qx-count]')).toHaveText('1000');
+    await q(page, 'media-queue-list [data-qx-clear]').click();
+    const ask = q(page, 'media-queue-list [data-qx-ask="clear"]');
+    await expect(ask.locator('[data-qx-clear-upcoming]')).toContainText('995 שירים');
+    await scrollTo(ask);
+    await shots(page, 'queue-clear-ask-1000', [1440, 390]);
+    await noOverflow(page);
+    await ask.locator('[data-qx-clear-upcoming]').click();
+    await page.waitForTimeout(500);
+    await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="false"]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-row][data-qx-locked="true"]')).toHaveCount(2);
+    await expect(q(page, 'media-queue-list [data-qx-count]')).toHaveText('5');
+  });
+
+  test('the dialogs and select mode fit at phone width in the dark scheme', async ({ page }) => {
+    await stage(page, 'dark');
+    await openPanel(page, 'mp-liv', 'dark');
+    await q(page, 'media-queue-list [data-qx-clear]').click();
+    await scrollTo(q(page, 'media-queue-list [data-qx-ask]'));
+    await shots(page, 'queue-clear-ask-dark', [1440, 820, 390]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await noOverflow(page);
+    await q(page, 'media-queue-list [data-qx-ask-no]').click();
+    await q(page, 'media-queue-list [data-qx-select]').click();
+    await q(page, 'media-queue-list [data-qx-row]').nth(4).locator('[data-qx-pick]').click();
+    await scrollTo(q(page, 'media-queue-list [data-pn-upnext="queue"]'));
+    await shots(page, 'queue-select-dark', [1440, 820, 390]);
+    await noOverflow(page);
+  });
+
+  // the layout guard (tests/layout-guard.ts) over the queue block in its states: normal, select mode, both questions - phone / tablet / desktop x light / dark
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`layout guard: the queue block, its select mode and its two questions [${scheme}]`, async ({ page }) => {
+      await stage(page, scheme);
+      await openPanel(page, 'mp-liv', scheme);
+      const findings: Finding[] = [];
+      const run = async (ctx: string) => {
+        await page.waitForTimeout(250);
+        findings.push(...(await page.evaluate(inPageCheck, { ctx, bubble: '.row.qrow, .ask, .uq, .tap, .opt', skip: '.skl, .grip', roots: [] })));
+      };
+      // LAYOUT_QUICK=1 sweeps four widths (the loop); without it, the ten widths of the layout-bubble specs
+      for (const w of process.env.LAYOUT_QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440]) {
+        await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 1000 });
+        await scrollTo(q(page, 'media-queue-list [data-pn-upnext="queue"]'));
+        await run(`${scheme} ${w} normal`);
+        await q(page, 'media-queue-list [data-qx-clear]').click();
+        await run(`${scheme} ${w} clear-ask`);
+        await q(page, 'media-queue-list [data-qx-ask-no]').click();
+        await q(page, 'media-queue-list [data-qx-select]').click();
+        await q(page, 'media-queue-list [data-qx-row]').nth(4).locator('[data-qx-pick]').click();
+        await run(`${scheme} ${w} select`);
+        await q(page, 'media-queue-list [data-qx-remove-sel]').click();
+        await run(`${scheme} ${w} remove-ask`);
+        await q(page, 'media-queue-list [data-qx-ask-no]').click();
+        await q(page, 'media-queue-list [data-qx-select-cancel]').click();
+      }
+      // only what the queue block owns (the rest of the panel is outside this change)
+      const mine = findings.filter((f) => /qrow|tap|\bask\b|\bopt\b|\bqb\b|\blnk\b|\byes\b|\bno\b|hacts|data-qx/.test(f.el));
+      const { lines } = summarize(mine);
+      expect(lines, 'layout findings in the queue block').toEqual([]);
+    });
+  }
+
+  test('the selection is capped at 25 (the server caps it too)', async ({ page }) => {
+    await page.goto('./');
+    const out = await page.evaluate(async (url) => {
+      const m = await import(/* @vite-ignore */ url);
+      let sel: string[] = [];
+      for (let i = 0; i < 40; i++) sel = m.toggleSelected(sel, `i${i}`);
+      return { n: sel.length, max: m.QUEUE_SELECT_MAX, off: m.toggleSelected(['a', 'b'], 'a') };
+    }, '/src/api/media-players.ts');
+    expect(out).toEqual({ n: 25, max: 25, off: ['b'] });
   });
 
   test('without media.queue the list is read-only; a failed read is "לא זמין", never an empty queue', async ({ page }) => {
@@ -202,6 +347,8 @@ test.describe('phase 2b: the full queue in the player panel', () => {
     await expect(q(page, 'media-queue-list [data-qx-grip]')).toHaveCount(0);
     await expect(q(page, 'media-queue-list [data-qx-delete]')).toHaveCount(0);
     await expect(q(page, 'media-queue-list [data-qx-clear]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-select]')).toHaveCount(0);
+    await expect(q(page, 'media-queue-list [data-qx-play]')).toHaveCount(0);
     await scrollTo(q(page, 'media-queue-list [data-pn-upnext="queue"]'));
     await shots(page, 'queue-readonly', [1440, 390]);
     await stage(page);

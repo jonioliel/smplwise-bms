@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
+import time
 from typing import Any
 
 from ..audit import audit
@@ -31,7 +32,15 @@ BROWSE_PAGE = 50
 BROWSE_TTL_S = 300.0
 SEARCH_TTL_S = 60.0
 QUERY_MAX = 60
-OPS = ("move", "next", "delete", "clear")
+OPS = ("move", "next", "top", "delete", "play", "delete_many", "clear_upcoming", "clear")
+ITEM_OPS = ("move", "next", "top", "delete", "play")  # name one row (`item`)
+MULTI_OPS = ("delete_many", "clear_upcoming")  # several rows: they report how many were done when they stop half way
+WHOLE_OPS = ("clear_upcoming", "clear")  # need `confirmed`
+MANY_MAX = 25  # rows of one `delete_many`
+CLEAR_BATCH = 100  # rows `clear_upcoming` removes per step (one installation-bucket draw each); a queue of any length is cleared
+ROWS_WAIT_S = 30.0  # how long one step waits for the installation bucket before the clear stops and reports how many rows it removed
+JUMP_DEVICE = (1.0, 2.0)  # "play this now": 1 a second per device
+ROWS_INSTALL = (50.0, 200.0)  # rows removed one by one, per installation: 50 a second (a burst of 200)
 _BROWSE: dict[tuple[str, int], tuple[float, list[dict[str, Any]]]] = {}
 _SEARCH: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
 
@@ -135,7 +144,7 @@ def early(conn: sqlite3.Connection, principal: Principal, request_id: str | None
 
 def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, cat: store.Catalog, item: store.Item, access: store.Access,
          body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    """One queue edit (`op` move | next | delete | clear): (HTTP status, `{status: accepted | refused, op, error?}`). Refusals before anything is sent are
+    """One queue edit (`op` move | next | top | delete | play | delete_many | clear_upcoming | clear): (HTTP status, `{status: accepted | refused, op, error?}`). Refusals before anything is sent are
     raised (audited): 403, 409 expired / confirm_required / locked / queue_changed, 422 validation / unknown_item / not_supported, 429, 503."""
     op, crid = body["op"], body["client_request_id"]
     again = ma.done(principal.user_id, crid)
@@ -163,55 +172,129 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
         raise _deny(conn, principal, request_id, item.key, op, _err(422, "not_supported", "ההתקן אינו מציע תור מלא.", reason="queue_list"))
     if not ma.usable(conn):
         raise _deny(conn, principal, request_id, item.key, op, _err(503, *UNAVAILABLE))
-    ref = None
-    if op != "clear":
+    if op == "play" and not media_commands.BUCKETS.take("queue-jump", target.key, JUMP_DEVICE):
+        media_commands._audit_limited(conn, principal, request_id, item.key, "queue_play", "device")
+        raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="device")
+    refs: list[dict[str, Any]] = []
+    if op in ITEM_OPS:
         ref = ma.resolve(principal.user_id, target.key, body.get("item"))
         if ref is None:
             raise _deny(conn, principal, request_id, item.key, op, _err(422, "unknown_item", "הפריט אינו מוכר; רעננו את התור."))
+        refs = [ref]
+    elif op == "delete_many":
+        tokens = body.get("items")
+        if not isinstance(tokens, list) or not 1 <= len(tokens) <= MANY_MAX or len(set(tokens)) != len(tokens):
+            raise _deny(conn, principal, request_id, item.key, op, _err(422, "validation", f"אפשר לבחור עד {MANY_MAX} שירים.", fields=["items"]))
+        for tok in tokens:
+            ref = ma.resolve(principal.user_id, target.key, tok)
+            if ref is None:
+                raise _deny(conn, principal, request_id, item.key, op, _err(422, "unknown_item", "הפריט אינו מוכר; רעננו את התור."))
+            refs.append(ref)
+    if op != "delete_many" and body.get("items") is not None or op not in ITEM_OPS and body.get("item") is not None:
+        raise _deny(conn, principal, request_id, item.key, op, _err(422, "validation", "הבקשה אינה תקינה.", fields=["item"]))
     answer: dict[str, Any] = {"status": "accepted", "op": op}
+    done = 0  # rows a multi-row edit has already removed (reported when it stops half way)
+    count: int | None = None
+    limited = False  # a multi-row clear that stopped because the installation ceiling did not free up in time
     try:
         with unlocked(conn):  # the network phase never holds the write lock
             h = ma.header(conn, pid, fresh=True)
             lt = ma.locked_to(h)
-            if op == "clear":
+            if op in WHOLE_OPS:
                 pending = max(0, (h["count"] or 0) - (lt + 1))
-                if body.get("confirmed") is not True:
-                    raise _err(409, "confirm_required", "לנקות את התור?", count=pending)
-                ma.call(conn, "player_queues/clear", {"queue_id": h["queue_id"]})
+                if op == "clear_upcoming" and pending == 0:
+                    count = answer["count"] = 0  # nothing follows the current song: nothing to ask, nothing to send
+                elif body.get("confirmed") is not True:
+                    raise _err(409, "confirm_required", "לנקות את התור?", count=pending, op=op)
+                elif op == "clear":
+                    ma.call(conn, "player_queues/clear", {"queue_id": h["queue_id"]})
+                    count = answer["count"] = pending
+                else:
+                    rows: list[dict[str, Any]] = []
+                    while len(rows) < pending:
+                        page = ma.items(conn, h["queue_id"], lt + 1 + len(rows), min(ma.PAGE_MAX, pending - len(rows)))
+                        if not page:
+                            break
+                        rows += page
+                    batch = max(1, min(CLEAR_BATCH, int(ROWS_INSTALL[1])))
+                    todo = list(reversed(rows))  # from the end: no id shifts under the deletes still to come
+                    while todo:
+                        step, todo = todo[:batch], todo[batch:]
+                        waited, got = 0.0, False
+                        while True:
+                            if media_commands.BUCKETS.take_n("queue-rows", "installation", ROWS_INSTALL, len(step)):
+                                got = True
+                                break
+                            if waited >= ROWS_WAIT_S:
+                                break
+                            time.sleep(0.1)
+                            waited += 0.1
+                        if not got:
+                            media_commands._audit_limited(conn, principal, request_id, item.key, f"queue_{op}", "installation")
+                            if done == 0:
+                                raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="installation")
+                            limited = True
+                            break
+                        for r in step:
+                            ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": r["queue_item_id"]})
+                            done += 1
+                    count = answer["count"] = done
             else:
-                assert ref is not None
-                if ref["queue_id"] != h["queue_id"]:
-                    raise _err(409, "queue_changed", "התור השתנה; רעננו.")
                 start = max(0, h["index"] or 0)
                 rows = ma.items(conn, h["queue_id"], start, 500)
-                idx = next((r["index"] for r in rows if r["queue_item_id"] == ref["queue_item_id"]), None)
-                if idx is None:
-                    raise _err(409, "queue_changed", "התור השתנה; רעננו.")
-                if idx <= lt:
-                    raise _err(409, "locked", "השיר הזה כבר מתנגן.")
-                last = start + len(rows) - 1
-                if op == "delete":
-                    ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": ref["queue_item_id"]})
+                found: list[int] = []
+                for ref in refs:
+                    if ref["queue_id"] != h["queue_id"]:
+                        raise _err(409, "queue_changed", "התור השתנה; רעננו.")
+                    idx = next((r["index"] for r in rows if r["queue_item_id"] == ref["queue_item_id"]), None)
+                    if idx is None:
+                        raise _err(409, "queue_changed", "התור השתנה; רעננו.")
+                    found.append(idx)
+                if op == "play":
+                    if found[0] == h["index"]:
+                        raise _err(409, "locked", "השיר הזה כבר מתנגן.")
+                    ma.call(conn, "player_queues/play_index", {"queue_id": h["queue_id"], "index": refs[0]["queue_item_id"]})
                 else:
-                    to = lt + 1 if op == "next" else body.get("to")
-                    if isinstance(to, bool) or not isinstance(to, int) or not lt < to <= max(last, lt + 1):
-                        raise _err(422, "validation", "מיקום לא תקין בתור.", fields=["to"])
-                    shift = to - idx
-                    if shift:
-                        ma.call(conn, "player_queues/move_item", {"queue_id": h["queue_id"], "queue_item_id": ref["queue_item_id"], "pos_shift": shift})
-                    answer["to"] = to
+                    if any(i <= lt for i in found):
+                        raise _err(409, "locked", "השיר הזה כבר מתנגן.")
+                    last = start + len(rows) - 1
+                    if op == "delete":
+                        ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": refs[0]["queue_item_id"]})
+                    elif op == "delete_many":
+                        if not media_commands.BUCKETS.take_n("queue-rows", "installation", ROWS_INSTALL, len(refs)):
+                            media_commands._audit_limited(conn, principal, request_id, item.key, f"queue_{op}", "installation")
+                            raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="installation")
+                        for ref in refs:  # one at a time, in the order given; the first refusal stops the rest
+                            ma.call(conn, "player_queues/delete_item", {"queue_id": h["queue_id"], "item_id_or_index": ref["queue_item_id"]})
+                            done += 1
+                        count = answer["count"] = done
+                    else:
+                        to = lt + 1 if op in ("next", "top") else body.get("to")
+                        if isinstance(to, bool) or not isinstance(to, int) or not lt < to <= max(last, lt + 1):
+                            raise _err(422, "validation", "מיקום לא תקין בתור.", fields=["to"])
+                        shift = to - found[0]
+                        if shift:
+                            ma.call(conn, "player_queues/move_item", {"queue_id": h["queue_id"], "queue_item_id": refs[0]["queue_item_id"], "pos_shift": shift})
+                        answer["to"] = to
     except ApiError as exc:
         raise _deny(conn, principal, request_id, item.key, op, exc) from None
     except ma.MaError as exc:
         ma.forget_queue(pid)
+        partial = {"done": done} if op in MULTI_OPS else {}
         if exc.state == "refused":
-            answer = {"status": "refused", "op": op, "error": exc.ma_code}
-            _audit(conn, principal, request_id, item.key, op, "denied", "ma_refused", ma_code=exc.ma_code)
+            answer = {"status": "refused", "op": op, "error": exc.ma_code, **partial}
+            _audit(conn, principal, request_id, item.key, op, "denied", "ma_refused", ma_code=exc.ma_code, **({"count": done} if partial else {}))
             ma.note_done(principal.user_id, crid, 200, answer)
             return 200, answer
-        raise _deny(conn, principal, request_id, item.key, op, _err(503, *UNAVAILABLE, state=exc.state)) from None
+        _audit(conn, principal, request_id, item.key, op, "denied", "ma_unavailable", state=exc.state, **({"count": done} if partial else {}))
+        raise _err(503, *UNAVAILABLE, state=exc.state, **partial) from None
     ma.forget_queue(pid)
-    _audit(conn, principal, request_id, item.key, op, "allowed", **({"leader_key": target.key} if target.key != item.key else {}))
+    if limited:
+        answer = {"status": "refused", "op": op, "error": None, "done": done}
+        _audit(conn, principal, request_id, item.key, op, "denied", "rate_limited", count=done)
+        ma.note_done(principal.user_id, crid, 200, answer)
+        return 200, answer
+    _audit(conn, principal, request_id, item.key, op, "allowed", **({"count": count} if count is not None else {}), **({"leader_key": target.key} if target.key != item.key else {}))
     ma.note_done(principal.user_id, crid, 202, answer)
     return 202, answer
 

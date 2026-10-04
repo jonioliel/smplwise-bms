@@ -225,9 +225,24 @@ export interface QueueList {
   repeat: RepeatMode | null;
   read_at: string | null;
 }
-export type QueueOp = 'move' | 'next' | 'delete' | 'clear';
-export interface QueueEditBody { op: QueueOp; item?: string; to?: number; confirmed?: boolean; client_request_id: string; expires_at: string }
-export interface QueueEditResult { status: 'accepted' | 'refused'; op: QueueOp; to?: number; error?: number | null }
+/** `top` = right after what is locked ("העבר לראש התור"); `play` = play this row now; `delete_many` names up to QUEUE_SELECT_MAX rows (`items`);
+ *  `clear_upcoming` clears what follows (the current song continues); `clear` clears everything and stops. Both clears are sent only after the user chose. */
+export type QueueOp = 'move' | 'next' | 'top' | 'delete' | 'play' | 'delete_many' | 'clear_upcoming' | 'clear';
+export interface QueueEditBody { op: QueueOp; item?: string; items?: string[]; to?: number; confirmed?: boolean; client_request_id: string; expires_at: string }
+/** `count`: rows removed by a multi-row edit; `done`: rows already removed when it stopped half way (`refused`). */
+export interface QueueEditResult { status: 'accepted' | 'refused'; op: QueueOp; to?: number; count?: number; done?: number; error?: number | null }
+/** The most rows one "remove selected" request carries (the server caps it too). */
+export const QUEUE_SELECT_MAX = 25;
+/** One row ticked or unticked; a row past the cap is not added. */
+export function toggleSelected(selected: readonly string[], item: string, max = QUEUE_SELECT_MAX): string[] {
+  if (selected.includes(item)) return selected.filter((i) => i !== item);
+  return selected.length >= max ? [...selected] : [...selected, item];
+}
+/** Rows that follow the locked zone (what "clear upcoming" removes), from the last read. */
+export const upcomingCount = (l: Pick<QueueList, 'count' | 'locked_to'> | null): number => (l && l.count !== null && l.locked_to !== null ? Math.max(0, l.count - (l.locked_to + 1)) : 0);
+/** The Hebrew line after a multi-row edit that stopped half way or removed rows. */
+export const queueResultLine = (r: QueueEditResult, asked: number): string =>
+  r.status === 'refused' ? (typeof r.done === 'number' && asked > 1 ? `הוסרו ${r.done} מתוך ${asked}` : 'הפעולה נדחתה') : '';
 
 export type BrowseType = 'track' | 'album' | 'artist' | 'playlist' | 'radio';
 export const BROWSE_TYPES: readonly BrowseType[] = ['track', 'album', 'artist', 'playlist', 'radio'];
@@ -452,6 +467,11 @@ export function playerErrorText(err: unknown): string {
 }
 /** The code of an ApiError, or null. */
 export const errorCode = (err: unknown): string | null => (err instanceof ApiError ? err.code : null);
+/** Rows a multi-row queue edit had already removed when the server stopped it (`details.done`); null when not given. */
+export function partialDone(err: unknown): number | null {
+  const d = err instanceof ApiError ? (err.body.details as { done?: unknown } | undefined)?.done : undefined;
+  return typeof d === 'number' ? d : null;
+}
 /** 409 `confirm_required` -> the preview to show in the confirmation dialog (from `details.preview`, or the body itself); else null. */
 export function confirmPreview(err: unknown): GroupPreview | null {
   if (!(err instanceof ApiError) || err.code !== 'confirm_required') return null;
@@ -563,7 +583,7 @@ export const httpPlayers: PlayersAdapter = {
 };
 
 /** One queue edit with a fresh request id (one per deliberate gesture; never retried). */
-export const sendQueueEdit = (key: string, op: QueueOp, extra: { item?: string; to?: number; confirmed?: boolean } = {}, requestId: string = commandId()): Promise<QueueEditResult> =>
+export const sendQueueEdit = (key: string, op: QueueOp, extra: { item?: string; items?: string[]; to?: number; confirmed?: boolean } = {}, requestId: string = commandId()): Promise<QueueEditResult> =>
   players().queueEdit(key, { op, ...extra, client_request_id: requestId, expires_at: new Date(Date.now() + 15_000).toISOString() });
 
 /** The adapter in force: HTTP with a backend, the mock otherwise (same selector as CR-015's `media()`). */
