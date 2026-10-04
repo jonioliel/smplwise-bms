@@ -1,0 +1,422 @@
+"""Provision-ISR HTTP API v1 documents -> normalized Python values (CR-025 P1; docs/integrations/provision-isr/API_STUDY.md).
+
+Pure functions, no device I/O. Every document is XML in the `http://www.ipc.com/ver10` namespace, rooted at `<config>`; the
+namespace is ignored (matched by local name) because firmwares differ in where they put it. Rules kept from the Hikvision
+parsers (`services/nvr.py`):
+- `xmlsafe.parse` only (a DOCTYPE / ENTITY is refused);
+- tolerant where devices differ (an element the device does not send is None, never a default value), strict where it
+  matters (text length caps, numeric fields validated, list sizes capped);
+- secrets stay out: serial number, MAC, IP addresses and user names in device documents are never returned.
+
+Shapes are taken from the vendor's v1 guide (Version 1.9, 2025-08) and the v1 Postman collection examples (26.6); see the
+study for the quirks (for example `GetChannelList` puts its `<item>` elements next to an empty `<channelIDList/>`)."""
+from __future__ import annotations
+
+import hashlib
+import re
+import xml.etree.ElementTree as ET
+from typing import Any
+
+from .. import xmlsafe
+
+TEXT_CAP = 64
+MAX_ITEMS = 512  # list entries read from one document (channels, streams, alarm items)
+_RES = re.compile(r"^\d{2,5}x\d{2,5}$")
+SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,32}$")  # a stream name that may go into an RTSP path
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def child(el: ET.Element | None, name: str) -> ET.Element | None:
+    if el is None:
+        return None
+    for c in el:
+        if _local(c.tag) == name:
+            return c
+    return None
+
+
+def children(el: ET.Element | None, name: str) -> list[ET.Element]:
+    return [] if el is None else [c for c in el if _local(c.tag) == name][:MAX_ITEMS]
+
+
+def text(el: ET.Element | None, name: str | None = None, cap: int = TEXT_CAP) -> str | None:
+    """Stripped text of `el` (or of its direct child `name`), CDATA included; None when absent or empty."""
+    node = el if name is None else child(el, name)
+    if node is None or node.text is None:
+        return None
+    value = node.text.strip()
+    return value[:cap] if value else None
+
+
+def to_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    m = re.fullmatch(r"\s*(-?\d{1,12})\s*", value)
+    return int(m.group(1)) if m else None
+
+
+def to_bool(value: str | None) -> bool | None:
+    v = (value or "").strip().lower()
+    if v in ("true", "1"):
+        return True
+    if v in ("false", "0"):
+        return False
+    return None
+
+
+def parse(xml: str | bytes) -> ET.Element:
+    """Raises ET.ParseError (xmlsafe.UnsafeXml included) for a document that is not XML or carries a DOCTYPE."""
+    return xmlsafe.parse(xml)
+
+
+# ------------------------------------------------------------------------------------------------ the result envelope
+
+def response_status(xml: str | bytes) -> tuple[str | None, int | None, str | None]:
+    """`<config status="failed" errorCode="3" errorDesc="..."/>` -> ("failed", 3, desc). (None, None, None) for a document
+    that is not a status answer (a data answer) or not XML."""
+    try:
+        root = parse(xml)
+    except ET.ParseError:
+        return None, None, None
+    status = root.attrib.get("status")
+    code = to_int(root.attrib.get("errorCode"))
+    desc = (root.attrib.get("errorDesc") or "")[:TEXT_CAP] or None
+    return status, code, desc
+
+
+# v1 guide 1.3.6 (codes 1-5) plus the v2 table for codes a v1-named command may still return on newer firmware
+ERROR_CODES: dict[int, str] = {
+    1: "invalid_request",  # the command / channel / action is not supported by this device
+    2: "invalid_xml_format",
+    3: "invalid_xml_content",
+    4: "permission_denied",
+    5: "network_limit",
+    7: "system_busy",
+    9: "unauthorized",
+    10: "user_locked",
+    11: "unsupported_function",
+    12: "channel_error",
+    17: "service_not_enabled",
+}
+
+
+# ------------------------------------------------------------------------------------------------ system
+
+def parse_device_info(xml: str | bytes) -> dict[str, Any]:
+    """`GetDeviceInfo`. Keys: model, brand, firmware, build_date, hardware, api_version, device_description, chl_max_count,
+    kind ("nvr" | "ipc"), alarm_in_count, alarm_out_count, support_long_polling, support_https, support_http_post,
+    integrated_ptz. Never the serial number, MAC, UUID or customer administrator name."""
+    root = parse(xml)
+    info = child(root, "deviceInfo")
+    if info is None:
+        raise ET.ParseError("not a deviceInfo document")
+    chl_max = to_int(text(info, "chlMaxCount"))
+    description = text(info, "deviceDescription")
+    # v1 guide 2.1.3 tip: a device whose description is "IPCamera" is a camera; the description is user-editable on newer
+    # firmware (Postman example: "Street Counting"), so the channel count decides when the description is anything else.
+    if description == "IPCamera":
+        kind = "ipc"
+    else:
+        kind = "nvr" if (chl_max or 1) > 1 else "ipc"
+    return {
+        "model": text(info, "model"),
+        "brand": text(info, "brand"),
+        "firmware": text(info, "softwareVersion"),
+        "build_date": text(info, "softwareBuildDate"),
+        "hardware": text(info, "hardwareVersion"),
+        "api_version": text(info, "apiVersion"),
+        "device_description": description,
+        "chl_max_count": chl_max,
+        "kind": kind,
+        "alarm_in_count": to_int(text(info, "alarmInCount")),
+        "alarm_out_count": to_int(text(info, "alarmOutCount")),
+        "support_long_polling": to_bool(text(info, "supportAPILongPolling")),
+        "support_https": to_bool(text(info, "supportHttps")),
+        "support_http_post": to_bool(text(info, "SupportHttpPost")),
+        "integrated_ptz": to_bool(text(info, "integratedPtz")),
+    }
+
+
+CHANNEL_ONLINE = {"online": True, "videoOn": True, "offline": False, "videoLoss": False}
+
+
+def parse_channel_list(xml: str | bytes) -> list[tuple[int, str | None]]:
+    """`GetChannelList` (NVR only) -> [(channel, status)] in document order. The guide's example closes `<channelIDList/>`
+    empty and puts the `<item channelStatus="online">1</item>` elements after it; a firmware that nests them inside the
+    list is read the same way. Duplicates are dropped."""
+    root = parse(xml)
+    out: list[tuple[int, str | None]] = []
+    seen: set[int] = set()
+    for el in root.iter():
+        if _local(el.tag) != "item":
+            continue
+        ch = to_int(el.text)
+        if ch is None or ch < 1 or ch > 4096 or ch in seen:
+            continue
+        seen.add(ch)
+        status = el.attrib.get("channelStatus")
+        out.append((ch, status[:16] if status else None))
+        if len(out) >= MAX_ITEMS:
+            break
+    return out
+
+
+def parse_osd_channel_name(xml: str | bytes) -> str | None:
+    """`GetImageOsdConfig/{ch}` -> the channel name the device shows (`imageOsd/channelName/name`), the only place v1 names
+    a channel. None when the device sends none."""
+    root = parse(xml)
+    name_el = child(child(child(root, "imageOsd"), "channelName"), "name")
+    return text(name_el)
+
+
+def parse_port_config(xml: str | bytes) -> dict[str, Any]:
+    root = parse(xml)
+    port = child(root, "port")
+    if port is None:
+        raise ET.ParseError("not a port document")
+    return {
+        "http": to_int(text(port, "httpPort")),
+        "https": to_int(text(port, "httpsPort")),
+        "rtsp": to_int(text(port, "rtspPort")),
+        "net": to_int(text(port, "netPort")),
+        "long_polling": to_int(text(port, "longPollingPort")),
+        "long_polling_enabled": to_bool(text(port, "enablelongPollingHttp")),
+        "ws": to_int(text(port, "wsPort")),
+    }
+
+
+def parse_date_time(xml: str | bytes) -> dict[str, Any]:
+    """`GetDateAndTime` -> device wall clock (raw string, local time, no offset), POSIX time-zone string, sync mode."""
+    root = parse(xml)
+    t = child(root, "time")
+    if t is None:
+        raise ET.ParseError("not a time document")
+    zone = child(t, "timezoneInfo")
+    sync = child(t, "synchronizeInfo")
+    return {
+        "current_time": text(sync, "currentTime"),
+        "time_zone": text(zone, "timeZone", cap=127),
+        "sync": text(sync, "type"),
+        "ntp_interval_min": to_int(text(sync, "ntpSyncInterval")),
+    }
+
+
+def parse_disk_info(xml: str | bytes) -> list[dict[str, Any]]:
+    """`GetDiskInfo` -> [{total_mb, free_mb, status}]; an empty list when the device has no disk."""
+    root = parse(xml)
+    out = []
+    for item in children(child(root, "diskInfo"), "item"):
+        out.append({"total_mb": to_int(text(item, "totalSpace")), "free_mb": to_int(text(item, "freeSpace")),
+                    "status": text(item, "diskStatus")})
+    return out
+
+
+def parse_record_status(xml: str | bytes) -> dict[int, dict[str, Any]]:
+    """`GetRecordStatusInfo` -> {channel: {state, stream_type, record_types}} (the item's `id` is the channel id)."""
+    root = parse(xml)
+    out: dict[int, dict[str, Any]] = {}
+    for item in children(child(root, "recordStatusList"), "item"):
+        ch = to_int(item.attrib.get("id"))
+        if ch is None:
+            continue
+        kinds = (item.attrib.get("recordTypes") or "")[:TEXT_CAP]
+        out[ch] = {"state": text(item), "stream_type": (item.attrib.get("streamType") or None),
+                   "record_types": [k for k in re.split(r"[,\s]+", kinds) if k]}
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ streams
+
+def stream_ref(channel: int, stream_id: int) -> str:
+    """Arx stream key: the Hikvision-shaped number `<channel><id:02>` ("101" = channel 1 main), so the digit-only
+    validators of the existing routes keep working."""
+    return f"{channel}{stream_id:02d}"
+
+
+def split_stream_ref(ref: str) -> tuple[int, int]:
+    if not re.fullmatch(r"\d{3,6}", ref or ""):
+        raise ValueError("stream_ref")
+    channel, sid = divmod(int(ref), 100)
+    if channel < 1 or sid < 1:
+        raise ValueError("stream_ref")
+    return channel, sid
+
+
+def stream_role(stream_id: int) -> str:
+    return "main" if stream_id == 1 else "sub" if stream_id == 2 else "third" if stream_id == 3 else "other"
+
+
+# encodeType -> (codec family, smart codec on, "+" variant)
+_CODECS: dict[str, tuple[str, bool | None, bool | None]] = {
+    "h264": ("H.264", False, False), "h264plus": ("H.264", True, True), "h264smart": ("H.264", True, False),
+    "h265": ("H.265", False, False), "h265plus": ("H.265", True, True), "h265smart": ("H.265", True, False),
+    "mjpeg": ("MJPEG", None, None),
+}
+_PROFILES = {"baseline": "baseline", "mainprofile": "main", "highprofile": "high"}
+ENCODING_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "smart_codec")
+_ALL_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
+
+
+def webrtc_verdict(codec: str | None, profile: str | None) -> tuple[str, str]:
+    """Same vocabulary as `nvr.webrtc_verdict`. v1 does not say whether a stream uses B-frames, so only an H.264 Baseline
+    stream (no B-frames by definition) is `ok`; Main / High stay `unknown` until a real unit is measured."""
+    if not codec:
+        return "unknown", "codec_unknown"
+    if codec == "MJPEG":
+        return "no", "mjpeg"
+    if codec == "H.265":
+        return "unknown", "h265"
+    if codec != "H.264":
+        return "unknown", "codec_other"
+    if profile == "baseline":
+        return "ok", "h264_no_b_frames"
+    return "unknown", "b_frames_unknown"
+
+
+def _bounds(el: ET.Element | None) -> dict[str, int] | None:
+    if el is None:
+        return None
+    lo, hi = to_int(el.attrib.get("min")), to_int(el.attrib.get("max"))
+    return {"min": lo, "max": hi} if lo is not None and hi is not None else None
+
+
+def item_etag(item: ET.Element) -> str:
+    raw = ET.tostring(item, encoding="unicode")
+    return hashlib.sha256(re.sub(r">\s+<", "><", raw).strip().encode("utf-8")).hexdigest()[:16]
+
+
+def parse_video_stream_config(xml: str | bytes, channel: int) -> list[dict[str, Any]]:
+    """`GetVideoStreamConfig/{ch}` -> one dict per stream: `stream_ref`, `stream_id`, `channel`, `role`, `name`, the
+    normalized encoding (`codec`, `codec_raw`, `codec_plus`, `profile`, `resolution`, `fps`, `bitrate_mode`, `bitrate_kbps`,
+    `quality` (the vendor's word: lowest..highest), `gop` (frames), `svc` None, `smart_codec`, `b_frames` None), `webrtc` /
+    `webrtc_reason`, `limits` (bitrate list, bitrate / GOP bounds, codec choices the device lists for this stream),
+    `fields` (only the unsupported ones), `etag` and `element` (the item as text, for the change log of P2)."""
+    root = parse(xml)
+    out: list[dict[str, Any]] = []
+    for item in children(child(root, "streams"), "item"):
+        sid = to_int(item.attrib.get("id"))
+        if sid is None or not 1 <= sid <= 99:
+            continue
+        raw = (text(item, "encodeType") or "")
+        codec, smart, plus = _CODECS.get(raw.lower(), (raw or None, None, None))
+        level = text(item, "encodeLevel")
+        profile = _PROFILES.get((level or "").lower(), level.lower() if level else None)
+        if codec not in ("H.264", "H.265"):
+            profile = None if codec == "MJPEG" else profile
+        res = text(item, "resolution")
+        fps = to_int(text(item, "frameRate"))
+        mode = (text(item, "bitRateType") or "").upper()
+        rate = to_int(text(item, "maxBitRate"))
+        gop = to_int(text(item, "GOP"))
+        enc: dict[str, Any] = {
+            "stream_ref": stream_ref(channel, sid), "stream_id": sid, "channel": channel, "role": stream_role(sid),
+            "name": text(item, "name", cap=32),
+            "codec": codec, "codec_raw": raw or None, "codec_plus": plus, "profile": profile,
+            "resolution": res if res and _RES.match(res) else None,
+            "fps": float(fps) if fps and fps > 0 else None,
+            "bitrate_mode": mode if mode in ("CBR", "VBR") else None,
+            "bitrate_kbps": rate if rate and rate > 0 else None,
+            "quality": text(item, "quality", cap=16),
+            "gop": gop if gop and gop > 0 else None,
+            "svc": None, "smart_codec": smart, "b_frames": None,
+        }
+        enc["webrtc"], enc["webrtc_reason"] = webrtc_verdict(enc["codec"], enc["profile"])
+        enc["limits"] = {
+            "bitrate_list": [v for v in (to_int(text(i)) for i in children(child(item, "bitRateLists"), "item")) if v],
+            "bitrate": _bounds(child(item, "maxBitRate")),
+            "gop": _bounds(child(item, "GOP")),
+            "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
+        }
+        present = {
+            "codec": enc["codec"] is not None, "profile": level is not None, "resolution": enc["resolution"] is not None,
+            "fps": fps is not None, "bitrate_mode": enc["bitrate_mode"] is not None, "bitrate_kbps": rate is not None,
+            "quality": enc["quality"] is not None, "gop": gop is not None, "svc": False,
+            "smart_codec": smart is not None, "b_frames": False,
+        }
+        enc["fields"] = {f: {"supported": False, "editable": False} for f in _ALL_FIELDS if not present[f]}
+        enc["etag"] = item_etag(item)
+        enc["element"] = ET.tostring(item, encoding="unicode")
+        out.append(enc)
+    return out
+
+
+def parse_stream_caps(xml: str | bytes) -> dict[str, Any]:
+    """`GetStreamCaps/{ch}` -> {"rtsp_port", "streams": {id: {"name", "resolutions": [{"resolution", "max_fps"}], "codecs",
+    "profiles"}}}. The stream name is what an IPC's RTSP path uses (`rtsp://host:port/<streamName>`)."""
+    root = parse(xml)
+    streams: dict[int, dict[str, Any]] = {}
+    for item in children(child(root, "streamList"), "item"):
+        sid = to_int(item.attrib.get("id"))
+        if sid is None or not 1 <= sid <= 99:
+            continue
+        name = text(item, "streamName", cap=32)
+        resolutions = []
+        for r in children(child(item, "resolutionCaps"), "item"):
+            value = text(r)
+            if value and _RES.match(value):
+                resolutions.append({"resolution": value, "max_fps": to_int(r.attrib.get("maxFrameRate"))})
+        streams[sid] = {
+            "name": name if name and SAFE_NAME.match(name) else None,
+            "resolutions": resolutions,
+            "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
+            "profiles": [_PROFILES.get(t.lower(), t) for t in (text(i, cap=16) for i in children(child(item, "encodeLevelCaps"), "item")) if t],
+        }
+    return {"rtsp_port": to_int(text(root, "rtspPort")), "streams": streams}
+
+
+# ------------------------------------------------------------------------------------------------ alarms / events
+
+def parse_alarm_status_info(info: ET.Element | None) -> dict[tuple[str, int | None], bool]:
+    """An `<alarmStatusInfo>` element -> {(kind, id): active}. Reads both shapes: v1 `<motionAlarm type="boolean" id="2">
+    true</motionAlarm>` (one element per id, or none) and lists `<sensorAlarmIn><item id="1">false</item></sensorAlarmIn>`
+    (also how v2 firmware writes every kind). Kinds are the device's element names; unknown kinds are kept."""
+    out: dict[tuple[str, int | None], bool] = {}
+    if info is None:
+        return out
+    for el in list(info)[:MAX_ITEMS]:
+        kind = _local(el.tag)[:32]
+        items = [i for i in el if _local(i.tag) == "item"]
+        if items:
+            for i in items[:MAX_ITEMS]:
+                state = to_bool(i.text)
+                if state is not None:
+                    out[(kind, to_int(i.attrib.get("id")))] = state
+            continue
+        state = to_bool(el.text)
+        if state is not None:
+            out[(kind, to_int(el.attrib.get("id")))] = state
+    return out
+
+
+def parse_alarm_status(xml: str | bytes) -> dict[tuple[str, int | None], bool]:
+    """`GetAlarmStatus` (short polling)."""
+    root = parse(xml)
+    info = child(root, "alarmStatusInfo")
+    if info is None:
+        raise ET.ParseError("not an alarm status document")
+    return parse_alarm_status_info(info)
+
+
+def parse_subscribe(xml: str | bytes) -> dict[str, Any]:
+    """`SetSubscribe` answer (long polling): the subscription handle `serverAddress` (an opaque URL-like string the
+    later SetRenew / GetPullMessages / SetUnSubscribe name), the device's epoch `currentTime` / `terminationTime` and
+    the pull `timeout` (seconds)."""
+    root = parse(xml)
+    address = text(root, "serverAddress", cap=256)
+    if not address:
+        raise ET.ParseError("not a subscribe answer")
+    return {"server_address": address, "current_time": to_int(text(root, "currentTime")),
+            "termination_time": to_int(text(root, "terminationTime")), "timeout": to_int(text(root, "timeout"))}
+
+
+def parse_pull_messages(xml: str | bytes) -> dict[str, Any]:
+    """`GetPullMessages` answer -> {"termination_time", "messages": [{"status": {(kind, id): bool}, "data_time": str}]}.
+    The device identity block of each item (name, number, serial, IP, MAC) is dropped."""
+    root = parse(xml)
+    messages = []
+    for item in children(child(root, "alarmInfoList"), "item"):
+        messages.append({"status": parse_alarm_status_info(child(item, "alarmStatusInfo")), "data_time": text(item, "dataTime")})
+    return {"termination_time": to_int(text(root, "terminationTime")), "messages": messages}
