@@ -193,7 +193,7 @@ export class SystemSetup extends LitElement {
         : `החיבור נבדק (${r.device.model} · ${r.device.firmware}) ונשמר; בתוקף מיד.`;
       void this.loadSystem();
     } catch (err) {
-      this.connMsg = `לא נשמר: ${describeError(err)}`;
+      this.connMsg = err instanceof ApiError && err.code === 'update_running' ? 'מתבצע עדכון, נסו שוב בסיום.' : `לא נשמר: ${describeError(err)}`;
     } finally {
       this.connBusy = false;
     }

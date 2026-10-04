@@ -11,8 +11,11 @@ boot: auto
 init: false
 ingress: true
 homeassistant_api: true
-# Supervisor API (default role) for discovery: the add-on announces the bridge integration it installs.
+# Supervisor API for discovery (the add-on announces the bridge integration it installs) and, with the manager role (CR-021, owner
+# decision D1), the in-app update of this add-on and the platform restart. Arx sends only an allow-listed set of calls
+# (DOCS.md "What Arx may do on your system"). The first release carrying the role must be updated by hand once.
 hassio_api: true
+hassio_role: manager
 discovery:
   - smplwise_bridge
 # The integration is copied into <config>/custom_components/smplwise_bridge; nothing else there is touched.

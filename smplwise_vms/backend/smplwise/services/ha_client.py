@@ -425,21 +425,20 @@ def supervisor_token() -> str | None:
 
 
 def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> dict[str, Any]:
-    """Supervisor discovery API: makes Home Assistant offer `service` (the bridge) with `config` prefilled."""
+    """Supervisor discovery API: makes Home Assistant offer `service` (the bridge) with `config` prefilled. Sent through the single door
+    of the add-on's infrastructure calls (`self_update.send`: allow-list, body shape, no redirects). Returns the answer's `data`."""
+    from . import self_update
+
     token = supervisor_token()
     if not token:
         raise ApiError(503, "supervisor_unavailable", "שירות הניהול אינו זמין (מחוץ להתקנה).")
-    base = os.environ.get("SW_SUPERVISOR_URL", "http://supervisor").rstrip("/")
-    try:
-        r = httpx.post(base + "/discovery", json={"service": service, "config": config}, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "supervisor_unavailable", "שירות הניהול אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code != 200:
-        raise ApiError(503, "supervisor_error", "שירות הניהול דחה את הודעת הגילוי.", details={"status": r.status_code})
-    try:
-        return r.json()
-    except ValueError:
-        return {}
+    base = os.environ.get("SW_SUPERVISOR_URL", self_update.DEFAULT_BASE).rstrip("/")
+    reply = self_update.send("POST", self_update.P_DISCOVERY, base=base, token=token, body={"service": service, "config": config}, timeout=10)
+    if reply.kind in ("unreachable", "dropped"):
+        raise ApiError(503, "supervisor_unavailable", "שירות הניהול אינו זמין כרגע.", retryable=True, details={"error": reply.kind})
+    if reply.kind != "ok":
+        raise ApiError(503, "supervisor_error", "שירות הניהול דחה את הודעת הגילוי.", details={"status": reply.status})
+    return reply.data or {}
 
 
 def call_service(settings: Settings, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:

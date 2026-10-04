@@ -20,7 +20,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, views, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
 
 log = logging.getLogger("smplwise")
 
@@ -73,6 +73,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         ha_camera_streams.reconcile(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("ha live reconcile failed", exc_info=True)
+    try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
+        from .services import update_runs
+
+        update_runs.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("update runs janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -113,6 +119,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
     if pre:
         log.info("pre-upgrade backup written: %s", pre.name)
+    from .services import update_runs  # CR-021 S3 review: a start of an update's target version counts even if a migration crashes next
+
+    update_runs.early_boot(app.state.db)
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
@@ -132,6 +141,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     except Exception:  # noqa: BLE001 - never block the start
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
+    update_runs.on_startup(app.state.db, settings)  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
     try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
         from .services import notify_policy
 
@@ -227,6 +237,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(skins.router, prefix=api, tags=["plans"])
     app.include_router(search.router, prefix=api, tags=["search"])
     app.include_router(backup.router, prefix=api, tags=["backup"])
+    app.include_router(system_update.router, prefix=api, tags=["system-update"])  # CR-021 S1: self-update check and settings (system.update)
     app.include_router(frames.router, prefix=api, tags=["recordings"])
     app.include_router(cases.router, prefix=api, tags=["cases"])
     app.include_router(storage.router, prefix=api, tags=["storage"])

@@ -173,17 +173,20 @@ _core_base: dict[str, str] = {}
 
 def _supervisor_core_base() -> str:
     """`http(s)://homeassistant:<port>` from the Supervisor's /core/info (the add-on's own token, server-side only);
-    `http://homeassistant:8123` when the Supervisor does not answer."""
+    `http://homeassistant:8123` when the Supervisor does not answer. Read through the single door of the add-on's infrastructure calls
+    (`self_update.send`)."""
     import os
 
-    import httpx
+    from . import self_update
 
     token = os.environ.get("SUPERVISOR_TOKEN")
     port, tls = 8123, False
     if token:
         try:
-            r = httpx.get("http://supervisor/core/info", headers={"Authorization": f"Bearer {token}"}, timeout=5)
-            data = (r.json() or {}).get("data") or {}
+            reply = self_update.send("GET", self_update.P_CORE_INFO, base=self_update.DEFAULT_BASE, token=token, timeout=5)
+            if reply.kind != "ok":
+                raise ConnectionError(reply.kind)
+            data = reply.data or {}
             port = int(data.get("port") or 8123)
             tls = bool(data.get("ssl"))
         except Exception as exc:  # noqa: BLE001 - fall back to HA's default port
