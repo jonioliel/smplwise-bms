@@ -243,6 +243,29 @@ def test_removing_a_recorder_keeps_its_history_hides_its_cameras_and_never_reuse
         "nvr.recorder.add", "nvr.recorder.remove", "nvr.recorder.add"]
 
 
+def test_a_removed_recorders_cameras_leave_the_current_map_and_keep_their_anchor_rows(base, fakes):
+    from conftest import seed_tree
+
+    app, c = two_recorders(base, fakes)
+    tree = seed_tree(c)
+    cam1 = rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-1' ORDER BY channel")[0]["id"]
+    cam2 = rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-2' ORDER BY channel")[0]["id"]
+    import sqlite3
+
+    raw = sqlite3.connect(base.db_path)
+    raw.execute("PRAGMA foreign_keys=OFF")
+    for aid, cam in (("a1", cam1), ("a2", cam2)):
+        raw.execute("INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at) "
+                    "VALUES (?, ?, 'pv', 'camera', ?, 0.5, 0.5, 0, 90, 'cameras', 'x', 1, '2026-09-01T00:00:00Z', 't', 't', '2026-09-01T00:00:00Z')", (aid, tree["floor2"], cam))
+    raw.commit()
+    raw.close()
+    assert {a["resource_id"] for a in c.get(f"/api/v1/floors/{tree['floor2']}/anchors").json()["anchors"]} == {cam1, cam2}
+    rev = c.get("/api/v1/recorders/nvr-2/connection").json()["revision"]
+    assert c.request("DELETE", "/api/v1/recorders/nvr-2", json={"confirm_text": "הסר", "if_revision": rev}).status_code == 200
+    assert {a["resource_id"] for a in c.get(f"/api/v1/floors/{tree['floor2']}/anchors").json()["anchors"]} == {cam1}
+    assert len(rows(base, "SELECT id FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (cam2,))) == 1, "the placement row is kept"
+
+
 def test_duplicate_destination_rename_disable_and_time_zone(base, fakes):
     app, c = two_recorders(base, fakes)
     r = c.post("/api/v1/recorders", json={**ADD, "host": NVR_HOST, "name": "שוב"})
