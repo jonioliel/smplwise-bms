@@ -30,14 +30,14 @@ like; beyond the quarter-hour retention a non-midnight edge raises `ValueError`,
 - Bill and PDF retention is executed by billing (`energy_billing.retention`, hourly) using the keys
   `energy.bill_retention_years` (7) and `energy.draft_retention_days` (30) owned by the meters branch's settings registry.
 
-## Known differences to settle at integration
+## Known differences, settled at integration (2026-10-04, `integ/electricity`)
 
 1. Billing settings (price mode default, payment terms, business details, numbering digits, automatic delay, logo) live in
-   one key `energy.billing` behind `GET/PUT /energy/billing-settings`, not in the `energy_settings` registry (the registry is not
-   on this branch). Moving them is mechanical; the REST shape stays.
-2. Backup: billing appends its tables directly to `backup.PROJECT_TABLES` / `KEEP_WHEN_ABSENT` / `FILE_COLUMNS` instead of
-   `energy_backup.MAIN_TABLES` (not on this branch). One list must win at the merge.
-3. Both branches add `energy.view`, `energy.manage`, `energy.bills` to `roles.json`, the contract role catalogue and the
-   permission labels: identical meaning; keep one copy.
+   one key `energy.billing` behind `GET/PUT /energy/billing-settings`. Resolved: the key is registered in the `energy_settings`
+   registry with `own_route` (known there, edited only through its own route); the REST shape stays.
+2. Backup: resolved - one list in `services/energy_backup` (`MAIN_TABLES`, `KEEP_WHEN_ABSENT`, `FILE_COLUMNS`), merged into
+   `backup`'s lists.
+3. Permissions: resolved - one copy of `energy.view`, `energy.bills`, `energy.manage` in `roles.json`, the contract role
+   catalogue and the permission labels.
 4. Both migrations used the placeholder number 0054; resolved at integration: `0054_electricity_meters.sql`,
    `0055_electricity_billing.sql`. No foreign key crosses them (meters are referenced by text id).

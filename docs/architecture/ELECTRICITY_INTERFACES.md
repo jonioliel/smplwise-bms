@@ -213,15 +213,16 @@ use the real store: `tests/test_energy_store.py::make_store` shows how to feed r
   calls `energy_bills` with `state = 'draft'` (`period_start`, `period_end`, `account_id`) if that table exists.
   Bill and PDF retention (7 years) is executed by the billing branch; the setting key is owned here (section 5).
 
-### 2.4 Adapter to the billing branch's own protocol
+### 2.4 The seam billing uses
 
-The billing branch coded against its own `BillingReadings` (`services/energy_billing_provider.py`: `meters()`, `segments()`,
-`history_wh()`) and looks up `services/energy_billing_adapter.provider()` at run time. This branch ships that adapter
-(`services/energy_billing_adapter.py`, configured in `main.create_app`): segments are consecutive accepted raw readings of
-one epoch (reset pairs carry the energy since the restart with `reset=True`, rebase pairs are left out, nothing crosses a
-replacement); for the part of a window older than the oldest raw reading (raw retention 90 days) the quarter-hour buckets
-are returned as 15-minute segments (`v0_wh = v1_wh = 0`); `history_wh` comes from the daily totals as `(wh, complete)` or
-`None`. Tested in `tests/test_energy_store.py::test_billing_adapter_segments_and_history`.
+Billing obtains its provider through `services/energy_billing_provider.get_provider(conn, settings)`, which asks
+`services/energy_billing_adapter.provider(conn, settings)` (configured in `main.create_app`); the adapter answers with
+`energy_provider.provider_for(conn, settings)` - this protocol, bound to the caller's connection - or None when the store is not
+configured or no connection is given (billing then uses its `NullReadings`: nothing billed, nothing invented). Billing uses the
+subset `get_meter`, `list_meters`, `last_report_at`, `consumption`, `reading_at` (docs/architecture/ELECTRICITY_BILLING_PROVIDER.md).
+Integration note (2026-10-04): an earlier draft of this section described a billing-specific adapter (`meters()`, `segments()`,
+`history_wh()`); billing moved to the shared protocol before the merge, so that adapter was removed. Tested end to end against the
+real store in `tests/test_energy_integration.py` and `tests/test_energy_store.py::test_billing_adapter_answers_with_the_readings_provider`.
 
 ### 2.5 Navigation id
 
@@ -304,10 +305,13 @@ Per meter, per epoch; P = last accepted reading (t0), R = new reading (t1); cap 
 | `energy.stale_after_minutes` | 60 | 15-1440 | energy.manage |
 | `energy.include_history_in_backup` | false | bool | backup.manage |
 
-Billing adds its keys (price mode, business details, payment days, fixed note...) by calling
-`energy_settings.register(SettingSpec(key=..., default=..., kind='int'|'bool'|'enum'|'text'|'json', ..., permission=...))`
-at import time of its own module; they then appear in GET/PATCH `/energy/settings` with the same validation and audit.
-Money-sensitive keys can set `read_permission='energy.bills'` and are omitted for callers without it.
+Billing registers its key at import time: `energy.billing` (one JSON document - price mode default, payment terms, business
+details, numbering, automatic delay, logo - with its own revision), `kind='json'`, `permission='energy.manage'`,
+`read_permission='energy.bills'`, `own_route='/energy/billing-settings'`. A key with `own_route` is known to the registry (one list of
+every `energy.*` key with its default and permissions) but is neither shown nor accepted by the generic GET/PATCH
+`/energy/settings`; it is read and written only through its own route with its own validation (integration decision 2026-10-04;
+nothing to migrate, the module was unreleased). Billing reads `energy.draft_retention_days`, `energy.bill_retention_years` and
+`energy.stale_after_minutes` (the not-reporting threshold of bill notes and the account status) through this registry.
 
 ## 6. Storage estimate formula (shown in Settings)
 
@@ -318,8 +322,10 @@ daily ≈ 20 MB. Typical sites (10-30 meters) need tens of MB.
 
 ## 7. Backup and restore
 
-- `energy_meters`, `energy_meter_epochs` join the project backup (`services/energy_backup.MAIN_TABLES`, added to
-  `backup.PROJECT_TABLES`). Billing appends its tables to `energy_backup.MAIN_TABLES` (one list, one place).
+- Every electricity table of the main DB (meters and billing) is listed once in `services/energy_backup`: `MAIN_TABLES` (joined to
+  `backup.PROJECT_TABLES`), `KEEP_WHEN_ABSENT` (a `replace` restore of an archive written before the module keeps the current rows:
+  issued bills are financial records and accounts reference meters by id) and `FILE_COLUMNS` (stored bill PDFs, logos).
+  `energy_bill_numbers` is deliberately not in the backup (a restore can never make a bill number reusable).
 - Every backup carries `energy/daily.json` (daily totals keyed by meter id, small). With `energy.include_history_in_backup`
   the archive also carries `energy/energy.db` (a consistent copy made with the SQLite backup API).
 - Restore follows the allow-list pattern of `services/backup.py`: only the allow-listed tables and columns
@@ -328,6 +334,9 @@ daily ≈ 20 MB. Typical sites (10-30 meters) need tens of MB.
   read-only from a temp copy and must carry the expected schema version; anything else in it is ignored.
 
 ## Change log
+- 2026-10-04 (integration, `integ/electricity`): migrations are `0054_electricity_meters.sql` and
+  `0055_electricity_billing.sql`; section 2.4 is the shared-provider seam (the segments adapter was removed); billing's settings key
+  is registered with `own_route` (section 5); one backup table list (section 7); a paused account still uses its meters (2.3).
 - 2026-10-04: first version (elec-server).
 - 2026-10-04: meters list adds floor_id/floor_name, month_kwh, accounts_count; epochs add the Wh readings; candidates add
   the floor; storage adds drafts; section 2.4 (billing adapter), 2.5 (nav id "infra"), 2.6 (not provided). The split into

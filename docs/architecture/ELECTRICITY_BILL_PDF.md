@@ -77,6 +77,20 @@ element for the hash, repeated table headers (`thead` as header group), rows nev
 spans (`direction: ltr; unicode-bidi: isolate`) inside the RTL text. House style for the shekel sign: after the number
 ("497.35 ₪"), as in the mockup. Fonts: Heebo 400/700 as TTF, Hebrew and Latin subsets, bundled with its OFL (section 7).
 
+### 4.1 Integration (2026-10-04): engine self-check and the 5-second fallback
+
+- Owner round 4: in `auto`, the WeasyPrint render gets `SW_BILL_PDF_FALLBACK_S` (default 5 s, 1-60); when it runs out the child is
+  killed and the bill is rendered again with fpdf2 under the normal time limit. Only when the total limit is larger than the
+  fallback budget; an explicit engine never falls back; hard limits (pages, size) never fall back. Counted in `slow_fallbacks`.
+- `bill_pdf.self_check()` runs once at start-up (background thread from `main.create_app`; `SW_BILL_PDF_SELFCHECK=0` turns it off,
+  the tests do): a tiny render in the isolated child reports which engine can render here. Logged (INFO for WeasyPrint, WARNING
+  when the simple engine is active, ERROR when none works) and exposed by `bill_pdf.engine_status()` as `pdf_engine` in
+  `GET /energy/billing-settings` and as `pdf.engine` on every bill, so a silent fallback to fpdf2 is visible.
+- The billing seam (`services/energy_billing_pdf.py`) calls `render_bill_pdf` and maps the errors: `pdf_render_failed`,
+  `pdf_timeout` -> 503 retryable; `pdf_page_limit`, `pdf_too_large` -> 422; a malformed snapshot -> 503 `pdf_render_failed`, not
+  retryable. Failures are recorded as bill events and shown as `pdf.state = failed`.
+- The logo upload of the business settings uses `sanitize_logo` (the same rules as at render time).
+
 ## 5. Security
 
 - No network: the child process replaces `socket.connect/getaddrinfo/create_connection` with refusals at start-up, and WeasyPrint is
@@ -119,8 +133,8 @@ the runner. `pdftotext` shows Hebrew in logical order with bidi marks around run
 `backend/smplwise/assets/bill/fonts/`: `Heebo-he-{400,700}.ttf` (Hebrew subset), `Heebo-la-{400,700}.ttf` (Latin subset), `OFL.txt` (SIL OFL 1.1,
 copyright line of the Heebo project), `README.txt` (provenance: the product's own WOFF2 subsets converted to static TrueType with fontTools).
 Total 67 KB. These are subsets, not the complete Heebo; characters outside Hebrew, Latin, digits and common punctuation are not covered
-(none is printed by the layout; user text outside those scripts would show missing-glyph boxes). The repository's third-party notices
-should list "Heebo - SIL OFL 1.1" (there is no notices file in the repo yet; the OFL text travels with the fonts).
+(none is printed by the layout; user text outside those scripts would show missing-glyph boxes). Listed in `THIRD_PARTY_NOTICES.md`
+("Heebo - SIL OFL 1.1"); the OFL text travels with the fonts.
 
 ## 8. Add-on image: what changed and what is NOT VERIFIED
 
@@ -156,7 +170,7 @@ NOT VERIFIED (no Docker on the runner; steps for the lead, on any machine with D
 - House style for the shekel sign: "497.35 ₪" as in the mockup (spike note asked for one decision). Change in `with_shekel` if wanted.
 - Image size gate is tight (section 8, step 2): decide whether the fpdf2 fallback is worth its ~6 MB.
 - Time gate on ARM is unmeasured; if missed, choose between the fpdf2 engine and a lighter layout.
-- Third-party notices file does not exist yet (OFL travels with the fonts).
+- Third-party notices: `THIRD_PARTY_NOTICES.md` at the repository root (Heebo OFL 1.1, the WeasyPrint / fpdf2 / uharfbuzz stack), added at integration.
 - Fonts are subsets: a customer name in Arabic, Russian, Cyrillic etc. would show missing glyph boxes. Tell me if full Heebo (about 100 KB per weight more) or a fallback font family is wanted.
 - Snapshot suggestion for billing: store the pre-computed `snapshot_sha256` inside the row (already so) and also let the PDF print it instead of
   recomputing; today the PDF prints the first 12 hex of the same canonical hash, so they match as long as the canonical rule is unchanged.

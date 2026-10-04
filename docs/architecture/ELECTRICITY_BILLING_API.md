@@ -50,7 +50,10 @@ audited. Money hiding is server-side: without `energy.bills` the keys listed as 
 | `version_exists` | 409 | a tariff version or VAT rate with the same effective date exists |
 | `pdf_unavailable` | 503 | the PDF renderer is not installed in this build (retryable: false) |
 | `pdf_render_failed` | 503 | the renderer failed (retryable: true); the bill keeps its state |
-| `logo_invalid` | 422 | not PNG/JPEG by magic bytes, larger than 1 MB, unreadable |
+| `pdf_timeout` | 503 | the render exceeded its time limit (retryable: true) |
+| `pdf_page_limit` | 422 | the bill is longer than the page limit (40 pages; not retryable) |
+| `pdf_too_large` | 422 | the PDF is larger than 10 MB (not retryable) |
+| `logo_invalid` | 422 | not PNG/JPEG by magic bytes, larger than 1 MB, over 25 megapixels, unreadable; `details.code` = `logo_empty` / `logo_too_large` / `logo_type` / `logo_dimensions` / `logo_undecodable` (the PDF renderer's own logo rules, `bill_pdf_logo.sanitize_logo`) |
 
 ## 3. Customers (`customer card`, decision D2)
 
@@ -85,6 +88,7 @@ Money (bills only): `tariff.price`, `tariff.price_mode`.
 | PATCH | `/accounts/{id}` | manage | `{base_revision, ...}` | `Account` |
 | DELETE | `/accounts/{id}` | manage | query `base_revision` | 204 (soft; issued bills stay; open drafts are deleted) |
 | GET | `/accounts/{id}/periods` | view | `past` (0-24, default 6), `future` (0-6, default 1) | `{periods: [{from, to, end_exclusive, bill: BillSummary|null, state: "billed"|"draft"|"open"|"future"}]}` |
+| GET | `/accounts/{id}/history` | view | `past` (1-24, default 12) | `{periods: [{from, to, kwh: str\|null, status: "measured"\|"partial"\|"missing", source: "bill"\|"readings"\|null, bill: BillSummary\|null}], comparison: {current, previous, same_period_last_year} \| null}` - ENDED regular periods, oldest first; kWh from an issued bill of exactly that period, else computed from the readings (raw / quarter-hour / daily totals) with the account formula, so periods WITHOUT a bill have a number too; leading periods with no data are trimmed, gaps stay null (never invented). `comparison` is the chart series (same shape as `snapshot.history`) of the latest ended period. Money (`bill.total`) only with bills (owner round 6) |
 | GET | `/accounts/{id}/status` | view | – | `{period: {from, to}, kwh_so_far, meters: [{meter_id, name, kwh, last_report_at, reporting}], notes}`; bills adds `amount_so_far` (estimate, never stored) |
 
 Formula on save: syntax/meter errors are 422 `formula_invalid`. `timezone` defaults to the installation time zone.
@@ -126,7 +130,10 @@ Read: manage or bills. Write: manage.
 
 ## 7. Billing settings (Settings › פרטי העסק, numbering, payment)
 
-`GET /billing-settings` (manage or bills), `PUT /billing-settings` (manage) with `{base_revision, ...any subset}`:
+`GET /billing-settings` (manage or bills), `PUT /billing-settings` (manage) with `{base_revision, ...any subset}`. The GET answer also
+carries `pdf_engine: {configured, active, checked, detail, last_render_engine, slow_fallbacks, fallback_after_s}` (which PDF engine this
+installation really renders with; null while a test renderer is registered). Stored in the settings key `energy.billing`, registered
+in the energy settings registry with its own route (ELECTRICITY_INTERFACES.md section 5):
 
 ```json
 {
@@ -153,7 +160,13 @@ or bills) → the PNG.
 period: {from, to}, issue_date|null, due_date|null, kwh, total (money), replaces_bill_id|null, replaced_by_bill_id|null,
 row_version, created_at, updated_at}`.
 `Bill` = `BillSummary` + `{snapshot (§ snapshot doc), snapshot_sha256|null, sent: {at, how, note}|null, paid: {at, reference}|null,
-void: {at, reason}|null, actions: ["recalculate","delete","issue","sent","paid","correct","void","pdf"]}`.
+void: {at, reason}|null, actions: ["recalculate","delete","issue","sent","paid","correct","void","pdf"], pdf: PdfState}`.
+`sent.at` and `paid.at` are local DATES (`YYYY-MM-DD`, the account's time zone), not instants; the request bodies take the same date
+(confirmed between the bills screen and the server at integration).
+`PdfState` (owner round 6: a PDF failure is visible) = `{state: "stored"|"ready"|"failed"|"unavailable", error_code, failed_at, engine}`:
+`stored` = the PDF of an issued bill is saved; `ready` = produced on request; `failed` = the last attempt failed (`error_code` one of the
+pdf_* codes, `failed_at` UTC); `unavailable` = no PDF engine works on this installation. `engine` = `weasyprint` | `fpdf2` | null (the
+engine of the last render or the self-check). Failures and the first stored PDF are also bill events (`pdf_failed`, `pdf`).
 
 States: `draft` → `issued` → `sent` → `paid`; `void` (בוטל) from issued/sent (cancel with a reason, or automatically when a
 correction is issued: reason "הוחלף ב-<number>"). A paid bill can only be corrected. Every action needs `energy.bills`.
@@ -171,7 +184,7 @@ correction is issued: reason "הוחלף ב-<number>"). A paid bill can only be 
 | POST | `/bills/{id}/paid` | `{at?, reference?}` | `Bill` |
 | POST | `/bills/{id}/correct` | `{client_request_id}` | 201 `Bill` (a new draft, revision + 1, same period, `replaces_bill_id`); 409 `bill_state` when a correction draft already exists (`details.bill_id`) |
 | POST | `/bills/{id}/void` | `{reason}` (1-300 chars) | `Bill` |
-| GET | `/bills/{id}/pdf` | query `copy=1` (watermark "העתק") | `application/pdf`, file name `<number>.pdf` (draft: `draft-<id>.pdf`, watermark "טיוטה"; void: "בוטל"). 503 `pdf_unavailable` / `pdf_render_failed` |
+| GET | `/bills/{id}/pdf` | query `copy=1` (watermark "העתק") | `application/pdf`, file name `<number>.pdf` (draft: `draft-<id>.pdf`, watermark "טיוטה"; void: "בוטל"). Rendered by `services/bill_pdf.render_bill_pdf` in a worker thread (a plain `def` route). 503 `pdf_unavailable` / `pdf_render_failed` / `pdf_timeout`; 422 `pdf_page_limit` / `pdf_too_large` |
 | GET | `/auto-runs` | query `account_id`, `limit` | `{items: [{account_id, period: {from, to}, status: "created"|"issued"|"skipped"|"failed", bill_id, error_code, attempts, updated_at}]}` |
 
 `row_version` protects against two people acting on one bill at once (409 `revision_conflict`).

@@ -202,7 +202,7 @@ def store_logo(conn: sqlite3.Connection, data_dir: Path, content: bytes) -> dict
             width, height = im.size
     except LogoError as exc:
         code = str(exc)
-        raise _err(422, "logo_invalid", LOGO_ERROR_HE.get(code, LOGO_ERROR_HE["logo_undecodable"]), code=code) from None
+        raise ApiError(422, "logo_invalid", LOGO_ERROR_HE.get(code, LOGO_ERROR_HE["logo_undecodable"]), details={"code": code}) from None
     digest = hashlib.sha256(png).hexdigest()
     rel = f"energy/assets/{digest}.png"
     path = data_dir / rel
