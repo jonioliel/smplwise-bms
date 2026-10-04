@@ -21,6 +21,9 @@ interface Screen {
   ready: string;
   within: string;
   prep?: (p: Page) => Promise<void>;
+  /** the desktop touch dial for this screen in every skin (the camera settings table is a dense settings table: 32 px, as in
+   * layout-nvr-cameras.spec.ts; touch layouts below 768 px still need 44) */
+  dial?: string;
 }
 const CARD = 'sw-app system-setup nvr-recorders-card';
 const SCREENS: Screen[] = [
@@ -29,7 +32,7 @@ const SCREENS: Screen[] = [
     prep: async (p) => { await p.locator(`${CARD} [data-recorder="nvr-2"] [data-recorder-connection]`).click(); await p.locator(`${CARD} [data-recorder="nvr-2"] [data-conn-summary]`).waitFor(); } },
   { name: 'recorder-rename', route: '/system/setup', ready: `${CARD} [data-recorder="nvr-2"]`, within: 'nvr-recorders-card',
     prep: async (p) => { await p.locator(`${CARD} [data-recorder="nvr-2"] [data-recorder-rename]`).click(); } },
-  { name: 'cameras-table', route: '/system/security/cameras', ready: 'sw-app system-security-cameras [data-nvr-cameras][data-state="ready"]', within: 'system-security-cameras' },
+  { name: 'cameras-table', route: '/system/security/cameras', ready: 'sw-app system-security-cameras [data-nvr-cameras][data-state="ready"]', within: 'system-security-cameras', dial: '32px' },
   { name: 'wall', route: '/live/wall', ready: 'live-wall sw-camera-tile[data-cam]', within: 'live-wall' },
   { name: 'events', route: '/investigate/events', ready: 'investigate-events select[data-filter-recorder]', within: 'investigate-events' },
 ];
@@ -60,7 +63,7 @@ test.describe('multi-NVR layout guard', () => {
           await page.goto(`/?design=a&skin=${skin}&scheme=${theme}#${s.route}`);
           await page.waitForSelector('sw-app');
           await expect(page.locator(s.ready).first()).toBeAttached({ timeout: 20_000 });
-          await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32px');
+          await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), s.dial ?? (skin === 'bubble' ? '' : '32px'));
           if (s.prep) await s.prep(page);
           for (const w of WIDTHS) {
             await page.setViewportSize({ width: w, height: height(w) });

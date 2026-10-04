@@ -105,8 +105,7 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     const sel = page.locator(`${TABLE} nvr-camera-batch sw-dialog[open][data-nvr-batch-select]`);
     await expect(sel.locator('[data-nvr-batch-next]')).toBeVisible();
     const ids = await sel.locator('[data-nvr-batch-cam]').evaluateAll((els) => els.map((e) => e.getAttribute('data-nvr-batch-cam') ?? ''));
-    expect(ids.length).toBeGreaterThan(1);
-    expect(ids.every((id) => !id.startsWith('w-')), ids.join(',')).toBe(true);
+    expect(ids.sort()).toEqual(['cam-1', 'cam-2', 'cam-3']); // never the second recorder's w-cam-* (a mixed batch would be refused)
     await sel.locator('[data-nvr-batch-cancel]').click();
     await filter.selectOption('nvr-2');
     await expect.poll(() => page.locator(`${TABLE} ${scope}`).count()).toBe(all / 2);

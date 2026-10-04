@@ -267,7 +267,7 @@ export class NvrRecordersCard extends LitElement {
     }
     .name-in {
       font: inherit;
-      min-block-size: 36px;
+      min-block-size: var(--sw-touch-desktop, 44px);
       max-inline-size: 100%;
       inline-size: 260px;
       box-sizing: border-box;

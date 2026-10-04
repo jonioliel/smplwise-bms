@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { err, install, newMock, type Mock } from './nvr-cameras-write-mock';
+import { batchCameras } from './nvr-batch-mock';
 
 // CR-024 (multi-NVR): a STATEFUL mocked backend for the screens that name recorders - Settings › connections (the recorders card),
 // the camera settings table, the all-cameras wall and the event log. It sits on top of the cameras-table mock
@@ -46,6 +47,7 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
   const count = opts.count ?? 2;
   const base = newMock();
   base.canBatch = true;
+  base.cameras = batchCameras(3); // three cameras that qualify for the multi-camera change (SVC on, H.264, online)
   if (count === 2) {
     base.cameras = [...base.cameras, ...base.cameras.map((c) => ({ ...JSON.parse(JSON.stringify(c)), camera_id: `w-${c.camera_id}`, recorder_id: 'nvr-2', name: c.name }))];
   }
