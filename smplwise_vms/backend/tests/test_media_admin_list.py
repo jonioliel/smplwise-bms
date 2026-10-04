@@ -1,4 +1,4 @@
-"""0.1.161: the settings list of screens / speakers shows the integration, the platform's device id and the availability of each device,
+"""0.1.162: the settings list of screens / speakers shows the integration, the platform's device id and the availability of each device,
 read from the registry data already mirrored (no migration)."""
 from __future__ import annotations
 

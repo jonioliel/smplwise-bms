@@ -1,5 +1,5 @@
 /**
- * The working surface of the settings lists of screens and of speakers / players (הגדרות › מולטימדיה; 0.1.161): a toolbar (free text that also
+ * The working surface of the settings lists of screens and of speakers / players (הגדרות › מולטימדיה; 0.1.162): a toolbar (free text that also
  * matches ids and integration names, integration multi-select, area, type, approval, availability, sort, group) and a compact table - one
  * dense row per device (name, type, integration, the platform's ids with a copy key, area, status, approval, connections) whose full form opens
  * on demand under the row - with a sticky header, collapsible group headers with counts, cards on a phone. The pure logic is

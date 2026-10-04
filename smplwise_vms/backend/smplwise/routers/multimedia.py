@@ -751,7 +751,7 @@ def get_ma_connection(principal: Principal = Depends(_configure_gate), conn: sql
 @router.put("/multimedia/admin/ma-connection")
 def put_ma_connection(request: Request, background: BackgroundTasks, principal: Principal = Depends(_configure_gate), raw: bytes = Depends(_raw_body),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """`{enabled?, url?, token?, clear_token?}`: the token is write-only (a 0600 file); the audit row names what changed (`url_changed`, `token: set |
+    """`{enabled?, url?, token?, clear_token?}`: the token is write-only (encrypted at rest, AES-256-GCM); the audit row names what changed (`url_changed`, `token: set |
     cleared`, `enabled`) and never a value."""
     body: MaConnectionBody = _parse(request, raw, MaConnectionBody)
     fields = {f: getattr(body, f) for f in body.model_fields_set}

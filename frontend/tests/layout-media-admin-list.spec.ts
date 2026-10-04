@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { setLook } from './bubble-chrome-screens';
 
-// 0.1.161: the layout guard (tests/layout-guard.ts) over the settings lists of screens and speakers / players (הגדרות › מולטימדיה): the compact
+// 0.1.162: the layout guard (tests/layout-guard.ts) over the settings lists of screens and speakers / players (הגדרות › מולטימדיה): the compact
 // table, the grouped list, an open form and the open connections - in demo mode (every /api/v1 call is aborted: the demo devices answer).
 // The bubble skin runs all five classes across widths x light / dark; classic, domus and tesla run the four geometry classes (plus 44 px
 // targets at the phone width). The pre-existing forms (.dev, .ep, .seg), the "approve all" sw-button (26 px in the classic skins before this change) and the shared sw-dropdown / sw-toggle keep their own contracts.

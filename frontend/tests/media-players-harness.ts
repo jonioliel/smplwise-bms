@@ -355,7 +355,7 @@ export async function open(page: Page, hash: string, size: Size = '1440') {
   await page.waitForTimeout(450);
 }
 
-/** 0.1.161: the settings lists show one compact row per device; the full forms open on demand. Opens every closed one (the keys it presses are the rows' own). */
+/** 0.1.162: the settings lists show one compact row per device; the full forms open on demand. Opens every closed one (the keys it presses are the rows' own). */
 export async function expandAll(page: Page) {
   await page.waitForSelector('[data-mm-edit]', { state: 'attached', timeout: 4000 }).catch(() => undefined);
   for (let i = 0; i < 80; i++) {

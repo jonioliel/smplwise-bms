@@ -5,7 +5,7 @@ import {
   type ListView,
 } from '../src/screens/media-admin-list-logic';
 
-// 0.1.161: the pure logic of the settings lists (screens, speakers / players): ids and integrations per row, the filters (integration multi-select, area,
+// 0.1.162: the pure logic of the settings lists (screens, speakers / players): ids and integrations per row, the filters (integration multi-select, area,
 // type, approval, availability, free text over names, ids and integration names), sort, group, and the remembered view. No browser page.
 
 const ep = (id: string, platform: string, role: AdminEndpoint['role'] = 'vendor', hidden = false): AdminEndpoint => ({ endpoint_id: `ha:${id}`, platform, role, rule: '1', link_source: 'auto', hidden, primary_for: [] });

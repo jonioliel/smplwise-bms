@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { ADMIN, fresh, install, open, type St } from './media-players-harness';
 import type { AdminDevice } from '../src/api/media-admin';
 
-// 0.1.161: the settings lists of screens and of speakers / players in הגדרות › מולטימדיה - one compact row per device with the platform's ids and
+// 0.1.162: the settings lists of screens and of speakers / players in הגדרות › מולטימדיה - one compact row per device with the platform's ids and
 // the integration, filters (integration multi-select, area, type, approval, availability, free text over names / ids / integrations), sort,
 // group with collapsible headers and counts, copy-id, the remembered view, the phone as cards. A MOCKED backend (tests/media-players-harness.ts)
 // with a list that has several integrations, a device without one and an unavailable one. Desktop / tablet / mobile projects:
