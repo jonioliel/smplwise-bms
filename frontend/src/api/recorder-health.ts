@@ -38,13 +38,12 @@ export interface HealthThresholds {
   disk_fill_days: number;
   cert_days: number;
   recover_s: number;
-  recording_mode: 'continuous' | 'exceptions';
+  continuous_recorders: string[];
 }
 
 export interface ThresholdsAnswer {
   values: HealthThresholds;
   ranges: Record<string, { default: number; min: number; max: number }>;
-  recording_modes: string[];
 }
 
 export const recorderHealth = () => get<RecorderHealthList>('recorder-health');

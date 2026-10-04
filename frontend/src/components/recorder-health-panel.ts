@@ -13,7 +13,7 @@ const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error:
 const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
 
 /** The thresholds the settings card edits, in screen order: key, label, unit. */
-const FIELDS: { key: Exclude<keyof HealthThresholds, 'recording_mode'>; label: string; unit: string }[] = [
+const FIELDS: { key: Exclude<keyof HealthThresholds, 'continuous_recorders'>; label: string; unit: string }[] = [
   { key: 'recording_gap_min', label: 'מצלמה לא מקליטה', unit: 'דקות' },
   { key: 'clock_drift_s', label: 'סטיית שעון', unit: 'שניות' },
   { key: 'latency_ms', label: 'תגובה איטית', unit: 'מ״ש' },
@@ -188,8 +188,63 @@ export class RecorderHealthPanel extends LitElement {
       box-sizing: border-box;
     }
     :host([data-skin='bubble']) .ths input,
-    :host([data-skin='bubble']) .ths select {
+    :host([data-skin='bubble']) .ths select,
+    :host([data-skin='bubble']) .chk {
       min-block-size: 44px; /* the bubble skin's touch target */
+    }
+    .cont {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 16px;
+      margin-block-end: 12px;
+      font-size: var(--sw-fs-sm);
+    }
+    .cont-h {
+      color: var(--sw-text-2);
+      inline-size: 100%;
+    }
+    .chk {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 32px;
+      max-inline-size: 100%;
+      padding: 0 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      cursor: pointer;
+    }
+    .chk[aria-pressed='true'] {
+      border-color: var(--sw-accent);
+    }
+    .chk span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chk .box {
+      inline-size: 16px;
+      block-size: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--sw-border-strong, var(--sw-border));
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-style: normal;
+      flex-shrink: 0;
+    }
+    .chk[aria-pressed='true'] .box {
+      background: var(--sw-accent);
+      border-color: var(--sw-accent);
+      color: #fff;
+    }
+    :host([data-skin='bubble']) .chk {
+      min-inline-size: 44px;
     }
     :host([data-skin='bubble']) .card {
       border-color: transparent;
@@ -245,16 +300,23 @@ export class RecorderHealthPanel extends LitElement {
   private thresholds() {
     if (!this.manage || !this.th) return nothing;
     const v = { ...this.th.values, ...this.draft };
+    const cont = v.continuous_recorders ?? [];
+    // only recorders that report recording state can be expected to record continuously
+    const detailed = (this.cards ?? []).filter((c) => c.detail_supported);
     const set = (key: keyof HealthThresholds, value: unknown) => {
       this.draft = { ...this.draft, [key]: value };
       this.saveMsg = null;
     };
     return html`<sw-card heading="ספי התראה למקליטים" data-rh-settings>
+      ${detailed.length ? html`<div class="cont" data-rh-continuous>
+        <span class="cont-h">הקלטה רציפה</span>
+        ${detailed.map((c) => {
+          const on = cont.includes(c.id);
+          return html`<button type="button" class="chk" data-rh-continuous-id=${c.id} aria-pressed=${on ? 'true' : 'false'}
+            @click=${() => set('continuous_recorders', on ? cont.filter((x) => x !== c.id) : [...cont, c.id])}><i class="box" aria-hidden="true">${on ? '✓' : ''}</i><span>${c.name}</span></button>`;
+        })}
+      </div>` : nothing}
       <div class="ths">
-        <sw-field label="מצב הקלטה"><select data-rh-field="recording_mode" @change=${(e: Event) => set('recording_mode', (e.target as HTMLSelectElement).value)}>
-          <option value="continuous" ?selected=${v.recording_mode === 'continuous'}>רציפה</option>
-          <option value="exceptions" ?selected=${v.recording_mode === 'exceptions'}>תקלות בלבד</option>
-        </select></sw-field>
         ${FIELDS.map((f) => {
           const rg = this.th!.ranges[f.key];
           return html`<sw-field label=${`${f.label} (${f.unit})`}><input class="ltr" data-rh-field=${f.key} type="number" inputmode="numeric" min=${rg?.min ?? 0} max=${rg?.max ?? 99999} .value=${String(v[f.key])}

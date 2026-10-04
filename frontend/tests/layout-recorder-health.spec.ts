@@ -32,8 +32,8 @@ const CARDS = [
   { id: 'nvr-4', name: 'Hikvision', status: 'ok', checked_at: '2026-10-04T08:00:00Z', detail_supported: false, api: { state: 'ok', latency_ms: 90 },
     disks: ok('off'), recording: ok('off'), channels: ok('off'), clock: ok('off'), certificate: ok('off') },
 ];
-const RANGES = { interval_s: [60, 30, 900], latency_ms: [1500, 200, 10000], recording_gap_min: [30, 5, 1440], clock_drift_s: [60, 5, 3600], disk_fill_days: [3, 0, 60], cert_days: [30, 1, 365], recover_s: [120, 0, 3600] };
-const VALUES = { ...Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, v[0]])), recording_mode: 'continuous' };
+const RANGES = { interval_s: [60, 30, 900], latency_ms: [1500, 200, 10000], recording_gap_min: [30, 5, 1440], clock_drift_s: [60, 5, 3600], disk_fill_days: [0, 0, 60], cert_days: [30, 1, 365], recover_s: [120, 0, 3600] };
+const VALUES = { ...Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, v[0]])), continuous_recorders: ['nvr-2'] };
 
 async function mock(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
@@ -47,7 +47,7 @@ async function mock(page: Page) {
     if (p === 'health') return json({ status: 'ok', version: 'test', mode: 'full' });
     if (p.startsWith('health/report')) return json({ status: 'warn', mode: 'full', version: 'test', uptime_s: 7200, checked_at: '2026-10-04T08:00:00Z', probe_ttl_s: 20, checks: [{ id: 'db', label: 'מסד נתונים', status: 'ok', detail: 'תקין', meta: {} }] });
     if (p === 'recorder-health') return json({ recorders: CARDS, interval_s: 60, can_manage: true });
-    if (p === 'recorder-health/settings') return json({ values: VALUES, ranges: Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, { default: v[0], min: v[1], max: v[2] }])), recording_modes: ['continuous', 'exceptions'] });
+    if (p === 'recorder-health/settings') return json({ values: VALUES, ranges: Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, { default: v[0], min: v[1], max: v[2] }])) });
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
     if (p === 'sites') return json({ sites: [], can_create_site: false });
     return json({ code: 'not_found', user_message: 'לא נמצא (בדיקה)', retryable: false, correlation_id: '', details: {} }, 404);
@@ -79,6 +79,9 @@ test.describe('recorder health layout guard', () => {
         await expect(panel.locator('[data-rh-card]')).toHaveCount(4);
         await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row]')).toHaveCount(1); // reachability only
         await expect(panel.locator('[data-rh-card="nvr-1"] [data-rh-row]')).toHaveCount(6);
+        await expect(panel.locator('[data-rh-continuous-id]')).toHaveCount(3); // the recorders that report recording state
+        await expect(panel.locator('[data-rh-continuous-id="nvr-2"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(panel.locator('[data-rh-continuous-id="nvr-1"]')).not.toHaveAttribute('aria-pressed', 'true');
         for (const w of WIDTHS) {
           await page.setViewportSize({ width: w, height: height(w) });
           await page.waitForTimeout(150);
