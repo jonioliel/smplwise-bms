@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
 
-DEFAULT = ["devices", "security", "explore", "multimedia", "wiskey"]
+DEFAULT = ["devices", "security", "explore", "multimedia", "wiskey", "infra"]
 
 
 def test_defaults_then_save_normalize_and_reset(client: TestClient):
@@ -19,16 +19,16 @@ def test_defaults_then_save_normalize_and_reset(client: TestClient):
 
     r = client.put("/api/v1/me/prefs", json={"nav.order": ["wiskey", "security"]})
     assert r.status_code == 200
-    assert r.json()["prefs"]["nav.order"] == ["wiskey", "security", "devices", "explore", "multimedia"]  # missing appended in default order
+    assert r.json()["prefs"]["nav.order"] == ["wiskey", "security", "devices", "explore", "multimedia", "infra"]  # missing appended in default order
     assert r.json()["stored"] == ["nav.order"] and r.json()["updated_at"]
 
     # unknown ids and duplicates are dropped, never stored
     r = client.put("/api/v1/me/prefs", json={"nav.order": ["explore", "system", "explore", "<script>", "devices"]})
-    assert r.json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey"]
-    assert client.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey"]
+    assert r.json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey", "infra"]
+    assert client.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey", "infra"]
 
     # an empty body changes nothing; null resets to the default
-    assert client.put("/api/v1/me/prefs", json={}).json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey"]
+    assert client.put("/api/v1/me/prefs", json={}).json()["prefs"]["nav.order"] == ["explore", "devices", "security", "multimedia", "wiskey", "infra"]
     r = client.put("/api/v1/me/prefs", json={"nav.order": None})
     assert r.json()["prefs"]["nav.order"] == DEFAULT and r.json()["stored"] == []
 
@@ -50,8 +50,8 @@ def test_per_user_isolation_and_no_role_user(settings):
     # dana still has the default; her own change does not touch joni's
     assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["nav.order"] == DEFAULT
     assert c.put("/api/v1/me/prefs", headers=as_user("dana"), json={"nav.order": ["wiskey"]}).status_code == 200
-    assert c.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["security", "explore", "devices", "multimedia", "wiskey"]
-    assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["nav.order"] == ["wiskey", "devices", "security", "explore", "multimedia"]
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["security", "explore", "devices", "multimedia", "wiskey", "infra"]
+    assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["nav.order"] == ["wiskey", "devices", "security", "explore", "multimedia", "infra"]
     # a signed-in user without any role (the shell's "no access" gate) may keep their own order; it grants nothing
     r = c.put("/api/v1/me/prefs", headers=as_user("guest"), json={"nav.order": ["explore"]})
     assert r.status_code == 200 and r.json()["prefs"]["nav.order"][0] == "explore"

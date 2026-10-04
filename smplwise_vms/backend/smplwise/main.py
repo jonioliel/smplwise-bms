@@ -73,6 +73,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         ha_camera_streams.reconcile(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("ha live reconcile failed", exc_info=True)
+    try:  # CR-023: electricity retention (hourly inside; energy.db only, its own gate)
+        from .services import energy_sampler
+
+        energy_sampler.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("energy janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -96,6 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="SmplWise Arx", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = Database(settings.db_path)
+    from .services import energy_billing_adapter
+
+    energy_billing_adapter.configure(settings)  # CR-023: the readings store answers the billing branch's provider seam
     from . import db as db_mod
 
     # the add-on option db_write_gate (default on); SW_DB_WRITE_GATE=0 always wins
@@ -232,6 +241,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
+    from .routers import energy_meters as energy_meters_router
+
+    app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
     from .routers import remote as remote_router
 
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
@@ -289,6 +301,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_sync
 
         intercom_sync.SYNC.start(settings)  # CR-005: WisKey entry-center feed (read-only)
+        from .services import energy_sampler
+
+        energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
         from .services import bridge_install, thumbnails
 
         if not ha_only:
@@ -341,6 +356,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_sync
 
         intercom_sync.SYNC.shutdown()
+        from .services import energy_sampler
+
+        energy_sampler.SAMPLER.shutdown()
         from .services import push as push_svc
 
         from starlette.concurrency import run_in_threadpool as _in_thread

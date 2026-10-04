@@ -22,6 +22,10 @@ log = logging.getLogger("smplwise.backup")
 
 FORMAT = 1
 PROJECT_TABLES = ["settings", "sites", "buildings", "floors", "plan_assets", "plan_versions", "plan_geometry", "catalog_items", "map_anchors", "recorders", "cameras", "spatial_zones", "shared_spaces", "shared_space_members", "cases", "case_items", "saved_views", "device_layouts", "alarm_zone_overrides", "notify_settings", "notify_policies", "device_bulk_protected", "device_switch_classified"]
+# CR-023: the electricity tables (meters; the billing branch appends its own in services/energy_backup.MAIN_TABLES)
+from .energy_backup import MAIN_TABLES as _ENERGY_TABLES  # noqa: E402
+
+PROJECT_TABLES = PROJECT_TABLES + [t for t in _ENERGY_TABLES if t not in PROJECT_TABLES]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
@@ -93,7 +97,7 @@ def _rel(settings: Settings, ref: str) -> str | None:
     return rel
 
 
-def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "") -> Path:
+def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: str, schema: int, note: str = "", energy_history: bool = False) -> Path:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
     out = backups_dir(settings) / f"{kind}-{stamp}.zip"
     n = 1
@@ -114,6 +118,9 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
                 files += 1
             else:
                 missing.append(ref)
+        from . import energy_backup  # CR-023: daily totals always, the energy.db copy only when the setting asks for it
+
+        energy = energy_backup.add_to_zip(settings, z, with_history=energy_history)
         manifest = {
             "format": FORMAT,
             "app_version": __version__,
@@ -124,6 +131,7 @@ def write_zip(settings: Settings, data: dict[str, list[dict[str, Any]]], kind: s
             "tables": {t: len(rows) for t, rows in data.items()},
             "files": files,
             "missing_files": missing[:50],
+            "energy": energy,
         }
         z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
     tmp.replace(out)
@@ -182,8 +190,10 @@ def prune(settings: Settings) -> list[str]:
 
 
 def create(settings: Settings, conn: sqlite3.Connection, kind: str = "manual", note: str = "", include_access: bool = True, include_audit: bool = False, include_events: bool = False) -> dict[str, Any]:
+    from . import energy_backup
+
     data = snapshot(conn, include_access, include_audit, include_events)
-    out = write_zip(settings, data, kind, schema_version(conn), note)
+    out = write_zip(settings, data, kind, schema_version(conn), note, energy_history=energy_backup.include_history(conn))
     return entry(out)
 
 
@@ -321,6 +331,12 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
             with z.open(member) as src, open(dest, "wb") as dst:
                 dst.write(src.read())
             files += 1
+        energy: dict[str, Any] = {}
+        if "energy_meters" in tables:  # CR-023: the allow-listed energy.db part, only for meters the restored project has
+            from . import energy_backup
+
+            allowed = {r[0] for r in conn.execute("SELECT id FROM energy_meters").fetchall()}
+            energy = energy_backup.restore_from_zip(settings, z, names, allowed_meters=allowed, replace=(mode == "replace"))
     if scope == "project+access":
         bump_permission_revision(conn)
     # CR-006 2a review: a replaced project may no longer have a floor whose skin control images are stored
@@ -329,7 +345,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "skin_controls_swept": swept, "skipped_unsafe": skipped, "kept_current": kept_current, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
 def save_upload(settings: Settings, content: bytes) -> dict[str, Any]:

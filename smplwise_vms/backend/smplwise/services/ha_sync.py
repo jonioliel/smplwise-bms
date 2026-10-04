@@ -43,6 +43,8 @@ ATTR_ALLOW = {
     "hvac_action", "fan_mode", "preset_mode", "percentage", "battery_level", "battery", "occupancy", "motion", "contact", "door", "window",
     "locked", "code_format", "options", "min", "max", "step", "mode", "media_title", "volume_level", "is_volume_muted", "source", "last_triggered",
     "restored", "assumed_state", "editable", "power", "voltage", "current", "energy",
+    # CR-023: a `state_class: total` energy counter restarts when `last_reset` changes (services/energy_counter.py)
+    "last_reset",
     # CR-007 slice 2: what the devices-area controls offer (the modes an entity really has, its target range) and
     # the step an attribute confirmation must tolerate (a 3-speed fan lands on 33/67/100)
     "fan_modes", "min_temp", "max_temp", "target_temp_step", "percentage_step",

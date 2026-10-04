@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# CR-023: the electricity sampler thread stays off in tests (they call energy_sampler.tick with explicit instants)
+os.environ.setdefault("SW_ENERGY_SAMPLER", "0")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402

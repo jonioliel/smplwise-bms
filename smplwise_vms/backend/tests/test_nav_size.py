@@ -89,7 +89,7 @@ def test_user_override_is_per_user_validated_and_clearable(settings):
         assert c.put("/api/v1/me/prefs", json={"ui.nav_size": bad}).status_code == 422, bad
     assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.nav_size"] == FREE
     # the tab order is a separate key: setting the size leaves it alone
-    assert c.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["devices", "security", "explore", "multimedia", "wiskey"]
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["nav.order"] == ["devices", "security", "explore", "multimedia", "wiskey", "infra"]
     # null = "ברירת מחדל של המערכת": the key is gone again
     r = c.put("/api/v1/me/prefs", json={"ui.nav_size": None})
     assert r.status_code == 200 and "ui.nav_size" not in r.json()["stored"]
