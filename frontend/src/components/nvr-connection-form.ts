@@ -9,6 +9,9 @@ import {
   nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection, REMOVE_WORD, SAVE_WORD,
   type ConnectionBody, type NvrConnection, type SaveResult, type TestResult, type Vendor,
 } from '../api/nvr-connection';
+import {
+  addRecorder, recorderConnection, removeRecorder, saveRecorderConnection, testRecorderConnection, PRIMARY_RECORDER,
+} from '../api/recorders';
 import { can, isApi } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 
@@ -51,11 +54,16 @@ const UNREACHABLE = new Set(['source_unavailable', 'timeout']);
  * "שמור". A vendor change with cameras needs "הסר NVR" first (the cameras stay, disabled). Holders of system.configure only.
  * Fires `nvr-connection-saved` (detail: the save result) and `nvr-connection-removed`; a restart is then required, which the
  * shell's banner shows (announceRestartPending).
+ * CR-024 (multi-NVR): `recorderId` names the recorder (default the first, whose routes are the CR-022 ones); `context="add"` is
+ * the "הוסף NVR" sheet: a name field, no "ללא NVR" choice, and the save adds a recorder (`nvr-recorder-added`).
  */
 @customElement('nvr-connection-form')
 export class NvrConnectionForm extends LitElement {
   /** `wizard`: the form is always open (the step is about choosing); `settings`: a summary first, the form on "עריכה". */
-  @property() context: 'settings' | 'wizard' = 'settings';
+  @property() context: 'settings' | 'wizard' | 'add' = 'settings';
+  /** CR-024: the recorder this form edits (ignored in `add`). */
+  @property({ attribute: 'recorder-id' }) recorderId = PRIMARY_RECORDER;
+  @state() private addName = '';
   @state() private loadState: 'loading' | 'ready' | 'error' = 'loading';
   @state() private loadError = '';
   @state() private view: NvrConnection | null = null;
@@ -99,7 +107,7 @@ export class NvrConnectionForm extends LitElement {
   private async load() {
     this.loadState = 'loading';
     try {
-      const [vendors, view] = await Promise.all([nvrVendors(), nvrConnection()]);
+      const [vendors, view] = await Promise.all([nvrVendors(), this.loadView()]);
       this.vendors = vendors;
       this.view = view;
       this.loadError = '';
@@ -107,12 +115,27 @@ export class NvrConnectionForm extends LitElement {
       this.stale = false;
       this.invalidField = '';
       this.loadState = 'ready';
-      this.editing = this.context === 'wizard' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable' || view.state === 'refused';
+      this.editing = this.context !== 'settings' || !view.vendor || view.state === 'not_chosen' || view.state === 'unreadable' || view.state === 'refused';
       this.seed();
     } catch (err) {
       this.loadError = describeError(err);
       this.loadState = 'error';
     }
+  }
+
+  private get primary(): boolean {
+    return this.context !== 'add' && this.recorderId === PRIMARY_RECORDER;
+  }
+
+  /** CR-024: the stored view of this recorder; in `add` an empty one (nothing stored yet). */
+  private loadView(): Promise<NvrConnection> {
+    if (this.context === 'add') {
+      return Promise.resolve({
+        vendor: null, host: null, http_port: null, rtsp_port: null, username: null, user: null, extra: {}, has_password: false, state: 'not_chosen', source: null,
+        revision: 0, updated_at: null, updated_by: null, pending_restart: false, legacy_options_differ: false, in_addon: false, restart: 'manual', cameras: 0, vendor_locked: false,
+      });
+    }
+    return this.primary ? nvrConnection() : recorderConnection(this.recorderId);
   }
 
   /** The draft starts from the stored connection (never a password) - or empty when nothing was chosen. */
@@ -205,6 +228,7 @@ export class NvrConnectionForm extends LitElement {
   private get complete(): boolean {
     const d = this.draft;
     if (!d.vendor) return false;
+    if (this.context === 'add' && (!this.addName.trim() || d.vendor === 'none')) return false;
     if (d.vendor === 'none') return true;
     for (const f of this.spec?.fields ?? []) {
       if (!f.required) continue;
@@ -228,7 +252,10 @@ export class NvrConnectionForm extends LitElement {
     this.msg = null;
     this.offerUntested = false;
     try {
-      const r = await testNvrConnection({ ...this.body(), use_stored_password: this.keepsStoredPassword });
+      const body = { ...this.body(), use_stored_password: this.keepsStoredPassword };
+      // a new recorder has nothing stored: its candidate is tested through the first recorder's test route (typed password only)
+      const r = this.primary || this.context === 'add' ? await testNvrConnection(this.context === 'add' ? { ...body, use_stored_password: false } : body)
+        : await testRecorderConnection(this.recorderId, body);
       this.testLine = { ok: r.ok, text: this.testText(r) };
       this.offerUntested = !r.ok && UNREACHABLE.has(r.code);
     } catch (err) {
@@ -245,9 +272,20 @@ export class NvrConnectionForm extends LitElement {
     this.msg = null;
     this.testLine = null;
     try {
-      const r: SaveResult = await saveNvrConnection({
-        ...this.body(), if_revision: this.view?.revision ?? 0, ...(untested ? { save_untested: true, confirm_text: SAVE_WORD } : {}),
-      });
+      const extra = untested ? { save_untested: true, confirm_text: SAVE_WORD } : {};
+      if (this.context === 'add') {
+        const added = await addRecorder({ ...this.body(), name: this.addName.trim(), ...extra });
+        this.untestedOpen = false;
+        this.word = '';
+        this.draft = { ...EMPTY, extra: {} };
+        this.addName = '';
+        this.msg = { tone: 'ok', text: added.untested ? 'נוסף בלי בדיקת חיבור' : ['נוסף', added.device?.model].filter(Boolean).join(' · ') };
+        announceRestartPending(true);
+        this.dispatchEvent(new CustomEvent('nvr-recorder-added', { bubbles: true, composed: true, detail: added }));
+        return;
+      }
+      const body = { ...this.body(), if_revision: this.view?.revision ?? 0, ...extra };
+      const r: SaveResult = this.primary ? await saveNvrConnection(body) : await saveRecorderConnection(this.recorderId, body);
       this.view = r;
       this.editing = this.context === 'wizard';
       this.untestedOpen = false;
@@ -283,7 +321,8 @@ export class NvrConnectionForm extends LitElement {
     this.busy = 'remove';
     this.msg = null;
     try {
-      await removeNvrConnection(this.word.trim(), this.view?.revision ?? 0);
+      if (this.primary) await removeNvrConnection(this.word.trim(), this.view?.revision ?? 0);
+      else await removeRecorder(this.recorderId, this.word.trim(), this.view?.revision ?? 0);
       this.removeOpen = false;
       this.word = '';
       announceRestartPending(true);
@@ -343,10 +382,13 @@ export class NvrConnectionForm extends LitElement {
     const spec = this.spec;
     const locked = v.vendor_locked || this.lockedByServer;
     return html`<div class="form" data-nvr-connection-form>
+      ${this.context === 'add'
+        ? html`<sw-field label="שם"><input data-conn-name maxlength="60" autocomplete="off" .value=${this.addName} @input=${(e: Event) => { this.addName = (e.target as HTMLInputElement).value; this.msg = null; }} /></sw-field>`
+        : nothing}
       <sw-field label="סוג NVR">
         <select data-conn-vendor ?disabled=${v.vendor_locked || this.busy !== ''} @change=${(e: Event) => this.chooseVendor((e.target as HTMLSelectElement).value)}>
           <option value="" disabled ?selected=${!d.vendor}>בחרו סוג NVR</option>
-          ${this.vendors.map((x) => html`<option value=${x.id} ?disabled=${x.status !== 'available'} ?selected=${x.id === d.vendor}>${x.label}${x.status !== 'available' ? ' · בקרוב' : ''}</option>`)}
+          ${this.vendors.filter((x) => this.primary || x.id !== 'none').map((x) => html`<option value=${x.id} ?disabled=${x.status !== 'available'} ?selected=${x.id === d.vendor}>${x.label}${x.status !== 'available' ? ' · בקרוב' : ''}</option>`)}
         </select>
       </sw-field>
       ${locked ? html`<div class="note" data-conn-vendor-locked>יש להסיר את ה־NVR לפני החלפת סוג</div>` : nothing}
@@ -356,7 +398,7 @@ export class NvrConnectionForm extends LitElement {
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       <div class="actions">
         ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
-        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button>
+        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : this.context === 'add' ? 'הוסף' : 'שמור'}</sw-button>
         ${this.offerUntested ? html`<sw-button size=${this.btn} variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>שמור בכל זאת</sw-button>` : nothing}
         ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size=${this.btn} variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>ביטול</sw-button>` : nothing}
       </div>

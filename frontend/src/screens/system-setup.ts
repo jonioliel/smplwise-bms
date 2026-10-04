@@ -17,6 +17,7 @@ import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import '../components/nvr-connection-form';
+import '../components/nvr-recorders-card';
 
 /** GET /api/v1/health — the add-on's own connection facts (no device probe, every signed-in user). */
 interface RawHealth {
@@ -334,7 +335,8 @@ export class SystemSetup extends LitElement {
    * system.configure sees anything (the form renders nothing otherwise); the restart banner is the shell's. */
   private renderConnectionCard() {
     if (!can('system.configure')) return nothing;
-    return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><nvr-connection-form context="settings"></nvr-connection-form></sw-card>`;
+    // CR-024: the recorders card - the connection form for one recorder (as before), the recorders list for two or more
+    return html`<nvr-recorders-card></nvr-recorders-card>`;
   }
 
   private planNotify(channels: number[] | null, smart: boolean, enabled: boolean) {
