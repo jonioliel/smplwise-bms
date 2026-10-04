@@ -107,8 +107,10 @@ def list_events(
     source: str | None = Query(None, pattern="^(alertstream|recording|system|ha)$"),
     severity: str | None = Query(None, pattern="^(info|alert|critical)$"),
     q: str | None = Query(None, max_length=200),
+    recorder_id: str | None = Query(None, max_length=40),
 ) -> dict[str, Any]:
-    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors), source
+    """Events by time, camera, type, place (site / building / floor / zone, through the current anchors), source,
+    recorder (CR-024: the multi-source event log - an event of the recorder's alert stream or of one of its cameras)
     and free text (T062: over the camera's name and the event's own details - an HA entity's friendly name, a
     device class, anything stored on the row - not just the structured filters above).
     A filter that cannot match by construction — a type this installation never produced, a place without placed
@@ -118,10 +120,11 @@ def list_events(
     source = source if isinstance(source, str) else None
     severity = severity if isinstance(severity, str) else None
     q = q.strip() if isinstance(q, str) else None
+    recorder_id = recorder_id if isinstance(recorder_id, str) and recorder_id else None
     date, from_, to = (v if isinstance(v, str) else None for v in (date, from_, to))
     limit = limit if isinstance(limit, int) else 200
     wide, ids = _scope(conn, principal)  # authorization runs on every request, before the cache is consulted
-    params = (date, from_, to, camera_id, type, bool(unacked), bool(acked), limit, site_id, building_id, floor_id, zone_id, source, severity, q)
+    params = (date, from_, to, camera_id, type, bool(unacked), bool(acked), limit, site_id, building_id, floor_id, zone_id, source, severity, q, recorder_id)
 
     def compute() -> dict[str, Any]:
         return _list_window(conn, wide, ids, *params)
@@ -149,13 +152,14 @@ def _cached(conn: sqlite3.Connection, key: tuple[Any, ...], counters: tuple[str,
 
 def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str | None, from_: str | None, to: str | None, camera_id: str | None,
                  type: str | None, unacked: bool, acked: bool, limit: int, site_id: str | None, building_id: str | None, floor_id: str | None,
-                 zone_id: str | None, source: str | None, severity: str | None, q: str | None) -> dict[str, Any]:
+                 zone_id: str | None, source: str | None, severity: str | None, q: str | None, recorder_id: str | None = None) -> dict[str, Any]:
     """The cacheable part of the events list: rows (with camera names), window and filter notes - no thumbnail state,
     no live ingest state (both change without a database write and are added per request)."""
     s = read_settings(conn)
     tz_name = s["time.zone"]
     unsupported: list[dict[str, str]] = []
-    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity, "q": q}.items() if v}
+    applied = {k: v for k, v in {"camera_id": camera_id, "type": type, "site_id": site_id, "building_id": building_id, "floor_id": floor_id, "zone_id": zone_id, "source": source, "severity": severity, "q": q,
+                                 "recorder_id": recorder_id}.items() if v}
     place = _place_filter(conn, site_id, building_id, floor_id, zone_id)
     if place is not None:
         cams, ents, note = place
@@ -179,6 +183,9 @@ def _list_window(conn: sqlite3.Connection, wide: bool, ids: RowScope, date: str 
     if camera_id:
         sql += " AND camera_id = ?"
         args.append(camera_id)
+    if recorder_id:  # CR-024: the recorder's own alert-stream events and every event of one of its cameras
+        sql += " AND (recorder_id = ? OR camera_id IN (SELECT id FROM cameras WHERE recorder_id = ?))"
+        args.extend([recorder_id, recorder_id])
     if type:
         sql += " AND type = ?"
         args.append(type)

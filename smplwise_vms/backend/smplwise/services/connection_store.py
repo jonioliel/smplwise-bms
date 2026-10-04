@@ -242,7 +242,16 @@ def write_row(conn: sqlite3.Connection, settings: Settings, *, vendor: str, host
          now_iso(), actor_id or "system"),
     )
     set_setting(conn, IMPORT_DONE_KEY, "1")  # any stored connection supersedes the legacy options for good
+    if vendor != NO_NVR:  # CR-024: a connection saved for a removed recorder brings it back (its cameras stay disabled, for review)
+        _mark_recorder(conn, recorder_id, "UPDATE recorders SET removed_at = NULL, vendor = ? WHERE id = ?", (vendor, recorder_id))
     return revision
+
+
+def _mark_recorder(conn: sqlite3.Connection, recorder_id: str, sql: str, args: tuple[Any, ...]) -> None:
+    try:
+        conn.execute(sql, args)
+    except sqlite3.OperationalError:  # a database before migration 0055 (an upgrade test): nothing to mark
+        pass
 
 
 def remove(conn: sqlite3.Connection, settings: Settings, actor_id: str | None, recorder_id: str = DEFAULT_RECORDER) -> tuple[int, int]:
@@ -254,6 +263,9 @@ def remove(conn: sqlite3.Connection, settings: Settings, actor_id: str | None, r
         disabled = conn.execute("UPDATE cameras SET enabled = 0 WHERE recorder_id = ? AND enabled <> 0", (recorder_id,)).rowcount
     except sqlite3.OperationalError:
         disabled = conn.execute("UPDATE cameras SET enabled = 0 WHERE enabled <> 0").rowcount
+    # CR-024 (owner decision): the recorder row stays, marked removed - its cameras are left out of every camera list, their
+    # history (events, cases, anchors, bindings, the change log) is kept
+    _mark_recorder(conn, recorder_id, "UPDATE recorders SET removed_at = COALESCE(removed_at, ?) WHERE id = ?", (now_iso(), recorder_id))
     return revision, disabled
 
 
@@ -353,10 +365,48 @@ def legacy_options_differ(settings_before: Settings, row: sqlite3.Row | None) ->
 
 
 def load_effective(settings: Settings, conn: sqlite3.Connection) -> Settings:
-    """The connection this process runs with. Imports the legacy options first when that is due (section 7)."""
+    """The connection this process runs with. Imports the legacy options first when that is due (section 7). CR-024: the
+    further recorders' connections are overlaid at the same moment (`load_children`)."""
     if get_row(conn) is None:
         import_legacy(conn, settings)
-    return overlay(settings, get_row(conn))
+    effective = overlay(settings, get_row(conn))
+    if _primary_disabled(conn):
+        # CR-024: the administrator disabled the first recorder - not contacted until it is enabled again (and a restart)
+        effective = dataclasses.replace(effective, nvr_host=None, nvr_user=None, nvr_password=None, nvr_connection_state="disabled")
+    return dataclasses.replace(effective, recorder_settings=load_children(effective, conn))
+
+
+def _primary_disabled(conn: sqlite3.Connection) -> bool:
+    try:
+        row = conn.execute("SELECT enabled FROM recorders WHERE id = ? AND removed_at IS NULL", (DEFAULT_RECORDER,)).fetchone()
+    except sqlite3.OperationalError:
+        return False
+    return row is not None and not row["enabled"]
+
+
+def further_recorders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """CR-024: the recorders other than the primary that this process may run: not removed, enabled. Empty before 0055."""
+    try:
+        return conn.execute("SELECT id FROM recorders WHERE id <> ? AND removed_at IS NULL AND enabled = 1 ORDER BY sort_order, id",
+                            (DEFAULT_RECORDER,)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+
+def load_children(primary: Settings, conn: sqlite3.Connection) -> dict[str, Settings]:
+    """CR-024: the effective settings of every further recorder - the primary's settings (go2rtc, Home Assistant, data folder)
+    with that recorder's own connection overlaid by `overlay` (the same decryption, the same source-policy re-check, the same
+    fail-closed states). A recorder without a connection row, or with "no NVR", is not loaded (its device calls answer 409)."""
+    from ..recorder_scope import unconfigured
+
+    out: dict[str, Settings] = {}
+    for r in further_recorders(conn):
+        rid = r["id"]
+        row = get_row(conn, rid)
+        if row is None or row["vendor"] == NO_NVR:
+            continue
+        out[rid] = overlay(unconfigured(primary, rid), row)
+    return out
 
 
 LEGACY_FILE = "nvr_connection.json"

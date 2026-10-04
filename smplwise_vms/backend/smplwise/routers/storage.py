@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -16,13 +16,19 @@ router = APIRouter()
 
 
 @router.get("/storage")
-def storage_report(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), fresh: bool = False) -> dict[str, Any]:
+def storage_report(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn), fresh: bool = False,
+                   recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Disks, per-camera recording schedule, retention measured vs. estimated (with reasons) and the pilot's
     device limits. Cached ten minutes; `fresh=true` asks the NVR again. Nothing here writes to the device.
-    `local` is the add-on's own disk, measured on every call (T050: imported evidence counts there per imported case)."""
+    `local` is the add-on's own disk, measured on every call (T050: imported evidence counts there per imported case).
+    CR-024: `recorder_id` picks the recorder (default the first); an unknown or removed recorder is 404."""
     require(conn, principal, "system.configure", INSTALLATION)
     settings = settings_of(request)
-    return {**storage.report(settings, conn, fresh=fresh), "local": bundle_import.local_usage(settings, conn)}
+    if recorder_id:
+        from .recorders import recorder_settings
+
+        recorder_settings(request, conn, recorder_id)
+    return {**storage.report(settings, conn, fresh=fresh, recorder_id=recorder_id), "local": bundle_import.local_usage(settings, conn)}
 
 
 def local_state(settings: Any, conn: sqlite3.Connection) -> dict[str, Any]:

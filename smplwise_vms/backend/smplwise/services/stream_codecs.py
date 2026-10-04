@@ -70,8 +70,12 @@ def build(channel: nvr.DiscoveredChannel, isapi: dict[str, dict[str, Any]] | Non
     return {"main": main, "sub": sub, "checked_at": now, "error": error}
 
 
-def recorder_model(conn: sqlite3.Connection) -> str | None:
-    row = conn.execute("SELECT model FROM recorders ORDER BY id LIMIT 1").fetchone()
+def recorder_model(conn: sqlite3.Connection, recorder_id: str | None = None) -> str | None:
+    """The model of the camera's own recorder (CR-024); without an id, the first recorder (the single-recorder default)."""
+    if recorder_id:
+        row = conn.execute("SELECT model FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
+    else:
+        row = conn.execute("SELECT model FROM recorders ORDER BY id LIMIT 1").fetchone()
     return (row["model"] if row else None) or None
 
 
@@ -81,12 +85,15 @@ def camera_name(row: sqlite3.Row) -> str:
 
 def hints(conn: sqlite3.Connection, rows: list[sqlite3.Row] | None = None) -> list[dict[str, Any]]:
     """One entry per enabled camera whose main stream will not play over WebRTC, with its Hebrew hint."""
-    model = recorder_model(conn)
+    models: dict[str | None, str | None] = {}
     rows = rows if rows is not None else conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY sort_order, channel").fetchall()
     out: list[dict[str, Any]] = []
     for r in rows:
         main = (encoding_of(r) or {}).get("main")
-        hint = main_hint(camera_name(r), int(r["channel"]), main, model)
+        rid = r["recorder_id"] if "recorder_id" in r.keys() else None
+        if rid not in models:
+            models[rid] = recorder_model(conn, rid)  # CR-024: each camera's own recorder
+        hint = main_hint(camera_name(r), int(r["channel"]), main, models[rid])
         if hint:
             out.append({"camera_id": r["id"], "name": camera_name(r), "channel": r["channel"], "reason": main.get("reason"), "hint": hint})  # type: ignore[union-attr]
     return out

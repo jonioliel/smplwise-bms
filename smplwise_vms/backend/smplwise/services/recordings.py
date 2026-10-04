@@ -75,7 +75,11 @@ def merge(segments: list[Segment]) -> list[Segment]:
 
 def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[nvr.SearchMatch], str, int]:
     """Raw NVR matches (one per recording file) for [start, end): paged, serialized, de-duplicated.
-    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached)."""
+    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached).
+    CR-024: the search goes to the camera's own recorder."""
+    from ..recorder_scope import camera_settings
+
+    settings = camera_settings(settings, cam)
     track = cam["main_track"]
     if not track:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.", details={"camera": cam["id"]})

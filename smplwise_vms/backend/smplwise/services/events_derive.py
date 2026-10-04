@@ -50,16 +50,22 @@ def store_segments(conn: sqlite3.Connection, cam: sqlite3.Row, result: recording
         details = {"recording_kind": seg.kind, "start_raw": seg.start_raw, "end_raw": seg.end_raw, "seconds": int((e_utc - s_utc).total_seconds()), "time_precision": "recording_file"}
         conn.execute(
             "INSERT OR IGNORE INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, ended_at, received_at, state, count, severity, confidence, details_json, dedup_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uuid.uuid4().hex[:12], "recording", seg.kind.upper(), etype, cam["id"], cam["channel"], seg.start_at, seg.end_at, now, "inactive", 1, "info", "inferred", json.dumps(details, ensure_ascii=False), key, now),
+            (eid := uuid.uuid4().hex[:12], "recording", seg.kind.upper(), etype, cam["id"], cam["channel"], seg.start_at, seg.end_at, now, "inactive", 1, "info", "inferred", json.dumps(details, ensure_ascii=False), key, now),
         )
+        try:  # CR-024: the multi-source event log knows the recorder
+            conn.execute("UPDATE events SET recorder_id = ? WHERE id = ?", (cam["recorder_id"], eid))
+        except sqlite3.OperationalError:
+            pass
         added += 1
     return added
 
 
 def run_once(db: Database, settings: Settings, tz_name: str, day: dt.date | None = None) -> int:
     """Derive today's (or `day`'s) motion/alarm events for every enabled camera with a recording track."""
+    from ..recorder_scope import camera_settings, ready, ready_ids
+
     STATE["last_run"] = now_iso()
-    if not (settings.nvr_host and settings.nvr_user and settings.nvr_password):
+    if not ready_ids(settings):  # CR-024: any recorder this process runs (each camera is searched on its own recorder)
         STATE["last_error"] = "nvr_not_configured"
         return 0
     day = day or dt.datetime.now(zone(tz_name)).date()
@@ -68,6 +74,8 @@ def run_once(db: Database, settings: Settings, tz_name: str, day: dt.date | None
     with db.connection() as conn:
         cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 AND main_track IS NOT NULL ORDER BY channel").fetchall()
     for cam in cams:
+        if not ready(camera_settings(settings, cam)):
+            continue  # a camera of a recorder this process does not run (disabled, removed, waiting for a restart)
         try:
             result = search_for_camera(settings, cam, day, tz_name)
             with db.connection(durable=False) as conn:

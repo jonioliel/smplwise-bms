@@ -132,7 +132,9 @@ def _stream_for(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
 def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> str:
     name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
     client = g2.Go2rtc(settings)
-    client.ensure_stream(name, g2.hikvision_rtsp_url(settings, cam["channel"], profile))
+    from ..recorder_scope import camera_settings
+
+    client.ensure_stream(name, g2.hikvision_rtsp_url(camera_settings(settings, cam), cam["channel"], profile))  # CR-024: the camera's recorder
     return name
 
 

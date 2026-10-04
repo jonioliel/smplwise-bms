@@ -53,6 +53,19 @@ def _remote_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
             "max_live_streams_per_sign_in": read_settings(conn)["remote.max_live_streams"]}
 
 
+def _recorders_view(settings: Any) -> list[dict[str, Any]]:
+    from ..recorder_scope import configured_ids
+
+    ingest = events_ingest.recorder_states()
+    out = []
+    for rid in configured_ids(settings):
+        st = autosync.recorder_state(rid)
+        ev = ingest.get(rid) or {}
+        out.append({"id": rid, "discovery_last_ok": st.get("cameras_last_ok"), "discovery_last_error": st.get("cameras_last_error"),
+                    "events_connected": bool(ev.get("connected")), "events_last_error": ev.get("last_error")})
+    return out
+
+
 @router.get("/health")
 def health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     settings = settings_of(request)
@@ -82,6 +95,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
         "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
         "installation": installation_block(resolve_capabilities(settings)),
+        # CR-024: one entry per recorder this process runs - discovery and alert-stream state only (no address, no credential)
+        "recorders": _recorders_view(settings),
         "renderer": "pdftoppm" if any(os.access(os.path.join(p, "pdftoppm"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep)) else "pymupdf-or-none",
     }
 
