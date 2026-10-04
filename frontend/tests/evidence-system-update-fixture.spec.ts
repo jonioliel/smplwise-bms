@@ -158,7 +158,7 @@ test('the update, end to end: backup, job, the new process, the health check, th
 });
 
 test('an update that comes back on the same version: "version unchanged" with the rollback guidance', async ({ page }) => {
-  await control('/fixture/set', { latest: '0.1.158', installed: '0.1.157', update_job: true, job_done: true, job_backup_done: true, store_stale: false });
+  await control('/fixture/set', { latest: '0.1.158', installed: '0.1.157', update_job: true, job_done: true, job_backup_done: true, store_stale: false, no_job_grace_s: 2 });
   await openPage(page);
   await root(page).locator('[data-update-check]').click();
   await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 20_000 });
@@ -173,6 +173,7 @@ test('an update that comes back on the same version: "version unchanged" with th
   await run(page).locator('[data-run-guidance-open]').click();
   await expect(run(page).locator('[data-run-guidance] li')).toHaveCount(3);
   await run(page).locator('[data-run-close]').click();
+  await control('/fixture/set', { no_job_grace_s: 120 });
 });
 
 test('a role that is still the default: the infrastructure refuses the update, the run fails in plain language and the page then shows the one-time step', async ({ page }) => {

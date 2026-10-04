@@ -92,6 +92,8 @@ class Control(BaseHTTPRequestHandler):
         except ValueError:
             return self._send(400, {"error": "json"})
         if self.path == "/fixture/set":
+            if "no_job_grace_s" in body:  # the follow worker's no-job grace (real: 120 s): shortened only by the spec that proves "version unchanged"
+                update_runs.NO_JOB_GRACE_S = float(body.pop("no_job_grace_s"))
             bad = [k for k in body if k not in SETTABLE]
             if bad:
                 return self._send(400, {"error": "unknown attribute", "keys": bad})
@@ -117,7 +119,6 @@ def main() -> None:
     # the real timings are minutes; the fixture lives in seconds
     update_runs.POLL_S = 0.5
     update_runs.HEALTH_RETRY_S = 1.0
-    update_runs.NO_JOB_GRACE_S = 2.0
     update_runs.RESTART_SETTLE_S = 1.0
     self_update.CHECK_MIN_GAP_S = 0  # the manual check's 30 s / 20 per hour limit is proven by the backend tests
     self_update.CHECK_PER_HOUR = 10_000
