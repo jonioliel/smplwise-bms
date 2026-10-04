@@ -173,6 +173,8 @@ const LINE: Record<string, string> = {
 export function errorLine(e: ErrorShape): ErrorLine {
   if (isUnknownOutcome(e)) return { text: 'הסטטוס נבדק', reload: true };
   const reload = e.code === 'stale' || e.code === 'nvr_diverged';
+  // a value kept through a codec change that the new codec lacks: the server's own line names the field and the codec
+  if (e.code === 'value_not_allowed' && typeof e.details?.codec === 'string' && e.user_message) return { text: e.user_message, reload };
   if (e.code === 'value_not_allowed' && typeof e.details?.field === 'string' && e.details.field in FIELD_HE) return { text: `${FIELD_HE[e.details.field as EncodingField]}: ${LINE.value_not_allowed}`, reload };
   const text = LINE[e.code] ?? (e.user_message || 'השינוי לא נשמר.');
   return { text, reload };

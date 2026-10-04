@@ -28,6 +28,16 @@ import {
 } from './nvr-cameras-edit';
 import type { EncodingChanges } from '../api/nvr-settings';
 
+/** The editor's line when "שמור" cannot open the confirmation: the press always answers (owner report 2026-10-04: "nothing happens"). */
+export const SAVE_LINE = {
+  gone: 'הזרם אינו זמין כרגע. סגרו את החלונית ופתחו שוב.',
+  loading: 'טוען את האפשרויות של הקידוד. נסו שוב בעוד רגע.',
+  no_options: 'יכולות הזרם אינן ידועות, ולכן אי אפשר לשמור.',
+  invalid: 'יש לבחור ערך תקין',
+  nothing: 'אין שינויים לשמירה.',
+  failed: 'השינוי לא נשמר. נסו שוב.',
+} as const;
+
 /**
  * CR-020 S2: the editor of one stream (the pencil of a table row / card). A modal drawer: a side panel on desktop and tablet, a
  * bottom sheet on a phone. Every field the device offers (from the stream's options) is a select / number / switch; a codec change
@@ -49,6 +59,10 @@ export class NvrCameraEditor extends LitElement {
   @state() private draft: Draft | null = null;
   /** The options of the codec the draft is on (the stream's own options until the codec changes). */
   @state() private opts: StreamOptions | null = null;
+  /** The codec `opts` were read for; a codec change whose lists could not be read leaves it behind, and Save stays off. */
+  @state() private optsCodec = '';
+  /** The options of a newly chosen codec are being read. */
+  @state() private loading = false;
   @state() private confirm: ConfirmModel | null = null;
   @state() private busy = false;
   @state() private line = '';
@@ -206,14 +220,24 @@ export class NvrCameraEditor extends LitElement {
       if (key && s) {
         this.draft = draftOf(s);
         this.opts = this.options;
+        this.optsCodec = s.codec ?? '';
         this.oseq++;
+        this.loading = false;
         if (reopened) {
           this.line = '';
           this.history = null;
         }
         void this.loadHistory();
       }
-    } else if (changed.has('options') && this.draft && s && this.draft.codec === (s.codec ?? '')) this.opts = this.options;
+    } else if (changed.has('options') && this.draft && s && this.draft.codec === (s.codec ?? '')) {
+      this.opts = this.options;
+      this.optsCodec = s.codec ?? '';
+    }
+  }
+
+  /** The options in hand belong to the codec the draft is on (after a codec change, only once its own lists arrived). */
+  private get optsFit(): boolean {
+    return !!this.opts && !!this.draft && !this.loading && this.optsCodec === this.draft.codec;
   }
 
   /** A select's chosen option follows the draft even after the user touched it (a codec change clears the profile): the DOM value is synced here. */
@@ -249,32 +273,53 @@ export class NvrCameraEditor extends LitElement {
   private async onCodec(v: string) {
     const cam = this.camera;
     const s = this.stream;
-    if (!this.draft || !cam?.camera_id || !s) return;
+    if (!this.draft || !cam?.camera_id || !s) {
+      this.line = SAVE_LINE.gone;
+      return;
+    }
     this.set('codec', v);
     const mine = ++this.oseq;
+    this.loading = true;
     try {
       const o = await nvrSettings().options(cam.camera_id, s.stream_ref, v);
       if (mine !== this.oseq || !this.draft) return;
       if (!o) {
+        // the lists of the new codec are unknown: the old codec's lists must not validate the new one (optsCodec stays behind, Save stays off)
         this.line = errorLine({ status: 503, code: 'capabilities_unreadable' }).text;
         return;
       }
       this.opts = o;
+      this.optsCodec = v;
       this.draft = reconcile(this.draft, o);
     } catch (err) {
       if (mine !== this.oseq) return;
       this.line = errorLine({ status: (err as { status?: number }).status ?? 0, code: (err as { code?: string }).code ?? 'network', user_message: (err as Error).message }).text;
+    } finally {
+      if (mine === this.oseq) this.loading = false;
     }
   }
 
+  /** The press on "שמור": the ONE confirmation, or - when nothing can be confirmed - a short line saying why. Never silent. */
   private save = () => {
-    const s = this.stream;
-    const o = this.opts;
-    if (!s || !o || !this.draft || !this.camera) return;
-    const changes = diffDraft(s, o, this.draft);
-    if (!Object.keys(changes).length) return;
-    this.pending = changes;
-    this.confirm = confirmModel(this.camera.name, s, changes);
+    try {
+      const s = this.stream;
+      const o = this.opts;
+      if (!s || !this.draft || !this.camera?.camera_id) return void (this.line = SAVE_LINE.gone);
+      if (this.loading) return void (this.line = SAVE_LINE.loading);
+      if (!o || !this.optsFit) return void (this.line = SAVE_LINE.no_options);
+      const bad = invalidFields(s, o, this.draft);
+      if (bad.length) return void (this.line = `${SAVE_LINE.invalid}: ${bad.map((f) => FIELD_HE[f]).join(', ')}`);
+      const changes = diffDraft(s, o, this.draft);
+      if (!Object.keys(changes).length) return void (this.line = SAVE_LINE.nothing);
+      this.line = '';
+      this.pending = changes;
+      this.confirm = confirmModel(this.camera.name, s, changes);
+    } catch (err) {
+      console.error('nvr editor: save failed', err); // eslint-disable-line no-console
+      this.pending = null;
+      this.confirm = null;
+      this.line = SAVE_LINE.failed;
+    }
   };
 
   private async confirmed() {
@@ -283,12 +328,21 @@ export class NvrCameraEditor extends LitElement {
     const changes = this.pending;
     this.confirm = null;
     this.pending = null;
-    if (!cam?.camera_id || !s || !changes) return;
+    if (!cam?.camera_id || !s || !changes) {
+      this.line = SAVE_LINE.gone;
+      return;
+    }
     this.busy = true;
     this.line = '';
-    const r = await runWrite(cam.camera_id, s, changes);
-    this.busy = false;
-    this.result(r);
+    try {
+      const r = await runWrite(cam.camera_id, s, changes);
+      this.result(r);
+    } catch (err) {
+      console.error('nvr editor: write failed', err); // eslint-disable-line no-console
+      this.line = SAVE_LINE.failed;
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async undo(id: string) {
@@ -409,7 +463,7 @@ export class NvrCameraEditor extends LitElement {
             ${this.line ? html`<p class="line" role="status" data-nvr-editor-line>${this.line}</p>` : nothing}
             ${this.renderHistory()}
             <sw-button slot="footer" variant="ghost" data-nvr-editor-cancel @click=${this.close}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" data-nvr-editor-save ?disabled=${!dirty || !valid || this.busy} @click=${this.save}>שמור</sw-button>`
+            <sw-button slot="footer" variant="primary" data-nvr-editor-save ?disabled=${!dirty || !valid || this.busy || !this.optsFit} @click=${this.save}>שמור</sw-button>`
         : nothing}
       <nvr-confirm .model=${this.confirm} @confirm=${() => void this.confirmed()} @cancel=${() => ((this.confirm = null), (this.pending = null))}></nvr-confirm>
     </sw-drawer>`;

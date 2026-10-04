@@ -21,6 +21,7 @@ import {
 import { ApiError } from '../src/api/client';
 import { nvrSettings, resetNvrSettingsDemo, type CameraDetail, type NvrCamera, type StreamChange, type StreamEncoding, type StreamOptions } from '../src/api/nvr-settings';
 import { shapeOf } from '../src/screens/nvr-cameras-actions';
+import { isStreamOptions, unwrapOptions } from '../src/api/nvr-options';
 
 // CR-020 S2 phase B: the pure logic of the stream editing (which control a stream gets and why it is disabled, the one confirmation,
 // the error lines, the editor's draft / diff / locks, the change log) and the in-memory demo of the write calls. Node only.
@@ -135,6 +136,9 @@ test.describe('error lines (errorLine)', () => {
     expect(E('confirm_required').text).toBe('נדרש אישור.');
     expect(E('value_not_allowed').text).toBe('הערך אינו נתמך במצלמה.');
     expect(E('value_not_allowed', { field: 'gop' }).text).toBe('GOP: הערך אינו נתמך במצלמה.');
+    // a value kept through a codec change: the server's line (it names the field and the new codec)
+    const kept = 'הרזולוציה הנוכחית אינה נתמכת בקידוד H.264. בחרו ערך אחר ושמרו שוב.';
+    expect(errorLine({ status: 422, code: 'value_not_allowed', user_message: kept, details: { field: 'resolution', codec: 'H.264' } }).text).toBe(kept);
     expect(E('field_locked').text).toBe('השדה נעול כרגע.');
     expect(E('field_not_supported').text).toBe('השדה אינו נתמך בזרם הזה.');
     expect(E('source_unavailable').text).toBe('ה־NVR אינו זמין.');
@@ -266,5 +270,44 @@ test.describe('the in-memory demo of the write calls', () => {
     expect(undo.rollback_of).toBe(r.change!.id);
     await expect(api.undo(r.change!.id)).rejects.toMatchObject({ status: 409 }); // already rolled back
     await expect(api.writeStream('demo-cam-1', '101', { if_match: 'old', confirm: true, changes: { svc: true } })).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+test.describe('the options route answer (owner report 2026-10-04: H.265 -> H.264, "שמור" did nothing)', () => {
+  const envelope = (options: unknown) => ({ camera_id: 'cam-2', stream_ref: '201', codec: 'H.264', options, writable: options !== null, not_writable_reason: options === null ? 'capabilities_unreadable' : null });
+
+  test('the server envelope is unwrapped: the editor gets the options, not the envelope', () => {
+    expect(unwrapOptions(envelope(OPTS))).toEqual(OPTS);
+    // the envelope itself is NOT options: before the fix the editor used it and every list was undefined
+    expect(isStreamOptions(envelope(OPTS))).toBe(false);
+  });
+
+  test('options null in the envelope (capability documents unreadable) -> null', () => {
+    expect(unwrapOptions(envelope(null))).toBeNull();
+  });
+
+  test('a bare options object (the in-memory demo) is accepted as is; locks default to {}', () => {
+    expect(unwrapOptions(OPTS)).toEqual(OPTS);
+    const noLocks: Record<string, unknown> = { ...OPTS };
+    delete noLocks.locks;
+    expect(unwrapOptions(noLocks)?.locks).toEqual({});
+  });
+
+  test('a malformed answer is null, never a half object the editor would throw on', () => {
+    for (const bad of [null, undefined, 'x', 42, [], {}, envelope({ codec: 'H.264' }), envelope({ ...OPTS, profile: null }), envelope({ ...OPTS, gop: { min: 'a' } })]) {
+      expect(unwrapOptions(bad)).toBeNull();
+    }
+    // ranges may be null (the device offers none): still options
+    expect(unwrapOptions(envelope({ ...OPTS, bitrate_kbps: null, gop: null }))).not.toBeNull();
+  });
+
+  test('with the unwrapped H.264 options of the owner stream, the diff is the codec alone and nothing throws', () => {
+    const s = stream('201', 'main', { codec: 'H.265', codec_raw: 'H.265', profile: 'Main', resolution: '2560x1440', fps: 20, bitrate_kbps: 5120, svc: false });
+    const o = unwrapOptions(envelope(OPTS)) as StreamOptions;
+    const d = reconcile({ ...draftOf(s), codec: 'H.264' }, o);
+    expect(invalidFields(s, o, d)).toEqual([]);
+    expect(diffDraft(s, o, d)).toEqual({ codec: 'H.264' });
+    // the pre-fix shape: the envelope used as options makes the editor's own logic throw (this is what swallowed the press)
+    expect(() => diffDraft(s, envelope(OPTS) as unknown as StreamOptions, d)).toThrow();
   });
 });

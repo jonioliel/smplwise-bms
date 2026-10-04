@@ -151,6 +151,12 @@ Validation, in this order, all **before** any device write:
 | `smart_codec` | boolean | `options.smart_codec` true | `SmartCodec/enabled` |
 | `b_frames` | boolean | `options.b_frames` true (false on the lab firmware: 422 `field_not_supported`) | the device's own B-frame element |
 
+Codec change (2026-10-04): the profile and resolution lists are those of the NEW codec (the options of
+`?codec=<new>`, so `dynamicCap` applies; the static capability lists when that read fails). A profile or a resolution the
+stream keeps (not named in `changes`) that the new codec does not offer is 422 `value_not_allowed` with
+`details: {field, codec, allowed}` and a Hebrew `user_message` naming the field and the codec; nothing is written.
+The screen reads `GET .../options?codec=` as the envelope of §3.3 and uses its `options` member.
+
 Cross-field: a field locked by another field's value after this change (`options.locks`) is 422 `field_locked`. Only
 elements present in the current document are written; the one insertion is `constantBitRate` right after
 `videoQualityControlType` when switching to CBR on a document that has none (ISAPI element order). Every other element

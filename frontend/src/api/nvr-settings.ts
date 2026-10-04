@@ -11,6 +11,7 @@
  */
 import { ApiError, api, get, post, put } from './client';
 import { isApi } from './session';
+import { unwrapOptions } from './nvr-options';
 
 export type Vendor = 'hikvision' | 'provision_isr' | 'frigate';
 /** Hikvision: N01 main, N02 sub, N03 third, N04+ other. */
@@ -231,7 +232,8 @@ const http: NvrSettingsAdapter = {
   recorders: () => get('nvr/recorders'),
   cameras: (recorderId) => get(`nvr/cameras${recorderId ? `?recorder_id=${enc(recorderId)}` : ''}`),
   camera: (cameraId) => get(`nvr/cameras/${enc(cameraId)}`),
-  options: (cameraId, streamRef, codec) => get(`nvr/cameras/${enc(cameraId)}/streams/${enc(streamRef)}/options${codec ? `?codec=${enc(codec)}` : ''}`),
+  // the route answers an envelope ({camera_id, stream_ref, codec, options, writable, ...}, API 3.3): the editor needs `options` only
+  options: async (cameraId, streamRef, codec) => unwrapOptions(await get<unknown>(`nvr/cameras/${enc(cameraId)}/streams/${enc(streamRef)}/options${codec ? `?codec=${enc(codec)}` : ''}`)),
   writeStream: (cameraId, streamRef, req) => put(`nvr/cameras/${enc(cameraId)}/streams/${enc(streamRef)}`, req),
   changes: (cameraId, limit = 30) => get(`nvr/changes?camera_id=${enc(cameraId)}&limit=${limit}`),
   undo: (changeId) => post(`nvr/changes/${enc(changeId)}/rollback`, { confirm: true }),

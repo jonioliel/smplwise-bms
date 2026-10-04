@@ -14,7 +14,7 @@ export const CONFIGURE = [...ADMIN, 'nvr.configure'];
 export type Stream = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** What the next PUT / POST answers with (set by a test, kept until it is changed). */
-export type PutMode = 'ok' | 'stale' | 'busy' | 'no_effect' | 'caps' | 'unknown' | 'abort' | 'in_progress' | 'noop' | 'reboot' | 'diverged' | 'rejected';
+export type PutMode = 'ok' | 'stale' | 'busy' | 'no_effect' | 'caps' | 'unknown' | 'abort' | 'in_progress' | 'noop' | 'reboot' | 'diverged' | 'rejected' | 'kept_res';
 
 export interface Row {
   id: string;
@@ -51,6 +51,10 @@ export interface Mock {
   detailDelay: number;
   /** CR-020 S2C: the list carries `can_batch` (the server offers the multi-camera change) */
   canBatch: boolean;
+  /** "streamRef:codec" whose options route answers `options: null` (capability documents unreadable for that codec) */
+  optionsDown: string[];
+  /** extra main-stream resolutions per codec (a camera of the owner: 4256x1888 under both codecs) */
+  extraRes: Record<string, string[]>;
 }
 
 export const err = (code: string, user_message: string, details: Record<string, unknown> = {}) => ({ code, user_message, retryable: false, correlation_id: '', details });
@@ -78,6 +82,13 @@ export function options(codec = 'H.264', isMain = true): Record<string, any> { /
   };
 }
 
+/** `options()` plus the main-stream resolutions a test added per codec (`Mock.extraRes`). */
+export function optionsFor(st: Mock, codec: string, isMain: boolean): Record<string, any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const o = options(codec, isMain);
+  if (isMain) for (const [c, list] of Object.entries(st.extraRes)) o.resolution[c] = [...list, ...(o.resolution[c] ?? [])];
+  return o;
+}
+
 export const RECORDER = {
   recorder_id: 'nvr-1', name: 'NVR ראשי', vendor: 'hikvision', model: 'DS-7616NI-DEMO', firmware: 'V4.84 demo', enabled: true, online: true, checked_at: '2026-10-01T09:00:00Z', error: null,
   capabilities: { read_encodings: true, write_encodings: true, add_channel: false, remove_channel: false, max_channels: null, used_channels: 3, encoding_fields: ['codec', 'svc'] },
@@ -101,7 +112,7 @@ export function newCameras(): Record<string, any>[] { // eslint-disable-line @ty
 }
 
 export function newMock(perms = CONFIGURE): Mock {
-  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0, canBatch: false };
+  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0, canBatch: false, optionsDown: [], extraRes: {} };
 }
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -132,7 +143,7 @@ function detailOf(st: Mock, camId: string) {
   if (!cam) return null;
   const streams = cam.streams.map((s: Stream) => ({ ...clone(s), writable: true, not_writable_reason: null }));
   const opts: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
-  for (const s of streams) opts[s.stream_ref] = st.noOptions.includes(s.stream_ref) ? null : options('H.264', s.role === 'main');
+  for (const s of streams) opts[s.stream_ref] = st.noOptions.includes(s.stream_ref) ? null : optionsFor(st, s.codec ?? 'H.264', s.role === 'main');
   return { camera: { ...clone(cam), streams }, options: opts, stale: st.stale, can_write: st.canWrite };
 }
 
@@ -178,7 +189,11 @@ export async function install(page: Page, st: Mock) {
     m = /^nvr\/cameras\/([^/]+)\/streams\/(\d+)\/options$/.exec(p);
     if (m && method === 'GET') {
       const f = findStream(st, m[1], m[2]);
-      return f ? json(options(url.searchParams.get('codec') ?? 'H.264', f.s.role === 'main')) : json(err('not_found', 'הזרם לא נמצא.'), 404);
+      if (!f) return json(err('not_found', 'הזרם לא נמצא.'), 404);
+      // the server's envelope (API 3.3, routers/nvr_settings.stream_options): the options sit under `options`, null when unreadable
+      const codec = url.searchParams.get('codec') ?? f.s.codec;
+      const down = st.optionsDown.includes(`${m[2]}:${codec}`);
+      return json({ camera_id: m[1], stream_ref: m[2], codec, options: down ? null : optionsFor(st, codec, f.s.role === 'main'), writable: !down, not_writable_reason: down ? 'capabilities_unreadable' : null });
     }
     m = /^nvr\/cameras\/([^/]+)\/streams\/(\d+)$/.exec(p);
     if (m && method === 'PUT') return put(st, route, m[1], m[2], req.postDataJSON());
@@ -210,6 +225,7 @@ async function put(st: Mock, route: Route, camId: string, ref: string, body: any
   if (mode === 'busy') return json(err('nvr_busy', 'ה־NVR עסוק.', { change_id: 'x' }), 409);
   if (mode === 'no_effect') return json(err('nvr_no_effect', 'ה־NVR אישר את הכתיבה אבל לא שינה את ההגדרה.', { change_id: 'x' }), 409);
   if (mode === 'diverged') return json(err('nvr_diverged', 'ה־NVR שינה רק חלק מההגדרות.', { change_id: 'x' }), 409);
+  if (mode === 'kept_res') return json(err('value_not_allowed', 'הרזולוציה הנוכחית אינה נתמכת בקידוד H.264. בחרו ערך אחר ושמרו שוב.', { field: 'resolution', codec: 'H.264', allowed: ['2560x1440'] }), 422);
   if (mode === 'rejected') return json(err('nvr_rejected', 'ה־NVR דחה את המסמך.'), 409);
   if (mode === 'caps') return json(err('capabilities_unreadable', 'ה־NVR אינו מפרסם את יכולות הזרם הזה.', { reason: 'caps_404' }), 503);
   if (mode === 'unknown') return json(err('source_unavailable', 'ה־NVR אינו זמין כרגע.', { outcome: 'unknown' }), 503);

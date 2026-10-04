@@ -328,6 +328,15 @@ def _not_allowed(name: str, allowed: Any = None) -> ApiError:
     return ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": name, **({"allowed": allowed} if allowed is not None else {})})
 
 
+_KEPT_HE = {"profile": "הפרופיל הנוכחי אינו נתמך", "resolution": "הרזולוציה הנוכחית אינה נתמכת"}
+
+
+def _kept_not_allowed(name: str, codec: str, allowed: Any) -> ApiError:
+    """A value the stream keeps through a codec change that the new codec does not offer: the person must choose one."""
+    return ApiError(422, "value_not_allowed", f"{_KEPT_HE[name]} בקידוד {codec}. בחרו ערך אחר ושמרו שוב.",
+                    details={"field": name, "codec": codec, "allowed": allowed})
+
+
 def _not_supported(name: str) -> ApiError:
     return ApiError(422, "field_not_supported", "המכשיר אינו מאפשר לשנות את השדה הזה בזרם הזה.", details={"field": name})
 
@@ -382,10 +391,17 @@ def validate_changes(current: dict[str, Any], options: dict[str, Any], requested
         for name in (options.get("locks") or {}).get("smart_codec", []):
             if name in requested and not _same(requested[name], field_value(current, name)):
                 raise ApiError(422, "field_locked", "השדה נעול בגלל ערך של שדה אחר.", details={"field": name, "by": "smart_codec"})
-    if "codec" in requested and requested["codec"] != current.get("codec") and current.get("profile") is not None and "profile" not in requested:
+    codec_changes = "codec" in requested and requested["codec"] != current.get("codec")
+    if codec_changes and current.get("profile") is not None and "profile" not in requested:
         allowed = (options.get("profile") or {}).get(str(codec_after)) or []
         if current.get("profile") not in allowed:
-            raise _not_allowed("profile", allowed)
+            raise _kept_not_allowed("profile", str(codec_after), allowed)
+    # 2026-10-04 (owner report, H.265 -> H.264): the resolution the stream keeps must exist under the new codec too (a device
+    # often offers fewer sizes under H.264); refused here with a clear line instead of a device refusal after the write
+    if codec_changes and current.get("resolution") and "resolution" not in requested:
+        allowed = (options.get("resolution") or {}).get(str(codec_after)) or []
+        if allowed and current.get("resolution") not in allowed:
+            raise _kept_not_allowed("resolution", str(codec_after), allowed)
     effective: dict[str, Any] = {}
     fields: dict[str, list[Any]] = {}
     unchanged: list[str] = []
@@ -601,6 +617,18 @@ def _raise_for(status: str, error: ApiError | None, cid: str) -> None:
         raise ApiError(409, "nvr_diverged", "ה־NVR שינה רק חלק מההגדרות. בדקו את הזרם.", details={"change_id": cid})
 
 
+def _with_codec_lists(options: dict[str, Any], for_codec: dict[str, Any] | None, codec: str) -> dict[str, Any]:
+    """`options` with the profile and resolution lists of `codec` taken from that codec's own options (when it has them)."""
+    if not for_codec:
+        return options
+    out = dict(options)
+    for key in ("profile", "resolution"):
+        lists = for_codec.get(key) or {}
+        if codec in lists:
+            out[key] = {**(options.get(key) or {}), codec: lists[codec]}
+    return out
+
+
 def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, camera_id: str, stream_ref: str, req: WriteRequest, *, request_id: str | None = None,
                  batch: tuple[str, int] | None = None, adopt: str | None = None, authorize: Callable[[sqlite3.Connection], None] | None = None) -> dict[str, Any]:
     """API 3.4 / section 4. The caller has passed `require(nvr.configure, INSTALLATION)`, `require_camera` and the body parse.
@@ -627,7 +655,15 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
         assert opts is not None
         if not opts.writable or opts.options is None or opts.write_via is None:
             raise ApiError(503, "capabilities_unreadable", "ה־NVR אינו מפרסם את יכולות הזרם הזה, ולכן השינוי בוטל.", details={"reason": opts.reason})
-        effective, fields, unchanged = validate_changes(snap.parsed, opts.options, req.changes)
+        check = opts.options
+        new_codec = req.changes.get("codec")
+        if isinstance(new_codec, str) and new_codec != snap.parsed.get("codec") and new_codec in (check.get("codec") or []):
+            # a codec change is checked against the lists of the NEW codec (the editor read them with `options?codec=`;
+            # dynamicCap may offer fewer resolutions there). Unreadable: the static lists of the capability document stay.
+            with unlocked(conn):
+                for_codec = adapter.stream_options(stream_ref, new_codec)
+            check = _with_codec_lists(check, for_codec.options, new_codec)
+        effective, fields, unchanged = validate_changes(snap.parsed, check, req.changes)
         if effective:
             document = nvr.stream_document(snap.element, effective)
     except ApiError as exc:

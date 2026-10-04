@@ -391,3 +391,77 @@ def test_responses_audit_and_change_rows_carry_no_address_or_credential(w):
     for t in texts:
         for secret in SECRETS:
             assert secret not in t, (secret, t[:200])
+
+
+# ------------------------------------------------------------------------------------------------ codec change H.265 -> H.264 (owner report 2026-10-04)
+
+def owner_camera(fake: FakeDevices, dyn_h264: list[str] | None = None) -> None:
+    """Channel 2's main stream like the owner's camera: H.265 4256x1888, 20 fps, VBR, quality 60, 5120 kbps, SVC off."""
+    fake.nvr["caps"] = {**fake.nvr["caps"], "widths": [4256, 2560, 1920], "heights": [1888, 1440, 1080]}
+    fake.nvr["encodings_by_channel"] = {2: {"main": {"codec": "H.265", "profile": "Main", "width": 4256, "height": 1888, "fps": 20, "bitrate_mode": "VBR",
+                                                     "quality": 60, "bitrate_kbps": 5120, "svc": False}}}
+    fake.nvr["dynamic_cap"] = {"H.265": ["4256x1888", "2560x1440"], "H.264": dyn_h264 if dyn_h264 is not None else ["4256x1888", "2560x1440"]}
+
+
+def test_codec_h265_to_h264_end_to_end_through_the_two_phase_write(w):
+    app, c, fake, ids = w
+    owner_camera(fake)
+    before = stream(c, ids[2], "201")
+    assert (before["codec"], before["resolution"], before["fps"], before["bitrate_mode"], before["quality"], before["bitrate_kbps"], before["svc"]) == \
+        ("H.265", "4256x1888", 20.0, "VBR", 60, 5120, False)
+    # the editor's read of the new codec's lists: the server's envelope, the options under `options`
+    o = c.get(f"/api/v1/nvr/cameras/{ids[2]}/streams/201/options", params={"codec": "H.264"})
+    assert o.status_code == 200, o.text
+    body = o.json()
+    assert set(body) >= {"camera_id", "stream_ref", "codec", "options", "writable"} and body["codec"] == "H.264" and body["writable"] is True
+    assert "4256x1888" in body["options"]["resolution"]["H.264"] and "Main" in body["options"]["profile"]["H.264"]
+    element = device_element("201")
+    r = put(c, ids[2], "201", {"codec": "H.264"}, before["etag"])
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert (out["change"]["status"], out["applied_fields"], out["unchanged_fields"]) == ("applied", ["codec"], [])
+    s = out["stream"]
+    assert (s["codec"], s["profile"], s["resolution"], s["fps"], s["bitrate_mode"], s["quality"], s["bitrate_kbps"]) == ("H.264", "Main", "4256x1888", 20.0, "VBR", 60, 5120)
+    assert fake.writes == ["nvr PUT /ISAPI/Streaming/channels/201"], "exactly one device write"
+    [sent] = fake.nvr["put_bodies"]
+    assert "<videoCodecType>H.264</videoCodecType>" in sent and "<H264Profile>Main</H264Profile>" in sent and "H265Profile" not in sent, \
+        "the profile element follows the codec (the device needs H264Profile under H.264)"
+    assert "<videoResolutionWidth>4256</videoResolutionWidth>" in sent and "<videoResolutionHeight>1888</videoResolutionHeight>" in sent
+    assert sent == '<?xml version="1.0" encoding="UTF-8"?>' + element.replace("<videoCodecType>H.265</videoCodecType>", "<videoCodecType>H.264</videoCodecType>") \
+        .replace("<H265Profile>Main</H265Profile>", "<H264Profile>Main</H264Profile>"), "every other byte as the device sent it"
+    [ch] = rows(app, "SELECT * FROM nvr_changes")
+    assert ch["status"] == "applied" and json.loads(ch["fields_json"]) == {"codec": ["H.265", "H.264"]}
+    assert [json.loads(a["details_json"])["phase"] for a in audits(app, "nvr.stream.write")] == ["attempt", "outcome"]
+
+
+def test_codec_change_keeping_a_resolution_the_new_codec_lacks_is_refused_in_clear_hebrew_before_any_write(w):
+    app, c, fake, ids = w
+    owner_camera(fake, dyn_h264=["2560x1440", "1920x1080"])  # this firmware offers no 4256x1888 under H.264 (the static document lists it)
+    r = put(c, ids[2], "201", {"codec": "H.264"})
+    assert r.status_code == 422, r.text
+    e = r.json()
+    assert (e["code"], e["details"]["field"], e["details"]["codec"], e["details"]["allowed"]) == ("value_not_allowed", "resolution", "H.264", ["2560x1440", "1920x1080"])
+    assert e["user_message"] == "הרזולוציה הנוכחית אינה נתמכת בקידוד H.264. בחרו ערך אחר ושמרו שוב."
+    assert fake.writes == [] and rows(app, "SELECT * FROM nvr_changes") == []
+    assert (audits(app, "nvr.stream.write")[-1]["decision"], audits(app, "nvr.stream.write")[-1]["reason"]) == ("denied", "value_not_allowed")
+    # choosing a size the new codec offers (as the editor makes the person do) writes both fields, once
+    r = put(c, ids[2], "201", {"codec": "H.264", "resolution": "2560x1440"})
+    assert r.status_code == 200, r.text
+    assert r.json()["applied_fields"] == ["codec", "resolution"] and r.json()["stream"]["resolution"] == "2560x1440"
+    assert len(fake.writes) == 1
+
+
+def test_codec_change_naming_a_size_only_the_static_document_lists_is_refused(w):
+    app, c, fake, ids = w
+    owner_camera(fake, dyn_h264=["2560x1440"])
+    r = put(c, ids[2], "201", {"codec": "H.264", "resolution": "1920x1080"})
+    assert r.status_code == 422 and (r.json()["code"], r.json()["details"]["field"]) == ("value_not_allowed", "resolution"), r.text
+    assert fake.writes == []
+
+
+def test_codec_change_keeping_a_profile_the_new_codec_lacks_names_it_in_hebrew(w):
+    app, c, fake, ids = w
+    r = put(c, ids[1], "101", {"codec": "H.265"})  # channel 1 main is H.264 High; H.265 offers only Main
+    assert r.status_code == 422 and r.json()["code"] == "value_not_allowed", r.text
+    assert r.json()["details"]["field"] == "profile" and r.json()["user_message"] == "הפרופיל הנוכחי אינו נתמך בקידוד H.265. בחרו ערך אחר ושמרו שוב."
+    assert fake.writes == []

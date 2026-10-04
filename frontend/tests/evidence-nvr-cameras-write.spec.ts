@@ -344,6 +344,118 @@ test.describe('CR-020 S2b cameras write (mocked backend)', () => {
     await expect(toast(page).locator('[data-nvr-toast-text]')).toHaveText('השינוי בוטל');
   });
 
+  /** The owner's report (2026-10-04): a main stream on H.265 (4256x1888, 20 fps, VBR, quality 60, 5120 kbps, SVC off) changed to H.264
+   * with every other field kept, then "שמור": nothing happened. The options route answers an envelope; the screen used it as the options. */
+  async function ownerStream(page: Page, q = '') {
+    st.extraRes = { 'H.264': ['4256x1888'], 'H.265': ['4256x1888'] };
+    const cam = st.cameras[1];
+    cam.name = 'אולם ספורט';
+    Object.assign(cam.streams[0], { codec: 'H.265', codec_raw: 'H.265', codec_plus: false, profile: 'Main', resolution: '4256x1888', fps: 20, fps_full: false, bitrate_mode: 'VBR', quality: 60, bitrate_kbps: 5120, svc: false, smart_codec: false });
+    await open(page, q);
+    await rowOf(page, 2, '201').locator('button[data-edit-stream]').click();
+    const drawer = page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`);
+    await expect(drawer).toHaveAttribute('heading', 'אולם ספורט');
+    return drawer;
+  }
+
+  test('the editor: H.265 -> H.264 with the other fields kept opens the ONE confirmation and writes the codec (owner report)', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const drawer = await ownerStream(page);
+    const field = (f: string) => drawer.locator(`[data-field="${f}"]`);
+    const save = drawer.locator('[data-nvr-editor-save]');
+    await field('codec').locator('select').selectOption('H.264');
+    await expect.poll(() => st.hits.some((h) => h.includes('/streams/201/options?codec=H.264'))).toBe(true);
+    await expect(field('resolution').locator('select')).toHaveValue('4256x1888');
+    await expect(field('profile').locator('select')).toHaveValue('Main'); // offered under H.264 too: kept
+    await expect(field('fps').locator('select')).toHaveValue('20');
+    await expect(save).not.toHaveAttribute('disabled');
+    await save.click();
+    const dlg = page.locator(CONFIRM);
+    await expect(dlg.locator('[data-nvr-confirm]')).toBeVisible();
+    await expect(dlg).toHaveAttribute('heading', 'לשמור את השינויים?');
+    await expect(dlg.locator('[data-nvr-confirm-count]')).toHaveText('שינוי אחד');
+    await shot(page, 'write-13-editor-codec-confirm');
+    await dlg.locator('[data-nvr-confirm]').click();
+    await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`)).toHaveCount(0);
+    expect(st.writes).toHaveLength(1);
+    expect(st.writes[0].body).toEqual({ if_match: '201e1', confirm: true, changes: { codec: 'H.264' } });
+    await expect(toast(page).locator('[data-nvr-toast-text]')).toHaveText('נשמר');
+    expect(errors).toEqual([]);
+  });
+
+  for (const skin of ['classic', 'domus', 'tesla', 'bubble']) {
+    test(`the editor (${skin} skin): after the codec change the confirmation is on top of the drawer and takes the press`, async ({ page }) => {
+      const drawer = await ownerStream(page, `&skin=${skin}`);
+      await drawer.locator('[data-field="codec"] select').selectOption('H.264');
+      await expect.poll(() => st.hits.some((h) => h.includes('/streams/201/options?codec=H.264'))).toBe(true);
+      await drawer.locator('[data-nvr-editor-save]').click();
+      const ok = page.locator(`${CONFIRM} [data-nvr-confirm]`);
+      await expect(ok).toBeVisible();
+      // the topmost element at the button's centre is the button itself (not the drawer or a backdrop over it)
+      const top = await ok.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        let hit: Element | null = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        while (hit?.shadowRoot) {
+          const inner = hit.shadowRoot.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          if (!inner || inner === hit) break;
+          hit = inner;
+        }
+        return !!hit && (el === hit || el.contains(hit) || !!el.shadowRoot?.contains(hit));
+      });
+      expect(top).toBe(true);
+      await ok.click();
+      await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`)).toHaveCount(0);
+      expect(st.writes[0].body.changes).toEqual({ codec: 'H.264' });
+    });
+  }
+
+  test('the editor: the new codec offers no such resolution -> it is cleared and marked, Save stays off until one is chosen', async ({ page }) => {
+    const drawer = await ownerStream(page);
+    const field = (f: string) => drawer.locator(`[data-field="${f}"]`);
+    const save = drawer.locator('[data-nvr-editor-save]');
+    st.extraRes = { 'H.265': ['4256x1888'] }; // ownerStream set both codecs: H.264 does not offer 4256x1888 here
+    await field('codec').locator('select').selectOption('H.264');
+    await expect.poll(() => st.hits.some((h) => h.includes('/streams/201/options?codec=H.264'))).toBe(true);
+    await expect(field('resolution').locator('select')).toHaveValue('');
+    await expect(field('resolution')).toHaveClass(/bad/);
+    await expect(save).toHaveAttribute('disabled', '');
+    await field('resolution').locator('select').selectOption('2560x1440');
+    await expect(save).not.toHaveAttribute('disabled');
+    await save.click();
+    await expect(page.locator(`${CONFIRM} [data-nvr-confirm-count]`)).toHaveText('2 שינויים');
+  });
+
+  test('the editor: the new codec options cannot be read -> a line, Save stays off, nothing is written', async ({ page }) => {
+    st.optionsDown = ['201:H.264'];
+    const drawer = await ownerStream(page);
+    await drawer.locator('[data-field="codec"] select').selectOption('H.264');
+    await expect(drawer.locator('[data-nvr-editor-line]')).toHaveText('יכולות הזרם אינן ידועות, ולכן השינוי בוטל.');
+    await expect(drawer.locator('[data-nvr-editor-save]')).toHaveAttribute('disabled', '');
+    await expect(page.locator(CONFIRM)).toHaveCount(0);
+    expect(st.writes).toEqual([]);
+  });
+
+  test('the editor: the server refuses the codec change (a kept size the new codec lacks) -> its Hebrew line inside the drawer, the drawer stays', async ({ page }) => {
+    st.put = 'kept_res';
+    const drawer = await ownerStream(page);
+    await drawer.locator('[data-field="codec"] select').selectOption('H.264');
+    await expect.poll(() => st.hits.some((h) => h.includes('/streams/201/options?codec=H.264'))).toBe(true);
+    await drawer.locator('[data-nvr-editor-save]').click();
+    await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
+    await expect(drawer.locator('[data-nvr-editor-line]')).toHaveText('הרזולוציה הנוכחית אינה נתמכת בקידוד H.264. בחרו ערך אחר ושמרו שוב.');
+    await expect(page.locator(`${PAGE} nvr-camera-editor sw-drawer[open]`)).toHaveCount(1);
+    expect(putCount(st)).toBe(1);
+  });
+
+  test('the editor: a press on Save that cannot open the confirmation always shows a line (never silent)', async ({ page }) => {
+    const drawer = await ownerStream(page);
+    // force the press on a pristine form (the button is disabled: call the handler as a stuck / raced button would)
+    await page.locator(`${PAGE} nvr-camera-editor`).evaluate((el) => (el as unknown as { save: () => void }).save());
+    await expect(drawer.locator('[data-nvr-editor-line]')).toHaveText('אין שינויים לשמירה.');
+    await expect(page.locator(CONFIRM)).toHaveCount(0);
+  });
+
   test('the editor: a field another field locks is disabled (reason in the tooltip), a stale save shows the line inside the drawer', async ({ page }) => {
     await open(page);
     await rowOf(page, 2, '201').locator('button[data-edit-stream]').click();
