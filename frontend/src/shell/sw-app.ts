@@ -1116,8 +1116,10 @@ export class SwApp extends LitElement {
           inline-size: 44px;
           block-size: 44px;
         }
-        /* CR-023: with a sixth area (תשתיות) seven 44 px items fill the dock; the room picker button steps aside below 360 px (the
-           floors and areas stay reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
+      }
+      /* CR-023: with a sixth area (תשתיות) seven 44 px items need about 410 px next to the room picker button; below 420 px the button
+         steps aside (the floors and areas stay reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
+      @media (max-width: 419px) {
         :host([data-design='a']) nav.bottom.dock.crowded .fab {
           display: none;
         }
