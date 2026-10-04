@@ -30,14 +30,26 @@
 - **How to use (English):** install, restart once (migration 0055 runs). הגדרות › חיבורים → "הוסף NVR" → name, type, address, ports, user,
   password → "בדוק חיבור" → "הוסף" → restart the system when the banner asks. The new recorder's cameras appear after the restart (discovery).
   To take one out: its row → "חיבור" → "הסר NVR" → type "הסר".
-- **Not in this change (why):** synchronized playback across recorders (not proven on two real recorders); the Provision-ISR adapter (its
-  API is not available yet; the adapter seam is ready); a per-recorder permission scope; applying changes without a restart (owner
-  decision); a per-recorder live budget; the recorder time zone in recording search / playback URLs (stored, used by the alert stream).
+- **Owner answers (2026-10-04):**
+  - **Synchronized playback across recorders - EXPERIMENTAL, UNPROVEN, OFF by default.** הגדרות › כללי › וידאו ומדיה → "ניגון מסונכרן
+    בין מקליטים (ניסיוני)" → "פעיל (ניסיוני)" → "שמור". When on, each camera is searched and played in its recorder's own time zone
+    (the recorder's zone, else the installation's) and clock offset (read once per group); a recorder whose clock is more than 15
+    minutes off, or reports a zone other than its own, is left out of the group with the reason; an unreadable clock plays with no
+    correction and says so. Off: such a group is refused, as before. Single-recorder groups never change.
+  - **Disabling a recorder applies at once, no restart:** its alert stream stops, its go2rtc streams are deleted (exact names in
+    `smplwise_` only), its open playbacks close, its cameras leave the wall and the pickers; enabling brings it back at once.
+    Connection changes and a recorder added after the start still need the restart.
+  - **The first recorder id is never reused for a new device while history exists under it** (cameras, events, changes): a new NVR
+    gets a new id; the settings card then shows the add form.
+- **Not in this change (why):** proven (non-experimental) synchronized playback across recorders (needs a measurement on two real
+  recorders); the Provision-ISR adapter (its API is not available yet; the adapter seam is ready); a per-recorder permission scope;
+  applying CONNECTION changes without a restart (owner decision); a per-recorder live budget; the recorder time zone in the single-camera
+  recording search / playback (used by the alert stream and the experimental cross-recorder groups).
   See `docs/changes/CR-024-MULTI-NVR.md` section 3.
 - **Known limits:** nothing here ran against a real recorder - every test used two fake recorders and mocked screens.
 
 ### עברית - כמה מקליטים במערכת אחת (CR-024)
-**מיגרציה `0055_multi_recorder`** (תוספת עמודות בלבד). כל שינוי במקליט חל אחרי הפעלה מחדש, כמו חיבור ה־NVR היום.
+**מיגרציה `0055_multi_recorder`** (תוספת עמודות בלבד). שינוי פרטי חיבור או הוספת מקליט חלים אחרי הפעלה מחדש; השבתה והפעלה - מיד.
 - **מקליטים כישות מלאה:** הגדרות › חיבורים - עם מקליט אחד הכרטיס הוא טופס החיבור המוכר ועוד "הוסף NVR"; עם שניים ומעלה מוצגת רשימת
   מקליטים (שם, סוג ודגם, מצב, מצלמות) עם "חיבור" (טופס החיבור של אותו מקליט: עריכה, בדיקה, הסרה), "שם" ו"השבת"/"הפעל". ההוספה בטופס
   החיבור (סוג ← שדות ← בדיקה ← שמירה) ובאותם כללים של ה־NVR הראשון (סיסמה מוצפנת, בדיקה לקריאה בלבד, הקלדת "שמור" כשה־NVR לא זמין).
@@ -51,8 +63,19 @@
 - **איך מפעילים:** מתקינים ומפעילים מחדש פעם אחת (המיגרציה רצה). הגדרות › חיבורים ← "הוסף NVR" ← שם, סוג, כתובת, פורטים, משתמש, סיסמה ←
   "בדוק חיבור" ← "הוסף" ← הפעלה מחדש כשהבאנר מבקש. המצלמות של המקליט החדש מופיעות אחרי ההפעלה מחדש. להסרה: השורה שלו ← "חיבור" ←
   "הסר NVR" ← מקלידים "הסר".
-- **מה לא נכלל ולמה:** ניגון מסונכרן בין מקליטים (לא הוכח על שני מקליטים אמיתיים); מתאם Provision-ISR (ה־API שלו עוד לא זמין, החיבור מוכן);
-  הרשאה בהיקף מקליט; החלה בלי הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד למקליט בחיפוש הקלטות ובניגון.
+- **תשובות הבעלים (4.10):**
+  - **ניגון מסונכרן בין מקליטים - ניסיוני, לא הוכח, כבוי כברירת מחדל.** הגדרות › כללי › וידאו ומדיה ← "ניגון מסונכרן בין מקליטים
+    (ניסיוני)" ← "פעיל (ניסיוני)" ← "שמור". כשהוא פעיל, כל מצלמה מנוגנת לפי אזור הזמן וסטיית השעון של המקליט שלה (נמדדת פעם אחת
+    לקבוצה); מקליט ששעונו סוטה ביותר מ־15 דקות או מדווח אזור זמן אחר מזה שהוגדר לו נשאר מחוץ לקבוצה עם הסיבה; שעון שלא נקרא - מנוגן
+    בלי תיקון ומסומן. כבוי: קבוצה כזו נדחית כמו קודם. קבוצה של מקליט אחד לא משתנה.
+  - **השבתת מקליט חלה מיד, בלי הפעלה מחדש:** זרם האירועים נעצר, זרמי go2rtc שלו נמחקים (רק בשמות `smplwise_` המדויקים), ניגונים
+    פתוחים נסגרים, והמצלמות יורדות מהקיר ומהבוררים; הפעלה מחזירה אותו מיד. שינוי פרטי חיבור ומקליט שנוסף אחרי העלייה עדיין דורשים
+    הפעלה מחדש.
+  - **המזהה של המקליט הראשון לא ניתן למכשיר חדש כשיש לו היסטוריה** (מצלמות, אירועים, שינויים): NVR חדש מקבל מזהה חדש, וכרטיס ההגדרות
+    מציג את טופס ההוספה.
+- **מה לא נכלל ולמה:** ניגון מסונכרן בין מקליטים כיכולת מוכחת (צריך מדידה על שני מקליטים אמיתיים); מתאם Provision-ISR (ה־API שלו עוד
+  לא זמין, החיבור מוכן); הרשאה בהיקף מקליט; החלת שינוי פרטי חיבור בלי הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד
+  למקליט בחיפוש הקלטות ובניגון של מצלמה בודדת.
 - **מגבלות:** שום דבר כאן לא הורץ מול מקליט אמיתי - כל הבדיקות עם שני מקליטים מדומים ומסכים עם שרת מדומה.
 
 ### Schedules: the owner's decisions of 2026-10-04 (sirens, players, number and select values, an administrator's mark for scripts that disarm or unlock, scheduled disarming allowed with confirmation)

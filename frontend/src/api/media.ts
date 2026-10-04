@@ -75,6 +75,8 @@ export interface ProductSettings {
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
+  /** CR-024: EXPERIMENTAL synchronized playback of cameras of different recorders ('true' | 'false', default 'false'). */
+  'playback.cross_recorder_sync'?: string;
   'exports.max_mb'?: number;
   'exports.retention_days'?: number;
   'events.retention_days'?: number;

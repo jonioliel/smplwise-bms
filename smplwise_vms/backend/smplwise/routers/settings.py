@@ -116,6 +116,10 @@ DEFAULTS: dict[str, str] = {
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
+    # CR-024 (owner 2026-10-04): EXPERIMENTAL, unproven synchronized playback of cameras of different recorders; off = such a group
+    # is refused (409 sync_cross_recorder_unproven). On = each member is asked for in its recorder's zone and clock offset
+    # (services/recorder_clock.py)
+    "playback.cross_recorder_sync": "false",
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
@@ -466,6 +470,7 @@ class SettingsPatch(BaseModel):
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
+    playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")

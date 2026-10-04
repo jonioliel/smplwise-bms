@@ -82,10 +82,15 @@ def register_vendor(spec: VendorSpec, constructor: Callable[[str, Settings], Rec
     Frigate later): its catalogue entry and its constructor in one call. Returns a function that undoes the registration (tests
     register a fake vendor and remove it again). A spec with status `planned` stays "coming soon" whatever is registered."""
     global VENDOR_SPECS, SPEC_BY_ID
-    old_spec = SPEC_BY_ID.get(spec.id)
+    old_specs = VENDOR_SPECS
     old_ctor = VENDORS.get(spec.id)
     VENDORS[spec.id] = constructor
-    VENDOR_SPECS = tuple(s for s in VENDOR_SPECS if s.id != spec.id) + (spec,)
+    # the catalogue keeps its order: a spec replaces its namesake in place, a new one goes before "no NVR"
+    if spec.id in SPEC_BY_ID:
+        VENDOR_SPECS = tuple(spec if s.id == spec.id else s for s in VENDOR_SPECS)
+    else:
+        none = tuple(s for s in VENDOR_SPECS if s.id == NO_NVR)
+        VENDOR_SPECS = tuple(s for s in VENDOR_SPECS if s.id != NO_NVR) + (spec,) + none
     SPEC_BY_ID = {s.id: s for s in VENDOR_SPECS}
 
     def undo() -> None:
@@ -94,8 +99,7 @@ def register_vendor(spec: VendorSpec, constructor: Callable[[str, Settings], Rec
             VENDORS.pop(spec.id, None)
         else:
             VENDORS[spec.id] = old_ctor
-        rest = tuple(s for s in VENDOR_SPECS if s.id != spec.id)
-        VENDOR_SPECS = rest + ((old_spec,) if old_spec else ())
+        VENDOR_SPECS = old_specs  # exactly as before (order included)
         SPEC_BY_ID = {s.id: s for s in VENDOR_SPECS}
 
     return undo

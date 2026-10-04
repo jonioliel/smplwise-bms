@@ -420,7 +420,7 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
 
 
 @router.delete("/nvr/connection")
-def remove_connection(request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
+def remove_connection(request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(_raw_body),
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """"Remove NVR": secrets cleared, vendor `none`, the cameras stay - disabled. The add-on options are never re-imported."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -431,6 +431,9 @@ def remove_connection(request: Request, principal: Principal = Depends(_admin_ro
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id)
     audit(conn, actor=principal, action="nvr.connection.remove", decision="allowed", resource_type="nvr", resource_id="connection", request_id=_rid(request),
           details={"revision": revision, "cameras_disabled": disabled})
+    from ..services import recorder_live
+
+    background.add_task(recorder_live.stop, request.app.state.db, settings_of(request), PRIMARY)  # CR-024: stopped at once
     return {"removed": True, "restart_required": True, "revision": revision, "cameras_disabled": disabled}
 
 

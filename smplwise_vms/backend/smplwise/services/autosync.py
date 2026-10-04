@@ -177,8 +177,11 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     so its credentials do not stay in go2rtc. Nothing outside the `smplwise_` namespace is ever created, changed or deleted."""
     client = g2.Go2rtc(settings)
     result: dict[str, Any] = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0, "removed": 0, "streams": []}
-    cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel").fetchall()
-    removed_ids = _removed_recorders(conn)
+    from ..recorder_scope import DISABLED
+
+    disabled = set(DISABLED)  # CR-024: a disabled recorder's streams leave go2rtc (by exact name) and are not re-created
+    cams = [c for c in conn.execute("SELECT * FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel").fetchall() if c["recorder_id"] not in disabled]
+    removed_ids = sorted(set(_removed_recorders(conn)) | disabled)
     gone = [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute(
         f"SELECT recorder_id, channel FROM cameras WHERE recorder_id IN ({','.join('?' * len(removed_ids))})", removed_ids).fetchall()
         for p in ("sub", "main")] if removed_ids else []

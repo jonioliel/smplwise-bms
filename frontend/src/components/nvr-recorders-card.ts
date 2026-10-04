@@ -163,6 +163,13 @@ export class NvrRecordersCard extends LitElement {
       return html`<sw-card heading="מקליטים (NVR)"><sw-state-panel state="error" compact heading="רשימת המקליטים לא נטענה" hint=${this.loadError} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-card>`;
     }
     const recs = this.data.recorders.filter((r) => !r.removed);
+    if (!recs.length && this.data.primary_has_history) {
+      // CR-024 (owner 2026-10-04): the removed first recorder keeps its history - a new NVR gets a new id (the add form), never nvr-1
+      return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection data-recorder-add-new>
+        <nvr-connection-form context="add" @nvr-recorder-added=${() => this.changed('ה־NVR נוסף')}></nvr-connection-form>
+        ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-recorder-msg>${this.msg.text}</div>` : nothing}
+      </sw-card>`;
+    }
     if (recs.length <= 1) {
       // no NVR yet, or one: the connection form itself (choose a type, or "ללא NVR"), as before multi-NVR; "הוסף NVR" once one is connected
       const only = recs[0];
@@ -184,7 +191,7 @@ export class NvrRecordersCard extends LitElement {
       ${this.adding ? this.addDialog() : nothing}
       ${t
         ? html`<sw-dialog open heading=${t.enabled ? 'השבתת NVR' : 'הפעלת NVR'} subheading=${t.name} data-recorder-toggle-dialog @close=${() => (this.toggling = null)}>
-            <div class="dlg">${t.enabled ? 'המצלמות שלו יישארו ברשימות ולא יוצגו בשידור חי.' : 'ה־NVR יחזור לפעול.'}</div>
+            <div class="dlg">${t.enabled ? 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות נשארות ברשימות.' : 'ה־NVR חוזר לפעול מיד.'}</div>
             <div slot="footer">
               <sw-button variant=${t.enabled ? 'danger' : 'primary'} ?disabled=${this.busy} data-recorder-toggle-confirm @click=${() => this.toggle(t)}>${t.enabled ? 'השבת' : 'הפעל'}</sw-button>
               <sw-button variant="ghost" @click=${() => (this.toggling = null)}>ביטול</sw-button>

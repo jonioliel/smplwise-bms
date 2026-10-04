@@ -49,6 +49,9 @@ class PlaybackSession:
     ws_open: bool = False
     first_frame_at: float | None = None  # wall-clock when the first media bytes were relayed (this generation)
     recorder_id: str = "nvr-1"  # CR-024: the camera's recorder - the playback source is built from ITS connection
+    # CR-024 experimental cross-recorder sync: the recorder's clock minus this server's (s); the RTSP request asks for
+    # [start + offset, end + offset] in `tz_name`, the recorder's own zone. 0 everywhere else (the proven path).
+    clock_offset_s: float = 0.0
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -90,6 +93,9 @@ def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured
+    from ..mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # CR-024: a disabled recorder is never asked for a recording
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     tz = zone(tz_name)
@@ -104,7 +110,8 @@ def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datet
     name = stream_name(session.id, session.generation)
     from ..recorder_scope import settings_for
 
-    src = playback_rtsp_url(settings_for(settings, session.recorder_id), session.track_id, start, session.end_at, session.tz_name)
+    off = dt.timedelta(seconds=session.clock_offset_s or 0)
+    src = playback_rtsp_url(settings_for(settings, session.recorder_id), session.track_id, start + off, session.end_at + off, session.tz_name)
     client.ensure_stream(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
@@ -119,7 +126,8 @@ def _delete_stream(settings: Settings, name: str) -> None:
         log.warning("could not delete playback stream %s: %s", name, exc.code)
 
 
-def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, segment_end: dt.datetime, tz_name: str, cap: int) -> PlaybackSession:
+def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, segment_end: dt.datetime, tz_name: str, cap: int,
+           clock_offset_s: float = 0.0) -> PlaybackSession:
     with REGISTRY.lock:
         if len(REGISTRY.active()) >= cap:
             raise ApiError(429, "playback_quota", "הגיע למכסת סשני הניגון; סגור ניגון אחר ונסה שוב.", retryable=True, details={"max": cap})
@@ -135,6 +143,7 @@ def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, 
             stream="",
             tz_name=tz_name,
             recorder_id=str(camera["recorder_id"]) if "recorder_id" in camera.keys() else "nvr-1",
+            clock_offset_s=float(clock_offset_s or 0),
         )
         REGISTRY.sessions[session.id] = session
     try:

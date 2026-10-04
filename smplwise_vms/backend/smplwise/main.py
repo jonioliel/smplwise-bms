@@ -331,7 +331,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await run_in_threadpool(lambda: nvr_batch.recover_batches(app.state.db, settings, startup=True))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
-        ha_only = is_ha_only(settings)  # NVR-less mode: none of the NVR background work starts (mode.py)
+        # NVR-less mode: none of the NVR background work starts (mode.py). CR-024: a recorder that is only disabled still counts -
+        # enabling it applies at once, so its workers must exist (each skips a disabled recorder by itself)
+        ha_only = is_ha_only(settings) and not recorder_scope.loaded_any(settings)
         if not ha_only:
             ex.WORKER.start(app.state.db, settings)
         from .services import autosync, events_derive, events_ingest
@@ -350,22 +352,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
                 storage.warm(app.state.db, settings, force=True)
 
+        def _tz_of(recorder_id: str):
+            """CR-024: a further recorder's alert-stream times are converted in its own zone (recorders.time_zone), else the
+            installation's."""
+            def getter() -> str:
+                with app.state.db.connection(mode="read") as conn:
+                    try:
+                        row = conn.execute("SELECT time_zone FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
+                    except Exception:  # noqa: BLE001 - a database before 0055
+                        row = None
+                    return (row["time_zone"] if row and row["time_zone"] else None) or read_settings(conn)["time.zone"]
+            return getter
+
+        app.state.tz_of = _tz_of  # CR-024: a recorder enabled while running starts its alert stream with its own zone
         if not ha_only:
             app.state.discovery = asyncio.create_task(discover("startup"))
-            events_ingest.LISTENER.start(app.state.db, settings, _tz)
-
-            def _tz_of(recorder_id: str):
-                """CR-024: a further recorder's alert-stream times are converted in its own zone (recorders.time_zone), else the
-                installation's."""
-                def getter() -> str:
-                    with app.state.db.connection(mode="read") as conn:
-                        try:
-                            row = conn.execute("SELECT time_zone FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
-                        except Exception:  # noqa: BLE001 - a database before 0055
-                            row = None
-                        return (row["time_zone"] if row and row["time_zone"] else None) or read_settings(conn)["time.zone"]
-                return getter
-
+            if recorder_scope.is_disabled(recorder_scope.PRIMARY):
+                # disabled first recorder: never connected, but ready for an enable that applies at once
+                events_ingest.LISTENER.db, events_ingest.LISTENER.settings, events_ingest.LISTENER.tz_getter = app.state.db, settings, _tz
+            else:
+                events_ingest.LISTENER.start(app.state.db, settings, _tz)
             for rid in recorder_scope.ready_ids(settings):
                 if rid != recorder_scope.PRIMARY:
                     events_ingest.start_extra_one(app.state.db, settings, rid, _tz_of(rid))
