@@ -337,7 +337,7 @@ def do_test(request: Request, principal: Principal, raw: bytes, conn: sqlite3.Co
         raise
     audit(conn, actor=principal, action="nvr.connection.test", decision="allowed", resource_type="nvr", resource_id=_res(rid), request_id=_rid(request),
           details={"vendor": fields["vendor"], "outcome": result["code"]})
-    return result
+    return connection_probe.public(result)  # CR-024: the device serial (hashed for the identity) never leaves the server
 
 
 @router.put("/nvr/connection")
@@ -347,11 +347,11 @@ def save_connection(request: Request, principal: Principal = Depends(_admin_ro),
     bad credentials and refused hosts never. Changing the vendor of a recorder with cameras needs "Remove NVR" first (D7)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: SaveIn = _parse(request, raw, SaveIn)
-    return do_save(request, principal, body, conn, PRIMARY)
+    return do_save(request, principal, body, conn, PRIMARY, identity_rule=True)
 
 
 def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite3.Connection, rid: str,
-            before_write: Any = None, allow_none: bool = True) -> dict[str, Any]:
+            before_write: Any = None, allow_none: bool = True, identity_rule: bool = False) -> dict[str, Any]:
     """The save of recorder `rid`'s connection (CR-024: shared by `PUT /nvr/connection`, `PUT /recorders/{id}/connection`
     and `POST /recorders`). The caller has checked `system.configure` and parsed the body. `before_write(conn, fields)` runs
     right before the row is written, under the write lock after the probe (the add route creates the recorder row there and
@@ -406,6 +406,26 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
                   request_id=_rid(request), details={"vendor": fields["vendor"], "outcome": code})
             raise ApiError(503 if code != "source_forbidden" else 502, code, messages.get(code, "בדיקת החיבור נכשלה."), retryable=code in UNTESTED_OK,
                            details={"can_save_untested": code in UNTESTED_OK})
+    # CR-024 (owner 2026-10-04, answer to the wizard question): `PUT /nvr/connection` (the setup wizard, the first recorder's form)
+    # reconnects `nvr-1` only when it is the SAME physical recorder. When `nvr-1` is free (removed / "no NVR") and history exists
+    # under it, the candidate's keyed identity (model + serial hash, from the test that just ran) must equal the identity stored
+    # for `nvr-1`; a different device, a device without a serial, an untested save or a missing stored identity -> a NEW id, so the
+    # old (disabled) cameras, events and changes never attach to another device. An edit of an active `nvr-1` is unchanged.
+    from ..services import autosync
+
+    candidate_fp = autosync.device_identity(conn, result.get("model"), result.get("_serial")) if result.get("ok") else None
+    new_recorder = False
+    if identity_rule and rid == PRIMARY and connection_store.primary_free(conn, settings) and connection_store.primary_has_history(conn):
+        stored_fp = connection_store.stored_identity(conn, PRIMARY)
+        if not (candidate_fp and stored_fp and candidate_fp == stored_fp):
+            from .recorders import create_recorder_row, destination_taken
+
+            rid = connection_store.next_free_id(conn)
+            if destination_taken(conn, settings, fields, rid):
+                raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
+            create_recorder_row(conn, rid, "NVR", fields["vendor"])
+            row = None
+            new_recorder = True
     if before_write is not None:
         before_write(conn, fields)
     before = dict(row) if row is not None else {}
@@ -418,8 +438,15 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     audit(conn, actor=principal, action="nvr.connection.update", decision="allowed", resource_type="nvr", resource_id=_res(rid), request_id=_rid(request),
           details={"vendor": fields["vendor"], "host": fields["host"], "http_port": fields["http_port"], "rtsp_port": fields["rtsp_port"], "changed": changed_fields,
                    "password_changed": changed, "untested": untested, "revision": revision})
+    if candidate_fp:  # which physical recorder this connection reaches (keyed hash; the serial is never stored)
+        autosync.ensure_recorder(conn, recorder_id=rid)
+        autosync.store_identity(conn, rid, candidate_fp)
+    if new_recorder:
+        audit(conn, actor=principal, action="nvr.recorder.add", decision="allowed", resource_type="recorder", resource_id=rid, request_id=_rid(request),
+              details={"vendor": fields["vendor"], "reason": "history_under_first_id", "untested": untested, "revision": revision})
     device = {k: result.get(k) for k in ("model", "firmware", "channels")} if result["ok"] else None
-    return {"saved": True, "restart_required": True, "restarting": False, "revision": revision, "device": device, "untested": untested, **connection_view(conn, request, rid)}
+    return {"saved": True, "restart_required": True, "restarting": False, "revision": revision, "device": device, "untested": untested,
+            **connection_view(conn, request, rid), "recorder_id": rid, "new_recorder": new_recorder}
 
 
 @router.delete("/nvr/connection")

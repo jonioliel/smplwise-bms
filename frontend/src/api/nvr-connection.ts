@@ -90,6 +90,10 @@ export interface SaveResult extends NvrConnection {
   revision: number;
   device: { model?: string | null; firmware?: string | null; channels?: number | null } | null;
   untested: boolean;
+  /** CR-024: the recorder the connection was saved for - another id than the first recorder's when a removed `nvr-1` with history
+   * met a different (or unidentifiable) device (`new_recorder`). */
+  recorder_id?: string;
+  new_recorder?: boolean;
 }
 
 /** The two typed words (CR-022 D6 / D7). Kept next to the API so the dialogs and the tests share them. */

@@ -40,7 +40,8 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
   `smplwise_` only), its open playbacks close, its cameras leave the wall and the pickers; enabling brings it back at once.
   Connection changes and a recorder added after the start still need the restart.
 - **The first recorder id is never reused for a new device while history exists under it** (cameras, events, changes): a new NVR
-  gets a new id; the settings card then shows the add form.
+  gets a new id; the settings card then shows the add form. The setup wizard follows the same rule: the same recorder (a keyed hash of
+  its model and serial, never the serial itself) reconnects as before; a different or unidentifiable device gets a new id.
 
 ### Not included (and why)
 - Proven synchronized playback across recorders - the experimental setting above is unproven (clocks, zones, drift never measured on
@@ -86,7 +87,8 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
   פתוחים נסגרים, והמצלמות יורדות מהקיר ומהבוררים; הפעלה מחזירה אותו מיד. שינוי פרטי חיבור ומקליט שנוסף אחרי העלייה עדיין דורשים
   הפעלה מחדש.
 - **המזהה של המקליט הראשון לא ניתן למכשיר חדש כשיש לו היסטוריה** (מצלמות, אירועים, שינויים): NVR חדש מקבל מזהה חדש, וכרטיס ההגדרות
-  מציג את טופס ההוספה.
+  מציג את טופס ההוספה. גם אשף ההתקנה פועל כך: אותו מקליט (חתימה מוצפנת של דגם ומספר סידורי, בלי לשמור את המספר) חוזר כמו קודם; מכשיר
+  אחר או מכשיר שלא ניתן לזהות מקבל מזהה חדש.
 
 ### מה לא נכלל ולמה
 - ניגון מסונכרן בין מקליטים כיכולת מוכחת - ההגדרה הניסיונית למעלה לא הוכחה על שני מקליטים אמיתיים; מפגש מעבדה יסיר את הסימון "ניסיוני".

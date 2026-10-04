@@ -198,7 +198,8 @@ def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")
     root = xmlsafe.parse(xml)
-    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType")}
+    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType"),
+            "serial": _text(root, "serialNumber")}  # CR-024: hashed into recorders.device_fingerprint, never stored, logged or returned
 
 
 def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
