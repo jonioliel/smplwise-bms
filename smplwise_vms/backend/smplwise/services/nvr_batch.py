@@ -29,6 +29,12 @@ Security review 2026-10-04 (private/cr020-s2c-review/SECURITY_REVIEW.md), fixed 
 - the lock is keyed by the device (`adapter.device_key`), not by the recorder row;
 - the permission is checked again under the write lock right before the item's claim.
 
+Phase D (2026-10-04, services/nvr_encoding_batch.py, API 3.8): the same runner carries a bulk ENCODING change. An item no
+longer writes the constant BATCH_FIELDS but its own planned change, read from its placeholder's `{field: [from, to]}`
+(`item_changes`; an SVC batch stores exactly `{"svc": [true, false]}`, so phase C behaves as before); a codec switch reads the
+new codec's options (`write_stream(options_codec=)`). The batch record carries `mode` (`svc` | `encoding`) and `settings`;
+status items carry `fields`. Every rule above applies unchanged to both modes.
+
 Single process (review finding 13): the add-on runs ONE worker process. `_live` (the runners of this process) is the
 source of truth for "is this runner alive"; start-up recovery interrupts every batch left running. A second worker would
 interrupt another worker's live batch at its start-up and could not see its runners - it would need a per-process id with

@@ -276,6 +276,87 @@ never written to a backup and never deleted or brought back by a restore.
 - Open: an index on `nvr_changes(batch_id, batch_index)` needs a migration (0052 is the NVR connection feature, 0053 is
   reserved) - not added; the status queries scan `nvr_changes`, which is small (one row per change).
 
+### 3.8 One encoding change on many streams (phase D, 2026-10-04)
+
+Owner request 2026-10-04: change ALL the encodings of ALL the cameras in one operation (e.g. every stream to H.264). Implemented
+in `services/nvr_encoding_batch.py` (plan, preview, start) on the §3.7 machinery (record: CR-020 §10). Same permission
+(`nvr.configure` at installation, then on EVERY target camera), same audit family (`nvr.stream.batch`, details
+`mode: "encoding"`), same runner, stop, undo-all and recovery. **Local channel only**: both routes are in
+`remote_channel.BLOCKED_ON_REMOTE` (404 on `/arx/...`), and `POST /nvr/stream-batches/{id}/rollback` of an encoding batch is
+404 on the remote channel.
+
+Target settings (`settings`), a whitelist; an absent field is "leave as is"; at least one field:
+`codec` (`"H.264"` | `"H.265"`), `resolution` (`"WxH"`), `fps` (number in (0, 1000] or `"full"`), `bitrate_mode` (`CBR` |
+`VBR`), `bitrate_kbps` (int 1..1 000 000), `quality` (int 0..100), `gop` (int 1..10 000), `svc` (bool), `smart_codec` (bool).
+`profile` and `b_frames` are refused 422 `batch_field_not_allowed` (the profile is never chosen by the person; see below).
+
+`POST /nvr/encoding-batches/preview` → **200**, read-only (one audit row `nvr.stream.batch.preview` with counts only):
+
+```json
+{ "settings": { "codec": "H.264" }, "recorder_id": "nvr-1",
+  "targets": [ { "camera_id": "a1b2…", "stream_ref": "101" }, { "camera_id": "a1b2…", "stream_ref": "102" } ] }
+```
+
+Order: permission (read connection, before the body) → shape (422 `validation` / `batch_field_not_allowed`, audited) →
+`nvr.configure` on every camera (403, audited) → NVR-less mode → one recorder (422) → ONE LIST read + one channel list for
+the recorder (a LIST that cannot be read: 503, audited) → per stream its capability discovery **for the codec it will have**
+(`stream_options(ref, codec)`: the device's dynamic resolution list of that codec; cached per process) → the plan. A whole
+preview's device reads run under a 120 s deadline (a stream left over is a skip `source_timeout`). Answer:
+
+```json
+{ "recorder_id": "nvr-1", "settings": { "codec": "H.264" }, "batch_in_progress": false,
+  "counts": { "change": 7, "unchanged": 2, "skip": 1 }, "changes_total": 15, "adjusted": 4,
+  "items": [ { "index": 0, "camera_id": "a1b2…", "stream_ref": "101", "role": "main", "status": "change", "if_match": "<16 hex>",
+               "before": { "codec": "H.265", "profile": "Main", "resolution": "2560x1440", "fps": 25.0, "…": "…" },
+               "changes": { "codec": "H.264", "resolution": "1920x1080" },
+               "fields": { "codec": ["H.265", "H.264"], "resolution": ["2560x1440", "1920x1080"] },
+               "notes": [ { "kind": "adjusted", "field": "resolution", "reason": "codec_resolution", "message": "…", "requested": "2560x1440", "value": "1920x1080" } ],
+               "reason": null, "message": null },
+             { "index": 9, "status": "skip", "reason": "codec_not_offered", "message": "המצלמה אינה תומכת בקידוד הזה.", "changes": {}, "fields": {}, "notes": [] } ] }
+```
+
+The plan per stream (`plan_stream`, pure; every planned change then passes the §3.4 validation against the SAME options, so
+an invalid write is never planned):
+- codec not offered by the device, a codec the stream cannot change, a bitrate mode not offered, no profile valid for the new
+  codec, no resolution list for the new codec, no capability document, not writable, offline, no fresh reading, a single change
+  pending on the stream → `skip` with `reason` (`codec_not_offered`, `codec_not_supported`, `bitrate_mode_not_offered`,
+  `profile_unavailable`, `resolution_unavailable`, `capabilities_unreadable`, `not_writable`, `offline`, `no_reading`, `pending`,
+  `not_found`, `source_timeout`, `source_unavailable`, `invalid_for_device`) and a Hebrew `message`;
+- a value the device does not offer → the closest valid one, `notes[].kind = "adjusted"`: resolution by pixel count (tie: the
+  smaller), fps / quality nearest (tie: the lower; `"full"` without full rate: the device maximum), bitrate and GOP clamped into
+  the device's range (`clamped`); a codec switch also moves a resolution the new codec lacks (`codec_resolution`) and picks the
+  profile the new codec needs when the current one is not valid there (same name, else `Main`, else the first offered;
+  `profile_codec`) - shown in the preview, never silent;
+- a field the stream does not have (no SVC element on a sub, no smart codec), a field smart codec locks while on (GOP, bitrate
+  mode, quality per the device's `locks`), quality under CBR → `notes[].kind = "kept"`: that field stays as it is and the rest
+  of the change applies;
+- every value already the device's → `unchanged` (no item).
+
+`POST /nvr/encoding-batches` → **202** (the §3.7 status body, `mode: "encoding"`, `settings`):
+
+```json
+{ "confirm": true, "settings": { "codec": "H.264" }, "recorder_id": "nvr-1",
+  "targets": [ { "camera_id": "a1b2…", "stream_ref": "101", "if_match": "<16 hex>", "changes": { "codec": "H.264", "resolution": "1920x1080" } } ] }
+```
+
+Order: permission → `confirm` literal `true` FIRST (422 `confirm_required`, audited, no device read) → shape (1..1024 targets;
+a stream once - the main and the sub of one camera are two targets; `changes` keys from the plan fields, typed) → every camera
+(403) → NVR-less mode → one recorder → 409 `batch_in_progress` → **re-plan from a fresh device read**: per target 404
+`not_found`, 409 `stale` (`details.index`: the etag moved since the preview), 422 `batch_target_not_allowed` (the stream is no
+longer a change), 409 **`plan_changed`** (NEW: the server's plan differs from the `changes` the person confirmed) → under the
+write lock 409 `write_in_progress` → one `queued` placeholder per target with its planned `{field: [from, to]}`, the batch
+record (`mode`, `settings`), ONE audit row `nvr.stream.batch` `phase:"attempt"` `mode:"encoding"` naming the actor, the
+settings, the fields and the targets → the runner. Any refusal writes nothing but its audit row.
+
+Runner (unchanged §3.7 rules): each item writes ITS planned change through `write_stream` (fresh read, own etag check, the
+§3.4 validation, pending row committed before the PUT, the PUT outside the write lock, the outcome in one transaction); a
+codec switch reads the options of the new codec (`write_stream(..., options_codec=)`, the reading the preview planned
+against). Stop at the first failure, the unknown-outcome rule (the 45 s read-only check proves EVERY field of the change and
+no foreign change), the 90 s item deadline, the permission again before each item, single writes refused while it runs,
+start-up recovery, undo-all as a reversed batch restoring only the changed fields from a fresh reading. Status items carry
+`fields` (`{field: [from, to]}`) for every batch; the status and the list carry `mode` (`svc` | `encoding`; older batches:
+`svc`).
+
 ### 3.6 Add and remove a camera (S3)
 
 Feasible on Hikvision NVR firmware 4.x over InputProxy; the lab probe shows `inputProxyNums=16` and ten used channels.
@@ -412,3 +493,4 @@ The next discovery run (every 10 min) re-reads everything anyway.
 | Permission | `roles.json` (`system_admin`), `routers/access.py` `SYSTEM_PERMISSIONS`, `PERMISSION_LABELS` |
 | Fake device | `tests/fixtures/fake_devices.py`: PUT of streaming channels, capabilities, statusCode knobs, InputProxy POST/DELETE |
 | Multi-camera batch (S2C) | `routers/nvr_batch.py`, `services/nvr_batch.py`; hooks `batch` / `adopt` in `write_stream` / `rollback_stream`, `batch_guard`; `main.py` start-up / janitor recovery and shutdown; tests `test_nvr_stream_batch*.py` (fake knob `put_unknown_at`) |
+| Bulk encoding change (phase D) | `services/nvr_encoding_batch.py` (plan, preview, start), routes in `routers/nvr_batch.py`; the runner's per-item change (`nvr_batch.item_changes`), `write_stream(options_codec=)`; tests `test_nvr_encoding_plan.py`, `test_nvr_encoding_batch.py`; UI `nvr-encoding-batch.ts`, `nvr-encoding-logic.ts` |

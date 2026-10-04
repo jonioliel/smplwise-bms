@@ -7,7 +7,10 @@ Four routes, `nvr.configure` (a SYSTEM permission: built-in system_admin only) a
   placeholders + one audit row, the background runner).
 - `GET /nvr/stream-batches[?active=1]`, `GET /nvr/stream-batches/{batch_id}[?offset&limit]` - progress, paged.
 - `POST /nvr/stream-batches/{batch_id}/stop` - no confirmation (the safe direction), idempotent.
-- `POST /nvr/stream-batches/{batch_id}/rollback` - undo-all as a new batch, body `{"confirm": true}`.
+- `POST /nvr/stream-batches/{batch_id}/rollback` - undo-all as a new batch, body `{"confirm": true}` (an encoding batch: local
+  channel only).
+Phase D (bulk encoding, API 3.8, local channel only): `POST /nvr/encoding-batches/preview` (the read-only plan) and
+`POST /nvr/encoding-batches` (start exactly the previewed plan, 202); status, stop and undo are the routes above.
 No route returns a device address, a device user name, a password, a serial number or a MAC."""
 from __future__ import annotations
 

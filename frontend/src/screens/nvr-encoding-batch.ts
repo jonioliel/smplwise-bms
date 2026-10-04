@@ -246,6 +246,16 @@ export class NvrEncodingBatch extends LitElement {
     .muted {
       color: var(--sw-text-3);
     }
+    /* touch targets (layout guard): the preview's tabs grow their hit area to 44 px (the shared knob), and the text fields are 44 px
+       high in touch layouts, as the multi-camera checklist's search */
+    sw-tabs {
+      --sw-tab-min-h: 44px;
+    }
+    @media (max-width: 1100px) {
+      sw-field input {
+        min-block-size: 44px;
+      }
+    }
   `;
 
   // ---------------------------------------------------------------------------------------------- the screen's calls
@@ -321,7 +331,7 @@ export class NvrEncodingBatch extends LitElement {
     const fl = encFiltersActive(f);
     return html`<div class="tools" data-nvr-enc-filters>
         <sw-field class="q"><input type="search" placeholder="חיפוש מצלמה" aria-label="חיפוש מצלמה" data-nvr-enc-search .value=${f.q} @input=${(e: Event) => this.patchFilters({ q: (e.target as HTMLInputElement).value })} /></sw-field>
-        ${this.dd('זרם', 'role', f.role, [{ id: '', label: 'ראשי ומשני' }, { id: 'main', label: 'ראשי' }, { id: 'sub', label: 'משני' }], (id) => this.patchFilters({ role: id as EncFilters['role'] }))}
+        ${this.dd('זרם', 'role', f.role, [{ id: '', label: 'כל הזרמים' }, { id: 'main', label: 'ראשי' }, { id: 'sub', label: 'משני' }], (id) => this.patchFilters({ role: id as EncFilters['role'] }))}
         ${this.dd('קידוד', 'codec', f.codec, [{ id: '', label: 'כל הקידודים' }, { id: 'h264', label: 'H.264' }, { id: 'h265', label: 'H.265' }, { id: 'other', label: 'אחר' }], (id) => this.patchFilters({ codec: id as EncFilters['codec'] }))}
         ${this.dd('SVC', 'svc', f.svc, [{ id: '', label: 'כל ה־SVC' }, { id: 'on', label: 'SVC פעיל' }, { id: 'off', label: 'SVC כבוי' }, { id: 'none', label: 'ללא SVC' }], (id) => this.patchFilters({ svc: id as EncFilters['svc'] }))}
         ${this.dd('WebRTC', 'webrtc', f.webrtc, [{ id: '', label: 'כל ה־WebRTC' }, { id: 'ok', label: 'מתנגן' }, { id: 'no', label: 'לא מתנגן' }, { id: 'unknown', label: 'לא ידוע' }], (id) => this.patchFilters({ webrtc: id as EncFilters['webrtc'] }))}

@@ -317,3 +317,70 @@ API §3.5 / §3.7 "Security review fixes".
 
 Behaviour change to note for the single-camera path: an undo now PUTs the current document with only the change's fields
 restored (before: the stored whole `before` document); for an untouched stream the two are the same document.
+## 10. Phase D: one encoding change on many cameras (2026-10-04, branch `pilot/nvr-bulk-encoding`)
+
+**Owner request (2026-10-04):** "it is important to me that I can change ALL the encodings of ALL the cameras in one
+distribution, for example set all of them to H.264". Phase C only switched SVC off on H.264 main streams. Contract: API §3.8.
+Fakes only: NO call to a real NVR, camera or the platform was made for this phase; the first real bulk write needs its own
+task-specific owner approval (R10, Q5).
+
+Built:
+- **Plan** (`services/nvr_encoding_batch.py::plan_stream`, pure): the target settings ("leave as is" = absent) reconciled with
+  each stream's own options for the codec it will have - closest valid resolution / fps / quality, bitrate and GOP clamped, the
+  profile a codec switch needs, fields the stream lacks or smart codec locks kept as they are, or the whole stream skipped with a
+  Hebrew reason. Every planned change passes `nvr_settings.validate_changes` against the same options (never an invalid write).
+- **Routes** `POST /nvr/encoding-batches/preview` (read-only) and `POST /nvr/encoding-batches` (202), local channel only;
+  the start re-plans from a fresh read and refuses `stale` / `plan_changed` / `batch_target_not_allowed` with zero writes.
+- **Runner generalised** from `{"svc": false}` to the item's own planned change (`nvr_batch.item_changes`, read from the
+  placeholder's `fields_json`; an SVC batch stores exactly `{"svc": [true, false]}`, so phase C runs unchanged); a codec switch
+  reads the new codec's options (`write_stream(options_codec=)`). Every phase C protection is kept as is: one camera at a time,
+  stop at the first failure, the unknown-outcome rule with the 45 s read-only check, the hard deadline per item, the
+  permission re-checked before each item, single writes refused while a batch runs, start-up recovery, batch runtime state
+  never in a backup (`settings` keys `nvr.batch.*`), undo-all as a new reversed batch. Status items carry `fields`, status and
+  list carry `mode` (`svc` | `encoding`) and `settings`.
+- **UI** (`nvr-encoding-batch.ts`, `nvr-encoding-logic.ts`): מערכת › אבטחה › מצלמות, toolbar button "שינוי קידוד לכמה מצלמות"
+  (also a link in the SVC multi-camera checklist), for holders of `nvr.configure` with `can_batch` and a fresh list. Step 1:
+  a searchable checklist of every stream (main and sub) with filters by stream role, codec, SVC and WebRTC, "select all that
+  match"; offline / unreadable / not writable streams are listed but cannot be ticked (the reason in the row). Step 2: the
+  target settings, every field "ללא שינוי" by default (codec, resolution, fps, bitrate mode, bitrate, quality, GOP, SVC, smart
+  codec), lists from the union of the chosen streams' options; one line "הצפייה החיה מנגנת ב־WebRTC רק H.264." when the codec
+  changes. Step 3: the server's preview - tabs "ישתנו / לא ניתן / כבר מוגדרים", per stream "before ← after", adjusted values
+  marked "*" with the reason in the tooltip, kept fields named. ONE confirmation (no typed word, the S2C rule), then the
+  multi-camera dialog follows the batch (progress, "עצור", result list, "בטל את מה שנשמר", the toast's "בטל" = undo-all).
+
+Deviations / decisions taken here (for review):
+1. **Partial application per stream.** A requested field a stream does not have, or that smart codec locks, is left as it is on
+   that stream while the rest of the change applies (shown as a note). A value with no valid counterpart (codec, bitrate mode,
+   profile) skips the whole stream. Owner question 1 below.
+2. **The profile is picked by Arx on a codec switch** when the current profile does not exist under the new codec (same
+   name, else `Main`, else the first offered), shown in the preview as adjusted. Phase A's rule "Arx never picks a profile
+   silently" (§9 deviation 7) still holds: it is never silent, and the single editor is unchanged.
+3. **A batch of one stream is allowed** for the encoding change (`MIN_TARGETS = 1`): the person chose many streams and the
+   plan left one that needs a change. The SVC batch keeps its minimum of two.
+4. **Remote channel:** the two routes and the undo of an encoding batch are refused on the remote channel (404). The SVC batch
+   routes and the single write keep their phase C behaviour (reachable remotely by a system administrator).
+5. **No migration.** The batch reuses 0050's columns; 0055 stays free. The open index on `nvr_changes.batch_id` (§9.5 #5) is
+   still not added - a bulk change of every main and sub of a 64-channel recorder is 128 rows, and the status reads stay small.
+6. **Third / other streams** (N03+) are listed and can be chosen like main and sub; the role filter offers main / sub / both.
+7. The preview's device reads run under one 120 s deadline; on a slow device a leftover stream is a skip `source_timeout`.
+
+Tests (fakes only): `tests/test_nvr_encoding_plan.py` (pure plan: closest values, clamps, profile, kept fields, skips, every
+planned change passes the S2A validation), `tests/test_nvr_encoding_batch.py` (fake NVR: preview with before/after and zero
+writes, codec-specific resolution list, offline / unchanged, all cameras main + sub to H.264 then undo-all in reverse order, a
+camera that refuses, an unknown outcome continuing only when proven, a deadline before the PUT, a locked field never written,
+stale / plan_changed / missing confirm with zero writes, single writes and a second batch refused while running, permissions
+and a one-camera deny, the remote undo refusal, no secrets anywhere), `tests/test_remote_access.py` (route walk). Frontend:
+`unit-nvr-encoding-logic.spec.ts`, `evidence-nvr-encoding-batch.spec.ts` (stateful mock in `nvr-batch-mock.ts`),
+`layout-nvr-encoding-batch.spec.ts` (four skins, light / dark, 320-1440), `pixel-nvr-encoding-batch.spec.ts` (Linux baselines,
+four skins, desktop + phone). NOT run: anything against the lab NVR (AT-020-16 style proof of a bulk write).
+
+Open owner questions:
+1. A requested field a stream cannot take (no SVC on a sub, GOP locked by smart codec):
+   א. Apply the rest of the change and keep that field as is, with a note in the preview. **(built)**
+   ב. Skip the whole stream.
+2. Codec switch where the current profile does not exist under the new codec:
+   א. Arx picks (same name, else Main) and shows it in the preview. **(built)**
+   ב. Skip the stream and ask for the profile.
+3. The first real bulk change on the lab NVR:
+   א. Approve a small one (two cameras, H.265 → H.264 on the mains) and undo it, in a window you choose.
+   ב. No lab write by the agent; the first real one is yours from the screen.
