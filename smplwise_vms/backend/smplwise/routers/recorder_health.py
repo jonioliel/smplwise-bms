@@ -26,6 +26,7 @@ router = APIRouter()
 
 @router.get("/recorder-health")
 def get_health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-026: the health card of every monitored recorder (names and states only; never an address or a credential)."""
     _may_read(conn, principal)
     th = rh.thresholds(conn)
     return {"recorders": rh.view(conn, settings_of(request)), "interval_s": th["interval_s"],
@@ -34,6 +35,7 @@ def get_health(request: Request, principal: Principal = Depends(current_principa
 
 @router.post("/recorder-health/check")
 def check(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-026: one fresh read-only health pass of every recorder now (at most every 15 s), then the cards."""
     require(conn, principal, PERMISSION, INSTALLATION)
     db = database_of(conn)
     ran = False
@@ -45,6 +47,7 @@ def check(request: Request, principal: Principal = Depends(current_principal), c
 
 @router.get("/recorder-health/settings")
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-026: the recorder health thresholds with their defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
     return {"values": rh.thresholds(conn), "ranges": rh.ranges(), "recording_modes": list(rh.RECORDING_MODES)}
 
@@ -52,6 +55,7 @@ def get_settings(principal: Principal = Depends(current_principal), conn: sqlite
 @router.put("/recorder-health/settings")
 def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: Principal = Depends(current_principal),
                  conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CR-026: change recorder health thresholds (validated against their ranges; audited)."""
     require(conn, principal, PERMISSION, INSTALLATION)
     changes = rh.validate(body)
     values = rh.save_thresholds(conn, changes)
