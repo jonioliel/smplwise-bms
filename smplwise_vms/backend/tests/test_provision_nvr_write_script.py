@@ -72,6 +72,48 @@ def test_alarm_server_write_verify_and_restore(world):
     assert "enableHeartbeat" not in fake.set_alarm_bodies[0], "only the device's own fields"
 
 
+def test_restore_puts_back_heartbeat_exactly(world):
+    fake, run, lines, tmp = world
+    fake.shape = "doc"  # the guide's form: address, port, heartbeat on/off and interval
+    fake.alarm_server = {"addr": "old.server.test", "port": 9000, "heartbeat": False, "interval": 120}
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 0
+    assert fake.alarm_server["heartbeat"] is True and fake.alarm_server["interval"] == 30, "the write changed the heartbeat"
+    assert run("restore-from-log", "--entry", _log(tmp)[0]["entry"]) == 0
+    a = fake.alarm_server
+    assert (a["addr"], a["port"], a["heartbeat"], a["interval"]) == ("old.server.test", 9000, False, 120)
+    assert _log(tmp)[-1]["phase"] == "verified"
+
+
+def test_restore_puts_back_the_url_path_exactly(world):
+    fake, run, lines, tmp = world
+    fake.alarm_server_url = True
+    fake.alarm_server = {"addr": "old.server.test", "port": 9000, "heartbeat": False, "interval": 30, "url": "/old/SendAlarmStatus"}
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091", "--path", "/tok123/SendAlarmStatus") == 0
+    assert fake.alarm_server["url"] == "/tok123/SendAlarmStatus"
+    assert run("restore-from-log", "--entry", _log(tmp)[0]["entry"]) == 0
+    assert (fake.alarm_server["addr"], fake.alarm_server["port"], fake.alarm_server["url"]) == ("old.server.test", 9000, "/old/SendAlarmStatus")
+
+
+def test_restore_record_holds_every_prior_value(world):
+    fake, run, lines, tmp = world
+    fake.shape = "doc"
+    fake.alarm_server = {"addr": "old.server.test", "port": 9000, "heartbeat": True, "interval": 60}
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 0
+    rec = json.loads((tmp / "restore" / f"{_log(tmp)[0]['entry']}.json").read_text(encoding="utf-8"))
+    assert rec["values"] == {"serverAddr": "old.server.test", "serverPort": "9000", "enableHeartbeat": "true", "heartbeatInterval": "60"}
+
+
+def test_restore_document_escapes_cdata():
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    doc = px.alarm_server_restore_document({"serverAddr": "", "serverPort": "", "url": "/a]]><x/>"})
+    assert px.alarm_server_values(doc)["url"] == "/a]]><x/>"
+    with pytest.raises(ValueError):
+        px.alarm_server_restore_document({"serverAddr": "bad host!"})
+    with pytest.raises(ValueError):
+        px.alarm_server_restore_document({"heartbeatInterval": "1;2"})
+
+
 def test_encoding_write_verify_and_restore(world):
     fake, run, lines, tmp = world
     assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "bitrate_kbps=2048", "--set", "gop=40") == 0
