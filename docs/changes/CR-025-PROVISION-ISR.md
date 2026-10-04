@@ -132,6 +132,10 @@ Hikvision fake + one Provision fake.
   attempts in the probe) — a lockout risk; one refusal now blocks further login attempts for 5 minutes
   (`REFUSED_BACKOFF_S`, test `test_refused_credentials_stop_further_logins`).
 - Redacted request log (no bodies were returned): `private-evidence/provision-isr-live/<timestamp>/summary.json`.
+- Second attempt after the owner enabled the API server (encryption MD5 = Digest): a gated probe (ONE authenticated
+  `GetDeviceInfo`, stop on anything but success) was refused again (401 Digest). The challenge itself (read without
+  credentials) is `Digest qop="auth"`, realm, 32-char nonce, `stale="TRUE"` already on the first challenge, no
+  `algorithm` (MD5 by default) and a vendor parameter `AuthVersion`. HTTPS 443 was not tried (the probe stops at the gate).
 - Blocked until the owner confirms the account works in the NVR web UI and is not locked.
 
 ## 7. ETA (focused agent time; owner review time not included)
