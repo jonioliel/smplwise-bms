@@ -9,3 +9,8 @@ tzdata>=2024.1
 numpy>=2.0,<3
 cryptography>=45,<51
 ezdxf>=1.3,<2
+# electricity bill PDF (CR-023 P3): WeasyPrint is the engine, fpdf2 (+ uharfbuzz for Hebrew shaping) the fallback.
+# Pure-Python or musllinux wheels exist for x86_64 and aarch64 (checked in docs/evidence/electricity-pdf-spike).
+weasyprint==70.0
+fpdf2==2.8.9
+uharfbuzz>=0.50,<1
