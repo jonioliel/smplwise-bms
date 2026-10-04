@@ -536,7 +536,7 @@ export class LiveWall extends LitElement {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
       this.error = ''; // N6: a stale error panel must not linger once a retry actually succeeds
       this.allCams = list.cameras;
-      this.cams = list.cameras.filter((c) => c.enabled);
+      this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: a disabled recorder leaves the wall at once
       this.recorders = list.recorders ?? [];
       if (this.recorderFilter && !this.recorders.some((r) => r.id === this.recorderFilter)) this.recorderFilter = '';
       this.canManage = list.can_sync;

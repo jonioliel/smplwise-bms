@@ -578,7 +578,12 @@ class AlertStreamListener:
             return
         backoff = 5.0
         url = f"http://{s.nvr_host}:{s.nvr_http_port}/ISAPI/Event/notification/alertStream"
+        from ..recorder_scope import DISABLED
+
         while not self.stop.is_set():
+            if self.recorder_id in DISABLED:  # CR-024: disabled while running - belt and braces next to the shutdown
+                self.stop.wait(5.0)
+                continue
             try:
                 with httpx.Client(auth=httpx.DigestAuth(s.nvr_user or "", s.nvr_password or ""), timeout=httpx.Timeout(connect=15, read=HEARTBEAT_TIMEOUT_S, write=15, pool=15)) as c:
                     with c.stream("GET", url, headers={"Accept": "application/xml"}) as r:

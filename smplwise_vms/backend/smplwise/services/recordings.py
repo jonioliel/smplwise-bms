@@ -120,7 +120,7 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
         raise ApiError(422, "validation", "טווח הזמן ריק.")
     if (end - start) > dt.timedelta(days=7):
         raise ApiError(422, "validation", "טווח חיפוש מקסימלי: 7 ימים.")
-    key = (cam["id"], iso_utc(start), iso_utc(end))
+    key = (cam["id"], iso_utc(start), iso_utc(end), tz_name)  # CR-024: a recorder's own zone is part of the question
     now = time.time()
     touches_now = end >= dt.datetime.now(UTC) - dt.timedelta(minutes=1)
     ttl = 30 if touches_now else 600

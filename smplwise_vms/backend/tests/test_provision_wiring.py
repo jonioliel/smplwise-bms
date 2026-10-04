@@ -244,3 +244,18 @@ def test_go2rtc_source_native_option(settings):
     url = "rtsp://u:p@h:554/chID=1&streamType=main"
     assert vendor_io.go2rtc_source(settings_for(settings), url) == f"ffmpeg:{url}#video=copy"
     assert vendor_io.go2rtc_source(settings_for(settings, go2rtc_source="rtsp"), url) == url
+
+def test_save_with_pin_mode_and_no_pin_is_refused_without_credentials(settings, fake, monkeypatch):
+    """Security review: the pin_required -> 422 tls_pin_required save path, and no request reaches the device first."""
+    from smplwise.main import create_app
+
+    _probe_env(monkeypatch, fake)
+    monkeypatch.setattr(pisr, "PEER_CERTIFICATE", lambda host, port, timeout: {"sha256": PIN, "self_signed": True})
+    app = create_app(settings)
+    with TestClient(app) as c:
+        before = len(fake.hits)
+        body = {"vendor": "provision_isr", "host": HOST, "http_port": 80, "rtsp_port": 554, "username": USER, "password": PASSWORD,
+                "extra": {"scheme": "https", "https_port": 443, "tls_mode": "pin"}, "if_revision": 0}
+        r = c.put("/api/v1/nvr/connection", json=body)
+    assert r.status_code == 422 and r.json()["code"] == "tls_pin_required", r.text
+    assert fake.hits[before:] == []

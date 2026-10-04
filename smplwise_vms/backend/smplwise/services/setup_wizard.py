@@ -309,9 +309,50 @@ def _alert_warning() -> dict[str, Any] | None:
     return _warning("alert_stream_down", "זרם ההתראות (alertStream) מה־NVR אינו מחובר כרגע; אירועי תנועה ייגזרו מההקלטות כל 10 דקות עד שיתחבר.", _link("connections"))
 
 
+def further_recorders_step(settings: Settings | None, conn: sqlite3.Connection | None) -> dict[str, Any] | None:
+    """CR-024: the NVR step when the first recorder has no connection but another recorder does (a device connected after a removed
+    `nvr-1` with history gets a new id - owner 2026-10-04). `done` when this process runs one and its discovery answered, `todo`
+    while its connection waits for the restart (or the first discovery), `failed` on its discovery error. None = no other recorder."""
+    if conn is None or settings is None:
+        return None
+    try:
+        rows = conn.execute("""SELECT rc.recorder_id FROM recorder_connections rc LEFT JOIN recorders r ON r.id = rc.recorder_id
+                               WHERE rc.recorder_id <> ? AND rc.vendor <> 'none' AND r.removed_at IS NULL ORDER BY rc.recorder_id""",
+                            (autosync.DEFAULT_RECORDER,)).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    if not rows:
+        return None
+    from ..recorder_scope import ready_ids
+
+    link = _link("connections")
+    ids = [r[0] for r in rows]
+    running = [rid for rid in ready_ids(settings) if rid in ids]
+    if not running:
+        p = _problem("restart_pending", "פרטי החיבור נשמרו; נדרשת הפעלה מחדש כדי להחיל אותם.", NVR_RESTART_ACTION, link)
+        return _step("nvr", "todo", p["message"], facts=[_fact("פרטי חיבור שמורים", "כן - ממתינים להפעלה מחדש", "warn")],
+                     evidence={"configured": False, "state": "pending_restart", "recorders": ids}, settings_link=link, problem=p)
+    states = {rid: autosync.recorder_state(rid) for rid in running}
+    failed = {rid: st.get("cameras_last_error") for rid, st in states.items() if st.get("cameras_last_error")}
+    ok = [rid for rid, st in states.items() if st.get("cameras_last_ok")]
+    evidence = {"configured": True, "recorders": running, "discovery_errors": failed}
+    if ok and not failed:
+        return _step("nvr", "done", f"{len(ok)} NVR מחוברים (לפי הגילוי האחרון)", facts=[_fact("NVR מחוברים", len(ok), "ok")], evidence=evidence, settings_link=link,
+                     source="background")
+    if failed:
+        p = _nvr_problem(str(next(iter(failed.values()))))
+        return _step("nvr", "failed", p["message"], facts=[_fact("NVR מחוברים", len(ok)), _fact("NVR בתקלה", len(failed), "err")], evidence=evidence,
+                     settings_link=link, problem=p, source="background")
+    p = _problem("not_checked", "ה־NVR עוד לא נבדק מאז שהמערכת עלתה.", "לחצו \"בדוק שוב\" כדי לקרוא את פרטי ה־NVR, הערוצים והשעון עכשיו.", link)
+    return _step("nvr", "todo", p["message"], evidence=evidence, settings_link=link, problem=p, source="background")
+
+
 def nvr_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     link = _link("connections")
     if not _nvr_configured(settings):
+        other = further_recorders_step(settings, conn)
+        if other is not None:
+            return other
         p = _nvr_problem("nvr_not_configured")
         return _step("nvr", "failed", p["message"], facts=[_fact("פרטי חיבור שמורים", "לא", "err")], evidence={"configured": False}, settings_link=link, problem=p, source="background")
     ds = dict(autosync.STATE)
@@ -786,6 +827,9 @@ def nvr_choice_step(conn: sqlite3.Connection | None, settings: Settings | None =
 
     link = _link("connections")
     row = get_row(conn) if conn is not None else None
+    other = further_recorders_step(settings, conn)  # CR-024: a recorder connected under a new id (not nvr-1)
+    if other is not None:
+        return other
     if row is not None and row["vendor"] == "none":
         return _step("nvr", "done", "ללא NVR - נבחר במפורש.", facts=[_fact("סוג NVR", "ללא NVR", "ok")], evidence={"configured": False, "mode": "ha_only", "choice": "none"},
                      settings_link=link) | {"status_label": "ללא NVR"}

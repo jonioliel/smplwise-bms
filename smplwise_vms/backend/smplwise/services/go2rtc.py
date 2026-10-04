@@ -48,6 +48,9 @@ def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured
+    from ..mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # CR-024: a disabled recorder's stream is never (re)created
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     track = f"{channel}0{1 if profile == 'main' else 2}"

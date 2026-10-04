@@ -30,13 +30,26 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
 4. To filter: the recorder selector appears in מערכת › אבטחה › מצלמות, on the wall and in the event log.
 5. To remove a recorder: its row → "חיבור" → "הסר NVR" → type "הסר" → restart.
 
+### Owner answers of 2026-10-04 (added on top)
+  - **Synchronized playback across recorders - EXPERIMENTAL, UNPROVEN, OFF by default.** הגדרות › כללי › וידאו ומדיה → "ניגון מסונכרן
+  בין מקליטים (ניסיוני)" → "פעיל (ניסיוני)" → "שמור". When on, each camera is searched and played in its recorder's own time zone
+  (the recorder's zone, else the installation's) and clock offset (read once per group); a recorder whose clock is more than 15
+  minutes off, or reports a zone other than its own, is left out of the group with the reason; an unreadable clock plays with no
+  correction and says so. Off: such a group is refused, as before. Single-recorder groups never change.
+- **Disabling a recorder applies at once, no restart:** its alert stream stops, its go2rtc streams are deleted (exact names in
+  `smplwise_` only), its open playbacks close, its cameras leave the wall and the pickers; enabling brings it back at once.
+  Connection changes and a recorder added after the start still need the restart.
+- **The first recorder id is never reused for a new device while history exists under it** (cameras, events, changes): a new NVR
+  gets a new id; the settings card then shows the add form. The setup wizard follows the same rule: the same recorder (a keyed hash of
+  its model and serial, never the serial itself) reconnects as before; a different or unidentifiable device gets a new id.
+
 ### Not included (and why)
-- Synchronized playback across recorders - not proven on two real recorders (clocks, zones, drift); refused with
-  `sync_cross_recorder_unproven`. Needs a lab session with two recorders.
+- Proven synchronized playback across recorders - the experimental setting above is unproven (clocks, zones, drift never measured on
+  two real recorders); a lab session with two recorders would let it lose the "experimental" mark.
 - The Provision-ISR adapter - its API is not available yet; the registration seam (`registry.register_vendor`) is ready and tested
   with a fake vendor.
-- A per-recorder permission scope, applying changes without a restart, a per-recorder live budget, the recorder time zone in recording
-  search and playback URLs (stored; used by the alert stream).
+- A per-recorder permission scope, applying CONNECTION changes without a restart, a per-recorder live budget, the recorder time zone in
+  the single-camera recording search and playback (used by the alert stream and the experimental cross-recorder groups).
 
 ### Known limits
 - Nothing ran against a real recorder; all tests used two fake recorders and mocked screens.
@@ -65,10 +78,22 @@ Branch `pilot/multi-nvr` (base `main` 0.1.161). Not released; the version is not
 4. סינון: בורר המקליט מופיע במערכת › אבטחה › מצלמות, בקיר וביומן האירועים.
 5. הסרה: השורה של המקליט ← "חיבור" ← "הסר NVR" ← מקלידים "הסר" ← הפעלה מחדש.
 
+### תשובות הבעלים מ־4.10 (נוספו מעל)
+  - **ניגון מסונכרן בין מקליטים - ניסיוני, לא הוכח, כבוי כברירת מחדל.** הגדרות › כללי › וידאו ומדיה ← "ניגון מסונכרן בין מקליטים
+  (ניסיוני)" ← "פעיל (ניסיוני)" ← "שמור". כשהוא פעיל, כל מצלמה מנוגנת לפי אזור הזמן וסטיית השעון של המקליט שלה (נמדדת פעם אחת
+  לקבוצה); מקליט ששעונו סוטה ביותר מ־15 דקות או מדווח אזור זמן אחר מזה שהוגדר לו נשאר מחוץ לקבוצה עם הסיבה; שעון שלא נקרא - מנוגן
+  בלי תיקון ומסומן. כבוי: קבוצה כזו נדחית כמו קודם. קבוצה של מקליט אחד לא משתנה.
+- **השבתת מקליט חלה מיד, בלי הפעלה מחדש:** זרם האירועים נעצר, זרמי go2rtc שלו נמחקים (רק בשמות `smplwise_` המדויקים), ניגונים
+  פתוחים נסגרים, והמצלמות יורדות מהקיר ומהבוררים; הפעלה מחזירה אותו מיד. שינוי פרטי חיבור ומקליט שנוסף אחרי העלייה עדיין דורשים
+  הפעלה מחדש.
+- **המזהה של המקליט הראשון לא ניתן למכשיר חדש כשיש לו היסטוריה** (מצלמות, אירועים, שינויים): NVR חדש מקבל מזהה חדש, וכרטיס ההגדרות
+  מציג את טופס ההוספה. גם אשף ההתקנה פועל כך: אותו מקליט (חתימה מוצפנת של דגם ומספר סידורי, בלי לשמור את המספר) חוזר כמו קודם; מכשיר
+  אחר או מכשיר שלא ניתן לזהות מקבל מזהה חדש.
+
 ### מה לא נכלל ולמה
-- ניגון מסונכרן בין מקליטים - לא הוכח על שני מקליטים אמיתיים; צריך מפגש מעבדה עם שני מקליטים.
+- ניגון מסונכרן בין מקליטים כיכולת מוכחת - ההגדרה הניסיונית למעלה לא הוכחה על שני מקליטים אמיתיים; מפגש מעבדה יסיר את הסימון "ניסיוני".
 - מתאם Provision-ISR - ה־API שלו עוד לא זמין; נקודת החיבור מוכנה ונבדקה עם ספק מדומה.
-- הרשאה בהיקף מקליט, החלה בלי הפעלה מחדש, תקציב צפייה חיה לכל מקליט, אזור זמן נפרד למקליט בחיפוש הקלטות ובניגון.
+- הרשאה בהיקף מקליט, החלת שינוי פרטי חיבור בלי הפעלה מחדש, תקציב צפייה חיה לכל מקליט, אזור זמן נפרד למקליט בחיפוש הקלטות ובניגון של מצלמה בודדת.
 
 ### מגבלות
 - שום דבר לא הורץ מול מקליט אמיתי; כל הבדיקות עם שני מקליטים מדומים ומסכים עם שרת מדומה.

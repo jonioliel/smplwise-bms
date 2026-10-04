@@ -96,9 +96,12 @@ def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sql
     recorder = conn.execute("SELECT * FROM recorders WHERE id = ?", (DEFAULT_RECORDER,)).fetchone()
     live_ok = {r["id"]: camera_allowed(conn, principal, r["id"], "video.live") for r in visible}
     multi = len(present) > 1
+    from ..recorder_scope import is_disabled
+
+    off = {rid for rid in present if is_disabled(rid)}  # CR-024: a disabled recorder's cameras are not offered for live / snapshots
     return {
-        "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]], recorder_name=names.get(r["recorder_id"]) if multi else None) for r in visible],
-                                names),
+        "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]] and r["recorder_id"] not in off, recorder_enabled=r["recorder_id"] not in off,
+                                      recorder_name=names.get(r["recorder_id"]) if multi else None) for r in visible], names),
         "recorders": [{"id": rid, "name": names.get(rid) or rid} for rid in present],
         "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
         "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
@@ -116,6 +119,11 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
+    from ..mode import recorder_unavailable
+    from ..recorder_scope import is_disabled
+
+    if is_disabled(cam["recorder_id"]):  # CR-024: disabled now - not even a cached picture
+        raise recorder_unavailable(cam["recorder_id"])
     max_age = read_settings(conn)["snapshots.max_age_s"]
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)

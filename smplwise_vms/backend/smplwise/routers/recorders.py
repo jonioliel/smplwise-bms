@@ -20,7 +20,7 @@ import sqlite3
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -30,7 +30,7 @@ from ..db import now_iso, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
-from ..services import autosync, connection_store, events_ingest, nvr
+from ..services import autosync, connection_store, events_ingest, nvr, recorder_live
 from ..services.recorders import registry
 from . import nvr_connection as nc
 
@@ -96,21 +96,18 @@ def recorder_settings(request: Request, conn: sqlite3.Connection, recorder_id: s
 
 # ---------------------------------------------------------------- the view (never a secret)
 
-def _loaded(settings: Any, rid: str) -> bool:
-    """Whether this process runs the recorder (it was enabled and had a connection at start-up)."""
-    if rid == PRIMARY:
-        return settings.nvr_connection_state != "disabled"
-    return rid in (settings.recorder_settings or {})
-
-
 def _pending(conn: sqlite3.Connection, settings: Any, rid: str, row: sqlite3.Row | None) -> bool:
+    """A restart is still needed for this recorder: its connection changed, it was added after the start, or it was removed while
+    loaded (stopped at once; its connection leaves memory with the restart). Enable / disable never needs one (CR-024 owner
+    decision 2026-10-04)."""
+    if rid == PRIMARY:
+        return connection_store.pending_restart(conn, settings, rid)
+    loaded = rid in (settings.recorder_settings or {})
     if row is not None and row["removed_at"]:
-        return rid in (settings.recorder_settings or {})  # removed while running: the restart stops it
-    enabled = bool(row["enabled"]) if row is not None else True
-    if enabled != _loaded(settings, rid) and (rid == PRIMARY or connection_store.get_row(conn, rid) is not None):
-        return True
-    if not enabled:
-        return False
+        return loaded
+    if not loaded:
+        conn_row = connection_store.get_row(conn, rid)
+        return bool(row is None or row["enabled"]) and conn_row is not None and conn_row["vendor"] != registry.NO_NVR
     return connection_store.pending_restart(conn, settings_for(settings, rid), rid)
 
 
@@ -195,6 +192,8 @@ def list_recorders(request: Request, principal: Principal = Depends(current_prin
     items = [recorder_view(conn, request, rid, row, admin=admin) for rid, row in _ids(conn, include_removed and admin)]
     settings = settings_of(request)
     return {"recorders": items, "count": sum(1 for r in items if not r["removed"]), "can_manage": admin,
+            # CR-024: with no recorder left and history under the first id, the settings card adds a NEW recorder (never reuses it)
+            "primary_has_history": admin and primary_has_history(conn) and _primary_free(conn, settings),
             "restart": nc._restart_mode(settings), "pending_restart": any(r["pending_restart"] for r in items)}
 
 
@@ -205,6 +204,10 @@ def get_recorder(recorder_id: str, request: Request, principal: Principal = Depe
     admin = authorize(conn, principal, PERMISSION, INSTALLATION).allowed
     row = _known(conn, recorder_id, include_removed=admin)
     return recorder_view(conn, request, recorder_id, row, admin=admin)
+
+
+def destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str, Any], rid: str) -> bool:
+    return _destination_taken(conn, settings, fields, rid)
 
 
 def _destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str, Any], rid: str) -> bool:
@@ -221,11 +224,27 @@ def _destination_taken(conn: sqlite3.Connection, settings: Any, fields: dict[str
 
 
 def _primary_free(conn: sqlite3.Connection, settings: Any) -> bool:
-    """No first recorder in use: no stored connection (or "no NVR") and no legacy host the process started with."""
-    row = connection_store.get_row(conn, PRIMARY)
-    if row is not None:
-        return row["vendor"] == registry.NO_NVR
-    return not (settings.nvr_host and settings.nvr_host != DEV_NVR_PLACEHOLDER)
+    return connection_store.primary_free(conn, settings)
+
+
+def _other_recorders(conn: sqlite3.Connection) -> bool:
+    """Another recorder is in use (not removed, with a connection that is not "no NVR")."""
+    row = conn.execute("""SELECT 1 FROM recorder_connections rc LEFT JOIN recorders r ON r.id = rc.recorder_id
+                          WHERE rc.recorder_id <> ? AND rc.vendor <> 'none' AND r.removed_at IS NULL LIMIT 1""", (PRIMARY,)).fetchone()
+    return row is not None
+
+
+def primary_has_history(conn: sqlite3.Connection) -> bool:
+    return connection_store.primary_has_history(conn)
+
+
+def create_recorder_row(conn: sqlite3.Connection, rid: str, name: str, vendor: str) -> None:
+    """The recorders row of a recorder being added (or revived); the connection row is written by the caller."""
+    order = conn.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM recorders").fetchone()[0]
+    conn.execute("""INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at, vendor, enabled, sort_order)
+                    VALUES (?, ?, NULL, NULL, NULL, ?, ?, 1, ?)
+                    ON CONFLICT(id) DO UPDATE SET name = excluded.name, vendor = excluded.vendor, enabled = 1, removed_at = NULL""",
+                 (rid, name, now_iso(), vendor, order))
 
 
 @router.post("/recorders", status_code=201)
@@ -239,8 +258,8 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     name = " ".join(body.name.split())
     if not name or any(ord(ch) < 32 for ch in name):
         raise ApiError(422, "name_invalid", "שם ה־NVR אינו תקין.", details={"field": "name"})
-    if _primary_free(conn, settings):
-        rid = PRIMARY  # an installation without an NVR: the first one added is the first recorder (its old cameras, if any, stay disabled)
+    if _primary_free(conn, settings) and not _other_recorders(conn) and not primary_has_history(conn):
+        rid = PRIMARY  # an installation without any recorder and without history of the first one: it becomes the first recorder
     else:
         used = [r["id"] for r in conn.execute("SELECT id FROM recorders").fetchall()]
         used += [r["recorder_id"] for r in conn.execute("SELECT recorder_id FROM recorder_connections").fetchall()]
@@ -250,11 +269,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
     def create(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, rid):
             raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
-        order = c.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM recorders").fetchone()[0]
-        c.execute("""INSERT INTO recorders(id, name, model, firmware, last_seen_at, created_at, vendor, enabled, sort_order)
-                     VALUES (?, ?, NULL, NULL, NULL, ?, ?, 1, ?)
-                     ON CONFLICT(id) DO UPDATE SET name = excluded.name, vendor = excluded.vendor, enabled = 1, removed_at = NULL""",
-                  (rid, name, now_iso(), fields["vendor"], order))
+        create_recorder_row(c, rid, name, fields["vendor"])
 
     out = nc.do_save(request, principal, body, conn, rid, before_write=create, allow_none=False)
     audit(conn, actor=principal, action="nvr.recorder.add", decision="allowed", resource_type="recorder", resource_id=rid, request_id=_rid(request),
@@ -264,10 +279,11 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
 
 
 @router.patch("/recorders/{recorder_id}")
-def update_recorder(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
-                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Rename, reorder, set the recorder's time zone, enable / disable (a disabled recorder is not contacted after the restart:
-    no discovery, no alert stream, no live or device call; its cameras stay listed)."""
+def update_recorder(recorder_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro),
+                    raw: bytes = Depends(nc._raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Rename, reorder, set the recorder's time zone, enable / disable. Disable / enable apply AT ONCE (owner 2026-10-04): a
+    disabled recorder is never contacted from this request on (no discovery, alert stream, live, playback or device call), its
+    streams leave go2rtc and its cameras leave the operator screens; enabling starts it again without a restart."""
     require(conn, principal, PERMISSION, INSTALLATION)
     body: PatchIn = nc._parse(request, raw, PatchIn)
     row = _known(conn, recorder_id)
@@ -298,13 +314,17 @@ def update_recorder(recorder_id: str, request: Request, principal: Principal = D
     conn.execute(f"UPDATE recorders SET {sets} WHERE id = ?", (*changes.values(), recorder_id))
     audit(conn, actor=principal, action="nvr.recorder.update", decision="allowed", resource_type="recorder", resource_id=recorder_id, request_id=_rid(request),
           details={k: (bool(v) if k == "enabled" else v) for k, v in changes.items()})
+    if "enabled" in changes:
+        recorder_live.flip(recorder_id, bool(changes["enabled"]))  # the switch every device boundary reads - from now on
+        background.add_task(recorder_live.apply, request.app.state.db, settings_of(request), recorder_id, bool(changes["enabled"]),
+                            getattr(request.app.state, "tz_of", None))
     view = recorder_view(conn, request, recorder_id, _row(conn, recorder_id), admin=True)
     return {"saved": True, "restart_required": view["pending_restart"], "recorder": view}
 
 
 @router.delete("/recorders/{recorder_id}")
-def remove_recorder(recorder_id: str, request: Request, principal: Principal = Depends(_admin_ro), raw: bytes = Depends(nc._raw_body),
-                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def remove_recorder(recorder_id: str, request: Request, background: BackgroundTasks, principal: Principal = Depends(_admin_ro),
+                    raw: bytes = Depends(nc._raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Remove (typed "הסר" + `if_revision` of the connection): secrets cleared, the recorder marked removed, its cameras disabled
     and hidden; every history row kept. Restart required."""
     require(conn, principal, PERMISSION, INSTALLATION)
@@ -318,6 +338,7 @@ def remove_recorder(recorder_id: str, request: Request, principal: Principal = D
     revision, disabled = connection_store.remove(conn, settings_of(request), principal.user_id, recorder_id)
     audit(conn, actor=principal, action="nvr.recorder.remove", decision="allowed", resource_type="recorder", resource_id=recorder_id, request_id=_rid(request),
           details={"revision": revision, "cameras_disabled": disabled})
+    background.add_task(recorder_live.stop, request.app.state.db, settings_of(request), recorder_id)  # stopped at once (CR-024)
     return {"removed": True, "restart_required": True, "recorder_id": recorder_id, "revision": revision, "cameras_disabled": disabled}
 
 

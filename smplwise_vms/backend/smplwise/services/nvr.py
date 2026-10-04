@@ -82,6 +82,9 @@ def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured, reached only after the caller's permission check
+    from ..mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # CR-024: a recorder disabled while running is never contacted
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     return httpx.Client(
@@ -195,7 +198,8 @@ def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")
     root = xmlsafe.parse(xml)
-    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType")}
+    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType"),
+            "serial": _text(root, "serialNumber")}  # CR-024: hashed into recorders.device_fingerprint, never stored, logged or returned
 
 
 def discover_channels(settings: Settings) -> list[DiscoveredChannel]:

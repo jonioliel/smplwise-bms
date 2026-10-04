@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import ssl
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -223,15 +224,25 @@ class ProvisionIsrAdapter:
             return mode
         return "trust" if self._extra.get("tls_verify") is False else "verify"
 
+    def _pin(self) -> str:
+        pin = str(self._extra.get("tls_pin") or "").strip().lower().replace(":", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", pin):
+            raise ApiError(409, "tls_pin_missing", "לא נשמרה טביעת אצבע של תעודת ה־NVR. בצעו בדיקת חיבור ושמרו.", details={"op": "tls"})
+        return pin
+
     def _verify(self) -> Any:
-        if self.scheme == "https" and self.tls_mode() in ("pin", "trust"):
-            return False  # pin: the certificate is checked by its fingerprint before any credentials are sent (_check_pin)
+        if self.scheme == "https" and self.tls_mode() == "pin":
+            # security review (2026-10-04): the pin is checked on the SAME connection that carries the request, right after the
+            # handshake and before any request byte (PinnedContext), not on a separate handshake
+            return pinned_context(self._pin())
+        if self.scheme == "https" and self.tls_mode() == "trust":
+            return False
         return nvr._ssl_context()
 
     def _check_pin(self) -> None:
-        """Pinned HTTPS: one TLS handshake (no HTTP, no credentials) compares the device certificate's SHA-256 with `tls_pin`
-        before a request carrying credentials is sent. A good answer is cached per device for PIN_TTL_S."""
-        if self.scheme != "https" or self.tls_mode() != "pin":
+        """Stand-in for an INJECTED transport only (tests): the TLS layer is then the transport's, so the pin is compared on a
+        bare handshake. Real clients check it on the request's own connection (`_verify` -> PinnedContext)."""
+        if self.scheme != "https" or self.tls_mode() != "pin" or self._transport is None:
             return
         pin = str(self._extra.get("tls_pin") or "").strip().lower().replace(":", "")
         if not re.fullmatch(r"[0-9a-f]{64}", pin):
@@ -253,11 +264,14 @@ class ProvisionIsrAdapter:
         from ...mode import ensure_nvr
 
         ensure_nvr(self._settings)  # NVR-less mode: 409 nvr_not_configured
+        from ...mode import ensure_recorder_enabled
+
+        ensure_recorder_enabled(self._settings)  # security review M3: a recorder disabled while running is never contacted
         s = self._settings
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
         self._check_pin()
-        kwargs: dict[str, Any] = {"base_url": self._base_url(port), "timeout": timeout, "verify": self._verify()}
+        kwargs: dict[str, Any] = {"base_url": self._base_url(port), "timeout": timeout, "verify": self._verify()}  # _verify raises tls_pin_missing
         if auth is not None:
             kwargs["auth"] = auth
         if self._transport is not None:
@@ -335,6 +349,8 @@ class ProvisionIsrAdapter:
             except httpx.HTTPError as exc:
                 if nvr.past_deadline():
                     raise nvr.deadline_error(command) from exc
+                if PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת ה־NVR השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": command}) from exc
                 raise _unavailable(command, exc) from exc
         finally:
             if own:
@@ -631,6 +647,10 @@ class ProvisionIsrAdapter:
         NVR: `rtsp://u:p@host:port?chID=<n>&streamType=main|sub` (guide 3.1.1; `rtsp_style: path` gives
         `.../chID=<n>&streamType=...`, the form the playback URL uses - which one a given firmware accepts is the first item
         of the live validation). IPC: `rtsp://u:p@host:port/<streamName>` with the name from GetStreamCaps."""
+        from ...mode import ensure_nvr, ensure_recorder_enabled
+
+        ensure_nvr(self._settings)
+        ensure_recorder_enabled(self._settings)  # security review M3: no source URL for a disabled recorder
         s = self._settings
         if not s.nvr_host or not s.nvr_user or not s.nvr_password:
             raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו.")
@@ -1064,3 +1084,31 @@ def peer_certificate(host: str, port: int, timeout: float) -> dict[str, Any]:
 
 
 PEER_CERTIFICATE = peer_certificate  # tests replace this (no sockets)
+
+
+
+PIN_MISMATCH = "certificate pin mismatch"
+
+
+class PinnedContext(ssl.SSLContext):
+    """TLS client context that accepts exactly one certificate: after the handshake of EVERY connection the peer certificate's
+    SHA-256 must equal `pin`, otherwise the socket is closed before a request byte (credentials included) is written. Chain
+    and host-name checks are off on purpose (a self-signed NVR certificate); the pin replaces them."""
+
+    pin = ""
+
+    def wrap_socket(self, sock, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        tls = super().wrap_socket(sock, *args, **kwargs)
+        der = tls.getpeercert(binary_form=True) or b""
+        if hashlib.sha256(der).hexdigest() != self.pin:
+            tls.close()
+            raise ssl.SSLError(PIN_MISMATCH)
+        return tls
+
+
+def pinned_context(pin: str) -> PinnedContext:
+    ctx = PinnedContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.pin = pin
+    return ctx

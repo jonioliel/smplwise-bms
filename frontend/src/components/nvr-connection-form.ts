@@ -306,6 +306,16 @@ export class NvrConnectionForm extends LitElement {
       }
       const body = { ...this.body(), if_revision: this.view?.revision ?? 0, ...extra };
       const r: SaveResult = this.primary ? await saveNvrConnection(body) : await saveRecorderConnection(this.recorderId, body);
+      if (r.new_recorder) {
+        // CR-024: a different device than the removed first recorder - saved under a new id; this form keeps showing the first recorder
+        this.untestedOpen = false;
+        this.word = '';
+        await this.load();
+        this.msg = { tone: 'ok', text: 'נשמר כ־NVR חדש' };
+        announceRestartPending(true);
+        this.dispatchEvent(new CustomEvent('nvr-connection-saved', { bubbles: true, composed: true, detail: r }));
+        return;
+      }
       this.view = r;
       this.editing = this.context === 'wizard';
       this.untestedOpen = false;

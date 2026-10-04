@@ -27,6 +27,24 @@ RECORDER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$")
 NEW_ID_RE = re.compile(r"^nvr-(\d{1,6})$")
 
 
+# CR-024 (owner 2026-10-04: disabling applies at once, no restart): the recorders an administrator disabled. Set at start-up from
+# `recorders.enabled` (connection_store.apply_at_startup) and changed by `PATCH /recorders/{id}` while the process runs. A disabled
+# recorder keeps its loaded connection in memory (so enabling it again needs no restart either) but is never contacted: every check
+# below treats it as having no host, and the device boundary (mode.ensure_nvr) answers 409 `recorder_unavailable`.
+DISABLED: set[str] = set()
+
+
+def is_disabled(recorder_id: str | None) -> bool:
+    return (recorder_id or PRIMARY) in DISABLED
+
+
+def set_disabled(recorder_id: str, disabled: bool) -> None:
+    if disabled:
+        DISABLED.add(recorder_id)
+    else:
+        DISABLED.discard(recorder_id)
+
+
 def valid_id(recorder_id: Any) -> bool:
     return isinstance(recorder_id, str) and bool(RECORDER_ID_RE.fullmatch(recorder_id)) and not recorder_id.startswith("ha_")
 
@@ -71,6 +89,8 @@ def child_ids(settings: Settings) -> list[str]:
 def has_host(settings: Settings) -> bool:
     if settings.nvr_vendor == "none" or settings.nvr_connection_state in ("unreadable", "refused", "disabled"):
         return False
+    if settings.nvr_recorder_id in DISABLED:
+        return False
     return bool((settings.nvr_host or "").strip())
 
 
@@ -89,6 +109,13 @@ def ready_ids(settings: Settings) -> list[str]:
     """Every recorder the background work (discovery, alert stream) may contact (primary first)."""
     out = [PRIMARY] if ready(settings) else []
     return out + [rid for rid in child_ids(settings) if ready(settings.recorder_settings[rid])]
+
+
+def loaded_any(settings: Settings) -> bool:
+    """Any recorder whose connection this process loaded, disabled or not (the background workers start for it, so enabling a
+    disabled recorder while running needs no restart)."""
+    primary = settings.nvr_vendor != "none" and settings.nvr_connection_state not in ("unreadable", "refused") and bool((settings.nvr_host or "").strip())
+    return primary or bool(child_ids(settings))
 
 
 def any_configured(settings: Settings) -> bool:

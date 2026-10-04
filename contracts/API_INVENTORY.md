@@ -380,7 +380,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | nvr | POST | `/api/v1/recorders` | Add a recorder: vendor, connection, name. Tested server-side first (CR-022 section 6.4: an unreachable NVR only with |
 | nvr | DELETE | `/api/v1/recorders/{recorder_id}` | Remove (typed "הסר" + `if_revision` of the connection): secrets cleared, the recorder marked removed, its cameras disabled |
 | nvr | GET | `/api/v1/recorders/{recorder_id}` | One recorder (status, cameras, capabilities; the connection detail for system.configure only). |
-| nvr | PATCH | `/api/v1/recorders/{recorder_id}` | Rename, reorder, set the recorder's time zone, enable / disable (a disabled recorder is not contacted after the restart: |
+| nvr | PATCH | `/api/v1/recorders/{recorder_id}` | Rename, reorder, set the recorder's time zone, enable / disable. Disable / enable apply AT ONCE (owner 2026-10-04): a |
 | nvr | GET | `/api/v1/recorders/{recorder_id}/connection` | The recorder's stored connection (the shape of GET /nvr/connection; never the password). |
 | nvr | PUT | `/api/v1/recorders/{recorder_id}/connection` | Test, then store this recorder's connection (if_revision required; a destination another recorder uses = 409 recorder_duplicate). |
 | nvr | POST | `/api/v1/recorders/{recorder_id}/connection/test` | A read-only test of a candidate connection for this recorder (CR-022 section 6.3 rules); one audit row, no other write. |

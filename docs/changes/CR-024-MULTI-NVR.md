@@ -100,10 +100,10 @@ cross-recorder views. The event log is multi-source (`events.recorder_id`).
 
 | Item | Why not | What is needed |
 |---|---|---|
-| **Synchronized playback across recorders** | AGENTS: a playback stream is not a proven synchronized recording until media anchors, seek generations and rendered time are measured per recorder. Two recorders have their own clocks, zones and drift (KNOWN_QUIRKS T2); no measurement against two real recorders exists, and this task may not touch real devices. A sync group with cameras of two recorders is refused 409 `sync_cross_recorder_unproven`; playback of each camera alone works | A lab session with two real recorders (owner's word): drift and anchor measurements per recorder, the per-member seek conversion with `recorders.time_zone` and `clock_drift_s`, then lifting the refusal |
+| ~~Synchronized playback across recorders~~ **built as an EXPERIMENTAL, off-by-default setting (section 7.1)** | Still unproven: no measurement of anchors, seek generations and rendered time on two real recorders (AGENTS). Off (default) = 409 `sync_cross_recorder_unproven` as before | The owner turns it on when he has two NVRs and reports problems; a lab measurement would let it lose the "experimental" mark |
 | **Provision-ISR (and Frigate) adapters** | Owner: Provision-ISR's API is not available yet (NN1 P6); Frigate is later | A read-only probe of a real unit, then an adapter registered through `register_vendor` |
 | **A "recorder" RBAC scope type** | `nvr.configure` and `system.configure` are system permissions held only by the built-in system administrator at installation scope, so a recorder scope would grant nothing today; a new scope type changes the binding model, the scope picker and every `authorize` call and needs its own security review | An owner decision that a non-system role should configure one recorder only |
-| **Applying recorder changes without a restart** | Owner decision O5 (restart semantics) | NN1 Q6 b, if ever wanted |
+| **Applying CONNECTION changes without a restart** | Owner decision O5 (restart semantics) still holds for a connection (address, user, password, vendor) and for a recorder added after the start. Disable / enable apply at once since the owner answer of 2026-10-04 (section 7.2) | NN1 Q6 b, if ever wanted |
 | **Per-recorder live-session budget** (`live-budget.ts`) | The budget is installation-wide today and works across recorders; a per-recorder count needs the recorder's session limit, which is not discovered | Capacity discovery per recorder |
 | **Confirm-same-place dialog for a swapped camera** | A changed fingerprint disables the camera and is audited; re-enabling it in the camera table is the confirmation. A dedicated review dialog belongs to CR-020 S3 (add / remove channel) | CR-020 S3 |
 | **Recorder time zone applied to recording search and playback URLs** | The column is stored and editable; the alert-stream time conversion uses it. Recording search and the playback / export URL builders keep the installation zone, because the NVR wall-clock conversion there is proven only for the installation zone (lab evidence) | A real second recorder in another zone to verify the conversion |
@@ -134,10 +134,9 @@ screens, `tsc --noEmit`.
    recorder cards (`routers/nvr_settings.py`) and the frontend's CR-020 S3 client uses `/nvr/recorders/{id}/channels`. Remote channel:
    the prefix `/api/v1/recorders` is blocked like the CR-022 routes.
 2. **The first recorder stays special.** `nvr-1` is the process-wide connection (CR-022 overlay, legacy import, setup wizard). Adding
-   an NVR to an installation without one fills `nvr-1` (the same id comes back; its old cameras stay disabled for review) - every
-   further recorder gets a new id. "No NVR" is a choice for the first recorder only; a further recorder is removed instead.
-3. **Disable = restart semantics.** A disabled recorder is not loaded at the next start (no discovery, alert stream, device call;
-   409 `recorder_unavailable`); its cameras stay listed. Enabling it again also waits for a restart (`pending_restart`).
+   an NVR to an installation without any recorder fills `nvr-1` ONLY when no history exists under it (section 7.3); otherwise, and
+   for every further recorder, a new id. "No NVR" is a choice for the first recorder only; a further recorder is removed instead.
+3. ~~**Disable = restart semantics.**~~ Superseded by section 7.2 (owner 2026-10-04): disable / enable apply at once.
 4. **CR-022 "Remove NVR" marks the recorder removed too** (`recorders.removed_at`), so the first recorder follows the same
    keep-history / invisible rule as the others; saving a connection again clears the mark.
 5. **Device lock (CR-020 S2C review finding 6).** The test that assumed "every recorder row is the add-on's NVR" was rewritten:
@@ -157,6 +156,74 @@ screens, `tsc --noEmit`.
 9. **Fixed on the way:** the camera-offline notification source (`notify_sources`) and the WebRTC hint (`stream_codecs.hints`)
    read only the first recorder.
 
+## 7. Owner answers of 2026-10-04 (built on top of 21cd7feb)
+
+### 7.1 Synchronized playback across recorders - EXPERIMENTAL / UNPROVEN, off by default
+
+- Setting `playback.cross_recorder_sync` (`"false"` default) in הגדרות › כללי › וידאו ומדיה, row "ניגון מסונכרן בין מקליטים (ניסיוני)".
+  Off: a group with cameras of two recorders is refused 409 `sync_cross_recorder_unproven` (unchanged). Single-recorder groups never
+  take the new path, on or off.
+- On: once per group, each recorder's zone and clock offset are fixed (`services/recorder_clock.py`): zone = `recorders.time_zone`,
+  else the installation's (an unknown name falls back); offset = recorder clock minus server clock from `GET /ISAPI/System/time`
+  (4 s budget), read in that same zone. Each member's recording search asks for `[t + offset)` in its zone and the answer is turned
+  back into server time; its RTSP playback request asks for `[t + offset, end + offset]` in its zone. Seeks reuse the offsets.
+- Defensive rules: |offset| <= 1 s counts as 0; |offset| > 900 s refuses that recorder's members (`clock_offset_too_large`); a
+  device time carrying an explicit UTC offset that is neither the zone's current nor its standard offset (Hikvision tags the
+  standard offset even in summer) refuses them (`recorder_zone_mismatch` - set the recorder's zone); an unreadable clock keeps the
+  member with offset 0 and `clock: "unknown"` (the browser's own drift measurement shows the result); a disabled recorder's members
+  are refused (`recorder_unavailable`). Refused members appear in `missing`; the others play. The group answer says
+  `sync: "experimental_cross_recorder"`, `experimental: true`, and the per-recorder `{time_zone, offset_s, clock, refused}`; the
+  audit row of the group keeps them.
+- Not built (why): re-measuring the offset during a long group (once per group is the documented behaviour; a long session can
+  drift); an HLS member (no HLS vendor exists); any claim of frame-accurate sync - the browser's existing p95 drift measurement
+  stays the only evidence, and it was never run on two real recorders.
+- Tests: `tests/test_multi_nvr_live.py` - two fakes, Jerusalem / no drift and London / +45 s (and -30 s with a naive clock):
+  search and RTSP requests in each recorder's terms, seek, off by default, too-large offset, zone mismatch, unreadable clock,
+  disabled recorder, single-recorder group untouched.
+
+### 7.2 Disable / enable at once (no restart)
+
+- `recorder_scope.DISABLED` (process state, filled at start-up from `recorders.enabled`, flipped by `PATCH /recorders/{id}`) is read
+  by every device boundary: `nvr._client`, the live and playback RTSP builders (`mode.ensure_recorder_enabled`, 409
+  `recorder_unavailable`), `has_host` / `ready` (discovery, recording-derived events, capabilities), the alert-stream loop, the
+  stream sync. A disabled recorder's connection stays loaded, so enabling needs no restart; a disabled first recorder does not
+  block the other recorders' cameras (the route-level "is there an NVR" check is separate).
+- Stopped right after the answer (`services/recorder_live.py`, a background task, outside the write lock): its alert stream, its
+  open playback sessions, its `smplwise_{recorder}_ch{n}_{main|sub}` streams in go2rtc (exact names; foreign streams untouched; the
+  stream sync deletes and never re-creates them while disabled). Enabling starts the alert stream, one discovery and the stream sync.
+- Visibility: `GET /cameras` marks its cameras `recorder_enabled: false`, `can_view_live: false`; the wall and the playback /
+  sync pickers leave them out at once; snapshots answer 409 (no cached copy); the capability set drops the recorder. Settings
+  lists keep them. `/me` and `/health` report no pending restart for enable / disable.
+- Removal also stops the recorder at once (same stop), while `restart_required` stays true (its loaded connection leaves memory
+  with the restart).
+- Limit: a recorder added after the start, then enabled, still needs the restart (its connection is not loaded yet).
+- Tests: `tests/test_multi_nvr_live.py` (second recorder, first recorder, disabled at the last start, removal).
+
+### 7.3 The first id never carries history onto a new device
+
+- `POST /recorders` hands out `nvr-1` only when no recorder is in use AND nothing references `nvr-1` (its recorder row, cameras,
+  events, change-log rows). Otherwise a new id (`nvr-<n>` above every id ever used). The settings card, with no recorder left and
+  history under `nvr-1` (`GET /recorders` `primary_has_history`), shows the add form instead of the first recorder's form.
+- **CR-022 contract change (owner 2026-10-04, option ב): the wizard follows the same rule.** `PUT /nvr/connection` (the setup
+  wizard's NVR step and the first recorder's form) amends CR-022 D7 "the same NVR reconnected after Remove": when `nvr-1` is free
+  (removed / "no NVR") AND has history, the save reconnects `nvr-1` only for the SAME physical recorder. Identity =
+  `recorders.device_fingerprint` = HMAC-SHA256(installation salt, "recorder" | model | serial)[:16] (column added to the unreleased
+  migration 0055), stored at every tested save and every discovery; the serial comes from deviceInfo (the test's `_serial`, stripped
+  from every answer by `connection_probe.public`) and is never stored, logged or returned; the address is not part of it (the same
+  recorder at a new address is still the same device). The candidate is compared with the stored identity of `nvr-1`: equal = same
+  device, `nvr-1` (its cameras come back disabled for review, as CR-022 D7). Different, a device without a serial, an untested save
+  ("שמור" while unreachable) or no stored identity = unsure = a NEW id (`nvr-<n>`, audited `nvr.recorder.add` with reason
+  `history_under_first_id`); the answer carries `recorder_id` and `new_recorder: true`; the old cameras keep `nvr-1` and stay
+  disabled, and the new device's discovery creates its own rows. An edit of an ACTIVE `nvr-1` (not after a removal) is unchanged,
+  and a fresh installation still gets `nvr-1`.
+- The wizard's NVR step follows a recorder that runs under its new id: `todo / restart_pending` until the restart, then `done` by
+  its discovery (`setup_wizard.further_recorders_step`), never "ללא NVR".
+- Tests: `tests/test_multi_nvr_live.py` (add route: fresh installation gets `nvr-1`; a removed `nvr-1` with history gets `nvr-2`)
+  and `tests/test_multi_nvr_identity.py` (wizard route: fresh gets `nvr-1` and no serial in any answer; the same device reconnected
+  keeps `nvr-1` and its camera rows; the same device at a new address keeps `nvr-1`; a different device gets `nvr-2` and its channels
+  are new rows while the old ones stay `nvr-1`, disabled, and the wizard step is `done`; no serial or an untested save = a new id;
+  an edit of an active `nvr-1` is unchanged).
+
 ---
 
 ## סיכום בעברית
@@ -169,7 +236,12 @@ screens, `tsc --noEmit`.
 על השני. שינויים מרובים לעולם לא מערבבים שני מקליטים. במסכים: עמודת מקליט וסינון בטבלת המצלמות, סינון לפי מקליט בקיר
 המצלמות וביומן האירועים (מוצג רק כשיש יותר ממקליט אחד).
 
-**מה לא נבנה ולמה:** ניגון מסונכרן בין שני מקליטים (לא הוכח על שני מקליטים אמיתיים, אסור לגעת בציוד אמיתי במשימה הזו;
+**עדכון לפי תשובות הבעלים (4.10):** ניגון מסונכרן בין מקליטים נבנה כהגדרה ניסיונית, כבויה כברירת מחדל ("לא הוכח"),
+עם אזור זמן וסטיית שעון לכל מקליט וכללי הגנה (סטייה גדולה, אזור זמן סותר, שעון לא קריא). השבתה והפעלה של מקליט חלות מיד בלי
+הפעלה מחדש (זרם אירועים, זרמי go2rtc, קיר ובוררים). המזהה nvr-1 לא מוצמד למכשיר חדש כשקיימת לו היסטוריה - גם באשף ההתקנה: אותו מכשיר
+(לפי חתימה מוצפנת של דגם ומספר סידורי, בלי לשמור את המספר עצמו) חוזר ל־nvr-1; מכשיר אחר או מכשיר שלא ניתן לזהות מקבל מזהה חדש.
+
+**מה לא נבנה ולמה (במקור):** ניגון מסונכרן בין שני מקליטים (לא הוכח על שני מקליטים אמיתיים, אסור לגעת בציוד אמיתי במשימה הזו;
 ניגון מצלמה בודדת מכל מקליט עובד); מתאם Provision-ISR (ה־API שלו עוד לא זמין); הרשאה בהיקף "מקליט" (ההרשאות
 הרלוונטיות שמורות למנהל המערכת בלבד); החלה ללא הפעלה מחדש (החלטת בעלים); תקציב צפייה חיה לכל מקליט; אזור זמן נפרד
 למקליט בחיפוש הקלטות ובניגון (נשמר ומשמש לזרם האירועים בלבד, עד בדיקה על מקליט אמיתי באזור אחר).
