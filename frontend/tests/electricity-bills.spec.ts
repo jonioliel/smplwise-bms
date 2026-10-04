@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { EL, noOverflow, open, screen, shot, tap, watchErrors } from './electricity-ui';
+// Needs the Vite DEV server: the electricity harness page is served from /tests/electricity-harness/ (the release gate runs it
+// in its dev phase on every project: --project=desktop --project=tablet --project=mobile).
 
 // Bills (CR-023 §9-§12; mock layer): the list with the status filter, the A4 preview in every state, the confirmation dialogs (issue, cancel with a
 // mandatory reason, correct, mark sent, mark paid, delete a draft), the PDF failure, generating a bill with the period choice and the overlap error.

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { EL, noOverflow, open, phone, screen, shot, watchErrors } from './electricity-ui';
 import { wizardTo } from './electricity-wizard-helpers';
+// Needs the Vite DEV server: the electricity harness page is served from /tests/electricity-harness/ (the release gate runs it
+// in its dev phase on every project: --project=desktop --project=tablet --project=mobile).
 
 // The six-step new-account wizard and its formula editor (CR-023, owner decision 1; mock layer, no backend): the happy path, every error state of
 // the approved mockup (a rejected kW sensor, a negative result, parentheses, a meter times a meter, an unknown meter in text mode, a field error on the

@@ -16,8 +16,12 @@ PASSED = ("PATH", "TZ", "TMPDIR", "TEMP", "TMP", "SYSTEMROOT", "WINDIR")
 DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 
-def minimal_env() -> dict[str, str]:
+def minimal_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """`extra`: fixed, non-secret values a tool needs (e.g. the bill PDF renderer's PYTHONPATH and HOME=/tmp). Never pass values taken
+    from the parent environment wholesale."""
     env = {name: os.environ[name] for name in PASSED if os.environ.get(name)}
     env.setdefault("PATH", DEFAULT_PATH)
     env["LANG"] = "C.UTF-8"
+    if extra:
+        env.update(extra)
     return env

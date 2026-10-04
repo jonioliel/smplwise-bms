@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .bill_pdf_logo import LogoError, sanitize_logo
+from .child_env import minimal_env
 from .bill_pdf_model import NUMBER_RE, BillSnapshot, BillSnapshotError
 
 log = logging.getLogger("smplwise.bill_pdf")
@@ -94,15 +95,19 @@ def bill_pdf_filename(number: str | None) -> str:
     return "bill-draft.pdf"
 
 
+def _child_extra() -> dict[str, str]:
+    """What the render child needs on top of services/child_env.minimal_env() (no token, no proxy, nothing of the add-on's
+    configuration): the package path, a writable HOME/cache for fontconfig, and the library/font search paths when set."""
+    extra = {"PYTHONPATH": _PACKAGE_PARENT, "HOME": "/tmp", "XDG_CACHE_HOME": "/tmp", "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+    for keep in ("LD_LIBRARY_PATH", "FONTCONFIG_PATH", "FONTCONFIG_FILE"):
+        if os.environ.get(keep):
+            extra[keep] = os.environ[keep]
+    return extra
+
+
 def _child_env() -> dict[str, str]:
-    """A scrubbed environment: no tokens, no proxy settings, nothing of the add-on's configuration."""
-    env = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"), "PYTHONPATH": _PACKAGE_PARENT,
-           "HOME": "/tmp", "LANG": "C.UTF-8", "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1",
-           "XDG_CACHE_HOME": "/tmp"}
-    for keep in ("SYSTEMROOT", "TEMP", "TMP", "LD_LIBRARY_PATH", "FONTCONFIG_PATH", "FONTCONFIG_FILE"):
-        if keep in os.environ:
-            env[keep] = os.environ[keep]
-    return env
+    """The scrubbed environment of the render child (what the Popen calls below pass as env=minimal_env(_child_extra()))."""
+    return minimal_env(_child_extra())
 
 
 def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, watermark: str | None = None,
@@ -150,13 +155,12 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
 def _run_child(job: Mapping[str, Any], timeout_s: float) -> tuple[bytes, str | None]:
     """One render process: (pdf bytes, the engine it used)."""
     payload = json.dumps(job, default=str).encode("utf-8")
-    kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
-                              "env": _child_env(), "cwd": _PACKAGE_PARENT}
+    kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "cwd": _PACKAGE_PARENT}
     if os.name == "posix":
         kwargs["start_new_session"] = True  # own process group: only this child tree is ever signalled
     cmd = [sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"]
     try:
-        proc = subprocess.Popen(cmd, **kwargs)
+        proc = subprocess.Popen(cmd, env=minimal_env(_child_extra()), **kwargs)
     except OSError as exc:
         log.error("bill pdf: cannot start the render process: %s", exc)
         raise BillPdfError("pdf_render_failed") from exc
@@ -190,11 +194,10 @@ def self_check(timeout_s: float = SELF_CHECK_TIMEOUT_S) -> dict[str, Any]:
     active: str | None = None
     detail = ""
     try:
-        kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE,
-                                  "env": _child_env(), "cwd": _PACKAGE_PARENT}
+        kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "cwd": _PACKAGE_PARENT}
         if os.name == "posix":
             kwargs["start_new_session"] = True
-        proc = subprocess.Popen([sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"], **kwargs)
+        proc = subprocess.Popen([sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"], env=minimal_env(_child_extra()), **kwargs)
         try:
             out, err = proc.communicate(json.dumps(job).encode("utf-8"), timeout=timeout_s)
         except subprocess.TimeoutExpired:

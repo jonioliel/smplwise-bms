@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { EL, noOverflow, open, phone, screen, shot, tap, watchErrors } from './electricity-ui';
 import { wizardTo } from './electricity-wizard-helpers';
+// Needs the Vite DEV server: the electricity harness page is served from /tests/electricity-harness/ (the release gate runs it
+// in its dev phase on every project: --project=desktop --project=tablet --project=mobile).
 
 // Accounts list and page, customers and billing settings (CR-023; mock layer): table and cards, the account's three tabs, the unreported meter, the
 // consumption chart (full, partial, none), customers (new, edit, delete, errors), prices and VAT, business details (logo, brand colour, payment
