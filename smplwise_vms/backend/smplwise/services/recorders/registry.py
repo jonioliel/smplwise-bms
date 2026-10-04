@@ -76,7 +76,9 @@ def selectable(vendor: str) -> bool:
 
 def catalogue() -> list[dict[str, Any]]:
     """`GET /nvr/vendors`: every spec; an `available` spec whose adapter is missing is reported as `planned`."""
-    return [{**s.as_dict(), "status": "available" if selectable(s.id) else "planned"} for s in VENDOR_SPECS]
+    order = ("hikvision", "provision_isr", "frigate", "none")  # CR-025: fixed form order, whatever registered or was undone last
+    specs = sorted(VENDOR_SPECS, key=lambda s: order.index(s.id) if s.id in order else len(order) - 1)
+    return [{**s.as_dict(), "status": "available" if selectable(s.id) else "planned"} for s in specs]
 
 
 def register_vendor(spec: VendorSpec, constructor: Callable[[str, Settings], RecorderAdapter]) -> Callable[[], None]:
