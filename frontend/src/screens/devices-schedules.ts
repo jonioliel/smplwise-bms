@@ -250,8 +250,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 10px 14px;
       padding: 10px 16px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-wrap: wrap;
     }
     .upnext::-webkit-scrollbar {
       display: none;
@@ -434,6 +433,9 @@ export class DevicesSchedules extends LitElement {
       inset-block-start: 52px;
       inset-inline-end: 12px;
       min-inline-size: 190px;
+    }
+    .acard .pop button {
+      flex: none;
     }
     .pop button.dz,
     .pop button.dz .ic {
@@ -647,7 +649,7 @@ export class DevicesSchedules extends LitElement {
       justify-content: flex-end;
       flex-wrap: wrap;
     }
-    @media (pointer: coarse), (max-width: 767px) {
+    @media (pointer: coarse), (max-width: 1100px) {
       .pick,
       .more-btn {
         inline-size: 44px;
@@ -665,31 +667,21 @@ export class DevicesSchedules extends LitElement {
     }
     @media (max-width: 1100px) {
       .tr {
-        grid-template-columns: 34px minmax(140px, 1.4fr) minmax(200px, 2fr) minmax(100px, 1fr) 118px 60px 92px;
+        grid-template-columns: 34px minmax(120px, 1.4fr) minmax(160px, 2fr) minmax(80px, 1fr) 104px 56px 92px;
       }
       .tr > .cdays {
         display: none;
       }
     }
     @media (max-width: 767px) {
-      /* the phone: the view switch shares the floors' row (the title row keeps the automations screen's height, so the
-         segment strip below stays in place when switching between the two screens) */
+      /* the phone: the view switch moves under the search row (the title row keeps the automations screen's height, so the
+         segment strip stays in place when switching between the two screens) */
       .dh-row {
-        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
-        grid-template-areas: 't t .' 'r f f';
+        grid-template-areas: 't .' 'r r';
+        grid-template-columns: minmax(0, 1fr) var(--sw-float-reserve, 0px);
       }
-      .dh-row .rooms {
-        margin-inline-end: 0;
-        padding-inline-end: 6px;
-      }
-      .dh-row .vwrap {
-        grid-area: f;
-        align-self: center;
-      }
-      .dh.compact .vwrap {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
+      .dh-det .vwrap {
+        order: 4;
       }
       .dh-det {
         gap: 10px;
@@ -706,8 +698,7 @@ export class DevicesSchedules extends LitElement {
         order: 2;
         inline-size: 100%;
         display: none;
-        overflow-x: auto;
-        scrollbar-width: none;
+        flex-wrap: wrap;
         justify-content: flex-start;
       }
       .dh-det .stf::-webkit-scrollbar {
@@ -1206,13 +1197,14 @@ export class DevicesSchedules extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
-        ${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
+        ${tools && all.length && !this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
       </div>
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
         ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
         ${all.length ? html`<button type="button" class="btn foldbtn" data-filters-toggle aria-expanded=${String(this.filtersOpen)} @click=${() => (this.filtersOpen = !this.filtersOpen)}>${aIcon('filter')}<span class="lbl">סינון</span>${extra ? html`<small>${extra}</small>` : nothing}</button>` : nothing}
         <span class="grow"></span>
+        ${all.length && this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
         ${all.length ? html`<label class="search">${aIcon('search')}<span class="sr-only">חיפוש</span><input type="search" data-filter="q" placeholder=${this.phone ? 'חיפוש' : 'חיפוש תזמון, התקן או תג'} .value=${live(f.q)} @input=${(e: Event) => this.setFilter({ q: (e.target as HTMLInputElement).value }, 250)} /></label>` : nothing}
         ${manage ? html`<button type="button" class="btn primary newbtn" data-new-schedule ?disabled=${scr.readOnly} title=${scr.readOnly ? scr.readOnlyText : ''} @click=${() => this.newSchedule()}>${aIcon('plus')}<span class="lbl">חדש</span></button>` : nothing}
         ${all.length && this.filtersOpen ? this.renderMoreFilters(all) : nothing}
