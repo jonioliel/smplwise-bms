@@ -113,6 +113,7 @@ def _meter_out(p: EnergyProvider, row: sqlite3.Row, status: Any, now: int, accou
         month_wh = p.store.consumption(row["id"], _month_start(p, now), now, tz=p.tz, interval_floor=None)["wh"]
     return {
         "id": row["id"], "display_name": row["display_name"], "source_kind": row["source_kind"], "source_ref": row["source_ref"], "unit": row["unit"],
+        "device_id": row["device_id"], "device_name": row["device_name"], "entity_name": row["entity_name"],
         "area_id": row["eff_area_id"], "area_name": row["area_name"], "floor_id": row["floor_id"], "floor_name": row["floor_name"],
         "status": row["status"], "status_reason": row["status_reason"],
         "max_kw": row["max_kw"], "revision": row["revision"], "created_at": row["created_at"], "retired_at": row["retired_at"],

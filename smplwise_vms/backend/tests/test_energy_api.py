@@ -108,6 +108,38 @@ def test_candidates_verdict_matrix(app):
     assert [i["ref"] for i in r.json()["items"]] == ["sensor.main_energy"]
 
 
+def _devices(settings):
+    """A fake mirror: a device with a user-set name, a device with only its own name, a sensor with no device, a removed device."""
+    db = Database(settings.db_path)
+    with db.connection(durable=False) as conn:
+        for did, name, by_user, removed in (("dev_a", "Shelly EM", "מונה לוח חשמל", None), ("dev_b", "Meter B", None, None), ("dev_gone", "Old", "ישן", "2026-10-01T00:00:00Z")):
+            conn.execute("INSERT INTO ha_devices(device_id, name, name_by_user, updated_at, removed_at) VALUES (?,?,?,?,?)", (did, name, by_user, "2026-10-04T00:00:00Z", removed))
+        for eid, did in (("sensor.main_energy", "dev_a"), ("sensor.ac_energy_wh", "dev_b"), ("sensor.site_mwh", "dev_gone")):
+            conn.execute("UPDATE ha_entities SET device_id = ? WHERE entity_id = ?", (did, eid))
+
+
+def test_candidates_and_meters_carry_the_device_name(app):
+    c, settings = app
+    _devices(settings)
+    by = {i["ref"]: i for i in c.get(f"{API}/candidates", params={"limit": 200}).json()["items"]}
+    a, b, none, gone = by["sensor.main_energy"], by["sensor.ac_energy_wh"], by["sensor.plain_kwh"], by["sensor.site_mwh"]
+    assert (a["device_id"], a["device_name"], a["entity_name"], a["name"]) == ("dev_a", "מונה לוח חשמל", "לוח ראשי אנרגיה", "לוח ראשי אנרגיה")  # the user's name wins
+    assert (b["device_id"], b["device_name"]) == ("dev_b", "Meter B")  # no user name: the device's own
+    assert none["device_id"] is None and none["device_name"] is None and none["entity_name"] == "ללא סוג"  # no device still works
+    assert gone["device_name"] is None  # a removed device is not shown
+    # search matches the device name (user name and own name)
+    assert [i["ref"] for i in c.get(f"{API}/candidates", params={"q": "לוח חשמל"}).json()["items"]] == ["sensor.main_energy"]
+    assert [i["ref"] for i in c.get(f"{API}/candidates", params={"q": "Meter B"}).json()["items"]] == ["sensor.ac_energy_wh"]
+    # a registered meter shows the same data in the list and the detail
+    mid = create(c, "sensor.main_energy").json()["id"]
+    m = next(i for i in c.get(f"{API}/meters").json()["items"] if i["id"] == mid)
+    assert (m["device_id"], m["device_name"], m["entity_name"]) == ("dev_a", "מונה לוח חשמל", "לוח ראשי אנרגיה")
+    d = c.get(f"{API}/meters/{mid}").json()
+    assert d["device_name"] == "מונה לוח חשמל" and d["entity_name"] == "לוח ראשי אנרגיה"
+    nod = create(c, "sensor.plain_kwh").json()
+    assert nod["device_id"] is None and nod["device_name"] is None and nod["entity_name"] == "ללא סוג"
+
+
 def test_server_repeats_validation_and_converts_units(app):
     c, _ = app
     r = create(c, "sensor.main_power")

@@ -1,5 +1,10 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+### Electricity: the device of every meter sensor
+- **EN:** the "הוספת מונה" picker, the meters table/cards/phone list, the meter card header and the account wizard (step 1) show the device each sensor belongs to (the device name as set in the system, else the device's own name) in bold, with the sensor's own name under it when it differs. Many sensors are simply called "Energy"; they are now told apart. A sensor without a device shows only its name. The picker search (and the search inside the wizard) also matches the device name. No setting to turn on; reload the installed web app once. The meters API (`GET /energy/candidates`, `GET /energy/meters`, `GET /energy/meters/{id}`) adds `device_id`, `device_name` and `entity_name`; `name` is unchanged.
+- **HE:** בבורר "הוספת מונה", בטבלת המונים, בכרטיס המונה ובשלב 1 של אשף החשבון מוצג עכשיו המכשיר שאליו שייך החיישן (שם המכשיר כפי שהוגדר במערכת, אחרת שם המכשיר עצמו) בבולט, ומתחתיו שם החיישן כשהוא שונה. חיישנים רבים נקראים פשוט "Energy" - עכשיו אפשר להבחין ביניהם. חיישן בלי מכשיר מציג רק את שמו. החיפוש בבורר (ובאשף) מוצא גם לפי שם המכשיר. אין הגדרה להפעלה; מספיק לרענן את האפליקציה פעם אחת.
+
 ## 0.1.160 (pilot) — Electricity meters and consumption bills (תשתיות › מוני חשמל); music queue actions; the schedules screen in the automations design
 No restart of the platform is needed (the bridge integration stays 0.6.0). **Two database migrations run on start: `0053_electricity_meters`** (the meter registry and the counter lives) **and `0054_electricity_billing`** (customers, accounts, prices and VAT, bills, the ledger of bill numbers). The meter readings live in a separate file, `energy.db`, next to the main database. Reload the installed web app once.
 ### Electricity meters and bills (CR-023) - a new area "תשתיות" with the sub-tab "מוני חשמל"

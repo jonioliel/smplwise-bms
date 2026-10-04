@@ -31,6 +31,9 @@ interface WireEpochM {
 interface WireMeterM {
   id: string;
   display_name: string;
+  device_id?: string | null;
+  device_name?: string | null;
+  entity_name?: string | null;
   source_ref: string;
   unit: string;
   area_id: string | null;
@@ -93,11 +96,17 @@ const MSG: Record<string, string> = {
   returned_energy: 'מונה של אנרגיה מוחזרת לרשת. לא נתמך בחשבון צריכה.',
 };
 
+/** The device each of the first meters belongs to (the others have none: a sensor without a device must keep working). */
+const DEVICES: Record<string, string> = { m5: 'מונה חכם גל-טק', m6: 'מונה חכם מאפייה', m7: 'מונה חכם מאפייה' };
+
 function wireMeters(): WireMeterM[] {
   return fixtureMeters().map((m) => ({
     id: m.id,
     display_name: m.name,
     source_ref: `sensor.${m.id}_energy`,
+    device_id: DEVICES[m.id] ? `dev_${m.id}` : null,
+    device_name: DEVICES[m.id] ?? null,
+    entity_name: m.name,
     unit: 'kWh',
     area_id: m.area_id,
     area_name: m.area_name,
@@ -115,7 +124,7 @@ function wireMeters(): WireMeterM[] {
 }
 
 /** The wire form of a meter: the bookkeeping fields the screens must not see are dropped. */
-const out = (m: WireMeterM) => ({ id: m.id, display_name: m.display_name, source_ref: m.source_ref, unit: m.unit, area_id: m.area_id, area_name: m.area_name, status: m.status, status_reason: m.status_reason, revision: m.revision, state: m.state, last_report_at: m.last_report_at, value_kwh: m.value_kwh, today_kwh: m.today_kwh });
+const out = (m: WireMeterM) => ({ id: m.id, display_name: m.display_name, device_id: m.device_id ?? null, device_name: m.device_name ?? null, entity_name: m.entity_name ?? null, source_ref: m.source_ref, unit: m.unit, area_id: m.area_id, area_name: m.area_name, status: m.status, status_reason: m.status_reason, revision: m.revision, state: m.state, last_report_at: m.last_report_at, value_kwh: m.value_kwh, today_kwh: m.today_kwh });
 
 export async function installElectricityMock(page: Page, opts: MockOptions = {}): Promise<ElectricityMock> {
   const perms = opts.perms ?? PERMS.bills;
@@ -165,11 +174,11 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
     if (e.startsWith('candidates')) {
       const q = (url.searchParams.get('q') ?? '').toLowerCase();
       const items = fixtureCandidates()
-        .filter((c) => !q || c.name.toLowerCase().includes(q))
+        .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.device_name ?? '').toLowerCase().includes(q))
         .map((c) => {
           const code = c.verdict === 'ok' ? 'ok' : CODE[c.reason_code ?? 'unit'];
           const [state, unit] = (c.value ?? '').split(' ');
-          return { ref: c.entity_id, name: c.name, area_id: c.area_id, area_name: c.area_name, unit: unit ?? null, device_class: null, state_class: null, state: state?.replace(/,/g, ''), verdict: c.verdict === 'warn' ? 'warning' : c.verdict, code, message: c.verdict === 'ok' ? null : MSG[code], already_meter_id: c.already_added ? 'm2' : null };
+          return { ref: c.entity_id, name: c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, area_id: c.area_id, area_name: c.area_name, unit: unit ?? null, device_class: null, state_class: null, state: state?.replace(/,/g, ''), verdict: c.verdict === 'warn' ? 'warning' : c.verdict, code, message: c.verdict === 'ok' ? null : MSG[code], already_meter_id: c.already_added ? 'm2' : null };
         });
       return json(route, { items });
     }
@@ -178,7 +187,7 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
       const c = fixtureCandidates().find((x) => x.entity_id === ref);
       if (!c) return err(route, 404, 'not_found', 'החיישן לא נמצא');
       if (c.verdict === 'rejected') return err(route, 422, 'meter_unit_rejected', MSG[CODE[c.reason_code ?? 'unit']], { code: CODE[c.reason_code ?? 'unit'] });
-      const m: WireMeterM = { id: `m${st.meters.length + 1}`, display_name: c.name, source_ref: ref, unit: 'kWh', area_id: c.area_id, area_name: c.area_name, status: 'active', status_reason: null, revision: 1, state: 'reporting', last_report_at: '2026-10-04T18:49:00Z', value_kwh: 1204.5, today_kwh: 0, used_in: [], month_kwh: 0, floor: { id: 'f-p', name: 'חניון' } };
+      const m: WireMeterM = { id: `m${st.meters.length + 1}`, display_name: c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, source_ref: ref, unit: 'kWh', area_id: c.area_id, area_name: c.area_name, status: 'active', status_reason: null, revision: 1, state: 'reporting', last_report_at: '2026-10-04T18:49:00Z', value_kwh: 1204.5, today_kwh: 0, used_in: [], month_kwh: 0, floor: { id: 'f-p', name: 'חניון' } };
       st.meters.push(m);
       return json(route, out(m), 201);
     }

@@ -31,6 +31,9 @@ export function fixtureMeters(): Meter[] {
   return ROWS.map(([id, name, area, floor, reading, today, month, status, accounts]) => ({
     id,
     name,
+    device_id: null,
+    device_name: null,
+    entity_name: null,
     area_id: AREA_ID[area],
     area_name: area,
     floor_id: FLOOR_ID[floor],
@@ -69,9 +72,12 @@ export function fixtureSeries(id: string, points: number, stepMs = 86_400_000): 
 const REASONS: Record<string, MeterCandidate['reason_code']> = { kw: 'kw', unit: 'unit', total: 'total', returned: 'returned' };
 
 export function fixtureCandidates(): MeterCandidate[] {
-  const add = (entity_id: string, name: string, area_name: string, floor_name: string, value: string, verdict: MeterCandidate['verdict'], why: string | null, already = false): MeterCandidate => ({
+  const add = (entity_id: string, name: string, device_name: string | null, area_name: string, floor_name: string, value: string, verdict: MeterCandidate['verdict'], why: string | null, already = false): MeterCandidate => ({
     entity_id,
     name,
+    device_id: device_name ? `dev_${entity_id}` : null,
+    device_name,
+    entity_name: name,
     area_id: AREA_ID[area_name] ?? null,
     area_name,
     floor_name,
@@ -82,15 +88,15 @@ export function fixtureCandidates(): MeterCandidate[] {
     already_added: already,
   });
   return [
-    add('sensor.gym_energy', 'לוח חדר כושר', 'חניון', 'חניון', '1,204.50 kWh', 'ok', null),
-    add('sensor.back_office_energy', 'לוח משרד אחורי', 'משרדי גל-טק', 'קומה 2', '3,310.20 kWh', 'ok', null),
-    add('sensor.generator_energy', 'לוח גנרטור', 'חדר חשמל', 'קומת קרקע', '88.00 kWh', 'ok', null),
-    add('sensor.m2_energy', 'לוח סטודיו', 'סטודיו אורן', 'קומה 1', '13,264.20 kWh', 'ok', null, true),
-    add('sensor.bakery_daily', 'צריכה יומית - מאפייה', 'מאפיית השקד', 'קומת קרקע', '41.30 kWh', 'warn', 'total'),
-    add('sensor.main_power', 'הספק לוח ראשי', 'חדר חשמל', 'קומת קרקע', '14.2 kW', 'rejected', 'kw'),
-    add('sensor.hall_power', 'הספק מזגן משותף', 'מסדרון קומה 1', 'קומה 1', '2,310 W', 'rejected', 'kw'),
-    add('sensor.roof_returned', 'אנרגיה מוחזרת - גג', 'חדר חשמל', 'קומת קרקע', '1,204.5 kWh', 'rejected', 'returned'),
-    add('sensor.phase1_voltage', 'מתח פאזה 1', 'חדר חשמל', 'קומת קרקע', '231 V', 'rejected', 'unit'),
+    add('sensor.gym_energy', 'לוח חדר כושר', 'מונה חכם חדר כושר', 'חניון', 'חניון', '1,204.50 kWh', 'ok', null),
+    add('sensor.back_office_energy', 'לוח משרד אחורי', 'מונה חכם משרד אחורי', 'משרדי גל-טק', 'קומה 2', '3,310.20 kWh', 'ok', null),
+    add('sensor.generator_energy', 'לוח גנרטור', null, 'חדר חשמל', 'קומת קרקע', '88.00 kWh', 'ok', null),
+    add('sensor.m2_energy', 'לוח סטודיו', null, 'סטודיו אורן', 'קומה 1', '13,264.20 kWh', 'ok', null, true),
+    add('sensor.bakery_daily', 'צריכה יומית - מאפייה', null, 'מאפיית השקד', 'קומת קרקע', '41.30 kWh', 'warn', 'total'),
+    add('sensor.main_power', 'הספק לוח ראשי', null, 'חדר חשמל', 'קומת קרקע', '14.2 kW', 'rejected', 'kw'),
+    add('sensor.hall_power', 'הספק מזגן משותף', null, 'מסדרון קומה 1', 'קומה 1', '2,310 W', 'rejected', 'kw'),
+    add('sensor.roof_returned', 'אנרגיה מוחזרת - גג', null, 'חדר חשמל', 'קומת קרקע', '1,204.5 kWh', 'rejected', 'returned'),
+    add('sensor.phase1_voltage', 'מתח פאזה 1', null, 'חדר חשמל', 'קומת קרקע', '231 V', 'rejected', 'unit'),
   ];
 }
 

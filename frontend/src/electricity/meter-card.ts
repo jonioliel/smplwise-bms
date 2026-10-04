@@ -7,6 +7,7 @@ import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { getMeter, meterSeries, pauseMeter, removeMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
+import { meterNames } from './meter-name';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 
@@ -282,7 +283,7 @@ export class ElecMeterCard extends LitElement {
     const d = this.detail;
     return html`
       <!-- a dialog opened from the card sits above the drawer's top layer only while the drawer steps aside -->
-      <sw-drawer ?open=${!this.dlg} modal heading=${d?.name ?? ''} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
+      <sw-drawer ?open=${!this.dlg} modal heading=${d ? meterNames(d).primary : ''} subheading=${d ? meterNames(d).secondary : ''} data-meter-drawer @close=${() => { if (!this.dlg) this.fire('close'); }}>
         ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
         ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading="לא ניתן לטעון את המונה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
         ${this.phase === 'ready' && d ? this.renderBody(d) : nothing}

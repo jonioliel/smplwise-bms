@@ -6,12 +6,16 @@ import { describeError } from '../api/client';
 import { candidateMessage, listMeters, meterCandidates, type Meter, type MeterCandidate } from '../api/electricity-meters';
 import { SkinController } from '../design/skin';
 import { fmtKwh } from './format';
+import { meterNames, meterSearchText } from './meter-name';
 import { elecCss } from './styles';
 
 /** One row, whichever source it came from. `sensor`: an infrastructure sensor shown in 'choose' mode for its reason only (never selectable). */
 interface Pick {
   id: string;
   name: string;
+  /** the device the sensor belongs to and the sensor's own name (see meter-name.ts) */
+  device: string;
+  entity: string;
   area: string;
   value: string;
   verdict: 'ok' | 'warn' | 'rejected' | 'added';
@@ -89,6 +93,11 @@ export class ElecMeterPicker extends LitElement {
         max-block-size: min(46vh, 420px);
         overflow: auto;
       }
+      .li .t2.ent {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .li.pick[aria-disabled='true'] {
         cursor: help;
       }
@@ -146,13 +155,15 @@ export class ElecMeterPicker extends LitElement {
   }
 
   private fromCandidates(list: MeterCandidate[]): Pick[] {
-    return list.map((c) => ({ id: c.entity_id, name: c.name, area: c.area_name ?? '', value: c.value ?? '', verdict: c.already_added ? 'added' : c.verdict, message: c.already_added ? '' : candidateMessage(c), sensor: false }));
+    return list.map((c) => ({ id: c.entity_id, name: c.name, device: c.device_name ?? '', entity: c.entity_name ?? '', area: c.area_name ?? '', value: c.value ?? '', verdict: c.already_added ? 'added' : c.verdict, message: c.already_added ? '' : candidateMessage(c), sensor: false }));
   }
 
   private fromMeters(list: Meter[]): Pick[] {
     return list.map((m) => ({
       id: m.id,
       name: m.name,
+      device: m.device_name ?? '',
+      entity: m.entity_name ?? '',
       area: m.area_name ?? '',
       value: `${fmtKwh(m.reading_kwh)} kWh`,
       verdict: m.status === 'reporting' ? 'ok' : 'warn',
@@ -169,6 +180,8 @@ export class ElecMeterPicker extends LitElement {
       .map((c) => ({
         id: c.entity_id,
         name: c.name,
+        device: c.device_name ?? '',
+        entity: c.entity_name ?? '',
         area: c.area_name ?? '',
         value: c.value ?? '',
         verdict: c.verdict === 'warn' ? 'warn' : 'rejected',
@@ -177,12 +190,12 @@ export class ElecMeterPicker extends LitElement {
       }));
   }
 
-  /** The rows shown: 'choose' filters here (search by name or area, the area filter); 'register' is searched on the server. */
+  /** The rows shown: 'choose' filters here (search by name, device or area, the area filter); 'register' is searched on the server. */
   private listed(): Pick[] {
     if (this.phase !== 'ready') return [];
     if (this.mode !== 'choose') return this.items;
     const needle = this.q.trim().toLowerCase();
-    return this.items.filter((p) => (!this.area || p.area === this.area) && (!needle || p.name.toLowerCase().includes(needle) || p.area.toLowerCase().includes(needle)));
+    return this.items.filter((p) => (!this.area || p.area === this.area) && (!needle || meterSearchText({ name: p.name, device_name: p.device, entity_name: p.entity }).includes(needle) || p.area.toLowerCase().includes(needle)));
   }
 
   private onSearch(e: Event) {
@@ -237,7 +250,7 @@ export class ElecMeterPicker extends LitElement {
           </select>
         </label>
       </div>
-      ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${this.rejected.name}</b> לא נבחר. ${this.rejected.message}</div></div>` : nothing}
+      ${this.rejected ? html`<div class="alert err" role="alert" data-picker-reject><span class="x" aria-hidden="true">!</span><div><b>${meterNames({ name: this.rejected.name, device_name: this.rejected.device, entity_name: this.rejected.entity }).primary}</b> לא נבחר. ${this.rejected.message}</div></div>` : nothing}
       ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
       ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${choose ? 'לא ניתן לטעון את המונים' : 'לא ניתן לטעון את החיישנים'} hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>` : nothing}
       ${this.phase === 'ready' && !listed.length ? html`<sw-state-panel state="empty" compact data-no-match heading=${choose ? (this.items.length ? 'לא נמצא מונה בשם הזה' : 'אין מונים עדיין') : 'לא נמצאו חיישנים'}></sw-state-panel>` : nothing}
@@ -246,10 +259,12 @@ export class ElecMeterPicker extends LitElement {
             ${listed.map((p) => {
               const on = this.selected.includes(p.id);
               const off = this.off(p);
+              const nm = meterNames({ name: p.name, device_name: p.device, entity_name: p.entity });
               return html`<button type="button" class="li pick ${on ? 'sel' : ''} ${off ? 'dis' : ''} ${this.rejected?.id === p.id ? 'flag' : ''}" role="option" aria-selected=${on ? 'true' : 'false'} aria-disabled=${off ? 'true' : 'false'} data-picker-item=${p.id} data-verdict=${p.verdict} ?data-sensor=${p.sensor} @click=${() => this.toggle(p)}>
                 <span class="check ${on ? 'on' : ''} ${off ? 'dis' : ''}">${on ? html`<sw-icon name="check" size="14"></sw-icon>` : nothing}</span>
                 <span class="grow">
-                  <div class="t1">${p.name}</div>
+                  <div class="t1" data-picker-name>${nm.primary}</div>
+                  ${nm.secondary ? html`<div class="t2 ent" data-picker-entity title="שם הישות">${nm.secondary}</div>` : nothing}
                   <div class="t2">${p.area}${p.area && p.value ? ' · ' : ''}<span class="num">${p.value}</span></div>
                   ${p.message && (p.verdict === 'warn' || p.verdict === 'rejected') ? html`<div class="t2 wrap" style="color:${p.verdict === 'warn' ? 'var(--sw-warning-text)' : 'var(--sw-danger-text)'}">${p.message}</div>` : nothing}
                 </span>
