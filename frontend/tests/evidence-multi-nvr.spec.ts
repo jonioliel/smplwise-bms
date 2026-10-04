@@ -28,6 +28,15 @@ async function open(page: Page, hash: string) {
 const FORBIDDEN = /Home Assistant|Ingress|Supervisor|add-on|Add-on/;
 
 test.describe('multi-NVR screens (mocked backend)', () => {
+  const errors: string[] = [];
+  test.beforeEach(({ page }) => {
+    errors.length = 0;
+    page.on('pageerror', (e) => errors.push(e.message));
+  });
+  test.afterEach(() => {
+    expect(errors, 'page errors').toEqual([]);
+  });
+
   test('Settings › connections lists both recorders; connection, rename, disable and add', async ({ page }) => {
     const st = await installMulti(page);
     await open(page, '/system/setup');

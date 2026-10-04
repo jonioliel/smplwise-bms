@@ -127,6 +127,18 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
       return json({ events, from: new Date(Date.now() - 86_400_000).toISOString(), to: new Date().toISOString(), timezone: 'Asia/Jerusalem', filters: { applied: {}, unsupported: [] },
         ingest: { connected: true, last_error: null }, derive: {} });
     }
+    if (p === 'health') {
+      // the shape the connections screen reads (the cameras-table mock's short answer is enough for the shell only)
+      return json({
+        status: 'ok', version: 'test', db: { ok: true, permission_revision: 1 }, data_dir_writable: true, nvr_configured: true, go2rtc_configured: true, mode: 'full',
+        discovery: { cameras_last_ok: '2026-10-04T08:00:00Z', cameras_last_error: null, cameras_last_run: null, streams_last_ok: null, streams_last_error: null, last_reason: null, cameras: 6, interval_s: 600 },
+        events: { ingest: { connected: true, last_heartbeat_at: null, last_event_at: null, last_error: null, reconnects: 0, events_stored: 0, started_at: null }, derive: { last_run: null, last_ok: null, last_error: null, derived: 0 }, stored: 0 },
+        home_assistant: { configured: true, connected: true, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 1, entities: 10, started_at: null, ha_version: '2026.9' },
+        identity_source: 'ingress', renderer: 'fake', recorders: live.map((r) => ({ id: r.id, discovery_last_ok: '2026-10-04T08:00:00Z', discovery_last_error: null, events_connected: true, events_last_error: null })),
+      });
+    }
+    if (p === 'nvr/notify') return json({ channels: [], permission: 'nvr.config.events', can_write: false, labels: {}, recorder_id: 'nvr-1' });
+    if (p === 'nvr/changes') return json({ changes: [] });
     if (p.startsWith('events/facets')) return json({ days: 90, since: '2026-07-06T00:00:00Z', types: [], sources: [], severities: [], unavailable_types: [], places: [], notes: [] });
     if (p === 'events/summary') return json({ total: 0, unacked: 0, by_type: {}, by_source: {} });
     return route.fallback();
