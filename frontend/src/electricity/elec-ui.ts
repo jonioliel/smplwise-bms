@@ -6,7 +6,7 @@ import '../components/sw-sheet';
 import type { IconName } from '../components/sw-icon';
 import { SkinController } from '../design/skin';
 import { BILL_STATE_LABEL, type BillState } from '../api/electricity-billing';
-import { elecCss } from './elec-css';
+import { elecCss } from './styles';
 
 /** Base of every screen element of this half: the shared sheet, the skin mirrored on the host (data-skin). */
 export class ElecBase extends LitElement {

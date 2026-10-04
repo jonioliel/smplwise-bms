@@ -9,7 +9,8 @@
 import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
-import { elec, elecErrorText, elecFieldErrors, elecPerms, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type VatRates } from '../api/electricity-billing';
+import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type VatRates } from '../api/electricity-billing';
+import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
@@ -113,7 +114,7 @@ export class ElecSettingsPrices extends ElecBase {
     }
   }
   private async setMode(m: PriceMode) {
-    if (!this.settings || !elecPerms().manage || this.settings.default_price_mode === m) return;
+    if (!this.settings || !energyAccess().manage || this.settings.default_price_mode === m) return;
     try {
       this.settings = await elec().saveSettings(this.settings.revision, { default_price_mode: m });
       this.error = '';
@@ -123,7 +124,7 @@ export class ElecSettingsPrices extends ElecBase {
   }
 
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה למחירים')}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="settings-prices" data-state="loading">${skeleton(4)}</div>`;
     if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-prices" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה למחירים')}</div>`;
@@ -290,7 +291,7 @@ export class ElecSettingsBusiness extends ElecBase {
   }
 
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     if (!perms.bills && !perms.manage) return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לפרטי העסק')}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="settings-business" data-state="loading">${skeleton(4)}</div>`;
     if (this.st === 'forbidden') return html`<div class="page" data-elec="settings-business" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לפרטי העסק')}</div>`;

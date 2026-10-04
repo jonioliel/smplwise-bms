@@ -14,6 +14,7 @@ export interface Ctl {
   empty?: boolean;
   fail?: string;
   pdf_failed?: boolean;
+  pdf_error?: string;
   create_error?: string;
   latency?: number;
 }

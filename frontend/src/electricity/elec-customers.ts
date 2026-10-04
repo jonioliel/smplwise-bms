@@ -6,9 +6,10 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { elec, elecErrorText, elecFieldErrors, elecPerms, type Customer } from '../api/electricity-billing';
+import { elec, elecErrorText, elecFieldErrors, type Customer } from '../api/electricity-billing';
+import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
-import { elecCss } from './elec-css';
+import { elecCss } from './styles';
 import '../components/sw-sheet';
 import { billsTable } from './elec-bills-table';
 import { go, href, route } from './elec-routes';
@@ -46,7 +47,7 @@ export class ElecCustomersPage extends ElecBase {
 
   connectedCallback() {
     super.connectedCallback();
-    if (elecPerms().bills) void this.loadList();
+    if (energyAccess().bills) void this.loadList();
   }
   willUpdate(ch: Map<string, unknown>) {
     if (!ch.has('segments')) return;
@@ -141,7 +142,7 @@ export class ElecCustomersPage extends ElecBase {
 
   private field(k: keyof Form, label: string, o: { wide?: boolean; ltr?: boolean; ph?: string; area?: boolean; ro?: boolean } = {}) {
     const err = this.errs[k];
-    const ro = o.ro || !elecPerms().manage;
+    const ro = o.ro || !energyAccess().manage;
     return html`<div class="fld ${o.wide ? 'wide' : ''}"><label for="f-${k}">${label}</label>
       ${o.area
         ? html`<textarea id="f-${k}" name=${k} ?readonly=${ro} placeholder=${o.ph ?? ''} .value=${this.form[k]} @input=${(e: Event) => (this.form = { ...this.form, [k]: (e.target as HTMLTextAreaElement).value })}></textarea>`
@@ -150,7 +151,7 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   private renderCard() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     const c = this.card;
     return html`<sw-sheet open wide .heading=${c ? 'כרטיס לקוח' : 'לקוח חדש'} data-customer-card @close=${() => this.close()}>
         <div class="col" style="gap:14px">
@@ -172,7 +173,7 @@ export class ElecCustomersPage extends ElecBase {
   }
 
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     if (!perms.bills) return html`<div class="page" data-elec="customers" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה ללקוחות')}</div>`;
     const q = this.q.trim();
     const list = this.list.filter((c) => !q || c.name.includes(q) || c.customer_number.includes(q));

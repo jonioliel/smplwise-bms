@@ -1,14 +1,9 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { RolesResponse } from '../api/access';
-import { electricityCss } from './styles';
-
-/** Hebrew labels of the electricity permissions (CR-023 section 14): the fallback while the server's role catalogue carries none of its own. */
-export const ENERGY_PERMISSION_LABELS: Record<string, string> = {
-  'energy.view': 'צפייה במונים ובצריכה',
-  'energy.bills': 'חיובים: סכומים, לקוחות, הפקה וביטול',
-  'energy.manage': 'ניהול מונים, חשבונות, לקוחות ומחירים',
-};
+import { elecCss } from './styles';
+import { SkinController } from '../design/skin';
+import { ENERGY_PERMISSIONS, energyPermissionLabel } from './access';
 
 interface Row {
   id: string;
@@ -23,10 +18,11 @@ interface Row {
  */
 @customElement('elec-permission-rows')
 export class ElecPermissionRows extends LitElement {
+  readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) roles: RolesResponse | null = null;
 
   static styles = [
-    electricityCss,
+    elecCss,
     css`
       :host {
         display: block;
@@ -78,11 +74,9 @@ export class ElecPermissionRows extends LitElement {
 
   private rows(): Row[] {
     const sensitive = new Set(this.roles?.sensitive ?? []);
-    const label = (id: string) => this.roles?.labels[id] ?? ENERGY_PERMISSION_LABELS[id] ?? id;
+    const label = (id: string) => this.roles?.labels[id] ?? energyPermissionLabel(id) ?? id;
     return [
-      { id: 'energy.view', label: label('energy.view'), tag: '' },
-      { id: 'energy.bills', label: label('energy.bills'), tag: sensitive.has('energy.bills') || !this.roles?.sensitive ? 'sensitive' : '' },
-      { id: 'energy.manage', label: label('energy.manage'), tag: '' },
+      ...ENERGY_PERMISSIONS.map((id): Row => ({ id, label: label(id), tag: id === 'energy.bills' && (sensitive.has(id) || !this.roles?.sensitive) ? 'sensitive' : '' })),
       { id: 'system.configure', label: 'הגדרות שמירת נתונים', tag: 'existing' },
     ];
   }
@@ -92,7 +86,7 @@ export class ElecPermissionRows extends LitElement {
   }
 
   private chip(tag: Row['tag']) {
-    if (tag === 'sensitive') return html`<span class="chip warn nodot">רגישה</span>`;
+    if (tag === 'sensitive') return html`<span class="chip c-warn nodot">רגישה</span>`;
     if (tag === 'existing') return html`<span class="chip nodot">קיימת</span>`;
     return nothing;
   }

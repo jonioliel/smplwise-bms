@@ -8,11 +8,13 @@
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
-  AUTO_LABEL, elec, elecErrorText, elecFieldErrors, elecPerms, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type MeterCandidate, type PriceMode, type Tariff, type VatRates,
+  AUTO_LABEL, elec, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
   type BillingSettings,
 } from '../api/electricity-billing';
+import { energyAccess } from './access';
 import { ElecBase, alertBox, n, setFlash, skeleton, stateBox } from './elec-ui';
 import './elec-formula-editor';
+import './meter-picker';
 import type { ElecFormulaEditor, FormulaChange } from './elec-formula-editor';
 import { astToTokens, parseTokens, presetTokens, type Tok } from './elec-formula';
 import { MONTH_NAMES, addDays, billNumber, f2, f4, fmtDate, fmtRange, isIsoDate, monthName, nextPeriods, periodContaining, r2 } from './elec-format';
@@ -41,17 +43,13 @@ export class ElecAccountWizard extends ElecBase {
   @state() private reached = 1;
   // data
   @state() private meters: ElecMeter[] = [];
-  @state() private candidates: MeterCandidate[] = [];
   @state() private tariffs: Tariff[] = [];
   @state() private vat: VatRates | null = null;
   @state() private settings: BillingSettings | null = null;
   @state() private customers: Customer[] = [];
   @state() private nextNo = '';
-  // 1
-  @state() private q = '';
-  @state() private area = '';
+  // 1 (the meters picker: src/electricity/meter-picker.ts, mode 'choose')
   @state() private meterIds: string[] = [];
-  @state() private rejected: MeterCandidate | null = null;
   // 2
   @state() private tokens: Tok[] = [];
   @state() private formulaValid = false;
@@ -97,14 +95,13 @@ export class ElecAccountWizard extends ElecBase {
 
   private async init() {
     this.loadSt = 'loading';
-    const perms = elecPerms();
+    const perms = energyAccess();
     try {
       const b = elec();
-      const [meters, candidates, tariffs, vat, settings, customers, nextNo] = await Promise.all([
-        b.listMeters(), b.listCandidates(), b.listTariffs(), b.getVat(), b.getSettings().catch(() => null), perms.view ? b.listCustomers().catch(() => []) : Promise.resolve([] as Customer[]), b.nextCustomerNumber().catch(() => ''),
+      const [meters, tariffs, vat, settings, customers, nextNo] = await Promise.all([
+        elecMeters(), b.listTariffs(), b.getVat(), b.getSettings().catch(() => null), perms.view ? b.listCustomers().catch(() => []) : Promise.resolve([] as Customer[]), b.nextCustomerNumber().catch(() => ''),
       ]);
       this.meters = meters;
-      this.candidates = candidates;
       this.tariffs = tariffs;
       this.vat = vat;
       this.settings = settings;
@@ -253,30 +250,11 @@ export class ElecAccountWizard extends ElecBase {
   private draftPossible = (): boolean => !!this.lastPeriod();
 
   // ---------------------------------------------------------------- step views
+  /** Step 1: the shared meter picker (mode 'choose': the registered meters, with the infrastructure sensors that cannot be meters and why). */
   private renderStep1() {
-    const q = this.q.trim();
-    const match = (s: string) => !q || s.includes(q);
-    const areas = [...new Set(this.meters.map((m) => m.area))];
-    const list = this.meters.filter((m) => (!this.area || m.area === this.area) && (match(m.name) || match(m.area)));
-    const bad = this.candidates.filter((c) => match(c.name) || match(c.area));
-    const sel = new Set(this.meterIds);
-    const toggle = (id: string) => {
-      this.rejected = null;
-      this.meterIds = sel.has(id) ? this.meterIds.filter((x) => x !== id) : [...this.meterIds, id];
-    };
     const chosen = this.chosen();
-    return html`<div class="row"><input type="search" data-meter-search style="flex:1;min-inline-size:0;max-inline-size:none" aria-label="חיפוש מונה לפי שם" placeholder="חיפוש מונה לפי שם" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
-        ${this.phone ? nothing : html`<select data-area aria-label="אזור" style="inline-size:auto" @change=${(e: Event) => (this.area = (e.target as HTMLSelectElement).value)}><option value="">כל האזורים</option>${areas.map((a) => html`<option value=${a} ?selected=${a === this.area}>${a}</option>`)}</select>`}</div>
-      ${this.rejected ? alertBox('err', html`<b>${this.rejected.name}</b> לא נבחר. ${this.rejected.reason}`) : nothing}
-      <div class="list" data-meter-list>
-        ${list.map((m) => html`<label class="li ${sel.has(m.id) ? 'sel' : ''}" data-meter-row=${m.id}><input type="checkbox" .checked=${sel.has(m.id)} @change=${() => toggle(m.id)} aria-label=${m.name} /><span class="ind"></span>
-          <div class="grow"><div class="t1">${m.name}</div><div class="t2">${m.area}${m.reading_kwh !== null ? html` · ${n(f2(m.reading_kwh) + ' kWh')}` : nothing}</div></div>
-          ${m.status === 'ok' ? html`<span class="chip c-ok">מתאים</span>` : m.status === 'stale' ? html`<span class="chip c-warn">לא מדווח</span>` : html`<span class="chip c-mut">מושהה</span>`}</label>`)}
-        ${bad.map((c) => html`<button type="button" class="li dis" data-candidate=${c.verdict} style=${this.rejected === c ? 'border-color:var(--sw-danger);opacity:1' : ''} @click=${() => (this.rejected = c)}>
-          <span class="ind"></span><div class="grow"><div class="t1">${c.name}</div><div class="t2">${c.area} · ${n(c.value)}</div>
-          <div class="t2 wrap" style="color:${c.verdict === 'warn' ? 'var(--sw-warning-text)' : 'var(--sw-danger-text)'}">${c.reason}</div></div>${c.verdict === 'warn' ? html`<span class="chip c-warn">אזהרה</span>` : html`<span class="chip c-err">לא מתאים</span>`}</button>`)}
-        ${!list.length && !bad.length ? html`<div class="mut" data-no-match>לא נמצא מונה בשם הזה</div>` : nothing}
-      </div>
+    return html`<elec-meter-picker mode="choose" multi sensors .meters=${this.meters} .selected=${this.meterIds} data-meter-picker
+        @change=${(e: CustomEvent<{ selected: string[] }>) => (this.meterIds = e.detail.selected)}></elec-meter-picker>
       <div class="row" data-chosen><span class="chip c-acc nodot">נבחרו ${chosen.length} ${chosen.length === 1 ? 'מונה' : 'מונים'}</span><span class="mut">${chosen.map((m) => m.name).join(', ')}</span></div>`;
   }
 
@@ -452,7 +430,7 @@ export class ElecAccountWizard extends ElecBase {
 
   // ---------------------------------------------------------------- render
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     if (!perms.manage) return html`<div class="page" data-elec="wizard" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לניהול חשבונות')}</div>`;
     if (this.loadSt === 'loading') return html`<div class="page" data-elec="wizard" data-state="loading">${skeleton(5)}</div>`;
     if (this.loadSt === 'error') return html`<div class="page" data-elec="wizard" data-state="error">${stateBox('error', 'warning', 'לא ניתן לטעון את האשף', { label: 'נסה שוב', run: () => void this.init() })}</div>`;

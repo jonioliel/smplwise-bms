@@ -7,7 +7,7 @@ import { html, nothing, css, LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorCode, elecErrorText, elecToday, type Account, type BillSummary, type PeriodChoice } from '../api/electricity-billing';
 import { SkinController } from '../design/skin';
-import { elecCss } from './elec-css';
+import { elecCss } from './styles';
 import './elec-ui';
 import { alertBox, n } from './elec-ui';
 import { addDays, fmtRange, isIsoDate, periodContaining } from './elec-format';

@@ -1,13 +1,15 @@
 /**
  * CR-023 §11/§12 (mockup "חיוב"): one bill - the A4 preview in every state (draft with a watermark, issued, sent, paid, cancelled with
- * a watermark and the reason, a corrected revision, a PDF failure with "create the PDF again"), the actions the server allows
+ * a watermark and the reason, a corrected revision, a PDF failure with "create the PDF again" - from the last request or from the bill's
+ * `pdf.state` failed / unavailable), the actions the server allows
  * (`bill.actions`) and their confirmation dialogs: issue, cancel with a mandatory reason, correct, mark sent, mark paid, delete a
  * draft. Any holder of the bills permission may issue and cancel (owner decision 5). The PDF itself is produced by the server; this
  * page only links to it.
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { elec, elecErrorCode, elecErrorText, elecPerms, elecToday, type Bill, type BillAction, type BillEvent, type SentHow } from '../api/electricity-billing';
+import { ERROR_TEXT, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type SentHow } from '../api/electricity-billing';
+import { energyAccess } from './access';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
 import { baseNumber, f2, fmtDate, fmtDateTime, fmtRange, isIsoDate } from './elec-format';
@@ -25,7 +27,8 @@ export class ElecBillPage extends ElecBase {
   @state() private dlg: Dlg = '';
   @state() private busy = false;
   @state() private error = '';
-  @state() private pdfError = '';
+  /** the last PDF request of this page failed: the code and the text */
+  @state() private pdfFail: { code: string; text: string } | null = null;
   @state() private reason = '';
   @state() private reasonTouched = false;
   @state() private date = '';
@@ -42,7 +45,7 @@ export class ElecBillPage extends ElecBase {
 
   private async load() {
     this.st = 'loading';
-    this.pdfError = '';
+    this.pdfFail = null;
     try {
       const [b, e] = await Promise.all([elec().getBill(this.billId), elec().billEvents(this.billId).catch(() => [] as BillEvent[])]);
       this.bill = b;
@@ -97,9 +100,11 @@ export class ElecBillPage extends ElecBase {
   }
   private async pdf(mode: 'download' | 'view' | 'check') {
     const b = this.bill as Bill;
-    this.pdfError = '';
+    this.pdfFail = null;
     try {
       const blob = await elec().fetchPdf(b.id);
+      // the server stores the PDF of an issued bill on the first good render: the bill's pdf state moves on (failed -> stored)
+      if (b.state !== 'draft' && b.pdf && b.pdf.state !== 'stored') this.bill = await elec().getBill(b.id).catch(() => this.bill);
       if (mode === 'check') return;
       const url = URL.createObjectURL(blob);
       if (mode === 'view') window.open(url, '_blank', 'noopener');
@@ -111,7 +116,7 @@ export class ElecBillPage extends ElecBase {
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (e) {
-      this.pdfError = elecErrorText(e);
+      this.pdfFail = { code: elecErrorCode(e), text: elecErrorText(e) };
     }
   }
 
@@ -132,7 +137,7 @@ export class ElecBillPage extends ElecBase {
   }
 
   render() {
-    if (!elecPerms().bills) return html`<div class="page" data-elec="bill" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לחיובים')}</div>`;
+    if (!energyAccess().bills) return html`<div class="page" data-elec="bill" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לחיובים')}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="bill" data-state="loading">${skeleton(4)}</div>`;
     if (this.st !== 'ready' || !this.bill)
       return html`<div class="page" data-elec="bill" data-state=${this.st}><div class="row"><a class="btn ghost sm" href=${href.bills()}>→ חיובים</a></div>${stateBox(this.st === 'forbidden' ? 'forbidden' : 'error', this.st === 'forbidden' ? 'lock' : 'warning', this.error || 'לא ניתן לטעון את החיוב', this.st === 'error' ? { label: 'נסה שוב', run: () => void this.load() } : undefined)}</div>`;
@@ -141,11 +146,11 @@ export class ElecBillPage extends ElecBase {
     const wm = b.state === 'draft' ? 'טיוטה' : b.state === 'void' ? 'בוטל' : '';
     const actions = html`${b.actions.map((a) => this.btn(a, b))}`;
     const warnings = b.state === 'draft' ? s.notes.filter((x) => x.code === 'meter_not_reporting' || x.code === 'carried_in') : [];
-    const side = html`<div class="card"><div class="hd"><b class="h3">פרטים</b></div><dl class="kv">
+    const side = html`<div class="card"><div class="hd"><b class="h3">פרטים</b></div><dl class="kv" data-bill-details>
         <dt>חשבון</dt><dd><a class="lnk" href=${href.account(b.account_id)}>${b.account_name}</a></dd><dt>לקוח</dt><dd>${b.customer.name}</dd>
         <dt>תקופה</dt><dd>${n(fmtDate(b.period.from))} - ${n(fmtDate(b.period.to))}</dd>
         ${b.issue_date ? html`<dt>הונפק</dt><dd>${n(fmtDate(b.issue_date))}</dd>` : nothing}${b.due_date ? html`<dt>לתשלום עד</dt><dd>${n(fmtDate(b.due_date))}</dd>` : nothing}
-        ${b.sent ? html`<dt>נשלח</dt><dd>${n(fmtDate(b.sent.at))} · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>שולם</dt><dd>${n(fmtDate(b.paid.at))}${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
+        ${b.sent ? html`<dt>נשלח</dt><dd><span class="num" data-sent-at>${fmtDate(b.sent.at)}</span> · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>שולם</dt><dd><span class="num" data-paid-at>${fmtDate(b.paid.at)}</span>${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
         <dt>מקור</dt><dd>${b.origin === 'auto' ? 'נוצר אוטומטית' : 'נוצר ידנית'}</dd></dl></div>
       <div class="card"><div class="hd"><b class="h3">יומן</b></div><div class="list" data-bill-log>${this.events.map((e) => html`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="num mut" style="min-inline-size:112px">${fmtDateTime(e.at)}</span><span>${e.text}</span></div>`)}</div></div>`;
     return html`<div class="page" data-elec="bill" data-state="ready" data-bill-state=${b.state} data-bill-id=${b.id}>
@@ -155,12 +160,23 @@ export class ElecBillPage extends ElecBase {
         ${b.replaced_by_bill_id ? html`<span class="mut">הוחלף בחיוב <a class="lnk" href=${href.bill(b.replaced_by_bill_id)}>המתוקן</a></span>` : nothing}
         <span class="sp"></span>${this.phone ? nothing : actions}</div>
       ${this.phone ? html`<div class="row" data-actions>${actions}</div>` : nothing}
-      ${this.pdfError ? html`<div class="alert err" role="alert" data-pdf-error><span class="x" aria-hidden="true">!</span><div>${this.pdfError}</div><button type="button" class="btn sm" data-pdf-retry @click=${() => void this.pdf('download')}>יצירת PDF מחדש</button></div>` : nothing}
+      ${this.pdfNotice(b)}
       ${b.state === 'void' && b.void ? alertBox('err', html`<b>בוטל:</b> ${b.void.reason}`) : nothing}
       ${warnings.map((x) => alertBox('warn', x.text_he))}
       <div class="cols side-l"><div style="min-inline-size:0"><elec-bill-paper .snapshot=${s} watermark=${wm} .hash=${(b.snapshot_sha256 ?? '').slice(0, 12).replace(/(.{4})/g, '$1 ').trim()} .logo=${this.logoSrc()}></elec-bill-paper></div><div class="col">${side}</div></div>
       ${this.dialogs(b)}
     </div>`;
+  }
+
+  /** One short line when the PDF cannot be had: the last request of this page failed, or the bill says failed / unavailable. Retry unless no engine. */
+  private pdfNotice(b: Bill) {
+    const st = b.pdf?.state;
+    const code = b.pdf?.error_code || 'pdf_render_failed';
+    const fail = this.pdfFail ?? (st === 'failed' ? { code, text: ERROR_TEXT[code] ?? ERROR_TEXT.pdf_render_failed } : st === 'unavailable' ? { code: 'pdf_unavailable', text: ERROR_TEXT.pdf_unavailable } : null);
+    if (!fail) return nothing;
+    const retry = fail.code !== 'pdf_unavailable';
+    const shown = fail.code === 'pdf_unavailable' ? 'unavailable' : 'failed';
+    return html`<div class="alert ${retry ? 'err' : 'warn'}" role="alert" data-pdf-error data-pdf-state=${shown} data-pdf-code=${fail.code}><span class="x" aria-hidden="true">!</span><div>${fail.text}</div>${retry ? html`<button type="button" class="btn sm" data-pdf-retry @click=${() => void this.pdf(b.state === 'draft' ? 'view' : 'download')}>הפקת PDF מחדש</button>` : nothing}</div>`;
   }
 
   private logoSrc(): string {
@@ -196,14 +212,14 @@ export class ElecBillPage extends ElecBase {
           <div class="fld"><label for="sd">תאריך משלוח</label><input id="sd" type="date" class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><span class="lbl">אופן משלוח</span><div class="seg" role="group" aria-label="אופן משלוח">${(['email', 'hand', 'other'] as SentHow[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h} @click=${() => (this.how = h)}>${HOW[h]}</button>`)}</div></div>
         </div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '' }))}>שמירה</button>${cancel()}
+        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '', row_version: b.row_version }))}>שמירה</button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="סימון כשולם" ?open=${this.dlg === 'paid'} data-dialog="paid" @close=${() => this.close()}>
         <div class="form">
           <div class="fld"><label for="pd">תאריך תשלום</label><input id="pd" type="date" class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><label for="pr">אסמכתה (לא חובה)</label><input id="pr" class="ltr" data-reference placeholder="לא חובה" .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
         </div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim() }))}>שמירה</button>${cancel()}
+        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim(), row_version: b.row_version }))}>שמירה</button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="מחיקת טיוטה" ?open=${this.dlg === 'delete'} data-dialog="delete" @close=${() => this.close()}>
         <div>הטיוטה תימחק. אפשר ליצור אחרת מעמוד החשבון.</div>${err}

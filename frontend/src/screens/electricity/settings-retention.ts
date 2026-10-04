@@ -6,7 +6,7 @@ import { describeError } from '../../api/client';
 import { estimateBytes, getRetention, putRetention, RETENTION_RANGES, type EnergySettings, type RetentionKey, type RetentionPatch } from '../../api/electricity-meters';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtMb } from '../../electricity/format';
-import { electricityCss } from '../../electricity/styles';
+import { elecCss } from '../../electricity/styles';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
 
@@ -44,7 +44,7 @@ export class ElecSettingsRetention extends LitElement {
   private stop?: () => void;
 
   static styles = [
-    electricityCss,
+    elecCss,
     css`
       :host {
         display: block;
@@ -155,7 +155,7 @@ export class ElecSettingsRetention extends LitElement {
 
   render() {
     if (!this.access.system && !this.access.manage) return html`<sw-state-panel state="forbidden" data-elec="retention" data-state="forbidden"></sw-state-panel>`;
-    if (this.phase === 'loading') return html`<div data-elec="retention" data-state="loading" aria-busy="true" class="card">${[0, 1, 2, 3].map(() => html`<div class="row" style="padding:12px 0"><div class="sk" style="inline-size:36%"></div><span class="sp"></span><div class="sk" style="inline-size:20%"></div></div>`)}</div>`;
+    if (this.phase === 'loading') return html`<div data-elec="retention" data-state="loading" aria-busy="true" class="card">${[0, 1, 2, 3].map(() => html`<div class="row" style="padding:12px 0"><div class="skl" style="inline-size:36%"></div><span class="sp"></span><div class="skl" style="inline-size:20%"></div></div>`)}</div>`;
     if (this.phase === 'error' || !this.data) return html`<div data-elec="retention" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את ההגדרות" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></div>`;
     const d = this.data;
     const total = ROWS.reduce((s, r) => s + (d.usage[r.usage] ?? 0), 0);

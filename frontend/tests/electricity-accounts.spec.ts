@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { EL, noOverflow, open, phone, screen, shot, tap, watchErrors } from './electricity-ui';
+import { wizardTo } from './electricity-wizard-helpers';
 
 // Accounts list and page, customers and billing settings (CR-023; mock layer): table and cards, the account's three tabs, the unreported meter, the
 // consumption chart (full, partial, none), customers (new, edit, delete, errors), prices and VAT, business details (logo, brand colour, payment
@@ -87,6 +88,9 @@ test.describe('account page', () => {
     await expect(chart.locator('[data-bar="cur"]')).toHaveCount(1);
     await expect(chart.locator('.legend')).toContainText('אותה תקופה אשתקד');
     await expect(chart.locator('[data-bar="prev"]')).toHaveCount(12);
+    // 12 ended periods from the history endpoint, newest first in the table; last year comes from the readings (no 2025 bill exists)
+    await expect(page.locator('[data-history-row]')).toHaveCount(12);
+    await expect(page.locator('[data-history-row]').first()).toHaveAttribute('data-status', 'measured');
     await chart.locator('[data-chart-table-toggle]').click();
     await expect(chart.locator('[data-elec-chart-table] td').first()).toBeVisible();
     await page.locator('[data-months="24"]').click();
@@ -98,19 +102,42 @@ test.describe('account page', () => {
     await shot(page, info, 'account-history-state');
   });
 
-  test('history with partial data: a gap, hatched bars, no last year; an account without history says so', async ({ page }) => {
+  test('history with partial data: a gap, hatched bars, no last year; a missing period is a row without a number, never a zero', async ({ page }) => {
     await open(page, `${EL}/accounts/a2/history`);
     await screen(page, 'account');
     await expect(page.locator('elec-chart [data-bar="gap"]')).toHaveCount(1);
     await expect(page.locator('elec-chart .legend')).toContainText('נתונים חלקיים');
+    // the history endpoint answers every ended period: 12 rows, the missing one says "no data", the partial one carries a chip
+    await expect(page.locator('[data-history-row]')).toHaveCount(12);
+    const missing = page.locator('[data-history-row][data-status="missing"]');
+    await expect(missing).toHaveCount(1);
+    await expect(missing).toContainText('אין נתונים');
+    await expect(missing).not.toContainText('0.00');
+    await expect(page.locator('[data-history-row][data-status="partial"] [data-partial]')).toHaveCount(1);
     await open(page, `${EL}/accounts/a5/history`);
     await screen(page, 'account');
     await expect(page.locator('elec-chart .legend')).not.toContainText('אשתקד');
     await expect(page.locator('elec-chart [data-bar="prev"]')).toHaveCount(4);
+    // an account with a billed period and no readings: the bill's period has kWh, the other ended periods are "no data"
     await open(page, `${EL}/accounts/a4/history`);
     await screen(page, 'account');
+    await expect(page.locator('[data-history-row]')).toHaveCount(3);
+    await expect(page.locator('[data-history-row][data-status="missing"]')).toHaveCount(2);
+    await expect(page.locator('[data-history-row][data-status="measured"]')).toContainText('13,104.90');
+    await expect(page.locator('elec-chart [data-bar="cur"]')).toHaveCount(0);
+  });
+
+  test('history of an account without an ended period says so', async ({ page }) => {
+    // a new account whose first period starts today has no ended period: the history is empty, nothing is invented
+    await open(page, `${EL}/accounts/new`);
+    await screen(page, 'wizard');
+    await wizardTo(page, 6, { name: 'חשבון בלי עבר' });
+    await page.locator('[data-save]').click();
+    await screen(page, 'account');
+    await page.locator('[data-tab="history"]').click();
     await expect(page.locator('[data-elec-state="empty"]')).toContainText('אין עדיין נתוני עבר');
     await expect(page.locator('elec-chart')).toHaveCount(0);
+    await expect(page.locator('[data-history-row]')).toHaveCount(0);
   });
 
   test('bills tab lists the account bills; view-only has no bills tab and no amounts', async ({ page }) => {

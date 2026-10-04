@@ -10,10 +10,12 @@
  * a caller without `energy.bills` (the keys are absent, not null); the UI never draws money without that permission.
  */
 import { ApiError, api, apiUrl, del, get, patch, post, put } from './client';
-import { can, isApi } from './session';
+import { isApi } from './session';
 import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
+// the meters endpoints have ONE client (electricity-meters.ts, ELECTRICITY_INTERFACES.md section 3); this module never calls them itself
+import { listMeters, type Meter } from './electricity-meters';
 import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-formula';
-import { addDays, billNumber, daysInclusive, r2 } from '../electricity/elec-format';
+import { addDays, billNumber, daysInclusive, fmtRange, monthShort, r2 } from '../electricity/elec-format';
 
 export type { FormulaAst };
 export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
@@ -48,6 +50,9 @@ export const ERROR_TEXT: Record<string, string> = {
   version_exists: 'כבר קיימת גרסה עם תאריך התחלה זהה.',
   pdf_unavailable: 'יצירת PDF אינה זמינה בהתקנה הזו.',
   pdf_render_failed: 'יצירת קובץ ה-PDF נכשלה. החיוב נשמר ואפשר לנסות שוב.',
+  pdf_timeout: 'יצירת קובץ ה-PDF לקחה יותר מדי זמן. החיוב נשמר ואפשר לנסות שוב.',
+  pdf_page_limit: 'החיוב ארוך מדי לקובץ PDF (יותר מדי עמודים).',
+  pdf_too_large: 'קובץ ה-PDF גדול מדי. נסו לוגו קטן יותר.',
   logo_invalid: 'הלוגו חייב להיות PNG או JPEG עד 1MB.',
 };
 
@@ -243,13 +248,43 @@ export interface BillSnapshot {
   /** the first 12 hex characters of snapshot_sha256 (the server sends the full hash on the Bill) */
 }
 export type BillAction = 'recalculate' | 'delete' | 'issue' | 'sent' | 'paid' | 'correct' | 'void' | 'pdf';
+/** The PDF codes of the server (GET /energy/bills/{id}/pdf): 503 render_failed / timeout (retryable), 422 page_limit / too_large, 503 unavailable. */
+export type PdfErrorCode = 'pdf_render_failed' | 'pdf_timeout' | 'pdf_page_limit' | 'pdf_too_large' | 'pdf_unavailable';
+export const PDF_RETRYABLE: readonly string[] = ['pdf_render_failed', 'pdf_timeout'];
+/**
+ * The bill's PDF: stored = an issued bill whose PDF file is saved; ready = can be produced on request; failed = the last attempt failed
+ * (`error_code`, `failed_at` UTC ISO); unavailable = no PDF engine in this build.
+ */
+export interface BillPdf {
+  state: 'stored' | 'ready' | 'failed' | 'unavailable';
+  error_code: string | null;
+  failed_at: string | null;
+  engine: 'weasyprint' | 'fpdf2' | null;
+}
 export interface Bill extends BillSummary {
   snapshot: BillSnapshot;
   snapshot_sha256: string | null;
+  /** `at` is a DATE (`YYYY-MM-DD`) */
   sent: { at: string; how: SentHow; note: string } | null;
+  /** `at` is a DATE (`YYYY-MM-DD`) */
   paid: { at: string; reference: string } | null;
   void: { at: string; reason: string } | null;
   actions: BillAction[];
+  /** absent from an older server: treated as "ready" */
+  pdf?: BillPdf;
+}
+/** POST /energy/bills/{id}/sent: `at` a date (`YYYY-MM-DD`, default today on the server) */
+export interface SentBody {
+  at?: string;
+  how: SentHow;
+  note?: string;
+  row_version?: number;
+}
+/** POST /energy/bills/{id}/paid: `at` a date (`YYYY-MM-DD`) */
+export interface PaidBody {
+  at?: string;
+  reference?: string;
+  row_version?: number;
 }
 export interface BillEventWire {
   at: string;
@@ -285,6 +320,17 @@ export interface BillingSettings {
   numbering: { customer_digits: number; format: string };
   auto: { delay_hours: number };
   logo: { sha256: string; mime: string; width: number; height: number } | null;
+  /** the PDF engine of this installation (read only; null or absent from an older server) */
+  pdf_engine?: PdfEngine | null;
+}
+export interface PdfEngine {
+  configured: string;
+  active: 'weasyprint' | 'fpdf2' | null;
+  checked: string | null;
+  detail: string | null;
+  last_render_engine: string | null;
+  slow_fallbacks: number;
+  fallback_after_s: number;
 }
 export type BillingSettingsPatch = Partial<Pick<BillingSettings, 'default_price_mode' | 'payment_terms' | 'business' | 'auto'>>;
 
@@ -308,25 +354,10 @@ export interface FormulaPreview {
 
 // ------------------------------------------------------------------------------------------------ view models
 
-/** The meter list of the wizard's step 1 (the meters screen owns the full model: src/api/electricity-meters.ts). */
-export interface ElecMeter {
-  id: string;
-  name: string;
-  area: string;
-  floor: string;
-  reading_kwh: number | null;
-  status: 'ok' | 'stale' | 'paused';
-  last_report: string | null;
-  /** consumption of the last full period (the formula editor's chips) */
+/** A meter of the wizard and the formula editor: the meters module's model (src/api/electricity-meters.ts) plus the consumption of the last full
+ * period for the editor's chips (null = not known; the formula check endpoint gives the numbers of the preview). */
+export interface ElecMeter extends Meter {
   last_period_kwh: number | null;
-}
-/** A sensor of the infrastructure that is NOT a valid meter, with the reason (CR-023 §5). */
-export interface MeterCandidate {
-  name: string;
-  area: string;
-  value: string;
-  verdict: 'warn' | 'rejected';
-  reason: string;
 }
 
 export interface AccountRow {
@@ -359,12 +390,34 @@ export interface AccountStatus {
   customer: Customer | null;
   price?: { tariff: string; ex_vat: string; inc_vat: string; vat: string };
 }
+/** GET /energy/accounts/{aid}/history?past=N: the ENDED regular periods, oldest first (the last one is the latest ended period). */
+export interface HistoryPeriodWire {
+  from: string;
+  /** inclusive last day */
+  to: string;
+  /** null = no data (never invented) */
+  kwh: string | null;
+  status: 'measured' | 'partial' | 'missing';
+  source: 'bill' | 'readings' | null;
+  /** `total` only for energy.bills holders */
+  bill: BillSummary | null;
+}
+export interface AccountHistoryWire {
+  periods: HistoryPeriodWire[];
+  /** snapshot.history's shape, for the latest ended period */
+  comparison: BillHistory;
+}
 export interface HistoryRow {
   label: string;
   from: string;
   to: string;
-  kwh: number;
+  /** null = no data for the period (shown as such, never as zero) */
+  kwh: number | null;
+  status: 'measured' | 'partial' | 'missing';
+  source: 'bill' | 'readings' | null;
+  /** against the period just before, when both have data */
   change_pct: number | null;
+  /** the issued bill's total (energy.bills only); a period without a bill has none */
   amount?: string;
   bill: BillSummary | null;
 }
@@ -377,25 +430,20 @@ export interface BillEvent {
   text: string;
 }
 
-// ------------------------------------------------------------------------------------------------ permissions
-
-export interface ElecPerms {
-  /** energy.view */
-  view: boolean;
-  /** energy.bills: money, bills, customers */
-  bills: boolean;
-  /** energy.manage */
-  manage: boolean;
-}
+// ------------------------------------------------------------------------------------------------ demo control
+// Who may do what: src/electricity/access.ts (energyAccess, the one source of the energy permissions; it reads `persona` below in demo mode).
 
 /** Demo personas for the specs and design review (`localStorage['sw.demo.electricity']`, JSON). */
 export interface DemoControl {
   persona?: 'full' | 'view' | 'bills_only';
   empty?: boolean;
-  /** make one list fail: accounts | bills | customers | settings | meters */
+  /** make one list fail: accounts | bills | customers | settings */
   fail?: string;
-  /** every issued bill's PDF fails until "create the PDF again" */
+  /** every issued bill's PDF failed last time (pdf.state = failed) until "create the PDF again" succeeds */
   pdf_failed?: boolean;
+  /** every PDF request fails with this code (pdf_render_failed | pdf_timeout | pdf_page_limit | pdf_too_large | pdf_unavailable; the last also makes
+   * every bill's pdf.state "unavailable") */
+  pdf_error?: string;
   /** the next bill creation fails with this code: formula_negative | tariff_missing | vat_missing | period_overlap */
   create_error?: string;
   /** artificial delay in ms (loading states) */
@@ -409,22 +457,17 @@ export function demoControl(): DemoControl {
   }
 }
 
-export function elecPerms(): ElecPerms {
-  if (isApi()) return { view: can('energy.view'), bills: can('energy.bills'), manage: can('energy.manage') };
-  const p = demoControl().persona ?? 'full';
-  return { view: true, bills: p !== 'view', manage: p === 'full' };
-}
-
 // ------------------------------------------------------------------------------------------------ the backend contract
 
 /** Everything the screens call. `rest` talks to the server (wire -> view models); `mockBackend` is the in-memory twin. */
 export interface ElecBackend {
-  listMeters(): Promise<ElecMeter[]>;
-  listCandidates(): Promise<MeterCandidate[]>;
+  /** kWh of the last full period per meter id, for the formula editor's chips (the server has no such read: an empty map). */
+  lastPeriodKwh(ids: string[]): Promise<Record<string, number>>;
   listAccounts(): Promise<AccountRow[]>;
   getAccount(id: string): Promise<Account>;
   accountStatus(id: string): Promise<AccountStatus>;
-  accountHistory(id: string, months: 12 | 24): Promise<AccountHistory>;
+  /** `past`: how many ended periods (1-24) */
+  accountHistory(id: string, past: number): Promise<AccountHistory>;
   createAccount(body: AccountBody, afterSave: 'draft' | 'none'): Promise<{ account: Account; bill: BillSummary | null; billError: string }>;
   updateAccount(id: string, revision: number, body: Partial<AccountBody>): Promise<Account>;
   checkFormula(ast: FormulaAst): Promise<FormulaPreview>;
@@ -446,11 +489,11 @@ export interface ElecBackend {
   recalcBill(b: BillSummary): Promise<Bill>;
   deleteDraft(b: BillSummary): Promise<void>;
   issueBill(b: BillSummary): Promise<Bill>;
-  markSent(id: string, body: { at: string; how: SentHow; note: string }): Promise<Bill>;
-  markPaid(id: string, body: { at: string; reference: string }): Promise<Bill>;
+  markSent(id: string, body: SentBody): Promise<Bill>;
+  markPaid(id: string, body: PaidBody): Promise<Bill>;
   correctBill(id: string): Promise<Bill>;
   voidBill(id: string, reason: string): Promise<Bill>;
-  /** fetches the PDF; rejects with pdf_render_failed (503) when the renderer failed */
+  /** fetches the PDF; rejects with a PdfErrorCode: 503 pdf_render_failed / pdf_timeout (retryable), 422 pdf_page_limit / pdf_too_large, 503 pdf_unavailable */
   fetchPdf(id: string): Promise<Blob>;
   getSettings(): Promise<BillingSettings>;
   saveSettings(revision: number, body: BillingSettingsPatch): Promise<BillingSettings>;
@@ -534,41 +577,41 @@ export function eventText(e: BillEventWire): string {
       return d.reason ? `בוטל: ${String(d.reason)}` : 'בוטל';
     case 'pdf':
       return 'קובץ ה-PDF נוצר';
+    case 'pdf_failed':
+      return 'הפקת ה-PDF נכשלה';
     default:
       return e.action;
   }
 }
 
-/** tolerant mapping of the meters endpoint (owned by the meters screen; reconcile with src/api/electricity-meters.ts) */
-function toMeter(x: Record<string, unknown>): ElecMeter {
-  const st = String(x.status ?? 'ok');
-  return {
-    id: String(x.id ?? x.meter_id ?? ''),
-    name: String(x.display_name ?? x.name ?? ''),
-    area: String(x.area_name ?? x.area ?? ''),
-    floor: String(x.floor_name ?? x.floor ?? ''),
-    reading_kwh: x.reading_kwh !== undefined && x.reading_kwh !== null ? Number(x.reading_kwh) : x.reading_wh !== undefined && x.reading_wh !== null ? Number(x.reading_wh) / 1000 : null,
-    status: st === 'paused' ? 'paused' : st === 'stale' || x.reporting === false ? 'stale' : 'ok',
-    last_report: typeof x.last_report_at === 'string' ? x.last_report_at.slice(11, 16) : null,
-    last_period_kwh: x.last_period_kwh !== undefined && x.last_period_kwh !== null ? Number(x.last_period_kwh) : null,
-  };
+/** A period's label: the month for a period of one calendar month, the dates otherwise. */
+export function periodRowLabel(from: string, to: string): string {
+  return from.slice(0, 7) === to.slice(0, 7) && from.endsWith('-01') && addDays(to, 1).endsWith('-01') ? monthShort(to) : fmtRange(from, to);
+}
+
+/** The account page's history model from the history answer (shared by the REST adapter and the mock): one row per ended period, a period with
+ * no data stays a row with kWh null (never zero), the change against the period just before when both have data, the amount only from a bill. */
+export function buildHistory(w: AccountHistoryWire): AccountHistory {
+  const rows = w.periods.map((p, i): HistoryRow => {
+    const kwh = p.kwh === null ? null : num(p.kwh);
+    const before = i ? w.periods[i - 1].kwh : null;
+    const prev = before === null ? null : num(before);
+    const row: HistoryRow = { label: periodRowLabel(p.from, p.to), from: p.from, to: p.to, kwh, status: kwh === null ? 'missing' : p.status, source: p.source, change_pct: kwh !== null && prev ? ((kwh - prev) / prev) * 100 : null, bill: p.bill };
+    if (p.bill && p.bill.total !== undefined && p.bill.total !== '') row.amount = p.bill.total;
+    return row;
+  });
+  return { rows, comparison: w.comparison };
+}
+
+/** The registered meters for the wizard and the formula editor: read through the meters client (electricity-meters.ts), the last-period kWh added. */
+export async function elecMeters(): Promise<ElecMeter[]> {
+  const list = await listMeters();
+  const last = await elec().lastPeriodKwh(list.map((m) => m.id)).catch(() => ({}) as Record<string, number>);
+  return list.map((m) => ({ ...m, last_period_kwh: last[m.id] ?? null }));
 }
 
 const rest: ElecBackend = {
-  listMeters: async () => {
-    const r = await get<{ items?: Record<string, unknown>[]; meters?: Record<string, unknown>[] }>(`${E}meters`);
-    return (r.items ?? r.meters ?? []).map(toMeter);
-  },
-  listCandidates: async () => {
-    try {
-      const r = await get<{ items?: Record<string, unknown>[]; candidates?: Record<string, unknown>[] }>(`${E}meters/candidates`);
-      return (r.items ?? r.candidates ?? [])
-        .filter((c) => c.verdict === 'warn' || c.verdict === 'rejected' || c.verdict === 'warning')
-        .map((c) => ({ name: String(c.name ?? ''), area: String(c.area_name ?? c.area ?? ''), value: String(c.state ?? c.value ?? ''), verdict: c.verdict === 'rejected' ? 'rejected' : 'warn', reason: String(c.reason ?? c.message ?? '') }) as MeterCandidate);
-    } catch {
-      return [];
-    }
-  },
+  lastPeriodKwh: async () => ({}),
   listAccounts: async () => {
     const r = await get<{ items: Account[] }>(`${E}accounts`);
     const rows = await Promise.all(
@@ -596,20 +639,8 @@ const rest: ElecBackend = {
     ]);
     return buildStatus(account, w, { today: new Date().toISOString().slice(0, 10), customer, tariffs, vat });
   },
-  accountHistory: async (id, months) => {
-    // kWh per period comes from the bills of the account (the periods endpoint); periods without a bill carry no number: nothing is invented
-    const r = await get<{ periods: PeriodRow[] }>(`${E}accounts/${id}/periods${qs({ past: months, future: 0 })}`);
-    const billed = r.periods.filter((p) => p.bill && p.bill.state !== 'void');
-    const rows: HistoryRow[] = billed.map((p, i) => {
-      const kwh = num(p.bill!.kwh);
-      const prev = i ? num(billed[i - 1].bill!.kwh) : 0;
-      const row: HistoryRow = { label: p.to, from: p.from, to: p.to, kwh, change_pct: i && prev ? ((kwh - prev) / prev) * 100 : null, bill: p.bill };
-      if (p.bill!.total !== undefined) row.amount = p.bill!.total;
-      return row;
-    });
-    const last = billed[billed.length - 1];
-    return { rows, comparison: { current: last ? { from: last.from, to: last.to, kwh: last.bill!.kwh } : null, previous: billed.slice(0, -1).slice(-12).map((p) => ({ from: p.from, to: p.to, kwh: p.bill!.kwh, status: 'measured' as const, source: 'bill' as const })), same_period_last_year: null } };
-  },
+  // kWh per ended period from the server: an issued bill of exactly that period, else the readings with the account formula, else null (no data)
+  accountHistory: async (id, past) => buildHistory(await get<AccountHistoryWire>(`${E}accounts/${id}/history${qs({ past: Math.max(1, Math.min(24, Math.round(past))) })}`)),
   createAccount: async (body, afterSave) => {
     const account = await post<Account>(`${E}accounts`, body);
     let bill: BillSummary | null = null;
@@ -674,7 +705,8 @@ const rest: ElecBackend = {
       } catch {
         body = {};
       }
-      throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: res.status === 503, correlation_id: '', details: {} });
+      const code = body.code ?? `http_${res.status}`;
+      throw new ApiError(res.status, { code, user_message: body.user_message ?? '', retryable: PDF_RETRYABLE.includes(code), correlation_id: '', details: {} });
     }
     return res.blob();
   },

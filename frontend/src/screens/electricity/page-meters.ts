@@ -11,7 +11,7 @@ import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../
 import { navigate } from '../../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
-import { electricityCss } from '../../electricity/styles';
+import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { SkinController } from '../../design/skin';
 import { bubbleChrome } from '../../styles/bubble-chrome';
@@ -65,7 +65,7 @@ export class ElecMetersPage extends LitElement {
   private noticeTimer = 0;
 
   static styles = [
-    electricityCss,
+    elecCss,
     css`
       :host {
         display: flex;
@@ -376,7 +376,7 @@ export class ElecMetersPage extends LitElement {
     const meterId = this.params.get('meter') ?? '';
     const card = meterId ? html`<elec-meter-card .meterId=${meterId} ?canManage=${this.access.manage} @close=${() => this.setParams({ meter: null })} @changed=${() => void this.load(false)}></elec-meter-card>` : nothing;
     if (this.phase === 'loading') {
-      return html`<div data-elec="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="sk" style="inline-size:30%"></div><span class="sp"></span><div class="sk" style="inline-size:14%"></div><div class="sk" style="inline-size:10%"></div></div>`)}</div></div>`;
+      return html`<div data-elec="meters" data-state="loading" aria-busy="true"><div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
     }
     if (this.phase === 'error') {
       return html`<div data-elec="meters" data-state="error"><sw-state-panel state="error" heading="לא ניתן לטעון את המונים" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load(true)}></sw-state-panel></div>`;

@@ -7,10 +7,11 @@ import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { getMeter, meterSeries, pauseMeter, removeMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
-import { electricityCss } from './styles';
+import { elecCss } from './styles';
+import { SkinController } from '../design/skin';
 
 export const STATUS_LABEL: Record<MeterStatus, string> = { reporting: 'מדווח', stale: 'לא מדווח', paused: 'מושהה' };
-export const STATUS_CLASS: Record<MeterStatus, string> = { reporting: 'ok', stale: 'warn', paused: '' };
+export const STATUS_CLASS: Record<MeterStatus, string> = { reporting: 'c-ok', stale: 'c-warn', paused: 'c-mut' };
 
 type Range = 'hours' | 'days' | 'months';
 const RANGE_LABEL: Record<Range, string> = { hours: '24 שעות', days: '30 ימים', months: '12 חודשים' };
@@ -44,6 +45,7 @@ export function barChart(data: { label: string; value: number }[], ariaLabel: st
  */
 @customElement('elec-meter-card')
 export class ElecMeterCard extends LitElement {
+  readonly bubbleSkin = new SkinController(this);
   @property() meterId = '';
   @property({ type: Boolean }) canManage = false;
 
@@ -63,7 +65,7 @@ export class ElecMeterCard extends LitElement {
   private seq = 0;
 
   static styles = [
-    electricityCss,
+    elecCss,
     css`
       :host {
         display: contents;

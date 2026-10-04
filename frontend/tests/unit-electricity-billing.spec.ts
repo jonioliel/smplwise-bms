@@ -2,8 +2,9 @@ import { test, expect } from '@playwright/test';
 import { astToTokens, coefficients, detectPreset, evaluate, factorLabel, meterIdsOf, parseTokens, presetTokens, sentence, textToTokens, tokensToText, type Tok } from '../src/electricity/elec-formula';
 import { baseNumber, billNumber, nextPeriods, periodContaining } from '../src/electricity/elec-format';
 import { chartBars, hasComparison } from '../src/electricity/elec-chart-data';
-import { mockBackend } from '../src/api/electricity-billing-mock';
-import type { BillHistory } from '../src/api/electricity-billing';
+import { mockBackend, mockHistoryWire } from '../src/api/electricity-billing-mock';
+import { ERROR_TEXT, buildHistory, eventText, type BillHistory } from '../src/api/electricity-billing';
+import { ENERGY_PERMISSIONS, ENERGY_PERMISSION_LABELS, energyPermissionLabel } from '../src/electricity/access';
 
 // Pure logic of the electricity screens (CR-023): the formula grammar and AST, presets, text mode, periods and numbers, the chart data and the golden
 // bill of the mock layer. No DOM, no browser (the module imports are DOM-free).
@@ -156,5 +157,120 @@ test.describe('mock layer arithmetic (golden bill)', () => {
   test('the account status is derived from the wire answers', async () => {
     const st = await mockBackend.accountStatus('a1');
     expect(st.kwh).toBeGreaterThan(0);
+  });
+});
+
+test.describe('account history (GET /energy/accounts/{aid}/history?past=N)', () => {
+  test('ended periods oldest first: kWh from the issued bill, else the readings; the comparison with the same period last year', () => {
+    const w = mockHistoryWire('a1', 12);
+    expect(w.periods).toHaveLength(12);
+    for (const p of w.periods) expect(p.to < '2026-10-01', 'only ended periods').toBe(true);
+    const last = w.periods[w.periods.length - 1];
+    expect(last).toMatchObject({ from: '2026-09-01', to: '2026-09-30', kwh: '776.20', status: 'measured', source: 'bill' });
+    expect(last.bill?.number).toBe('2026-09-0001');
+    expect(w.periods[0]).toMatchObject({ from: '2025-10-01', to: '2025-10-31', status: 'measured', source: 'readings', bill: null });
+    // August: the cancelled bill is skipped, the corrected revision counts
+    expect(w.periods.find((p) => p.from === '2026-08-01')).toMatchObject({ kwh: '812.40', source: 'bill' });
+    expect(w.comparison.current).toEqual({ from: '2026-09-01', to: '2026-09-30', kwh: '776.20' });
+    expect(w.comparison.previous).toHaveLength(12);
+    // last year comes from the readings: no bill of 2025 is needed
+    expect(w.comparison.same_period_last_year).toMatchObject({ from: '2025-09-01', to: '2025-09-30', kwh: '671.80', source: 'readings' });
+    expect(mockHistoryWire('a1', 24).periods).toHaveLength(13); // the readings reach 12 periods back, nothing older is invented
+    expect(mockHistoryWire('a1', 3).periods.map((p) => p.from)).toEqual(['2026-07-01', '2026-08-01', '2026-09-01']);
+  });
+
+  test('a missing period stays a row without a number, a partial one is flagged; the change needs both periods', async () => {
+    const h = await mockBackend.accountHistory('a2', 12);
+    expect(h.rows).toHaveLength(12);
+    const miss = h.rows.find((r) => r.from === '2026-02-01')!;
+    expect(miss).toMatchObject({ kwh: null, status: 'missing', source: null, change_pct: null, bill: null });
+    expect(h.rows.find((r) => r.from === '2026-03-01')!.change_pct).toBeNull();
+    expect(h.rows.find((r) => r.from === '2025-10-01')!.status).toBe('partial');
+    const jun = h.rows.find((r) => r.from === '2026-06-01')!;
+    expect(jun).toMatchObject({ source: 'readings', bill: null });
+    expect(jun.amount, 'no bill, no amount').toBeUndefined();
+    const aug = h.rows.find((r) => r.from === '2026-08-01')!;
+    expect(aug.source).toBe('bill');
+    expect(aug.amount).toBe(aug.bill!.total);
+    const sep = h.rows[h.rows.length - 1];
+    const prev = h.rows[h.rows.length - 2];
+    expect(sep.change_pct).toBeCloseTo(((sep.kwh! - prev.kwh!) / prev.kwh!) * 100, 6);
+  });
+
+  test('an account with periods but no readings: the billed period only, the rest is no data, no current point', () => {
+    const w = mockHistoryWire('a4', 12);
+    expect(w.periods.map((p) => [p.from, p.source, p.status])).toEqual([
+      ['2026-07-01', null, 'missing'],
+      ['2026-08-01', 'bill', 'measured'],
+      ['2026-09-01', null, 'missing'],
+    ]);
+    expect(w.comparison.current).toBeNull();
+    expect(w.comparison.same_period_last_year).toBeNull();
+  });
+
+  test('buildHistory maps the wire answer: labels, null kWh kept, money only from a bill total', () => {
+    const h = buildHistory({
+      periods: [
+        { from: '2026-07-01', to: '2026-07-31', kwh: '100.00', status: 'measured', source: 'readings', bill: null },
+        { from: '2026-08-01', to: '2026-08-31', kwh: null, status: 'missing', source: null, bill: null },
+        { from: '2026-09-01', to: '2026-10-31', kwh: '150.00', status: 'partial', source: 'readings', bill: null },
+      ],
+      comparison: { current: null, previous: [], same_period_last_year: null },
+    });
+    expect(h.rows.map((r) => r.kwh)).toEqual([100, null, 150]);
+    expect(h.rows[1].status).toBe('missing');
+    expect(h.rows[2]).toMatchObject({ status: 'partial', change_pct: null });
+    expect(h.rows[0].label).toBe('יולי 26');
+    expect(h.rows[2].label).toBe('01.09.2026 - 31.10.2026');
+    expect(h.rows.every((r) => r.amount === undefined)).toBe(true);
+  });
+});
+
+test.describe('bill sent / paid and the PDF state', () => {
+  test('sent and paid carry a DATE, the server default is today, a stale row_version is refused', async () => {
+    const b = await mockBackend.getBill('b104');
+    await expect(mockBackend.markSent('b104', { how: 'hand', row_version: b.row_version + 5 })).rejects.toMatchObject({ body: { code: 'revision_conflict' } });
+    const s = await mockBackend.markSent('b104', { at: '2026-10-03', how: 'hand', row_version: b.row_version });
+    expect(s.sent).toEqual({ at: '2026-10-03', how: 'hand', note: '' });
+    const p = await mockBackend.markPaid('b104', { reference: 'A-1', row_version: s.row_version });
+    expect(p.paid).toEqual({ at: '2026-10-04', reference: 'A-1' });
+    expect((await mockBackend.getBill('b102')).sent?.at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test('pdf: ready for a draft, stored for an issued bill, failed with the demo flag until a new render, the error codes', async () => {
+    expect((await mockBackend.getBill('b101')).pdf).toMatchObject({ state: 'ready', error_code: null });
+    expect((await mockBackend.getBill('b103')).pdf).toMatchObject({ state: 'stored', engine: 'weasyprint' });
+    const g = globalThis as { localStorage?: unknown };
+    const ctl = (o: object) => (g.localStorage = { getItem: () => JSON.stringify(o) });
+    try {
+      ctl({ pdf_failed: true });
+      expect((await mockBackend.getBill('b102')).pdf).toMatchObject({ state: 'failed', error_code: 'pdf_render_failed' });
+      expect((await mockBackend.getBill('b102')).pdf?.failed_at).toMatch(/Z$/);
+      await mockBackend.fetchPdf('b102');
+      expect((await mockBackend.getBill('b102')).pdf?.state).toBe('stored');
+      ctl({ pdf_error: 'pdf_page_limit' });
+      await expect(mockBackend.fetchPdf('b102')).rejects.toMatchObject({ status: 422, body: { code: 'pdf_page_limit', retryable: false } });
+      expect((await mockBackend.getBill('b102')).pdf).toMatchObject({ state: 'failed', error_code: 'pdf_page_limit' });
+      ctl({ pdf_error: 'pdf_timeout' });
+      await expect(mockBackend.fetchPdf('b102')).rejects.toMatchObject({ status: 503, body: { code: 'pdf_timeout', retryable: true } });
+      ctl({ pdf_error: 'pdf_unavailable' });
+      expect((await mockBackend.getBill('b102')).pdf?.state).toBe('unavailable');
+    } finally {
+      delete g.localStorage;
+    }
+    for (const c of ['pdf_render_failed', 'pdf_timeout', 'pdf_page_limit', 'pdf_too_large', 'pdf_unavailable']) expect(ERROR_TEXT[c], c).toMatch(/[א-ת]/);
+    expect(eventText({ at: '', action: 'pdf_failed', actor: { kind: 'system' }, details: { code: 'pdf_timeout' } })).toBe('הפקת ה-PDF נכשלה');
+  });
+});
+
+test.describe('energy permissions: one source', () => {
+  test('three permissions with the approved labels', () => {
+    expect([...ENERGY_PERMISSIONS]).toEqual(['energy.view', 'energy.bills', 'energy.manage']);
+    expect(ENERGY_PERMISSION_LABELS).toEqual({
+      'energy.view': 'צפייה במונים ובצריכה',
+      'energy.bills': 'חיובים: סכומים, לקוחות, הפקה וביטול',
+      'energy.manage': 'ניהול מונים, חשבונות, לקוחות ומחירים',
+    });
+    expect(energyPermissionLabel('map.read')).toBeUndefined();
   });
 });

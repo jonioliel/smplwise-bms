@@ -40,7 +40,7 @@ account = "חשבון", produced bill = "חיוב".
 - `src/electricity/access.ts`: `energyAccess()` returns `{ view, bills, manage, system }` from the session (`permissions_any`), `onEnergyAccess(fn)`;
   money is never drawn when `!bills`.
 - `src/electricity/format.ts`: `fmtKwh`, `fmtNum`, `fmtIls`, `fmtDate`, `fmtDateTime` (LTR numerals inside RTL text).
-- `src/electricity/styles.ts`: `electricityCss` (tables, chips, tiles, list rows) to reuse in your screens so both halves look the same.
+- `src/electricity/styles.ts`: `elecCss`, the one electricity stylesheet of both halves (see Integration below).
 - `src/electricity/meter-picker.ts`: `<elec-meter-picker>` (search by name, area filter, verdict per sensor, the kW rejection messages).
   Properties: `.multi: boolean`, `.selected: string[]`, `.mode: 'register' | 'choose'` (register = candidates from the infrastructure, add as meters;
   choose = already registered meters only, for wizard step 1). Event `change` with `detail: { selected: string[] }`.
@@ -50,3 +50,14 @@ account = "חשבון", produced bill = "חיוב".
 - Operator wording only; no platform name; clean screens (no hint paragraphs). Money fields are not rendered at all without `energy.bills`.
 - All four skins, light and dark, RTL, phone at 390: use design tokens (`--sw-*`) and the layout-guard conventions (targets >= 44 px in touch layouts).
 - Test hooks: `data-elec="<page>"` on a page root, `data-state="loading|empty|error|ready"` on the list root.
+
+## Integration (2026-10-04, `integ/electricity`)
+- ONE stylesheet: `src/electricity/styles.ts` exports `elecCss` (the bills sheet from the approved mockup plus the meters-only
+  classes); `elec-css.ts` and `electricityCss` are gone. One hit-area variable `--elec-touch` (32 px desktop, 44 px at <= 1100 px,
+  the bubble skin's touch dial). Meters chip classes are `c-*`, the skeleton class is `.skl`.
+- ONE permissions source: `src/electricity/access.ts` (`ENERGY_PERMISSIONS`, `ENERGY_PERMISSION_LABELS`, `energyAccess()`);
+  `elecPerms` was removed; `permission-rows.ts` and `system-access.ts` take their labels from it.
+- Wizard step 1 uses `<elec-meter-picker mode="choose" multi sensors>`; the meter list of the bills half comes from
+  `src/api/electricity-meters.ts` (`elecMeters()`); the lenient mapping and the wrong candidates path were removed.
+- The account history tab reads `GET /energy/accounts/{id}/history` (periods without a bill included, same period last year).
+- The bill page shows the PDF state (`Bill.pdf`) with a retry action; sent/paid send and show a date (`YYYY-MM-DD`) with `row_version`.

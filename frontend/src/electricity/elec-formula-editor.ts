@@ -10,7 +10,7 @@ import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, type ElecMeter, type FormulaPreview } from '../api/electricity-billing';
 import { SkinController } from '../design/skin';
-import { elecCss } from './elec-css';
+import { elecCss } from './styles';
 import './elec-ui';
 import { alertBox, n } from './elec-ui';
 import { f2, fmtDate } from './elec-format';

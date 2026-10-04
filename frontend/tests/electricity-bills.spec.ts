@@ -90,17 +90,43 @@ test.describe('bill page: every state', () => {
     await expect(page.locator('[data-bill-number]')).toHaveText('2026-08-0001');
   });
 
-  test('PDF failure: the bill stays issued, the error shows with "create the PDF again"', async ({ page }, info) => {
+  test('PDF failure: the bill says pdf.state failed, it stays issued, the line shows with "create the PDF again"', async ({ page }, info) => {
     await open(page, bill('b104'), { ctl: { pdf_failed: true } });
     await screen(page, 'bill');
-    await page.locator('[data-act="pdf"]').click();
-    await expect(page.locator('[data-pdf-error]')).toContainText('נכשלה');
+    // the indicator comes from the bill's own pdf state, before any click
+    const line = page.locator('[data-pdf-error]');
+    await expect(line).toHaveAttribute('data-pdf-state', 'failed');
+    await expect(line).toHaveAttribute('data-pdf-code', 'pdf_render_failed');
+    await expect(line).toContainText('נכשלה');
+    await expect(line.locator('[data-pdf-retry]')).toHaveText('הפקת PDF מחדש');
     await expect(state(page)).toHaveAttribute('data-bill-state', 'issued');
     await shot(page, info, 'bill-pdf-error');
     const dl = page.waitForEvent('download');
     await page.locator('[data-pdf-retry]').click();
     expect((await dl).suggestedFilename()).toMatch(/\.pdf$/);
-    await expect(page.locator('[data-pdf-error]')).toHaveCount(0);
+    await expect(page.locator('[data-pdf-error]')).toHaveCount(0); // stored now
+    await expect(state(page)).toHaveAttribute('data-bill-state', 'issued');
+  });
+
+  test('PDF errors of the server: a time-out offers a retry, a page limit says why, no engine has no retry', async ({ page }) => {
+    await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_timeout' } });
+    await screen(page, 'bill');
+    await expect(page.locator('[data-pdf-error]')).toHaveCount(0); // the bill itself is fine until a request fails
+    await page.locator('[data-act="pdf"]').click();
+    await expect(page.locator('[data-pdf-error]')).toHaveAttribute('data-pdf-code', 'pdf_timeout');
+    await expect(page.locator('[data-pdf-error]')).toContainText('יותר מדי זמן');
+    await expect(page.locator('[data-pdf-retry]')).toBeVisible();
+    await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_page_limit' } });
+    await screen(page, 'bill');
+    await page.locator('[data-act="pdf"]').click();
+    await expect(page.locator('[data-pdf-error]')).toHaveAttribute('data-pdf-code', 'pdf_page_limit');
+    await expect(page.locator('[data-pdf-error]')).toContainText('עמודים');
+    await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_unavailable' } });
+    await screen(page, 'bill');
+    const line = page.locator('[data-pdf-error]');
+    await expect(line).toHaveAttribute('data-pdf-state', 'unavailable');
+    await expect(line).toContainText('אינה זמינה');
+    await expect(line.locator('[data-pdf-retry]')).toHaveCount(0);
   });
 });
 
@@ -164,10 +190,13 @@ test.describe('bill actions and dialogs', () => {
     const s = page.locator('[data-dialog="sent"]');
     await expect(s.locator('[data-date]')).toHaveValue('2026-10-04');
     await s.locator('[data-how="hand"]').click();
+    await s.locator('[data-date]').fill('2026-10-03');
     await shot(page, info, 'dialog-sent');
     await s.locator('[data-confirm]').click();
     await expect(state(page)).toHaveAttribute('data-bill-state', 'sent');
     await expect(state(page)).toContainText('מסירה ידנית');
+    // the chosen DATE is what the bill answers and shows (a date, never a time of day)
+    await expect(page.locator('[data-bill-details] [data-sent-at]')).toHaveText('03.10.2026');
     await page.locator('[data-act="paid"]').click();
     const p = page.locator('[data-dialog="paid"]');
     await p.locator('[data-reference]').fill('A-1234');
@@ -175,6 +204,7 @@ test.describe('bill actions and dialogs', () => {
     await p.locator('[data-confirm]').click();
     await expect(state(page)).toHaveAttribute('data-bill-state', 'paid');
     await expect(state(page)).toContainText('A-1234');
+    await expect(page.locator('[data-bill-details] [data-paid-at]')).toHaveText('04.10.2026');
     await expect(page.locator('[data-act="sent"]')).toHaveCount(0);
   });
 

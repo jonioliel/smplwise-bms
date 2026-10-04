@@ -8,19 +8,22 @@
  * The rules applied here (arithmetic of CR-023 §7, numbering §10, lifecycle §11, overlap, money hiding) imitate the server for demo
  * purposes only; the server is the authority.
  *
+ * The meter LIST is not answered here: the meters have one client (./electricity-meters.ts, whose demo adapter answers from
+ * src/electricity/fixtures.ts with the same ids m1..m12 and names); the table below only feeds the kWh arithmetic of accounts and bills.
+ *
  * Specs steer it through localStorage key `sw.demo.electricity` (JSON, read on every call):
- *   { "persona": "full" | "view" | "bills_only", "empty": true, "fail": "accounts|bills|customers|settings|meters",
- *     "pdf_failed": true, "create_error": "formula_negative|tariff_missing|vat_missing|period_overlap", "latency": 0 }
+ *   { "persona": "full" | "view" | "bills_only", "empty": true, "fail": "accounts|bills|customers|settings",
+ *     "pdf_failed": true, "pdf_error": "pdf_timeout|...", "create_error": "formula_negative|tariff_missing|vat_missing|period_overlap", "latency": 0 }
  * "today" is fixed at 2026-10-04 (the mockup's today).
  */
 import { ApiError } from './client';
-import { buildStatus, demoControl } from './electricity-billing';
+import { buildHistory, buildStatus, demoControl, ERROR_TEXT, PDF_RETRYABLE } from './electricity-billing';
 import type {
-  Account, AccountBody, AccountHistory, AccountRow, AccountStatusWire, AutoMode, Bill, BillAction, BillEvent, BillHistory, BillList, BillSnapshot, BillState, BillSummary, BillsQuery, BillingSettings,
-  Customer, ElecBackend, ElecMeter, FormulaPreview, HistoryPoint, MeterCandidate, PeriodChoice, PriceMode, Tariff, VatRates, StatusMeterWire,
+  Account, AccountBody, AccountHistoryWire, AccountRow, AccountStatusWire, AutoMode, Bill, BillAction, BillEvent, BillHistory, BillList, BillPdf, BillSnapshot, BillState, BillSummary, BillsQuery, BillingSettings,
+  Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, Tariff, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
-import { addDays, baseNumber, daysInclusive, isIsoDate, monthShort, periodContaining, r2 } from '../electricity/elec-format';
+import { addDays, baseNumber, daysInclusive, isIsoDate, periodContaining, r2 } from '../electricity/elec-format';
 
 export const MOCK_TODAY = '2026-10-04';
 /** wire decimals: plain digits, never grouped */
@@ -60,13 +63,6 @@ const meters: MM[] = [
 const meter = (id: string): MM => meters.find((m) => m.id === id) ?? meters[0];
 const STALE_AT = '2026-10-03T18:40:00Z';
 
-const CANDIDATES: MeterCandidate[] = [
-  { name: 'הספק לוח ראשי', area: 'חדר חשמל', value: '14.2 kW', verdict: 'rejected', reason: 'החיישן מודד הספק רגעי (קילוואט), לא צריכה מצטברת. לחשבון חשמל צריך מונה שמציג קוט״ש.' },
-  { name: 'הספק מזגן משותף', area: 'מסדרון קומה 1', value: '2,310 W', verdict: 'rejected', reason: 'החיישן מודד הספק רגעי (קילוואט), לא צריכה מצטברת. לחשבון חשמל צריך מונה שמציג קוט״ש.' },
-  { name: 'צריכה יומית - מאפייה', area: 'מאפיית השקד', value: '41.3 kWh', verdict: 'warn', reason: 'המונה מתאפס כל יום. מתאים, אבל מונה מצטבר עדיף.' },
-  { name: 'אנרגיה מוחזרת - גג', area: 'חדר חשמל', value: '1,204.5 kWh', verdict: 'rejected', reason: 'מונה של אנרגיה מוחזרת לרשת. לא נתמך בחשבון צריכה.' },
-  { name: 'מתח פאזה 1', area: 'חדר חשמל', value: '231 V', verdict: 'rejected', reason: 'יחידת המידה היא וולט. אפשר לבחור רק מונה שמודד קוט״ש, וואט־שעה או מגוואט־שעה.' },
-];
 
 type MCust = Omit<Customer, 'accounts' | 'bills' | 'account_count'>;
 const cust = (id: string, no: string, name: string, address: string, phone: string, email: string, tax_id: string): MCust => ({ id, customer_number: no, name, revision: 1, address, phone, email, tax_id, notes: '' });
@@ -140,6 +136,68 @@ function historyFor(accountId: string, current: { from: string; to: string; kwh:
   return { current: current ? { from: current.from, to: current.to, kwh: dec(current.kwh) } : null, previous, same_period_last_year: ly };
 }
 
+/** The account's ended regular periods, newest first (index 0 = the latest ended period), at most `n`. */
+function endedPeriods(months: 1 | 2, day: number, month: number, n: number): { from: string; to: string }[] {
+  const out: { from: string; to: string }[] = [];
+  let to = addDays(periodContaining(MOCK_TODAY, months, day, month).from, -1);
+  for (let i = 0; i < n; i++) {
+    const p = periodContaining(to, months, day, month);
+    out.push({ from: p.from, to });
+    to = addDays(p.from, -1);
+  }
+  return out;
+}
+
+/**
+ * GET /energy/accounts/{aid}/history?past=N, imitated: the ENDED periods oldest first. kWh from an issued bill of exactly that period when there is
+ * one (source bill), else from the readings (source readings: the fixture's monthly totals x the account's scale, as many periods back as SHAPE
+ * keeps, with its missing / partial point), else null (missing: never invented). The periods start at the account's first period or at its
+ * oldest readings, whichever is older. `comparison` is snapshot.history's shape for the latest ended period (independent of N).
+ */
+export function mockHistoryWire(accountId: string, past: number): AccountHistoryWire {
+  const a = getAccWire(accountId);
+  const s = SHAPE[a.id] ?? { factor: 1, keep: 0, ly: false };
+  const anchorMonth = a.months === 2 ? a.anchor_month : 1;
+  const all = endedPeriods(a.months, a.anchor_day, anchorMonth, 48).map((p, j) => ({ ...p, j }));
+  const readings = (p: { from: string; to: string; j: number }): { kwh: string | null; status: HistoryPeriodWire['status'] } | null => {
+    if (!s.keep || p.j > s.keep) return null;
+    const i = s.keep - p.j; // index of the previous periods, oldest first (SHAPE's missing / partial)
+    if (p.j > 0 && s.missing === i) return { kwh: null, status: 'missing' };
+    let sum = 0;
+    for (let ym = p.from.slice(0, 7); ym <= p.to.slice(0, 7); ym = addDays(`${ym}-28`, 7).slice(0, 7)) {
+      const h = HIST.find(([k]) => k === ym);
+      if (!h) return null;
+      sum += h[1];
+    }
+    return { kwh: dec(sum * s.factor), status: p.j > 0 && s.partial === i ? 'partial' : 'measured' };
+  };
+  const wire = (p: { from: string; to: string; j: number }): HistoryPeriodWire => {
+    const b = bills.find((x) => x.account_id === a.id && x.state !== 'draft' && x.state !== 'void' && x.period.from === p.from && x.period.to === p.to);
+    if (b) return { from: p.from, to: p.to, kwh: b.kwh, status: 'measured', source: 'bill', bill: summary(b) };
+    const r = readings(p);
+    if (r && r.kwh !== null) return { from: p.from, to: p.to, kwh: r.kwh, status: r.status, source: 'readings', bill: null };
+    return { from: p.from, to: p.to, kwh: null, status: 'missing', source: null, bill: null };
+  };
+  const ofAccount = all.filter((p) => p.to >= a.first || (s.keep > 0 && p.j <= s.keep)).map(wire);
+  const periods = ofAccount.slice(0, Math.max(1, Math.min(24, past))).reverse();
+  const latest = ofAccount[0];
+  const point = (p: HistoryPeriodWire): HistoryPoint => ({ from: p.from, to: p.to, kwh: p.kwh, status: p.status, source: p.source });
+  let ly: HistoryPoint | null = null;
+  if (latest) {
+    const from = `${Number(latest.from.slice(0, 4)) - 1}${latest.from.slice(4)}`;
+    const hit = ofAccount.find((p) => p.from === from && p.kwh !== null);
+    if (hit) ly = point(hit);
+  }
+  return {
+    periods,
+    comparison: {
+      current: latest && latest.kwh !== null ? { from: latest.from, to: latest.to, kwh: latest.kwh } : null,
+      previous: ofAccount.slice(1, 13).reverse().map(point),
+      same_period_last_year: ly,
+    },
+  };
+}
+
 // ------------------------------------------------------------------------------------------------ arithmetic (CR-023 §7)
 
 const tariff = (id: string): Tariff => {
@@ -181,6 +239,7 @@ let settings: BillingSettings = {
   numbering: { customer_digits: 4, format: 'YYYY-MM-NNNN' },
   auto: { delay_hours: 6 },
   logo: null,
+  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, fallback_after_s: 20 },
 };
 let logoDataUrl = '';
 
@@ -283,8 +342,9 @@ function pushBill(o: { a: string; from: string; to: string; kwh: number; state: 
     issue_date: o.issued, due_date: o.issued ? dueDate(o.issued) : null, kwh: dec(o.kwh), total, replaces_bill_id: rep?.bill_id ?? null, replaced_by_bill_id: null, row_version: 1,
     snapshot: snap, snapshot_sha256: o.state === 'draft' ? null : 'a3f9c21e0b7d4455aa10c3d1e9f8b2c7', sent: null, paid: null, void: null, actions: ACTIONS[o.state], _events: o.events ?? [],
   };
-  if (o.state === 'sent' || o.state === 'paid') b.sent = { at: `${o.issued}T10:00:00Z`, how: 'email', note: '' };
-  if (o.state === 'paid') b.paid = { at: `${addDays(o.issued as string, 3)}T10:40:00Z`, reference: '' };
+  // sent / paid carry a DATE (YYYY-MM-DD), not a datetime
+  if (o.state === 'sent' || o.state === 'paid') b.sent = { at: o.issued as string, how: 'email', note: '' };
+  if (o.state === 'paid') b.paid = { at: addDays(o.issued as string, 3), reference: '' };
   if (o.state === 'void') b.void = { at: `${addDays(o.issued as string, 2)}T11:30:00Z`, reason: o.reason ?? '' };
   bills.push(b);
   return b;
@@ -376,15 +436,29 @@ const getBillRaw = (id: string): StoredBill => {
   if (!b) throw err(404, 'not_found', 'החיוב לא נמצא.');
   return b;
 };
-const pdfFixed = new Set<string>();
+/** bills whose PDF was produced on request in this session (stored), and the last failed attempt per bill */
+const pdfStored = new Set<string>();
+const pdfFailedAt = new Map<string, { code: string; at: string }>();
+function pdfOf(b: StoredBill): BillPdf {
+  const ctl = demoControl();
+  if (ctl.pdf_error === 'pdf_unavailable') return { state: 'unavailable', error_code: null, failed_at: null, engine: null };
+  const last = pdfFailedAt.get(b.id);
+  if (last) return { state: 'failed', error_code: last.code, failed_at: last.at, engine: 'weasyprint' };
+  if (b.state !== 'draft' && ctl.pdf_failed && !pdfStored.has(b.id)) return { state: 'failed', error_code: 'pdf_render_failed', failed_at: `${MOCK_TODAY}T09:31:00Z`, engine: 'weasyprint' };
+  return b.state === 'draft' ? { state: 'ready', error_code: null, failed_at: null, engine: null } : { state: 'stored', error_code: null, failed_at: null, engine: 'weasyprint' };
+}
 const full = (b: StoredBill): Bill => {
   const { _events: _e, ...rest } = b;
   void _e;
-  return { ...rest, actions: ACTIONS[b.state], total: b.total };
+  return { ...rest, actions: ACTIONS[b.state], total: b.total, pdf: pdfOf(b) };
 };
 const log = (b: StoredBill, text: string): void => {
   b._events.push({ at: `${MOCK_TODAY}T09:30`, text });
   b.row_version += 1;
+};
+/** `row_version` given and not the bill's: someone changed the bill meanwhile */
+const staleVersion = (b: StoredBill, v: number | undefined): void => {
+  if (v !== undefined && v !== b.row_version) throw err(409, 'revision_conflict', 'החיוב השתנה בינתיים. רעננו ונסו שוב.');
 };
 const overlaps = (accountId: string, from: string, to: string): StoredBill | undefined =>
   bills.find((b) => b.account_id === accountId && b.state !== 'void' && b.state !== 'draft' && !(to < b.period.from || from > b.period.to));
@@ -416,15 +490,9 @@ const statusWire = (a: MA): AccountStatusWire => {
 };
 
 export const mockBackend: ElecBackend = {
-  async listMeters() {
+  async lastPeriodKwh(ids) {
     await tick();
-    failIf('meters');
-    if (demoControl().empty) return [];
-    return meters.map((m): ElecMeter => ({ id: m.id, name: m.name, area: m.area, floor: m.floor, reading_kwh: m.reading, status: m.status, last_report: m.status === 'stale' ? '18:40' : null, last_period_kwh: m.last }));
-  },
-  async listCandidates() {
-    await tick();
-    return CANDIDATES.map((c) => ({ ...c }));
+    return Object.fromEntries(meters.filter((m) => ids.includes(m.id)).map((m) => [m.id, m.last]));
   },
   async listAccounts() {
     await tick();
@@ -450,25 +518,10 @@ export const mockBackend: ElecBackend = {
       today: MOCK_TODAY, customer: fullCust(custOf(a.customer_id)), tariffs: money ? tariffs.map((t) => tariff(t.id)) : undefined, vat: money ? await mockBackend.getVat() : null,
     });
   },
-  async accountHistory(id, months) {
+  async accountHistory(id, past) {
     await tick();
-    const a = getAccWire(id);
-    const sh = SHAPE[id];
-    const cmp = historyFor(id, sh?.keep ? { from: '2026-09-01', to: '2026-09-30', kwh: r2(776.2 * sh.factor) } : null);
-    const pts = [...cmp.previous, ...(cmp.current ? [cmp.current] : [])].filter((p) => p.kwh !== null).slice(-months);
-    const t = tariff(a.tariff_id);
-    const rows = pts.map((p, i) => {
-      const kwh = Number(p.kwh);
-      const before = pts[i - 1] ? Number(pts[i - 1].kwh) : 0;
-      const b = bills.find((x) => x.account_id === id && x.state !== 'void' && x.period.to === p.to) ?? null;
-      const row: AccountHistory['rows'][number] = { label: monthShort(p.to), from: p.from, to: p.to, kwh, change_pct: before ? ((kwh - before) / before) * 100 : null, bill: null };
-      if (moneyAllowed()) {
-        row.amount = dec(charge(t, kwh).total);
-        row.bill = b && b.number ? summary(b) : null;
-      }
-      return row;
-    });
-    return { rows, comparison: sh?.keep ? cmp : { current: null, previous: [], same_period_last_year: null } };
+    failIf('history');
+    return buildHistory(mockHistoryWire(id, past));
   },
   async createAccount(body: AccountBody, afterSave) {
     await tick();
@@ -690,9 +743,11 @@ export const mockBackend: ElecBackend = {
     guardMoney();
     const b = getBillRaw(id);
     if (b.state !== 'issued') throw err(409, 'bill_state', 'אפשר לסמן כנשלח רק חיוב שהונפק.', { state: b.state });
-    if (!isIsoDate(body.at)) throw err(422, 'validation', 'תאריך לא תקין.', { fields: { at: 'תאריך לא תקין' } });
+    staleVersion(b, body.row_version);
+    const at = body.at ?? MOCK_TODAY;
+    if (!isIsoDate(at)) throw err(422, 'validation', 'תאריך לא תקין.', { fields: { at: 'תאריך לא תקין' } });
     b.state = 'sent';
-    b.sent = { at: `${body.at}T10:00:00Z`, how: body.how, note: body.note };
+    b.sent = { at, how: body.how, note: body.note ?? '' };
     log(b, `סומן כנשלח ${{ email: 'בדוא״ל', hand: 'במסירה ידנית', other: 'באופן אחר' }[body.how]}`);
     return full(b);
   },
@@ -701,10 +756,13 @@ export const mockBackend: ElecBackend = {
     guardMoney();
     const b = getBillRaw(id);
     if (b.state !== 'issued' && b.state !== 'sent') throw err(409, 'bill_state', 'אפשר לסמן כשולם רק חיוב שהונפק או נשלח.', { state: b.state });
-    if (!isIsoDate(body.at)) throw err(422, 'validation', 'תאריך לא תקין.', { fields: { at: 'תאריך לא תקין' } });
+    staleVersion(b, body.row_version);
+    const at = body.at ?? MOCK_TODAY;
+    if (!isIsoDate(at)) throw err(422, 'validation', 'תאריך לא תקין.', { fields: { at: 'תאריך לא תקין' } });
+    const reference = body.reference ?? '';
     b.state = 'paid';
-    b.paid = { at: `${body.at}T10:00:00Z`, reference: body.reference };
-    log(b, body.reference ? `סומן כשולם, אסמכתה ${body.reference}` : 'סומן כשולם');
+    b.paid = { at, reference };
+    log(b, reference ? `סומן כשולם, אסמכתה ${reference}` : 'סומן כשולם');
     return full(b);
   },
   async correctBill(id) {
@@ -734,10 +792,16 @@ export const mockBackend: ElecBackend = {
     await tick();
     guardMoney();
     const b = getBillRaw(id);
-    if (b.state !== 'draft' && demoControl().pdf_failed && !pdfFixed.has(id)) {
-      pdfFixed.add(id); // "create the PDF again" succeeds on the next try
-      throw new ApiError(503, { code: 'pdf_render_failed', user_message: 'יצירת קובץ ה-PDF נכשלה. החיוב נשמר ואפשר לנסות שוב.', retryable: true, correlation_id: '', details: {} });
+    const code = demoControl().pdf_error;
+    if (code) {
+      // the server answers 503 for render_failed / timeout / unavailable, 422 for page_limit / too_large; a failed render of an issued bill is remembered
+      const status = code === 'pdf_page_limit' || code === 'pdf_too_large' ? 422 : 503;
+      if (b.state !== 'draft' && code !== 'pdf_unavailable') pdfFailedAt.set(id, { code, at: `${MOCK_TODAY}T09:32:00Z` });
+      throw new ApiError(status, { code, user_message: ERROR_TEXT[code] ?? '', retryable: PDF_RETRYABLE.includes(code), correlation_id: '', details: {} });
     }
+    // pdf_failed: the last attempt failed (pdf.state = failed); "create the PDF again" renders and stores it
+    pdfFailedAt.delete(id);
+    if (b.state !== 'draft') pdfStored.add(id);
     return new Blob(['%PDF-1.4\n%mock\n'], { type: 'application/pdf' });
   },
   async getSettings() {

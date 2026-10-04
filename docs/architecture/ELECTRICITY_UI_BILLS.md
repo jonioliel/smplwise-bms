@@ -13,14 +13,14 @@ Owner of this half: `pilot/elec-ui-bills`. The shell (area "תשתיות", sub-t
 | `<elec-settings-business>` | business details, logo, brand colour picker, numbering, payment terms (days or a fixed day), automatic-draft delay, live bill preview | `/system/infra/business` |
 
 `src/screens/electricity/{page,settings}-*.ts` are one-line imports so the shell's `import.meta.glob` finds them. Routes live in ONE file
-(`elec-routes.ts`: `ELEC_ROOT`, `SETTINGS_ROOT`). Shared pieces: `elec-css.ts` (one sheet, tokens only, one `--elec-touch` hit-area variable),
+(`elec-routes.ts`: `ELEC_ROOT`, `SETTINGS_ROOT`). Shared pieces: `styles.ts` (`elecCss`, one sheet for both halves, tokens only, one `--elec-touch` hit-area variable),
 `elec-ui.ts` (`ElecBase`, `<elec-dialog>` on the system `sw-sheet`, state boxes), `elec-bill-paper.ts` (A4 HTML of the bill snapshot),
 `elec-chart.ts` (+ `elec-chart-data.ts`: the consumption chart), `elec-formula.ts` (grammar, AST, presets, text mode, pure),
 `elec-formula-editor.ts`, `elec-wizard.ts`.
 
 ## One API module and a mock layer
 `frontend/src/api/electricity-billing.ts` is the ONLY module that talks to the billing API (wire types of `ELECTRICITY_BILLING_API.md` and
-`ELECTRICITY_BILL_SNAPSHOT.md`, the REST adapter, `elecPerms()`, error texts). Without a backend it answers from
+`ELECTRICITY_BILL_SNAPSHOT.md`, the REST adapter, error texts; permissions come from `src/electricity/access.ts`). Without a backend it answers from
 `electricity-billing-mock.ts` (the mockup's fixture in the wire shapes; the arithmetic of CR section 7). Specs steer it through
 `localStorage['sw.demo.electricity']` = `{persona: full|view|bills_only, empty, fail: accounts|bills|customers|settings|meters, pdf_failed, create_error, latency}`.
 
@@ -33,3 +33,14 @@ Test hooks: `data-elec="<screen>"` + `data-state` on every screen root; `data-*`
 
 ## Contract notes for the server side (what the UI cannot get today)
 See the report of the branch; the open items are listed there and are all additive.
+
+## Integration (2026-10-04, `integ/electricity`)
+- ONE stylesheet: `src/electricity/styles.ts` exports `elecCss` (the bills sheet from the approved mockup plus the meters-only
+  classes); `elec-css.ts` and `electricityCss` are gone. One hit-area variable `--elec-touch` (32 px desktop, 44 px at <= 1100 px,
+  the bubble skin's touch dial). Meters chip classes are `c-*`, the skeleton class is `.skl`.
+- ONE permissions source: `src/electricity/access.ts` (`ENERGY_PERMISSIONS`, `ENERGY_PERMISSION_LABELS`, `energyAccess()`);
+  `elecPerms` was removed; `permission-rows.ts` and `system-access.ts` take their labels from it.
+- Wizard step 1 uses `<elec-meter-picker mode="choose" multi sensors>`; the meter list of the bills half comes from
+  `src/api/electricity-meters.ts` (`elecMeters()`); the lenient mapping and the wrong candidates path were removed.
+- The account history tab reads `GET /energy/accounts/{id}/history` (periods without a bill included, same period last year).
+- The bill page shows the PDF state (`Bill.pdf`) with a retry action; sent/paid send and show a date (`YYYY-MM-DD`) with `row_version`.

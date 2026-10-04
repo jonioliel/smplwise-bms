@@ -6,7 +6,8 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { elec, elecErrorText, elecPerms, type AccountHistory, type AccountStatus, type BillSummary } from '../api/electricity-billing';
+import { elec, elecErrorText, type AccountHistory, type AccountStatus, type BillSummary, type HistoryRow } from '../api/electricity-billing';
+import { energyAccess, type EnergyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, takeFlash, type LoadState } from './elec-ui';
 import './elec-bill-create';
 import './elec-chart';
@@ -60,7 +61,8 @@ export class ElecAccountPage extends ElecBase {
     this.histSt = 'loading';
     try {
       this.hist = await elec().accountHistory(this.accountId, this.histMonths);
-      this.histSt = this.hist.rows.length || hasComparison(this.hist.comparison) ? 'ready' : 'empty';
+      // empty: no ended period with data (rows of "no data" only are not a history)
+      this.histSt = this.hist.rows.some((r) => r.kwh !== null) || hasComparison(this.hist.comparison) ? 'ready' : 'empty';
     } catch {
       this.histSt = 'error';
     }
@@ -75,7 +77,7 @@ export class ElecAccountPage extends ElecBase {
     }
   }
 
-  private head(perms: ReturnType<typeof elecPerms>) {
+  private head(perms: EnergyAccess) {
     const s = this.status;
     const a = s?.account;
     const tabs: [Tab, string][] = [['status', 'מצב'], ['history', 'היסטוריה'], ...(perms.bills ? ([['bills', 'חיובים']] as [Tab, string][]) : [])];
@@ -93,7 +95,7 @@ export class ElecAccountPage extends ElecBase {
   }
 
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     if (!perms.view) return html`<div class="page" data-elec="account" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לצפות בחשבון')}</div>`;
     if (this.tab === 'bills' && !perms.bills) return html`<div class="page" data-elec="account" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לחיובים')}</div>`;
     if (this.st === 'loading') return html`<div class="page" data-elec="account" data-state="loading">${skeleton(5)}</div>`;
@@ -108,7 +110,7 @@ export class ElecAccountPage extends ElecBase {
   }
 
   // ---------------------------------------------------------------- status
-  private renderStatus(s: AccountStatus, perms: ReturnType<typeof elecPerms>) {
+  private renderStatus(s: AccountStatus, perms: EnergyAccess) {
     const hasReadings = s.rows.some((r) => r.start !== null);
     const c = s.customer;
     const rows = s.rows;
@@ -140,20 +142,23 @@ export class ElecAccountPage extends ElecBase {
   }
 
   // ---------------------------------------------------------------- history
-  private renderHistory(perms: ReturnType<typeof elecPerms>) {
+  private renderHistory(perms: EnergyAccess) {
     if (this.histSt === 'loading') return skeleton(5);
     if (this.histSt === 'error') return stateBox('error', 'warning', 'לא ניתן לטעון את ההיסטוריה', { label: 'נסה שוב', run: () => void this.loadHistory() });
     const h = this.hist as AccountHistory;
     if (this.histSt === 'empty') return stateBox('empty', 'bolt', 'אין עדיין נתוני עבר לחשבון');
     const money = perms.bills;
     const rows = [...h.rows].reverse();
+    // a period with no data says so (never a zero); a partial one carries a chip
+    const kwhCell = (r: HistoryRow) => (r.kwh === null ? html`<span class="mut" data-no-data>אין נתונים</span>` : html`${n(f2(r.kwh))}${r.status === 'partial' ? html` <span class="chip c-warn nodot" data-partial>חלקי</span>` : nothing}`);
+    const change = (r: HistoryRow) => (r.change_pct !== null ? (r.change_pct > 0 ? '+' : '') + r.change_pct.toFixed(1) + '%' : '-');
     return html`<div class="card" data-elec-history><div class="hd"><b class="h3">צריכה לפי תקופה</b><span class="sp"></span>
         <div class="seg" role="group" aria-label="טווח"><button type="button" data-months="12" aria-pressed=${this.histMonths === 12} @click=${() => this.setMonths(12)}>12 תקופות</button><button type="button" data-months="24" aria-pressed=${this.histMonths === 24} @click=${() => this.setMonths(24)}>24 תקופות</button></div></div>
       <elec-chart .series=${h.comparison} table="details" .height=${this.phone ? 200 : 220}></elec-chart></div>
       <div class="card ${this.phone ? '' : 'flush'}">${this.phone
-        ? html`<div class="list">${rows.map((r) => html`<div class="li"><div class="grow"><div class="t1">${n(r.label)}</div><div class="t2">${n(f2(r.kwh))} קוט״ש${r.change_pct !== null ? html` · ${n((r.change_pct > 0 ? '+' : '') + r.change_pct.toFixed(1) + '%')}` : nothing}</div></div>${money && r.amount !== undefined ? html`<b class="num">${f2(r.amount)} ₪</b>` : nothing}</div>`)}</div>`
+        ? html`<div class="list">${rows.map((r) => html`<div class="li" data-history-row data-status=${r.status}><div class="grow"><div class="t1">${n(r.label)}</div><div class="t2">${kwhCell(r)}${r.kwh !== null ? ' קוט״ש' : ''}${r.change_pct !== null ? html` · ${n(change(r))}` : nothing}</div></div>${money && r.amount !== undefined ? html`<b class="num">${f2(r.amount)} ₪</b>` : nothing}</div>`)}</div>`
         : html`<table class="t" data-elec-history-table><thead><tr><th>תקופה</th><th class="num">קוט״ש</th><th class="num">שינוי</th>${money ? html`<th class="num">סכום</th><th>חיוב</th>` : nothing}</tr></thead>
-          <tbody>${rows.map((r) => html`<tr><td class="num" style="text-align:start">${r.label}</td><td class="num">${f2(r.kwh)}</td><td class="num">${r.change_pct !== null ? (r.change_pct > 0 ? '+' : '') + r.change_pct.toFixed(1) + '%' : '-'}</td>${money ? html`<td class="num">${r.amount !== undefined ? f2(r.amount) + ' ₪' : ''}</td><td>${r.bill ? html`<a class="lnk num" href=${href.bill(r.bill.id)}>${r.bill.number}</a> ${billChip(r.bill.state)}` : html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table>`}</div>`;
+          <tbody>${rows.map((r) => html`<tr data-history-row data-status=${r.status}><td class="num" style="text-align:start">${r.label}</td><td class="num">${kwhCell(r)}</td><td class="num">${change(r)}</td>${money ? html`<td class="num">${r.amount !== undefined ? f2(r.amount) + ' ₪' : ''}</td><td>${r.bill ? html`<a class="lnk num" href=${href.bill(r.bill.id)}>${r.bill.number}</a> ${billChip(r.bill.state)}` : html`<span class="mut">-</span>`}</td>` : nothing}</tr>`)}</tbody></table>`}</div>`;
   }
   private setMonths(m: 12 | 24) {
     this.histMonths = m;

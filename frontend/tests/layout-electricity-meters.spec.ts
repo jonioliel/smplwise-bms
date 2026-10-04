@@ -13,7 +13,7 @@ const SKIN_SET = QUICK ? (['classic', 'bubble'] as const) : SKINS;
 const THEMES = QUICK ? (['light'] as const) : (['light', 'dark'] as const);
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 
-const SKIP = '.sk, sw-icon, svg';
+const SKIP = '.skl, sw-icon, svg';
 const BUBBLE = '.tile, .card, .li, .chip, .seg, .inp, .tree button';
 const ROOTS = ['infra-electricity', 'system-infra'];
 

@@ -5,8 +5,8 @@ export async function wizardTo(page: Page, step: number, o: { customer?: 'new' |
   const next = page.locator('[data-next]');
   const at = async (n: number) => expect(page.locator('[data-elec="wizard"]')).toHaveAttribute('data-step', String(n));
   if (step >= 2) {
-    await page.locator('[data-meter-row="m2"]').click();
-    await page.locator('[data-meter-row="m3"]').click();
+    await page.locator('[data-picker-item="m2"]').click();
+    await page.locator('[data-picker-item="m3"]').click();
     await next.click();
     await at(2);
   }

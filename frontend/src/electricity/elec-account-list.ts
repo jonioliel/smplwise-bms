@@ -1,7 +1,8 @@
 /** CR-023 (mockup "רשימת חשבונות"): the accounts list, a table or cards (a list on a phone), with search, the loading / empty / error states. */
 import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { elec, elecPerms, type AccountRow } from '../api/electricity-billing';
+import { elec, type AccountRow } from '../api/electricity-billing';
+import { energyAccess } from './access';
 import { ElecBase, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import { f2, ils, periodLabel } from './elec-format';
 import { go, href, route } from './elec-routes';
@@ -50,7 +51,7 @@ export class ElecAccountsList extends ElecBase {
   };
 
   render() {
-    const perms = elecPerms();
+    const perms = energyAccess();
     const money = perms.bills;
     if (!perms.view) return html`<div class="page" data-elec="accounts" data-state="forbidden">${stateBox('forbidden', 'lock', 'אין הרשאה לצפות בחשבונות')}</div>`;
     const q = this.q.trim();
