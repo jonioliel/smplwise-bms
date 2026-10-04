@@ -63,7 +63,7 @@
 - **Events:** **sampled** from the device (every 2 s by default), with coverage gaps like the alert stream; an add-on **push listener**
   for Provision alarms exists but is **off by default** (per recorder; its port is not mapped unless the administrator maps it), and
   sampling takes over whenever the push path is silent.
-- **Security hardening (review of 2026-10-04):** a Provision export never stores the NVR password (the export job keeps only the device request; credentials already stored by an earlier build are scrubbed when the export worker starts); a Provision recorder disabled at runtime is never contacted; the push listener is bounded (10 s socket time-out, at most 16 connections and 4 per source, 20 requests per second per source) and address-mode push is refused for a recorder whose source address another recorder already holds, so a push cannot land on another recorder (that recorder keeps sampling).
+- **Security hardening (review of 2026-10-04):** a Provision export never stores the NVR password (the export job keeps only the device request; credentials already stored by an earlier build are scrubbed when the export worker starts); a Provision recorder disabled at runtime is never contacted; the push listener is bounded (10 s socket time-out, at most 16 connections and 4 per source, 20 requests per second per source) and address-mode push is refused for a recorder whose source address another recorder already holds, so a push cannot land on another recorder (that recorder keeps sampling). **Certificate pinning is checked on every request's own TLS connection:** a certificate that does not match the pin closes the connection before any byte (credentials included) is sent (`tls_pin_mismatch`); a connection test with "pin" and nothing pinned yet only returns the certificate (`tls_pin_required`) and sends no request, and saving "pin" without a fingerprint is refused.
 - **Writes stay off** per recorder until the owner approves them; the health screen shows a Provision recorder, its time basis and a
   warning when the device's clock rule differs from Israel time.
 
@@ -101,7 +101,6 @@ platform restart; 0.1.162's bridge 0.6.1 does not take these actions, and the ed
   playback is experimental and unproven.
 - Provision-ISR: validated read-only on one real NVR (connection, discovery, live, playback measured through Arx); export, events and the
   push listener were tested against the fake device; no write was made to the real NVR.
-- Provision certificate pinning: the pinned fingerprint is verified on a separate TLS handshake before the credentials are sent, not yet on the very connection that carries them; a follow-up fix binds the check to that connection (next release).
 - Schedules: tested against the fake scheduler and bridge only; not against a real alarm, siren or player.
 
 ## עברית — 0.1.163: כמה מקליטים במערכת אחת; מקליטי Provision-ISR (חיפוש, ניגון, ייצוא ל־MP4, אירועים); תזמונים: צופרים, נגנים, ערכים, סקריפטים מסומנים, נטרול בתזמון מותר כברירת מחדל
@@ -148,7 +147,7 @@ platform restart; 0.1.162's bridge 0.6.1 does not take these actions, and the ed
   ו**מומרת ל־MP4** כמו ייצוא מ־Hikvision.
 - **אירועים:** **נדגמים** מהמכשיר (כל 2 שניות כברירת מחדל), עם סימון פערי כיסוי כמו בזרם האירועים; קיים גם **מאזין Push** לאזעקות
   Provision, **כבוי כברירת מחדל** (לכל מקליט; היציאה שלו לא ממופה אלא אם המנהל ממפה אותה), והדגימה חוזרת כשה־Push שותק.
-- **הקשחת אבטחה (סקירה מ־4.10):** ייצוא מ־Provision לעולם לא שומר את סיסמת המקליט (נשמרת רק בקשת המכשיר; פרטי גישה שנשמרו בגרסה קודמת נמחקים כשמנגנון הייצוא עולה); מקליט Provision שהושבת בזמן ריצה לא נוצר איתו קשר; מאזין ה־Push מוגבל (פסק זמן 10 שניות, עד 16 חיבורים ו־4 לכל מקור, 20 בקשות בשנייה לכל מקור), ו־Push לפי כתובת נדחה למקליט שכתובת המקור שלו כבר שייכת למקליט אחר, כך ש־Push לא נוחת על מקליט אחר (המקליט ממשיך בדגימה).
+- **הקשחת אבטחה (סקירה מ־4.10):** ייצוא מ־Provision לעולם לא שומר את סיסמת המקליט (נשמרת רק בקשת המכשיר; פרטי גישה שנשמרו בגרסה קודמת נמחקים כשמנגנון הייצוא עולה); מקליט Provision שהושבת בזמן ריצה לא נוצר איתו קשר; מאזין ה־Push מוגבל (פסק זמן 10 שניות, עד 16 חיבורים ו־4 לכל מקור, 20 בקשות בשנייה לכל מקור), ו־Push לפי כתובת נדחה למקליט שכתובת המקור שלו כבר שייכת למקליט אחר, כך ש־Push לא נוחת על מקליט אחר (המקליט ממשיך בדגימה). **הצמדת התעודה נבדקת על חיבור ה־TLS של כל בקשה:** תעודה שלא תואמת סוגרת את החיבור לפני שנשלח בית אחד (כולל פרטי הגישה) (`tls_pin_mismatch`); בדיקת חיבור עם "הצמדה" בלי תעודה מוצמדת רק מחזירה את התעודה (`tls_pin_required`) ולא שולחת בקשה, ושמירת "הצמדה" בלי טביעת אצבע נדחית.
 - **כתיבה למקליט כבויה** לכל מקליט עד אישור הבעלים; מסך הבריאות מציג מקליט Provision, את בסיס הזמן שלו ואזהרה כשכלל השעון במכשיר שונה
   משעון ישראל.
 
@@ -182,7 +181,6 @@ platform restart; 0.1.162's bridge 0.6.1 does not take these actions, and the ed
 - כמה מקליטים: נבדק עם שני מקליטים מדומים ומסכים עם שרת מדומה, לא מול שני מקליטים אמיתיים; ניגון מסונכרן בין מקליטים ניסיוני ולא הוכח.
 - Provision-ISR: נבדק בקריאה בלבד מול מקליט אמיתי אחד (חיבור, גילוי, וידאו חי, ניגון נמדד דרך המערכת); ייצוא, אירועים ומאזין ה־Push נבדקו
   מול מכשיר מדומה; לא נכתב דבר למקליט האמיתי.
-- הצמדת תעודה ב־Provision: טביעת האצבע נבדקת בלחיצת יד TLS נפרדת לפני שליחת פרטי הגישה, ועדיין לא על אותו חיבור שנושא אותם; תיקון המשך יקשור את הבדיקה לאותו חיבור (בשחרור הבא).
 - תזמונים: נבדק מול רכיב תזמונים וגשר מדומים בלבד; לא מול אזעקה, צופר או נגן אמיתיים.
 
 ## 0.1.162 (pilot) — Schedules: scripts and every action the integration offers; change the encoding of many cameras at once; the capsule dropdown style; compact media settings lists; a friendly name for every meter; music server connection hardening
