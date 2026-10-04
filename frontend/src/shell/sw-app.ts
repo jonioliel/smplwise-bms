@@ -1383,6 +1383,9 @@ export class SwApp extends LitElement {
         font-size: min(var(--nav-p-label, 10px), 10.5px);
         padding-inline: 0;
       }
+      :host([data-design='a']) nav.bottom.crowded .ic {
+        max-inline-size: 100%;
+      }
     }
   `;
 
