@@ -107,7 +107,8 @@ test.describe('navigation size on the demo data', () => {
       await expect(page.locator(`${CARD} [data-nav-current]`)).toHaveCount(1);
       const m = await measure(page, info);
       expect(m.icon, `${p} icon`).toBe(iconOf(info, want.icon));
-      expect(m.labelPx, `${p} label`).toBeCloseTo(phone(info) ? Math.max(9, want.label - 0.5) : want.label, 1);
+      // CR-023: the phone bar holds seven items (six areas and the user), so its label is capped at 10.5 px
+      expect(m.labelPx, `${p} label`).toBeCloseTo(phone(info) ? Math.min(10.5, Math.max(9, want.label - 0.5)) : want.label, 1);
       expect(m.clipped, `${p} clipped`).toBe(false);
       if (phone(info)) {
         expect(m.nav.h, `${p} bar (never below its preset height; a small preset may grow to fit its content)`).toBeGreaterThanOrEqual(want.bar);

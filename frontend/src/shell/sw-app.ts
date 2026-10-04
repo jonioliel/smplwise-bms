@@ -1117,9 +1117,29 @@ export class SwApp extends LitElement {
           block-size: 44px;
         }
       }
-      /* CR-023: with a sixth area (תשתיות) seven 44 px items need about 410 px next to the room picker button; below 420 px the button
-         steps aside (the floors and areas stay reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
+      /* CR-023: with a sixth area (תשתיות) the dock holds seven 44 px items. Below 420 px the dock tightens (the room picker button
+         44 px, minimal paddings: 368 px are enough); below 368 px the room picker button steps aside (the floors and areas stay
+         reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
       @media (max-width: 419px) {
+        :host([data-design='a']) nav.bottom.dock.crowded {
+          gap: 4px;
+          padding-inline: 4px;
+        }
+        :host([data-design='a']) nav.bottom.dock.crowded .stack {
+          padding-inline: 2px;
+          gap: 0;
+        }
+        :host([data-design='a']) nav.bottom.dock.crowded .stack a,
+        :host([data-design='a']) nav.bottom.dock.crowded .stack button.me {
+          padding-inline: 0;
+          min-inline-size: 44px;
+        }
+        :host([data-design='a']) nav.bottom.dock.crowded .fab {
+          inline-size: 44px;
+          block-size: 44px;
+        }
+      }
+      @media (max-width: 367px) {
         :host([data-design='a']) nav.bottom.dock.crowded .fab {
           display: none;
         }
@@ -1355,6 +1375,13 @@ export class SwApp extends LitElement {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      /* CR-023: seven items (six areas and the user) share the phone bar: the label size is capped at 10.5 px (the bigger navigation
+         presets keep their icons) and the side padding goes, so no label is cut */
+      :host([data-design='a']) nav.bottom.crowded a,
+      :host([data-design='a']) nav.bottom.crowded button.me {
+        font-size: min(var(--nav-p-label, 10px), 10.5px);
+        padding-inline: 0;
       }
     }
   `;
@@ -2370,7 +2397,7 @@ export class SwApp extends LitElement {
             <button type="button" class="fab" aria-label="בחירת אזור" aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'} data-area-picker @click=${() => void this.openPicker()}><sw-icon name="home" size=${24}></sw-icon></button>
           </nav>
           ${this.renderPicker()}`
-        : html`<nav class="bottom" aria-label="ניווט ראשי">
+        : html`<nav class=${classMap({ bottom: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי">
             ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
             ${this.renderMe('bottom')}
           </nav>`}
