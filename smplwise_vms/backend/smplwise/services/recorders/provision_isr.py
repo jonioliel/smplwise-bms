@@ -544,19 +544,21 @@ class ProvisionIsrAdapter:
         """GetAlarmServerConfig: where the device posts alarms today (address redacted to a boolean)."""
         return self._xml("GetAlarmServerConfig", None, px.parse_alarm_server)
 
-    def configure_push(self, server: str, port: int, *, heartbeat_s: int = 30) -> dict[str, Any]:
+    def configure_push(self, server: str, port: int, *, heartbeat_s: int = 30, path: str | None = None) -> dict[str, Any]:
         """SetAlarmServerConfig (a device configuration write: needs writes enabled for this recorder). Points the device's
         alarm push at the add-on's listener; reads the configuration back to verify."""
         if not self.writes_enabled:
             raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": "push_config", "reason": "writes_disabled"})
+        before = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
         try:
-            body = px.alarm_server_document(server, port, heartbeat_s)
+            body = px.alarm_server_document(server, port, heartbeat_s, path=path, fields=set(before.get("fields") or ()))
         except ValueError as exc:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": str(exc)}) from exc
         self._xml("SetAlarmServerConfig", None, body=body, allowed=WRITE_COMMANDS)
         got = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
-        ok = got.get("address") == server and got.get("port") == port and got.get("heartbeat") is True
-        return {"applied": ok, "port": got.get("port"), "heartbeat_s": got.get("heartbeat_s")}
+        ok = got.get("address") == server and got.get("port") == port and (got.get("heartbeat") is not False)
+        return {"applied": ok, "port": got.get("port"), "heartbeat_s": got.get("heartbeat_s"), "path_supported": bool(before.get("has_url")),
+                "previous": {"configured": before.get("configured"), "port": before.get("port")}}
 
     # ------------------------------------------------------------------------------------------ smart events
 
@@ -910,6 +912,9 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         sel("time_basis", "זמני ההקלטות", (("device", "לפי שעון המכשיר"), ("iana", "תמיד שעון ישראל"))),
         adv("poll_interval_s", "מרווח דגימה (שניות)", "text"),
         adv("push_port", "פורט קבלת דחיפות", "port"),
+        adv("push_advertise_host", "כתובת התוסף כפי שה־NVR רואה אותה", "text"),
+        adv("push_advertise_port", "פורט התוסף כפי שה־NVR רואה אותו", "port"),
+        sel("push_auth", "אימות דחיפות", (("token", "מפתח בנתיב"), ("address", "לפי כתובת המכשיר"), ("token_and_address", "מפתח וכתובת")), advanced=True),
         sel("rtsp_style", "כתובת RTSP", (("", "לפי המכשיר"), ("path", "/chID=…"), ("query", "?chID=…")), advanced=True),
         sel("go2rtc_source", "חיבור go2rtc לווידאו", (("ffmpeg", "דרך ffmpeg (מומלץ למכשיר הזה)"), ("rtsp", "RTSP ישיר")), advanced=True),
         adv("suppress_insecure_warning", "להסתיר את אזהרת החיבור הלא מוצפן", "bool"),

@@ -59,6 +59,8 @@ class FakeProvision:
         self.set_after: str | None = None
         self.set_bodies: list[str] = []
         self.alarm_server = {"addr": "", "port": 8010, "heartbeat": False, "interval": 30}
+        self.alarm_server_url = False  # True: the device form has a url element (path token possible)
+        self.set_alarm_bodies: list[str] = []
         # "doc": the guide / Postman shapes. "live": what the owner's NVR (NVR8-16400AN, firmware 1.4.7) answered on
         # 2026-10-04 - stream ids from 0, each stream named by its RTSP URL (sub = `sub1`), channel names as an attribute
         # of the channel list, profiles in a top-level encodeLevelCaps, an empty encodeTypeCaps, chlOfflineAlarm in
@@ -241,6 +243,10 @@ class FakeProvision:
 
     def _GetAlarmServerConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
         a = self.alarm_server
+        if self.shape == "live" or self.alarm_server_url:  # live NVR 1.4.7: address + port only; v2 NVRs add a url element
+            url = f"<url type=\"string\"><![CDATA[{a.get('url', '')}]]></url>" if self.alarm_server_url else ""
+            return self._xml(request, _doc(f"""<alarmServer><serverAddr type="string"><![CDATA[{a['addr']}]]></serverAddr>
+<serverPort type="uint16">{a['port'] if a['addr'] else ''}</serverPort>{url}</alarmServer>""", "1.0"))
         return self._xml(request, _doc(f"""<alarmServer><serverAddr type="string"><![CDATA[{a['addr']}]]></serverAddr>
 <serverPort type="uint16" min="1" max="65535">{a['port']}</serverPort><enableHeartbeat type="boolean">{'true' if a['heartbeat'] else 'false'}</enableHeartbeat>
 <heartbeatInterval type="uint16" min="10" max="1800">{a['interval']}</heartbeatInterval></alarmServer>"""))
@@ -253,8 +259,9 @@ class FakeProvision:
         if srv is None:
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
         get = lambda tag: (srv.findtext(f"{ns}{tag}") or "").strip()  # noqa: E731
-        self.alarm_server = {"addr": get("serverAddr"), "port": int(get("serverPort")), "heartbeat": get("enableHeartbeat") == "true",
-                             "interval": int(get("heartbeatInterval"))}
+        self.set_alarm_bodies.append(request.content.decode())
+        self.alarm_server = {"addr": get("serverAddr"), "port": int(get("serverPort") or 0), "heartbeat": get("enableHeartbeat") == "true",
+                             "interval": int(get("heartbeatInterval") or 30), "url": get("url")}
         return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
     def _GetStreamCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
         if self.shape == "live":

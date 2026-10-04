@@ -48,13 +48,71 @@ def _sink(recorder_id: str, alerts: list) -> None:
             listener.submit(a)
 
 
+AUTH_MODES = ("token", "address", "token_and_address")
+
+
+def push_token(settings: Any, recorder_id: str) -> str | None:
+    """The recorder's push path token: HMAC-SHA256(installation key, "provision-push|<recorder>")[:32], derived on demand from
+    the key that already encrypts the stored passwords (connection_store), so it is never stored and changes only with that
+    key. None when the installation has no key yet."""
+    import hashlib
+    import hmac
+
+    from ..connection_store import _load_or_create_key
+
+    key = _load_or_create_key(settings, create=True)
+    if not key:
+        return None
+    return hmac.new(key, f"provision-push|{recorder_id}".encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+
+
+def _local_address_towards(host: str) -> str | None:
+    """The local address this machine uses to reach `host` (a UDP connect sends no packet)."""
+    try:
+        target = socket.gethostbyname(host)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((target, 9))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def push_target(settings: Any, recorder_id: str) -> dict[str, Any]:
+    """What the device must be told (configure_push): the address and port the ADD-ON is reachable at from the recorder, the
+    path carrying the token, and the auth mode. `push_advertise_host` / `push_advertise_port` (recorder extras) win: inside the
+    add-on the container's own address is not the host's, so the installer sets the HA host's LAN address and the host port
+    mapped to 18091/tcp. Without them the local address towards the recorder is offered (right outside a container) and
+    `advertise_source` says so. Never logged; returned only to system administrators."""
+    extra = _extra(settings)
+    host = str(extra.get("push_advertise_host") or "").strip() or None
+    source = "configured" if host else "detected"
+    if host is None:
+        host = _local_address_towards(settings.nvr_host or "")
+        source = "detected" if host else "unknown"
+    port = int(extra.get("push_advertise_port") or DEFAULT_PUSH_PORT)
+    mode = str(extra.get("push_auth") or "token")
+    mode = mode if mode in AUTH_MODES else "token"
+    token = push_token(settings, recorder_id) if mode != "address" else None
+    return {"host": host, "port": port, "path": f"/{token}/SendAlarmStatus" if token else "/SendAlarmStatus", "auth": mode,
+            "advertise_source": source, "listen_port": int(extra.get("push_port") or DEFAULT_PUSH_PORT)}
+
+
 def _register_push(listener: "AlertStreamListener", adapter: ProvisionIsrAdapter) -> PushReceiver | None:
-    """Attach this recorder to the process-wide push listener (started on first use). None when it cannot listen."""
+    """Attach this recorder to the process-wide push listener (started on first use, on the container port `push_port`,
+    default 18091 = the port config.yaml maps). Per recorder: its own receiver, its token and / or its source address.
+    None when it cannot listen (then the loop keeps sampling)."""
     global _PUSH
     s = listener.settings
-    try:
-        address = socket.gethostbyname(s.nvr_host or "")
-    except OSError:
+    mode = str(_extra(s).get("push_auth") or "token")
+    mode = mode if mode in AUTH_MODES else "token"
+    address: str | None = None
+    if mode != "token":
+        try:
+            address = socket.gethostbyname(s.nvr_host or "")
+        except OSError:
+            return None
+    token = push_token(s, listener.recorder_id) if mode != "address" else None
+    if mode != "address" and not token:
         return None
     port = int(_extra(s).get("push_port") or DEFAULT_PUSH_PORT)
     receiver = PushReceiver(listener.recorder_id, ipc=False, heartbeat_s=int(_extra(s).get("push_heartbeat_s") or 30))
@@ -69,7 +127,10 @@ def _register_push(listener: "AlertStreamListener", adapter: ProvisionIsrAdapter
                 log.warning("provision push listener could not start on port %s: %s", port, type(exc).__name__)
                 _PUSH = None
                 return None
-        _PUSH.sources[address] = receiver
+        if token:
+            _PUSH.tokens[token] = (receiver, address if mode == "token_and_address" else None)
+        if mode == "address" and address:
+            _PUSH.sources[address] = receiver
     return receiver
 
 

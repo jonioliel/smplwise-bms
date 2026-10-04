@@ -271,12 +271,14 @@ def test_route_refuses_when_writes_disabled(settings, fake, monkeypatch):
 
 def test_push_config_read_and_gated_write(settings, fake):
     a = make(settings, fake)
-    assert a.push_config() == {"configured": False, "port": 8010, "heartbeat": False, "heartbeat_s": 30}
+    assert a.push_config() == {"configured": False, "port": 8010, "heartbeat": False, "heartbeat_s": 30,
+                               "fields": ["enableHeartbeat", "heartbeatInterval", "serverAddr", "serverPort"], "has_url": False}
     with pytest.raises(ApiError):
         a.configure_push("arx.test", 8099)
     assert "SetAlarmServerConfig" not in fake.writes
     w = writer(settings, fake)
-    assert w.configure_push("arx.test", 8099, heartbeat_s=20) == {"applied": True, "port": 8099, "heartbeat_s": 20}
+    out = w.configure_push("arx.test", 8099, heartbeat_s=20)
+    assert (out["applied"], out["port"], out["heartbeat_s"], out["path_supported"]) == (True, 8099, 20, False)
     assert w.push_config()["configured"] is True and "address" not in w.push_config()
     with pytest.raises(ApiError):
         w.configure_push("bad host!", 8099)

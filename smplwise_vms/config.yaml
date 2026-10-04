@@ -28,6 +28,13 @@ panel_title: SmplWise Arx
 # Menu entry for every HA user; access inside the product is decided by VMS roles, never by this flag.
 panel_admin: false
 watchdog: http://[HOST]:[PORT:8099]/healthz
+# CR-025: the push listener for Provision-ISR alarm messages. Unmapped (null) by default: nothing listens on the host until the
+# owner maps the port in the add-on's Network settings AND chooses "push" for a recorder. Incoming pushes carry a per-recorder
+# path token; recorders that cannot send a path are matched by their source address.
+ports:
+  18091/tcp: null
+ports_description:
+  18091/tcp: Provision-ISR alarm push (optional; only for recorders set to push events)
 backup: hot
 options:
   bootstrap_admin_username: ""
