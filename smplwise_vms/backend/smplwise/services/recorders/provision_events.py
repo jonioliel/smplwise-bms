@@ -51,19 +51,71 @@ def _sink(recorder_id: str, alerts: list) -> None:
 AUTH_MODES = ("token", "address", "token_and_address")
 
 
+PUSH_KEY_NAME = "push.key"
+PUSH_GENERATIONS_NAME = "push_generations.json"
+_GEN_LOCK = threading.Lock()
+
+
+def _push_key_dir(settings: Any):  # noqa: ANN202
+    from ..connection_store import key_path
+
+    return key_path(settings).parent
+
+
+def push_generation(settings: Any, recorder_id: str) -> int:
+    import json
+
+    p = _push_key_dir(settings) / PUSH_GENERATIONS_NAME
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return int(data.get(recorder_id, 0)) if isinstance(data, dict) else 0
+    except (OSError, ValueError, TypeError):
+        return 0
+
+
+def bump_push_generation(settings: Any, recorder_id: str) -> int:
+    """A removed recorder's push token is retired for good: the next recorder with the same id gets a new token, so a device
+    still configured with the old path (a replaced or stolen unit) is refused. Atomic write (temp file + replace)."""
+    import json
+    import os
+    import secrets
+
+    d = _push_key_dir(settings)
+    p = d / PUSH_GENERATIONS_NAME
+    with _GEN_LOCK:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            data = data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            data = {}
+        gen = int(data.get(recorder_id, 0) or 0) + 1
+        data[recorder_id] = gen
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / f".{PUSH_GENERATIONS_NAME}.{secrets.token_hex(4)}.tmp"
+        tmp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass
+        os.replace(tmp, p)
+    return gen
+
+
 def push_token(settings: Any, recorder_id: str) -> str | None:
-    """The recorder's push path token: HMAC-SHA256(installation key, "provision-push|<recorder>")[:32], derived on demand from
-    the key that already encrypts the stored passwords (connection_store), so it is never stored and changes only with that
-    key. None when the installation has no key yet."""
+    """The recorder's push path token: HMAC-SHA256(push secret, "provision-push|<recorder>|<generation>")[:32].
+    Security review finding 5: the push secret is its own random per-installation key (keys/push.key, 0600), not the key that
+    encrypts the stored passwords, and the recorder generation (bumped when the recorder is removed) retires the token of a
+    removed recorder even when its id is reused. Never stored; None when the key cannot be created."""
     import hashlib
     import hmac
 
     from ..connection_store import _load_or_create_key
 
-    key = _load_or_create_key(settings, create=True)
+    key = _load_or_create_key(settings, create=True, path=_push_key_dir(settings) / PUSH_KEY_NAME)
     if not key:
         return None
-    return hmac.new(key, f"provision-push|{recorder_id}".encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+    gen = push_generation(settings, recorder_id)
+    return hmac.new(key, f"provision-push|{recorder_id}|{gen}".encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
 
 def _local_address_towards(host: str) -> str | None:
