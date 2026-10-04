@@ -6,6 +6,7 @@
  * Settings screens may name the platform and show its identifiers (docs/design/UI_COPY_RULES.md); operator screens never do.
  */
 import type { AdminDevice } from '../api/media-admin';
+import { integrationName } from './media-integration-names';
 
 export type SortKey = 'name' | 'type' | 'integration' | 'area' | 'id' | 'status';
 export type GroupKey = 'none' | 'integration' | 'area' | 'type';
@@ -154,7 +155,7 @@ const norm = (s: string) => s.toLocaleLowerCase('he').normalize('NFKC');
 export function matchesText(d: AdminDevice, f: RowFacts, q: string): boolean {
   const words = norm(q).split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const hay = norm([d.name, d.area_name ?? '', d.floor_name ?? '', f.entityId, f.deviceId, ...d.endpoints.map((e) => e.endpoint_id), ...f.integrations].join('\n'));
+  const hay = norm([d.name, d.area_name ?? '', d.floor_name ?? '', f.entityId, f.deviceId, ...d.endpoints.map((e) => e.endpoint_id), ...f.integrations, ...f.integrations.map(integrationName)].join('\n'));
   return words.every((w) => hay.includes(w));
 }
 
@@ -178,7 +179,7 @@ function sortValue(d: AdminDevice, f: RowFacts, k: SortKey): string {
   switch (k) {
     case 'name': return d.name;
     case 'type': return f.type + ':' + d.kind;
-    case 'integration': return f.primary;
+    case 'integration': return integrationName(f.primary);
     case 'area': return f.area;
     case 'id': return f.entityId;
     case 'status': return String(availRank(f.available));
@@ -194,7 +195,7 @@ export function sortRows(rows: Row[], k: SortKey, dir: 'asc' | 'desc'): Row[] {
 }
 
 function groupOf(r: Row, g: GroupKey, typeLabel: (b: TypeBucket) => string, none: { area: string; integration: string }): { id: string; label: string } {
-  if (g === 'integration') return { id: r.f.primary || NO_INTEGRATION, label: r.f.primary || none.integration };
+  if (g === 'integration') return { id: r.f.primary || NO_INTEGRATION, label: integrationName(r.f.primary) || none.integration };
   if (g === 'area') return { id: r.f.areaKey, label: r.f.area || none.area };
   return { id: r.f.type, label: typeLabel(r.f.type) };
 }

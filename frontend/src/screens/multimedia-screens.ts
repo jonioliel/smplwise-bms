@@ -23,7 +23,9 @@ import { phoneRestricted } from '../shell/phone';
 import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { clearPairChip, publishPairChip } from '../shell/tab-pair';
-import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
+import { HYBRID_MAX_ITEMS, TabsModeController, ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf } from '../shell/tabs-mode';
+import '../components/sw-dropdown';
+import type { DropdownItem } from '../components/sw-dropdown';
 import { mIcon, nameText } from '../components/media-icons';
 import {
   DEMO_FLOOR_ORDER, NO_FILTER, NO_FLOOR, STATE_FILTERS, cardOf, countsOf, editGroups, effective, filterDevices, filtersActive, filtersFromParams, filtersToParams,
@@ -59,7 +61,6 @@ export class MultimediaScreens extends LitElement {
   /** The home screen's floor order: what an empty `floor_order` of the layout follows. */
   @state() private homeFloors: string[] = [];
   @state() private filters: Filters = NO_FILTER;
-  @state() private floorMenu = false;
   @state() private compactHeader = false;
   @state() private staleError = '';
   @state() private toast = '';
@@ -220,38 +221,6 @@ export class MultimediaScreens extends LitElement {
     .flwrap {
       position: relative;
       flex: none;
-    }
-    .floorbtn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      block-size: 40px;
-      padding-inline: 13px 12px;
-      border-radius: var(--dv-radius-control);
-      border: 1px solid var(--dv-border);
-      background: var(--mm-sheen), var(--dv-surface);
-      -webkit-backdrop-filter: var(--dv-surface-blur);
-      backdrop-filter: var(--dv-surface-blur);
-      box-shadow: var(--dv-shadow-control);
-      font-size: 13.5px;
-      font-weight: 600;
-      color: var(--dv-text);
-      white-space: nowrap;
-    }
-    .floorbtn .ic {
-      font-size: 17px;
-      color: var(--dv-text-2);
-    }
-    .floorbtn .ic:last-child {
-      font-size: 14px;
-      transition: transform var(--mm-motion) var(--mm-ease);
-    }
-    .floorbtn[aria-expanded='true'] .ic:last-child {
-      transform: rotate(180deg);
-    }
-    .flwrap .pop {
-      inset-block-start: calc(100% + 8px);
-      inset-inline-end: 0;
     }
     .dh-det {
       display: flex;
@@ -477,7 +446,6 @@ export class MultimediaScreens extends LitElement {
     }
     @media (pointer: coarse), (max-width: 767px) {
       .rc,
-      .floorbtn,
       .search {
         block-size: 44px;
       }
@@ -564,8 +532,6 @@ export class MultimediaScreens extends LitElement {
     void applyMediaGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.addEventListener('scroll', this.onScroll, { passive: true });
-    window.addEventListener('pointerdown', this.onOutside, true);
-    window.addEventListener('keydown', this.onKey);
     // addition A: the layout editor is entered from the user menu (shell/screen-edit.ts), never from a button in the page
     this.offEdit = registerScreenEdit({
       id: 'multimedia-layout',
@@ -608,8 +574,6 @@ export class MultimediaScreens extends LitElement {
     clearPairChip(this);
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.removeEventListener('scroll', this.onScroll);
-    window.removeEventListener('pointerdown', this.onOutside, true);
-    window.removeEventListener('keydown', this.onKey);
     this.offEdit?.();
     this.offRoute?.();
     this.offPush?.();
@@ -759,14 +723,6 @@ export class MultimediaScreens extends LitElement {
     else if (this.compactHeader && y < 12) this.compactHeader = false;
   };
 
-  private onOutside = (e: Event) => {
-    if (this.floorMenu && !e.composedPath().some((n) => (n as HTMLElement).classList?.contains('flwrap'))) this.floorMenu = false;
-  };
-
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.floorMenu) this.floorMenu = false;
-  };
-
   // ------------------------------------------------------------------------------------------------ remote
 
   private openRemote(key: string) {
@@ -793,7 +749,6 @@ export class MultimediaScreens extends LitElement {
     this.editing = true;
     this.editHandled = true; // the address below is ours: nothing more to act on
     this.filters = NO_FILTER;
-    this.floorMenu = false;
     if (!fromRoute) {
       const p = this.params();
       filtersToParams(NO_FILTER, p);
@@ -942,7 +897,6 @@ export class MultimediaScreens extends LitElement {
     const floors = floorsOf(this.devices, this.display());
     const rooms = roomsOf(this.devices, f.floor);
     const c = countsOf(this.devices);
-    const floorName = f.floor ? floors.find((x) => x.id === f.floor)?.name ?? 'קומה' : 'כל הקומות';
     const showFloor = floors.length > 1 || !!f.floor;
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
@@ -952,8 +906,7 @@ export class MultimediaScreens extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
-        ${tools && showFloor ? html`<div class="flwrap"><button type="button" class="floorbtn" aria-haspopup="menu" aria-expanded=${String(this.floorMenu)} data-floor-menu @click=${() => (this.floorMenu = !this.floorMenu)}>${mIcon('layers')}<span>${bidi(floorName)}</span>${mIcon('chevronDown')}</button>
-          ${this.floorMenu ? this.floorPop(floors) : nothing}</div>` : nothing}
+        ${tools && showFloor ? this.floorChip(floors) : nothing}
       </div>
       ${tools ? html`<div class="dh-det">
         <span class="amb"><em><span class="n">${c.on}</span></em> פועלים מתוך <span class="n">${c.total}</span>${c.un ? html` · <span class="n">${c.un}</span> לא זמין` : nothing}</span>
@@ -964,9 +917,10 @@ export class MultimediaScreens extends LitElement {
     </header>`;
   }
 
-  private floorPop(floors: ReturnType<typeof floorsOf>): TemplateResult {
-    const row = (id: string, name: string, n: number, icon: 'home' | 'layers') => html`<button type="button" role="menuitemradio" aria-checked=${String(this.filters.floor === id)} data-floor-pick=${id} @click=${() => { this.floorMenu = false; this.setFilters({ floor: id, area: '' }); }}>${mIcon(icon)}${bidi(name)}<span class="cnt"><span class="n">${n}</span></span></button>`;
-    return html`<div class="pop" role="menu" aria-label="קומות">${row('', 'כל הקומות', this.devices.length, 'home')}<hr />${floors.map((x) => row(x.id, x.name, x.count, 'layers'))}</div>`;
+  /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
+  private floorChip(floors: ReturnType<typeof floorsOf>): TemplateResult {
+    const items: DropdownItem[] = [{ id: '', label: 'כל הקומות', count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
+    return html`<div class="flwrap"><sw-dropdown data-floor-menu label="קומות" icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
   }
 
   /** The room chips scroll by a mouse drag too (a touch scrolls natively). */

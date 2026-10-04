@@ -336,7 +336,7 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(cards(page)).toHaveCount(8);
     // the floor menu
     await page$(page).locator('[data-floor-menu]').click();
-    await page$(page).locator('[data-floor-pick="b"]').click();
+    await page$(page).locator('[data-floor-menu] [role=option][data-id="b"]').click();
     await expect(cards(page)).toHaveCount(2);
     await expect(page$(page).locator('[data-floor-menu]')).toContainText('מרתף');
   });
@@ -431,13 +431,13 @@ test.describe('multimedia screens (mocked backend)', () => {
         if (r.width && (r.width < 43.5 || r.height < 43.5)) out.push(`${el.className || el.tagName} ${Math.round(r.width)}x${Math.round(r.height)}`);
       });
       host.shadowRoot!.querySelectorAll('media-screen-card').forEach((c) => check(c.shadowRoot!, '.pw, .rb, .rbtn, .vrock button'));
-      check(host.shadowRoot!, '.rc, .floorbtn, .search, .seg button');
+      check(host.shadowRoot!, '.rc, .search, .seg button');
       return out;
     });
     expect(small).toEqual([]);
     await page$(page).locator('[data-floor-menu]').click();
     await shot(page, 'floor-menu', '390');
-    await expect(page$(page).locator('[data-floor-pick]')).toHaveCount(4);
+    await expect(page$(page).locator('[data-floor-menu] [role=option]')).toHaveCount(4);
   });
 
   test('the settings switch: multimedia.enabled off takes the rail entry away and the page answers "כבויה"', async ({ page }) => {
