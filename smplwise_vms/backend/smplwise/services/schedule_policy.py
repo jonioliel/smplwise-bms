@@ -24,12 +24,15 @@ from . import ha_bridge
 # `sunrise-00:15:00` works as start and stop (`sunset` without an offset is rejected: canonical_time always writes one).
 CAPABILITIES: dict[str, bool] = {"tags": True, "negative_sun_offset": True}
 
-ALL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
-SENSITIVE_CLASSES = frozenset({"alarm", "lock", "door"})
+ALL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum",
+                                "siren", "media", "number", "select")
+# 2026-10-04 follow-up (owner decision 3): a siren is a SENSITIVE class like the alarm, the locks and the doors (schedule.sensitive, the bridge's
+# `sensitive: true`, control of the entity itself, the remote channel's alarm rule)
+SENSITIVE_CLASSES = frozenset({"alarm", "lock", "door", "siren"})
 # 2026-10-04 (schedules: more actions): the classes added with bridge 0.6.1. A script or a scene is sensitive PER ENTITY (what it drives, read
 # from the automations mirror - `is_sensitive`), never by its class alone.
 ITEM_CLASSES = frozenset({"script", "scene"})
-NEWER_CLASSES: tuple[str, ...] = ("script", "scene", "helper", "humidifier", "vacuum")
+NEWER_CLASSES: tuple[str, ...] = ("script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
 # the ORIGINAL eight: an installation whose stored `schedules.classes` lists all of them had "every class on", and keeps it (routers/settings)
 ORIGINAL_CLASSES: tuple[str, ...] = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
 DOOR_COVER_CLASSES = frozenset({"door", "garage", "gate"})  # = services/devices.DOOR_COVER_CLASSES (kept here: this module stays pure)
@@ -115,6 +118,25 @@ SCHEDULE_ACTIONS: dict[str, dict[str, dict[str, Any]]] = {
         "humidifier.set_mode": _svc("humidifier.set_mode", {"mode": _arg("str", 1, 40, required=True)}),
     },
     "vacuum": {"vacuum.start": _svc("vacuum.start"), "vacuum.return_to_base": _svc("vacuum.return_to_base")},
+    # 2026-10-04 follow-up (owner decision 3, "add everything"): sirens (sensitive; a tone / duration / volume only when the siren reports it - the
+    # tones from its own `available_tones`), media players (only what the player reports, only an approved and visible device of the multimedia
+    # settings, the multimedia permissions at its anchor, the volume under the device's ceiling), and `number` / `select` (the entity's own
+    # min / max / step and options; a configuration / diagnostic entity is never offered)
+    "siren": {
+        "siren.turn_on": _svc("siren.turn_on", {"tone": _arg("str", 1, 80), "duration": _arg("int", 1, 3600), "volume_level": _arg("float", 0, 1)}),
+        "siren.turn_off": _svc("siren.turn_off"),
+    },
+    "media": {
+        "media_player.turn_on": _svc("media_player.turn_on"),
+        "media_player.turn_off": _svc("media_player.turn_off"),
+        "media_player.media_play": _svc("media_player.media_play"),
+        "media_player.media_pause": _svc("media_player.media_pause"),
+        "media_player.media_stop": _svc("media_player.media_stop"),
+        "media_player.volume_set": _svc("media_player.volume_set", {"volume_level": _arg("float", 0, 1, required=True)}),
+        "media_player.select_source": _svc("media_player.select_source", {"source": _arg("str", 1, 120, required=True)}),
+    },
+    "number": {"number.set_value": _svc("number.set_value", {"value": _arg("float", -1e9, 1e9, required=True)})},
+    "select": {"select.select_option": _svc("select.select_option", {"option": _arg("str", 1, 80, required=True)})},
 }
 SCHEDULE_ACTION_SERVICES: frozenset[str] = frozenset(s for c in SCHEDULE_ACTIONS.values() for s in c)
 SERVICE_ARGS: dict[str, dict[str, dict[str, Any]]] = {s: spec["args"] for c in SCHEDULE_ACTIONS.values() for s, spec in c.items()}
@@ -127,6 +149,9 @@ NEWER_BRIDGE_SERVICES: frozenset[str] = frozenset({
     "cover.open_cover_tilt", "cover.close_cover_tilt", "climate.set_swing_mode", "climate.set_humidity", "script.turn_on", "scene.turn_on",
     "input_boolean.turn_on", "input_boolean.turn_off", "input_number.set_value", "input_select.select_option", "humidifier.set_humidity", "humidifier.set_mode",
     "vacuum.start", "vacuum.return_to_base",
+    # the 2026-10-04 follow-up: the same (still unreleased) bridge 0.6.1 takes these too
+    "siren.turn_on", "siren.turn_off", "media_player.turn_on", "media_player.turn_off", "media_player.media_play", "media_player.media_pause",
+    "media_player.media_stop", "media_player.volume_set", "media_player.select_source", "number.set_value", "select.select_option",
 })
 
 # Capability discovery (never invent one): the entity feature bit Home Assistant reports for a service (`<Domain>EntityFeature`), and an
@@ -135,10 +160,18 @@ FEATURE_BITS: dict[str, int] = {
     "cover.open_cover": 1, "cover.close_cover": 2, "cover.set_cover_position": 4, "cover.stop_cover": 8, "cover.open_cover_tilt": 16, "cover.close_cover_tilt": 32,
     "cover.set_cover_tilt_position": 128, "climate.set_temperature": 1 | 2, "climate.set_humidity": 4, "climate.set_fan_mode": 8, "climate.set_preset_mode": 16,
     "climate.set_swing_mode": 32, "fan.set_percentage": 1, "humidifier.set_mode": 1, "vacuum.start": 8192, "vacuum.return_to_base": 16,
+    # SirenEntityFeature: TURN_ON 1, TURN_OFF 2 (TONES 4, VOLUME_SET 8, DURATION 16 gate the arguments - ARG_BITS)
+    "siren.turn_on": 1, "siren.turn_off": 2,
+    # MediaPlayerEntityFeature: PAUSE 1, VOLUME_SET 4, TURN_ON 128, TURN_OFF 256, SELECT_SOURCE 2048, STOP 4096, PLAY 16384
+    "media_player.media_pause": 1, "media_player.volume_set": 4, "media_player.turn_on": 128, "media_player.turn_off": 256, "media_player.select_source": 2048,
+    "media_player.media_stop": 4096, "media_player.media_play": 16384,
 }
+# an optional argument the entity must report by its own feature bit (a siren's tone, volume and duration)
+ARG_BITS: dict[tuple[str, str], int] = {("siren.turn_on", "tone"): 4, ("siren.turn_on", "volume_level"): 8, ("siren.turn_on", "duration"): 16}
 FEATURE_EVIDENCE: dict[str, str] = {
     "cover.set_cover_position": "current_position", "cover.set_cover_tilt_position": "current_tilt_position", "climate.set_fan_mode": "fan_modes",
     "climate.set_preset_mode": "preset_modes", "climate.set_swing_mode": "swing_modes", "humidifier.set_mode": "available_modes",
+    "media_player.select_source": "source_list",
 }
 # A NEW action on one of these needs positive evidence (the bit or the attribute). The others predate capability discovery: with no feature
 # bits reported at all (0 in the mirror) they keep working as before; with bits reported, a missing bit refuses them too.
@@ -174,7 +207,22 @@ def arg_capable(service: str, arg: str, entity: dict[str, Any] | None) -> bool:
     if service == "fan.turn_on" and arg == "percentage":
         feats = int(entity.get("supported_features") or 0)
         return feats == 0 or bool(feats & 1)
+    bit = ARG_BITS.get((service, arg))
+    if bit is not None:  # a siren's tone / volume / duration: only what the siren itself reports (never "nothing reported = yes")
+        if not int(entity.get("supported_features") or 0) & bit:
+            return False
+        return arg != "tone" or bool(siren_tones(entity))
     return True
+
+
+def siren_tones(entity: dict[str, Any] | None) -> list[str]:
+    """The tones a siren offers (`available_tones`: a list, or a mapping of tone id -> name - the id is what `tone` takes)."""
+    raw = ((entity or {}).get("attributes") or {}).get("available_tones")
+    if isinstance(raw, dict):
+        return [str(k) for k in raw if isinstance(k, (str, int)) and not isinstance(k, bool)]
+    if isinstance(raw, list):
+        return [str(v) for v in raw if isinstance(v, (str, int)) and not isinstance(v, bool)]
+    return []
 
 
 def is_sensitive(cls: str | None, entity: dict[str, Any] | None = None) -> bool:
@@ -191,6 +239,7 @@ ARG_LABELS = {
     "temperature": "טמפרטורה", "brightness": "בהירות", "brightness_pct": "בהירות באחוזים", "position": "מיקום", "tilt_position": "מיקום הטיה",
     "hvac_mode": "מצב פעולה", "fan_mode": "מצב מאוורר", "preset_mode": "מצב מוגדר מראש", "percentage": "עוצמה",
     "swing_mode": "מצב נדנוד", "humidity": "לחות", "mode": "מצב", "value": "ערך", "option": "אפשרות", "variables": "משתני הסקריפט",
+    "tone": "צליל", "duration": "משך (שניות)", "volume_level": "עוצמה", "source": "מקור",
 }
 
 
@@ -244,6 +293,14 @@ def classify_entity(entity: dict[str, Any], *, on_door_layer: bool, alarm_manage
         return "humidifier", None
     if domain == "vacuum":
         return "vacuum", None
+    if domain == "siren":
+        return "siren", None
+    if domain == "media_player":
+        return "media", None  # the caller (schedule_view.Ctx) narrows it to an approved, visible device of the multimedia settings
+    if domain in ("number", "select"):
+        if entity.get("entity_category"):
+            return None, "action_not_allowed"  # a device's configuration / diagnostic value is never a schedule action
+        return domain, None
     return None, "action_not_allowed"
 
 
@@ -320,8 +377,16 @@ def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] |
                 lo, hi = _temperature_range(entity if dynamic else None)
             elif dynamic and entity is not None and name in ("value", "humidity"):
                 lo, hi = _entity_range(entity, name, lo, hi)
+            elif dynamic and entity is not None and name == "volume_level":
+                ceiling = _number(entity.get("volume_ceiling"))
+                if ceiling is not None:
+                    hi = min(hi if hi is not None else 1.0, ceiling)  # the multimedia volume ceiling of the device (CR-016 10.1), never above it
             if lo is not None and hi is not None and not lo <= num <= hi:
                 problems.append({"code": "out_of_range", "message": f"{arg_label(name)} מחוץ לטווח {_fmt(lo)}–{_fmt(hi)}.", "arg": name})
+                continue
+            if dynamic and entity is not None and name == "value" and not _on_step(entity, num):
+                step = _number((entity.get("attributes") or {}).get("step")) or 1
+                problems.append({"code": "out_of_range", "message": f"{arg_label(name)}: רק בקפיצות של {_fmt(step)}.", "arg": name})
                 continue
             cleaned[name] = int(num) if kind == "int" or (isinstance(value, int) and not isinstance(value, bool)) else value
         elif kind == "enum":
@@ -342,7 +407,10 @@ def check_arguments(service: str, data: dict[str, Any], entity: dict[str, Any] |
                 continue
             value = value.strip()
             if dynamic:
-                offered = _attr_list(entity, OFFERED_LIST.get(name, ""))
+                offered = (siren_tones(entity) or None) if name == "tone" else _attr_list(entity, OFFERED_LIST.get(name, ""))
+                if name == "source" and entity is not None:
+                    hidden = set(entity.get("hidden_sources") or [])  # a source the multimedia administrator hid is never a schedule's value
+                    offered = [s for s in (offered or []) if s not in hidden]
                 if offered is not None and value not in offered:
                     problems.append({"code": "invalid_value", "message": f"{arg_label(name)}: ערך שההתקן אינו מציע.", "arg": name})
                     continue
@@ -390,7 +458,17 @@ def _temperature_range(entity: dict[str, Any] | None) -> tuple[float, float]:
     return (lo if lo is not None else 5.0, hi if hi is not None else 35.0)
 
 
-OFFERED_LIST = {"fan_mode": "fan_modes", "preset_mode": "preset_modes", "swing_mode": "swing_modes", "mode": "available_modes", "option": "options"}
+OFFERED_LIST = {"fan_mode": "fan_modes", "preset_mode": "preset_modes", "swing_mode": "swing_modes", "mode": "available_modes", "option": "options", "source": "source_list"}
+
+
+def _on_step(entity: dict[str, Any], value: float) -> bool:
+    """An input_number's / number's value on its own grid (`min` + k x `step`); no step reported = any value in range."""
+    attrs = entity.get("attributes") or {}
+    step, lo = _number(attrs.get("step")), _number(attrs.get("min"))
+    if not step or step <= 0:
+        return True
+    k = (value - (lo or 0.0)) / step
+    return abs(k - round(k)) < 1e-6
 
 
 def _entity_range(entity: dict[str, Any], name: str, lo: float | None, hi: float | None) -> tuple[float | None, float | None]:

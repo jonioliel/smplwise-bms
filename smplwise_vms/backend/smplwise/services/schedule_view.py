@@ -27,17 +27,23 @@ PERMS = (VIEW, MANAGE, SENSITIVE, "devices.read", "entity.state.read", "ha.entit
 CATALOG_LIMIT = 500
 CANDIDATE_LIMIT = 500
 CATALOG_DOMAINS = ("light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button", "script", "scene", "input_boolean", "input_number", "input_select",
-                   "humidifier", "vacuum")
+                   "humidifier", "vacuum", "siren", "media_player", "number", "select")
 # 2026-10-04: an administrator's "this is fine from our side" on a review issue, bound to the schedule's content (`revision`): the chip is
 # silenced until the content changes outside Arx. Kept in the settings table (`schedules.acks`, a JSON object; no migration).
 ACK_KEY = "schedules.acks"
 ACKABLE = ("no_owner_sensitive", "unsupported_content")
+# 2026-10-04 follow-up (owner decision 2): a system administrator's "allowed in schedules" mark of ONE script that disarms / unlocks / opens a
+# door (or whose content Arx cannot read), bound to the script's content (`script_content_hash`): a change of the script revokes it by itself.
+# {entity_id: {hash, by, by_name, at}} in the settings table (no migration).
+SCRIPT_MARKS_KEY = "schedules.script_marks"
+# the media device kinds a schedule may drive (a group / session / service fans out or is not a room's own player: never one schedule call)
+MEDIA_KINDS = ("screen", "speaker", "player", "receiver")
 COND_DOMAINS = ("binary_sensor", "sensor", "sun", "input_boolean")
 STATES = ("on", "off", "triggered", "completed", "unavailable", "unknown")
 
 REASON_MESSAGES = {
     "no_manage_permission": "אין לך הרשאה לנהל תזמונים של ההתקנים האלה.",
-    "sensitive_permission_required": "תזמון של אזעקה, מנעולים, דלתות ושערים דורש הרשאה לתזמון פעולות רגישות.",
+    "sensitive_permission_required": "תזמון של אזעקה, צופרים, מנעולים, דלתות ושערים דורש הרשאה לתזמון פעולות רגישות.",
     "class_disabled": "סוג ההתקן כובה בהגדרות › תזמונים.",
     "unsupported_content": "התזמון כולל תוכן שהמערכת אינה מציגה במלואו; אפשר לערוך אותו רק ברכיב המקורי.",
     "feature_disabled": "התזמונים כבויים בהגדרות המערכת.",
@@ -189,6 +195,8 @@ class Ctx:
         self._write: tuple[bool, str | None] | None = None
         self._sun: dict[str, int] | None | bool = False
         self._owners: dict[str, "Ctx"] = {}  # the review's owner contexts, one per user per request (review L6)
+        self._marks: dict[str, Any] | None = None  # `schedules.script_marks`, read once per request
+        self._media_access: Any = None
         self._actx: Any = None  # the automations context (services/automation_scope.Ctx): what a script / scene drives and who may run it
 
     @property
@@ -288,10 +296,54 @@ class Ctx:
         cls, refusal = policy.classify_entity(info, on_door_layer=info["entity_id"] in (self._door_layer or ()), alarm_managed=managed)
         if refusal != "alarm_managed_control" and r["domain"] in ("switch", "select", "button", "number") and info["entity_id"] in self._media_owned():
             cls, refusal = None, "media_managed_control"  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
+        if cls == "media":
+            why, facts = self._media_facts(info["entity_id"])
+            if why:
+                cls, refusal = None, why
+            else:
+                info.update(facts)
         info["class"], info["refusal"] = cls, refusal
         if cls in policy.ITEM_CLASSES:
             info.update(self._item_facts(info["entity_id"], cls))
         return info
+
+    def _media_facts(self, entity_id: str) -> tuple[str | None, dict[str, Any]]:
+        """A media player is schedulable only as a VISIBLE endpoint of an APPROVED screen / speaker / player / receiver of the multimedia settings
+        (multimedia on): (refusal, facts). The facts carry the device's anchor (the multimedia permissions are judged there), whether it is public,
+        the volume ceiling (the administrator's `volume_max` and the night window's max, the lower one - a schedule may fire inside the window) and
+        the sources the administrator hid."""
+        from . import media_store
+
+        if not media_store.enabled(self.conn):
+            return "media_disabled", {}
+        row = self.conn.execute(
+            "SELECT d.device_key, d.kind, d.anchor_entity_id, d.is_public, d.volume_max, d.volume_night_json, d.sources_json, e.hidden FROM media_device_endpoints e "
+            "JOIN media_devices d ON d.device_key = e.device_key WHERE e.ref = ? AND e.source = 'ha' AND d.approved = 1 AND d.removed_at IS NULL", (entity_id,)).fetchone()
+        if row is None or row["hidden"] or row["kind"] not in MEDIA_KINDS:
+            return "media_not_approved", {}
+        ceiling = row["volume_max"]
+        night = media_store.night_window(dict(row))
+        if night is not None:
+            ceiling = night["max"] if ceiling is None else min(ceiling, night["max"])
+        try:
+            curated = json.loads(row["sources_json"] or "[]")
+        except ValueError:
+            curated = []
+        hidden = [c.get("id") for c in curated if isinstance(c, dict) and c.get("hidden") and isinstance(c.get("id"), str)] if isinstance(curated, list) else []
+        return None, {"media": {"device_key": row["device_key"], "anchor": row["anchor_entity_id"] or entity_id, "public": bool(row["is_public"])},
+                      "volume_ceiling": (ceiling / 100.0) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) else None, "hidden_sources": hidden}
+
+    def media_access(self) -> Any:
+        if self._media_access is None:
+            from . import media_store
+
+            self._media_access = media_store.Access(self.conn, self.principal, media_store.ALL_PERMS) if self.principal is not None else None
+        return self._media_access
+
+    def script_marks(self) -> dict[str, Any]:
+        if self._marks is None:
+            self._marks = read_script_marks(self.conn)
+        return self._marks
 
     def _item_facts(self, entity_id: str, cls: str) -> dict[str, Any]:
         """What a script / scene drives, read from the automations mirror (`ha_config_items`, services/automation_scope.facts_of): `sensitive`
@@ -302,8 +354,29 @@ class Ctx:
             row = self.conn.execute("SELECT kind, config_json, source FROM ha_config_items WHERE entity_id = ? AND kind = ?", (entity_id, cls)).fetchone()
         except sqlite3.Error:
             row = None
+        if cls == "script":
+            out["content_hash"] = script_content_hash(entity_id, row)
+            res = self._script_facts(entity_id, row, out)
+            self._approval(entity_id, res)
+            return res
         if row is None:
             return out
+        return self._config_facts(entity_id, cls, row, out)
+
+    def _approval(self, entity_id: str, out: dict[str, Any]) -> None:
+        """Owner decision 2: a script whose known steps disarm, unlock or open a door - or whose content Arx cannot read - runs from a schedule only
+        while a system administrator's mark holds for its current content."""
+        out["approval_required"] = bool(out.get("lowering") or not out.get("effects_known"))
+        mark = self.script_marks().get(entity_id)
+        out["approval_ok"] = bool(isinstance(mark, dict) and mark.get("hash") == out["content_hash"])
+        out["approval_stale"] = bool(isinstance(mark, dict) and not out["approval_ok"])
+
+    def _script_facts(self, entity_id: str, row: sqlite3.Row | None, out: dict[str, Any]) -> dict[str, Any]:
+        if row is None:
+            return out
+        return self._config_facts(entity_id, "script", row, out)
+
+    def _config_facts(self, entity_id: str, cls: str, row: sqlite3.Row, out: dict[str, Any]) -> dict[str, Any]:
         out["_source"] = row["source"]
         try:
             cfg = json.loads(row["config_json"]) if row["config_json"] else None
@@ -462,9 +535,19 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
         out.append(reason("sensitive_permission_required", entity_id))
     name = ctx.name_of(entity_id)
     not_controllable = reason("entity_not_controllable", entity_id, f"אין לך הרשאת שליטה ב־{name}.")
-    if cls in ("light", "switch", "cover", "climate", "fan", "helper", "humidifier", "vacuum"):
+    if cls in ("light", "switch", "cover", "climate", "fan", "helper", "humidifier", "vacuum", "number", "select"):
         if not a.control(entity_id):
             out.append(not_controllable)
+    elif cls == "siren":
+        # a siren is judged like the alarm's own devices: control of the entity itself (never the everyday devices.control), and the remote
+        # channel's alarm rule (no alarm control from outside the local network unless the administrator allowed it)
+        if not a.allowed("ha.entity.control", entity_id):
+            out.append(not_controllable)
+        block = remote_block(ctx, "arm")
+        if block:
+            out.append({**reason("entity_not_controllable", entity_id, block[1]), "_remote": block[0]})
+    elif cls == "media":
+        out.extend(media_reasons(ctx, service, entity_id, info))
     elif cls in policy.ITEM_CLASSES:
         out.extend(item_run_reasons(ctx, cls, entity_id, info))
     elif cls in ("lock", "door"):
@@ -514,6 +597,28 @@ def item_run_reasons(ctx: Ctx, cls: str, entity_id: str, info: dict[str, Any] | 
     return out
 
 
+def media_reasons(ctx: Ctx, service: str, entity_id: str, info: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """A media player is scheduled under the multimedia rules (CR-015 / CR-016): media.read and the command's own permission at the DEVICE's anchor
+    (media.power for power and source, media.control for the rest) - and on a public device a source change also needs media.public."""
+    from . import media_store
+
+    media = (info or {}).get("media") or {}
+    anchor = media.get("anchor") or entity_id
+    acc = ctx.media_access()
+    name = ctx.name_of(entity_id)
+    if acc is None:
+        return [reason("entity_not_controllable", entity_id, f"אין לך הרשאה להפעיל את {name}.")]
+    perm = media_store.PERM_POWER if service in ("media_player.turn_on", "media_player.turn_off", "media_player.select_source") else media_store.PERM_CONTROL
+    out: list[dict[str, Any]] = []
+    if not acc.has(media_store.PERM_READ, anchor) or not acc.has(perm, anchor):
+        from ..routers.access import PERMISSION_LABELS
+
+        out.append(reason("grant_required", entity_id, f"הפעולה דורשת הרשאת מולטימדיה ({PERMISSION_LABELS.get(perm, perm)})."))
+    elif service == "media_player.select_source" and media.get("public") and not acc.has(media_store.PERM_PUBLIC, anchor):
+        out.append(reason("grant_required", entity_id, "החלפת מקור במסך ציבורי דורשת הרשאה נפרדת."))
+    return out
+
+
 def remote_block(ctx: Ctx, kind: str) -> tuple[str, str] | None:
     """The remote channel's refusal of an alarm action (`alarm.remote_control` / `alarm.remote_disarm`): (code, message)."""
     if ctx.principal is None or ctx.principal.source != "remote":
@@ -553,7 +658,7 @@ def can_of(ctx: Ctx, core: dict[str, Any], cls_info: dict[str, Any], enabled: bo
     else:
         toggle = writable and understood and not strict
     edit = writable and understood and not strict
-    can = {"edit": edit, "toggle": toggle, "run": edit and not cls_info.get("invalid"), "delete": writable and ((not loose) if understood else wide_manage), "copy": edit}
+    can = {"edit": edit, "toggle": toggle, "run": edit and not cls_info.get("invalid") and not cls_info.get("blocked"), "delete": writable and ((not loose) if understood else wide_manage), "copy": edit}
     reasons: list[dict[str, Any]] = []
     if not edit:
         if block:
@@ -656,7 +761,7 @@ def _warnings(ctx: Ctx, core: dict[str, Any], cls: dict[str, Any], cond_views: l
                 needs = panel.get("needs_code_disarm") if a["service"] == policy.LOWERING_ARM_OFF else panel.get("needs_code_arm")
                 if needs:
                     out.append({"path": f"slots[{si}].actions[{ai}]", "code": "alarm_may_need_code", "message": "לוח האזעקה עשוי לדרוש קוד לפעולה זו."})
-    for p in cls.get("invalid") or []:
+    for p in (cls.get("invalid") or []) + (cls.get("blocked") or []):
         out.append({"path": p["path"], "code": p["code"], "message": p["message"]})
     if core["repeat"] == "single":
         out.append({"path": "repeat", "code": "single_deletes", "message": "תזמון חד־פעמי נמחק מהרכיב לאחר ההרצה."})
@@ -818,6 +923,57 @@ def ack_of(stored: dict[str, Any], schedule_id: str, issue: str, revision: str) 
     return {"issue": issue, "by": {"user_id": rec.get("by"), "username": rec.get("by_name") or "", "display_name": rec.get("by_name") or ""}, "at": rec.get("at")}
 
 
+# ---------------------------------------------------------------- scripts "allowed in schedules" (owner decision 2, 2026-10-04)
+
+def read_script_marks(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    """`schedules.script_marks`: {script entity_id: {hash, by, by_name, at}}; a corrupt value reads as none (nothing is approved)."""
+    try:
+        data = json.loads(get_setting(conn, SCRIPT_MARKS_KEY, "{}") or "{}")
+    except ValueError:
+        return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, dict)} if isinstance(data, dict) else {}
+
+
+def script_content_hash(entity_id: str, row: sqlite3.Row | None) -> str:
+    """What a mark is bound to: the script's configuration as the automations mirror holds it (`ha_config_items.config_json`, canonical JSON). A
+    script whose configuration Arx cannot read at all hashes to its id alone - a change Arx cannot see cannot revoke its mark (recorded)."""
+    cfg: Any = None
+    if row is not None and row["config_json"]:
+        try:
+            cfg = json.loads(row["config_json"])
+        except ValueError:
+            cfg = row["config_json"]
+    import hashlib
+
+    return hashlib.sha256(model.canonical({"entity_id": entity_id, "config": cfg}).encode("utf-8")).hexdigest()[:16]
+
+
+def script_approval_view(ctx: Ctx, entity_id: str, info: dict[str, Any]) -> dict[str, Any]:
+    """`{required, approved, stale, by, at}` of one script for the UI (the picker's reason, the settings list)."""
+    mark = ctx.script_marks().get(entity_id)
+    held = bool(info.get("approval_ok"))
+    return {"required": bool(info.get("approval_required")), "approved": held, "stale": bool(info.get("approval_stale")),
+            "by": ({"user_id": mark.get("by"), "username": mark.get("by_name") or "", "display_name": mark.get("by_name") or ""} if isinstance(mark, dict) else None),
+            "at": mark.get("at") if isinstance(mark, dict) else None}
+
+
+def scripts_payload(ctx: Ctx) -> dict[str, Any]:
+    """`GET /schedules/scripts`: every script the caller may manage with whether a schedule may use it - the ones that need a system administrator's
+    mark first (they disarm / unlock / open a door, or their content is not known), the mark and who set it when, and whether it lapsed because the
+    script changed. `can_mark`: the caller is a system administrator."""
+    a = ctx.access
+    rows = ctx.conn.execute("SELECT entity_id FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND domain = 'script' ORDER BY name, entity_id").fetchall()
+    ctx.preload([r[0] for r in rows])
+    out = []
+    for r in rows:
+        info = ctx.entity(r[0])
+        if info is None or info["class"] != "script" or not (a.allowed(MANAGE, info["entity_id"]) and a.can_read_state(info["entity_id"])):
+            continue
+        out.append({"entity_id": info["entity_id"], "name": info["name"], "area_name": info["area_name"], "lowering": bool(info.get("lowering")), "effects_known": bool(info.get("effects_known")),
+                    "sensitive": bool(info.get("sensitive")), "approval": script_approval_view(ctx, info["entity_id"], info)})
+    return {"scripts": out, "can_mark": bool(ctx.principal is not None and is_system_admin(ctx.conn, ctx.principal.user_id))}
+
+
 def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
     issues: list[str] = []
     core = r.core
@@ -913,8 +1069,19 @@ def _catalog_args(service: str, spec: dict[str, Any], info: dict[str, Any]) -> l
             step = policy._number(attrs.get("step")) if name == "value" else None
             if step:
                 d["step"] = step
+        elif name == "volume_level":
+            ceiling = policy._number(info.get("volume_ceiling"))
+            d.update(min=a.get("min"), max=min(a.get("max", 1), ceiling) if ceiling is not None else a.get("max"), step=0.01)
         elif a["type"] in ("int", "float"):
             d.update(min=a.get("min"), max=a.get("max"))
+        elif name == "tone":
+            d.update(type="enum", choices=policy.siren_tones(info))
+        elif name == "source":
+            hidden = set(info.get("hidden_sources") or [])
+            offered = [s for s in (policy._attr_list(info, "source_list") or []) if s not in hidden]
+            if not offered:
+                continue
+            d.update(type="enum", choices=offered)
         elif name == "hvac_mode":
             d["choices"] = policy._attr_list(info, "hvac_modes") or list(a["choices"])
         elif name in policy.OFFERED_LIST:
@@ -964,6 +1131,8 @@ def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict
             continue  # another domain of the same class (a helper's, a door switch's)
         if not policy.service_capable(service, info):
             continue  # capability discovery: only what this entity reports it can do
+        if service == "media_player.select_source" and not [s for s in (policy._attr_list(info, "source_list") or []) if s not in set(info.get("hidden_sources") or [])]:
+            continue  # nothing the administrator left visible to switch to
         if service in policy.NEWER_BRIDGE_SERVICES and not ctx.bridge_at_least(policy.NEWER_BRIDGE):
             too_old = True
             continue
@@ -987,6 +1156,9 @@ def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict
         blocking = [f.get("name") or k for k, f in (info.get("script_fields") or {}).items() if f.get("required") and "default" not in f and f.get("kind") not in VAR_KINDS]
         if blocking:
             return [], {"code": "script_field_unsupported", "message": f"לסקריפט משתנה חובה שהמערכת אינה מציגה ({blocking[0]}); אפשר לתזמן אותו רק ברכיב המקורי."}
+        if info.get("approval_required") and not info.get("approval_ok"):
+            # listed (the person sees why), disabled: only a system administrator's mark for the script's current content makes it schedulable
+            return out, {"code": "script_not_approved", "message": model.SCRIPT_NOT_APPROVED}
     return out, None
 
 
@@ -996,7 +1168,8 @@ def SCHEDULE_ACTIONS_BY_CLASS(cls: str) -> dict[str, dict[str, Any]]:
 
 def _catalog_attrs(info: dict[str, Any]) -> dict[str, Any]:
     keep = ("current_position", "current_tilt_position", "hvac_modes", "min_temp", "max_temp", "fan_modes", "preset_modes", "temperature", "brightness", "percentage", "code_format",
-            "swing_modes", "available_modes", "options", "min", "max", "step", "min_humidity", "max_humidity", "supported_color_modes", "mode", "humidity", "swing_mode")
+            "swing_modes", "available_modes", "options", "min", "max", "step", "min_humidity", "max_humidity", "supported_color_modes", "mode", "humidity", "swing_mode",
+            "available_tones", "source_list", "source", "volume_level")
     return {k: v for k, v in (info.get("attributes") or {}).items() if k in keep}
 
 
@@ -1044,10 +1217,13 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
             blocked = next((x for x in (action_reasons(ctx, s, eid, cls, strict=True) for s in sample) if x), None)
             if blocked:
                 why = {"code": blocked[0]["code"], "message": blocked[0]["message"]}
-        out.append({
+        entry = {
             "entity_id": eid, "name": info["name"], "domain": info["domain"], "class": cls or "switch", "sensitive": policy.is_sensitive(cls, info), "area_id": info["area_id"], "area_name": info["area_name"],
             "floor_id": info["floor_id"], "floor_name": info["floor_name"], "available": info["available"], "selectable": why is None, "reason": why, "attributes": _catalog_attrs(info), "actions": actions if why is None or cls else [],
-        })
+        }
+        if cls == "script":
+            entry["approval"] = script_approval_view(ctx, eid, info)
+        out.append(entry)
     return {"entities": out, "truncated": truncated}
 
 

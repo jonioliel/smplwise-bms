@@ -480,14 +480,15 @@ def test_condition_validation():
 
 def test_policy_tables():
     assert p.SCHEDULE_ACTION_SERVICES <= set(ha_bridge.ACTIONS)  # never a service the product's own allow-list lacks
-    assert not any(s.startswith(("siren.", "media_player.", "number.", "select.", "notify.", "remote.")) for s in p.SCHEDULE_ACTION_SERVICES)
+    assert not any(s.startswith(("notify.", "remote.", "automation.", "media_player.play_media", "media_player.volume_mute")) for s in p.SCHEDULE_ACTION_SERVICES)
     for cls, services in p.SCHEDULE_ACTIONS.items():
         for service, spec in services.items():
             assert spec["label"] == ha_bridge.ACTIONS[service]["label"], service
             assert "code" not in spec["args"]
     assert set(p.SCHEDULE_ACTIONS["lock"]) == {"lock.lock", "lock.unlock"} and set(p.SCHEDULE_ACTIONS["switch"]) == {"switch.turn_on", "switch.turn_off"}
     assert "button.press" in p.SCHEDULE_ACTIONS["door"] and "button.press" not in p.SCHEDULE_ACTIONS["switch"]
-    assert p.SENSITIVE_CLASSES == {"alarm", "lock", "door"} and p.ALL_CLASSES == ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
+    assert p.SENSITIVE_CLASSES == {"alarm", "lock", "door", "siren"} and p.ALL_CLASSES == ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper",
+                                                                                         "humidifier", "vacuum", "siren", "media", "number", "select")
     assert p.CAPABILITIES == {"tags": True, "negative_sun_offset": True}  # both verified on the lab component, 2026-09-30
 
 
@@ -505,8 +506,12 @@ def test_classification_of_entities():
     assert cls("switch.schedule_x", platform="scheduler") == (None, "action_not_allowed")  # a schedule's own switch (platform)
     assert cls("switch.schedule_x", platform=None) == (None, "action_not_allowed")  # ... before the first registry refresh
     assert cls("switch.schedule_x", platform="generic") == ("switch", None)  # a real switch that merely has the prefix
-    for eid in ("button.a", "siren.a", "media_player.a", "number.a", "select.a", "notify.a", "sensor.a", "remote.a", "input_text.a", "automation.a"):
+    for eid in ("button.a", "notify.a", "sensor.a", "remote.a", "input_text.a", "automation.a"):
         assert cls(eid) == (None, "action_not_allowed"), eid
+    # the 2026-10-04 follow-up: sirens, media players (narrowed to the multimedia settings' approved devices by the caller), number / select
+    assert cls("siren.a") == ("siren", None) and cls("media_player.a") == ("media", None) and cls("number.a") == ("number", None) and cls("select.a") == ("select", None)
+    assert p.classify_entity({"entity_id": "number.cfg", "domain": "number", "entity_category": "config"}, on_door_layer=False, alarm_managed=False) == (None, "action_not_allowed")
+    assert cls("select.a", managed=True) == (None, "alarm_managed_control")
     # 2026-10-04: scripts, scenes, helpers, humidifiers and vacuums are classes of their own
     assert cls("script.a") == ("script", None) and cls("scene.a") == ("scene", None) and cls("humidifier.a") == ("humidifier", None) and cls("vacuum.a") == ("vacuum", None)
     for eid in ("input_boolean.a", "input_number.a", "input_select.a"):

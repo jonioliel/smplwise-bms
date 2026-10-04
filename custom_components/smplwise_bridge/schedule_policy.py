@@ -151,6 +151,20 @@ ACTION_ARGS: dict[str, tuple[Arg, ...]] = {
     "humidifier.set_mode": (_a("mode", "str", 1, 40, required=True),),
     "vacuum.start": (),
     "vacuum.return_to_base": (),
+    # 0.6.1, the same day's follow-up (owner: "add everything"): sirens (sensitive - the `sensitive` flag is required, SENSITIVE_DOMAINS), media
+    # players (the add-on admits only an approved, visible multimedia device, what the player reports and the volume under its ceiling) and
+    # number / select values (the entity's own range and options, judged by the add-on; the shape and the outer bounds again here)
+    "siren.turn_on": (_a("tone", "str", 1, 80), _a("duration", "int", 1, 3600), _a("volume_level", "float", 0, 1)),
+    "siren.turn_off": (),
+    "media_player.turn_on": (),
+    "media_player.turn_off": (),
+    "media_player.media_play": (),
+    "media_player.media_pause": (),
+    "media_player.media_stop": (),
+    "media_player.volume_set": (_a("volume_level", "float", 0, 1, required=True),),
+    "media_player.select_source": (_a("source", "str", 1, 120, required=True),),
+    "number.set_value": (_a("value", "float", -1e9, 1e9, required=True),),
+    "select.select_option": (_a("option", "str", 1, 80, required=True),),
 }
 
 SCHEDULE_ACTION_SERVICES: frozenset[tuple[str, str]] = frozenset(tuple(sid.split(".", 1)) for sid in ACTION_ARGS)  # type: ignore[misc]
@@ -159,7 +173,7 @@ SCHEDULE_ACTION_SERVICES: frozenset[tuple[str, str]] = frozenset(tuple(sid.split
 EXCLUSIVE_ARGS: dict[str, tuple[frozenset[str], ...]] = {"light.turn_on": (frozenset({"brightness", "brightness_pct"}),)}
 
 # actions whose domain alone makes the schedule sensitive; covers become sensitive by device_class (below)
-SENSITIVE_DOMAINS = frozenset({"lock", "alarm_control_panel", "button"})
+SENSITIVE_DOMAINS = frozenset({"lock", "alarm_control_panel", "button", "siren"})
 SENSITIVE_COVER_CLASSES = frozenset({"door", "garage", "gate"})
 
 
@@ -509,7 +523,7 @@ def validate_message(msg: Mapping[str, Any]) -> list[ActionRef]:
 
 
 def sensitive_required(domain: str, service: str, attributes: Mapping[str, Any] | None) -> bool:
-    """True when this action may only be sent with `sensitive: true`: locks, alarm panels, buttons (allowed only as
+    """True when this action may only be sent with `sensitive: true`: locks, alarm panels, sirens (0.6.1), buttons (allowed only as
     door buttons), and covers that report a door / garage / gate device class. The bridge cannot see the map's door
     layer, so a door-layer switch or cover without such a class stays the add-on's flag to set (a flag set without need
     is harmless; a missing flag on what the bridge CAN recognise is refused)."""
