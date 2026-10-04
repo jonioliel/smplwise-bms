@@ -57,6 +57,12 @@ def _err(status: int, code: str, message: str, **details: Any) -> ApiError:
 UNAVAILABLE = ("ma_unavailable", "התור המלא אינו זמין כרגע.")
 
 
+def _unavailable(conn: sqlite3.Connection) -> ApiError:
+    """503 before any call: the connection state (`off`, `unreadable`, `host_refused`, an open circuit ...) with its own clear Hebrew sentence."""
+    s = ma.state(conn)
+    return _err(503, UNAVAILABLE[0], ma.refusal_message(s) if s != "ready" else UNAVAILABLE[1], state=s)
+
+
 # ------------------------------------------------------------------------------------------------ caps
 
 
@@ -94,7 +100,7 @@ def queue_list(conn: sqlite3.Connection, principal: Principal, cat: store.Catalo
     if pid is None:
         raise _err(422, "not_supported", "ההתקן אינו מציע תור מלא.", reason="queue_list")
     if not ma.usable(conn):
-        raise _err(503, *UNAVAILABLE)
+        raise _unavailable(conn)
     limit = max(1, min(ma.PAGE_MAX, limit))
     try:
         h = ma.header(conn, pid)
@@ -171,7 +177,7 @@ def edit(conn: sqlite3.Connection, settings: Settings, principal: Principal, req
     if pid is None:
         raise _deny(conn, principal, request_id, item.key, op, _err(422, "not_supported", "ההתקן אינו מציע תור מלא.", reason="queue_list"))
     if not ma.usable(conn):
-        raise _deny(conn, principal, request_id, item.key, op, _err(503, *UNAVAILABLE))
+        raise _deny(conn, principal, request_id, item.key, op, _unavailable(conn))
     if op == "play" and not media_commands.BUCKETS.take("queue-jump", target.key, JUMP_DEVICE):
         media_commands._audit_limited(conn, principal, request_id, item.key, "queue_play", "device")
         raise _err(429, "rate_limited", "יותר מדי בקשות; נסו שוב.", scope="device")

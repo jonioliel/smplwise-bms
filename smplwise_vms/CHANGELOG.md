@@ -1,5 +1,26 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased - Music server connection hardening (CR-016 section 18)
+No database migration. The version is not bumped here.
+### Added / שונה (עברית)
+- **האסימון של שרת המוזיקה מוצפן בדיסק** (AES-256-GCM, אותו מפתח ואותו מנגנון של חיבור ה-NVR). הוא לא נשמר יותר כקובץ גלוי, לא מוחזר, לא נרשם ביומן ולא נכנס לגיבוי.
+- **מעבר חד-פעמי אוטומטי:** בהפעלה הראשונה אחרי העדכון אסימון שנשמר בקובץ גלוי מוצפן, נבדק, והקובץ הגלוי נמחק. אם המעבר נכשל הקובץ נשאר והחיבור ממשיך לעבוד, והניסיון חוזר בהפעלה הבאה.
+- **בדיקת כתובת השרת:** רק כתובת פרטית ברשת הביתית; כתובת של המערכת עצמה, האינטרנט, כתובות פנימיות או כתובת עם שם משתמש נדחות בהודעה ברורה. החיבור מתבצע לכתובת שנבדקה, בלי מעקב אחרי הפניות.
+- **מסך החיבור מקומי בלבד:** לא נגיש דרך הגישה מרחוק. בדיקת החיבור מוגבלת ל-5 בדקה למשתמש.
+- **תקרת זמן קשיחה** (10 שניות) לכל פנייה לשרת המוזיקה, והודעות סירוב ברורות בעברית לכל מצב (כבוי, לא מגיב, אסימון נדחה, אסימון לא קריא, כתובת לא מותרת).
+- **שחזור:** אם מפתח ההצפנה אבד, החיבור עובר למצב "אסימון לא קריא" ויש להזין את האסימון שוב בהגדרות; ההפעלה לא נכשלת.
+- **חזרה לגרסה קודמת:** הגרסה הישנה לא קוראת את האסימון המוצפן; ההגדרות יראו "לא הוגדר" עד להזנה מחדש. עדכון חוזר מעביר את הקובץ החדש למאגר המוצפן.
+### Added / changed (English)
+- **The music server token is encrypted at rest** (AES-256-GCM, the same key file and store as the NVR connection). No plain file any more; never returned, logged, audited or backed up.
+- **Automatic one-time move:** on the first start after the update a token kept in a plain file is encrypted, verified, and the plain file is deleted. If the move fails the file stays, the connection keeps working, and the move is retried at the next start.
+- **Server address check:** only a private home-network address; this system's own address, the internet, internal platform addresses and addresses with credentials are refused with a clear message. The connection goes to the checked address and never follows redirects.
+- **The connection screen is local only** (not reachable through remote access). The connection test is limited to 5 a minute per user.
+- **A hard 10-second time budget** on every call to the music server, and a clear Hebrew refusal message for every state (off, unreachable, token rejected, token unreadable, address not allowed).
+- **Recovery:** if the encryption key is lost the connection shows "token unreadable" and the token must be entered again in Settings; start-up never fails because of it.
+- **Downgrade note:** the older version cannot read the encrypted token; its settings show "not set" until the token is entered again. Upgrading again moves the newer plain file into the encrypted store.
+### How to use it (English)
+1. Install the update; nothing to do. Check Settings > Multimedia > Connection: the token line shows it is set; the state is "connected".
+2. If the address was a name that this system cannot resolve, or was not a home-network address, the next test says so: enter the server's home-network IP address and port 8095.
 ## 0.1.160 (pilot) — Electricity meters and consumption bills (תשתיות › מוני חשמל); music queue actions; the schedules screen in the automations design
 No restart of the platform is needed (the bridge integration stays 0.6.0). **Two database migrations run on start: `0053_electricity_meters`** (the meter registry and the counter lives) **and `0054_electricity_billing`** (customers, accounts, prices and VAT, bills, the ledger of bill numbers). The meter readings live in a separate file, `energy.db`, next to the main database. Reload the installed web app once.
 ### Electricity meters and bills (CR-023) - a new area "תשתיות" with the sub-tab "מוני חשמל"

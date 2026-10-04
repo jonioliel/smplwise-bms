@@ -10,6 +10,7 @@ import socket
 import threading
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -221,7 +222,7 @@ def test_an_address_outside_the_private_lan_is_refused_before_anything_is_stored
     assert stored(app) == {} and fake.calls == []
     rows = audit_rows(app, "media.ma_connection")
     assert rows and rows[-1]["decision"] == "denied" and rows[-1]["reason"] == "host_refused"
-    assert url.split("//")[1].split(":")[0] not in json.dumps(rows) and TOKEN not in json.dumps(rows)
+    assert urlsplit(url).hostname not in json.dumps(rows) and TOKEN not in json.dumps(rows)
 
 
 @pytest.mark.parametrize("url", ["http://10.0.0.5:8123", "http://10.0.0.5:8094", "http://192.168.1.9:1984", "http://192.168.1.9:8554", "http://192.168.1.9:8099"])
