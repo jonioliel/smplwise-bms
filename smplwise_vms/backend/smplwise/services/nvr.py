@@ -78,6 +78,18 @@ def _ssl_context():
     return _SSL_CONTEXT
 
 
+ISAPI_VENDORS = ("hikvision", "none", "")
+
+
+def ensure_isapi_vendor(settings: Settings, op: str = "isapi") -> None:
+    """Security review finding 3 (2026-10-04): the shared ISAPI layer (every /nvr/* and camera write route, Digest over
+    http) speaks Hikvision only. A recorder of another vendor is refused with 409 vendor_unsupported before any request,
+    so its credentials never go out over a protocol it does not speak and no Hikvision write lands on it."""
+    vendor = str(getattr(settings, "nvr_vendor", "") or "").strip().lower()
+    if vendor not in ISAPI_VENDORS:
+        raise ApiError(409, "vendor_unsupported", "הפעולה אינה נתמכת עבור סוג ה־NVR הזה.", details={"op": op, "vendor": vendor})
+
+
 def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
     from ..mode import ensure_nvr
 
@@ -85,6 +97,7 @@ def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
     from ..mode import ensure_recorder_enabled
 
     ensure_recorder_enabled(settings)  # CR-024: a recorder disabled while running is never contacted
+    ensure_isapi_vendor(settings)
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     return httpx.Client(
