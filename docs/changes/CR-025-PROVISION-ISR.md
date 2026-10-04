@@ -136,7 +136,20 @@ Hikvision fake + one Provision fake.
   `GetDeviceInfo`, stop on anything but success) was refused again (401 Digest). The challenge itself (read without
   credentials) is `Digest qop="auth"`, realm, 32-char nonce, `stale="TRUE"` already on the first challenge, no
   `algorithm` (MD5 by default) and a vendor parameter `AuthVersion`. HTTPS 443 was not tried (the probe stops at the gate).
-- Blocked until the owner confirms the account works in the NVR web UI and is not locked.
+- Owner confirmed (2026-10-04): the same account logs into the web UI; Administrator group with remote login.
+- Investigation (owner-approved: at most 3 single attempts, 60 s apart; 2 used, both 401):
+  - attempt 1: Digest built by hand with the vendor guide's quoting (`qop="auth"`, `algorithm="MD5"`, uri `/GetDeviceInfo`);
+  - attempt 2: the same with the guide's uri form without the leading slash (`uri="GetDeviceInfo"`);
+  - the guide's own Digest example could not be reproduced offline with its stated password (no combination of realm,
+    uri, method or MD5'd password yields its `response`), so the example proves nothing about a variant.
+- Facts gathered without credentials: the API is served on the HTTP port (an unknown command answers 400, a known one
+  401 `Digest realm="Web Service", qop="auth", stale="TRUE", AuthVersion="1.1"`, a fresh nonce per request,
+  `Connection: close`); HTTPS 443 refuses the TCP connection; the "server port" is not HTTP.
+- The web UI does NOT use HTTP Digest: its public script (`js/app/login.js`) logs in with `reqLogin` (nonce, token,
+  session id) and `doLogin` (SHA-512 of the password, MD5 key for the session key). A working web login therefore says
+  nothing about the API's Digest; `AuthVersion=1.1` is undocumented in every vendor file.
+- Next step proposed to the owner: switch the API server's authentication to plaintext / Basic temporarily (the v1
+  guide's documented scheme) and enable HTTPS, then spend the last approved attempt on Basic.
 
 ## 7. ETA (focused agent time; owner review time not included)
 

@@ -288,58 +288,189 @@ def item_etag(item: ET.Element) -> str:
     return hashlib.sha256(re.sub(r">\s+<", "><", raw).strip().encode("utf-8")).hexdigest()[:16]
 
 
+QUALITY_WORDS = ("lowest", "lower", "medium", "higher", "highest")  # v1 enum; Arx carries 1..5 (the shared write route takes an int)
+_LEVEL_WORDS = {"baseline": "baseLine", "main": "mainProfile", "high": "highProfile"}
+
+
+def parse_stream_item(item: ET.Element, channel: int) -> dict[str, Any] | None:
+    """One `<streams><item id="n">` -> the normalized dict of `parse_video_stream_config` (None for an item without id)."""
+    sid = to_int(item.attrib.get("id"))
+    if sid is None or not 1 <= sid <= 99:
+        return None
+    raw = (text(item, "encodeType") or "")
+    codec, smart, plus = _CODECS.get(raw.lower(), (raw or None, None, None))
+    level = text(item, "encodeLevel")
+    profile = _PROFILES.get((level or "").lower(), level.lower() if level else None)
+    if codec == "MJPEG":
+        profile = None
+    res = text(item, "resolution")
+    fps = to_int(text(item, "frameRate"))
+    mode = (text(item, "bitRateType") or "").upper()
+    rate = to_int(text(item, "maxBitRate"))
+    gop = to_int(text(item, "GOP"))
+    qword = text(item, "quality", cap=16)
+    enc: dict[str, Any] = {
+        "stream_ref": stream_ref(channel, sid), "stream_id": sid, "channel": channel, "role": stream_role(sid),
+        "name": text(item, "name", cap=32),
+        "codec": codec, "codec_raw": raw or None, "codec_plus": plus, "profile": profile,
+        "resolution": res if res and _RES.match(res) else None,
+        "fps": float(fps) if fps and fps > 0 else None, "fps_full": False,
+        "bitrate_mode": mode if mode in ("CBR", "VBR") else None,
+        "bitrate_kbps": rate if rate and rate > 0 else None,
+        "quality": QUALITY_WORDS.index(qword) + 1 if qword in QUALITY_WORDS else None,
+        "quality_raw": qword,
+        "gop": gop if gop and gop > 0 else None,
+        "svc": None, "smart_codec": smart, "b_frames": None,
+    }
+    enc["webrtc"], enc["webrtc_reason"] = webrtc_verdict(enc["codec"], enc["profile"])
+    enc["limits"] = {
+        "bitrate_list": [v for v in (to_int(text(i)) for i in children(child(item, "bitRateLists"), "item")) if v],
+        "bitrate": _bounds(child(item, "maxBitRate")),
+        "gop": _bounds(child(item, "GOP")),
+        "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
+    }
+    present = {
+        "codec": enc["codec"] is not None, "profile": level is not None, "resolution": enc["resolution"] is not None,
+        "fps": fps is not None, "bitrate_mode": enc["bitrate_mode"] is not None, "bitrate_kbps": rate is not None,
+        "quality": enc["quality"] is not None, "gop": gop is not None, "svc": False,
+        "smart_codec": smart is not None, "b_frames": False,
+    }
+    enc["fields"] = {f: {"supported": False, "editable": False} for f in _ALL_FIELDS if not present[f]}
+    enc["etag"] = item_etag(item)
+    enc["element"] = ET.tostring(item, encoding="unicode")
+    return enc
+
+
+def parse_element(element: str, channel: int = 0) -> dict[str, Any]:
+    """A stored item text (change log `before_xml` / `after_xml`) -> its parsed fields. Raises ET.ParseError."""
+    item = parse(element)
+    if _local(item.tag) != "item":
+        raise ET.ParseError("not a stream item")
+    got = parse_stream_item(item, channel or 1)
+    if got is None:
+        raise ET.ParseError("stream item without id")
+    return got
+
+
+def _encode_type(codec: str | None, smart: bool | None, allowed: list[str]) -> str:
+    """(codec family, smart codec on) -> the device token, from the tokens this stream lists (any known token when the
+    stream lists none, e.g. v2 firmware that moved the list to GetStreamCaps)."""
+    if codec == "MJPEG":
+        options = ["mjpeg"]
+    elif codec in ("H.264", "H.265"):
+        base = "h264" if codec == "H.264" else "h265"
+        options = [base + "plus", base + "smart"] if smart else [base]
+    else:
+        raise ValueError("codec")
+    pool = [a.lower() for a in allowed] if allowed else list(_CODECS)
+    for token in options:
+        if token in pool:
+            return token
+    raise ValueError("codec")
+
+
+WRITE_TAGS = ("name", "resolution", "frameRate", "bitRateType", "maxBitRate", "encodeType", "encodeLevel", "quality", "GOP")
+
+
+def edited_item(element: str, changes: dict[str, Any]) -> str:
+    """The stream item with `changes` applied, written the way SetVideoStreamConfig wants it (guide 3.3.4: the Get element
+    WITHOUT attributes): `<item id="n">` with the scalar fields only. Every value is validated (int, enum or the strict
+    resolution pattern) - nothing free-form reaches the device. Raises ValueError(field) for a value it cannot write."""
+    item = parse(element)
+    cur = parse_stream_item(item, 1)
+    if cur is None:
+        raise ValueError("stream_ref")
+    values: dict[str, str] = {}
+    for tag in WRITE_TAGS:
+        t = text(item, tag, cap=64)
+        if t is not None:
+            values[tag] = t
+    if "codec" in changes or "smart_codec" in changes:
+        codec = changes.get("codec", cur["codec"])
+        smart = changes.get("smart_codec", cur["smart_codec"])
+        if codec == "MJPEG":
+            smart = None
+        values["encodeType"] = _encode_type(codec, bool(smart), cur["limits"]["codecs"])
+        if codec == "MJPEG":
+            values.pop("encodeLevel", None)
+    if "profile" in changes:
+        word = _LEVEL_WORDS.get(str(changes["profile"]))
+        if word is None:
+            raise ValueError("profile")
+        values["encodeLevel"] = word
+    if "resolution" in changes:
+        if not isinstance(changes["resolution"], str) or not _RES.match(changes["resolution"]):
+            raise ValueError("resolution")
+        values["resolution"] = changes["resolution"]
+    if "fps" in changes:
+        v = changes["fps"]
+        if v == "full" or not isinstance(v, (int, float)) or isinstance(v, bool) or not 1 <= v <= 240 or int(v) != v:
+            raise ValueError("fps")
+        values["frameRate"] = str(int(v))
+    if "bitrate_mode" in changes:
+        if changes["bitrate_mode"] not in ("CBR", "VBR"):
+            raise ValueError("bitrate_mode")
+        values["bitRateType"] = changes["bitrate_mode"]
+    if "bitrate_kbps" in changes:
+        v = changes["bitrate_kbps"]
+        if not isinstance(v, int) or isinstance(v, bool) or not 16 <= v <= 100_000:
+            raise ValueError("bitrate_kbps")
+        values["maxBitRate"] = str(v)
+    if "quality" in changes:
+        v = changes["quality"]
+        if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= len(QUALITY_WORDS):
+            raise ValueError("quality")
+        values["quality"] = QUALITY_WORDS[v - 1]
+    if "gop" in changes:
+        v = changes["gop"]
+        if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 10_000:
+            raise ValueError("gop")
+        values["GOP"] = str(v)
+    for name in ("svc", "b_frames"):
+        if name in changes:
+            raise ValueError(name)
+    if "name" in values and not SAFE_NAME.match(values["name"]):
+        values.pop("name")  # never echo a device string we cannot vouch for; the device keeps its name
+    body = "".join(f"<{tag}>{values[tag]}</{tag}>" for tag in WRITE_TAGS if tag in values)
+    return f'<item id="{cur["stream_id"]}">{body}</item>'
+
+
+def plain_item(item: ET.Element) -> str:
+    """A sibling stream re-sent unchanged (attributes and capability lists dropped, scalar fields kept verbatim)."""
+    sid = to_int(item.attrib.get("id")) or 0
+    parts = []
+    for tag in WRITE_TAGS:
+        t = text(item, tag, cap=64)
+        if t is not None and (tag != "name" or SAFE_NAME.match(t)):
+            parts.append(f"<{tag}>{t}</{tag}>")
+    return f'<item id="{sid}">{"".join(parts)}</item>'
+
+
+def set_streams_document(get_xml: str | bytes, replacement: str) -> str:
+    """SetVideoStreamConfig body: every stream of the channel from the current Get answer, the target replaced."""
+    root = parse(get_xml)
+    new = parse(replacement)
+    target = to_int(new.attrib.get("id"))
+    items = children(child(root, "streams"), "item")
+    if target is None or not any(to_int(i.attrib.get("id")) == target for i in items):
+        raise ValueError("stream_ref")
+    body = "".join(replacement if to_int(i.attrib.get("id")) == target else plain_item(i) for i in items)
+    return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">'
+            f"<streams>{body}</streams></config>")  # guide 3.3.4: no attributes on the streams element
+
+
 def parse_video_stream_config(xml: str | bytes, channel: int) -> list[dict[str, Any]]:
     """`GetVideoStreamConfig/{ch}` -> one dict per stream: `stream_ref`, `stream_id`, `channel`, `role`, `name`, the
     normalized encoding (`codec`, `codec_raw`, `codec_plus`, `profile`, `resolution`, `fps`, `bitrate_mode`, `bitrate_kbps`,
-    `quality` (the vendor's word: lowest..highest), `gop` (frames), `svc` None, `smart_codec`, `b_frames` None), `webrtc` /
+    `quality` 1..5 (lowest..highest; the vendor word in `quality_raw`), `gop` (frames), `svc` None, `smart_codec`, `b_frames` None), `webrtc` /
     `webrtc_reason`, `limits` (bitrate list, bitrate / GOP bounds, codec choices the device lists for this stream),
     `fields` (only the unsupported ones), `etag` and `element` (the item as text, for the change log of P2)."""
     root = parse(xml)
     out: list[dict[str, Any]] = []
     for item in children(child(root, "streams"), "item"):
-        sid = to_int(item.attrib.get("id"))
-        if sid is None or not 1 <= sid <= 99:
-            continue
-        raw = (text(item, "encodeType") or "")
-        codec, smart, plus = _CODECS.get(raw.lower(), (raw or None, None, None))
-        level = text(item, "encodeLevel")
-        profile = _PROFILES.get((level or "").lower(), level.lower() if level else None)
-        if codec not in ("H.264", "H.265"):
-            profile = None if codec == "MJPEG" else profile
-        res = text(item, "resolution")
-        fps = to_int(text(item, "frameRate"))
-        mode = (text(item, "bitRateType") or "").upper()
-        rate = to_int(text(item, "maxBitRate"))
-        gop = to_int(text(item, "GOP"))
-        enc: dict[str, Any] = {
-            "stream_ref": stream_ref(channel, sid), "stream_id": sid, "channel": channel, "role": stream_role(sid),
-            "name": text(item, "name", cap=32),
-            "codec": codec, "codec_raw": raw or None, "codec_plus": plus, "profile": profile,
-            "resolution": res if res and _RES.match(res) else None,
-            "fps": float(fps) if fps and fps > 0 else None,
-            "bitrate_mode": mode if mode in ("CBR", "VBR") else None,
-            "bitrate_kbps": rate if rate and rate > 0 else None,
-            "quality": text(item, "quality", cap=16),
-            "gop": gop if gop and gop > 0 else None,
-            "svc": None, "smart_codec": smart, "b_frames": None,
-        }
-        enc["webrtc"], enc["webrtc_reason"] = webrtc_verdict(enc["codec"], enc["profile"])
-        enc["limits"] = {
-            "bitrate_list": [v for v in (to_int(text(i)) for i in children(child(item, "bitRateLists"), "item")) if v],
-            "bitrate": _bounds(child(item, "maxBitRate")),
-            "gop": _bounds(child(item, "GOP")),
-            "codecs": [t for t in (text(i, cap=16) for i in children(child(item, "encodeTypeCaps"), "item")) if t],
-        }
-        present = {
-            "codec": enc["codec"] is not None, "profile": level is not None, "resolution": enc["resolution"] is not None,
-            "fps": fps is not None, "bitrate_mode": enc["bitrate_mode"] is not None, "bitrate_kbps": rate is not None,
-            "quality": enc["quality"] is not None, "gop": gop is not None, "svc": False,
-            "smart_codec": smart is not None, "b_frames": False,
-        }
-        enc["fields"] = {f: {"supported": False, "editable": False} for f in _ALL_FIELDS if not present[f]}
-        enc["etag"] = item_etag(item)
-        enc["element"] = ET.tostring(item, encoding="unicode")
-        out.append(enc)
+        enc = parse_stream_item(item, channel)
+        if enc is not None:
+            out.append(enc)
     return out
 
 

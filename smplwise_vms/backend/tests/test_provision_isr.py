@@ -162,7 +162,7 @@ def test_read_stream_encodings_normalized(settings, fake):
     assert (main.stream_ref, main.role, sub.stream_ref, sub.role, third.role) == ("101", "main", "102", "sub", "third")
     assert main.encoding["codec"] == "H.265" and main.encoding["smart_codec"] is False and main.encoding["profile"] == "main"
     assert main.encoding["resolution"] == "2592x1520" and main.encoding["fps"] == 25.0 and main.encoding["gop"] == 50
-    assert main.encoding["bitrate_mode"] == "VBR" and main.encoding["bitrate_kbps"] == 3072 and main.encoding["quality"] == "higher"
+    assert main.encoding["bitrate_mode"] == "VBR" and main.encoding["bitrate_kbps"] == 3072 and main.encoding["quality"] == 4 and main.encoding["quality_raw"] == "higher"
     assert main.encoding["svc"] is None and main.encoding["b_frames"] is None
     assert main.fields == {"svc": {"supported": False, "editable": False}, "b_frames": {"supported": False, "editable": False}}
     assert main.encoding["webrtc"] == "unknown" and main.encoding["webrtc_reason"] == "h265"
