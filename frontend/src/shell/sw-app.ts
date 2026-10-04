@@ -1106,6 +1106,11 @@ export class SwApp extends LitElement {
           inline-size: 44px;
           block-size: 44px;
         }
+        /* CR-023: with a sixth area (תשתיות) seven 44 px items fill the dock; the room picker button steps aside below 360 px (the
+           floors and areas stay reachable in ראשי) so every target keeps 44 px and nothing escapes the dock */
+        :host([data-design='a']) nav.bottom.dock.crowded .fab {
+          display: none;
+        }
       }
       @keyframes dock-rise {
         0% {
@@ -2337,7 +2342,7 @@ export class SwApp extends LitElement {
           <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       ${this.skin === 'bubble'
-        ? html`<nav class="bottom dock" aria-label="ניווט ראשי" data-dock>
+        ? html`<nav class=${classMap({ bottom: true, dock: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי" data-dock>
             <div class="stack">
               ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span></a>`)}
               ${this.renderMe('bottom')}
