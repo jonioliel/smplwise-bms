@@ -194,6 +194,39 @@ def pending_restart(conn: sqlite3.Connection, settings: Settings, recorder_id: s
     return revision_of(conn, recorder_id) != settings.nvr_connection_revision
 
 
+def any_pending_restart(conn: sqlite3.Connection, settings: Settings) -> bool:
+    """CR-024: a change to ANY recorder waits for a restart - the first recorder's connection (as before), a further recorder's
+    connection, a recorder enabled / disabled / removed since this process started. `/me` and `/health` report it, so the restart
+    banner survives a reload whichever recorder changed. Never raises (a database before 0055 = the first recorder only)."""
+    if pending_restart(conn, settings):
+        return True
+    try:
+        rows = conn.execute("SELECT id, enabled, removed_at FROM recorders").fetchall()
+    except sqlite3.OperationalError:
+        return False
+    from ..recorder_scope import settings_for
+
+    loaded = settings.recorder_settings if isinstance(settings.recorder_settings, dict) else {}
+    for r in rows:
+        rid = r["id"]
+        if rid == DEFAULT_RECORDER:
+            if not r["removed_at"] and bool(r["enabled"]) == (settings.nvr_connection_state == "disabled"):
+                return True
+            continue
+        if r["removed_at"]:
+            if rid in loaded:
+                return True
+            continue
+        row = get_row(conn, rid)
+        if row is None or row["vendor"] == NO_NVR:
+            continue
+        if bool(r["enabled"]) != (rid in loaded):
+            return True
+        if r["enabled"] and pending_restart(conn, settings_for(settings, rid), rid):
+            return True
+    return False
+
+
 def readable(conn: sqlite3.Connection, settings: Settings, row: sqlite3.Row | None) -> bool:
     if row is None or not row["password_enc"]:
         return True

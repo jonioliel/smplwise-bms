@@ -91,6 +91,8 @@ def test_add_a_second_recorder_restart_and_discover_both(base, fakes):
     by_id = {x["id"]: x for x in listing["recorders"]}
     assert by_id["nvr-2"]["pending_restart"] is True and by_id["nvr-2"]["status"]["state"] == "pending_restart"
     assert by_id["nvr-2"]["name"] == "NVR מחסן" and by_id["nvr-2"]["connection"]["has_password"] is True
+    assert c.get("/api/v1/me").json()["connection_pending_restart"] is True, "the restart banner survives a reload"
+    assert c.get("/api/v1/health").json()["connection_pending_restart"] is True
     assert not any(h.startswith(NVR2_HOST) and "deviceInfo" not in h and "channels" not in h for h in two.hits), "the test is read-only"
     assert two.writes == [] and one.writes == []
 
@@ -102,6 +104,7 @@ def test_add_a_second_recorder_restart_and_discover_both(base, fakes):
     assert PW2 not in repr(eff) and PW2 not in repr(child)
     autosync.run_once(app2.state.db, eff, reason="startup")
     c2 = client(app2)
+    assert c2.get("/api/v1/me").json()["connection_pending_restart"] is False
     cams = c2.get("/api/v1/cameras").json()
     assert sorted({x["recorder_id"] for x in cams["cameras"]}) == ["nvr-1", "nvr-2"] and len(cams["cameras"]) == 8
     assert [x["id"] for x in cams["recorders"]] == ["nvr-1", "nvr-2"]
@@ -298,6 +301,7 @@ def test_duplicate_destination_rename_disable_and_time_zone(base, fakes):
     assert r.json()["restart_required"] is False
     r = c.patch("/api/v1/recorders/nvr-2", json={"enabled": False})
     assert r.json()["restart_required"] is True and r.json()["recorder"]["status"]["state"] == "disabled"
+    assert c.get("/api/v1/me").json()["connection_pending_restart"] is True
     app2 = create_app(base)  # restart: the disabled recorder is not run, its cameras stay listed, its device is not reached
     assert recorder_scope.child_ids(app2.state.settings) == []
     c2 = client(app2)

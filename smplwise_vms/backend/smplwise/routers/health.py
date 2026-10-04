@@ -79,7 +79,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),  # the placeholder host (no user) is not configured
         "go2rtc_configured": bool(settings.go2rtc_url),
         # CR-022 section 8: the stored NVR connection changed since this process started (a boolean; never a connection detail)
-        "connection_pending_restart": connection_store.pending_restart(conn, settings),
+        "connection_pending_restart": connection_store.any_pending_restart(conn, settings),  # CR-024: any recorder's change
         "discovery": {**autosync.STATE, "cameras": conn.execute("SELECT COUNT(*) FROM cameras").fetchone()[0], "interval_s": autosync.INTERVAL_S},
         # CR-008 D7: how many main / sub streams play over WebRTC (ok / no / unknown), from the last discovery - counts
         # only; the cameras and their hints are in /health/report (system.configure)
