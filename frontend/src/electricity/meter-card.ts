@@ -4,10 +4,10 @@ import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-state-panel';
-import { describeError } from '../api/client';
-import { getMeter, meterSeries, pauseMeter, removeMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
+import { ApiError, describeError } from '../api/client';
+import { getMeter, listMeters, meterSeries, pauseMeter, removeMeter, renameMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
-import { meterNames } from './meter-name';
+import { checkMeterName, DUPLICATE_NAME_ERROR, meterNames, RENAME_HINT } from './meter-name';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
 
@@ -56,7 +56,10 @@ export class ElecMeterCard extends LitElement {
   @state() private range: Range = 'days';
   @state() private points: SeriesPoint[] = [];
   @state() private chartError = false;
-  @state() private dlg: '' | 'remove' | 'replace' = '';
+  @state() private dlg: '' | 'remove' | 'replace' | 'rename' = '';
+  @state() private newName = '';
+  @state() private otherNames: string[] = [];
+  @state() private nameError = '';
   @state() private busy = false;
   @state() private actionError = '';
   @state() private finalReading = '';
@@ -222,6 +225,58 @@ export class ElecMeterCard extends LitElement {
     }
   }
 
+  private openRename() {
+    const d = this.detail;
+    if (!d) return;
+    this.newName = d.name;
+    this.nameError = '';
+    this.otherNames = [];
+    this.dlg = 'rename';
+    void this.updateComplete.then(() =>
+      window.setTimeout(() => {
+        const el = this.renderRoot.querySelector('[data-rename-input]') as HTMLInputElement | null;
+        el?.focus();
+        el?.select();
+      }, 80),
+    );
+    // the duplicate check compares with the other meters (paused ones too); a failed read leaves the check to the server
+    void listMeters().then((l) => (this.otherNames = l.filter((m) => m.id !== d.id).map((m) => m.name))).catch(() => undefined);
+  }
+
+  private async rename() {
+    const d = this.detail;
+    if (!d || this.busy) return;
+    const chk = checkMeterName(this.newName, this.otherNames);
+    if (chk.name && chk.name.toLocaleLowerCase() === d.name.trim().toLocaleLowerCase() && chk.name === d.name) return void (this.dlg = '');
+    if (chk.error) return void (this.nameError = chk.error);
+    this.busy = true;
+    this.nameError = '';
+    try {
+      await renameMeter(d, chk.name);
+      this.dlg = '';
+      this.fire('changed');
+      await this.refresh();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'revision_conflict') {
+        this.nameError = 'מישהו אחר שינה את המונה בינתיים. הנתונים רועננו, בדקו את השם ושמרו שוב.';
+        await this.refresh();
+      } else {
+        this.nameError = describeError(err);
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** Re-read the meter without the loading state (after a rename or a conflict). */
+  private async refresh() {
+    try {
+      this.detail = await getMeter(this.meterId);
+    } catch {
+      /* the card keeps what it has */
+    }
+  }
+
   private openReplace() {
     this.finalReading = this.detail?.reading_kwh != null ? String(this.detail.reading_kwh) : '';
     this.startReading = '0';
@@ -270,6 +325,7 @@ export class ElecMeterCard extends LitElement {
       ${this.actionError ? html`<div class="alert err" role="alert" data-meter-action-error>${this.actionError}</div>` : nothing}
       ${this.canManage
         ? html`<div class="actions">
+            <sw-button data-meter-rename @click=${() => this.openRename()}>שינוי שם</sw-button>
             <sw-button data-meter-replace @click=${() => this.openReplace()}>החלפת מונה</sw-button>
             <sw-button data-meter-pause ?disabled=${this.busy} @click=${() => void this.toggleStatus()}>${d.status === 'paused' ? 'חידוש' : 'השהיה'}</sw-button>
             <span class="sp"></span>
@@ -292,6 +348,26 @@ export class ElecMeterCard extends LitElement {
         <div>המונה יוסר מהרשימה. הנתונים שנאספו יישמרו.</div>
         ${this.actionError && this.dlg === 'remove' ? html`<div class="alert err" role="alert">${this.actionError}</div>` : nothing}
         <sw-button slot="footer" variant="danger" data-meter-remove-confirm ?disabled=${this.busy} @click=${() => void this.confirmRemove()}>הסרה</sw-button>
+        <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
+      </sw-dialog>
+      <sw-dialog ?open=${this.dlg === 'rename'} heading="שינוי שם המונה" data-meter-rename-dialog @close=${() => (this.dlg = '')}>
+        ${(() => {
+          const chk = checkMeterName(this.newName, this.otherNames);
+          const same = chk.name === this.detail?.name; // keeping the current name is never a collision (an old duplicate may exist)
+          if (same) chk.duplicate = false;
+          return html`<div class="fld">
+            <label for="rn">שם המונה</label>
+            <div class="inp ${this.nameError ? 'err' : ''}"><input id="rn" data-rename-input autocomplete="off" aria-invalid=${this.nameError ? 'true' : 'false'} aria-describedby="rn-msg" .value=${this.newName}
+              @input=${(e: Event) => { this.newName = (e.target as HTMLInputElement).value; this.nameError = ''; }}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); void this.rename(); } }} /></div>
+            <div id="rn-msg">
+              ${this.nameError ? html`<div class="msg" role="alert" data-rename-error>${this.nameError}</div>` : nothing}
+              ${!this.nameError && chk.duplicate ? html`<div class="msg" role="alert" data-rename-dup>${DUPLICATE_NAME_ERROR}</div>` : nothing}
+              <div class="mut" data-rename-hint>${RENAME_HINT}</div>
+            </div>
+          </div>`;
+        })()}
+        <sw-button slot="footer" variant="primary" data-rename-save ?disabled=${this.busy || (checkMeterName(this.newName, this.otherNames).duplicate && this.newName.trim() !== this.detail?.name)} @click=${() => void this.rename()}>שמירה</sw-button>
         <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
       </sw-dialog>
       <sw-dialog ?open=${this.dlg === 'replace'} heading="החלפת מונה" data-meter-replace-dialog @close=${() => (this.dlg = '')}>

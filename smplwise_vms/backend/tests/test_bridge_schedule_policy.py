@@ -148,9 +148,9 @@ def test_message_field_rules_per_op():
 
 
 @pytest.mark.parametrize("service,entity", [
-    ("script.turn_on", "script.night"), ("scene.turn_on", "scene.movie"), ("media_player.media_play", "media_player.tv"),
-    ("input_boolean.turn_on", "input_boolean.x"), ("siren.turn_on", "siren.hall"), ("vacuum.start", "vacuum.robo"),
-    ("alarm_control_panel.alarm_trigger", "alarm_control_panel.house"), ("climate.set_swing_mode", "climate.living_room"),
+    ("script.night", "script.night"), ("script.turn_off", "script.night"), ("scene.apply", "scene.movie"), ("media_player.media_play", "media_player.tv"),
+    ("input_boolean.toggle", "input_boolean.x"), ("siren.turn_on", "siren.hall"), ("vacuum.stop", "vacuum.robo"), ("number.set_value", "number.x"),
+    ("alarm_control_panel.alarm_trigger", "alarm_control_panel.house"), ("climate.set_aux_heat", "climate.living_room"), ("notify.notify", "notify.x"),
     ("switch.toggle", "switch.sockets"), ("scheduler.remove", "switch.schedule_x"), ("homeassistant.turn_off", "light.hall"),
     ("switch", "switch.sockets"), ("", "switch.sockets"),
 ])
@@ -160,6 +160,38 @@ def test_unlisted_services_are_refused(service, entity):
     e = refused(policy.validate_payload, p, op="add")
     assert e.code in ("service_not_allowed", "invalid_payload") and e.path.startswith("timeslots[0].actions[0]")
     assert e.code == "service_not_allowed" or service in ("switch", "")
+
+
+@pytest.mark.parametrize("service,entity,data", [
+    ("script.turn_on", "script.night", {}), ("script.turn_on", "script.night", {"variables": {"minutes": 20, "room": "hall", "loud": True}}),
+    ("scene.turn_on", "scene.movie", {}), ("input_boolean.turn_on", "input_boolean.x", {}), ("input_number.set_value", "input_number.x", {"value": 2.5}),
+    ("input_select.select_option", "input_select.x", {"option": "eco"}), ("humidifier.set_humidity", "humidifier.x", {"humidity": 45}),
+    ("humidifier.set_mode", "humidifier.x", {"mode": "sleep"}), ("vacuum.start", "vacuum.robo", {}), ("vacuum.return_to_base", "vacuum.robo", {}),
+    ("climate.set_swing_mode", "climate.living_room", {"swing_mode": "vertical"}), ("climate.set_humidity", "climate.living_room", {"humidity": 50}),
+    ("cover.open_cover_tilt", "cover.blind", {}), ("cover.close_cover_tilt", "cover.blind", {}),
+])
+def test_bridge_061_accepts_the_new_schedule_actions(service, entity, data):
+    p = shabbat_cooling()
+    p["timeslots"][0]["actions"] = [{"service": service, "entity_id": entity, "service_data": data}]
+    refs = policy.validate_payload(p, op="add")
+    assert any(r.entity_id == entity for r in refs)
+
+
+@pytest.mark.parametrize("variables", [
+    {"code": "1234"}, {"pin": 1}, {"nested": {"a": 1}}, {"list": [1, 2]}, {"Bad-Key": 1}, {"t": "x" * 201}, {"t": "a\nb"}, {f"k{i}": 1 for i in range(11)},
+    {"n": float("inf")}, "not an object",
+])
+def test_script_variables_are_flat_plain_values_without_codes(variables):
+    p = shabbat_cooling()
+    p["timeslots"][0]["actions"] = [{"service": "script.turn_on", "entity_id": "script.night", "service_data": {"variables": variables}}]
+    e = refused(policy.validate_payload, p, op="add")
+    assert e.code in ("argument_not_allowed", "code_not_allowed", "invalid_payload")
+
+
+def test_a_script_called_as_its_own_service_is_not_accepted_the_add_on_writes_turn_on():
+    p = shabbat_cooling()
+    p["timeslots"][0]["actions"] = [{"service": "script.night", "entity_id": None, "service_data": {}}]
+    assert refused(policy.validate_payload, p, op="add").path.startswith("timeslots[0].actions[0]")
 
 
 def test_an_action_without_entity_or_with_another_domain_is_refused():
@@ -379,8 +411,9 @@ def test_allow_list_is_inside_the_bridges_allowed_services_and_the_addons_action
     addon = {(a["domain"], a["service"]) for a in ha_bridge.ACTIONS.values()}
     assert policy.SCHEDULE_ACTION_SERVICES <= addon, sorted(policy.SCHEDULE_ACTION_SERVICES - addon)
     domains = {d for d, _ in policy.SCHEDULE_ACTION_SERVICES}
-    assert domains == {"light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button"}
-    assert not {"script", "scene", "siren", "media_player", "vacuum", "input_boolean", "number", "select", "humidifier"} & domains
+    assert domains == {"light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button", "script", "scene", "input_boolean", "input_number", "input_select",
+                       "humidifier", "vacuum"}  # 0.6.1
+    assert not {"siren", "media_player", "number", "select", "remote", "notify", "automation"} & domains
     assert ("alarm_control_panel", "alarm_trigger") not in policy.SCHEDULE_ACTION_SERVICES
 
 

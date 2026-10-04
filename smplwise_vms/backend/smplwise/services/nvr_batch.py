@@ -29,6 +29,12 @@ Security review 2026-10-04 (private/cr020-s2c-review/SECURITY_REVIEW.md), fixed 
 - the lock is keyed by the device (`adapter.device_key`), not by the recorder row;
 - the permission is checked again under the write lock right before the item's claim.
 
+Phase D (2026-10-04, services/nvr_encoding_batch.py, API 3.8): the same runner carries a bulk ENCODING change. An item no
+longer writes the constant BATCH_FIELDS but its own planned change, read from its placeholder's `{field: [from, to]}`
+(`item_changes`; an SVC batch stores exactly `{"svc": [true, false]}`, so phase C behaves as before); a codec switch reads the
+new codec's options (`write_stream(options_codec=)`). The batch record carries `mode` (`svc` | `encoding`) and `settings`;
+status items carry `fields`. Every rule above applies unchanged to both modes.
+
 Single process (review finding 13): the add-on runs ONE worker process. `_live` (the runners of this process) is the
 source of truth for "is this runner alive"; start-up recovery interrupts every batch left running. A second worker would
 interrupt another worker's live batch at its start-up and could not see its runners - it would need a per-process id with
@@ -80,7 +86,7 @@ PAGE_MAX = 500
 LIST_LIMIT = 20
 META_KEY = "nvr.batch.{}"
 BEAT_KEY = "nvr.batch.{}.beat"
-ACTIONS = {"write": "nvr.stream.batch", "rollback": "nvr.stream.batch.rollback"}
+ACTIONS = {"write": "nvr.stream.batch", "rollback": "nvr.stream.batch.rollback", "preview": "nvr.stream.batch.preview"}  # preview: phase D, read-only
 CAMERA_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 STREAM_REF_RE = re.compile(r"^\d{1,6}$")
 ETAG_RE = re.compile(r"^[0-9a-f]{16}$")
@@ -244,6 +250,26 @@ def _counts(conn: sqlite3.Connection, batch_id: str) -> dict[str, int]:
     return out
 
 
+def _fields_of(r: sqlite3.Row) -> dict[str, Any] | None:
+    """The item's `{field: [from, to]}` (field names and enumerated / numeric values only - never a document)."""
+    try:
+        f = json.loads(r["fields_json"] or "null")
+    except ValueError:
+        return None
+    return f if isinstance(f, dict) else None
+
+
+def item_changes(r: sqlite3.Row) -> dict[str, Any]:
+    """CR-020 phase D: the change an item writes, from its placeholder's `{field: [from, to]}` (the plan the person confirmed;
+    for an SVC batch exactly `{"svc": false}`). Only known write fields; anything else is dropped (an empty result is refused
+    by the S2A body rules before any device read: nothing to write)."""
+    out: dict[str, Any] = {}
+    for k, v in (_fields_of(r) or {}).items():
+        if k in nvr_settings.WRITE_FIELDS and isinstance(v, list) and len(v) == 2:
+            out[k] = v[1]
+    return out
+
+
 def _item(r: sqlite3.Row) -> dict[str, Any]:
     status = _item_status(r)
     code = r["error"] if r["error"] and r["error"] != status else None
@@ -251,7 +277,8 @@ def _item(r: sqlite3.Row) -> dict[str, Any]:
     if message is None:
         message = MESSAGES.get(status) or ("השינוי נדחה." if status == "refused" else "השינוי נכשל.")
     return {"index": r["batch_index"], "camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "status": status, "change_id": r["id"],
-            "rollback_of": r["rollback_of"], "error_code": code, "user_message": message, "reboot_required": bool(r["reboot_required"])}
+            "rollback_of": r["rollback_of"], "error_code": code, "user_message": message, "reboot_required": bool(r["reboot_required"]),
+            "fields": _fields_of(r)}
 
 
 # ------------------------------------------------------------------------------------------------ create
@@ -347,7 +374,7 @@ def _locked_checks(conn: sqlite3.Connection, settings: Settings, rid: str, refs:
 
 
 def _new_batch(conn: sqlite3.Connection, principal: Any, *, kind: str, rid: str, key: str, items: list[dict[str, Any]], request_id: str | None,
-               source_batch_id: str | None = None) -> str:
+               source_batch_id: str | None = None, extra_meta: dict[str, Any] | None = None) -> str:
     bid = new_id()
     now = now_iso()
     for i, it in enumerate(items):
@@ -359,7 +386,7 @@ def _new_batch(conn: sqlite3.Connection, principal: Any, *, kind: str, rid: str,
         )
     _save_meta(conn, bid, {"v": 1, "kind": kind, "recorder_id": rid, "total": len(items), "state": "running", "stopped_reason": None, "stopped_at": None,
                            "created_at": now, "actor_id": getattr(principal, "user_id", None), "actor_username": getattr(principal, "username", None),
-                           "request_id": request_id, "source_batch_id": source_batch_id, "lock_key": key})
+                           "request_id": request_id, "source_batch_id": source_batch_id, "lock_key": key, **(extra_meta or {})})
     set_setting(conn, key, bid)
     _beat(conn, bid)
     return bid
@@ -428,7 +455,8 @@ def create_rollback_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
             orig = {}
         items.append({"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "etag": r["etag_after"], "rollback_of": r["id"], "note": f"החזר של {r['id']}",
                       "fields": {k: [v[1], v[0]] for k, v in orig.items() if isinstance(v, list) and len(v) == 2}})
-    bid = _new_batch(conn, principal, kind="rollback", rid=rid, key=key, items=items, request_id=request_id, source_batch_id=source_id)
+    bid = _new_batch(conn, principal, kind="rollback", rid=rid, key=key, items=items, request_id=request_id, source_batch_id=source_id,
+                     extra_meta={"mode": meta.get("mode") or "svc", **({"settings": meta["settings"]} if meta.get("settings") else {})})
     _audit_batch(conn, principal, "rollback", "allowed", rid, {"phase": "attempt", "batch_id": bid, "source_batch_id": source_id, "total": len(items),
                                                                 "targets": [{"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "rollback_of": r["id"]} for r in applied]},
                  request_id=request_id)
@@ -466,6 +494,7 @@ def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, off
         "offset": offset, "limit": limit, "next_offset": offset + len(page) if offset + len(page) < total else None,
         "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_at": meta.get("stopped_at"),
         "stopped_reason": meta.get("stopped_reason"), "source_batch_id": meta.get("source_batch_id"),
+        "mode": meta.get("mode") or "svc", "settings": meta.get("settings"),
         "can_rollback": meta.get("kind") == "write" and state != "running" and counts.get("applied", 0) > 0
                         and not counts.get("running") and not counts.get("unknown") and not counts.get("queued"),
     }
@@ -474,7 +503,8 @@ def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, off
 def _summary(conn: sqlite3.Connection, batch_id: str, meta: dict[str, Any]) -> dict[str, Any]:
     counts = _counts(conn, batch_id)
     return {"batch_id": batch_id, "kind": meta.get("kind"), "state": meta.get("state"), "recorder_id": meta.get("recorder_id"), "total": meta.get("total"),
-            "counts": counts, "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_reason": meta.get("stopped_reason")}
+            "counts": counts, "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_reason": meta.get("stopped_reason"),
+            "mode": meta.get("mode") or "svc"}
 
 
 def list_batches(conn: sqlite3.Connection, active: bool) -> dict[str, Any]:
@@ -626,9 +656,16 @@ def _loop(db: Any, settings: Settings, principal: Any, batch_id: str) -> str | N
                             nvr_settings.rollback_stream(conn, settings, principal, orig, request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"],
                                                          authorize=authorize)
                         else:
+                            # phase D: the item's own planned change (an SVC batch: exactly BATCH_FIELDS, as stored at creation);
+                            # a codec switch reads the options of the new codec, the reading the preview planned against
+                            changes = item_changes(row)
+                            if not changes:
+                                raise ApiError(422, "validation", "בקשה לא תקינה.")
+                            codec = changes.get("codec")
                             nvr_settings.write_stream(conn, settings, principal, camera_id, str(row["stream_ref"]),
-                                                      nvr_settings.WriteRequest(if_match=str(row["etag_before"]), changes=dict(BATCH_FIELDS)),
-                                                      request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"], authorize=authorize)
+                                                      nvr_settings.WriteRequest(if_match=str(row["etag_before"]), changes=changes),
+                                                      request_id=meta.get("request_id"), batch=(batch_id, idx), adopt=row["id"], authorize=authorize,
+                                                      options_codec=codec if isinstance(codec, str) else None)
                 except ApiError as exc:
                     error = exc
                 timed_out = error is not None and error.code == "source_timeout"

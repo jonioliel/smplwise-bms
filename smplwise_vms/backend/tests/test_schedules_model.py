@@ -62,8 +62,12 @@ class Ctx:
     tz_name = "Asia/Jerusalem"
     shabbat_sensor = SENSOR
 
-    def __init__(self, classes=None):
+    def __init__(self, classes=None, allow_disarm=False):
         self.classes = set(classes or p.ALL_CLASSES)
+        self._allow_disarm = allow_disarm
+
+    def allow_disarm(self):
+        return self._allow_disarm
 
     def entity(self, eid):
         return ENTITIES.get(eid)
@@ -116,7 +120,10 @@ def test_normalize_tolerates_the_component_s_variants():
     core = m.normalize(item)
     assert core["days"]["kind"] == "days" and core["days"]["days"] == ["mon", "sat"]  # any order in, Sunday-first out
     assert core["slots"][0]["start"]["time"] == "07:05" and core["slots"][0]["stop"] is None and core["slots"][0]["actions"][0]["data"] == {"brightness": 10}
-    assert core["slots"][1]["actions"][0]["entity_id"] is None and core["name"] is None and core["enabled"] is True and core["tags"] == [] and core["conditions"]["items"] == []
+    # a script called as its own service is read as `script.turn_on` on that script (2026-10-04), marked as an older form
+    assert core["slots"][1]["actions"][0]["entity_id"] == "script.x" and core["slots"][1]["actions"][0]["service"] == "script.turn_on" and core["slots"][1]["actions"][0]["legacy_form"] is True
+    assert core["slots"][0]["actions"][0]["legacy_form"] is True  # the target was also inside service_data
+    assert core["name"] is None and core["enabled"] is True and core["tags"] == [] and core["conditions"]["items"] == []
     assert m.normalize({"schedule_id": "bbbbbb"})["slots"] == []
     assert m.days_view(["workday"]) == {"tokens": ["workday"], "kind": "workday", "days": None}
     assert m.days_view(["weekend", "mon"])["kind"] == "mixed" and m.resolve_days(["weekend"]) is None
@@ -242,9 +249,14 @@ def test_classify_understood_and_the_read_only_reasons():
     assert res["understood"] is True and res["sensitive"] is False and res["lowering"] is False
     assert res["slots"][0]["actions"][0] == {"service": "climate.set_temperature", "entity_id": "climate.lr", "data": {"hvac_mode": "cool", "temperature": 25.5}, "supported": True, "class": "climate", "sensitive": False, "lowering": False}
     bad = live_item()
-    bad["timeslots"].append(_slot("22:00:00", None, [{"service": "script.gone", "entity_id": None, "service_data": {}}]))
+    bad["timeslots"].append(_slot("22:00:00", None, [{"service": "light.turn_on", "entity_id": None, "service_data": {}}]))
     r = m.classify(m.normalize(bad), lambda e: ENTITIES.get(e))
     assert r["understood"] is False and r["slots"][3]["unsupported"][0]["code"] == "action_without_entity" and r["slots"][0]["supported"] is True
+    # a script whose entity is gone is a modelled action that cannot run (2026-10-04): understood, `invalid`, never the "original platform" read-only
+    gone = live_item()
+    gone["timeslots"].append(_slot("22:00:00", None, [{"service": "script.gone", "entity_id": None, "service_data": {}}]))
+    r = m.classify(m.normalize(gone), lambda e: ENTITIES.get(e))
+    assert r["understood"] is True and r["invalid"][0]["code"] == "entity_missing" and r["slots"][3]["actions"][0]["invalid"]["code"] == "entity_missing"
     cases = {
         "action_not_allowed": _act("light.turn_on", "switch.pump"), "argument_not_allowed": _act("light.turn_on", "light.office", {"effect": "rainbow"}),
         "contains_code": _act("alarm_control_panel.alarm_arm_home", "alarm_control_panel.a", {"code": "1234"}),
@@ -287,7 +299,8 @@ def slot_of(service, entity, data=None, start="08:00:00", stop="09:00:00"):
     ("light.turn_on", "light.office", {"brightness": "high"}, "invalid_value"), ("light.turn_on", "light.office", {"brightness": True}, "invalid_value"),
     ("light.turn_on", "light.office", {"effect": "x"}, "argument_not_allowed"), ("light.turn_off", "light.office", {"brightness": 1}, "argument_not_allowed"),
     ("cover.set_cover_position", "cover.shutter", {}, "required"), ("cover.set_cover_position", "cover.shutter", {"position": 101}, "out_of_range"),
-    ("cover.set_cover_position", "cover.plain", {"position": 50}, "argument_not_allowed"),
+    ("cover.set_cover_position", "cover.plain", {"position": 50}, "service_not_supported"),
+    ("cover.stop_cover", "cover.plain", {}, "service_not_supported"),
     ("climate.set_temperature", "climate.lr", {"temperature": 15}, "out_of_range"), ("climate.set_temperature", "climate.lr", {"temperature": 31}, "out_of_range"),
     ("climate.set_temperature", "climate.lr", {"temperature": "hot"}, "invalid_value"), ("climate.set_temperature", "climate.lr", {}, "required"),
     ("climate.set_temperature", "climate.lr", {"temperature": 25, "hvac_mode": "dry"}, "invalid_value"),
@@ -304,9 +317,9 @@ def test_argument_validation_matrix(service, entity, data, code):
 @pytest.mark.parametrize("service,entity,data", [
     ("light.turn_on", "light.office", {"brightness": 0}), ("light.turn_on", "light.office", {"brightness": 255}), ("light.turn_on", "light.office", {"brightness_pct": 100}), ("light.turn_on", "light.office", {}),
     ("switch.turn_on", "switch.hall", {}), ("switch.turn_off", "switch.hall", {}), ("cover.close_cover", "cover.shutter", {}), ("cover.set_cover_position", "cover.shutter", {"position": 0}),
-    ("cover.stop_cover", "cover.plain", {}), ("climate.set_temperature", "climate.lr", {"temperature": 25.5, "hvac_mode": "cool"}), ("climate.set_temperature", "climate.lr", {"temperature": 16}),
+    ("cover.stop_cover", "cover.shutter", {}), ("climate.set_temperature", "climate.lr", {"temperature": 25.5, "hvac_mode": "cool"}), ("climate.set_temperature", "climate.lr", {"temperature": 16}),
     ("climate.turn_off", "climate.lr", {}), ("fan.turn_on", "fan.hall", {"percentage": 50}), ("fan.set_percentage", "fan.hall", {"percentage": 0}),
-    ("alarm_control_panel.alarm_arm_home", "alarm_control_panel.a", {}), ("alarm_control_panel.alarm_disarm", "alarm_control_panel.a", {}), ("lock.unlock", "lock.front", {}),
+    ("alarm_control_panel.alarm_arm_home", "alarm_control_panel.a", {}), ("lock.unlock", "lock.front", {}),
     ("cover.open_cover", "cover.gate", {}), ("cover.set_cover_position", "cover.gate", {"position": 0}),
 ])
 def test_valid_actions_pass(service, entity, data):
@@ -333,7 +346,10 @@ def test_alarm_and_lock_code_rules_for_new_and_unchanged_actions():
     e, _ = errs(draft("V", [slot_of("alarm_control_panel.alarm_arm_home", "alarm_control_panel.coded")]))
     assert codes(e) == ["alarm_code_needed"]
     e, _ = errs(draft("V", [slot_of("alarm_control_panel.alarm_disarm", "alarm_control_panel.coded")]))
-    assert codes(e) == ["alarm_code_needed"]
+    assert codes(e) == ["disarm_not_allowed"]  # 2026-10-04: disarming is not schedulable unless a system administrator allowed it
+    e, _ = errs(draft("V", [slot_of("alarm_control_panel.alarm_disarm", "alarm_control_panel.coded")]), Ctx(allow_disarm=True))
+    assert codes(e) == ["alarm_code_needed"]  # ... and even then never with a code
+    assert errs(draft("V", [slot_of("alarm_control_panel.alarm_disarm", "alarm_control_panel.a")]), Ctx(allow_disarm=True))[0] == []
     assert codes(errs(draft("V", [slot_of("alarm_control_panel.alarm_arm_night", "alarm_control_panel.a")]))[0]) == ["arm_mode_not_supported"]
     assert errs(draft("V", [slot_of("alarm_control_panel.alarm_arm_home", "alarm_control_panel.a")]))[0] == []
     # an existing, unchanged arm action on a panel that now says it needs a code is kept with a warning, not refused
@@ -464,14 +480,14 @@ def test_condition_validation():
 
 def test_policy_tables():
     assert p.SCHEDULE_ACTION_SERVICES <= set(ha_bridge.ACTIONS)  # never a service the product's own allow-list lacks
-    assert not any(s.startswith(("scene.", "script.", "siren.", "media_player.", "number.", "select.")) for s in p.SCHEDULE_ACTION_SERVICES)
+    assert not any(s.startswith(("siren.", "media_player.", "number.", "select.", "notify.", "remote.")) for s in p.SCHEDULE_ACTION_SERVICES)
     for cls, services in p.SCHEDULE_ACTIONS.items():
         for service, spec in services.items():
             assert spec["label"] == ha_bridge.ACTIONS[service]["label"], service
             assert "code" not in spec["args"]
     assert set(p.SCHEDULE_ACTIONS["lock"]) == {"lock.lock", "lock.unlock"} and set(p.SCHEDULE_ACTIONS["switch"]) == {"switch.turn_on", "switch.turn_off"}
     assert "button.press" in p.SCHEDULE_ACTIONS["door"] and "button.press" not in p.SCHEDULE_ACTIONS["switch"]
-    assert p.SENSITIVE_CLASSES == {"alarm", "lock", "door"} and p.ALL_CLASSES == ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
+    assert p.SENSITIVE_CLASSES == {"alarm", "lock", "door"} and p.ALL_CLASSES == ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
     assert p.CAPABILITIES == {"tags": True, "negative_sun_offset": True}  # both verified on the lab component, 2026-09-30
 
 
@@ -489,8 +505,12 @@ def test_classification_of_entities():
     assert cls("switch.schedule_x", platform="scheduler") == (None, "action_not_allowed")  # a schedule's own switch (platform)
     assert cls("switch.schedule_x", platform=None) == (None, "action_not_allowed")  # ... before the first registry refresh
     assert cls("switch.schedule_x", platform="generic") == ("switch", None)  # a real switch that merely has the prefix
-    for eid in ("script.a", "scene.a", "button.a", "siren.a", "input_boolean.a", "humidifier.a", "media_player.a", "vacuum.a", "number.a", "select.a", "notify.a", "sensor.a"):
+    for eid in ("button.a", "siren.a", "media_player.a", "number.a", "select.a", "notify.a", "sensor.a", "remote.a", "input_text.a", "automation.a"):
         assert cls(eid) == (None, "action_not_allowed"), eid
+    # 2026-10-04: scripts, scenes, helpers, humidifiers and vacuums are classes of their own
+    assert cls("script.a") == ("script", None) and cls("scene.a") == ("scene", None) and cls("humidifier.a") == ("humidifier", None) and cls("vacuum.a") == ("vacuum", None)
+    for eid in ("input_boolean.a", "input_number.a", "input_select.a"):
+        assert cls(eid) == ("helper", None), eid
 
 
 def test_lowering_and_codes():

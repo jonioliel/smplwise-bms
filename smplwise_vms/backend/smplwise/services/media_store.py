@@ -933,10 +933,14 @@ def admin_rows(conn: sqlite3.Connection, kinds: tuple[str, ...] | None = None) -
             "floor_name": fa["floor_name"], "area_name": fa["area_name"], "audio_link_key": item.row.get("audio_link_key"),
             "audio_default": item.row.get("audio_default") or "screen", "volume_max": item.row.get("volume_max"), "model_keys": list(item.view.model_keys),
             "model_key_options": profiles.model_key_options(item.profile), "display_name": item.row.get("display_name"), "also_turns_on": [], "endpoints": eps,
+            # the settings list's identifier / integration / availability columns (0.1.162): read from the registry data already mirrored, no new column
+            "integrations": sorted({ep.platform for ep in item.model.endpoints if ep.platform}),
+            "ha_device_id": next((e["device_id"] for e in (cat.ents.get(ep.ref) for ep in item.model.endpoints) if e and e.get("device_id")), None),
+            "available": any(mm.available(cat.ents.get(e.ref)) for e in item.model.endpoints if e.domain == "media_player"),
         }
         if item.row["kind"] != "screen":
             row.update(area_id=fa["area_id"], floor_id=fa["floor_id"], volume_night=night_window(item.row), music_provider=mm.music_provider_of(item.model, cat.ents),
-                       zones=mm.zone_states(item.model, cat.ents), available=any(mm.available(cat.ents.get(e.ref)) for e in item.model.endpoints if e.domain == "media_player"))
+                       zones=mm.zone_states(item.model, cat.ents))
         out.append(row)
     names = {d["key"]: d["name"] for d in out}
     dismissed = _dismissed(conn)

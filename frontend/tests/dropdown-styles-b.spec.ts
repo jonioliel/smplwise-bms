@@ -11,7 +11,7 @@ import { test, expect, type Page } from '@playwright/test';
 // Needs the Vite DEV server (imports /src/...); run on the Ubuntu runner:  ~/run_remote.sh spec <branch> tests/dropdown-styles-b.spec.ts
 const MODE_URL = '/src/shell/tabs-mode.ts';
 const NAV_URL = '/src/shell/nav.ts';
-const STYLES = ['pill', 'field', 'underline', 'text', 'prefix', 'tonal'] as const;
+const STYLES = ['pill', 'field', 'underline', 'text', 'prefix', 'tonal', 'capsule'] as const;
 const WORDS = ['סלון', 'מטבח', 'חדר שינה', 'משרד', 'מרפסת', 'חצר', 'מחסן', 'חדר כביסה', 'חדר ילדים', 'פינת אוכל', 'גג', 'מעלית', 'חניה'];
 
 async function stage(page: Page, skin = 'classic', width = 1280, scheme = 'light') {

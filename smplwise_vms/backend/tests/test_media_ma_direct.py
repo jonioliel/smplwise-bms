@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import time
 from typing import Any
 
 import media_seed as mseed
@@ -15,8 +15,9 @@ import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
 
+from smplwise.db import get_setting
 from smplwise.main import create_app
-from smplwise.services import backup, ha_bridge, ma_direct, media_commands, media_query, media_queue
+from smplwise.services import backup, connection_probe, ha_bridge, ma_direct, media_commands, media_query, media_queue
 
 API = "/api/v1/multimedia"
 TOKEN = "ma-test-token-0123456789abcdef"
@@ -93,6 +94,21 @@ class Bridge:
         return {"ok": True, "request_id": payload["request_id"], "query": "library", "provider": "ma", "result": {"items": items, "offset": payload["offset"], "limit": payload["limit"]}}
 
 
+@pytest.fixture(autouse=True)
+def lan_resolver(monkeypatch):
+    """CR-016 section 18: the address check resolves the typed name - the reserved `.test` names answer with a private LAN address, nothing asks a DNS server."""
+    monkeypatch.setattr(connection_probe, "RESOLVE", lambda h: ["192.168.1.50"] if h.endswith(".test") else [])
+    monkeypatch.setattr(connection_probe, "HOSTNAME", lambda: "arx-test-host")
+    monkeypatch.setattr(connection_probe, "LOCAL_ADDRESSES", lambda: set(), raising=False)
+    ma_direct.SETTINGS[0] = None
+    ma_direct._PINNED.set(None)  # tests that drive the transport by hand set these context variables in the test thread
+    ma_direct._END.set(None)
+    yield
+    ma_direct._PINNED.set(None)
+    ma_direct._END.set(None)
+    ma_direct.reset()
+
+
 @pytest.fixture()
 def d(settings, monkeypatch):
     media_query.clear()
@@ -140,9 +156,11 @@ def test_the_connection_is_installer_only_and_the_token_is_write_only(d):
     view = connect(c)
     assert view["token_set"] is True and view["url"] == URL and view["enabled"] is True and TOKEN not in json.dumps(view)
     path = ma_direct.secret_path(settings.data_dir)
-    assert path.read_text(encoding="utf-8") == TOKEN
-    if os.name != "nt":
-        assert oct(path.stat().st_mode & 0o777) == "0o600"
+    assert not path.exists(), "since CR-016 section 18 the token is encrypted inside the setting, never a plain file"
+    with app.state.db.connection(mode="read") as conn:
+        stored = get_setting(conn, ma_direct.CONFIG_KEY)
+    assert json.loads(stored)["token_enc"].startswith("v1:") and TOKEN not in stored
+    assert (settings.data_dir / "keys" / "connections.key").exists()
     rows = audit_rows(app, "media.ma_connection")
     assert rows[-1]["details"] == {"op": "update", "url_changed": True, "token": "set", "enabled": True}
     assert TOKEN not in json.dumps(rows) and "ma.example" not in json.dumps(rows), "never a token or an address in the audit"
@@ -484,7 +502,7 @@ def test_the_http_transport_speaks_json_rpc_to_the_fixtures_fake_server(settings
     real = httpx.HTTPTransport.handle_request
 
     def handle(self, request):
-        if request.url.host == fx.FAKE_MA_HOST:
+        if request.headers.get("host", "").split(":")[0] == fx.FAKE_MA_HOST:
             seen.append((request.method, request.url.path, request.headers.get("authorization")))
             if fx.MODEL.ma_down:
                 raise httpx.ConnectError("down", request=request)
@@ -533,6 +551,8 @@ def test_an_oversized_or_odd_answer_is_an_error_never_buffered_or_parsed_as_text
 
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", handle)
     t = ma_direct.HttpTransport()
+    ma_direct._PINNED.set("192.168.1.50")  # the transport only ever connects to an address the check approved
+    ma_direct._END.set(time.monotonic() + 5)
     with pytest.raises(ma_direct.MaError) as big:
         t.info("http://ma.example.test:8095")
     assert big.value.state == "error"

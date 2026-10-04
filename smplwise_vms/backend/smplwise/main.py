@@ -204,6 +204,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.legacy_options_differ = legacy_differ
     app.state.connection_probe_limiter = connection_probe.probe_limiter()
+    app.state.ma_test_limiter = connection_probe.probe_limiter()  # CR-016 section 18: the music server test has its own 5/min per user, 20/min per installation
+    from .services import ma_direct
+
+    ma_direct.SETTINGS[0] = settings  # the address policy reads the trusted proxies
+    ma_direct.migrate_legacy_token(app.state.db, settings)  # a plain token file of an older version is imported once, then removed
     if settings.nvr_host == DEV_NVR_PLACEHOLDER:
         log.info("installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); "
                  "SW_MODE=ha_only starts the NVR-less mode")

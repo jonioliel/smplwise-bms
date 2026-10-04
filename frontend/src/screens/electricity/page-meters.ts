@@ -11,7 +11,7 @@ import { addMeters, buildAreaTree, listMeters, summarize, type Meter } from '../
 import { navigate } from '../../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../../electricity/access';
 import { fmtInt, fmtKwh, fmtTime } from '../../electricity/format';
-import { meterNames, meterSearchText } from '../../electricity/meter-name';
+import { checkMeterName, meterNames, meterSearchText } from '../../electricity/meter-name';
 import { elecCss } from '../../electricity/styles';
 import { STATUS_CLASS, STATUS_LABEL } from '../../electricity/meter-card';
 import { SkinController } from '../../design/skin';
@@ -58,6 +58,9 @@ export class ElecMetersPage extends LitElement {
   @state() private collapsed: string[] = stored<string[]>(COLLAPSE_KEY, []);
   @state() private access: EnergyAccess = energyAccess();
   @state() private picked: string[] = [];
+  /** the friendly name typed for each picked sensor (pre-filled from the picker's suggestion) */
+  @state() private pickedNames: Record<string, string> = {};
+  @state() private nameTouched = false;
   @state() private adding = false;
   @state() private addErrors: string[] = [];
   @state() private notice = '';
@@ -266,6 +269,8 @@ export class ElecMetersPage extends LitElement {
 
   private openAdd() {
     this.picked = [];
+    this.pickedNames = {};
+    this.nameTouched = false;
     this.addErrors = [];
     this.setParams({ add: '1', meter: null });
   }
@@ -274,11 +279,29 @@ export class ElecMetersPage extends LitElement {
     this.setParams({ add: null });
   }
 
+  private onPick(e: CustomEvent<{ selected: string[]; names?: Record<string, string> }>) {
+    this.picked = e.detail.selected;
+    const next: Record<string, string> = {};
+    for (const id of this.picked) next[id] = this.pickedNames[id] ?? e.detail.names?.[id] ?? '';
+    this.pickedNames = next;
+  }
+
+  /** The names this add would create: each checked, with a duplicate flag against the registered meters and the other new ones. */
+  private nameChecks() {
+    return this.picked.map((id) => {
+      const others = [...this.meters.map((m) => m.name), ...this.picked.filter((x) => x !== id).map((x) => this.pickedNames[x] ?? '')];
+      return { id, ...checkMeterName(this.pickedNames[id] ?? '', others) };
+    });
+  }
+
   private async confirmAdd() {
     if (!this.picked.length || this.adding) return;
+    this.nameTouched = true;
+    const checks = this.nameChecks();
+    if (checks.some((c) => c.error)) return;
     this.adding = true;
     this.addErrors = [];
-    const res = await addMeters(this.picked.map((entity_id) => ({ entity_id })));
+    const res = await addMeters(checks.map((c) => ({ entity_id: c.id, name: c.name })));
     this.adding = false;
     if (res.added.length) {
       await this.load(false);
@@ -371,12 +394,27 @@ export class ElecMetersPage extends LitElement {
       <div style="text-align:end">${this.statusChip(m)}<div class="t2 num" style="margin-block-start:4px">${fmtKwh(m.reading_kwh)}</div></div></div>`)}</div>`;
   }
 
+  private renderNames() {
+    return html`<div class="names" data-add-names>
+      ${this.nameChecks().map((c, i) => {
+        const show = c.error && (this.nameTouched || c.duplicate);
+        return html`<div class="fld">
+          <label for="mn${i}">${this.picked.length > 1 ? `שם המונה ${i + 1}` : 'שם המונה'}</label>
+          <div class="inp ${show ? 'err' : ''}"><input id="mn${i}" data-add-name=${c.id} autocomplete="off" aria-invalid=${show ? 'true' : 'false'} .value=${this.pickedNames[c.id] ?? ''}
+            @input=${(e: Event) => (this.pickedNames = { ...this.pickedNames, [c.id]: (e.target as HTMLInputElement).value })} /></div>
+          ${show ? html`<div class="msg" role="alert" data-add-name-error>${c.error}</div>` : nothing}
+        </div>`;
+      })}
+    </div>`;
+  }
+
   private renderAdd() {
     const open = this.params.get('add') === '1' && this.access.manage;
     return html`<sw-dialog ?open=${open} wide heading="הוספת מונה" data-add-dialog @close=${() => this.closeAdd()}>
-      ${open ? html`<elec-meter-picker mode="register" multi .selected=${this.picked} @change=${(e: CustomEvent<{ selected: string[] }>) => (this.picked = e.detail.selected)}></elec-meter-picker>` : nothing}
+      ${open ? html`<elec-meter-picker mode="register" multi .selected=${this.picked} @change=${(e: CustomEvent<{ selected: string[]; names?: Record<string, string> }>) => this.onPick(e)}></elec-meter-picker>` : nothing}
+      ${open && this.picked.length ? this.renderNames() : nothing}
       ${this.addErrors.length ? html`<div class="errs" data-add-errors>${this.addErrors.map((m) => html`<div class="alert err" role="alert">${m}</div>`)}</div>` : nothing}
-      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding} @click=${() => void this.confirmAdd()}>הוספה${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
+      <sw-button slot="footer" variant="primary" data-add-confirm ?disabled=${!this.picked.length || this.adding || this.nameChecks().some((c) => c.duplicate)} @click=${() => void this.confirmAdd()}>הוספה${this.picked.length > 1 ? ` (${this.picked.length})` : ''}</sw-button>
       <sw-button slot="footer" data-add-cancel @click=${() => this.closeAdd()}>ביטול</sw-button>
     </sw-dialog>`;
   }

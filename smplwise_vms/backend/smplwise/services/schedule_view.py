@@ -14,7 +14,7 @@ import sqlite3
 from typing import Any
 
 from ..db import get_setting
-from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere
 from . import alarm as alarm_svc
 from . import devices as dsvc
 from . import ha_scope, ha_sync
@@ -26,7 +26,12 @@ VIEW, MANAGE, SENSITIVE = "schedule.view", "schedule.manage", "schedule.sensitiv
 PERMS = (VIEW, MANAGE, SENSITIVE, "devices.read", "entity.state.read", "ha.entity.control", "devices.control", "door.unlock", "alarm.view", "alarm.arm", "alarm.disarm")
 CATALOG_LIMIT = 500
 CANDIDATE_LIMIT = 500
-CATALOG_DOMAINS = ("light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button")
+CATALOG_DOMAINS = ("light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button", "script", "scene", "input_boolean", "input_number", "input_select",
+                   "humidifier", "vacuum")
+# 2026-10-04: an administrator's "this is fine from our side" on a review issue, bound to the schedule's content (`revision`): the chip is
+# silenced until the content changes outside Arx. Kept in the settings table (`schedules.acks`, a JSON object; no migration).
+ACK_KEY = "schedules.acks"
+ACKABLE = ("no_owner_sensitive", "unsupported_content")
 COND_DOMAINS = ("binary_sensor", "sensor", "sun", "input_boolean")
 STATES = ("on", "off", "triggered", "completed", "unavailable", "unknown")
 
@@ -39,6 +44,7 @@ REASON_MESSAGES = {
     "component_unavailable": "רכיב התזמונים אינו זמין כרגע.",
     "ha_unavailable": "תשתית המערכת אינה זמינה כרגע.",
     "bridge_unavailable": "נדרש עדכון או צימוד של רכיב החיבור כדי לשמור תזמונים.",
+    "action_invalid": "פעולה בתזמון אינה תקפה עוד (ההתקן חסר או אינו תומך בה); אפשר לערוך ולהסיר אותה.",
 }
 WRITE_BLOCK_REASON = {"feature_disabled": "feature_disabled", "component_missing": "component_unavailable", "ha_unavailable": "ha_unavailable",
                       "bridge_missing": "bridge_unavailable", "bridge_unpaired": "bridge_unavailable", "bridge_too_old": "bridge_unavailable"}
@@ -183,6 +189,7 @@ class Ctx:
         self._write: tuple[bool, str | None] | None = None
         self._sun: dict[str, int] | None | bool = False
         self._owners: dict[str, "Ctx"] = {}  # the review's owner contexts, one per user per request (review L6)
+        self._actx: Any = None  # the automations context (services/automation_scope.Ctx): what a script / scene drives and who may run it
 
     @property
     def access(self) -> Access:
@@ -207,6 +214,21 @@ class Ctx:
         if entity_id not in self._panels:
             self._panels[entity_id] = alarm_svc.schedule_panel_check(self.conn, entity_id)
         return self._panels[entity_id]
+
+    def allow_disarm(self) -> bool:
+        """`schedules.allow_disarm`: whether a NEW schedule may disarm a panel directly (default off; a system administrator's typed decision)."""
+        return self.cfg.get("schedules.allow_disarm") == "true"
+
+    def bridge_at_least(self, version: str) -> bool:
+        return _version_tuple(get_setting(self.conn, "bridge.integration_version")) >= _version_tuple(version)
+
+    @property
+    def actx(self) -> Any:
+        if self._actx is None:
+            from . import automation_scope as ascope
+
+            self._actx = ascope.Ctx(self.conn, self.principal)
+        return self._actx
 
     def sun_seconds(self) -> dict[str, int] | None:
         if self._sun is False:
@@ -267,7 +289,41 @@ class Ctx:
         if refusal != "alarm_managed_control" and r["domain"] in ("switch", "select", "button", "number") and info["entity_id"] in self._media_owned():
             cls, refusal = None, "media_managed_control"  # CR-016 review M4: a screen's / speaker's own switch is operated from "מולטימדיה" only
         info["class"], info["refusal"] = cls, refusal
+        if cls in policy.ITEM_CLASSES:
+            info.update(self._item_facts(info["entity_id"], cls))
         return info
+
+    def _item_facts(self, entity_id: str, cls: str) -> dict[str, Any]:
+        """What a script / scene drives, read from the automations mirror (`ha_config_items`, services/automation_scope.facts_of): `sensitive`
+        (an alarm / lock / door step, or effects that are not known - a script whose config Arx cannot read counts as sensitive), `lowering`
+        (a known step that disarms, unlocks or opens a door) and, for a script, its fields (`script_fields`, None when unknown)."""
+        out: dict[str, Any] = {"effects_known": False, "script_fields": None, "sensitive": cls == "script", "lowering": False, "_facts": None, "_source": None}
+        try:
+            row = self.conn.execute("SELECT kind, config_json, source FROM ha_config_items WHERE entity_id = ? AND kind = ?", (entity_id, cls)).fetchone()
+        except sqlite3.Error:
+            row = None
+        if row is None:
+            return out
+        out["_source"] = row["source"]
+        try:
+            cfg = json.loads(row["config_json"]) if row["config_json"] else None
+        except ValueError:
+            cfg = None
+        if not isinstance(cfg, dict):
+            return out
+        from . import automation_draft as drafts
+        from . import automation_scope as ascope
+
+        try:
+            rd = drafts.read(cls, cfg, self.actx.model_ctx(code_view=False, scoped=False))
+            facts = ascope.facts_of(self.actx, cls, rd, entity_id=entity_id)
+        except Exception:  # noqa: BLE001 - a config the model cannot read is "effects unknown", never a crash of the schedules screen
+            return out
+        out.update(effects_known=not facts["unknown_effects"], _facts=facts, sensitive=bool(facts["sensitive"] or facts["unknown_effects"]),
+                   lowering=any(_lowering_step(s) for s in facts["steps"]))
+        if cls == "script":
+            out["script_fields"] = script_fields(rd["draft"].get("fields") or [])
+        return out
 
     def name_of(self, entity_id: str) -> str:
         info = self.entity(entity_id)
@@ -283,6 +339,39 @@ class Ctx:
     @property
     def writable(self) -> bool:
         return self.write_state()[0]
+
+
+def _lowering_step(step: dict[str, Any]) -> bool:
+    action, sens = step.get("action") or "", step.get("sens")
+    if action in (policy.LOWERING_ARM_OFF, "lock.unlock", "lock.open"):
+        return True
+    return sens in ("door", "gate", "garage") and action in ("cover.open_cover", "cover.set_cover_position", "cover.toggle")
+
+
+def script_fields(fields: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """A script's fields (automation_model._parse_fields) as the schedules validate them: {key: {name, required, default?, kind, min, max, step,
+    options}}. A field whose selector the schedules do not model keeps its kind (`entity`, `locked`): it is never offered, and a REQUIRED one
+    without a default makes the script unschedulable with a clear reason."""
+    out: dict[str, dict[str, Any]] = {}
+    for f in fields:
+        key = f.get("key")
+        if not isinstance(key, str) or not policy.VAR_KEY.match(key) or key.lower() in policy._CODE_KEYS:
+            continue
+        sel = f.get("selector") or {}
+        d: dict[str, Any] = {"name": f.get("name") or key, "required": bool(f.get("required")), "kind": sel.get("kind") or "locked"}
+        if "default" in f:
+            d["default"] = f["default"]
+        if d["kind"] == "number":
+            d.update(min=sel.get("min"), max=sel.get("max"), step=sel.get("step"), unit=sel.get("unit"))
+        elif d["kind"] == "select":
+            d["options"] = [o for o in sel.get("options") or [] if isinstance(o, str)]
+        elif d["kind"] == "text" and sel.get("max") is not None:
+            d["max"] = sel["max"]
+        out[key] = d
+    return out
+
+
+VAR_KINDS = ("number", "boolean", "select", "text")
 
 
 def _version_tuple(text: str | None) -> tuple[int, ...]:
@@ -368,13 +457,16 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
         return out
     if strict and cls not in ctx.enabled_classes():
         out.append(reason("class_disabled", entity_id))
-    if cls in policy.SENSITIVE_CLASSES and not a.allowed(SENSITIVE, entity_id):
+    info = ctx.entity(entity_id)
+    if policy.is_sensitive(cls, info) and not a.allowed(SENSITIVE, entity_id):
         out.append(reason("sensitive_permission_required", entity_id))
     name = ctx.name_of(entity_id)
     not_controllable = reason("entity_not_controllable", entity_id, f"אין לך הרשאת שליטה ב־{name}.")
-    if cls in ("light", "switch", "cover", "climate", "fan"):
+    if cls in ("light", "switch", "cover", "climate", "fan", "helper", "humidifier", "vacuum"):
         if not a.control(entity_id):
             out.append(not_controllable)
+    elif cls in policy.ITEM_CLASSES:
+        out.extend(item_run_reasons(ctx, cls, entity_id, info))
     elif cls in ("lock", "door"):
         if not a.allowed("ha.entity.control", entity_id):
             out.append(not_controllable)
@@ -389,6 +481,36 @@ def action_reasons(ctx: Ctx, service: str, entity_id: str, cls: str | None, *, s
         block = remote_block(ctx, _alarm_kind(service))
         if block:
             out.append({**reason("entity_not_controllable", entity_id, block[1]), "_remote": block[0]})
+    return out
+
+
+def item_run_reasons(ctx: Ctx, cls: str, entity_id: str, info: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Scheduling a script / scene asks what RUNNING it asks (services/automation_scope.run_reasons, owner decision 6ג): `script.run` at every
+    device it drives, control there and the same grant manual control needs for every sensitive step (alarm.disarm for a disarm, door.unlock,
+    the remote channel's alarm refusal included). A script whose effects are not known needs the permission installation-wide; a scene that is
+    not known (an integration's scene) needs control of the scene itself."""
+    from . import automation_scope as ascope
+
+    a = ctx.access
+    name = ctx.name_of(entity_id)
+    facts = (info or {}).get("_facts")
+    if facts is None:
+        if cls == "scene":
+            return [] if a.control(entity_id) else [reason("entity_not_controllable", entity_id, f"אין לך הרשאה להפעיל את {name}.")]
+        if any(ctx.actx.access.wide(p) for p in (ascope.SCRIPT_RUN, ascope.SCRIPT_MANAGE)):
+            return []
+        return [reason("entity_not_controllable", entity_id, f"פעולות הסקריפט {name} אינן ידועות למערכת; תזמון שלו דורש הרשאת הרצת סקריפטים בכל ההתקנה.")]
+    source = "integration" if (info or {}).get("_source") == "integration" else "ui"
+    out: list[dict[str, Any]] = []
+    for r in ascope.run_reasons(ctx.actx, cls, facts, entity_id=entity_id, source=source):
+        code = r.get("code")
+        if code == "grant_required":
+            out.append({"code": "grant_required", "message": r.get("message") or "", "entity_id": entity_id})
+        elif r.get("_remote"):
+            out.append({"code": "entity_not_controllable", "message": r.get("message") or "", "entity_id": entity_id, "_remote": r["_remote"]})
+        else:
+            msg = r.get("message") if code == "entity_not_controllable" and r.get("entity_id") else f"אין לך הרשאה להפעיל את {name}."
+            out.append({"code": "entity_not_controllable", "message": msg, "entity_id": entity_id})
     return out
 
 
@@ -431,7 +553,7 @@ def can_of(ctx: Ctx, core: dict[str, Any], cls_info: dict[str, Any], enabled: bo
     else:
         toggle = writable and understood and not strict
     edit = writable and understood and not strict
-    can = {"edit": edit, "toggle": toggle, "run": edit, "delete": writable and ((not loose) if understood else wide_manage), "copy": edit}
+    can = {"edit": edit, "toggle": toggle, "run": edit and not cls_info.get("invalid"), "delete": writable and ((not loose) if understood else wide_manage), "copy": edit}
     reasons: list[dict[str, Any]] = []
     if not edit:
         if block:
@@ -480,7 +602,7 @@ def build_schedule(ctx: Ctx, row: sqlite3.Row, meta: sqlite3.Row | None, last_ru
         entities.append({"entity_id": e, "name": info["name"] if info else e, "domain": (info["domain"] if info else e.split(".", 1)[0]), "role": "action",
                          "area_id": info["area_id"] if info else None, "area_name": info["area_name"] if info else None,
                          "floor_id": info["floor_id"] if info else None, "floor_name": info["floor_name"] if info else None,
-                         "class": info["class"] if info else None, "sensitive": bool(info and info["class"] in policy.SENSITIVE_CLASSES), "available": bool(info and info["available"])})
+                         "class": info["class"] if info else None, "sensitive": bool(info and policy.is_sensitive(info["class"], info)), "available": bool(info and info["available"])})
     cond_views = condition_views(ctx, core)
     summary, preset = model.condition_summary(core["conditions"]["items"], core["conditions"]["type"], ctx.shabbat_sensor or None, ctx.name_of)
     conditional = bool(core["conditions"]["items"])
@@ -534,6 +656,8 @@ def _warnings(ctx: Ctx, core: dict[str, Any], cls: dict[str, Any], cond_views: l
                 needs = panel.get("needs_code_disarm") if a["service"] == policy.LOWERING_ARM_OFF else panel.get("needs_code_arm")
                 if needs:
                     out.append({"path": f"slots[{si}].actions[{ai}]", "code": "alarm_may_need_code", "message": "לוח האזעקה עשוי לדרוש קוד לפעולה זו."})
+    for p in cls.get("invalid") or []:
+        out.append({"path": p["path"], "code": p["code"], "message": p["message"]})
     if core["repeat"] == "single":
         out.append({"path": "repeat", "code": "single_deletes", "message": "תזמון חד־פעמי נמחק מהרכיב לאחר ההרצה."})
     return out
@@ -610,9 +734,10 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         counts["visible"] = len(visible)
         counts["enabled"] = sum(1 for r in visible if r.core["enabled"])
         if a.wide(MANAGE):
-            counts["attention"] = len(review_items(ctx, visible))
+            counts["attention"] = sum(1 for x in review_items(ctx, visible) if x["issues"])
         else:
-            counts["attention"] = sum(1 for r in visible if not model.classify(r.core, ctx.resolver)["understood"])
+            acks = read_acks(conn)
+            counts["attention"] = sum(1 for r in visible if not model.classify(r.core, ctx.resolver)["understood"] and not ack_of(acks, r.core["id"], "unsupported_content", r.row["revision"]))
         if can["configure"]:
             counts["hidden"] = total - len(visible)
     shabbat = None
@@ -621,8 +746,9 @@ def status_payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         shabbat = {"entity_id": ctx.shabbat_sensor, "name": info["name"] if info else ctx.shabbat_sensor, "state": info["state"] if info else None, "available": bool(info and info["available"])}
     out: dict[str, Any] = {
         "available": avail, "feature_enabled": cfg["schedules.enabled"] == "true", "stale": stale, "last_sync_at": st.get("last_sync_at"),
-        "writable": writable, "write_block": block, "capabilities": dict(policy.CAPABILITIES), "can": can, "counts": counts,
-        "settings": {"snap_minutes": int(cfg["schedules.snap_minutes"]), "default_repeat": cfg["schedules.default_repeat"], "classes": cfg["schedules.classes"], "shabbat_sensor": shabbat},
+        "writable": writable, "write_block": block, "capabilities": dict(policy.CAPABILITIES), "can": {**can, "acknowledge": bool(can["configure"] and is_system_admin(conn, principal.user_id))}, "counts": counts,
+        "settings": {"snap_minutes": int(cfg["schedules.snap_minutes"]), "default_repeat": cfg["schedules.default_repeat"], "classes": cfg["schedules.classes"], "shabbat_sensor": shabbat,
+                     "allow_disarm": cfg.get("schedules.allow_disarm") == "true"},
     }
     if can["configure"]:
         out["admin"] = {"component": "missing" if avail == "component_missing" else ("found" if st.get("last_sync_at") else "unknown"), "component_version": st.get("component_version"),
@@ -661,12 +787,35 @@ def review_items(ctx: Ctx, rows: list[Row]) -> list[dict[str, Any]]:
     that may need a code). Owner rights are re-evaluated for the OWNER (`services/rbac`)."""
     out = []
     runs = last_runs(ctx.conn, [r.core["id"] for r in rows])
+    stored = read_acks(ctx.conn)
     for r in rows:
         cls = model.classify(r.core, ctx.resolver)
         issues = _issues(ctx, r, cls)
         if issues:
-            out.append({"schedule": build_schedule(ctx, r.row, r.meta, runs.get(r.core["id"])), "issues": issues})
+            acked = [a for a in (ack_of(stored, r.core["id"], i, r.row["revision"]) for i in issues) if a]
+            names = {a["issue"] for a in acked}
+            out.append({"schedule": build_schedule(ctx, r.row, r.meta, runs.get(r.core["id"])), "issues": [i for i in issues if i not in names], "acknowledged": acked})
     return out
+
+
+def read_acks(conn: sqlite3.Connection) -> dict[str, dict[str, dict[str, Any]]]:
+    """`schedules.acks`: {schedule_id: {issue: {hash, by, by_name, at}}}; a corrupt value reads as none (the warnings come back)."""
+    try:
+        data = json.loads(get_setting(conn, ACK_KEY, "{}") or "{}")
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def ack_of(stored: dict[str, Any], schedule_id: str, issue: str, revision: str) -> dict[str, Any] | None:
+    """The acknowledgement of `issue` that still holds - its content hash is the schedule's current revision (a change made outside Arx brings
+    the warning back by itself)."""
+    if issue not in ACKABLE:
+        return None
+    rec = (stored.get(schedule_id) or {}).get(issue) if isinstance(stored.get(schedule_id), dict) else None
+    if not isinstance(rec, dict) or rec.get("hash") != revision:
+        return None
+    return {"issue": issue, "by": {"user_id": rec.get("by"), "username": rec.get("by_name") or "", "display_name": rec.get("by_name") or ""}, "at": rec.get("at")}
 
 
 def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
@@ -677,6 +826,8 @@ def _issues(ctx: Ctx, r: Row, cls: dict[str, Any]) -> list[str]:
         issues.append("contains_code")
     if any(p["code"] != "contains_code" for p in sub):
         issues.append("unsupported_content")
+    if cls.get("invalid"):
+        issues.append("action_invalid")
     if any(a["class"] and a["class"] not in ctx.enabled_classes() for s in cls["slots"] for a in s["actions"]):
         issues.append("class_disabled")
     if cls["sensitive"]:
@@ -745,23 +896,61 @@ def _owner_still_holds(ctx: Ctx, owner: dict[str, Any], core: dict[str, Any], cl
 # ---------------------------------------------------------------- catalogue (§3.4)
 
 def _catalog_args(service: str, spec: dict[str, Any], info: dict[str, Any]) -> list[dict[str, Any]]:
+    """The argument form of one service for THIS entity: ranges, modes and options from the entity's own attributes, a script's variables from
+    its own fields; an argument the entity cannot take is left out (never offered)."""
     attrs = info.get("attributes") or {}
     out = []
     for name, a in spec["args"].items():
-        d: dict[str, Any] = {"name": name, "type": a["type"], "required": bool(a.get("required"))}
+        if not policy.arg_capable(service, name, info):
+            continue
+        d: dict[str, Any] = {"name": name, "type": a["type"], "required": bool(a.get("required")), "label": policy.arg_label(name)}
         if name == "temperature":
             lo, hi = policy._temperature_range(info)
             d.update(min=lo, max=hi)
+        elif name in ("value", "humidity"):
+            lo, hi = policy._entity_range(info, name, a.get("min"), a.get("max"))
+            d.update(min=lo, max=hi)
+            step = policy._number(attrs.get("step")) if name == "value" else None
+            if step:
+                d["step"] = step
         elif a["type"] in ("int", "float"):
             d.update(min=a.get("min"), max=a.get("max"))
         elif name == "hvac_mode":
             d["choices"] = policy._attr_list(info, "hvac_modes") or list(a["choices"])
-        elif name in ("fan_mode", "preset_mode"):
-            offered = policy._attr_list(info, "fan_modes" if name == "fan_mode" else "preset_modes")
+        elif name in policy.OFFERED_LIST:
+            offered = policy._attr_list(info, policy.OFFERED_LIST[name])
             if offered:
                 d.update(type="enum", choices=offered)
+        elif a["type"] == "vars":
+            fields = [_var_spec(k, f) for k, f in (info.get("script_fields") or {}).items() if f.get("kind") in VAR_KINDS]
+            if not fields:
+                continue  # a script without fields the schedules model is run without variables
+            d["fields"] = fields
         out.append(d)
     return out
+
+
+def _var_spec(key: str, f: dict[str, Any]) -> dict[str, Any]:
+    kind = f["kind"]
+    d: dict[str, Any] = {"name": key, "label": f.get("name") or key, "required": bool(f.get("required")) and "default" not in f}
+    if "default" in f:
+        d["default"] = f["default"]
+    if kind == "number":
+        integral = all(isinstance(v, int) and not isinstance(v, bool) for v in (f.get("min"), f.get("max"), f.get("step") or 1) if v is not None)
+        d.update(type="int" if integral else "float", min=f.get("min"), max=f.get("max"))
+        if f.get("step"):
+            d["step"] = f["step"]
+        if f.get("unit"):
+            d["unit"] = f["unit"]
+    elif kind == "boolean":
+        d["type"] = "bool"
+    elif kind == "select":
+        d.update(type="enum", choices=list(f.get("options") or []))
+    else:
+        d["type"] = "str"
+        if f.get("max") is not None:
+            d["max"] = f["max"]
+    return d
 
 
 def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
@@ -769,24 +958,35 @@ def catalog_actions(cls: str, info: dict[str, Any], ctx: Ctx) -> tuple[list[dict
     services = SCHEDULE_ACTIONS_BY_CLASS(cls)
     out = []
     attrs = info.get("attributes") or {}
+    too_old = False
     for service, spec in services.items():
-        if service == "cover.set_cover_position" and attrs.get("current_position") is None and not int(info.get("supported_features") or 0) & 4:
-            continue
-        if service == "cover.set_cover_tilt_position" and attrs.get("current_tilt_position") is None and not int(info.get("supported_features") or 0) & 128:
+        if not policy.service_allowed(cls, service, info["entity_id"]):
+            continue  # another domain of the same class (a helper's, a door switch's)
+        if not policy.service_capable(service, info):
+            continue  # capability discovery: only what this entity reports it can do
+        if service in policy.NEWER_BRIDGE_SERVICES and not ctx.bridge_at_least(policy.NEWER_BRIDGE):
+            too_old = True
             continue
         if cls == "alarm":
             panel = ctx.panel(info["entity_id"])
             if service == policy.LOWERING_ARM_OFF:
-                if panel.get("needs_code_disarm"):
-                    continue
+                if panel.get("needs_code_disarm") or not ctx.allow_disarm():
+                    continue  # never with a code; and only when a system administrator allowed scheduled disarming
             else:
                 if policy.ARM_MODE_OF.get(service) not in (panel.get("arm_modes") or []) or panel.get("needs_code_arm"):
                     continue
-        out.append({"service": service, "label": spec["label"], "lowering": policy.is_lowering(service, cls, {"position": 1} if service == "cover.set_cover_position" else {}), "args": _catalog_args(service, spec, info)})
+        out.append({"service": service, "label": spec["label"], "lowering": policy.is_lowering(service, cls, {"position": 1} if service == "cover.set_cover_position" else {}, info),
+                    "args": _catalog_args(service, spec, info)})
+    if not out and too_old:
+        return [], {"code": "bridge_too_old_for_action", "message": "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו."}
     if not out and cls == "alarm":
         return [], {"code": "alarm_code_needed", "message": "לוח האזעקה דורש קוד לפעולה זו. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותה."}
     if cls == "lock" and attrs.get("code_format"):
         return [], {"code": "lock_code_needed", "message": "המנעול דורש קוד. תזמון אינו שומר קודים, ולכן אי אפשר לתזמן אותו."}
+    if cls == "script":
+        blocking = [f.get("name") or k for k, f in (info.get("script_fields") or {}).items() if f.get("required") and "default" not in f and f.get("kind") not in VAR_KINDS]
+        if blocking:
+            return [], {"code": "script_field_unsupported", "message": f"לסקריפט משתנה חובה שהמערכת אינה מציגה ({blocking[0]}); אפשר לתזמן אותו רק ברכיב המקורי."}
     return out, None
 
 
@@ -795,7 +995,8 @@ def SCHEDULE_ACTIONS_BY_CLASS(cls: str) -> dict[str, dict[str, Any]]:
 
 
 def _catalog_attrs(info: dict[str, Any]) -> dict[str, Any]:
-    keep = ("current_position", "current_tilt_position", "hvac_modes", "min_temp", "max_temp", "fan_modes", "preset_modes", "temperature", "brightness", "percentage", "code_format")
+    keep = ("current_position", "current_tilt_position", "hvac_modes", "min_temp", "max_temp", "fan_modes", "preset_modes", "temperature", "brightness", "percentage", "code_format",
+            "swing_modes", "available_modes", "options", "min", "max", "step", "min_humidity", "max_humidity", "supported_color_modes", "mode", "humidity", "swing_mode")
     return {k: v for k, v in (info.get("attributes") or {}).items() if k in keep}
 
 
@@ -815,7 +1016,7 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
         eid = info["entity_id"]
         cls, refusal = info["class"], info["refusal"]
         if cls is None:
-            continue  # scheduler switches, alarm-managed controls, scripts, scenes, plain buttons ... never appear
+            continue  # scheduler switches, alarm-managed controls, plain buttons, unknown domains ... never appear
         if cls is not None and cls not in ctx.enabled_classes():
             continue
         if not (a.allowed(MANAGE, eid) and a.can_read_state(eid)):
@@ -844,7 +1045,7 @@ def catalog_payload(ctx: Ctx, q: str | None, floor: str | None, area: str | None
             if blocked:
                 why = {"code": blocked[0]["code"], "message": blocked[0]["message"]}
         out.append({
-            "entity_id": eid, "name": info["name"], "domain": info["domain"], "class": cls or "switch", "sensitive": bool(cls in policy.SENSITIVE_CLASSES), "area_id": info["area_id"], "area_name": info["area_name"],
+            "entity_id": eid, "name": info["name"], "domain": info["domain"], "class": cls or "switch", "sensitive": policy.is_sensitive(cls, info), "area_id": info["area_id"], "area_name": info["area_name"],
             "floor_id": info["floor_id"], "floor_name": info["floor_name"], "available": info["available"], "selectable": why is None, "reason": why, "attributes": _catalog_attrs(info), "actions": actions if why is None or cls else [],
         })
     return {"entities": out, "truncated": truncated}

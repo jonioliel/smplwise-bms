@@ -82,6 +82,16 @@ DEFAULTS: dict[str, str] = {
     "ui.dd_style_groups": "{}",
     # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet, default) | list (the small list under the field). services/dd_style.py.
     "ui.dd_phone": "sheet",
+    # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
+    # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
+    "ui.dd_size": "md",
+    "ui.dd_size_groups": "{}",
+    # Unreleased (owner 2026-10-04, capsule style only): ring thickness in px - "1" | "1.5" | "2" (default) | "3" - and open-panel width -
+    # "button" | "240" (default) | "300" - each global and per tab group (a JSON object). A user's own value (/me/prefs) wins. services/dd_style.py.
+    "ui.dd_ring": "2",
+    "ui.dd_ring_groups": "{}",
+    "ui.dd_panel": "240",
+    "ui.dd_panel_groups": "{}",
     # owner 2026-09-30 (phone UX guards): which kinds of management the phone UI (< 768 px) hides - a JSON object of booleans,
     # shape and defaults in services/mobile_options.py; read back as an object. A UX guard only: permissions are unchanged.
     "ui.mobile": '{"hide_structure":true,"hide_layout_editor":false,"hide_wall_arrange":false,"hide_settings_writes":false,"hide_permissions":false,"hide_control_images":true}',
@@ -235,11 +245,15 @@ DEFAULTS: dict[str, str] = {
     # back as an array, like ui.tabs); the safety rules (trash, confirmations, code refusal, the allow-list ceiling) are
     # not settings. `schedules.shabbat_sensor` is the "issur melacha in effect" binary_sensor the presets use.
     "schedules.enabled": "false",
-    "schedules.classes": '["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door"]',
+    "schedules.classes": '["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum"]',
     "schedules.snap_minutes": "15",
     "schedules.default_repeat": "repeat",
     "schedules.runs_retention_days": "90",
     "schedules.shabbat_sensor": "",
+    # 2026-10-04 (schedules: more actions): may a NEW schedule disarm an alarm panel directly? Off by default; only a system administrator
+    # switches it on, with the typed confirmation `schedules.allow_disarm_confirm` (never stored), and the change is audited on its own row.
+    # A disarm that needs a code is never schedulable, whatever this says.
+    "schedules.allow_disarm": "false",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 9): the feature and its rail entry; `multimedia.remote_default` is the
     # installation default of the remote's sections (a JSON object, read back as an object; "" = the built-in default), written from the
     # settings page and from "עריכת השלט" (PUT /multimedia/remote-default). The safety rules (no power key, rate limits, confirmations)
@@ -254,7 +268,8 @@ DEFAULTS: dict[str, str] = {
     **automation_settings.DEFAULTS,
 }
 
-SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
+SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
+ALLOW_DISARM_WORD = "אפשר נטרול"
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
@@ -277,11 +292,17 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.dd_style"] = dd_style.stored_style(out["ui.dd_style"])
     out["ui.dd_style_groups"] = dd_style.stored_groups(out["ui.dd_style_groups"])
     out["ui.dd_phone"] = dd_style.stored_phone(out["ui.dd_phone"])
+    out["ui.dd_size"] = dd_style.stored_size(out["ui.dd_size"])
+    out["ui.dd_size_groups"] = dd_style.stored_size_groups(out["ui.dd_size_groups"])
+    out["ui.dd_ring"] = dd_style.stored_ring(out["ui.dd_ring"])
+    out["ui.dd_ring_groups"] = dd_style.stored_ring_groups(out["ui.dd_ring_groups"])
+    out["ui.dd_panel"] = dd_style.stored_panel(out["ui.dd_panel"])
+    out["ui.dd_panel_groups"] = dd_style.stored_panel_groups(out["ui.dd_panel_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
-    out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"])
+    out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
@@ -337,7 +358,10 @@ def _stored_area_row(raw: Any, normalize: Any, default: dict[str, Any]) -> dict[
         return json.loads(json.dumps(default))
 
 
-def stored_schedule_classes(raw: Any) -> list[str]:
+CLASSES_REV_KEY = "schedules.classes_rev"  # "2" once `schedules.classes` was saved knowing the 2026-10-04 classes
+
+
+def stored_schedule_classes(raw: Any, rev: str | None = "2") -> list[str]:
     """The stored `schedules.classes` as an ordered list of known classes; a corrupt value reads as every class (the
     default) - a schedule can never be allowed a class this build does not know."""
     try:
@@ -346,6 +370,9 @@ def stored_schedule_classes(raw: Any) -> list[str]:
         data = None
     if not isinstance(data, list):
         data = list(SCHEDULE_CLASSES)
+    original = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door")
+    if rev is None and set(original) <= set(data) and not any(c in data for c in SCHEDULE_CLASSES if c not in original):
+        data = list(SCHEDULE_CLASSES)  # saved before 2026-10-04 with every class on: "every class" still means every class (the new ones too)
     return [c for c in SCHEDULE_CLASSES if c in data]
 
 
@@ -463,6 +490,12 @@ class SettingsPatch(BaseModel):
     ui_dd_style: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.STYLES) + ")$", alias="ui.dd_style")
     ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
+    ui_dd_size: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SIZES) + ")$", alias="ui.dd_size")
+    ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # validated in full by services/dd_style.py
+    ui_dd_ring: str | None = Field(default=None, pattern="^(" + "|".join(re.escape(r) for r in dd_style.RINGS) + ")$", alias="ui.dd_ring")
+    ui_dd_ring_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_ring_groups")  # validated in full by services/dd_style.py
+    ui_dd_panel: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PANELS) + ")$", alias="ui.dd_panel")
+    ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # validated in full by services/dd_style.py
     ui_mobile: dict[str, Any] | None = Field(default=None, alias="ui.mobile")  # validated in full by services/mobile_options.py
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # validated in full by services/look.py (every dial required)
@@ -538,12 +571,14 @@ class SettingsPatch(BaseModel):
     alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
     alarm_pin_min_length: str | None = Field(default=None, pattern="^[4-8]$", alias="alarm.pin_min_length")
     schedules_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="schedules.enabled")
-    schedules_classes: list[str] | None = Field(default=None, max_length=8, alias="schedules.classes")  # each one of SCHEDULE_CLASSES (checked in the handler)
+    schedules_classes: list[str] | None = Field(default=None, max_length=13, alias="schedules.classes")  # each one of SCHEDULE_CLASSES (checked in the handler)
     schedules_snap_minutes: str | None = Field(default=None, pattern="^(5|15|30)$", alias="schedules.snap_minutes")
     schedules_default_repeat: str | None = Field(default=None, pattern="^(repeat|pause|single)$", alias="schedules.default_repeat")
     schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
     schedules_shabbat_sensor: str | None = Field(default=None, pattern=r"^(|binary_sensor\.[a-z0-9_]{1,100})$", alias="schedules.shabbat_sensor")
     schedules_shabbat_sensor_force: bool | None = Field(default=None, alias="schedules.shabbat_sensor_force")  # an explicit override; never stored
+    schedules_allow_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="schedules.allow_disarm")
+    schedules_allow_disarm_confirm: str | None = Field(default=None, max_length=32, alias="schedules.allow_disarm_confirm")  # the typed confirmation; never stored
     multimedia_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="multimedia.enabled")
     multimedia_remote_default: dict[str, Any] | None = Field(default=None, alias="multimedia.remote_default")  # validated in full by services/media_layout.py
     automations_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.enabled")
@@ -622,6 +657,21 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["ui.dd_style_groups"] = dd_style.normalize_groups(changes["ui.dd_style_groups"])
         except ValueError as exc:
             raise ApiError(422, "validation", "סגנון תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_style_groups": str(exc)})
+    if "ui.dd_size_groups" in changes:
+        try:
+            changes["ui.dd_size_groups"] = dd_style.normalize_size_groups(changes["ui.dd_size_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "גודל תפריט נפתח לפי קבוצה: ערך לא תקין.", details={"ui.dd_size_groups": str(exc)})
+    if "ui.dd_ring_groups" in changes:
+        try:
+            changes["ui.dd_ring_groups"] = dd_style.normalize_ring_groups(changes["ui.dd_ring_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "עובי טבעת לפי קבוצה: ערך לא תקין.", details={"ui.dd_ring_groups": str(exc)})
+    if "ui.dd_panel_groups" in changes:
+        try:
+            changes["ui.dd_panel_groups"] = dd_style.normalize_panel_groups(changes["ui.dd_panel_groups"])
+        except ValueError as exc:
+            raise ApiError(422, "validation", "רוחב לוח פתוח לפי קבוצה: ערך לא תקין.", details={"ui.dd_panel_groups": str(exc)})
     if "ui.mobile" in changes:
         try:
             changes["ui.mobile"] = mobile_options.normalize(changes["ui.mobile"])
@@ -658,6 +708,22 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
         except ValueError as exc:
             raise ApiError(422, "validation", "הגדרת השלט: ערך לא תקין.", details={"multimedia.remote_default": str(exc)})
+    disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
+    disarm_change = None
+    if "schedules.allow_disarm" in changes:
+        current = get_setting(conn, "schedules.allow_disarm", DEFAULTS["schedules.allow_disarm"]) or "false"
+        if changes["schedules.allow_disarm"] == current:
+            changes.pop("schedules.allow_disarm")
+        else:
+            from ..rbac import is_system_admin
+
+            if not is_system_admin(conn, principal.user_id):
+                audit(conn, actor=principal, action="schedules.allow_disarm", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
+                      request_id=getattr(request.state, "correlation_id", None), details={"to": changes["schedules.allow_disarm"]})
+                raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לשנות את נטרול האזעקה בתזמונים.")
+            if changes["schedules.allow_disarm"] == "true" and (disarm_confirm or "").strip() != ALLOW_DISARM_WORD:
+                raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
+            disarm_change = changes["schedules.allow_disarm"]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -709,7 +775,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+    if "schedules.classes" in changes:
+        set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
         from ..services import schedules as schedules_svc
 
@@ -722,6 +790,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..remote_channel import set_csp_enforce
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
+    if disarm_change is not None:
+        audit(conn, actor=principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
+              request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change})
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn), "can_edit": True, **_capacity_info(conn)}

@@ -264,7 +264,7 @@ def test_the_service_is_registered_with_a_response_and_removed_on_unload_and_the
 
 def test_one_version_everywhere_and_the_mirror_equals_the_source():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.6.0"
+    assert manifest["version"] == const.VERSION == "0.6.1"
     assert f"const VERSION = '{const.VERSION}'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     if MIRROR.exists():  # the add-on's build context holds a generated copy (scripts/sync_integration.py)
         assert json.loads((MIRROR / "manifest.json").read_text(encoding="utf-8"))["version"] == const.VERSION

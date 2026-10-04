@@ -1,6 +1,6 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
@@ -17,6 +17,8 @@ SERVICE_MEDIA_QUERY = "media_query"
 # 0.6.0 (CR-017): signed writes to the automations, scripts and scenes of the installation (config_policy.py, config_store.py, config_service.py) and the runtime ops on them.
 SERVICE_CONFIG_ITEM = "config_item"
 # 0.6.0: the owner-approved delegation switch (CR-017 section 8.3), in the options flow: off by default; an HA administrator turns it on inside Home Assistant.
+# 0.6.1 (schedules: more actions): the schedule allow-list (schedule_policy.ACTION_ARGS) gains scripts with their variables, scenes, helpers,
+# humidifiers, vacuums, cover tilt and climate swing / humidity - each still checked by shape and range here, by capability in the add-on.
 CONF_DELEGATED_AUTHORING = "delegated_authoring"
 CONF_DELEGATED_CHANGED_AT = "delegated_changed_at"
 DIRECTORY_INTERVAL_S = 60

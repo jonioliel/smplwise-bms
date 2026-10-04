@@ -31,7 +31,7 @@ import {
  *   slot-change {slot}   slot-delete   slot-duplicate   slot-copy-days   slot-close   pair-off {on}
  */
 
-const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', 'climate.set_fan_mode', 'climate.set_preset_mode', 'fan.set_percentage']);
+const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', 'cover.open_cover_tilt', 'cover.close_cover_tilt', 'climate.set_fan_mode', 'climate.set_preset_mode', 'climate.set_swing_mode', 'climate.set_humidity', 'fan.set_percentage']);
 
 const ARG_LABEL: Record<string, string> = {
   brightness: 'בהירות',
@@ -43,6 +43,11 @@ const ARG_LABEL: Record<string, string> = {
   percentage: 'עוצמה',
   fan_mode: 'מצב מאוורר',
   preset_mode: 'מצב מוגדר',
+  swing_mode: 'מצב נדנוד',
+  humidity: 'לחות',
+  mode: 'מצב',
+  value: 'ערך',
+  option: 'אפשרות',
 };
 
 const HVAC_WORDS: Record<string, string> = { cool: 'קירור', heat: 'חימום', heat_cool: 'אוטומטי', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
@@ -232,6 +237,16 @@ export class ScheduleSlotPanel extends LitElement {
       flex-direction: column;
       gap: 5px;
     }
+    .vars {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+    .vars > .lbl {
+      grid-column: 1 / -1;
+    }
     .arg .row {
       display: flex;
       align-items: center;
@@ -385,10 +400,52 @@ export class ScheduleSlotPanel extends LitElement {
     this.updateGroup(group, group.service, data);
   }
 
+  /** A script's variables (`data.variables`): one field per variable the script declares, typed by its selector (2026-10-04). */
+  private setVar(group: ActionGroup, name: string, value: unknown) {
+    const vars = { ...((group.data.variables as Record<string, unknown> | undefined) ?? {}) };
+    if (value === undefined || value === '' || (typeof value === 'number' && Number.isNaN(value))) delete vars[name];
+    else vars[name] = value;
+    const data = { ...group.data };
+    if (Object.keys(vars).length) data.variables = vars;
+    else delete data.variables;
+    this.updateGroup(group, group.service, data);
+  }
+
+  private renderVars(group: ActionGroup, spec: ArgSpec) {
+    const ro = this.readOnly;
+    const vars = (group.data.variables as Record<string, unknown> | undefined) ?? {};
+    return html`<div class="vars" data-arg="variables">
+      <span class="lbl">${spec.label ?? 'משתני הסקריפט'}</span>
+      ${(spec.fields ?? []).map((f) => {
+        const v = vars[f.name];
+        const key = `${group.key}:var:${f.name}`;
+        const label = `${f.label ?? f.name}${f.required ? ' *' : ''}`;
+        if (f.type === 'bool') {
+          return html`<label class="pair" data-var=${f.name}><input type="checkbox" style="inline-size:auto;min-block-size:0" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).checked)} />${label}</label>`;
+        }
+        if (f.choices && f.choices.length) {
+          return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
+            <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLSelectElement).value)}>
+              ${f.required ? nothing : html`<option value="" ?selected=${v === undefined}>ללא</option>`}
+              ${f.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${c}</option>`)}
+            </select></div>`;
+        }
+        if (f.type === 'int' || f.type === 'float') {
+          return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
+            <div class="row"><input id=${key} type="number" step=${f.step ?? (f.type === 'int' ? 1 : 0.5)} min=${f.min ?? nothing} max=${f.max ?? nothing} ?disabled=${ro} .value=${v === undefined ? '' : String(v)}
+              @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">${f.unit ?? ''}</span></div></div>`;
+        }
+        return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
+          <input id=${key} type="text" maxlength=${f.max ?? 200} ?disabled=${ro} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).value)} /></div>`;
+      })}
+    </div>`;
+  }
+
   private renderArg(group: ActionGroup, spec: ArgSpec) {
+    if (spec.type === 'vars') return this.renderVars(group, spec);
     const ro = this.readOnly;
     const v = group.data[spec.name];
-    const label = ARG_LABEL[spec.name] ?? spec.name;
+    const label = spec.label ?? ARG_LABEL[spec.name] ?? spec.name;
     const key = `${group.key}:${spec.name}`;
     // brightness: shown as a percentage of the 0..255 the card writes; brightness_pct is used only when it is already there
     // (the server lists both; "brightness" is what the card writes, so the control is that one unless brightness_pct is already set)
@@ -415,7 +472,7 @@ export class ScheduleSlotPanel extends LitElement {
         <label for=${key}>${label}</label>
         <select id=${key} ?disabled=${ro} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLSelectElement).value)}>
           ${spec.required ? nothing : html`<option value="" ?selected=${v === undefined}>ללא שינוי</option>`}
-          ${spec.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${HVAC_WORDS[c] ?? c}</option>`)}
+          ${spec.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${spec.name === 'hvac_mode' ? HVAC_WORDS[c] ?? c : c}</option>`)}
         </select>
       </div>`;
     }
@@ -447,7 +504,7 @@ export class ScheduleSlotPanel extends LitElement {
       return html`<div class="arg" data-arg=${spec.name}>
         <label for=${key}>${label}</label>
         <div class="row">
-          <input id=${key} type="number" step=${spec.type === 'float' && spec.name !== 'temperature' ? '0.5' : '1'} min=${spec.min ?? nothing} max=${spec.max ?? nothing} ?disabled=${ro} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} />
+          <input id=${key} type="number" step=${spec.step ?? (spec.type === 'float' && spec.name !== 'temperature' ? '0.5' : '1')} min=${spec.min ?? nothing} max=${spec.max ?? nothing} ?disabled=${ro} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} />
           <span class="unit">${spec.name === 'temperature' ? '°' : ''}</span>
         </div>
       </div>`;
@@ -488,7 +545,7 @@ export class ScheduleSlotPanel extends LitElement {
     const s = this.slotData;
     if (!s) return nothing;
     const groups = groupActions(s.actions);
-    const sensitive = s.actions.some((a) => isSensitiveAction(a, a.entity_id ? this.meta.get(a.entity_id)?.class ?? null : null));
+    const sensitive = s.actions.some((a) => isSensitiveAction(a, a.entity_id ? this.meta.get(a.entity_id)?.class ?? null : null, a.entity_id ? this.meta.get(a.entity_id) : undefined));
     const lowering = s.actions.some((a) => {
       const m = a.entity_id ? this.meta.get(a.entity_id) : undefined;
       return isLoweringAction(a, m?.class ?? null, m?.actions);

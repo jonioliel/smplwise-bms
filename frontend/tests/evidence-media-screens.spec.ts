@@ -656,6 +656,8 @@ test.describe('multimedia screens (mocked backend)', () => {
     await expect(sys.locator('[data-mm-approve-all]')).toContainText('(1)');
     await sys.locator('[data-mm-approve-all]').click();
     await expect.poll(() => st.calls.find((c) => c.path === 'multimedia/admin/approve')?.body).toEqual({ device_keys: ['md-new'], approved: true });
+    // the full forms open on demand under the compact rows (0.1.162)
+    for (const k of ['md-kitchen', 'md-living', 'md-kids']) await sys.locator(`[data-mm-edit="${k}"]`).click();
     // the public flag is one write of one field
     await sys.locator('sw-toggle[data-mm-public="md-kitchen"]').click();
     await expect.poll(() => st.calls.filter((c) => c.method === 'PUT' && c.path === 'multimedia/admin/devices/md-kitchen').length).toBe(1);

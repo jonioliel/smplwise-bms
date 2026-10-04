@@ -18,7 +18,7 @@ import { findScreenView, onScreenViews, screenViews } from './screen-view';
 import { loadNavSize, navCssVars, navDims, navSize, onNavSize, setInstallationNavSize, type NavDims } from './nav-size';
 import { onPairChip, pairChip } from './tab-pair';
 import type { TabItem } from '../components/sw-tabs';
-import { HYBRID_MAX_ITEMS, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdStyle } from './tabs-mode';
+import { HYBRID_MAX_ITEMS, ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf, loadTabsMode, onTabsMode, setInstallationTabsMode, tabModeOf, type DdPanel, type DdRing, type DdSize, type DdStyle } from './tabs-mode';
 import { listAlerts } from '../api/rules';
 import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
@@ -2446,18 +2446,18 @@ export class SwApp extends LitElement {
    * the two levels (the security sections and pages, or the area's tabs and the screen's own filter, published through shell/tab-pair.ts)
    * share ONE row of two equal chips (the `tabpair`, 0.1.153). A level in the bar form (hybrid, three items or fewer) keeps its own row.
    */
-  private renderChrome(section: ReturnType<typeof sectionOf>, tabs: TabItem[], editor: boolean, rowMode: { variant: string; adaptive: boolean; label: string; ddStyle: DdStyle }, rowStyle: ReturnType<typeof tabStyleOf>, showSections: boolean) {
+  private renderChrome(section: ReturnType<typeof sectionOf>, tabs: TabItem[], editor: boolean, rowMode: { variant: string; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel }, rowStyle: ReturnType<typeof tabStyleOf>, showSections: boolean) {
     const second = !editor && !this.gated ? pairChip() : null;
-    const secondChip = second ? html`<sw-dropdown block data-pair-chip dd-style=${ddStyleOf(second.group)} .items=${second.items} .value=${second.value} .label=${second.label} @change=${(e: CustomEvent<{ id: string }>) => second.onPick(e.detail.id)}></sw-dropdown>` : nothing;
-    const pageChip = (label: string) => html`<sw-tabs block variant="dropdown" dd-style=${rowMode.ddStyle} .items=${tabs} .active=${activeAreaTab(this.route)} group-label=${label} data-area-tabs></sw-tabs>`;
+    const secondChip = second ? html`<sw-dropdown block data-pair-chip dd-style=${ddStyleOf(second.group)} dd-size=${ddSizeOf(second.group)} dd-ring=${ddRingOf(second.group)} dd-panel=${ddPanelOf(second.group)} .items=${second.items} .value=${second.value} .label=${second.label} @change=${(e: CustomEvent<{ id: string }>) => second.onPick(e.detail.id)}></sw-dropdown>` : nothing;
+    const pageChip = (label: string) => html`<sw-tabs block variant="dropdown" dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} .items=${tabs} .active=${activeAreaTab(this.route)} group-label=${label} data-area-tabs></sw-tabs>`;
     if (showSections && tabModeOf('security') === 'dropdown') {
       const sections = visibleSections(this.session.mode === 'api', canNav);
       const alarm = sections.find((s) => s.id === 'alarm');
-      const first = sections.length > 1 ? html`<sw-tabs block variant="dropdown" dd-style=${ddStyleOf('security')} .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${section ?? ''} group-label="אבטחה" data-section-tabs></sw-tabs>` : nothing;
+      const first = sections.length > 1 ? html`<sw-tabs block variant="dropdown" dd-style=${ddStyleOf('security')} dd-size=${ddSizeOf('security')} dd-ring=${ddRingOf('security')} dd-panel=${ddPanelOf('security')} .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${section ?? ''} group-label="אבטחה" data-section-tabs></sw-tabs>` : nothing;
       const pin = sections.length > 1 && alarm && section !== 'alarm' ? html`<a class="alarmpin" href=${alarm.href} data-section-alarm aria-label=${alarm.label} title=${alarm.label}><sw-icon name="bell" size=${16}></sw-icon></a>` : nothing;
       return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-security-row>${first}${tabs.length > 1 && !editor ? pageChip('עמודים') : nothing}${pin}</div>`;
     }
-    const own = html`<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>`;
+    const own = html`<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>`;
     const sections = showSections && this.phone ? this.renderSections(section, true) : nothing;
     if (!second) return html`${sections}${own}`;
     const pagesDd = tabs.length > 1 && !editor && (rowMode.variant === 'dropdown' || (rowMode.adaptive && tabs.length > HYBRID_MAX_ITEMS));
@@ -2466,10 +2466,10 @@ export class SwApp extends LitElement {
   }
 
   /** 0.1.153: the `variant` / `adaptive` a row of an area's tab group gets - the row's own style when the mode is `tabs` (nothing changes). */
-  private rowModeProps(area: ReturnType<typeof areaOf>, style: ReturnType<typeof tabStyleOf>): { variant: ReturnType<typeof tabStyleOf> | 'dropdown'; adaptive: boolean; label: string; ddStyle: DdStyle } {
+  private rowModeProps(area: ReturnType<typeof areaOf>, style: ReturnType<typeof tabStyleOf>): { variant: ReturnType<typeof tabStyleOf> | 'dropdown'; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel } {
     const group = tabGroupOf(area);
     const mode = group ? tabModeOf(group) : 'tabs';
-    return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: group ? ddStyleOf(group) : 'auto', label: area === 'system' ? 'הגדרות' : area === 'multimedia' ? 'מולטימדיה' : 'לשוניות' };
+    return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: group ? ddStyleOf(group) : 'auto', ddSize: group ? ddSizeOf(group) : 'md', ddRing: group ? ddRingOf(group) : '2', ddPanel: group ? ddPanelOf(group) : '240', label: area === 'system' ? 'הגדרות' : area === 'multimedia' ? 'מולטימדיה' : 'לשוניות' };
   }
 
   /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control - at the head of the page on a

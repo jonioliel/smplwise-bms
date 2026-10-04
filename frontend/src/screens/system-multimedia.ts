@@ -9,7 +9,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './system-multimedia-players';
 import { ApiError, describeError, patch } from '../api/client';
-import { can, isApi } from '../api/session';
+import { can, isApi, session } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
 import { applyMultimediaHidden } from '../shell/nav';
 import { SECTION_LABEL, media, type KeyId, type MediaKind, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
@@ -18,6 +18,8 @@ import {
   type AdminDevice, type AdminDevicePatch, type AdminList,
 } from '../api/media-admin';
 import { SkinController } from '../design/skin';
+import { adminTable, mediaAdminListCss } from './media-admin-list';
+import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
@@ -55,9 +57,11 @@ export class SystemMultimedia extends LitElement {
   @state() private note = '';
   @state() private saved = '';
   @state() private open = new Set<string>();
+  @state() private editing = new Set<string>();
+  @state() private view: ListView = { ...DEFAULT_VIEW };
   private noteTimer = 0;
 
-  static styles = [css`
+  static styles = [mediaAdminListCss, css`
     :host {
       display: block;
     }
@@ -103,11 +107,7 @@ export class SystemMultimedia extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 12px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    .dev:last-child {
-      border-block-end: 0;
+      padding: 8px 0 0;
     }
     .line {
       display: flex;
@@ -124,6 +124,10 @@ export class SystemMultimedia extends LitElement {
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it (the profile select's
+         longest option, "זיהוי אוטומטי · ...", is wider than a 320 px phone's row) */
+      max-inline-size: 100%;
+      min-inline-size: 0;
     }
     .f.inline {
       flex-direction: row;
@@ -144,9 +148,14 @@ export class SystemMultimedia extends LitElement {
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
+      max-inline-size: 100%;
+    }
+    select {
+      max-inline-size: 100%;
+      min-inline-size: 0;
     }
     input[type='text'] {
-      min-inline-size: 200px;
+      min-inline-size: min(200px, 100%);
     }
     input[type='number'] {
       inline-size: 88px;
@@ -248,6 +257,7 @@ export class SystemMultimedia extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.view = loadView('screens', session.me?.user.id ?? '');
     void this.load();
   }
 
@@ -370,12 +380,42 @@ export class SystemMultimedia extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ render
 
-  private deviceRow(d: AdminDevice): TemplateResult {
+  // ------------------------------------------------------------------------------------------------ the list
+
+  private setView = (v: ListView) => {
+    this.view = v;
+    saveView('screens', session.me?.user.id ?? '', v);
+  };
+
+  private toggle(set: 'open' | 'editing', key: string) {
+    const s = new Set(this[set]);
+    if (!s.delete(key)) s.add(key);
+    this[set] = s;
+  }
+
+  private async copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.say('הועתק');
+    } catch {
+      this.say('ההעתקה נחסמה בדפדפן');
+    }
+  }
+
+  private table(screens: AdminDevice[]): TemplateResult {
+    return adminTable({
+      scope: 'screens', devices: screens, view: this.view, editing: this.editing, endpoints: this.open, saved: this.saved,
+      form: (d) => this.form(d), connections: (d) => this.connections(d), typeLabel: (d) => KIND_LABEL[d.kind as MediaKind] ?? d.kind,
+      onView: this.setView, onEdit: (k) => this.toggle('editing', k), onEndpoints: (k) => this.toggle('open', k),
+      onApprove: (d, on) => void this.updateDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: 'לא זוהו מסכים.',
+    });
+  }
+
+  /** The full form of one screen: it opens under the row (the list shows the compact row; every field and action below is unchanged). */
+  private form(d: AdminDevice): TemplateResult {
     const receivers = this.list.devices.filter((x) => x.key !== d.key && (x.kind === 'receiver' || x.kind === 'speaker'));
-    const open = this.open.has(d.key);
-    const visibleEps = d.endpoints.length;
     const extra = d.model_key_options ? EXTRA_KEYS.filter((k) => d.model_key_options!.includes(k.id)) : EXTRA_KEYS;
-    return html`<div class="dev" data-mm-admin-device=${d.key}>
+    return html`<div class="dev" data-mm-form=${d.key}>
       <div class="line">
         <label class="f">שם
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.updateDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
@@ -388,8 +428,6 @@ export class SystemMultimedia extends LitElement {
         <span class="f">זיהוי<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
         <span class="f">מיקום<span>${[d.floor_name, d.area_name].filter(Boolean).join(' › ') || '—'}</span></span>
         <span class="grow"></span>
-        ${this.saved === d.key ? html`<span class="ok" role="status">נשמר</span>` : nothing}
-        <label class="f inline">מאושר<sw-toggle label=${`מאושר: ${d.name}`} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { approved: e.detail.checked })}></sw-toggle></label>
       </div>
       <div class="line">
         <label class="f inline">מסך ציבורי<sw-toggle label=${`מסך ציבורי: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
@@ -418,8 +456,12 @@ export class SystemMultimedia extends LitElement {
       </div>
       ${d.also_turns_on.length ? html`<div class="muted" data-mm-also>גם מדליק: ${d.also_turns_on.join(', ')}</div>` : nothing}
       ${d.kind === 'screen' && d.profile !== 'generic' && extra.length ? html`<div class="line" data-mm-extra-keys=${d.key}><span class="f">מקשים נוספים למסך זה</span>${extra.map((k) => html`<label class="f inline"><input type="checkbox" .checked=${d.model_keys.includes(k.id)} @change=${(e: Event) => void this.updateDevice(d, { model_keys: extra.filter((x) => (x.id === k.id ? (e.target as HTMLInputElement).checked : d.model_keys.includes(x.id))).map((x) => x.id) })} />${k.label}</label>`)}</div>` : nothing}
-      <div><button type="button" class="link" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(open)} @click=${() => { const s = new Set(this.open); if (open) s.delete(d.key); else s.add(d.key); this.open = s; }}>חיבורים (${visibleEps}) ${open ? '▴' : '◂'}</button></div>
-      ${open ? html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
+    </div>`;
+  }
+
+
+  private connections(d: AdminDevice): TemplateResult {
+    return html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
         <span class="mono">${e.platform}</span>
         <span>${ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
         <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.map((c) => CONTROL_LABEL[c]).join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
@@ -428,8 +470,7 @@ export class SystemMultimedia extends LitElement {
             : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>התעלם</sw-button>
               ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>פצל</sw-button>` : nothing}`}
         </span>
-      </div>`)}</div>` : nothing}
-    </div>`;
+      </div>`)}</div>`;
   }
 
   private suggestions(): TemplateResult | typeof nothing {
@@ -478,7 +519,7 @@ export class SystemMultimedia extends LitElement {
         <sw-card heading="מסכים" data-mm-devices>
           <div class="row"><span class="muted">רק מסכים מאושרים מופיעים ב"מולטימדיה".</span>
             <sw-button size="sm" variant="primary" icon="check" data-mm-approve-all ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל המסכים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
-          ${screens.length ? screens.map((d) => this.deviceRow(d)) : html`<div class="muted" data-mm-none>לא זוהו מסכים.</div>`}
+          ${this.table(screens)}
         </sw-card>
         ${this.suggestions()}
         ${this.remoteCard()}

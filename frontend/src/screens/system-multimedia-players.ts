@@ -13,7 +13,7 @@ import type { MediaPresetEditor } from '../components/media-preset-editor';
 import { draftOf } from '../components/media-preset-editor';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa } from '../api/ha';
-import { can, isApi } from '../api/session';
+import { can, isApi, session } from '../api/session';
 import {
   CONFIDENCE_LABEL, ANY_KIND_LABEL, ROLE_LABEL, adminAreas, mediaAdmin,
   type AdminDevice, type AdminDevicePatch,
@@ -24,6 +24,8 @@ import {
 } from '../api/media-players';
 import { DEFAULT_NIGHT, parseCeiling, parseNight, presetFloors, presetRooms } from './multimedia-players-layout';
 import { SkinController } from '../design/skin';
+import { adminTable, mediaAdminListCss } from './media-admin-list';
+import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -75,6 +77,8 @@ export class SystemMultimediaPlayers extends LitElement {
   @state() private favLists: FavLists = EMPTY_FAVS;
   @state() private areas: { id: string; name: string; floor_name: string | null }[] = [];
   @state() private open = new Set<string>();
+  @state() private editing = new Set<string>();
+  @state() private view: ListView = { ...DEFAULT_VIEW };
   @state() private npOpen = false;
   @state() private saved = '';
   @state() private error = '';
@@ -85,7 +89,7 @@ export class SystemMultimediaPlayers extends LitElement {
   private noteTimer = 0;
   private offPush: (() => void) | null = null;
 
-  static styles = [css`
+  static styles = [mediaAdminListCss, css`
     :host {
       display: contents;
     }
@@ -126,11 +130,7 @@ export class SystemMultimediaPlayers extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 12px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    .dev:last-child {
-      border-block-end: 0;
+      padding: 8px 0 0;
     }
     .line {
       display: flex;
@@ -147,6 +147,9 @@ export class SystemMultimediaPlayers extends LitElement {
       gap: 3px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      /* 0.1.162: the form opens inside the list's padded detail row; a field never grows past it on a phone */
+      max-inline-size: 100%;
+      min-inline-size: 0;
     }
     .f.inline {
       flex-direction: row;
@@ -168,6 +171,10 @@ export class SystemMultimediaPlayers extends LitElement {
       color: var(--sw-text);
       font: inherit;
       font-size: var(--sw-fs-sm);
+    }
+    select {
+      max-inline-size: 100%;
+      min-inline-size: 0;
     }
     input[type='text'] {
       min-inline-size: 200px;
@@ -281,6 +288,7 @@ export class SystemMultimediaPlayers extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.view = loadView('players', session.me?.user.id ?? '');
     void this.load();
     if (isApi()) this.offPush = subscribeHa((m) => { if (m.type === 'media_groups_changed') void this.loadGroups(); });
   }
@@ -459,20 +467,59 @@ export class SystemMultimediaPlayers extends LitElement {
 
   // ------------------------------------------------------------------------------------------------ render
 
-  private deviceRow(d: AdminDevice): TemplateResult {
-    const open = this.open.has(d.key);
+  // ------------------------------------------------------------------------------------------------ the list
+
+  private setView = (v: ListView) => {
+    this.view = v;
+    saveView('players', session.me?.user.id ?? '', v);
+  };
+
+  private toggle(set: 'open' | 'editing', key: string) {
+    const s = new Set(this[set]);
+    if (!s.delete(key)) s.add(key);
+    this[set] = s;
+  }
+
+  private async copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.say('הועתק');
+    } catch {
+      this.say('ההעתקה נחסמה בדפדפן');
+    }
+  }
+
+  /** Availability: the live read when there is one (`unavailable` is the only "not available"), else what the settings list says. */
+  private liveAvail = (key: string): boolean | null => {
+    const l = this.live.get(key);
+    return l ? l.live.power !== 'unavailable' : null;
+  };
+
+  private table(ds: AdminDevice[]): TemplateResult {
+    return adminTable({
+      scope: 'players', devices: ds, view: this.view, live: this.liveAvail, editing: this.editing, endpoints: this.open, saved: this.saved,
+      status: (d, f) => {
+        const p = this.live.get(d.key)?.live.power;
+        return p === 'unavailable' ? { kind: 'stale', label: 'לא זמין' } : p === 'off' ? { kind: 'neutral', label: 'כבוי' } : f.available === null ? null : f.available ? { kind: 'ok', label: 'זמין' } : { kind: 'stale', label: 'לא זמין' };
+      },
+      form: (d) => this.form(d), connections: (d) => this.connections(d), typeLabel: (d) => ANY_KIND_LABEL[d.kind as keyof typeof ANY_KIND_LABEL] ?? d.kind,
+      onView: this.setView, onEdit: (k) => this.toggle('editing', k), onEndpoints: (k) => this.toggle('open', k),
+      onApprove: (d, on) => void this.patchDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: 'לא זוהו נגנים.',
+    });
+  }
+
+  /** The full form of one device: it opens under the row (the list shows the compact row; every field and action below is unchanged). */
+  private form(d: AdminDevice): TemplateResult {
     const amps = this.devices.filter((x) => x.key !== d.key && x.kind === 'receiver');
-    const live = this.live.get(d.key);
     const night = d.volume_night ?? null;
     const place = [d.floor_name, d.area_name].filter(Boolean).join(' › ');
     const unplaced = (d.area_id ?? null) === null && !d.area_name;
-    const state = live?.live.power === 'unavailable' ? html`<sw-badge kind="stale" label="לא זמין"></sw-badge>` : live?.live.power === 'off' ? html`<sw-badge kind="neutral" label="כבוי"></sw-badge>` : live ? html`<sw-badge kind="ok" label="זמין"></sw-badge>` : nothing;
     const nightPatch = (patch: Partial<NonNullable<AdminDevice['volume_night']>>) => {
       const cur = night ?? DEFAULT_NIGHT;
       const next = parseNight(patch.from ?? cur.from, patch.to ?? cur.to, String(patch.max ?? cur.max));
       if (next) void this.patchDevice(d, { volume_night: next });
     };
-    return html`<div class="dev" data-mm-admin-device=${d.key}>
+    return html`<div class="dev" data-mm-form=${d.key}>
       <div class="line">
         <label class="f">שם
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.patchDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
@@ -490,10 +537,7 @@ export class SystemMultimediaPlayers extends LitElement {
             : html`<span data-mm-place=${d.key}>${place || 'ללא חדר'}</span>`}
         </label>
         ${d.zones?.length ? html`<span class="f">אזורים<span>${d.zones.map((z) => z.name).join(' · ')}</span></span>` : nothing}
-        <span class="f">מצב${state}</span>
         <span class="grow"></span>
-        ${this.saved === d.key ? html`<span class="ok" role="status">נשמר</span>` : nothing}
-        <label class="f inline">מאושר<sw-toggle label=${`מאושר: ${d.name}`} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { approved: e.detail.checked })}></sw-toggle></label>
       </div>
       <div class="line">
         ${d.kind !== 'receiver' && d.kind !== 'group' ? html`<label class="f">מגבר מקושר
@@ -514,9 +558,12 @@ export class SystemMultimediaPlayers extends LitElement {
           </span>
         </span>
       </div>
-      <div><button type="button" class="link" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(open)} @click=${() => { const s = new Set(this.open); if (open) s.delete(d.key); else s.add(d.key); this.open = s; }}>חיבורים (${d.endpoints.length}) ${open ? '▴' : '◂'}</button>
-        ${d.music_provider && d.music_provider !== 'none' ? html`<span class="muted"> · שכבת המוזיקה: ${PROVIDER_LABEL[d.music_provider]}</span>` : nothing}</div>
-      ${open ? html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
+    </div>`;
+  }
+
+
+  private connections(d: AdminDevice): TemplateResult {
+    return html`<div data-mm-endpoints=${d.key}>${d.music_provider && d.music_provider !== 'none' ? html`<div class="muted">שכבת המוזיקה: ${PROVIDER_LABEL[d.music_provider]}</div>` : nothing}${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
         <span class="mono">${e.platform}</span>
         <span>${ROLE_EXTRA[e.role] ?? ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
         <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
@@ -525,8 +572,7 @@ export class SystemMultimediaPlayers extends LitElement {
             : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>התעלם</sw-button>
               ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>פצל</sw-button>` : nothing}`}
         </span>
-      </div>`)}</div>` : nothing}
-    </div>`;
+      </div>`)}</div>`;
   }
 
   private playersCard(): TemplateResult | typeof nothing {
@@ -541,7 +587,7 @@ export class SystemMultimediaPlayers extends LitElement {
       <div class="hd"><span class="muted" data-mm-players-count>${counts}</span><span class="grow" style="flex:1"></span>
         <sw-button size="sm" variant="primary" icon="check" data-mm-approve-players ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל הנגנים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
       <div class="muted">רק נגנים מאושרים מופיעים ב"מולטימדיה". תקרת עוצמה וחלון לילה חלים רק כשהוגדרו.</div>
-      ${ds.map((d) => this.deviceRow(d))}
+      ${this.table(ds)}
     </sw-card>`;
   }
 

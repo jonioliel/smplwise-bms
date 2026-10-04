@@ -58,6 +58,11 @@ export interface AdminDevice {
   model_keys: KeyId[];
   /** The keys the server accepts in `model_keys` for this profile (absent in the static demo: every extra key is offered). */
   model_key_options?: KeyId[];
+  /** 0.1.162 (settings lists): the registry platforms of the device's endpoints (sorted), the platform's device id (null when the registry has none) and whether any
+   * of its media players answers. Absent in the static demo: the list derives the integrations from `endpoints` and shows no availability. */
+  integrations?: string[];
+  ha_device_id?: string | null;
+  available?: boolean;
   /** Read-only: what else turns this screen on (an integration's own sync), by name. */
   also_turns_on: string[];
   endpoints: AdminEndpoint[];

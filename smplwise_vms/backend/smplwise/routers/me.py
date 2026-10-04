@@ -96,6 +96,12 @@ class PrefsPatch(BaseModel):
     ui_dd_style: str | None = Field(default=None, alias="ui.dd_style")  # release 0.1.157: auto | pill | field | underline | text | prefix | tonal (services/dd_style.py); null = follow the installation
     ui_dd_phone: str | None = Field(default=None, alias="ui.dd_phone")  # owner 2026-10-03: sheet | list, how a dropdown opens on a phone (services/dd_style.py); null = follow the installation
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # the same per tab group
+    ui_dd_size: str | None = Field(default=None, alias="ui.dd_size")  # Unreleased: sm | md | lg, the size of a dropdown (services/dd_style.py); null = follow the installation
+    ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # the same per tab group
+    ui_dd_ring: str | None = Field(default=None, alias="ui.dd_ring")  # Unreleased: 1 | 1.5 | 2 | 3 px ring thickness, capsule style only (services/dd_style.py); null = follow the installation
+    ui_dd_ring_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_ring_groups")  # the same per tab group
+    ui_dd_panel: str | None = Field(default=None, alias="ui.dd_panel")  # Unreleased: button | 240 | 300, open-panel width, capsule style only; null = follow the installation
+    ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # the same per tab group
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)

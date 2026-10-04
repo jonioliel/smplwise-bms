@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-dialog';
@@ -18,6 +19,7 @@ import { applySchedulesHidden } from '../shell/nav';
 import { demoStore } from '../api/schedules-mock';
 import {
   ALL_CLASSES,
+  ALLOW_DISARM_WORD,
   CLASS_LABEL,
   SCHEDULE_SETTINGS_DEFAULT,
   SENSITIVE_CLASSES,
@@ -46,14 +48,23 @@ const CLASS_DOMAIN: Record<ScheduleClass, string> = {
   alarm: 'alarm_control_panel',
   lock: 'lock',
   door: 'cover · door layer',
+  script: 'script',
+  scene: 'scene',
+  helper: 'input_boolean · input_number · input_select',
+  humidifier: 'humidifier',
+  vacuum: 'vacuum',
 };
 
 const CLASS_NOTE: Partial<Record<ScheduleClass, string>> = {
   switch: 'רק מתגים שסומנו "בטוחים להפעלה מרוכזת"',
   cover: 'לא שערים, דלתות ומה שמסומן בשכבת הדלתות',
-  alarm: 'דריכה ונטרול; דורש הרשאה לתזמון פעולות רגישות',
+  alarm: 'דריכה; נטרול רק כשמנהל מערכת אפשר אותו למטה; דורש הרשאה לתזמון פעולות רגישות',
   lock: 'נעילה ופתיחה; דורש הרשאה לתזמון פעולות רגישות',
   door: 'דלתות ושערים; דורש הרשאה לתזמון פעולות רגישות',
+  script: 'כל סקריפט, כולל סקריפט אזעקה; סקריפט שמפעיל אזעקה, מנעול או דלת דורש את אותן הרשאות',
+  scene: 'הפעלת סצנה',
+  humidifier: 'רק מה שההתקן מדווח שהוא תומך בו',
+  vacuum: 'התחלת ניקוי וחזרה לעמדה, לפי מה שהשואב תומך',
 };
 
 const REPEAT_OPTIONS: { value: RepeatType; label: string }[] = [
@@ -351,6 +362,41 @@ export class SystemSchedules extends LitElement {
     this.patch({ classes: ALL_CLASSES.filter((x) => set.has(x)) });
   }
 
+  @state() private disarmAsk = false;
+  @state() private disarmWord = '';
+
+  /** `schedules.allow_disarm` is saved on its own (a system administrator's typed decision, audited on its own row): switching it on
+   * asks for the word first; switching it off needs none. */
+  private async setAllowDisarm(on: boolean, word = '') {
+    this.busy = true;
+    this.error = '';
+    try {
+      const to = await saveScheduleSettings(this.saved, { ...this.saved, allowDisarm: on }, word);
+      this.saved = { ...this.saved, allowDisarm: to.allowDisarm };
+      this.draft = { ...this.draft, allowDisarm: to.allowDisarm };
+      this.disarmAsk = false;
+      this.disarmWord = '';
+      this.note = on ? 'נטרול אזעקה בתזמונים אופשר.' : 'נטרול אזעקה בתזמונים נחסם.';
+      window.clearTimeout(this.noteTimer);
+      this.noteTimer = window.setTimeout(() => (this.note = ''), 4000);
+    } catch (err) {
+      this.error = scheduleErrorText(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderDisarm() {
+    const on = this.saved.allowDisarm;
+    return html`<sw-card heading="נטרול אזעקה בתזמונים" data-sched-disarm>
+      <div class="row">
+        <span class="lbl">תזמון שמנטרל לוח אזעקה ישירות<span class="muted">${on ? 'מאופשר. נטרול שדורש קוד לעולם אינו ניתן לתזמון.' : 'חסום (ברירת המחדל). סקריפט אזעקה הוא סקריפט רגיל.'}</span></span>
+        <span style="display:flex;gap:10px;align-items:center"><sw-badge kind="stale" label="רגיש"></sw-badge><sw-toggle label="נטרול אזעקה בתזמונים" labelHidden .checked=${live(on)} ?disabled=${this.busy} data-allow-disarm
+          @change=${(e: CustomEvent<{ checked: boolean }>) => { if (e.detail.checked) { this.disarmAsk = true; this.requestUpdate(); } else void this.setAllowDisarm(false); }}></sw-toggle></span>
+      </div>
+    </sw-card>`;
+  }
+
   private async save(force: boolean) {
     this.busy = true;
     this.error = '';
@@ -476,8 +522,16 @@ export class SystemSchedules extends LitElement {
             <sw-button slot="footer" variant="primary" data-sensor-force @click=${() => void this.save(true)}>כן, להשתמש בו</sw-button>
           </sw-dialog>`
         : nothing}
+      ${this.disarmAsk
+        ? html`<sw-dialog open heading="לאפשר נטרול אזעקה בתזמונים?" data-disarm-confirm @close=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>
+            <p style="margin:0 0 10px;font-size:var(--sw-fs-sm)">תזמון יוכל לנטרל לוח אזעקה בלי שאיש נמצא במקום. רק מנהל מערכת, נרשם ביומן. להמשך הקלידו <b>${ALLOW_DISARM_WORD}</b></p>
+            <sw-field><input aria-label="אישור מוקלד" data-disarm-word .value=${this.disarmWord} @input=${(e: Event) => (this.disarmWord = (e.target as HTMLInputElement).value)} /></sw-field>
+            <sw-button slot="footer" variant="ghost" data-disarm-cancel @click=${() => { this.disarmAsk = false; this.disarmWord = ''; }}>ביטול</sw-button>
+            <sw-button slot="footer" variant="danger" data-disarm-ok ?disabled=${this.disarmWord.trim() !== ALLOW_DISARM_WORD || this.busy} @click=${() => void this.setAllowDisarm(true, this.disarmWord)}>אפשר</sw-button>
+          </sw-dialog>`
+        : nothing}
       <div class="cols">
-        <div class="col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}</div>
+        <div class="col">${this.renderConnection(s)}${this.renderOperation()}${this.renderClasses()}${this.renderDisarm()}</div>
         <div class="col">${this.renderDefaults()}${this.renderRoles()}</div>
       </div>
       ${this.dirty || this.note || this.error

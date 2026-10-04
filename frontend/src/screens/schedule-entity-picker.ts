@@ -15,7 +15,10 @@ import { CLASS_LABEL, getScheduleCatalog, type CatalogEntity, type ScheduleClass
  *   close
  */
 
-const CLASS_ICON: Record<ScheduleClass, IconName> = { light: 'light', switch: 'power', cover: 'coverOpen', climate: 'activity', fan: 'aperture', alarm: 'shield', lock: 'lock', door: 'door' };
+const CLASS_ICON: Record<ScheduleClass, IconName> = {
+  light: 'light', switch: 'power', cover: 'coverOpen', climate: 'activity', fan: 'aperture', alarm: 'shield', lock: 'lock', door: 'door',
+  script: 'route', scene: 'sparkle', helper: 'power', humidifier: 'thermometer', vacuum: 'move',
+};
 
 @customElement('schedule-entity-picker')
 export class ScheduleEntityPicker extends LitElement {

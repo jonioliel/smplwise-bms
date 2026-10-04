@@ -140,6 +140,10 @@ def test_restore_is_judged_under_the_current_rules(sched_app):
 
 def test_an_unsupported_schedule_cannot_be_restored_through_arx(sched_app):
     app, s, c, fake, tr = sched_app
+    for it in fake.items.values():  # the live pattern 7 holds a script (modelled since 2026-10-04): make it content Arx truly cannot model
+        if it["name"] == "":
+            it["timeslots"][0]["actions"] = [{"service": "notify.notify", "entity_id": None, "service_data": {"message": "hi"}}]
+    schedules.MIRROR.pull(None, "t")
     unnamed = next(s_ for s_ in c.get(f"{API}/schedules", params={"limit": 500}).json()["items"] if s_["name"] is None or s_["name"] == "")
     out = _delete(c, unnamed)  # the safety valve: an installation-wide manager may delete it
     r = post_json(c, f"/schedules/trash/{out['trash_id']}/restore", {"client_request_id": rid()})
@@ -323,7 +327,7 @@ def test_the_review_lists_what_needs_an_administrator(sched_app):
     assert {i["schedule"]["name"]: i["issues"] for i in c.get(f"{API}/schedules/review").json()["items"]}["Editor made"] == ["owner_inactive"]
     # external + sensitive = no owner; a stored code; unsupported content; an alarm that may need a code
     review = {i["schedule"]["name"] or "": i["issues"] for i in c.get(f"{API}/schedules/review").json()["items"]}
-    assert "no_owner_sensitive" in review["Gate"] and "no_owner_sensitive" in review["Arm the home panel"] and review[""] == ["unsupported_content"]
+    assert "no_owner_sensitive" in review["Gate"] and "no_owner_sensitive" in review["Arm the home panel"] and review[""] == ["action_invalid"]  # 2026-10-04: pattern 7 is a script whose entity is gone
     assert "Living room cooling on rest days" not in review and "Office light on weekdays" not in review  # external but not sensitive: nothing to review
     sid = next(i for i, it in fake.items.items() if it["name"] == "Hall lights on rest days")
     fake.items[sid]["timeslots"][0]["actions"][0]["service_data"]["code"] = "8642"

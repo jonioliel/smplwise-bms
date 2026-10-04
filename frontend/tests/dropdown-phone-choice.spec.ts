@@ -194,7 +194,7 @@ test.describe('the setting in the Settings screen', () => {
 });
 
 test.describe('what the setting does at phone, tablet and desktop widths', () => {
-  const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal'] as const;
+  const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal', 'capsule'] as const;
 
   test('phone + sheet: auto and the six styles open a bottom sheet (full width, at the bottom, handle + title, 48 px options)', async ({ page }) => {
     await stage(page, fresh(), { width: 390 });
