@@ -218,7 +218,7 @@ export class DevicesAreaNav extends LitElement {
   /** 0.1.153: the areas of the floor in their dropdown form are drawn by the shell, beside the page chip of the home area (shell/tab-pair.ts). */
   protected updated() {
     if (this.areaChipInShell()) {
-      publishPairChip(this, { group: 'home', label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
+      publishPairChip(this, { group: 'home', label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities, icon: 'door' as const })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
     } else clearPairChip(this);
   }
 

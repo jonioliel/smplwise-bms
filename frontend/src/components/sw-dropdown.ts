@@ -8,8 +8,8 @@ import type { IconName } from './sw-icon';
  * skin's resting style; nothing changes until a style is chosen). The styles live HERE, not in the skins: tokens only, so the four
  * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
  */
-import { DD_STYLE_IDS, type DdStyle } from './dd-style';
-export { DD_STYLE_IDS, type DdStyle };
+import { DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle } from './dd-style';
+export { DD_SIZE_IDS, DD_STYLE_IDS, type DdSize, type DdStyle };
 /** A list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items). */
 export const DD_SEARCH_MIN_ITEMS = 8;
 type Present = 'pop' | 'sheet' | 'centred' | 'inline';
@@ -25,7 +25,14 @@ export interface DropdownItem {
   group?: string;
   /** Where choosing it lands, for a list that navigates (a link target; the host handles it on `change`). */
   href?: string;
+  /** Unreleased (`capsule` style): an icon at the start of the option (and on the chip while selected, when the chip has no icon of its own). Other styles ignore it. */
+  icon?: IconName;
+  /** A separator line instead of an option (`capsule` style; the other styles skip it). Never selectable, never counted, skipped by the keys and the search. */
+  divider?: boolean;
 }
+
+/** An item that can be chosen (not a divider). */
+const isOption = (it: DropdownItem | undefined): it is DropdownItem => !!it && !it.divider;
 
 /**
  * A compact dropdown for choosing ONE of a list (0.1.153, the tabs presentation modes): a 32 px chip with a 44 px hit area and a
@@ -51,6 +58,8 @@ export class SwDropdown extends LitElement {
   @property({ type: Boolean, reflect: true }) block = false;
   /** 0.1.157: the style (attribute `dd-style`, reflected so the per-style CSS below matches the host); `auto` / unknown = today's look. */
   @property({ attribute: 'dd-style', reflect: true }) ddStyle: DdStyle = 'auto';
+  /** Unreleased: the size (attribute `dd-size`, reflected): `md` = the reference size (and today's size of every other style), `sm` smaller, `lg` bigger. */
+  @property({ attribute: 'dd-size', reflect: true }) ddSize: DdSize = 'md';
   @state() private open = false;
   @state() private cursor = -1;
   @state() private query = '';
@@ -610,6 +619,238 @@ export class SwDropdown extends LitElement {
     :host([dd-style='tonal']) .opt[aria-selected='true'][data-active] {
       box-shadow: inset 0 0 0 1px var(--sw-accent);
     }
+    /* ---- Unreleased: the SIZE dial (dd-size) for the six older styles and auto. md = today's size, nothing changes. The text style keeps its own big title.
+       Row heights never go under the touch dial (44 px by default); the chip's hit area stays 44 px through ::after. ---- */
+    :host([dd-size='sm']:not([dd-style='capsule']):not([dd-style='text'])) .chip {
+      min-block-size: 26px;
+      font-size: var(--sw-fs-xs);
+    }
+    :host([dd-size='sm']:not([dd-style='capsule'])) .chip::after {
+      inset-block: -9px;
+    }
+    :host([dd-size='lg']:not([dd-style='capsule']):not([dd-style='text'])) .chip {
+      min-block-size: 40px;
+      font-size: var(--sw-fs-lg);
+    }
+    :host([dd-size='lg']:not([dd-style='capsule'])) .chip::after {
+      inset-block: -2px;
+    }
+    :host([dd-size='sm']:not([dd-style='capsule'])) .opt {
+      min-block-size: max(40px, var(--sw-touch-desktop, 44px));
+      font-size: var(--sw-fs-xs);
+    }
+    :host([dd-size='lg']:not([dd-style='capsule'])) .opt {
+      min-block-size: 52px;
+      font-size: var(--sw-fs-md);
+    }
+    /* ---- Unreleased: capsule (owner reference 2026-10-04). Closed: a capsule with a blue ring, a white-to-lavender fill, a soft bottom shadow, an icon at the
+       start, a confident label and a small chevron at the end (RTL: icon right, chevron left; the chevron turns up while open). Open: a floating, rounded,
+       translucent panel; the chosen row is a tinted row in the accent colour; every row has its icon at the start and a COUNT at the other end; a divider item
+       draws a thin line. The visible capsule is the chip's ::before (so a small one still has a 44 px hit box on touch and on the 44 px desktop dial).
+       Tokens only: four skins, ten palettes, light / dark, radius / touch / performance dials. The sizes are the --_c* variables. ---- */
+    :host([dd-style='capsule']) {
+      --_ch: 46px;
+      --_cfs: 16px;
+      --_cico: 20px;
+      --_copt: 52px;
+      --_cpad: 8px;
+      --_cpanel: 18px;
+      --_crow: 14px;
+      --_cminw: 180px;
+      --_cgap: 10px;
+      --_cchev: 16px;
+      --_cpscale: 1.3;
+    }
+    :host([dd-style='capsule'][dd-size='sm']) {
+      --_ch: 38px;
+      --_cfs: 14px;
+      --_cico: 17px;
+      --_copt: 44px;
+      --_cpad: 6px;
+      --_cpanel: 16px;
+      --_crow: 12px;
+      --_cminw: 150px;
+      --_cgap: 8px;
+      --_cchev: 14px;
+      --_cpscale: 1.15;
+    }
+    :host([dd-style='capsule'][dd-size='lg']) {
+      --_ch: 58px;
+      --_cfs: 18px;
+      --_cico: 24px;
+      --_copt: 62px;
+      --_cpad: 10px;
+      --_cpanel: 22px;
+      --_crow: 16px;
+      --_cminw: 220px;
+      --_cgap: 12px;
+      --_cchev: 18px;
+      --_cpscale: 1.6;
+    }
+    :host([dd-style='capsule']:not([block])) .chip {
+      min-inline-size: var(--_cminw);
+    }
+    :host([dd-style='capsule']) .chip {
+      position: relative;
+      isolation: isolate;
+      min-block-size: max(var(--_ch), var(--sw-touch-desktop, 44px));
+      gap: var(--_cgap);
+      padding-inline: calc(var(--_ch) * 0.36) calc(var(--_ch) * 0.3);
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: none;
+      box-shadow: none;
+      color: var(--sw-dd-text, var(--sw-text));
+      font-size: var(--_cfs);
+      font-weight: var(--sw-fw-semibold, 600);
+    }
+    @media (max-width: 1100px), (pointer: coarse) {
+      :host([dd-style='capsule']) .chip {
+        min-block-size: max(var(--_ch), 44px);
+      }
+    }
+    :host([dd-style='capsule']) .chip::after {
+      inset-block: 0;
+      inset-inline: 0;
+    }
+    :host([dd-style='capsule']) .chip::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset-inline: 0;
+      inset-block-start: 50%;
+      block-size: var(--_ch);
+      transform: translateY(-50%);
+      box-sizing: border-box;
+      border: 2px solid var(--sw-dd-accent, var(--sw-accent));
+      border-radius: var(--sw-r-pill);
+      background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 11%, var(--sw-surface-solid)) 100%);
+      box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--sw-accent) 42%, transparent), 0 1px 2px color-mix(in srgb, var(--sw-text) 10%, transparent);
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease), background var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([dd-style='capsule']) .chip:hover::before {
+      background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 17%, var(--sw-surface-solid)) 100%);
+    }
+    :host([dd-style='capsule']) .chip:focus-visible {
+      outline: none;
+    }
+    :host([dd-style='capsule']) .chip:focus-visible::before,
+    :host([dd-style='capsule']) .chip[aria-expanded='true']::before {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--sw-accent) 24%, transparent), 0 4px 10px -4px color-mix(in srgb, var(--sw-accent) 45%, transparent);
+    }
+    :host([dd-style='capsule']) .chip .ci {
+      flex: none;
+      display: inline-flex;
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([dd-style='capsule']) .chip .txt {
+      flex: 1 1 auto;
+      text-align: start;
+    }
+    :host([dd-style='capsule']) .chip .n {
+      display: none;
+    }
+    :host([dd-style='capsule']) .chip .chev {
+      color: var(--sw-text-2, var(--sw-text-3));
+    }
+    :host([dd-style='capsule']) .chip .dot {
+      inset-block-start: calc(50% - var(--_ch) / 2 - 2px);
+    }
+    :host([dd-style='capsule']) .pop:not(.sheet):not(.centred) {
+      border-radius: clamp(8px, calc(var(--sw-r-lg) * var(--_cpscale)), var(--_cpanel));
+    }
+    :host([dd-style='capsule']) .pop {
+      border: 0;
+      background: var(--sw-dd-pop-bg, var(--sw-perf-glass-bg, color-mix(in srgb, var(--sw-surface-solid) 80%, transparent)));
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(28px) saturate(1.6));
+      backdrop-filter: var(--sw-perf-blur, blur(28px) saturate(1.6));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--sw-border) 75%, transparent), 0 26px 56px -18px color-mix(in srgb, var(--sw-text) 34%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--sw-text) 18%, transparent);
+    }
+    :host([dd-style='capsule']) .lb {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--_cpad);
+    }
+    :host([dd-style='capsule']) .search {
+      margin: var(--_cpad) var(--_cpad) 0;
+      border-radius: var(--sw-r-pill);
+    }
+    :host([dd-style='capsule']) .grp {
+      padding-inline: calc(var(--_copt) * 0.28);
+    }
+    :host([dd-style='capsule']) .opt {
+      flex: none;
+      min-block-size: var(--_copt);
+      padding-inline: calc(var(--_copt) * 0.28);
+      gap: calc(var(--_copt) * 0.24);
+      border-radius: clamp(6px, calc(var(--sw-r-md) * 1.2), var(--_crow));
+      font-size: var(--_cfs);
+      font-weight: var(--sw-fw-medium, 500);
+      color: var(--sw-dd-text, var(--sw-text));
+    }
+    :host([dd-style='capsule']) .pop.sheet .opt,
+    :host([dd-style='capsule']) .pop.centred .opt {
+      min-block-size: max(var(--_copt), 48px);
+    }
+    :host([dd-style='capsule']) .opt[data-active] {
+      background: color-mix(in srgb, var(--sw-text) 6%, transparent);
+    }
+    :host([dd-style='capsule']) .opt[aria-selected='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+      color: var(--sw-accent-text, var(--sw-accent));
+      font-weight: var(--sw-fw-semibold, 600);
+    }
+    :host([dd-style='capsule']) .opt[aria-selected='true'][data-active] {
+      background: color-mix(in srgb, var(--sw-accent) 20%, transparent);
+    }
+    :host([dd-style='capsule']) .opt .n {
+      display: none;
+    }
+    :host([dd-style='capsule']) .opt .oi {
+      display: inline-flex;
+      flex: none;
+      inline-size: var(--_cico);
+      justify-content: center;
+      color: var(--sw-text-3);
+    }
+    :host([dd-style='capsule']) .opt[aria-selected='true'] .oi,
+    :host([dd-style='capsule']) .opt[aria-selected='true'] .cnt {
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([dd-style='capsule']) .opt .cnt {
+      display: inline-block;
+      flex: none;
+      min-inline-size: 2ch;
+      text-align: end;
+      font-size: 0.94em;
+      font-weight: var(--sw-fw-medium, 500);
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-text-3);
+    }
+    :host([dd-style='capsule']) .sep {
+      display: block;
+      flex: none;
+      block-size: 1px;
+      margin: calc(var(--_cpad) * 0.5) calc(var(--_cpad) * 1.5);
+      background: color-mix(in srgb, var(--sw-text) 11%, transparent);
+    }
+    .oi,
+    .cnt,
+    .sep,
+    .ci {
+      display: none;
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      :host([dd-style='capsule']) .pop {
+        background: var(--sw-surface-solid);
+      }
+    }
+    @media (forced-colors: active) {
+      :host([dd-style='capsule']) .chip::before {
+        border-color: ButtonText;
+      }
+    }
     /* ---- the mockups' per-skin notes (docs/design/compare/dropdown-styles): the list surface and four small exceptions. The skin is mirrored on the host (data-skin). ---- */
     /* classic and Tesla: an opaque list (the base above); Domus: the glass sheet (84 % of the solid surface under the blur); Bubble: its own sheet colour at the transparency dial (skins/bubble.ts) */
     :host([data-skin='domus']:not([dd-style='auto'])) .pop {
@@ -693,6 +934,12 @@ export class SwDropdown extends LitElement {
   /** An unknown `dd-style` string reads as `auto` (the attribute is reflected back as `auto`, so the per-style CSS never matches a stray value). */
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('ddStyle') && !(DD_STYLE_IDS as readonly string[]).includes(this.ddStyle)) this.ddStyle = 'auto';
+    if (changed.has('ddSize') && !(DD_SIZE_IDS as readonly string[]).includes(this.ddSize)) this.ddSize = 'md';
+  }
+
+  /** The icon size (px) of the options and of the chip: the capsule follows the size dial, the other styles keep 15. */
+  private get iconPx(): number {
+    return this.ddStyle === 'capsule' ? ({ sm: 17, md: 20, lg: 24 } as Record<string, number>)[this.ddSize] ?? 20 : 15;
   }
 
   /** How the open list is presented: a popover under the chip on a wide screen. On the phone the owner's setting (`data-dd-phone` on <html>, from
@@ -717,13 +964,13 @@ export class SwDropdown extends LitElement {
     const q = this.query.trim().toLocaleLowerCase();
     const out: number[] = [];
     this.items.forEach((it, i) => {
-      if (!q || it.label.toLocaleLowerCase().includes(q)) out.push(i);
+      if (isOption(it) && (!q || it.label.toLocaleLowerCase().includes(q))) out.push(i);
     });
     return out;
   }
 
   private get hasSearch(): boolean {
-    return this.items.length >= DD_SEARCH_MIN_ITEMS;
+    return this.items.filter(isOption).length >= DD_SEARCH_MIN_ITEMS;
   }
 
   private lbEl(): HTMLElement | null {
@@ -765,20 +1012,26 @@ export class SwDropdown extends LitElement {
     const vh = window.innerHeight;
     const pad = 8;
     const rtl = getComputedStyle(this).direction === 'rtl';
-    const minWidth = Math.min(Math.max(r.width, this.ddStyle === 'text' ? 240 : 200), vw - pad * 2);
+    const capsule = this.ddStyle === 'capsule';
+    const size = this.ddSize;
+    // capsule: the panel is at least as wide as the chip and wider than the other styles' (the reference); rows are taller, the gap larger
+    const floor = capsule ? { sm: 200, md: 240, lg: 280 }[size] : this.ddStyle === 'text' ? 240 : 200;
+    const minWidth = Math.min(Math.max(r.width, floor), vw - pad * 2);
     // anchored to the chip's inline-start edge (the right edge in RTL), then kept inside the viewport
     let left = rtl ? r.right - minWidth : r.left;
     left = Math.max(pad, Math.min(left, vw - pad - minWidth));
-    const below = vh - r.bottom - pad - 4;
-    const above = r.top - pad - 4;
+    const gap = capsule ? 8 : 4;
+    const below = vh - r.bottom - pad - gap;
+    const above = r.top - pad - gap;
     const flip = below < 220 && above > below;
-    const maxHeight = Math.max(160, Math.min(flip ? above : below, 360));
-    const rows = Math.min(this.items.length, 8) * 44 + 16 + (this.hasSearch ? 46 : 0);
-    this.pos = { top: flip ? Math.max(pad, r.top - 4 - Math.min(maxHeight, rows)) : r.bottom + 4, left, minWidth, maxHeight };
+    const rowH = capsule ? { sm: 46, md: 54, lg: 64 }[size] : 44;
+    const maxHeight = Math.max(160, Math.min(flip ? above : below, capsule ? 8 * rowH + 24 : 360));
+    const rows = Math.min(this.items.length, 8) * rowH + 16 + (this.hasSearch ? 46 : 0);
+    this.pos = { top: flip ? Math.max(pad, r.top - gap - Math.min(maxHeight, rows)) : r.bottom + gap, left, minWidth, maxHeight };
   }
 
   private async openList(cursor?: number) {
-    if (this.open || !this.items.length) return;
+    if (this.open || !this.items.some(isOption)) return;
     this.finishClosing();
     this.present = this.presentation();
     if (this.present === 'inline') this.setAttribute('data-present', 'inline');
@@ -787,7 +1040,7 @@ export class SwDropdown extends LitElement {
     this.place();
     this.open = true;
     const sel = this.items.findIndex((i) => i.id === this.value);
-    this.cursor = cursor ?? (sel >= 0 ? sel : 0);
+    this.cursor = cursor ?? (sel >= 0 ? sel : Math.max(0, this.items.findIndex(isOption)));
     await this.updateComplete;
     const pop = this.popEl();
     if (pop) {
@@ -939,7 +1192,7 @@ export class SwDropdown extends LitElement {
 
   private choose(i: number) {
     const it = this.items[i];
-    if (!it) return;
+    if (!isOption(it)) return;
     const changed = it.id !== this.value;
     this.value = it.id;
     this.close(true);
@@ -1058,7 +1311,7 @@ export class SwDropdown extends LitElement {
       const from = cycle || this.typed.length === 1 ? this.cursor + 1 : this.cursor;
       for (let o = 0; o < n; o++) {
         const idx = (from + o) % n;
-        if (this.items[idx].label.toLocaleLowerCase().startsWith(needle)) {
+        if (isOption(this.items[idx]) && this.items[idx].label.toLocaleLowerCase().startsWith(needle)) {
           this.cursor = idx;
           this.scrollToCursor();
           break;
@@ -1076,13 +1329,20 @@ export class SwDropdown extends LitElement {
     let lastGroup: string | undefined;
     const shown = new Set(this.shownIdx());
     if (!shown.size) return [html`<div class="none" role="status" data-dd-none>לא נמצאו תוצאות</div>`];
+    const anyIcon = this.items.some((x) => !!x.icon);
+    const filtering = this.query.trim() !== '';
     this.items.forEach((it, i) => {
+      // a divider is a thin line (capsule only; the CSS hides it elsewhere) and is not drawn while the search narrows the list
+      if (it.divider) {
+        if (!filtering) out.push(html`<div class="sep" role="presentation" aria-hidden="true" data-dd-divider></div>`);
+        return;
+      }
       if (!shown.has(i)) return;
       if (it.group && it.group !== lastGroup) out.push(html`<div class="grp" role="presentation" aria-hidden="true">${it.group}</div>`);
       lastGroup = it.group;
       out.push(html`<div class="opt" role="option" id=${this.optionId(i)} data-id=${it.id} aria-selected=${String(it.id === this.value)} ?data-active=${i === this.cursor}
         @click=${() => this.choose(i)} @pointermove=${() => (this.cursor = i)}>
-        <span class="lbl">${it.label}</span>${it.count !== undefined ? html`<span class="n">(${it.count})</span>` : nothing}${it.alert ? html`<span class="dot ${it.alert === 'warn' ? 'warn' : ''}" data-alert="${it.alert === 'warn' ? 'warn' : 'alert'}"></span>` : nothing}
+        ${anyIcon ? html`<span class="oi" aria-hidden="true">${it.icon ? html`<sw-icon .name=${it.icon} size=${this.iconPx}></sw-icon>` : nothing}</span>` : nothing}<span class="lbl">${it.label}</span>${it.count !== undefined ? html`<span class="n">(${it.count})</span><span class="cnt">${it.count}</span>` : nothing}${it.alert ? html`<span class="dot ${it.alert === 'warn' ? 'warn' : ''}" data-alert="${it.alert === 'warn' ? 'warn' : 'alert'}"></span>` : nothing}
       </div>`);
     });
     return out;
@@ -1104,9 +1364,11 @@ export class SwDropdown extends LitElement {
     const listId = `l-${this.seq}`;
     return html`<button type="button" class="chip" data-dropdown-chip aria-haspopup="listbox" aria-expanded=${String(this.open)} aria-controls=${listId} aria-label=${aria}
         @click=${() => (this.open ? this.close(true) : void this.openList())} @keydown=${(e: KeyboardEvent) => this.onChipKey(e)}>
-        ${this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
+        ${this.ddStyle === 'capsule'
+          ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon ?? sel?.icon ?? 'layers'} size=${this.iconPx}></sw-icon></span>`
+          : this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
         <span class="txt">${sel?.label ?? this.placeholder}</span>${sel?.count !== undefined ? html`<span class="n">(${sel.count})</span>` : nothing}
-        <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${12}></sw-icon></span>
+        <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${this.ddStyle === 'capsule' ? ({ sm: 14, md: 16, lg: 18 } as Record<string, number>)[this.ddSize] ?? 16 : 12}></sw-icon></span>
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}
       </button>
       <div class="pop ${this.present}${this.closing ? ' closing' : ''}" popover=${this.present === 'inline' ? nothing : 'manual'} ?hidden=${!(this.open || this.closing)} data-present=${this.present} @keydown=${(e: KeyboardEvent) => this.onListKey(e)} @click=${(e: MouseEvent) => this.onPopClick(e)}>

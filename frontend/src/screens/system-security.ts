@@ -153,7 +153,7 @@ export class SystemSecurity extends LitElement {
     const current = SECURITY_SETTINGS_TABS.find((t) => t.id === this.sub);
     const items = current && !offered.some((o) => o.id === current.id) ? [...offered, current] : offered;
     return html`${items.length > 1
-        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${this.tabsMode.props(tabStyleOf('system.security')).variant} ?adaptive=${this.tabsMode.props(tabStyleOf('system.security')).adaptive} dd-style=${this.tabsMode.ddStyle} .items=${items} .active=${this.sub}></sw-tabs></div>`
+        ? html`<div class="tabs" data-security-settings-tabs><sw-tabs .variant=${this.tabsMode.props(tabStyleOf('system.security')).variant} ?adaptive=${this.tabsMode.props(tabStyleOf('system.security')).adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} .items=${items} .active=${this.sub}></sw-tabs></div>`
         : nothing}
       ${this.sub === 'alarm'
         ? html`<security-alarm .panelId=${this.panelId}></security-alarm>`

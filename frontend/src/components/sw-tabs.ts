@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
-import type { DdStyle } from './sw-dropdown';
+import type { DdSize, DdStyle } from './sw-dropdown';
+import type { IconName } from './sw-icon';
 
 export interface TabItem {
   id: string;
@@ -10,6 +11,10 @@ export interface TabItem {
   count?: number;
   /** Dropdown presentation only: a dot on the chip while this item is not the selected one (`true` = alert, `'warn'` = attention). */
   alert?: boolean | 'warn';
+  /** Dropdown presentation, capsule style only (Unreleased): an icon at the start of the option; the other looks ignore it. */
+  icon?: IconName;
+  /** Dropdown presentation, capsule style only: a separator line instead of an item (the tab bars and the other dropdown looks skip it). */
+  divider?: boolean;
 }
 
 /** The look of a tab bar (0.1.148, `ui.tabs` styles - shell/nav.ts tabStyleOf): the narrow segmented pill, the underline row,
@@ -44,6 +49,8 @@ export class SwTabs extends LitElement {
   @property({ attribute: 'group-label' }) groupLabel = '';
   /** Dropdown only (0.1.157): the look of the dropdown (sw-dropdown `dd-style`); `auto` = today's look. */
   @property({ attribute: 'dd-style' }) ddStyle: DdStyle = 'auto';
+  /** Dropdown only (Unreleased): the size of the dropdown (sw-dropdown `dd-size`); `md` = the reference size. */
+  @property({ attribute: 'dd-size' }) ddSize: DdSize = 'md';
 
   static styles = css`
     :host {
@@ -282,7 +289,7 @@ export class SwTabs extends LitElement {
 
   /** The look in force: `variant`, else the older `underline` flag, else the pill. */
   get mode(): TabVariant {
-    if (this.variant === 'dropdown' || (this.adaptive && this.items.length > ADAPTIVE_MAX_ITEMS)) return 'dropdown';
+    if (this.variant === 'dropdown' || (this.adaptive && this.items.filter((i) => !i.divider).length > ADAPTIVE_MAX_ITEMS)) return 'dropdown';
     return this.variant === 'pill' || this.variant === 'underline' || this.variant === 'underline-compact' ? this.variant : this.underline ? 'underline' : 'pill';
   }
 
@@ -346,10 +353,10 @@ export class SwTabs extends LitElement {
 
   render() {
     if (this.mode === 'dropdown') {
-      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
+      return html`<sw-dropdown ?block=${this.block} dd-style=${this.ddStyle} dd-size=${this.ddSize} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}</span>`;
-    return html`<div class="row">${this.items.map((it) =>
+    return html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
       it.href
         ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`
         : html`<button type="button" class=${it.id === this.active ? 'on' : ''} aria-pressed=${it.id === this.active} @click=${() => this.choose(it)}>${label(it)}</button>`,

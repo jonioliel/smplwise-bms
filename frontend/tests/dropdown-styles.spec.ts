@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test';
 //   $env:SW_API_PORT='59999'; npx vite --host 127.0.0.1 --port 5196   then
 //   $env:SW_BASE_URL='http://127.0.0.1:5196/'; npx playwright test dropdown-styles --project=desktop --workers=1
 const MODE_URL = '/src/shell/tabs-mode.ts';
-const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal'] as const;
+const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal', 'capsule'] as const;
 const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
 const ADMIN = ['alarm.view', 'audit.read', 'devices.read', 'devices.control', 'entity.state.read', 'events.read', 'map.read', 'media.browse', 'media.control', 'media.read', 'rbac.assign', 'schedule.view', 'schedule.manage', 'sources.configure', 'system.configure', 'video.live', 'video.playback', 'access.read', 'automation.manage', 'script.run'];
 
@@ -134,7 +134,7 @@ test.describe('the resolver (shell/tabs-mode.ts)', () => {
     expect(r.followed).toEqual(['pill', 'pill', 'pill', 'field', 'pill']);
     expect(r.source).toEqual(['installation-group', 'installation']);
     expect(r.bogus).toEqual(['auto', 'auto', 'auto', 'auto', 'auto']);
-    expect(r.labels).toHaveLength(7);
+    expect(r.labels).toHaveLength(8);
   });
 });
 
@@ -149,7 +149,7 @@ test.describe('every style renders (sw-dropdown inside sw-tabs)', () => {
       if (s !== 'auto') seen.add(`${c.bg}|${c.border}|${c.radius}|${c.fs}|${c.shadow}`);
       expect(c.pre).toBe(s === 'prefix');
     }
-    expect(seen.size).toBe(6);
+    expect(seen.size).toBe(7);
     // the distinguishing marks
     expect((await chipInfo(page, 'text')).fs).not.toBe((await chipInfo(page, 'pill')).fs);
     expect((await chipInfo(page, 'field')).borderW).toBe('1px');
@@ -341,12 +341,12 @@ test.describe('הגדרות › כללי › לשוניות › סגנון תפ�
     return page.locator('system-tabs-mode');
   }
 
-  test('lists the seven styles, shows each live, defaults to auto and names the source of every group', async ({ page }) => {
+  test('lists the eight styles, shows each live, defaults to auto and names the source of every group', async ({ page }) => {
     const card = await openCard(page, fresh());
-    await expect(card.locator('[data-dd-global=inst] option')).toHaveCount(7);
-    await expect(card.locator('[data-dd-global=own] option')).toHaveCount(8); // follow + 7
+    await expect(card.locator('[data-dd-global=inst] option')).toHaveCount(8);
+    await expect(card.locator('[data-dd-global=own] option')).toHaveCount(9); // follow + 8
     await expect(card.locator('[data-dd-group-row]')).toHaveCount(10); // 5 groups x (installation, personal)
-    await expect(card.locator('[data-dd-preview]')).toHaveCount(7);
+    await expect(card.locator('[data-dd-preview]')).toHaveCount(8);
     await expect(card.locator('[data-dd-effective-group]')).toHaveCount(5);
     await expect(card.locator('[data-dd-effective-group=security]')).toHaveAttribute('data-dd-style', 'auto');
     for (const s of STYLES) await expect(card.locator(`[data-dd-preview=${s}] sw-tabs`)).toHaveAttribute('dd-style', s);

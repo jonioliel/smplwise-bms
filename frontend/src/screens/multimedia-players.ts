@@ -204,7 +204,7 @@ export class MultimediaPlayers extends LitElement {
     const rooms = roomChips(scoped);
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     if (tools && this.roomsAsDropdown(rooms.length + 1)) {
-      publishPairChip(this, { group: 'multimedia', label: 'חדרים', value: f.area, items: [{ id: '', label: 'הכל', count: scoped.length }, ...rooms.map((r) => ({ id: r.id, label: r.name, count: r.count }))], onPick: (id) => this.setFilters({ area: id }) });
+      publishPairChip(this, { group: 'multimedia', label: 'חדרים', value: f.area, items: [{ id: '', label: 'הכל', count: scoped.length, icon: 'home' as const }, { id: '--sep', label: '', divider: true }, ...rooms.map((r) => ({ id: r.id, label: r.name, count: r.count, icon: 'door' as const }))], onPick: (id) => this.setFilters({ area: id }) });
     } else clearPairChip(this);
   }
 
