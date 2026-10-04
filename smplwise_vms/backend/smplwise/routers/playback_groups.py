@@ -20,6 +20,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize
 from ..services import playback as pb
 from ..services import playback_groups as pg
+from ..services import recorder_clock
 from ..services.access import camera_scope
 from ..services.timeutil import iso_utc, parse_utc
 from .playback import SeekBody, _segment_for
@@ -46,19 +47,28 @@ def _owned(conn: sqlite3.Connection, principal: Principal, group_id: str) -> pg.
 
 def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Principal, cams: list[sqlite3.Row], start: dt.datetime, tz_name: str, cap: int, group: pg.PlaybackGroup, existing: dict[str, pb.PlaybackSession]) -> None:
     """One session per camera (create, or seek the member's existing session). Searches are serialized by the
-    recordings service; go2rtc stream creation runs in parallel so the tiles start together."""
+    recordings service; go2rtc stream creation runs in parallel so the tiles start together.
+    CR-024 experimental cross-recorder group (`group.clocks` set): each member is searched and played in its recorder's zone and
+    clock offset - the search asks for [start + offset) on the recorder's clock and the segment it answers is turned back into
+    server time (- offset); a recorder whose clock was refused leaves its members missing with the reason."""
 
     def one(cam: sqlite3.Row) -> tuple[str, pb.PlaybackSession | None, str | None]:
+        clock = group.clocks.get(str(cam["recorder_id"])) if group.clocks else None
+        if clock and clock.get("refused"):
+            return cam["id"], None, str(clock["refused"])
+        off = dt.timedelta(seconds=float(clock["offset_s"] or 0)) if clock else dt.timedelta(0)
+        zone_name = clock["time_zone"] if clock else tz_name
         try:
-            actual_start, seg_end = _segment_for(settings, conn, cam, start, tz_name)
+            dev_start, dev_end = _segment_for(settings, conn, cam, start + off, zone_name)
         except ApiError as exc:
             return cam["id"], None, exc.code
+        actual_start, seg_end = dev_start - off, dev_end - off
         if (actual_start - start).total_seconds() > GAP_TOLERANCE_S:
             return cam["id"], None, "gap"
         try:
             if cam["id"] in existing:
                 return cam["id"], pb.seek(settings, existing[cam["id"]], actual_start, seg_end), None
-            return cam["id"], pb.create(settings, principal, cam, actual_start, seg_end, tz_name, cap), None
+            return cam["id"], pb.create(settings, principal, cam, actual_start, seg_end, zone_name, cap, clock_offset_s=off.total_seconds()), None
         except ApiError as exc:
             return cam["id"], None, exc.code
 
@@ -81,9 +91,10 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     if any(not c["main_track"] for c in cams):
         raise ApiError(409, "no_track", "לאחת המצלמות אין track הקלטה ידוע.")
     recorders = sorted({str(c["recorder_id"]) for c in cams})
-    if len(recorders) > 1:
-        # CR-024 section 3: synchronized playback across recorders is not offered - each recorder has its own clock, zone and
-        # drift, and no measurement of anchors / seek generations / rendered time on two real recorders exists (AGENTS)
+    cross = len(recorders) > 1
+    if cross and str(read_settings(conn).get("playback.cross_recorder_sync", "false")) != "true":
+        # CR-024 section 3: each recorder has its own clock, zone and drift, and no measurement of anchors / seek generations /
+        # rendered time on two real recorders exists (AGENTS) - off unless an administrator turns the experimental setting on
         raise ApiError(409, "sync_cross_recorder_unproven", "ניגון מסונכרן אפשרי רק למצלמות של אותו NVR.", details={"recorders": recorders})
     try:
         start = parse_utc(body.start_at)
@@ -95,12 +106,17 @@ def create_group(body: GroupBody, request: Request, principal: Principal = Depen
     if len(pb.REGISTRY.active()) + len(ids) > s["playback.max_sessions"]:
         raise ApiError(429, "playback_quota", f"קבוצה של {len(ids)} מצלמות חורגת ממכסת סשני הניגון ({s['playback.max_sessions']}).", retryable=True)
     group = pg.PlaybackGroup(id=uuid.uuid4().hex[:10], user_id=principal.user_id, requested_at=start)
+    if cross:  # CR-024 experimental: every recorder's zone and clock offset, read once for the group's life (seeks reuse them)
+        zones = recorder_clock.recorder_zones(conn, recorders, s["time.zone"])
+        with unlocked(conn):
+            group.clocks = {rid: recorder_clock.measure(settings, rid, zones[rid]) for rid in recorders}
     _start_many(settings, conn, principal, cams, start, s["time.zone"], s["playback.max_sessions"], group, {})
     if not group.session_ids:
         raise ApiError(409, "no_recording", "אין הקלטה בזמן הזה באף אחת מהמצלמות.", details={"missing": group.missing})
     pg.GROUPS[group.id] = group
     audit(conn, actor=principal, action="video.playback.group", decision="allowed", resource_type="installation", resource_id="*",
-          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "cameras": ids, "sessions": group.session_ids, "missing": group.missing, "start_at": iso_utc(start)})
+          request_id=getattr(request.state, "correlation_id", None), details={"group": group.id, "cameras": ids, "sessions": group.session_ids, "missing": group.missing, "start_at": iso_utc(start),
+                                                                              **({"experimental_cross_recorder": {k: {"offset_s": v["offset_s"], "time_zone": v["time_zone"], "clock": v["clock"], "refused": v["refused"]} for k, v in group.clocks.items()}} if group.clocks else {})})
     return pg.to_dict(group, s["playback.lease_s"])
 
 

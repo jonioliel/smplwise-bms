@@ -299,19 +299,18 @@ def test_duplicate_destination_rename_disable_and_time_zone(base, fakes):
     r = c.patch("/api/v1/recorders/nvr-2", json={"name": "מחסן צפון", "time_zone": "Europe/London", "sort_order": 5})
     assert r.status_code == 200 and r.json()["recorder"]["name"] == "מחסן צפון" and r.json()["recorder"]["time_zone"] == "Europe/London"
     assert r.json()["restart_required"] is False
+    # owner 2026-10-04: disable / enable apply at once (tests/test_multi_nvr_live.py covers streams, listeners and visibility)
     r = c.patch("/api/v1/recorders/nvr-2", json={"enabled": False})
-    assert r.json()["restart_required"] is True and r.json()["recorder"]["status"]["state"] == "disabled"
-    assert c.get("/api/v1/me").json()["connection_pending_restart"] is True
-    app2 = create_app(base)  # restart: the disabled recorder is not run, its cameras stay listed, its device is not reached
-    assert recorder_scope.child_ids(app2.state.settings) == []
+    assert r.json()["restart_required"] is False and r.json()["recorder"]["status"]["state"] == "disabled"
+    assert c.get("/api/v1/me").json()["connection_pending_restart"] is False
+    app2 = create_app(base)  # after a restart it stays disabled: loaded, never contacted, its cameras stay listed
+    assert recorder_scope.child_ids(app2.state.settings) == ["nvr-2"] and recorder_scope.is_disabled("nvr-2")
     c2 = client(app2)
     cam2 = next(x for x in c2.get("/api/v1/cameras").json()["cameras"] if x["recorder_id"] == "nvr-2")
     r = c2.get(f"/api/v1/cameras/{cam2['id']}/snapshot.jpg")
-    assert r.status_code in (200, 409)  # a cached copy may be served; never a call to the disabled device
-    if r.status_code == 409:
-        assert r.json()["code"] == "recorder_unavailable"
+    assert r.status_code == 409 and r.json()["code"] == "recorder_unavailable", "not even a cached copy"
     assert installation_mode(app2.state.settings) == FULL
-    assert c2.patch("/api/v1/recorders/nvr-2", json={"enabled": True}).json()["restart_required"] is True
+    assert c2.patch("/api/v1/recorders/nvr-2", json={"enabled": True}).json()["restart_required"] is False
 
 
 # ---------------------------------------------------------------- events from two alert streams
@@ -411,9 +410,9 @@ def test_the_installation_stays_full_when_only_a_further_recorder_is_left(base, 
     assert {x["recorder_id"] for x in c2.get("/api/v1/cameras").json()["cameras"]} == {"nvr-2"}
     caps = c2.get("/api/v1/health").json()["capabilities"]
     assert caps["nvr"] is True and [x["id"] for x in caps["recorders"]] == ["nvr-2"]
-    # adding an NVR again fills the first recorder (the installation's process-wide connection); its cameras stay disabled for review
+    # adding an NVR again never reuses nvr-1 here: another recorder is in use and nvr-1 has history (owner 2026-10-04)
     r = c2.post("/api/v1/recorders", json={**ADD, "host": NVR_HOST, "password": PW1, "name": "ראשי"})
-    assert r.status_code == 201 and r.json()["recorder_id"] == "nvr-1"
+    assert r.status_code == 201 and r.json()["recorder_id"] == "nvr-3"
     assert not rows(base, "SELECT 1 FROM cameras WHERE recorder_id = 'nvr-1' AND enabled = 1")
 
 
