@@ -32,6 +32,9 @@ async function measure(page: Page, ctx: string, skin: string, theme: string, sty
   const out: Finding[] = [];
   for (const w of WIDTHS) {
     await page.setViewportSize({ width: w, height: height(w) });
+    // the 32 px desktop touch dial is a desktop choice: on a touch layout (<= 1100 px) the rows are 44 px whatever the dial says, so the
+    // guard measures the dial only on the wide widths (the capsule guard does the same); bubble keeps 44 everywhere
+    await page.evaluate((v) => (v ? document.documentElement.style.setProperty('--sw-touch-desktop', v) : document.documentElement.style.removeProperty('--sw-touch-desktop')), w > 1100 && skin !== 'bubble' ? '32px' : '');
     await settle(page);
     await page.waitForTimeout(80);
     // closed
@@ -72,7 +75,6 @@ test.describe('recordings comparison picker layout guard', () => {
           await openAndPlay(page, '&extra=c2,c3,c4', `design=a&skin=${skin}&scheme=${theme}`);
           await expect.poll(() => st.groups.length).toBe(1);
           await expect(pick(page)).toHaveAttribute('dd-style', style);
-          await page.evaluate((v) => v && document.documentElement.style.setProperty('--sw-touch-desktop', v), skin === 'bubble' ? '' : '32px');
           results.push(...(await measure(page, `${skin} ${theme} ${style}`, skin, theme, style)));
           checks += WIDTHS.length * 2;
           await page.unrouteAll({ behavior: 'ignoreErrors' });
