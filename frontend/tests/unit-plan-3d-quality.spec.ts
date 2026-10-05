@@ -305,7 +305,9 @@ test('the thumbnail strip: one isometric per listed level, cached and bounded by
   // fewer levels listed: the cache shrinks to them (keepIsos, the building page's bound)
   await set([{ id: 'L0', name: 'קרקע', elevation_m: 0 }, { id: 'L1', name: 'ראשונה', elevation_m: 3.2 }]);
   await expect(thumbs).toHaveCount(2);
-  expect(await el.evaluate((n) => (n as unknown as Probe).thumbnailCount)).toBe(2);
+  // set() hands over a new thumbnail description, so the cache empties at once and refills in the next animation frame
+  // (scheduleThumbs): poll for it - a single read right after the buttons appear raced that frame (0 on the mobile project)
+  await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).thumbnailCount)).toBe(2);
   // a click reports the level; the active one reads as pressed; clicking it again asks for every level
   const picked: (string | null)[] = [];
   await page.exposeFunction('__picked', (id: string | null) => picked.push(id));
