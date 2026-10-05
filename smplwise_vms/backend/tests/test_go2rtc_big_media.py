@@ -51,7 +51,6 @@ class FakeGo2rtc:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
-        self.client_messages: list[str | bytes] = []
         self.port = 0
         self._loop: asyncio.AbstractEventLoop | None = None
         self._ready = threading.Event()
@@ -62,13 +61,7 @@ class FakeGo2rtc:
         await ws.send(json.dumps({"type": "mse", "value": "video/mp4; codecs=\"avc1.640029\""}))  # a control frame first, like go2rtc
         for i, size in enumerate(FRAMES):
             await ws.send(_frame(i, size))
-        # keep listening a moment so a message the browser sends is recorded (the client-to-upstream direction)
-        try:
-            async with asyncio.timeout(3):
-                async for msg in ws:
-                    self.client_messages.append(msg)
-        except (TimeoutError, websockets.ConnectionClosed):
-            pass
+        await ws.close()  # the stream ends upstream-side: the relay finishes on its own and writes the stop audit row
 
     def start(self) -> None:
         def run() -> None:
