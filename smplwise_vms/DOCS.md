@@ -228,6 +228,20 @@ consistent copy.
 - Session cap (`media.max_live_sessions`, default 16, was 8; a saved value is kept) protects the NVR; the wall and the kiosk use sub
   streams, the single-camera view the main stream. Tiles beyond the cap show the snapshot only.
 
+### go2rtc exposure (T069 review)
+
+- Arx itself publishes no host port (`config.yaml` maps none by default; the optional alarm-push port 18091 is unmapped until
+  the owner maps it). The browser reaches go2rtc only through Arx's authorized relay; it never receives the go2rtc address,
+  an RTSP URL or a credential.
+- go2rtc is a separate add-on and its ports are the owner's to keep private: **1984** (API and web UI - unauthenticated by
+  default, and it can start commands through `exec:` stream sources), **8554** (RTSP) and **8555** (WebRTC). Do not forward
+  any of them from the router, do not route them through the Cloudflare tunnel (only the `/arx` path goes there), and keep
+  1984 on the LAN. If other devices must reach it, protect it with go2rtc's own `api.username` / `api.password` and set the
+  same pair in `go2rtc_api_username` / `go2rtc_api_password` here. WebRTC media (8555, UDP) is the one port browsers on the
+  LAN use directly; it never needs to be reachable from the internet.
+- Arx writes only streams named `smplwise_*`, only from `rtsp` / `rtsps` sources that are not go2rtc itself or a loopback or
+  link-local address, and lists other products' streams without their names or sources.
+
 ## Recordings and playback
 
 - הקלטות (Playback) searches the NVR for one local day per camera (`GET /api/v1/cameras/{id}/recordings?date=`).
