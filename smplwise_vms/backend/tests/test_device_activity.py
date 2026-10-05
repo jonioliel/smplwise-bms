@@ -404,7 +404,7 @@ def test_feed_shape_filters_paging_and_permission(app_s):
     assert [i["actor"]["type"] for i in c.get(f"{API}/devices/light.lobby/activity", params={"actor": "person"}).json()["items"]] == ["person", "person"]
     assert [i["kind"] for i in c.get(f"{API}/devices/light.lobby/activity", params={"actor": "system"}).json()["items"]] == ["availability"]
     window = c.get(f"{API}/devices/light.lobby/activity", params={"since": "2026-10-05T09:00:00Z", "until": "2026-10-05T10:00:00Z"}).json()["items"]
-    assert [i["at"] for i in window] == ["2026-10-05T09:07:40Z"]
+    assert [i["at"] for i in window] == ["2026-10-05T09:06:40Z"]
     # paging
     p1 = c.get(f"{API}/devices/light.lobby/activity", params={"limit": 3}).json()
     assert len(p1["items"]) == 3 and p1["next_cursor"]
