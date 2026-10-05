@@ -1135,6 +1135,7 @@ export class ExploreFloorMap extends LitElement {
   `;
 
   private onKey = (e: KeyboardEvent) => {
+    if (this.embedded && e.key === '3') return; // hosted: the host screen owns the keyboard
     if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey && !this.typing(e)) {
       if (this.confirmSpec || this.saveView || e.repeat) return; // a dialog is open, or the key is held down
       e.preventDefault();
