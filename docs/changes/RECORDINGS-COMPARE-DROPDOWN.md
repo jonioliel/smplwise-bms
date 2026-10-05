@@ -15,7 +15,7 @@ on a phone the picker alone took most of the screen. It is now one dropdown in w
   above). Tab cycles search field -> list -> foot buttons and never leaves the picker; Esc closes and returns the focus to the chip.
   `change` carries `{ id, ids }` (`id` '' after "נקה"). Items may be `disabled` (listed, not choosable: a camera of another recorder).
   Everything else is the shared dropdown: the six styles + `auto` + capsule, the four skins, light / dark, the search field at 8+
-  options, the phone bottom sheet / centred box / inline list by `ui.dd_phone` and the Bubble popup dial, the radius / touch /
+  options, the phone small list (default since 2026-10-05) / bottom sheet / centred box / inline list by `ui.dd_phone` and the Bubble popup dial, the radius / touch /
   performance dials.
 - `frontend/src/components/multi-select.ts`: the pure logic (`toggleCapped`, `pickedCount`, `limitNotice`, `pickedSummary`,
   `extraFromParam`), unit-tested without a page.

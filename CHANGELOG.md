@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- The default of how a dropdown opens on a phone (`ui.dd_phone`) changed from the bottom sheet to the regular small list under the field; the sheet stays selectable in Settings > tabs. Saved choices are unaffected. / ברירת המחדל של פתיחת תפריט נפתח בטלפון הוחלפה מגיליון שעולה מלמטה לרשימה קטנה מתחת לשדה; הגיליון נשאר זמין לבחירה בהגדרות > לשוניות. בחירות שמורות לא משתנות.
+
 ## 0.1.0-dev.1 — 2026-09-14 (first application segment)
 - Add-on skeleton (`repository.yaml`, `smplwise_vms/`): Ingress-only FastAPI backend, SQLite in /data with
   versioned migrations, identity from Supervisor headers with a trusted-proxy check, explicit bootstrap of

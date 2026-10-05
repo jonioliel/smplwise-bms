@@ -26,8 +26,8 @@ async function setMode(page: Page, mode: string | null, groups: Record<string, s
     [MODE_URL, mode, groups] as const,
   );
   await page.waitForTimeout(500);
-  // the pair specs measure the popover under each chip; the phone setting (owner 2026-10-03) defaults to a bottom sheet
-  // (covered by dropdown-phone-choice.spec.ts), so the popover case is the `list` choice
+  // the pair specs measure the popover under each chip; the phone setting defaults to the small list (owner 2026-10-05; the sheet is covered by
+  // dropdown-phone-choice.spec.ts); pinned explicitly so these measurements do not depend on the default
   await page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'list'));
 }
 
