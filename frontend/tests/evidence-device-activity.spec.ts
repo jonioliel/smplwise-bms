@@ -32,6 +32,7 @@ async function shot(page: Page, name: string) {
 const area = (page: Page) => page.locator('sw-app devices-area');
 const tile = (page: Page, id: string) => area(page).locator(`.tile[data-entity="${id}"], .row[data-entity="${id}"]`).first();
 const popup = (page: Page) => page.locator('sw-app device-activity sw-sheet[data-device-activity]');
+const opened = (page: Page) => page.locator('sw-app device-activity sw-sheet[data-device-activity][open]');
 const panel = (page: Page) => page.locator('sw-app device-activity #da-panel');
 
 /** Hold the mouse on the title area of a tile (away from its toggle and slider). */
@@ -73,7 +74,7 @@ test.describe('device activity popup', () => {
         await open(page, q);
         const target = skin === 'bubble' ? area(page).locator('sw-pill[data-entity="light.living_main"]') : tile(page, 'light.living_main');
         await hold(page, target, LONG);
-        await expect(popup(page)).toHaveAttribute('open', '');
+        await expect(opened(page)).toHaveCount(1);
         await expect(panel(page).locator('.ev').first()).toBeVisible();
         await shot(page, `feed-${skin}-${tag}-${scheme}`);
         if (skin === 'classic') {
@@ -83,7 +84,7 @@ test.describe('device activity popup', () => {
           for (const mode of ['empty', 'forbidden', 'unavailable', 'partial', 'slow'] as FeedMode[]) {
             st.feedMode = mode;
             await page.keyboard.press('Escape');
-            await expect(popup(page)).not.toHaveAttribute('open', '');
+            await expect(opened(page)).toHaveCount(0);
             await hold(page, target, LONG);
             if (mode === 'slow') await expect(panel(page).locator('[data-feed-state="loading"]')).toBeVisible();
             else await expect(panel(page).locator(`[data-feed-state]`).first()).toBeVisible();
@@ -120,30 +121,30 @@ test.describe('device activity popup', () => {
     // a tap on the toggle sends ONE command and opens nothing
     await light.locator('sw-toggle').click();
     await expect.poll(() => st.actions.length).toBe(1);
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
     // a short hold (300 ms) opens nothing
     await hold(page, light, 300);
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
     // a hold that moves past 8 px is a drag / scroll, not a long press
     await hold(page, light, LONG, 20);
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
     // a hold on the toggle itself keeps its own gesture
     const tb = (await light.locator('sw-toggle').boundingBox())!;
     await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2);
     await page.mouse.down();
     await page.waitForTimeout(LONG);
     await page.mouse.up();
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
     const before = st.actions.length;
     // the real long press
     await hold(page, light, LONG);
-    await expect(popup(page)).toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(1);
     await expect(popup(page)).toHaveAttribute('heading', /תאורה מרכזית/);
     expect(st.actions.length).toBe(before); // the click that ended the press was swallowed: nothing was toggled
     expect(st.feedCalls.at(-1)?.entity).toBe('light.living_main');
     // Esc closes and focus returns
     await page.keyboard.press('Escape');
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
   });
 
   test('the bubble pill: a long press opens the popup and sends no command; a tap still toggles', async ({ page }, info) => {
@@ -152,12 +153,12 @@ test.describe('device activity popup', () => {
     await open(page, '&skin=bubble&scheme=light');
     const pill = area(page).locator('sw-pill[data-entity="light.living_main"]');
     await hold(page, pill, LONG);
-    await expect(popup(page)).toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(1);
     expect(st.actions.length).toBe(0);
     await page.keyboard.press('Escape');
     await pill.click({ position: { x: 150, y: 20 } });
     await expect.poll(() => st.actions.length).toBe(1);
-    await expect(popup(page)).not.toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(0);
   });
 
   test('accessible alternatives: right click, the menu items, Alt+Enter, Escape', async ({ page }, info) => {
@@ -174,7 +175,7 @@ test.describe('device activity popup', () => {
     // the item "תזמונים" opens the schedules tab directly
     await cover.click({ button: 'right', position: { x: 30, y: 14 } });
     await page.locator('sw-app device-activity [data-activity-menu-schedules]').click();
-    await expect(popup(page)).toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(1);
     await expect(page.locator('sw-app device-activity [data-tab="schedules"]')).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('Escape');
     // the item "פעילות"
@@ -186,11 +187,11 @@ test.describe('device activity popup', () => {
     const tg = tile(page, 'climate.living_ac');
     await tg.locator('button').first().focus();
     await page.keyboard.press('Alt+Enter');
-    await expect(popup(page)).toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(1);
     expect(st.feedCalls.at(-1)?.entity).toBe('climate.living_ac');
     await page.keyboard.press('Escape');
     // a row the server did not flag has no menu: the browser's own context menu is left alone
-    const sensor = area(page).locator('[data-entity="sensor.living_temp"]').first();
+    const sensor = area(page).locator('.tile[data-entity]:not([data-activity]), .row[data-entity]:not([data-activity])').first();
     await sensor.click({ button: 'right' });
     await expect(menu).toBeHidden();
   });
@@ -289,7 +290,7 @@ test.describe('device activity popup', () => {
     await expect(ed.locator('schedule-editor')).toHaveJSProperty('scheduleId', 'a1b2c3');
     await page.keyboard.press('Escape');
     await expect(ed).toHaveCount(0);
-    await expect(popup(page)).toHaveAttribute('open', '');
+    await expect(opened(page)).toHaveCount(1);
     // add a schedule for this device: the editor starts with the device
     await p.locator('[data-sched-add]').click();
     await expect(page.locator('sw-app device-activity schedule-editor')).toHaveJSProperty('entity', 'light.living_main');

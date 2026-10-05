@@ -126,10 +126,10 @@ export class ActivityPress implements ReactiveController {
 
   hostConnected() {
     const h = this.host;
-    h.addEventListener('pointerdown', this.down);
-    h.addEventListener('pointermove', this.move);
-    h.addEventListener('pointerup', this.up);
-    h.addEventListener('pointercancel', this.up);
+    h.addEventListener('pointerdown', this.down, true);
+    h.addEventListener('pointermove', this.move, true);
+    h.addEventListener('pointerup', this.up, true);
+    h.addEventListener('pointercancel', this.up, true);
     h.addEventListener('click', this.click, true);
     h.addEventListener('contextmenu', this.ctx, true);
     h.addEventListener('keydown', this.key);
@@ -137,10 +137,10 @@ export class ActivityPress implements ReactiveController {
 
   hostDisconnected() {
     const h = this.host;
-    h.removeEventListener('pointerdown', this.down);
-    h.removeEventListener('pointermove', this.move);
-    h.removeEventListener('pointerup', this.up);
-    h.removeEventListener('pointercancel', this.up);
+    h.removeEventListener('pointerdown', this.down, true);
+    h.removeEventListener('pointermove', this.move, true);
+    h.removeEventListener('pointerup', this.up, true);
+    h.removeEventListener('pointercancel', this.up, true);
     h.removeEventListener('click', this.click, true);
     h.removeEventListener('contextmenu', this.ctx, true);
     h.removeEventListener('keydown', this.key);
