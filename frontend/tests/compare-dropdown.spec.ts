@@ -123,12 +123,88 @@ test.describe('recordings: the comparison picker', () => {
     await expect(chip(page).locator('[data-dd-chip-count]')).toHaveText('4 מתוך 4');
   });
 
-  test('a camera of another recorder is listed disabled while the cross-recorder setting is off', async ({ page }) => {
+  test('a camera of another recorder is listed disabled while the cross-recorder setting is off, with the short reason', async ({ page }) => {
     await open(page, { cameras: [{ name: 'אחר', recorder: 'r2' }, { name: 'מחסן' }] });
     await chip(page).click();
     await expect(option(page, 'c3')).toHaveAttribute('aria-disabled', 'true');
+    await expect(option(page, 'c3').locator('[data-dd-note]')).toHaveText('מקליט אחר'); // 2.0.2: why it cannot join
+    await expect(option(page, 'c3')).toHaveAttribute('title', 'מקליט אחר');
     await expect(option(page, 'c4')).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(option(page, 'c4').locator('[data-dd-note]')).toHaveCount(0);
     await expect(option(page, 'c2')).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  // 2.0.2 (owner feedback 2026-10-05): the search field from 4 cameras by default; the threshold is a setting (`ui.dd_search`)
+  test('the search field appears from 4 options by default; the installation\'s dial moves it (8 / never / always)', async ({ page }) => {
+    const FOUR = [{ name: 'מחסן' }, { name: 'לובי' }, { name: 'מעלית' }]; // c2..c5: four options next to the lead
+    await open(page, { cameras: FOUR });
+    await chip(page).click();
+    await expect(page.locator('investigate-playback [data-compare] [role=option]')).toHaveCount(4);
+    await expect(pick(page).locator('[data-dd-search]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    // three options: no search at the default dial
+    await open(page, { cameras: FOUR.slice(0, 2) });
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(3);
+    await expect(pick(page).locator('[data-dd-search]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    // the dial at 8: four options stay without a search field
+    await open(page, { cameras: FOUR, settings: { 'ui.dd_search': '8' } });
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(4);
+    await expect(pick(page).locator('[data-dd-search]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    // never: a long list has none either
+    await open(page, { cameras: MORE, settings: { 'ui.dd_search': 'never' } });
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(8);
+    await expect(pick(page).locator('[data-dd-search]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    // always: even one option
+    await open(page, { settings: { 'ui.dd_search': 'always' } });
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(1);
+    await expect(pick(page).locator('[data-dd-search]')).toBeVisible();
+  });
+
+  // 2.0.2 (owner feedback 2026-10-05): the picker as buttons (the 2.0.0 look) by the installation's choice (`ui.dd_picker`)
+  test('ui.dd_picker = chips: a button per camera, the same state semantics, the limit and another recorder disable with a reason', async ({ page }) => {
+    const st = await open(page, { cameras: [{ name: 'מחסן' }, { name: 'לובי' }, { name: 'אחר', recorder: 'r2' }, { name: 'גג' }], settings: { 'ui.dd_picker': 'chips' } });
+    const row = page.locator('investigate-playback [data-compare]');
+    await expect(row).toHaveAttribute('data-picker', 'chips');
+    await expect(pick(page)).toHaveCount(0);
+    const chips = row.locator('sw-chip[data-compare-chip]');
+    await expect(chips).toHaveCount(5); // every camera but the lead (c2..c6)
+    await expect(row).toContainText('השוואה (עד 4):');
+    // another recorder: disabled with the reason as the tooltip
+    const other = row.locator('sw-chip[data-compare-chip="c5"]');
+    await expect(other).toHaveAttribute('disabled', '');
+    await expect(other).toHaveAttribute('title', 'מקליט אחר');
+    await expect(other.locator('button')).toBeDisabled();
+    // three picks open the same groups the dropdown does
+    await row.locator('sw-chip[data-compare-chip="c2"]').click();
+    await expect.poll(() => st.groups.length).toBe(1);
+    expect(st.groups[0]).toEqual(['c1', 'c2']);
+    await row.locator('sw-chip[data-compare-chip="c3"]').click();
+    await row.locator('sw-chip[data-compare-chip="c4"]').click();
+    await expect.poll(() => st.groups.length).toBe(3);
+    expect(st.groups[2]).toEqual(['c1', 'c2', 'c3', 'c4']);
+    await expect(row.locator('sw-chip[selected]')).toHaveCount(3);
+    // at the limit the rest are disabled and say so; an un-pick frees a place
+    const sixth = row.locator('sw-chip[data-compare-chip="c6"]');
+    await expect(sixth).toHaveAttribute('disabled', '');
+    await expect(sixth).toHaveAttribute('title', 'אפשר לבחור עד 4');
+    await row.locator('sw-chip[data-compare-chip="c3"]').click();
+    await expect.poll(() => st.groups.length).toBe(4);
+    expect(st.groups[3]).toEqual(['c1', 'c2', 'c4']);
+    await expect(sixth).not.toHaveAttribute('disabled', '');
+    // the chips are 44 px targets on touch layouts
+    const box = (await row.locator('sw-chip[data-compare-chip="c2"]').boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(27);
   });
 
   test('the installation\'s dropdown style and the phone bottom sheet apply to the picker', async ({ page }, info) => {

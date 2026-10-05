@@ -181,6 +181,9 @@ export function inPageCheck(args: GuardArgs): Finding[] {
             if (cut) add('clipped', el, `text in the rounded corner of ${desc(e)}`);
           }
         }
+        // a fixed layer (a dropdown's open list, a popover) paints over the page: nothing above it clips its text or holds it in a corner
+        // (the layer itself was just checked; visRect() makes the same cut)
+        if (s.position === 'fixed') break;
       }
     }
   }

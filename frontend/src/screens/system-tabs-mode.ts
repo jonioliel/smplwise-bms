@@ -7,9 +7,9 @@ import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
 import {
-  DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_RINGS, DD_RING_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdRing, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdRing, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdRing, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdRing, saveOwnDdSize, saveOwnDdStyle,
+  DD_PANELS, DD_PANEL_LABEL, DD_PHONES, DD_PHONE_LABEL, DD_PICKERS, DD_PICKER_LABEL, DD_RINGS, DD_RING_LABEL, DD_SEARCHES, DD_SEARCH_LABEL, DD_SIZES, DD_SIZE_LABEL, DD_STYLES, DD_STYLE_LABEL, TAB_GROUPS, TAB_GROUP_LABEL, TAB_MODES, TAB_MODE_HINT, TAB_MODE_LABEL, asDdPanel, asDdPhone, asDdPicker, asDdRing, asDdSearch, asDdSize, asDdStyle, asTabMode, installationDdPanel, installationDdPhone, installationDdPicker, installationDdRing, installationDdSearch, installationDdSize, installationDdStyle, installationTabsMode, onTabsMode, ownDdPanel, ownDdPhone, ownDdPicker, ownDdRing, ownDdSearch, ownDdSize, ownDdStyle, ownTabsMode, resolveDdPanel, resolveDdRing, resolveDdSize, resolveDdStyle, resolveTabMode, saveOwnDdPanel, saveOwnDdPhone, saveOwnDdPicker, saveOwnDdRing, saveOwnDdSearch, saveOwnDdSize, saveOwnDdStyle,
   saveOwnTabsMode, setInstallationTabsMode,
-  type DdPanel, type DdPanelGroups, type DdPhone, type DdRing, type DdRingGroups, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
+  type DdPanel, type DdPanelGroups, type DdPhone, type DdPicker, type DdRing, type DdRingGroups, type DdSearch, type DdSize, type DdSizeGroups, type DdStyle, type DdStyleGroups, type TabGroup, type TabMode, type TabModeGroups, type TabModeSource,
 } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -53,11 +53,16 @@ export class SystemTabsMode extends LitElement {
   @state() private panelOwn = ownDdPanel();
   @state() private phInst: DdPhone = installationDdPhone();
   @state() private phOwn: DdPhone | null = ownDdPhone();
+  /** 2.0.2: the camera comparison picker's look and the multi-select search threshold (one global value each, installation + own). */
+  @state() private pkInst: DdPicker = installationDdPicker();
+  @state() private pkOwn: DdPicker | null = ownDdPicker();
+  @state() private seInst: DdSearch = installationDdSearch();
+  @state() private seOwn: DdSearch | null = ownDdSearch();
   @state() private canEdit = false;
   @state() private busy = false;
   @state() private message = '';
-  /** Which card the status line belongs to (the tabs / style cards, or the phone card). */
-  @state() private scope: 'style' | 'phone' = 'style';
+  /** Which card the status line belongs to (the tabs / style cards, the phone card, or the camera picker card). */
+  @state() private scope: 'style' | 'phone' | 'picker' = 'style';
   @state() private error = '';
   private stop?: () => void;
 
@@ -99,6 +104,13 @@ export class SystemTabsMode extends LitElement {
     .muted {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
+    }
+    /* 2.0.2: a sub-heading inside a fieldset with two radio groups (the camera picker card) */
+    .sub {
+      margin: 6px 0 2px;
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text-3);
     }
     .grid {
       display: grid;
@@ -204,6 +216,10 @@ export class SystemTabsMode extends LitElement {
       this.panelOwn = ownDdPanel();
       this.phInst = installationDdPhone();
       this.phOwn = ownDdPhone();
+      this.pkInst = installationDdPicker();
+      this.pkOwn = ownDdPicker();
+      this.seInst = installationDdSearch();
+      this.seOwn = ownDdSearch();
     });
     void this.load();
   }
@@ -422,6 +438,51 @@ export class SystemTabsMode extends LitElement {
     }
   }
 
+  /** 2.0.2: the camera picker card's installation default (`ui.dd_picker` / `ui.dd_search`, one key per change). */
+  private async savePickerInstallation(patch: { 'ui.dd_picker'?: DdPicker; 'ui.dd_search'?: DdSearch }) {
+    this.scope = 'picker';
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await patchSettings(patch);
+      invalidateSettings();
+      setInstallationTabsMode(r.settings as unknown as Record<string, unknown>);
+      this.flash('ברירת המחדל נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** 2.0.2: the user's own camera picker look / search threshold (null = follow the installation). */
+  private async savePickerOwn(save: () => Promise<void>) {
+    this.scope = 'picker';
+    this.busy = true;
+    this.error = '';
+    try {
+      await save();
+      this.flash('ההעדפה נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** One radio group of a global choice (the camera picker card): `name` is the input group, `data-<key>` carries `inst:<v>` / `own:<v>` / `own:follow`. */
+  private choiceRadios<T extends string>(key: 'picker' | 'search', scope: 'inst' | 'own', values: readonly T[], labels: Record<T, string>, current: T | null, inst: T, disabled: boolean, onPick: (v: T | null) => void) {
+    // an attribute NAME cannot be a binding in Lit: one literal template per key
+    const input = (value: string, tag: string, checked: boolean, pick: () => void) =>
+      key === 'picker'
+        ? html`<input type="radio" name=${`dd-picker-${scope}`} value=${value} data-dd-picker=${tag} .checked=${checked} ?disabled=${disabled} @change=${pick} />`
+        : html`<input type="radio" name=${`dd-search-${scope}`} value=${value} data-dd-search=${tag} .checked=${checked} ?disabled=${disabled} @change=${pick} />`;
+    return html`${scope === 'own'
+      ? html`<label class="opt">${input('', 'own:follow', current === null, () => onPick(null))}<span class="t">לפי ההתקנה (כרגע: ${labels[inst]})</span></label>`
+      : nothing}
+    ${values.map((v) => html`<label class="opt">${input(v, `${scope}:${v}`, current === v, () => onPick(v))}<span class="t">${labels[v]}</span></label>`)}`;
+  }
+
   private ddWithGroup(groups: DdStyleGroups, g: TabGroup, v: string): DdStyleGroups {
     const next = { ...groups };
     const m = asDdStyle(v);
@@ -590,6 +651,28 @@ export class SystemTabsMode extends LitElement {
       </div>
       <div class="effective" data-dd-phone-effective><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PHONE_LABEL[this.phOwn ?? this.phInst]}</span></div>
       <div aria-live="polite">${this.message && this.scope === 'phone' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'phone' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
+    </sw-card>
+    <sw-card heading="בחירת מצלמות להשוואה" subheading="מסך ההקלטות והניגון המסונכרן" data-dd-picker-card>
+      <div class="grid">
+        <div data-dd-picker-installation>
+          <fieldset><legend>ברירת המחדל של ההתקנה</legend>
+            <div class="sub">תצוגה</div>
+            ${this.choiceRadios('picker', 'inst', DD_PICKERS, DD_PICKER_LABEL, this.pkInst, this.pkInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_picker': v }))}
+            <div class="sub">חיפוש ברשימה</div>
+            ${this.choiceRadios('search', 'inst', DD_SEARCHES, DD_SEARCH_LABEL, this.seInst, this.seInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_search': v }))}
+          </fieldset>
+        </div>
+        <div data-dd-picker-own>
+          <fieldset><legend>ההעדפה שלי</legend>
+            <div class="sub">תצוגה</div>
+            ${this.choiceRadios('picker', 'own', DD_PICKERS, DD_PICKER_LABEL, this.pkOwn, this.pkInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdPicker(asDdPicker(v))))}
+            <div class="sub">חיפוש ברשימה</div>
+            ${this.choiceRadios('search', 'own', DD_SEARCHES, DD_SEARCH_LABEL, this.seOwn, this.seInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdSearch(asDdSearch(v))))}
+          </fieldset>
+        </div>
+      </div>
+      <div class="effective" data-dd-picker-effective><span><strong>מה פעיל אצלי עכשיו:</strong> ${DD_PICKER_LABEL[this.pkOwn ?? this.pkInst]}, חיפוש ${DD_SEARCH_LABEL[this.seOwn ?? this.seInst]}</span></div>
+      <div aria-live="polite">${this.message && this.scope === 'picker' ? html`<span class="ok" role="status">${this.message}</span>` : nothing}${this.error && this.scope === 'picker' ? html`<span class="err" role="alert">${this.error}</span>` : nothing}</div>
     </sw-card>`;
   }
 }

@@ -36,6 +36,9 @@ export interface ProductSettings {
   'ui.dd_style'?: string;
   'ui.dd_style_groups'?: Record<string, string>;
   'ui.dd_phone'?: string;
+  /** 2.0.2: from how many cameras a multi-select picker searches (always | 4 | 8 | never) and the camera comparison picker's look (dropdown | chips). */
+  'ui.dd_search'?: string;
+  'ui.dd_picker'?: string;
   /** Unreleased: the size of a dropdown, `sm` | `md` (default) | `lg`, and a per-group override. shell/tabs-mode.ts. */
   'ui.dd_size'?: string;
   'ui.dd_size_groups'?: Record<string, string>;

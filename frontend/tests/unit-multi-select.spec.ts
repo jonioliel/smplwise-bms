@@ -49,4 +49,16 @@ test.describe('multi-select (pure)', () => {
     expect(extraFromParam('', 'c1', known)).toEqual([]);
     expect(extraFromParam('c2,c3,c4,c5', 'c1', known, 4)).toEqual(['c2', 'c3', 'c4', 'c5']);
   });
+
+  test('the synchronized-playback set: no lead to drop (the first pick IS the lead), at most four, the 5th refused', () => {
+    const known = ['c1', 'c2', 'c3', 'c4', 'c5'];
+    // the screen filters the dropdown's ids with an empty lead: the pick order is the set's order, the first picked leads
+    expect(extraFromParam('c3,c1,zz,c2,c4,c5', '', known, 4)).toEqual(['c3', 'c1', 'c2', 'c4']);
+    expect(extraFromParam('c1', '', known, 4)).toEqual(['c1']);
+    // the dropdown itself: four picks fill the set, the fifth is refused and the count reads the whole set
+    expect(toggleCapped(['c1', 'c2', 'c3', 'c4'], 'c5', 4)).toEqual({ ids: ['c1', 'c2', 'c3', 'c4'], refused: true });
+    expect(toggleCapped(['c1', 'c2', 'c3'], 'c4', 4)).toEqual({ ids: ['c1', 'c2', 'c3', 'c4'], refused: false });
+    expect(pickedCount(4, 4)).toBe('4 מתוך 4');
+    expect(pickedCount(0, 4)).toBe('0 מתוך 4');
+  });
 });
