@@ -9,7 +9,7 @@ import type { IconName } from '../components/sw-icon';
 import { ALARM_HE, climateRange, HVAC_ACTION_HE, HVAC_HE, type CardId, type DeviceRow } from '../api/devices';
 import { fmtTime } from '../api/ha';
 import { bidi, ltrNum } from '../i18n/bidi';
-import { activityTag, ActivityPress } from '../components/device-activity-press';
+import { activityTag } from '../components/device-activity-press';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { deg, rowLabel, type DeviceControls } from './devices-controls';
 import { hueOf } from '../design/skin';

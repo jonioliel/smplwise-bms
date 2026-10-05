@@ -212,7 +212,7 @@ export class DevicesTilesPanel extends LitElement {
   /** Lock-all (owner 2026-09-29): the locks to lock, the dialog's step and each lock's outcome. Never unlock-all. */
   @state() private lockAll: { rows: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
   private ctl = new DeviceControls(this, () => this.changed());
-  private press = new ActivityPress(this);
+  readonly press = new ActivityPress(this);
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;

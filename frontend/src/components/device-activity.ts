@@ -184,7 +184,7 @@ export class DeviceActivity extends LitElement {
 
   private onMenuKey = (e: KeyboardEvent) => {
     const items = [...this.renderRoot.querySelectorAll<HTMLButtonElement>('.menu button')];
-    const i = items.indexOf(this.renderRoot.activeElement as HTMLButtonElement);
+    const i = items.indexOf((this.renderRoot as ShadowRoot).activeElement as HTMLButtonElement);
     if (e.key === 'Escape') {
       e.preventDefault();
       this.menu = null;

@@ -516,7 +516,7 @@ export class DevicesArea extends LitElement {
   /** CR-007 single-entity controls (devices-controls.ts, shared with the overview tiles' panel). */
   private ctl = new DeviceControls(this);
   /** CR-032: long press / menu item / Alt+Enter on a tile the server flagged `activity` opens the device activity popup (components/device-activity.ts). */
-  private press = new ActivityPress(this, { area: () => this.detail?.area.name ?? '' });
+  readonly press = new ActivityPress(this, { area: () => this.detail?.area.name ?? '' });
   /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
