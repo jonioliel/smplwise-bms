@@ -5,7 +5,7 @@
  * The wording is gender neutral on purpose (nouns: הדלקה, כיבוי, פתיחה ...) - the server does not know how a person is addressed.
  * Unknown stays unknown: nothing here guesses an actor (AGENTS.md: historical unknown is not current state).
  */
-import type { ActivityItem, ActivityKind, ActivityValue, ActorType, EventType } from '../api/device-activity';
+import type { ActivityItem, ActivityKind, ActorType, EventType } from '../api/device-activity';
 
 /** The icon (sw-icon name) of each kind. */
 export const KIND_ICON: Record<ActivityKind, string> = {
@@ -144,7 +144,7 @@ export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confide
   else if (t === 'device') { name = 'ידני בהתקן'; qualifier = 'משוער'; }
   else if (t === 'system') name = 'המערכת';
   else name = 'מקור לא ידוע';
-  if (!name && prefix) { name = prefix; prefix = ''; }
+  if (!name && prefix) { name = `${prefix} (ללא שם)`; prefix = ''; }
   const initials = t === 'person' ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => [...w][0]).join('') : '';
   return { type: t, prefix, name, initials, glyph: ACTOR_GLYPH[t], qualifier };
 }
