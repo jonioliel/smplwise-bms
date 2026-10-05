@@ -267,6 +267,35 @@ continued for the full 60 s observation without a single stall - so that proxy c
 run's 10.1 s was not a recovery either). A real drop needs the network path to the NVR cut for a moment, which is a network
 change outside the read-only approval; it is left for an owner-approved session (or a fake RTSP source in a test rig).
 
+**Drop recovery against a simulated RTSP source (2026-10-05 night).** Test rig: the same throwaway backend, but every playback
+session's source replaced by `rtsp://127.0.0.1:8554/smplwise_pb_simsrc` inside HA2's go2rtc (our own name); the PC publishes an
+ffmpeg test pattern (640x360, 15 fps, H.264 baseline, GOP 1 s) into it, and killing / restarting the publisher is the source
+dropping and coming back. The full chain is the production one (go2rtc ffmpeg source -> MSE -> the playback screen); only the
+NVR's RTSP server is replaced. No real network change; the NVR was read only for the camera list and the recording search;
+every non-`smplwise_pb_` stream unchanged, 0 left afterwards. Media advance before each drop: ratio 1.00.
+
+| Outage | Stall seen by the screen | Back to real time after the source returned | Session generation | Screen status during the stall |
+|---|---|---|---|---|
+| 5 s (run 1) | 2.1 s | 16.4 s (slow ramp, then 1.00) | unchanged | "playing" |
+| 5 s (run 2) | 2.3 s | not within 60 s (media crawled at about 0.2); the screen's resume-at-position restored 1.00 in 8.9 s | unchanged | "playing" |
+| 20 s | 6.3 s (the buffer covered the first 5 s) | 5.3 s | unchanged | "playing" |
+| 60 s | 2.0 s | 6.2 s | unchanged | "playing" |
+
+Findings:
+1. go2rtc re-pulls the source by itself; in 3 of 4 trials playback came back on its own 5-16 s after the source returned,
+   with no new session generation. One short outage left the stream crawling until the screen's resume-at-position (8.9 s).
+2. The screen does not tell the operator anything during a stall: status stays "playing" with a frozen picture. A stall
+   detector (no media progress for N s -> "reconnecting" state, and after M s an automatic resume at the current position) is
+   recommended.
+3. Caveat for the real NVR: a recorded-playback URL carries its own start time, so when go2rtc re-pulls it after a drop the
+   NVR replays from the session's start, not from where the operator was - the picture would come back at an older moment
+   while the screen's position keeps counting. The screen's resume-at-position does not have this problem. To be verified
+   on the unit in the owner-approved network-cut session.
+4. A first rig attempt with a 1280x720 / 25 fps pattern did not even play in real time (ratio 0.11) and ended in "ended"
+   after every drop; it is discarded as a rig artefact, not a product result.
+
+**Real-network drop recovery stays untested** until the owner approves a brief network cut between HA2 and the NVR.
+
 **Follow-up (2.0.0, all vendors):** the screen now detects the stall itself (no media progress for `playback.stall_s`, default 5 s),
 says "מתחבר מחדש", resumes automatically from the frozen position with the same new-generation seek (back-off, at most
 `playback.auto_resume_attempts`, default 3), then says "הניגון נעצר" with a retry. See `docs/changes/PLAYBACK-STALL-RESUME.md`.
