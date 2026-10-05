@@ -230,6 +230,10 @@ HTTP server inside the client connection; not worth it while REALTIME works.
 alarms to an HTTP server. Both need a **device configuration write** and an **inbound port on the add-on** reachable from
 the camera network — rejected for P1 (owner approval and network exposure). Recorded as an option for P4.
 
+Update 2026-10-05 (NN2A): implemented as an option, off by default (`event_mode: push`, listener in the add-on on 18091/tcp,
+unmapped by default). The owner's NVR (firmware 1.4.7) has `serverAddr` + `serverPort` only, so it authenticates by source
+address. Validation tool and runbook: CR-025 section 6.6.
+
 ## 5. Streams for go2rtc
 
 | Device | Live URL (guide 3.1.1 tip) | Notes |
