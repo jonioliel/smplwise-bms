@@ -383,7 +383,7 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
         "activity": e["domain"] in ACTIVITY_DOMAINS,
         "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind")),
         # a lock / alarm panel's activity is behind the permission that operates it (door.unlock / alarm.arm), not just the one that shows it
-        **({"activity_permission": SECURITY_PERMISSIONS[e["domain"]]} if e["domain"] in SECURITY_PERMISSIONS else {}),
+        **({"activity_permissions": list(SECURITY_PERMISSIONS[e["domain"]])} if e["domain"] in SECURITY_PERMISSIONS else {}),
         # seam: the alarm screen's own devices (another branch adds the column / predicate); absent = not managed
         **({"alarm_managed": bool(e.get("alarm_managed"))} if "alarm_managed" in e else {}),
     }

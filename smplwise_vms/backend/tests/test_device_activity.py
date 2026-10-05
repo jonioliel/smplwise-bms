@@ -443,13 +443,13 @@ def test_security_devices_need_the_permission_that_operates_them(app_s):
     c = TestClient(app)
     push(app, _state("lock.front", "locked", 0), _state("lock.front", "unlocked", 5, ctx("l1", "u-dana")))
     push(app, _state("alarm_control_panel.house", "armed_away", 0), _state("alarm_control_panel.house", "disarmed", 5, ctx("l2", "u-dana")))
-    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "system_admin")):  # door.unlock is a system_admin permission
+    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "system_admin")):
         bind(c, s, name, role, "installation", "*")
     # a viewer sees both devices but not who locked / armed them
     assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("vi")).status_code == 403
     assert c.get(f"{API}/devices/alarm_control_panel.house/activity", headers=as_user("vi")).status_code == 403
-    # an operator may arm (alarm.arm) but holds no door.unlock (system_admin only)
-    assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("op")).status_code == 403
+    # an operator operates locks (ha.entity.control) and arms (alarm.arm)
+    assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("op")).status_code == 200
     assert c.get(f"{API}/devices/alarm_control_panel.house/activity", headers=as_user("op")).status_code == 200
     r = c.get(f"{API}/devices/lock.front/activity", headers=as_user("sa"))
     assert r.status_code == 200 and r.json()["items"][0]["actor"]["name"] == "דנה כהן" and r.json()["entity"]["activity_kind"] == "generic"
@@ -496,7 +496,7 @@ def test_card_rows_carry_the_activity_flag_and_the_twelve_kinds(app_s):
     assert kinds["light.lobby"] == "light" and kinds["switch.sign"] == "switch" and kinds["input_boolean.guest"] == "switch" and kinds["switch.plug"] == "outlet"
     assert kinds["cover.blind"] == "cover" and kinds["cover.garage"] == "garage_door" and kinds["climate.lobby"] in ("climate", "heater") and kinds["fan.vent"] == "fan"
     assert kinds["lock.front"] == "generic" and kinds["alarm_control_panel.house"] == "generic"
-    assert rows_["lock.front"]["activity_permission"] == "door.unlock" and rows_["alarm_control_panel.house"]["activity_permission"] == "alarm.arm" and "activity_permission" not in rows_["light.lobby"]
+    assert rows_["lock.front"]["activity_permissions"] == ["door.unlock", "ha.entity.control"] and rows_["alarm_control_panel.house"]["activity_permissions"] == ["alarm.arm"] and "activity_permissions" not in rows_["light.lobby"]
     assert not rows_["sensor.temp"]["activity"] and rows_["sensor.temp"]["activity_kind"] is None and not rows_["media_player.tv"]["activity"]
     # the kinds without a card yet (water heater, valve, vacuum) and the heater come from the same function
     assert activity_kind("water_heater") == "water_heater" and activity_kind("valve") == "valve" and activity_kind("vacuum") == "vacuum"

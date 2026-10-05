@@ -217,7 +217,7 @@ commands `config/auth/list` and `logbook/get_events`, and a passive `subscribe_e
   (default 90, range 7..365), a per-entity cap (5 000) and a table cap (500 000), pruned by the janitor at most every 15 minutes.
 - `GET /api/v1/devices/{entity_id}/activity` (filters `since`, `until`, `actor`, `kind`, paging by `cursor`); card rows gain `activity`,
   `activity_kind` and, for security devices, `activity_permission`; outlets gain `power` only from a power sensor of the same registry device.
-- Decisions: no new permission (whoever sees the device sees its activity, names included); a lock needs `door.unlock` and an alarm panel
+- Decisions: no new permission (whoever sees the device sees its activity, names included); a lock needs `door.unlock` or `ha.entity.control` (operator and above; `door.unlock` alone is held by no default role) and an alarm panel
   `alarm.arm` (plus `alarm.view`), reusing the existing family without widening who sees them; history starts from zero (`tracked_since`).
 - Not in S1: rule 3's schedule-run window (a schedule's action is shown as "manual" or "automation (unnamed)" until S4), the optional logbook
   backfill, a WebSocket frame, the UI.

@@ -167,9 +167,8 @@ def device_activity_feed(
     row = conn.execute("SELECT entity_id, name, domain, device_class FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
     if not placed or row is None or row["domain"] not in device_activity.ACTIVITY_DOMAINS:
         raise ApiError(404, "not_found", "ההתקן לא נמצא.")
-    perm = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
-    if perm and not ha_scope.entity_allowed(conn, principal, entity_id, perm):
-        require(conn, principal, perm, INSTALLATION)  # a lock / alarm panel: the permission that operates it
+    perms = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
+    if perms and not any(ha_scope.entity_allowed(conn, principal, entity_id, p) for p in perms):  # a lock / alarm panel: a permission that operates it
         raise ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה.")
     if row["domain"] == "alarm_control_panel":
         # the alarm's own rows also need alarm.view at the entity's scope (as _visible_entities)

@@ -47,9 +47,10 @@ ACTIVITY_CARDS = ("lighting", "switches", "climate", "heating", "covers", "secur
 # owner decision 2026-10-05: all twelve kinds of the first half-version, security devices included (behind a stricter permission)
 ACTIVITY_DOMAINS = frozenset({"light", "switch", "input_boolean", "climate", "fan", "humidifier", "cover", "water_heater", "valve", "vacuum", "lock", "alarm_control_panel"})
 VIRTUAL_DOMAINS = frozenset({"input_boolean"})
-# a security device's activity needs the permission that OPERATES it, never just the one that shows it (the existing alarm / door family;
-# nothing new, nobody who could not see the device gains it): a lock - door.unlock, an alarm panel - alarm.arm
-SECURITY_PERMISSIONS = {"lock": "door.unlock", "alarm_control_panel": "alarm.arm"}
+# a security device's activity needs a permission that OPERATES it, never just the one that shows it (the existing alarm / door family;
+# nothing new, nobody who could not see the device gains it; any one of the list at the entity's placement): a lock - door.unlock (held only
+# through a custom role) or ha.entity.control (operator and above), an alarm panel - alarm.arm (plus alarm.view)
+SECURITY_PERMISSIONS = {"lock": ("door.unlock", "ha.entity.control"), "alarm_control_panel": ("alarm.arm",)}
 ACTIVITY_KINDS = ("light", "switch", "outlet", "cover", "garage_door", "climate", "heater", "fan", "water_heater", "valve", "vacuum", "generic")
 GARAGE_CLASSES = frozenset({"garage", "gate"})
 
