@@ -111,8 +111,13 @@ Connecting to `wss://<host>/ws` with the session cookie delivers JSON frames `{t
 topics (no broker needed): `<cam>/status/detect` (`online`/`offline`), `<cam>/motion` (`ON`/`OFF`), `camera_activity`
 (per camera: motion, tracked objects, **and the live feature switches** `detect/enabled/snapshots/record/audio/...`),
 `model_state`, `embeddings_reindex_progress`, `birdseye_layout`, `audio_detections`, `profile/state`, `job_state`;
-`events`, `reviews`, `tracked_object_update` appear when detections happen (not captured in the 30 s sample). The same
-channel accepts the control topics (`<cam>/detect/set`, ...) - the UI's switches use it. This study only listened.
+`events`, `reviews`, `tracked_object_update` appear when detections happen. A passive 13-minute listen (night time, no
+detection occurred) saw: `stats` every 60 s (full `/api/stats` payload), `camera_activity` once on connect, per-camera
+`status/detect` **607 frames** (one camera's detect pipe flapped online/offline, which confirms Frigate's own advice to
+debounce it), `<cam>/motion` 53 frames, per-label count topics (`<cam>/person`, `/active`, `all`) once on connect, and
+`profile/state`, `job_state`, `model_state`, `embeddings_reindex_progress`, `birdseye_layout`, `audio_detections`. **No
+`events` / `reviews` frames were seen**, so their `/ws` payloads remain NOT VERIFIED (documented MQTT shape in Appendix B).
+The same channel accepts the control topics (`<cam>/detect/set`, ...) - the UI's switches use it. This study only listened.
 
 ### 3.4 The web UI, route by route (what to learn from it)
 
@@ -370,7 +375,7 @@ Anything missing is `False` with a reason, and a route asks before it calls.
 
 | Transport | Pros | Cons | Verdict |
 |---|---|---|---|
-| **WebSocket `/ws`** (JWT) | Broker-free, same JSON as MQTT, one connection per recorder, also carries the live feature switches (`camera_activity`) and `status/*` | A session that can drop; payloads for `events` / `reviews` not yet seen in the live capture (see 10) | **Primary** |
+| **WebSocket `/ws`** (JWT) | Broker-free, same JSON as MQTT, one connection per recorder, also carries the live feature switches (`camera_activity`) and `status/*` | A session that can drop; payloads for `events` / `reviews` not yet seen in the live capture (see section 10, U1) | **Primary** |
 | **API polling** `GET /review?after=`, `/events?after=` | Stateless, truthful backfill after any outage, works for history import | Latency (poll interval), items mutate (end time, severity) so the window must overlap | **Always on as backfill and gap detector** |
 | MQTT | QoS, retained state, independent of Frigate sessions | Needs the broker address and credentials, a new client library in Arx (none today), another secret | Not in F1; revisit only if the broker is already reachable and the owner wants it |
 
@@ -507,7 +512,7 @@ F2 and F3 follow on the 2.x train at the owner's pace.
 | **UI screens** | Settings > connections: Frigate card (extends CR-022 form). Devices: recorder rows. **Investigate > Alerts** (review cards: thumbnail, object chips, zone, severity colour, duration, reviewed state, multi-select, shortcuts, calendar with recordings underline + unreviewed dot). Event drawer (lifecycle timeline, score / top score, play from here). Playback with an HLS member and a coverage + motion bar. Search box (text, semantic, similar-to-this, `key:value` chips). Health card rows. Storage screen rows. |
 | **Permissions** | `analytics.read`, `analytics.review`, existing `events.read`, `playback.*`, `exports.*`, `system.health`; camera row-scope everywhere |
 | **Approvals** | None for Frigate writes (there are none). Owner actions: create a Frigate **viewer** account; allow one `clip.mp4` GET test; be present for the live validation |
-| **Risks** | R1 viewer role may not read `/config` or `/ws` (NOT VERIFIED). R2 `events` / `reviews` frames over `/ws` not yet observed (a 13 min listen was running at the time of writing; result in section 10). R3 HLS anchors / seek error unproven until measured. R4 polling and MJPEG load on Frigate's CPU (the instance already shows high ffmpeg CPU on one camera): budgets per recorder, poll no faster than 5 s, MJPEG capped. R5 thumbnails of people are stored in Arx: retention follows the events setting. R6 sparse coverage (motion-only retention) must not be shown as "no recording". R7 duplicates with a Hikvision camera (question 4). R8 self-signed TLS (pin on first use). R9 `events/summary` is 14 MB unfiltered: the allow-list forbids it without a time window |
+| **Risks** | R1 viewer role may not read `/config` or `/ws` (NOT VERIFIED). R2 `events` / `reviews` frames over `/ws` were not observed in a 13 min night-time listen (no detection happened); the polling backfill is therefore mandatory, not optional, until a detection is captured. R3 HLS anchors / seek error unproven until measured. R4 polling and MJPEG load on Frigate's CPU (the instance already shows high ffmpeg CPU on one camera): budgets per recorder, poll no faster than 5 s, MJPEG capped. R5 thumbnails of people are stored in Arx: retention follows the events setting. R6 sparse coverage (motion-only retention) must not be shown as "no recording". R7 duplicates with a Hikvision camera (question 4). R8 self-signed TLS (pin on first use). R9 `events/summary` is 14 MB unfiltered: the allow-list forbids it without a time window |
 | **Dependencies** | CR-024 recorder model and CR-026 health (both on `main`); Provision playback patterns (CR-025 P3) for the session / lease shape; Arx go2rtc for live; owner's viewer account |
 | **Fable UI** | One pass: the **Alerts / review screen** (cards + timeline + lifecycle overlay + calendar). Everything else reuses existing components |
 
@@ -574,7 +579,7 @@ review round without blocking it.
 
 | # | Item | Status | How to close |
 |---|---|---|---|
-| U1 | `events`, `reviews`, `tracked_object_update` frames over `/ws` (no detection happened in the 30 s sample) | see the long capture note below | run F1 against the live box read-only |
+| U1 | `events`, `reviews`, `tracked_object_update` frames over `/ws` (none occurred in a 30 s and a 13 min listen) | not verified | capture one during a detection, read-only, before F1 relies on it; polling stays the backfill |
 | U2 | What a **viewer** account may read (`/config`, `/stats`, `/ws`, `/events`) | not verified (only an admin was available) | owner creates a viewer account; one read pass |
 | U3 | HLS anchor accuracy (first segment vs requested start), seek behaviour, cleanup | not verified | F1 measurement step (AGENTS media-anchor rule) |
 | U4 | `GET .../clip.mp4` behaviour (time to build, size, load) | not executed on purpose | one supervised GET test |
