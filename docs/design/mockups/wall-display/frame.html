@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Arx · מציג מוקאפים · CR-030</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  body { margin: 0; background: #1b1f2e; color: #e6ebf5; font-family: 'Heebo', 'Segoe UI', sans-serif; min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+  header { display: flex; gap: 8px; align-items: center; padding: 10px 16px; background: #0f1220; flex-wrap: wrap; font-size: 13px; }
+  header a { color: #8fb2ff; text-decoration: none; }
+  header button, header select { font: inherit; border: 0; border-radius: 999px; padding: 5px 12px; background: #2a3146; color: #fff; cursor: pointer; }
+  header button.on { background: #2767ed; }
+  main { display: grid; place-items: start center; padding: 16px; overflow: auto; }
+  iframe { border: 0; background: #000; box-shadow: 0 20px 60px rgba(0,0,0,.6); border-radius: 10px; }
+  .lbl { opacity: .6; margin-inline-start: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">← לרשימה</a>
+  <span class="lbl">גודל</span>
+  <button data-size="1280x800">טאבלט לרוחב 1280×800</button>
+  <button data-size="800x1280">טאבלט לאורך 800×1280</button>
+  <button data-size="1920x1200">טאבלט גדול 1920×1200</button>
+  <button data-size="1440x900">מחשב 1440×900</button>
+  <button data-size="390x844">טלפון 390×844</button>
+  <span class="lbl">סקין</span><select id="skin"><option value="classic">classic</option><option value="bubble">bubble</option></select>
+  <span class="lbl">ערכה</span><select id="scheme"><option value="dark">dark</option><option value="light">light</option></select>
+  <span class="lbl" id="url" dir="ltr"></span>
+</header>
+<main><iframe id="f" title="מוקאפ"></iframe></main>
+<script>
+  const P = new URLSearchParams(location.search);
+  const src = P.get('src') || 'wall.html?state=base';
+  let size = P.get('size') || '1280x800';
+  const skin = document.getElementById('skin'), scheme = document.getElementById('scheme');
+  skin.value = P.get('skin') || 'classic'; scheme.value = P.get('scheme') || 'dark';
+  function load() {
+    const [w, h] = size.split('x').map(Number);
+    const f = document.getElementById('f'); f.width = w; f.height = h;
+    const scale = Math.min(1, (innerWidth - 40) / w);
+    f.style.transform = `scale(${scale})`; f.style.transformOrigin = 'top center'; f.parentElement.style.height = h * scale + 32 + 'px';
+    const u = new URL(src, location.href); u.searchParams.set('skin', skin.value); u.searchParams.set('scheme', scheme.value);
+    f.src = u.toString(); document.getElementById('url').textContent = u.pathname.split('/').pop() + u.search;
+    document.querySelectorAll('[data-size]').forEach((b) => b.classList.toggle('on', b.dataset.size === size));
+  }
+  document.querySelectorAll('[data-size]').forEach((b) => b.addEventListener('click', () => { size = b.dataset.size; load(); }));
+  skin.addEventListener('change', load); scheme.addEventListener('change', load); addEventListener('resize', load);
+  load();
+</script>
+</body>
+</html>

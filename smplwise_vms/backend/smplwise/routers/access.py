@@ -56,6 +56,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # and area actions over the entities placed on its floors; a building action needs installation scope.
     "devices.control_bulk": "פעולות מרוכזות בחשמל והתקנים: כיבוי תאורה / מיזוג / מסכים וסגירת תריסים לאזור, קומה או מבנה",
     "video.live": "שידור חי",
+    "wall.view": "מסך קיר (קריאה בלבד)",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",
     "events.ack": "סימון אירועים כטופלו",
@@ -213,6 +214,11 @@ PERMISSION_LABELS: dict[str, str] = {
     "energy.view": "צפייה במונים ובצריכה",
     "energy.bills": "חיובים: סכומים, לקוחות, הפקה וביטול",
     "energy.manage": "ניהול מונים, חשבונות, לקוחות ומחירים",
+    # CR-031 (generator control screen; owner 2026-10-05): generator.view = the live screen, history charts, alerts and their
+    # acknowledge / mute (operator and above); generator.manage = detection, the sensor mapping, rated values, thresholds and the
+    # alert routing (site_admin, system_admin). View and alerts only: there is NO command to the controller, so no control permission.
+    "generator.view": "צפייה בגנרטור והתראותיו",
+    "generator.manage": "ניהול הגנרטור: זיהוי, מיפוי חיישנים וניתוב התראות",
 }
 SYSTEM_PERMISSIONS = {"system.configure", "sources.configure", "identity.directory.read", "rbac.roles.manage", "audit.read", "backup.manage", "nvr.configure", "system.update"}  # rbac.assign is delegable (T082)
 # T082 (R164): the per-installation allow-list of roles a delegated administrator may hand out. Setting key

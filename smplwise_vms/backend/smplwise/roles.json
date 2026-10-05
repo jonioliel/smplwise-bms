@@ -21,7 +21,8 @@
       "name_he": "תצוגת קיוסק",
       "permissions": [
         "map.read",
-        "video.live"
+        "video.live",
+        "wall.view"
       ]
     },
     {
@@ -50,6 +51,7 @@
         "media.queue",
         "media.cast",
         "energy.view",
+        "generator.view",
         "presence.report"
       ]
     },
@@ -126,6 +128,8 @@
         "energy.view",
         "energy.bills",
         "energy.manage",
+        "generator.view",
+        "generator.manage",
         "presence.report"
       ]
     },
@@ -206,6 +210,8 @@
         "energy.view",
         "energy.bills",
         "energy.manage",
+        "generator.view",
+        "generator.manage",
         "presence.report",
         "presence.sensors.view"
       ]

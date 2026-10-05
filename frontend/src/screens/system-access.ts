@@ -61,7 +61,8 @@ import {
 } from '../api/access';
 import { SkinController } from '../design/skin';
 import '../electricity/permission-rows'; // CR-023: the electricity permission rows (roles tab)
-import { energyPermissionLabel } from '../electricity/access'; // CR-023: the one source of the energy permission labels
+import { energyPermissionLabel } from '../electricity/access';
+import { generatorPermissionLabel } from '../generator/access'; // CR-031 // CR-023: the one source of the energy permission labels
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const TABS = [
@@ -436,7 +437,7 @@ export class SystemAccess extends LitElement {
   }
 
   private label(p: string): string {
-    return this.roles?.labels[p] ?? energyPermissionLabel(p) ?? p;
+    return this.roles?.labels[p] ?? energyPermissionLabel(p) ?? generatorPermissionLabel(p) ?? p;
   }
 
   private startWizard(kind: 'user' | 'group', id: string, name: string) {

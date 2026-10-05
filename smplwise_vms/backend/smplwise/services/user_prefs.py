@@ -104,6 +104,10 @@ VALIDATORS["ui.dd_picker"] = dd_style.normalize_picker
 DEFAULTS["ui.dd_search"] = None
 DEFAULTS["ui.dd_picker"] = None
 
+# `generator.view_mode` (CR-031, owner 2026-10-05): the generator live screen shows ONE of dials (gauges) or charts, the user's choice; default gauges.
+VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))
+DEFAULTS["generator.view_mode"] = "gauges"
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None

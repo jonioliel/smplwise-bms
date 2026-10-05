@@ -22,7 +22,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -87,6 +87,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy janitor failed", exc_info=True)
+    try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
+        from .services import generator_runtime
+
+        generator_runtime.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("generator janitor failed", exc_info=True)
     try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
         from .services import update_runs
 
@@ -305,6 +311,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix=api, tags=["ops"])
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
+    app.include_router(wall_router.router, prefix=api, tags=["wall"])
     app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
     from .routers import recorders as recorders_router
 
@@ -316,6 +323,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
 
+    from .routers import generator as generator_router
+
+    app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
     from .routers import nvr_batch as nvr_batch_router
 
@@ -413,6 +423,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
+        from .services import generator_runtime
+
+        generator_runtime.RUNNER.start(app.state.db, settings)  # CR-031: generator detection, history samples and alerts from the state mirror (read-only)
         if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
             from .services import bill_pdf
 
@@ -487,6 +500,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.shutdown()
+        from .services import generator_runtime
+
+        generator_runtime.RUNNER.shutdown()
         from .services import push as push_svc
 
         from starlette.concurrency import run_in_threadpool as _in_thread

@@ -131,6 +131,47 @@ class SyncState:
 
 
 STATE = SyncState()
+
+# HA1: a failed connect is classified into a stable code the UI turns into plain Hebrew. While it looks like a platform
+# restart (the core answers the websocket handshake with an HTTP error, refuses the port, or times out) the retry
+# back-off is capped low for the first RESTART_WINDOW_S, then goes back to the normal doubling up to 60 s.
+ERR_RESTARTING = "ha_restarting"
+ERR_UNREACHABLE = "ha_unreachable"
+BACKOFF_START_S = 5.0
+BACKOFF_MAX_S = 60.0
+RESTART_BACKOFF_CAP_S = 15.0
+RESTART_WINDOW_S = 300.0
+
+
+def classify_failure(exc: BaseException) -> str:
+    """A stable code for a failed session: ha_restarting (handshake rejected / refused / timed out), ha_unreachable
+    (host not found or no route), an ApiError's own code, else the exception class name."""
+    if isinstance(exc, ApiError):
+        return exc.code
+    name = type(exc).__name__
+    if name in ("InvalidStatus", "InvalidStatusCode", "InvalidHandshake", "ConnectionClosed", "ConnectionClosedError", "ConnectionClosedOK", "EOFError", "IncompleteReadError"):
+        return ERR_RESTARTING
+    if isinstance(exc, (ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, TimeoutError, asyncio.TimeoutError)):
+        return ERR_RESTARTING
+    if isinstance(exc, OSError):
+        return ERR_UNREACHABLE
+    return name
+
+
+def next_backoff(code: str, backoff: float, down_since: float | None, now: float) -> float:
+    """The delay AFTER this failure (the caller sleeps the current `backoff`, then stores this value)."""
+    nxt = min(BACKOFF_MAX_S, backoff * 2)
+    if code == ERR_RESTARTING and down_since is not None and now - down_since < RESTART_WINDOW_S:
+        nxt = min(nxt, RESTART_BACKOFF_CAP_S)
+    return nxt
+
+
+_reset_backoff = threading.Event()
+
+
+def note_restart_initiated() -> None:
+    """The add-on itself restarted the platform: the next wait ends now and the back-off starts over."""
+    _reset_backoff.set()
 _subscribers: list[queue.Queue] = []
 _sub_lock = threading.Lock()
 
@@ -616,7 +657,8 @@ class HaSync:
 
     async def _loop(self) -> None:
         assert self.db and self.settings
-        backoff = 5.0
+        backoff = BACKOFF_START_S
+        down_since: float | None = None
         stop_evt = asyncio.Event()
 
         async def watch_stop() -> None:
@@ -628,21 +670,32 @@ class HaSync:
         while not self.stop.is_set():
             try:
                 await self._session(stop_evt)
-                backoff = 5.0
+                backoff = BACKOFF_START_S
+                down_since = None
             except Exception as exc:
                 if self.stop.is_set():
                     break
-                STATE.last_error = type(exc).__name__ if not isinstance(exc, ApiError) else exc.code
-                log.warning("HA sync disconnected: %s (retry in %.0fs)", STATE.last_error, backoff)
+                STATE.last_error = classify_failure(exc)
+                if down_since is None:
+                    down_since = time.monotonic()
+                log.warning("HA sync disconnected: %s (%s; retry in %.0fs)", STATE.last_error, type(exc).__name__, backoff)
             if STATE.connected:
                 STATE.reconnects += 1
             STATE.connected = False
             publish({"type": "ha_sync_state", "connected": False})
-            try:
-                await asyncio.wait_for(stop_evt.wait(), timeout=backoff)
-            except asyncio.TimeoutError:
-                pass
-            backoff = min(60.0, backoff * 2)
+            # a restart started by the add-on itself cuts the wait short (polled: the loop has no cross-thread wake-up)
+            waited = 0.0
+            while waited < backoff and not _reset_backoff.is_set() and not stop_evt.is_set():
+                try:
+                    await asyncio.wait_for(stop_evt.wait(), timeout=min(1.0, backoff - waited))
+                except asyncio.TimeoutError:
+                    pass
+                waited += 1.0
+            if _reset_backoff.is_set():
+                _reset_backoff.clear()
+                backoff, down_since = BACKOFF_START_S, time.monotonic()
+                continue
+            backoff = next_backoff(STATE.last_error or "", backoff, down_since, time.monotonic())
         STATE.connected = False
 
     async def _session(self, stop_evt: asyncio.Event) -> None:

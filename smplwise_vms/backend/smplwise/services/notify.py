@@ -165,6 +165,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         candidates = managers(conn)
     elif rule == "initiator":
         candidates = [n["initiator_user_id"]] if n.get("initiator_user_id") else []
+    elif rule == "generator":  # CR-031: the routing saved per generator alert type; empty until an administrator saves one
+        from . import generator_alerts
+
+        candidates = generator_alerts.recipient_users(conn, n)
     else:
         candidates = list(rec.get("user_ids") or [])
     out = []

@@ -12,7 +12,7 @@ from smplwise.services import ha_sync
 
 
 def test_kiosk_role_is_live_and_map_only(settings):
-    assert ROLES["kiosk"] == ["map.read", "video.live"]
+    assert ROLES["kiosk"] == ["map.read", "video.live", "wall.view"]
     app = create_app(settings)
     c = TestClient(app)
     ids = seed_tree(c)

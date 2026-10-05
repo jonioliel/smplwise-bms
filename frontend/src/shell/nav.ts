@@ -417,6 +417,7 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 /** CR-014: the schedules list (a tab of the home area) and its settings page (a tab of הגדרות). */
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
+export const WALL_SETTINGS_HREF = '#/system/wall'; // CR-030: wall display users (system.configure; the add / remove step also needs rbac.assign)
 /** CR-017: the automations screen (the third tab of the home area: automations, scenes, scripts) and its settings page. */
 export const AUTOMATIONS_HREF = '#/devices/automations';
 export const AUTOMATIONS_SETTINGS_HREF = '#/system/automations';
@@ -506,7 +507,21 @@ export function kavarnitSegments(api: boolean, can?: Can): KavarnitSegments {
 /** CR-023: the infrastructure area ("תשתיות", #/infra/*) with its one sub-tab "מוני חשמל" (water and generators join later), and its settings tab. */
 export const INFRA_METERS_HREF = '#/infra/electricity/meters';
 export const INFRA_SETTINGS_HREF = '#/system/infra';
-export const INFRA_TABS: TabItem[] = [{ id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF }];
+export const INFRA_GENERATOR_HREF = '#/infra/generator/live';
+export const INFRA_TABS: TabItem[] = [
+  { id: 'electricity', label: 'מוני חשמל', href: INFRA_METERS_HREF },
+  // CR-031: a sibling of the meters, offered only when a generator is detected (or to a manager, for setup)
+  { id: 'generator', label: 'גנרטור', href: INFRA_GENERATOR_HREF },
+];
+
+/** CR-031: the generator tab is hidden until a generator is detected (generator/access.ts); hidden = true until told otherwise. */
+let INFRA_NO_GENERATOR = true;
+export function applyInfraGenerator(show: boolean): void {
+  const hide = !show;
+  if (hide === INFRA_NO_GENERATOR) return;
+  INFRA_NO_GENERATOR = hide;
+  for (const l of tabsListeners) l();
+}
 
 /** CR-023: the area is offered to holders of energy.view only when the installation has meters or the user may manage them (an installation
  * without meters shows nothing). Filled by electricity/visibility.ts; true = no meters and no manage permission. */
@@ -619,6 +634,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
+    { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
@@ -665,7 +681,7 @@ export function activeAreaTab(r: RouteState | null): string {
     case 'devices':
       return s[1] === 'schedules' || s[1] === 'automations' ? 'automations' : 'building'; // 0.1.154: the schedules are a segment of קברניט
     case 'infra':
-      return 'electricity';
+      return s[1] === 'generator' ? 'generator' : 'electricity';
     case 'multimedia':
       return s[1] === 'players' ? 'players' : s[1] === 'groups' ? 'groups' : 'screens';
     default:
@@ -795,6 +811,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
+  [WALL_SETTINGS_HREF]: ['system.configure'],
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
   // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
   // without automation.manage; the settings page is system.configure at installation scope.
@@ -810,7 +827,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [MULTIMEDIA_SETTINGS_HREF]: ['system.configure'],
   // CR-023: energy.view / energy.manage are installation-scope in v1; the settings tab is for managers (prices, business) and system administrators (retention)
   [INFRA_METERS_HREF]: ['energy.view'],
-  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure'],
+  [INFRA_GENERATOR_HREF]: ['generator.view'],
+  [INFRA_SETTINGS_HREF]: ['energy.manage', 'system.configure', 'generator.manage'],
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
   [UPDATE_SETTINGS_HREF]: ['system.update'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
@@ -847,7 +865,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
@@ -862,7 +880,7 @@ export function tabAllowed(href: string, can?: Can): boolean {
 export function visibleTabs(items: TabItem[], api: boolean, can?: Can): TabItem[] {
   // CR-016: the players / groups tabs are offered only when the installation has players / groups (applyMultimediaKinds),
   // with or without a backend
-  const offered = items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
+  const offered = items === INFRA_TABS && !api ? items.filter((t) => t.id !== 'generator') : items === MULTIMEDIA_TABS ? items.filter((t) => t.id === 'screens' || (t.id === 'players' && MULTIMEDIA_KINDS.players) || (t.id === 'groups' && MULTIMEDIA_KINDS.groups)) : items;
   // permissions and the fixed rules decide what is offered; ui.tabs (order, hidden) then shapes it (with a backend only:
   // the static demo shows the defaults)
   if (!api) return offered;
@@ -884,7 +902,7 @@ function permittedTabs(source: TabItem[], api: boolean, can?: Can): TabItem[] {
     const seg = kavarnitSegments(api, can);
     return seg.schedules || seg.automations ? [{ ...t, href: seg.schedules ? SCHEDULES_HREF : AUTOMATIONS_HREF }] : [];
   }) : source;
-  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
+  return api ? items.filter((t) => !DEMO_ONLY_HREFS.has(t.href ?? '') && !HIDDEN_HREFS.has(t.href ?? '') && !(WISKEY_HIDDEN && isWiskeyHref(t.href ?? '')) && !capHiddenHref(t.href ?? '') && !(ALARM_PRESENT === false && ALARM_HREFS.has(t.href ?? '')) && !(INFRA_NO_METERS && t.href === INFRA_METERS_HREF) && !(INFRA_NO_GENERATOR && t.href === INFRA_GENERATOR_HREF) && (t.href !== SECURITY_SETTINGS_HREF || visibleTabs(SECURITY_SETTINGS_TABS, api, can).length > 0) && tabAllowed(t.href ?? '', can)).map((t) => (API_LABELS[t.href ?? ''] ? { ...t, label: API_LABELS[t.href ?? ''] } : t)) : items;
 }
 
 /** The rail entries the user gets: an area stays while one of its tabs is visible (the live area always - the

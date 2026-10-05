@@ -171,6 +171,8 @@ class Reach:
             return n.get("initiator_user_id") == uid
         if kind == "system":
             return self._allowed("system.configure")
+        if kind == "generator":
+            return self._allowed("generator.view")  # CR-031: the generator's alerts reach holders of generator.view only
         if kind == "session":
             if str(n.get("source") or "") == "security.lockout":
                 return self._allowed("system.configure")  # administrators ONLY: the locked-out account is not told (and cannot acknowledge it)

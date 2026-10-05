@@ -29,7 +29,7 @@ export type Severity = 'info' | 'alert' | 'critical';
 export type Category = 'safety' | 'alerts' | 'doors' | 'device_faults' | 'automations' | 'system' | 'security';
 /** v1: inbox, webpush, email. Reserved (enum values only): ha_mobile (Companion step), whatsapp (WhatsApp step), app (CR-012). */
 export type Channel = 'inbox' | 'webpush' | 'email' | 'ha_mobile' | 'whatsapp' | 'app';
-export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session';
+export type SubjectKind = 'camera' | 'entity' | 'area' | 'alarm_panel' | 'door' | 'schedule' | 'automation' | 'bulk_job' | 'system' | 'session' | 'generator';
 export type NotifyState = 'open' | 'acknowledged' | 'resolved';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
@@ -1072,7 +1072,7 @@ export interface Viewer {
  * user). Schedules and automations: the owner of record is only known to the server, so the helper falls back to the view permission. */
 export const VISIBILITY_PERMISSION: Record<SubjectKind, string | null> = {
   camera: 'events.read', entity: 'devices.read', area: 'devices.read', alarm_panel: 'alarm.view', door: 'access.read', schedule: 'schedule.view', automation: 'schedule.view',
-  bulk_job: null, system: 'system.configure', session: null,
+  bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view',
 };
 /** Whether a row may be shown to this viewer NOW (the server re-checks at every read; this mirrors it for a permission change that arrives before the
  * next fetch). Owner-only kinds (bulk_job, session) are trusted: the server only returns the caller's own rows - except an account lockout, which
