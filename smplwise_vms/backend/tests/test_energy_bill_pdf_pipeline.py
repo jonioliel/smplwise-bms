@@ -197,6 +197,107 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
     assert c.get(f"{API}/bills/{bill['id']}").json()["pdf"]["state"] == "stored"
 
 
+@pytest.fixture()
+def no_system_fonts(tmp_path, monkeypatch):
+    """The add-on image has no system font at all (Alpine, no font package): an empty fontconfig reproduces that here.
+    The render child keeps FONTCONFIG_FILE (bill_pdf._child_extra), so it sees exactly what the image sees."""
+    conf = tmp_path / "fonts.conf"
+    conf.write_text('<?xml version="1.0"?>\n<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n<fontconfig><cachedir>'
+                    f'{tmp_path}/fc-cache</cachedir></fontconfig>\n', encoding="utf-8")
+    monkeypatch.setenv("FONTCONFIG_FILE", str(conf))
+    monkeypatch.delenv("SW_BILL_PDF_ENGINE", raising=False)
+    return conf
+
+
+@needs_render
+def test_self_check_finds_weasyprint_on_a_system_without_fonts(no_system_fonts):
+    """Regression (EL8, found in the add-on image): the self-check rendered a page without the bundled fonts, Pango found
+    no font at all and the child crashed, so the add-on reported "no PDF engine" and refused every bill PDF (503), although
+    the real bill (bundled Heebo) renders fine there."""
+    s = bill_pdf.self_check(timeout_s=90)
+    assert s["active"] == "weasyprint", s
+
+
+@needs_render
+def test_a_bill_renders_with_bundled_fonts_only_on_a_system_without_fonts(no_system_fonts):
+    from bill_pdf_samples import base
+
+    pdf = bill_pdf.render_bill_pdf(base())
+    assert bill_pdf.engine_status()["last_render_engine"] == "weasyprint"
+    fonts = fonts_of(pdf)
+    assert fonts and all("Heebo" in f[0] and f[-5] == "yes" for f in fonts), fonts
+    assert "סה״כ לתשלום" in flat(pdf) and "497.35" in flat(pdf)
+
+
+def test_a_crashed_weasyprint_child_falls_back_to_the_simple_engine(monkeypatch):
+    """`auto` means "fpdf2 when the WeasyPrint stack cannot load or render": a native crash of the WeasyPrint child
+    (pdf_render_failed, no PDF) is rendered again with fpdf2, counted and logged; an explicit engine never falls back and a
+    hard limit (pages, size) is never retried."""
+    from bill_pdf_samples import base
+
+    calls: list[str] = []
+
+    def child(job, timeout_s):
+        calls.append(job["engine"])
+        if job["engine"] != "fpdf2":
+            raise bill_pdf.BillPdfError("pdf_render_failed")
+        return b"%PDF-1.4 simple", "fpdf2"
+
+    monkeypatch.setattr(bill_pdf, "_run_child", child)
+    monkeypatch.delenv("SW_BILL_PDF_ENGINE", raising=False)
+    before = bill_pdf.engine_status()["crash_fallbacks"]
+    assert bill_pdf.render_bill_pdf(base()) == b"%PDF-1.4 simple"
+    assert calls == ["auto", "fpdf2"]
+    st_ = bill_pdf.engine_status()
+    assert st_["crash_fallbacks"] == before + 1 and st_["last_render_engine"] == "fpdf2"
+    calls.clear()
+    with pytest.raises(bill_pdf.BillPdfError):
+        bill_pdf.render_bill_pdf(base(), engine="weasyprint")
+    assert calls == ["weasyprint"]
+
+    def limit(job, timeout_s):
+        calls.append(job["engine"])
+        raise bill_pdf.BillPdfError("pdf_page_limit", retryable=False)
+
+    calls.clear()
+    monkeypatch.setattr(bill_pdf, "_run_child", limit)
+    with pytest.raises(bill_pdf.BillPdfError) as err:
+        bill_pdf.render_bill_pdf(base())
+    assert err.value.code == "pdf_page_limit" and calls == ["auto"]
+
+
+def test_a_crashed_self_check_still_reports_the_simple_engine(monkeypatch):
+    """When the WeasyPrint self-check child dies without an answer, the self-check asks for fpdf2 alone, so the add-on
+    reports (and uses) the simple engine instead of "no PDF engine"."""
+    import subprocess as sp
+
+    real_popen = sp.Popen
+    seen: list[str] = []
+
+    class FakeProc:
+        def __init__(self, out: bytes, err: bytes, rc: int):
+            self._out, self._err, self.returncode = out, err, rc
+
+        def communicate(self, payload=None, timeout=None):
+            import json as _json
+
+            seen.append(_json.loads(payload)["engine"])
+            return self._out, self._err
+
+        def poll(self):
+            return self.returncode
+
+    answers = iter([FakeProc(b"", b"Pango-CRITICAL: assertion failed", -11), FakeProc(b"engine=fpdf2\n", b"", 0)])
+    monkeypatch.setattr(bill_pdf.subprocess, "Popen", lambda *a, **k: next(answers))
+    monkeypatch.delenv("SW_BILL_PDF_ENGINE", raising=False)
+    try:
+        s = bill_pdf.self_check(timeout_s=5)
+    finally:
+        monkeypatch.setattr(bill_pdf.subprocess, "Popen", real_popen)
+    assert seen == ["auto", "fpdf2"]
+    assert s["active"] == "fpdf2" and "crash" in s["detail"], s
+
+
 @needs_render
 def test_billing_settings_report_the_engine_the_self_check_found(world):
     c, _settings, _acc = world

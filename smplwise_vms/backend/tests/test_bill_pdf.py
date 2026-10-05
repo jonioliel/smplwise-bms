@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import io
+import os
 import re
 import shutil
 import subprocess
@@ -34,6 +35,10 @@ try:
 except Exception as exc:  # missing package or missing Pango/GObject libraries
     HAVE_WEASY, WEASY_WHY = False, f"WeasyPrint not importable here: {type(exc).__name__}"
 HAVE_POPPLER = all(shutil.which(t) for t in ("pdftotext", "pdfinfo", "pdffonts"))
+# EL8: inside the add-on image (scripts/addon_image/check_bill_pdf.sh) a missing library must fail, never skip
+REQUIRED = os.environ.get("SW_REQUIRE_BILL_PDF") == "1"
+if REQUIRED:
+    HAVE_WEASY = HAVE_POPPLER = True
 needs_render = pytest.mark.skipif(not (HAVE_WEASY and HAVE_POPPLER),
                                   reason=WEASY_WHY or "poppler-utils (pdftotext/pdfinfo/pdffonts) not installed")
 BIDI = re.compile("[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
