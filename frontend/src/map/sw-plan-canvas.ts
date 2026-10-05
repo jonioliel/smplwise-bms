@@ -1,7 +1,8 @@
 import { LitElement, html, css, svg, nothing, type SVGTemplateResult } from 'lit';
 import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-button';
-import { t } from '../i18n/he';
+import { t, type I18nKey } from '../i18n/he';
+import { clusterBox, clusterMarkers, type Cluster } from './marker-cluster';
 import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, floorHeight, isClosedOutline, objectHitCorners, objectHitOrder, stairPlan, stairRise, type StairPlan, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState, objectCandidateLabel } from './candidates';
@@ -197,6 +198,8 @@ export class SwPlanCanvas extends LitElement {
   @property({ type: Number }) planHeight = 700;
   @property({ attribute: false }) plan: SVGTemplateResult | null = null;
   @property({ attribute: false }) markers: PlanMarker[] = [];
+  /** M037: above this many markers, pins that crowd each other merge into counted clusters (0 = never cluster). */
+  @property({ type: Number }) clusterThreshold = 60;
   @property() selectedId: string | null = null;
   /** Additional highlighted markers (multi-selection); no card is anchored to them. */
   @property({ attribute: false }) selectedIds: string[] = [];
@@ -530,6 +533,24 @@ export class SwPlanCanvas extends LitElement {
     .marker.partial .pin,
     .marker.unknown .pin {
       stroke-dasharray: 3 2;
+    }
+    .marker.cluster .pin {
+      stroke: var(--sw-surface);
+    }
+    .marker.cluster .count {
+      fill: #fff;
+      font: 700 12px var(--sw-font, inherit);
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+      direction: ltr;
+    }
+    .marker.cluster .ring {
+      fill: none;
+      stroke: var(--sw-accent);
+      stroke-width: 1.5;
+      opacity: 0.45;
+      pointer-events: none;
     }
     .marker.dimmed {
       opacity: 0.55;
@@ -1908,6 +1929,45 @@ export class SwPlanCanvas extends LitElement {
     return `M0 0 L${x1.toFixed(1)} ${y1.toFixed(1)} A${radius} ${radius} 0 ${fov > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z`;
   }
 
+  /** M037: the markers as drawn now: plain pins plus clusters. Editing and placing keep every pin individual, and the
+   * selected / highlighted pins are never swallowed by a cluster. */
+  private clustered() {
+    if (this.editable || this.placing || !this.clusterThreshold) return { singles: this.markers, clusters: [] as Cluster<PlanMarker>[] };
+    const keep = [...(this.selectedId ? [this.selectedId] : []), ...this.selectedIds, ...this.highlightIds];
+    return clusterMarkers(this.markers, { planWidth: this.planWidth, planHeight: this.planHeight, scale: this.scale, threshold: this.clusterThreshold, keepIds: keep });
+  }
+
+  private expandCluster(c: Cluster<PlanMarker>, e: Event) {
+    if (this.dragMoved) return;
+    e.stopPropagation();
+    const b = clusterBox(c);
+    this.zoomToBox(b.x0, b.y0, b.x1, b.y1, 72);
+    // keyboard users stay in the map: focus the first member (an individual pin now) or else the first cluster left
+    void this.updateComplete.then(() => {
+      if (!this.focusMarker(c.members[0].id)) this.renderRoot.querySelector<SVGGElement>('g.marker.cluster')?.focus();
+    });
+  }
+
+  private renderCluster(c: Cluster<PlanMarker>) {
+    const inv = 1 / this.scale;
+    const n = c.members.length;
+    const r = n >= 100 ? 20 : n >= 10 ? 17 : 14;
+    const fill = PIN_FILL[c.state] ?? PIN_FILL.neutral;
+    const parts = Object.entries(c.byState).map(([k, v]) => `${v} ${t(`states.${k}` as I18nKey)}`).join(', ');
+    return svg`
+      <g class="marker cluster ${c.state}" transform="translate(${c.x * this.planWidth} ${c.y * this.planHeight})" data-cluster=${c.id} data-count=${n} data-state=${c.state}
+         tabindex="0" role="button" aria-label=${`${t('floor.cluster')}: ${n} - ${parts}`}
+         @click=${(e: Event) => this.expandCluster(c, e)}
+         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.expandCluster(c, e); } }}>
+        <g transform="scale(${inv})">
+          <circle class="halo" r=${r + 9} />
+          <circle class="ring" r=${r + 4} />
+          <circle class="pin" r=${r} fill=${fill} />
+          <text class="count">${n}</text>
+        </g>
+      </g>`;
+  }
+
   private renderMarker(m: PlanMarker) {
     const live = this.dragging?.id === m.id ? this.dragging : m;
     const orient = this.orienting?.id === m.id ? this.orienting : null;
@@ -2632,7 +2692,7 @@ export class SwPlanCanvas extends LitElement {
             ${this.renderCandidates()}
             ${this.renderCandidateHits()}
             ${this.renderGhost()}
-            ${this.markers.map((m) => this.renderMarker(m))}
+            ${(() => { const cl = this.clustered(); return svg`${cl.singles.map((m) => this.renderMarker(m))}${cl.clusters.map((c) => this.renderCluster(c))}`; })()}
             ${this.renderDraft()}
             ${this.renderWallDraft()}
             ${this.renderRulers()}
