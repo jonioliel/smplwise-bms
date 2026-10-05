@@ -1,5 +1,40 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.1.0 (pilot) — Map markers cluster on large sites; the camera search dial applies to camera pickers only; the phone app learns the server id and the relay address; load, memory and exposure evidence for Home Assistant sync and the live relay (tests and documents)
+**After installing:** no database migration, no bridge change (the bridge stays 0.7.0). Reload the installed web app once. The only server change is additive: two more fields in the phone-app responses (`server_id`, `relay_url`; the relay key is never returned).
+- **עברית:** אחרי ההתקנה: בלי מיגרציה ובלי שינוי ברכיב החיבור (נשאר 0.7.0). טוענים מחדש את אפליקציית הרשת פעם אחת. השינוי היחיד בשרת הוא תוספת בלבד: שני שדות נוספים בתשובות לאפליקציית הטלפון (`server_id`, `relay_url`; מפתח הממסר לא מוחזר לעולם).
+
+### Map marker clustering (M037) - אשכולות סמנים במפה
+- **English - what was added:** on a large site the map groups nearby markers into counted clusters above a threshold; a click or Enter on a cluster expands it, the cluster shows the worst status colour of its members, and the current selection is kept while zooming and expanding.
+- **English - bugs fixed:** none (new capability).
+- **English - how to enable:** nothing: clustering switches on by itself when a plan holds more than 60 markers; small plans look exactly as before.
+- **עברית - מה נוסף:** באתר גדול המפה מקבצת סמנים קרובים לאשכולות עם מספר מעל סף מסוים; לחיצה או Enter על אשכול מרחיבים אותו, האשכול מציג את צבע המצב החמור ביותר של חבריו, והבחירה הנוכחית נשמרת בזמן זום והרחבה.
+- **עברית - באגים שתוקנו:** אין (יכולת חדשה).
+- **עברית - איך מפעילים:** אין מה להפעיל: האשכולות נדלקים לבד כשבתכנית יש יותר מ־60 סמנים; תכניות קטנות נראות בדיוק כמו קודם.
+
+### Camera pickers only follow the search dial (CMP3) - חיפוש ברשימה רק בבוררי מצלמות
+- **English - what was added:** the picker-search setting (`ui.dd_search`) now applies to the camera pickers (compare, synchronized playback) only, marked by a new `camera-picker` attribute of the dropdown; every other list keeps the fixed rule (search above the item threshold). The settings label reads "search in the camera list". The phone foot of the picker was verified at 320 and 390 px.
+- **English - bugs fixed:** the search dial also changed unrelated lists that were never meant to follow it.
+- **English - how to enable:** the picker settings, row "search in the camera list" (installation default and a personal choice, as before).
+- **עברית - מה נוסף:** הגדרת החיפוש בבוררים (`ui.dd_search`) חלה עכשיו רק על בוררי המצלמות (השוואה, ניגון מסונכרן), שמסומנים בתכונה חדשה `camera-picker` של הרשימה הנפתחת; כל רשימה אחרת שומרת על הכלל הקבוע (חיפוש מעל סף פריטים). התווית בהגדרות היא "חיפוש ברשימת המצלמות". תחתית הבורר בטלפון נבדקה ברוחב 320 ו־390.
+- **עברית - באגים שתוקנו:** חוגת החיפוש שינתה גם רשימות אחרות שלא נועדו לעקוב אחריה.
+- **עברית - איך מפעילים:** הגדרות הבוררים, שורת "חיפוש ברשימת המצלמות" (ברירת מחדל להתקנה ובחירה אישית, כמו קודם).
+
+### Phone app: server id and relay address (CR-027) - מזהה שרת וכתובת ממסר לאפליקציה
+Document: `docs/api/mobile-presence-contract.md` (sections 0.1, 1, 2, 7.2).
+- **English - what was added:** the opaque `server_id` (never derived from an address) is returned by device registration, the presence config and the push routes, so the app can map a relay push to the server it registered with; `relay_url` (the add-on option `push_relay_url`, `null` when unset) is returned next to it, never the relay key. The contract now documents the identity (`user.id`, `server_id`) and states that the keys of sensor `value` objects are agreed with the apps, not validated by the server.
+- **English - bugs fixed:** none (additive fields only).
+- **English - how to enable:** nothing; the fields are always present.
+- **עברית - מה נוסף:** המזהה האטום `server_id` (לא נגזר מכתובת) מוחזר ברישום המכשיר, בתצורת הנוכחות ובנתיבי ההתראות, כדי שהאפליקציה תוכל לשייך התראת ממסר לשרת שאליו נרשמה; לצידו מוחזר `relay_url` (אפשרות התוסף `push_relay_url`, `null` כשלא הוגדרה), אף פעם לא מפתח הממסר. החוזה מתעד עכשיו את הזהות (`user.id`, `server_id`) וקובע שמפתחות אובייקט הערך של חיישן מוסכמים מול האפליקציות ולא נבדקים בשרת.
+- **עברית - באגים שתוקנו:** אין (שדות נוספים בלבד).
+- **עברית - איך מפעילים:** אין מה להפעיל; השדות תמיד קיימים.
+
+### Load and exposure evidence (M024, M069) - ראיות עומס וחשיפה
+- **English - what was added:** tests only plus documents: a 1,000-entity Home Assistant sync fixture (connect, disconnect, change set, return, 1,000-event burst, measured), 120 MiB of media through the live relay against a fake go2rtc (integrity, bounded memory, audit bytes), the remote-channel pentest checklist as a runnable script against the local fixture backend, and a go2rtc exposure review in `DOCS.md` / `DOCS_HE.md` (ports to keep private, API authentication, the `smplwise_` namespace). Evidence: `docs/evidence/M024-M069/EVIDENCE.md`.
+- **English - bugs fixed:** none; no product code changed. **How to enable:** nothing.
+- **עברית - מה נוסף:** בדיקות ומסמכים בלבד: מתקן סנכרון של 1,000 ישויות מ־Home Assistant (חיבור, ניתוק, קבוצת שינויים, חזרה, פרץ של 1,000 אירועים, נמדד), 120 MiB מדיה דרך ממסר הלייב מול go2rtc מדומה (שלמות, זיכרון חסום, בייטים בביקורת), רשימת בדיקת החדירה של הערוץ מרחוק כסקריפט שרץ מול שרת הבדיקה המקומי, וסקירת חשיפת go2rtc ב־`DOCS.md` / `DOCS_HE.md` (פורטים שנשארים פרטיים, אימות ה־API, מרחב השמות `smplwise_`). ראיות: `docs/evidence/M024-M069/EVIDENCE.md`.
+- **עברית - באגים שתוקנו:** אין; לא שונה קוד מוצר. **איך מפעילים:** אין מה להפעיל.
+
 ## 2.0.5 (pilot) — Generator control screen under Infrastructure (view only); wall display mode for fixed tablets; plain status text while Home Assistant restarts; the phone-app push relay is deploy-ready (docs only)
 **After installing:** two database migrations run on start, `0061_generator` (generator history, alert and routing tables) and `0062_wall_profiles` (one table of wall profiles); nothing existing is rewritten. The bridge integration stays 0.7.0. Reload the installed web app once. **Wall display mode is off** until an administrator creates a wall profile for a user. **The generator tab appears only when a generator controller device is detected.** The push relay is documentation and a Cloudflare Worker for the owner to deploy; nothing in the add-on changes.
 - **עברית:** אחרי ההתקנה: שתי מיגרציות רצות בהפעלה, `0061_generator` (טבלאות היסטוריה, התראות וניתוב של גנרטור) ו־`0062_wall_profiles` (טבלה אחת של פרופילי קיר); שום דבר קיים לא נכתב מחדש. רכיב החיבור נשאר 0.7.0. טוענים מחדש את אפליקציית הרשת פעם אחת. **מצב מסך קיר כבוי** עד שמנהל יוצר פרופיל קיר למשתמש. **לשונית הגנרטור מופיעה רק כשמזוהה בקר גנרטור.** ממסר ההתראות הוא תיעוד ו־Worker של Cloudflare שהבעלים מעלה; שום דבר בתוסף לא משתנה.
