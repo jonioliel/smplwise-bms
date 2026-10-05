@@ -72,6 +72,8 @@ export class InvestigatePlayback extends LitElement {
   @property() at = '';
   /** Comma-separated extra camera ids for a synchronized group (from the floor map, T043). */
   @property() extraParam = '';
+  /** M043: opened from the map's selection (`from=map`) - "חזרה למפה" is the browser's Back: the map restores its picks and place. */
+  @property({ type: Boolean }) fromMap = false;
 
   // demo
   @state() private demoCamera = 'cam-10';
@@ -1465,6 +1467,7 @@ export class InvestigatePlayback extends LitElement {
     const today = api ? dateInZone(new Date(), this.tz) : '2026-09-14';
     return html`
       <sw-page heading=${heading} subheading=${sub} crumbs=${crumbs} wide>
+        ${this.fromMap ? html`<sw-button slot="actions" size="sm" variant="ghost" icon="map" data-back-to-map @click=${() => history.back()}>חזרה למפה</sw-button>` : nothing}
         <div slot="actions" class="pick">
           ${api
             ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`

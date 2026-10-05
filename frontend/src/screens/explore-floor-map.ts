@@ -11,13 +11,14 @@ import '../components/sw-camera-tile';
 import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../map/sw-plan-canvas';
-import { polygonCentroid, type PlanMarker, type MarkerSelectDetail, type SwPlanCanvas } from '../map/sw-plan-canvas';
+import { polygonCentroid, type PlanMarker, type MarkerSelectDetail, type PlanView, type SwPlanCanvas } from '../map/sw-plan-canvas';
+import { ADJACENT_LABEL, parsePicks, serializePicks, suggestAdjacent, type AdjacentSuggestion } from '../map/adjacent-cameras';
 import type { StateKind } from '../components/sw-badge';
 import type { SceneKind } from '../components/sw-scene';
 import { demoCameras, demoEntities, demoFloors, demoRooms, type DemoCamera, type DemoEntity } from '../fixtures/demo';
 import { demoScene } from '../fixtures/catalog';
 import { t } from '../i18n/he';
-import { navigate } from '../router';
+import { navigate, replaceRoute } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
@@ -118,6 +119,9 @@ export class ExploreFloorMap extends LitElement {
   @property() focusEntity = '';
   /** A global search hit of kind object (T085): the object to centre on and mark. */
   @property() focusObject = '';
+  /** M043: `picks=` - the anchor ids of a multi-camera selection to restore (Back from the wall or playback the
+   * selection opened; the map writes it into the address while picking). */
+  @property() picksParam = '';
   /** K88: hosted inside another screen (the devices building view, an area card): no crumbs / title / floor select, and a
    * room tap reports the linked area (`area-open`) instead of opening the room card. */
   @property({ type: Boolean, reflect: true }) embedded = false;
@@ -581,6 +585,30 @@ export class ExploreFloorMap extends LitElement {
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+    }
+    /* M043: the suggested adjacent cameras - its own row under the picks, dashed to read as "offered", not picked */
+    .pickbar .suggest {
+      flex-basis: 100%;
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      padding-block-start: 6px;
+      border-block-start: 1px dashed var(--sw-border);
+    }
+    .pickbar .suggest .lbl {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .pickbar .suggest sw-chip small {
+      margin-inline-start: 4px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-regular, 400);
     }
     .shared-members {
       position: absolute;
@@ -1214,6 +1242,7 @@ export class ExploreFloorMap extends LitElement {
       void this.toggle3d();
     }
     if (this.view3d) this.loadOtherBundles();
+    if (changed.has('picked') || changed.has('multi')) this.syncPicksRoute();
     if (changed.has('floorId') && changed.get('floorId') !== undefined) {
       this.selectedId = null;
       this.anchor = null;
@@ -1221,7 +1250,86 @@ export class ExploreFloorMap extends LitElement {
       void this.load();
     } else if ((changed.has('focusZone') || changed.has('focusCamera') || changed.has('focusEntity') || changed.has('focusObject')) && this.bundle) {
       void this.applyFocus();
+    } else if (changed.has('picksParam') && changed.get('picksParam') !== undefined && this.bundle) {
+      this.applyPicksParam(); // Back to an address with another selection (the map's own writes match and change nothing)
     }
+  }
+
+  // ---- M043: the selection and the view survive a jump to the wall / playback and come back with Back ----
+
+  /** The picked anchor ids as the address carries them; '' outside the picking mode. */
+  private picksValue(): string {
+    return this.multi ? serializePicks(this.picked) : '';
+  }
+
+  /** Mirror the selection into `picks=` without a history entry: Back from the wall or playback lands on this
+   * address and applyPicksParam restores the picks. Only on a backend floor (the demo has no picking mode). */
+  private syncPicksRoute() {
+    if (!isApi() || this.embedded || !this.bundle) return; // before the bundle: the first render must not erase the picks= Back arrived with
+    const route = new URL(window.location.href).hash.replace(/^#/, '');
+    const [path, query = ''] = route.split('?');
+    if (path !== `/explore/floors/${this.floorId}`) return;
+    const params = new URLSearchParams(query);
+    const value = this.picksValue();
+    if ((params.get('picks') ?? '') === value) return;
+    if (value) params.set('picks', value);
+    else params.delete('picks');
+    replaceRoute(path, params);
+  }
+
+  /** Enter the picking mode with the anchors `picks=` names (unknown ids are dropped); an empty parameter leaves the
+   * selection as it is - the map's own write of '' after "סיום" must not re-enter the mode. */
+  private applyPicksParam() {
+    const b = this.bundle;
+    if (!b || !this.picksParam) return;
+    const known = new Set(this.cameraAnchors().map((a) => a.id));
+    const ids = parsePicks(this.picksParam, known);
+    if (serializePicks(ids) === serializePicks(this.picked) && this.multi) return;
+    if (!this.multi) this.setMulti(true);
+    this.picked = ids;
+  }
+
+  private viewKey(): string {
+    return `sw.map.view.${this.floorId}`;
+  }
+
+  /** Remember the pan / zoom of this floor for the visit (sessionStorage: a new tab starts fitted). */
+  private rememberView() {
+    const v = this.canvas?.getView();
+    if (!v) return;
+    try {
+      sessionStorage.setItem(this.viewKey(), JSON.stringify(v));
+    } catch {
+      /* private mode */
+    }
+  }
+
+  /** Back to a selection: the plan shows the same place it did when the selection left for the wall / playback. */
+  private async restoreView() {
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(this.viewKey());
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    await this.updateComplete;
+    const canvas = this.canvas;
+    if (!canvas || this.shows3d) return;
+    try {
+      const v = JSON.parse(raw) as PlanView;
+      canvas.setView(v);
+    } catch {
+      /* a stale value: the fitted view stays */
+    }
+  }
+
+  /** The cameras next to the picked ones (same room, a room that shares a wall, within reach): a suggestion the
+   * operator may add with a click, never an automatic pick and never a claim about who went where. */
+  private get adjacentSuggestions(): AdjacentSuggestion[] {
+    const b = this.bundle;
+    if (!b || !this.multi || !this.picked.length) return [];
+    return suggestAdjacent(this.picked, this.cameraAnchors().map((a) => ({ id: a.id, position: a.position })), b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon }))).slice(0, 8);
   }
 
   /** Bring a search hit into view once the map is on screen. */
@@ -1317,6 +1425,10 @@ export class ExploreFloorMap extends LitElement {
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
       void this.applyFocus();
+      if (this.picksParam) {
+        this.applyPicksParam(); // Back from the wall / playback: the same picks and the same place on the plan
+        void this.restoreView();
+      }
     } catch (err) {
       this.loadError = describeError(err);
       this.bundle = null;
@@ -2034,13 +2146,29 @@ export class ExploreFloorMap extends LitElement {
 
   private openWall() {
     const ids = this.pickedCameraIds();
-    if (ids.length) navigate('/live/wall', { cameras: ids.join(',') });
+    if (!ids.length) return;
+    this.rememberView();
+    navigate('/live/wall', { cameras: ids.join(','), from: 'map' });
   }
 
   private openSync() {
     const ids = this.pickedCameraIds();
     if (!ids.length) return;
-    navigate('/investigate/playback', { camera: ids[0], extra: ids.slice(1, 4).join(',') });
+    this.rememberView();
+    navigate('/investigate/playback', { camera: ids[0], extra: ids.slice(1, 4).join(','), from: 'map' });
+  }
+
+  /** The suggestion chips of the pick bar (M043): one per adjacent camera, its relation as the chip's title. */
+  private renderSuggestions() {
+    const s = this.adjacentSuggestions;
+    if (!s.length) return nothing;
+    const b = this.bundle!;
+    const name = (id: string) => { const a = b.anchors.find((x) => x.id === id); return a?.camera?.name ?? a?.label ?? a?.resource_id ?? id; };
+    return html`<span class="suggest" data-pick-suggest>
+      <span class="lbl"><sw-icon name="target" size=${12}></sw-icon>מוצע בסמוך</span>
+      ${s.map((x) => html`<sw-chip icon="camera" dot=${this.pickDot(b.anchors.find((a) => a.id === x.id))} title=${`${ADJACENT_LABEL[x.relation]}${x.zoneName ? ` · ${x.zoneName}` : ''} · ${name(x.from)}`} data-pick-suggest-chip=${x.id} data-relation=${x.relation} @click=${() => this.togglePick(x.id)}>${name(x.id)}<small>${ADJACENT_LABEL[x.relation]}</small></sw-chip>`)}
+      ${s.length > 1 ? html`<sw-chip data-pick-suggest-all @click=${() => this.addPicks(s.map((x) => x.id))}>הוסף הכל (${s.length})</sw-chip>` : nothing}
+    </span>`;
   }
 
   private renderPickbar() {
@@ -2061,6 +2189,7 @@ export class ExploreFloorMap extends LitElement {
       ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
       <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>בחר הכל (${cams.length})</sw-chip>
       ${this.roomChips()}
+      ${this.renderSuggestions()}
       <span class="grow"></span>
       <sw-button variant="primary" size="sm" icon="live" ?disabled=${!this.picked.length} data-pick-wall @click=${() => this.openWall()}>קיר חי (${this.picked.length})</sw-button>
       <sw-button size="sm" icon="history" ?disabled=${!this.picked.length || this.picked.length > 4} data-pick-sync @click=${() => this.openSync()}>ניגון מסונכרן</sw-button>
@@ -2084,6 +2213,7 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private onViewChange() {
+    if (this.multi) this.rememberView(); // M043: while picking, every pan / zoom is the place Back returns to
     if (!this.selectedId || !this.canvas || this.shows3d) return; // under the 3D the card is a drawer
     const m = this.markers.find((x) => x.id === this.selectedId);
     if (!m) return;

@@ -56,6 +56,8 @@ export class LiveWall extends LitElement {
   private readonly phone = new PhoneWidth(this);
   /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
   @property() cameras = '';
+  /** M043: opened from the map's selection (`from=map`) - "חזרה למפה" is the browser's Back: the map restores its picks and place. */
+  @property({ type: Boolean }) fromMap = false;
   @state() private count = 4;
   @state() private stream: 'auto' | 'main' | 'sub' = storedQuality();
   /** Hotfix (remote live cap): the tiles that hold a live stream right now - in view (plus a tile of margin), within the
@@ -762,7 +764,7 @@ export class LiveWall extends LitElement {
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
         })}
       </div>
-      ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a></div>` : nothing}
+      ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a>${this.fromMap ? html` · <a href="#" data-back-to-map @click=${(e: Event) => { e.preventDefault(); history.back(); }}>חזרה למפה</a>` : nothing}</div>` : nothing}
       ${this.phone.matches ? nothing : html`<div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
         ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
       </div>`}
