@@ -23,7 +23,9 @@ MARKS = (None, "draft", "void", "copy")
 
 # Bounds (a bill beyond these is refused, not truncated: a silently shortened bill would be a wrong bill).
 MAX_METER_LINES = 400
-MAX_CHARGE_LINES = 24
+MAX_CHARGE_LINES = 96  # EL5: a time-of-use bill has one line per price piece x season x band
+MAX_TOU_DAYS = 400
+MAX_TOU_BANDS = 8
 MAX_HISTORY = 24
 MAX_NOTES = 40
 MAX_NOTES_CHARS = 2000
@@ -170,6 +172,26 @@ class ChargeLine:
     vat_amount: Decimal
     period_start: date | None = None
     period_end: date | None = None
+    band: str = ""  # EL5: the time-of-use band name ("פסגה"); empty for a fixed price
+    season: str = ""  # EL5: the season name ("קיץ")
+    hours: Decimal | None = None  # EL5: how many hours of the period fell in this band and season
+
+    @property
+    def label(self) -> str:
+        """The printed description of the line (the date range is added by the renderer when the period was split)."""
+        if self.band:
+            return f"צריכת חשמל - {self.band}" + (f" ({self.season})" if self.season else "")
+        return "צריכת חשמל"
+
+
+@dataclass(frozen=True)
+class TouDay:
+    """EL5: one row of the daily time-of-use table (kWh per band of that local date)."""
+
+    day: date
+    kwh: tuple[Decimal | None, ...]  # in the order of BillSnapshot.tou_bands; None = no energy in that band that day
+    total: Decimal
+    marker: str = ""  # the special day's name (a holiday or its eve), printed next to the date
 
 
 @dataclass(frozen=True)
@@ -208,6 +230,8 @@ class BillSnapshot:
     history: tuple[HistoryPoint, ...] = ()  # up to 12 previous periods; gaps are simply absent
     same_period_last_year: HistoryPoint | None = None
     snapshot_hash: str = ""  # first 12 hex of sha256(canonical snapshot), printed in the footer
+    tou_bands: tuple[str, ...] = ()  # EL5: band names of the daily table, in the tariff's order
+    tou_daily: tuple[TouDay, ...] = ()  # EL5: the daily time-of-use table (empty for a fixed price)
 
     @property
     def days(self) -> int:
@@ -289,15 +313,19 @@ class BillSnapshot:
         for x in _list(raw, "lines", MAX_CHARGE_LINES):
             if not isinstance(x, Mapping):
                 raise BillSnapshotError("lines: objects expected")
+            band, season = _obj(x, "band"), _obj(x, "season")
             charges.append(ChargeLine(
                 kwh=to_decimal(x.get("kwh"), "lines.kwh"),
                 price_per_kwh=to_decimal(x.get("unit_price_ex_vat"), "lines.unit_price_ex_vat"),
                 vat_rate_pct=to_decimal(x.get("vat_rate_percent"), "lines.vat_rate_percent"),
                 amount=to_decimal(x.get("amount_ex_vat"), "lines.amount_ex_vat"),
                 vat_amount=to_decimal(x.get("vat_amount"), "lines.vat_amount"),
-                period_start=_opt_date(x.get("from"), "lines.from"), period_end=_opt_date(x.get("to"), "lines.to")))
+                period_start=_opt_date(x.get("from"), "lines.from"), period_end=_opt_date(x.get("to"), "lines.to"),
+                band=clean_text(band.get("name_he"), 40), season=clean_text(season.get("name_he"), 40),
+                hours=to_decimal(x["hours"], "lines.hours") if x.get("hours") is not None else None))
         if not charges:
             raise BillSnapshotError("lines: at least one line is required")
+        tou_bands, tou_daily = _tou_table(_obj(raw, "tou"))
 
         p_start, p_end = to_date(period.get("from"), "period.from"), to_date(period.get("to"), "period.to")
         if p_end < p_start:
@@ -333,7 +361,38 @@ class BillSnapshot:
             replaces_number=replaces, notes=tuple(general),
             footer_note=clean_text(biz.get("footer_note"), MAX_NOTES_CHARS, multiline=True),
             previous_kwh=prev_kwh, history=points, same_period_last_year=ly,
-            snapshot_hash=hashlib.sha256(_canonical(raw)).hexdigest()[:12])
+            snapshot_hash=hashlib.sha256(_canonical(raw)).hexdigest()[:12],
+            tou_bands=tou_bands, tou_daily=tou_daily)
+
+
+def _tou_table(t: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[TouDay, ...]]:
+    """EL5: the daily band table from snapshot.tou (absent for a fixed price). Bands in the order of the first definition,
+    names from snapshot.tou.names; an unknown band id prints as the id."""
+    daily = _list(t, "daily", MAX_TOU_DAYS)
+    if not daily:
+        return (), ()
+    names = _obj(_obj(t, "names"), "bands")
+    order: list[str] = []
+    for v in _list(t, "versions", 16):
+        if isinstance(v, Mapping):
+            for b in _list(_obj(v, "definition"), "bands", 16):
+                if isinstance(b, Mapping) and isinstance(b.get("id"), str) and b["id"] not in order:
+                    order.append(b["id"])
+    for d in daily:
+        for b in _list(d if isinstance(d, Mapping) else {}, "bands", 16):
+            if isinstance(b, Mapping) and isinstance(b.get("band"), str) and b["band"] not in order:
+                order.append(b["band"])
+    if len(order) > MAX_TOU_BANDS:
+        raise BillSnapshotError("tou.daily: too many bands")
+    rows: list[TouDay] = []
+    for d in daily:
+        if not isinstance(d, Mapping):
+            raise BillSnapshotError("tou.daily: objects expected")
+        per_band = {b.get("band"): to_decimal(b.get("kwh"), "tou.daily.bands.kwh") for b in _list(d, "bands", 16) if isinstance(b, Mapping)}
+        special = _obj(d, "special")
+        rows.append(TouDay(to_date(d.get("date"), "tou.daily.date"), tuple(per_band.get(b) for b in order),
+                           to_decimal(d.get("kwh"), "tou.daily.kwh"), clean_text(special.get("name_he"), 40)))
+    return tuple(clean_text(names.get(b) or b, 40) for b in order), tuple(rows)
 
 
 def _canonical(raw: Mapping[str, Any]) -> bytes:
@@ -362,6 +421,6 @@ def coerce_snapshot(snapshot: "BillSnapshot | Mapping[str, Any]", *, logo: bytes
 
 
 __all__ = [
-    "BillSnapshot", "BillSnapshotError", "Business", "Customer", "MeterLine", "ChargeLine", "HistoryPoint",
+    "BillSnapshot", "BillSnapshotError", "Business", "Customer", "MeterLine", "ChargeLine", "HistoryPoint", "TouDay",
     "NUMBER_RE", "clean_text", "coerce_snapshot",
 ]

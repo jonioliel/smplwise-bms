@@ -121,6 +121,10 @@ class FakeReadings:
             value = b[1] if at == self.last_report_at(meter_id) else value
         return BoundaryReading(meter_id, at, b[0] if b else None, b[1] if b else None, a[0] if a else None, a[1] if a else None, value, exact)
 
+    def reporting_gaps(self, meter_id: str, start: dt.datetime, end: dt.datetime, min_gap: dt.timedelta):
+        """EL5 (optional in the protocol): consecutive readings at least `min_gap` apart, with energy, overlapping [start, end)."""
+        return [(s.t0, s.t1, s.wh) for s in self._segs(meter_id) if s.t1 - s.t0 >= min_gap and s.wh > 0 and s.t1 > start and s.t0 < end] if meter_id in self.m else []
+
     def history_wh(self, *a, **k):  # pragma: no cover - not part of the protocol billing uses
         raise NotImplementedError
 

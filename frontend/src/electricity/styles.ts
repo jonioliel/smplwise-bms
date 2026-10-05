@@ -221,6 +221,11 @@ export const elecCss = css`
     opacity: 0.45;
     cursor: not-allowed;
   }
+  /* an icon-only button (✕, ←, →): square, never narrower than the hit area */
+  .btn.ic {
+    min-inline-size: max(30px, var(--elec-touch));
+    padding: 0 6px;
+  }
   input,
   select,
   textarea {

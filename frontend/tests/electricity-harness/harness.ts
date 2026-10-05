@@ -5,7 +5,10 @@
 import '../../src/design/boot';
 import '../../src/styles/focus-policy';
 import '../../src/electricity/elec-pages';
+import '../../src/electricity/elec-settings-calendar';
 import { parseRoute } from '../../src/router';
+
+const SETTINGS: Record<string, string> = { business: 'elec-settings-business', calendar: 'elec-settings-calendar' };
 
 const root = document.getElementById('root') as HTMLElement;
 root.style.cssText = 'display:block;min-height:100vh;background:var(--sw-bg);color:var(--sw-text);font-family:var(--sw-font)';
@@ -15,7 +18,7 @@ function mount() {
   const s = r.segments;
   let el: HTMLElement & { segments?: string[]; params?: URLSearchParams };
   if (s[0] === 'system' && s[1] === 'infra') {
-    el = document.createElement(s[2] === 'business' ? 'elec-settings-business' : 'elec-settings-prices');
+    el = document.createElement(SETTINGS[s[2] ?? ''] ?? 'elec-settings-prices');
   } else {
     const page = s[2] ?? 'accounts';
     el = document.createElement(page === 'bills' ? 'elec-bills-page' : page === 'customers' ? 'elec-customers-page' : 'elec-accounts-page');
@@ -32,7 +35,7 @@ window.addEventListener('hashchange', () => {
   const now = parseRoute().segments;
   const el = root.firstElementChild as (HTMLElement & { segments?: string[] }) | null;
   // the same page element keeps its state when only the sub-route changes (as the shell does)
-  if (el && sameKind(last, now) && el.tagName !== 'ELEC-SETTINGS-PRICES' && el.tagName !== 'ELEC-SETTINGS-BUSINESS' && 'segments' in el) el.segments = now.slice(3);
+  if (el && sameKind(last, now) && !el.tagName.startsWith('ELEC-SETTINGS-') && 'segments' in el) el.segments = now.slice(3);
   else mount();
   last = now;
 });

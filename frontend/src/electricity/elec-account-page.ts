@@ -136,7 +136,9 @@ export class ElecAccountPage extends ElecBase {
         <dl class="kv"><dt>שם</dt><dd>${s.account.customer.name}</dd><dt>מספר לקוח</dt><dd>${n(s.account.customer.customer_number)}</dd>${perms.bills && c?.phone ? html`<dt>טלפון</dt><dd>${n(c.phone)}</dd>` : nothing}${perms.bills && c?.email ? html`<dt>דוא״ל</dt><dd>${n(c.email)}</dd>` : nothing}</dl></div>
       ${s.price && perms.bills
         ? html`<div class="card" data-card="price"><div class="hd"><b class="h3">מחיר</b></div><dl class="kv"><dt>תעריף</dt><dd>${s.price.tariff}</dd><dt>לפני מע״מ</dt><dd>${n(f4(s.price.ex_vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(s.price.inc_vat) + ' ₪')}</dd><dt>מע״מ</dt><dd>${n(s.price.vat + '%')}</dd></dl></div>`
-        : nothing}
+        : s.account.tariff.kind === 'tou' && perms.bills
+          ? html`<div class="card" data-card="price" data-kind="tou"><div class="hd"><b class="h3">מחיר</b></div><dl class="kv"><dt>תעריף</dt><dd>${s.account.tariff.name}</dd><dt>חישוב</dt><dd>לפי שעות (תעו״ז)</dd></dl></div>`
+          : nothing}
       <div class="card" data-card="next"><div class="hd"><b class="h3">חיוב הבא</b></div><dl class="kv"><dt>תקופה</dt><dd>${n(fmtDate(s.next.from))} - ${n(fmtDate(s.next.to))}</dd><dt>מספר צפוי</dt><dd>${n(s.next.number)}</dd>${s.account.auto_mode !== 'off' ? html`<dt>${s.account.auto_mode === 'issue' ? 'הנפקה אוטומטית' : 'טיוטה אוטומטית'}</dt><dd>${n(fmtDate(s.next.draft_on))}</dd>` : nothing}</dl></div>`;
     return html`<div class="cols side-l"><div class="col">${main}</div><div class="col">${side}</div></div>`;
   }

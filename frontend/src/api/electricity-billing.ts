@@ -16,8 +16,9 @@ import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
 import { listMeters, type Meter } from './electricity-meters';
 import { coefficients, factorLabel, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, billNumber, daysInclusive, fmtRange, monthShort, r2 } from '../electricity/elec-format';
+import type { TouCheck, TouDefinition, TouTemplate } from '../electricity/elec-tou';
 
-export type { FormulaAst };
+export type { FormulaAst, TouCheck, TouDefinition, TouTemplate };
 export type BillState = 'draft' | 'issued' | 'sent' | 'paid' | 'void';
 export type PriceMode = 'ex_vat' | 'inc_vat';
 export type AutoMode = 'off' | 'draft' | 'issue';
@@ -54,6 +55,10 @@ export const ERROR_TEXT: Record<string, string> = {
   pdf_page_limit: 'החיוב ארוך מדי לקובץ PDF (יותר מדי עמודים).',
   pdf_too_large: 'קובץ ה-PDF גדול מדי. נסו לוגו קטן יותר.',
   logo_invalid: 'הלוגו חייב להיות PNG או JPEG עד 1MB.',
+  tariff_definition_invalid: 'הגדרת התעריף לפי שעות אינה תקינה.',
+  tariff_kind_mixed: 'בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות.',
+  tou_needs_interval_data: 'לחישוב לפי שעות נדרשים נתוני רבע שעה, ולתקופה זו הם כבר לא נשמרים.',
+  nothing_changed: 'לא בוצע שינוי.',
 };
 
 // ------------------------------------------------------------------------------------------------ wire types
@@ -86,34 +91,60 @@ export interface CustomerBody {
   notes: string;
 }
 
+export type TariffKind = 'fixed' | 'tou';
 export interface TariffVersion {
   id: string;
   effective_from: string;
-  price: string;
+  /** null for a time-of-use version (its prices are per season and band, in `definition`) */
+  price: string | null;
   price_mode: PriceMode;
+  /** EL5: the time-of-use definition of the version */
+  definition?: TouDefinition;
+  definition_sha256?: string;
 }
 export interface TariffVersionBody {
   name: string;
+  /** the flat price of a fixed tariff ('' for a time-of-use tariff) */
   price: string;
   price_mode: PriceMode;
   effective_from: string;
+  /** EL5: set = a time-of-use version (the tariff's kind is fixed at creation) */
+  definition?: TouDefinition | null;
 }
 /** What saving a corrected price does: `later_only` = sealed bills keep the old price and the new one starts at `applies_from`. */
 export interface TariffVersionPlan {
   kind: 'in_place' | 'later_only';
   applies_from: string;
-  old: { effective_from: string; price: string; price_mode: PriceMode };
-  new: { effective_from: string; price: string; price_mode: PriceMode };
+  old: { effective_from: string; price: string | null; price_mode: PriceMode; definition_sha256?: string };
+  new: { effective_from: string; price: string | null; price_mode: PriceMode; definition_sha256?: string };
   message_he: string;
 }
 export interface Tariff {
   id: string;
   name: string;
   currency: string;
-  kind: string;
+  kind: TariffKind;
   versions: TariffVersion[];
   current: TariffVersion | null;
   used_by: number;
+}
+/** EL5: one special day of the time-of-use calendar (a holiday, its eve, or a cancelled generated day = regular). */
+export interface CalendarDay {
+  date: string;
+  kind: 'holiday' | 'holiday_eve' | 'regular';
+  kind_he: string;
+  name_he: string;
+  source: 'generated' | 'manual';
+  /** the computed entry a manual one replaces */
+  generated: { date: string; kind: string; kind_he: string; name_he: string; source: string } | null;
+}
+export interface CalendarYear {
+  year: number;
+  revision: number;
+  generator: 'israel' | 'none';
+  days: CalendarDay[];
+  note_he: string;
+  drafts_to_recalculate?: number;
 }
 export interface VatRate {
   id: string;
@@ -130,7 +161,7 @@ export interface Account {
   name: string;
   customer: CustomerRef;
   formula: { ast: FormulaAst; text: string; sentence_he: string; meter_ids: string[] };
-  tariff: { id: string; name: string; price?: string; price_mode?: PriceMode };
+  tariff: { id: string; name: string; kind?: TariffKind; price?: string | null; price_mode?: PriceMode };
   period_months: 1 | 2;
   period_anchor_day: number;
   period_anchor_month: number;
@@ -234,6 +265,19 @@ export interface SnapshotLine {
   vat_rate_percent: string;
   vat_amount: string;
   total: string;
+  /** EL5: a time-of-use line names its season and band; `hours` = clock hours of the period in them */
+  season?: { id: string; name_he: string };
+  band?: { id: string; name_he: string };
+  hours?: string;
+}
+/** EL5: snapshot.tou of a time-of-use bill (ELECTRICITY_BILL_SNAPSHOT.md section 6). */
+export interface SnapshotTou {
+  engine: string;
+  names: { seasons: Record<string, string>; day_types: Record<string, string>; bands: Record<string, string> };
+  versions: { tariff_version_id: string; effective_from: string; price_mode: PriceMode; definition: TouDefinition; definition_sha256: string }[];
+  special_days: { date: string; kind: string; kind_he: string; name_he: string; source: string }[];
+  by_band: { band: { id: string; name_he: string }; kwh: string; amount_ex_vat: string; total: string; hours: string }[];
+  daily: { date: string; season: string; day_type: string; kwh: string; bands: { band: string; kwh: string }[]; special: { kind: string; name_he: string } | null }[];
 }
 export interface BillSnapshot {
   schema: string;
@@ -252,9 +296,11 @@ export interface BillSnapshot {
   period: { from: string; to: string; days: number };
   business: { name: string; registration_no: string; address: string; phone: string; email: string; accent_color: string; footer_note: string; logo: { sha256: string; mime: string } | null };
   customer: { id: string; customer_number: string; name: string; address: string; phone: string; email: string; tax_id: string };
-  account: { id: string; name: string; tariff: { id: string; name: string }; formula: { text: string; sentence_he: string } };
+  account: { id: string; name: string; tariff: { id: string; name: string; kind?: TariffKind }; formula: { text: string; sentence_he: string } };
   meters: SnapshotMeter[];
   lines: SnapshotLine[];
+  /** EL5: present on a time-of-use bill only */
+  tou?: SnapshotTou;
   totals: { currency: string; kwh: string; amount_ex_vat: string; vat_amount: string; total: string; vat_breakdown: { rate_percent: string; base: string; vat: string }[]; price_mode_note_he: string | null };
   notes: { code: string; text_he: string }[];
   history: BillHistory;
@@ -464,6 +510,8 @@ export interface DemoControl {
   create_error?: string;
   /** artificial delay in ms (loading states) */
   latency?: number;
+  /** EL5: the shared-areas account bills on a time-of-use tariff (band lines, the daily table) */
+  tou?: boolean;
 }
 export function demoControl(): DemoControl {
   try {
@@ -494,8 +542,18 @@ export interface ElecBackend {
   updateCustomer(id: string, revision: number, body: Partial<CustomerBody>): Promise<Customer>;
   deleteCustomer(id: string, revision: number): Promise<void>;
   listTariffs(): Promise<Tariff[]>;
-  createTariff(body: { name: string; price: string; price_mode: PriceMode; effective_from: string }): Promise<Tariff>;
-  addTariffVersion(id: string, body: { name: string; price: string; price_mode: PriceMode; effective_from: string }): Promise<Tariff>;
+  /** a fixed tariff (price) or, with `definition`, a time-of-use tariff */
+  createTariff(body: TariffVersionBody): Promise<Tariff>;
+  addTariffVersion(id: string, body: TariffVersionBody): Promise<Tariff>;
+  /** EL5: the time-of-use templates (empty prices) */
+  touTemplates(): Promise<TouTemplate[]>;
+  /** EL5: validate a definition without saving (the day grid also when only prices are missing) */
+  checkTou(definition: TouDefinition): Promise<TouCheck>;
+  /** EL5: the special days of a year */
+  getCalendar(year: number): Promise<CalendarYear>;
+  setCalendarDay(date: string, kind: CalendarDay['kind'], name_he: string, revision: number): Promise<CalendarYear>;
+  removeCalendarDay(date: string, revision: number): Promise<CalendarYear>;
+  setCalendarGenerator(generator: CalendarYear['generator'], revision: number, year: number): Promise<CalendarYear>;
   /** A correction of one price version (or a new price on the date of an existing one). `confirm: false` only returns the plan. */
   correctTariffVersion(id: string, body: TariffVersionBody, opts: { replaceId: string | null; base: TariffVersion | null; confirm: boolean }): Promise<{ applied: boolean; plan: TariffVersionPlan | null }>;
   getVat(): Promise<VatRates>;
@@ -528,6 +586,8 @@ const qs = (o: Record<string, string | number | undefined>): string => {
   return s ? `?${s}` : '';
 };
 const uid = (): string => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+/** The value of a version on the wire: a time-of-use definition, or the flat price. */
+const valueOf = (b: TariffVersionBody): Record<string, unknown> => (b.definition ? { definition: b.definition } : { price: b.price });
 const num = (s: string | number | null | undefined): number => (s === null || s === undefined || s === '' ? 0 : Number(s));
 
 /** Derives the status screen's model from the wire answers (shared by the REST adapter and the mock). */
@@ -564,7 +624,7 @@ export function buildStatus(account: Account, w: AccountStatusWire, ctx: { today
     customer: ctx.customer,
   };
   if (w.amount_so_far !== undefined) out.amount_so_far = w.amount_so_far;
-  if (cur && rate !== null) {
+  if (cur && cur.price !== null && !cur.definition && rate !== null) {
     const v = Number(cur.price);
     out.price = { tariff: t!.name, ex_vat: (cur.price_mode === 'ex_vat' ? v : v / (1 + rate / 100)).toFixed(4), inc_vat: (cur.price_mode === 'inc_vat' ? v : v * (1 + rate / 100)).toFixed(4), vat: String(rate) };
   }
@@ -693,23 +753,34 @@ const rest: ElecBackend = {
   updateCustomer: (id, revision, body) => patch<Customer>(`${E}customers/${id}`, { base_revision: revision, ...body }),
   deleteCustomer: (id, revision) => del(`${E}customers/${id}${qs({ base_revision: revision })}`),
   listTariffs: async () => (await get<{ items: Tariff[] }>(`${E}tariffs`)).items,
-  createTariff: (b) => post<Tariff>(`${E}tariffs`, b),
+  createTariff: (b) =>
+    post<Tariff>(`${E}tariffs`, b.definition
+      ? { name: b.name, kind: 'tou', definition: b.definition, price_mode: b.price_mode, effective_from: b.effective_from }
+      : { name: b.name, price: b.price, price_mode: b.price_mode, effective_from: b.effective_from }),
   addTariffVersion: async (id, b) => {
     await patch(`${E}tariffs/${id}`, { name: b.name });
-    return post<Tariff>(`${E}tariffs/${id}/versions`, { effective_from: b.effective_from, price: b.price, price_mode: b.price_mode });
+    return post<Tariff>(`${E}tariffs/${id}/versions`, { effective_from: b.effective_from, ...valueOf(b), price_mode: b.price_mode });
   },
   correctTariffVersion: async (id, b, o) => {
     if (o.confirm) await patch(`${E}tariffs/${id}`, { name: b.name });
     const r = await post<{ applied?: boolean; plan?: TariffVersionPlan }>(`${E}tariffs/${id}/versions`, {
       effective_from: b.effective_from,
-      price: b.price,
+      ...valueOf(b),
       price_mode: b.price_mode,
       confirm: o.confirm,
       ...(o.replaceId ? { replace_version_id: o.replaceId } : {}),
-      ...(o.base ? { base: { effective_from: o.base.effective_from, price: o.base.price, price_mode: o.base.price_mode } } : {}),
+      ...(o.base
+        ? { base: o.base.definition ? { effective_from: o.base.effective_from, definition_sha256: o.base.definition_sha256, price_mode: o.base.price_mode } : { effective_from: o.base.effective_from, price: o.base.price, price_mode: o.base.price_mode } }
+        : {}),
     });
     return { applied: r.applied !== false, plan: r.plan ?? null };
   },
+  touTemplates: async () => (await get<{ items: TouTemplate[] }>(`${E}tou/templates`)).items,
+  checkTou: (definition) => post<TouCheck>(`${E}tou/check`, { definition }),
+  getCalendar: (year) => get<CalendarYear>(`${E}calendar${qs({ year })}`),
+  setCalendarDay: (date, kind, name_he, revision) => put<CalendarYear>(`${E}calendar/days/${date}`, { kind, name_he, base_revision: revision }),
+  removeCalendarDay: (date, revision) => api<CalendarYear>(`${E}calendar/days/${date}${qs({ base_revision: revision })}`, { method: 'DELETE' }),
+  setCalendarGenerator: (generator, revision, year) => put<CalendarYear>(`${E}calendar/settings${qs({ year })}`, { generator, base_revision: revision }),
   getVat: () => get<VatRates>(`${E}vat-rates`),
   addVat: async (rate_percent, effective_from) => {
     await post(`${E}vat-rates`, { effective_from, rate_percent });

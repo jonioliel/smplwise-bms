@@ -33,6 +33,9 @@ audited. Money hiding is server-side: without `energy.bills` the keys listed as 
 | `formula_invalid` | 422 | syntax error, unknown meter, meter × meter, division by a meter or by zero, empty; `details.errors[] = {code, message, pos}` |
 | `formula_negative` | 422 | the formula gives a negative result for a period (`details.period`, `details.kwh`) |
 | `tariff_missing` | 422 | no price in force on a date of the period (`details.date`) |
+| `tariff_definition_invalid` | 422 | EL5: a time-of-use definition is invalid (`details.errors[] = {code, path, message}`, `details.fields = ["definition.<path>"]`), or a stored one no longer parses |
+| `tariff_kind_mixed` | 422 | EL5: a period has both a fixed-price version and a time-of-use version (cannot happen through the API: one kind per tariff) |
+| `tou_needs_interval_data` | 422 | EL5: a time-of-use bill for a period whose quarter-hour data is beyond `energy.interval_retention_months` (only daily totals are left; `details.meter_id`) |
 | `vat_missing` | 422 | no VAT rate in force on a date of the period (`details.date`) |
 | `period_invalid` | 422 | from > to, longer than 366 days, before the account's first period, in the future for issue |
 | `period_overlap` | 409 | the period overlaps an issued (not cancelled) bill of the account (`details.bill_id`, `details.number`) |
@@ -78,7 +81,8 @@ customer's number is not reused, so bill numbers never collide in meaning).
 period_months (1|2), period_anchor_day (1-31; 29-31 are clamped to the month's last day), period_anchor_month (1-12, for 2-month
 cycles: a month that opens a cycle), first_period_start, timezone, auto_mode ("off"|"draft"|"issue"), status ("active"|"paused"),
 revision, created_at, updated_at, next_period: {from, to}, last_bill: BillSummary|null}`.
-Money (bills only): `tariff.price`, `tariff.price_mode`.
+Money (bills only): `tariff.price`, `tariff.price_mode`. EL5: `tariff.kind` (`"fixed"` | `"tou"`); a time-of-use tariff has
+`tariff.price = null` (its prices are per season and band).
 
 | Method | Path | Permission | Body / query | Answer |
 |---|---|---|---|---|
@@ -113,13 +117,16 @@ and `period`. Warnings: `duplicate_meter`, `meter_not_reporting`. `pos` is the c
 
 ## 6. Tariffs and VAT (Settings › מחירים ומע״מ)
 
-`Tariff` = `{id, name, currency: "ILS", kind: "fixed", versions: [{id, effective_from, price, price_mode, created_at}], current: {...}|null, used_by: n}`.
+`Tariff` = `{id, name, currency: "ILS", kind: "fixed"|"tou", versions: [{id, effective_from, price, price_mode, created_at, definition?, definition_sha256?}], current: {...}|null, used_by: n}`.
+A time-of-use version (EL5, docs/architecture/ELECTRICITY_TOU.md) carries `definition` (seasons, day types, bands, hours and a
+price per season and band, in the version's `price_mode`) and `price: null`. One kind per tariff: a fixed tariff only takes
+`price`, a TOU tariff only takes `definition` (422 `validation` otherwise).
 Read: manage or bills. Write: manage.
 
 | Method | Path | Body |
 |---|---|---|
 | GET | `/tariffs` | – → `{items: [Tariff]}` |
-| POST | `/tariffs` | `{name, price, price_mode?, effective_from}` (price: up to 4 decimals, > 0; mode default from settings) |
+| POST | `/tariffs` | `{name, kind?: "fixed"|"tou", price?, definition?, price_mode?, effective_from}` (price: up to 4 decimals, > 0; mode default from settings; `definition` required for `tou`) |
 | PATCH | `/tariffs/{id}` | `{name}` |
 | DELETE | `/tariffs/{id}` | – (409 `tariff_in_use` while an active account uses it) |
 | POST | `/tariffs/{id}/versions` | `{effective_from, price, price_mode, replace_version_id?, base?, confirm?}`. A date with no version adds one (201). A date that has a version, or `replace_version_id`, is a correction: `confirm: false` returns 200 `{applied: false, plan}` and writes nothing; `confirm: true` applies it and returns the tariff plus `{applied: true, plan}`. `plan = {kind: in_place or later_only, applies_from, old, new, message_he}`: when an issued/sent/paid/void bill used the price, the old version stays and the corrected one starts at the end of the last sealed period (`later_only`); 409 `tariff_period_sealed` when a later version leaves no room, `version_exists` when the new date is another version's, `nothing_changed`, `revision_conflict` when `base` no longer matches. Audit `energy.tariff.version.correct` (old and new value). |
@@ -127,6 +134,23 @@ Read: manage or bills. Write: manage.
 | GET | `/vat-rates` | – → `{items: [{id, effective_from, rate_percent}], current}` |
 | POST | `/vat-rates` | `{effective_from, rate_percent}` (0-50, up to 2 decimals) |
 | DELETE | `/vat-rates/{id}` | – (409 when an issued bill used it) |
+
+EL5 additions for time-of-use versions: `POST /tariffs/{id}/versions` takes `definition` instead of `price` on a TOU tariff; a
+correction compares definitions, and its `base` carries `definition_sha256` (the hash the editor saw) instead of `price`.
+`plan.old/new` carry `definition_sha256` (and `new.definition`).
+
+| Method | Path | Permission | Body / query | Answer |
+|---|---|---|---|---|
+| GET | `/tou/templates` | manage or bills | – | `{items: [{id: "israel_household", name_he, source_he, definition}]}` - the Israeli household structure with EMPTY (null) prices; `source_he` says it is not verified against the Authority's text |
+| POST | `/tou/check` | manage or bills | `{definition}` | always 200 for a well-formed body: `{ok, errors: [{code, path, message}], definition (normalised) \| null, definition_sha256 \| null, grid}`; `grid[season][day_type] = [{from, to, band}]` covering 00:00-24:00, also returned when only prices are missing |
+| GET | `/calendar` | view, manage or bills | `year` (2000-2100, default this year) | `{year, revision, generator: "israel"\|"none", days: [{date, kind: "holiday"\|"holiday_eve"\|"regular", kind_he, name_he, source: "generated"\|"manual", generated: {...}\|null}], note_he}` - `generated` shows the computed entry a manual one replaces |
+| PUT | `/calendar/days/{date}` | manage | `{kind, name_he?, base_revision?}` | the year view + `drafts_to_recalculate` (TOU drafts whose period contains the date). Audit `energy.calendar.day.set` |
+| DELETE | `/calendar/days/{date}` | manage | query `base_revision?` | the year view + `drafts_to_recalculate`; 404 when the date has no manual entry. Audit `energy.calendar.day.remove` |
+| PUT | `/calendar/settings` | manage | `{generator, base_revision?}` (query `year?` for the answer) | the year view. Audit `energy.calendar.generator` |
+
+The special days are one settings document (`energy.calendar`, own route; the generic `/energy/settings` neither shows nor
+accepts it) with its own `revision` (409 `revision_conflict`). Changing a day never touches an issued bill (its snapshot holds
+the days it used); open drafts show the new day types after a recalculation.
 
 ## 7. Billing settings (Settings › פרטי העסק, numbering, payment)
 
@@ -218,4 +242,5 @@ Not built: notification "טיוטת חיוב מוכנה" through the notificatio
 `energy.customer.create|update|delete` (field names only, no values), `energy.account.create|update|delete`,
 `energy.tariff.create|update|delete`, `energy.tariff.version.create|delete`, `energy.vat.create|delete`,
 `energy.billing_settings.update`, `energy.billing_settings.logo`, `energy.bill.draft|recalculate|delete|issue|sent|paid|correct|void|pdf`,
-`energy.bill.auto_draft|auto_issue|auto_failed`. Refusals are audited as `denied` with the permission as the action.
+`energy.bill.auto_draft|auto_issue|auto_failed`, `energy.calendar.day.set|remove`, `energy.calendar.generator` (EL5). Refusals are
+audited as `denied` with the permission as the action.

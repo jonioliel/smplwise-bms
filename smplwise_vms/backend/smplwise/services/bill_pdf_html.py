@@ -206,6 +206,22 @@ def chart_section(s: BillSnapshot) -> str:
             f'<table class="mini"><colgroup>{"<col class='c1'><col class='c2'>" * 3}</colgroup><tbody>{"".join(trs)}</tbody></table></section>')
 
 
+def tou_daily_section(s: BillSnapshot) -> str:
+    """EL5: the daily time-of-use table (kWh per band of each local date), after the notes; the header repeats on every page.
+    Informational: each value is rounded on its own, so the column sums may differ from the charge lines by a few hundredths."""
+    if not s.tou_daily:
+        return ""
+    head = "".join(f"<th class='n'>{E(b)}</th>" for b in s.tou_bands)
+    rows = []
+    for d in s.tou_daily:
+        cells = "".join(f"<td class='n'>{E(kwh(v)) if v is not None else ''}</td>" for v in d.kwh)
+        mark = f" <span class='sub'>{E(d.marker)}</span>" if d.marker else ""
+        rows.append(f"<tr><td>{num(dmy(d.day))}{mark}</td>{cells}<td class='n'>{E(kwh(d.total))}</td></tr>")
+    return ("<section class='daily'><h2>פירוט יומי לפי שעות (קוט״ש)</h2>"
+            f"<table class='mini daily'><thead><tr><th>תאריך</th>{head}<th class='n'>סה״כ</th></tr></thead><tbody>{''.join(rows)}</tbody></table>"
+            "<div class='note'>הפירוט היומי הוא לעיון; כל ערך מעוגל בנפרד, והחיוב מחושב מסיכום כל פס בתקופה.</div></section>")
+
+
 # ---------------------------------------------------------------------------------------------------- the page
 def _css(accent: str) -> str:
     return f"""
@@ -258,6 +274,8 @@ table.mini {{ margin-top: 2mm; font-size: 7.5pt; table-layout: fixed; }}
 col.c1 {{ width: 25%; }} col.c2 {{ width: 8.3%; }}
 table.mini td {{ padding: 0.8mm 1.5mm; }}
 table.mini td.cur {{ font-weight: 700; }}
+section.daily {{ margin-top: 5mm; }}
+table.daily {{ table-layout: auto; font-size: 8pt; }}
 .runhash {{ position: running(runhash); font-size: 8pt; color: #8a94a8; line-height: 1; }}
 .wm {{ position: fixed; top: 95mm; left: 0; right: 0; text-align: center; font-size: 120pt; font-weight: 700;
   color: rgba(39, 103, 237, 0.10); transform: rotate(-24deg); }}
@@ -347,9 +365,10 @@ def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | Non
     # --- charges
     crow = []
     many = len(s.charges) > 1
+    pieces = {(c.period_start, c.period_end) for c in s.charges}
     for c in s.charges:
-        label = "צריכת חשמל"
-        if many and c.period_start and c.period_end:
+        label = E(c.label)
+        if (len(pieces) > 1 or (many and not c.band)) and c.period_start and c.period_end:
             label += f" {rng(c.period_start, c.period_end)}"
         crow.append(f"<tr><td>{label}</td><td class='n'>{E(kwh(c.kwh))} קוט״ש</td>"
                     f"<td class='n'>{E(price(c.price_per_kwh))} ₪</td><td class='n'>{E(money(c.amount))}</td></tr>")
@@ -398,7 +417,7 @@ def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | Non
         notes_html.append(f'<div class="runhash">מזהה חשבון: {num(s.snapshot_hash)}</div>')
 
     wm = f'<div class="wm {"void" if s.mark == "void" else ""}">{E(mark)}</div>' if mark else ""
-    body = "".join([wm, header, two, big, meters, formula, charges, chart_section(s), *notes_html])
+    body = "".join([wm, header, two, big, meters, formula, charges, chart_section(s), *notes_html, tou_daily_section(s)])
     return (f'<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>{E(title)}</title>'
             f'<meta name="author" content="SmplWise Arx"><style>{_css(E(biz.accent))}</style></head>'
             f"<body>{body}</body></html>")

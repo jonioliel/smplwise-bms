@@ -17,6 +17,8 @@ export interface Ctl {
   pdf_error?: string;
   create_error?: string;
   latency?: number;
+  /** EL5: account a4 bills on a time-of-use tariff */
+  tou?: boolean;
 }
 export interface Opts {
   skin?: 'classic' | 'domus' | 'tesla' | 'bubble';

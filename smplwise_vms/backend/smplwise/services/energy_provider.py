@@ -277,6 +277,40 @@ class EnergyProvider:
     def consumption_many(self, meter_ids: Sequence[str], start: dt.datetime, end: dt.datetime) -> dict[str, Consumption]:
         return {m: self.consumption(m, start, end) for m in meter_ids}
 
+    def consumption_windows(self, meter_id: str, windows: Sequence[tuple[dt.datetime, dt.datetime]]) -> list[Consumption]:
+        """EL5: `consumption` of many windows of one meter (time-of-use band segments) with one read of the quarter-hour
+        buckets and one read of the events. Identical results to calling `consumption` per window; a window older than the
+        quarter-hour retention falls back to `consumption` (the daily totals: local-midnight edges only, else ValueError)."""
+        if not windows:
+            return []
+        spans = [(_ts(a), _ts(b)) for a, b in windows]
+        if any(b < a for a, b in spans):
+            raise ValueError("range_invalid")
+        floor = self.interval_floor()
+        if min(a for a, _ in spans) < floor:
+            return [self.consumption(meter_id, a, b) for a, b in windows]
+        res = self.store.consumption_windows(meter_id, spans)
+        lo, hi = min(windows, key=lambda w: w[0])[0], max(windows, key=lambda w: w[1])[1]
+        evs = self.events(meter_id, lo, hi)
+        out: list[Consumption] = []
+        for (a, b), r in zip(windows, res):
+            mine = tuple(e for e in evs if a <= e.at < b)
+            out.append(Consumption(meter_id, a.astimezone(UTC), b.astimezone(UTC), r["wh"], coverage_of(r["covered_s"], r["total_s"], r["wh"]),
+                                   int(r["covered_s"]), int(r["total_s"]), r["source"], mine))
+        return out
+
+    def reporting_gaps(self, meter_id: str, start: dt.datetime, end: dt.datetime, min_gap: dt.timedelta) -> list[tuple[dt.datetime, dt.datetime, int]]:
+        """EL5: pairs of consecutive accepted readings at least `min_gap` apart that overlap [start, end) and carry energy
+        (> 0 Wh): the store spread that energy evenly over the gap, so a time-of-use split inside it is by time, not measured.
+        Only raw readings are inspected (kept `energy.raw_retention_days`); older periods answer []."""
+        rows = self.store.accepted_window(meter_id, _ts(start), _ts(end))
+        out: list[tuple[dt.datetime, dt.datetime, int]] = []
+        need = int(min_gap.total_seconds())
+        for (t0, v0, _f0), (t1, v1, _f1) in zip(rows, rows[1:]):
+            if t1 - t0 >= need and v1 > v0 and t1 > _ts(start) and t0 < _ts(end):
+                out.append((_dt(t0), _dt(t1), v1 - v0))  # type: ignore[arg-type]
+        return out
+
     def events(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> list[MeterEvent]:
         a, b = _ts(start), _ts(end)
         out: list[MeterEvent] = []
