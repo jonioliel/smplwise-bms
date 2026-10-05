@@ -3,14 +3,14 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
-import { getPolicies, putPolicy, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
+import { getPolicies, previewPolicy, putPolicy, resetPolicies, type GenDevice, type PoliciesResponse, type PolicyBodyValue, type PolicyItem, type Severity } from '../api/generator';
 import { listUsers, type DirectoryUser } from '../api/access';
 import { ApiError, describeError } from '../api/client';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
-import { availableVars, capsOf, fill, hasRecipients, renderTemplate, routeGroups, routingEmpty, TEMPLATE_VARS, type TemplateVar } from './gen-logic';
+import { fill, hasRecipients, routeGroups, routingEmpty } from './gen-logic';
 
 const G = he.generator;
 const S = G.settings;
@@ -40,7 +40,10 @@ export class GenRouting extends LitElement {
   @state() private busy = false;
   @state() private msg = '';
   @state() private fail = '';
+  @state() private tplError = '';
+  @state() private previewText = '';
   private seq = 0;
+  private previewTimer = 0;
 
   static styles = [elecCss, genCss];
 
@@ -78,8 +81,33 @@ export class GenRouting extends LitElement {
     if (!i.available) return;
     this.editing = i;
     this.draft = { ...DEFAULT_POLICY, ...(i.policy ?? {}), recipients: { roles: [...(i.policy?.recipients.roles ?? [])], users: [...(i.policy?.recipients.users ?? [])] }, channels: [...(i.policy?.channels ?? [])] };
-    this.text = i.policy?.template_he ?? i.message;
+    this.text = i.policy?.template_he || i.message;
     this.fail = '';
+    this.tplError = '';
+    this.previewText = i.message_sample ?? '';
+  }
+  private tplInput(v: string) {
+    this.text = v;
+    window.clearTimeout(this.previewTimer);
+    this.previewTimer = window.setTimeout(() => void this.refreshPreview(), 300);
+  }
+  private async refreshPreview() {
+    const i = this.editing;
+    if (!i) return;
+    try {
+      this.previewText = (await previewPolicy(this.device.id, i.key, this.text.trim() || null)).text;
+      this.tplError = '';
+    } catch (e) {
+      this.tplError = this.templateMessage(e);
+    }
+  }
+  private templateMessage(e: unknown): string {
+    if (e instanceof ApiError && e.body.code === 'template_invalid') {
+      const d = (e.body.details ?? {}) as { unknown?: string[]; allowed?: string[] };
+      const bad = (d.unknown ?? []).map((x) => `{${x}}`).join(' ');
+      return `${S.tplInvalid}${bad ? `: ${bad}` : ''}${d.allowed?.length ? `. ${S.tplAllowed}: ${d.allowed.map((x) => `{${x}}`).join(' ')}` : ''}`;
+    }
+    return describeError(e);
   }
   private patch(p: Partial<PolicyBodyValue>) {
     this.draft = { ...this.draft, ...p };
@@ -95,7 +123,8 @@ export class GenRouting extends LitElement {
     this.fail = '';
     const d = this.draft;
     const body: Record<string, unknown> = { enabled: d.enabled, severity: d.severity ?? i.default_severity, recipients: d.recipients, channels: d.channels, quiet_mode: d.quiet_mode, escalate: d.escalate && hasRecipients(d), after_s: d.after_s, row_version: i.policy?.row_version };
-    if (this.text.trim() !== (i.policy?.template_he ?? i.message).trim()) body.template_he = this.text.trim() === i.message.trim() ? null : this.text.trim();
+    const t = this.text.trim();
+    if (t !== (i.policy?.template_he || i.message).trim()) body.template_he = !t || t === i.message.trim() ? null : t;
     try {
       const saved = await putPolicy(this.device.id, i.key, body);
       this.data = { ...this.data!, items: this.data!.items.map((x) => (x.key === i.key ? { ...x, policy: saved } : x)) };
@@ -105,7 +134,8 @@ export class GenRouting extends LitElement {
       if (e instanceof ApiError && e.status === 409) {
         this.fail = S.conflict;
         await this.load();
-      } else this.fail = describeError(e);
+      } else if (e instanceof ApiError && e.body.code === 'template_invalid') this.tplError = this.templateMessage(e);
+      else this.fail = describeError(e);
     } finally {
       this.busy = false;
     }
@@ -134,18 +164,12 @@ export class GenRouting extends LitElement {
     return html`<span class="chs">${['inbox', ...(this.data?.channels ?? [])].map((c) => html`<span class="ch ${on.has(c) ? 'on' : ''}" title=${c === 'inbox' ? S.inboxAlways : chLabel(c)}>${c === 'inbox' ? html`<sw-icon name="bell" size="14"></sw-icon>` : chLabel(c)}</span>`)}</span>`;
   }
 
-  private sampleVars(): Partial<Record<TemplateVar, string>> {
-    const v: Partial<Record<TemplateVar, string>> = { device: this.device.name || S.sampleDevice, name: this.device.name || S.sampleDevice, detail: '', time: '14:02', site: S.sampleSite, battery: '23.1 V', fuel: '58%', load: '62%' };
-    const ok = new Set(availableVars(capsOf(this.device)));
-    for (const k of TEMPLATE_VARS) if (!ok.has(k)) delete v[k];
-    return v;
-  }
-
   private drawer() {
     const i = this.editing;
     const d = this.draft;
     const data = this.data!;
-    const vars = availableVars(capsOf(this.device));
+    const ph = data.placeholders ?? {};
+    const max = data.template_max ?? 500;
     const users = this.users.filter((u) => !this.userQ || (u.name || u.username).toLowerCase().includes(this.userQ.toLowerCase()));
     const chk = (label: string, on: boolean, fn: () => void, dis = false, extra = '') => html`<label class="${on ? 'on' : ''} ${dis ? 'dis' : ''}"><input type="checkbox" .checked=${on} ?disabled=${dis} @change=${fn} /> ${label}${extra ? html` <span class="mut">${extra}</span>` : nothing}</label>`;
     return html`<sw-drawer modal .open=${!!i} heading=${i ? fill(S.editTitle, { name: i.title }) : ''} @close=${() => (this.editing = null)} data-drawer="routing">
@@ -162,11 +186,13 @@ export class GenRouting extends LitElement {
         <div class="fld"><label>${S.escalate}</label><div class="row"><input type="checkbox" .checked=${d.escalate && hasRecipients(d)} ?disabled=${!hasRecipients(d)} @change=${() => this.patch({ escalate: !d.escalate })} data-escalate />
           ${hasRecipients(d) ? html`<input type="number" min="0" style="inline-size:90px" .value=${String(Math.round(d.after_s / 60))} @change=${(e: Event) => this.patch({ after_s: Math.max(0, Number((e.target as HTMLInputElement).value) || 0) * 60 })} /> <span class="mut">${S.escalateAfter}</span>` : html`<span class="mut">${S.escalateOff}</span>`}</div></div>
         <div class="fld"><label for="tpl">${S.message}</label>
-          <textarea id="tpl" class="note" dir="rtl" .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLTextAreaElement).value)} data-template></textarea>
-          <div class="mut vars">${S.vars}: ${vars.map((v) => html`<code>{${v}}</code> `)} · ${S.varsNote}</div>
-          <div class="preview" data-preview><div class="mut">${S.preview}</div><b>${i.title}</b><div>${renderTemplate(this.text, this.sampleVars())}</div></div></div>
+          <textarea id="tpl" class="note" dir="rtl" .value=${this.text} maxlength=${max} @input=${(e: Event) => this.tplInput((e.target as HTMLTextAreaElement).value)} data-template></textarea>
+          <div class="row mut"><span data-counter>${fill(S.tplCounter, { n: this.text.length, max })}</span><span>${S.tplClip}</span></div>
+          <div class="mut vars" data-vars>${S.vars}: ${Object.entries(ph).map(([k, d]) => html`<code title=${d}>{${k}}</code> <span>${d}</span> `)}<div>${S.tplDetailNote}</div></div>
+          ${this.tplError ? html`<div class="alert err" role="alert" data-tpl-error><span class="x">!</span><div>${this.tplError}</div></div>` : nothing}
+          <div class="preview" data-preview><div class="mut">${S.preview}</div><b>${i.title}</b><div>${this.previewText}</div></div></div>
         ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
-        <div class="row"><button class="btn pri" ?disabled=${this.busy} @click=${() => this.save()} data-save>${S.save}</button><button class="btn" @click=${() => (this.editing = null)}>${S.cancel}</button></div>
+        <div class="row"><button class="btn pri" ?disabled=${this.busy} @click=${() => this.save()} data-save>${S.save}</button><button class="btn" @click=${() => (this.editing = null)}>${S.cancel}</button><button class="btn ghost" @click=${() => { this.text = i.message; void this.refreshPreview(); }} data-restore>${S.tplRestore}</button></div>
       </div>` : nothing}</sw-drawer>`;
   }
 

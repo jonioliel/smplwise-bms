@@ -186,6 +186,8 @@ export interface PolicyItem {
   available: boolean;
   needs: string | null;
   message: string;
+  /** The built-in text rendered with sample values. */
+  message_sample?: string;
   policy: PolicyBodyValue | null;
 }
 export interface PoliciesResponse {
@@ -197,6 +199,9 @@ export interface PoliciesResponse {
   channels_reserved: string[];
   quiet_modes: string[];
   note: string;
+  /** Placeholder -> Hebrew description (the server's list). */
+  placeholders?: Record<string, string>;
+  template_max?: number;
   roles: { id: string; label: string }[];
 }
 export type PolicyPatch = Partial<Omit<PolicyBodyValue, 'row_version'>> & { row_version?: number };
@@ -279,3 +284,6 @@ export interface LiveSummaryItem {
 }
 /** One call for the picker of any number of generators: availability, engine state, load, fuel and open alerts of each. */
 export const listLive = () => get<{ devices: LiveSummaryItem[]; open_alerts: number; at: string }>('generator/devices/live');
+
+/** The message as it would read with sample values; nothing is stored or sent (generator.manage). */
+export const previewPolicy = (id: string, key: string, template_he: string | null) => post<{ text: string }>(`generator/devices/${encodeURIComponent(id)}/policies/${encodeURIComponent(key)}/preview`, { template_he });

@@ -106,6 +106,12 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
       }
       return json(route, { step_s: step, source: 'rollup_5m', from: to - span, to, series, units: Object.fromEntries(roles.map((r) => [r, r.includes('temp') ? '°C' : r.includes('_v') ? 'V' : '%'])), labels: Object.fromEntries(roles.map((r) => [r, r])), range: rng });
     }
+    if (m && m[2] === 'policies' && /\/preview$/.test(m[3] ?? '')) {
+      const t = ((body as { template_he?: string | null })?.template_he ?? '{name}: {detail}.');
+      const bad = [...t.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).filter((x) => !['name', 'detail', 'type', 'severity'].includes(x));
+      if (bad.length) return json(route, { code: 'template_invalid', user_message: 'תבנית לא מוכרת', retryable: false, correlation_id: 'mock', details: { unknown: bad, allowed: ['name', 'detail', 'type', 'severity'] } }, 400);
+      return json(route, { text: t.replace('{name}', 'גנרטור ראשי').replace('{detail}', 'מתח מצבר 23.1 V').replace('{type}', 'מתח מצבר נמוך').replace('{severity}', 'התראה') });
+    }
     if (m && m[2] === 'policies') {
       if (method === 'PUT') {
         const key = m[3]!;
@@ -118,8 +124,8 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
         policies.clear();
         return json(route, { reset: 3 });
       }
-      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}, מתח מצבר {battery}, מפלס דלק {fuel}.', policy: policies.get(t.key) ?? null }));
-      return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], note: '', roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
+      const items = typesFor(level).map((t) => ({ key: t.key, group: t.group, title: t.title, title_en: t.key, default_severity: t.key === 'fail_to_start' ? 'critical' : 'alert', event: '', available: t.available, needs: t.needs, message: '{name}: {detail}.', message_sample: 'גנרטור ראשי: מתח מצבר 23.1 V.', policy: policies.get(t.key) ?? null }));
+      return json(route, { groups: GROUPS, items, available: items.filter((i) => i.available).length, total: items.length, channels: ['push', 'app', 'email'], channels_reserved: ['whatsapp', 'ha_mobile'], quiet_modes: ['pass', 'matrix', 'hold'], note: '', template_max: 500, placeholders: { name: 'שם הגנרטור', detail: 'פירוט האירוע', type: 'סוג ההתראה', severity: 'חומרה' }, roles: [{ id: 'operator', label: 'מפעילים' }, { id: 'site_admin', label: 'מנהלי אתר' }, { id: 'system_admin', label: 'מנהלי מערכת' }] });
     }
     if (m && m[2] === 'roles') {
       const names = ['engine_state', 'gen_v_l1', 'fuel_pct', 'battery_v'];

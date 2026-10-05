@@ -117,6 +117,11 @@ test.describe('generator evidence', () => {
       await p.waitForSelector('sw-app gen-routing [data-preview]');
     });
     await expect(page.locator('sw-app gen-routing [data-preview]')).toContainText('מתח מצבר');
+    await expect(page.locator('sw-app gen-routing [data-vars] code')).toHaveCount(4);
+    await page.locator('sw-app gen-routing [data-template]').fill('{name} {bogus}');
+    await expect(page.locator('sw-app gen-routing [data-tpl-error]')).toContainText('{bogus}');
+    await page.locator('sw-app gen-routing [data-template]').fill('{name}: {detail}!');
+    await expect(page.locator('sw-app gen-routing [data-tpl-error]')).toHaveCount(0);
     await shoot(page, '/system/infra/generator/mapping', 'settings-mapping', 'sw-app gen-settings [data-section="mapping"]');
     await shoot(page, '/system/infra/generator/thresholds', 'settings-thresholds', 'sw-app gen-settings [data-section="thresholds"]');
     await shoot(page, '/system/infra/generator/retention', 'settings-retention', 'sw-app gen-settings [data-section="retention"]', { count: 2 });

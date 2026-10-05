@@ -192,7 +192,7 @@ export const he = {
       roleNames: { operator: 'מפעילים', site_admin: 'מנהלי אתר', system_admin: 'מנהלי מערכת' },
       editTitle: 'ניתוב: {name}', active: 'ההתראה פעילה', severity: 'חומרה', recRoles: 'נמענים לפי תפקיד', recUsers: 'נמענים נוספים (משתמשים)', escalateShort: 'הסלמה', routingEmptyShort: 'ההתראה תישמר במרכז ההתראות בלבד', channels: 'ערוצים', quietHours: 'בשעות שקט', escalate: 'הסלמה ללא אישור', escalateOff: 'כבויה; ללא נמענים אין למי להסלים',
       escalateAfter: 'דקות עד הסלמה', message: 'נוסח ההודעה', vars: 'משתנים', varsNote: 'משתנה שהחיישן שלו חסר נשמט מההודעה', preview: 'תצוגה מקדימה',
-      routeSaved: 'הניתוב נשמר', resetDone: 'הניתוב אופס', confirmReset: 'לאפס את כל הניתוב של גנרטור זה?', conflict: 'הניתוב עודכן בינתיים; נטענו הערכים העדכניים.',
+      routeSaved: 'הניתוב נשמר', tplInvalid: 'בנוסח יש תבנית לא מוכרת', tplAllowed: 'מותר', tplCounter: '{n} מתוך {max} תווים', tplClip: 'ההודעה שנשלחת נחתכת ל-180 תווים במרכז ההתראות', tplDetailNote: 'סוגי התראה שהם אירוע (למשל חזרת הרשת) עשויים להחזיר {detail} ריק.', tplRestore: 'שחזור הנוסח המוכן', resetDone: 'הניתוב אופס', confirmReset: 'לאפס את כל הניתוב של גנרטור זה?', conflict: 'הניתוב עודכן בינתיים; נטענו הערכים העדכניים.',
       sampleDevice: 'גנרטור ראשי', sampleSite: 'האתר',
     },
   },
