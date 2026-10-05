@@ -51,6 +51,10 @@ export interface Mock {
   detailDelay: number;
   /** CR-020 S2C: the list carries `can_batch` (the server offers the multi-camera change) */
   canBatch: boolean;
+  /** CR-025 NN2B: Provision-ISR shaped capabilities (no SVC / B-frames, quality 1..5, GOP from 25, lower-case profiles) */
+  provision: boolean;
+  /** CR-025 NN2B: stream refs the detail declares `writable: false` with `not_writable_reason: 'device_refused'` (R2) */
+  refused: string[];
   /** "streamRef:codec" whose options route answers `options: null` (capability documents unreadable for that codec) */
   optionsDown: string[];
   /** extra main-stream resolutions per codec (a camera of the owner: 4256x1888 under both codecs) */
@@ -85,6 +89,13 @@ export function options(codec = 'H.264', isMain = true): Record<string, any> { /
 /** `options()` plus the main-stream resolutions a test added per codec (`Mock.extraRes`). */
 export function optionsFor(st: Mock, codec: string, isMain: boolean): Record<string, any> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const o = options(codec, isMain);
+  if (st.provision) {
+    Object.assign(o, {
+      profile: { 'H.264': ['baseline', 'main', 'high'], 'H.265': ['main'] }, fps: [25, 20, 15, 10, 6, 5, 4, 3, 2, 1], fps_full: false, quality: [1, 2, 3, 4, 5],
+      bitrate_kbps: { min: 64, max: 8192 }, gop: { min: 25, max: 1500 }, svc: false, smart_codec: isMain, b_frames: false, locks: {},
+    });
+    if (!isMain) o.resolution = { 'H.264': ['704x576', '640x480', '352x288'], 'H.265': ['704x576', '640x480'] };
+  }
   if (isMain) for (const [c, list] of Object.entries(st.extraRes)) o.resolution[c] = [...list, ...(o.resolution[c] ?? [])];
   return o;
 }
@@ -112,7 +123,7 @@ export function newCameras(): Record<string, any>[] { // eslint-disable-line @ty
 }
 
 export function newMock(perms = CONFIGURE): Mock {
-  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0, canBatch: false, optionsDown: [], extraRes: {} };
+  return { perms, canWrite: true, stale: false, put: 'ok', noOptions: [], detailDown: [], cameras: newCameras(), rows: [], hits: [], writes: [], seq: 0, detailDelay: 0, canBatch: false, optionsDown: [], extraRes: {}, provision: false, refused: [] };
 }
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -141,7 +152,7 @@ function setField(s: Stream, f: string, v: unknown) {
 function detailOf(st: Mock, camId: string) {
   const cam = st.cameras.find((c) => c.camera_id === camId);
   if (!cam) return null;
-  const streams = cam.streams.map((s: Stream) => ({ ...clone(s), writable: true, not_writable_reason: null }));
+  const streams = cam.streams.map((s: Stream) => ({ ...clone(s), writable: !st.refused.includes(s.stream_ref), not_writable_reason: st.refused.includes(s.stream_ref) ? 'device_refused' : null }));
   const opts: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
   for (const s of streams) opts[s.stream_ref] = st.noOptions.includes(s.stream_ref) ? null : optionsFor(st, s.codec ?? 'H.264', s.role === 'main');
   return { camera: { ...clone(cam), streams }, options: opts, stale: st.stale, can_write: st.canWrite };

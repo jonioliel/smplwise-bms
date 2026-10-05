@@ -124,7 +124,7 @@ export interface StreamOptions {
   b_frames: boolean;
   /** field → the fields it locks while on. */
   locks: Partial<Record<EncodingField, EncodingField[]>>;
-  source: 'capabilities' | 'dynamic_cap';
+  source: 'capabilities' | 'dynamic_cap' | 'stream_caps';
 }
 
 export interface CameraDetail {

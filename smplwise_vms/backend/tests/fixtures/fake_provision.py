@@ -26,7 +26,7 @@ NS = 'xmlns="http://www.ipc.com/ver10"'
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
          "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
-         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime"}  # P3 reads (the derived-events pass searches recordings)
+         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -71,6 +71,15 @@ class FakeProvision:
         # of the channel list, profiles in a top-level encodeLevelCaps, an empty encodeTypeCaps, chlOfflineAlarm in
         # GetAlarmStatus, one record-status item per stream, "no recording", no apiVersion.
         self.shape = "doc"
+        # NN2B (encoding writes): GetSupportedAPIs answers this list (None = errorCode 1 like every v1 firmware; a list with
+        # "SetVideoStreamConfig" makes the adapter send PARTIAL v2 bodies); channels whose SetVideoStreamConfig answers an error
+        # code {ch: code} (R2: the NVR does not pass writes to that camera), whose GetStreamCaps answers errorCode 1, or whose
+        # GetVideoStreamConfig is refused; `set_hook` = a callable run before each Set is applied (a concurrent change).
+        self.supported_apis: list[str] | None = None
+        self.set_refused: dict[int, int] = {}
+        self.caps_missing: set[int] = set()
+        self.video_refused: set[int] = set()
+        self.set_hook: Any = None
 
     def _state(self, ch: int) -> dict[int, dict[str, Any]]:
         if ch not in self.streams:
@@ -178,7 +187,15 @@ class FakeProvision:
         3: ('', '<maxBitRate type="uint32" min="64" max="8192">{}</maxBitRate>', '<GOP type="uint32" min="25" max="1500">{}</GOP>'),
     }
 
+    def _GetSupportedAPIs(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.supported_apis is None:
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="1"/>', 400)
+        items = "".join(f"<item><![CDATA[{n}]]></item>" for n in self.supported_apis)
+        return self._xml(request, _doc(f'<applicationInterfaces type="list" count="{len(self.supported_apis)}"><itemType type="string" maxLen="63"/>{items}</applicationInterfaces>', "2.0.0"))
+
     def _GetVideoStreamConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if ch in self.video_refused:
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="4"/>', 400)
         if self.kind == "nvr" and self.channels.get(ch) in (None, "offline"):
             return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="3"/>', 400)
         items = []
@@ -220,6 +237,10 @@ class FakeProvision:
 
         body = request.content.decode()
         self.set_bodies.append(body)
+        if ch in self.set_refused:
+            return self._xml(request, f'<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="{self.set_refused[ch]}"/>', 400)
+        if self.set_hook is not None:
+            self.set_hook(self, ch)
         if self.set_after == "drop":
             raise httpx.ReadError("connection lost after the body was sent", request=request)
         root = ET.fromstring(body)
@@ -269,6 +290,8 @@ class FakeProvision:
                              "interval": int(get("heartbeatInterval") or 30), "url": get("url")}
         return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
     def _GetStreamCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if ch in self.caps_missing:
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="1"/>', 400)
         if self.shape == "live":
             items = []
             for sid in self._state(ch):

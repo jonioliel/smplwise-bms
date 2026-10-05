@@ -492,6 +492,37 @@ def set_streams_document(get_xml: str | bytes, replacement: str) -> str:
             f"<streams>{body}</streams></config>")  # guide 3.3.4: no attributes on the streams element
 
 
+def streams_partial_document(get_xml: str | bytes, replacement: str) -> tuple[str, list[str]]:
+    """v2 SetVideoStreamConfig body (v2 guide: only `item id` is required): the target stream alone, with only the scalar
+    fields whose value differs from what the device shows now - siblings are not sent. Returns (body, changed tags); the
+    tags list is empty when `replacement` equals the device's item (the caller sends nothing then)."""
+    root = parse(get_xml)
+    new = parse(replacement)
+    target = to_int(new.attrib.get("id"))
+    current = next((i for i in children(child(root, "streams"), "item") if to_int(i.attrib.get("id")) == target), None)
+    if target is None or current is None:
+        raise ValueError("stream_ref")
+    parts, changed = [], []
+    for tag in WRITE_TAGS:
+        want = text(new, tag, cap=64)
+        if want is None or tag == "name" or want == text(current, tag, cap=64):
+            continue
+        parts.append(f"<{tag}>{want}</{tag}>")
+        changed.append(tag)
+    body = ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">'
+            f'<streams><item id="{target}">{"".join(parts)}</item></streams></config>')
+    return body, changed
+
+
+def parse_supported_apis(xml: str | bytes) -> frozenset[str]:
+    """v2 `GetSupportedAPIs` (2.1.1) -> the command names the device lists. A v1 device answers errorCode 1 instead."""
+    root = parse(xml)
+    lst = child(root, "applicationInterfaces")
+    if lst is None:
+        raise ET.ParseError("not an applicationInterfaces document")
+    return frozenset(v for v in ((it.text or "").strip()[:64] for it in children(lst, "item")) if v)
+
+
 def parse_video_stream_config(xml: str | bytes, channel: int) -> list[dict[str, Any]]:
     """`GetVideoStreamConfig/{ch}` -> one dict per stream: `stream_ref`, `stream_id`, `channel`, `role`, `name`, the
     normalized encoding (`codec`, `codec_raw`, `codec_plus`, `profile`, `resolution`, `fps`, `bitrate_mode`, `bitrate_kbps`,

@@ -8,7 +8,9 @@ owner at a prompt and the prompt shows exactly what will be written. Whitelisted
       before the write the device's full GetAlarmServerConfig answer is saved unmodified to
       <log-dir>/alarm-server-before-<entry>.xml; a failed request or a read-back that differs from what was sent restores the
       saved values exactly, once, and stops (exit 3 diverged / 6 write failed)
-  set-encoding --channel N --stream main|sub --set field=value [--set field=value ...]
+  set-encoding --channel N --stream main|sub --set field=value [--set field=value ...] [--no-auto-restore]
+      (NN2B) support gate + value validation against the device's GetStreamCaps first; --dry-run prints gate, mode, validation and
+      the exact body; a diverging read-back restores once; an unknown outcome is read back read-only, never rewritten (exit 7)
       fields: codec (H.264|H.265|MJPEG), profile (baseline|main|high), resolution (WxH), fps, bitrate_mode (CBR|VBR),
       bitrate_kbps, quality (1..5), gop, smart_codec (true|false)
   restore-from-log --entry ID          (restores the value recorded before entry ID)
@@ -237,7 +239,12 @@ def _parse_sets(pairs: list[str]) -> dict[str, Any]:
 
 
 def op_set_encoding(a: Any, j: Journal, out: Callable[[str], None], *, channel: int, stream: str, changes: dict[str, Any], dry_run: bool,
-                    restoring: str | None = None) -> int:
+                    restoring: str | None = None, auto_restore: bool = True) -> int:
+    """One stream of one channel (NN2B). Order: read the stream -> support gate and value validation against the device's own
+    GetStreamCaps (a refusal here writes nothing and records nothing) -> print the exact body -> dry run stops -> save the
+    restore record and the journal BEFORE the write -> one write, never retried -> read back and verify. A read-back that differs
+    from what was sent restores the saved values once (`--no-auto-restore` only prints the command); an unknown outcome (the
+    connection was lost after the request left) is read back read-only and NEVER followed by another write."""
     from smplwise.errors import ApiError
     from smplwise.services.recorders import provision_isr_xml as px
 
@@ -248,29 +255,70 @@ def op_set_encoding(a: Any, j: Journal, out: Callable[[str], None], *, channel: 
     before = {k: snap.parsed.get(k) for k in FIELDS}
     item = a.stream_document(snap.element, changes)
     get_xml = a._xml("GetVideoStreamConfig", channel)
-    body = px.set_streams_document(get_xml, item)
+    mode = a.write_mode()
+    caps = a.stream_caps(channel).get("streams", {}).get(px.split_stream_ref(ref)[1], {})
+    gate = a.write_gate(channel, caps)
+    out(f"support: {'writable' if gate is None else 'NOT writable (' + gate + ')'}; write mode: {mode} "
+        f"({'only the changed fields of this stream' if mode == 'partial' else 'every stream of the channel, the target edited'})")
+    try:
+        a._check_limits(channel, item, snap.parsed)
+        out("validation: every value is inside the device's own capability document")
+    except ApiError as exc:
+        out(f"validation: REFUSED ({exc.details.get('field')}) - nothing sent")
+        return 4
+    if gate is not None:
+        out("refused: the support gate says this stream cannot be written; nothing sent")
+        return 4
+    if mode == "partial":
+        body, changed_tags = px.streams_partial_document(get_xml, item)
+        if not changed_tags:
+            out("nothing differs from the device: nothing to write")
+            return 0
+    else:
+        body = px.set_streams_document(get_xml, item)
     out(f"request: POST /SetVideoStreamConfig/{channel}  (stream {stream}, ref {ref})")
     out("body: " + j.redact(body))
     out("current: " + json.dumps(before, ensure_ascii=False))
     out("change: " + json.dumps(changes, ensure_ascii=False))
+    out("restore (after a real write): restore-from-log --entry <printed entry id>  -> writes back " + json.dumps({k: before[k] for k in changes}, ensure_ascii=False))
     if dry_run:
         out("dry-run: nothing written")
         return 0
     eid = uuid.uuid4().hex[:12]
     j.save_restore(eid, {"op": "set-encoding", "channel": channel, "stream": stream, "before": {k: before[k] for k in changes}})
+    j.save_snapshot(eid, "stream", snap.element)  # the device's full item as read, unmodified (private-evidence/, gitignored)
     j.write({"entry": eid, "time": _now(), "op": "set-encoding", "phase": "before", "restore_of": restoring, "channel": channel, "stream": stream,
-             "before": {k: before[k] for k in changes}, "change": changes})
+             "mode": mode, "before": {k: before[k] for k in changes}, "change": changes})
     try:
         outcome = a.write_stream_encoding(ref, snap.etag, item, "direct")
     except ApiError as exc:
         j.write({"entry": eid, "time": _now(), "op": "set-encoding", "phase": "refused", "code": exc.code, "details": exc.details})
-        out(f"entry {eid}: device refused ({exc.code}); restore with: restore-from-log --entry {eid}")
+        if exc.details.get("outcome") == "unknown":
+            try:
+                now_ = a.read_stream(ref).parsed
+                state = "unchanged" if all(now_.get(k) == before[k] for k in changes) else "changed" if all(now_.get(k) == v for k, v in changes.items()) else "PARTLY CHANGED"
+            except ApiError:
+                state = "not readable"
+            j.write({"entry": eid, "time": _now(), "op": "set-encoding", "phase": "unknown-readback", "state": state})
+            out(f"entry {eid}: OUTCOME UNKNOWN (the connection ended after the request was sent); read-only check: stream {state}. "
+                f"No further write was made. Decide by hand; restore with: restore-from-log --entry {eid}")
+            return 7
+        out(f"entry {eid}: device refused ({exc.code}); nothing was changed on the device; restore record kept: restore-from-log --entry {eid}")
         return 4
     now = {k: outcome.verified.parsed.get(k) for k in changes}
     ok = all((now[k] == v) or (k == "fps" and float(now[k] or 0) == float(v)) for k, v in changes.items())
     j.write({"entry": eid, "time": _now(), "op": "set-encoding", "phase": "verified" if ok else "diverged", "after": now})
-    out(f"entry {eid}: {'verified' if ok else 'DIVERGED'} {json.dumps(now)}")
-    return 0 if ok else 3
+    if ok:
+        out(f"entry {eid}: verified {json.dumps(now)}  (restore with: restore-from-log --entry {eid})")
+        return 0
+    out(f"entry {eid}: DIVERGED {json.dumps(now)}")
+    if restoring is not None or not auto_restore:
+        out(f"restore with: restore-from-log --entry {eid}")
+        return 3
+    out(f"entry {eid}: restoring the saved values once")
+    rc = op_set_encoding(a, j, out, channel=channel, stream=stream, changes={k: before[k] for k in changes}, dry_run=False, restoring=eid, auto_restore=False)
+    out(f"entry {eid}: {'restored and verified' if rc == 0 else 'RESTORE DID NOT VERIFY - stop and check the device'}")
+    return 3
 
 
 def op_restore_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, values: dict[str, str], dry_run: bool, restoring: str) -> int:
@@ -337,6 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
     s2.add_argument("--channel", type=int, required=True)
     s2.add_argument("--stream", choices=("main", "sub"), required=True)
     s2.add_argument("--set", action="append", default=[], dest="sets")
+    s2.add_argument("--no-auto-restore", action="store_true", help="on a diverging read-back only print the restore command (default: restore once)")
     s3 = sub.add_parser("restore-from-log")
     s3.add_argument("--entry", required=True)
     return p
@@ -362,7 +411,8 @@ def main(argv: list[str] | None = None, *, transport: Any = None, out: Callable[
             return op_set_alarm_server(a, j, out, server=args.server, port=args.port, path=args.path, dry_run=args.dry_run,
                                        auto_restore=not args.no_auto_restore)
         if args.op == "set-encoding":
-            return op_set_encoding(a, j, out, channel=args.channel, stream=args.stream, changes=_parse_sets(args.sets), dry_run=args.dry_run)
+            return op_set_encoding(a, j, out, channel=args.channel, stream=args.stream, changes=_parse_sets(args.sets), dry_run=args.dry_run,
+                                   auto_restore=not args.no_auto_restore)
         return op_restore(a, j, out, entry=args.entry, dry_run=args.dry_run)
     except Refused as exc:
         out(f"refused: {exc}")
