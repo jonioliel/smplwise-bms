@@ -291,7 +291,7 @@ test.describe('CR-030 settings: הגדרות › מסכי קיר (mocked backend
     await expect(page.locator('sw-dialog[data-wall-add] [data-wall-add-submit]')).toHaveAttribute('disabled', ''); // the dialog host has no box of its own
     await shot(page, 'wall-settings-add');
     await page.keyboard.press('Escape');
-    await page.locator('system-wall [data-wall-edit="u-reception"]').click();
+    await page.locator('system-wall [data-wall-edit="u-reception"]').first().click();
     const drawer = page.locator('sw-drawer[data-wall-drawer]');
     await expect(drawer).toBeVisible();
     await expect(drawer).toContainText('מצלמות ופריסה');
