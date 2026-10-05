@@ -8,7 +8,7 @@ import '../components/sw-chip';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
-import { extraFromParam } from '../components/multi-select';
+import { extraFromParam, limitNotice, toggleCapped } from '../components/multi-select';
 import { TabsModeController } from '../shell/tabs-mode';
 import '../components/sw-field';
 import '../components/sw-icon';
@@ -927,10 +927,24 @@ export class InvestigatePlayback extends LitElement {
     if (cur) await this.startAt(cur);
   }
 
-  /** The comparison picker's options: every other camera; one of another recorder cannot join (CR-024) unless the experimental setting allows it. */
+  /** The comparison picker's options: every other camera; one of another recorder cannot join (CR-024) unless the experimental setting
+   * allows it - it is listed with the short reason (2.0.2: "מקליט אחר", drawn after the name and as the tooltip). */
   private compareItems(): DropdownItem[] {
     const lead = this.cameraId ? [this.cameraId] : [];
-    return (this.cams ?? []).filter((c) => c.id !== this.cameraId).map((c) => ({ id: c.id, label: cameraLabel(c), icon: 'camera' as const, disabled: !this.extra.includes(c.id) && !sameRecorder(lead, this.cams ?? [], c.id, this.crossSync) }));
+    return (this.cams ?? []).filter((c) => c.id !== this.cameraId).map((c) => {
+      const other = !this.extra.includes(c.id) && !sameRecorder(lead, this.cams ?? [], c.id, this.crossSync);
+      return { id: c.id, label: cameraLabel(c), icon: 'camera' as const, disabled: other, note: other ? 'מקליט אחר' : undefined };
+    });
+  }
+
+  /** 2.0.2 (`ui.dd_picker` = chips): the 2.0.0 look, a button per camera; the limit disables the rest (the dropdown refuses the pick the same way). */
+  private renderCompareChips() {
+    const full = this.extra.length >= 3;
+    return html`<span>השוואה (עד 4):</span>${this.compareItems().map((it) => {
+      const on = this.extra.includes(it.id);
+      const why = it.note ?? (!on && full ? limitNotice(3, 1) : '');
+      return html`<sw-chip data-compare-chip=${it.id} ?selected=${on} ?disabled=${!on && (it.disabled || full)} title=${why || nothing} @click=${() => void this.applyExtra(toggleCapped(this.extra, it.id, 3).ids)}>${it.label}</sw-chip>`;
+    })}`;
   }
 
   private players(): SwLivePlayer[] {
@@ -1377,9 +1391,11 @@ export class InvestigatePlayback extends LitElement {
         <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
-      <div class="compare" data-compare>
-        <sw-dropdown multiple data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
-          .items=${this.compareItems()} .values=${this.extra} @change=${(e: CustomEvent<DropdownChange>) => void this.applyExtra(e.detail.ids ?? [])}></sw-dropdown>
+      <div class="compare" data-compare data-picker=${this.tabsMode.ddPicker}>
+        ${this.tabsMode.ddPicker === 'chips'
+          ? this.renderCompareChips()
+          : html`<sw-dropdown multiple data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+              .items=${this.compareItems()} .values=${this.extra} @change=${(e: CustomEvent<DropdownChange>) => void this.applyExtra(e.detail.ids ?? [])}></sw-dropdown>`}
       </div>
       <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
         ${this.renderStage(cam)}
@@ -1421,7 +1437,7 @@ export class InvestigatePlayback extends LitElement {
         <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
         <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
         ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
-        ${this.groupMode ? html`<span data-sync-method>סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
+        ${this.groupMode ? html`<span data-sync-method>סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן</span>` : nothing}
       </div>` : nothing}
       ${this.renderExportDialog()}
     `;

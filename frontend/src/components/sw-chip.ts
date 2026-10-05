@@ -10,6 +10,8 @@ export class SwChip extends LitElement {
   @property() icon?: IconName;
   @property({ type: Number }) count?: number;
   @property() dot = '';
+  /** 2.0.2: a chip that cannot be pressed now (a camera of another recorder, the comparison at its limit); the native button is disabled. */
+  @property({ type: Boolean, reflect: true }) disabled = false;
 
   static styles = css`
     :host {
@@ -58,11 +60,20 @@ export class SwChip extends LitElement {
     :host([selected]) .count {
       color: rgba(255, 255, 255, 0.8);
     }
+    button:disabled {
+      cursor: default;
+      color: var(--sw-text-3);
+      box-shadow: none;
+      opacity: 0.7;
+    }
+    button:disabled:hover {
+      background: var(--sw-surface);
+    }
   `;
 
   render() {
     return html`
-      <button type="button" aria-pressed=${this.selected}>
+      <button type="button" aria-pressed=${this.selected} ?disabled=${this.disabled}>
         ${this.dot ? html`<span class="d" style="--dot:${this.dot}"></span>` : ''}
         ${this.icon ? html`<sw-icon .name=${this.icon} size=${13}></sw-icon>` : ''}
         <slot></slot>

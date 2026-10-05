@@ -97,6 +97,12 @@ for _k in ("ui.dd_ring", "ui.dd_ring_groups", "ui.dd_panel", "ui.dd_panel_groups
 # `ui.dd_phone` (owner 2026-10-03): how a dropdown opens on a phone, sheet | list; null = follow the installation.
 VALIDATORS["ui.dd_phone"] = dd_style.normalize_phone
 DEFAULTS["ui.dd_phone"] = None
+# `ui.dd_search` / `ui.dd_picker` (2.0.2, owner 2026-10-05): the multi-select search threshold (always | 4 | 8 | never) and the camera
+# comparison picker's look (dropdown | chips); null = follow the installation.
+VALIDATORS["ui.dd_search"] = dd_style.normalize_search
+VALIDATORS["ui.dd_picker"] = dd_style.normalize_picker
+DEFAULTS["ui.dd_search"] = None
+DEFAULTS["ui.dd_picker"] = None
 
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal

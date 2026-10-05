@@ -34,6 +34,48 @@ DEFAULT_PANEL = "240"
 PHONE_MODES: tuple[str, ...] = ("sheet", "list")
 DEFAULT_PHONE = "sheet"
 
+# 2.0.2 (owner feedback 2026-10-05, the camera comparison pickers): from how many cameras a multi-select list carries a search field -
+# `always`, `4` (default), `8` (the single-choice lists' rule), `never`. One global value: `ui.dd_search` as the installation's default
+# and as a user's own choice (null = follow the installation). Single-choice lists keep their 8+ rule; this dial is the multi-select's.
+SEARCH_MODES: tuple[str, ...] = ("always", "4", "8", "never")
+DEFAULT_SEARCH = "4"
+
+# 2.0.2 (owner feedback 2026-10-05): how the camera comparison picker is shown (recordings, synchronized playback) - `dropdown` (the
+# multi-select list, default; the phone keeps its bottom sheet) or `chips` (a button per camera, the 2.0.0 look). One global value:
+# `ui.dd_picker` as the installation's default and as a user's own choice (null = follow the installation). Presentation only.
+PICKERS: tuple[str, ...] = ("dropdown", "chips")
+DEFAULT_PICKER = "dropdown"
+
+
+def normalize_search(value: Any) -> str:
+    """Exactly one of SEARCH_MODES (a string, no trimming, no case folding); else refused."""
+    if isinstance(value, str) and value in SEARCH_MODES:
+        return value
+    raise ValueError(f"dropdown search threshold must be one of {', '.join(SEARCH_MODES)}")
+
+
+def stored_search(raw: Any) -> str:
+    """The stored installation value as read back; a corrupt or foreign value reads as the default."""
+    try:
+        return normalize_search(raw)
+    except ValueError:
+        return DEFAULT_SEARCH
+
+
+def normalize_picker(value: Any) -> str:
+    """Exactly one of PICKERS (no trimming, no case folding); else refused."""
+    if isinstance(value, str) and value in PICKERS:
+        return value
+    raise ValueError(f"camera picker must be one of {', '.join(PICKERS)}")
+
+
+def stored_picker(raw: Any) -> str:
+    """The stored installation value as read back; a corrupt or foreign value reads as the default."""
+    try:
+        return normalize_picker(raw)
+    except ValueError:
+        return DEFAULT_PICKER
+
 
 def normalize_phone(value: Any) -> str:
     """Exactly one of PHONE_MODES (no trimming, no case folding); else refused."""

@@ -20,7 +20,8 @@ async function open(page: Page, opts: MockOptions = { cameras: MORE }, urlQuery 
   const st = await mock(page, opts);
   await page.goto('about:blank');
   await page.goto(`/?${urlQuery}#/investigate/playback/sync`);
-  await expect(chip(page)).toBeVisible({ timeout: 20000 });
+  // the dropdown's chip, or (2.0.2, `ui.dd_picker` = chips) the first camera button
+  await expect(opts.settings?.['ui.dd_picker'] === 'chips' ? sy(page).locator('sw-chip[data-sync-camera]').first() : chip(page)).toBeVisible({ timeout: 20000 });
   await page.waitForTimeout(1500); // the shell recreates the screen once after the session settles
   return st;
 }
@@ -115,12 +116,15 @@ test.describe('synchronized playback: the camera picker', () => {
     await expect(chip(page)).toHaveAttribute('aria-label', 'מצלמות: כניסה, 1 מתוך 4');
   });
 
-  test('a camera of another recorder is listed disabled once the set has a lead; the experimental setting lets it join', async ({ page }) => {
+  test('a camera of another recorder is listed disabled once the set has a lead, with the short reason; the experimental setting lets it join', async ({ page }) => {
     await open(page, { cameras: [{ name: 'אחר', recorder: 'r2' }, { name: 'מחסן' }] });
     await chip(page).click();
     await expect(option(page, 'c3')).not.toHaveAttribute('aria-disabled', 'true'); // nothing picked yet: any camera may lead
+    await expect(option(page, 'c3').locator('[data-dd-note]')).toHaveCount(0);
     await option(page, 'c1').click();
     await expect(option(page, 'c3')).toHaveAttribute('aria-disabled', 'true');
+    await expect(option(page, 'c3').locator('[data-dd-note]')).toHaveText('מקליט אחר'); // 2.0.2
+    await expect(option(page, 'c3')).toHaveAttribute('title', 'מקליט אחר');
     await expect(option(page, 'c4')).not.toHaveAttribute('aria-disabled', 'true');
     await option(page, 'c3').click({ force: true });
     await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(1);
@@ -131,6 +135,83 @@ test.describe('synchronized playback: the camera picker', () => {
     await expect(option(page, 'c3')).not.toHaveAttribute('aria-disabled', 'true');
     await option(page, 'c3').click();
     await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(2);
+  });
+
+  // 2.0.2 (owner feedback 2026-10-05): the card shows the four places of a set, no explanatory sentence, the lead on the first place
+  test('the card: four numbered places (the first is the lead), a pick fills its place, the remove button empties it, no paragraph', async ({ page }) => {
+    await open(page);
+    const card = sy(page).locator('sw-card').first();
+    await expect(sy(page).locator('[data-sync-slots] .slot')).toHaveCount(4);
+    await expect(sy(page).locator('[data-sync-slot]')).toHaveCount(4);
+    await expect(sy(page).locator('[data-sync-slot="1"]')).toContainText('מובילה');
+    await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(0);
+    // the start-time note and the subheadings are gone: no .note on the screen, the card has no subheading
+    await expect(sy(page).locator('.note')).toHaveCount(0);
+    await expect(card).not.toHaveAttribute('subheading', /./);
+    await chip(page).click();
+    await option(page, 'c3').click();
+    await option(page, 'c1').click();
+    await foot(page).locator('[data-dd-done]').click();
+    await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(2);
+    await expect(sy(page).locator('[data-sync-slot]')).toHaveCount(2);
+    await expect(sy(page).locator('[data-sync-pick="c3"] sw-badge.lead')).toHaveAttribute('label', 'מובילה');
+    await expect(sy(page).locator('[data-sync-pick="c1"] .num')).toHaveText('2');
+    await expect(sy(page).locator('[data-sync-pick="c3"] .cap')).toContainText('מחסן');
+    // the remove button on a place
+    await sy(page).locator('[data-sync-pick="c3"] .rm').click();
+    await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(1);
+    await expect(sy(page).locator('[data-sync-pick="c1"] sw-badge.lead')).toHaveAttribute('label', 'מובילה'); // the next one leads
+    await expect(chip(page).locator('[data-dd-chip-count]')).toHaveText('1 מתוך 4');
+    await expect(launch(page).locator('button')).toBeDisabled();
+  });
+
+  // 2.0.2: the search field from 4 cameras by default (`ui.dd_search`)
+  test('the search field appears from 4 cameras by default; `never` hides it', async ({ page }) => {
+    await open(page, { cameras: [{ name: 'מחסן' }, { name: 'לובי' }] }); // four cameras
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(4);
+    await expect(pick(page).locator('[data-dd-search]')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(page, { cameras: [{ name: 'מחסן' }] }); // three
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(3);
+    await expect(pick(page).locator('[data-dd-search]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(page, { cameras: MORE, settings: { 'ui.dd_search': 'never' } });
+    await chip(page).click();
+    await expect(pick(page).locator('[role=option]')).toHaveCount(9);
+    await expect(pick(page).locator('[data-dd-search]')).toHaveCount(0);
+  });
+
+  // 2.0.2: the picker as buttons by the installation's choice (`ui.dd_picker`)
+  test('ui.dd_picker = chips: a button per camera with the status dot; the limit and another recorder disable with a reason; the places follow', async ({ page }) => {
+    await open(page, { cameras: [{ name: 'מחסן' }, { name: 'לובי' }, { name: 'אחר', recorder: 'r2' }], settings: { 'ui.dd_picker': 'chips' } });
+    const row = sy(page).locator('[data-sync-cameras]');
+    await expect(row).toHaveAttribute('data-picker', 'chips');
+    await expect(pick(page)).toHaveCount(0);
+    const chips = row.locator('sw-chip[data-sync-camera]');
+    await expect(chips).toHaveCount(5);
+    await expect(row).toContainText('מצלמות (עד 4):');
+    await expect(row.locator('sw-chip[disabled]')).toHaveCount(0); // nothing picked: any camera may lead
+    await row.locator('sw-chip[data-sync-camera="c2"]').click();
+    await expect(sy(page).locator('[data-sync-pick="c2"] sw-badge.lead')).toHaveAttribute('label', 'מובילה');
+    const other = row.locator('sw-chip[data-sync-camera="c5"]');
+    await expect(other).toHaveAttribute('disabled', '');
+    await expect(other).toHaveAttribute('title', 'מקליט אחר');
+    await row.locator('sw-chip[data-sync-camera="c1"]').click();
+    await row.locator('sw-chip[data-sync-camera="c3"]').click();
+    await row.locator('sw-chip[data-sync-camera="c4"]').click();
+    await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(4);
+    await expect(row.locator('sw-chip[selected]')).toHaveCount(4);
+    await expect(other).toHaveAttribute('title', 'מקליט אחר'); // the recorder reason wins over the limit
+    await expect(launch(page)).toContainText('פתח השוואה (4)');
+    // an un-pick of the lead: the next leads, the chip is free again
+    await row.locator('sw-chip[data-sync-camera="c2"]').click();
+    await expect(sy(page).locator('[data-sync-pick]')).toHaveCount(3);
+    await expect(sy(page).locator('[data-sync-pick="c1"] sw-badge.lead')).toHaveAttribute('label', 'מובילה');
+    await expect(row.locator('sw-chip[data-sync-camera="c2"]')).not.toHaveAttribute('disabled', '');
   });
 
   test('the installation\'s dropdown style and the phone bottom sheet apply to the picker', async ({ page }, info) => {

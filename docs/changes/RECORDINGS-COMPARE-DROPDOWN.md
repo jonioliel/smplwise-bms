@@ -61,6 +61,62 @@ on a phone the picker alone took most of the screen. It is now one dropdown in w
 - Evidence: `docs/evidence/sync-dropdown/before` (the chip row, classic + bubble, 390 / 1440) and `after` (closed / open, classic `auto`
   + bubble `capsule`, 390 / 1440).
 
+## Owner feedback 2026-10-05 (third step, `pilot/compare-polish`): search from 4, buttons or dropdown, the synchronized-playback card
+
+Three points of feedback on the two pickers, after the second step.
+
+### 1. The search field from 4 cameras, as a setting (`ui.dd_search`)
+
+- A MULTI-SELECT list (the two camera pickers) carries its search field from **4** options (was 8). The threshold is a setting with the
+  phone choice's shape: one global value, the installation's default (`ui.dd_search`, PATCH /settings, system.configure) and the user's
+  own (/me/prefs, null = follow the installation). Values `always` | `4` (default) | `8` | `never`; backend validation in
+  services/dd_style.py (`SEARCH_MODES`, `normalize_search`, `stored_search`), the same closed list in `components/dd-style.ts`
+  (`DD_SEARCH_IDS`, `ddSearchMin`). The effective value is carried to the dropdown as `data-dd-search` on `<html>` (next to
+  `data-dd-phone`); `sw-dropdown` reads it when a `multiple` list opens. Single-choice lists keep the fixed 8+ rule of 0.1.157 (the
+  settings tabs' long lists): the dial is the camera pickers', not every dropdown's.
+- Settings: a new card "בחירת מצלמות להשוואה" in הגדרות › כללי › לשוניות (`system-tabs-mode.ts`, `data-dd-picker-card`), after the
+  phone card, with both dials of this step: "תצוגה" and "חיפוש ברשימה", installation default + personal choice, one key per change,
+  "מה פעיל אצלי עכשיו".
+
+### 2. Dropdown or buttons, on every width (`ui.dd_picker`)
+
+- How the comparison picker is drawn: `dropdown` (default; the phone keeps its bottom sheet by `ui.dd_phone`) or `chips` (a button per
+  camera, the 2.0.0 look). Same shape as the search dial (installation `ui.dd_picker` + personal; services/dd_style.py `PICKERS`,
+  `normalize_picker`, `stored_picker`; `DD_PICKER_IDS` in dd-style.ts; `TabsModeController.ddPicker`). The choice applies on EVERY width -
+  an installation that prefers buttons gets them on the phone too (that was the owner's ask: the look is a choice, not a width rule).
+- `investigate-playback.ts` (`renderCompareChips`, `[data-compare][data-picker]`, `sw-chip[data-compare-chip]`): "השוואה (עד 4):" + a chip per
+  other camera. `investigate-sync.ts` (`renderChips`, `sw-chip[data-sync-camera]`, the status dot as in 2.0.0). Both share the dropdown's
+  state exactly: `toggleCapped` with the same limit (3 extras / 4 cameras), `applyExtra` / `applyPicked`, the route's `extra=` parameter,
+  the recent sets. One deliberate difference from 2.0.0: at the limit the remaining chips are DISABLED with the tooltip "אפשר לבחור עד 4"
+  (the 2.0.0 chips silently swapped the oldest pick out; the dropdown refuses the pick the same way). `sw-chip` gains a `disabled` property
+  (the native button is disabled; 2.0.0 set a boolean attribute that did nothing).
+- Max 4, URL / state behaviour unchanged (compare-dropdown.spec and sync-dropdown.spec drive both looks against the same mocked backend).
+
+### 3. The synchronized-playback card
+
+- The explanatory sentence under "זמן התחלה" is gone (an operator screen keeps no paragraphs). Its content lives where the comparison runs:
+  the recordings screen's diagnostics line (`data-sync-method`, shown in group mode when `playback.diagnostics` allows it) now also says
+  "מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן"; the launch button's tooltip carries the short form
+  (or "נדרשות לפחות 2 מצלמות" while it is disabled); the time field's tooltip says "זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר"
+  (was the card's subheading).
+- The card itself (`renderSlots`, `[data-sync-slots]`): the four places of a set are ALWAYS drawn - a picked camera fills its place
+  (snapshot, name under it, the number of its place on the picture, a remove button `.rm` of the touch dial with a 28 px circle inside),
+  an empty place is a numbered dashed frame; place 1 carries "מובילה" (the live badge on a picked camera, a word on the empty frame), so
+  "up to 4" and "the first leads" are visible without a sentence: the page subheading is now "2–4 מצלמות, זמן אחד", the card has no
+  subheading. Four places per row on a wide screen, two on the phone. The lead badge on the picture is a dark translucent pill with white
+  text in every skin (the badge's on-image look keys on the text token, which is light in dark skins - unreadable there).
+- A camera of another recorder, listed disabled in the dropdown, says why: `DropdownItem.note` ("מקליט אחר"), drawn after the name in the
+  muted small type (`[data-dd-note]`) and as the option's `title`; the same reason is the tooltip of a disabled chip in the buttons look.
+  An offline picked camera shows the "לא מקוון" badge under its picture.
+- Tests: `sync-dropdown.spec.ts` (the places, the remove button, no `.note`, no card subheading; the search dial; the chips look),
+  `compare-dropdown.spec.ts` (the note; the search dial at 1 / 3 / 4 / 8 options x always / 4 / 8 / never; the chips look),
+  `dropdown-picker-choice.spec.ts` (the Settings card: both levels, every option, `data-dd-search` on `<html>`, a reload, a non-admin, a
+  refused save, the phone width), `unit-dd-choices.spec.ts` (the closed lists, `ddSearchMin`), `layout-sync-dropdown.spec.ts` (the places
+  are measured too; a second sweep in the chips look, empty and at the limit), backend `tests/test_dd_style.py` (the two keys at both
+  levels, 403 for a viewer, every bad value refused).
+- Evidence: `docs/evidence/sync-polish/before` and `after` (four skins x light / dark x 390 / 1440, the dropdown closed with four picks;
+  `after` also holds the chips look empty / full and two open lists). The `before` set is the second step (dcc1da28) as built.
+
 ## Other screens with the same chip-row pattern (reported, not changed; the owner said no for the two editors)
 
 - `screens/live-views.ts` (the saved live views editor): a chip per camera, no limit.

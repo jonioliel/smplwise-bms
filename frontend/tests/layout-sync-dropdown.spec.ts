@@ -37,8 +37,9 @@ async function measure(page: Page, ctx: string, skin: string, theme: string, sty
     await page.evaluate((v) => (v ? document.documentElement.style.setProperty('--sw-touch-desktop', v) : document.documentElement.style.removeProperty('--sw-touch-desktop')), w > 1100 && skin !== 'bubble' ? '32px' : '');
     await settle(page);
     await page.waitForTimeout(80);
-    // closed
+    // closed: the picker's row, and (2.0.2) the four places of the set under it
     out.push(...(await page.evaluate(inPageCheck, { ctx: `${ctx} ${w} closed`, roots: ['investigate-sync'], within: '.filters' })).filter((f) => KEEP.includes(f.cls)));
+    out.push(...(await page.evaluate(inPageCheck, { ctx: `${ctx} ${w} places`, roots: ['investigate-sync'], within: '[data-sync-slots]' })).filter((f) => KEEP.includes(f.cls)));
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${ctx} ${w}: no sideways scroll`).toBeLessThanOrEqual(0);
     // the row of the picker is one line tall at every width (the chips of 2.0.0 took a row per camera): no taller than 2 chips
     const row = (await page.locator('investigate-sync .filters').boundingBox())!;
@@ -91,6 +92,50 @@ test.describe('synchronized playback picker layout guard', () => {
       }
       const { byCls, lines } = summarize(results);
       console.log(`sync picker layout [${skin}]: ${checks} checks, findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
+      for (const l of lines) console.log('  ' + l);
+      expect(errors, 'no page errors').toEqual([]);
+      expect(results.length, lines.join('\n')).toBe(0);
+    });
+
+    // 2.0.2: the picker as buttons (`ui.dd_picker` = chips) - the row and the places, light / dark, the three widths
+    test(`chips mode, empty and at the limit [${skin}]`, async ({ page }, info) => {
+      test.skip(info.project.name !== 'desktop', 'one project runs the whole sweep');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const errors: string[] = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      const results: Finding[] = [];
+      let checks = 0;
+      for (const theme of THEMES) {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await mock(page, { cameras: MORE, settings: { 'ui.dd_picker': 'chips' } });
+        await page.goto('about:blank');
+        await page.goto(`/?design=a&skin=${skin}&scheme=${theme}#/investigate/playback/sync`);
+        const row = page.locator('investigate-sync [data-sync-cameras]');
+        await expect(row.locator('sw-chip[data-sync-camera]').first()).toBeVisible({ timeout: 20000 });
+        await page.waitForTimeout(1500);
+        for (const state of ['empty', 'full'] as const) {
+          if (state === 'full') {
+            for (const id of ['c1', 'c2', 'c3', 'c4']) await row.locator(`sw-chip[data-sync-camera="${id}"]`).click();
+            await expect(page.locator('investigate-sync [data-sync-pick]')).toHaveCount(4);
+          }
+          for (const w of WIDTHS) {
+            await page.setViewportSize({ width: w, height: height(w) });
+            await page.evaluate((v) => (v ? document.documentElement.style.setProperty('--sw-touch-desktop', v) : document.documentElement.style.removeProperty('--sw-touch-desktop')), w > 1100 && skin !== 'bubble' ? '32px' : '');
+            await settle(page);
+            await page.waitForTimeout(80);
+            const ctx = `${skin} ${theme} chips ${state} ${w}`;
+            // the chips are 28 px tall by design (the 2.0.0 look the owner asked back): the target rule is not applied to the row
+            results.push(...(await page.evaluate(inPageCheck, { ctx, roots: ['investigate-sync'], within: '.filters' })).filter((f) => KEEP.includes(f.cls) && f.cls !== 'target'));
+            results.push(...(await page.evaluate(inPageCheck, { ctx: `${ctx} places`, roots: ['investigate-sync'], within: '[data-sync-slots]' })).filter((f) => KEEP.includes(f.cls)));
+            expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${ctx}: no sideways scroll`).toBeLessThanOrEqual(0);
+            checks += 2;
+            if (w === 390 || w === 1440) await shot(page, `sync-${skin}-${theme}-chips-${w}-${state}`);
+          }
+        }
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+      }
+      const { byCls, lines } = summarize(results);
+      console.log(`sync picker chips layout [${skin}]: ${checks} checks, findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
       for (const l of lines) console.log('  ' + l);
       expect(errors, 'no page errors').toEqual([]);
       expect(results.length, lines.join('\n')).toBe(0);
