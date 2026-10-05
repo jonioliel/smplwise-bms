@@ -53,6 +53,7 @@ VENDOR = "provision_isr"
 READ_COMMANDS = frozenset({
     "GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
     "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
+    "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A protocol fix: decides whether a push write is possible)
 })
 # The long-polling session commands: named Set*, but they manage this client's own subscription, not the device's
 # configuration (v1 long-polling guide 2.1-2.4).
@@ -662,19 +663,37 @@ class ProvisionIsrAdapter:
         """GetAlarmServerConfig: where the device posts alarms today (address redacted to a boolean)."""
         return self._xml("GetAlarmServerConfig", None, px.parse_alarm_server)
 
+    def supported_apis(self) -> frozenset[str] | None:
+        """v2 GetSupportedAPIs, or None when the device does not answer it (every v1 firmware: errorCode 1)."""
+        try:
+            return self._xml("GetSupportedAPIs", None, px.parse_supported_apis)
+        except ApiError as exc:
+            if exc.code in ("nvr_not_supported", "source_error", "source_invalid"):
+                return None
+            raise
+
+    def alarm_server_support(self, before: dict[str, Any]) -> tuple[bool, str]:
+        """(supported, reason) for SetAlarmServerConfig on this device; `before` = parse_alarm_server of its answer."""
+        return px.alarm_server_support(self.kind(), set(before.get("fields") or ()), self.supported_apis())
+
     def configure_push(self, server: str, port: int, *, heartbeat_s: int = 30, path: str | None = None) -> dict[str, Any]:
         """SetAlarmServerConfig (a device configuration write: needs writes enabled for this recorder). Points the device's
         alarm push at the add-on's listener; reads the configuration back to verify."""
         if not self.writes_enabled:
             raise ApiError(409, "nvr_not_supported", "כתיבה ל־NVR הזה כבויה עד לאישור.", details={"op": "push_config", "reason": "writes_disabled"})
         before = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
+        supported, why = self.alarm_server_support(before)
+        if not supported:  # NN2A protocol fix: a v1 NVR rejects the Set (owner's unit, firmware 1.4.7) - never send it
+            raise ApiError(409, "nvr_not_supported", "ה־NVR הזה אינו מקבל הגדרת שרת התראות דרך ה־API. נשארים בדגימה.",
+                           details={"op": "push_config", "reason": why})
         try:
             body = px.alarm_server_document(server, port, heartbeat_s, path=path, fields=set(before.get("fields") or ()))
         except ValueError as exc:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": str(exc)}) from exc
         self._xml("SetAlarmServerConfig", None, body=body, allowed=WRITE_COMMANDS)
         got = self._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
-        ok = got.get("address") == server and got.get("port") == port and (got.get("heartbeat") is not False)
+        ok = (got.get("address") == server and got.get("port") == port and (got.get("heartbeat") is not False)
+              and (got.get("enabled") is not False))
         return {"applied": ok, "port": got.get("port"), "heartbeat_s": got.get("heartbeat_s"), "path_supported": bool(before.get("has_url")),
                 "previous": {"configured": before.get("configured"), "port": before.get("port")}}
 

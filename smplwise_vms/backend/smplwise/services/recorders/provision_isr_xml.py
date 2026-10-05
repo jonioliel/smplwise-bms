@@ -604,10 +604,35 @@ def parse_alarm_server(xml: str | bytes, raw_address: bool = False) -> dict[str,
     address = text(srv, "serverAddr", cap=255)
     out: dict[str, Any] = {"configured": bool(address), "port": to_int(text(srv, "serverPort")),
                            "heartbeat": to_bool(text(srv, "enableHeartbeat")), "heartbeat_s": to_int(text(srv, "heartbeatInterval")),
-                           "fields": sorted(_local(c.tag) for c in srv), "has_url": child(srv, "url") is not None}
+                           "fields": sorted(_local(c.tag) for c in srv), "has_url": child(srv, "url") is not None,
+                           "enabled": to_bool(text(srv, "switch"))}  # v2 only (`switch`, required there); None on v1 answers
     if raw_address:
         out["address"] = address
     return out
+
+
+def parse_supported_apis(xml: str | bytes) -> frozenset[str]:
+    """v2 `GetSupportedAPIs` (2.1.1) -> the command names the device lists. A v1 device answers errorCode 1 instead."""
+    root = parse(xml)
+    lst = child(root, "applicationInterfaces")
+    if lst is None:
+        raise ET.ParseError("not an applicationInterfaces document")
+    return frozenset(v for v in ((it.text or "").strip()[:64] for it in children(lst, "item")) if v)
+
+
+def alarm_server_support(kind: str, fields: set[str] | frozenset[str], supported_apis: frozenset[str] | None) -> tuple[bool, str]:
+    """Whether this device accepts `SetAlarmServerConfig` through the HTTP API, and why we think so (NN2A protocol fix,
+    2026-10-05). The v1 guide (5.3.2 / 5.3.3) documents the alarm server for IP cameras only ("Only IPC is supported"); the
+    v2 guide adds NVRs, with a required `switch` element and an NVR-only `url`. The owner's NVR (firmware 1.4.7, v1 API)
+    answers GetAlarmServerConfig with an empty `serverAddr` + `serverPort` stub and rejected the Set (source_error).
+    Order: the device's own API list (v2) wins; an IP camera is supported (v1); an NVR only with the v2 answer shape."""
+    if supported_apis is not None:
+        return ("SetAlarmServerConfig" in supported_apis), "supported_apis"
+    if kind == "ipc":
+        return True, "v1_ipc"
+    if {"switch", "url"} & set(fields):
+        return True, "v2_nvr_shape"
+    return False, "v1_nvr_ipc_only"
 
 
 _HOST = re.compile(r"^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)$")
@@ -616,7 +641,8 @@ _HOST = re.compile(r"^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61
 def alarm_server_document(server: str, port: int, heartbeat_s: int, *, path: str | None = None, fields: set[str] | None = None) -> str:
     """SetAlarmServerConfig body (guide 5.3.3: the whole alarmServer element, no attributes). Values validated. `fields` = the
     elements the device's own GetAlarmServerConfig carried (the owner's NVR: serverAddr + serverPort only) - nothing else is
-    sent; `path` goes into `url` only when the device has that element."""
+    sent; `path` goes into `url` only when the device has that element; a v2 device's `switch` (required there) is sent as true,
+    first, in the v2 guide's element order."""
     if fields is not None:
         if not isinstance(server, str) or not _HOST.match(server) or len(server) > 253:
             raise ValueError("server")
@@ -624,7 +650,8 @@ def alarm_server_document(server: str, port: int, heartbeat_s: int, *, path: str
             raise ValueError("port")
         if path is not None and not re.fullmatch(r"/[A-Za-z0-9/_-]{1,96}", path):
             raise ValueError("path")
-        parts = [f"<serverAddr><![CDATA[{server}]]></serverAddr>", f"<serverPort>{port}</serverPort>"]
+        parts = ["<switch>true</switch>"] if "switch" in fields else []
+        parts += [f"<serverAddr><![CDATA[{server}]]></serverAddr>", f"<serverPort>{port}</serverPort>"]
         if "url" in fields and path:
             parts.append(f"<url><![CDATA[{path}]]></url>")
         if "enableHeartbeat" in fields:
@@ -644,7 +671,7 @@ def alarm_server_document(server: str, port: int, heartbeat_s: int, *, path: str
             f"<enableHeartbeat>true</enableHeartbeat><heartbeatInterval>{heartbeat_s}</heartbeatInterval></alarmServer></config>")
 
 
-ALARM_SERVER_FIELDS = ("serverAddr", "serverPort", "url", "enableHeartbeat", "heartbeatInterval")
+ALARM_SERVER_FIELDS = ("switch", "serverAddr", "serverPort", "url", "enableHeartbeat", "heartbeatInterval")  # v2 guide order
 
 
 def alarm_server_values(xml: str | bytes) -> dict[str, str]:
@@ -670,7 +697,11 @@ def alarm_server_restore_document(values: dict[str, str]) -> str:
         if name not in values:
             continue
         v = str(values[name] or "")
-        if name == "serverAddr":
+        if name == "switch":
+            if v not in ("", "true", "false"):
+                raise ValueError("switch")
+            parts.append(f"<switch>{v}</switch>")
+        elif name == "serverAddr":
             if v and (not _HOST.match(v) or len(v) > 253):
                 raise ValueError("serverAddr")
             parts.append(f"<serverAddr>{cdata(v)}</serverAddr>")

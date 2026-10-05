@@ -107,6 +107,10 @@ def test_configure_push_follows_the_device_form(settings, fake):
     """Live shape (address + port only): no heartbeat, no url element is sent; a v2-style form with `url` gets the token path."""
     fake.shape = "live"
     a = pisr.ProvisionIsrAdapter("nvr-2", settings_for(settings, writes_enabled=True, auth="basic"), transport=fake.transport())
+    with pytest.raises(Exception):  # NN2A protocol fix: the real 1.4.7 unit (no GetSupportedAPIs) rejects the Set - refused
+        a.configure_push("ha.local.test", 18091)
+    assert fake.set_alarm_bodies == []
+    fake.supported_apis = ["GetAlarmServerConfig", "SetAlarmServerConfig"]  # a firmware with this form that lists the command
     out = a.configure_push("ha.local.test", 18091, path="/abc123/SendAlarmStatus")
     assert out["applied"] is True and out["path_supported"] is False and out["previous"] == {"configured": False, "port": None}
     body = fake.set_alarm_bodies[-1]

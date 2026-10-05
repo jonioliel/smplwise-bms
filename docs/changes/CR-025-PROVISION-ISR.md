@@ -343,6 +343,69 @@ device write was made** by the agent: the approval reached the agent relayed thr
 that only the owner, directly or at the permission prompt, can authorise a real-device write. The device is unchanged
 (alarm server not configured). Steps 1-5 are for the owner.
 
+#### 6.6.1 The live write was rejected - analysis and protocol fix (branch pilot/NN2A-protocol-fix, 2026-10-05)
+
+**What happened.** The owner approved and ran step 3 once (`set-alarm-server --server auto --port 18091`, journal entry
+`c4d5c94ddba9`). The pre-write read worked (`serverAddr` + `serverPort`, unconfigured, snapshot saved), the
+`POST /SetAlarmServerConfig` came back as `source_error`, the read-back showed the device unchanged, nothing was restored or
+retried. The journal recorded only the mapped code, not the HTTP status or the vendor `errorCode`, so the device's own reason
+is not on record. What `source_error` does exclude (adapter mapping): 401 / 403 and codes 4 / 9 / 10 (account rights,
+lock-out), 1 / 11 / 12 (unknown command), 7 (busy), and transport failures. Left: code 2 / 3 (XML format / content), 5,
+15-19, or a non-XML error answer.
+
+**Most likely root cause: this firmware does not implement the alarm server through the HTTP API.** Evidence:
+1. The v1 guide (the dialect this unit speaks: `config version="1.0"`, no `apiVersion`, flat `GetDeviceInfo`) says for both
+   5.3.2 `GetAlarmServerConfig` and 5.3.3 `SetAlarmServerConfig`: "Only IPC is supported".
+2. NVR support first appears in the v2 guide (2.1.0): "Applicable products IPC, NVR", with a **required** `switch` element and
+   an NVR-only `url`; the NVR firmware in the v2 examples is 1.4.12, and several v2 alarm commands state "NVR1.4.12" as the
+   minimum. The owner's unit runs 1.4.7 (build 2023-08-30).
+3. The unit's answer is a stub, not the guide's IPC answer: empty `serverAddr` and `serverPort`, no `min` / `max` on the port,
+   no `enableHeartbeat` / `heartbeatInterval`, no `switch`, no `url`.
+4. Our body matched that answer exactly (same namespace and version, the same two elements, no attributes, CDATA address, an
+   integer port; the same transport, method and `Content-Type` as `SetVideoStreamConfig`), so schema / method / CDATA /
+   partial-document hypotheses have nothing left to differ on: the "whole element" rule of 5.3.3 was met.
+5. The NVR's own web interface has an alarm-server page (`app/AlarmCfg/alarmServer` in the captured route table), but that UI
+   speaks the vendor's private session protocol (`doLogin` / `query...` / `edit...`), not this HTTP API.
+
+Rejected hypotheses: account rights (would be code 4 / 401 / 403 -> `source_forbidden`), wrong command name (code 1 ->
+`nvr_not_supported`), heartbeat / url required (the device does not even report them), domain vs IP (the address sent was
+an IPv4 address). A wrong value range (code 3 / 16) cannot be excluded from the journal alone, but nothing in the device's
+answer declares a range the value could break.
+
+**The fix (this branch).**
+- `provision_isr_xml.alarm_server_support(kind, fields, supported_apis)`: the device's `GetSupportedAPIs` list (v2) decides
+  when it answers; otherwise an IP camera is supported (v1) and an NVR only with the v2 form (`switch` or `url`). The
+  owner's unit -> `v1_nvr_ipc_only`.
+- `ProvisionIsrAdapter.configure_push` refuses before any write (`nvr_not_supported`, reason in `details`);
+  `GetSupportedAPIs` joined `READ_COMMANDS` (a read; v1 firmware answers errorCode 1 -> treated as "no list").
+- `scripts/provision_nvr_write.py set-alarm-server` prints `support: yes|no (<reason>)` after the read and stops with exit 2
+  (`refused: ...`) before the journal, the snapshot and the request - also in `--dry-run`, so the owner sees the verdict
+  without a write. Restores are never gated. A failed write now journals and prints `detail: {status, device_code, reason}`.
+- v2 form: the body sends `<switch>true</switch>` first (v2 element order), the restore puts `switch` back exactly, and the
+  adapter's verify also requires `switch` to read back true. (Before the fix a v2 NVR would have been written with the alarm
+  server left switched off.)
+- Tests: `test_provision_nvr_write_script.py` +5, `test_provision_isr_p2.py` +3 (one updated), `test_provision_push_addon.py`
+  (one updated); the fake device gained `supported_apis` and a v2 `switch` form.
+
+**Runbook (replaces steps 2-3 above for this unit; read-only unless stated).**
+1. Dry run with the fixed script (reads `GetDeviceInfo`, `GetSupportedAPIs`, `GetAlarmServerConfig`; writes nothing):
+   `.venv\Scripts\python.exe scripts\provision_nvr_write.py --dry-run set-alarm-server --server auto --port 18091`
+   Expected on firmware 1.4.7: `support: no (v1_nvr_ipc_only)` and `refused: ...`, exit 2. That is the confirmation that the
+   HTTP API cannot point this NVR at Arx. **Do not run the write again on this firmware.**
+2. Arx stays on sampling (`event_mode: poll`, the default) for this unit; nothing in the product depends on push.
+3. If the owner later upgrades the NVR firmware (a separate, owner-approved action; not part of this task): repeat step 1.
+   `support: yes (supported_apis)` or `(v2_nvr_shape)` means the original runbook (steps 1-5 above) applies; the body will
+   then carry `switch` and, when the device has it, the `url` token path.
+4. Optional, owner only: the NVR's own web page (Alarm -> Alarm Server) may push in the vendor's own format. Setting it there
+   is a manual device change outside Arx; whether that format matches `parse_push` is unknown and would need the probe
+   listener plus a captured body before any product work.
+
+**Remaining read-only probes, ranked (none sends a write; each needs the owner's go for device contact):**
+1. The dry run above: confirms how 1.4.7 answers `GetSupportedAPIs` (expected errorCode 1) and prints the verdict.
+2. Fetch the NVR web UI's static alarm-server module (`app/AlarmCfg/alarmServer.js` and its view page), the same kind of
+   unauthenticated static fetch as the captured `webui/` files: shows which fields / protocol the NVR's own alarm server uses.
+3. Owner screenshot of the NVR's Alarm Server page (no change): shows whether 1.4.7 offers the feature at all and its fields.
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

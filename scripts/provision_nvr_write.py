@@ -7,7 +7,9 @@ owner at a prompt and the prompt shows exactly what will be written. Whitelisted
       (auto = this machine's own address towards the recorder, e.g. where scripts/provision_push_probe.py listens)
       before the write the device's full GetAlarmServerConfig answer is saved unmodified to
       <log-dir>/alarm-server-before-<entry>.xml; a failed request or a read-back that differs from what was sent restores the
-      saved values exactly, once, and stops (exit 3 diverged / 6 write failed)
+      saved values exactly, once, and stops (exit 3 diverged / 6 write failed). Refused (exit 2, nothing written, also in
+      --dry-run) when the recorder does not support the command: an NVR whose answer has the v1 shape (no `switch` / `url`)
+      and that does not list SetAlarmServerConfig in GetSupportedAPIs (CR-025 6.6, the 1.4.7 rejection)
   set-encoding --channel N --stream main|sub --set field=value [--set field=value ...]
       fields: codec (H.264|H.265|MJPEG), profile (baseline|main|high), resolution (WxH), fps, bitrate_mode (CBR|VBR),
       bitrate_kbps, quality (1..5), gop, smart_codec (true|false)
@@ -133,7 +135,8 @@ def _alarm_body(px: Any, server: str, port: int | None, path: str | None, fields
     """SetAlarmServerConfig body with only the device's own fields. An empty server / port = clearing (restore of an unset
     alarm server)."""
     if server == "" and port is None:
-        parts = ["<serverAddr><![CDATA[]]></serverAddr>", "<serverPort></serverPort>"]
+        parts = ["<switch>false</switch>"] if "switch" in fields else []
+        parts += ["<serverAddr><![CDATA[]]></serverAddr>", "<serverPort></serverPort>"]
         if "url" in fields:
             parts.append("<url><![CDATA[]]></url>")
         return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10"><alarmServer>'
@@ -157,6 +160,15 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
     out("request: POST /SetAlarmServerConfig")
     out("body: " + j.redact(body))
     out("current: " + j.redact(json.dumps({k: before.get(k) for k in ("configured", "port", "heartbeat", "heartbeat_s", "fields")})))
+    if restoring is None:
+        # NN2A protocol fix (2026-10-05): the owner's NVR (firmware 1.4.7, v1 API) rejected this write - the v1 guide documents
+        # the alarm server for IP cameras only; NVRs get it with the v2 API (`switch` / `url` in the answer). Refused here,
+        # before any journal entry or request, unless the device's own answer says it supports it. Restores are never gated.
+        supported, why = a.alarm_server_support(before)
+        out(f"support: {'yes' if supported else 'no'} ({why})")
+        if not supported:
+            raise Refused(f"this recorder does not accept SetAlarmServerConfig through the HTTP API ({why}); "
+                          "nothing was written - see docs/changes/CR-025-PROVISION-ISR.md 6.6")
     if dry_run:
         out("dry-run: nothing written")
         return 0
@@ -169,9 +181,11 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
     try:
         a._xml("SetAlarmServerConfig", None, body=body, allowed=pisr.WRITE_COMMANDS)
     except Exception as exc:  # noqa: BLE001 - the device may or may not have applied it: read back, never retry the write
+        detail = _failure_detail(exc)
         j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "write-failed",
-                 "code": getattr(exc, "code", type(exc).__name__)})
-        out(f"entry {eid}: the write failed ({getattr(exc, 'code', type(exc).__name__)}); checking what the device holds now")
+                 "code": getattr(exc, "code", type(exc).__name__), "detail": detail})
+        out(f"entry {eid}: the write failed ({getattr(exc, 'code', type(exc).__name__)} {json.dumps(detail, sort_keys=True)}); "
+            "checking what the device holds now")
         return _restore_if_changed(a, j, out, before_values=before_values, eid=eid, auto_restore=auto_restore, code=6)
     after = a._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
     ok = (after.get("address") or "") == server and (after.get("port") if server else None) == (port if server else None)
@@ -182,6 +196,13 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
         return 0
     out(f"entry {eid}: DIVERGED")
     return _restore_if_changed(a, j, out, before_values=before_values, eid=eid, auto_restore=auto_restore, code=3)
+
+
+def _failure_detail(exc: Exception) -> dict[str, Any]:
+    """What the device said when it refused (HTTP status, vendor errorCode and its name) - the 2026-10-05 failure was logged as
+    a bare `source_error`, which left the cause undecidable. Only these non-secret keys, never a body or an address."""
+    d = getattr(exc, "details", None) or {}
+    return {k: d.get(k) for k in ("status", "device_code", "reason") if k in d}
 
 
 def _restore_if_changed(a: Any, j: Journal, out: Callable[[str], None], *, before_values: dict[str, str], eid: str, auto_restore: bool,
