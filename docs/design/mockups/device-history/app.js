@@ -23,156 +23,170 @@ const P = {
 };
 const ic = (n, c = '') => `<svg class="${c}" viewBox="0 0 24 24"><path d="${P[n]}"/></svg>`;
 
-/* ---------------- devices and their fake history ---------------- */
-const DEV = {
-  light: { name: 'תאורת סלון', area: 'סלון · קומה 1', icon: 'bulb', chips: [['ok', 'דלוק'], ['', 'בהירות 60%'], ['', 'גוון חם']], on: true,
-    ev: [
-      ['היום', '22:41', 'person', 'דנה כהן', 'כיבתה', 'דלוק', 'כבוי', ''],
-      ['היום', '19:02', 'sched', 'תאורת ערב', 'הדליק', 'כבוי', 'דלוק 60%', 'לפי התזמון "תאורת ערב"'],
-      ['היום', '18:55', 'phys', 'בהתקן עצמו', 'שינוי בהירות', '100%', '60%', 'לחצן או מתג בקיר (משוער)'],
-      ['אתמול', '23:00', 'scene', 'סצנה: לילה טוב', 'כיבתה', 'דלוק', 'כבוי', 'הופעלה על ידי יואב כהן'],
-      ['אתמול', '07:10', 'auto', 'אוטומציה: זריחה', 'הדליק', 'כבוי', 'דלוק 30%', ''],
-      ['אתמול', '06:58', 'sys', 'המערכת', 'חזר לזמינות', 'לא זמין', 'כבוי', 'אחרי הפסקת חשמל'],
-    ] },
-  switch: { name: 'בוילר', area: 'מרפסת שירות · קומה 1', icon: 'plug', chips: [['', 'כבוי'], ['wn', 'מופעל ידנית פעמיים השבוע']], on: false,
-    ev: [
-      ['היום', '07:30', 'sched', 'בוילר בוקר', 'כיבה', 'דלוק', 'כבוי', 'אחרי 60 דקות'],
-      ['היום', '06:30', 'sched', 'בוילר בוקר', 'הדליק', 'כבוי', 'דלוק', ''],
-      ['אתמול', '21:15', 'person', 'יואב כהן', 'הדליק', 'כבוי', 'דלוק', 'מהאפליקציה'],
-      ['אתמול', '20:00', 'unk', 'מקור לא ידוע', 'כיבה', 'דלוק', 'כבוי', 'ללא מזהה משתמש או תהליך'],
-    ] },
-  cover: { name: 'תריס סלון', area: 'סלון · קומה 1', icon: 'cover', chips: [['', 'פתוח 40%']], on: true,
-    ev: [
-      ['היום', '20:12', 'person', 'דנה כהן', 'סגרה', 'פתוח 100%', 'פתוח 40%', ''],
-      ['היום', '08:00', 'sched', 'תריסים בוקר', 'פתח', 'סגור', 'פתוח 100%', ''],
-      ['אתמול', '19:40', 'auto', 'אוטומציה: חום בצהריים', 'סגר חלקית', 'פתוח 100%', 'פתוח 70%', 'טמפרטורה חיצונית 34 מעלות'],
-      ['אתמול', '19:41', 'phys', 'בהתקן עצמו', 'עצר', 'פתוח 70%', 'פתוח 66%', 'משוער'],
-    ] },
-  climate: { name: 'מזגן סלון', area: 'סלון · קומה 1', icon: 'snow', chips: [['ok', 'קירור'], ['', 'יעד 24 מעלות'], ['', 'כעת 25.5 מעלות']], on: true,
-    ev: [
-      ['היום', '21:03', 'person', 'יואב כהן', 'שינה טמפרטורת יעד', '22 מעלות', '24 מעלות', ''],
-      ['היום', '15:30', 'sched', 'מזגן אחר צהריים', 'הדליק', 'כבוי', 'קירור 22 מעלות', ''],
-      ['אתמול', '23:30', 'auto', 'אוטומציה: כל הבית נעול', 'כיבה', 'קירור', 'כבוי', ''],
-      ['אתמול', '17:12', 'person', 'דנה כהן', 'שינתה מצב', 'מאוורר', 'קירור', ''],
-    ] },
+/* ---------------- icons for every type ---------------- */
+Object.assign(P, {
+  garage: 'M3 21V9l9-6 9 6v12M7 21v-8h10v8M7 15h10M7 18h10', heater: 'M5 20V8a3 3 0 0 1 6 0v12M13 20V8a3 3 0 0 1 6 0v12M3 20h18', boiler: 'M7 3h10v18H7zM7 8h10M12 12v4M10 14h4',
+  valve: 'M12 3v6M8 3h8M4 13h16M6 10h12v6H6zM12 16v5', drop: 'M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z', vac: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 3v3',
+  blind: 'M4 4h16M5 8h14M6 12h12M7 16h10M12 16v5', other: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5', check: 'M4 12l5 5L20 7', flow: 'M3 12h4l2-5 4 10 2-5h6',
+});
+/* ---------------- every electrical type: icon, state line, what is recorded, Hebrew event wording, a schedule row ---------------- */
+// ev: [day, time, actorType, who, verb, from, to, meta]
+const TYPES = {
+  light: { n: 'תאורת סלון', area: 'סלון', i: 'bulb', st: 'דלוק 60%', on: 1, rec: 'הפעלה, בהירות, גוון או צבע',
+    ev: [['היום', '22:41', 'person', 'דנה כהן', 'כיבתה', 'דלוק', 'כבוי', ''], ['היום', '19:02', 'sched', 'תאורת ערב', 'הדליק', 'כבוי', '60%', ''], ['היום', '18:55', 'phys', 'ידני בהתקן', 'שינוי בהירות', '100%', '60%', 'משוער'],
+      ['אתמול', '23:00', 'scene', 'לילה טוב', 'כיבתה', 'דלוק', 'כבוי', 'הופעלה ע״י יואב כהן'], ['אתמול', '07:10', 'auto', 'זריחה', 'שינוי גוון', '2700K', '4000K', ''], ['אתמול', '06:58', 'sys', 'המערכת', 'חזר לזמינות', 'לא זמין', 'כבוי', 'אחרי הפסקת חשמל']],
+    sch: ['תאורת ערב', 'הדלקה 60% · היום 18:30', 'כל יום'] },
+  switch: { n: 'בוילר', area: 'מרפסת שירות', i: 'plug', st: 'כבוי', on: 0, rec: 'הפעלה וכיבוי',
+    ev: [['היום', '07:30', 'sched', 'בוילר בוקר', 'כיבה', 'דלוק', 'כבוי', 'אחרי 60 דקות'], ['היום', '06:30', 'sched', 'בוילר בוקר', 'הדליק', 'כבוי', 'דלוק', ''], ['אתמול', '21:15', 'person', 'יואב כהן', 'הדליק', 'כבוי', 'דלוק', 'מהאפליקציה'], ['אתמול', '20:00', 'unk', 'מקור לא ידוע', 'כיבה', 'דלוק', 'כבוי', '']],
+    sch: ['בוילר בוקר', 'הדלקה 06:30, כיבוי 07:30', 'א׳–ה׳'] },
+  outlet: { n: 'שקע מרפסת', area: 'מרפסת', i: 'plug', st: 'דלוק · 1,200 W', on: 1, rec: 'הפעלה וכיבוי; הספק נוכחי כשיש חיישן הספק',
+    ev: [['היום', '12:20', 'person', 'דנה כהן', 'כיבתה', 'דלוק', 'כבוי', 'לפני כיבוי: 1,180 W'], ['היום', '09:05', 'phys', 'ידני בהתקן', 'הדליק', 'כבוי', 'דלוק', 'משוער'], ['אתמול', '22:00', 'sched', 'כיבוי שקעי מרפסת', 'כיבה', 'דלוק', 'כבוי', '']],
+    sch: ['כיבוי שקעי מרפסת', 'כיבוי · היום 22:00', 'כל יום'] },
+  cover: { n: 'תריס סלון', area: 'סלון', i: 'blind', st: 'פתוח 40% · הטיה 30°', on: 1, rec: 'מיקום, כיוון תנועה, הטיה',
+    ev: [['היום', '20:12', 'person', 'דנה כהן', 'סגרה', '100%', '40%', ''], ['היום', '19:41', 'phys', 'ידני בהתקן', 'עצר', '70%', '66%', 'משוער'], ['אתמול', '19:40', 'auto', 'חום בצהריים', 'סגר חלקית', '100%', '70%', 'טמפרטורה חיצונית 34°'], ['אתמול', '08:00', 'sched', 'תריסים בוקר', 'שינוי הטיה', '0°', '30°', '']],
+    sch: ['תריסים ערב', 'סגירת תריס ל־40% · היום 20:00', 'כל יום'] },
+  garage: { n: 'דלת חניה', area: 'חניה', i: 'garage', st: 'סגור', on: 0, rec: 'פתיחה, סגירה, עצירה',
+    ev: [['היום', '08:12', 'person', 'יואב כהן', 'פתח', 'סגור', 'פתוח', 'מהאפליקציה'], ['היום', '08:13', 'sys', 'המערכת', 'נסגר', 'פתוח', 'סגור', 'סגירה אוטומטית אחרי דקה'], ['אתמול', '23:00', 'sched', 'סגירת חניה בלילה', 'סגר', 'פתוח', 'סגור', '']],
+    sch: ['סגירת חניה בלילה', 'סגירה · היום 23:00', 'כל יום'] },
+  climate: { n: 'מזגן סלון', area: 'סלון', i: 'snow', st: 'קירור 24° · כעת 25.5°', on: 1, rec: 'מצב, יעד, פעולה בפועל, מאוורר',
+    ev: [['היום', '21:03', 'person', 'יואב כהן', 'שינה יעד', '22°', '24°', ''], ['היום', '15:30', 'sched', 'מזגן אחר צהריים', 'הדליק', 'כבוי', 'קירור 22°', ''], ['אתמול', '17:12', 'person', 'דנה כהן', 'שינתה מאוורר', 'אוטו', 'גבוה', ''], ['אתמול', '17:10', 'person', 'דנה כהן', 'שינתה מצב', 'חימום', 'קירור', '']],
+    sch: ['מזגן אחר צהריים', 'קירור 22° · היום 15:30', 'א׳–ה׳'] },
+  heater: { n: 'חימום חדר שינה', area: 'חדר שינה', i: 'heater', st: 'חימום 21° · מחמם כעת', on: 1, rec: 'מצב, יעד, פעולה בפועל',
+    ev: [['היום', '06:00', 'sched', 'חימום בוקר', 'שינה יעד', '18°', '21°', ''], ['אתמול', '22:30', 'auto', 'לילה טוב', 'שינה יעד', '21°', '18°', ''], ['אתמול', '19:00', 'person', 'דנה כהן', 'הדליקה', 'כבוי', 'חימום 21°', '']],
+    sch: ['חימום בוקר', 'חימום 21° · מחר 06:00', 'כל יום'] },
+  fan: { n: 'מאוורר חדר שינה', area: 'חדר שינה', i: 'fan', st: 'מהירות 66%', on: 1, rec: 'הפעלה, מהירות, כיוון, מצב טבעי',
+    ev: [['היום', '23:10', 'person', 'יואב כהן', 'שינה מהירות', '33%', '66%', ''], ['היום', '22:50', 'phys', 'ידני בהתקן', 'שינה כיוון', 'קדימה', 'אחורה', 'משוער'], ['אתמול', '22:00', 'sched', 'מאוורר לילה', 'הדליק', 'כבוי', '33%', '']],
+    sch: ['מאוורר לילה', 'מהירות 33% · היום 22:00', 'כל יום'] },
+  boiler: { n: 'דוד שמש', area: 'גג', i: 'boiler', st: 'חימום חשמלי 55°', on: 1, rec: 'הפעלה, יעד, מצב (חסכוני / רגיל)',
+    ev: [['היום', '05:30', 'sched', 'חימום דוד', 'הדליק', 'כבוי', '55°', ''], ['אתמול', '19:20', 'person', 'דנה כהן', 'שינתה מצב', 'חסכוני', 'רגיל', ''], ['אתמול', '19:20', 'person', 'דנה כהן', 'שינתה יעד', '50°', '60°', '']],
+    sch: ['חימום דוד', 'הפעלה ל־55° · מחר 05:30', 'כל יום'] },
+  valve: { n: 'השקיה: גינה קדמית', area: 'גינה', i: 'valve', st: 'סגור', on: 0, rec: 'פתיחה וסגירה; משך כשיש טיימר',
+    ev: [['היום', '06:00', 'sched', 'השקיית בוקר', 'פתח', 'סגור', 'פתוח', 'ל־20 דקות'], ['היום', '06:20', 'sched', 'השקיית בוקר', 'סגר', 'פתוח', 'סגור', ''], ['אתמול', '18:05', 'person', 'יואב כהן', 'פתח', 'סגור', 'פתוח', 'מהאפליקציה']],
+    sch: ['השקיית בוקר', 'פתיחה ל־20 דקות · מחר 06:00', 'ב׳ ד׳ ו׳'] },
+  vacuum: { n: 'שואב רובוטי', area: 'סלון', i: 'vac', st: 'בעגינה · סוללה 92%', on: 0, rec: 'התחלה, עצירה, חזרה לעגינה',
+    ev: [['היום', '10:00', 'sched', 'ניקיון בוקר', 'התחיל ניקיון', 'בעגינה', 'מנקה', ''], ['היום', '10:48', 'sys', 'המערכת', 'חזר לעגינה', 'מנקה', 'בעגינה', 'סיום ניקיון'], ['אתמול', '14:10', 'person', 'דנה כהן', 'עצרה', 'מנקה', 'מושהה', '']],
+    sch: ['ניקיון בוקר', 'התחלת ניקיון · מחר 10:00', 'א׳ ג׳ ה׳'] },
+  other: { n: 'התקן חשמלי', area: 'מטבח', i: 'other', st: 'פעיל', on: 1, rec: 'שינוי מצב (בלי פירוש מיוחד)',
+    ev: [['היום', '13:02', 'person', 'דנה כהן', 'שינוי מצב', 'מושבת', 'פעיל', ''], ['אתמול', '09:30', 'unk', 'מקור לא ידוע', 'שינוי מצב', 'פעיל', 'מושבת', '']],
+    sch: ['', '', ''] },
 };
-const GLYPH = { bulb: 'bulb', plug: 'plug', cover: 'cover', snow: 'snow' };
 const KIND = { person: 'אדם', auto: 'אוטומציה', sched: 'תזמון', scene: 'סצנה', phys: 'ידני בהתקן', sys: 'מערכת', unk: 'לא ידוע' };
 const AVI = { auto: 'bolt', sched: 'cal', scene: 'scene', phys: 'hand', sys: 'gear', unk: 'info' };
+const prefix = { auto: 'אוטומציה', sched: 'תזמון', scene: 'סצנה' };
 function av(type, name) { return type === 'person' ? `<div class="av">${name.split(' ').map((w) => w[0]).join('')}</div>` : `<div class="av ${type}">${ic(AVI[type])}</div>`; }
 function evRow(e) {
   const [, t, type, who, verb, from, to, meta] = e;
-  return `<div class="ev"><div class="t num">${t}</div>${av(type, who)}<div><div><span class="who">${who}</span><span class="kind">${KIND[type]}</span></div>
-    <div class="what"><span>${verb}</span><span class="ba"><i>${from}</i>${ic('chev').replace('<svg', '<svg style="transform:rotate(90deg)"')}<b>${to}</b></span></div>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>`;
+  const lbl = prefix[type] ? `<span class="kd">${prefix[type]}:</span> ` : '';
+  return `<div class="ev">${av(type, who)}<div class="c"><div class="l1">${lbl}<b>${who}</b><span class="vb">${verb}</span></div><div class="l2"><span class="ba"><i>${from}</i><svg viewBox="0 0 24 24" style="transform:scaleX(-1)"><path d="${P.arrow}"/></svg><b>${to}</b></span>${meta ? `<span class="mt">${meta}</span>` : ''}</div></div><div class="t num">${t}</div></div>`;
 }
 function feed(dev, opt = {}) {
   let out = '', last = '';
-  for (const e of DEV[dev].ev.slice(0, opt.n || 99)) { if (e[0] !== last) { out += `<div class="day">${e[0] === 'היום' ? 'היום, ' + N('5.10') : 'אתמול, ' + N('4.10')}</div>`; last = e[0]; } out += evRow(e); }
+  for (const e of TYPES[dev].ev.slice(0, opt.n || 99)) { if (e[0] !== last) { out += `<div class="day">${e[0] === 'היום' ? 'היום' : 'אתמול'} · ${N(e[0] === 'היום' ? '5.10' : '4.10')}</div>`; last = e[0]; } out += evRow(e); }
   return out;
 }
-const filters = (o = {}) => `<div class="fl"><button class="fchip ${o.p ? 'act' : ''}">${ic('clock')}${o.p || '7 ימים אחרונים'}${ic('chev')}</button><button class="fchip ${o.a ? 'act' : ''}">${ic('user')}${o.a || 'כל הגורמים'}${ic('chev')}</button><button class="fchip ${o.k ? 'act' : ''}">${ic('filter')}${o.k || 'כל סוגי האירועים'}${ic('chev')}</button></div>`;
-const foot = (t) => `<div class="pf">${ic('info')}<span>${t || 'ההיסטוריה נשמרת 30 יום. "ידני בהתקן" הוא משוער: אין מזהה משתמש או תהליך.'}</span></div>`;
+const filters = (o = {}) => `<div class="fl"><button class="fchip ${o.p ? 'act' : ''}">${o.p || '7 ימים'}${ic('chev')}</button><button class="fchip ${o.a ? 'act' : ''}">${o.a || 'כל הגורמים'}${ic('chev')}</button><button class="fchip ${o.k ? 'act' : ''}">${o.k || 'כל האירועים'}${ic('chev')}</button></div>`;
+const foot = () => `<div class="pf">ידני בהתקן הוא משוער · נשמר 90 יום</div>`;
 
-/* ---------------- the popup ---------------- */
+/* ---------------- the popup (compact) ---------------- */
 function popup(dev, tab, body, o = {}) {
-  const d = DEV[dev];
-  return `<div class="pop dh" role="dialog" aria-label="פעילות: ${d.name}"><div class="grab"></div>
-  <div class="ph ${d.on ? '' : 'off'}"><div class="ic">${ic(GLYPH[d.icon])}</div><div><h3>${d.name}</h3><div class="sub">${d.area}</div></div><button class="x" aria-label="סגור">${ic('x')}</button></div>
-  <div class="cur">${d.chips.map(([c, t]) => `<span class="chip nodot ${c}">${t}</span>`).join('')}</div>
-  <div class="ptabs" role="tablist"><a class="${tab === 'act' ? 'on' : ''}" role="tab">${ic('hist')}פעילות</a><a class="${tab === 'sch' ? 'on' : ''}" role="tab">${ic('cal')}תזמונים<span class="cnt">${o.cnt ?? 3}</span></a></div>
-  <div class="pbody" role="tabpanel">${body}</div>${o.foot ? foot() : ""}</div>`;
+  const d = TYPES[dev];
+  return `<div class="pop dh" role="dialog" aria-label="פעילות: ${d.n}"><div class="grab"></div>
+  <div class="ph ${d.on ? '' : 'off'}"><div class="ic">${ic(d.i)}</div><div class="tt"><h3>${d.n}</h3><div class="sub">${d.area} · <span class="st">${d.st}</span></div></div><button class="x" aria-label="סגור">${ic('x')}</button></div>
+  <div class="segt" role="tablist"><a class="${tab === 'act' ? 'on' : ''}" role="tab">פעילות</a><a class="${tab === 'sch' ? 'on' : ''}" role="tab">תזמונים${(o.cnt ?? 3) !== '' && o.cnt !== 0 ? `<span class="cnt">${o.cnt ?? 3}</span>` : ''}</a></div>
+  <div class="pbody" role="tabpanel">${body}</div>${o.foot ? foot() : ''}</div>`;
 }
-const stage = (inner, kind = 'dlg') => `<div class="app dh" style="display:block;position:relative;min-height:inherit"><div class="bk" style="filter:blur(1.5px);opacity:.8">${tiles()}</div><div class="scrim" style="${PH() ? '' : 'padding:30px'}">${inner}</div></div>`;
+const stage = (inner) => `<div class="app dh" style="display:block;position:relative;min-height:inherit"><div class="bk" style="filter:blur(1.5px);opacity:.8">${tiles()}</div><div class="scrim" style="${PH() ? '' : 'padding:30px'}">${inner}</div></div>`;
 function tiles() {
-  const T = [['bulb', 'תאורת סלון', 'דלוק 60%', 1], ['plug', 'בוילר', 'כבוי', 0], ['cover', 'תריס סלון', 'פתוח 40%', 1], ['snow', 'מזגן סלון', 'קירור 24', 1], ['bulb', 'תאורת מטבח', 'כבוי', 0], ['plug', 'שקע מרפסת', 'דלוק', 1], ['fan', 'מאוורר חדר שינה', 'כבוי', 0], ['cover', 'תריס חדר שינה', 'סגור', 0]];
+  const T = [['bulb', 'תאורת סלון', 'דלוק 60%', 1], ['plug', 'בוילר', 'כבוי', 0], ['blind', 'תריס סלון', 'פתוח 40%', 1], ['snow', 'מזגן סלון', 'קירור 24°', 1], ['bulb', 'תאורת מטבח', 'כבוי', 0], ['plug', 'שקע מרפסת', 'דלוק', 1], ['fan', 'מאוורר חדר שינה', 'כבוי', 0], ['blind', 'תריס חדר שינה', 'סגור', 0]];
   return '<h2>סלון</h2>' + (PH() ? T.slice(0, 5) : T).map(([i, n, s, on]) => `<div class="tile ${on ? 'on' : ''}"><div class="ic">${ic(i)}</div><div><b>${n}</b><small>${s}</small></div></div>`).join('');
 }
 
 /* ---------------- schedules tab ---------------- */
-const dayRow = (on) => '<div class="days">' + ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'].map((x, i) => `<span class="${on.includes(i) ? 'on' : ''}">${x}</span>`).join('') + '</div>';
 function sRow(o) {
-  return `<div class="sr"><div><div class="nm">${o.n}${o.tag ? ' ' + o.tag : ''}</div><div class="nx">${o.nx}</div>${dayRow(o.days)}</div>
-   <div class="acts"><span class="sw ${o.on ? 'on' : ''} ${o.ro ? 'dis' : ''}" role="switch" aria-checked="${!!o.on}" ${o.ro ? 'aria-disabled="true"' : ''}></span><button class="ib" aria-label="${o.ro ? 'צפייה' : 'עריכה'}">${ic(o.ro ? 'info' : 'pen')}</button></div></div>`;
+  return `<div class="sr"><div class="c"><div class="nm">${o.n}${o.tag ? ' ' + o.tag : ''}</div><div class="nx">${o.nx}<span class="dy">${o.dy}</span></div></div>
+   <span class="sw ${o.on ? 'on' : ''} ${o.ro ? 'dis' : ''}" role="switch" aria-checked="${!!o.on}" ${o.ro ? 'aria-disabled="true"' : ''}></span><button class="ib" aria-label="${o.ro ? 'צפייה' : 'עריכה'}">${ic(o.ro ? 'info' : 'pen')}</button></div>`;
 }
-function schedBody(o = {}) {
-  if (o.state === 'empty') return `<div class="stt"><div class="big">${ic('cal')}</div><h4>ההתקן אינו שייך לאף תזמון</h4><div>אפשר ליצור תזמון חדש שכבר כולל אותו.</div></div><div class="addrow"><button class="btn pri">${ic('plus')}הוסף תזמון להתקן זה</button></div>`;
-  if (o.state === 'noperm') return `<div class="stt lock"><div class="big">${ic('lock')}</div><h4>אין לך הרשאה לראות תזמונים</h4><div>ההרשאה לתזמונים ניתנת בהגדרות על ידי מנהל המערכת.</div></div>`;
+const addBtn = `<div class="addrow"><button class="btn sm">${ic('plus')}תזמון חדש להתקן</button></div>`;
+function schedBody(o = {}, dev = 'light') {
+  if (o.state === 'empty') return `<div class="stt"><div class="big">${ic('cal')}</div><h4>אין תזמונים להתקן</h4></div>${addBtn}`;
+  if (o.state === 'noperm') return `<div class="stt lock"><div class="big">${ic('lock')}</div><h4>אין הרשאה לראות תזמונים</h4></div>`;
+  const s = TYPES[dev].sch;
   const rows = [
-    { n: 'תאורת ערב', nx: 'הבא: היום 18:30 · הדלקה 60%, כיבוי 23:00', days: [0, 1, 2, 3, 4, 5, 6], on: 1 },
-    { n: 'כיבוי לילה', tag: `<span class="tag">${ic('link')}דרך קבוצה: כל האורות בקומה 1</span>`.replace(ic('link'), ic('scene')), nx: 'הבא: היום 23:45 · כיבוי', days: [0, 1, 2, 3, 4, 5, 6], on: 1 },
-    { n: 'שבת: תאורה', tag: `<span class="tag ro">${ic('lock')}קריאה בלבד</span>`, nx: 'הבא: ו׳ 17:40 · הדלקה (לפי שקיעה)', days: [5], on: 1, ro: 1 },
-    { n: 'חופשה: הדמיית נוכחות', nx: 'מושבת · הבא: אין', days: [0, 1, 2, 3, 4], on: 0 },
+    { n: s[0], nx: s[1], dy: ' · ' + s[2], on: 1 },
+    { n: 'כיבוי לילה', tag: `<span class="tag">${ic('scene')}דרך קבוצה</span>`, nx: 'כיבוי · היום 23:45', dy: ' · כל יום', on: 1 },
+    { n: 'שבת', tag: `<span class="tag ro">${ic('lock')}קריאה בלבד</span>`, nx: 'הדלקה · ו׳ 17:40', dy: '', on: 1, ro: 1 },
+    { n: 'חופשה', nx: 'מושבת', dy: '', on: 0 },
   ];
-  return `<div>${rows.map(sRow).join('')}</div><div class="addrow"><button class="btn pri">${ic('plus')}הוסף תזמון להתקן זה</button></div>
-  <div class="pf">${ic('info')}<span>קריאה בלבד: ניהול התזמון נדרש באזור או בבית. תזמון שעובר דרך קבוצה או סצנה נערך במקום שבו הוא מוגדר, והשינוי חל על כל חבריו.</span></div>`;
+  return rows.map(sRow).join('') + addBtn;
 }
 P.link = 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1';
 
-/* ---------------- popups per state ---------------- */
-const actBody = (dev, o = {}) => filters(o.f) + feed(dev, o) + `<div class="more2"><button class="btn">טען עוד</button></div>`;
+const actBody = (dev, o = {}) => filters(o.f) + feed(dev, o) + `<div class="more2"><button class="btn sm">טען עוד</button></div>`;
 function stateBody(k) {
   const st = {
-    load: `${filters()}<div style="padding:12px 18px;display:grid;gap:14px">${[1, 2, 3, 4].map(() => '<div style="display:grid;grid-template-columns:44px 36px 1fr;gap:10px;align-items:center"><div class="skel"></div><div class="skel" style="height:36px;border-radius:50%"></div><div style="display:grid;gap:6px"><div class="skel" style="width:60%"></div><div class="skel" style="width:35%"></div></div></div>').join('')}</div>`,
-    empty: `${filters({ p: 'שעה אחרונה', a: 'אנשים' })}<div class="stt"><div class="big">${ic('hist')}</div><h4>אין פעילות בתקופה הזאת</h4><div>לא נרשם שינוי שהתבצע על ידי אנשים בשעה האחרונה.</div><button class="btn">הרחב ל־30 יום</button></div>`,
-    perm: `<div class="stt lock"><div class="big">${ic('lock')}</div><h4>אין לך הרשאה לראות את הפעילות של ההתקן</h4><div>הצפייה בפעילות ניתנת לפי אזור. אפשר עדיין לראות את התזמונים.</div></div>`,
-    unav: `<div class="stt err"><div class="big">${ic('wifi')}</div><h4>ההיסטוריה אינה זמינה כרגע</h4><div>החיבור לתשתית המערכת נותק. מוצג מה שנשמר מקומית מתאריך 4.10, ואין ודאות שהוא שלם.</div><button class="btn">${ic('refresh')}נסו שוב</button></div>`,
-    partial: `<div class="pf" style="border-top:0;border-bottom:1px solid var(--sw-border);color:var(--sw-warning);background:var(--sw-warning-soft)">${ic('alert')}<span>המערכת הייתה מנותקת בין 03:10 ל־03:42 היום. ייתכן שחסרים אירועים בטווח הזה.</span></div>${feed('light', { n: 3 })}`,
+    load: `${filters()}<div style="padding:10px 14px;display:grid;gap:12px">${[1, 2, 3].map(() => '<div style="display:grid;grid-template-columns:28px 1fr 30px;gap:10px;align-items:center"><div class="skel" style="height:28px;border-radius:50%"></div><div style="display:grid;gap:6px"><div class="skel" style="width:60%"></div><div class="skel" style="width:35%;height:10px"></div></div><div class="skel" style="height:10px"></div></div>').join('')}</div>`,
+    empty: `${filters({ p: 'שעה', a: 'אנשים' })}<div class="stt"><div class="big">${ic('hist')}</div><h4>אין פעילות בתקופה הזאת</h4><button class="btn sm">הרחב ל־30 יום</button></div>`,
+    perm: `<div class="stt lock"><div class="big">${ic('lock')}</div><h4>אין הרשאה לראות פעילות</h4><div class="note">אפשר עדיין לראות תזמונים</div></div>`,
+    unav: `<div class="stt err"><div class="big">${ic('wifi')}</div><h4>ההיסטוריה אינה זמינה כרגע</h4><div class="note">מוצג מה שנשמר מקומית עד 4.10</div><button class="btn sm">${ic('refresh')}נסו שוב</button></div>`,
+    partial: `<div class="gap">${ic('alert')}<span>המערכת הייתה מנותקת 03:10 עד 03:42; ייתכן שחסרים אירועים</span></div>${feed('light', { n: 2 })}`,
   };
   return st[k];
 }
-
-/* ---------------- editor sheet ---------------- */
 function editorBody() {
-  return `<div class="ed"><div style="display:flex;align-items:center;gap:6px"><button class="ib" aria-label="חזרה">${ic('back')}</button><b style="font-size:var(--sw-fs-lg);color:var(--sw-heading)">עריכת תזמון: תאורת ערב</b></div>
+  return `<div class="ed"><div class="eh"><button class="ib" aria-label="חזרה">${ic('back')}</button><b>עריכת תזמון</b></div>
   <div><label>שם</label><div class="inp2">תאורת ערב</div></div>
-  <div><label>התקנים בתזמון</label><div class="pe"><span class="chip nodot" style="background:var(--sw-accent-soft);color:var(--sw-accent-text)">${ic('bulb')} תאורת סלון (נוכחי)</span><span class="chip nodot" style="background:var(--sw-surface-3)">תאורת מרפסת</span></div></div>
-  <div><label>שעות והפעולות</label><div class="pe"><span class="ba">18:30 · הדלקה 60%</span><span class="ba">23:00 · כיבוי</span><button class="btn sm ghost">${ic('plus')}שעה</button></div></div>
-  <div><label>ימים</label>${dayRow([0, 1, 2, 3, 4, 5, 6])}</div>
-  <div><label>תנאים</label><div class="note">ללא תנאים</div></div>
-  <div class="pf" style="border:0;padding:0">${ic('info')}<span>זה העורך הקיים של התזמונים, בתוך המסגרת של החלון. שמירה מחזירה לרשימה.</span></div>
-  <div style="display:flex;gap:8px;flex-direction:row-reverse;justify-content:flex-end"><button class="btn pri">שמירה</button><button class="btn">ביטול</button></div></div>`;
+  <div><label>התקנים</label><div class="pe"><span class="chip nodot" style="background:var(--sw-accent-soft);color:var(--sw-accent-text)">תאורת סלון</span><span class="chip nodot" style="background:var(--sw-surface-3)">תאורת מרפסת</span></div></div>
+  <div><label>שעות ופעולות</label><div class="pe"><span class="ba">18:30 · הדלקה 60%</span><span class="ba">23:00 · כיבוי</span></div></div>
+  <div><label>ימים</label><div class="pe"><span class="ba">כל יום</span></div></div>
+  <div class="note">העורך הקיים של התזמונים, בתוך החלון</div>
+  <div class="eact"><button class="btn pri sm">שמירה</button><button class="btn sm">ביטול</button></div></div>`;
 }
 
 /* ---------------- screens ---------------- */
 function filterOpenDesktop(which) {
-  const opts = { p: ['שעה אחרונה', '24 שעות', '7 ימים אחרונים', '30 יום', 'טווח תאריכים...'], a: ['כל הגורמים', 'אנשים', 'אוטומציות', 'תזמונים', 'סצנות', 'ידני בהתקן', 'מערכת'], k: ['כל סוגי האירועים', 'הפעלה וכיבוי', 'שינוי ערך', 'זמינות'] }[which];
-  const sel = { p: 2, a: 0, k: 0 }[which];
-  return `<div class="ddp" style="inset-inline-start:${which === 'p' ? 18 : which === 'a' ? 160 : 300}px">${opts.map((x, i) => `<div class="opt ${i === sel ? 'sel' : ''}"><span class="rad"></span>${x}</div>`).join('')}</div>`;
+  const opts = { p: ['שעה', '24 שעות', '7 ימים', '30 יום', 'טווח...'], a: ['כל הגורמים', 'אנשים', 'אוטומציות', 'תזמונים', 'סצנות', 'ידני בהתקן', 'מערכת'], k: ['כל האירועים', 'הפעלה וכיבוי', 'שינוי ערך', 'זמינות'] }[which];
+  const sel = { p: 2, a: 1, k: 0 }[which];
+  return `<div class="ddp" style="inset-inline-start:${which === 'p' ? 14 : which === 'a' ? 92 : 190}px">${opts.map((x, i) => `<div class="opt ${i === sel ? 'sel' : ''}"><span class="rad"></span>${x}</div>`).join('')}</div>`;
 }
 function filterSheet() {
   const o = ['כל הגורמים', 'אנשים', 'אוטומציות', 'תזמונים', 'סצנות', 'ידני בהתקן', 'מערכת'];
-  return `<div class="sub-sheet dh"><div class="grab"></div><h4>סוג גורם</h4>${o.map((x, i) => `<div class="opt ${i === 1 ? 'sel' : ''}" style="min-height:48px"><span class="rad"></span>${x}</div>`).join('')}<div style="display:flex;gap:8px;margin-block-start:8px"><button class="btn pri" style="flex:1">החל</button><button class="btn" style="flex:1">נקה</button></div></div>`;
+  return `<div class="sub-sheet dh"><div class="grab"></div><h4>גורם</h4>${o.map((x, i) => `<div class="opt ${i === 1 ? 'sel' : ''}" style="min-height:44px"><span class="rad"></span>${x}</div>`).join('')}<div style="display:flex;gap:8px;margin-block-start:8px"><button class="btn pri" style="flex:1">החל</button><button class="btn" style="flex:1">נקה</button></div></div>`;
 }
 const SCREENS = {
-  'press': { t: 'התנהגות לחיצה ארוכה והחלופות הנגישות (שולחן עבודה)', fn: pressScreen, d: 'desktop' },
+  'press': { t: 'לחיצה ארוכה והחלופות הנגישות (שולחן עבודה)', fn: pressScreen, d: 'desktop' },
   'press-phone': { t: 'לחיצה ארוכה והחלופות בטלפון', fn: pressPhone, d: 'phone' },
-  'desk-activity': { t: 'חלון פעילות: לשונית "פעילות" (שולחן עבודה)', fn: () => stage(popup('light', 'act', actBody('light', { f: {} }), { foot: true })), d: 'desktop' },
-  'desk-filters': { t: 'מסננים פתוחים (שולחן עבודה)', fn: () => stage(popup('light', 'act', filters({ a: 'אנשים' }).replace('</div>', filterOpenDesktop('a') + '</div>') + feed('light', { n: 2 }))), d: 'desktop' },
-  'desk-schedules': { t: 'לשונית "תזמונים" (שולחן עבודה)', fn: () => stage(popup('light', 'sch', schedBody())), d: 'desktop' },
-  'desk-editor': { t: 'עריכת תזמון בתוך החלון (העורך הקיים)', fn: () => stage(popup('light', 'sch', editorBody())), d: 'desktop' },
-  'phone-activity': { t: 'גיליון תחתון: "פעילות" (טלפון)', fn: () => stage(popup('light', 'act', actBody('light', { n: 4 }), { foot: true })), d: 'phone' },
+  'desk-activity': { t: 'פעילות (שולחן עבודה)', fn: () => stage(popup('light', 'act', actBody('light', { n: 4 }), { foot: true })), d: 'desktop' },
+  'desk-filters': { t: 'מסננים פתוחים (שולחן עבודה)', fn: () => stage(popup('light', 'act', filters({ a: 'אנשים' }).replace(/<\/div>$/, filterOpenDesktop('a') + '</div>') + feed('light', { n: 2 }))), d: 'desktop' },
+  'desk-schedules': { t: 'תזמונים (שולחן עבודה)', fn: () => stage(popup('light', 'sch', schedBody())), d: 'desktop' },
+  'desk-editor': { t: 'עריכת תזמון בתוך החלון', fn: () => stage(popup('light', 'sch', editorBody())), d: 'desktop' },
+  'phone-activity': { t: 'גיליון תחתון: פעילות (טלפון)', fn: () => stage(popup('light', 'act', actBody('light', { n: 4 }), { foot: true })), d: 'phone' },
   'phone-filters': { t: 'בורר מסנן כגיליון (ui.dd_phone = sheet)', fn: () => stage(popup('light', 'act', actBody('light', { f: { a: 'אנשים' }, n: 2 }) + filterSheet())), d: 'phone' },
-  'phone-schedules': { t: 'גיליון תחתון: "תזמונים" (טלפון)', fn: () => stage(popup('light', 'sch', schedBody())), d: 'phone' },
+  'phone-schedules': { t: 'גיליון תחתון: תזמונים (טלפון)', fn: () => stage(popup('light', 'sch', schedBody())), d: 'phone' },
   'phone-editor': { t: 'עורך תזמון בגיליון (טלפון)', fn: () => stage(popup('light', 'sch', editorBody())), d: 'phone' },
-  'states': { t: 'מצבים: טעינה, ריק, אין הרשאה, היסטוריה לא זמינה, חלקית', fn: statesScreen, d: 'desktop' },
-  'states-sched': { t: 'מצבי לשונית תזמונים: ריק ואין הרשאה', fn: statesSched, d: 'desktop' },
-  'variants': { t: 'וריאנטים לפי סוג התקן: תאורה, מתג, תריס, מזגן', fn: variantsScreen, d: 'desktop' },
-  'domains': { t: 'אילו ישויות נחשבות "חשמליות" ואיך הממשק יודע', fn: domainsScreen, d: 'desktop' },
+  'states': { t: 'מצבים: טעינה, ריק, אין הרשאה, לא זמין, חלקית', fn: statesScreen, d: 'desktop' },
+  'states-sched': { t: 'מצבי תזמונים: ריק ואין הרשאה', fn: () => `<div class="vgrid dh c3"><div>${popup('light', 'sch', schedBody({ state: 'empty' }), { cnt: 0 })}</div><div>${popup('light', 'sch', schedBody({ state: 'noperm' }), { cnt: '' })}</div></div>`, d: 'desktop' },
+  'variants': { t: 'לוח כל סוגי ההתקנים (12)', fn: variantsScreen, d: 'desktop' },
+  'domains': { t: 'אילו ישויות נחשבות חשמליות ואיך הממשק יודע', fn: domainsScreen, d: 'desktop' },
 };
 function statesScreen() {
   const cell = (h, b, tab = 'act') => `<div><div class="note" style="margin-block-end:6px"><b>${h}</b></div>${popup('light', tab, b)}</div>`;
-  return `<div class="vgrid dh">${cell('טעינה', stateBody('load'))}${cell('ריק (אחרי סינון)', stateBody('empty'))}${cell('אין הרשאה לצפייה בפעילות', stateBody('perm'))}${cell('היסטוריה לא זמינה', stateBody('unav'))}${cell('היסטוריה חלקית (פער בנתונים)', stateBody('partial'))}${cell('טעינת עוד (בתחתית הרשימה)', feed('light', { n: 2 }) + '<div class="more2"><button class="btn" disabled>טוען...</button></div>')}</div>`;
+  return `<div class="vgrid dh c3">${cell('טעינה', stateBody('load'))}${cell('ריק (אחרי סינון)', stateBody('empty'))}${cell('אין הרשאה', stateBody('perm'))}${cell('היסטוריה לא זמינה', stateBody('unav'))}${cell('חלקית (פער בנתונים)', stateBody('partial'))}${cell('טוען עוד', feed('light', { n: 2 }) + '<div class="more2"><button class="btn sm" disabled>טוען...</button></div>')}</div>`;
 }
-function statesSched() { return `<div class="vgrid dh"><div>${popup('light', 'sch', schedBody({ state: 'empty' }), { cnt: 0 })}</div><div>${popup('light', 'sch', schedBody({ state: 'noperm' }), { cnt: '' })}</div></div>`; }
+function typeCard(k) {
+  const d = TYPES[k], s = d.sch;
+  return `<div class="tcard"><div class="ph ${d.on ? '' : 'off'}"><div class="ic">${ic(d.i)}</div><div class="tt"><h3>${d.n}</h3><div class="sub"><span class="st">${d.st}</span></div></div></div>
+  <div class="rec"><b>נרשם:</b> ${d.rec}</div>
+  <div class="tb">${d.ev.slice(0, 3).map(evRow).join('')}</div>
+  ${s[0] ? `<div class="tsch">${ic('cal')}<span><b>${s[0]}</b> · ${s[1]}</span></div>` : '<div class="tsch mut">ללא תזמונים: מצב ריק כרגיל</div>'}</div>`;
+}
 function variantsScreen() {
-  const v = (k, extra) => `<div>${popup(k, 'act', filters() + feed(k, { n: 3 }), { cnt: k === 'switch' ? 1 : 2 })}<div class="note" style="margin-block-start:6px">${extra}</div></div>`;
-  return `<div class="vgrid dh"><h3 class="vh">התוכן משתנה לפי סוג ההתקן; המסגרת, הלשוניות והמסננים זהים</h3>
-  ${v('light', 'תאורה: הדלקה, כיבוי, בהירות, גוון. הערך "לפני / אחרי" באחוזים.')}${v('switch', 'מתג ושקע: הדלקה וכיבוי בלבד. מקור "לא ידוע" מוצג בקו מקווקו ולא מנחש.')}${v('cover', 'תריס: נפתח, נסגר, נעצר, ומיקום באחוזים לפני ואחרי.')}${v('climate', 'מזגן: מצב, טמפרטורת יעד, מאוורר. שינוי טמפרטורת מקור (חיישן) אינו אירוע.')}</div>`;
+  const order = ['light', 'switch', 'outlet', 'cover', 'garage', 'climate', 'heater', 'fan', 'boiler', 'valve', 'vacuum', 'other'];
+  return `<div class="vgrid dh c3"><h3 class="vh">כל סוגי ההתקנים החשמליים: אייקון, שורת מצב, מה נרשם, ניסוח אירועים ושורת תזמון. המסגרת, הלשוניות והמסננים זהים בכולם.</h3>${order.map(typeCard).join('')}</div>`;
 }
 function domainsScreen() {
-  const rows = [['light', 'כן', 'תאורה', 'הפעלה, בהירות, גוון'], ['switch (גם שקע)', 'כן', 'מתג ושקע', 'הפעלה וכיבוי'], ['cover', 'כן', 'תריס, וילון, שער חשמלי', 'פתיחה, סגירה, מיקום באחוזים'], ['climate', 'כן', 'מזגן, חימום, תרמוסטט', 'מצב, טמפרטורת יעד, מאוורר'], ['fan, humidifier', 'כן', 'מאוורר, מכשיר לחות', 'הפעלה, מהירות, יעד'], ['input_boolean', 'כן, מסומן "וירטואלי"', 'מתג חשוב מבחינה לוגית', 'הפעלה וכיבוי'], ['water_heater, valve', 'שלב מאוחר', 'דוד, ברז חשמלי', 'כמו מתג'], ['lock, alarm_control_panel', 'לא (שאלה לבעלים)', 'אבטחה: יש לה יומן נפרד ורגיש', ''], ['media_player', 'לא: יש חלון נגן משלו', 'לחיצה ארוכה נשארת של הנגן', ''], ['sensor, binary_sensor, camera, scene, script, automation', 'לא', 'חיישנים אינם מבוצעים; סצנות הן מקור, לא התקן', '']];
-  return `<div class="pad dh"><h2>ישויות "חשמליות"</h2><div class="note">הממשק לא מנחש לפי שם או אייקון. השרת מחזיר בכל שורת כרטיס את השדה <span class="kbd">activity: true|false</span>, והוא נגזר מאותה טבלה (<span class="kbd">card_of</span> ב־devices.py) שמחליטה איזה כרטיס מקבל פקדים: lighting, switches, climate, covers. כך שלחיצה ארוכה, פריט "פעילות" בתפריט והלשונית זמינים אך ורק כשהשרת אישר, וגם רק למי שיש <span class="kbd">devices.read</span> על ההתקן.</div>
-  <table class="mtx"><thead><tr><th>domain</th><th>נחשב חשמלי</th><th>דוגמה</th><th>מה נרשם</th></tr></thead><tbody>${rows.map((r) => `<tr><td><span class="kbd">${r[0]}</span></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table></div>`;
+  const rows = [['light', 'כן', 'תאורה', 'הפעלה, בהירות, גוון, צבע'], ['switch (גם שקע)', 'כן', 'מתג, שקע', 'הפעלה וכיבוי; הספק אם יש חיישן הספק מקושר להתקן'], ['cover', 'כן', 'תריס, וילון, שער, דלת חניה', 'מיקום, כיוון תנועה, הטיה'], ['climate', 'כן', 'מזגן, חימום, תרמוסטט', 'מצב, יעד, פעולה בפועל, מאוורר'], ['fan, humidifier', 'כן', 'מאוורר, מכשיר לחות', 'הפעלה, מהירות, כיוון, יעד'], ['water_heater', 'כן', 'דוד, בוילר', 'הפעלה, יעד, מצב'], ['valve', 'כן', 'ברז, השקיה', 'פתיחה וסגירה, משך'], ['vacuum', 'כן', 'שואב רובוטי', 'התחלה, עצירה, עגינה'], ['input_boolean', 'כן, מסומן וירטואלי', 'מתג לוגי', 'הפעלה וכיבוי'], ['כל domain אחר שמקבל פקדים בשרת', 'כן, תצוגה כללית', 'ניסוח "שינוי מצב"', 'מצב בלבד'], ['lock, alarm_control_panel', 'לא (שאלה לבעלים)', 'אבטחה: יומן נפרד ורגיש', ''], ['media_player', 'לא: חלון נגן משלו', 'הלחיצה הארוכה נשארת של הנגן', ''], ['sensor, binary_sensor, camera, scene, script, automation', 'לא', 'חיישנים אינם מבוצעים; סצנות הן מקור, לא התקן', '']];
+  return `<div class="pad dh"><h2>ישויות "חשמליות"</h2><div class="note">הממשק לא מנחש לפי שם או אייקון. השרת מחזיר בכל שורת כרטיס את <span class="kbd">activity: true|false</span> וגם את סוג התצוגה (<span class="kbd">activity_kind</span>: light, switch, outlet, cover, garage, climate, heater, fan, boiler, valve, vacuum, other), נגזרים מהטבלה (<span class="kbd">card_of</span> ב־devices.py) שמחליטה אילו ישויות מקבלות פקדים. הלחיצה הארוכה, פריט התפריט והלשונית זמינים רק כשהשרת אישר וקיים <span class="kbd">devices.read</span> על ההתקן.</div>
+  <table class="mtx"><thead><tr><th>domain</th><th>חשמלי</th><th>דוגמה</th><th>מה נרשם</th></tr></thead><tbody>${rows.map((r) => `<tr><td><span class="kbd">${r[0]}</span></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function pressScreen() {
   return `<div class="pad dh"><h2>לחיצה ארוכה על התקן חשמלי</h2>

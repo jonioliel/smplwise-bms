@@ -1,6 +1,6 @@
 # CR-032 - Device activity popup (long press): history and schedules of an electrical device
 
-Status: PROPOSED (mockup + feasibility, task DEVHIST, half-version 2.0.6). No product code, no migration, no live-system access.
+Status: PROPOSED (mockup + feasibility, task DEVHIST, half-version 2.0.6; design round 2 done: compact 380 px popup, 12 entity types). No product code, no migration, no live-system access.
 Branch `pilot/DEVHIST-mockup`. Mockups: `docs/design/mockups/device-history/` (index.html, gallery.html, screens/*.png).
 
 ## 1. Owner request (paraphrased from Hebrew)
@@ -21,7 +21,7 @@ language as the multimedia popups and the settings dialogs, with two tabs:
 | `desk-schedules`, `desk-editor` | Tab "תזמונים": next run, days, enable switch, edit (opens the existing editor inside the popup), "add schedule for this device", read-only rows |
 | `phone-activity`, `phone-filters`, `phone-schedules`, `phone-editor` | Bottom sheet; filter pickers follow `ui.dd_phone` (sheet shown; centred / inline are the same component's other modes) |
 | `states`, `states-sched` | Loading, empty after filtering, no permission, history unavailable, partial coverage (gap banner), loading more; schedules empty and no permission |
-| `variants` | Light (brightness, colour temperature), switch/outlet (on/off), cover (position %), climate (target temperature, mode, fan) |
+| `variants` | Board of all 12 entity types (light, switch, outlet with power, cover with position and tilt, garage door, climate, heater, fan, water heater, valve / irrigation, vacuum, generic fallback): icon, state line, recorded values, Hebrew event wording with before/after, a schedule row |
 | `domains` | Which entity domains qualify and how the UI knows |
 
 Rules applied: Hebrew RTL, v2 tokens and the four skins, light and dark, 44 px targets, no permanent hint on operator
@@ -134,7 +134,7 @@ without it. Every read of another person's activity goes to the audit log only i
 | S3 | Schedules tab: list with next run, days, switch, read-only tags; edit opens the existing editor in the popup; "add schedule for this device"; specs | 1 to 1.5 h |
 | S4 | Attribution rules 3 and 4 (context map to automation, script, scene; schedule-run window), value before/after for climate, cover, light; optional HA logbook backfill | 1.5 to 2 h |
 | S5 | Review round, fixes, screens, release notes (bilingual) | 1 h |
-| Total | | about 8 to 10 agent-hours, about 4 to 5 hours of wall time with two agents |
+| Total | | about 9 to 11 agent-hours after design round 2 (per-type formatters add about 1 h to S2 and S4), about 5 hours of wall time with two agents |
 
 ## 5. Proposed split into half-versions
 
@@ -156,3 +156,20 @@ without it. Every read of another person's activity goes to the audit log only i
 ## 7. Open questions
 
 See `docs/design/mockups/device-history/index.html` (Hebrew, numbered, with a recommended option).
+
+## 8. Design round 2 (owner feedback: calmer, smaller, every electrical type)
+
+Scope changes versus round 1:
+
+- Compact popup: 380 px wide on desktop (was 600), a one-line header (name, area and state), a two-segment tab control, activity rows
+  of about 52 px (was about 86), hairline dividers instead of boxes, one soft shadow, small outlined filter chips with short labels,
+  a one-line footnote. On a phone it is a bottom sheet (about 66 to 88 % height). Before/after: `compare.html`.
+- Twelve entity types are designed (board `variants`): light, switch, outlet (power shown only when a power sensor is linked to the
+  same device), cover (position, direction, tilt), garage door, climate / AC, heater, fan (speed, direction), water heater,
+  valve / irrigation (duration when a timer exists), vacuum, and a generic fallback ("שינוי מצב") for any other qualifying entity.
+- Server contract addition: card rows carry `activity_kind` (one of the twelve) next to `activity`, derived from the domain,
+  device class and supported features on the server; the client only picks the icon, the value formatter and the Hebrew verbs
+  from it. A new domain needs one registry entry, otherwise it falls back to the generic kind. Per-type formatter table lives in
+  one frontend module and is unit tested (before/after text per kind, including unit, percent and degree formatting).
+- Phasing change: the first half-version covers the four core kinds (light, switch / outlet, cover / garage, climate / heater);
+  the other kinds ride the same registry and ship in the second half-version (open question 4 in the index).

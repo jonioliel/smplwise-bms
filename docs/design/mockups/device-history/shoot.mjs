@@ -12,7 +12,7 @@ if (!pw) throw new Error('playwright not found');
 const { chromium } = createRequire(pw)('playwright');
 const W = { desktop: 1440, tablet: 820, phone: 390 };
 const SCREENS = { press: 'desktop', 'press-phone': 'phone', 'desk-activity': 'desktop', 'desk-filters': 'desktop', 'desk-schedules': 'desktop', 'desk-editor': 'desktop', 'phone-activity': 'phone', 'phone-filters': 'phone', 'phone-schedules': 'phone', 'phone-editor': 'phone', states: 'desktop', 'states-sched': 'desktop', variants: 'desktop', domains: 'desktop' };
-const EXTRA = [['desk-activity', 'dark', 'classic'], ['desk-activity', 'light', 'bubble'], ['desk-schedules', 'dark', 'domus'], ['phone-activity', 'dark', 'bubble'], ['variants', 'dark', 'classic']];
+const EXTRA = [['desk-activity', 'dark', 'classic'], ['desk-activity', 'light', 'bubble'], ['desk-schedules', 'dark', 'domus'], ['phone-activity', 'dark', 'bubble'], ['variants', 'dark', 'classic'], ['phone-schedules', 'dark', 'classic'], ['desk-editor', 'light', 'domus'], ['variants', 'light', 'bubble']];
 const jobs = Object.entries(SCREENS).map(([s, d]) => [s, d, 'light', 'classic']).concat(EXTRA.map(([s, t, k]) => [s, SCREENS[s], t, k]));
 const out = path.join(here, 'screens'); fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch(); const errors = [];

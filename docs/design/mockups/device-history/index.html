@@ -3,93 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>סקירת מוקאפ: חלון פעילות והיסטוריה להתקן (לחיצה ארוכה)</title>
+<title>סקירת מוקאפ: חלון פעילות והיסטוריה להתקן (סבב עיצוב 2)</title>
 <style>
   body { font-family: system-ui, "Segoe UI", Arial, sans-serif; margin: 24px; background: #f4f5f7; color: #1d2433; line-height: 1.55; }
   h1 { font-size: 22px; } h2 { margin-top: 0; font-size: 17px; }
   .box { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); margin-bottom: 14px; }
   table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #e5e8ee; vertical-align: top; }
-  th { background: #f1f4f9; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #e5e8ee; vertical-align: top; } th { background: #f1f4f9; }
   code { direction: ltr; unicode-bidi: isolate; font: 12.5px Consolas, monospace; background: #f1f4f9; padding: 1px 4px; border-radius: 4px; }
   a { color: #1d4fc4; } a.btn { display: inline-block; padding: 2px 8px; border: 1px solid #c4cad6; border-radius: 6px; text-decoration: none; margin: 2px 0; background: #fff; font-size: 12.5px; }
   a.btn.hero { border-color: #2767ed; background: #edf3ff; font-weight: 700; }
-  ol.q > li { margin-bottom: 14px; } ol.q ol { list-style: none; padding-inline-start: 10px; margin: 2px 0; }
+  ol.q > li { margin-bottom: 12px; } ol.q ol { list-style: none; padding-inline-start: 10px; margin: 2px 0; }
   .rec { background: #fef3c7; color: #92400e; padding: 0 5px; border-radius: 4px; font-weight: 700; font-size: 11.5px; }
   .mut { color: #5b6a85; font-size: 13px; }
   .shots { display: flex; flex-wrap: wrap; gap: 10px; } .shots figure { margin: 0; background: #fff; padding: 6px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); max-width: 31%; } .shots img { max-width: 100%; height: auto; border: 1px solid #ddd; } .shots figcaption { font-size: 12px; color: #5b6a85; }
 </style>
 </head>
 <body>
-<h1>מוקאפ: חלון פעילות והיסטוריה להתקן חשמלי, בלחיצה ארוכה (2.0.6, מסמך שינוי CR-032)</h1>
-<p class="mut">עיצוב סטטי לאישור, ללא קוד מוצר וללא מגע במערכת חיה; הנתונים מומצאים. הסרגל בגלריה בוחר מסך, רוחב (1440 / 820 / 390), בהיר/כהה וסקין (classic / domus / tesla / bubble); המצב נשמר ב־URL. מסמך השינוי והבדיקת היתכנות: <code>docs/changes/CR-032-DEVICE-ACTIVITY.md</code>.</p>
+<h1>מוקאפ: חלון פעילות והיסטוריה להתקן חשמלי, בלחיצה ארוכה · סבב עיצוב 2 (2.0.6, CR-032)</h1>
+<p class="mut">עיצוב סטטי, נתונים מומצאים, בלי מגע במערכת חיה. הסרגל בגלריה בוחר מסך, רוחב (1440 / 820 / 390), בהיר/כהה וסקין. מסמך השינוי: <code>docs/changes/CR-032-DEVICE-ACTIVITY.md</code>.</p>
+
+<div class="box"><h2>מה השתנה בסבב 2</h2>
+<ul>
+<li><b>קטן וצפוף:</b> חלון של 380 פיקסלים (היה 600), כותרת קצרה (שם ומצב בשורת משנה אחת), בורר שתי לשוניות, שורות פעילות של כ־52 פיקסלים (היו כ־86), הערת שוליים בשורה אחת. בטלפון גיליון תחתון נמוך יותר.</li>
+<li><b>רגוע ואלגנטי:</b> היררכיית טיפוגרפיה ברורה (שם 15, פעולה 13, פרטים 11–12), קווי הפרדה עדינים במקום מסגרות, צל רך, אייקונים אחידים בקו דק, כמוסות מסננים בקו מתאר, הימים כטקסט.</li>
+<li><b>12 סוגי התקנים:</b> תאורה, מתג, שקע (עם הספק), תריס (מיקום והטיה), דלת חניה, מזגן, חימום, מאוורר, דוד, ברז והשקיה, שואב רובוטי, ותצוגה כללית לכל השאר. לכל סוג אייקון, שורת מצב, ערכים לפני ואחרי, ניסוח אירועים ושורת תזמון.</li>
+<li>הסרתי: שורת התגיות בכותרת, אייקונים בתוך המסננים, עיגולי הימים, הסברים ארוכים בתחתית.</li>
+</ul>
+<p><a class="btn hero" href="compare.html">דף לפני / אחרי</a></p></div>
 
 <div class="box"><h2>מסכים (קישור לכל מסך)</h2>
-<table><thead><tr><th>מסך</th><th>מה רואים</th><th>קישור</th></tr></thead><tbody>
-<tr><td>1. לחיצה ארוכה והחלופות</td><td>משוב (טבעת 500 מילישניות), תפריט הקשר, מקלדת, טבלת התנגשויות (גרירה, עריכה, בחירה מרובה), הדגמה חיה שאפשר לנסות</td><td><a class="btn hero" href="gallery.html#s=press&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=press-phone&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
-<tr><td>2. לשונית "פעילות"</td><td>שורות לפי יום, גורם (אדם בשם, אוטומציה, תזמון, סצנה, ידני בהתקן, מערכת), לפני / אחרי, "טען עוד"</td><td><a class="btn hero" href="gallery.html#s=desk-activity&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-activity&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
-<tr><td>3. מסננים</td><td>תקופה, סוג גורם, סוג אירוע; בטלפון כגיליון לפי <code>ui.dd_phone</code></td><td><a class="btn" href="gallery.html#s=desk-filters&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-filters&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
-<tr><td>4. לשונית "תזמונים"</td><td>הבא, ימים, מתג הפעלה, עריכה, "הוסף תזמון להתקן זה", תזמון לקריאה בלבד, תזמון דרך קבוצה</td><td><a class="btn hero" href="gallery.html#s=desk-schedules&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-schedules&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
-<tr><td>5. עריכת תזמון בתוך החלון</td><td>העורך הקיים של התזמונים, במסגרת החלון / הגיליון</td><td><a class="btn" href="gallery.html#s=desk-editor&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-editor&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
-<tr><td>6. מצבים</td><td>טעינה, ריק, אין הרשאה, היסטוריה לא זמינה, חלקית (פער), טוען עוד; ולתזמונים: ריק ואין הרשאה</td><td><a class="btn" href="gallery.html#s=states&d=desktop&t=light&k=classic" target="_blank">פעילות</a> <a class="btn" href="gallery.html#s=states-sched&d=desktop&t=light&k=classic" target="_blank">תזמונים</a></td></tr>
-<tr><td>7. וריאנטים לפי סוג התקן</td><td>תאורה, מתג, תריס, מזגן</td><td><a class="btn" href="gallery.html#s=variants&d=desktop&t=light&k=classic" target="_blank">בהיר</a> <a class="btn" href="gallery.html#s=variants&d=desktop&t=dark&k=classic" target="_blank">כהה</a></td></tr>
-<tr><td>8. מה נחשב "חשמלי"</td><td>טבלת domain והסבר איך הממשק יודע (שדה <code>activity</code> מהשרת)</td><td><a class="btn" href="gallery.html#s=domains&d=desktop&t=light&k=classic" target="_blank">פתיחה</a></td></tr>
-<tr><td>סקינים</td><td>אותו חלון בכהה ובסקינים אחרים</td><td><a class="btn" href="gallery.html#s=desk-activity&d=desktop&t=dark&k=classic" target="_blank">כהה</a> <a class="btn" href="gallery.html#s=desk-activity&d=desktop&t=light&k=bubble" target="_blank">bubble</a> <a class="btn" href="gallery.html#s=desk-schedules&d=desktop&t=dark&k=domus" target="_blank">domus כהה</a> <a class="btn" href="gallery.html#s=phone-activity&d=phone&t=dark&k=bubble" target="_blank">טלפון bubble כהה</a></td></tr>
+<table><thead><tr><th>מסך</th><th>קישור</th></tr></thead><tbody>
+<tr><td><b>לוח כל 12 סוגי ההתקנים</b></td><td><a class="btn hero" href="gallery.html#s=variants&d=desktop&t=light&k=classic" target="_blank">בהיר</a> <a class="btn" href="gallery.html#s=variants&d=desktop&t=dark&k=classic" target="_blank">כהה</a> <a class="btn" href="gallery.html#s=variants&d=desktop&t=light&k=bubble" target="_blank">bubble</a></td></tr>
+<tr><td>פעילות</td><td><a class="btn hero" href="gallery.html#s=desk-activity&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-activity&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
+<tr><td>מסננים</td><td><a class="btn" href="gallery.html#s=desk-filters&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-filters&d=phone&t=light&k=classic" target="_blank">טלפון (גיליון, ui.dd_phone)</a></td></tr>
+<tr><td>תזמונים</td><td><a class="btn hero" href="gallery.html#s=desk-schedules&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-schedules&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
+<tr><td>עריכת תזמון בתוך החלון</td><td><a class="btn" href="gallery.html#s=desk-editor&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=phone-editor&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
+<tr><td>מצבים (טעינה, ריק, אין הרשאה, לא זמין, חלקית, טוען עוד)</td><td><a class="btn" href="gallery.html#s=states&d=desktop&t=light&k=classic" target="_blank">פעילות</a> <a class="btn" href="gallery.html#s=states-sched&d=desktop&t=light&k=classic" target="_blank">תזמונים</a></td></tr>
+<tr><td>לחיצה ארוכה והחלופות (הדגמה חיה)</td><td><a class="btn" href="gallery.html#s=press&d=desktop&t=light&k=classic" target="_blank">שולחן עבודה</a> <a class="btn" href="gallery.html#s=press-phone&d=phone&t=light&k=classic" target="_blank">טלפון</a></td></tr>
+<tr><td>מה נחשב חשמלי ואיך הממשק יודע</td><td><a class="btn" href="gallery.html#s=domains&d=desktop&t=light&k=classic" target="_blank">פתיחה</a></td></tr>
+<tr><td>סקינים וכהה</td><td><a class="btn" href="gallery.html#s=desk-activity&d=desktop&t=dark&k=classic" target="_blank">כהה</a> <a class="btn" href="gallery.html#s=desk-activity&d=desktop&t=light&k=bubble" target="_blank">bubble</a> <a class="btn" href="gallery.html#s=desk-schedules&d=desktop&t=dark&k=domus" target="_blank">domus כהה</a> <a class="btn" href="gallery.html#s=phone-activity&d=phone&t=dark&k=bubble" target="_blank">טלפון bubble כהה</a> <a class="btn" href="gallery.html#s=desk-editor&d=desktop&t=light&k=domus" target="_blank">עורך, domus</a></td></tr>
 </tbody></table>
-<p class="mut">צילומי מסך סטטיים של כל המסכים נמצאים בתיקיית <code>screens/</code> (מופקים עם <code>shoot.mjs</code>).</p></div>
+<p class="mut">צילומי המסך של סבב 2 ב־<code>screens/</code> ושל סבב 1 ב־<code>screens/v1/</code> (הכול מופק עם <code>shoot.mjs</code>).</p></div>
 
-<div class="box"><h2>סיכום היתכנות (קצר)</h2>
-<ul>
-<li><b>מה כבר קיים:</b> היסטוריית מצבים מקומית (30 יום, מצב בלבד, בלי מי ובלי ערכים כמו טמפרטורה); רשימת משתמשי המערכת עם שמות; רישום של כל פעולה שבוצעה דרך המערכת; מנוע התזמונים עם סינון לפי התקן.</li>
-<li><b>מה חסר:</b> המערכת מקבלת היום מכל שינוי מצב גם את "מי ביצע" (מזהה משתמש או תהליך) אבל זורקת אותו. צריך לשמור אותו, יחד עם הערכים שהשתנו, בטבלה חדשה.</li>
-<li><b>מגבלה אמיתית:</b> פעולה שבוצעה דרך המערכת מתועדת תחת זהות החיבור ולא תחת האדם; את האדם לוקחים מרישום הפעולות. לחצן פיזי: אפשר לדעת שמישהו לחץ בהתקן, אף פעם לא מי. מוצג כ"ידני בהתקן (משוער)".</li>
-<li><b>הערכה:</b> כ־8 עד 10 שעות סוכן בסך הכול, בשלוש חצאי גרסאות (פירוט במסמך השינוי).</li>
-</ul></div>
-
-<div class="box"><h2>שאלות לבעלים</h2>
+<div class="box"><h2>שאלות פתוחות לבעלים</h2>
+<p class="mut">ההחלטות האחרות (עורך תזמון מלא בתוך החלון, ללא רמז קבוע על המסך, חצי שנייה ללחיצה ארוכה, נגני מדיה מחוץ לשלב הראשון, "ידני בהתקן (משוער)", פיצול לשלוש חצאי גרסאות) נשארות לפי ההמלצות מהסבב הקודם, אלא אם תגיד אחרת.</p>
 <ol class="q">
-<li><b>מי רשאי לראות "מי עשה מה" (שמות אנשים)?</b><ol>
-<li>א. הרשאה חדשה בשם "פעילות התקנים", ברירת מחדל לכל מי שמורשה לשלוט בהתקנים; בלעדיה השמות מוסתרים <span class="rec">מומלץ</span></li>
-<li>ב. אותה הרשאה שרואה את ההתקן, בלי הרשאה חדשה</li>
-<li>ג. מנהלים בלבד</li></ol></li>
-<li><b>כמה זמן לשמור את ההיסטוריה?</b><ol>
-<li>א. 30 יום (כמו היסטוריית המצבים)</li>
-<li>ב. 90 יום <span class="rec">מומלץ</span></li>
-<li>ג. שנה (כמו יומן הביקורת)</li></ol></li>
-<li><b>איך להציג שינוי שנעשה בהתקן עצמו (לחצן פיזי, אפליקציית יצרן, עוזר קולי)?</b> אי אפשר לדעת מי ולא איזה מהם.<ol>
-<li>א. תווית אחת "ידני בהתקן (משוער)" <span class="rec">מומלץ</span></li>
-<li>ב. כמו א, ובשלב מאוחר: סימון "לחצן נלחץ" רק בהתקנים שמדווחים אירוע לחיצה</li>
-<li>ג. לא להציג שינויים כאלה</li></ol></li>
-<li><b>התקני אבטחה (מנעולים, אזעקה) בחלון הזה?</b><ol>
-<li>א. לא; יש להם יומן אבטחה נפרד ורגיש <span class="rec">מומלץ</span></li>
-<li>ב. כן, עם הרשאה מחמירה יותר</li></ol></li>
-<li><b>היסטוריה מלפני ההפעלה:</b> המערכת מתחילה לשמור רק מרגע ההפעלה.<ol>
-<li>א. להתחיל מאפס; החלון יציג "נשמר מתאריך ..." <span class="rec">מומלץ</span></li>
-<li>ב. בנוסף, שאיבה חד־פעמית (קריאה בלבד) מיומן התשתית, עד כ־10 ימים אחורה; בכפוף לבדיקה שההרשאה מאפשרת</li></ol></li>
-<li><b>עריכת תזמון מתוך החלון:</b><ol>
-<li>א. העורך המלא הקיים, בתוך החלון <span class="rec">מומלץ</span></li>
-<li>ב. רק הפעלה / כיבוי ושינוי שעה; העריכה המלאה במסך התזמונים</li></ol></li>
-<li><b>איך מגלים את הלחיצה הארוכה?</b><ol>
-<li>א. פריט "פעילות" בתפריט ההתקן ומדריך, בלי רמז על המסך (מסכים נקיים) <span class="rec">מומלץ</span></li>
-<li>ב. בנוסף, רמז חד־פעמי בכניסה הראשונה</li></ol></li>
-<li><b>משך הלחיצה הארוכה:</b><ol>
-<li>א. חצי שנייה <span class="rec">מומלץ</span></li>
-<li>ב. 0.7 שנייה (פחות הפעלות בטעות, פחות מגיב)</li></ol></li>
-<li><b>נגני מדיה:</b><ol>
-<li>א. לא בשלב הראשון; הלחיצה הארוכה שלהם נשארת כמו היום <span class="rec">מומלץ</span></li>
-<li>ב. כן, פריט "פעילות" בתפריט הנגן</li></ol></li>
-<li><b>סדר העבודה:</b><ol>
-<li>א. חצי גרסה ראשונה: שמירה והלשונית "פעילות"; שנייה: "תזמונים"; שלישית: זיהוי מתקדם של אוטומציות וסצנות <span class="rec">מומלץ</span></li>
-<li>ב. הכול ביחד בחצי גרסה אחת (ארוך יותר, פחות בטוח)</li></ol></li>
+<li><b>מי רואה שמות אנשים בפעילות?</b><ol>
+<li>א. הרשאה חדשה "פעילות התקנים", ברירת מחדל לכל מי ששולט בהתקנים; בלעדיה השמות מוסתרים <span class="rec">מומלץ</span></li>
+<li>ב. אותה הרשאה שרואה את ההתקן</li><li>ג. מנהלים בלבד</li></ol></li>
+<li><b>כמה זמן לשמור היסטוריה?</b><ol>
+<li>א. 30 יום</li><li>ב. 90 יום <span class="rec">מומלץ</span></li><li>ג. שנה</li></ol></li>
+<li><b>התקני אבטחה (מנעולים, אזעקה)?</b><ol>
+<li>א. לא נכללים; יש להם יומן נפרד ורגיש <span class="rec">מומלץ</span></li><li>ב. כן, עם הרשאה מחמירה</li></ol></li>
+<li><b>אילו סוגי התקנים נכנסים לחצי הגרסה הראשונה?</b><ol>
+<li>א. ארבעת הליבה: תאורה, מתג ושקע, תריס ושער, מזגן וחימום; השאר בחצי הגרסה השנייה <span class="rec">מומלץ</span></li>
+<li>ב. כל 12 הסוגים ביחד (כ־1.5 שעות סוכן נוספות)</li></ol></li>
+<li><b>שקע עם הספק:</b> להציג הספק רק כשיש חיישן הספק מקושר לאותו התקן (בלי ניחוש לפי שם)?<ol>
+<li>א. כן <span class="rec">מומלץ</span></li><li>ב. לא להציג הספק בכלל</li></ol></li>
+<li><b>היסטוריה מלפני ההפעלה?</b><ol>
+<li>א. להתחיל מאפס, עם "נשמר מתאריך" <span class="rec">מומלץ</span></li><li>ב. גם שאיבה חד־פעמית בקריאה בלבד (כ־10 ימים)</li></ol></li>
 </ol></div>
 
 <div class="box"><h2>צילומי מסך</h2><div class="shots">
-<figure><a href="screens/desk-activity-light-classic.png" target="_blank"><img src="screens/desk-activity-light-classic.png" loading="lazy"></a><figcaption>פעילות, שולחן עבודה</figcaption></figure>
-<figure><a href="screens/desk-schedules-light-classic.png" target="_blank"><img src="screens/desk-schedules-light-classic.png" loading="lazy"></a><figcaption>תזמונים, שולחן עבודה</figcaption></figure>
-<figure><a href="screens/phone-activity-light-classic.png" target="_blank"><img src="screens/phone-activity-light-classic.png" loading="lazy"></a><figcaption>פעילות, טלפון</figcaption></figure>
+<figure><a href="screens/desk-activity-light-classic.png" target="_blank"><img src="screens/desk-activity-light-classic.png" loading="lazy"></a><figcaption>פעילות</figcaption></figure>
+<figure><a href="screens/desk-schedules-dark-domus.png" target="_blank"><img src="screens/desk-schedules-dark-domus.png" loading="lazy"></a><figcaption>תזמונים, כהה, domus</figcaption></figure>
+<figure><a href="screens/phone-activity-dark-bubble.png" target="_blank"><img src="screens/phone-activity-dark-bubble.png" loading="lazy"></a><figcaption>טלפון, כהה, bubble</figcaption></figure>
+<figure><a href="screens/variants-dark-classic.png" target="_blank"><img src="screens/variants-dark-classic.png" loading="lazy"></a><figcaption>12 סוגי התקנים</figcaption></figure>
 <figure><a href="screens/states-light-classic.png" target="_blank"><img src="screens/states-light-classic.png" loading="lazy"></a><figcaption>מצבים</figcaption></figure>
-<figure><a href="screens/variants-dark-classic.png" target="_blank"><img src="screens/variants-dark-classic.png" loading="lazy"></a><figcaption>וריאנטים, כהה</figcaption></figure>
-<figure><a href="screens/press-light-classic.png" target="_blank"><img src="screens/press-light-classic.png" loading="lazy"></a><figcaption>לחיצה ארוכה והחלופות</figcaption></figure>
+<figure><a href="screens/phone-schedules-dark-classic.png" target="_blank"><img src="screens/phone-schedules-dark-classic.png" loading="lazy"></a><figcaption>תזמונים בטלפון</figcaption></figure>
 </div></div>
 </body>
 </html>
