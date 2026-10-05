@@ -45,6 +45,7 @@ import '../screens/automation-editors'; // CR-017 S4: <automation-builder>, <scr
 import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
 import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
 import '../screens/multimedia-groups'; // CR-016: "קבוצות"
+import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import '../screens/system-multimedia';
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
@@ -91,7 +92,7 @@ import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabil
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
-import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
+import { can, canNav, isApi, loadSession, onRemote, onSession, watchPermissions, type Session } from '../api/session';
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
@@ -102,6 +103,7 @@ import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
 import { DEMO_DEVICES_TREE } from '../screens/devices-building';
 import '../components/sw-sheet';
+import '../components/sw-cast-pill'; // CR-028: the global "משדר N" pill in the floating action row
 import '../components/sw-pill';
 import '../components/sw-state-panel';
 import '../components/sw-page';
@@ -1921,7 +1923,7 @@ export class SwApp extends LitElement {
     if (dot === nothing && !canSearch) return nothing;
     const open = this.searchOpen && !!this.searchQ.trim();
     return html`<div class="float" data-float>
-        <div class="pillrow">${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>
+        <div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">
               <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש חדרים, מצלמות, קומות וישויות…" aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} /></label>
@@ -2081,6 +2083,7 @@ export class SwApp extends LitElement {
       case 'multimedia':
         // CR-015 / CR-016: the screens page, the players page and the groups page (`?player=<key>` opens a player's panel)
         if (s[1] === 'players') return html`<multimedia-players .playerKey=${r.params.get('player') ?? ''}></multimedia-players>`;
+        if (s[1] === 'cast') return html`<cast-my-screens></cast-my-screens>`; // CR-028: "המסכים שלי לשידור" (linked from the picker)
         if (s[1] === 'groups') return html`<multimedia-groups .playerKey=${r.params.get('player') ?? ''}></multimedia-groups>`;
         return html`<multimedia-screens .remoteKey=${r.params.get('remote') ?? ''}></multimedia-screens>`;
       case 'explore':

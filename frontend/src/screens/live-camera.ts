@@ -16,7 +16,7 @@ import { navigate } from '../router';
 import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
-import { canReadNvrConfig, isApi } from '../api/session';
+import { canAnywhere, canReadNvrConfig, isApi, onRemote } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
@@ -25,6 +25,13 @@ import { playerPlan, remoteVideo, remoteVideoFor } from '../api/video-policy';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
+import '../components/sw-cast-picker';
+import '../components/sw-cast-stop';
+import { castTargets, type CastSession } from '../api/cast';
+import { CastWatch, castStore } from '../components/cast-store';
+import { castButtonVisible, isLow, leftText } from './cast-logic';
+import { isPhoneWidth } from '../shell/tabs-mode';
+import { t as tr } from '../i18n/he';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 /**
@@ -423,6 +430,13 @@ export class LiveCamera extends LitElement {
   @state() private posterBust = Date.now();
   @state() private ptzMode: 'presets' | 'track' | 'patrol' = 'presets';
   @query('sw-live-player') private player?: SwLivePlayer;
+  /** CR-028: casting this camera to a screen. `castShown` = the server says there is at least one screen to list (the button exists only then). */
+  @state() private castShown = false;
+  @state() private castOpen = false;
+  @state() private castNote = '';
+  private castWatch = new CastWatch(this);
+  private castNoteTimer = 0;
+  @query('[data-cast-button]') private castBtn?: HTMLElement;
 
   static styles = [css`
     /* the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
@@ -512,6 +526,27 @@ export class LiveCamera extends LitElement {
       display: grid;
       justify-items: center;
       gap: 6px;
+    }
+    .cast-status {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-block-start: 10px;
+      padding: 8px 12px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-sm);
+    }
+    .cast-status[data-cast-status-state='not_confirmed'] {
+      border-color: var(--sw-danger);
+    }
+    .cast-status .who {
+      font-weight: var(--sw-fw-medium);
+    }
+    .cast-status .low {
+      color: var(--sw-stale);
     }
     .controls {
       display: flex;
@@ -769,6 +804,7 @@ export class LiveCamera extends LitElement {
       void this.loadZones();
     }
     if (changed.has('cam') && this.cam && isApi() && (!this.caps || this.caps.camera_id !== this.cam.id)) void this.loadCaps();
+    if (changed.has('cam') && this.cam) void this.loadCastTargets();
   }
 
   private async loadZones(refresh = false) {
@@ -987,6 +1023,7 @@ export class LiveCamera extends LitElement {
         <div class="round" role="group" aria-label="פקדי מצלמה">
           <button title="רענון תמונה" aria-label="רענון תמונה" @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>
           <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${this.playerStatus !== 'playing'} @click=${() => this.player?.fullscreen()}><sw-icon name="expand" size=${16}></sw-icon></button>
+          ${this.castShown ? html`<button type="button" data-cast-button title=${tr('cast.button')} aria-label=${tr('cast.button')} aria-haspopup="dialog" aria-expanded=${this.castOpen ? 'true' : 'false'} @click=${() => (this.castOpen = !this.castOpen)}><sw-icon name="cast" size=${16}></sw-icon></button>` : nothing}
           <button title="התחבר מחדש" aria-label="התחבר מחדש" @click=${() => this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
           <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>ראשי</button>
           <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>משני</button>
@@ -999,8 +1036,48 @@ export class LiveCamera extends LitElement {
         </div>
         ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
       </div>
+      ${this.renderCast(cam)}
       ${this.renderSettingsAccordion(cam, stream)}
     `;
+  }
+
+  /** CR-028: the status line of MY cast of this camera (screen, countdown, stop) and the picker. Nothing is drawn when the person cannot cast. */
+  private renderCast(cam: Camera) {
+    void this.castWatch;
+    if (!this.castShown && !castStore.open().some((x) => x.mine && x.camera_id === cam.id)) return nothing;
+    const now = castStore.now;
+    const mine = castStore.open().filter((x) => x.mine && x.camera_id === cam.id);
+    return html`
+      ${mine.map((x: CastSession) => html`<div class="cast-status" data-cast-status data-cast-status-state=${x.state} role="status">
+        <sw-icon name="cast" size=${15}></sw-icon>
+        <span class="who">${x.state === 'not_confirmed' ? tr('cast.notConfirmed') : x.state === 'starting' ? `${tr('cast.starting2')} · ${x.screen_name}` : `${tr('cast.playing')}: ${x.screen_name}`}</span>
+        ${x.state === 'playing' ? html`<span class=${isLow(x, now) ? 'low' : ''} data-cast-status-left>${leftText(x, now)}</span>` : nothing}
+        <sw-cast-stop .session=${x} @cast-stopped=${() => this.flashCast(tr('cast.stopped'))}></sw-cast-stop>
+      </div>`)}
+      ${this.castNote ? html`<div class="note" data-cast-note role="status">${this.castNote}</div>` : nothing}
+      <sw-cast-picker .open=${this.castOpen} .cameraId=${cam.id} .cameraName=${cam.alias || cam.name} .anchor=${this.castBtn ?? null} .profile=${this.profile}
+        .phone=${isPhoneWidth()} .ddPhone=${document.documentElement.getAttribute('data-dd-phone') ?? ''} ?remote=${onRemote()}
+        @close=${() => (this.castOpen = false)} @cast-started=${() => this.flashCast(tr('cast.started'))}></sw-cast-picker>`;
+  }
+
+  private flashCast(msg: string) {
+    this.castNote = msg;
+    window.clearTimeout(this.castNoteTimer);
+    this.castNoteTimer = window.setTimeout(() => (this.castNote = ''), 4000);
+  }
+
+  /** The button's existence: a person with `media.cast`, a backend, and at least one screen in the server's list for this camera. */
+  private async loadCastTargets() {
+    if (!this.cam || !isApi() || !canAnywhere('media.cast')) {
+      this.castShown = false;
+      return;
+    }
+    try {
+      const r = await castTargets(this.cam.id);
+      this.castShown = castButtonVisible({ api: true, hasCast: true, targets: r.targets.length, ready: r.ready });
+    } catch {
+      this.castShown = false;
+    }
   }
 
   /** Owner round 4 (2.6): the video used to share the screen with everything expanded below it - four cards plus
