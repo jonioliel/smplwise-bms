@@ -22,6 +22,8 @@ interface Env {
   RELAY_KV: KVNamespace;
   /** Comma-separated server keys (one per Arx installation), each `<server id>:<secret>`; `wrangler secret put SERVER_KEYS`. */
   SERVER_KEYS: string;
+  /** Secret that makes the relay token stable per push token (contract: idempotent register). Without it every register issues a fresh token. wrangler secret put RELAY_TOKEN_SECRET. */
+  RELAY_TOKEN_SECRET?: string;
   /** APNs: the .p8 key's PEM body (one line, no header lines is fine), the key id, the team id, the app's bundle id. */
   APNS_KEY_P8?: string;
   APNS_KEY_ID?: string;

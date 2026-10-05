@@ -19,12 +19,13 @@
  */
 import { sendApns, type ApnsConfig } from './apns';
 import { parseServiceAccount, sendFcm, type FcmConfig } from './fcm';
-import { newRelayToken, sha256Hex, timingSafeEqual } from './crypto';
+import { derivedRelayToken, newRelayToken, sha256Hex, timingSafeEqual } from './crypto';
 
 const MAX_BODY = 2048;
 const CATEGORIES = new Set(['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security']);
 const TOKEN_TTL_S = 180 * 24 * 3600; // a registration nobody pushed to or refreshed for 180 days expires
 const LIMITS = { registerPerHour: 60, pushPerMinute: 60, pushPerDay: 500, serverPerHour: 6000, unknownPerHour: 200 } as const;
+const REFRESH_AFTER_S = 24 * 3600; // a registration is rewritten (TTL refreshed) at most once a day: KV writes are the scarce free-plan resource
 const DEFAULT_BUNDLES = ['com.smplwise.arx.app', 'com.smplwise.arx'];
 
 interface Registration { platform: 'ios' | 'android'; push_token: string; bundle_id: string; created_at: string; last_push_at?: string }
@@ -109,22 +110,29 @@ async function handleRegister(request: Request, env: Env, ctx: ExecutionContext)
   const allowed = (env.ALLOWED_BUNDLE_IDS ?? DEFAULT_BUNDLES.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
   if ((platform !== 'ios' && platform !== 'android') || !bundle || !allowed.includes(bundle)) return error(400, 'invalid_registration');
   if (platform === 'ios' ? !APNS_TOKEN.test(pushToken) : !FCM_TOKEN.test(pushToken)) return error(400, 'invalid_push_token');
-  // idempotent per push token: the same relay token comes back (the app re-registers on every launch)
-  const byToken = `tok:${await sha256Hex(`${platform}:${pushToken}`)}`;
-  const existing = await env.RELAY_KV.get(byToken);
-  if (existing) {
-    const reg = await env.RELAY_KV.get<Registration>(`reg:${existing}`, 'json');
-    if (reg) {
-      ctx.waitUntil(env.RELAY_KV.put(`reg:${existing}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S }));
-      // the relay token itself is not stored, so it cannot be returned: the app keeps it; a lost one means a new registration
+  const reg: Registration = { platform, push_token: pushToken, bundle_id: bundle, created_at: new Date().toISOString() };
+  // Contract: idempotent per push token (the same relay token comes back). The relay stores only the HASH of a relay token, so
+  // a stable token must be derivable: HMAC(RELAY_TOKEN_SECRET, platform:push_token). Without that secret every call issues a
+  // fresh token and retires the previous one (the app re-sends the new token to each Arx server).
+  if (env.RELAY_TOKEN_SECRET && env.RELAY_TOKEN_SECRET.length >= 16) {
+    const relayToken = await derivedRelayToken(env.RELAY_TOKEN_SECRET, `${platform}:${pushToken}`);
+    const hash = await sha256Hex(relayToken);
+    const existing = await env.RELAY_KV.get<Registration>(`reg:${hash}`, 'json');
+    if (existing) {
+      const age = (Date.now() - Date.parse(existing.last_push_at ?? existing.created_at)) / 1000;
+      if (age > REFRESH_AFTER_S) ctx.waitUntil(env.RELAY_KV.put(`reg:${hash}`, JSON.stringify({ ...existing, bundle_id: bundle }), { expirationTtl: TOKEN_TTL_S }));
+    } else {
+      await env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S });
     }
+    return json({ relay_token: relayToken });
   }
+  const byToken = `tok:${await sha256Hex(`${platform}:${pushToken}`)}`;
+  const previous = await env.RELAY_KV.get(byToken);
   const relayToken = newRelayToken();
   const hash = await sha256Hex(relayToken);
-  const reg: Registration = { platform, push_token: pushToken, bundle_id: bundle, created_at: new Date().toISOString() };
   await env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S });
   await env.RELAY_KV.put(byToken, hash, { expirationTtl: TOKEN_TTL_S });
-  if (existing && existing !== hash) ctx.waitUntil(env.RELAY_KV.delete(`reg:${existing}`)); // the previous relay token of this phone stops working
+  if (previous && previous !== hash) ctx.waitUntil(env.RELAY_KV.delete(`reg:${previous}`));
   return json({ relay_token: relayToken });
 }
 
@@ -160,7 +168,9 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
     return error(404, 'relay_token_unknown');
   }
   if ((await overLimit(env, 'dev-m', hash, LIMITS.pushPerMinute, 60, ctx)) || (await overLimit(env, 'dev-d', hash, LIMITS.pushPerDay, 86400, ctx))) return error(429, 'rate_limited');
-  const message = { notificationId, category, priority, server: server.slice(0, 64), collapse } as const;
+  // the payload's `server` is the installation's own opaque id (contract 0.1: the app finds its origin by it); the key's id is the fallback
+  const claimed = typeof body.server === 'string' && /^[A-Za-z0-9_\-]{1,64}$/.test(body.server) ? body.server : server.slice(0, 64);
+  const message = { notificationId, category, priority, server: claimed, collapse } as const;
   let result: { status: number; reason?: string; retryAfter?: number };
   try {
     if (reg.platform === 'ios') {
@@ -176,8 +186,10 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
     return error(502, 'upstream_error');
   }
   if (result.status === 200) {
-    reg.last_push_at = new Date().toISOString();
-    ctx.waitUntil(env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S }));
+    if (!reg.last_push_at || Date.now() - Date.parse(reg.last_push_at) > REFRESH_AFTER_S * 1000) {
+      reg.last_push_at = new Date().toISOString();
+      ctx.waitUntil(env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S }));
+    }
     return json({ ok: true });
   }
   if (result.status === 410) {
@@ -193,7 +205,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     try {
-      if (url.pathname === '/v1/health' && request.method === 'GET') return json({ ok: true, apns: !!apnsConfig(env), fcm: !!fcmConfig(env) });
+      if (url.pathname === '/v1/health' && request.method === 'GET') return json({ ok: true, apns: !!apnsConfig(env), fcm: !!fcmConfig(env), stable_tokens: !!env.RELAY_TOKEN_SECRET && env.RELAY_TOKEN_SECRET.length >= 16, server_keys: (env.SERVER_KEYS ?? '').split(',').filter((e) => e.indexOf(':') > 0).length });
       if (url.pathname === '/v1/register' && request.method === 'POST') return await handleRegister(request, env, ctx);
       if (url.pathname === '/v1/register' && request.method === 'DELETE') return await handleUnregister(request, env);
       if (url.pathname === '/v1/push' && request.method === 'POST') return await handlePush(request, env, ctx);

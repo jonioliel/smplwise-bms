@@ -1,17 +1,19 @@
 {
-  "name": "smplwise-push-relay",
-  "private": true,
-  "version": "0.1.0",
-  "description": "SmplWise push relay: a stateless Cloudflare Worker between self-hosted SmplWise Arx servers and APNs / FCM (CR-027)",
-  "type": "module",
-  "scripts": {
-    "typecheck": "tsc --noEmit -p .",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3",
-    "wrangler": "^4.0.0"
-  }
+    "name":  "smplwise-push-relay",
+    "private":  true,
+    "version":  "0.1.0",
+    "description":  "SmplWise push relay: a stateless Cloudflare Worker between self-hosted SmplWise Arx servers and APNs / FCM (CR-027)",
+    "type":  "module",
+    "scripts":  {
+                    "typecheck":  "tsc --noEmit -p .",
+                    "dev":  "wrangler dev",
+                    "deploy":  "wrangler deploy",
+                    "tail":  "wrangler tail",
+                    "test":  "vitest run"
+                },
+    "devDependencies":  {
+                            "typescript":  "^5.9.3",
+                            "wrangler":  "^4.0.0",
+                            "vitest":  "^3.2.4"
+                        }
 }

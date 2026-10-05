@@ -15,4 +15,5 @@ APNS_ENV = "production"
 # the bundle / package ids the app may register with
 ALLOWED_BUNDLE_IDS = "com.smplwise.arx.app,com.smplwise.arx"
 
-# Secrets (never here, never in git): SERVER_KEYS, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, FCM_SERVICE_ACCOUNT
+# Secrets (never here, never in git): SERVER_KEYS, RELAY_TOKEN_SECRET, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, FCM_SERVICE_ACCOUNT
+# Local development: put fake values in .dev.vars (gitignored) and run `npx wrangler dev --local`.

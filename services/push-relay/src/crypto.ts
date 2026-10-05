@@ -29,6 +29,12 @@ export function newRelayToken(): string {
   return 'rt_' + b64url(bytes);
 }
 
+/** A STABLE relay token for one push token: t_ + base64url(HMAC-SHA256(secret, data)) (43 characters). Needs the RELAY_TOKEN_SECRET secret. */
+export async function derivedRelayToken(secret: string, data: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return 'rt_' + b64url(await crypto.subtle.sign('HMAC', key, enc.encode(data)));
+}
+
 /** Constant-time comparison of two short strings (the server key check). */
 export function timingSafeEqual(a: string, b: string): boolean {
   const x = enc.encode(a);
