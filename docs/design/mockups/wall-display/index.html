@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arx · מסך קיר (CR-030) · מוקאפים</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  :root { --bg: #f5f7fb; --surface: #fff; --border: #e7ebf2; --text: #22314c; --text-2: #5b6a85; --accent: #2767ed; --accent-soft: #edf3ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d1220; --surface: #151c2c; --border: #232e45; --text: #e6ebf5; --text-2: #a9b4ca; --accent: #8fb2ff; --accent-soft: rgba(91,140,255,.18); } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Heebo', 'Segoe UI', -apple-system, 'Noto Sans Hebrew', Arial, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 24px 80px; }
+  h1 { font-size: 28px; margin: 0 0 6px; } h2 { font-size: 20px; margin: 40px 0 6px; padding-top: 20px; border-top: 1px solid var(--border); } h3 { font-size: 15px; margin: 18px 0 8px; color: var(--text-2); }
+  p { margin: 0 0 10px; color: var(--text-2); max-width: 900px; }
+  a { color: var(--accent); }
+  .ltr { direction: ltr; unicode-bidi: isolate; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 18px; }
+  .links a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: var(--accent-soft); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .links a.primary { background: var(--accent); color: #fff; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .shot { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
+  .shot .img { background: #000; display: grid; place-items: center; aspect-ratio: 16 / 10; overflow: hidden; }
+  .shot .img.p { aspect-ratio: 10 / 16; max-height: 420px; }
+  .shot img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+  .shot .cap { padding: 10px 12px 12px; font-size: 13px; }
+  .shot .cap b { display: block; font-size: 14px; }
+  .shot .cap .meta { color: var(--text-2); font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .shot .cap .meta span { background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; }
+  .shot .cap .note { margin-top: 6px; color: var(--text-2); }
+  .shot .cap a { font-size: 12.5px; }
+  table { border-collapse: collapse; width: 100%; max-width: 900px; font-size: 14px; margin: 8px 0 14px; }
+  td, th { text-align: start; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; } th { color: var(--text-2); font-weight: 600; font-size: 12.5px; }
+  .ok { color: #16a34a; } .warn { color: #b45309; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>מסך קיר - מוקאפים (CR-030)</h1>
+  <p>טאבלט קבוע בקיר שמציג את המצלמות והמצב של המקום שלו, בלי משתמש מחובר. מסמך השינוי: <span class="ltr">docs/changes/CR-030-WALL-DISPLAY.md</span>.
+  כל הקבצים סטטיים ועובדים מ-<span class="ltr">file://</span> בלי רשת. הנתונים בדויים. הסקינים classic ו-bubble, בהיר וכהה, נבחרים בפס התחתון של כל מוקאפ (או בפרמטרים <span class="ltr">skin=</span>, <span class="ltr">scheme=</span>).</p>
+  <div class="links">
+    <a class="primary" href="frame.html?src=wall.html%3Fstate%3Dbase&size=1280x800">התצוגה (טאבלט לרוחב)</a>
+    <a href="frame.html?src=wall.html%3Fstate%3Dbase&size=800x1280">התצוגה (טאבלט לאורך)</a>
+    <a href="frame.html?src=wall.html%3Fstate%3Dbase&size=1920x1080">התצוגה (קיר 1920)</a>
+    <a href="frame.html?src=pair.html%3Fstep%3Dcode&size=1280x800">צימוד על הטאבלט</a>
+    <a href="frame.html?src=settings.html%3Fview%3Dlist&size=1440x900&scheme=light">הגדרות › מסכי קיר</a>
+    <a href="frame.html?src=settings.html%3Fview%3Dlist&size=390x844&scheme=light">הגדרות בטלפון</a>
+  </div>
+  <p>בכל מוקאפ: הפס התחתון (chrome) מחליף מצב, תבנית, סקין וערכה. במסך הקיר: "ראיתי" מקפל התראה, לחיצה ארוכה על "אישור" מאשרת (רק במסך שהאישור מופעל לו), לחיצה ארוכה על השעון פותחת פרטי מתקין, נגיעה במסגרת התמונות חוזרת למצלמות. בצימוד: הכפתורים בפס מדמים את המנהל. בהגדרות: כל כפתור פעולה מנווט למצב המתאים.</p>
+
+  <h2>מה הוחלט (תקציר; הנימוקים במסמך השינוי §13)</h2>
+  <table>
+    <tr><th>נושא</th><th>החלטה</th></tr>
+    <tr><td>צימוד</td><td>הטאבלט מציג קוד בן שש ספרות (10 דקות, חד-פעמי); מנהל מערכת מקליד אותו בהגדרות ורואה את פרטי המסך לפני האישור. 5 טעויות למנהל / 20 להתקנה ב-10 דקות נועלות את הטופס.</td></tr>
+    <tr><td>זהות</td><td>מסך הוא ישות מכונה עם אסימון <span class="ltr">arxw_…</span> (מוצג פעם אחת, SHA-256 בשרת), לא משתמש של תשתית המערכת. תקף רק בנתיבי <span class="ltr">/wall/*</span>, ורק מהרשת המקומית אלא אם סומן "גישה מרחוק".</td></tr>
+    <tr><td>הרשאות</td><td>רשימת מצלמות מפורשת + אזור + עד 8 מצבי התקנים + התראות (קטגוריות, סף). אסור תמיד: הקלטות, ייצוא, שליטה, פתיחת דלת, אזעקה, הגדרות.</td></tr>
+    <tr><td>פריסה</td><td>אוטומטית לפי גודל וכיוון: לרוחב 2×2 / 3×2; לאורך עמודה אחת (2 אריחים + רצועת מפה ומצב); קיר 3×2 / 4×3 + עמודת התראות; מצלמה אחת. ערכה כהה כברירת מחדל.</td></tr>
+    <tr><td>התראות</td><td>ערוץ של מרכז ההתראות: מידע = צ'יפ 20 שנ'; התראה = אריח במקום התא הראשון, מתקפל אחרי 2 דק'; קריטי = השתלטות עד אישור, בלי פסק זמן. "ראיתי" תמיד; "אישור" רק כשהופעל למסך, בלחיצה ארוכה, נרשם ביומן.</td></tr>
+    <tr><td>תמונות</td><td>אחרי 10 דק' שקט, מתיקייה שהמנהל בחר; EXIF מוסר; חומר מצלמות לא ניתן לבחירה; כל התראה מחזירה למצלמות.</td></tr>
+    <tr><td>שמירה על המסך</td><td>הזזת פיקסלים, ערבוב אריחים כל שעה, עמעום אחרי 30 דק', לו"ז שינה שבועי (מסך שחור + שעון, הזרמים סגורים), התעוררות בקריטי ובנגיעה.</td></tr>
+    <tr><td>ניתוק</td><td>פריים אחרון מעומעם עם שעת הפריים (עד דקה), אחרי זה שם המצלמה; שרת לא זמין - באנר, אחרי 2 דק' מסך שעון. לעולם לא פריים ישן כאילו חי.</td></tr>
+  </table>
+
+  <h2>רשימת המוקאפים</h2>
+  <div class="toc" id="toc"></div>
+  <div id="groups"></div>
+</div>
+<script src="screens/manifest.js"></script>
+<script>
+  const GROUPS = {
+    pair: ['1. צימוד על הטאבלט (pair.html)', 'הטאבלט פותח /wall בלי אסימון, מקבל קוד ומציג אותו גדול (ספרות LTR). שלבים: start, code, claimed (המנהל הקליד), approved, expired, denied, network. כפתורי "simulate" בפס התחתון מדמים את צד המנהל.'],
+    'wall-states': ['2. התצוגה - כל המצבים (wall.html, טאבלט לרוחב 1280×800, classic כהה)', 'המצבים של §9 במסמך. base = 2×2; alert = אריח התראה במקום התא הראשון; takeover = השתלטות קריטית; frame = מסגרת תמונות; sleep = חלון שינה; cam-stale / cam-lost = זרם אחד נפל; server-offline / server-clock = השרת לא זמין; revoked / paused / remote-refused = האסימון נדחה; no-cameras = רשימה ריקה; identify = "זה המסך" מההגדרות; installer = לחיצה ארוכה על השעון; sound-locked = הדפדפן חוסם צליל עד נגיעה.'],
+    'wall-presets': ['3. תבניות לפי מסך (לאורך 800×1280, קיר 1920×1080, מצלמה אחת, 6 ו-12 מצלמות)', 'לאורך: שני אריחים ב-16:9, רצועת מפה ומצב, שורת סטטוס, נקודות דפדוף. קיר: רשת 3×2 / 4×3 ועמודת התראות ב-320px; קריטי משתלט גם שם. הווידאו והמפה לא מראים (LTR).'],
+    'wall-skins': ['4. סקינים וערכות (bubble כהה, classic בהיר, bubble בהיר)', 'הסקין משנה רק את החומר (רדיוסים, פס עליון, שכבות); הערכה הבהירה משנה את שורת המצב בלבד - שטח הווידאו נשאר שחור (ברירת המחדל למסך היא כהה).'],
+    settings: ['5. הגדרות › מסכי קיר (settings.html, מחשב 1440×900 וטלפון 390×844)', 'הרשימה (מצב, נראה לאחרונה, ערוץ, מצלמות, התראות, פעולות), ריק, שגיאה, דיאלוג "הוספת מסך" (קוד → קוד שגוי → נעילה → זיהוי המסך → טופס), מגירת עריכה בארבע לשוניות (מסך ומצלמות עם עץ האזורים, התראות, תמונות, שעות ושמירה), הסרה, "זה המסך", נשמר. בטלפון: כרטיסים במקום טבלה.'],
+    'settings-skins': ['6. הגדרות בסקינים ובערכות', 'אותו מבנה ב-bubble בהיר, classic כהה ו-bubble כהה.'],
+  };
+  const toc = document.getElementById('toc'), root = document.getElementById('groups');
+  const shots = window.WALL_SHOTS || [];
+  for (const [g, [title, desc]] of Object.entries(GROUPS)) {
+    const items = shots.filter((s) => s.group === g);
+    const id = 'g-' + g;
+    toc.insertAdjacentHTML('beforeend', `<a href="#${id}">${title.split(' (')[0]}</a>`);
+    root.insertAdjacentHTML('beforeend', `<h2 id="${id}">${title}</h2><p>${desc}</p><div class="gallery">${items.map((s) => {
+      const link = `frame.html?src=${encodeURIComponent(s.page + '.html?' + s.params)}&size=${s.w}x${s.h}&skin=${s.skin}&scheme=${s.scheme}`;
+      const flags = (s.errors && s.errors.length ? '<span class="warn">שגיאת JS</span>' : '') + (s.overflow ? '<span class="warn">גלילה אופקית</span>' : '');
+      return `<figure class="shot" style="margin:0"><a class="img${s.h > s.w ? ' p' : ''}" href="${link}" title="פתח אינטראקטיבי"><img loading="lazy" src="screens/${s.key}.png" alt="${s.note}"></a><figcaption class="cap"><b>${s.note}</b><div class="meta"><span>${s.page}</span><span class="ltr">${s.params}</span><span class="ltr">${s.w}×${s.h}</span><span>${s.skin} · ${s.scheme}</span>${flags}</div><a href="${link}">פתח אינטראקטיבי</a></figcaption></figure>`;
+    }).join('')}</div>`);
+  }
+  if (!shots.length) root.innerHTML = '<p>אין screens/manifest.js - הרץ <span class="ltr">node docs/design/mockups/wall-display/shoot.mjs</span>.</p>';
+</script>
+</body>
+</html>

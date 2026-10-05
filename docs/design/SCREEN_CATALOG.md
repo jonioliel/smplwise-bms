@@ -318,3 +318,21 @@ Delete, Enter).
 **States:** loading, ready, dirty, saved, error, view-only, demo
 **Record:** `docs/architecture/TABS_CONFIG.md`.
 
+
+## SC31 (superseded for fixed tablets, CR-030) — מסך קיר
+**Mode:** Live | **Phase:** 2.3.0 (planned) | **Route:** `/wall` on the add-on's direct port and `/arx/wall` on the remote channel (cookie-less; a device token, not a session)
+טאבלט קבוע בקיר: צימוד בקוד בן שש ספרות שהטאבלט מציג ומנהל מקליד בהגדרות; ישות מכונה עם רשימת מצלמות מפורשת; פריסה לפי גודל
+וכיוון (לרוחב, לאורך עם רצועת מפה, קיר עם עמודת התראות, מצלמה אחת); אריחי התראה והשתלטות קריטית; מסגרת תמונות; הגנה על המסך,
+לו"ז שינה, התנהגות בניתוק. `#/kiosk/:view` for signed-in HA users stays as it is.
+**Visual reference:** `docs/design/mockups/wall-display/` (index.html)
+**States:** pairing (code, waiting, approved, expired, denied, network), base, rotating, info chip, alert tile, takeover, resolved, frame, dim, sleep, camera stale / lost, server offline / clock, revoked, paused, remote refused, no cameras, identify, installer, sound locked
+Tablet landscape 1280×800, portrait 800×1280, wall 1920×1080; RTL strip, video / map / code digits not mirrored; touch >= 44 px.
+**Record:** CR-030 (`docs/changes/CR-030-WALL-DISPLAY.md`).
+
+## SC38 — הגדרות › מסכי קיר
+**Mode:** System | **Phase:** 2.3.0 (planned) | **Route:** `#/system/wall` (`system.configure`, installation scope)
+רשימת המסכים (מצב, נראה לאחרונה, ערוץ, מצלמות, התראות, פעולות: זה המסך / עריכה / השהיה / הסרה), "הוספת מסך" (קוד → זיהוי המסך →
+טופס), מגירת עריכה בארבע לשוניות (מסך ומצלמות עם עץ האזורים, התראות, תמונות, שעות ושמירה), תיקיות תמונות. בטלפון כרטיסים.
+**Visual reference:** `docs/design/mockups/wall-display/settings.html`
+**States:** loading, empty, ready, error, code entry (wrong, throttled), hint, form, drawer, revoke confirmation, saved
+**Record:** CR-030.
