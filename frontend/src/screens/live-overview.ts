@@ -105,7 +105,7 @@ export class LiveOverview extends LitElement {
     ]);
     if (settings.status === 'fulfilled') this.tz = settings.value['time.zone'] ?? this.tz;
     if (cams.status === 'fulfilled') {
-      this.cams = cams.value.cameras.filter((c) => c.enabled);
+      this.cams = cams.value.cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: not counted, not shown while its recorder is disabled
       this.recorder = cams.value.recorder;
     } else if (this.cams === null) this.cams = [];
     if (sites.status === 'fulfilled') this.sites = sites.value.sites;

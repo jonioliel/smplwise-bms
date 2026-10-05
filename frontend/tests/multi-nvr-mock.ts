@@ -88,11 +88,12 @@ export async function installMulti(page: Page, opts: { count?: 1 | 2 } = {}): Pr
         const body = req.postDataJSON() as Record<string, unknown>;
         if (typeof body.name === 'string') r.name = body.name;
         if (typeof body.enabled === 'boolean') {
+          // CR-024 section 7.2: disable / enable apply at once - no restart, the cameras follow at once
           r.enabled = body.enabled;
-          r.pending_restart = true;
-          r.status = { ...r.status, state: body.enabled ? 'pending_restart' : 'disabled' };
+          r.status = { ...r.status, state: body.enabled ? 'online' : 'disabled' };
+          st.disabled = body.enabled ? st.disabled.filter((id) => id !== r.id) : [...new Set([...st.disabled, r.id])];
         }
-        return json({ saved: true, restart_required: typeof body.enabled === 'boolean', recorder: r });
+        return json({ saved: true, restart_required: false, recorder: r });
       }
       if (method === 'DELETE') {
         r.removed = true;

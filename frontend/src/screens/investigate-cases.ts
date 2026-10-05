@@ -671,7 +671,7 @@ export class InvestigateCaseDetail extends LitElement {
       this.data = d;
       this.bundles = (await listBundles(id).catch(() => ({ bundles: [] as Bundle[] }))).bundles;
       if (!this.cams.length) {
-        this.cams = (await listCameras().catch(() => ({ cameras: [] as Camera[] }))).cameras.filter((c) => c.enabled);
+        this.cams = (await listCameras().catch(() => ({ cameras: [] as Camera[] }))).cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: no snapshot from a disabled recorder
         if (!this.snapCam && this.cams[0]) this.snapCam = this.cams[0].id;
       }
       window.clearTimeout(this.pollTimer);

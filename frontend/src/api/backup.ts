@@ -2,7 +2,7 @@
  * Project backups (T026 / T036): zip files with the project tables and plan files, written before every
  * version upgrade, daily, on request or uploaded; restored in one transaction. Never secrets, never video.
  */
-import { apiUrl, del, get, post, upload } from './client';
+import { apiUrl, del, get, patch, post, upload } from './client';
 
 export type BackupKind = 'manual' | 'upload' | 'auto-pre-upgrade' | 'auto-daily' | string;
 
@@ -63,6 +63,35 @@ export function uploadBackup(file: File) {
   const form = new FormData();
   form.append('file', file, file.name);
   return upload<BackupEntry>('backups/upload', form);
+}
+
+/**
+ * CR-023: the electricity setting `energy.include_history_in_backup` (default off - the readings file can be hundreds of MB).
+ * Off: the meter and billing tables, bill PDFs, logos and daily totals are in every backup; on: the full readings file too.
+ * Read through `GET /energy/settings` (energy.view); changed with backup.manage. `null` = not readable for this caller (or no
+ * electricity module) - the switch is not shown.
+ */
+export interface MeterBackupSetting {
+  on: boolean;
+  editable: boolean;
+  /** The size of the readings file now (bytes), when the server says. */
+  bytes: number | null;
+}
+const METER_KEY = 'energy.include_history_in_backup';
+type EnergySettingsWire = { values?: Record<string, unknown>; editable?: Record<string, boolean>; storage?: { energy_db_bytes?: number } };
+function meterSetting(w: EnergySettingsWire): MeterBackupSetting | null {
+  if (!w?.values || !(METER_KEY in w.values)) return null;
+  return { on: w.values[METER_KEY] === true, editable: !!w.editable?.[METER_KEY], bytes: typeof w.storage?.energy_db_bytes === 'number' ? w.storage.energy_db_bytes : null };
+}
+export async function getMeterBackup(): Promise<MeterBackupSetting | null> {
+  try {
+    return meterSetting(await get<EnergySettingsWire>('energy/settings'));
+  } catch {
+    return null; // no energy.view, or a backend without the electricity module: no switch
+  }
+}
+export async function setMeterBackup(on: boolean): Promise<MeterBackupSetting | null> {
+  return meterSetting(await patch<EnergySettingsWire>('energy/settings', { [METER_KEY]: on }));
 }
 
 export function fmtBytes(n: number): string {

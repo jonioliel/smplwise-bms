@@ -13,6 +13,14 @@ import { can, isApi } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import type { StateKind } from './sw-badge';
 
+/**
+ * CR-024 section 7.2: what disabling really does. The cameras leave the live wall, the kiosk, the overview and every camera
+ * picker (playback, sync, saved views, case snapshots); on a floor map they stay placed, without a picture. The camera table in
+ * Settings keeps them, and events, cases and the change log keep their history.
+ */
+export const DISABLE_TEXT = 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות שלו יורדות מהקיר ומבחירת המצלמות; בטבלת המצלמות ובמפה הן נשארות, בלי תמונה. ההיסטוריה נשמרת.';
+export const ENABLE_TEXT = 'ה־NVR חוזר לפעול מיד, והמצלמות שלו חוזרות לקיר.';
+
 const BADGE: Record<string, StateKind> = { online: 'live', error: 'error', unknown: 'unknown', pending_restart: 'stale', disabled: 'neutral', not_configured: 'neutral', unreadable: 'error', refused: 'error', removed: 'neutral' };
 
 /**
@@ -20,8 +28,9 @@ const BADGE: Record<string, StateKind> = { online: 'live', error: 'error', unkno
  * (plus "הוסף NVR" once that recorder is connected), so a single-NVR installation looks as before; with two or more, one row per recorder:
  * name, type and model, state, cameras; "חיבור" opens that recorder's connection form (edit, test, remove - the cameras stay
  * disabled and hidden, history kept), "שם" renames, "השבת"/"הפעל" toggles it. "הוסף NVR" opens the connection form in its add
- * mode (type → fields → test → save). Every change waits for a restart (the shell's banner). An installation without an NVR
- * shows the connection form itself, as before. system.configure only.
+ * mode (type → fields → test → save). Disable / enable apply at once (CR-024 section 7.2); connection changes, adding and
+ * removing wait for a restart (the shell's banner). An installation without an NVR shows the connection form itself, as before.
+ * system.configure only.
  */
 @customElement('nvr-recorders-card')
 export class NvrRecordersCard extends LitElement {
@@ -191,7 +200,7 @@ export class NvrRecordersCard extends LitElement {
       ${this.adding ? this.addDialog() : nothing}
       ${t
         ? html`<sw-dialog open heading=${t.enabled ? 'השבתת NVR' : 'הפעלת NVR'} subheading=${t.name} data-recorder-toggle-dialog @close=${() => (this.toggling = null)}>
-            <div class="dlg">${t.enabled ? 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות נשארות ברשימות.' : 'ה־NVR חוזר לפעול מיד.'}</div>
+            <div class="dlg" data-recorder-toggle-text>${t.enabled ? DISABLE_TEXT : ENABLE_TEXT}</div>
             <div slot="footer">
               <sw-button variant=${t.enabled ? 'danger' : 'primary'} ?disabled=${this.busy} data-recorder-toggle-confirm @click=${() => this.toggle(t)}>${t.enabled ? 'השבת' : 'הפעל'}</sw-button>
               <sw-button variant="ghost" @click=${() => (this.toggling = null)}>ביטול</sw-button>

@@ -1721,20 +1721,21 @@ export class ExploreFloorMap extends LitElement {
   private pickSummary() {
     const picked = this.picked.map((id) => this.bundle?.anchors.find((a) => a.id === id)).filter((a): a is Anchor => !!a);
     const denied = picked.filter((a) => a.camera?.can_view_live === false).length;
-    const online = picked.filter((a) => a.camera?.can_view_live !== false && a.camera?.status === 'online').length;
+    // CR-024: a camera of a disabled recorder counts as not watchable now (with the offline ones), never as watchable
+    const online = picked.filter((a) => a.camera?.can_view_live !== false && a.camera?.recorder_enabled !== false && a.camera?.status === 'online').length;
     return { total: picked.length, online, offline: picked.length - online - denied, denied };
   }
 
   private pickDot(a: Anchor | undefined): string {
     if (!a?.camera) return 'var(--sw-text-3)';
-    if (a.camera.can_view_live === false) return 'var(--sw-text-3)';
+    if (a.camera.can_view_live === false || a.camera.recorder_enabled === false) return 'var(--sw-text-3)';
     return a.camera.status === 'online' ? '#22c55e' : '#ef4444';
   }
 
-  /** The cameras a saved view may hold: the picked ones the caller may watch live, sixteen at most. */
+  /** The cameras a saved view may hold: the picked ones the caller may watch live (and whose recorder is enabled), sixteen at most. */
   private saveableCameraIds(): string[] {
     const by = new Map((this.bundle?.anchors ?? []).map((a) => [a.id, a]));
-    return this.picked.map((id) => by.get(id)).filter((a): a is Anchor => !!a && a.camera?.can_view_live !== false).map((a) => a.resource_id).slice(0, 16);
+    return this.picked.map((id) => by.get(id)).filter((a): a is Anchor => !!a && a.camera?.can_view_live !== false && a.camera?.recorder_enabled !== false).map((a) => a.resource_id).slice(0, 16);
   }
 
   private openSave() {
@@ -1819,7 +1820,7 @@ export class ExploreFloorMap extends LitElement {
       : `לחץ על מצלמות או גרור מלבן על המפה · לחיצה על חדר בוחרת את מצלמותיו · Shift+גרירה מזיזה את המפה · עד 4 לניגון מסונכרן${unplaced ? ` · ${unplaced} מצלמות של הקומה אינן על המפה` : ''}`;
     return html`<div class="pickbar" data-pickbar>
       <span class="hint" data-pick-hint>${hint}</span>
-      ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
+      ${this.picked.map((id) => { const a = anchorOf(id); const denied = a?.camera?.can_view_live === false; const recOff = a?.camera?.recorder_enabled === false; return html`<sw-chip selected icon="camera" dot=${this.pickDot(a)} title=${denied ? 'אין הרשאת צפייה חיה' : recOff ? 'ה־NVR מושבת' : a?.camera?.status === 'online' ? 'מקוונת' : 'לא מקוונת'} data-pick-chip=${denied ? 'denied' : recOff ? 'recorder-off' : a?.camera?.status ?? 'unknown'} @click=${() => this.togglePick(id)}>${name(id)}</sw-chip>`; })}
       <sw-chip data-pick-all @click=${() => (this.picked = cams.map((a) => a.id))}>בחר הכל (${cams.length})</sw-chip>
       ${this.roomChips()}
       <span class="grow"></span>
@@ -2063,10 +2064,13 @@ export class ExploreFloorMap extends LitElement {
     const st = cameraState(a);
     const scene = SCENES[((cam?.channel ?? 1) - 1) % SCENES.length];
     const canLive = st === 'live' && !!cam && cam.can_view_live !== false;
+    const recorderOff = cam?.recorder_enabled === false; // CR-024: its recorder is disabled - no picture at all
     const zone = this.zoneOf(a);
     const where = zone ? `${floorName} / ${zone}` : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
     return html`
-      ${st === 'offline'
+      ${recorderOff
+        ? html`<div class="off" data-recorder-off><div><sw-icon name="offline" size=${22}></sw-icon><div>ה־NVR של המצלמה מושבת</div></div></div>`
+        : st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
         : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
@@ -2074,7 +2078,7 @@ export class ExploreFloorMap extends LitElement {
         <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>
         <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
       </dl>
-      <div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? 'המצלמה מנותקת לפי ה־NVR.' : 'תמונה: צילום מה־NVR (מתרענן).'}</div>
+      ${recorderOff ? nothing : html`<div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? 'המצלמה מנותקת לפי ה־NVR.' : 'תמונה: צילום מה־NVR (מתרענן).'}</div>`}
     `;
   }
 
@@ -2105,8 +2109,8 @@ export class ExploreFloorMap extends LitElement {
       sub = `${b.buildingName} · ${b.floorName}`;
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
       footer = html`${a.resource_type === 'camera'
-          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline'} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
-            <sw-button size="sm" icon="history" ?disabled=${!a.camera} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
+          ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline' || a.camera?.recorder_enabled === false} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
+            <sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
           : nothing}
         ${a.resource_type === 'ha_entity' && b.permissions.edit && a.entity ? html`<sw-button variant="ghost" size="sm" icon="edit" data-rename @click=${() => (this.renaming = { id: a.id, value: a.label ?? '' })}>שנה שם</sw-button>` : nothing}
         ${b.permissions.edit && !this.phone.restricted('structure') ? html`<sw-button variant="ghost" size="sm" icon="edit" @click=${() => navigate(`/explore/floors/${b.floorId}/edit`)}>עריכה</sw-button>` : nothing}`;
