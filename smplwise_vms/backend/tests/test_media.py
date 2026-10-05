@@ -15,13 +15,27 @@ from smplwise.services import nvr
 
 def test_settings_read_and_patch_permissions(client, settings):
     s = client.get("/api/v1/settings").json()
-    assert s["settings"]["media.transport_default"] == "mse" and s["can_edit"] is True
+    # owner decision 2026-10-05: WebRTC first, MSE only when WebRTC cannot be used - the installation default is `auto`
+    assert s["settings"]["media.transport_default"] == "auto" and s["can_edit"] is True
     r = client.patch("/api/v1/settings", json={"media.transport_default": "webrtc", "media.max_live_sessions": 4})
     assert r.status_code == 200 and r.json()["settings"]["media.transport_default"] == "webrtc" and r.json()["settings"]["media.max_live_sessions"] == 4
     assert client.patch("/api/v1/settings", json={"media.transport_default": "hls"}).status_code == 422
+    assert client.patch("/api/v1/settings", json={"media.transport_default": ""}).status_code == 422
     bind(client, settings, "ron", "viewer", "installation", "*")
     assert client.get("/api/v1/settings", headers=as_user("ron")).json()["can_edit"] is False
     assert client.patch("/api/v1/settings", json={"media.transport_default": "auto"}, headers=as_user("ron")).status_code == 403
+
+
+def test_transport_default_migration_keeps_a_stored_choice(settings):
+    """Owner decision 2026-10-05: an installation that never stored a transport opens on `auto` after the upgrade; an
+    administrator's earlier explicit choice (a row in `settings`, incl. "mse") is kept across a restart."""
+    first = TestClient(create_app(settings))
+    assert first.get("/api/v1/settings").json()["settings"]["media.transport_default"] == "auto"
+    assert first.patch("/api/v1/settings", json={"media.transport_default": "mse"}).status_code == 200
+    second = TestClient(create_app(settings))  # a restart on the same data directory
+    assert second.get("/api/v1/settings").json()["settings"]["media.transport_default"] == "mse"
+    assert second.patch("/api/v1/settings", json={"media.transport_default": "auto"}).status_code == 200
+    assert TestClient(create_app(settings)).get("/api/v1/settings").json()["settings"]["media.transport_default"] == "auto"
 
 
 def test_stream_naming_and_namespace_guard(settings):

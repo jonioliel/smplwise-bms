@@ -1,6 +1,7 @@
 /**
  * CR-008 D7 - the remote video policy (SmplWise Arx). On the remote channel a live player does not follow the LAN
- * transport choice (הגדרות › וידאו ומדיה, MSE by default); it walks a short ladder instead:
+ * transport choice (הגדרות › וידאו ומדיה; automatic = WebRTC first since the owner decision of 2026-10-05); it walks a
+ * short ladder instead:
  *
  *   1. the preferred profile over WebRTC - skipped when the NVR says that stream cannot play there (H.265, MJPEG,
  *      H.264 with B-frames or SVC: the camera registry's `encoding.<profile>.webrtc === 'no'`);
@@ -206,6 +207,51 @@ export function rememberStep(cameraId: string, profile: Profile, mode: string, s
   } catch {
     /* private mode / quota: the chain simply starts from its first step next time */
   }
+}
+
+/**
+ * Owner decision 2026-10-05 (WebRTC first, MSE only when WebRTC cannot be used): a WebRTC step of an `auto` player that
+ * never connected (no ICE connection, no bytes within the connect bound - UDP to go2rtc blocked, the Ingress / Cloudflare
+ * path) says something about the NETWORK, not about one camera. It is remembered for this browser tab (sessionStorage)
+ * for WEBRTC_DOWN_TTL_MS: every `auto` player opened meanwhile starts on MSE at once (no 5 s wait per tile, no flicker
+ * loop), and WebRTC is probed again once the memory expires or the tab is reopened. A stream that CONNECTED but did not
+ * decode is a per-camera fact and keeps the 24 h per-camera memory above. Never consulted by `webrtc` / `mse` players.
+ */
+export const WEBRTC_DOWN_KEY = 'sw.live.webrtc_down';
+export const WEBRTC_DOWN_TTL_MS = 10 * 60 * 1000;
+
+function sessionStore(): WorksStore | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** True while this tab remembers that WebRTC could not connect (within the TTL). */
+export function webrtcUnreachable(now = Date.now(), store: WorksStore | null = sessionStore()): boolean {
+  try {
+    const at = Number(store?.getItem(WEBRTC_DOWN_KEY) ?? 0);
+    return at > 0 && now - at <= WEBRTC_DOWN_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** Remembers (or with `down` false forgets) that WebRTC could not connect from this tab. */
+export function noteWebrtcUnreachable(down = true, now = Date.now(), store: WorksStore | null = sessionStore()): void {
+  try {
+    if (down) store?.setItem(WEBRTC_DOWN_KEY, String(now));
+    else store?.removeItem(WEBRTC_DOWN_KEY);
+  } catch {
+    /* private mode / quota: the next player probes WebRTC again, which is only slower */
+  }
+}
+
+/** The chain with its first MSE step moved to the front (what an `auto` player walks while WebRTC is known unreachable);
+ * a chain without an MSE step (WebRTC only) is returned as it is. */
+export function mseFirst(steps: VideoStep[]): VideoStep[] {
+  return orderLadder(steps, steps.find((s) => s.transport === 'mse') ?? null);
 }
 
 /** The player badge: `main·WebRTC`, `sub·WebRTC`, `main·MSE`. */

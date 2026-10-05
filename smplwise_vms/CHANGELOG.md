@@ -1,8 +1,8 @@
 # Changelog — SmplWise Arx add-on
 
-## 2.0.1 (pilot) — Bug fix: every bill PDF failed in the real add-on image; electricity time-of-use (TOU) tariffs; Plan Studio advanced (rooms linked to areas, the live plan in חשמל והתקנים, own floor images, 3D night mode, the map on a phone); the remote channel no longer calls routes the server blocks
-**After installing:** database migration `0056_plan_area_links_floor_images` (a column on the rooms table, two small tables; runs on start); the bridge integration stays **0.6.2**; no platform restart. Reload the installed web app once. Bill PDFs work again without any setting (the add-on logs "bill pdf engine: WeasyPrint" at start-up instead of "NO PDF engine works"). Nothing else changes until a time-of-use tariff is created, a room is linked to an area or a floor picture is uploaded; the new "תוכנית" view and the area card follow הגדרות › מפה › "התוכנית החיה מחוץ ללשונית המפה" (both on by default). 545 API routes (531 + 8 plan routes + 6 electricity routes).
-- **עברית:** אחרי ההתקנה: מיגרציה `0056_plan_area_links_floor_images` (עמודה בטבלת החדרים ושתי טבלאות קטנות; רצה בהפעלה), רכיב החיבור נשאר **0.6.2**, אין צורך להפעיל מחדש את התשתית. טוענים מחדש את אפליקציית הרשת פעם אחת. קובצי ה־PDF של החיובים עובדים שוב בלי שום הגדרה. שום דבר אחר לא משתנה עד שיוצרים תעריף לפי שעות, מקשרים חדר לאזור או מעלים תמונת קומה; תצוגת "תוכנית" וכרטיס האזור נשלטים מהגדרות › מפה.
+## 2.0.1 (pilot) — Bug fix: every bill PDF failed in the real add-on image; electricity time-of-use (TOU) tariffs; Plan Studio advanced (rooms linked to areas, the live plan in חשמל והתקנים, own floor images, 3D night mode, the map on a phone); the remote channel no longer calls routes the server blocks; live video opens on WebRTC first, MSE only as the fallback
+**After installing:** database migration `0056_plan_area_links_floor_images` (a column on the rooms table, two small tables; runs on start); the bridge integration stays **0.6.2**; no platform restart. Reload the installed web app once. Bill PDFs work again without any setting (the add-on logs "bill pdf engine: WeasyPrint" at start-up instead of "NO PDF engine works"). Live video: an installation that never changed the transport now opens on **automatic (WebRTC first, MSE when WebRTC cannot be used)**; a stored choice (including "MSE") is kept. Nothing else changes until a time-of-use tariff is created, a room is linked to an area or a floor picture is uploaded; the new "תוכנית" view and the area card follow הגדרות › מפה › "התוכנית החיה מחוץ ללשונית המפה" (both on by default). 545 API routes (531 + 8 plan routes + 6 electricity routes).
+- **עברית:** אחרי ההתקנה: מיגרציה `0056_plan_area_links_floor_images` (עמודה בטבלת החדרים ושתי טבלאות קטנות; רצה בהפעלה), רכיב החיבור נשאר **0.6.2**, אין צורך להפעיל מחדש את התשתית. טוענים מחדש את אפליקציית הרשת פעם אחת. קובצי ה־PDF של החיובים עובדים שוב בלי שום הגדרה. וידאו חי: התקנה שמעולם לא שינתה את התעבורה נפתחת עכשיו על **אוטומטי (WebRTC תחילה, MSE כש-WebRTC אינו זמין)**; בחירה שנשמרה (כולל "MSE") נשארת. שום דבר אחר לא משתנה עד שיוצרים תעריף לפי שעות, מקשרים חדר לאזור או מעלים תמונת קומה; תצוגת "תוכנית" וכרטיס האזור נשלטים מהגדרות › מפה.
 
 ### Fix - the bill PDF failed in the real add-on image (EL8) - תשתיות › מוני חשמל › חיובים
 - **English - bug fixed:** in 2.0.0 every "הורדת PDF" of a bill answered 503 `pdf_unavailable` on a real installation (the add-on image, Alpine, amd64), although every test machine rendered it. Cause: the image has no system font at all; the start-up self-check of the PDF engine rendered a bare page without the bundled fonts, Pango crashed the check (`PANGO_IS_FONT` assertion), the add-on concluded "NO PDF engine works" and refused every bill PDF - while a real bill (bundled Heebo) renders fine in the same image. Now the self-check uses the bill's own CSS and bundled fonts (Hebrew, digits, Latin, the shekel sign), so the engine is found; and a WeasyPrint child that dies natively (crash, memory limit) falls back to the simple fpdf2 engine instead of a 503 (counted as `crash_fallbacks` in the billing settings' `pdf_engine`; page and size limits never retry; an explicit engine never falls back).
@@ -36,11 +36,38 @@ Migration `0056_plan_area_links_floor_images`. Nothing changes until a room is l
 - **עברית - באג שתוקן:** בכניסה דרך הערוץ המרוחק (`/arx/`) המסלולים שהשרת חוסם בערוץ הזה בכוונה עונים 404, ולכן כרטיס החיבור בהגדרות הציג "Not found" עם כפתור ניסיון חוזר, וכרטיסים נוספים ניסו את אותן קריאות. עכשיו טופס חיבור ה־NVR, כרטיס המקליטים, באנר ההפעלה מחדש, כפתור ההפעלה מחדש של Arx, טופס שרת המוזיקה הישיר, צימוד/התקנת רכיב החיבור וכניסת שינוי הקידוד לכמה מצלמות לא קוראים למסלולים האלה מרחוק; כרטיס החיבור מציג שורה אחת: "חיבור ה־NVR מנוהל רק מהרשת המקומית". ברשת המקומית שום דבר לא השתנה.
 - **איך מפעילים / how to enable:** nothing to turn on - אין מה להפעיל.
 
+### Live video: WebRTC first by default, MSE only when WebRTC cannot be used (owner decision 2026-10-05) - הגדרות › וידאו ומדיה
+No migration. An installation that never changed the transport opens on **automatic**; an installation whose administrator chose a transport earlier (including "MSE") keeps that choice.
+Decision record: `docs/changes/WEBRTC-FIRST-DEFAULT.md` (supersedes the "MSE by default" decision of 2026-09-14).
+- **English - what was added:** the default live transport is **automatic: WebRTC first, MSE only when WebRTC cannot be used** - no
+  connection within 5 s (UDP to go2rtc blocked: Ingress, Cloudflare, CGNAT), a stream the browser does not decode from RTP, or go2rtc
+  refusing the stream. The fallback is quiet (the poster stays, nothing flashes) and happens once per browser tab: a WebRTC that could
+  not connect is remembered for 10 minutes, so every other player of the tab starts on MSE at once, and WebRTC is probed again later
+  (immediately forgotten when any player plays over WebRTC). A stream that connected but did not decode keeps the per-camera memory of
+  0.1.148 (a day). The settings dropdown names the three choices: **אוטומטי (WebRTC, ואם אינו זמין MSE) — ברירת המחדל**, **WebRTC בלבד**,
+  **MSE בלבד** - the last one a deliberate choice for a customer whose browsers can never reach go2rtc over UDP. The remote channel's
+  own ladder (WebRTC first, MSE as the announced last resort when "MSE דרך המנהרה" allows it) is unchanged.
+- **English - bugs fixed:** none in this change.
+- **English - how to enable:** nothing to switch on for a new installation. An existing installation that stored "MSE" earlier:
+  הגדרות › וידאו ומדיה › "תעבורה ברירת מחדל" → **אוטומטי**, then שמור. Behind Home Assistant Ingress or a tunnel the first automatic player
+  of a tab waits up to 5 s before MSE; choose **MSE בלבד** there to skip even that.
+- **עברית - מה נוסף:** תעבורת הווידאו החי כברירת מחדל היא **אוטומטי: WebRTC תחילה, ו-MSE רק כש-WebRTC אינו זמין** - אין חיבור תוך 5 שניות
+  (UDP ל-go2rtc חסום: Ingress, Cloudflare, CGNAT), זרם שהדפדפן לא מפענח מ-RTP, או go2rtc שדוחה את הזרם. המעבר שקט (התמונה נשארת, שום דבר
+  לא מהבהב) וקורה פעם אחת ללשונית: WebRTC שלא הצליח להתחבר נזכר ל-10 דקות, כך שכל נגן אחר בלשונית מתחיל ב-MSE מיד, ו-WebRTC נבדק שוב
+  מאוחר יותר (ונשכח מיד כשנגן כלשהו מנגן ב-WebRTC). זרם שהתחבר אך לא פוענח שומר את הזיכרון למצלמה מ-0.1.148 (יום). התפריט בהגדרות
+  מציג שלוש בחירות: **אוטומטי (WebRTC, ואם אינו זמין MSE) — ברירת המחדל**, **WebRTC בלבד**, **MSE בלבד** - האחרונה בחירה מכוונת ללקוח
+  שהדפדפנים שלו לעולם לא מגיעים ל-go2rtc ב-UDP. סולם הגישה מרחוק (WebRTC תחילה, MSE כמוצא אחרון מוכרז כש"MSE דרך המנהרה" מותר) לא השתנה.
+- **עברית - תיקונים:** אין בשינוי הזה.
+- **עברית - איך מפעילים:** בהתקנה חדשה אין מה להפעיל. התקנה קיימת ששמרה "MSE" בעבר: הגדרות › וידאו ומדיה › "תעבורה ברירת מחדל" →
+  **אוטומטי**, ואז שמור. מאחורי Ingress או מנהרה הנגן האוטומטי הראשון בלשונית ממתין עד 5 שניות לפני MSE; בוחרים שם **MSE בלבד** כדי
+  לדלג גם על זה.
+
 ### Known limits - מגבלות
 - **Time-of-use tariffs:** the real Israeli prices, the Authority's exact hours, the Friday rule and the holiday list are **not verified** - the template ships with empty prices and marks the items "לאישור". No supplier discount layer (a discount plan is its own TOU tariff), no fixed monthly charges, and the monthly bill chart stays in kWh totals (no per-band history). Tested with fakes and the real readings store on the runner; no TOU bill was issued on a real installation yet.
 - **Bill PDF in the image:** verified by rebuilding the amd64 image on the runner and rendering inside it; **aarch64 was checked for wheels only** (running on ARM needs a host change the owner has not approved); the 5-second gate on the owner's ARM hardware is still to be measured.
 - **Plan Studio:** the live plan outside the map tab and the floor images were tested with mocked screens and the backend tests; not yet exercised on the owner's installation.
 - **Remote channel:** the fix was tested with a mocked backend (`evidence-remote-blocked-calls`), not on the real `/arx/` channel.
+- **WebRTC first:** tested with a fake media stack (mocked WebRTC / MSE players) and the node unit spec; the 5 s connect bound and the quiet fallback were not timed on the owner's installation behind Ingress or Cloudflare yet. Behind a tunnel the first automatic player of a tab waits up to 5 s before MSE.
 - **תעו״ז:** המחירים הישראליים האמיתיים, השעות המדויקות, כלל יום שישי ורשימת החגים **לא אומתו** - התבנית מגיעה עם מחירים ריקים ומסמנת "לאישור". אין שכבת הנחה של ספק, אין חיובים חודשיים קבועים, גרף החיובים החודשי נשאר בסך קוט״ש. נבדק עם דמה ועם מאגר הקריאות האמיתי במכונת הבדיקות; עוד לא הופק חיוב לפי שעות בהתקנה אמיתית. **PDF בתמונה:** אומת ב־amd64 בלבד (ב־ARM נבדקו רק חבילות ההתקנה); שער 5 השניות על החומרה של הבעלים טרם נמדד. **סטודיו התוכניות והערוץ המרוחק:** נבדקו עם שרת מדומה, לא בהתקנת הבעלים.
 
 ## 2.0.0 (pilot) — Recorder health monitoring (seven new alert sources, per-recorder settings); playback stall detection and automatic resume; the floor filter of the multimedia pages is the shared (capsule-capable) dropdown; friendly integration names
