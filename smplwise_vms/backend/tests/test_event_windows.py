@@ -92,3 +92,96 @@ def test_group_windows_modes():
     assert labels == {"לובי ראשי": 2, "לא ממופה": 1}
     assert by_zone[0]["id"].startswith("unplaced:") or by_zone[1]["id"].startswith("unplaced:")
 
+
+# ---------------------------------------------------------------- M047: spotlights and manual grouping corrections
+
+def _ev(eid: str, cam: str | None, at: str, etype: str = "motion", severity: str = "info", confidence: str = "measured", source: str = "alertstream", ended: str | None = None) -> dict:
+    return {"id": eid, "camera_id": cam, "camera_name": cam, "type": etype, "severity": severity, "confidence": confidence, "source": source, "occurred_at": at, "ended_at": ended, "thumbnail": "none"}
+
+
+def test_spotlight_rules_are_deterministic_and_explained():
+    from smplwise.services import spotlights
+
+    quiet = spotlights.evaluate([_ev("a", "c1", "2026-09-14T10:00:00Z", confidence="inferred", source="recording")])
+    assert quiet == {"on": False, "score": 0, "rules": [], "confidence": "inferred", "sources": ["recording"]}
+    smart = spotlights.evaluate([_ev("a", "c1", "2026-09-14T10:00:00Z", etype="person")])
+    assert smart["on"] is True and [r["code"] for r in smart["rules"]] == ["smart"] and smart["score"] == 2 and smart["confidence"] == "measured"
+    assert "אדם" in smart["rules"][0]["why"] and smart["rules"][0]["label"] == "זיהוי חכם"
+    assert spotlights.evaluate([_ev("a", "c1", "2026-09-14T10:00:00Z", etype="person", confidence="inferred", source="recording")])["on"] is False, "a recording-derived guess is not a smart detection"
+    burst_multi = spotlights.evaluate([_ev(f"e{i}", "c1" if i % 2 else "c2", f"2026-09-14T10:0{i}:00Z") for i in range(5)])
+    assert [r["code"] for r in burst_multi["rules"]] == ["multi_camera", "burst"] and burst_multi["on"] is True
+    door = spotlights.evaluate([_ev("d", None, "2026-09-14T10:00:00Z", etype="door", source="ha"), _ev("m", "c1", "2026-09-14T10:00:20Z")])
+    assert [r["code"] for r in door["rules"]] == ["door_activity"] and door["sources"] == ["alertstream", "ha"]
+    crit = spotlights.evaluate([_ev("x", "c1", "2026-09-14T10:00:00Z", etype="offline", severity="critical", ended="2026-09-14T10:12:00Z")])
+    assert [r["code"] for r in crit["rules"]] == ["critical", "integrity", "long"] and crit["score"] == 6
+    one = spotlights.evaluate([_ev("y", "c1", "2026-09-14T10:00:00Z")])
+    assert one["on"] is False and one["score"] == 0, "plain motion of one camera is never a spotlight by itself"
+    assert spotlights.evaluate([]) == {"on": False, "score": 0, "rules": [], "confidence": "inferred", "sources": []}
+
+
+def test_group_windows_manual_groups_override_gap_and_mode():
+    evs = [_ev("a", "c1", "2026-09-14T10:00:00Z"), _ev("b", "c1", "2026-09-14T10:01:00Z"), _ev("c", "c2", "2026-09-14T10:30:00Z"), _ev("d", "c1", "2026-09-14T10:31:00Z")]
+    auto = group_windows(evs, 180)
+    assert [w["count"] for w in auto] == [1, 1, 2] and all(w["manual_group_id"] is None and w["spotlight"]["on"] is False for w in auto)
+    # a join across cameras and half an hour: one manual window, labelled so, the raw events kept; the rest unchanged
+    joined = group_windows(evs, 180, manual={"a": "g1", "c": "g1"})
+    manual = next(w for w in joined if w["manual_group_id"] == "g1")
+    assert manual["event_ids"] == ["a", "c"] and manual["group"] == "manual" and manual["group_label"] == "קיבוץ ידני" and manual["camera_ids"] == ["c1", "c2"]
+    assert manual["camera_id"] is None and manual["camera_name"] == "c1 · c2" and manual["spotlight"]["rules"][0]["code"] == "multi_camera"
+    assert sorted(w["count"] for w in joined) == [1, 1, 2]
+    # a split: b leaves the window it shared with a; a manual group of one camera keeps the camera
+    split = group_windows(evs, 180, manual={"b": "g2"})
+    solo = next(w for w in split if w["manual_group_id"] == "g2")
+    assert solo["event_ids"] == ["b"] and solo["camera_id"] == "c1" and solo["camera_name"] == "c1" and solo["channel"] is None
+    assert [w["count"] for w in split] == [1, 1, 1, 1]
+    # the manual group wins over the grouping mode as well (every camera together would merge a and b)
+    together = group_windows(evs, 180, "all", manual={"b": "g2"})
+    assert sorted(w["count"] for w in together) == [1, 1, 2] and next(w for w in together if w["manual_group_id"] == "g2")["event_ids"] == ["b"]
+
+
+def test_windows_api_spotlights_filter_and_manual_groups(settings):
+    app = create_app(settings)
+    c = TestClient(app)
+    ids = seed_tree(c)
+    cam = c.post("/api/v1/cameras", json={"channel": 1, "alias": "Entrance"}).json()
+    cam2 = c.post("/api/v1/cameras", json={"channel": 2, "alias": "Yard"}).json()
+    now = dt.datetime.now(dt.timezone.utc)
+    _insert(app, "m0", cam["id"], now - dt.timedelta(seconds=1000))
+    _insert(app, "m1", cam["id"], now - dt.timedelta(seconds=940))
+    _insert(app, "p2", cam["id"], now - dt.timedelta(seconds=880), etype="person", severity="alert")
+    _insert(app, "y0", cam2["id"], now - dt.timedelta(seconds=300))
+    body = c.get("/api/v1/events/windows?gap=180").json()
+    assert body["spotlights"] == 1 and {r["code"] for r in body["spotlight_rules"]} >= {"smart", "critical", "burst"}
+    lit = next(w for w in body["windows"] if w["spotlight"]["on"])
+    assert lit["event_ids"] == ["m0", "m1", "p2"] and [r["code"] for r in lit["spotlight"]["rules"]] == ["smart"] and lit["spotlight"]["confidence"] == "measured"
+    assert [w["event_ids"] for w in c.get("/api/v1/events/windows?gap=180&spotlight=true").json()["windows"]] == [["m0", "m1", "p2"]]
+    # split p2 off: its own window from now on, the automatic pair stays; the group is audited and skips unknown ids
+    r = c.post("/api/v1/events/windows/groups", json={"event_ids": ["p2", "nope"], "note": "אדם נפרד"})
+    assert r.status_code == 201, r.text
+    gid = r.json()["group_id"]
+    assert r.json()["event_ids"] == ["p2"] and r.json()["skipped"] == ["nope"]
+    after = c.get("/api/v1/events/windows?gap=180").json()["windows"]
+    manual = next(w for w in after if w["manual_group_id"] == gid)
+    assert manual["event_ids"] == ["p2"] and manual["group"] == "manual" and manual["camera_name"] == "Entrance"
+    assert next(w for w in after if w["event_ids"] == ["m0", "m1"])["manual_group_id"] is None
+    assert c.get("/api/v1/events/windows?gap=180").json()["spotlights"] == 1, "the person alone still lights its window"
+    # join p2 with the yard's event: p2 moves, the first group (now empty) is gone
+    r2 = c.post("/api/v1/events/windows/groups", json={"event_ids": ["p2", "y0"]})
+    assert r2.status_code == 201
+    gid2 = r2.json()["group_id"]
+    joined = next(w for w in c.get("/api/v1/events/windows?gap=180").json()["windows"] if w["manual_group_id"] == gid2)
+    assert joined["event_ids"] == ["p2", "y0"] and joined["camera_ids"] == sorted([cam["id"], cam2["id"]])
+    with app.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM event_window_groups").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'event.window.group'").fetchone()[0] == 2
+    # dissolve: back to the automatic windows; a second delete is 404
+    assert c.delete(f"/api/v1/events/windows/groups/{gid2}").status_code == 204
+    assert all(w["manual_group_id"] is None for w in c.get("/api/v1/events/windows?gap=180").json()["windows"])
+    assert c.delete(f"/api/v1/events/windows/groups/{gid2}").status_code == 404
+    assert c.post("/api/v1/events/windows/groups", json={"event_ids": ["nope"]}).status_code == 422
+    # scope: a floor-bound operator without a visible camera cannot group; a viewer cannot either
+    bind(c, settings, "ron", "operator", "floor", ids["floor3"])
+    assert c.post("/api/v1/events/windows/groups", json={"event_ids": ["m0"]}, headers=as_user("ron")).status_code == 403
+    bind(c, settings, "vera", "viewer", "installation", "*")
+    assert c.post("/api/v1/events/windows/groups", json={"event_ids": ["m0"]}, headers=as_user("vera")).status_code == 403
+

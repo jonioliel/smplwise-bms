@@ -17,7 +17,7 @@
  * Backend validation: services/dd_style.py.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
-import { DD_PANEL_DEFAULT, DD_PANEL_IDS, DD_RING_DEFAULT, DD_RING_IDS, DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle } from '../components/dd-style';
+import { DD_PANEL_DEFAULT, DD_PANEL_IDS, DD_PICKER_DEFAULT, DD_PICKER_IDS, DD_RING_DEFAULT, DD_RING_IDS, DD_SEARCH_DEFAULT, DD_SEARCH_IDS, DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdPicker, type DdRing, type DdSearch, type DdSize, type DdStyle } from '../components/dd-style';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
@@ -71,14 +71,29 @@ export function asDdPanel(v: unknown): DdPanel | null {
   return typeof v === 'string' && (DD_PANELS as readonly string[]).includes(v) ? (v as DdPanel) : null;
 }
 
-/** How a dropdown opens on a PHONE (owner decision 2026-10-03): a bottom sheet (default) or the regular small list under the field.
+/** How a dropdown opens on a PHONE (owner decision 2026-10-03): a bottom sheet or the regular small list under the field (the default from 2.0.3).
  * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
 export type DdPhone = 'sheet' | 'list';
 export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
-export const DD_PHONE_DEFAULT: DdPhone = 'sheet';
+export const DD_PHONE_DEFAULT: DdPhone = 'list';
 export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: 'גיליון שעולה מלמטה', list: 'רשימה קטנה מתחת לשדה' };
 export function asDdPhone(v: unknown): DdPhone | null {
   return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
+}
+
+/** 2.0.2 (owner feedback 2026-10-05): from how many cameras a multi-select picker carries a search field, and how the camera comparison
+ * picker is shown. Each one global value, installation (`ui.dd_search` / `ui.dd_picker`) and personal (/me/prefs; null = follow the
+ * installation), the same shape as the phone choice. Backend twin: services/dd_style.py. */
+export type { DdSearch, DdPicker };
+export const DD_SEARCHES: readonly DdSearch[] = DD_SEARCH_IDS;
+export const DD_SEARCH_LABEL: Record<DdSearch, string> = { always: 'תמיד', '4': 'מ־4 מצלמות', '8': 'מ־8 מצלמות', never: 'אף פעם' };
+export const DD_PICKERS: readonly DdPicker[] = DD_PICKER_IDS;
+export const DD_PICKER_LABEL: Record<DdPicker, string> = { dropdown: 'תפריט נפתח', chips: 'כפתורים' };
+export function asDdSearch(v: unknown): DdSearch | null {
+  return typeof v === 'string' && (DD_SEARCHES as readonly string[]).includes(v) ? (v as DdSearch) : null;
+}
+export function asDdPicker(v: unknown): DdPicker | null {
+  return typeof v === 'string' && (DD_PICKERS as readonly string[]).includes(v) ? (v as DdPicker) : null;
 }
 
 export function asTabMode(v: unknown): TabMode | null {
@@ -162,10 +177,12 @@ let user: string | null = null;
 let remote = false;
 const listeners = new Set<() => void>();
 
-/** The effective phone choice (user over installation) as an attribute of <html>, which `sw-dropdown` reads when a list opens. */
+/** The effective phone choice (user over installation) as an attribute of <html>, which `sw-dropdown` reads when a list opens;
+ * 2.0.2: the multi-select search threshold the same way (`data-dd-search`). */
 function applyDdPhone(): void {
   try {
     document.documentElement.setAttribute('data-dd-phone', ddPhoneOwn ?? ddPhoneInstallation);
+    document.documentElement.setAttribute('data-dd-search', searchChoice.resolve().value);
   } catch {
     /* no document (unit specs under node) */
   }
@@ -284,6 +301,10 @@ export class TabsModeController {
   get ddPanel(): DdPanel {
     return ddPanelOf(this.group);
   }
+  /** 2.0.2: how this screen's camera comparison picker is shown (one global value; the group does not matter). */
+  get ddPicker(): DdPicker {
+    return ddPickerOf();
+  }
   private tick = () => this.host.requestUpdate();
   hostConnected() {
     this.stop = onTabsMode(this.tick);
@@ -385,6 +406,85 @@ class Dial<T extends string> {
 const ringDial = new Dial<DdRing>('ring', asDdRing, DD_RING_DEFAULT, 'sw.dd.ring');
 const panelDial = new Dial<DdPanel>('panel', asDdPanel, DD_PANEL_DEFAULT, 'sw.dd.panel');
 
+/** 2.0.2: one GLOBAL choice (no per-group override), installation + own, cached per user id, saved optimistically - the phone choice's shape. */
+class Choice<T extends string> {
+  inst: T;
+  own: T | null = null;
+  constructor(private key: string, private as: (v: unknown) => T | null, private def: T, private cacheKey: string) {
+    this.inst = def;
+  }
+  resolve(): { value: T; source: 'own' | 'installation' } {
+    return this.own ? { value: this.own, source: 'own' } : { value: this.inst, source: 'installation' };
+  }
+  setInstallation(settings: Record<string, unknown> | null | undefined): void {
+    this.inst = this.as(settings?.[`ui.dd_${this.key}`]) ?? this.def;
+  }
+  private write(u: string, v: T | null): void {
+    try {
+      if (!v) localStorage.removeItem(this.cacheKey);
+      else localStorage.setItem(this.cacheKey, JSON.stringify({ u, value: v }));
+    } catch {
+      /* storage unavailable: the server copy still applies after load */
+    }
+  }
+  loadCache(userId: string): void {
+    this.own = null;
+    try {
+      const raw = localStorage.getItem(this.cacheKey);
+      if (!raw) return;
+      const c = JSON.parse(raw) as { u?: unknown; value?: unknown };
+      if (c.u === userId) this.own = this.as(c.value);
+    } catch {
+      /* unreadable cache: follow the installation */
+    }
+  }
+  loadServer(userId: string, prefs: Record<string, unknown>, stored: string[]): void {
+    this.own = stored.includes(`ui.dd_${this.key}`) ? this.as(prefs[`ui.dd_${this.key}`]) : null;
+    this.write(userId, this.own);
+  }
+  async save(value: T | null): Promise<void> {
+    const before = this.own;
+    this.own = value;
+    if (user) this.write(user, value);
+    notify();
+    if (!remote) return;
+    const who = user;
+    try {
+      await putMyPrefs({ [`ui.dd_${this.key}`]: value } as Parameters<typeof putMyPrefs>[0]);
+    } catch (err) {
+      if (user !== who) return;
+      this.own = before;
+      if (user) this.write(user, before);
+      notify();
+      throw err;
+    }
+  }
+}
+const searchChoice = new Choice<DdSearch>('search', asDdSearch, DD_SEARCH_DEFAULT, 'sw.dd.search');
+const pickerChoice = new Choice<DdPicker>('picker', asDdPicker, DD_PICKER_DEFAULT, 'sw.dd.picker');
+
+/** The effective multi-select search threshold: the user's own over the installation's. */
+export function resolveDdSearch(): { search: DdSearch; source: 'own' | 'installation' } {
+  const r = searchChoice.resolve();
+  return { search: r.value, source: r.source };
+}
+export const installationDdSearch = (): DdSearch => searchChoice.inst;
+/** The user's own threshold; null = follows the installation. */
+export const ownDdSearch = (): DdSearch | null => searchChoice.own;
+export const saveOwnDdSearch = (search: DdSearch | null): Promise<void> => searchChoice.save(search);
+
+/** The effective camera-picker look: the user's own over the installation's. */
+export function resolveDdPicker(): { picker: DdPicker; source: 'own' | 'installation' } {
+  const r = pickerChoice.resolve();
+  return { picker: r.value, source: r.source };
+}
+/** How the camera comparison pickers (recordings, synchronized playback) are drawn now. */
+export const ddPickerOf = (): DdPicker => pickerChoice.resolve().value;
+export const installationDdPicker = (): DdPicker => pickerChoice.inst;
+/** The user's own choice; null = follows the installation. */
+export const ownDdPicker = (): DdPicker | null => pickerChoice.own;
+export const saveOwnDdPicker = (picker: DdPicker | null): Promise<void> => pickerChoice.save(picker);
+
 export function resolveDdRing(group: TabGroup): { ring: DdRing; source: TabModeSource } {
   const r = ringDial.resolve(group);
   return { ring: r.value, source: r.source };
@@ -471,6 +571,8 @@ export function setInstallationTabsMode(settings: Record<string, unknown> | null
   ddSizeInstallation = { size: asDdSize(settings?.['ui.dd_size']) ?? DD_SIZE_DEFAULT, groups: normalizeDdSizeGroups(settings?.['ui.dd_size_groups']) };
   ringDial.setInstallation(settings);
   panelDial.setInstallation(settings);
+  searchChoice.setInstallation(settings);
+  pickerChoice.setInstallation(settings);
   ddPhoneInstallation = asDdPhone(settings?.['ui.dd_phone']) ?? DD_PHONE_DEFAULT;
   notify();
 }
@@ -571,6 +673,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
   ddSizeOwn = sizeCached && sizeCached.u === userId ? { size: sizeCached.size, groups: sizeCached.groups } : { size: null, groups: {} };
   ringDial.loadCache(userId);
   panelDial.loadCache(userId);
+  searchChoice.loadCache(userId);
+  pickerChoice.loadCache(userId);
   const phoneCached = readDdPhoneCache();
   ddPhoneOwn = phoneCached && phoneCached.u === userId ? phoneCached.mode : null;
   notify();
@@ -599,6 +703,8 @@ export async function loadTabsMode(userId: string, api: boolean): Promise<void> 
     ddSizeOwn = sizeNext;
     ringDial.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     panelDial.loadServer(userId, p.prefs as Record<string, unknown>, stored);
+    searchChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
+    pickerChoice.loadServer(userId, p.prefs as Record<string, unknown>, stored);
     ddPhoneOwn = stored.includes('ui.dd_phone') ? asDdPhone(p.prefs['ui.dd_phone']) : null;
     writeDdPhoneCache(userId, ddPhoneOwn);
     notify();

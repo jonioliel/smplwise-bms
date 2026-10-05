@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
+from decimal import Decimal
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -23,6 +24,7 @@ from ..audit import audit
 from ..auth import current_principal, get_conn, get_read_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, effective_permissions, require
+from ..services import energy_calibration as ecal
 from ..services import energy_meters as meters
 from ..services import energy_settings as es
 from ..services import energy_store as st
@@ -109,8 +111,9 @@ def _month_start(p: EnergyProvider, now: int) -> int:
 def _meter_out(p: EnergyProvider, row: sqlite3.Row, status: Any, now: int, accounts_count: int = 0) -> dict[str, Any]:
     today_wh = month_wh = None
     if row["status"] != "retired":
-        today_wh = p.store.consumption(row["id"], _today_start(p, now), now, tz=p.tz, interval_floor=None)["wh"]
-        month_wh = p.store.consumption(row["id"], _month_start(p, now), now, tz=p.tz, interval_floor=None)["wh"]
+        today_wh = p.consumption_live(row["id"], _today_start(p, now), now)
+        month_wh = p.consumption_live(row["id"], _month_start(p, now), now)
+    seg = ecal.segment_at(p.segments(row["id"]), now)
     return {
         "id": row["id"], "display_name": row["display_name"], "source_kind": row["source_kind"], "source_ref": row["source_ref"], "unit": row["unit"],
         "device_id": row["device_id"], "device_name": row["device_name"], "entity_name": row["entity_name"],
@@ -119,6 +122,8 @@ def _meter_out(p: EnergyProvider, row: sqlite3.Row, status: Any, now: int, accou
         "max_kw": row["max_kw"], "revision": row["revision"], "created_at": row["created_at"], "retired_at": row["retired_at"],
         "state": status.state, "last_report_at": _iso(status.last_report_at), "value_kwh": _kwh(status.last_value_wh), "today_kwh": _kwh(today_wh),
         "month_kwh": _kwh(month_wh), "accounts_count": accounts_count,
+        # EL6: the calibration in force now (null = none); readings and kWh above are already on the physical meter's scale
+        "calibration": None if seg.identity else {"factor": ecal.factor_text(seg.factor), "offset_kwh": _kwh(seg.offset_wh), "effective_date": seg.effective_date},
     }
 
 
@@ -248,13 +253,146 @@ def replace_meter(meter_id: str, request: Request, principal: Principal = Depend
     final_wh = None if body.old_final_reading_kwh is None else int(round(body.old_final_reading_kwh * 1000))
     start_wh = None if body.new_start_reading_kwh is None else int(round(body.new_start_reading_kwh * 1000))
     at_iso = _iso(at)
+    # EL6: the old meter's final reading is typed from the physical meter (kept so on the epoch); the store gets it on the counter's
+    # own scale through the calibration in force just before the replacement. The new counter life starts uncalibrated.
+    counter_final = None if final_wh is None else ecal.segment_at(ecal.segments(conn, meter_id), int(at.timestamp()) - 1).counter(final_wh)
     epoch_id, reason = meters.replace(conn, meter_id, body.revision, at=at_iso, final_wh=final_wh, start_wh=start_wh, new_ref=body.new_source_ref,
                                       note=body.note, actor=principal.user_id)
     p = _provider(request, conn)
-    res = p.store.start_epoch(meter_id, at=int(at.timestamp()), epoch_id=epoch_id, tz=p.tz, final_wh=final_wh, start_wh=start_wh)
+    res = p.store.start_epoch(meter_id, at=int(at.timestamp()), epoch_id=epoch_id, tz=p.tz, final_wh=counter_final, start_wh=start_wh)
     audit(conn, actor=principal, action="energy.meter.replace", decision="allowed", resource_type="energy_meter", resource_id=meter_id, request_id=_rid(request),
           details={"reason": reason, "manual_wh": res["manual_wh"], "typed_final": final_wh is not None, "typed_start": start_wh is not None})
     return _one(request, conn, meter_id, detail=True)
+
+
+# ---------------------------------------------------------------- EL6: manual readings and calibration
+
+class ManualReadingBody(_Body):
+    read_at: str = Field(max_length=40)
+    value: float | str = Field()
+    unit: Literal["kWh", "Wh", "MWh"] = "kWh"
+    note: str | None = Field(None, max_length=500)
+    dry_run: bool = False
+
+
+class CalibrationBody(_Body):
+    effective_date: dt.date
+    factor: float | str = "1"
+    offset_kwh: float | str | None = None
+    anchor_reading_id: str | None = Field(None, max_length=40)
+    note: str | None = Field(None, max_length=500)
+    dry_run: bool = False
+
+
+class UndoBody(_Body):
+    reason: str | None = Field(None, max_length=300)
+
+
+def _now_s() -> int:
+    return int(dt.datetime.now(UTC).timestamp())
+
+
+def _log(request: Request, conn: sqlite3.Connection, meter_id: str) -> dict[str, Any]:
+    p = _provider(request, conn)
+    return ecal.meter_log(conn, p.store, p.tz, meters.require(conn, meter_id), now=_now_s())
+
+
+@router.get("/energy/meters/{meter_id}/manual-readings")
+def manual_log(meter_id: str, request: Request, principal: Principal = Depends(_viewer), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The meter's manual readings and calibrations (undone ones included, with who and when), the calibration in force, a suggested
+    factor from two compared readings, and the first date a calibration may start (after the last issued bill) (energy.view)."""
+    return _log(request, conn, meter_id)
+
+
+@router.post("/energy/meters/{meter_id}/manual-readings")
+def add_manual_reading(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """A reading of the physical meter at an instant (energy.manage). Validated (not in the future, not before the meter, never lower
+    than an earlier manual reading of the same counter, a known unit); `dry_run` answers what it would do without saving. It closes
+    or re-splits a reporting gap when it can, else it is kept for comparison (`effect`, `effect_reason`, `message`)."""
+    body: ManualReadingBody = _parse(request, raw, ManualReadingBody)
+    require(conn, principal, MANAGE, INSTALLATION)
+    at = _instant(body.read_at, "read_at")
+    p = _provider(request, conn)
+    meter = meters.require(conn, meter_id)
+    try:
+        out = ecal.save_reading(conn, p.store, p.tz, meter, read_at=int(at.timestamp()), value=body.value, unit=body.unit, note=body.note,
+                                actor=principal.user_id, now=_now_s(), dry_run=body.dry_run)
+    except ApiError as exc:
+        if not body.dry_run:
+            audit(conn, actor=principal, action="energy.meter.manual_reading", decision="refused", resource_type="energy_meter", resource_id=meter_id,
+                  reason=exc.code, request_id=_rid(request))
+        raise
+    if body.dry_run:
+        return {"dry_run": True, "reading": out}
+    audit(conn, actor=principal, action="energy.meter.manual_reading", decision="allowed", resource_type="energy_meter", resource_id=meter_id, request_id=_rid(request),
+          details={"reading_id": out["id"], "read_at": out["read_at"], "value_wh": out["value_wh"], "unit": body.unit, "effect": out["effect"],
+                   "effect_reason": out["effect_reason"]})
+    return {"dry_run": False, "reading": out, "log": _log(request, conn, meter_id)}
+
+
+@router.post("/energy/meters/{meter_id}/manual-readings/{reading_id}/undo")
+def undo_manual_reading(meter_id: str, reading_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Undo a manual reading within 24 hours of saving it, while no issued bill depends on it (energy.manage). It stays in the list,
+    marked as undone."""
+    body: UndoBody = _parse(request, raw, UndoBody)
+    require(conn, principal, MANAGE, INSTALLATION)
+    p = _provider(request, conn)
+    meter = meters.require(conn, meter_id)
+    try:
+        r = ecal.undo_reading(conn, p.store, p.tz, meter, reading_id, reason=body.reason, actor=principal.user_id, now=_now_s())
+    except ApiError as exc:
+        audit(conn, actor=principal, action="energy.meter.manual_reading.undo", decision="refused", resource_type="energy_meter", resource_id=meter_id,
+              reason=exc.code, request_id=_rid(request), details={"reading_id": reading_id})
+        raise
+    audit(conn, actor=principal, action="energy.meter.manual_reading.undo", decision="allowed", resource_type="energy_meter", resource_id=meter_id,
+          request_id=_rid(request), details={"reading_id": reading_id, "effect": r["effect"], "read_at": r["read_at"]})
+    return _log(request, conn, meter_id)
+
+
+@router.post("/energy/meters/{meter_id}/calibrations")
+def add_calibration(meter_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Calibrate the system counter against the physical meter from a date on (energy.manage): physical = factor x counter + offset.
+    The offset comes from a manual reading (`anchor_reading_id`) or is typed. Starts after the previous calibration and after the
+    last issued bill with the meter; history is never rewritten."""
+    body: CalibrationBody = _parse(request, raw, CalibrationBody)
+    require(conn, principal, MANAGE, INSTALLATION)
+    p = _provider(request, conn)
+    meter = meters.require(conn, meter_id)
+    try:
+        out = ecal.save_calibration(conn, p.store, p.tz, meter, effective_date=body.effective_date, factor=body.factor, offset_kwh=body.offset_kwh,
+                                    anchor_reading_id=body.anchor_reading_id, note=body.note, actor=principal.user_id, now=_now_s(), dry_run=body.dry_run)
+    except ApiError as exc:
+        if not body.dry_run:
+            audit(conn, actor=principal, action="energy.meter.calibrate", decision="refused", resource_type="energy_meter", resource_id=meter_id,
+                  reason=exc.code, request_id=_rid(request))
+        raise
+    if body.dry_run:
+        return {"dry_run": True, "calibration": out}
+    audit(conn, actor=principal, action="energy.meter.calibrate", decision="allowed", resource_type="energy_meter", resource_id=meter_id, request_id=_rid(request),
+          details={"calibration_id": out["id"], "effective_date": out["effective_date"], "factor": out["factor"], "offset_wh": out["offset_wh"],
+                   "anchor_reading_id": out["anchor_reading_id"]})
+    return {"dry_run": False, "calibration": out, "log": _log(request, conn, meter_id)}
+
+
+@router.post("/energy/meters/{meter_id}/calibrations/{calibration_id}/undo")
+def undo_calibration(meter_id: str, calibration_id: str, request: Request, principal: Principal = Depends(_manager), raw: bytes = Depends(_raw_body),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Undo a calibration within 24 hours of saving it, while no issued bill uses it (energy.manage)."""
+    body: UndoBody = _parse(request, raw, UndoBody)
+    require(conn, principal, MANAGE, INSTALLATION)
+    meter = meters.require(conn, meter_id)
+    try:
+        ecal.undo_calibration(conn, meter, calibration_id, reason=body.reason, actor=principal.user_id, now=_now_s())
+    except ApiError as exc:
+        audit(conn, actor=principal, action="energy.meter.calibration.undo", decision="refused", resource_type="energy_meter", resource_id=meter_id,
+              reason=exc.code, request_id=_rid(request), details={"calibration_id": calibration_id})
+        raise
+    audit(conn, actor=principal, action="energy.meter.calibration.undo", decision="allowed", resource_type="energy_meter", resource_id=meter_id,
+          request_id=_rid(request), details={"calibration_id": calibration_id})
+    return _log(request, conn, meter_id)
 
 
 # ---------------------------------------------------------------- readings and consumption
@@ -282,7 +420,7 @@ def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, 
             d1 += dt.timedelta(days=1)
         if (d1 - d0).days > MAX_POINTS:
             raise ApiError(422, "range_too_large", "טווח הזמן ארוך מדי.")
-        rows = p.store.daily(meter_id, d0, d1)
+        rows = p.daily_rows(meter_id, d0, d1)
         d = d0
         while d < d1:
             a, b = st.day_bounds(d, p.tz)
@@ -298,16 +436,17 @@ def meter_series(meter_id: str, request: Request, frm: str | None = Query(None, 
         if (b - a) / size > MAX_POINTS:
             raise ApiError(422, "range_too_large", "טווח הזמן ארוך מדי לרזולוציה הזו.")
         buckets = {bk: (wh, cov) for bk, wh, cov, _q in p.store.intervals(meter_id, a, b)}
+        segs = p.segments(meter_id)
         t = a
         while t < b:
-            wh_sum, cov_sum, any_row = 0, 0, False
+            wh_sum, cov_sum, any_row = Decimal(0), 0, False
             for bk in range(t, t + size, st.BUCKET_S):
                 hit = buckets.get(bk)
                 if hit is not None:
                     any_row = True
-                    wh_sum += hit[0]
+                    wh_sum += ecal.segment_at(segs, bk).energy(hit[0])  # EL6: the calibration factor of the quarter hour
                     cov_sum += hit[1]
-            wh = wh_sum if any_row and cov_sum > 0 else None
+            wh = ecal.round_int(wh_sum) if any_row and cov_sum > 0 else None
             items.append({"start": _iso(dt.datetime.fromtimestamp(t, UTC)), "end": _iso(dt.datetime.fromtimestamp(t + size, UTC)), "wh": wh, "kwh": _kwh(wh),
                           "coverage": coverage_of(cov_sum, size, wh)})
             t += size

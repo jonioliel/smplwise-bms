@@ -1096,3 +1096,50 @@ def test_review_l5_force_deleting_the_home_floor_ends_the_room_too(settings):
     assert c.delete(f"/api/v1/floors/{w['f2']}?force=true").status_code == 204
     assert _live_share_rows(w) == (0, 0)
     assert not any(a.get("shared") for a in c.get(f"/api/v1/floors/{w['f3']}/map").json()["anchors"])
+
+
+# ------------------------------------------------ integration-review lows (SS1, 2.0.3)
+
+
+def test_ss1_a_room_that_already_belongs_to_a_share_is_never_a_candidate_nor_the_auto_pick(settings):
+    """The other floor's outline of a shared room (its duplicate) must not be offered again - the explicit choice was refused
+    already (`already_shared`), the auto-detect silently took it as a second room's outline."""
+    w = _world(settings)
+    c = w["c"]
+    _share(w)  # the hall <-> floor 3, through the duplicate
+    far = [{"x": 0.65, "y": 0.65}, {"x": 0.9, "y": 0.65}, {"x": 0.9, "y": 0.9}, {"x": 0.65, "y": 0.9}]
+    hall2 = c.post(f"/api/v1/floors/{w['f2']}/zones", json={"name": "אולם ספורט", "polygon": far}).json()["id"]
+    with w["app"].state.db.connection() as conn:
+        zone = conn.execute("SELECT * FROM spatial_zones WHERE id = ?", (hall2,)).fetchone()
+        assert w["dup"] not in {x["zone_id"] for x in ss.candidates(conn, zone, w["f3"], True)}
+    pv = c.post(f"/api/v1/zones/{hall2}/share/preview", json={"floor_id": w["f3"]})
+    assert pv.status_code == 200, pv.text
+    assert pv.json()["duplicate"] is None and pv.json()["outline"]["zone_id"] is None, "a new outline is drawn, the first room's is left alone"
+    assert all(x["zone_id"] != w["dup"] for x in pv.json()["candidates"])
+
+
+def test_ss1_unsharing_one_of_two_floors_ends_the_members_anchored_only_on_it(settings):
+    w = _world(settings)
+    c, app = w["c"], w["app"]
+    _share(w)  # floor 3
+    f9 = c.post(f"/api/v1/buildings/{w['ids']['building']}/floors", json={"name": "קומה 9", "level": 9}).json()["id"]
+    _plan(c, f9)
+    cam9 = c.post("/api/v1/cameras", json={"channel": 9, "alias": "cam9"}).json()["id"]
+    _anchor(c, f9, "camera", cam9, 0.4, 0.4)
+    r = c.post(f"/api/v1/zones/{w['hall']}/share", json={"floor_id": f9})
+    assert r.status_code == 200, r.text
+    camd, camh = w["cams"]["camD"], w["cams"]["camH"]
+    with app.state.db.connection() as conn:
+        assert all(ss.is_member(conn, w["hall"], "camera", k) for k in (camd, camh, cam9))
+    assert c.delete(f"/api/v1/zones/{w['hall']}/share/{w['f3']}").status_code == 204
+    with app.state.db.connection() as conn:
+        assert not ss.is_member(conn, w["hall"], "camera", camd), "anchored only on floor 3, which left the room"
+        assert ss.is_member(conn, w["hall"], "camera", cam9) and ss.is_member(conn, w["hall"], "camera", camh)
+    assert c.delete(f"/api/v1/zones/{w['hall']}/share/{f9}").status_code == 204
+    with app.state.db.connection() as conn:
+        assert ss.member_rows(conn) == []
+
+
+def test_ss1_the_centroid_of_a_room_without_corners_is_not_a_division_by_zero():
+    assert ss._centroid([]) == (0.0, 0.0)
+    assert ss._centroid([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]) == (1.0, 1.0)

@@ -51,6 +51,13 @@ export interface GhostHandleDetail {
   y?: number;
 }
 
+/** The pan / zoom of the canvas (getView / setView): host pixels per plan pixel and the plan's origin on screen. */
+export interface PlanView {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
 export interface MarkerSelectDetail {
   id: string | null;
   /** Marker centre in host (stage) pixels, for anchoring a popover. */
@@ -1190,6 +1197,21 @@ export class SwPlanCanvas extends LitElement {
   /** Current zoom factor (plan pixels → host pixels). */
   get zoom() {
     return this.scale;
+  }
+
+  /** The pan / zoom as numbers, null until the first fit (M043: the map remembers where it was before a jump to
+   * playback and comes back to it). */
+  getView(): PlanView | null {
+    return this.fitted ? { scale: this.scale, tx: this.tx, ty: this.ty } : null;
+  }
+
+  /** Restore a view taken with getView (the zoom is clamped like a wheel zoom); counts as fitted. */
+  setView(v: PlanView) {
+    if (!Number.isFinite(v.scale) || !Number.isFinite(v.tx) || !Number.isFinite(v.ty)) return;
+    this.scale = Math.max(this.minScale, Math.min(MAX_SCALE, v.scale));
+    this.tx = v.tx;
+    this.ty = v.ty;
+    this.fitted = true;
   }
 
   /** Keyboard focus back on a marker (M06: Escape closes the card and returns focus to the pin). */

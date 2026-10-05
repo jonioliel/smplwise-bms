@@ -84,8 +84,13 @@ DEFAULTS: dict[str, str] = {
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_style": "auto",
     "ui.dd_style_groups": "{}",
-    # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet, default) | list (the small list under the field). services/dd_style.py.
-    "ui.dd_phone": "sheet",
+    # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet) | list (the small list under the field). services/dd_style.py.
+    # 2.0.3 (owner 2026-10-05): the default is list; the sheet stays selectable in Settings > tabs.
+    "ui.dd_phone": "list",
+    # 2.0.3 (owner 2026-10-05): from how many cameras a multi-select picker carries a search field - always | 4 (default) | 8 | never -
+    # and how the camera comparison picker is shown - dropdown (default) | chips (a button per camera). services/dd_style.py.
+    "ui.dd_search": "4",
+    "ui.dd_picker": "dropdown",
     # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_size": "md",
@@ -308,6 +313,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.dd_style"] = dd_style.stored_style(out["ui.dd_style"])
     out["ui.dd_style_groups"] = dd_style.stored_groups(out["ui.dd_style_groups"])
     out["ui.dd_phone"] = dd_style.stored_phone(out["ui.dd_phone"])
+    out["ui.dd_search"] = dd_style.stored_search(out["ui.dd_search"])
+    out["ui.dd_picker"] = dd_style.stored_picker(out["ui.dd_picker"])
     out["ui.dd_size"] = dd_style.stored_size(out["ui.dd_size"])
     out["ui.dd_size_groups"] = dd_style.stored_size_groups(out["ui.dd_size_groups"])
     out["ui.dd_ring"] = dd_style.stored_ring(out["ui.dd_ring"])
@@ -523,6 +530,8 @@ class SettingsPatch(BaseModel):
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
     ui_dd_style: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.STYLES) + ")$", alias="ui.dd_style")
     ui_dd_phone: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PHONE_MODES) + ")$", alias="ui.dd_phone")
+    ui_dd_search: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SEARCH_MODES) + ")$", alias="ui.dd_search")
+    ui_dd_picker: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.PICKERS) + ")$", alias="ui.dd_picker")
     ui_dd_style_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_style_groups")  # validated in full by services/dd_style.py
     ui_dd_size: str | None = Field(default=None, pattern="^(" + "|".join(dd_style.SIZES) + ")$", alias="ui.dd_size")
     ui_dd_size_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_size_groups")  # validated in full by services/dd_style.py

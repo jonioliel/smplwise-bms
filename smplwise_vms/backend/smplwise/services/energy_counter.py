@@ -28,14 +28,15 @@ F_JUMP_ACCEPTED = 32
 F_REBASE = 64
 F_MANUAL = 128
 F_LAST_RESET = 256
+F_MANUAL_READING = 512  # EL6: a typed reading of the physical meter that closed or reshaped a reporting gap (not a replacement)
 
 FLAG_NAMES = {F_RESET: "reset", F_GLITCH: "glitch", F_AFTER_UNAVAILABLE: "after_unavailable", F_NOISE: "noise", F_SPIKE_DROPPED: "spike_dropped",
-              F_JUMP_ACCEPTED: "jump_accepted", F_REBASE: "rebase", F_MANUAL: "manual", F_LAST_RESET: "last_reset"}
+              F_JUMP_ACCEPTED: "jump_accepted", F_REBASE: "rebase", F_MANUAL: "manual", F_LAST_RESET: "last_reset", F_MANUAL_READING: "manual_reading"}
 
 # interval quality
 Q_MEASURED = 0     # both readings within MEASURED_SPAN_S
 Q_SPREAD = 1       # spread over a longer gap (still the exact delta of the counter)
-Q_MANUAL = 4       # a typed reading (meter replacement)
+Q_MANUAL = 4       # a typed reading (meter replacement, EL6 manual reading)
 MEASURED_SPAN_S = 960
 
 RESET_FRACTION = 0.10

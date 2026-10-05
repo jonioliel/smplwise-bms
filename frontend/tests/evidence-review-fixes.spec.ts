@@ -65,10 +65,15 @@ test.describe('live review fixes (SW A)', () => {
     test.setTimeout(120000);
     await page.goto('/?design=a#/investigate/playback/sync');
     const sy = page.locator('investigate-sync');
-    await expect(sy.locator('[data-sync-camera]').first()).toBeVisible({ timeout: 30000 });
-    await sy.locator('[data-sync-camera]').nth(0).click();
-    await sy.locator('[data-sync-camera]').nth(1).click();
+    // 2.0.1: the picker is one multi-select dropdown (sw-dropdown `multiple`), not a chip per camera
+    const pick = sy.locator('sw-dropdown[data-sync-pick-cameras]');
+    await expect(pick.locator('.chip')).toBeVisible({ timeout: 30000 });
+    await page.waitForTimeout(1500); // the shell recreates the screen once after the session settles
+    await pick.locator('.chip').click();
+    await pick.locator('[role=option]').nth(0).click();
+    await pick.locator('[role=option]').nth(1).click();
     await expect(sy.locator('[data-sync-pick]')).toHaveCount(2);
+    await pick.locator('[data-dd-done]').click();
     await sy.locator('[data-sync-launch]').click();
     await expect.poll(() => page.evaluate(() => location.hash), { timeout: 15000 }).toMatch(/^#\/investigate\/playback\?camera=[^&]+&extra=[^&]+&t=/);
     await expect(page.locator('investigate-playback')).toBeVisible({ timeout: 20000 });

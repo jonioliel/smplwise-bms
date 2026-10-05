@@ -41,6 +41,30 @@ const SHOTS: Shot[] = [
   { name: 'meters-cards', hash: '/infra/electricity/meters', wait: `${P} [data-state="ready"]`, then: async (p) => void (await p.locator(`${P} [data-view="cards"]`).evaluate((el) => (el as HTMLElement).click()).catch(() => undefined)) },
   { name: 'meters-viewonly', hash: '/infra/electricity/meters', wait: `${P} [data-state="ready"]`, perms: PERMS.view },
   { name: 'meter-card', hash: '/infra/electricity/meters?meter=m2', wait: `${P} elec-meter-card [data-meter-card="m2"]` },
+  // EL6: the manual readings and calibrations section, and its two dialogs
+  { name: 'meter-card-readings', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]` },
+  {
+    name: 'reading-dialog', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]`,
+    then: async (p) => {
+      await p.locator(`${P} elec-meter-card elec-meter-readings [data-reading-add]`).evaluate((el) => (el as HTMLElement).click());
+      // 2.0.3 gate: under load the typed value was once lost (the dialog re-rendered right after the fill) and the bare
+      // waitForSelector (no action timeout in the config) waited the whole 30-minute test timeout. Bounded waits, the fill re-done.
+      const preview = `${P} elec-meter-card elec-reading-dialogs [data-reading-preview]`;
+      for (let attempt = 1; ; attempt++) {
+        await p.locator(`${P} elec-meter-card elec-reading-dialogs [data-reading-value]`).fill('248950.5', { timeout: 20_000 });
+        const shown = await p.waitForSelector(preview, { timeout: 15_000 }).then(() => true, () => false);
+        if (shown) break;
+        if (attempt >= 3) throw new Error('the reading dialog never showed its dry-run preview');
+      }
+    },
+  },
+  {
+    name: 'calibrate-dialog', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]`,
+    then: async (p) => {
+      await p.locator(`${P} elec-meter-card elec-meter-readings [data-calibrate]`).evaluate((el) => (el as HTMLElement).click());
+      await p.waitForSelector(`${P} elec-meter-card elec-reading-dialogs [data-cal-preview]`, { timeout: 30_000 });
+    },
+  },
   { name: 'meter-add', hash: '/infra/electricity/meters?add=1', wait: `${P} [data-add-dialog] [data-picker-list]` },
   { name: 'retention', hash: '/system/infra/retention', wait: 'sw-app system-infra elec-settings-retention [data-state="ready"]', perms: PERMS.admin },
 ];

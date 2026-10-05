@@ -270,9 +270,11 @@ def test_route_refuses_when_writes_disabled(settings, fake, monkeypatch):
 # ---------------------------------------------------------------------------------------------- push configuration
 
 def test_push_config_read_and_gated_write(settings, fake):
+    fake.supported_apis = ["GetAlarmServerConfig", "SetAlarmServerConfig"]  # a firmware that lists the command
     a = make(settings, fake)
     assert a.push_config() == {"configured": False, "port": 8010, "heartbeat": False, "heartbeat_s": 30,
-                               "fields": ["enableHeartbeat", "heartbeatInterval", "serverAddr", "serverPort"], "has_url": False}
+                               "fields": ["enableHeartbeat", "heartbeatInterval", "serverAddr", "serverPort"], "has_url": False,
+                               "enabled": None}
     with pytest.raises(ApiError):
         a.configure_push("arx.test", 8099)
     assert "SetAlarmServerConfig" not in fake.writes
@@ -282,6 +284,35 @@ def test_push_config_read_and_gated_write(settings, fake):
     assert w.push_config()["configured"] is True and "address" not in w.push_config()
     with pytest.raises(ApiError):
         w.configure_push("bad host!", 8099)
+
+
+def test_push_config_refused_on_a_v1_nvr(settings, fake):
+    """NN2A protocol fix: the owner's NVR (1.4.7, v1 API, answer = serverAddr + serverPort stub) rejected SetAlarmServerConfig;
+    the v1 guide documents it for IP cameras only. The adapter now refuses before sending anything."""
+    fake.shape = "live"
+    w = writer(settings, fake)
+    with pytest.raises(ApiError) as e:
+        w.configure_push("arx.test", 8099)
+    assert e.value.code == "nvr_not_supported" and e.value.details["reason"] == "v1_nvr_ipc_only"
+    assert "SetAlarmServerConfig" not in fake.writes
+
+
+def test_push_config_ipc_and_v2_nvr_shapes_are_supported(settings, fake):
+    fake.kind = "ipc"
+    assert writer(settings, fake).configure_push("arx.test", 8099)["applied"] is True
+    fake.reset()
+    fake.alarm_server_switch = False  # v2 NVR answer: switch + url
+    out = writer(settings, fake).configure_push("arx.test", 8099, path="/tok1/SendAlarmStatus")
+    assert out["applied"] is True and out["path_supported"] is True and fake.alarm_server_switch is True
+    assert fake.set_alarm_bodies[-1].index("<switch>true</switch>") < fake.set_alarm_bodies[-1].index("<serverAddr>")
+
+
+def test_supported_apis_list_is_authoritative(settings, fake):
+    fake.supported_apis = ["GetDeviceInfo", "GetAlarmServerConfig"]  # lists the Get only
+    fake.alarm_server_switch = False  # even with a v2 shape
+    with pytest.raises(ApiError) as e:
+        writer(settings, fake).configure_push("arx.test", 8099)
+    assert e.value.details["reason"] == "supported_apis" and "SetAlarmServerConfig" not in fake.writes
 
 
 def test_event_mode_selects_capability(settings, fake):

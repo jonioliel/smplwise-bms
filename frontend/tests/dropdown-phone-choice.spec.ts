@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// Owner decision 2026-10-03: how a dropdown opens on a PHONE - a bottom sheet (default) or the regular small list under the field.
+// Owner decision 2026-10-03: how a dropdown opens on a PHONE - the regular small list under the field (default, owner 2026-10-05) or a bottom sheet.
 // `ui.dd_phone` (sheet | list): the installation's default (admins) and the user's own choice (null = follow), one global value.
 // Covers the Settings card "תפריט נפתח בטלפון" (both levels, both options, persistence across a reload, a non-admin), the effect on
 // `auto` and on the six styles at phone / tablet / desktop widths, and the full sheet: slide-up, handle, title, search, swipe down to
@@ -11,7 +11,7 @@ const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
 const WORDS = ['סלון', 'מטבח', 'חדר שינה', 'משרד', 'מרפסת', 'חצר', 'מחסן', 'חדר כביסה', 'חדר ילדים', 'פינת אוכל', 'גג', 'מעלית', 'חניה'];
 
 type Server = { inst: string; own: string | null; patches: Record<string, unknown>[]; puts: Record<string, unknown>[]; canEdit: boolean; refuse: boolean };
-const fresh = (): Server => ({ inst: 'sheet', own: null, patches: [], puts: [], canEdit: true, refuse: false });
+const fresh = (inst = 'list'): Server => ({ inst, own: null, patches: [], puts: [], canEdit: true, refuse: false });
 
 async function mock(page: Page, srv: Server) {
   await page.route('**/api/v1/**', (route) => {
@@ -114,30 +114,30 @@ test.describe('the setting in the Settings screen', () => {
     return page.locator('[data-dd-phone-card]');
   }
 
-  test('both levels: the default is the bottom sheet; the installation default and the personal choice save and apply at once', async ({ page }) => {
+  test('both levels: the default is the small list; the installation default and the personal choice save and apply at once', async ({ page }) => {
     const srv = fresh();
     const card = await openCard(page, srv);
     await expect(card).toBeVisible();
-    await expect(card.locator('[data-dd-phone="inst:sheet"]')).toBeChecked();
+    await expect(card.locator('[data-dd-phone="inst:list"]')).toBeChecked();
     await expect(card.locator('[data-dd-phone="own:follow"]')).toBeChecked();
-    await expect(card.locator('[data-dd-phone-effective]')).toContainText('גיליון שעולה מלמטה');
-    expect(await htmlAttr(page)).toBe('sheet');
-    // the installation default (an administrator)
-    await card.locator('[data-dd-phone="inst:list"]').check();
-    await expect.poll(() => srv.patches.length).toBe(1);
-    expect(srv.patches[0]).toEqual({ 'ui.dd_phone': 'list' });
     await expect(card.locator('[data-dd-phone-effective]')).toContainText('רשימה קטנה מתחת לשדה');
     expect(await htmlAttr(page)).toBe('list');
+    // the installation default (an administrator)
+    await card.locator('[data-dd-phone="inst:sheet"]').check();
+    await expect.poll(() => srv.patches.length).toBe(1);
+    expect(srv.patches[0]).toEqual({ 'ui.dd_phone': 'sheet' });
+    await expect(card.locator('[data-dd-phone-effective]')).toContainText('גיליון שעולה מלמטה');
+    expect(await htmlAttr(page)).toBe('sheet');
     expect(srv.puts).toHaveLength(0);
     // the personal choice wins over the installation's
-    await card.locator('[data-dd-phone="own:sheet"]').check();
-    await expect.poll(() => srv.own).toBe('sheet');
-    expect(srv.puts[0]).toEqual({ 'ui.dd_phone': 'sheet' });
-    expect(await htmlAttr(page)).toBe('sheet');
-    await expect(card.locator('[data-dd-phone-effective]')).toContainText('גיליון שעולה מלמטה');
     await card.locator('[data-dd-phone="own:list"]').check();
     await expect.poll(() => srv.own).toBe('list');
+    expect(srv.puts[0]).toEqual({ 'ui.dd_phone': 'list' });
     expect(await htmlAttr(page)).toBe('list');
+    await expect(card.locator('[data-dd-phone-effective]')).toContainText('רשימה קטנה מתחת לשדה');
+    await card.locator('[data-dd-phone="own:sheet"]').check();
+    await expect.poll(() => srv.own).toBe('sheet');
+    expect(await htmlAttr(page)).toBe('sheet');
     // back to "follow the installation"
     await card.locator('[data-dd-phone="own:follow"]').check();
     await expect.poll(() => srv.own).toBeNull();
@@ -178,7 +178,7 @@ test.describe('the setting in the Settings screen', () => {
     await expect.poll(() => srv.puts.length).toBe(1);
     await expect(card.locator('[role=alert]')).toBeVisible();
     await expect(card.locator('[data-dd-phone="own:follow"]')).toBeChecked();
-    expect(await htmlAttr(page)).toBe('sheet');
+    expect(await htmlAttr(page)).toBe('list');
   });
 
   test('on a phone width: nothing overflows, labels are plain (no Home Assistant), no paragraphs', async ({ page }) => {
@@ -197,7 +197,7 @@ test.describe('what the setting does at phone, tablet and desktop widths', () =>
   const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal', 'capsule'] as const;
 
   test('phone + sheet: auto and the six styles open a bottom sheet (full width, at the bottom, handle + title, 48 px options)', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     expect(await htmlAttr(page)).toBe('sheet');
     await mount(page, STYLES);
     for (const s of STYLES) {
@@ -261,7 +261,7 @@ test.describe('what the setting does at phone, tablet and desktop widths', () =>
   }
 
   test('crossing the phone width while the setting is sheet: the next open follows the new width', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['auto']);
     await chip(page, 'auto').click();
     await expect(pop(page, 'auto')).toHaveAttribute('data-present', 'sheet');
@@ -273,7 +273,7 @@ test.describe('what the setting does at phone, tablet and desktop widths', () =>
   });
 
   test('the Bubble popup dial still refines the sheet (centred / inline), while `list` ignores it', async ({ page }) => {
-    await stage(page, fresh(), { width: 390, skin: 'bubble' });
+    await stage(page, fresh('sheet'), { width: 390, skin: 'bubble' });
     await mount(page, ['auto']);
     await page.evaluate(() => document.documentElement.setAttribute('data-bubble-popup', 'centred'));
     await chip(page, 'auto').click();
@@ -289,7 +289,7 @@ test.describe('what the setting does at phone, tablet and desktop widths', () =>
 
 test.describe('the bottom sheet in full (mockup scope)', () => {
   test('a long list: handle, title, search field on top, the options scroll under it, typing filters; Esc and the backdrop close', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['auto'], 13);
     await chip(page, 'auto').click();
     await page.waitForTimeout(700);
@@ -314,7 +314,7 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
   });
 
   test('the sheet slides up on open (an animation from below) and the animation is off under prefers-reduced-motion', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['pill']);
     await chip(page, 'pill').click();
     expect(await pop(page, 'pill').evaluate((el) => getComputedStyle(el).animationName)).toBe('dd-sheet-in');
@@ -325,7 +325,7 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
   });
 
   test('swipe down on the handle: a short drag springs back, a long one closes the sheet', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['pill'], 6);
     await chip(page, 'pill').click();
     await page.waitForTimeout(700);
@@ -354,7 +354,7 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
   for (const skin of SKINS) {
     for (const scheme of ['light', 'dark']) {
       test(`${skin} / ${scheme}: the sheet is readable (opaque enough list text, handle visible, inside the screen)`, async ({ page }) => {
-        await stage(page, fresh(), { width: 390, skin, scheme });
+        await stage(page, fresh('sheet'), { width: 390, skin, scheme });
         await mount(page, ['auto', 'pill'], 9);
         for (const s of ['auto', 'pill']) {
           await chip(page, s).click();
@@ -378,7 +378,7 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
   }
 
   test('keyboard keeps working in the sheet: arrows move, Enter chooses and fires change, focus returns to the chip', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['auto']);
     await page.evaluate(() => {
       (window as unknown as { __chg: string[] }).__chg = [];
@@ -401,7 +401,7 @@ async function sheetGone(page: Page, s: string) {
 
 test.describe('the bottom sheet in full: closing, blur, modal page, keyboard', () => {
   test('closing slides out for 200 ms: aria-expanded is false at once, the sheet is gone after the animation; reduced motion closes at once', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['pill']);
     await chip(page, 'pill').click();
     await page.waitForTimeout(500);
@@ -430,7 +430,7 @@ test.describe('the bottom sheet in full: closing, blur, modal page, keyboard', (
   });
 
   test('the page behind is blurred 3 px by the scrim; none in the lite performance tier', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['pill']);
     await chip(page, 'pill').click();
     await page.waitForTimeout(500);
@@ -444,7 +444,7 @@ test.describe('the bottom sheet in full: closing, blur, modal page, keyboard', (
   });
 
   test('phone: the page behind the sheet is inert and Tab stays inside it; everything is live again after closing', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['auto'], 13);
     await chip(page, 'auto').click();
     await page.waitForTimeout(600);
@@ -486,7 +486,7 @@ test.describe('the bottom sheet in full: closing, blur, modal page, keyboard', (
   });
 
   test('the on-screen keyboard (emulated visualViewport): the sheet rises above it and its height is capped by the visible area', async ({ page }) => {
-    await stage(page, fresh(), { width: 390 });
+    await stage(page, fresh('sheet'), { width: 390 });
     await mount(page, ['auto'], 13);
     await chip(page, 'auto').click();
     await page.waitForTimeout(600);

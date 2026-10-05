@@ -29,6 +29,9 @@ async function stage(page: Page, skin = 'classic', width = 1280, scheme = 'light
   });
 }
 
+/** The phone default is the small list (owner 2026-10-05); the sheet tests choose the sheet the way the Settings choice does (`data-dd-phone` on <html>). */
+const useSheet = (page: Page) => page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'sheet'));
+
 /** sw-tabs in dropdown form per style; `n` items (the first has a count, the fourth an alert). */
 async function mount(page: Page, styles: readonly string[], n = 6, extra: Record<string, string> = {}) {
   await page.evaluate(
@@ -157,8 +160,17 @@ test.describe('the search field of a long list (mockups: 8+ options)', () => {
 });
 
 test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a popover on a wide screen', () => {
-  test('sheet (default): bottom of the screen, full width, grab bar + title, 48 px options, backdrop press closes', async ({ page }) => {
+  test('the default on a phone is the regular small list under the field (no sheet)', async ({ page }) => {
     await stage(page, 'classic', 390);
+    expect(await page.evaluate(() => document.documentElement.getAttribute('data-dd-phone'))).toBe('list');
+    await mount(page, ['pill'], 6);
+    await chip(page, 'pill').click();
+    await expect(popOf(page, 'pill')).toHaveAttribute('data-present', 'pop');
+  });
+
+  test('sheet (chosen): bottom of the screen, full width, grab bar + title, 48 px options, backdrop press closes', async ({ page }) => {
+    await stage(page, 'classic', 390);
+    await useSheet(page);
     await mount(page, ['pill'], 6);
     await chip(page, 'pill').click();
     const pop = popOf(page, 'pill');
@@ -186,6 +198,7 @@ test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a po
 
   test('the popup dial: centred sits in the middle, inline opens in the flow; a wide screen and `auto` keep the popover', async ({ page }) => {
     await stage(page, 'bubble', 390);
+    await useSheet(page);
     await mount(page, ['pill', 'auto'], 6);
     await page.evaluate(() => document.documentElement.setAttribute('data-bubble-popup', 'centred'));
     await chip(page, 'pill').click();
@@ -222,6 +235,7 @@ test.describe('the phone: sheet / centred / inline (the Bubble popup dial), a po
 
   test('the long list (13 options, the settings tabs) as a sheet: it scrolls under the search field; typing a letter filters', async ({ page }) => {
     await stage(page, 'classic', 390);
+    await useSheet(page);
     await mount(page, ['pill'], 13);
     await chip(page, 'pill').click();
     const r = await popOf(page, 'pill').evaluate((el) => {

@@ -125,8 +125,12 @@ def test_the_agenda_reads_the_next_event_of_each_mirrored_calendar_sorted_and_wi
         assert d["events"] == [] and d["calendars"] == [{"entity_id": "calendar.nope", "name": "calendar.nope", "available": False, "found": False}]
 
 
-def test_the_tree_carries_the_agenda_only_while_the_widget_is_on_with_calendars(app_c):
+def test_the_tree_carries_the_agenda_only_while_the_widget_is_on_with_calendars(app_c, monkeypatch):
     app, s = app_c
+    # the tree reads the agenda at the wall clock; the fixture's events are placed around the fixed NOW (the dentist ends at
+    # NOW + 3 h), so the route's clock is pinned to NOW - without this the test went red after 13:00 UTC on 2026-10-05 and for good after
+    real_agenda = home_screen.agenda_data
+    monkeypatch.setattr(home_screen, "agenda_data", lambda conn, cfg, now=None: real_agenda(conn, cfg, now=now or NOW))
     with TestClient(app) as c:
         assert c.get("/api/v1/devices/tree").json()["home"]["data"]["agenda"] is None  # no calendar chosen
         r = _patch(c, {"home.widgets": {"agenda": {"calendars": ["calendar.family", "calendar.work"]}}})

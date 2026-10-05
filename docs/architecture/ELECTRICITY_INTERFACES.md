@@ -231,8 +231,11 @@ keeps it; `ui.tabs` accepts any slug section id (`infra`, `infra.electricity`).
 
 ### 2.6 Not provided
 
-- Manual meter readings (calibration against the physical meter or the utility bill): not built in this phase (owner D7:
-  bills use measured readings only; the plan places calibration later). Replacement readings are typed through `/replace`.
+- Manual meter readings and calibration: built in EL6 (`docs/changes/EL6-MANUAL-READING-CALIBRATION.md`). The provider applies
+  the calibration (`physical = factor x counter + offset`, from a local midnight) to `consumption`, `consumption_windows`,
+  `reading_at`, `daily` / `monthly` / `history_windows` and the status value; it adds `data_until(meter_id)` (the last report or a
+  later manual reading - billing bills up to here), `calibrations(...)` and `manual_readings(...)` for bill notes. Providers without
+  them (test doubles, `NullReadings`) keep working: billing reads them with `getattr`.
 - History import (backfill): not built (owner round 2, answer 9).
 
 ## 3. REST API of this branch (`/api/v1/energy/...`, router `routers/energy_meters.py`)
@@ -251,6 +254,11 @@ money anywhere in these routes. All routes work on the remote channel with the s
 | PATCH | `/energy/meters/{id}` | energy.manage | `{revision, display_name?, area_id?, max_kw?, status?: 'active'\|'paused'}` | `Meter` |
 | DELETE | `/energy/meters/{id}?revision=N` | energy.manage | - | `Meter` (status `retired`; data kept) |
 | POST | `/energy/meters/{id}/replace` | energy.manage | `{revision, at?, old_final_reading_kwh?, new_start_reading_kwh?, new_source_ref?, note?}` | `Meter` + `epochs` |
+| GET | `/energy/meters/{id}/manual-readings` | energy.view | - | EL6 log: `{items, calibrations, calibration, suggestion, billed_until, first_calibration_date, undo_window_hours, units}` |
+| POST | `/energy/meters/{id}/manual-readings` | energy.manage | `{read_at, value, unit, note?, dry_run?}` | `{dry_run, reading, log?}` |
+| POST | `/energy/meters/{id}/manual-readings/{rid}/undo` | energy.manage | `{reason?}` | the log |
+| POST | `/energy/meters/{id}/calibrations` | energy.manage | `{effective_date, factor, offset_kwh? \| anchor_reading_id?, note?, dry_run?}` | `{dry_run, calibration, log?}` |
+| POST | `/energy/meters/{id}/calibrations/{cid}/undo` | energy.manage | `{reason?}` | the log |
 | GET | `/energy/meters/{id}/series?from=&to=&step=15m\|1h\|1d` | energy.view | - | `{meter_id, step, unit: 'kWh', items: [{start, end, kwh, wh, coverage}]}` (max 3000 points) |
 | GET | `/energy/meters/{id}/readings?from=&to=&limit=500` | energy.view | - | `{items: [{at, kwh, wh, flags: [..]}], truncated}` |
 | GET | `/energy/consumption?meter_ids=a,b&from=&to=` | energy.view | - | `{from, to, items: [{meter_id, wh, kwh, coverage, covered_seconds, total_seconds, last_report_at}]}` |
@@ -334,6 +342,9 @@ daily ≈ 20 MB. Typical sites (10-30 meters) need tens of MB.
   read-only from a temp copy and must carry the expected schema version; anything else in it is ignored.
 
 ## Change log
+- 2026-10-05 (EL6, `pilot/EL6-manual-reading`): manual readings and calibration - migration `0058_energy_manual_readings.sql`, the
+  routes above, `Meter.calibration`, the provider applies the calibration (2.6), reading flag 512 `manual_reading`, billing bills
+  up to `data_until`. Design: `docs/changes/EL6-MANUAL-READING-CALIBRATION.md`.
 - 2026-10-04 (integration, `integ/electricity`): migrations are `0053_electricity_meters.sql` and
   `0054_electricity_billing.sql` (after 0.1.159's 0052); section 2.4 is the shared-provider seam (the segments adapter was removed); billing's settings key
   is registered with `own_route` (section 5); one backup table list (section 7); a paused account still uses its meters (2.3).

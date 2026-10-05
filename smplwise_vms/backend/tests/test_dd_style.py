@@ -109,33 +109,33 @@ BAD_PHONE = ["", "Sheet", "LIST", " sheet", "list ", "pop", "auto", "bottom", 1,
 
 
 def test_phone_mode_validator_and_stored_reading():
-    assert dd_style.PHONE_MODES == ("sheet", "list") and dd_style.DEFAULT_PHONE == "sheet"
+    assert dd_style.PHONE_MODES == ("sheet", "list") and dd_style.DEFAULT_PHONE == "list"
     for m in dd_style.PHONE_MODES:
         assert dd_style.normalize_phone(m) == m
     for bad in BAD_PHONE:
         with pytest.raises(ValueError):
             dd_style.normalize_phone(bad)
-    assert dd_style.stored_phone("nonsense") == "sheet" and dd_style.stored_phone(None) == "sheet" and dd_style.stored_phone("list") == "list"
+    assert dd_style.stored_phone("nonsense") == "list" and dd_style.stored_phone(None) == "list" and dd_style.stored_phone("sheet") == "sheet"
 
 
 def test_phone_installation_default_round_trips_and_refuses_unknown_values(settings):
     with TestClient(create_app(settings)) as c:
-        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
-        assert c.patch("/api/v1/settings", json={"ui.dd_phone": "list"}).status_code == 200
-        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "list"
-        for bad in BAD_PHONE:
-            assert c.patch("/api/v1/settings", json={"ui.dd_phone": bad}).status_code == 422, bad
         assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "list"
         assert c.patch("/api/v1/settings", json={"ui.dd_phone": "sheet"}).status_code == 200
         assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
+        for bad in BAD_PHONE:
+            assert c.patch("/api/v1/settings", json={"ui.dd_phone": bad}).status_code == 422, bad
+        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
+        assert c.patch("/api/v1/settings", json={"ui.dd_phone": "list"}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "list"
 
 
 def test_phone_installation_default_needs_system_configure(settings):
     c = TestClient(create_app(settings))
     c.get("/api/v1/me")
     bind(c, settings, "dana", "viewer", "installation", "*")
-    assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.dd_phone": "list"}).status_code == 403
-    assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
+    assert c.patch("/api/v1/settings", headers=as_user("dana"), json={"ui.dd_phone": "sheet"}).status_code == 403
+    assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "list"
 
 
 def test_phone_user_preference_is_per_user_validated_and_clearable(settings):
@@ -156,10 +156,73 @@ def test_phone_user_preference_is_per_user_validated_and_clearable(settings):
 
 
 def test_phone_a_database_without_the_key_needs_no_migration(settings):
-    """A database written before this key existed has no row: the installation reads `sheet`, a user reads null (follow). No migration."""
+    """A database written before this key existed has no row: the installation reads `list`, a user reads null (follow). No migration."""
     with TestClient(create_app(settings)) as c:
-        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "sheet"
+        assert c.get("/api/v1/settings").json()["settings"]["ui.dd_phone"] == "list"
         assert c.get("/api/v1/me/prefs").json()["prefs"]["ui.dd_phone"] is None
+
+
+# ---- 2.0.2 (owner 2026-10-05): the multi-select search threshold (`ui.dd_search`) and the camera picker's look (`ui.dd_picker`) --------
+
+BAD_SEARCH = ["", "Always", "NEVER", " 4", "4 ", "3", "5", "6", 4, 8, True, ["4"], {"a": 1}]
+BAD_PICKER = ["", "Dropdown", "CHIPS", " chips", "chips ", "buttons", "list", "auto", 1, True, ["chips"], {"a": 1}]
+
+
+def test_search_and_picker_validators_and_stored_reading():
+    assert dd_style.SEARCH_MODES == ("always", "4", "8", "never") and dd_style.DEFAULT_SEARCH == "4"
+    assert dd_style.PICKERS == ("dropdown", "chips") and dd_style.DEFAULT_PICKER == "dropdown"
+    for m in dd_style.SEARCH_MODES:
+        assert dd_style.normalize_search(m) == m
+    for m in dd_style.PICKERS:
+        assert dd_style.normalize_picker(m) == m
+    for bad in BAD_SEARCH:
+        with pytest.raises(ValueError):
+            dd_style.normalize_search(bad)
+    for bad in BAD_PICKER:
+        with pytest.raises(ValueError):
+            dd_style.normalize_picker(bad)
+    assert dd_style.stored_search("nonsense") == "4" and dd_style.stored_search(None) == "4" and dd_style.stored_search("never") == "never"
+    assert dd_style.stored_picker("nonsense") == "dropdown" and dd_style.stored_picker(None) == "dropdown" and dd_style.stored_picker("chips") == "chips"
+
+
+@pytest.mark.parametrize("key,default,other,bad", [("ui.dd_search", "4", "never", BAD_SEARCH), ("ui.dd_picker", "dropdown", "chips", BAD_PICKER)])
+def test_search_picker_installation_default_round_trips_and_refuses_unknown_values(settings, key, default, other, bad):
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/api/v1/settings").json()["settings"][key] == default
+        assert c.patch("/api/v1/settings", json={key: other}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"][key] == other
+        for b in bad:
+            assert c.patch("/api/v1/settings", json={key: b}).status_code == 422, b
+        assert c.get("/api/v1/settings").json()["settings"][key] == other
+        assert c.patch("/api/v1/settings", json={key: default}).status_code == 200
+        assert c.get("/api/v1/settings").json()["settings"][key] == default
+
+
+@pytest.mark.parametrize("key,default,other", [("ui.dd_search", "4", "always"), ("ui.dd_picker", "dropdown", "chips")])
+def test_search_picker_installation_default_needs_system_configure(settings, key, default, other):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.patch("/api/v1/settings", headers=as_user("dana"), json={key: other}).status_code == 403
+    assert c.get("/api/v1/settings").json()["settings"][key] == default
+
+
+@pytest.mark.parametrize("key,other,bad", [("ui.dd_search", "8", BAD_SEARCH), ("ui.dd_picker", "chips", BAD_PICKER)])
+def test_search_picker_user_preference_is_per_user_validated_and_clearable(settings, key, other, bad):
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    body = c.get("/api/v1/me/prefs").json()
+    assert body["prefs"][key] is None and key not in body["stored"]
+    r = c.put("/api/v1/me/prefs", json={key: other})
+    assert r.status_code == 200, r.text
+    assert r.json()["prefs"][key] == other and key in r.json()["stored"]
+    assert key not in c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["stored"]
+    for b in bad:
+        assert c.put("/api/v1/me/prefs", json={key: b}).status_code == 422, b
+    assert c.get("/api/v1/me/prefs").json()["prefs"][key] == other
+    r = c.put("/api/v1/me/prefs", json={key: None})
+    assert r.status_code == 200 and key not in r.json()["stored"] and r.json()["prefs"][key] is None
 
 
 # ---- Unreleased (owner 2026-10-04): the SIZE of a dropdown (`ui.dd_size`: sm | md | lg, `ui.dd_size_groups`) and the `capsule` style ----

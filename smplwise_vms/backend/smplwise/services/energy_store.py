@@ -46,6 +46,20 @@ BACKUP_COLUMNS = {
 }
 EVENT_FLAGS = ec.F_RESET | ec.F_REBASE | ec.F_SPIKE_DROPPED | ec.F_JUMP_ACCEPTED | ec.F_NOISE | ec.F_MANUAL | ec.F_LAST_RESET
 NOT_ACCEPTED = ec.F_GLITCH | ec.F_NOISE  # rows that are not a reference reading
+# EL6: a reading whose own step is still one linear span of the counter (so a manual reading may re-split it)
+LINEAR_OK = ec.F_AFTER_UNAVAILABLE | ec.F_MANUAL_READING
+MANUAL_MIN_GAP_S = 1800  # a manual reading changes the series only inside a reporting gap at least this long
+
+
+@dataclass(frozen=True)
+class ManualPlan:
+    """EL6: what a manual reading does. effect 'allocation' (reason open_gap | closed_gap) or 'record' (reason reported |
+    outside_counter | no_counter_data | counter_events | implausible | billed). prev / next: the counter readings (ts, wh) around it."""
+
+    effect: str
+    reason: str
+    prev: tuple[int, int] | None = None
+    next: tuple[int, int] | None = None
 
 
 class EnergyDatabase(Database):
@@ -246,6 +260,157 @@ class EnergyStore:
                 (epoch_id, at if start_wh is not None else None, start_wh, at if start_wh is not None else None, start_wh, mid),
             )
         return {"manual_wh": added}
+
+    # ------------------------------------------------------------------ EL6: manual readings of the physical meter
+
+    def _neighbours(self, conn: sqlite3.Connection, mid: int, ts: int, lo: int, hi: int | None) -> tuple[sqlite3.Row | None, sqlite3.Row | None]:
+        """The accepted readings just before and just after `ts`, inside the counter life [lo, hi)."""
+        prev = conn.execute("SELECT ts, value_wh, flags FROM readings WHERE meter_id = ? AND ts < ? AND ts >= ? AND (flags & ?) = 0 ORDER BY ts DESC LIMIT 1",
+                            (mid, ts, lo, NOT_ACCEPTED)).fetchone()
+        nxt = conn.execute("SELECT ts, value_wh, flags FROM readings WHERE meter_id = ? AND ts > ? AND ts < ? AND (flags & ?) = 0 ORDER BY ts LIMIT 1",
+                           (mid, ts, hi if hi is not None else 2**62, NOT_ACCEPTED)).fetchone()
+        return prev, nxt
+
+    def _plan_manual(self, conn: sqlite3.Connection, mid: int | None, ts: int, raw_wh: int, *, max_kw: float, epoch_lo: int, epoch_hi: int | None,
+                     billed_until: int | None) -> ManualPlan:
+        if mid is None:
+            return ManualPlan("record", "no_counter_data")
+        if conn.execute("SELECT 1 FROM readings WHERE meter_id = ? AND ts = ?", (mid, ts)).fetchone():
+            return ManualPlan("record", "reported")
+        cur = self._cursor(conn, mid)
+        if cur is None or cur["last_ts"] is None or cur["last_value_wh"] is None:
+            return ManualPlan("record", "no_counter_data")
+        if epoch_hi is None and ts > cur["last_ts"]:  # after the last accepted reading of the current counter life: an open gap
+            t0, v0 = int(cur["last_ts"]), int(cur["last_value_wh"])
+            if cur["held_ts"] is not None:
+                return ManualPlan("record", "counter_events")
+            if ts - t0 < MANUAL_MIN_GAP_S:
+                return ManualPlan("record", "reported")
+            if raw_wh < v0:
+                return ManualPlan("record", "outside_counter", (t0, v0))
+            if raw_wh - v0 > ec.cap_wh(max_kw, t0, ts):
+                return ManualPlan("record", "implausible", (t0, v0))
+            return ManualPlan("allocation", "open_gap", (t0, v0), None)
+        prev, nxt = self._neighbours(conn, mid, ts, epoch_lo, epoch_hi)
+        if prev is None or nxt is None:
+            return ManualPlan("record", "no_counter_data")
+        p, n = (int(prev["ts"]), int(prev["value_wh"])), (int(nxt["ts"]), int(nxt["value_wh"]))
+        if int(nxt["flags"]) & ~LINEAR_OK:
+            return ManualPlan("record", "counter_events", p, n)
+        if n[0] - p[0] < MANUAL_MIN_GAP_S:
+            return ManualPlan("record", "reported", p, n)
+        if not p[1] <= raw_wh <= n[1]:
+            return ManualPlan("record", "outside_counter", p, n)
+        if billed_until is not None and p[0] < billed_until:
+            return ManualPlan("record", "billed", p, n)
+        return ManualPlan("allocation", "closed_gap", p, n)
+
+    def _shift(self, conn: sqlite3.Connection, mid: int, deltas: dict[int, list[int]], tz: ZoneInfo, quality: int) -> None:
+        """Add {bucket: [wh, covered_s]} to the quarter-hour buckets and the daily totals (negative values subtract; covered
+        seconds stay within [0, bucket / day]). `quality` marks the touched buckets (MAX: an undo never lowers a mark)."""
+        days: dict[dt.date, list[int]] = {}
+        for bkt, (wh, cov) in sorted(deltas.items()):
+            if not wh and not cov:
+                continue
+            conn.execute(
+                """INSERT INTO intervals(meter_id, bucket, wh, covered_s, quality) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(meter_id, bucket) DO UPDATE SET wh = wh + excluded.wh, covered_s = MAX(0, MIN(?, covered_s + ?)),
+                   quality = MAX(quality, excluded.quality)""",
+                (mid, bkt, wh, max(cov, 0), quality, BUCKET_S, cov),
+            )
+            acc = days.setdefault(local_date(bkt, tz), [0, 0])
+            acc[0] += wh
+            acc[1] += cov
+        for d, (wh, cov) in days.items():
+            a, b = day_bounds(d, tz)
+            conn.execute(
+                """INSERT INTO daily(meter_id, date, wh, covered_s, day_s, quality_max) VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(meter_id, date) DO UPDATE SET wh = wh + excluded.wh, covered_s = MAX(0, MIN(day_s, covered_s + ?)),
+                   quality_max = MAX(quality_max, excluded.quality_max)""",
+                (mid, d.isoformat(), wh, max(cov, 0), b - a, quality, cov),
+            )
+
+    @staticmethod
+    def _split(t0: int, t1: int, wh: int, sign: int, out: dict[int, list[int]], *, covered: bool) -> None:
+        for bkt, share, cov in ec.bucket_split(t0, t1, wh, BUCKET_S):
+            acc = out.setdefault(bkt, [0, 0])
+            acc[0] += sign * share
+            if covered:
+                acc[1] += sign * cov
+
+    def manual_reading(self, ext_id: str, *, ts: int, raw_wh: int, max_kw: float, epoch_lo: int, epoch_hi: int | None, billed_until: int | None,
+                       tz: ZoneInfo, dry_run: bool = False) -> ManualPlan:
+        """EL6: what a typed reading of the physical meter (already on the counter's own scale) does to the stored series, and - unless
+        `dry_run` - do it, in ONE energy.db transaction (the plan is re-made inside it). Only two shapes change anything, and neither
+        changes the total energy the counter itself recorded:
+        - an OPEN gap (the meter has not reported since t0 < ts): the energy raw - v0 is spread over [t0, ts] and the counter continues
+          from the typed value (the next report counts from it);
+        - a CLOSED gap (two accepted readings at least 30 minutes apart, the typed value between them, no counter event at the second,
+          nothing billed after the first): the gap's energy is re-split at ts - more before, less after, the same sum.
+        Everything else is recorded only (`effect='record'` with the reason) - the readings of the system are never rewritten."""
+        if dry_run:
+            with self.db.connection(mode="read", label="energy.manual_plan") as conn:
+                return self._plan_manual(conn, self._mid(conn, ext_id, create=False), ts, raw_wh, max_kw=max_kw, epoch_lo=epoch_lo, epoch_hi=epoch_hi,
+                                         billed_until=billed_until)
+        with self.db.connection(label="energy.manual_reading", durable=True) as conn:
+            mid = self._mid(conn, ext_id, create=False)
+            plan = self._plan_manual(conn, mid, ts, raw_wh, max_kw=max_kw, epoch_lo=epoch_lo, epoch_hi=epoch_hi, billed_until=billed_until)
+            if plan.effect != "allocation" or mid is None or plan.prev is None:
+                return plan
+            (t0, v0), deltas = plan.prev, {}
+            if plan.next is None:
+                self._split(t0, ts, raw_wh - v0, 1, deltas, covered=True)
+            else:
+                t1, v1 = plan.next
+                self._split(t0, t1, v1 - v0, -1, deltas, covered=False)
+                self._split(t0, ts, raw_wh - v0, 1, deltas, covered=False)
+                self._split(ts, t1, v1 - raw_wh, 1, deltas, covered=False)
+            self._shift(conn, mid, deltas, tz, ec.Q_MANUAL)
+            conn.execute("INSERT INTO readings(meter_id, ts, value_wh, flags) VALUES (?, ?, ?, ?)", (mid, ts, raw_wh, ec.F_MANUAL_READING))
+            if plan.next is None:
+                conn.execute("UPDATE cursor SET last_ts = ?, last_value_wh = ?, stored_ts = ?, stored_value_wh = ? WHERE meter_id = ?", (ts, raw_wh, ts, raw_wh, mid))
+            return plan
+
+    def undo_manual_reading(self, ext_id: str, *, ts: int, raw_wh: int, epoch_lo: int, epoch_hi: int | None, tz: ZoneInfo) -> str | None:
+        """Take back an applied manual reading: the energy around it goes back to one linear span (closed gap) or back out of the
+        series with the counter returning to the reading before it (open gap). Returns None when done, else why it cannot be:
+        `counter_events` (the next report was a reset / jump / rebase), `counter_changed` (the counter moved on in a way that no longer
+        matches), `missing`. Never a partial change (one transaction)."""
+        with self.db.connection(label="energy.manual_undo", durable=True) as conn:
+            mid = self._mid(conn, ext_id, create=False)
+            if mid is None:
+                return "missing"
+            row = conn.execute("SELECT value_wh, flags FROM readings WHERE meter_id = ? AND ts = ?", (mid, ts)).fetchone()
+            if row is None or not int(row["flags"]) & ec.F_MANUAL_READING or int(row["value_wh"]) != raw_wh:
+                return "missing"
+            prev, nxt = self._neighbours(conn, mid, ts, epoch_lo, epoch_hi)
+            if prev is None:
+                return "counter_changed"
+            t0, v0 = int(prev["ts"]), int(prev["value_wh"])
+            deltas: dict[int, list[int]] = {}
+            if nxt is None:
+                cur = self._cursor(conn, mid)
+                if cur is None or cur["last_ts"] != ts or cur["held_ts"] is not None:
+                    return "counter_changed"
+                self._split(t0, ts, raw_wh - v0, -1, deltas, covered=True)
+                conn.execute("UPDATE cursor SET last_ts = ?, last_value_wh = ?, stored_ts = ?, stored_value_wh = ? WHERE meter_id = ?", (t0, v0, t0, v0, mid))
+            else:
+                t1, v1 = int(nxt["ts"]), int(nxt["value_wh"])
+                if int(nxt["flags"]) & ~LINEAR_OK:
+                    return "counter_events"
+                if not v0 <= raw_wh <= v1:
+                    return "counter_changed"
+                self._split(t0, ts, raw_wh - v0, -1, deltas, covered=False)
+                self._split(ts, t1, v1 - raw_wh, -1, deltas, covered=False)
+                self._split(t0, t1, v1 - v0, 1, deltas, covered=False)
+            self._shift(conn, mid, deltas, tz, ec.Q_MEASURED)
+            if deltas:  # an open gap taken back leaves empty rows: remove them, as if the reading had never been typed
+                lo_b, hi_b = min(deltas), max(deltas) + BUCKET_S
+                conn.execute("DELETE FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ? AND wh = 0 AND covered_s = 0", (mid, lo_b, hi_b))
+                conn.execute("DELETE FROM daily WHERE meter_id = ? AND date >= ? AND date <= ? AND wh = 0 AND covered_s = 0",
+                             (mid, local_date(lo_b, tz).isoformat(), local_date(hi_b, tz).isoformat()))
+            conn.execute("DELETE FROM readings WHERE meter_id = ? AND ts = ?", (mid, ts))
+            return None
 
     # ------------------------------------------------------------------ reading
 

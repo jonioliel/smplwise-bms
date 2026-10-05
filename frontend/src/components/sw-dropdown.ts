@@ -8,10 +8,11 @@ import type { IconName } from './sw-icon';
  * skin's resting style; nothing changes until a style is chosen). The styles live HERE, not in the skins: tokens only, so the four
  * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
  */
-import { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, ddPanelFloor, type DdPanel, type DdRing, type DdSize, type DdStyle } from './dd-style';
+import { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, ddPanelFloor, ddSearchMin, type DdPanel, type DdRing, type DdSize, type DdStyle } from './dd-style';
 import { limitNotice, pickedCount, pickedSummary, toggleCapped } from './multi-select';
 export { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle };
-/** A list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items). */
+/** A single-choice list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items).
+ * 2.0.2: a `multiple` list follows the installation's / the user's dial instead (`data-dd-search` on <html>: always | 4 (default) | 8 | never). */
 export const DD_SEARCH_MIN_ITEMS = 8;
 type Present = 'pop' | 'sheet' | 'centred' | 'inline';
 
@@ -32,6 +33,8 @@ export interface DropdownItem {
   divider?: boolean;
   /** 2.0.1 (`multiple`): listed but not choosable now (a camera of another recorder in a comparison); `aria-disabled`, reachable by the keys, a press does nothing. */
   disabled?: boolean;
+  /** 2.0.2: a short reason drawn after the label in a muted small type and as the option's tooltip (why a camera cannot join: "מקליט אחר"). */
+  note?: string;
 }
 
 /** `change` detail: the option chosen (single), or the option toggled and the whole selection (`multiple`; `id` is '' after "נקה"). */
@@ -457,6 +460,13 @@ export class SwDropdown extends LitElement {
     }
     .opt[aria-disabled='true'] .lbl {
       opacity: 0.7;
+    }
+    /* 2.0.2: the short reason after the label (why a camera cannot join now) */
+    .opt .why {
+      flex: none;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-dd-text-3, var(--sw-text-3));
+      white-space: nowrap;
     }
     /* the chip in the multiple mode: the count always shows (the capsule hides the single mode's count); the chip box itself is the touch
        target (the desktop dial, 44 px on touch layouts) - a picker that is pressed several times in a row, not a 32 px tab chip */
@@ -1148,7 +1158,15 @@ export class SwDropdown extends LitElement {
   }
 
   private get hasSearch(): boolean {
-    return this.items.filter(isOption).length >= DD_SEARCH_MIN_ITEMS;
+    const n = this.items.filter(isOption).length;
+    if (!this.multiple) return n >= DD_SEARCH_MIN_ITEMS;
+    let dial: string | null = null;
+    try {
+      dial = document.documentElement.getAttribute('data-dd-search');
+    } catch {
+      /* no document */
+    }
+    return n >= ddSearchMin(dial);
   }
 
   private lbEl(): HTMLElement | null {
@@ -1558,9 +1576,9 @@ export class SwDropdown extends LitElement {
       if (it.group && it.group !== lastGroup) out.push(html`<div class="grp" role="presentation" aria-hidden="true">${it.group}</div>`);
       lastGroup = it.group;
       const picked = this.multiple ? this.values.includes(it.id) : it.id === this.value;
-      out.push(html`<div class="opt" role="option" id=${this.optionId(i)} data-id=${it.id} aria-selected=${String(picked)} aria-disabled=${this.multiple && !this.pickable(it) ? 'true' : nothing} ?data-active=${i === this.cursor}
+      out.push(html`<div class="opt" role="option" id=${this.optionId(i)} data-id=${it.id} aria-selected=${String(picked)} aria-disabled=${this.multiple && !this.pickable(it) ? 'true' : nothing} ?data-active=${i === this.cursor} title=${it.note || nothing}
         @click=${() => this.choose(i)} @pointermove=${() => (this.cursor = i)}>
-        ${anyIcon ? html`<span class="oi" aria-hidden="true">${it.icon ? html`<sw-icon .name=${it.icon} size=${this.iconPx}></sw-icon>` : nothing}</span>` : nothing}<span class="lbl">${it.label}</span>${it.count !== undefined ? html`<span class="n">(${it.count})</span><span class="cnt">${it.count}</span>` : nothing}${it.alert ? html`<span class="dot ${it.alert === 'warn' ? 'warn' : ''}" data-alert="${it.alert === 'warn' ? 'warn' : 'alert'}"></span>` : nothing}
+        ${anyIcon ? html`<span class="oi" aria-hidden="true">${it.icon ? html`<sw-icon .name=${it.icon} size=${this.iconPx}></sw-icon>` : nothing}</span>` : nothing}<span class="lbl">${it.label}</span>${it.note ? html`<span class="why" data-dd-note>${it.note}</span>` : nothing}${it.count !== undefined ? html`<span class="n">(${it.count})</span><span class="cnt">${it.count}</span>` : nothing}${it.alert ? html`<span class="dot ${it.alert === 'warn' ? 'warn' : ''}" data-alert="${it.alert === 'warn' ? 'warn' : 'alert'}"></span>` : nothing}
       </div>`);
     });
     return out;

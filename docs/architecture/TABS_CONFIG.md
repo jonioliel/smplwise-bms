@@ -229,7 +229,7 @@ and behaviour unchanged) so that it is not confused with `capsule` ("קפסול�
   its `icon` at the start and its `count` as a plain number at the other end, a thin divider for a `divider` item, 52 px rows at `md`. The visible
   capsule is the chip's `::before`: the chip box itself is never under the touch target (44 px on a phone and on the 44 px desktop dial), so a
   small capsule keeps its hit area. Tokens only (four skins, ten palettes, light and dark, the radius / touch / performance dials); on a phone it
-  opens as the bottom sheet (`ui.dd_phone`) with 48 px rows. Keyboard and listbox / option roles are those of every style.
+  opens as the small list by default, or as the bottom sheet when `ui.dd_phone` is `sheet` (default changed to `list` on 2026-10-05), with 48 px rows in the sheet. Keyboard and listbox / option roles are those of every style.
 - **Items API** (`DropdownItem` in `components/sw-dropdown.ts`, `TabItem` in `components/sw-tabs.ts`): `count` (existing: "(6)" in the other styles,
   a plain number in the capsule), `icon` (an `IconName`; only the capsule draws it), `divider: true` (a separator line instead of an option: not
   selectable, skipped by the arrows, type-ahead and search, not drawn while the search narrows the list; the other styles and the tab bars skip it).
