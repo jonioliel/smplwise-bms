@@ -66,6 +66,9 @@ NOTE_HE = {
 SKIP_HE = {
     "capabilities_unreadable": "ה־NVR אינו מפרסם את יכולות הזרם.",
     "not_writable": "ה־NVR אינו מאפשר לשנות את הזרם הזה.",
+    "device_refused": "ה־NVR סירב לשינוי בזרם הזה; הוא אינו מעביר כתיבה למצלמה הזו.",
+    "write_api_missing": "ה־NVR אינו מפרסם פקודת כתיבה להגדרות הזרם.",
+    "no_caps": "ה־NVR אינו מפרסם יכולות לזרם הזה, ולכן אי אפשר לאמת ערכים.",
     "codec_not_offered": "המצלמה אינה תומכת בקידוד הזה.",
     "codec_not_supported": "אי אפשר לשנות את הקידוד בזרם הזה.",
     "profile_unavailable": "אין פרופיל מתאים בקידוד החדש.",
@@ -439,7 +442,7 @@ def plan_targets(conn: sqlite3.Connection, settings: Settings, rid: str, cams: d
         elif isinstance(opts, str):
             plan = _skip(opts if opts in SKIP_HE else "source_unavailable")
         elif opts is None or not opts.writable or opts.options is None or opts.write_via is None:
-            plan = _skip("capabilities_unreadable" if opts is None or opts.writable else "not_writable")
+            plan = _skip("capabilities_unreadable" if opts is None or opts.writable else (opts.reason if opts.reason in (*nvr_settings.NOT_SUPPORTED_REASONS, "capabilities_unreadable") else "not_writable"))
         else:
             plan = plan_stream(cur, opts.options, target)
         out.append({**base, **plan.as_dict()})
