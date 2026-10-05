@@ -90,6 +90,8 @@ export interface ProductSettings {
   'exports.max_mb'?: number;
   'exports.retention_days'?: number;
   'events.retention_days'?: number;
+  /** DEVHIST (CR-032): how long the device activity rows (the long-press popup) are kept, 7-365 days, default 90. */
+  'device_activity.retention_days'?: number;
   /** T055: audit rows older than this are pruned by the janitor (was a fixed 365-day constant). */
   'audit.retention_days'?: number;
   /** T050: the largest evidence bundle accepted for verification / import, in MB (16-4096). */
