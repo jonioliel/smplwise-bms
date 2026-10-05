@@ -92,7 +92,7 @@ def register(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, pla
         "UPDATE mobile_devices SET push_platform = ?, push_relay_token = ?, push_app_version = ?, push_registered_at = COALESCE(push_registered_at, ?), push_failures = 0, push_last_error = NULL, last_seen_at = ? WHERE id = ?",
         (platform, relay_token, (str(app_version or "")[:80] or None), now, now, device["id"]),
     )
-    return push_view(get_device(conn, device["id"]))
+    return push_view(get_device(conn, device["id"]), server_id(conn))
 
 
 def set_muted(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, muted: Any) -> dict[str, Any]:
@@ -101,7 +101,7 @@ def set_muted(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, mu
     import json
 
     conn.execute("UPDATE mobile_devices SET push_muted_json = ?, last_seen_at = ? WHERE id = ?", (json.dumps(sorted(set(muted))), now_iso(), device["id"]))
-    return push_view(get_device(conn, device["id"]))
+    return push_view(get_device(conn, device["id"]), server_id(conn))
 
 
 def unregister(conn: sqlite3.Connection, device_id: str) -> None:
@@ -109,8 +109,9 @@ def unregister(conn: sqlite3.Connection, device_id: str) -> None:
     conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (device_id,))
 
 
-def push_view(r: sqlite3.Row) -> dict[str, Any]:
-    return {"device_id": r["id"], "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
+def push_view(r: sqlite3.Row, sid: str) -> dict[str, Any]:
+    """`server_id` is the opaque id the relay payload's `server` carries: the app stores it with the origin it registered at."""
+    return {"device_id": r["id"], "server_id": sid, "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
                                            "last_ok_at": r["push_last_ok_at"], "failures": r["push_failures"], "last_error": r["push_last_error"], "app_version": r["push_app_version"]}}
 
 

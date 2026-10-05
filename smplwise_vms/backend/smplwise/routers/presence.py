@@ -20,10 +20,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_user
-from ..db import Database
+from ..db import Database, get_setting
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..remote_channel import is_remote
+from ..services import mobile_push
 from ..services import presence as svc
 from ..services.ha_user_auth import bearer_of
 
@@ -183,8 +184,9 @@ def register_device(body: RegisterIn, request: Request, response: Response, call
             raise
         audit(conn, actor=caller.principal, action="presence.device.register", decision="allowed", resource_type="mobile_device", resource_id=device["device_id"], request_id=_rid(request),
               details={"platform": device["platform"], "created": created, "app_version": device["app_version"]})
+        sid = mobile_push.server_id(conn)
     response.status_code = 201 if created else 200
-    return {"device_id": device["device_id"], "device_token": token, "name": device["name"], "registered_at": device["registered_at"], "created": created}
+    return {"device_id": device["device_id"], "device_token": token, "name": device["name"], "registered_at": device["registered_at"], "created": created, "server_id": sid}
 
 
 @router.get("/presence/devices/me")
@@ -215,6 +217,12 @@ def get_config(request: Request, caller: Caller = Depends(any_caller)) -> dict[s
             with _db(request).write_aside() as w:
                 svc.touch(w, caller.device["id"])
         cfg = svc.config_for(conn)
+        # The opaque installation id the relay push payload carries as `server` (the app stores it with the origin it registered at).
+        sid = get_setting(conn, "push.server_id")
+        if not sid:
+            with _db(request).write_aside() as w:
+                sid = mobile_push.server_id(w)
+        cfg["server_id"] = sid
         if caller.device is not None:
             cfg["device"] = {"device_id": caller.device["id"], "name": caller.device["name"], "notice_ack_version": caller.device["notice_ack_version"]}
         return cfg

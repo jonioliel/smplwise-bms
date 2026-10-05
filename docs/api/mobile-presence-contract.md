@@ -23,6 +23,18 @@ this shape; the mock never points at the lab.
 - The user agent of the web view **and** of the app's own HTTP calls carries `SmplWiseArx/<version> (iOS app)` /
   `(Android app)`: the server identifies app sessions by it (required-sensors policy, section 5).
 
+### 0.1 Identity: user and server
+
+- **User**: `GET /me` (session) returns `user.id`, a stable string, the user's identity for the app (a device belongs to
+  exactly that user; `username` / `display_name` are display data and may change, `user.id` does not).
+- **Server**: every Arx installation has an opaque **`server_id`** (`srv_` + 16 hex characters, at most 64 characters,
+  created once, never derived from an address). It is returned by `POST presence/devices` (section 1),
+  `GET presence/config` (section 2) and the push routes (section 7.2), and it is the `server` field of every relay push
+  (section 7.3). **The app stores `server_id` together with the origin and device token it registered with** (one record
+  per Arx server). A push whose `server` matches no stored record is dropped: never guess an origin, never fall back to
+  "the only server". If the same origin later answers with a different `server_id` (a restored or replaced
+  installation), the stored registration is stale: re-register.
+
 ## 1. Register the device — `POST presence/devices` (session)
 
 Permission `presence.report` at any scope (every default role but kiosk). Rate: 10 per hour per user. Ten live devices
@@ -40,7 +52,7 @@ generated once per install per server. `platform`: `ios | android`.
 Response `201` (new) or `200` (the same `install_id` again: the token is **rotated**, the old one stops working):
 
 ```json
-{ "device_id": "dev_…", "device_token": "arxd_…", "name": "הנייד של יוסי", "registered_at": "2026-10-05T10:00:00Z", "created": true }
+{ "device_id": "dev_…", "device_token": "arxd_…", "name": "הנייד של יוסי", "registered_at": "2026-10-05T10:00:00Z", "created": true, "server_id": "srv_0a1b2c3d4e5f6071" }
 ```
 
 Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidden` (no role at all),
@@ -50,6 +62,7 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 
 ```json
 {
+  "server_id": "srv_0a1b2c3d4e5f6071",
   "enabled": false,
   "mode": "continuous",
   "interval_s": 60,
@@ -72,6 +85,8 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 - `enabled` is the master switch (default **false**). While it is false the app collects nothing, asks for no
   permission, sends no events, and `sites`, `sensors.allowed`, `beacons`, `wifi_sites` come back **empty** whatever the
   administrator configured (the second gate).
+- `server_id` is always present (device token or session) and equals the `server_id` of section 1 and the relay payload's
+  `server` (section 7.3); it carries no address.
 - `device` is present only with a device token. `notice_ack_version < notice_version` means the notice must be shown
   again before anything is reported.
 - `required_sensors` tells the app which sensors the administrator requires for using the system from the app
@@ -105,6 +120,24 @@ Rules:
   coordinate and should carry `site_id`. `source`: `continuous | region | significant | foreground` (optional).
 - `sensor` events: `sensor` must be in the catalogue **and** in `sensors.allowed`; `value` is a flat object (<= 20 keys,
   strings <= 128 characters, numbers, booleans, null; <= 1 KiB). Location events need `location` allowed.
+  **The server validates only that envelope, not per-sensor keys**: whatever flat object passes is stored as sent
+  (`services/presence.py` `_validate_event`; nothing reads individual keys). The keys below are therefore the
+  **agreed shape from the iOS addendum A.2 (not enforced)**; a client sends exactly these so the data stays comparable
+  across platforms, and an unknown key is stored, not rejected:
+
+  | sensor | `value` keys (agreed, not validated) |
+  |---|---|
+  | `location` | no `sensor` event: sent as `fix` / `enter` / `exit` events (`lat`, `lon`, `accuracy_m`, `site_id`) |
+  | `activity` | `state` (`stationary \| walking \| running \| cycling \| automotive \| unknown`), `confidence` |
+  | `steps` | steps delta per interval, floors up / down |
+  | `altitude` | relative altitude change |
+  | `battery` | level %, charging state, low-power mode |
+  | `network` | `wifi \| cellular \| none`, Wi-Fi SSID hash (matched against `wifi_sites`) |
+  | `beacon` | `site_id`, proximity bucket (`immediate \| near \| far`) |
+  | `app_state` | `foreground \| background`, last-seen |
+
+  The addendum names the data but not the JSON key spellings for every row; until the owner fixes them, the spellings
+  are the app's choice and the server accepts any.
 - `status` is optional and may be sent **alone** (`events: []`): it is how "sharing off", permission changes and the
   per-sensor switches reach the server (and what the required-sensors policy reads). Sensors not allowed are stored
   `off`. The status is accepted even while the installation is switched off.
@@ -180,9 +213,9 @@ extension fetches the real title and body from the originating server with its d
 
 ### 7.2 Server routes (device token)
 
-- `POST notifications/devices` `{ "platform": "ios", "relay_token": "…", "app_version": "1.0.0" }` → `200 { "device_id",
+- `POST notifications/devices` `{ "platform": "ios", "relay_token": "…", "app_version": "1.0.0" }` → `200 { "device_id", "server_id",
   "push": {…} }`. Re-sent on every launch when the relay token changed. `400 invalid_relay_token`.
-- `PATCH notifications/devices/{device_id}` `{ "muted": ["automations", "system"] }` → `200 { "device_id", "push": {…} }`
+- `PATCH notifications/devices/{device_id}` `{ "muted": ["automations", "system"] }` → `200 { "device_id", "server_id", "push": {…} }`
   (category ids of 7.3; unknown ids `400 validation`).
 - `DELETE notifications/devices/{device_id}` → `204`: push unregistered (the device registration itself stays; use
   `DELETE presence/devices/{id}` to remove the device).
@@ -201,7 +234,9 @@ The administrator decides per source whether the `app` channel is on (הגדרו
 device in the app (`muted`). The generic payload (APNs: `alert {title: "SmplWise Arx", body: "התראה חדשה"}`,
 `mutable-content: 1`, `thread-id` = the server id the app registered, `interruption-level: time-sensitive` only for
 `priority: "high"`; FCM: a data message with the same fields and `priority: high`) carries
-`{ "notification_id": "<message_id>", "category": "safety", "server": "<the relay's server id>" }` and nothing else.
+`{ "notification_id": "<message_id>", "category": "safety", "server": "<server_id>" }` and nothing else. `server` is the
+installation's `server_id` of section 0.1 (the app finds the origin and device token to fetch the text with from it;
+no match → drop the push).
 
 ## 8. The relay API (app ↔ relay; server ↔ relay)
 
