@@ -29,6 +29,18 @@ export interface AdminEndpoint {
   primary_for: Control[];
 }
 
+/** CR-028 (prep): the path a future "שדר למסך" would use, decided server-side from the mirrored registry data (CR-028 section 4). */
+export type CastMethod = 'cast_hls' | 'dlna' | 'airplay' | 'browser_url' | 'none';
+export type CastConfidence = 'confirmed' | 'likely' | 'unknown';
+export type CastReason = 'cast_video' | 'cast_screen' | 'cast_unknown_model' | 'cast_audio_only' | 'android_tv_builtin' | 'apple_tv' | 'dlna_renderer' | 'dlna_unavailable' | 'samsung_browser' | 'no_screen' | 'no_path' | 'kind';
+export interface CastCapability {
+  method: CastMethod;
+  confidence: CastConfidence;
+  /** The endpoint that would receive the cast (`ha:<entity_id>`), null when none would. */
+  via: string | null;
+  reason: CastReason;
+}
+
 export interface AdminDevice {
   key: string;
   name: string;
@@ -66,6 +78,8 @@ export interface AdminDevice {
   /** Read-only: what else turns this screen on (an integration's own sync), by name. */
   also_turns_on: string[];
   endpoints: AdminEndpoint[];
+  /** CR-028 (prep): whether this device could receive a cast of our video; absent on an older server (the list shows nothing). */
+  cast?: CastCapability;
 }
 
 export interface AdminSuggestion {
@@ -145,21 +159,27 @@ function demoDevices(): AdminDevice[] {
     key, name, kind: 'screen', kind_source: 'auto', approved, public: false, profile, profile_source: 'auto', confidence: 'exact', anchor_entity_id: endpoints[0].endpoint_id.replace(/^ha:/, ''),
     floor_name: floor, area_name: area, audio_link_key: null, audio_default: 'screen', volume_max: null, model_keys: [], also_turns_on: [], endpoints, ...extra,
   });
+  // CR-028 (prep): the cast capability of each demo screen, as the server would decide it from these endpoints
+  const cast = (method: CastMethod, confidence: CastConfidence, via: string | null, reason: CastReason): CastCapability => ({ method, confidence, via, reason });
   return [
     dev('md-living', 'טלוויזיה סלון', 'קומת קרקע', 'סלון', 'samsung_smart', true, [
       ep('ha:media_player.demo_living', 'samsungtv_smart', 'vendor', '1', false, ['power', 'sources', 'apps', 'keys']),
       ep('ha:media_player.demo_living_cast', 'cast', 'cast', '3', true, ['now_playing']),
       ep('ha:media_player.demo_living_st', 'smartthings', 'smartthings', '3', true),
       ep('ha:media_player.demo_living_ma', 'music_assistant', 'ma_export', '2', true),
-    ], { confidence: 'strong', audio_link_key: 'mp-ampl', audio_default: 'linked', also_turns_on: ['מגבר סלון'], volume_max: 60 }),
-    dev('md-kitchen', 'טלוויזיה מטבח', 'קומת קרקע', 'מטבח', 'lg_webos', true, [ep('ha:media_player.demo_kitchen', 'webostv', 'vendor', '1', false, ['power', 'volume', 'mute', 'sources', 'apps', 'keys', 'now_playing'])]),
-    dev('md-pergola', 'מסך פרגולה', 'קומת קרקע', 'פרגולה', 'samsung_smart', true, [ep('ha:media_player.demo_pergola', 'samsungtv_smart', 'vendor', '1', false, ['power', 'sources', 'apps', 'keys'])], { public: true }),
+    ], { confidence: 'strong', audio_link_key: 'mp-ampl', audio_default: 'linked', also_turns_on: ['מגבר סלון'], volume_max: 60, cast: cast('cast_hls', 'confirmed', 'ha:media_player.demo_living_cast', 'cast_video') }),
+    dev('md-kitchen', 'טלוויזיה מטבח', 'קומת קרקע', 'מטבח', 'lg_webos', true, [ep('ha:media_player.demo_kitchen', 'webostv', 'vendor', '1', false, ['power', 'volume', 'mute', 'sources', 'apps', 'keys', 'now_playing'])],
+      { cast: cast('none', 'unknown', null, 'no_path') }),
+    dev('md-pergola', 'מסך פרגולה', 'קומת קרקע', 'פרגולה', 'samsung_smart', true, [ep('ha:media_player.demo_pergola', 'samsungtv_smart', 'vendor', '1', false, ['power', 'sources', 'apps', 'keys'])],
+      { public: true, cast: cast('browser_url', 'unknown', 'ha:media_player.demo_pergola', 'samsung_browser') }),
     dev('md-parents', 'טלוויזיה הורים', 'קומה 1', 'חדר הורים', 'android_tv', true, [
       ep('ha:remote.demo_parents', 'androidtv_remote', 'remote', '1', false, ['power', 'apps', 'keys']),
       ep('ha:media_player.demo_parents_cast', 'cast', 'cast', '1', false, ['now_playing']),
-    ]),
-    dev('md-kids', 'מסך ילדים', 'קומה 1', 'חדר ילדים', 'generic', true, [ep('ha:media_player.demo_kids', 'dlna_dmr', 'dlna', '1', false, ['power', 'volume', 'mute', 'sources', 'now_playing'])]),
-    dev('md-new', 'מסך חדש שזוהה', 'קומה 1', 'חדר עבודה', 'generic', false, [ep('ha:media_player.demo_new', 'samsungtv', 'vendor', '1', false, ['power'])], { confidence: 'weak' }),
+    ], { cast: cast('cast_hls', 'confirmed', 'ha:media_player.demo_parents_cast', 'cast_video') }),
+    dev('md-kids', 'מסך ילדים', 'קומה 1', 'חדר ילדים', 'generic', true, [ep('ha:media_player.demo_kids', 'dlna_dmr', 'dlna', '1', false, ['power', 'volume', 'mute', 'sources', 'now_playing'])],
+      { cast: cast('dlna', 'likely', 'ha:media_player.demo_kids', 'dlna_renderer') }),
+    dev('md-new', 'מסך חדש שזוהה', 'קומה 1', 'חדר עבודה', 'generic', false, [ep('ha:media_player.demo_new', 'samsungtv', 'vendor', '1', false, ['power'])],
+      { confidence: 'weak', cast: cast('none', 'unknown', null, 'no_path') }),
   ];
 }
 

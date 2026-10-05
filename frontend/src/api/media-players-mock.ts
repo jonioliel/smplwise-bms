@@ -688,7 +688,16 @@ export class PlayersMockStore implements PlayersAdapter {
         const cast = s.id === 'per' || s.id === 'gst';
         eps.push(ep(s.id, cast ? 'cast' : 'wiim', cast ? 'cast' : 'vendor', 'device', false, own), ep(`${s.id}_ma`, 'music_assistant', 'music', cast ? '3b' : '2c', true, s.nocaps ? [] : ['now_playing']));
       } else eps.push(ep(s.id, 'dlna_dmr', 'dlna', 'device', false, [...own, 'now_playing']));
+      // CR-028 (prep): the cast capability as the server would decide it from these endpoints (a Cast speaker is audio only; a DLNA player
+      // advertises play_media; the rest have no screen)
+      const castEp = eps.find((e) => e.platform === 'cast');
+      const cast: AdminDevice['cast'] = s.kind === 'receiver' || s.kind === 'group'
+        ? { method: 'none', confidence: 'confirmed', via: null, reason: 'kind' }
+        : castEp ? { method: 'none', confidence: 'confirmed', via: castEp.endpoint_id, reason: 'cast_audio_only' }
+          : eps[0]?.platform === 'dlna_dmr' ? { method: 'dlna', confidence: 'likely', via: eps[0].endpoint_id, reason: 'dlna_renderer' }
+            : { method: 'none', confidence: s.kind === 'speaker' ? 'confirmed' : 'unknown', via: null, reason: s.kind === 'speaker' ? 'no_screen' : 'no_path' };
       return {
+        cast,
         key: keyOf(s.id), name: s.name, kind: s.kind, kind_source: 'auto', approved: r.approved, public: false, profile: 'generic', profile_source: 'auto',
         confidence: s.nocaps ? 'weak' : eps.length > 1 ? 'strong' : 'exact', anchor_entity_id: `media_player.${s.id}`, floor_name: s.floor?.[1] ?? null, area_name: s.area?.[1] ?? null, area_id: s.area?.[0] ?? null,
         audio_link_key: null, audio_default: 'screen', volume_max: s.max ?? null, volume_night: s.night ? { ...s.night } : null, music_provider: s.provider,
