@@ -12,7 +12,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 // the sections register themselves (`screens/electricity/settings-*.ts`); see docs/architecture/ELECTRICITY_UI_SHELL.md
 import.meta.glob('./electricity/{page,settings}-*.ts', { eager: true });
 
-type Section = 'prices' | 'business' | 'retention';
+type Section = 'prices' | 'calendar' | 'business' | 'retention';
 interface SectionDef {
   id: Section;
   label: string;
@@ -22,6 +22,8 @@ interface SectionDef {
 
 const SECTIONS: SectionDef[] = [
   { id: 'prices', label: 'מחירים ומע״מ', tag: 'elec-settings-prices', allowed: (a) => a.manage },
+  // EL5: the holidays and eves of time-of-use tariffs
+  { id: 'calendar', label: 'ימים מיוחדים', tag: 'elec-settings-calendar', allowed: (a) => a.manage },
   { id: 'business', label: 'פרטי העסק', tag: 'elec-settings-business', allowed: (a) => a.manage },
   { id: 'retention', label: 'שמירת נתונים', tag: 'elec-settings-retention', allowed: (a) => a.system || a.manage },
 ];

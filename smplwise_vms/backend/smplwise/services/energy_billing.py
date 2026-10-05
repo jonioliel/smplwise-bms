@@ -10,6 +10,7 @@ write (insert / seal / state change) takes the main write lock, and re-checks th
 from __future__ import annotations
 
 import base64
+import bisect
 import datetime as dt
 import hashlib
 import io
@@ -26,10 +27,12 @@ from .. import __version__
 from ..audit import audit
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, not_found
+from . import energy_calendar as ecal
 from . import energy_formula as fx
 from . import energy_periods as per
 from . import energy_pricing as px
 from . import energy_settings as es
+from . import energy_tou as tou
 from .energy_billing_provider import BillingReadings, get_provider
 from .energy_consumption import MeterWindow, meter_window
 
@@ -336,9 +339,32 @@ def delete_customer(conn: sqlite3.Connection, cid: str, base_revision: int) -> N
 
 # ====================================================================== tariffs and VAT
 
+def _definition_of(row: sqlite3.Row) -> tou.Definition | None:
+    """The time-of-use definition of a version row (None for a fixed price). Stored definitions were validated on save; a
+    row that no longer parses (hand-edited database) stops the computation with a clear error instead of a wrong bill."""
+    raw = row["definition_json"]
+    if not raw:
+        return None
+    try:
+        return tou.parse_definition(json.loads(raw))
+    except (ValueError, tou.TouError):
+        raise _err(422, "tariff_definition_invalid", "הגדרת התעריף לפי שעות פגומה. יש לפתוח את התעריף ולשמור אותו מחדש.", version_id=row["id"]) from None
+
+
 def price_versions(conn: sqlite3.Connection, tariff_id: str) -> list[px.PriceVersion]:
-    return [px.PriceVersion(r["id"], _date(r["effective_from"]), Decimal(r["price"]), r["price_mode"])
+    return [px.PriceVersion(r["id"], _date(r["effective_from"]), Decimal(r["price"]), r["price_mode"], _definition_of(r))
             for r in conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? ORDER BY effective_from", (tariff_id,)).fetchall()]
+
+
+def tou_error(e: tou.TouError) -> ApiError:
+    return _err(422, "tariff_definition_invalid", e.message_he, errors=[e.as_dict()], fields=[f"definition.{e.path}" if e.path else "definition"])
+
+
+def parse_definition_input(definition: Any) -> tou.Definition:
+    try:
+        return tou.parse_definition(definition)
+    except tou.TouError as e:
+        raise tou_error(e) from None
 
 
 def vat_rates(conn: sqlite3.Connection) -> list[px.VatRate]:
@@ -353,9 +379,18 @@ def get_tariff(conn: sqlite3.Connection, tid: str) -> sqlite3.Row:
     return row
 
 
+def _version_dict(v: sqlite3.Row) -> dict[str, Any]:
+    """A version for the API. A time-of-use version carries its definition (prices per season and band) and no flat price."""
+    out: dict[str, Any] = {"id": v["id"], "effective_from": v["effective_from"], "price": v["price"], "price_mode": v["price_mode"], "created_at": v["created_at"]}
+    if v["definition_json"]:
+        d = json.loads(v["definition_json"])
+        out.update({"price": None, "definition": d, "definition_sha256": tou.definition_sha256(d)})
+    return out
+
+
 def tariff_dict(conn: sqlite3.Connection, row: sqlite3.Row, today: dt.date) -> dict[str, Any]:
     versions = conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? ORDER BY effective_from", (row["id"],)).fetchall()
-    vs = [{"id": v["id"], "effective_from": v["effective_from"], "price": v["price"], "price_mode": v["price_mode"], "created_at": v["created_at"]} for v in versions]
+    vs = [_version_dict(v) for v in versions]
     cur = None
     for v in vs:
         if v["effective_from"] <= today.isoformat():
@@ -375,12 +410,20 @@ def _version_used(conn: sqlite3.Connection, version_id: str, field: str) -> bool
     return False
 
 
-def add_tariff_version(conn: sqlite3.Connection, tid: str, actor_id: str | None, effective_from: dt.date, price: Decimal, mode: str) -> str:
+TOU_PRICE_PLACEHOLDER = "0.0000"  # energy_tariff_versions.price is NOT NULL; a time-of-use version's prices live in its definition
+
+
+def _definition_text(definition: tou.Definition | None) -> str | None:
+    return json.dumps(definition.raw, ensure_ascii=False, sort_keys=True, separators=(",", ":")) if definition is not None else None
+
+
+def add_tariff_version(conn: sqlite3.Connection, tid: str, actor_id: str | None, effective_from: dt.date, price: Decimal | None, mode: str,
+                       definition: tou.Definition | None = None) -> str:
     if conn.execute("SELECT 1 FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from = ?", (tid, effective_from.isoformat())).fetchone():
         raise conflict("version_exists", "כבר קיים מחיר מאותו תאריך.")
     vid = new_id()
-    conn.execute("INSERT INTO energy_tariff_versions(id, tariff_id, effective_from, price, price_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                 (vid, tid, effective_from.isoformat(), str(price), mode, actor_id, now_iso()))
+    conn.execute("INSERT INTO energy_tariff_versions(id, tariff_id, effective_from, price, price_mode, definition_json, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                 (vid, tid, effective_from.isoformat(), TOU_PRICE_PLACEHOLDER if definition is not None else str(price), mode, _definition_text(definition), actor_id, now_iso()))
     conn.execute("UPDATE energy_tariffs SET updated_at = ? WHERE id = ?", (now_iso(), tid))
     return vid
 
@@ -402,11 +445,18 @@ def _sealed_periods(conn: sqlite3.Connection, version_ids: set[str]) -> list[tup
     return out
 
 
-def plan_version_change(conn: sqlite3.Connection, tid: str, target: sqlite3.Row, effective_from: dt.date, price: Decimal, mode: str) -> dict[str, Any]:
+def plan_version_change(conn: sqlite3.Connection, tid: str, target: sqlite3.Row, effective_from: dt.date, price: Decimal | None, mode: str,
+                        definition: tou.Definition | None = None) -> dict[str, Any]:
     """What a correction of `target` would do. A sealed bill never changes: when one covers the span the correction touches,
-    the old price stays and the corrected one starts after the last sealed period (`later_only`)."""
+    the old price stays and the corrected one starts after the last sealed period (`later_only`). A time-of-use version is
+    compared by its definition (hours, seasons, prices), a fixed one by its price."""
     old_from = _date(target["effective_from"])
-    if effective_from == old_from and price == Decimal(target["price"]) and mode == target["price_mode"]:
+    old_def = json.loads(target["definition_json"]) if target["definition_json"] else None
+    if definition is not None:
+        same_value = old_def is not None and tou.definition_sha256(old_def) == definition.sha256()
+    else:
+        same_value = old_def is None and price == Decimal(target["price"])
+    if effective_from == old_from and same_value and mode == target["price_mode"]:
         raise conflict("nothing_changed", "לא בוצע שינוי במחיר.")
     others = [_date(r["effective_from"]) for r in conn.execute("SELECT effective_from FROM energy_tariff_versions WHERE tariff_id = ? AND id != ?", (tid, target["id"])).fetchall()]
     if effective_from in others:
@@ -415,8 +465,13 @@ def plan_version_change(conn: sqlite3.Connection, tid: str, target: sqlite3.Row,
     nxt = min((d for d in others if d > anchor), default=None)
     ids = {r["id"] for r in conn.execute("SELECT id FROM energy_tariff_versions WHERE tariff_id = ?", (tid,)).fetchall()}
     sealed = [(a, b) for a, b in _sealed_periods(conn, ids) if b > lo and (nxt is None or a < nxt)]
-    old = {"effective_from": old_from.isoformat(), "price": target["price"], "price_mode": target["price_mode"]}
-    new = {"effective_from": effective_from.isoformat(), "price": str(price), "price_mode": mode}
+    old = {"effective_from": old_from.isoformat(), "price": target["price"] if old_def is None else None, "price_mode": target["price_mode"]}
+    new = {"effective_from": effective_from.isoformat(), "price": str(price) if definition is None else None, "price_mode": mode}
+    if old_def is not None:
+        old["definition_sha256"] = tou.definition_sha256(old_def)
+    if definition is not None:
+        new["definition"] = definition.raw
+        new["definition_sha256"] = definition.sha256()
     if not sealed:
         n = len(_drafts_in_range(conn, tid, lo, nxt))
         return {"kind": "in_place", "applies_from": effective_from.isoformat(), "old": old, "new": new, "drafts": n, "range_to": nxt.isoformat() if nxt else None,
@@ -469,12 +524,13 @@ def recompute_drafts(conn: sqlite3.Connection, provider: Any, tid: str, plan: di
 
 def apply_version_change(conn: sqlite3.Connection, tid: str, actor_id: str | None, target: sqlite3.Row, plan: dict[str, Any]) -> str:
     new = plan["new"]
+    definition = tou.parse_definition(new["definition"]) if new.get("definition") is not None else None
     if plan["kind"] == "in_place":
-        conn.execute("UPDATE energy_tariff_versions SET effective_from = ?, price = ?, price_mode = ? WHERE id = ?",
-                     (new["effective_from"], new["price"], new["price_mode"], target["id"]))
+        conn.execute("UPDATE energy_tariff_versions SET effective_from = ?, price = ?, price_mode = ?, definition_json = ? WHERE id = ?",
+                     (new["effective_from"], TOU_PRICE_PLACEHOLDER if definition is not None else new["price"], new["price_mode"], _definition_text(definition), target["id"]))
         conn.execute("UPDATE energy_tariffs SET updated_at = ? WHERE id = ?", (now_iso(), tid))
         return target["id"]
-    return add_tariff_version(conn, tid, actor_id, _date(new["effective_from"]), Decimal(new["price"]), new["price_mode"])
+    return add_tariff_version(conn, tid, actor_id, _date(new["effective_from"]), Decimal(new["price"]) if definition is None else None, new["price_mode"], definition)
 
 
 def delete_tariff_version(conn: sqlite3.Connection, tid: str, vid: str) -> None:
@@ -641,12 +697,13 @@ def delete_account(conn: sqlite3.Connection, aid: str, base_revision: int) -> in
 
 def account_dict(conn: sqlite3.Connection, provider: BillingReadings, row: sqlite3.Row, money: bool, today: dt.date | None = None) -> dict[str, Any]:
     cust = conn.execute("SELECT id, customer_number, name FROM energy_customers WHERE id = ?", (row["customer_id"],)).fetchone()
-    tar = conn.execute("SELECT id, name FROM energy_tariffs WHERE id = ?", (row["tariff_id"],)).fetchone()
-    tariff: dict[str, Any] = {"id": row["tariff_id"], "name": tar["name"] if tar else ""}
+    tar = conn.execute("SELECT id, name, kind FROM energy_tariffs WHERE id = ?", (row["tariff_id"],)).fetchone()
+    tariff: dict[str, Any] = {"id": row["tariff_id"], "name": tar["name"] if tar else "", "kind": tar["kind"] if tar else "fixed"}
     today = today or per.local_date(now_utc(), row["timezone"])
     if money:
-        cur = px.in_force(price_versions(conn, row["tariff_id"]), today)
-        tariff.update({"price": str(cur.price) if cur else None, "price_mode": cur.mode if cur else None})
+        cur = px.in_force([px.PriceVersion(r["id"], _date(r["effective_from"]), Decimal(r["price"]), r["price_mode"], bool(r["definition_json"]))
+                           for r in conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ?", (row["tariff_id"],)).fetchall()], today)
+        tariff.update({"price": str(cur.price) if cur and not cur.definition else None, "price_mode": cur.mode if cur else None})
     c = cycle_of(row)
     nxt = per.period_containing(c, max(today, c.first_start))
     last = conn.execute("SELECT * FROM energy_bills WHERE account_id = ? ORDER BY period_end DESC, revision DESC, created_at DESC LIMIT 1", (row["id"],)).fetchone()
@@ -737,17 +794,25 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     carried = _carried_from(conn, account["id"], period, w_start)
     caps = _end_caps(conn, account["id"], period, replaces, w_end)
     windows: dict[str, MeterWindow] = {}
-    for mid in comp.meter_ids:
-        windows[mid] = meter_window(provider, mid, bounds, carried.get(mid), caps.get(mid))
-    # lines: the formula per piece
     lines: list[px.Line] = []
-    for i, piece in enumerate(pieces):
-        values = {mid: windows[mid].pieces_wh[i] for mid in comp.meter_ids}
-        kwh_exact = _kwh(comp.evaluate(values))
-        if px.r2(kwh_exact) < 0:
-            raise _err(422, "formula_negative", "התוצאה של נוסחת החשבון שלילית בתקופה " + _fmt_date(piece.start) + " - " + _fmt_date(piece.end - dt.timedelta(days=1)) + ". יש לתקן את הנוסחה או את המונים.",
-                       period={"from": piece.start.isoformat(), "to": (piece.end - dt.timedelta(days=1)).isoformat()}, kwh=str(px.r2(kwh_exact)))
-        lines.append(px.line(piece, kwh_exact))
+    tou_part: TouPart | None = None
+    kinds = {p.price.definition is not None for p in pieces}
+    if kinds == {True}:
+        tou_part = compute_tou(conn, provider, period, pieces, comp, carried, caps, tz, names_all)
+        windows, lines = tou_part.windows, tou_part.lines
+    elif len(kinds) > 1:
+        raise _err(422, "tariff_kind_mixed", "בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות. יש לתקן את גרסאות התעריף.")
+    else:
+        for mid in comp.meter_ids:
+            windows[mid] = meter_window(provider, mid, bounds, carried.get(mid), caps.get(mid))
+        # lines: the formula per piece
+        for i, piece in enumerate(pieces):
+            values = {mid: windows[mid].pieces_wh[i] for mid in comp.meter_ids}
+            kwh_exact = _kwh(comp.evaluate(values))
+            if px.r2(kwh_exact) < 0:
+                raise _err(422, "formula_negative", "התוצאה של נוסחת החשבון שלילית בתקופה " + _fmt_date(piece.start) + " - " + _fmt_date(piece.end - dt.timedelta(days=1)) + ". יש לתקן את הנוסחה או את המונים.",
+                           period={"from": piece.start.isoformat(), "to": (piece.end - dt.timedelta(days=1)).isoformat()}, kwh=str(px.r2(kwh_exact)))
+            lines.append(px.line(piece, kwh_exact))
     totals = px.totals(lines)
     # meters and notes
     notes: list[dict[str, Any]] = []
@@ -781,6 +846,8 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
     if len(pieces) > 1:
         cuts = ", ".join(_fmt_date(p.start) for p in pieces[1:])
         notes.append({"code": "period_split", "text_he": f"התקופה פוצלה ב-{cuts} בגלל שינוי מחיר או שיעור מע״מ."})
+    if tou_part is not None:
+        notes.extend(tou_part.notes)
     terms = settings["payment_terms"]
     today_local = per.local_date(now, tz)
     names = {mid: names_all.get(mid, mid) for mid in comp.meter_ids}
@@ -808,17 +875,192 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
         "business": biz,
         "customer": {"id": customer["id"], "customer_number": customer["customer_number"], "name": customer["name"],
                      **{k: customer[k] for k in ("address", "phone", "email", "tax_id")}},
-        "account": {"id": account["id"], "name": account["name"], "tariff": {"id": tariff["id"], "name": tariff["name"]},
+        "account": {"id": account["id"], "name": account["name"], "tariff": {"id": tariff["id"], "name": tariff["name"], "kind": "tou" if tou_part is not None else "fixed"},
                     "formula": {"ast": comp.ast, "text": fx.to_text(comp.ast, names), "sentence_he": fx.sentence_he(comp.ast, names)}},
         "meters": meters_out,
         "lines": [ln.as_dict() for ln in lines],
         "totals": totals,
-        "notes": notes,
+        "notes": notes[:MAX_SNAPSHOT_NOTES],
         "history": history,
         "rounding": {"rule": "half_up", "kwh_places": 2, "unit_price_places": 4, "money_places": 2, "order": "per_line_then_sum", "vat": "per_line"},
         "meta": {"engine": ENGINE, "software_version": __version__, "computed_at": _iso(now)},
     }
+    if tou_part is not None:
+        snapshot["tou"] = tou_part.snapshot
+        snapshot["meta"]["tou_engine"] = tou.ENGINE
     return Computed(snapshot, totals["kwh"], totals["total"], {k: _iso(v) or "" for k, v in caps.items()})
+
+
+# ---------------------------------------------------------------- EL5: time-of-use
+
+MAX_SNAPSHOT_NOTES = 40  # services/bill_pdf_model.MAX_NOTES: a longer list would make the PDF refuse the snapshot
+TOU_GAP = dt.timedelta(hours=2)  # a reporting gap this long whose energy was spread over more than one band gets a note
+TOU_GAP_NOTES = 6
+
+
+@dataclass
+class TouPart:
+    windows: dict[str, MeterWindow]
+    lines: list[px.Line]
+    notes: list[dict[str, Any]]
+    snapshot: dict[str, Any]
+
+
+def compute_tou(conn: sqlite3.Connection, provider: BillingReadings, period: per.Period, pieces: list[px.Piece], comp: fx.Compiled,
+                carried: dict[str, dt.datetime], caps: dict[str, dt.datetime], tz: str, names_all: dict[str, str]) -> TouPart:
+    """Time-of-use lines of one bill (docs/architecture/ELECTRICITY_TOU.md section 5).
+
+    1. The window [local midnight of the start, local midnight of the end) is classified into segments (energy_tou.segments):
+       price piece x local date x season x day type x band, by the local wall-clock time of every UTC quarter hour.
+    2. Per meter the readings store answers the energy of every segment (allocation by time, additive) - the same
+       meter_window as a fixed bill, with the segment starts as bounds. Energy carried from the previous bill (a late report)
+       is split the same way over its own time and priced by its band with the first piece's prices.
+    3. Groups (piece, season, band): the linear account formula is applied to the meters' group energy -> one line each,
+       kWh rounded half-up to 2 places, priced with that season's band price under the version's VAT mode (energy_pricing.line).
+    Totals stay the sums of the rounded lines; a daily table per band is informational."""
+    z = per.zone(tz)
+    cal = ecal.calendar_of(conn)
+    starts = [p.start for p in pieces]
+
+    def piece_of(day: dt.date) -> int:
+        return max(0, min(bisect.bisect_right(starts, day) - 1, len(pieces) - 1))
+
+    def definition_of(i: int) -> tou.Definition:
+        return pieces[i].price.definition
+
+    w_start, w_end = per.local_midnight_utc(period.start, tz), per.local_midnight_utc(period.end, tz)
+    segs = tou.segments(w_start, w_end, z, piece_of, definition_of, cal.kind)
+    bounds = [s.start for s in segs] + [segs[-1].end]
+    windows: dict[str, MeterWindow] = {}
+    carried_segs: dict[str, list[tou.Segment]] = {}
+    for mid in comp.meter_ids:
+        cf = carried.get(mid)
+        cs = tou.segments(cf, w_start, z, lambda _d: 0, definition_of, cal.kind) if cf is not None and cf < w_start else []
+        carried_segs[mid] = cs
+        try:
+            windows[mid] = meter_window(provider, mid, bounds, cf, caps.get(mid), carried_bounds=[s.start for s in cs] + [cs[-1].end] if cs else None)
+        except ValueError:
+            raise _err(422, "tou_needs_interval_data", "לחישוב לפי שעות (תעו״ז) נדרשים נתוני רבע שעה, ולתקופה זו הם כבר לא נשמרים. "
+                       "אפשר להפיק את החיוב בתעריף קבוע או להאריך את שמירת נתוני רבע השעה בהגדרות.", meter_id=mid) from None
+    # groups (piece, season, band)
+    zero = {m: Decimal(0) for m in comp.meter_ids}
+    groups: dict[tuple[int, str, str], dict[str, Any]] = {}
+
+    def group(key: tuple[int, str, str], at: dt.datetime) -> dict[str, Any]:
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {"wh": dict(zero), "seconds": 0, "first": at}
+        elif at < g["first"]:
+            g["first"] = at
+        return g
+
+    days: dict[dt.date, dict[str, Any]] = {}
+    for i, s in enumerate(segs):
+        g = group((s.piece, s.season, s.band), s.start)
+        g["seconds"] += s.seconds
+        day = days.setdefault(s.date, {"season": s.season, "day_type": s.day_type, "piece": s.piece, "bands": {}})
+        dwh = day["bands"].setdefault(s.band, dict(zero))
+        for mid in comp.meter_ids:
+            wh = windows[mid].pieces_wh[i]
+            g["wh"][mid] += wh
+            dwh[mid] += wh
+    for mid, cs in carried_segs.items():
+        cp = windows[mid].carried_pieces_wh or []
+        for j, s in enumerate(cs):
+            if j < len(cp):
+                group((0, s.season, s.band), s.start)["wh"][mid] += cp[j]
+    # lines, in time order of the season inside each piece, bands in the definition's order
+    order = sorted(groups, key=lambda k: (k[0], min(g["first"] for kk, g in groups.items() if kk[0] == k[0] and kk[1] == k[1]), definition_of(k[0]).band_index(k[2])))
+    lines: list[px.Line] = []
+    for key in order:
+        pi, season, band = key
+        piece, d, g = pieces[pi], definition_of(pi), groups[key]
+        kwh_exact = _kwh(comp.evaluate(g["wh"]))
+        if px.r2(kwh_exact) < 0:
+            raise _err(422, "formula_negative", f"התוצאה של נוסחת החשבון שלילית ב{d.band_name(band)} ({d.season_name(season)}) בתקופה "
+                       + _fmt_date(piece.start) + " - " + _fmt_date(piece.end - dt.timedelta(days=1)) + ". יש לתקן את הנוסחה או את המונים.",
+                       period={"from": piece.start.isoformat(), "to": (piece.end - dt.timedelta(days=1)).isoformat()}, kwh=str(px.r2(kwh_exact)),
+                       season=season, band=band)
+        tags = {"season": {"id": season, "name_he": d.season_name(season)}, "band": {"id": band, "name_he": d.band_name(band)},
+                "hours": str(px.r2(Decimal(g["seconds"]) / Decimal(3600)))}
+        lines.append(px.line(piece, kwh_exact, d.price(season, band), tags))
+    # the daily table (informational: carried energy is not inside it; each value rounded on its own)
+    daily = []
+    for day in sorted(days):
+        info = days[day]
+        d = definition_of(info["piece"])
+        bands_out = []
+        exact_total = Decimal(0)
+        for bid in sorted(info["bands"], key=d.band_index):
+            k = _kwh(comp.evaluate(info["bands"][bid]))
+            exact_total += k
+            bands_out.append({"band": bid, "kwh": px.s2(k)})
+        entry = cal.entry(day)
+        daily.append({"date": day.isoformat(), "season": info["season"], "day_type": info["day_type"], "bands": bands_out, "kwh": px.s2(exact_total),
+                      "special": {"kind": entry.kind, "name_he": entry.name_he} if entry is not None and entry.kind != "regular" else None})
+    # per band over the whole bill (sums of the rounded lines)
+    by_band: dict[str, dict[str, Any]] = {}
+    for ln in lines:
+        b = ln.tou["band"] if ln.tou else {"id": "", "name_he": ""}
+        e = by_band.setdefault(b["id"], {"band": b, "kwh": Decimal("0.00"), "amount_ex_vat": Decimal("0.00"), "total": Decimal("0.00"), "hours": Decimal("0.00")})
+        e["kwh"] += ln.kwh
+        e["amount_ex_vat"] += ln.amount_ex_vat
+        e["total"] += ln.total
+        e["hours"] += Decimal(ln.tou["hours"]) if ln.tou else Decimal(0)
+    first_def = definition_of(0)
+    by_band_out = [{"band": v["band"], "kwh": str(v["kwh"]), "amount_ex_vat": str(v["amount_ex_vat"]), "total": str(v["total"]), "hours": str(v["hours"])}
+                   for _k, v in sorted(by_band.items(), key=lambda kv: first_def.band_index(kv[0]))]
+    # notes
+    notes: list[dict[str, Any]] = []
+    first_day = min([period.start] + [cs[0].date for cs in carried_segs.values() if cs])
+    special = [s for s in cal.between(first_day, period.end) if s.kind != "regular"]
+    if special:
+        items = ", ".join(f"{_fmt_date(s.date)} {s.name_he or ecal.KIND_HE[s.kind]}" for s in special[:12])
+        more = f" ועוד {len(special) - 12}" if len(special) > 12 else ""
+        notes.append({"code": "tou_special_days", "text_he": f"ימים מיוחדים בתקופה (חושבו כחג או ערב חג): {items}{more}."})
+    gaps_fn = getattr(provider, "reporting_gaps", None)
+    gap_notes = 0
+    if gaps_fn is not None:
+        for mid in comp.meter_ids:
+            name = names_all.get(mid, mid)
+            try:
+                gaps = gaps_fn(mid, w_start, w_end, TOU_GAP)
+            except Exception:  # noqa: BLE001 - a note is best effort, never a reason to fail the bill
+                log.warning("reporting gaps not available for %s", mid, exc_info=True)
+                continue
+            for g0, g1, _wh in gaps:
+                a, b = max(g0, w_start), min(g1, w_end)
+                if len({s.band for s in segs if s.end > a and s.start < b}) < 2:
+                    continue
+                if gap_notes < TOU_GAP_NOTES:
+                    notes.append({"code": "tou_spread_gap", "meter_id": mid,
+                                  "text_he": f"המונה {name} לא דיווח בין {_fmt_local(g0, tz)} ל-{_fmt_local(g1, tz)}; הצריכה בזמן זה חולקה לפי זמן בין פסי התעריף."})
+                gap_notes += 1
+    if gap_notes > TOU_GAP_NOTES:
+        notes.append({"code": "tou_spread_gap_more", "text_he": f"ועוד {gap_notes - TOU_GAP_NOTES} פערי דיווח שהצריכה בהם חולקה לפי זמן."})
+    # what the snapshot keeps to reproduce the bill without live tables
+    versions, seen = [], set()
+    names: dict[str, dict[str, str]] = {"seasons": {}, "day_types": {}, "bands": {}}
+    for p in pieces:
+        if p.price.id not in seen:
+            seen.add(p.price.id)
+            dd: tou.Definition = p.price.definition
+            versions.append({"tariff_version_id": p.price.id, "effective_from": p.price.effective_from.isoformat(), "price_mode": p.price.mode,
+                             "definition": dd.raw, "definition_sha256": dd.sha256()})
+            for key, items in (("seasons", dd.seasons), ("day_types", dd.day_types), ("bands", dd.bands)):
+                for it in items:
+                    names[key].setdefault(it.id, it.name_he)
+    snap = {
+        "engine": tou.ENGINE,
+        "classification": "local_wall_clock_quarter_hour",
+        "names": names,
+        "versions": versions,
+        "special_days": [s.as_api() for s in cal.between(first_day, period.end)],
+        "calendar": {"generator": cal.generator},
+        "by_band": by_band_out,
+        "daily": daily,
+    }
+    return TouPart(windows, lines, notes, snap)
 
 
 def period_kwh(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, p: per.Period, comp: fx.Compiled) -> dict[str, Any]:

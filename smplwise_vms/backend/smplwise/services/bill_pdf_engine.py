@@ -206,8 +206,9 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
             kwh(m.billed_kwh)] for m in s.meters], [48, 30, 30, 28, 16, 30])
     if s.formula_text:
         write("נוסחת החשבון: " + s.formula_text, 9)
-    rows = [["צריכת חשמל" + (f" {dmy(c.period_start)} - {dmy(c.period_end)}" if len(s.charges) > 1 and c.period_start
-                              and c.period_end else ""), f"{kwh(c.kwh)} קוט״ש", f"{price(c.price_per_kwh)} ₪",
+    pieces = {(c.period_start, c.period_end) for c in s.charges}
+    rows = [[c.label + (f" {dmy(c.period_start)} - {dmy(c.period_end)}" if (len(pieces) > 1 or (len(s.charges) > 1 and not c.band))
+                        and c.period_start and c.period_end else ""), f"{kwh(c.kwh)} קוט״ש", f"{price(c.price_per_kwh)} ₪",
              money(c.amount)] for c in s.charges]
     rows.append(["סה״כ לפני מע״מ", "", "", money(s.subtotal)])
     rates: dict[Any, Any] = {}
@@ -268,6 +269,15 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
         write(text, 9)
     if s.footer_note:
         write("הערות: " + s.footer_note, 9)
+    if s.tou_daily:  # EL5: the daily time-of-use table
+        pdf.ln(2)
+        write("פירוט יומי לפי שעות (קוט״ש)", 10, True)
+        n = len(s.tou_bands)
+        band_w = min(30.0, (page_w - 40 - 26) / max(n, 1))
+        table(["תאריך", *s.tou_bands, "סה״כ"],
+              [[dmy(d.day) + (f" {d.marker}" if d.marker else ""), *[kwh(v) if v is not None else "" for v in d.kwh], kwh(d.total)] for d in s.tou_daily],
+              [page_w - band_w * n - 26, *([band_w] * n), 26])
+        write("הפירוט היומי הוא לעיון; כל ערך מעוגל בנפרד, והחיוב מחושב מסיכום כל פס בתקופה.", 8)
     if pdf.page > max_pages:
         raise RenderRefused("pdf_page_limit")
     out = pdf.output()

@@ -8,7 +8,7 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { ERROR_TEXT, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type SentHow } from '../api/electricity-billing';
+import { ERROR_TEXT, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
@@ -34,6 +34,8 @@ export class ElecBillPage extends ElecBase {
   @state() private date = '';
   @state() private how: SentHow = 'email';
   @state() private text = '';
+  /** EL5: the daily time-of-use table is open */
+  @state() private daily = false;
   private loaded = '';
 
   willUpdate(ch: Map<string, unknown>) {
@@ -152,6 +154,7 @@ export class ElecBillPage extends ElecBase {
         ${b.issue_date ? html`<dt>הונפק</dt><dd>${n(fmtDate(b.issue_date))}</dd>` : nothing}${b.due_date ? html`<dt>לתשלום עד</dt><dd>${n(fmtDate(b.due_date))}</dd>` : nothing}
         ${b.sent ? html`<dt>נשלח</dt><dd><span class="num" data-sent-at>${fmtDate(b.sent.at)}</span> · ${HOW[b.sent.how]}</dd>` : nothing}${b.paid ? html`<dt>שולם</dt><dd><span class="num" data-paid-at>${fmtDate(b.paid.at)}</span>${b.paid.reference ? html` · ${n(b.paid.reference)}` : nothing}</dd>` : nothing}
         <dt>מקור</dt><dd>${b.origin === 'auto' ? 'נוצר אוטומטית' : 'נוצר ידנית'}</dd></dl></div>
+      ${this.touCard(s)}
       <div class="card"><div class="hd"><b class="h3">יומן</b></div><div class="list" data-bill-log>${this.events.map((e) => html`<div class="row" style="align-items:flex-start;flex-wrap:nowrap"><span class="num mut" style="min-inline-size:112px">${fmtDateTime(e.at)}</span><span>${e.text}</span></div>`)}</div></div>`;
     return html`<div class="page" data-elec="bill" data-state="ready" data-bill-state=${b.state} data-bill-id=${b.id}>
       <div class="row"><a class="btn ghost sm" href=${href.bills()} data-back>→ חיובים</a></div>
@@ -164,8 +167,28 @@ export class ElecBillPage extends ElecBase {
       ${b.state === 'void' && b.void ? alertBox('err', html`<b>בוטל:</b> ${b.void.reason}`) : nothing}
       ${warnings.map((x) => alertBox('warn', x.text_he))}
       <div class="cols side-l"><div style="min-inline-size:0"><elec-bill-paper .snapshot=${s} watermark=${wm} .hash=${(b.snapshot_sha256 ?? '').slice(0, 12).replace(/(.{4})/g, '$1 ').trim()} .logo=${this.logoSrc()}></elec-bill-paper></div><div class="col">${side}</div></div>
+      ${this.daily && s.tou ? this.dailyTable(s.tou) : nothing}
       ${this.dialogs(b)}
     </div>`;
+  }
+
+  /** EL5: a time-of-use bill - kWh and amount per band over the period, and the daily table on request. */
+  private touCard(s: BillSnapshot) {
+    const t = s.tou;
+    if (!t) return nothing;
+    return html`<div class="card" data-card="tou"><div class="hd"><b class="h3">לפי שעות</b><span class="sp"></span>
+        <button type="button" class="btn ghost sm" data-tou-daily aria-expanded=${this.daily ? 'true' : 'false'} @click=${() => (this.daily = !this.daily)}>${this.daily ? 'הסתרת הפירוט היומי' : 'פירוט יומי'}</button></div>
+      <table class="t" data-tou-bands><thead><tr><th>פס</th><th class="num">שעות</th><th class="num">קוט״ש</th><th class="num">לפני מע״מ</th></tr></thead>
+        <tbody>${t.by_band.map((x) => html`<tr data-band=${x.band.id}><td class="b">${x.band.name_he}</td><td class="num">${f2(x.hours)}</td><td class="num">${f2(x.kwh)}</td><td class="num">${f2(x.amount_ex_vat)} ₪</td></tr>`)}</tbody></table>
+      ${t.special_days.some((d) => d.kind !== 'regular') ? html`<div class="mut" style="margin-block-start:8px">ימים מיוחדים: ${t.special_days.filter((d) => d.kind !== 'regular').map((d) => `${fmtDate(d.date)} ${d.name_he}`).join(', ')}</div>` : nothing}</div>`;
+  }
+  private dailyTable(t: NonNullable<BillSnapshot['tou']>) {
+    const bands = Object.keys(t.names.bands);
+    const used = bands.filter((b) => t.daily.some((d) => d.bands.some((x) => x.band === b)));
+    return html`<div class="card flush" data-tou-daily-table><div class="hd"><b class="h3">פירוט יומי לפי שעות (קוט״ש)</b><span class="sp"></span><span class="mut">לעיון; כל ערך מעוגל בנפרד</span></div>
+      <div class="scrollx"><table class="t"><thead><tr><th>תאריך</th><th>סוג יום</th>${used.map((b) => html`<th class="num">${t.names.bands[b]}</th>`)}<th class="num">סה״כ</th></tr></thead>
+        <tbody>${t.daily.map((d) => html`<tr data-day=${d.date}><td class="num" style="text-align:start">${fmtDate(d.date)}</td><td>${t.names.day_types[d.day_type] ?? d.day_type}${d.special ? html` <span class="chip c-acc nodot">${d.special.name_he}</span>` : nothing}</td>
+          ${used.map((b) => { const v = d.bands.find((x) => x.band === b); return html`<td class="num">${v ? f2(v.kwh) : ''}</td>`; })}<td class="num b">${f2(d.kwh)}</td></tr>`)}</tbody></table></div></div>`;
   }
 
   /** One short line when the PDF cannot be had: the last request of this page failed, or the bill says failed / unavailable. Retry unless no engine. */

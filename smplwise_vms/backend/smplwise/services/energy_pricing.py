@@ -11,6 +11,7 @@ import calendar
 import datetime as dt
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from typing import Any
 
 Q2 = Decimal("0.01")
 Q3 = Decimal("0.001")
@@ -67,6 +68,7 @@ class PriceVersion:
     effective_from: dt.date
     price: Decimal
     mode: str  # ex_vat | inc_vat
+    definition: Any = None  # EL5: an energy_tou.Definition for a time-of-use version (prices per season and band), else None
 
 
 @dataclass(frozen=True)
@@ -122,14 +124,16 @@ class Line:
     amount_ex_vat: Decimal
     vat_amount: Decimal
     total: Decimal
+    price_entered: Decimal | None = None  # EL5: the band price of a time-of-use line (None = the version's flat price)
+    tou: dict | None = None  # EL5: {"season": {...}, "band": {...}, "hours": "..."} of a time-of-use line
 
     def as_dict(self) -> dict:
         p = self.piece
-        return {
+        out = {
             "from": p.start.isoformat(),
             "to": (p.end - dt.timedelta(days=1)).isoformat(),
             "kwh": str(self.kwh),
-            "price_entered": str(p.price.price),
+            "price_entered": str(self.price_entered if self.price_entered is not None else p.price.price),
             "price_mode": p.price.mode,
             "unit_price_ex_vat": str(self.unit_price_ex_vat),
             "amount_ex_vat": str(self.amount_ex_vat),
@@ -139,11 +143,16 @@ class Line:
             "tariff_version_id": p.price.id,
             "vat_rate_id": p.vat.id,
         }
+        if self.tou is not None:
+            out.update(self.tou)
+        return out
 
 
-def line(piece: Piece, kwh_exact: Decimal) -> Line:
+def line(piece: Piece, kwh_exact: Decimal, price: Decimal | None = None, tou: dict | None = None) -> Line:
+    """One charge line. `price` overrides the version's flat price (a time-of-use band price, same mode and rounding)."""
     kwh = r2(kwh_exact)
-    price = piece.price.price
+    entered = price
+    price = piece.price.price if price is None else price
     rate = piece.vat.rate
     factor = 1 + rate / HUNDRED
     if piece.price.mode == "ex_vat":
@@ -156,7 +165,7 @@ def line(piece: Piece, kwh_exact: Decimal) -> Line:
         amount = r2(total / factor)
         vat = total - amount
         unit = r4(price / factor)
-    return Line(piece, kwh, unit, amount, vat, total)
+    return Line(piece, kwh, unit, amount, vat, total, entered, tou)
 
 
 def totals(lines: list[Line]) -> dict:

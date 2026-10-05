@@ -312,11 +312,17 @@ export class ElecAccountWizard extends ElecBase {
     return html`${!rate ? alertBox('err', html`לא הוגדר שיעור מע״מ. <a class="lnk" href=${href.settings('prices')}>הגדרת שיעור מע״מ</a>`) : nothing}
       ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', { label: '+ תעריף חדש', primary: true, run: () => (this.tariffOpen = true) }) : html`<div class="list" role="radiogroup" aria-label="תעריף" data-tariff-list>
         ${this.tariffs.map((x) => html`<label class="li ${x.id === this.tariffId ? 'sel' : ''}" data-tariff-row=${x.id}><input type="radio" name="tariff" .checked=${x.id === this.tariffId} @change=${() => (this.tariffId = x.id)} /><span class="ind"></span>
-          <div class="grow"><div class="t1">${x.name}</div><div class="t2">הוזן ${x.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · בתוקף מ-${n(fmtDate(x.current?.effective_from ?? ''))}</div></div><b class="num">${f4(x.current?.price ?? 0)} ₪</b></label>`)}</div>
+          <div class="grow"><div class="t1">${x.name}</div><div class="t2">הוזן ${x.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · בתוקף מ-${n(fmtDate(x.current?.effective_from ?? ''))}</div></div>${x.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(x.current?.price ?? 0)} ₪</b>`}</label>`)}</div>
         <div class="row"><button type="button" class="btn ghost sm" data-new-tariff @click=${() => (this.tariffOpen = true)}>+ תעריף חדש</button></div>`}
       ${t && rate ? this.priceCard(t) : nothing}`;
   }
   private priceCard(t: Tariff) {
+    if (t.kind === 'tou') {
+      const d = t.current?.definition;
+      return html`<div class="card soft" data-price-card data-kind="tou"><dl class="kv"><dt>תעריף</dt><dd>לפי שעות (תעו״ז)${d ? html`: ${d.bands.map((b) => b.name_he).join(' / ')}, ${d.seasons.map((s) => s.name_he).join(' / ')}` : nothing}</dd>
+        <dt>מע״מ</dt><dd>${n((this.exOf(t).vat * 100).toFixed(0) + '%')} <span class="mut">(מההגדרות)</span></dd></dl>
+        <div class="mut" style="margin-block-start:8px">הסכום מחושב לפי שעות הצריכה בפועל, בכל פס ועונה במחיר שלהם.</div></div>`;
+    }
     const p = this.exOf(t);
     const kwh = this.sampleKwh();
     const total = t.current?.price_mode === 'inc_vat' ? r2(kwh * p.inc) : r2(r2(kwh * p.ex) + r2(r2(kwh * p.ex) * p.vat));
@@ -377,11 +383,11 @@ export class ElecAccountWizard extends ElecBase {
     const total = p && t ? (t.current?.price_mode === 'inc_vat' ? r2(kwh * p.inc) : r2(r2(kwh * p.ex) + r2(r2(kwh * p.ex) * p.vat))) : 0;
     const opt = (group: string, id: string, label: string, checked: boolean, on: () => void, dis = false) => html`<label class="li ${checked ? 'sel' : ''} ${dis ? 'dis' : ''}"><input type="radio" name=${group} data-opt=${id} .checked=${checked} ?disabled=${dis} @change=${on} /><span class="ind"></span><div class="grow t1">${label}</div></label>`;
     return html`<dl class="kv" data-summary><dt>מונים</dt><dd>${this.chosen().map((m) => meterNames(m).primary).join(', ')}</dd><dt>נוסחה</dt><dd>${sentenceTxt}</dd>
-        <dt>מחיר</dt><dd>${t ? html`${t.name}, ${n(f4(t.current?.price ?? 0) + ' ₪')} ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ, מע״מ ${n(this.vat?.current?.rate_percent ?? '')}%` : ''}</dd>
+        <dt>מחיר</dt><dd>${t ? html`${t.name}, ${t.kind === 'tou' ? 'לפי שעות' : n(f4(t.current?.price ?? 0) + ' ₪')} ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ, מע״מ ${n(this.vat?.current?.rate_percent ?? '')}%` : ''}</dd>
         <dt>תקופה</dt><dd>${this.months === 1 ? 'חודשית' : 'דו-חודשית'}, מה-${this.anchorDay} בחודש, החל מ-${n(fmtDate(this.firstStart))}</dd>
         <dt>לקוח</dt><dd>${c.name}, מספר ${n(c.number)}</dd><dt>שם החשבון</dt><dd>${this.accName}</dd>
         <dt>תנאי תשלום</dt><dd data-payment>${pt ? (pt.mode === 'net_days' ? html`${n(pt.days)} ימים מיום ההפקה` : html`ב-${n(pt.day_of_month)} בחודש`) : '-'} <a class="lnk" href=${href.settings('business')}>שינוי בהגדרות</a></dd></dl>
-      ${kwh ? html`<div class="card soft"><div class="hd"><b class="h3">לפי הנתונים של התקופה האחרונה</b></div><div class="row"><span style="font-size:22px;font-weight:700">${n(f2(kwh))}</span><span class="mut">קוט״ש</span><span class="sp"></span><span style="font-size:22px;font-weight:700">${n(f2(total) + ' ₪')}</span></div></div>` : nothing}
+      ${kwh ? html`<div class="card soft"><div class="hd"><b class="h3">לפי הנתונים של התקופה האחרונה</b></div><div class="row"><span style="font-size:22px;font-weight:700">${n(f2(kwh))}</span><span class="mut">קוט״ש</span><span class="sp"></span>${t?.kind === 'tou' ? html`<span class="mut">הסכום לפי שעות הצריכה</span>` : html`<span style="font-size:22px;font-weight:700">${n(f2(total) + ' ₪')}</span>`}</div></div>` : nothing}
       <div class="fld"><span class="lbl">יצירה אוטומטית בסוף כל תקופה</span><div class="list" role="radiogroup" aria-label="יצירה אוטומטית">
         ${(['draft', 'issue', 'off'] as AutoMode[]).map((a) => opt('auto', a, AUTO_LABEL[a], this.auto === a, () => (this.auto = a)))}</div>
         ${this.auto === 'issue' ? alertBox('warn', 'החיוב יונפק ויקבל מספר בלי בדיקה שלך. אפשר לבטל או לתקן אחר כך.') : nothing}</div>

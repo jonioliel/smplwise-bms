@@ -227,6 +227,7 @@ export class ElecBillPaper extends LitElement {
     const total = s.totals.total;
     const due = s.bill.due_date ?? s.bill.expected_due_date;
     const multi = s.lines.length > 1;
+    const pieces = new Set(s.lines.map((l) => `${l.from}|${l.to}`)).size;
     const readingNote = s.meters.filter((m) => m.start.kind !== 'reading' || m.end.kind !== 'reading');
     const prev = s.history.previous.filter((p) => p.kwh !== null);
     const prevKwh = prev.length ? prev[prev.length - 1].kwh : null;
@@ -270,7 +271,7 @@ export class ElecBillPaper extends LitElement {
           <table>
             <thead><tr><th>פירוט</th><th class="r">כמות</th><th class="r">מחיר ליחידה</th><th class="r">סכום (₪)</th></tr></thead>
             <tbody>
-              ${s.lines.map((l) => html`<tr><td>צריכת חשמל${multi ? html` (${n(fmtDate(l.from))} - ${n(fmtDate(l.to))})` : nothing}</td><td class="r">${f2(l.kwh)} קוט״ש</td><td class="r">${f4(l.unit_price_ex_vat)} ₪</td><td class="r">${f2(l.amount_ex_vat)}</td></tr>`)}
+              ${s.lines.map((l) => html`<tr data-line=${l.band?.id ?? 'flat'}><td>צריכת חשמל${l.band ? ` - ${l.band.name_he}${l.season ? ` (${l.season.name_he})` : ''}` : ''}${(l.band ? pieces > 1 : multi) ? html` (${n(fmtDate(l.from))} - ${n(fmtDate(l.to))})` : nothing}</td><td class="r">${f2(l.kwh)} קוט״ש</td><td class="r">${f4(l.unit_price_ex_vat)} ₪</td><td class="r">${f2(l.amount_ex_vat)}</td></tr>`)}
               <tr><td>סה״כ לפני מע״מ</td><td></td><td></td><td class="r">${f2(s.totals.amount_ex_vat)}</td></tr>
               <tr><td>מע״מ ${n(s.totals.vat_breakdown[0]?.rate_percent ?? s.lines[0]?.vat_rate_percent ?? '')}%</td><td></td><td></td><td class="r">${f2(s.totals.vat_amount)}</td></tr>
               <tr class="tot"><td>סה״כ לתשלום</td><td></td><td></td><td class="r">${f2(total)} ₪</td></tr>
