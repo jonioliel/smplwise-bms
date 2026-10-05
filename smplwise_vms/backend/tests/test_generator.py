@@ -28,6 +28,9 @@ T0 = dt.datetime(2026, 10, 5, 9, 0, tzinfo=dt.timezone.utc).timestamp()
 def app(settings):
     from smplwise.main import create_app
 
+    from smplwise.services import ha_sync
+
+    ha_sync.STATE.connected = False  # the sync state is process-wide: other test files leave it connected
     alerts.reset()
     runtime.reset()
     c = TestClient(create_app(settings))
@@ -539,7 +542,10 @@ def test_permissions_registered_in_both_catalogues():
 
 
 def test_runtime_tick_detects_samples_and_alerts(app):
+    from smplwise.services import ha_sync
+
     c, db, settings = app
+    ha_sync.STATE.connected = False  # pinned: the process-wide sync state may be left connected by another test of the same worker
     make_generator(db, "full", model="DSE7320")
     set_state(db, "sensor.gen_fuel", "10")
     out = runtime.tick(db, settings, T0, require_connection=False)
@@ -547,6 +553,7 @@ def test_runtime_tick_detects_samples_and_alerts(app):
     out = runtime.tick(db, settings, T0 + 61, require_connection=False)
     assert out["raised"] == 1 and "detected" not in out
     assert runtime.tick(db, settings, T0 + 70) == {"skipped": "disconnected"}
+    ha_sync.STATE.connected = False
     assert runtime.janitor(db, T0)["alerts"] == 0
     assert runtime.janitor(db, T0 + 10) is None  # hourly
 
