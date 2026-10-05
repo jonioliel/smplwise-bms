@@ -21,6 +21,7 @@ import {
   type AvailFilter, type ApprovalFilter, type Group, type GroupKey, type ListView, type LiveAvail, type RowFacts, type SortKey,
 } from './media-admin-list-logic';
 import { integrationName, integrationTitle } from './media-integration-names';
+import { castChip } from './media-cast-label';
 
 export const SORT_LABEL: Record<SortKey, string> = { name: 'שם', type: 'סוג', integration: 'אינטגרציה', area: 'חדר', id: 'מזהה', status: 'מצב' };
 const GROUP_LABEL: Record<GroupKey, string> = { none: 'ללא קיבוץ', integration: 'לפי אינטגרציה', area: 'לפי חדר', type: 'לפי סוג' };
@@ -353,7 +354,8 @@ const COLS: { key: SortKey | 'x'; label: string; cls: string; opt?: ColKey | 'id
   { key: 'x', label: '', cls: 'c-x' }, { key: 'name', label: 'שם', cls: 'c-name' }, { key: 'type', label: 'סוג', cls: 'c-type', opt: 'type' },
   { key: 'integration', label: 'אינטגרציה', cls: 'c-int', opt: 'integration' }, { key: 'id', label: 'מזהה', cls: 'c-id', opt: 'id' }, { key: 'x', label: 'קומה', cls: 'c-fl', opt: 'floor' },
   { key: 'area', label: 'חדר', cls: 'c-area', opt: 'room' },
-  { key: 'status', label: 'מצב', cls: 'c-st', opt: 'status' }, { key: 'x', label: 'מאושר', cls: 'c-ap' }, { key: 'x', label: 'חיבורים', cls: 'c-cn', opt: 'connections' },
+  { key: 'status', label: 'מצב', cls: 'c-st', opt: 'status' }, { key: 'x', label: 'שידור', cls: 'c-cast', opt: 'cast' }, { key: 'x', label: 'מאושר', cls: 'c-ap' },
+  { key: 'x', label: 'חיבורים', cls: 'c-cn', opt: 'connections' },
 ];
 
 /** The hide classes of a cell: its own column's, or (the id column) the ones both ids share. */
@@ -381,6 +383,7 @@ function row(ctx: TableCtx, d: AdminDevice, f: RowFacts): TemplateResult {
   const cols = ctx.view.cols;
   const hz = (k: ColKey) => hideClass(cols, k);
   const hid = hideOf(cols, 'id');
+  const cc = castChip(d.cast);
   return html`<div class=${`item${editing ? ' sel' : ''}`} role="rowgroup" data-mm-admin-device=${d.key}>
     <div class="tr" role="row">
       <div role="cell" class="c c-x"><button type="button" class="eb" data-mm-edit=${d.key} aria-expanded=${String(editing)} aria-label=${`${editing ? 'סגור עריכה' : 'עריכה'}: ${d.name}`} @click=${() => ctx.onEdit(d.key)}>
@@ -398,6 +401,7 @@ function row(ctx: TableCtx, d: AdminDevice, f: RowFacts): TemplateResult {
       <div role="cell" class=${`c c-fl ${hz('floor')}`} data-mm-floor-cell=${d.key}>${d.floor_name ? html`<span class="floor" title=${d.floor_name}>${d.floor_name}</span>` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class=${`c c-area ${hz('room')}`}><span class="lb">חדר</span>${f.area ? html`${d.floor_name ? html`<span class="fp">${d.floor_name} › </span>` : nothing}${f.area}` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class=${`c c-st ${hz('status')}`} data-mm-status=${d.key}>${st ? html`<sw-badge kind=${st.kind} label=${st.label}></sw-badge>` : html`<span class="muted">—</span>`}</div>
+      <div role="cell" class=${`c c-cast ${hz('cast')}`} data-mm-cast=${d.key} data-mm-cast-method=${d.cast?.method ?? ''}><span class="lb">שידור</span>${cc ? html`<sw-badge kind=${cc.kind} label=${cc.label} title=${cc.title}></sw-badge>` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class="c c-ap"><sw-toggle label=${`מאושר: ${d.name}`} labelHidden .checked=${d.approved} data-mm-approved=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => ctx.onApprove(d, e.detail.checked)}></sw-toggle></div>
       <div role="cell" class=${`c c-cn ${hz('connections')}`}><button type="button" class="cnb" data-mm-toggle-endpoints=${d.key} aria-expanded=${String(conn)} @click=${() => ctx.onEndpoints(d.key)}>חיבורים (${d.endpoints.length}) ${conn ? '▴' : '◂'}</button></div>
     </div>
@@ -652,7 +656,7 @@ export const mediaAdminListCss = css`
     }
     .tr {
       grid-template-columns: 44px minmax(0, 1fr) auto;
-      grid-template-areas: 'x name ap' 'x type st' 'x int int' 'x id id' 'x area area' 'x cn cn';
+      grid-template-areas: 'x name ap' 'x type st' 'x int int' 'x id id' 'x area area' 'x cast cast' 'x cn cn';
       row-gap: 4px;
       padding: 8px 6px;
     }
@@ -682,6 +686,10 @@ export const mediaAdminListCss = css`
     }
     .c-area {
       grid-area: area;
+      display: flex;
+    }
+    .c-cast {
+      grid-area: cast;
       display: flex;
     }
     .c-cn {

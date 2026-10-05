@@ -27,6 +27,7 @@ import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
 import { integrationName, integrationTitle } from './media-integration-names';
+import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -559,6 +560,7 @@ export class SystemMultimediaPlayers extends LitElement {
           </span>
         </span>
       </div>
+      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>שידור למסך: ${castSentence(d.cast)}</div>` : nothing}
     </div>`;
   }
 

@@ -1530,3 +1530,71 @@ def live_audio(v: DeviceView, *, pending_power_ms: float | None = None, artwork:
         "sound_output": mode if isinstance(mode, str) else None,
         "shuffle": shuffle, "repeat": repeat, "group": dict(group or NO_GROUP), "queue": queue, "caps_known": bool(avail),
     }
+
+
+# ------------------------------------------------------------------------------------------------ CR-028 (prep): can this device show our video?
+
+# `method` = the path a future "שדר למסך" would use (CR-028 section 3); `confidence` = how sure the mirrored registry data makes us.
+CAST_METHODS = ("cast_hls", "dlna", "airplay", "browser_url", "none")
+CAST_CONFIDENCE = ("confirmed", "likely", "unknown")
+# Google's own video receivers, by the model string the Cast integration puts on the HA device (Chromecast, Chromecast with Google TV,
+# Nest Hub / Hub Max, SHIELD, the Android TV built-in receiver). A match is a confirmed video receiver whatever the device class says.
+_CAST_VIDEO_MODEL_RE = re.compile(r"chromecast(?! audio)|google tv|nest hub|home hub|\bshield\b|android tv|bravia|\btcl\b|\bvizio\b|\bhisense\b|\bphilips\b", re.I)
+# Google's audio-only receivers: a Cast endpoint on these can never show a picture.
+_CAST_AUDIO_MODEL_RE = re.compile(r"chromecast audio|google home(?! hub)|home mini|nest mini|nest audio|nest wifi(?! point)|cast group|\bwiim\b|\bsonos\b|speaker|soundbar", re.I)
+_AIRPLAY_PLATFORMS = frozenset({"apple_tv"})
+_SAMSUNG_PLATFORMS = frozenset({"samsungtv_smart", "samsungtv"})
+
+
+def _cast_meta_model(e: dict[str, Any] | None, meta: dict[str, dict[str, Any]] | None) -> str:
+    """The manufacturer + model of the endpoint's HA device (the registry mirror), '' when none is known."""
+    if not e or not meta:
+        return ""
+    m = meta.get(e.get("device_id") or "") or {}
+    return f"{m.get('manufacturer') or ''} {m.get('model') or ''}".strip()
+
+
+def cast_capability(dev: DeviceModel, ents: dict[str, dict[str, Any]], meta: dict[str, dict[str, Any]] | None = None, profile: str = "generic") -> dict[str, Any]:
+    """Which technology could receive a cast of our video (CR-028 section 4): `{method, confidence, via, reason}` from the data the registry
+    mirror already holds - the endpoints' platforms, their feature masks, the Cast entity's device class and the HA device's model. Pure;
+    an administrator's override is not part of the prep (it needs a column; CR-028 section 5). Nothing here sends anything.
+
+    Order: the kind (only screens, players and speakers can show a picture); a Cast endpoint (device class `tv` or a Google video model =
+    confirmed, an audio model or device class `speaker` = audio only, otherwise a TV's built-in receiver = confirmed on a screen, likely
+    elsewhere); an Android TV without its Cast twin (built-in receiver, likely); Apple TV (AirPlay, likely); a DLNA renderer that advertises
+    PLAY_MEDIA (likely; unknown while its mask is empty); a Samsung TV (its browser can open a page: unknown until verified); otherwise no path."""
+    if dev.kind not in ("screen", "player", "speaker"):
+        return {"method": "none", "confidence": "confirmed", "via": None, "reason": "kind"}
+    mp = [e for e in dev.endpoints if e.domain == "media_player" and e.role != "mirror"]
+    casts = [e for e in mp if (e.platform or "") == "cast"]
+    for ep in casts:
+        e = ents.get(ep.ref)
+        cls = str((e or {}).get("device_class") or "").lower()
+        model = _cast_meta_model(e, meta)
+        if _CAST_AUDIO_MODEL_RE.search(model) or (cls == "speaker" and not _CAST_VIDEO_MODEL_RE.search(model)):
+            continue  # an audio receiver: keep looking, a device may carry more than one Cast endpoint
+        if cls == "tv" or _CAST_VIDEO_MODEL_RE.search(model):
+            return {"method": "cast_hls", "confidence": "confirmed", "via": ep.endpoint_id, "reason": "cast_video"}
+        if dev.kind == "screen" or profile == "android_tv":
+            return {"method": "cast_hls", "confidence": "confirmed", "via": ep.endpoint_id, "reason": "cast_screen"}
+        return {"method": "cast_hls", "confidence": "likely", "via": ep.endpoint_id, "reason": "cast_unknown_model"}
+    if casts:
+        return {"method": "none", "confidence": "confirmed", "via": casts[0].endpoint_id, "reason": "cast_audio_only"}
+    if profile == "android_tv" or any((e.platform or "") in ("androidtv_remote", "androidtv") for e in dev.endpoints):
+        return {"method": "cast_hls", "confidence": "likely", "via": None, "reason": "android_tv_builtin"}
+    for ep in mp:
+        if (ep.platform or "") in _AIRPLAY_PLATFORMS:
+            return {"method": "airplay", "confidence": "likely", "via": ep.endpoint_id, "reason": "apple_tv"}
+    for ep in mp:
+        if (ep.platform or "") == "dlna_dmr":
+            if eff_features(ents.get(ep.ref)) & F_PLAY_MEDIA:
+                return {"method": "dlna", "confidence": "likely", "via": ep.endpoint_id, "reason": "dlna_renderer"}
+            return {"method": "dlna", "confidence": "unknown", "via": ep.endpoint_id, "reason": "dlna_unavailable"}
+    for ep in mp:
+        if (ep.platform or "") in _SAMSUNG_PLATFORMS and eff_features(ents.get(ep.ref)) & F_PLAY_MEDIA:
+            return {"method": "browser_url", "confidence": "unknown", "via": ep.endpoint_id, "reason": "samsung_browser"}
+    if dev.kind == "screen":
+        return {"method": "none", "confidence": "unknown", "via": None, "reason": "no_path"}
+    if dev.kind == "speaker":
+        return {"method": "none", "confidence": "confirmed", "via": None, "reason": "no_screen"}
+    return {"method": "none", "confidence": "unknown", "via": None, "reason": "no_path"}

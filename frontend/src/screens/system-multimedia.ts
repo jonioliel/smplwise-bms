@@ -21,6 +21,7 @@ import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
 import { integrationName, integrationTitle } from './media-integration-names';
+import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
@@ -456,6 +457,7 @@ export class SystemMultimedia extends LitElement {
         </label>
       </div>
       ${d.also_turns_on.length ? html`<div class="muted" data-mm-also>גם מדליק: ${d.also_turns_on.join(', ')}</div>` : nothing}
+      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>שידור למסך: ${castSentence(d.cast)}</div>` : nothing}
       ${d.kind === 'screen' && d.profile !== 'generic' && extra.length ? html`<div class="line" data-mm-extra-keys=${d.key}><span class="f">מקשים נוספים למסך זה</span>${extra.map((k) => html`<label class="f inline"><input type="checkbox" .checked=${d.model_keys.includes(k.id)} @change=${(e: Event) => void this.updateDevice(d, { model_keys: extra.filter((x) => (x.id === k.id ? (e.target as HTMLInputElement).checked : d.model_keys.includes(x.id))).map((x) => x.id) })} />${k.label}</label>`)}</div>` : nothing}
     </div>`;
   }

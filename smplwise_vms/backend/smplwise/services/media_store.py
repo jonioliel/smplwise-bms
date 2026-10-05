@@ -913,6 +913,8 @@ def admin_rows(conn: sqlite3.Connection, kinds: tuple[str, ...] | None = None) -
     non-physical kinds (sessions, helper groups, a Spotify list) are left out unless `kinds` names them (3.28, "רכיבים לא פיזיים"); their count is
     `non_physical`."""
     cat = load_catalog(conn, approved_only=False, kind=None)
+    # CR-028 prep: the cast capability reads the HA device's manufacturer / model only (never its connections or identifiers)
+    meta = {d["device_id"]: {"manufacturer": d.get("manufacturer"), "model": d.get("model")} for d in _load_ha_devices(conn)}
     out = []
     non_physical = 0
     for item in sorted(cat.items.values(), key=lambda i: (i.row["kind"], i.name, i.key)):
@@ -937,6 +939,8 @@ def admin_rows(conn: sqlite3.Connection, kinds: tuple[str, ...] | None = None) -
             "integrations": sorted({ep.platform for ep in item.model.endpoints if ep.platform}),
             "ha_device_id": next((e["device_id"] for e in (cat.ents.get(ep.ref) for ep in item.model.endpoints) if e and e.get("device_id")), None),
             "available": any(mm.available(cat.ents.get(e.ref)) for e in item.model.endpoints if e.domain == "media_player"),
+            # CR-028 prep: can this device receive a cast of our video (method, confidence, the endpoint that would answer, the reason code)
+            "cast": mm.cast_capability(item.model, cat.ents, meta, item.profile),
         }
         if item.row["kind"] != "screen":
             row.update(area_id=fa["area_id"], floor_id=fa["floor_id"], volume_night=night_window(item.row), music_provider=mm.music_provider_of(item.model, cat.ents),
