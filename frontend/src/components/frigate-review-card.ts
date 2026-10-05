@@ -18,7 +18,7 @@ export class FrigateReviewCard extends LitElement {
   @property({ attribute: false }) item!: ReviewItem;
   @property({ type: Boolean, reflect: true }) selected = false;
   @property({ type: Boolean, reflect: true }) focused = false;
-  /** analytics.review: the reviewed toggle and the selection tick are offered only to those who may mark. */
+  /** The reviewed toggle and the selection tick are offered (not for a motion span, which is no item). */
   @property({ type: Boolean }) canReview = true;
   @property() tz = 'Asia/Jerusalem';
   @state() private broken = false;
