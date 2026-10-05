@@ -20,6 +20,7 @@ import { firstFloor, loadTree } from '../api/catalog';
 import { domainLabel, entityTone, fmtTime, listEntities, stateLabel, subscribeHa, type HaCatalogue, type HaEntity, type HaSyncState } from '../api/ha';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { syncDisconnectedText } from '../api/ha-sync-status';
 
 interface Ent {
   id: string;
@@ -261,7 +262,7 @@ export class ExploreEntities extends LitElement {
     const ent = cat?.entities.find((e) => e.entity_id === this.selected);
     const total = domains.reduce((n, [, c]) => n + c, 0);
     const sub = sync
-      ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · גרסה ${sync.ha_version ?? ''}` : `הסנכרון מנותק${sync.last_error ? ` · ${sync.last_error}` : ''}`}`
+      ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · גרסה ${sync.ha_version ?? ''}` : `הסנכרון ${syncDisconnectedText(sync.last_error)}`}`
       : 'טוען את הקטלוג…';
     return html`
       <sw-page heading="קטלוג ההתקנים" subheading=${sub}>

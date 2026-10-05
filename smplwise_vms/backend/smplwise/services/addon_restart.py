@@ -103,4 +103,7 @@ def check_platform_config(settings: Settings) -> self_update.Reply:
 
 
 def restart_platform(settings: Settings) -> self_update.Reply:
+    from . import ha_sync  # HA1: the platform restart was started by the add-on - the HA sync reconnects fast instead of backing off
+
+    ha_sync.note_restart_initiated()
     return _send(settings, "POST", self_update.P_CORE_RESTART, body={}, timeout=CORE_RESTART_TIMEOUT_S)

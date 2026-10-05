@@ -24,6 +24,7 @@ import { dateInZone } from '../api/recordings';
 import { liveTileKnobs } from '../styles/tile-knobs';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { syncErrorText } from '../api/ha-sync-status';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
 interface RawHealth {
@@ -150,7 +151,7 @@ export class LiveOverview extends LitElement {
       out.push({ kind: 'info', title: 'ה־NVR לא שלח התראות מאז ההפעלה', meta: 'אירועי תנועה נגזרים מההקלטות כל 10 דקות', why: 'מוצג כי זרם ההתראות מחובר אך ריק — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה', link: '#/system/setup' });
     }
     if (this.raw?.home_assistant.configured && !this.raw.home_assistant.connected) {
-      out.push({ kind: 'alert', title: 'אין חיבור לתשתית המערכת', meta: this.raw.home_assistant.last_error ?? '', why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
+      out.push({ kind: 'alert', title: 'אין חיבור לתשתית המערכת', meta: syncErrorText(this.raw.home_assistant.last_error), why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
     }
     return out;
   }
