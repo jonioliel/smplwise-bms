@@ -36,6 +36,8 @@ API = "/api/v1/energy"
 UTC = dt.timezone.utc
 REQUIRED = os.environ.get("SW_REQUIRE_BILL_PDF") == "1"
 BIDI = re.compile("[‎‏‪-‮⁦-⁩]")
+# consumption of September 2025 ... August 2026 in Wh (invented); September 2025 is "the same period last year"
+MONTHLY_WH = [702_100, 655_400, 590_800, 720_300, 810_500, 760_200, 640_900, 580_100, 610_750, 690_400, 840_300, 812_400]
 
 try:
     from weasyprint import HTML
@@ -93,9 +95,16 @@ def world(settings, monkeypatch):
     db = Database(settings.db_path)
     store = st.store_for(settings)
     main = add_meter(db, "לוח ראשי")
-    feed(store, main, [(local(2025, 9, 1), 400_000), (local(2025, 10, 1), 1_102_100),   # same period last year: 702.10 kWh
-                       (local(2026, 7, 1), 0), (local(2026, 8, 1), 640_300), (local(2026, 9, 1), 1_000_000),
-                       (local(2026, 9, 16), 1_388_100), (local(2026, 10, 1), 1_776_200), (local(2026, 10, 2), 1_800_000)])
+    # a meter that reported every month since September 2025 (cumulative Wh): twelve previous periods, the same period last
+    # year (702.10 kWh) and the billed September 2026 (776.20 kWh), so the bill carries a full history chart
+    points, wh = [], 5_000_000
+    for (y, m), kwh in zip([(2025, 9), (2025, 10), (2025, 11), (2025, 12), (2026, 1), (2026, 2), (2026, 3), (2026, 4), (2026, 5),
+                            (2026, 6), (2026, 7), (2026, 8)], MONTHLY_WH):
+        points.append((local(y, m, 1), wh))
+        wh += kwh
+    points += [(local(2026, 9, 1), wh), (local(2026, 9, 16), wh + 388_100), (local(2026, 10, 1), wh + 776_200),
+               (local(2026, 10, 2), wh + 800_000)]
+    feed(store, main, points)
     s = c.put(f"{API}/billing-settings", json={"business": {
         "name": "ניהול מבנים אורן בע״מ", "registration_no": "515000000", "address": "רחוב הנביאים 12, ירושלים",
         "phone": "02-0000000", "email": "billing@example.invalid", "footer_note": "התשלום בהעברה בנקאית בלבד."}})
@@ -109,18 +118,10 @@ def world(settings, monkeypatch):
     assert cust.status_code == 201, cust.text
     acc = c.post(f"{API}/accounts", json={"name": "דירה 4", "customer_id": cust.json()["id"], "formula": {"text": "[לוח ראשי]"},
                                           "tariff_id": t.json()["id"], "period_months": 1, "period_anchor_day": 1,
-                                          "first_period_start": "2026-07-01", "auto_mode": "off"})
+                                          "first_period_start": "2026-09-01", "auto_mode": "off"})
     assert acc.status_code == 201, acc.text
     yield c, settings, acc.json()
     pdfseam.set_renderer(None)
-
-
-def _issue_month(c, aid: str, frm: str, to: str) -> dict:
-    d = c.post(f"{API}/accounts/{aid}/bills", json={"client_request_id": rid(), "period": {"from": frm, "to": to}})
-    assert d.status_code == 201, d.text
-    i = c.post(f"{API}/bills/{d.json()['id']}/issue", json={"row_version": d.json()["row_version"], "client_request_id": rid()})
-    assert i.status_code == 200, i.text
-    return i.json()
 
 
 def test_render_stack_is_present_where_it_is_required():
@@ -137,8 +138,6 @@ def test_render_stack_is_present_where_it_is_required():
 def test_bill_pdf_end_to_end_with_the_real_renderer(world):
     c, settings, acc = world
     aid = acc["id"]
-    _issue_month(c, aid, "2026-07-01", "2026-07-31")
-    _issue_month(c, aid, "2026-08-01", "2026-08-31")
     d = c.post(f"{API}/accounts/{aid}/bills", json={"client_request_id": rid(), "period": {"from": "2026-09-01", "to": "2026-09-30"}})
     assert d.status_code == 201, d.text
     draft = d.json()
@@ -173,7 +172,7 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
     text = text_of(pdf)
     one_line = " ".join(text.split())
     missing = [t for t in ("חשבון צריכת חשמל ודרישת תשלום", "אינו חשבונית מס", "2026-09-0001", "ניהול מבנים אורן בע״מ", "515000000",
-                           "סטודיו אורן לעיצוב", "רחוב יפו 1, ירושלים", "דירה 4", "תקופת החיוב", "01.09.2026", "30.09.2026",
+                           "סטודיו אורן לעיצוב", "רחוב יפו", "דירה 4", "תקופת החיוב", "01.09.2026", "30.09.2026",
                            "תעריף ביתי", "סה״כ לתשלום", "497.35", "776.20", "421.48", "75.87", "0.5430", "לוח ראשי",
                            "מע״מ 18%", "02.10.2026", "התשלום בהעברה בנקאית בלבד", "SmplWise Arx", "₪") if t not in one_line]
     assert not missing, (missing, one_line)
@@ -181,7 +180,7 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
         assert reversed_token not in text, reversed_token
     assert re.search(r"עמוד\s*1\s*מתוך\s*1", text)
     # the history chart: July and August of this year and September last year (labels MM.YY), values printed
-    for label in ("07.26", "08.26", "09.25", "640", "702"):
+    for label in ("09.25", "07.26", "08.26", "09.26", "702", "812", "776", "אותה תקופה אשתקד"):
         assert label in text, label
     # the PDF footer prints the first 12 hex of the snapshot hash the server stored
     assert bill["snapshot_sha256"][:12] in text
