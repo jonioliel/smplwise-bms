@@ -48,6 +48,9 @@ def janitor_tick(db: Database, settings: Settings) -> None:
 
     ha_user_auth.flush_refusal_summaries(db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
     ha_history.prune_db(db)
+    from .services import device_activity
+
+    device_activity.prune_db(db)  # DEVHIST: retention + size caps (itself throttled to every 15 min)
     from .services import push as push_svc
 
     push_svc.prune(db)  # CR-008 P3: push subscriptions whose browser has not synced for months

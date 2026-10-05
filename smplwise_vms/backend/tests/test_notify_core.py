@@ -600,7 +600,7 @@ def test_migration_up_on_a_0_1_149_database_keeps_push_prefs_and_subscriptions(s
         conn.execute("INSERT INTO rules(id, name, enabled, owner, trigger_json, scope_json, window_json, cooldown_s, actions_json, revision, created_at, updated_at) VALUES ('r1', 'r', 1, 'local', '{}', '{}', '{}', 0, '[]', 1, 't', 't')")
         conn.execute("INSERT INTO rule_alerts(id, rule_id, event_id, fired_at, occurred_at, reasons_json, message) VALUES ('a1', 'r1', 'e1', 't', 't', '[]', 'm')")
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]  # 0059 (M047 review window groups); 0058 (EL6 manual meter readings); 0057: CR-027 phone app; 0056: K88; 0053-0054: CR-023 meters, billing; 0055: CR-024
+    assert dbmod.Database(settings.db_path).migrate() == [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 63]  # 0063 (DEVHIST device activity; 0060-0062 are on unmerged branches); 0059 (M047 review window groups); 0058 (EL6 manual meter readings); 0057: CR-027 phone app; 0056: K88; 0053-0054: CR-023 meters, billing; 0055: CR-024
     c = TestClient(create_app(settings))  # start-up seeds the policies
     with database.connection(mode="read") as conn:
         assert conn.execute("SELECT categories_json FROM push_prefs WHERE user_id = 'dev-old'").fetchone()[0] == '{"alerts": false}'

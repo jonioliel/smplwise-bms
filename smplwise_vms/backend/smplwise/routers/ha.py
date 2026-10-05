@@ -22,7 +22,7 @@ from ..config import Settings
 from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from ..services import bridge_install, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
+from ..services import bridge_install, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -241,6 +241,7 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     status, error = ha_actions.bridge_status(result)
     ok = status == "pending"
     conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+    device_activity.note_context(conn, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
     audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
           request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
     out = _action_row(conn, aid)
