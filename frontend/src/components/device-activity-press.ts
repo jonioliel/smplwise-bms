@@ -10,6 +10,7 @@
  */
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ActivityKind } from '../api/device-activity';
+import { canAnywhere } from '../api/session';
 
 export const LONG_PRESS_MS = 500;
 export const MOVE_SLOP_PX = 8;
@@ -35,9 +36,11 @@ export interface ActivityOpen {
 }
 
 /** The value of a tile's `data-activity` attribute, or `nothing`-like undefined when the server did not flag the entity. */
-export function activityTag(r: { entity_id: string; name: string; activity?: boolean; activity_kind?: ActivityKind | null }, state = ''): string | undefined {
+export function activityTag(r: { entity_id: string; name: string; activity?: boolean; activity_kind?: ActivityKind | null; activity_permissions?: string[] }, state = '', held: (p: string) => boolean = canAnywhere): string | undefined {
   if (!r.activity) return undefined;
-  const t: ActivityTarget = { id: r.entity_id, kind: r.activity_kind ?? 'other', name: r.name, state };
+  // a lock / alarm panel: the server names the permissions that operate it; none held = no entry (the route would answer 403)
+  if (r.activity_permissions?.length && !r.activity_permissions.some(held)) return undefined;
+  const t: ActivityTarget = { id: r.entity_id, kind: r.activity_kind ?? 'generic', name: r.name, state };
   return JSON.stringify(t);
 }
 
@@ -45,7 +48,7 @@ export function parseTag(raw: string | null | undefined): ActivityTarget | null 
   if (!raw) return null;
   try {
     const t = JSON.parse(raw) as Partial<ActivityTarget>;
-    return t.id ? { id: t.id, kind: t.kind ?? 'other', name: t.name ?? '', state: t.state ?? '' } : null;
+    return t.id ? { id: t.id, kind: t.kind ?? 'generic', name: t.name ?? '', state: t.state ?? '' } : null;
   } catch {
     return null;
   }

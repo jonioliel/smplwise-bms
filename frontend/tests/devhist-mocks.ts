@@ -48,10 +48,10 @@ function feedPage(mode: FeedMode, cursor: string | null, query: URLSearchParams)
   const base: Row[] = [
     person('e1', 15, 'דנה כהן', { state: 'on' }, { state: 'off' }),
     { id: 'e2', at: ago(140), kind: 'power', actor: { type: 'schedule', name: 'תאורת ערב' }, source: { type: 'schedule', name: 'תאורת ערב' }, from: { state: 'off' }, to: { state: 'on' }, via: 'ha', confidence: 'exact' },
-    { id: 'e3', at: ago(150), kind: 'value', attribute: 'brightness', actor: { type: 'device' }, from: { value: 100 }, to: { value: 60 }, unit: '%', via: 'device', confidence: 'inferred' },
-    { id: 'e4', at: ago(24 * 60 + 20), kind: 'power', actor: { type: 'scene', name: 'לילה טוב' }, from: { state: 'on' }, to: { state: 'off' }, note: 'הופעלה ע״י יואב כהן', via: 'ha', confidence: 'exact' },
+    { id: 'e3', at: ago(150), kind: 'value', changed: ['brightness_pct'], actor: { type: 'device' }, from: { state: 'on', brightness_pct: 100 }, to: { state: 'on', brightness_pct: 60 }, via: 'device', confidence: 'inferred' },
+    { id: 'e4', at: ago(24 * 60 + 20), kind: 'power', actor: { type: 'scene', name: 'לילה טוב' }, from: { state: 'on' }, to: { state: 'off' }, via: 'ha', confidence: 'exact' },
     { id: 'e5', at: ago(24 * 60 + 600), kind: 'power', actor: { type: 'automation', name: 'זריחה' }, from: { state: 'off' }, to: { state: 'on' }, via: 'ha', confidence: 'exact' },
-    { id: 'e6', at: ago(24 * 60 + 610), kind: 'availability', actor: { type: 'system' }, from: { state: 'unavailable' }, to: { state: 'off' }, note: 'אחרי הפסקת חשמל', via: 'ha', confidence: 'exact' },
+    { id: 'e6', at: ago(24 * 60 + 610), kind: 'availability', actor: { type: 'system' }, from: { state: 'unavailable' }, to: { state: 'off' }, via: 'ha', confidence: 'exact' },
     { id: 'e7', at: ago(48 * 60), kind: 'power', actor: { type: 'unknown' }, from: { state: 'on' }, to: { state: 'off' }, via: 'unknown', confidence: 'unknown' },
   ];
   const more: Row[] = [person('e8', 3 * 24 * 60, 'יואב כהן', { state: 'off' }, { state: 'on' }), person('e9', 3 * 24 * 60 + 30, 'יואב כהן', { state: 'on' }, { state: 'off' })];
@@ -64,6 +64,8 @@ function feedPage(mode: FeedMode, cursor: string | null, query: URLSearchParams)
     items,
     next_cursor: !cursor && mode !== 'empty' && !filtered ? 'p2' : null,
     retention_days: 90,
+    tracked_since: ago(6 * 24 * 60),
+    entity: { entity_id: 'light.living_main', name: 'תאורה מרכזית', domain: 'light', activity_kind: 'light', virtual: false, power: null },
     coverage: { from: ago(6 * 24 * 60), gaps: mode === 'partial' ? [{ from: ago(30 * 60), to: ago(29 * 60) }] : [] },
     availability: mode === 'partial' ? 'partial' : 'ok',
   };

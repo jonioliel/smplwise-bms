@@ -13,47 +13,57 @@ import { isApi } from './session';
 import { demoActivity } from './device-activity-mock';
 
 export type ActivityKind =
-  | 'light' | 'switch' | 'outlet' | 'cover' | 'garage' | 'climate' | 'heater' | 'fan' | 'water_heater' | 'valve' | 'vacuum' | 'other';
-export const ACTIVITY_KINDS: ActivityKind[] = ['light', 'switch', 'outlet', 'cover', 'garage', 'climate', 'heater', 'fan', 'water_heater', 'valve', 'vacuum', 'other'];
+  | 'light' | 'switch' | 'outlet' | 'cover' | 'garage_door' | 'climate' | 'heater' | 'fan' | 'water_heater' | 'valve' | 'vacuum' | 'generic';
+export const ACTIVITY_KINDS: ActivityKind[] = ['light', 'switch', 'outlet', 'cover', 'garage_door', 'climate', 'heater', 'fan', 'water_heater', 'valve', 'vacuum', 'generic'];
 
-export type ActorType = 'person' | 'automation' | 'schedule' | 'scene' | 'device' | 'system' | 'unknown';
-export const ACTOR_TYPES: ActorType[] = ['person', 'automation', 'schedule', 'scene', 'device', 'system', 'unknown'];
+export type ActorType = 'person' | 'automation' | 'script' | 'schedule' | 'scene' | 'device' | 'system' | 'unknown';
+export const ACTOR_TYPES: ActorType[] = ['person', 'automation', 'script', 'schedule', 'scene', 'device', 'system', 'unknown'];
 export type EventType = 'power' | 'value' | 'availability';
 export type ActivityVia = 'arx' | 'ha' | 'device' | 'unknown';
 export type Confidence = 'exact' | 'inferred' | 'unknown';
 export type ActivityAvailability = 'ok' | 'partial' | 'unavailable';
 
-export interface ActivityValue {
-  /** The state string (`on`, `off`, `open`, `heat`, `unavailable`, ...) */
-  state?: string | null;
-  /** The recorded value of a value event: brightness %, position %, a temperature, a speed ... */
-  value?: number | string | null;
-}
+/** A snapshot of the device at one moment: `state` plus the watched attributes the server stores for its domain, flat (brightness_pct,
+ * color_temp_kelvin, temperature, target_temp_low / high, fan_mode, preset_mode, swing_mode, humidity, percentage, oscillating, direction,
+ * current_position, current_tilt_position, fan_speed, away_mode ...). Only the keys that exist are present. */
+export type ActivityValue = { state?: string | null } & Record<string, unknown>;
 
 export interface ActivityItem {
-  id: string;
+  id: string | number;
   /** UTC instant. */
   at: string;
   kind: EventType;
-  /** What changed, for a value event (`brightness`, `position`, `tilt`, `target_temperature`, `hvac_mode`, `fan_mode`, `percentage`, `direction`, `color_temp`). */
-  attribute?: string | null;
-  actor: { type: ActorType; name?: string | null; user_ref?: string | null };
+  actor: { type: ActorType; name?: string | null };
   source?: { type: 'automation' | 'script' | 'scene' | 'schedule'; id?: string | null; name?: string | null } | null;
   from: ActivityValue;
   to: ActivityValue;
-  unit?: string | null;
+  /** The keys that differ between `from` and `to` (`state` among them for a power event). */
+  changed?: string[];
   via?: ActivityVia;
   confidence?: Confidence;
-  /** A free note the server may attach (power before switching off, the schedule's duration ...). */
+  /** A free note (demo / mocks only; the real route has none). */
   note?: string | null;
+}
+
+export interface ActivityEntity {
+  entity_id: string;
+  name?: string;
+  domain?: string;
+  activity_kind?: ActivityKind;
+  virtual?: boolean;
+  /** An outlet's linked power sensor (only with one on the same device). */
+  power?: { entity_id: string; value: number | null; unit: string } | null;
 }
 
 export interface ActivityPage {
   items: ActivityItem[];
   next_cursor: string | null;
   retention_days: number;
-  coverage: { from: string | null; gaps: { from: string; to: string }[] };
+  /** Since when the log exists (null until the first activity): history starts from zero. */
+  tracked_since: string | null;
+  coverage: { from: string | null; gaps: { from: string; to: string; reason?: string }[] };
   availability: ActivityAvailability;
+  entity?: ActivityEntity;
 }
 
 export interface ActivityQuery {
@@ -88,7 +98,9 @@ export async function getDeviceActivity(entityId: string, q: ActivityQuery = {})
       items: page.items ?? [],
       next_cursor: page.next_cursor ?? null,
       retention_days: page.retention_days ?? 90,
+      tracked_since: page.tracked_since ?? page.coverage?.from ?? null,
       coverage: page.coverage ?? { from: null, gaps: [] },
+      entity: page.entity,
       availability: page.availability ?? 'ok',
     };
   } catch (e) {

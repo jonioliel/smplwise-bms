@@ -117,6 +117,10 @@ export interface DeviceRow {
   /** CR-032: the server marks an electrical device whose activity popup exists (long press / menu item); `activity_kind` picks the icon and wording. Never guessed client side. */
   activity?: boolean;
   activity_kind?: import('./device-activity').ActivityKind | null;
+  /** A lock / alarm panel: the permissions that operate it; the activity entry needs one of them. */
+  activity_permissions?: string[];
+  /** An outlet's linked power sensor (null / absent = show no power). */
+  power?: { entity_id: string; value: number | null; unit: string } | null;
   /** CR-010 review B1: owned by the alarm section (a zone's bypass control, the panel) - read-only everywhere else. */
   alarm_managed?: boolean;
   managed_label?: string;

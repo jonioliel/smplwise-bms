@@ -205,7 +205,7 @@ export class DeviceActivity extends LitElement {
     return html`<sw-sheet ?open=${this.open && !this.editing} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:380px" @close=${() => this.closePopup()}>
       <div slot="head" class="ph ${on ? '' : 'off'}">
         <span class="ic"><sw-icon name=${KIND_ICON[tg.kind] as IconName} size=${18}></sw-icon></span>
-        <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${this.area ? html`${bidi(this.area)} · ` : nothing}<span data-activity-state>${tg.state}</span></div></div>
+        <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${this.area ? html`${bidi(this.area)} · ` : nothing}<span data-activity-state>${tg.state}</span>${this.powerText()}</div></div>
       </div>
       <div class="segt" role="tablist" aria-label=${t('deviceActivity.tabs')}>
         ${(['activity', 'schedules'] as Tab[]).map(
@@ -215,6 +215,12 @@ export class DeviceActivity extends LitElement {
       </div>
       <div id="da-panel" class="pbody" role="tabpanel" aria-labelledby=${`da-tab-${this.tab}`}>${this.tab === 'activity' ? this.renderActivity(tg) : this.renderSchedules()}</div>
     </sw-sheet>`;
+  }
+
+  /** An outlet's current power, only when the server linked a power sensor of the same device. */
+  private powerText() {
+    const p = this.page?.entity?.power;
+    return p && p.value !== null && p.value !== undefined ? html` · <bdi data-activity-power>${Math.round(p.value).toLocaleString('en')} ${p.unit}</bdi>` : nothing;
   }
 
   private onTabKey = (e: KeyboardEvent) => {
@@ -250,7 +256,7 @@ export class DeviceActivity extends LitElement {
     }
     const page = this.page;
     const gap = page?.coverage.gaps[0];
-    const since = trackedSince(page?.coverage.from);
+    const since = trackedSince(page?.tracked_since);
     const body = this.feed.length
       ? html`${page?.availability === 'partial' || gap ? html`<div class="gap" role="note" data-feed-state="partial"><sw-icon name="warning" size=${14}></sw-icon><span>${gap ? gapText(gap) : t('deviceActivity.partialBanner')}</span></div>` : nothing}
           ${groupByDay(this.feed).map(
@@ -259,7 +265,7 @@ export class DeviceActivity extends LitElement {
           ${page?.next_cursor ? html`<div class="more"><sw-button size="sm" ?disabled=${this.loadingMore} data-load-more @click=${() => void this.loadFeed(true)}>${this.loadingMore ? t('deviceActivity.loadingMore') : t('deviceActivity.loadMore')}</sw-button></div>` : nothing}`
       : isFiltered(this.filters)
         ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${t('deviceActivity.widen')} compact data-feed-state="empty-filtered" @action=${() => this.setFilter({ period: 'month' })}></sw-state-panel>`
-        : html`<sw-state-panel state="empty" heading=${page?.coverage.from ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
+        : html`<sw-state-panel state="empty" heading=${page?.tracked_since ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
     return html`${head}${body}<div class="pf" data-foot>${since ? html`<span data-tracked-since>${since}</span> · ` : nothing}${footnote(page?.retention_days ?? 90, this.feed.some((x) => x.actor.type === 'device'))}</div>`;
   }
 

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  ACTOR_FILTERS, DEFAULT_FILTERS, KIND_ICON, actorView, clockOf, describeEvent, footnote, gapText, groupByDay, isFiltered, queryOf, stateLabel, trackedSince,
+  ACTOR_FILTERS, DEFAULT_FILTERS, KIND_ICON, actorView, changedKey, clockOf, describeEvent, footnote, gapText, groupByDay, isFiltered, queryOf, stateLabel, trackedSince,
 } from '../src/components/device-activity-logic';
 import { ACTIVITY_KINDS, type ActivityItem } from '../src/api/device-activity';
 import { demoActivity } from '../src/api/device-activity-mock';
@@ -25,7 +25,7 @@ test.describe('device activity logic', () => {
   });
 
   test('cover, garage and valve: פתיחה / סגירה / עצירה', () => {
-    for (const k of ['cover', 'garage', 'valve'] as const) {
+    for (const k of ['cover', 'garage_door', 'valve'] as const) {
       expect(describeEvent(item({ from: { state: 'closed' }, to: { state: 'open' } }), k)).toEqual({ verb: 'פתיחה', from: 'סגור', to: 'פתוח' });
       expect(describeEvent(item({ from: { state: 'open' }, to: { state: 'closed' } }), k).verb).toBe('סגירה');
       expect(describeEvent(item({ from: { state: 'opening' }, to: { state: 'stopped' } }), k).verb).toBe('עצירה');
@@ -40,19 +40,31 @@ test.describe('device activity logic', () => {
 
   test('climate turning on shows the mode; the generic kind says שינוי מצב', () => {
     expect(describeEvent(item({ from: { state: 'off' }, to: { state: 'cool' } }), 'climate')).toEqual({ verb: 'הדלקה', from: 'כבוי', to: 'קירור' });
-    expect(describeEvent(item({ from: { state: 'on' }, to: { state: 'off' } }), 'other').verb).toBe('שינוי מצב');
+    expect(describeEvent(item({ from: { state: 'on' }, to: { state: 'off' } }), 'generic').verb).toBe('שינוי מצב');
   });
 
-  test('value events: percent, degrees, Kelvin and named modes', () => {
-    const v = (attribute: string, from: unknown, to: unknown, unit?: string) => describeEvent(item({ kind: 'value', attribute, from: { value: from as number }, to: { value: to as number }, unit }), 'light');
-    expect(v('brightness', 100, 60)).toEqual({ verb: 'שינוי בהירות', from: '100%', to: '60%' });
-    expect(v('position', 100, 40.5)).toEqual({ verb: 'שינוי מיקום', from: '100%', to: '40.5%' });
-    expect(v('tilt', 0, 30, '°')).toEqual({ verb: 'שינוי הטיה', from: '0°', to: '30°' });
-    expect(v('target_temperature', 22, 24)).toEqual({ verb: 'שינוי יעד', from: '22°', to: '24°' });
-    expect(v('color_temp', 2700, 4000)).toEqual({ verb: 'שינוי גוון', from: '2700K', to: '4000K' });
+  test('value events read the flat attributes: percent, degrees, Kelvin and named modes', () => {
+    const v = (key: string, from: unknown, to: unknown) => describeEvent(item({ kind: 'value', changed: [key], from: { state: 'on', [key]: from }, to: { state: 'on', [key]: to } }), 'light');
+    expect(v('brightness_pct', 100, 60)).toEqual({ verb: 'שינוי בהירות', from: '100%', to: '60%' });
+    expect(v('current_position', 100, 40.5)).toEqual({ verb: 'שינוי מיקום', from: '100%', to: '40.5%' });
+    expect(v('current_tilt_position', 0, 30)).toEqual({ verb: 'שינוי הטיה', from: '0%', to: '30%' });
+    expect(v('temperature', 22, 24)).toEqual({ verb: 'שינוי יעד', from: '22°', to: '24°' });
+    expect(v('color_temp_kelvin', 2700, 4000)).toEqual({ verb: 'שינוי גוון', from: '2700K', to: '4000K' });
     expect(v('fan_mode', 'auto', 'high')).toEqual({ verb: 'שינוי מאוורר', from: 'אוטו', to: 'גבוה' });
     expect(v('direction', 'forward', 'reverse')).toEqual({ verb: 'שינוי כיוון', from: 'קדימה', to: 'אחורה' });
+    expect(v('percentage', 33, 66)).toEqual({ verb: 'שינוי מהירות', from: '33%', to: '66%' });
     expect(v('something_new', 1, 2).verb).toBe('שינוי ערך');
+  });
+
+  test('the key of a value row is the first known changed attribute; without `changed` it is derived', () => {
+    expect(changedKey({ from: { state: 'on', brightness_pct: 1 }, to: { state: 'on', brightness_pct: 2 }, changed: ['brightness_pct'] })).toBe('brightness_pct');
+    expect(changedKey({ from: { state: 'cool', fan_mode: 'a', temperature: 20 }, to: { state: 'cool', fan_mode: 'b', temperature: 22 } })).toBe('temperature');
+    expect(changedKey({ from: { state: 'a' }, to: { state: 'b' } })).toBeNull();
+  });
+
+  test('a light switched on shows its brightness; a mode change of a running climate is a value row', () => {
+    expect(describeEvent(item({ from: { state: 'off' }, to: { state: 'on', brightness_pct: 60 } }), 'light').to).toBe('דלוק 60%');
+    expect(describeEvent(item({ kind: 'value', changed: ['state'], from: { state: 'heat' }, to: { state: 'cool' } }), 'climate')).toEqual({ verb: 'שינוי ערך', from: 'חימום', to: 'קירור' });
   });
 
   test('availability events say lost or back, never an invented cause', () => {
@@ -71,7 +83,8 @@ test.describe('device activity logic', () => {
     expect(actorView(item({ actor: { type: 'automation', name: 'זריחה' } }))).toMatchObject({ prefix: 'אוטומציה', name: 'זריחה' });
     expect(actorView(item({ actor: { type: 'schedule' }, source: { type: 'schedule', name: 'תאורת ערב' } }))).toMatchObject({ prefix: 'תזמון', name: 'תאורת ערב' });
     expect(actorView(item({ actor: { type: 'scene', name: 'לילה טוב' } })).prefix).toBe('סצנה');
-    expect(actorView(item({ actor: { type: 'automation' } }))).toMatchObject({ prefix: '', name: 'אוטומציה' });
+    expect(actorView(item({ actor: { type: 'automation' } }))).toMatchObject({ prefix: '', name: 'אוטומציה (ללא שם)' });
+    expect(actorView(item({ actor: { type: 'script', name: 'שקיעה' } }))).toMatchObject({ prefix: 'סקריפט', name: 'שקיעה' });
     expect(actorView(item({ actor: { type: 'device' } }))).toMatchObject({ name: 'ידני בהתקן', qualifier: 'משוער' });
     expect(actorView(item({ actor: { type: 'system' } })).name).toBe('המערכת');
     expect(actorView(item({ actor: { type: 'unknown' } })).name).toBe('מקור לא ידוע');
@@ -104,7 +117,7 @@ test.describe('device activity logic', () => {
     expect(isFiltered({ ...DEFAULT_FILTERS, period: 'month' })).toBe(true);
     const q = queryOf({ period: 'day', actor: 'schedule', kind: '' }, Date.parse('2026-10-05T12:00:00Z'), 'c1');
     expect(q).toEqual({ since: '2026-10-04T12:00:00.000Z', actor: 'schedule', kind: undefined, cursor: 'c1' });
-    expect(ACTOR_FILTERS.map((a) => a.id)).toEqual(['', 'person', 'automation', 'schedule', 'scene', 'device', 'system']);
+    expect(ACTOR_FILTERS.map((a) => a.id)).toEqual(['', 'person', 'automation', 'script', 'schedule', 'scene', 'device', 'system']);
   });
 
   test('footnote, tracked-since and gap texts', () => {
@@ -129,7 +142,7 @@ test.describe('device activity demo store', () => {
     const people = demoActivity('light.x', { actor: 'person', limit: 10 }, now);
     expect(people.items.every((i) => i.actor.type === 'person')).toBe(true);
     expect(demoActivity('light.x', { kind: 'availability' }, now).items.every((i) => i.kind === 'availability')).toBe(true);
-    expect(demoActivity('cover.x', {}, now).items[0].attribute).toBe('position');
+    expect(changedKey(demoActivity('cover.x', {}, now).items[0])).toBe('current_position');
   });
 });
 
@@ -159,7 +172,11 @@ test.describe('device activity press', () => {
     expect(activityTag({ entity_id: 'light.a', name: 'x' })).toBeUndefined();
     expect(activityTag({ entity_id: 'light.a', name: 'x', activity: false, activity_kind: 'light' })).toBeUndefined();
     expect(parseTag(activityTag({ entity_id: 'light.a', name: 'תאורה', activity: true, activity_kind: 'light' }, 'דלוק'))).toEqual({ id: 'light.a', kind: 'light', name: 'תאורה', state: 'דלוק' });
-    expect(parseTag(activityTag({ entity_id: 'x.a', name: 'n', activity: true }))?.kind).toBe('other');
+    expect(parseTag(activityTag({ entity_id: 'x.a', name: 'n', activity: true }))?.kind).toBe('generic');
+    // a lock / alarm panel: only with one of the permissions the server names
+    const lock = { entity_id: 'lock.a', name: 'דלת', activity: true, activity_kind: 'generic' as const, activity_permissions: ['door.unlock'] };
+    expect(activityTag(lock, '', () => false)).toBeUndefined();
+    expect(activityTag(lock, '', (p) => p === 'door.unlock')).toBeTruthy();
     expect(parseTag('not json')).toBeNull();
     expect(parseTag(null)).toBeNull();
   });

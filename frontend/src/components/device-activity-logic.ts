@@ -13,14 +13,14 @@ export const KIND_ICON: Record<ActivityKind, string> = {
   switch: 'power',
   outlet: 'power',
   cover: 'layers',
-  garage: 'door',
+  garage_door: 'door',
   climate: 'snow',
   heater: 'flame',
   fan: 'fan',
   water_heater: 'thermometer',
   valve: 'activity',
   vacuum: 'target',
-  other: 'bolt',
+  generic: 'bolt',
 };
 
 export const STATE_HE: Record<string, string> = {
@@ -35,21 +35,30 @@ const VALUE_HE: Record<string, string> = {
   ...STATE_HE, low: 'נמוך', medium: 'בינוני', high: 'גבוה', forward: 'קדימה', reverse: 'אחורה', reversed: 'אחורה', quiet: 'שקט', turbo: 'טורבו',
 };
 
-const VALUE_VERB: Record<string, string> = {
-  brightness: 'שינוי בהירות',
-  color_temp: 'שינוי גוון',
-  rgb_color: 'שינוי צבע',
-  position: 'שינוי מיקום',
-  tilt: 'שינוי הטיה',
-  target_temperature: 'שינוי יעד',
-  hvac_mode: 'שינוי מצב',
-  fan_mode: 'שינוי מאוורר',
-  percentage: 'שינוי מהירות',
-  direction: 'שינוי כיוון',
-  preset_mode: 'שינוי מצב מוגדר',
-  operation_mode: 'שינוי מצב',
-  duration: 'שינוי משך',
+/** What each stored attribute is called in Hebrew, and how its number is written. */
+const ATTR: Record<string, { verb: string; unit?: string }> = {
+  brightness_pct: { verb: 'שינוי בהירות', unit: '%' },
+  color_temp_kelvin: { verb: 'שינוי גוון', unit: 'K' },
+  rgb_color: { verb: 'שינוי צבע' },
+  effect: { verb: 'שינוי אפקט' },
+  temperature: { verb: 'שינוי יעד', unit: '°' },
+  target_temp_low: { verb: 'שינוי יעד תחתון', unit: '°' },
+  target_temp_high: { verb: 'שינוי יעד עליון', unit: '°' },
+  fan_mode: { verb: 'שינוי מאוורר' },
+  preset_mode: { verb: 'שינוי מצב מוגדר' },
+  swing_mode: { verb: 'שינוי נדנוד' },
+  humidity: { verb: 'שינוי לחות יעד', unit: '%' },
+  mode: { verb: 'שינוי מצב' },
+  percentage: { verb: 'שינוי מהירות', unit: '%' },
+  oscillating: { verb: 'שינוי נדנוד' },
+  direction: { verb: 'שינוי כיוון' },
+  current_position: { verb: 'שינוי מיקום', unit: '%' },
+  current_tilt_position: { verb: 'שינוי הטיה', unit: '%' },
+  fan_speed: { verb: 'שינוי עוצמת שאיבה' },
+  away_mode: { verb: 'שינוי מצב היעדרות' },
 };
+/** The order a changed set is reported in (the first one names the row). */
+const ATTR_ORDER = Object.keys(ATTR);
 
 /** The Hebrew of a state string (unknown strings are shown as they are - the server's own word - never invented). */
 export function stateLabel(state: string | null | undefined): string {
@@ -57,15 +66,13 @@ export function stateLabel(state: string | null | undefined): string {
   return STATE_HE[state] ?? state;
 }
 
-function valueText(attribute: string | null | undefined, v: ActivityValue, unit: string | null | undefined): string {
-  const raw = v.value;
-  if (raw === null || raw === undefined || raw === '') return v.state ? stateLabel(v.state) : '';
-  if (typeof raw === 'number') {
-    const n = Number.isInteger(raw) ? String(raw) : raw.toFixed(1);
-    const u = unit ?? (attribute === 'brightness' || attribute === 'position' || attribute === 'tilt' || attribute === 'percentage' ? '%' : attribute === 'target_temperature' ? '°' : attribute === 'color_temp' ? 'K' : '');
-    return `${n}${u}`;
-  }
-  return VALUE_HE[raw] ?? raw;
+function attrText(key: string, v: unknown): string {
+  if (v === null || v === undefined || v === '') return '';
+  const unit = ATTR[key]?.unit ?? '';
+  if (typeof v === 'number') return `${Number.isInteger(v) ? String(v) : v.toFixed(1)}${unit}`;
+  if (typeof v === 'boolean') return v ? 'פעיל' : 'כבוי';
+  if (Array.isArray(v)) return v.join(',');
+  return VALUE_HE[String(v)] ?? String(v);
 }
 
 export interface Described {
@@ -75,27 +82,38 @@ export interface Described {
   to: string;
 }
 
+/** The attribute a value event is about: the first of `changed` we know, else the first key that differs. */
+export function changedKey(item: Pick<ActivityItem, 'from' | 'to' | 'changed'>): string | null {
+  const keys = (item.changed && item.changed.length ? item.changed : [...new Set([...Object.keys(item.from), ...Object.keys(item.to)])].filter((k) => item.from[k] !== item.to[k])).filter((k) => k !== 'state');
+  return ATTR_ORDER.find((k) => keys.includes(k)) ?? keys[0] ?? null;
+}
+
 /** The action, before and after of one event of a device of `kind`. */
-export function describeEvent(item: Pick<ActivityItem, 'kind' | 'attribute' | 'from' | 'to' | 'unit'>, kind: ActivityKind): Described {
+export function describeEvent(item: Pick<ActivityItem, 'kind' | 'from' | 'to' | 'changed'>, kind: ActivityKind): Described {
   const toState = item.to.state ?? '';
   const fromState = item.from.state ?? '';
   if (item.kind === 'availability') {
-    const lost = toState === 'unavailable';
+    const lost = toState === 'unavailable' || toState === 'unknown';
     return { verb: lost ? 'איבד זמינות' : 'חזר לזמינות', from: stateLabel(fromState), to: stateLabel(toState) };
   }
   if (item.kind === 'value') {
-    return { verb: VALUE_VERB[item.attribute ?? ''] ?? 'שינוי ערך', from: valueText(item.attribute, item.from, item.unit), to: valueText(item.attribute, item.to, item.unit) };
+    const key = changedKey(item);
+    if (!key) return { verb: 'שינוי ערך', from: stateLabel(fromState), to: stateLabel(toState) };
+    // climate: the mode of a device that stays on is the state itself (heat -> cool)
+    return { verb: ATTR[key]?.verb ?? 'שינוי ערך', from: attrText(key, item.from[key]), to: attrText(key, item.to[key]) };
   }
   // power / state change
   let verb = 'שינוי מצב';
-  if (kind === 'cover' || kind === 'garage' || kind === 'valve') {
+  if (kind === 'cover' || kind === 'garage_door' || kind === 'valve') {
     verb = toState === 'open' || toState === 'opening' ? 'פתיחה' : toState === 'closed' || toState === 'closing' ? 'סגירה' : toState === 'stopped' ? 'עצירה' : 'שינוי מצב';
   } else if (kind === 'vacuum') {
     verb = toState === 'cleaning' ? 'התחלת ניקיון' : toState === 'docked' || toState === 'returning' ? 'חזרה לעגינה' : toState === 'paused' || toState === 'idle' ? 'עצירה' : 'שינוי מצב';
-  } else if (kind !== 'other') {
+  } else if (kind !== 'generic') {
     verb = toState === 'off' ? 'כיבוי' : toState && toState !== 'unavailable' && toState !== 'unknown' ? 'הדלקה' : 'שינוי מצב';
   }
-  return { verb, from: stateLabel(fromState), to: stateLabel(toState) };
+  // a light switched on carries its brightness: "כבוי ← דלוק 60%"
+  const extra = kind === 'light' && toState === 'on' && typeof item.to.brightness_pct === 'number' ? ` ${item.to.brightness_pct}%` : '';
+  return { verb, from: stateLabel(fromState), to: stateLabel(toState) + extra };
 }
 
 export interface ActorView {
@@ -110,7 +128,7 @@ export interface ActorView {
   qualifier: string;
 }
 
-const ACTOR_GLYPH: Record<ActorType, string> = { person: 'user', automation: 'bolt', schedule: 'calendar', scene: 'image', device: 'hand', system: 'cpu', unknown: 'info' };
+const ACTOR_GLYPH: Record<ActorType, string> = { person: 'user', automation: 'bolt', script: 'rule', schedule: 'calendar', scene: 'image', device: 'hand', system: 'cpu', unknown: 'info' };
 
 export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confidence'>): ActorView {
   const t = item.actor.type;
@@ -120,6 +138,7 @@ export function actorView(item: Pick<ActivityItem, 'actor' | 'source' | 'confide
   let qualifier = '';
   if (t === 'person') name = rawName || 'משתמש';
   else if (t === 'automation') { prefix = 'אוטומציה'; name = rawName; }
+  else if (t === 'script') { prefix = 'סקריפט'; name = rawName; }
   else if (t === 'schedule') { prefix = 'תזמון'; name = rawName; }
   else if (t === 'scene') { prefix = 'סצנה'; name = rawName; }
   else if (t === 'device') { name = 'ידני בהתקן'; qualifier = 'משוער'; }
@@ -142,6 +161,7 @@ export const ACTOR_FILTERS: { id: '' | ActorType; label: string }[] = [
   { id: '', label: 'כל הגורמים' },
   { id: 'person', label: 'אנשים' },
   { id: 'automation', label: 'אוטומציות' },
+  { id: 'script', label: 'סקריפטים' },
   { id: 'schedule', label: 'תזמונים' },
   { id: 'scene', label: 'סצנות' },
   { id: 'device', label: 'ידני בהתקן' },
