@@ -199,6 +199,23 @@ Classic ו-Tesla לא מקבלים כלום.
   `tests/layout-material.spec.ts` (שומר הפריסה: קדם-הגדרות x עומק/גוון חזק x סכמה x רוחב x שכבת ביצועים, ועשר הפלטות),
   `backend/tests/test_look.py`.
 
+## 6ד. BV1 - וריאנטים נוספים: אריחים, יומן, משגר, מחוונים אנכיים, בלי משטח (2026-10-05)
+
+מסמך התכנון והרשומה: `docs/design/BV1_BUBBLE_TILES.md`. בקצרה:
+
+| פריט | איפה | מנגנון |
+|---|---|---|
+| אריחי שעון / מזג אוויר | `home.widgets` -> `clock.style` / `weather.style` = `card` \| `tile` | `screens/home-widgets-bv1.ts` מצייר אריח כשהסקין Bubble; שאר הסקינים מתעלמים (כרטיס) |
+| יומן (`agenda`) | ווידג'ט חדש: `calendars` (עד 6 ישויות `calendar.*`), `days` (1/3/7/14) | השרת קורא את האירוע הבא של כל יומן מהקטלוג המשוקף (`message`, `start_time`, `end_time`, `all_day`, `location`; לעולם לא `description`), ממיין ומגיש ב-`home.data.agenda` |
+| משגר מהיר (`launcher`) | ווידג'ט חדש: `items` (עד 12: מסך / סצנה / סקריפט / פעולה מהירה) | `api/launcher.ts`: טבלת המסכים וההרשאה של כל אחד; סצנה / סקריפט דרך אותן בקשות של מסך האוטומציות; פעולה מהירה דרך דיאלוג הפעולות של המסך |
+| מחוונים אנכיים | חוגה `slider` = `horizontal` \| `vertical` | `components/sw-vslider.ts` (מחוון גבוה, המילוי מלמטה); `screens/bubble-sliders.ts` בוחר בגיליון ההתקן לפי החוגה |
+| בלי משטח | ערך `surface` = `none` | `sw-pill`, `sw-vslider` והווידג'טים: בלי מילוי, טבעת וטקסט בלבד, העוצמה בפס של 4px, קו דק בין שורות |
+
+הרשאות: הגדרת הווידג'טים = `system.configure`; הפעלה / כיבוי וגודל אישיים = `screen.personalize` (`home.personal`, בלי שינוי); החוגות = `ui.look`
+(ברירת מחדל של ההתקנה + העדפה אישית). **בדיקות**: `tests/unit-bv1-tiles.spec.ts`, `tests/layout-bv1-tiles.spec.ts` (שומר הפריסה בארבעת
+הסקינים x 10 רוחבים + הגיליון עם המחוונים האנכיים), `tests/evidence-bv1-tiles.spec.ts` (צילומים ל-`docs/design/evidence/bv1-tiles/`),
+`backend/tests/test_bv1_tiles.py`. לא נבנה: מחוונים אנכיים ברשת האזור (שובר את רשת הכמוסות; דורש החלטה על מצב "אריחים גבוהים").
+
 ## 7. מה עוד לא כלול (עבודה לפי מסך)
 
 היסוד מכסה טוקנים, מעטפת, רכיבים משותפים ועץ הבניין; שלב C את הבית, האזור והמולטימדיה; שלב D את המעטפת של האבטחה,

@@ -10,6 +10,7 @@ import {
   moveWidget, PHONE_LAYOUT_LABEL, PHONE_LAYOUTS, previewData, widgetOn, widgetSize, QUICK_ACTION_LABEL, QUICK_ACTIONS, SIDE_LABEL, SIDES, SIZE_LABEL, SIZES, WEATHER_FIELD_LABEL, WEATHER_FIELDS, WEATHER_SOURCE_FIELDS, WIDGET_NAME,
   type CalendarField, type Direction, type ForecastLen, type PhoneLayout, type HomeCandidates, type HomeConfig, type HomeData, type HomeSettings, type QuickAction, type Side, type Size, type WeatherField, type WidgetId,
 } from '../api/home';
+import { agendaBody, launcherBody, styleRow, type Bv1EditHost } from './home-edit-bv1';
 
 /** One place of the panel to open: a widget's row (from a card's "הגדרות" button). */
 export interface HomeEditFloor {
@@ -413,10 +414,15 @@ export class HomeEditPanel extends LitElement {
       ${open
         ? html`<div class="w-body" data-home-wbody=${id}>
             <label class="f">כותרת <input type="text" data-home-label=${id} maxlength=${LABEL_MAX} .value=${w.label} placeholder=${WIDGET_NAME[id]} @input=${(e: Event) => this.setWidget(id, { label: (e.target as HTMLInputElement).value } as never)} /></label>
-            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : this.quickBody()}
+            ${id === 'clock' ? this.clockBody() : id === 'weather' ? this.weatherBody() : id === 'shabbat' ? this.shabbatBody() : id === 'alarm' ? this.alarmBody() : id === 'agenda' ? agendaBody(this.bv1) : id === 'launcher' ? launcherBody(this.bv1) : id === 'media' ? nothing : this.quickBody()}
           </div>`
         : nothing}
     </div>`;
+  }
+
+  /** BV1: what the new widgets' bodies (home-edit-bv1.ts) need from the panel. */
+  private get bv1(): Bv1EditHost {
+    return { config: this.draft.config, candidates: this.candidates, now: new Date(), zone: 'Asia/Jerusalem', setConfig: (fn) => this.setConfig(fn) };
   }
 
   // ---- clock
@@ -426,6 +432,7 @@ export class HomeEditPanel extends LitElement {
     const sensors = this.candidates?.sensors ?? [];
     const sug = this.suggestion('date');
     return html`<div class="f">תצוגה<span class="seg" role="group" aria-label="תצוגת השעון">${CLOCK_MODES.map((m) => html`<button type="button" data-home-clock-mode=${m} aria-pressed=${String(c.clock.mode === m)} @click=${() => this.setWidget('clock', { mode: m })}>${CLOCK_MODE_LABEL[m]}</button>`)}</span></div>
+      ${styleRow(this.bv1, 'clock')}
       <div class="f"><label class="check"><input type="checkbox" data-home-clock-seconds .checked=${c.clock.seconds} @change=${(e: Event) => this.setWidget('clock', { seconds: (e.target as HTMLInputElement).checked })} />עם שניות (בגודל גדול)</label>
         <label class="check"><input type="checkbox" data-home-clock-hebrew ?disabled=${c.clock.mode !== 'datetime'} .checked=${c.clock.hebrew} @change=${(e: Event) => this.setWidget('clock', { hebrew: (e.target as HTMLInputElement).checked })} />תאריך עברי</label></div>
       <label class="f wide">חיישן התאריך העברי<select data-home-cal="date" ?disabled=${!c.clock.hebrew} @change=${(e: Event) => this.setCal('date', (e.target as HTMLSelectElement).value)}>${optionsOf(sensors, c.calendar.date, 'לא נבחר: מחושב בדפדפן', sug)}</select></label>`;
@@ -445,6 +452,7 @@ export class HomeEditPanel extends LitElement {
     const hasForecast = offers.includes('forecast');
     return html`<label class="f wide">ישות מזג האוויר
         <select data-home-weather-entity @change=${(e: Event) => this.pickWeather((e.target as HTMLSelectElement).value)}>${optionsOf(cands, cfg.entity, 'לא נבחר')}</select></label>
+      ${styleRow(this.bv1, 'weather')}
       ${cfg.entity && !w ? html`<div class="err wide" data-home-wx-missing>הישות לא נמצאה בקטלוג.</div>` : nothing}
       ${w && !w.available ? html`<div class="err wide" data-home-wx-unavailable>הישות לא זמינה כרגע: הווידג׳ט מוסתר עד שתחזור.</div>` : nothing}
       ${w

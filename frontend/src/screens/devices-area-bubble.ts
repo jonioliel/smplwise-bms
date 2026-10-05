@@ -3,6 +3,8 @@ import { classMap } from 'lit/directives/class-map.js';
 import '../components/sw-pill';
 import '../components/sw-sheet';
 import '../components/sw-icon';
+import './bubble-sliders';
+import type { SheetSlider } from './bubble-sliders';
 import type { IconName } from '../components/sw-icon';
 import { ALARM_HE, climateRange, HVAC_ACTION_HE, HVAC_HE, type CardId, type DeviceRow } from '../api/devices';
 import { fmtTime } from '../api/ha';
@@ -623,10 +625,11 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const dimmable = r.domain === 'light' && r.brightness_pct !== null && r.brightness_pct !== undefined;
     const pct = ctl.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 0;
-    return html`${dimmable
-        ? html`<sw-pill variant="slider" icon="light" label="בהירות" .state=${on ? `${ltrNum(Math.round(pct))}%` : 'כבוי'} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} ?unavailable=${!can} data-control="brightness"
-            @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)} @input=${(e: CustomEvent<{ value: number }>) => can && ctl.brightness(r, Math.round(e.detail.value * 100))}></sw-pill>`
-        : nothing}
+    // BV1: the slider follows the `slider` look dial (a pill, or a tall vertical slider) - bubble-sliders decides, the commands are the same
+    const sliders: SheetSlider[] = dimmable
+      ? [{ key: 'brightness', icon: 'light', label: 'בהירות', state: on ? `${ltrNum(Math.round(pct))}%` : 'כבוי', value: pct / 100, on, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.brightness(r, Math.round(v * 100)) }]
+      : [];
+    return html`${sliders.length ? html`<bubble-sliders .items=${sliders}></bubble-sliders>` : nothing}
       ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? 'כבה' : 'הדלק'}</button></div>` : nothing}
       ${status(h, r)}
       ${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
@@ -638,11 +641,15 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
       const shown = ctl.coverShown(r, ax);
       const draft = ctl.coverDraft(r, ax);
       const moving = ctl.coverMoving(r, ax);
+      // BV1: the axis slider follows the `slider` look dial (bubble-sliders: a pill, or a vertical slider); its confirm chip travels with it
+      const slider: SheetSlider = {
+        key: ax === 'tilt' ? 'tilt-position' : 'position', icon: ax === 'tilt' ? 'move' : 'layers', label: ax === 'tilt' ? 'הטיה' : 'מיקום',
+        state: `${ltrNum(Math.round(shown))}%${draft !== undefined ? ' · טרם נשלח' : ''}`, value: shown / 100, on: shown > 0, fillColor: 'var(--sw-accent-soft)', keepText: true,
+        onToggle: () => ctl.coverStage(r, shown > 0 ? 0 : 100, ax), onChange: (v) => ctl.coverStage(r, Math.round(v * 100), ax),
+        subs: draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control=${ax === 'tilt' ? 'tilt-position-confirm' : 'position-confirm'} @click=${() => ctl.coverConfirm(r, ax)}>${`לאשר ${ltrNum(draft)}%?`}</button>` : nothing,
+      };
       return html`<div class="bsh">${label}</div>
-        <sw-pill variant="slider" .icon=${ax === 'tilt' ? 'move' : 'layers'} .label=${ax === 'tilt' ? 'הטיה' : 'מיקום'} .state=${`${ltrNum(Math.round(shown))}%${draft !== undefined ? ' · טרם נשלח' : ''}`} .value=${Math.max(0, Math.min(1, shown / 100))} ?on=${shown > 0} fill-color="var(--sw-accent-soft)" keep-text data-control=${ax === 'tilt' ? 'tilt-position' : 'position'}
-          @toggle=${() => ctl.coverStage(r, shown > 0 ? 0 : 100, ax)} @change=${(e: CustomEvent<{ value: number }>) => ctl.coverStage(r, Math.round(e.detail.value * 100), ax)}>
-          ${draft !== undefined ? html`<button slot="subs" type="button" class="chip armed" data-control=${ax === 'tilt' ? 'tilt-position-confirm' : 'position-confirm'} @click=${() => ctl.coverConfirm(r, ax)}>${`לאשר ${ltrNum(draft)}%?`}</button>` : nothing}
-        </sw-pill>
+        <bubble-sliders .items=${[slider]}></bubble-sliders>
         <div class="brow" data-control=${ax === 'tilt' ? 'cover-tilt' : 'cover'}>
           <button type="button" class=${classMap({ bbtn: true, primary: ctl.coverArmed(r, 'open', ax) })} ?disabled=${moving} data-control=${ax === 'tilt' ? 'open-tilt' : 'open'} @click=${() => ctl.coverMove(r, 'open', ax)}><sw-icon name="arrowUp" size=${18}></sw-icon>${ctl.coverArmed(r, 'open', ax) ? 'לאשר פתיחה?' : 'פתיחה'}</button>
           <button type="button" class="bbtn" data-control=${ax === 'tilt' ? 'stop-tilt' : 'stop'} @click=${() => ctl.coverMove(r, 'stop', ax)}><sw-icon name="pause" size=${18}></sw-icon>עצירה</button>
@@ -686,10 +693,10 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
     if (r.domain === 'fan') {
       const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
       const pct = ctl.live<number>(r.entity_id, 'percentage') ?? r.percentage;
-      return html`${pct !== null && pct !== undefined
-          ? html`<sw-pill variant="slider" icon="fan" label="עוצמה" .state=${on ? `${ltrNum(Math.round(pct))}%` : 'כבוי'} .value=${Math.max(0, Math.min(1, pct / 100))} ?on=${on} fill-color="var(--sw-accent-soft)" keep-text ?unavailable=${!can} data-control="percentage"
-              @toggle=${(e: CustomEvent<{ on: boolean }>) => can && ctl.power(r, e.detail.on)} @input=${(e: CustomEvent<{ value: number }>) => can && ctl.fanPercentage(r, Math.round(e.detail.value * 100))}></sw-pill>`
-          : nothing}
+      const fanSliders: SheetSlider[] = pct !== null && pct !== undefined
+        ? [{ key: 'percentage', icon: 'fan', label: 'עוצמה', state: on ? `${ltrNum(Math.round(pct))}%` : 'כבוי', value: pct / 100, on, fillColor: 'var(--sw-accent-soft)', keepText: true, unavailable: !can, onToggle: (v) => can && ctl.power(r, v), onInput: (v) => can && ctl.fanPercentage(r, Math.round(v * 100)) }]
+        : [];
+      return html`${fanSliders.length ? html`<bubble-sliders .items=${fanSliders}></bubble-sliders>` : nothing}
         ${can ? html`<div class="brow"><button type="button" class=${classMap({ bbtn: true, primary: !on })} data-control="power" @click=${() => ctl.power(r, !on)}><sw-icon name="power" size=${18}></sw-icon>${on ? 'כבה' : 'הדלק'}</button></div>` : nothing}
         ${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
     }
