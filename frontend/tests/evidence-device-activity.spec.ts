@@ -96,7 +96,7 @@ test.describe('device activity popup', () => {
           await shot(page, `menu-${skin}-${tag}-${scheme}`);
         }
         await page.keyboard.press('Escape');
-        await page.unroute('**/api/v1/**');
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
       }
     }
   });
@@ -135,11 +135,14 @@ test.describe('device activity popup', () => {
     await page.waitForTimeout(LONG);
     await page.mouse.up();
     await expect(opened(page)).toHaveCount(0);
-    const before = st.actions.length;
+    // a hold on the toggle is a normal press of the toggle: one more command (its own gesture is kept)
+    await expect.poll(() => st.actions.length).toBe(2);
+    const before = 2;
     // the real long press
     await hold(page, light, LONG);
     await expect(opened(page)).toHaveCount(1);
     await expect(popup(page)).toHaveAttribute('heading', /תאורה מרכזית/);
+    await page.waitForTimeout(500);
     expect(st.actions.length).toBe(before); // the click that ended the press was swallowed: nothing was toggled
     expect(st.feedCalls.at(-1)?.entity).toBe('light.living_main');
     // Esc closes and focus returns
