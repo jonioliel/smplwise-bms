@@ -1,146 +1,132 @@
 window.WALL_SHOTS = [
  {
-  "key": "001-pair-step_start-L-classic-dark",
-  "page": "pair",
-  "params": "step=start",
+  "key": "001-login-step_form-L-classic-dark",
+  "page": "login",
+  "params": "step=form",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
-  "group": "pair",
-  "note": "start",
+  "group": "login",
+  "note": "login: form",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "002-pair-step_code-L-classic-dark",
-  "page": "pair",
-  "params": "step=code",
+  "key": "002-login-step_error-L-classic-dark",
+  "page": "login",
+  "params": "step=error",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
-  "group": "pair",
-  "note": "code",
+  "group": "login",
+  "note": "login: error",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "003-pair-step_claimed-L-classic-dark",
-  "page": "pair",
-  "params": "step=claimed",
+  "key": "003-login-step_detect-L-classic-dark",
+  "page": "login",
+  "params": "step=detect",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
-  "group": "pair",
-  "note": "claimed",
+  "group": "login",
+  "note": "login: detect",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "004-pair-step_approved-L-classic-dark",
-  "page": "pair",
-  "params": "step=approved",
+  "key": "004-login-step_removed-L-classic-dark",
+  "page": "login",
+  "params": "step=removed",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
-  "group": "pair",
-  "note": "approved",
+  "group": "login",
+  "note": "login: removed",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "005-pair-step_expired-L-classic-dark",
-  "page": "pair",
-  "params": "step=expired",
-  "vp": "L",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "pair",
-  "note": "expired",
-  "w": 1280,
-  "h": 800,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "006-pair-step_denied-L-classic-dark",
-  "page": "pair",
-  "params": "step=denied",
-  "vp": "L",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "pair",
-  "note": "denied",
-  "w": 1280,
-  "h": 800,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "007-pair-step_network-L-classic-dark",
-  "page": "pair",
-  "params": "step=network",
-  "vp": "L",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "pair",
-  "note": "network",
-  "w": 1280,
-  "h": 800,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "008-pair-step_code-P-classic-dark",
-  "page": "pair",
-  "params": "step=code",
+  "key": "005-login-step_form-P-classic-dark",
+  "page": "login",
+  "params": "step=form",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
-  "group": "pair",
-  "note": "code, portrait",
+  "group": "login",
+  "note": "login, portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "009-pair-step_code-L-bubble-dark",
-  "page": "pair",
-  "params": "step=code",
+  "key": "006-login-step_form-L-bubble-dark",
+  "page": "login",
+  "params": "step=form",
   "vp": "L",
   "skin": "bubble",
   "scheme": "dark",
-  "group": "pair",
-  "note": "code, bubble",
+  "group": "login",
+  "note": "login, bubble",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "010-pair-step_code-L-classic-light",
-  "page": "pair",
-  "params": "step=code",
-  "vp": "L",
+  "key": "007-app-cls_phone-M-classic-light",
+  "page": "app",
+  "params": "cls=phone",
+  "vp": "M",
   "skin": "classic",
   "scheme": "light",
-  "group": "pair",
-  "note": "code, light",
-  "w": 1280,
-  "h": 800,
+  "group": "login",
+  "note": "same user on a phone: the normal application",
+  "w": 390,
+  "h": 844,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "011-wall-state_base-L-classic-dark",
+  "key": "008-app-cls_desktop-D-classic-light",
+  "page": "app",
+  "params": "cls=desktop",
+  "vp": "D",
+  "skin": "classic",
+  "scheme": "light",
+  "group": "login",
+  "note": "same user on a desktop: the normal application",
+  "w": 1440,
+  "h": 900,
+  "errors": [],
+  "overflow": false
+ },
+ {
+  "key": "009-detect-view_1-D-classic-light",
+  "page": "detect",
+  "params": "view=1",
+  "vp": "D",
+  "skin": "classic",
+  "scheme": "light",
+  "group": "login",
+  "note": "detection rule, three results, the check table",
+  "w": 1440,
+  "h": 900,
+  "errors": [],
+  "overflow": false
+ },
+ {
+  "key": "010-wall-state_base-L-classic-dark",
   "page": "wall",
   "params": "state=base",
   "vp": "L",
@@ -154,7 +140,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "012-wall-state_rotating-L-classic-dark",
+  "key": "011-wall-state_rotating-L-classic-dark",
   "page": "wall",
   "params": "state=rotating",
   "vp": "L",
@@ -168,7 +154,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "013-wall-state_info-L-classic-dark",
+  "key": "012-wall-state_info-L-classic-dark",
   "page": "wall",
   "params": "state=info",
   "vp": "L",
@@ -182,7 +168,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "014-wall-state_alert-L-classic-dark",
+  "key": "013-wall-state_alert-L-classic-dark",
   "page": "wall",
   "params": "state=alert",
   "vp": "L",
@@ -196,7 +182,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "015-wall-state_alert_stack-L-classic-dark",
+  "key": "014-wall-state_alert_stack-L-classic-dark",
   "page": "wall",
   "params": "state=alert-stack",
   "vp": "L",
@@ -210,7 +196,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "016-wall-state_takeover-L-classic-dark",
+  "key": "015-wall-state_takeover-L-classic-dark",
   "page": "wall",
   "params": "state=takeover",
   "vp": "L",
@@ -224,7 +210,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "017-wall-state_takeover_stack-L-classic-dark",
+  "key": "016-wall-state_takeover_stack-L-classic-dark",
   "page": "wall",
   "params": "state=takeover-stack",
   "vp": "L",
@@ -238,7 +224,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "018-wall-state_resolved-L-classic-dark",
+  "key": "017-wall-state_resolved-L-classic-dark",
   "page": "wall",
   "params": "state=resolved",
   "vp": "L",
@@ -252,7 +238,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "019-wall-state_frame-L-classic-dark",
+  "key": "018-wall-state_frame-L-classic-dark",
   "page": "wall",
   "params": "state=frame",
   "vp": "L",
@@ -266,7 +252,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "020-wall-state_frame_info-L-classic-dark",
+  "key": "019-wall-state_frame_info-L-classic-dark",
   "page": "wall",
   "params": "state=frame-info",
   "vp": "L",
@@ -280,7 +266,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "021-wall-state_dim-L-classic-dark",
+  "key": "020-wall-state_dim-L-classic-dark",
   "page": "wall",
   "params": "state=dim",
   "vp": "L",
@@ -294,7 +280,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "022-wall-state_sleep-L-classic-dark",
+  "key": "021-wall-state_sleep-L-classic-dark",
   "page": "wall",
   "params": "state=sleep",
   "vp": "L",
@@ -308,7 +294,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "023-wall-state_cam_stale-L-classic-dark",
+  "key": "022-wall-state_cam_stale-L-classic-dark",
   "page": "wall",
   "params": "state=cam-stale",
   "vp": "L",
@@ -322,7 +308,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "024-wall-state_cam_lost-L-classic-dark",
+  "key": "023-wall-state_cam_lost-L-classic-dark",
   "page": "wall",
   "params": "state=cam-lost",
   "vp": "L",
@@ -336,7 +322,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "025-wall-state_server_offline-L-classic-dark",
+  "key": "024-wall-state_server_offline-L-classic-dark",
   "page": "wall",
   "params": "state=server-offline",
   "vp": "L",
@@ -350,7 +336,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "026-wall-state_server_clock-L-classic-dark",
+  "key": "025-wall-state_server_clock-L-classic-dark",
   "page": "wall",
   "params": "state=server-clock",
   "vp": "L",
@@ -364,7 +350,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "027-wall-state_config_updated-L-classic-dark",
+  "key": "026-wall-state_config_updated-L-classic-dark",
   "page": "wall",
   "params": "state=config-updated",
   "vp": "L",
@@ -378,21 +364,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "028-wall-state_identify-L-classic-dark",
-  "page": "wall",
-  "params": "state=identify",
-  "vp": "L",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-states",
-  "note": "identify",
-  "w": 1280,
-  "h": 800,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "029-wall-state_installer-L-classic-dark",
+  "key": "027-wall-state_installer-L-classic-dark",
   "page": "wall",
   "params": "state=installer",
   "vp": "L",
@@ -406,7 +378,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "030-wall-state_sound_locked-L-classic-dark",
+  "key": "028-wall-state_sound_locked-L-classic-dark",
   "page": "wall",
   "params": "state=sound-locked",
   "vp": "L",
@@ -420,7 +392,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "031-wall-state_no_cameras-L-classic-dark",
+  "key": "029-wall-state_no_cameras-L-classic-dark",
   "page": "wall",
   "params": "state=no-cameras",
   "vp": "L",
@@ -434,35 +406,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "032-wall-state_revoked-L-classic-dark",
+  "key": "030-wall-state_access_removed-L-classic-dark",
   "page": "wall",
-  "params": "state=revoked",
+  "params": "state=access-removed",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-states",
-  "note": "revoked",
+  "note": "access-removed",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "033-wall-state_paused-L-classic-dark",
-  "page": "wall",
-  "params": "state=paused",
-  "vp": "L",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-states",
-  "note": "paused",
-  "w": 1280,
-  "h": 800,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "034-wall-state_remote_refused-L-classic-dark",
+  "key": "031-wall-state_remote_refused-L-classic-dark",
   "page": "wall",
   "params": "state=remote-refused",
   "vp": "L",
@@ -476,273 +434,175 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "035-wall-state_pairing_network-L-classic-dark",
+  "key": "032-wall-state_no_connection-L-classic-dark",
   "page": "wall",
-  "params": "state=pairing-network",
+  "params": "state=no-connection",
   "vp": "L",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-states",
-  "note": "pairing-network",
+  "note": "no-connection",
   "w": 1280,
   "h": 800,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "036-wall-state_base-P-classic-dark",
+  "key": "033-wall-state_alert_ack_on-L-classic-dark",
+  "page": "wall",
+  "params": "state=alert&ack=on",
+  "vp": "L",
+  "skin": "classic",
+  "scheme": "dark",
+  "group": "wall-states",
+  "note": "alert tile with acknowledge enabled (press and hold)",
+  "w": 1280,
+  "h": 800,
+  "errors": [],
+  "overflow": false
+ },
+ {
+  "key": "034-wall-state_base-P-classic-dark",
   "page": "wall",
   "params": "state=base",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "base @ P",
+  "note": "base @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "037-wall-state_base-W-classic-dark",
-  "page": "wall",
-  "params": "state=base",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "base @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "038-wall-state_alert-P-classic-dark",
+  "key": "035-wall-state_alert-P-classic-dark",
   "page": "wall",
   "params": "state=alert",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "alert @ P",
+  "note": "alert @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "039-wall-state_alert-W-classic-dark",
-  "page": "wall",
-  "params": "state=alert",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "alert @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "040-wall-state_takeover-P-classic-dark",
+  "key": "036-wall-state_takeover-P-classic-dark",
   "page": "wall",
   "params": "state=takeover",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "takeover @ P",
+  "note": "takeover @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "041-wall-state_takeover-W-classic-dark",
-  "page": "wall",
-  "params": "state=takeover",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "takeover @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "042-wall-state_frame-P-classic-dark",
+  "key": "037-wall-state_frame-P-classic-dark",
   "page": "wall",
   "params": "state=frame",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "frame @ P",
+  "note": "frame @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "043-wall-state_frame-W-classic-dark",
-  "page": "wall",
-  "params": "state=frame",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "frame @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "044-wall-state_sleep-P-classic-dark",
+  "key": "038-wall-state_sleep-P-classic-dark",
   "page": "wall",
   "params": "state=sleep",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "sleep @ P",
+  "note": "sleep @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "045-wall-state_sleep-W-classic-dark",
-  "page": "wall",
-  "params": "state=sleep",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "sleep @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "046-wall-state_server_offline-P-classic-dark",
+  "key": "039-wall-state_server_offline-P-classic-dark",
   "page": "wall",
   "params": "state=server-offline",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "server-offline @ P",
+  "note": "server-offline @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "047-wall-state_server_offline-W-classic-dark",
-  "page": "wall",
-  "params": "state=server-offline",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "server-offline @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "048-wall-state_cam_stale-P-classic-dark",
+  "key": "040-wall-state_cam_stale-P-classic-dark",
   "page": "wall",
   "params": "state=cam-stale",
   "vp": "P",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "cam-stale @ P",
+  "note": "cam-stale @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "049-wall-state_cam_stale-W-classic-dark",
+  "key": "041-wall-state_base_cams_6-T-classic-dark",
   "page": "wall",
-  "params": "state=cam-stale",
-  "vp": "W",
+  "params": "state=base&cams=6",
+  "vp": "T",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "cam-stale @ W",
+  "note": "base @ large tablet 1920x1200",
   "w": 1920,
-  "h": 1080,
+  "h": 1200,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "050-wall-state_alert_stack-W-classic-dark",
+  "key": "042-wall-state_alert_cams_6-T-classic-dark",
   "page": "wall",
-  "params": "state=alert-stack",
-  "vp": "W",
+  "params": "state=alert&cams=6",
+  "vp": "T",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "alert column with three items",
+  "note": "alert @ large tablet 1920x1200",
   "w": 1920,
-  "h": 1080,
+  "h": 1200,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "051-wall-state_takeover_stack-W-classic-dark",
+  "key": "043-wall-state_takeover_cams_6-T-classic-dark",
   "page": "wall",
-  "params": "state=takeover-stack",
-  "vp": "W",
+  "params": "state=takeover&cams=6",
+  "vp": "T",
   "skin": "classic",
   "scheme": "dark",
   "group": "wall-presets",
-  "note": "takeover with a stack",
+  "note": "takeover @ large tablet 1920x1200",
   "w": 1920,
-  "h": 1080,
+  "h": 1200,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "052-wall-state_resolved-W-classic-dark",
-  "page": "wall",
-  "params": "state=resolved",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "resolved in the column",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "053-wall-state_base_cams_12-W-classic-dark",
-  "page": "wall",
-  "params": "state=base&cams=12",
-  "vp": "W",
-  "skin": "classic",
-  "scheme": "dark",
-  "group": "wall-presets",
-  "note": "12 cameras, 4x3",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "054-wall-state_base_cams_1_preset_single-L-classic-dark",
+  "key": "044-wall-state_base_cams_1_preset_single-L-classic-dark",
   "page": "wall",
   "params": "state=base&cams=1&preset=single",
   "vp": "L",
@@ -756,7 +616,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "055-wall-state_base_cams_6-L-classic-dark",
+  "key": "045-wall-state_base_cams_6-L-classic-dark",
   "page": "wall",
   "params": "state=base&cams=6",
   "vp": "L",
@@ -770,7 +630,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "056-wall-state_base_cams_2-P-classic-dark",
+  "key": "046-wall-state_base_cams_2-P-classic-dark",
   "page": "wall",
   "params": "state=base&cams=2",
   "vp": "P",
@@ -784,7 +644,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "057-wall-state_base-L-bubble-dark",
+  "key": "047-wall-state_base-L-bubble-dark",
   "page": "wall",
   "params": "state=base",
   "vp": "L",
@@ -798,7 +658,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "058-wall-state_alert-L-bubble-dark",
+  "key": "048-wall-state_alert-L-bubble-dark",
   "page": "wall",
   "params": "state=alert",
   "vp": "L",
@@ -812,7 +672,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "059-wall-state_takeover-L-bubble-dark",
+  "key": "049-wall-state_takeover-L-bubble-dark",
   "page": "wall",
   "params": "state=takeover",
   "vp": "L",
@@ -826,7 +686,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "060-wall-state_frame-L-bubble-dark",
+  "key": "050-wall-state_frame-L-bubble-dark",
   "page": "wall",
   "params": "state=frame",
   "vp": "L",
@@ -840,7 +700,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "061-wall-state_base-L-classic-light",
+  "key": "051-wall-state_base-L-classic-light",
   "page": "wall",
   "params": "state=base",
   "vp": "L",
@@ -854,7 +714,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "062-wall-state_alert-L-classic-light",
+  "key": "052-wall-state_alert-L-classic-light",
   "page": "wall",
   "params": "state=alert",
   "vp": "L",
@@ -868,7 +728,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "063-wall-state_takeover-L-classic-light",
+  "key": "053-wall-state_takeover-L-classic-light",
   "page": "wall",
   "params": "state=takeover",
   "vp": "L",
@@ -882,7 +742,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "064-wall-state_frame-L-classic-light",
+  "key": "054-wall-state_frame-L-classic-light",
   "page": "wall",
   "params": "state=frame",
   "vp": "L",
@@ -896,7 +756,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "065-wall-state_base-L-bubble-light",
+  "key": "055-wall-state_base-L-bubble-light",
   "page": "wall",
   "params": "state=base",
   "vp": "L",
@@ -910,7 +770,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "066-wall-state_alert-L-bubble-light",
+  "key": "056-wall-state_alert-L-bubble-light",
   "page": "wall",
   "params": "state=alert",
   "vp": "L",
@@ -924,7 +784,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "067-wall-state_takeover-L-bubble-light",
+  "key": "057-wall-state_takeover-L-bubble-light",
   "page": "wall",
   "params": "state=takeover",
   "vp": "L",
@@ -938,7 +798,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "068-wall-state_frame-L-bubble-light",
+  "key": "058-wall-state_frame-L-bubble-light",
   "page": "wall",
   "params": "state=frame",
   "vp": "L",
@@ -952,63 +812,35 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "069-wall-state_base-P-bubble-dark",
+  "key": "059-wall-state_base-P-bubble-dark",
   "page": "wall",
   "params": "state=base",
   "vp": "P",
   "skin": "bubble",
   "scheme": "dark",
   "group": "wall-skins",
-  "note": "base bubble @ P",
+  "note": "base bubble @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "070-wall-state_base-W-bubble-dark",
-  "page": "wall",
-  "params": "state=base",
-  "vp": "W",
-  "skin": "bubble",
-  "scheme": "dark",
-  "group": "wall-skins",
-  "note": "base bubble @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "071-wall-state_alert-P-bubble-dark",
+  "key": "060-wall-state_alert-P-bubble-dark",
   "page": "wall",
   "params": "state=alert",
   "vp": "P",
   "skin": "bubble",
   "scheme": "dark",
   "group": "wall-skins",
-  "note": "alert bubble @ P",
+  "note": "alert bubble @ portrait",
   "w": 800,
   "h": 1280,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "072-wall-state_alert-W-bubble-dark",
-  "page": "wall",
-  "params": "state=alert",
-  "vp": "W",
-  "skin": "bubble",
-  "scheme": "dark",
-  "group": "wall-skins",
-  "note": "alert bubble @ W",
-  "w": 1920,
-  "h": 1080,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "073-settings-view_list-D-classic-light",
+  "key": "061-settings-view_list-D-classic-light",
   "page": "settings",
   "params": "view=list",
   "vp": "D",
@@ -1022,7 +854,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "074-settings-view_empty-D-classic-light",
+  "key": "062-settings-view_empty-D-classic-light",
   "page": "settings",
   "params": "view=empty",
   "vp": "D",
@@ -1036,7 +868,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "075-settings-view_error-D-classic-light",
+  "key": "063-settings-view_error-D-classic-light",
   "page": "settings",
   "params": "view=error",
   "vp": "D",
@@ -1050,63 +882,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "076-settings-view_add_code-D-classic-light",
+  "key": "064-settings-view_add-D-classic-light",
   "page": "settings",
-  "params": "view=add-code",
+  "params": "view=add",
   "vp": "D",
   "skin": "classic",
   "scheme": "light",
   "group": "settings",
-  "note": "add-code",
+  "note": "add",
   "w": 1440,
   "h": 900,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "077-settings-view_add_bad-D-classic-light",
-  "page": "settings",
-  "params": "view=add-bad",
-  "vp": "D",
-  "skin": "classic",
-  "scheme": "light",
-  "group": "settings",
-  "note": "add-bad",
-  "w": 1440,
-  "h": 900,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "078-settings-view_add_throttled-D-classic-light",
-  "page": "settings",
-  "params": "view=add-throttled",
-  "vp": "D",
-  "skin": "classic",
-  "scheme": "light",
-  "group": "settings",
-  "note": "add-throttled",
-  "w": 1440,
-  "h": 900,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "079-settings-view_add_hint-D-classic-light",
-  "page": "settings",
-  "params": "view=add-hint",
-  "vp": "D",
-  "skin": "classic",
-  "scheme": "light",
-  "group": "settings",
-  "note": "add-hint",
-  "w": 1440,
-  "h": 900,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "080-settings-view_add_form-D-classic-light",
+  "key": "065-settings-view_add_form-D-classic-light",
   "page": "settings",
   "params": "view=add-form",
   "vp": "D",
@@ -1120,7 +910,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "081-settings-view_drawer-D-classic-light",
+  "key": "066-settings-view_drawer-D-classic-light",
   "page": "settings",
   "params": "view=drawer",
   "vp": "D",
@@ -1134,7 +924,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "082-settings-view_drawer_alerts-D-classic-light",
+  "key": "067-settings-view_drawer_alerts-D-classic-light",
   "page": "settings",
   "params": "view=drawer-alerts",
   "vp": "D",
@@ -1148,7 +938,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "083-settings-view_drawer_frame-D-classic-light",
+  "key": "068-settings-view_drawer_frame-D-classic-light",
   "page": "settings",
   "params": "view=drawer-frame",
   "vp": "D",
@@ -1162,7 +952,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "084-settings-view_drawer_schedule-D-classic-light",
+  "key": "069-settings-view_drawer_schedule-D-classic-light",
   "page": "settings",
   "params": "view=drawer-schedule",
   "vp": "D",
@@ -1176,35 +966,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "085-settings-view_revoke-D-classic-light",
+  "key": "070-settings-view_remove-D-classic-light",
   "page": "settings",
-  "params": "view=revoke",
+  "params": "view=remove",
   "vp": "D",
   "skin": "classic",
   "scheme": "light",
   "group": "settings",
-  "note": "revoke",
+  "note": "remove",
   "w": 1440,
   "h": 900,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "086-settings-view_identify-D-classic-light",
-  "page": "settings",
-  "params": "view=identify",
-  "vp": "D",
-  "skin": "classic",
-  "scheme": "light",
-  "group": "settings",
-  "note": "identify",
-  "w": 1440,
-  "h": 900,
-  "errors": [],
-  "overflow": false
- },
- {
-  "key": "087-settings-view_saved-D-classic-light",
+  "key": "071-settings-view_saved-D-classic-light",
   "page": "settings",
   "params": "view=saved",
   "vp": "D",
@@ -1218,7 +994,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "088-settings-view_list-D-bubble-light",
+  "key": "072-settings-view_list-D-bubble-light",
   "page": "settings",
   "params": "view=list",
   "vp": "D",
@@ -1232,21 +1008,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "089-settings-view_add_hint-D-bubble-light",
+  "key": "073-settings-view_add_form-D-bubble-light",
   "page": "settings",
-  "params": "view=add-hint",
+  "params": "view=add-form",
   "vp": "D",
   "skin": "bubble",
   "scheme": "light",
   "group": "settings-skins",
-  "note": "add-hint bubble light",
+  "note": "add-form bubble light",
   "w": 1440,
   "h": 900,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "090-settings-view_drawer-D-bubble-light",
+  "key": "074-settings-view_drawer-D-bubble-light",
   "page": "settings",
   "params": "view=drawer",
   "vp": "D",
@@ -1260,7 +1036,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "091-settings-view_drawer_alerts-D-bubble-light",
+  "key": "075-settings-view_drawer_alerts-D-bubble-light",
   "page": "settings",
   "params": "view=drawer-alerts",
   "vp": "D",
@@ -1274,7 +1050,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "092-settings-view_list-D-classic-dark",
+  "key": "076-settings-view_list-D-classic-dark",
   "page": "settings",
   "params": "view=list",
   "vp": "D",
@@ -1288,21 +1064,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "093-settings-view_add_hint-D-classic-dark",
+  "key": "077-settings-view_add_form-D-classic-dark",
   "page": "settings",
-  "params": "view=add-hint",
+  "params": "view=add-form",
   "vp": "D",
   "skin": "classic",
   "scheme": "dark",
   "group": "settings-skins",
-  "note": "add-hint classic dark",
+  "note": "add-form classic dark",
   "w": 1440,
   "h": 900,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "094-settings-view_drawer-D-classic-dark",
+  "key": "078-settings-view_drawer-D-classic-dark",
   "page": "settings",
   "params": "view=drawer",
   "vp": "D",
@@ -1316,7 +1092,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "095-settings-view_drawer_alerts-D-classic-dark",
+  "key": "079-settings-view_drawer_alerts-D-classic-dark",
   "page": "settings",
   "params": "view=drawer-alerts",
   "vp": "D",
@@ -1330,7 +1106,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "096-settings-view_list-D-bubble-dark",
+  "key": "080-settings-view_list-D-bubble-dark",
   "page": "settings",
   "params": "view=list",
   "vp": "D",
@@ -1344,21 +1120,21 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "097-settings-view_add_hint-D-bubble-dark",
+  "key": "081-settings-view_add_form-D-bubble-dark",
   "page": "settings",
-  "params": "view=add-hint",
+  "params": "view=add-form",
   "vp": "D",
   "skin": "bubble",
   "scheme": "dark",
   "group": "settings-skins",
-  "note": "add-hint bubble dark",
+  "note": "add-form bubble dark",
   "w": 1440,
   "h": 900,
   "errors": [],
   "overflow": false
  },
  {
-  "key": "098-settings-view_drawer-D-bubble-dark",
+  "key": "082-settings-view_drawer-D-bubble-dark",
   "page": "settings",
   "params": "view=drawer",
   "vp": "D",
@@ -1372,7 +1148,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "099-settings-view_drawer_alerts-D-bubble-dark",
+  "key": "083-settings-view_drawer_alerts-D-bubble-dark",
   "page": "settings",
   "params": "view=drawer-alerts",
   "vp": "D",
@@ -1386,7 +1162,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "100-settings-view_list-M-classic-light",
+  "key": "084-settings-view_list-M-classic-light",
   "page": "settings",
   "params": "view=list",
   "vp": "M",
@@ -1400,7 +1176,7 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "101-settings-view_drawer-M-classic-light",
+  "key": "085-settings-view_drawer-M-classic-light",
   "page": "settings",
   "params": "view=drawer",
   "vp": "M",
@@ -1414,14 +1190,14 @@ window.WALL_SHOTS = [
   "overflow": false
  },
  {
-  "key": "102-settings-view_add_code-M-classic-light",
+  "key": "086-settings-view_add_form-M-classic-light",
   "page": "settings",
-  "params": "view=add-code",
+  "params": "view=add-form",
   "vp": "M",
   "skin": "classic",
   "scheme": "light",
   "group": "settings",
-  "note": "code entry on a phone",
+  "note": "add dialog on a phone",
   "w": 390,
   "h": 844,
   "errors": [],

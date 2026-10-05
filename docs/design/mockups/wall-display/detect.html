@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arx · זיהוי טאבלט · מוקאפ CR-030</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  :root { --bg: #f5f7fb; --surface: #fff; --border: #e7ebf2; --text: #22314c; --text-2: #5b6a85; --accent: #2767ed; --accent-soft: #edf3ff; --ok: #15803d; --ok-soft: #e8f8ee; --no: #b91c1c; --no-soft: #fdecec; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d1220; --surface: #151c2c; --border: #232e45; --text: #e6ebf5; --text-2: #a9b4ca; --accent: #8fb2ff; --accent-soft: rgba(91,140,255,.18); --ok: #7ee2a8; --ok-soft: rgba(34,197,94,.16); --no: #ffb3ad; --no-soft: rgba(239,68,68,.16); } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Heebo', 'Segoe UI', -apple-system, 'Noto Sans Hebrew', Arial, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 24px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; } h2 { font-size: 19px; margin: 34px 0 8px; padding-top: 18px; border-top: 1px solid var(--border); }
+  p { margin: 0 0 10px; color: var(--text-2); max-width: 920px; }
+  a { color: var(--accent); }
+  .ltr { direction: ltr; unicode-bidi: isolate; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+  pre { direction: ltr; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; overflow: auto; font-size: 13px; line-height: 1.55; max-width: 920px; }
+  .me { background: var(--accent-soft); border-radius: 12px; padding: 12px 16px; max-width: 920px; }
+  .me b { font-size: 17px; }
+  table { border-collapse: collapse; width: 100%; max-width: 1000px; font-size: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  td, th { text-align: start; padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; } th { color: var(--text-2); font-size: 12.5px; }
+  .tag { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 12.5px; font-weight: 600; }
+  .tag.tablet { background: var(--ok-soft); color: var(--ok); } .tag.phone, .tag.desktop { background: var(--accent-soft); color: var(--accent); }
+  .chk-ok { color: var(--ok); font-weight: 700; } .chk-no { color: var(--no); font-weight: 700; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+  .dev { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+  .dev h3 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dev .res { font-size: 13.5px; color: var(--text-2); }
+  .view { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid var(--border); }
+  .view iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: top left; background: #000; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>זיהוי טאבלט והמעבר האוטומטי למצב מסך קיר</h1>
+  <p>אותו משתמש מסך קיר (<span class="ltr">reception-wall</span>, תפקיד קיוסק) מתחבר משלושה מכשירים. הכניסה היא ההתחברות הרגילה של המערכת. רק מכשיר שזוהה כטאבלט עובר למצב מסך קיר; בטלפון ובמחשב רואים את המערכת הרגילה - מפה ווידאו חי בלבד, כפי שהתפקיד מגביל. הזיהוי הוא הצגה בלבד: ההרשאות בשרת לא תלויות בו. מסמך השינוי: <span class="ltr">docs/changes/CR-030-WALL-DISPLAY.md</span> סעיף 3.2.</p>
+  <p><a href="index.html">← לאינדקס</a> · <a href="login.html?step=form">הכניסה בטאבלט</a> · <a href="login.html?step=detect">"זוהה טאבלט"</a></p>
+
+  <h2>הכלל</h2>
+  <pre id="rule">class = desktop   if not touch
+        phone     if touch and short &lt; 600
+        phone     if touch and mobileUA and short &lt; 700     // large phone, folded foldable
+        tablet    otherwise
+
+touch    = maxTouchPoints &gt; 0 &amp;&amp; (matchMedia('(pointer: coarse)') || matchMedia('(hover: none)'))   // primary pointer is touch
+short    = min(screen.width, screen.height)            // physical screen in CSS px - not the viewport (keyboard, split screen, rotation do not change it)
+mobileUA = navigator.userAgentData?.mobile ?? /Mobi|iPhone|iPod/.test(navigator.userAgent)</pre>
+  <div class="me" id="me">בודק את הדפדפן הזה…</div>
+
+  <h2>שלוש התוצאות</h2>
+  <div class="cards">
+    <div class="dev"><h3>טאבלט 1280×800 <span class="tag tablet">tablet</span></h3><div class="view" data-w="1280" data-h="800"><iframe src="wall.html?state=base&chrome=0&clock=fixed" width="1280" height="800" title="טאבלט"></iframe></div><div class="res">מצב מסך קיר: ללא סרגל ניווט, ללא תפריט משתמש. הפריסה לפי גודל וכיוון.</div></div>
+    <div class="dev"><h3>טלפון 390×844 <span class="tag phone">phone</span></h3><div class="view" data-w="390" data-h="844" style="max-width:260px"><iframe src="app.html?cls=phone&chrome=0&scheme=light" width="390" height="844" title="טלפון"></iframe></div><div class="res">המערכת הרגילה, מוגבלת לתפקיד: מצלמות חיות ומפה. מסך הקיר לא מוצע בכלל.</div></div>
+    <div class="dev"><h3>מחשב 1440×900 <span class="tag desktop">desktop</span></h3><div class="view" data-w="1440" data-h="900"><iframe src="app.html?cls=desktop&chrome=0&scheme=light" width="1440" height="900" title="מחשב"></iframe></div><div class="res">המערכת הרגילה עם סרגל צד, מוגבלת לתפקיד. גם מחשב מיני בקיר בלי מגע נחשב מחשב (מגבלה מתועדת).</div></div>
+  </div>
+
+  <h2>טבלת הבדיקה (זו בדיוק בדיקת היחידה של <span class="ltr">classifyDevice</span>)</h2>
+  <p>כל שורה מחושבת עכשיו בדפדפן הזה בעזרת אותה פונקציה; "✓" אומר שהתוצאה שווה לצפוי.</p>
+  <table><thead><tr><th>מכשיר</th><th>מגע ראשי</th><th>מסך (פיזי)</th><th>Mobile</th><th>צפוי</th><th>מחושב</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<script>
+  function classifyDevice(e) {
+    const touch = e.maxTouchPoints > 0 && (e.coarse || e.hoverNone);
+    if (!touch) return 'desktop';
+    const short = Math.min(e.w, e.h);
+    if (short < 600) return 'phone';
+    if (e.mobileUA && short < 700) return 'phone';
+    return 'tablet';
+  }
+  const CASES = [
+    ['iPad Air (Safari, Mac UA)', 5, true, 820, 1180, false, 'tablet'],
+    ['iPad mini', 5, true, 744, 1133, false, 'tablet'],
+    ['Galaxy Tab A9', 5, true, 800, 1340, false, 'tablet'],
+    ['Fire HD 8 (Silk)', 5, true, 800, 1280, false, 'tablet'],
+    ['Android 7 אינץ׳', 5, true, 600, 1024, false, 'tablet'],
+    ['טאבלט 1920×1200 (גדול)', 5, true, 1200, 1920, false, 'tablet'],
+    ['iPhone 15', 5, true, 393, 852, true, 'phone'],
+    ['Pixel 8', 5, true, 412, 915, true, 'phone'],
+    ['מתקפל סגור/פתוח קטן (673×841)', 5, true, 673, 841, true, 'phone'],
+    ['מתקפל פתוח (904×1136)', 5, true, 904, 1136, true, 'tablet'],
+    ['טאבלט עם מקלדת פתוחה (מסך 800×1280, חלון 1280×400)', 5, true, 800, 1280, false, 'tablet'],
+    ['מחשב נייד Windows עם מסך מגע', 10, false, 1920, 1080, false, 'desktop'],
+    ['מחשב שולחני / macOS / Linux', 0, false, 2560, 1440, false, 'desktop'],
+  ];
+  const body = document.getElementById('rows');
+  let bad = 0;
+  CASES.forEach(([n, mt, coarse, w, h, mob, exp]) => {
+    const got = classifyDevice({ maxTouchPoints: mt, coarse, hoverNone: coarse, w, h, mobileUA: mob });
+    if (got !== exp) bad++;
+    body.insertAdjacentHTML('beforeend', `<tr><td>${n}</td><td>${coarse ? 'כן' : 'לא'}</td><td class="ltr">${w}×${h}</td><td>${mob ? 'כן' : 'לא'}</td><td><span class="tag ${exp}">${exp}</span></td><td><span class="tag ${got}">${got}</span></td><td class="${got === exp ? 'chk-ok' : 'chk-no'}">${got === exp ? '✓' : '✗'}</td></tr>`);
+  });
+  const mm = (q) => (window.matchMedia ? matchMedia(q).matches : false);
+  const env = { maxTouchPoints: navigator.maxTouchPoints || 0, coarse: mm('(pointer: coarse)'), hoverNone: mm('(hover: none)'), w: screen.width, h: screen.height, mobileUA: navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean' ? navigator.userAgentData.mobile : /Mobi|iPhone|iPod/.test(navigator.userAgent) };
+  const mine = classifyDevice(env);
+  document.getElementById('me').innerHTML = `הדפדפן הזה: <b>${mine}</b> · מגע ראשי: ${env.maxTouchPoints > 0 && (env.coarse || env.hoverNone) ? 'כן' : 'לא'} · מסך <span class="ltr">${env.w}×${env.h}</span> · Mobile: ${env.mobileUA ? 'כן' : 'לא'} · ${mine === 'tablet' ? 'משתמש מסך קיר היה עובר למצב מסך קיר' : 'משתמש מסך קיר היה רואה את המערכת הרגילה'}${bad ? ` · <span class="chk-no">${bad} שורות לא תואמות</span>` : ''}`;
+  function fit() { document.querySelectorAll('.view').forEach((v) => { const w = +v.dataset.w, h = +v.dataset.h, s = v.clientWidth / w; v.style.height = h * s + 'px'; const f = v.querySelector('iframe'); f.style.transform = `scale(${s})`; }); }
+  addEventListener('resize', fit); fit(); setTimeout(fit, 100);
+  window.DETECT_BAD = bad;
+</script>
+</body>
+</html>

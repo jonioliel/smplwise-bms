@@ -1,5 +1,6 @@
-/* SmplWise Arx - CR-030 wall display mockups. Fixture data (invented names), icons, the mockup chrome and the three
-   renderers: the display (wall.html), the tablet pairing (pair.html) and Settings > wall displays (settings.html).
+/* SmplWise Arx - CR-030 wall display mockups. Fixture data (invented names), icons, the mockup chrome and the
+   renderers: the display (wall.html), the normal login (login.html), the normal application a wall user sees on a phone or desktop
+   (app.html) and Settings > wall displays (settings.html). Revision 2: no pairing, no TV template.
    Design only - no network, no product code. Everything is driven by URL parameters so Playwright can shoot each state. */
 (function () {
   'use strict';
@@ -70,6 +71,10 @@
     remote: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
     key: '<circle cx="8" cy="14" r="4"/><path d="m11 11 9-9M17 5l2 2M14 8l2 2"/>',
     activity: '<path d="M3 12h4l2-6 4 12 2-6h6"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    logout: '<path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="M16 8l4 4-4 4M20 12H9"/>',
+    phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+    desktop: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
   };
   const ic = (n, cls) => `<svg class="i${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
 
@@ -93,18 +98,20 @@
     { floor: 'קומת קרקע', areas: [['לובי וקבלה', ['c1', 'c2', 'c8']], ['חניון', ['c4']], ['חצר', ['c5']], ['מטבח', ['c7']]] },
     { floor: 'קומה 2', areas: [['מסדרון', ['c3', 'c9', 'c10']], ['מחסן', ['c6', 'c11']], ['חדר שרתים', ['c12']]] },
   ];
+  // wall users: one row = one user (revision 2: no devices, no pairing). `id` is the user name.
   const DEVICES = [
-    { id: 'wd_01', name: 'קבלה', area: 'לובי וקבלה', preset: 'tablet-landscape', screen: '1280×800', status: 'online', seen: 'לפני 12 שניות', cams: ['c1', 'c2', 'c8', 'c4'], alerts: true, ack: false, frame: true, remote: false, channel: 'local' },
-    { id: 'wd_02', name: 'מסדרון קומה 2', area: 'מסדרון', preset: 'tablet-portrait', screen: '800×1280', status: 'online', seen: 'לפני 8 שניות', cams: ['c3', 'c9', 'c10'], alerts: true, ack: false, frame: false, remote: false, channel: 'local' },
-    { id: 'wd_03', name: 'חדר בקרה', area: 'כל ההתקנה', preset: 'wall', screen: '1920×1080', status: 'online', seen: 'לפני 3 שניות', cams: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c11', 'c12'], alerts: true, ack: true, frame: false, remote: true, channel: 'remote' },
-    { id: 'wd_04', name: 'מטבח', area: 'מטבח', preset: 'tablet-landscape', screen: '1024×768', status: 'sleep', seen: 'לפני דקה', cams: ['c7', 'c5'], alerts: true, ack: false, frame: true, remote: false, channel: 'local' },
-    { id: 'wd_05', name: 'מחסן', area: 'מחסן', preset: 'tablet-portrait', screen: '768×1024', status: 'offline', seen: 'לפני 3 שעות', cams: ['c6', 'c11'], alerts: false, ack: false, frame: false, remote: false, channel: 'local' },
-    { id: 'wd_06', name: 'קומה 3 (ישן)', area: '—', preset: 'tablet-landscape', screen: '1280×800', status: 'inactive', seen: 'לפני 120 יום', cams: [], alerts: false, ack: false, frame: false, remote: false, channel: 'local' },
-    { id: 'wd_07', name: 'טאבלט הדגמה', area: 'לובי וקבלה', preset: 'tablet-landscape', screen: '1280×800', status: 'revoked', seen: 'הוסר לפני יומיים', cams: ['c1'], alerts: false, ack: false, frame: false, remote: false, channel: 'local' },
+    { id: 'reception-wall', name: 'קבלה', area: 'לובי וקבלה', preset: 'tablet-landscape', screen: '1280×800', status: 'online', seen: 'לפני 12 שניות', cams: ['c1', 'c2', 'c8', 'c4'], alerts: true, ack: false, frame: true, remote: false, channel: 'local', tablets: 1 },
+    { id: 'floor2-wall', name: 'מסדרון קומה 2', area: 'מסדרון', preset: 'tablet-portrait', screen: '800×1280', status: 'online', seen: 'לפני 8 שניות', cams: ['c3', 'c9', 'c10'], alerts: true, ack: false, frame: false, remote: false, channel: 'local', tablets: 1 },
+    { id: 'control-wall', name: 'חדר בקרה', area: 'כל ההתקנה', preset: 'tablet-landscape', screen: '1920×1200', status: 'online', seen: 'לפני 3 שניות', cams: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'], alerts: true, ack: true, frame: false, remote: true, channel: 'remote', tablets: 2 },
+    { id: 'kitchen-wall', name: 'מטבח', area: 'מטבח', preset: 'tablet-landscape', screen: '1024×768', status: 'sleep', seen: 'לפני דקה', cams: ['c7', 'c5'], alerts: true, ack: false, frame: true, remote: false, channel: 'local', tablets: 1 },
+    { id: 'warehouse-wall', name: 'מחסן', area: 'מחסן', preset: 'tablet-portrait', screen: '768×1024', status: 'offline', seen: 'לפני 3 שעות', cams: ['c6', 'c11'], alerts: false, ack: false, frame: false, remote: false, channel: 'local', tablets: 1 },
+    { id: 'floor3-wall', name: 'קומה 3', area: '—', preset: 'tablet-landscape', screen: '1280×800', status: 'paused', seen: 'לפני 4 ימים', cams: [], alerts: false, ack: false, frame: false, remote: false, channel: 'local', tablets: 1 },
+    { id: 'demo-wall', name: 'הדגמה', area: 'לובי וקבלה', preset: 'tablet-landscape', screen: '—', status: 'never', seen: 'טרם התחבר', cams: ['c1'], alerts: false, ack: false, frame: false, remote: false, channel: 'local', tablets: 0 },
   ];
-  const STATUS = { online: 'מחובר', sleep: 'ישן', paused: 'מושהה', offline: 'מנותק', inactive: 'לא פעיל', revoked: 'הוסר' };
-  const PRESET_ICON = { 'tablet-landscape': 'landscape', 'tablet-portrait': 'portrait', wall: 'tv', single: 'camera' };
-  const PRESET_HE = { auto: 'אוטומטי', 'tablet-landscape': 'טאבלט לרוחב', 'tablet-portrait': 'טאבלט לאורך', wall: 'קיר', single: 'מצלמה אחת' };
+  const HA_USERS = [['dana-cohen', 'דנה כהן'], ['yossi-levi', 'יוסי לוי'], ['lobby-tab', 'טאבלט לובי'], ['guard-tab', 'טאבלט שמירה']]; // users that are not wall users yet
+  const STATUS = { online: 'מחובר', sleep: 'ישן', offline: 'לא מחובר', paused: 'מושבת', never: 'טרם התחבר' };
+  const PRESET_ICON = { 'tablet-landscape': 'landscape', 'tablet-portrait': 'portrait', single: 'camera' };
+  const PRESET_HE = { auto: 'אוטומטי', 'tablet-landscape': 'טאבלט לרוחב', 'tablet-portrait': 'טאבלט לאורך', single: 'מצלמה אחת' };
   const ALERTS = {
     leak: { sev: 'critical', icon: 'drop', title: 'דליפת מים', place: 'מטבח', time: '14:31', cam: 'c7' },
     door: { sev: 'alert', icon: 'door', title: 'דלת מחסן פתוחה', place: '4 דקות', time: '14:28', cam: 'c6' },
@@ -136,22 +143,21 @@
     if (p !== 'auto') return p;
     const w = innerWidth, h = innerHeight;
     if (h > w) return 'tablet-portrait';
-    if (w >= 1600) return 'wall';
     return 'tablet-landscape';
   }
   function gridFor(preset, n) {
     if (preset === 'single') return [1, 1];
     if (preset === 'tablet-portrait') return [1, Math.min(innerHeight >= 1500 ? 3 : 2, Math.max(1, n))];
-    if (preset === 'wall') return n <= 6 ? [3, 2] : n <= 8 ? [4, 2] : [4, 3];
     return n <= 1 ? [1, 1] : n <= 2 ? [2, 1] : n <= 4 ? [2, 2] : [3, 2];
   }
-  const WALL_STATES = ['base', 'rotating', 'info', 'alert', 'alert-stack', 'takeover', 'takeover-stack', 'resolved', 'frame', 'frame-info', 'dim', 'sleep', 'cam-stale', 'cam-lost', 'server-offline', 'server-clock', 'config-updated', 'identify', 'installer', 'sound-locked', 'no-cameras', 'revoked', 'paused', 'remote-refused', 'pairing-network'];
+  const WALL_STATES = ['base', 'rotating', 'info', 'alert', 'alert-stack', 'takeover', 'takeover-stack', 'resolved', 'frame', 'frame-info', 'dim', 'sleep', 'cam-stale', 'cam-lost', 'server-offline', 'server-clock', 'config-updated', 'installer', 'sound-locked', 'no-cameras', 'access-removed', 'remote-refused', 'no-connection'];
 
   function renderWall() {
     const state = q('state', 'base');
     const preset = presetFor();
-    const device = preset === 'wall' ? DEVICES[2] : preset === 'tablet-portrait' ? DEVICES[1] : DEVICES[0];
-    const n = Number(q('cams', preset === 'wall' ? 6 : preset === 'tablet-portrait' ? 3 : 4));
+    const base = preset === 'tablet-portrait' ? DEVICES[1] : DEVICES[0];
+    const device = q('ack', '') === 'on' ? { ...base, ack: true } : base;
+    const n = Number(q('cams', preset === 'tablet-portrait' ? 3 : 4));
     const pages = preset === 'tablet-portrait' && n > 2 ? Math.ceil(n / 2) : 1;
     const [cols, rows] = q('grid', 'auto') === 'auto' ? gridFor(preset, n) : q('grid').split('x').map(Number);
     const own = device.cams.map(cam); const cams = own.concat(CAMS.filter((c) => !own.includes(c))).slice(0, Math.max(n, 1)); // the device's allow list first, then fillers when ?cams asks for more
@@ -164,10 +170,9 @@
     const FULL = {
       sleep: () => fullscreen('sleep', `<div class="inner">${bigClock}</div>`),
       'server-clock': () => fullscreen('', `<div class="inner"><span class="chip" data-tone="danger">${ic('wifioff')}אין חיבור למערכת · מנסה שוב כל 15 שניות</span>${bigClock}<p>${device.name} · מנותק מאז 14:30</p></div>`),
-      revoked: () => fullscreen('', `<div class="inner"><div class="ico" data-tone="danger">${ic('x')}</div><h1>המסך הוסר מהמערכת</h1><p>מנהל המערכת הסיר את המסך "${device.name}". כדי להציג שוב, מצמדים אותו מחדש.</p><button class="btn primary" onclick="location.href='pair.html?step=code&skin=${html.dataset.skin}&scheme=${html.dataset.theme}'">צימוד מחדש</button></div>`),
-      paused: () => fullscreen('', `<div class="inner"><div class="ico" data-tone="stale">${ic('pause')}</div><h1>המסך מושהה</h1><p>${device.name} · הושהה בהגדרות</p>${bigClock}</div>`),
-      'remote-refused': () => fullscreen('', `<div class="inner"><div class="ico" data-tone="danger">${ic('remote')}</div><h1>גישה מרחוק לא מאושרת למסך הזה</h1><p>המסך "${device.name}" מוגדר לרשת המקומית בלבד. חבר אותו לרשת של המבנה, או אפשר גישה מרחוק בהגדרות › מסכי קיר.</p><span class="chip ghost">${ic('clock')}בודק שוב בעוד 30 שניות</span></div>`),
-      'pairing-network': () => fullscreen('', `<div class="inner"><div class="ico" data-tone="stale">${ic('wifioff')}</div><h1>אין חיבור לשרת</h1><p>בדוק את חיבור הרשת של הטאבלט. המסך ינסה שוב לבד.</p><span class="chip ghost"><span class="spin" style="width:14px;height:14px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;display:inline-block"></span>מנסה שוב</span><div class="foot" style="position:static;font-family:var(--sw-font-mono);direction:ltr;color:var(--wall-text-2);font-size:13px">http://arx.local:8099/wall</div></div>`),
+      'access-removed': () => fullscreen('', `<div class="inner"><div class="ico" data-tone="danger">${ic('x')}</div><h1>הגישה למסך הזה הוסרה</h1><p>מנהל המערכת הסיר את הגישה של המשתמש <span class="ltr">${device.id}</span>. כדי להציג שוב, מנהל צריך להוסיף אותו בהגדרות › מסכי קיר.</p><button class="btn primary" onclick="location.href='login.html?step=form&skin=${html.dataset.skin}&scheme=${html.dataset.theme}'">${ic('user')}למסך הכניסה</button></div>`),
+      'remote-refused': () => fullscreen('', `<div class="inner"><div class="ico" data-tone="danger">${ic('remote')}</div><h1>כניסה מרחוק לא מאושרת למשתמש הזה</h1><p>המשתמש <span class="ltr">${device.id}</span> מוגדר לרשת המקומית בלבד. התחבר דרך הכתובת המקומית, או אפשר גישה מרחוק בהגדרות › מסכי קיר.</p><button class="btn" onclick="location.href='login.html?step=form&skin=${html.dataset.skin}&scheme=${html.dataset.theme}'">${ic('user')}למסך הכניסה</button></div>`),
+      'no-connection': () => fullscreen('', `<div class="inner"><div class="ico" data-tone="stale">${ic('wifioff')}</div><h1>אין חיבור לשרת</h1><p>בדוק את חיבור הרשת של הטאבלט. המסך ינסה שוב לבד.</p><span class="chip ghost"><span class="spin" style="width:14px;height:14px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;display:inline-block"></span>מנסה שוב</span><div class="foot" style="position:static;font-family:var(--sw-font-mono);direction:ltr;color:var(--wall-text-2);font-size:13px">http://arx.local:8099/</div></div>`),
     };
     if (FULL[state]) { root.innerHTML = FULL[state](); return finishWall(state); }
 
@@ -181,7 +186,7 @@
 
     // the base layout + overlays
     const camState = (c, i) => (state === 'cam-stale' && i === 1 ? 'stale' : state === 'cam-lost' && i === 1 ? 'lost' : state === 'server-offline' ? 'stale' : 'live');
-    const alertKey = q('alert', preset === 'wall' ? 'door' : 'door');
+    const alertKey = q('alert', 'door');
     const A = ALERTS[alertKey];
     const chips = [];
     if (state === 'info') chips.push(stripChip('info', 'door', 'דלת כניסה נפתחה · 14:32'));
@@ -195,30 +200,27 @@
     const alertTile = (a, count) => `<div class="tile alert" data-sev="${a.sev}"><div class="head"><span class="ico">${ic(a.icon)}</span><div><b>${a.title}</b><small>${a.place ? a.place + ' · ' : ''}${a.time}</small></div>${count ? `<span class="count">+${count}</span>` : ''}</div>
       <div class="video">${a.cam ? `<div class="scene" style="--scene:${cam(a.cam).scene}">${cam(a.cam).shapes}<div class="floor"></div></div><div class="osd">LIVE · ${cam(a.cam).name}</div>` : `<div class="lost" style="display:grid;place-items:center;height:100%;color:var(--wall-text-2)">${ic('camera')}</div>`}</div>
       <div class="acts"><button class="btn" data-act="seen">${ic('eye')}ראיתי</button>${device.ack ? `<button class="btn hold danger" data-act="ack">${ic('check')}אישור <small style="font-weight:400;opacity:.8">(לחיצה ארוכה)</small></button>` : ''}</div></div>`;
-    const wallAlertsCol = (items) => `<aside class="alerts-col"><h3>${ic('alert')}התראות באזור</h3>${items.length ? items.map(([k, extra]) => { const a = ALERTS[k]; return `<div class="acard${extra === 'resolved' ? ' resolved' : ''}" data-sev="${a.sev}"><span class="ico">${ic(a.icon)}</span><b>${a.title}</b><small>${a.place ? a.place + ' · ' : ''}${a.time}${extra === 'resolved' ? ' · נסגר' : ''}</small>${extra !== 'resolved' ? `<div class="acts"><button class="btn" data-act="seen">ראיתי</button>${device.ack ? '<button class="btn hold danger" data-act="ack">אישור</button>' : ''}</div>` : ''}</div>`; }).join('') : '<div class="empty">אין התראות פתוחות</div>'}</aside>`;
 
-    const showAlertCell = (state === 'alert' || state === 'alert-stack') && preset !== 'wall';
+    const showAlertCell = state === 'alert' || state === 'alert-stack';
     if (showAlertCell) tiles[0] = alertTile(A, state === 'alert-stack' ? 2 : 0);
-    const colItems = preset === 'wall' && alertsOn === 'on' ? (state === 'alert' ? [['door']] : state === 'alert-stack' ? [['ring'], ['door'], ['camoff']] : state === 'resolved' ? [['door', 'resolved']] : state === 'takeover-stack' ? [['leak'], ['smoke'], ['door']] : []) : null;
+
 
     const strip = `<header class="strip" dir="rtl"><div class="place">${ic('camera')}${device.name}<span class="sub">· ${device.area}</span></div>
       <div class="clock ltr" id="clock" title="לחיצה ארוכה: פרטי מסך למתקין"><span>${clockText()}</span><span class="date" dir="rtl">${DATE_HE}</span></div><div class="chips">${chips.join('')}</div></header>`;
     const bannerHtml = state === 'server-offline' ? `<div class="banner">${ic('wifioff')}אין חיבור למערכת · מנסה שוב<span class="spin"></span></div>` : '';
     const portraitBand = preset === 'tablet-portrait' ? `<section class="band"><div class="card"><h4>${device.area} · מפה</h4><div class="map"><div class="room" style="left:6%;top:10%;width:60%;height:80%"></div><div class="room" style="left:66%;top:10%;width:28%;height:38%"></div><div class="room" style="left:66%;top:52%;width:28%;height:38%"></div><div class="cam" style="left:14%;top:24%;--a:120deg"></div><div class="cam" style="left:50%;top:70%;--a:-40deg"></div><div class="cam" style="left:78%;top:30%;--a:200deg"></div>${state === 'alert' || state === 'alert-stack' ? '<div class="fire" style="left:80%;top:70%"></div>' : ''}</div></div>
       <div class="card"><h4>מצב</h4><div class="states"><span class="chip">${ic('door')}דלת מחסן: סגורה</span><span class="chip">${ic('sun')}22.5°</span><span class="chip">${ic('bolt')}1.2 kW</span><span class="chip">${ic('lock')}נעול</span></div></div></section>` : '';
-    const statusLine = `<div class="status-line" data-tone="${state === 'server-offline' ? 'offline' : state.startsWith('cam-') ? 'stale' : 'ok'}"><i></i>${state === 'server-offline' ? 'מנותק מאז 14:30' : 'מחובר · 4 זרמים'}<span style="margin-inline-start:auto">${device.id} · ${sz(preset === 'tablet-portrait' ? '800×1280' : device.screen)}</span></div>`;
+    const statusLine = `<div class="status-line" data-tone="${state === 'server-offline' ? 'offline' : state.startsWith('cam-') ? 'stale' : 'ok'}"><i></i>${state === 'server-offline' ? 'מנותק מאז 14:30' : 'מחובר · 4 זרמים'}<span style="margin-inline-start:auto">${sz(device.id)} · ${sz(preset === 'tablet-portrait' ? '800×1280' : device.screen)}</span></div>`;
 
-    root.innerHTML = `<main class="wall${state === 'dim' ? ' dim' : ''}" data-preset="${preset}" data-alerts="${preset === 'wall' && alertsOn === 'on' ? 'on' : 'off'}" data-shift="${q('shift', '0')}" style="--cols:${cols};--rows:${rows}">
+    root.innerHTML = `<main class="wall${state === 'dim' ? ' dim' : ''}" data-preset="${preset}" data-shift="${q('shift', '0')}" style="--cols:${cols};--rows:${rows}">
       ${state === 'server-offline' ? bannerHtml : strip}
       ${preset === 'tablet-portrait' ? '' : ''}
       ${state === 'no-cameras' ? `<div class="full" style="position:relative;background:transparent"><div class="inner"><div class="ico">${ic('camera')}</div><h1>לא הוגדרו מצלמות למסך הזה</h1><p>בחר מצלמות בהגדרות › מסכי קיר › ${device.name}</p></div></div>` : `<section class="grid">${tiles.join('')}</section>`}
-      ${colItems ? wallAlertsCol(colItems) : ''}
       ${portraitBand}
       ${preset === 'tablet-portrait' ? statusLine : ''}
       ${state === 'rotating' || pages > 1 ? `<div class="dots">${Array.from({ length: Math.max(pages, state === 'rotating' ? 3 : 1) }, (_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('')}</div>` : ''}
       ${state === 'sound-locked' ? `<button class="btn sound-note">${ic('speaker')}הקש פעם אחת להפעלת צליל</button>` : ''}
-      ${state === 'identify' ? `<div class="identify"><div><b>${device.name}</b><span>זה המסך · ${device.id}</span></div></div>` : ''}
-      ${state === 'installer' ? `<div class="installer"><b>פרטי מסך (למתקין)</b>device ${device.id}<br>name ${device.name}<br>preset ${preset} · ${cols}×${rows} · sub<br>channel ${device.channel} · ws open · rtt 18 ms<br>server 2.3.0 · zone Asia/Jerusalem<br>last config 14:12:40 · token ok<br>closes in 10 s</div>` : ''}
+      ${state === 'installer' ? `<div class="installer"><b>פרטי מסך (למתקין)</b>user ${device.id}<br>title ${device.name}<br>detected tablet · ${sz(device.screen)} · touch primary<br>preset ${preset} · ${cols}×${rows} · sub<br>channel ${device.channel} · ws open · rtt 18 ms<br>server 2.3.0 · zone Asia/Jerusalem<br>session expires in 89 days<br>closes in 10 s<br><button class="btn" style="margin-top:8px;min-height:36px">${ic('logout')}יציאה (דורש סיסמה)</button></div>` : ''}
       ${state === 'takeover' || state === 'takeover-stack' ? takeover(state === 'takeover-stack' ? ['leak', 'smoke', 'door'] : [alertKey === 'door' ? 'leak' : alertKey], device, preset) : ''}
     </main>`;
     finishWall(state, preset, cols, rows);
@@ -243,81 +245,88 @@
     if (clock) { let t; clock.addEventListener('pointerdown', () => { t = setTimeout(() => setParam('state', 'installer'), 1200); }); clock.addEventListener('pointerup', () => clearTimeout(t)); }
     if (!FIXED_CLOCK) setInterval(() => document.querySelectorAll('.clock > span:first-child, .big-clock, .corner b').forEach((e) => (e.textContent = clockText())), 1000);
     const opts = WALL_STATES.map((s) => `<option value="${s}"${s === state ? ' selected' : ''}>${s}</option>`).join('');
-    const presets = ['auto', 'tablet-landscape', 'tablet-portrait', 'wall', 'single'].map((p) => `<option value="${p}"${p === q('preset', 'auto') ? ' selected' : ''}>${p}</option>`).join('');
+    const presets = ['auto', 'tablet-landscape', 'tablet-portrait', 'single'].map((p) => `<option value="${p}"${p === q('preset', 'auto') ? ' selected' : ''}>${p}</option>`).join('');
     chrome(`<span class="lbl">state</span><select data-k="state">${opts}</select><span class="lbl">preset</span><select data-k="preset">${presets}</select><span class="lbl">cams</span><select data-k="cams">${[1, 2, 3, 4, 6, 8, 10, 12].map((n) => `<option${String(n) === q('cams', '') ? ' selected' : ''}>${n}</option>`).join('')}</select>${preset ? `<span class="lbl">${preset} ${cols}×${rows}</span>` : ''}`);
     document.title = `מסך קיר · ${state}`;
   }
 
   /* =================================================================================================================
-     PAIRING ON THE TABLET
+     THE NORMAL LOGIN ON A TABLET (CR-008 login, nothing new) AND WHAT A WALL USER SEES ON A PHONE / DESKTOP
      ================================================================================================================= */
-  const PAIR_STEPS = ['start', 'code', 'claimed', 'approved', 'expired', 'denied', 'network'];
-  function renderPair() {
-    const step = q('step', 'code');
-    const code = '4 8 2 0 9 3'.split(' ');
+  const LOGIN_STEPS = ['form', 'error', 'detect', 'removed'];
+  function renderLogin() {
+    const step = q('step', 'form');
     const logo = `<div class="logo"><i></i>SmplWise Arx</div>`;
-    const steps = `<div class="steps"><div><em>1</em><b>הגדרות › מסכי קיר</b>במחשב או בטלפון של מנהל המערכת</div><div><em>2</em><b>"הוספת מסך"</b>מקלידים את הקוד שמופיע כאן</div><div><em>3</em><b>בוחרים מה להציג</b>המסך מתחבר לבד</div></div>`;
+    const form = (note) => `${logo}<h1>כניסה למערכת</h1>${note || ''}<div class="fld"><label>שם משתמש</label><input class="ltr" value="reception-wall" aria-label="שם משתמש"></div><div class="fld"><label>סיסמה</label><input type="password" value="••••••••••" aria-label="סיסמה"></div><label class="keep"><span class="chk on">${ic('check')}</span>השאר אותי מחובר</label><button class="btn primary" style="width:100%" onclick="location.search=location.search.replace(/step=[^&]*/,'step=detect')">כניסה</button>`;
     const V = {
-      start: () => `${logo}<h1>מתחבר למערכת…</h1><div class="wait"><span class="spin"></span>מבקש קוד צימוד</div>`,
-      code: () => `${logo}<h1>צימוד מסך קיר</h1><p>הקלד את הקוד הזה בהגדרות › מסכי קיר</p><div class="code" aria-label="קוד צימוד 482093">${code.map((d) => `<b>${d}</b>`).join('')}</div><div class="meta"><span class="chip ghost">${ic('clock')}<span class="timer ltr">09:41</span> עד שהקוד יפוג</span><span class="chip ghost">${ic('landscape')}${sz('1280×800')} · לרוחב</span></div><div class="wait"><span class="spin"></span>ממתין לאישור</div>${steps}`,
-      claimed: () => `${logo}<h1>מנהל מערכת מזהה את המסך</h1><p>הקוד התקבל. מחכים שהמנהל יסיים להגדיר את המסך.</p><div class="code" style="opacity:.5">${code.map((d) => `<b>${d}</b>`).join('')}</div><div class="wait"><span class="spin"></span>ממתין להגדרות</div>`,
-      approved: () => `${logo}<div class="ok">${ic('check')}</div><h1>המסך אושר</h1><p>"קבלה" · 4 מצלמות · טאבלט לרוחב</p><div class="wait"><span class="spin"></span>מתחבר לזרמים…</div>`,
-      expired: () => `${logo}<div class="ok" style="background:rgba(245,176,67,.18);color:#ffd08a">${ic('clock')}</div><h1>הקוד פג</h1><p>קוד צימוד תקף ל-10 דקות. אפשר לבקש קוד חדש.</p><button class="btn primary" onclick="location.search=location.search.replace(/step=[^&]*/,'step=code')">קוד חדש</button>`,
-      denied: () => `${logo}<div class="ok" style="background:var(--sw-danger-soft);color:#ffb3ad">${ic('x')}</div><h1>הצימוד נדחה</h1><p>מנהל המערכת דחה את הבקשה. אם זו טעות, אפשר לבקש קוד חדש.</p><button class="btn" onclick="location.search=location.search.replace(/step=[^&]*/,'step=code')">קוד חדש</button>`,
-      network: () => `${logo}<div class="ok" style="background:rgba(245,176,67,.18);color:#ffd08a">${ic('wifioff')}</div><h1>אין חיבור לשרת</h1><p>בדוק את חיבור הרשת של הטאבלט. המסך ינסה שוב לבד.</p><div class="wait"><span class="spin"></span>מנסה שוב בעוד 5 שניות</div>`,
+      form: () => form(''),
+      error: () => form(`<div class="msg" data-tone="danger">${ic('x')}שם המשתמש או הסיסמה שגויים</div>`),
+      removed: () => form(`<div class="msg" data-tone="stale">${ic('lock')}הגישה למסך הזה הוסרה · פנה למנהל המערכת</div>`),
+      detect: () => `${logo}<div class="ok">${ic('check')}</div><h1>זוהה טאבלט</h1><p>המשתמש "קבלה" הוא משתמש מסך קיר · עובר למצב מסך קיר</p><div class="wait"><span class="spin"></span>טוען את המצלמות…</div>`,
     };
-    document.getElementById('root').innerHTML = `<div class="pair"><div class="card">${(V[step] || V.code)()}</div><div class="foot">${step === 'network' ? 'http://arx.local:8099/wall' : 'arx.local:8099/wall · pairing p_01HZ… · v2.3.0'}</div></div>`;
-    if (step === 'code' && !FIXED_CLOCK) { let s = 581; setInterval(() => { s -= 1; const t = document.querySelector('.timer'); if (t) t.textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; }, 1000); }
-    const opts = PAIR_STEPS.map((s) => `<option value="${s}"${s === step ? ' selected' : ''}>${s}</option>`).join('');
-    chrome(`<span class="lbl">step</span><select data-k="step">${opts}</select>${step === 'code' ? `<button onclick="(${setParam.toString()})('step','claimed')">simulate: admin typed the code</button>` : step === 'claimed' ? `<button onclick="(${setParam.toString()})('step','approved')">simulate: approved</button>` : step === 'approved' ? `<button onclick="location.href='wall.html?state=base&skin=${html.dataset.skin}&scheme=${html.dataset.theme}'">→ wall</button>` : ''}`);
-    document.title = `צימוד מסך · ${step}`;
+    document.getElementById('root').innerHTML = `<div class="pair gate"><div class="card">${(V[step] || V.form)()}</div><div class="foot">arx.local:8099 · v2.3.0</div></div>`;
+    const opts = LOGIN_STEPS.map((s) => `<option value="${s}"${s === step ? ' selected' : ''}>${s}</option>`).join('');
+    chrome(`<span class="lbl">step</span><select data-k="step">${opts}</select>${step === 'detect' ? `<button onclick="location.href='wall.html?state=base&skin=${html.dataset.skin}&scheme=${html.dataset.theme}'">→ wall</button>` : ''}`);
+    document.title = `כניסה · ${step}`;
+  }
+
+  function renderApp() {
+    const cls = q('cls', 'phone');
+    const own = DEVICES[0].cams.map(cam);
+    const user = `<span class="user">${ic('user')}קבלה · <span class="ltr">reception-wall</span></span>`;
+    const row = (c) => `<div class="lrow"><div class="th" style="--scene:${c.scene}"></div><div><b>${c.name}</b><small>לובי וקבלה · חי</small></div><span class="badge-live"><i></i>חי</span></div>`;
+    const root = document.getElementById('root');
+    if (cls === 'phone') {
+      root.innerHTML = `<div class="lite phone"><header class="ltop"><b><i></i>SmplWise Arx</b>${user}</header><main><h2>מצלמות</h2><div class="llist">${own.map(row).join('')}</div></main>
+        <nav class="lbottom"><a class="on">${ic('camera')}מצלמות</a><a>${ic('map')}מפה</a></nav></div>`;
+    } else {
+      root.innerHTML = `<div class="lite desk"><nav class="lrail"><div class="brand"><i></i>SmplWise Arx</div><a class="on">${ic('camera')}מצלמות</a><a>${ic('map')}מפה</a><span class="sp"></span>${user}</nav>
+        <main><h2>מצלמות · לובי וקבלה</h2><div class="lgrid">${own.map((c) => tile(c)).join('')}</div></main></div>`;
+    }
+    chrome(`<span class="lbl">cls</span><select data-k="cls">${['phone', 'desktop'].map((c) => `<option${c === cls ? ' selected' : ''}>${c}</option>`).join('')}</select><span class="lbl">משתמש מסך קיר בלי מצב קיר: מפה ווידאו חי בלבד</span>`);
+    document.title = `המערכת הרגילה · ${cls}`;
   }
 
   /* =================================================================================================================
      SETTINGS > WALL DISPLAYS
      ================================================================================================================= */
-  const SET_VIEWS = ['list', 'empty', 'error', 'add-code', 'add-bad', 'add-throttled', 'add-hint', 'add-form', 'drawer', 'drawer-alerts', 'drawer-frame', 'drawer-schedule', 'revoke', 'identify', 'saved'];
+  const SET_VIEWS = ['list', 'empty', 'error', 'add', 'add-form', 'drawer', 'drawer-alerts', 'drawer-frame', 'drawer-schedule', 'remove', 'saved'];
   function renderSettings() {
     const view = q('view', 'list');
-    const sel = q('device', 'wd_01');
+    const sel = q('device', 'reception-wall');
     const d = DEVICES.find((x) => x.id === sel) || DEVICES[0];
     const rail = `<nav class="rail"><div class="brand"><i></i>SmplWise Arx</div><div class="sec">הגדרות</div>
       <a href="#">${ic('settings')}כללי</a><a href="#">${ic('remote')}חיבורים</a><a href="#">${ic('key')}גישה והרשאות</a><a href="#">${ic('bell')}התראות</a><a href="#">${ic('clock')}תזמונים</a><a href="#" class="on">${ic('tv')}מסכי קיר</a><a href="#">${ic('activity')}בריאות ועבודות</a><a href="#">${ic('search')}יומן ביקורת</a></nav>`;
     const stChip = (dev) => `<span class="st" data-s="${dev.status}"><i></i>${STATUS[dev.status]}</span>`;
     const rowHtml = (dev) => `<tr${dev.id === sel && view.startsWith('drawer') ? ' class="sel"' : ''}>
-      <td><div class="name"><span class="preset-ico" title="${PRESET_HE[dev.preset]}">${ic(PRESET_ICON[dev.preset])}</span><div><b>${dev.name}</b><span>${dev.area} · ${sz(dev.screen)}</span></div></div></td>
-      <td>${stChip(dev)}${dev.status === 'offline' ? `<div class="sub">נראה לאחרונה ${dev.seen}</div>` : ''}</td>
-      <td><span title="2026-10-05 14:32:00">${dev.seen}</span>${dev.channel === 'remote' ? ` <span class="mini">${ic('remote')}מרחוק</span>` : ''}</td>
+      <td><div class="name"><span class="preset-ico" title="${PRESET_HE[dev.preset]}">${ic(PRESET_ICON[dev.preset])}</span><div><b>${dev.name}</b><span><span class="ltr">${dev.id}</span> · ${dev.area}</span></div></div></td>
+      <td>${stChip(dev)}${dev.tablets > 1 ? `<div class="sub">${dev.tablets} טאבלטים</div>` : ''}${dev.status === 'offline' ? `<div class="sub">נראה לאחרונה ${dev.seen}</div>` : ''}</td>
+      <td>${dev.status === 'never' ? '<span class="sub">—</span>' : `<span title="2026-10-05 14:32:00">${dev.seen}</span>`}${dev.channel === 'remote' ? ` <span class="mini">${ic('remote')}מרחוק</span>` : ''}</td>
       <td>${dev.cams.length ? `${dev.cams.length} · <span class="sub">${dev.cams.slice(0, 2).map((c) => cam(c).name).join(', ')}${dev.cams.length > 2 ? '…' : ''}</span>` : '<span class="sub" style="color:var(--sw-stale-text)">לא הוגדרו</span>'}</td>
       <td>${dev.alerts ? `<span class="mini">${ic('alert')}פעיל</span>` : '<span class="sub">כבוי</span>'}${dev.ack ? ` <span class="mini" style="background:var(--sw-accent-soft);color:var(--sw-accent-text)">אישור מותר</span>` : ''}${dev.frame ? ` <span class="mini">${ic('image')}תמונות</span>` : ''}</td>
-      <td><div class="acts">${dev.status === 'revoked' ? `<button class="b ghost" title="צימוד מחדש מוחק את הרשומה הישנה">${ic('refresh')}</button>` : `<button class="b ghost" title="זה המסך" data-go="identify&device=${dev.id}">${ic('eye')}</button><button class="b ghost" title="עריכה" data-go="drawer&device=${dev.id}">${ic('edit')}</button><button class="b ghost" title="${dev.status === 'paused' ? 'המשך' : 'השהיה'}">${ic(dev.status === 'paused' ? 'play' : 'pause')}</button><button class="b ghost" title="הסרה" data-go="revoke&device=${dev.id}" style="color:var(--sw-danger-text)">${ic('trash')}</button>`}</div></td></tr>`;
+      <td><div class="acts"><button class="b ghost" title="עריכה" data-go="drawer&device=${dev.id}">${ic('edit')}</button><button class="b ghost" title="${dev.status === 'paused' ? 'הפעלה' : 'השבתה'}">${ic(dev.status === 'paused' ? 'play' : 'pause')}</button><button class="b ghost" title="הסרה" data-go="remove&device=${dev.id}" style="color:var(--sw-danger-text)">${ic('trash')}</button></div></td></tr>`;
     const list = DEVICES.filter((x) => view !== 'empty');
     const online = list.filter((x) => x.status === 'online').length;
     const phone = innerWidth < 900;
-    const table = phone ? `<div class="phone-cards">${list.map((dev) => `<div class="card pc"><div class="l1"><span class="preset-ico">${ic(PRESET_ICON[dev.preset])}</span><b>${dev.name}</b>${stChip(dev)}</div><div class="l2 sub">${dev.area} · ${dev.seen} · ${dev.cams.length} מצלמות</div><div class="l2">${dev.alerts ? `<span class="mini">${ic('alert')}התראות</span>` : ''}${dev.ack ? '<span class="mini">אישור מותר</span>' : ''}${dev.frame ? `<span class="mini">${ic('image')}תמונות</span>` : ''}<span style="flex:1"></span><button class="b ghost icon">${ic('eye')}</button><button class="b ghost icon">${ic('edit')}</button><button class="b ghost icon" style="color:var(--sw-danger-text)">${ic('trash')}</button></div></div>`).join('')}</div>`
-      : `<div class="card"><table class="list"><thead><tr><th>מסך</th><th>מצב</th><th>נראה לאחרונה</th><th>מצלמות</th><th>התראות</th><th></th></tr></thead><tbody>${list.map(rowHtml).join('')}</tbody></table></div>`;
-    const empty = `<div class="card empty"><div class="ico">${ic('tv')}</div><h2>אין מסכי קיר</h2><p>טאבלט על הקיר שמציג את המצלמות של המקום שלו, בלי משתמש מחובר.</p><button class="b primary" data-go="add-code">${ic('plus')}הוספת מסך</button></div>`;
-    const error = `<div class="card err-card">${ic('alert')}<div><b>רשימת המסכים לא נטענה</b><span>השרת לא ענה (504). נסה שוב.</span></div><span style="flex:1"></span><button class="b" data-go="list">${ic('refresh')}נסה שוב</button></div>`;
-    const main = `<div class="content"><div class="topline"><h1>מסכי קיר</h1><span class="count">${view === 'empty' ? '' : `${list.length} מסכים · ${online} מחוברים`}</span><span class="sp"></span><button class="b" title="תיקיות תמונות">${ic('image')}תמונות למסכים</button><button class="b primary" data-go="add-code">${ic('plus')}הוספת מסך</button></div>
+    const table = phone ? `<div class="phone-cards">${list.map((dev) => `<div class="card pc"><div class="l1"><span class="preset-ico">${ic(PRESET_ICON[dev.preset])}</span><b>${dev.name}</b>${stChip(dev)}</div><div class="l2 sub"><span class="ltr">${dev.id}</span> · ${dev.area} · ${dev.cams.length} מצלמות</div><div class="l2">${dev.alerts ? `<span class="mini">${ic('alert')}התראות</span>` : ''}${dev.ack ? '<span class="mini">אישור מותר</span>' : ''}${dev.frame ? `<span class="mini">${ic('image')}תמונות</span>` : ''}<span style="flex:1"></span><button class="b ghost icon">${ic('edit')}</button><button class="b ghost icon" style="color:var(--sw-danger-text)">${ic('trash')}</button></div></div>`).join('')}</div>`
+      : `<div class="card"><table class="list"><thead><tr><th>משתמש מסך</th><th>מצב</th><th>נראה לאחרונה</th><th>מצלמות</th><th>התראות</th><th></th></tr></thead><tbody>${list.map(rowHtml).join('')}</tbody></table></div>`;
+    const empty = `<div class="card empty"><div class="ico">${ic('tv')}</div><h2>אין משתמשי מסך קיר</h2><p>משתמש שמתחבר מטאבלט והמסך עובר לבד להציג את המצלמות של המקום שלו.</p><button class="b primary" data-go="add">${ic('plus')}הוספת משתמש מסך</button></div>`;
+    const error = `<div class="card err-card">${ic('alert')}<div><b>הרשימה לא נטענה</b><span>השרת לא ענה (504). נסה שוב.</span></div><span style="flex:1"></span><button class="b" data-go="list">${ic('refresh')}נסה שוב</button></div>`;
+    const main = `<div class="content"><div class="topline"><h1>מסכי קיר</h1><span class="count">${view === 'empty' ? '' : `${list.length} משתמשים · ${online} מחוברים`}</span><span class="sp"></span><button class="b" title="תיקיות תמונות">${ic('image')}תמונות למסכים</button><button class="b primary" data-go="add">${ic('plus')}הוספת משתמש מסך</button></div>
       ${view === 'empty' ? empty : view === 'error' ? error : table}
-      ${view === 'saved' ? `<div class="msg" data-tone="ok" style="position:fixed;bottom:20px;inset-inline-start:50%;transform:translateX(50%);box-shadow:var(--sw-shadow-3)">${ic('check')}נשמר · המסך "${d.name}" קיבל את ההגדרות</div>` : ''}</div>`;
+      ${view === 'saved' ? `<div class="msg" data-tone="ok" style="position:fixed;bottom:20px;inset-inline-start:50%;transform:translateX(50%);box-shadow:var(--sw-shadow-3)">${ic('check')}נשמר · "${d.name}" קיבל את ההגדרות</div>` : ''}</div>`;
 
-    // dialogs
-    const codeInputs = (vals, bad) => `<div class="code-in${bad ? ' bad' : ''}">${vals.map((v) => `<input inputmode="numeric" maxlength="1" value="${v}" aria-label="ספרה">`).join('')}</div>`;
+    const userRows = (picked) => `<div class="upick">${HA_USERS.map(([u, n], i) => `<div class="urow${picked === i ? ' on' : ''}"><span class="rd"></span><div><b>${n}</b><span class="ltr">${u}</span></div></div>`).join('')}</div>`;
     const DLG = {
-      'add-code': () => dialog('הוספת מסך', `<p class="note" style="font-size:14px;color:var(--sw-text-2);margin:0">פתח את <span class="ltr">/wall</span> על הטאבלט והקלד כאן את הקוד שמופיע עליו</p>${codeInputs(['4', '8', '2', '', '', ''])}<div class="note">הקוד תקף 10 דקות ולשימוש אחד</div>`, `<button class="b primary" disabled>המשך</button><button class="b ghost" data-go="list">ביטול</button>`),
-      'add-bad': () => dialog('הוספת מסך', `<p class="note" style="font-size:14px;color:var(--sw-text-2);margin:0">פתח את <span class="ltr">/wall</span> על הטאבלט והקלד כאן את הקוד שמופיע עליו</p>${codeInputs(['4', '8', '2', '0', '9', '1'], true)}<div class="msg" data-tone="danger">${ic('x')}הקוד לא נמצא או פג · נותרו 3 ניסיונות</div>`, `<button class="b primary">המשך</button><button class="b ghost" data-go="list">ביטול</button>`),
-      'add-throttled': () => dialog('הוספת מסך', `${codeInputs(['', '', '', '', '', ''])}<div class="msg" data-tone="stale">${ic('lock')}יותר מדי ניסיונות · הטופס נעול ל-10 דקות (עד 14:42)</div>`, `<button class="b primary" disabled>המשך</button><button class="b ghost" data-go="list">סגור</button>`),
-      'add-hint': () => dialog('הוספת מסך', `<div class="msg" data-tone="ok">${ic('check')}הקוד נמצא · זה המסך שמולך?</div><div class="hint-card"><span class="preset-ico">${ic('landscape')}</span><b>טאבלט · ${sz('1280×800')} · לרוחב</b><span>Chrome 130 · Android · Asia/Jerusalem</span><span>התחיל לפני 2 דקות · רשת מקומית</span></div><div class="note">אם זה לא המסך שמולך - דחה, והקוד יבוטל.</div>`, `<button class="b primary" data-go="add-form">כן, זה המסך</button><button class="b danger" data-go="list">דחייה</button><span class="sp"></span><button class="b ghost" data-go="list">ביטול</button>`),
-      'add-form': () => dialog('הגדרת המסך', formBody({ ...DEVICES[0], name: 'קבלה', cams: ['c1', 'c2', 'c8', 'c4'] }, 'main'), `<button class="b primary" data-go="saved">שמירה ואישור</button><button class="b ghost" data-go="list">ביטול</button>`, true),
-      revoke: () => dialog('הסרת המסך', `<p style="margin:0">להסיר את "${d.name}" מהמערכת?</p><div class="note">המסך יראה את מסך הצימוד תוך 15 שניות. ההגדרות שלו יישמרו 30 יום לצורך יומן הביקורת.</div>`, `<button class="b danger" data-go="list">${ic('trash')}הסרה</button><button class="b ghost" data-go="list">ביטול</button>`),
-      identify: () => dialog('זה המסך', `<div class="msg" data-tone="ok">${ic('eye')}"${d.name}" מציג עכשיו את שמו למשך 5 שניות</div>`, `<button class="b" data-go="list">סגור</button>`),
+      add: () => dialog('הוספת משתמש מסך', `<div class="fld"><input class="in" placeholder="חיפוש משתמש" aria-label="חיפוש"></div>${userRows(-1)}<div class="note">משתמש חדש נוצר בתשתית המערכת ואז מופיע כאן</div>`, `<button class="b primary" disabled>המשך</button><button class="b ghost" data-go="list">ביטול</button>`),
+      'add-form': () => dialog('הוספת משתמש מסך', `${userRows(2)}<div class="row"><label>שם המסך</label><input class="in" value="לובי"></div><div class="row"><label>מקום</label><div class="v"><select class="in" style="max-width:260px"><option>לובי וקבלה</option>${AREAS.flatMap((f) => f.areas.map((a) => `<option>${a[0]}</option>`)).join('')}</select></div></div><div class="msg" data-tone="ok">${ic('shield')}תפקיד: קיוסק - מפה ווידאו חי בלבד, ללא שליטה</div>`, `<button class="b primary" data-go="drawer&device=demo-wall">הוספה</button><button class="b ghost" data-go="list">ביטול</button>`),
+      remove: () => dialog('הסרת משתמש מסך', `<p style="margin:0">להסיר את "${d.name}" (<span class="ltr">${d.id}</span>)?</p><div class="note">ההרשאות וההגדרות נמחקות, החיבורים נסגרים והמסך יציג "הגישה הוסרה". את המשתמש עצמו לא מוחקים.</div>`, `<button class="b danger" data-go="list">${ic('trash')}הסרה</button><button class="b ghost" data-go="list">ביטול</button>`),
     };
     const drawerSect = view === 'drawer-alerts' ? 'alerts' : view === 'drawer-frame' ? 'frame' : view === 'drawer-schedule' ? 'schedule' : 'main';
-    const drawerHtml = view.startsWith('drawer') ? `<aside class="drawer" role="dialog" aria-label="עריכת מסך"><header><h2>${d.name}<small>${PRESET_HE[d.preset]} · ${sz(d.screen)} · ${sz(d.id)}</small></h2>${stChip(d)}<button class="b ghost icon" data-go="list">${ic('x')}</button></header>
-      <div class="seg" style="margin:0 22px 6px;align-self:start">${[['main', 'מסך ומצלמות'], ['alerts', 'התראות'], ['frame', 'תמונות'], ['schedule', 'שעות ושמירה']].map(([k, t]) => `<button class="${drawerSect === k ? 'on' : ''}" data-go="${k === 'main' ? 'drawer' : 'drawer-' + k}&device=${d.id}">${t}</button>`).join('')}</div>
+    const drawerHtml = view.startsWith('drawer') ? `<aside class="drawer" role="dialog" aria-label="עריכת משתמש מסך"><header><h2>${d.name}<small>${PRESET_HE[d.preset]} · <span class="ltr">${d.id}</span></small></h2>${stChip(d)}<button class="b ghost icon" data-go="list">${ic('x')}</button></header>
+      <div class="seg" style="margin:0 22px 6px;align-self:start">${[['main', 'משתמש ומצלמות'], ['alerts', 'התראות'], ['frame', 'תמונות'], ['schedule', 'שעות ושמירה']].map(([k, t]) => `<button class="${drawerSect === k ? 'on' : ''}" data-go="${k === 'main' ? 'drawer' : 'drawer-' + k}&device=${d.id}">${t}</button>`).join('')}</div>
       <div class="body">${formBody(d, drawerSect)}</div>
-      <footer><button class="b primary" data-go="saved&device=${d.id}">שמירה</button><button class="b ghost" data-go="list">ביטול</button><span class="sp"></span><button class="b ghost" title="החלפת אסימון">${ic('key')}אסימון חדש</button><button class="b danger" data-go="revoke&device=${d.id}">${ic('trash')}הסרה</button></footer></aside>` : '';
+      <footer><button class="b primary" data-go="saved&device=${d.id}">שמירה</button><button class="b ghost" data-go="list">ביטול</button><span class="sp"></span><button class="b danger" data-go="remove&device=${d.id}">${ic('trash')}הסרה</button></footer></aside>` : '';
     document.getElementById('root').innerHTML = `<div class="app">${rail}${main}</div>${DLG[view] ? DLG[view]() : ''}${drawerHtml}`;
     document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { const [v, extra] = b.dataset.go.split('&'); const u = new URL(location.href); u.searchParams.set('view', v); if (extra) { const [k, val] = extra.split('='); u.searchParams.set(k, val); } location.href = u.toString(); }));
     document.querySelectorAll('.tog').forEach((t) => t.addEventListener('click', () => t.classList.toggle('on')));
@@ -344,13 +353,13 @@
       <div class="sect"><h3>שמירה על המסך</h3>${tog(true, 'הזזת פיקסלים', 'כל 60 שניות, 2 פיקסלים')}${tog(true, 'ערבוב אריחים', 'כל שעה')}<div class="row"><label>עמעום אחרי</label><div class="v">${seg([['15', '15 דק׳'], ['30', '30 דק׳'], ['off', 'ללא']], '30')}ל-60%</div></div></div>
       <div class="sect"><h3>בניתוק</h3><div class="row"><label>פריים אחרון</label><div class="v">${seg([['30', '30 שנ׳'], ['60', 'דקה'], ['0', 'לא להציג']], '60')}<span class="note">מעומעם, עם שעת הפריים</span></div></div><div class="row"><label>אחרי 2 דקות</label><div class="v">${seg([['clock', 'מסך שעון'], ['names', 'שמות מצלמות']], 'clock')}</div></div></div>`;
     // main
-    return `<div class="sect"><h3>מסך</h3><div class="row"><label>שם</label><input class="in" value="${d.name}"></div><div class="row"><label>מקום</label><div class="v"><select class="in" style="max-width:260px"><option>${d.area}</option>${AREAS.flatMap((f) => f.areas.map((a) => `<option>${a[0]}</option>`)).join('')}</select></div></div><div class="row"><label>ערכה</label><div class="v">${seg([['dark', 'כהה'], ['light', 'בהירה'], ['follow', 'כמו המערכת']], 'dark')}</div></div>${tog(d.remote, 'גישה מרחוק', 'כבוי = רק מהרשת המקומית')}</div>
+    return `<div class="sect"><h3>משתמש</h3><div class="row"><label>משתמש</label><div class="v"><b class="ltr">${d.id}</b><span class="mini">קיוסק · מפה ווידאו חי</span></div></div><div class="row"><label>שם המסך</label><input class="in" value="${d.name}"></div><div class="row"><label>מקום</label><div class="v"><select class="in" style="max-width:260px"><option>${d.area}</option>${AREAS.flatMap((f) => f.areas.map((a) => `<option>${a[0]}</option>`)).join('')}</select></div></div><div class="row"><label>ערכה</label><div class="v">${seg([['dark', 'כהה'], ['light', 'בהירה'], ['follow', 'כמו המערכת']], 'dark')}</div></div>${tog(d.status !== 'paused', 'מצב מסך קיר', 'כבוי = המשתמש רואה את המערכת הרגילה')}${tog(d.remote, 'כניסה מרחוק', 'כבוי = רק מהרשת המקומית')}<div class="msg" data-tone="ok">${ic('tv')}נפתח לבד כשהמשתמש מתחבר מטאבלט · בטלפון ובמחשב רואים את המערכת הרגילה · <a href="detect.html" style="color:inherit">איך זה מזוהה</a></div></div>
       <div class="sect"><h3>מצלמות</h3><div class="picker"><div class="tree">${AREAS.map((f) => `<div class="fl">${ic('chevron')}${f.floor}</div>${f.areas.map((a) => `<div class="ar${a[0] === d.area ? ' on' : ''}"><span>${a[0]}</span><span class="mini">${a[1].length}</span></div>`).join('')}`).join('')}</div><div class="cams">${CAMS.map((c) => { const i = d.cams.indexOf(c.id); return `<div class="cam${i >= 0 ? ' on' : ''}"><span class="thumb" style="--scene:${c.scene}"></span><span class="nm">${c.name}</span>${i >= 0 ? `<span class="ord">${i + 1}</span>${ic('drag', 'drag')}` : ''}</div>`; }).join('')}</div></div><div class="note">${d.cams.length} מצלמות נבחרו · הסדר הוא סדר האריחים · זרם משני${d.cams.length > 6 ? ' · <span style="color:var(--sw-stale-text)">מעל 6 זרמים - בדוק שהמקליט עומד בעומס</span>' : ''}</div></div>
-      <div class="sect"><h3>פריסה</h3><div class="row"><label>תבנית</label><div class="v">${seg([['auto', 'אוטומטי'], ['tablet-landscape', 'לרוחב'], ['tablet-portrait', 'לאורך'], ['wall', 'קיר'], ['single', 'אחת']], 'auto')}</div></div><div class="row"><label>רשת</label><div class="v">${seg([['auto', 'אוטומטי'], ['2x2', '2×2'], ['3x2', '3×2'], ['3x3', '3×3']], 'auto')}<span class="note">עכשיו: ${c}×${r}</span></div></div><div class="row"><label>דפדוף</label><div class="v">${seg([['0', 'ללא'], ['15', '15 שנ׳'], ['30', '30 שנ׳'], ['60', 'דקה']], d.cams.length > c * r ? '30' : '0')}</div></div><div class="row"><label>שורת מצב</label><div class="chips">${[['clock', 'שעון', true], ['date', 'תאריך', true], ['weather', 'מזג אוויר', true], ['health', 'בריאות', true], ['alarm', 'אזעקה', true], ['energy', 'צריכה', false]].map(([k, t, on]) => `<button class="chk${on ? ' on' : ''}">${on ? ic('check') : ''}${t}</button>`).join('')}</div></div>${d.preset === 'tablet-portrait' ? tog(true, 'רצועת מפה', 'במצב לאורך בלבד') : ''}<div class="row"><label>תצוגה מקדימה</label><div class="preview"><div class="frame" data-p="${d.preset}" style="--c:${c};--r:${r}"><div class="s"></div><div class="g">${Array.from({ length: c * r }, (_, i) => `<i class="${i === 0 && d.alerts ? 'a' : ''}"></i>`).join('')}</div></div><span class="note">${PRESET_HE[d.preset]} · התא הראשון מתחלף באריח התראה</span></div></div></div>`;
+      <div class="sect"><h3>פריסה</h3><div class="row"><label>תבנית</label><div class="v">${seg([['auto', 'אוטומטי'], ['tablet-landscape', 'לרוחב'], ['tablet-portrait', 'לאורך'], ['single', 'אחת']], 'auto')}</div></div><div class="row"><label>רשת</label><div class="v">${seg([['auto', 'אוטומטי'], ['2x2', '2×2'], ['3x2', '3×2'], ['3x3', '3×3']], 'auto')}<span class="note">עכשיו: ${c}×${r}</span></div></div><div class="row"><label>דפדוף</label><div class="v">${seg([['0', 'ללא'], ['15', '15 שנ׳'], ['30', '30 שנ׳'], ['60', 'דקה']], d.cams.length > c * r ? '30' : '0')}</div></div><div class="row"><label>שורת מצב</label><div class="chips">${[['clock', 'שעון', true], ['date', 'תאריך', true], ['weather', 'מזג אוויר', true], ['health', 'בריאות', true], ['alarm', 'אזעקה', true], ['energy', 'צריכה', false]].map(([k, t, on]) => `<button class="chk${on ? ' on' : ''}">${on ? ic('check') : ''}${t}</button>`).join('')}</div></div>${d.preset === 'tablet-portrait' ? tog(true, 'רצועת מפה', 'במצב לאורך בלבד') : ''}<div class="row"><label>תצוגה מקדימה</label><div class="preview"><div class="frame" data-p="${d.preset}" style="--c:${c};--r:${r}"><div class="s"></div><div class="g">${Array.from({ length: c * r }, (_, i) => `<i class="${i === 0 && d.alerts ? 'a' : ''}"></i>`).join('')}</div></div><span class="note">${PRESET_HE[d.preset]} · התא הראשון מתחלף באריח התראה</span></div></div></div>`;
   }
 
   /* ---------- boot ---------- */
-  window.WallMock = { renderWall, renderPair, renderSettings, WALL_STATES, PAIR_STEPS, SET_VIEWS, CAMS, DEVICES };
+  window.WallMock = { renderWall, renderLogin, renderApp, renderSettings, WALL_STATES, LOGIN_STEPS, SET_VIEWS, CAMS, DEVICES };
   const page = document.body.dataset.page;
-  if (page === 'wall') renderWall(); else if (page === 'pair') renderPair(); else if (page === 'settings') renderSettings();
+  if (page === 'wall') renderWall(); else if (page === 'login') renderLogin(); else if (page === 'app') renderApp(); else if (page === 'settings') renderSettings();
 })();

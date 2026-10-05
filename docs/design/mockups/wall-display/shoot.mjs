@@ -14,42 +14,41 @@ const pw = candidates.find((p) => { try { createRequire(p).resolve('playwright')
 if (!pw) throw new Error('playwright not found; run npm ci in frontend/ or set SW_MAIN_CHECKOUT');
 const { chromium } = createRequire(pw)('playwright');
 
-const VP = { L: [1280, 800], P: [800, 1280], W: [1920, 1080], D: [1440, 900], M: [390, 844] };
+const VP = { L: [1280, 800], P: [800, 1280], T: [1920, 1200], D: [1440, 900], M: [390, 844] };
 const shots = [];
 const add = (page, params, vp, skin, scheme, group, note) => shots.push({ page, params, vp, skin, scheme, group, note });
 
-const WALL_STATES = ['base', 'rotating', 'info', 'alert', 'alert-stack', 'takeover', 'takeover-stack', 'resolved', 'frame', 'frame-info', 'dim', 'sleep', 'cam-stale', 'cam-lost', 'server-offline', 'server-clock', 'config-updated', 'identify', 'installer', 'sound-locked', 'no-cameras', 'revoked', 'paused', 'remote-refused', 'pairing-network'];
-const PAIR_STEPS = ['start', 'code', 'claimed', 'approved', 'expired', 'denied', 'network'];
-const SET_VIEWS = ['list', 'empty', 'error', 'add-code', 'add-bad', 'add-throttled', 'add-hint', 'add-form', 'drawer', 'drawer-alerts', 'drawer-frame', 'drawer-schedule', 'revoke', 'identify', 'saved'];
+const WALL_STATES = ['base', 'rotating', 'info', 'alert', 'alert-stack', 'takeover', 'takeover-stack', 'resolved', 'frame', 'frame-info', 'dim', 'sleep', 'cam-stale', 'cam-lost', 'server-offline', 'server-clock', 'config-updated', 'installer', 'sound-locked', 'no-cameras', 'access-removed', 'remote-refused', 'no-connection'];
+const LOGIN_STEPS = ['form', 'error', 'detect', 'removed'];
+const SET_VIEWS = ['list', 'empty', 'error', 'add', 'add-form', 'drawer', 'drawer-alerts', 'drawer-frame', 'drawer-schedule', 'remove', 'saved'];
 
-// 1. pairing on the tablet
-for (const s of PAIR_STEPS) add('pair', `step=${s}`, 'L', 'classic', 'dark', 'pair', s);
-add('pair', 'step=code', 'P', 'classic', 'dark', 'pair', 'code, portrait');
-add('pair', 'step=code', 'L', 'bubble', 'dark', 'pair', 'code, bubble');
-add('pair', 'step=code', 'L', 'classic', 'light', 'pair', 'code, light');
+// 1. the normal login on a tablet, and what the same user sees on a phone / desktop (detection)
+for (const s of LOGIN_STEPS) add('login', `step=${s}`, 'L', 'classic', 'dark', 'login', `login: ${s}`);
+add('login', 'step=form', 'P', 'classic', 'dark', 'login', 'login, portrait');
+add('login', 'step=form', 'L', 'bubble', 'dark', 'login', 'login, bubble');
+add('app', 'cls=phone', 'M', 'classic', 'light', 'login', 'same user on a phone: the normal application');
+add('app', 'cls=desktop', 'D', 'classic', 'light', 'login', 'same user on a desktop: the normal application');
+add('detect', 'view=1', 'D', 'classic', 'light', 'login', 'detection rule, three results, the check table');
 // 2. the display: every state at tablet landscape, classic dark
 for (const s of WALL_STATES) add('wall', `state=${s}`, 'L', 'classic', 'dark', 'wall-states', s);
-// 3. presets: the hero states at portrait and wall
-for (const s of ['base', 'alert', 'takeover', 'frame', 'sleep', 'server-offline', 'cam-stale'])
-  for (const vp of ['P', 'W']) add('wall', `state=${s}`, vp, 'classic', 'dark', 'wall-presets', `${s} @ ${vp}`);
-add('wall', 'state=alert-stack', 'W', 'classic', 'dark', 'wall-presets', 'alert column with three items');
-add('wall', 'state=takeover-stack', 'W', 'classic', 'dark', 'wall-presets', 'takeover with a stack');
-add('wall', 'state=resolved', 'W', 'classic', 'dark', 'wall-presets', 'resolved in the column');
-add('wall', 'state=base&cams=12', 'W', 'classic', 'dark', 'wall-presets', '12 cameras, 4x3');
+add('wall', 'state=alert&ack=on', 'L', 'classic', 'dark', 'wall-states', 'alert tile with acknowledge enabled (press and hold)');
+// 3. presets: portrait, large tablet landscape, single, 6 cameras
+for (const s of ['base', 'alert', 'takeover', 'frame', 'sleep', 'server-offline', 'cam-stale']) add('wall', `state=${s}`, 'P', 'classic', 'dark', 'wall-presets', `${s} @ portrait`);
+for (const s of ['base', 'alert', 'takeover']) add('wall', `state=${s}&cams=6`, 'T', 'classic', 'dark', 'wall-presets', `${s} @ large tablet 1920x1200`);
 add('wall', 'state=base&cams=1&preset=single', 'L', 'classic', 'dark', 'wall-presets', 'single camera preset');
 add('wall', 'state=base&cams=6', 'L', 'classic', 'dark', 'wall-presets', '6 cameras, 3x2 on a tablet');
 add('wall', 'state=base&cams=2', 'P', 'classic', 'dark', 'wall-presets', '2 cameras, portrait');
 // 4. skins and schemes
 for (const [skin, scheme] of [['bubble', 'dark'], ['classic', 'light'], ['bubble', 'light']])
   for (const s of ['base', 'alert', 'takeover', 'frame']) add('wall', `state=${s}`, 'L', skin, scheme, 'wall-skins', `${s} ${skin} ${scheme}`);
-for (const s of ['base', 'alert']) for (const vp of ['P', 'W']) add('wall', `state=${s}`, vp, 'bubble', 'dark', 'wall-skins', `${s} bubble @ ${vp}`);
+for (const s of ['base', 'alert']) add('wall', `state=${s}`, 'P', 'bubble', 'dark', 'wall-skins', `${s} bubble @ portrait`);
 // 5. settings
 for (const v of SET_VIEWS) add('settings', `view=${v}`, 'D', 'classic', 'light', 'settings', v);
 for (const [skin, scheme] of [['bubble', 'light'], ['classic', 'dark'], ['bubble', 'dark']])
-  for (const v of ['list', 'add-hint', 'drawer', 'drawer-alerts']) add('settings', `view=${v}`, 'D', skin, scheme, 'settings-skins', `${v} ${skin} ${scheme}`);
+  for (const v of ['list', 'add-form', 'drawer', 'drawer-alerts']) add('settings', `view=${v}`, 'D', skin, scheme, 'settings-skins', `${v} ${skin} ${scheme}`);
 add('settings', 'view=list', 'M', 'classic', 'light', 'settings', 'list on a phone (cards)');
 add('settings', 'view=drawer', 'M', 'classic', 'light', 'settings', 'drawer on a phone');
-add('settings', 'view=add-code', 'M', 'classic', 'light', 'settings', 'code entry on a phone');
+add('settings', 'view=add-form', 'M', 'classic', 'light', 'settings', 'add dialog on a phone');
 
 const outDir = path.join(here, 'screens');
 fs.mkdirSync(outDir, { recursive: true });
