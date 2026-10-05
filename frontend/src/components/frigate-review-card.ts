@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
-import { LAYER_TEXT, cardTime, objectLabel, reviewThumbUrl, spanText, type ReviewItem, type ReviewLayer } from '../api/frigate';
+import { LAYER_TEXT, cardTime, objectLabel, spanText, type ReviewItem, type ReviewLayer } from '../api/frigate';
 import { he } from '../i18n/he';
 
 const LAYER_ICON: Record<ReviewLayer, IconName> = { alert: 'warning', detection: 'eye', motion: 'activity' };
@@ -245,14 +245,14 @@ export class FrigateReviewCard extends LitElement {
     const lt = LAYER_TEXT[it.layer].one;
     const dur = spanText(it.start, it.end);
     const where = [it.area_name, it.floor_name].filter(Boolean).join(' · ');
-    const src = it.thumb_url ?? reviewThumbUrl(it.id);
+    const src = it.thumb_url ?? '';
     return html`<article data-review-card=${it.id} data-layer=${it.layer} data-reviewed=${String(it.reviewed)}>
       <button type="button" class="thumb" data-review-open aria-label=${`${r.open}: ${it.camera_name}`} @click=${() => this.emit('review-open')}>
-        ${it.thumbnail === 'ready' && !this.broken
+        ${it.thumbnail === 'ready' && src && !this.broken
           ? html`<img src=${src} alt="" loading="lazy" @error=${() => (this.broken = true)} />`
           : html`<span class="none"><sw-icon name="image" size="24"></sw-icon>${r.noThumb}</span>`}
         <span class="layer" data-layer=${it.layer}><sw-icon name=${LAYER_ICON[it.layer]} size="12"></sw-icon>${lt}</span>
-        <span class="state" data-review-state=${it.reviewed ? 'reviewed' : 'new'}>${it.reviewed ? html`<sw-icon name="check" size="12"></sw-icon><span>${r.reviewed}</span>` : html`<i></i><span>${r.unreviewed}</span>`}</span>
+        ${it.layer === 'motion' ? nothing : html`<span class="state" data-review-state=${it.reviewed ? 'reviewed' : 'new'}>${it.reviewed ? html`<sw-icon name="check" size="12"></sw-icon><span>${r.reviewed}</span>` : html`<i></i><span>${r.unreviewed}</span>`}</span>`}
         ${dur ? html`<span class="dur">${dur}</span>` : nothing}
       </button>
       <div class="body">

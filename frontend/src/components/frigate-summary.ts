@@ -1,16 +1,35 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
-import { FEATURE_ORDER, featureLabel, summaryRows, type FrigateCapabilities } from '../api/frigate';
+import { FEATURE_CORE, FEATURE_ORDER, featureLabel, recorderCapabilities, summaryRows, type FrigateCapabilities } from '../api/frigate';
 import { he } from '../i18n/he';
 
 /**
- * NN5-F1B: what a Frigate recorder offers, shown under the connection test (version, cameras, detectors, retention, the features
- * Arx discovered on / off). Data only: no actions. Tokens only, so a designer restyles it without touching the logic.
+ * NN5-F1B: what a Frigate recorder offers (version, cameras, detectors, retention, the features Arx discovered on / off). Data only: no
+ * actions. Either `caps` is given (the connection test: the server then knows only the version and the camera count, so the rest is
+ * announced as coming after the save) or `recorderId` names a saved recorder and the card reads its status itself.
+ * Tokens only, so a designer restyles it without touching the logic.
  */
 @customElement('frigate-summary')
 export class FrigateSummary extends LitElement {
   @property({ attribute: false }) caps: FrigateCapabilities | null = null;
+  @property({ attribute: 'recorder-id' }) recorderId = '';
+  @state() private loaded: FrigateCapabilities | null = null;
+  @state() private failed = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (this.recorderId && !this.caps) void this.load();
+  }
+
+  private async load() {
+    try {
+      this.loaded = await recorderCapabilities(this.recorderId);
+      this.failed = false;
+    } catch {
+      this.failed = true;
+    }
+  }
 
   static styles = css`
     :host {
@@ -86,24 +105,25 @@ export class FrigateSummary extends LitElement {
   `;
 
   render() {
-    const c = this.caps;
-    if (!c) return nothing;
+    const c = this.caps ?? this.loaded;
     const s = he.frigate.summary;
-    const known = FEATURE_ORDER.filter((f) => f in c.features || ['review_items', 'object_events', 'timeline', 'search_text', 'snapshots'].includes(f));
+    if (!c) return this.failed ? html`<div class="note" data-frigate-summary-failed><sw-icon name="info" size="14"></sw-icon><span>${s.unavailable}</span></div>` : nothing;
+    const feats = c.features;
+    const known = feats ? FEATURE_ORDER.filter((f) => FEATURE_CORE.includes(f) || f in feats) : [];
     return html`<div class="box" data-frigate-summary>
       <h4>${s.title}</h4>
       <dl>
         ${summaryRows(c).map((r) => html`<dt>${r.label}</dt><dd data-frigate-row=${r.key} class=${r.key === 'version' ? 'ltr' : ''}>${r.value}</dd>`)}
       </dl>
-      <div>
+      ${feats ? html`<div>
         <h4>${s.features}</h4>
         <ul class="feats" data-frigate-features>
           ${known.map((f) => {
-            const on = c.features[f] === true;
+            const on = feats![f] === true;
             return html`<li class="feat" data-feature=${f} data-on=${String(on)} aria-label=${`${featureLabel(f)}: ${on ? s.on : s.off}`}><sw-icon name=${on ? 'check' : 'close'} size="12"></sw-icon>${featureLabel(f)}</li>`;
           })}
         </ul>
-      </div>
+      </div>` : html`<div class="note" data-frigate-more-after-save><sw-icon name="info" size="14"></sw-icon><span>${s.moreAfterSave}</span></div>`}
       <div class="note" data-frigate-readonly><sw-icon name="info" size="14"></sw-icon><span>${s.readOnly}${c.restream ? '' : ` ${s.stillOnly}`}</span></div>
     </div>`;
   }

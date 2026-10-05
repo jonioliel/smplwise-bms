@@ -6,6 +6,7 @@ import './sw-field';
 import './sw-state-panel';
 import './frigate-summary';
 import { he } from '../i18n/he';
+import { capabilitiesOfTest } from '../api/frigate';
 import { ApiError, describeError } from '../api/client';
 import {
   nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection, REMOVE_WORD, SAVE_WORD,
@@ -265,6 +266,7 @@ export class NvrConnectionForm extends LitElement {
 
   private testText(r: TestResult): string {
     if (r.ok) return ['מחובר', r.model, r.channels != null ? `${r.channels} ערוצים` : null].filter(Boolean).join(' · ');
+    if (r.code === 'nvr_not_supported') return `גרסת Frigate ${r.firmware ?? ''} אינה נתמכת${r.min_version ? ` (נדרשת ${r.min_version} ומעלה)` : ''}`.replace('  ', ' ');
     return TEST_TEXT[r.code] ?? 'לא ניתן להתחבר';
   }
 
@@ -429,7 +431,7 @@ export class NvrConnectionForm extends LitElement {
     const warnings = (r.warnings ?? []).filter((w) => WARNING_TEXT[w] && !this.dismissed.includes(w));
     const cert = r.certificate;
     const pinned = this.draft.extra.tls_pin && cert && this.draft.extra.tls_pin === cert.sha256;
-    return html`${r.capabilities ? html`<frigate-summary .caps=${r.capabilities}></frigate-summary>` : nothing}${warnings.map((w) => html`<div class="note warn warnrow" role="note" data-conn-warning=${w}><span>${WARNING_TEXT[w]}</span>
+    return html`${this.draft.vendor === 'frigate' && r.ok ? html`<frigate-summary .caps=${r.capabilities ?? capabilitiesOfTest(r)}></frigate-summary>` : nothing}${warnings.map((w) => html`<div class="note warn warnrow" role="note" data-conn-warning=${w}><span>${WARNING_TEXT[w]}</span>
         <button type="button" class="linkbtn" aria-label="סגור" data-conn-warning-dismiss=${w} @click=${() => (this.dismissed = [...this.dismissed, w])}>×</button></div>`)}
       ${cert ? html`<div class="note cert" data-conn-certificate>
           <span>תעודת המכשיר${cert.self_signed ? ' (חתומה עצמית)' : ''}: <span class="ltr mono">${cert.sha256.slice(0, 16)}…</span>${cert.matches_pin === false ? html` · <b>שונה מהתעודה שננעצה</b>` : nothing}</span>

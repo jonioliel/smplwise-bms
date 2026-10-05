@@ -82,6 +82,8 @@ export interface TestResult {
   certificate?: { sha256: string; self_signed: boolean | null; matches_pin: boolean | null };
   /** CR-025: "pin" chosen and no fingerprint yet - pin the certificate shown before saving. */
   pin_required?: boolean;
+  /** NN5-F1B (Frigate): `nvr_not_supported` carries the version found and the minimum the product needs. */
+  min_version?: string;
   /** NN5-F1B (Frigate): what the recorder offers - version, cameras, detectors, features, retention (read-only discovery). */
   capabilities?: FrigateCapabilities;
 }

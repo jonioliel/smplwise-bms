@@ -1,6 +1,5 @@
 /** CR-026: recorder health cards (GET /recorder-health) and their thresholds (GET/PUT /recorder-health/settings, system.configure). */
 import { get, post, put } from './client';
-import type { FrigateHealth } from './frigate';
 
 export type HealthState = 'ok' | 'warn' | 'error' | 'unknown' | 'off';
 
@@ -23,8 +22,8 @@ export interface RecorderHealthCard {
   channels: (Section & { total?: number; connected?: number; disconnected?: { channel: number; name: string }[] }) | null;
   clock: (Section & { drift_s?: number }) | null;
   certificate: (Section & { days_left?: number | null }) | null;
-  /** NN5-F1B: a Frigate recorder's own rows (detectors, per-camera fps and status, hours of recording left, partial coverage). */
-  frigate?: FrigateHealth | null;
+  /** NN5-F1B: what the vendor reads beyond the common sections (a Frigate recorder: detectors, per-camera fps, hours left, policy). */
+  vendor_details?: Record<string, unknown> | null;
 }
 
 export interface RecorderHealthList {

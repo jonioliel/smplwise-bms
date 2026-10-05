@@ -8,7 +8,7 @@ import { describeError } from '../api/client';
 import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type CameraRecordingMode, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
 import type { StateKind } from './sw-badge';
 import { SkinController } from '../design/skin';
-import { cameraHealthText, detectorOverloaded, hoursLeftState, hoursLeftText, type FrigateHealth } from '../api/frigate';
+import { cameraHealthText, detectorOverloaded, frigateHealthFor, hoursLeftState, hoursLeftText, type FrigateHealth } from '../api/frigate';
 import { he } from '../i18n/he';
 
 const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error: 'offline', unknown: 'unknown', off: 'neutral' };
@@ -37,6 +37,8 @@ export class RecorderHealthPanel extends LitElement {
   /** Show the thresholds card (the host passes whether the user may change settings). */
   @property({ type: Boolean }) manage = false;
   @state() private cards: RecorderHealthCard[] | null = null;
+  /** NN5-F1B: the Frigate rows per recorder id (from the card's vendor_details and the recorder's camera names). */
+  @state() private frigate: Record<string, FrigateHealth | null> = {};
   @state() private error = '';
   @state() private busy = false;
   @state() private th: ThresholdsAnswer | null = null;
@@ -52,6 +54,7 @@ export class RecorderHealthPanel extends LitElement {
     try {
       const r = await recorderHealth();
       this.cards = r.recorders;
+      void this.loadFrigate(r.recorders);
       this.error = '';
       if (this.manage && r.can_manage && !this.th) this.th = await healthThresholds();
     } catch (err) {
@@ -59,10 +62,20 @@ export class RecorderHealthPanel extends LitElement {
     }
   }
 
+  private async loadFrigate(cards: RecorderHealthCard[]) {
+    const next: Record<string, FrigateHealth | null> = {};
+    await Promise.all(cards.filter((c) => c.vendor === 'frigate' && c.vendor_details).map(async (c) => {
+      const free = (c.disks?.free_pct as number | null | undefined) ?? null;
+      next[c.id] = await frigateHealthFor(c.id, c.vendor_details, free).catch(() => null);
+    }));
+    this.frigate = next;
+  }
+
   private async check() {
     this.busy = true;
     try {
       this.cards = (await checkRecorderHealth()).recorders;
+      void this.loadFrigate(this.cards);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -371,7 +384,7 @@ export class RecorderHealthPanel extends LitElement {
       ${this.row('channels', 'מצלמות', ch, cams)}
       ${this.row('clock', 'שעון', k, clock)}
       ${t ? this.row('certificate', 'תעודה', t, cert) : nothing}
-      ${c.frigate ? this.frigateRows(c.frigate) : nothing}
+      ${this.frigate[c.id] ? this.frigateRows(this.frigate[c.id]!) : nothing}
     </div>`;
   }
 

@@ -10,7 +10,7 @@ import '../components/frigate-review-card';
 import '../components/frigate-review-detail';
 import './investigate-events';
 import { ApiError, describeError } from '../api/client';
-import { canAnywhere, isApi } from '../api/session';
+import { isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { listCameras } from '../api/maps';
 import { navigate } from '../router';
@@ -24,10 +24,13 @@ import { he } from '../i18n/he';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
+/** The motion layer reads at most the last 24 h whatever the period says: the screen says so. */
+const f_motionCap = (f: { layer: string; period: string }) => f.layer === 'motion' && (f.period === '7d' || f.period === '30d');
+
 /** How often the list is re-read while the screen is open and visible (the push socket is a later phase: the study, F1 polling backfill). */
 const POLL_MS = 30_000;
 /** The answer of an installation without a Frigate recorder: the screen is the event windows. */
-const UNAVAILABLE: ReviewList = { available: false, items: [], counts: { alert: 0, detection: 0, motion: 0 }, unreviewed: { alert: 0, detection: 0, motion: 0 }, facets: { objects: [] }, next_cursor: null };
+const UNAVAILABLE: ReviewList = { available: false, items: [], counts: { alert: 0, detection: 0, motion: -1 }, unreviewed: { alert: 0, detection: 0, motion: 0 }, facets: { objects: [] }, next_cursor: null };
 
 /**
  * NN5-F1B: סקירה - the review screen of a Frigate recorder. One card per activity span (not one row per detection), three layers
@@ -49,7 +52,7 @@ export class InvestigateReviews extends LitElement {
   @state() private forbidden = false;
   @state() private busy = false;
   @state() private moreBusy = false;
-  @state() private cams: { id: string; name: string }[] = [];
+  @state() private cams: { id: string; name: string; recorder_id?: string }[] = [];
   @state() private tz = 'Asia/Jerusalem';
   @state() private selected: ReadonlySet<string> = new Set();
   @state() private focusIdx = -1;
@@ -62,8 +65,9 @@ export class InvestigateReviews extends LitElement {
   private get demo() {
     return !isApi();
   }
+  /** The caller's own reviewed state: any reader may mark (the server needs events.read on the item). A motion span is not an item. */
   private get canReview() {
-    return this.demo || canAnywhere('analytics.review');
+    return this.filters.layer !== 'motion';
   }
 
   connectedCallback() {
@@ -90,7 +94,7 @@ export class InvestigateReviews extends LitElement {
     try {
       const [settings, cams] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
-      this.cams = cams.cameras.map((c) => ({ id: c.id, name: c.alias || c.name }));
+      this.cams = cams.cameras.map((c) => ({ id: c.id, name: c.alias || c.name, recorder_id: c.recorder_id }));
     } catch {
       /* the filters still work without names: the review list carries the camera name */
     }
@@ -108,15 +112,9 @@ export class InvestigateReviews extends LitElement {
 
   private async load(quiet = false) {
     const seq = ++this.seq;
-    if (!this.demo && !canAnywhere('analytics.read')) {
-      // no analytics permission: whoever may read events keeps the event windows (as before), everyone else is told they may not
-      if (canAnywhere('events.read')) this.list = UNAVAILABLE;
-      else this.forbidden = true;
-      return;
-    }
     if (!quiet) this.busy = true;
     try {
-      const list = this.demo ? demoList(this.demoItems, { layer: this.filters.layer, camera: this.filters.camera, object: this.filters.object, reviewed: this.filters.status === 'all' ? undefined : String(this.filters.status === 'reviewed') }) : await listReviews(this.filters);
+      const list = this.demo ? demoList(this.demoItems, { layer: this.filters.layer, camera: this.filters.camera, object: this.filters.object, reviewed: this.filters.status === 'all' || this.filters.layer === 'motion' ? undefined : String(this.filters.status === 'reviewed') }) : await listReviews(this.filters);
       if (seq !== this.seq) return; // a newer request owns the screen
       this.list = list;
       this.error = '';
@@ -128,7 +126,7 @@ export class InvestigateReviews extends LitElement {
     } catch (err) {
       if (seq !== this.seq) return;
       if (err instanceof ApiError && err.status === 403) this.forbidden = true;
-      else if (err instanceof ApiError && err.status === 404 && !this.list) this.list = UNAVAILABLE; // a server without the analytics routes
+      else if (err instanceof ApiError && err.status === 404 && !this.list) this.list = UNAVAILABLE; // a server without the Frigate routes
       else this.error = describeError(err);
     } finally {
       if (seq === this.seq) this.busy = false;
@@ -165,7 +163,7 @@ export class InvestigateReviews extends LitElement {
     }
     try {
       if (this.demo) this.demoItems = this.demoItems.map((i) => (ids.includes(i.id) ? { ...i, reviewed } : i));
-      else await markReviewed(ids, reviewed);
+      else await markReviewed(before.items.filter((i) => ids.includes(i.id)), reviewed);
       this.selected = new Set();
     } catch {
       this.list = before;
@@ -237,7 +235,7 @@ export class InvestigateReviews extends LitElement {
   private async open(item: ReviewItem) {
     this.drawer = { item, detail: null, loading: true };
     try {
-      const detail = this.demo ? demoDetail(item.id, this.demoItems) : await reviewDetail(item.id);
+      const detail = this.demo ? demoDetail(item.id, this.demoItems) : await reviewDetail(item);
       if (this.drawer?.item.id === item.id) this.drawer = { item: this.drawer.item, detail: detail ? { ...detail, reviewed: this.drawer.item.reviewed } : { ...item, tracked: [] }, loading: false };
     } catch {
       // the card's own facts still make a useful drawer: the timeline is just not there
@@ -385,7 +383,8 @@ export class InvestigateReviews extends LitElement {
   private toolbar(list: ReviewList) {
     const r = he.frigate.review;
     const f = this.filters;
-    const cams = [{ id: '', label: r.allCameras }, ...this.cams.map((c) => ({ id: c.id, label: c.name }))];
+    const mine = list.recorder_ids ? this.cams.filter((c) => !c.recorder_id || list.recorder_ids!.includes(c.recorder_id)) : this.cams;
+    const cams = [{ id: '', label: r.allCameras }, ...mine.map((c) => ({ id: c.id, label: c.name }))];
     const objs = [{ id: '', label: r.allObjects }, ...list.facets.objects.map((o) => ({ id: o, label: objectLabel(o) }))];
     const periods = (Object.keys(PERIOD_TEXT) as ReviewPeriod[]).map((p) => ({ id: p, label: PERIOD_TEXT[p] }));
     const statuses = (Object.keys(STATUS_TEXT) as ReviewStatus[]).map((s) => ({ id: s, label: STATUS_TEXT[s] }));
@@ -393,7 +392,7 @@ export class InvestigateReviews extends LitElement {
       <div class="bar">
         <div class="layers" role="tablist" aria-label=${r.title}>
           ${LAYERS.map((l: ReviewLayer) => html`<button type="button" role="tab" data-review-layer=${l} data-layer=${l} aria-selected=${String(f.layer === l)} @click=${() => this.setFilter({ layer: l })}>
-            ${LAYER_TEXT[l].many}<span class="n">${list.counts[l]}</span>${list.unreviewed[l] > 0 ? html`<span class="new" title=${`${list.unreviewed[l]} ${r.unreviewed}`} data-review-new=${l}></span>` : nothing}
+            ${LAYER_TEXT[l].many}${list.counts[l] >= 0 ? html`<span class="n">${list.counts[l]}</span>` : nothing}${list.unreviewed[l] > 0 ? html`<span class="new" title=${`${list.unreviewed[l]} ${r.unreviewed}`} data-review-new=${l}></span>` : nothing}
           </button>`)}
         </div>
         ${this.canReview ? html`<sw-button size="sm" icon="check" data-review-mark-shown ?disabled=${!list.items.some((i) => !i.reviewed)} @click=${() => this.markShown()}>${r.markShown}</sw-button>` : nothing}
@@ -461,6 +460,7 @@ export class InvestigateReviews extends LitElement {
       ${list.stale ? html`<div class="banner" role="status" data-review-offline><sw-icon name="offline" size="16"></sw-icon>${r.offline}</div>` : nothing}
       ${this.error ? html`<div class="banner err" role="alert" data-review-error>${this.error} <button type="button" class="linkbtn" @click=${() => this.load()}>${r.retry}</button></div>` : nothing}
       ${this.notice ? html`<div class="banner err" role="alert" data-review-notice>${this.notice}</div>` : nothing}
+      ${f_motionCap(this.filters) ? html`<div class="banner" data-review-motion-cap><sw-icon name="info" size="16"></sw-icon>${r.motionCap}</div>` : nothing}
       ${list.partial_coverage ? html`<div class="banner" data-review-partial><sw-icon name="info" size="16"></sw-icon>${r.partialCoverage}</div>` : nothing}
       ${this.toolbar(list)}
       ${this.body(list)}

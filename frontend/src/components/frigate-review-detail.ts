@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import './sw-button';
 import './sw-state-panel';
-import { LAYER_TEXT, cardTime, objectLabel, playbackState, reviewThumbUrl, spanText, timelineText, type ReviewDetail } from '../api/frigate';
+import { LAYER_TEXT, cardTime, objectLabel, playbackState, spanRows, spanText, timelineText, type ReviewDetail } from '../api/frigate';
 import { he } from '../i18n/he';
 
 const hms = (iso: string, tz: string) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
@@ -136,7 +136,7 @@ export class FrigateReviewDetail extends LitElement {
     const where = [d.area_name, d.floor_name].filter(Boolean).join(' · ');
     return html`<div class="wrap" data-review-detail=${d.id}>
       ${d.thumbnail === 'ready'
-        ? html`<img class="pic" alt="" src=${d.thumb_url ?? reviewThumbUrl(d.id)} />`
+        ? html`<img class="pic" alt="" src=${d.thumb_url ?? ''} />`
         : html`<div class="nopic"><sw-icon name="image" size="20"></sw-icon>${r.noThumb}</div>`}
       <dl>
         <dt>${r.camera}</dt><dd>${d.camera_name}</dd>
@@ -144,16 +144,17 @@ export class FrigateReviewDetail extends LitElement {
         ${where ? html`<dt>${r.where}</dt><dd>${where}</dd>` : nothing}
         <dt>${r.zones}</dt><dd>${d.zones.length ? d.zones.join(' · ') : r.noZones}</dd>
         <dt>${r.objects}</dt><dd>${d.objects.length ? d.objects.map(objectLabel).join(', ') : '—'}</dd>
-        <dt>${LAYER_TEXT[d.layer].one}</dt><dd>${d.reviewed ? r.reviewed : r.unreviewed}</dd>
+        ${d.detections ? html`<dt>${r.detections}</dt><dd data-review-detections>${d.detections}</dd>` : nothing}
+        ${d.layer === 'motion' ? nothing : html`<dt>${LAYER_TEXT[d.layer].one}</dt><dd>${d.reviewed ? r.reviewed : r.unreviewed}</dd>`}
       </dl>
       <section data-review-timeline>
-        <h3>${r.timeline}</h3>
+        <h3>${d.tracked.length ? r.timeline : r.activity}</h3>
         ${d.tracked.length
           ? d.tracked.map((o) => html`<div class="obj" data-tracked=${o.id}>
               <div class="obj-h"><span>${objectLabel(o.label)}${o.sub_label ? ` · ${o.sub_label}` : ''}</span><small>${o.top_score != null ? `${r.topScore} ${Math.round(o.top_score * 100)}%` : ''}</small></div>
               <ol>${o.timeline.map((row) => html`<li data-timeline-row=${row.kind}><time datetime=${row.at}>${hms(row.at, this.tz)}</time><span>${timelineText(row.kind, row.zone, row.note)}</span></li>`)}</ol>
             </div>`)
-          : html`<p class="muted" data-review-no-timeline>${r.noTimeline}</p>`}
+          : html`<ol data-review-activity>${spanRows(d).map((row) => html`<li data-timeline-row=${row.kind}><time datetime=${row.at}>${hms(row.at, this.tz)}</time><span>${timelineText(row.kind)}</span></li>`)}</ol>`}
       </section>
       <div class="actions">
         <sw-button variant="primary" icon="history" data-review-play ?disabled=${!pb.available} @click=${() => pb.available && this.fire('review-play')}>${r.openRecording}</sw-button>

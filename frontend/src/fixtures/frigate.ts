@@ -1,6 +1,6 @@
 /** NN5-F1B: fixtures for the Frigate screens (demo mode and the Playwright mocks). Every name and value is made up; the pictures are
  * generated gradients, never a real frame. */
-import type { FrigateCapabilities, FrigateHealth, ReviewDetail, ReviewItem, ReviewLayer, ReviewList } from '../api/frigate';
+import type { ReviewDetail, ReviewItem, ReviewLayer, ReviewList } from '../api/frigate';
 
 const svg = (a: string, b: string, label: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="320" height="180" fill="url(#g)"/><circle cx="170" cy="96" r="22" fill="rgba(255,255,255,.35)"/><rect x="146" y="116" width="48" height="50" rx="14" fill="rgba(255,255,255,.28)"/><text x="12" y="20" font-size="12" fill="rgba(255,255,255,.7)" font-family="sans-serif">${label}</text></svg>`)}`;
@@ -94,24 +94,26 @@ export function reviewDetail(id: string, items: ReviewItem[] = REVIEW_ITEMS): Re
   };
 }
 
-export const FRIGATE_CAPABILITIES: FrigateCapabilities = {
-  version: '0.18.0',
-  cameras: { total: 6, enabled: 4, disabled: 2 },
-  detectors: [{ name: 'cpu1', type: 'cpu', inference_ms: 62 }],
-  features: { review_items: true, object_events: true, timeline: true, snapshots: false, search_text: true, search_semantic: false, zones: true, audio_events: false, faces: false, lpr: false, genai: false },
-  retention: { mode: 'motion', days: 10, alert_days: 30 },
-  restream: false,
+/** The server's `GET frigate/{rid}/status` for the fixture recorder (a motion-only policy, one CPU detector, no restream). */
+export const FRIGATE_STATUS = {
+  version: '0.18.0-fake', version_ok: true,
+  features: { review_items: true, object_events: true, snapshots_latest: true, recordings: true, hls_playback: true, restream: false, audio_events: false, search_text: true, search_semantic: false, timeline: false, faces: false, lpr: false, genai: false },
+  retention: { record_enabled: true, continuous_days: null, motion_days: 10, alerts_days: 30, detections_days: 10, mode: null },
+  detectors: [{ name: 'cpu1', type: 'cpu' }], cameras: 4, sync: { last_poll_error: null, ws_state: 'up' }, live: { mode: 'still' },
 };
 
-export const FRIGATE_HEALTH: FrigateHealth = {
-  version: '0.18.0',
-  detectors: [{ name: 'cpu1', type: 'cpu', inference_ms: 62, skipped_fps: 0 }],
+/** `GET frigate/{rid}/cameras` (the key is Frigate's own camera name). */
+export const FRIGATE_CAM_LIST = FRIGATE_CAMERAS.map((c) => ({ id: c.id, key: `cam_${c.id.replace('fg-', '')}`, name: c.name, enabled: true, frigate_enabled: c.id !== 'fg-gate' }));
+
+/** The recorder-health card's `vendor_details` for a Frigate recorder (fake numbers; the third camera has no picture). */
+export const FRIGATE_VENDOR_DETAILS = {
+  version: '0.18.0-fake', uptime_s: 90000,
+  detectors: [{ name: 'cpu1', inference_ms: 62 }], skipped_fps_total: 0,
   cameras: [
-    { id: 'fg-front', name: 'כניסה ראשית', fps: 5, state: 'ok', detect_enabled: true, reconnects_last_hour: 0, stalls_last_hour: 0 },
-    { id: 'fg-yard', name: 'חצר אחורית', fps: 4.8, state: 'ok', detect_enabled: true, reconnects_last_hour: 1, stalls_last_hour: 0 },
-    { id: 'fg-garage', name: 'חניה', fps: 0, state: 'down', detect_enabled: true, reconnects_last_hour: 6, stalls_last_hour: 2 },
-    { id: 'fg-gate', name: 'שער צדדי', fps: null, state: 'off', detect_enabled: false },
+    { key: 'cam_front', fps: 5, expected_fps: 5, skipped_fps: 0, detection_fps: 5, reconnects_last_hour: 0, stalls_last_hour: 0 },
+    { key: 'cam_yard', fps: 4.8, expected_fps: 5, skipped_fps: 0, detection_fps: 4.8, reconnects_last_hour: 1, stalls_last_hour: 0 },
+    { key: 'cam_garage', fps: 0, expected_fps: 5, skipped_fps: 0, detection_fps: 0, reconnects_last_hour: 6, stalls_last_hour: 2 },
   ],
-  storage: { hours_left: 70, mb_per_hour: 1400, free_pct: 41 },
-  partial_coverage: true,
+  storage: { bandwidth_mb_per_h: 1400, hours_left: 70, basis: 'recent bandwidth' },
+  recording_policy: { record_enabled: true, continuous_days: null, motion_days: 10, alerts_days: 30, detections_days: 10 },
 };
