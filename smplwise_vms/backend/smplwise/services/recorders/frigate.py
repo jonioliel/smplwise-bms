@@ -562,5 +562,6 @@ def register(*, selectable: bool = False) -> Callable[[], None] | None:
         VF("tls_pin", "טביעת אצבע של התעודה (SHA-256)", "text", False, advanced=True),
         VF("poll_interval_s", "מרווח דגימת אירועים (שניות)", "text", False, advanced=True),
     )
-    spec = registry.VendorSpec(VENDOR, "Frigate", "available" if selectable else "planned", {"http_port": DEFAULT_PORT, "rtsp_port": 8554}, fields)
+    # rtsp_port is unused in F1 (no restream); Frigate's own 8554 is a refused port on any host (it is go2rtc's), so the form default is 554
+    spec = registry.VendorSpec(VENDOR, "Frigate", "available" if selectable else "planned", {"http_port": DEFAULT_PORT, "rtsp_port": 554}, fields)
     return registry.register_vendor(spec, FrigateAdapter)

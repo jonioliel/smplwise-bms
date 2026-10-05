@@ -132,7 +132,7 @@ def playback_plan(recorder_id: str, camera_key: str, start: float, end: float, s
         first = starts[0] if starts else None
     base = f"{api_prefix}/frigate/{recorder_id}/cameras/{camera_ref or camera_key}/playback"  # the Arx camera id in the URL, never Frigate's key
     return {
-        "kind": "hls", "source": "frigate_vod", "recorder_id": recorder_id, "camera_key": camera_key,
+        "kind": "hls", "source": "frigate_vod", "recorder_id": recorder_id, "camera_id": camera_ref,
         "playlist": f"{base}/index.m3u8?start={start:.0f}&end={end:.0f}", "assets": f"{base}/{start:.0f}/{end:.0f}/<name>",
         "window": {"start": start, "end": end, "max_s": PLAYLIST_MAX_WINDOW_S},
         "anchors": {
@@ -152,7 +152,7 @@ def export_plan(recorder_id: str, camera_key: str, start: float, end: float, api
     (`GET /<cam>/start/<s>/end/<e>/clip.mp4`) makes the server cut a clip, NOT VERIFIED, and stays outside the F1 allow-list until
     the owner approves one test GET. The job would stream into Arx's own export store (manifest, audit, size limit, retention)."""
     return {
-        "executed": False, "status": "design_only", "recorder_id": recorder_id, "camera_key": camera_key, "window": {"start": start, "end": end},
+        "executed": False, "status": "design_only", "recorder_id": recorder_id, "camera_id": camera_ref, "window": {"start": start, "end": end},
         "frigate_route": f"GET /<camera>/start/{start:.0f}/end/{end:.0f}/clip.mp4", "verified": False, "allow_listed": False,
         "target": "arx export store (services/exports): manifest + audit + size limit + retention; Frigate stores nothing",
         "limits": {"max_window_s": EXPORT_PLAN_MAX_WINDOW_S, "max_bytes": EXPORT_PLAN_MAX_BYTES},

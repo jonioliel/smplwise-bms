@@ -472,8 +472,11 @@ class FakeVendorAdapter:
 
 
 def test_a_further_vendor_registers_through_the_seam(base, fakes):
-    # CR-025: Provision-ISR now has its real adapter; the seam is exercised with the vendor that still has none (Frigate)
-    assert registry.selectable("frigate") is False, "Frigate stays 'coming soon' until its adapter exists"
+    # CR-025 / NN5: Provision-ISR and Frigate have their real adapters; the seam is exercised by replacing Frigate's registration
+    # (still "coming soon" without SW_FRIGATE) with a fake and restoring it exactly
+    from smplwise.services.recorders.frigate import FrigateAdapter
+
+    assert registry.selectable("frigate") is False, "Frigate stays 'coming soon' until the feature flag"
     spec = registry.VendorSpec("frigate", "Frigate", "available", {"http_port": 80, "rtsp_port": 554}, registry._NETWORK_FIELDS)
     undo = registry.register_vendor(spec, FakeVendorAdapter)
     try:
@@ -496,7 +499,7 @@ def test_a_further_vendor_registers_through_the_seam(base, fakes):
         assert caps["nvr-2"]["vendor"] == "frigate" and caps["nvr-2"]["playback"] is False and caps["nvr-1"]["playback"] is True
     finally:
         undo()
-    assert registry.selectable("frigate") is False and "frigate" not in registry.VENDORS
+    assert registry.selectable("frigate") is False and registry.VENDORS["frigate"] is FrigateAdapter, "the real registration is restored"
     assert [v["id"] for v in registry.catalogue()] == ["hikvision", "provision_isr", "frigate", "none"], "the catalogue order is restored exactly"
 
 

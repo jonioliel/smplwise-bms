@@ -252,5 +252,5 @@ def settings_for(base: Any, **extra: Any) -> Any:
     mock transport simple; the TLS modes have their own tests)."""
     import dataclasses
 
-    return dataclasses.replace(base, nvr_host=HOST, nvr_http_port=8971, nvr_rtsp_port=8554, nvr_user=USER, nvr_password=PASSWORD,
+    return dataclasses.replace(base, nvr_host=HOST, nvr_http_port=8971, nvr_rtsp_port=554, nvr_user=USER, nvr_password=PASSWORD,
                                nvr_vendor="frigate", nvr_extra={"scheme": "http", **extra})
