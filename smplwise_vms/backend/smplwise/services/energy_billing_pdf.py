@@ -64,7 +64,7 @@ def engine_status() -> dict[str, Any] | None:
         return None
     s = bill_pdf.engine_status()
     return {"configured": s["configured"], "active": s["active"], "checked": s["checked"], "detail": s["detail"],
-            "last_render_engine": s["last_render_engine"], "slow_fallbacks": s["slow_fallbacks"], "fallback_after_s": s["fallback_after_s"]}
+            "last_render_engine": s["last_render_engine"], "slow_fallbacks": s["slow_fallbacks"], "crash_fallbacks": s["crash_fallbacks"], "fallback_after_s": s["fallback_after_s"]}
 
 
 def available() -> bool:
