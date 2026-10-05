@@ -4,6 +4,8 @@ import './sw-button';
 import './sw-dialog';
 import './sw-field';
 import './sw-state-panel';
+import './frigate-summary';
+import { he } from '../i18n/he';
 import { ApiError, describeError } from '../api/client';
 import {
   nvrConnection, nvrVendors, removeNvrConnection, saveNvrConnection, testNvrConnection, REMOVE_WORD, SAVE_WORD,
@@ -427,7 +429,7 @@ export class NvrConnectionForm extends LitElement {
     const warnings = (r.warnings ?? []).filter((w) => WARNING_TEXT[w] && !this.dismissed.includes(w));
     const cert = r.certificate;
     const pinned = this.draft.extra.tls_pin && cert && this.draft.extra.tls_pin === cert.sha256;
-    return html`${warnings.map((w) => html`<div class="note warn warnrow" role="note" data-conn-warning=${w}><span>${WARNING_TEXT[w]}</span>
+    return html`${r.capabilities ? html`<frigate-summary .caps=${r.capabilities}></frigate-summary>` : nothing}${warnings.map((w) => html`<div class="note warn warnrow" role="note" data-conn-warning=${w}><span>${WARNING_TEXT[w]}</span>
         <button type="button" class="linkbtn" aria-label="סגור" data-conn-warning-dismiss=${w} @click=${() => (this.dismissed = [...this.dismissed, w])}>×</button></div>`)}
       ${cert ? html`<div class="note cert" data-conn-certificate>
           <span>תעודת המכשיר${cert.self_signed ? ' (חתומה עצמית)' : ''}: <span class="ltr mono">${cert.sha256.slice(0, 16)}…</span>${cert.matches_pin === false ? html` · <b>שונה מהתעודה שננעצה</b>` : nothing}</span>
@@ -457,6 +459,7 @@ export class NvrConnectionForm extends LitElement {
           <summary>הגדרות מתקדמות</summary><div class="grid">${this.visibleFields(spec).filter((f) => f.advanced).map((f) => this.field(f))}</div></details>` : nothing}
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       ${this.testExtras()}
+      ${d.vendor === 'frigate' ? html`<div class="note" data-conn-frigate-hint>${he.frigate.summary.viewerHint} ${he.frigate.summary.linkHint}</div>` : nothing}
       <div class="actions">
         ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
         <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : this.context === 'add' ? 'הוסף' : 'שמור'}</sw-button>

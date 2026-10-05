@@ -8,6 +8,8 @@ import { describeError } from '../api/client';
 import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type CameraRecordingMode, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
 import type { StateKind } from './sw-badge';
 import { SkinController } from '../design/skin';
+import { cameraHealthText, detectorOverloaded, hoursLeftState, hoursLeftText, type FrigateHealth } from '../api/frigate';
+import { he } from '../i18n/he';
 
 const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error: 'offline', unknown: 'unknown', off: 'neutral' };
 const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
@@ -135,6 +137,23 @@ export class RecorderHealthPanel extends LitElement {
     .r .k {
       color: var(--sw-text-2);
       flex-shrink: 0;
+    }
+    .r .k.nm2 {
+      flex-shrink: 1;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .r.wrap .k {
+      flex-shrink: 1;
+    }
+    .fcams > summary {
+      cursor: pointer;
+      padding-block: 6px 2px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      min-block-size: 24px;
     }
     .r .v {
       display: flex;
@@ -352,7 +371,25 @@ export class RecorderHealthPanel extends LitElement {
       ${this.row('channels', 'מצלמות', ch, cams)}
       ${this.row('clock', 'שעון', k, clock)}
       ${t ? this.row('certificate', 'תעודה', t, cert) : nothing}
+      ${c.frigate ? this.frigateRows(c.frigate) : nothing}
     </div>`;
+  }
+
+  /** NN5-F1B: the rows only a Frigate recorder reports. Partial coverage is a notice, never "no recording" (AGENTS). */
+  private frigateRows(f: FrigateHealth) {
+    const h = he.frigate.health;
+    const det = f.detectors.length
+      ? f.detectors.map((d) => `${d.name}${d.inference_ms != null ? ` · ${Math.round(d.inference_ms)} ${h.inference}` : ''}${detectorOverloaded(d) ? ` · ${h.overloaded}` : ''}`).join(', ')
+      : he.frigate.summary.noDetectors;
+    const detState: HealthState = f.detectors.some(detectorOverloaded) ? 'warn' : f.detectors.length ? 'ok' : 'unknown';
+    const left = hoursLeftText(f.storage);
+    return html`${this.row('frigate-detectors', h.detectors, { state: detState }, det)}
+      ${left ? this.row('frigate-hours-left', h.storageLeft, { state: hoursLeftState(f.storage) }, left) : nothing}
+      ${f.partial_coverage ? html`<div class="r wrap" data-rh-row="frigate-partial"><span class="k">${h.partial}</span><span class="v"><i class="dot" data-s="warn"></i></span></div>` : nothing}
+      ${f.cameras.length ? html`<details class="fcams" data-rh-frigate-cameras open>
+        <summary>${h.cameras} (${f.cameras.filter((c) => c.state === 'ok').length}/${f.cameras.length})</summary>
+        ${f.cameras.map((c) => html`<div class="r" data-rh-frigate-camera=${c.id} data-camera-state=${c.state}><span class="k nm2">${c.name}</span><span class="v"><span>${cameraHealthText(c)}${c.state === 'ok' && (c.reconnects_last_hour ?? 0) > 0 ? ` · ${c.reconnects_last_hour} ${h.reconnects}` : ''}</span><i class="dot" data-s=${c.state === 'ok' ? ((c.stalls_last_hour ?? 0) > 0 ? 'warn' : 'ok') : c.state === 'off' ? 'unknown' : 'error'}></i></span></div>`)}
+      </details>` : nothing}`;
   }
 
   private thresholds() {
