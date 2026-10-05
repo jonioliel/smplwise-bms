@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
+import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
@@ -1416,7 +1417,7 @@ export class DevicesSchedules extends LitElement {
     const all = rows.length > 0 && rows.every((s) => this.selected.has(s.id));
     return html`<div class="tbl glass" data-sched-table>
       <div class="tr h"><span><label class="pick"><input type="checkbox" aria-label="בחירת הכול" data-select-all .checked=${all} @change=${(e: Event) => (this.selected = (e.target as HTMLInputElement).checked ? new Set([...this.selected, ...rows.map((s) => s.id)]) : new Set([...this.selected].filter((id) => !rows.some((s) => s.id === id))))} /></label></span><span>שם</span><span class="cdays">ימים</span><span>משעה · פעולה</span><span>תנאי</span><span>הרצה הבאה</span><span>פעיל</span><span></span></div>
-      ${rows.map((s) => this.renderRow(s))}
+      ${repeat(rows, (s) => s.id, (s) => this.renderRow(s))}
     </div>`;
   }
 
@@ -1425,7 +1426,7 @@ export class DevicesSchedules extends LitElement {
       return html`<schedules-week-view .schedules=${rows} .sun=${isApi() ? null : DEMO_SUN} .snap=${this.status?.settings.snap_minutes ?? 15} @open-schedule=${(e: CustomEvent<{ id: string }>) => this.go(e.detail.id)}></schedules-week-view>`;
     }
     const groups = groupSchedules(sortSchedules(rows, this.filters.sort), this.filters.group);
-    const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : html`<div class="cgrid" data-sched-grid>${items.map((s) => this.renderCard(s))}</div>`);
+    const body = (items: Schedule[]) => (this.view === 'table' ? this.renderTable(items) : html`<div class="cgrid" data-sched-grid>${repeat(items, (s) => s.id, (s) => this.renderCard(s))}</div>`);
     if (!this.filters.group) return html`<div class="groups"><section class="fsec group" data-group="">${body(groups[0].items)}</section></div>`;
     return html`<div class="groups">${groups.map((g) => html`<section class="fsec group" data-group=${g.key}><header class="sh"><h2>${bidi(g.label)}</h2></header>${body(g.items)}</section>`)}</div>`;
   }

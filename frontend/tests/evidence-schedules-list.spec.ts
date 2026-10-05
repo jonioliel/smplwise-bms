@@ -710,7 +710,12 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect.poll(() => post(/schedules\/8b21d4\/enable/).length).toBe(1);
     expect(post(/schedules\/8b21d4\/enable/)[0].body).toMatchObject({ confirm_lowering: false, alarm_code: null });
     expect(String((post(/enable/)[0].body as { client_request_id: string }).client_request_id).length).toBeGreaterThanOrEqual(8);
-    await page.locator('sw-app devices-schedules article[data-schedule="4d6e0a"] input[data-select]').check();
+    // the enable re-sorts the list by the next run (time-of-day dependent); pick only after that refresh has rendered
+    await expect(page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle]')).toHaveAttribute('aria-checked', 'true');
+    const pick = page.locator('sw-app devices-schedules article[data-schedule="4d6e0a"] input[data-select]');
+    await pick.check();
+    await expect(pick).toBeChecked();
+    await expect(page.locator('sw-app devices-schedules input[data-select]:checked')).toHaveCount(1);
     await page.locator('sw-app devices-schedules [data-bulk-disable]').click();
     await expect.poll(() => post(/schedules\/bulk/).length).toBe(1);
     expect(post(/schedules\/bulk/)[0].body).toMatchObject({ op: 'disable', ids: ['4d6e0a'], confirm: true });

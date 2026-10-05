@@ -46,6 +46,28 @@ let items: Schedule[] = [];
 let admin: ScheduleStatus;
 const byId = (id: string) => items.find((s) => s.id === id)!;
 
+// A fixed local clock for the whole file (10:00 today): the demo store computes each schedule's upcoming runs from "now", so with the
+// real clock "today's remaining runs" was empty late in the evening and the summary-strip test failed by time of day (integ/0163 gate,
+// 23:00 UTC on the runner). Node only (no page), so Date itself is pinned and restored after the file.
+const RealDate = Date;
+const FIXED = new RealDate();
+FIXED.setHours(10, 0, 0, 0);
+class FixedDate extends RealDate {
+  constructor(...a: unknown[]) {
+    if (a.length === 0) super(FIXED.getTime());
+    else super(...(a as ConstructorParameters<DateConstructor>));
+  }
+  static now(): number {
+    return FIXED.getTime();
+  }
+}
+test.beforeAll(() => {
+  globalThis.Date = FixedDate as DateConstructor;
+});
+test.afterAll(() => {
+  globalThis.Date = RealDate;
+});
+
 test.beforeAll(async () => {
   const store = new ScheduleDemoStore();
   items = (await store.list({ limit: 500 })).items;
