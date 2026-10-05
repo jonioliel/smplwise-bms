@@ -6,7 +6,8 @@ import '../components/sw-state-panel';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import { energyAccess, onEnergyAccess, type EnergyAccess } from '../electricity/access';
-import { tabStyleOf, INFRA_TABS } from '../shell/nav';
+import { tabStyleOf, INFRA_TABS, visibleTabs } from '../shell/nav';
+import { canNav, isApi } from '../api/session';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -94,7 +95,7 @@ export class InfraElectricity extends LitElement {
     const def = ELECTRICITY_PAGES.find((p) => p.id === page)!;
     const items: TabItem[] = this.pages().map((p) => ({ id: p.id, label: p.label, href: `#/infra/electricity/${p.id}` }));
     // the area row has a single tab until water and generators join: the shell draws it here (a row of one is not drawn by the navigation)
-    const l1 = INFRA_TABS.length < 2 ? html`<sw-tabs .items=${INFRA_TABS} active="electricity" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
+    const l1 = visibleTabs(INFRA_TABS, isApi(), canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'electricity')} active="electricity" .variant=${tabStyleOf(null, 1)} data-infra-l1></sw-tabs>` : nothing;
     let body;
     if (!this.access.view || (def.money && !this.access.bills)) {
       body = html`<sw-state-panel state="forbidden" data-elec=${page} data-state="forbidden"></sw-state-panel>`;

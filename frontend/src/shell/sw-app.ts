@@ -46,6 +46,7 @@ import '../screens/multimedia-screens'; // CR-015: the screens page (the remote,
 import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
 import '../screens/multimedia-groups'; // CR-016: "קבוצות"
 import '../screens/system-multimedia';
+import '../screens/infra-generator'; // CR-031: תשתיות › גנרטור (live, charts, alerts, history)
 import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
 import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
 import '../screens/security-alarm';
@@ -91,6 +92,7 @@ import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabil
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
+import { refreshGeneratorVisibility } from '../generator/access'; // CR-031: the generator tab under תשתיות
 import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings } from '../api/prefs';
@@ -1465,6 +1467,7 @@ export class SwApp extends LitElement {
           applySchedulesHidden(ps as unknown as Record<string, unknown>); // schedules.enabled (CR-014): the "תזמונים" tab of the home area
           applyAutomationsHidden(ps as unknown as Record<string, unknown>); // automations.enabled (CR-017): the "אוטומציות" tab of the home area
           applyMultimediaHidden(ps as unknown as Record<string, unknown>); // multimedia.enabled (CR-015): the "מולטימדיה" area
+          void refreshGeneratorVisibility(); // CR-031: the generator tab appears when a generator is detected (or to a manager)
           void refreshInfraVisibility(); // CR-023: "תשתיות" appears when there are meters or the user may manage them
           applyTabsConfig(ps as unknown as Record<string, unknown>); // ui.tabs: the installation's tab order and hidden tabs (before the landing target below)
           // the start screen (0.1.68): only when the address carried no route of its own. CR-013: "ראשי" (the device
@@ -2075,6 +2078,8 @@ export class SwApp extends LitElement {
         if (s[1] === 'automations') return html`<devices-automations .kavarnit=${kavarnitSegments(this.session.mode === 'api', canNav)}></devices-automations>`;
         return html`<devices-building></devices-building>`;
       case 'infra':
+        // CR-031: #/infra/generator/<live|charts|alerts|history>[/<alert id>]
+        if (s[1] === 'generator') return html`<infra-generator .route=${r}></infra-generator>`;
         // CR-023: #/infra/electricity/<page> (meters, accounts, bills, customers); #/infra opens the meters page
         if (!s[1] || s[1] !== 'electricity' || !s[2]) queueMicrotask(() => window.location.replace('#/infra/electricity/meters'));
         return html`<infra-electricity .route=${r}></infra-electricity>`;

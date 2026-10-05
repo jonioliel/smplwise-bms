@@ -29,11 +29,11 @@ export function placeText(n: Pick<Notification, 'subject' | 'category'> & { plac
 }
 
 const KIND_LABEL: Record<SubjectKind, string> = {
-  camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות',
+  camera: 'מצלמה', entity: 'התקן', area: 'אזור', alarm_panel: 'לוח אזעקה', door: 'עמדת כניסה', schedule: 'תזמון', automation: 'אוטומציה', bulk_job: 'פעולה קבוצתית', system: 'מערכת', session: 'כניסות', generator: 'גנרטור',
 };
 const OPEN_LABEL: Record<SubjectKind, string> = {
   camera: 'פתח את המצלמה', entity: 'פתח את ההתקן', area: 'פתח את האזור', alarm_panel: 'פתח את האזעקה', door: 'פתח את העמדה', schedule: 'פתח את התזמון', automation: 'פתח את האוטומציה',
-  bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות',
+  bulk_job: 'פתח את התוצאה', system: 'פתח את הבריאות', session: 'פתח את הכניסות', generator: 'פתח את הגנרטור',
 };
 /** The label of the "open the device" menu item: "פתח את המצלמה". */
 export const openLabel = (n: Pick<Notification, 'subject'>): string => OPEN_LABEL[n.subject.kind];

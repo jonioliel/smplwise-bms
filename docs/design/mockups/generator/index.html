@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סקירת מוקאפ: מסך בקרת גנרטור</title>
+<style>
+  body { font-family: system-ui, "Segoe UI", Arial, sans-serif; margin: 24px; background: #f4f5f7; color: #1d2433; line-height: 1.55; }
+  h1 { font-size: 22px; } h2 { margin-top: 0; font-size: 17px; }
+  .box { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); margin-bottom: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #e5e8ee; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code { direction: ltr; unicode-bidi: isolate; font: 12.5px Consolas, monospace; background: #f1f4f9; padding: 1px 4px; border-radius: 4px; }
+  a { color: #1d4fc4; } a.btn { display: inline-block; padding: 2px 8px; border: 1px solid #c4cad6; border-radius: 6px; text-decoration: none; margin: 2px 0; background: #fff; font-size: 12.5px; }
+  a.btn.hero { border-color: #2767ed; background: #edf3ff; font-weight: 700; }
+  ol.q > li { margin-bottom: 12px; } ol.q ol { list-style: none; padding-inline-start: 10px; margin: 2px 0; }
+  .tag { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .t-core { background: #dcfce7; color: #166534; } .t-opt { background: #e5e7eb; color: #374151; } .t-ass { background: #fde8c8; color: #8a4b00; }
+  .t-block { background: #fee2e2; color: #991b1b; } .t-safe { background: #dbeafe; color: #1e3a8a; } .rec { background: #fef3c7; color: #92400e; padding: 0 5px; border-radius: 4px; font-weight: 700; font-size: 11.5px; }
+  .mut { color: #5b6a85; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>מוקאפ: מסך בקרת גנרטור תחת "תשתיות" · סבב 3 (2026-10-05)</h1>
+<p class="mut">עיצוב סטטי לאישור, ללא קוד מוצר וללא מגע בהתקנים; הנתונים מומצאים. הסרגל בגלריה בוחר מסך, רוחב (1440 / 820 / 390), בהיר/כהה וסקין (classic / domus / tesla / bubble). מסמך השינוי: <code>docs/changes/CR-031-GENERATOR.md</code>.</p>
+<p><b>מה השתנה בסבב 3 (לפי תשובות הבעלים):</b> (1) צפייה והתראות בלבד: הוסרו כפתורי ההפעלה/עצירה ודיאלוג האישור; (2) בורר גנרטורים (לפי שם התקן) במצב חי, בגרפים, בהתראות ובניתוב; (3) ניתוב ההתראות מתחיל ריק (אין נמענים ברירת מחדל), עם עורך נוסח ותצוגה מקדימה לכל סוג; (4) גרפי היסטוריה לפי יכולות הבקר עם טווח נבחר, בתוך מסך מצב חי ובתצוגה מלאה; (5) זיהוי לפי התקן וישויותיו; (6) רשימת השאלות הוחלפה בהחלטות שהתקבלו ושתי שאלות פתוחות.</p>
+<p class="mut"><b>מה השתנה בסבב 2:</b> (1) תרשים זרימת ההספק עוצב מחדש כרכיב מוביל, עם דף "לפני / אחרי"; (2) כל המסך מונחה־יכולות: מד, שורה או כרטיס מופיעים רק אם החיישן המתאים קיים בבקר, והפריסה מתכווצת בלי חורים; (3) בניתוב ההתראות מופיעים רק סוגי ההתראה שהחיישנים מאפשרים, והשאר מסומנים "דורש חיישן"; (4) השאלות נכתבו מחדש: רק החלטות אמיתיות, עם המלצה.</p>
+
+<div class="box">
+<h2>1. תרשים זרימת ההספק (חדש)</h2>
+<a class="btn hero" href="gallery.html#s=diagram&d=desktop&t=light&k=classic">לפני / אחרי + שלוש רמות יכולת + פריסת טלפון · בהיר</a>
+<a class="btn hero" href="gallery.html#s=diagram&d=desktop&t=dark&k=classic">אותו דף · כהה</a>
+<a class="btn" href="gallery.html#s=diagram&d=desktop&t=light&k=domus">domus</a>
+<a class="btn" href="gallery.html#s=diagram&d=desktop&t=dark&k=tesla">tesla כהה</a>
+<a class="btn" href="gallery.html#s=diagram&d=desktop&t=light&k=bubble">bubble</a>
+<p class="mut">קווי משקל עדין, זוהר רך ומעבר צבע על המסלול הפעיל, זרימה מונפשת רגועה (נעצרת ב-prefers-reduced-motion ובאין תקשורת), כרטיסי צומת מאוזנים עם אייקון וצל עדין, מתג העברה עם להב שמצביע על המקור, טוקנים של המערכת בארבעת הסקינים, גאומטריה שאינה משתקפת ב-RTL, ופריסה אנכית לטלפון.</p>
+</div>
+
+<div class="box">
+<h2>2. המסך הראשי (מצב חי) לפי יכולות הבקר</h2>
+<a class="btn hero" href="gallery.html#s=live-full&d=desktop&t=light&k=classic">בקר מלא: כל החיישנים</a>
+<a class="btn hero" href="gallery.html#s=live&d=desktop&t=light&k=classic">בקר טיפוסי: ללא דלק, שמן, מקדם הספק ומבחן הבא</a>
+<a class="btn hero" href="gallery.html#s=live-min&d=desktop&t=light&k=classic">בקר מינימלי: מצב מנוע ומתח בלבד</a>
+<a class="btn" href="gallery.html#s=live-full&d=desktop&t=dark&k=classic">מלא · כהה</a>
+<a class="btn" href="gallery.html#s=live-standby&d=desktop&t=light&k=classic">במנוחה, האתר מוזן מהרשת</a>
+<a class="btn" href="gallery.html#s=live-test&d=desktop&t=light&k=classic">ריצת מבחן ללא עומס</a>
+<a class="btn" href="gallery.html#s=live-standby&d=desktop&t=dark&k=domus">domus כהה</a>
+<a class="btn" href="gallery.html#s=live-full&d=desktop&t=dark&k=classic">מלא · כהה (כולל גרפים)</a>
+<a class="btn" href="gallery.html#s=live-full&d=desktop&t=light&k=bubble">bubble</a>
+<a class="btn" href="gallery.html#s=live-full&d=desktop&t=dark&k=tesla">tesla כהה</a>
+</div>
+
+<div class="box">
+<h2>2א. גרפי היסטוריה (חדש)</h2>
+<a class="btn hero" href="gallery.html#s=charts&d=desktop&t=light&k=classic">תצוגה מלאה: עומס, 24 שעות</a>
+<a class="btn" href="gallery.html#s=charts&d=desktop&t=dark&k=classic">כהה</a>
+<a class="btn" href="gallery.html#s=charts-7d&d=desktop&t=light&k=classic">דלק, 7 ימים</a>
+<a class="btn" href="gallery.html#s=charts-min&d=desktop&t=light&k=classic">בקר מינימלי: מתח בלבד</a>
+<a class="btn" href="gallery.html#s=charts&d=phone&t=light&k=classic">טלפון</a>
+<a class="btn" href="gallery.html#s=charts-7d&d=phone&t=dark&k=classic">טלפון כהה</a>
+<p class="mut">גרף לכל מדד מרכזי שהבקר מדווח (עומס, מתח, דלק, מצבר, טמפרטורה), טווח נבחר: שעה / 24 שעות / 7 ימים / 30 יום / מותאם. בטווחים ארוכים מוצג ממוצע (ראו מסמך השינוי). גם חלק ממסך מצב חי.</p>
+</div>
+
+<div class="box">
+<h2>3. התראות</h2>
+<a class="btn" href="gallery.html#s=alerts&d=desktop&t=light&k=classic">התראות פעילות</a>
+<a class="btn" href="gallery.html#s=alerts-empty&d=desktop&t=light&k=classic">ריק</a>
+<a class="btn" href="gallery.html#s=history&d=desktop&t=light&k=classic">היסטוריה עם מסננים</a>
+<a class="btn" href="gallery.html#s=alert&d=desktop&t=light&k=classic">פרטי התראה ואישור</a>
+<a class="btn" href="gallery.html#s=alert&d=desktop&t=dark&k=classic">פרטי התראה · כהה</a>
+</div>
+
+<div class="box">
+<h2>4. הגדרות › תשתיות › גנרטור: ניתוב התראות לפי יכולות</h2>
+<a class="btn hero" href="gallery.html#s=set-routing&d=desktop&t=light&k=classic">בקר טיפוסי: שורות "דורש חיישן" מעומעמות</a>
+<a class="btn" href="gallery.html#s=set-routing-full&d=desktop&t=light&k=classic">בקר מלא: כל 22 הסוגים</a>
+<a class="btn" href="gallery.html#s=set-routing-min&d=desktop&t=light&k=classic">בקר מינימלי: 5 סוגים בלבד</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=desktop&t=light&k=classic">עריכת ניתוב של "כשל התנעה"</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=desktop&t=dark&k=classic">עריכה · כהה</a>
+<a class="btn" href="gallery.html#s=set-not-found&d=desktop&t=light&k=classic">כשלא זוהה בקר</a>
+</div>
+
+<div class="box">
+<h2>5. מצבים</h2>
+<a class="btn" href="gallery.html#s=not-found&d=desktop&t=light&k=classic">לא נמצא גנרטור</a>
+<a class="btn" href="gallery.html#s=unavail&d=desktop&t=light&k=classic">זוהה אך אין תקשורת</a>
+<a class="btn" href="gallery.html#s=loading&d=desktop&t=light&k=classic">טעינה</a>
+</div>
+
+<div class="box">
+<h2>6. טלפון (390)</h2>
+<a class="btn hero" href="gallery.html#s=live-full&d=phone&t=light&k=classic">מצב חי · מלא (תרשים אנכי)</a>
+<a class="btn" href="gallery.html#s=live&d=phone&t=light&k=classic">טיפוסי</a>
+<a class="btn" href="gallery.html#s=live-min&d=phone&t=light&k=classic">מינימלי</a>
+<a class="btn" href="gallery.html#s=live-standby&d=phone&t=dark&k=classic">במנוחה · כהה</a>
+<a class="btn" href="gallery.html#s=alerts&d=phone&t=light&k=classic">התראות פעילות</a>
+<a class="btn" href="gallery.html#s=history&d=phone&t=light&k=classic">היסטוריה</a>
+<a class="btn" href="gallery.html#s=alert&d=phone&t=light&k=classic">פרטי התראה</a>
+<a class="btn" href="gallery.html#s=set-routing&d=phone&t=light&k=classic">ניתוב התראות</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=phone&t=light&k=classic">עריכת ניתוב</a>
+<a class="btn" href="gallery.html#s=unavail&d=phone&t=light&k=classic">אין תקשורת</a>
+<a class="btn" href="gallery.html#s=alert&d=phone&t=dark&k=bubble">bubble כהה</a>
+</div>
+
+<div class="box">
+<h2>7. קטלוג החיישנים: ליבה / אופציונלי <span class="tag t-ass">הנחה</span></h2>
+<p class="mut">לא נמצא התקן גנרטור במאגר ולא במערכת המעבדה (סריקה לקריאה בלבד). הקטלוג גנרי (בסגנון DSE / ComAp); המיפוי האמיתי נקבע מייצוא הישויות שלך. <b>ליבה</b> = בלעדיו המסך לא נבנה; <b>אופציונלי</b> = הרכיב מופיע רק אם החיישן קיים.</p>
+<table>
+<tr><th>חיישן</th><th>סוג</th><th>מה מופיע כשהוא קיים</th><th>התראות שהוא מאפשר</th></tr>
+<tr><td>מצב מנוע (stopped / starting / running / cooling / fault)</td><td><span class="tag t-core">ליבה</span></td><td>רצועת המצב, כרטיס הגנרטור בתרשים</td><td>כשל התנעה, עצירת חירום, עצירה לא מתוכננת</td></tr>
+<tr><td>מתח גנרטור (ערך אחד או L1/L2/L3)</td><td><span class="tag t-core">ליבה</span></td><td>טבלת מתח (שורה אחת או שלוש)</td><td>מתח חריג</td></tr>
+<tr><td>רשת זמינה</td><td><span class="tag t-opt">אופציונלי</span></td><td>כרטיס הרשת בתרשים, הצ׳יפ "רשת זמינה / אובדן רשת"</td><td>אובדן רשת, רשת חזרה</td></tr>
+<tr><td>מצב מתג העברה / גנרטור בעומס</td><td><span class="tag t-opt">אופציונלי</span></td><td>מתג ההעברה בתרשים; בלעדיו מניחים שגנרטור פועל מזין את צרכניו</td><td>מעבר לגנרטור, כשל מתג העברה</td></tr>
+<tr><td>מצב בקר (auto / manual / off / test)</td><td><span class="tag t-opt">אופציונלי</span></td><td>שורת "מצב הבקר" (תצוגה בלבד)</td><td>הבקר לא באוטומטי</td></tr>
+<tr><td>הספק (kW), זרם, תדר, מקדם הספק, אחוז עומס</td><td><span class="tag t-opt">אופציונלי</span></td><td>עמודות בטבלה, תווית kW על הקו, מד עומס (כשאין דלק), KPI בטלפון</td><td>עומס יתר (kW), תדר חריג (תדר)</td></tr>
+<tr><td>סל״ד</td><td><span class="tag t-opt">אופציונלי</span></td><td>שורה בכרטיס המנוע, ערך בכרטיס הגנרטור</td><td>מהירות יתר</td></tr>
+<tr><td>שעות עבודה / מספר התנעות</td><td><span class="tag t-opt">אופציונלי</span></td><td>שורה בכרטיס המנוע</td><td>טיפול תקופתי (שעות)</td></tr>
+<tr><td>מתח מצבר</td><td><span class="tag t-opt">אופציונלי</span></td><td>מד מצבר</td><td>מצבר נמוך, כשל מטען</td></tr>
+<tr><td>טמפרטורת נוזל קירור</td><td><span class="tag t-opt">אופציונלי</span></td><td>מד טמפרטורה</td><td>טמפרטורה גבוהה</td></tr>
+<tr><td>לחץ שמן</td><td><span class="tag t-opt">אופציונלי</span></td><td>מד לחץ שמן</td><td>לחץ שמן נמוך</td></tr>
+<tr><td>מפלס דלק (% / ליטרים)</td><td><span class="tag t-opt">אופציונלי</span></td><td>מד דלק, KPI בטלפון</td><td>דלק נמוך, דלק אזל</td></tr>
+<tr><td>התנעה אחרונה, מבחן אחרון, מבחן הבא, טיפול הבא</td><td><span class="tag t-opt">אופציונלי</span></td><td>שורות בכרטיס המנוע</td><td>מבחן הושלם / נכשל, טיפול תקופתי</td></tr>
+<tr><td>תקשורת עם הבקר (זמינות הישויות)</td><td><span class="tag t-core">ליבה (נגזר)</span></td><td>באנר "אין תקשורת", ערכים אחרונים מעומעמים</td><td>אין תקשורת עם הבקר</td></tr>
+</table>
+<p class="mut">ספי ההתראות (דלק נמוך, טמפרטורה, מצבר) מגיעים מהבקר; המערכת מציגה ומנתבת את מה שהבקר מרים. ספים נוספים בצד המערכת לא נדרשים לגרסה הראשונה ולא נשאלים.</p>
+</div>
+
+<div class="box">
+<h2>8. החלטות שהתקבלו</h2>
+<ol>
+<li>זיהוי: המערכת קוראת את רשימת ההתקנים של התשתית; כל גנרטור הוא התקן אחד וכל הישויות שלו תחתיו. האינטגרציה נלמדת מההתקן והמסך נבנה לפי יכולות (ישויות) בלבד.</li>
+<li>גרסה ראשונה: צפייה והתראות בלבד, ללא פקודות לבקר (פקודות רק כשלב עתידי).</li>
+<li>כמה גנרטורים: נתמך; בורר לפי שם התקן במצב חי, בגרפים, בהתראות ובהגדרות הניתוב.</li>
+<li>מתג העברה: מדווח על ידי בקר הגנרטור. סוג הדלק: סולר.</li>
+<li>מבחנים מתוזמנים: הבקר מתזמן, המערכת מציגה. תזכורות תחזוקה לפי שעות עבודה שהבקר מדווח.</li>
+<li>נמענים: ללא ברירת מחדל. הניתוב מתחיל ריק (ההתראות נשמרות במרכז ההתראות בלבד) ומוכנים רק נוסחי ההודעות לכל סוג.</li>
+<li>WhatsApp: מופיע "בקרוב" ויהיה זמין דרך מרכז ההתראות.</li>
+<li>שמירת היסטוריית התראות: שנה.</li>
+<li>גרפי היסטוריה בגרסה הראשונה: כן, לפי יכולות הבקר, טווח נבחר.</li>
+<li>תפריט: לשונית אחות ל"מוני חשמל" תחת "תשתיות".</li>
+</ol>
+</div>
+
+<div class="box">
+<h2>9. שאלות פתוחות (שתיים)</h2>
+<ol class="q">
+<li><b>באיזה אתר / מערכת מותקן הגנרטור?</b> כדי לאמת את הזיהוי מול רשימת ההתקנים שלו בקריאה בלבד, לפני תחילת הבנייה.</li>
+<li><b>אישור המוקאפ:</b> האם אפשר לעבור לבנייה, או שיש שינויים?</li>
+</ol>
+</div>
+</body>
+</html>
