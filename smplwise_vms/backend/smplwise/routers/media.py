@@ -137,6 +137,10 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
     from ..services.recorders import vendor_io
 
     rs = camera_settings(settings, cam)  # CR-024: the camera's recorder
+    from ..services.recorders import frigate_io
+
+    if frigate_io.handles(rs):  # NN5 F1: Frigate has no restream wired yet; the client falls back to the still tile (GET /frigate/.../snapshot)
+        raise ApiError(409, "live_not_available", "אין שידור חי למצלמת Frigate בשלב הזה; מוצגת תמונה עדכנית.", details={"fallback": "still", "recorder_id": cam["recorder_id"]})
     src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs) else g2.hikvision_rtsp_url(rs, cam["channel"], profile)
     client.ensure_stream(name, src)
     return name

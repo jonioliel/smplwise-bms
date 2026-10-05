@@ -136,7 +136,12 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
                 from ..services.recorders import vendor_io
 
                 rs = camera_settings(settings, cam)
-                data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
+                from ..services.recorders import frigate_io
+
+                if frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
+                    data = frigate_io.snapshot(rs, cam["recorder_id"], cam["source_ref"] or str(cam["channel"]))
+                else:
+                    data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
             path.write_bytes(data)
         except ApiError as exc:
             if not stale_ok:

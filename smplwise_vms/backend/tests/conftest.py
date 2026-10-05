@@ -16,6 +16,8 @@ os.environ.setdefault("SW_ENERGY_SAMPLER", "0")
 os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
 # CR-026: the recorder health poller stays off; tests call recorder_health.probe / poll_once / tick with explicit instants
 os.environ.setdefault("SW_RECORDER_HEALTH", "0")
+# NN5: the Frigate event loop (WebSocket + polling) stays off in app tests; they call frigate_events.poll_reviews / run_loop explicitly
+os.environ.setdefault("SW_FRIGATE_EVENTS", "0")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402

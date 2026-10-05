@@ -104,6 +104,7 @@ def _store_capabilities(conn: sqlite3.Connection, settings: Settings, recorder_i
     try:
         caps = asdict(constructor_for(settings)(recorder_id, settings).capabilities())
         caps["encoding_fields"] = sorted(caps.get("encoding_fields") or [])
+        caps["features"] = sorted(caps.get("features") or [])
         conn.execute("UPDATE recorders SET capabilities_json = ?, vendor = ? WHERE id = ?", (json.dumps(caps, ensure_ascii=False, sort_keys=True), caps["vendor"], recorder_id))
     except (ApiError, sqlite3.OperationalError):
         pass  # a database before 0055 or a vendor without an adapter: the discovery itself still counts
@@ -115,12 +116,16 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
     survive. `settings` is the process-wide settings; the recorder's own connection is taken from it."""
     rid = recorder_id or DEFAULT_RECORDER
     rs = settings_for(settings, rid)
-    from .recorders import vendor_io
+    from .recorders import frigate_io, vendor_io
 
+    is_frigate = frigate_io.handles(rs)
+    cmap = frigate_io.channel_map(conn, rid) if is_frigate else {}
     with unlocked(conn):
         encodings: dict[int, dict[str, Any]] = {}
         enc_error: str | None = None
-        if vendor_io.handles(rs):  # CR-025: Provision-ISR discovery through its adapter (names, status, encodings)
+        if is_frigate:  # NN5 F1: Frigate discovery through its adapter (config summary; read-only)
+            info, channels, encodings, enc_error = frigate_io.discover(rs, rid, cmap)
+        elif vendor_io.handles(rs):  # CR-025: Provision-ISR discovery through its adapter (names, status, encodings)
             info, channels, encodings, enc_error = vendor_io.discover(rs, rid)
         else:
             info = nvr.device_info(rs)
@@ -140,7 +145,7 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
     created = updated = replaced = 0
     for ch in channels:
         status = "online" if ch.online else "offline" if ch.online is False else "unknown"
-        source_ref = str(ch.channel)
+        source_ref = getattr(ch, "source_ref", None) or str(ch.channel)  # Frigate: the camera's config key (ADP 3.2)
         if has_source_ref:
             existing = conn.execute("SELECT * FROM cameras WHERE recorder_id = ? AND source_ref = ?", (rid, source_ref)).fetchone()
             if existing is None:  # a row restored from an older backup (no source_ref yet): matched by its channel once
@@ -175,10 +180,19 @@ def sync_cameras(settings: Settings, conn: sqlite3.Connection, actor: Any | None
             )
             if has_source_ref:
                 conn.execute("UPDATE cameras SET source_ref = ?, device_fingerprint = ? WHERE id = ?", (source_ref, fp, cid))
+            if getattr(ch, "frigate_enabled", True) is False:
+                conn.execute("UPDATE cameras SET enabled = 0 WHERE id = ?", (cid,))  # disabled in Frigate: the row is kept, disabled, with the reason in its capabilities
             created += 1
+    removed = 0
+    if is_frigate and has_source_ref:  # a camera renamed / removed in Frigate's config: the old row stays (history) but is marked, never deleted
+        keys = [getattr(c, "source_ref", "") for c in channels]
+        for row in conn.execute("SELECT id, source_ref FROM cameras WHERE recorder_id = ?", (rid,)).fetchall():
+            if row["source_ref"] not in keys:
+                conn.execute("UPDATE cameras SET status = 'offline', enabled = 0, updated_at = ? WHERE id = ? AND (status != 'offline' OR enabled = 1)", (now, row["id"]))
+                removed += 1
     audit(conn, actor=actor, action="cameras.sync", decision="allowed", resource_type="recorder", resource_id=rid, request_id=request_id,
           details={"channels": len(channels), "created": created, "updated": updated, "model": info.get("model"), "reason": reason,
-                   **({"replaced": replaced} if replaced else {})})
+                   **({"replaced": replaced} if replaced else {}), **({"removed_from_recorder": removed} if removed else {})})
     return {"channels": len(channels), "created": created, "updated": updated, "recorder_id": rid,
             "recorder": {"model": info.get("model"), "firmware": info.get("firmware")}}
 
@@ -212,9 +226,14 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     from .recorders import vendor_io
 
     sources = vendor_io.LiveSources()  # CR-025: a Provision recorder's source path comes from the device
+    from .recorders import frigate_io
+
     with unlocked(conn):
         for cam in cams:
             rs = settings_for(settings, cam["recorder_id"])
+            if frigate_io.handles(rs):  # NN5 F1: no restream yet - a Frigate camera is shown as still tiles, never as a go2rtc stream
+                result["skipped"] += 1
+                continue
             for profile in ("sub", "main"):
                 name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
                 try:

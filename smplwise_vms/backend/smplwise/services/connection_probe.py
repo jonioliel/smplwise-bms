@@ -87,7 +87,7 @@ SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # Arx's own port 8099. None of them is an NVR's HTTP port.
 REFUSED_PORTS = frozenset({8123, 1984, 8554, 8555, 4357, 8099})
 OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported",
-            "tls_pin_required", "auth_downgrade_refused")
+            "tls_pin_required", "auth_downgrade_refused", "nvr_not_supported")
 
 # the probe's limits (CR-022 section 6.3, review F4)
 CONNECT_S = 5.0
@@ -517,6 +517,9 @@ def probe(cand: Settings) -> dict[str, Any]:
             if vendor_io.handles(cand):  # CR-025: Provision-ISR is tested through its adapter (its auth / TLS rules)
                 out.append(_probe_vendor(cand, budget, backends))
                 return
+            if (cand.nvr_vendor or "") == "frigate":  # NN5 F1: Frigate is tested through its adapter (one login + /api/version + /api/config)
+                out.append(_probe_frigate(cand, budget, backends))
+                return
             with probe_client(cand) as client:
                 backend = getattr(client, "_sw_probe_backend", None)
                 if backend is not None:
@@ -651,4 +654,70 @@ def _probe_vendor(cand: Settings, budget: float, backends: list) -> dict[str, An
         result["certificate"] = certificate
         if pin_required:
             result["pin_required"] = True
+    return result
+
+
+def _probe_frigate(cand: Settings, budget: float, backends: list) -> dict[str, Any]:
+    """NN5 F1: the connection test of a Frigate candidate - its adapter over the probe's capped, deadline-bound transport: one
+    login, `/api/version` (the minimum version is checked), `/api/config` (the camera count). For HTTPS the certificate's SHA-256
+    is read first by a bare TLS handshake (no credentials) and returned so the form can pin it. Coarse result plus the non-secret
+    transport facts; never the address, the user name or the token."""
+    import ssl
+
+    from . import nvr as nvr_mod
+    from .recorders import frigate as fr
+    from .recorders import frigate_http as fh
+    from .recorders import provision_isr as pisr
+
+    extra = cand.nvr_extra if isinstance(cand.nvr_extra, dict) else {}
+    https = str(extra.get("scheme") or "https").lower() != "http"
+    mode = str(extra.get("tls_mode") or ("pin" if extra.get("tls_pin") else "verify")).lower()
+    certificate: dict[str, Any] | None = None
+    if https:
+        try:
+            certificate = pisr.PEER_CERTIFICATE(cand.nvr_host or "", int(cand.nvr_http_port), min(CONNECT_S, _budget_left(DEADLINE_S)))
+        except OSError:
+            return {"ok": False, "code": "source_unavailable"}
+        pin = str(extra.get("tls_pin") or "").lower().replace(":", "")
+        certificate["matches_pin"] = (certificate["sha256"] == pin) if pin else None
+    pin_value = str(extra.get("tls_pin") or "").strip().lower().replace(":", "")
+    if https and mode == "pin" and not pin_value:
+        return {"ok": False, "code": "tls_pin_required", "certificate": certificate, "pin_required": True, "transport": {"scheme": "https", "insecure": False}, "warnings": []}
+    ctx = None
+    if https:
+        if mode == "pin":
+            ctx = pisr.pinned_context(pin_value)
+        else:
+            ctx = ssl.create_default_context()
+            if mode == "trust":
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+    backend = _DeadlineBackend(_budget_left(DEADLINE_S))
+    backends.append(backend)
+    transport: httpx.BaseTransport = _CappedTransport(TRANSPORT if TRANSPORT is not None else _ProbeTransport(backend, ctx))
+    fh.clear_cache()  # a test never reuses another candidate's token or refusal
+    fr.clear_cache()
+    a = fr.FrigateAdapter("probe", cand, transport=transport)
+    try:
+        with nvr_mod.deadline(budget):
+            text, parsed, _drift = a.version()
+            if parsed is None:
+                result: dict[str, Any] = {"ok": False, "code": "source_error"}
+            elif not fr.version_ok(parsed):
+                result = {"ok": False, "code": "nvr_not_supported", "firmware": _clip(text), "min_version": ".".join(str(x) for x in fr.MIN_VERSION)}
+            else:
+                try:
+                    cams: int | None = len(a.discover(refresh=True)["summary"]["cameras"])
+                except Exception:  # noqa: BLE001 - the server answered; the count is optional (a viewer role may not read /config)
+                    cams = None
+                result = {"ok": True, "code": "ok", "model": "Frigate", "firmware": _clip(text), "channels": cams}
+    except ApiError as exc:
+        code = {"source_timeout": "timeout"}.get(exc.code, exc.code)
+        result = {"ok": False, "code": code if code in OUTCOMES else "source_error"}
+    except Exception:  # noqa: BLE001
+        result = {"ok": False, "code": "source_error"}
+    result["transport"] = {"scheme": "https" if https else "http", "insecure": not https}
+    result["warnings"] = [w["code"] for w in a.http.warnings()]
+    if certificate is not None:
+        result["certificate"] = certificate
     return result

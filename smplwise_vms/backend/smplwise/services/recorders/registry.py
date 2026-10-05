@@ -165,6 +165,13 @@ def adapter_for(conn: sqlite3.Connection, settings: Settings, recorder_id: str) 
 from . import provision_isr as _provision_isr  # noqa: E402
 
 _provision_isr.register(selectable=True)
+# NN5 F1: Frigate registered through the same seam. Behind a feature flag: the catalogue shows it "coming soon" (not selectable)
+# until `SW_FRIGATE=1`; a recorder whose vendor is already `frigate` is served either way (the provider selection is the gate).
+import os as _os  # noqa: E402
+
+from . import frigate as _frigate  # noqa: E402
+
+_frigate.register(selectable=_os.environ.get("SW_FRIGATE", "0") == "1")
 _ORDER = (DEFAULT_VENDOR, "provision_isr", "frigate", NO_NVR)  # the catalogue order the form shows (late registrations keep it)
 VENDOR_SPECS = tuple(sorted(VENDOR_SPECS, key=lambda s: _ORDER.index(s.id) if s.id in _ORDER else len(_ORDER) - 1))
 SPEC_BY_ID = {s.id: s for s in VENDOR_SPECS}

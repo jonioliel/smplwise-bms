@@ -45,7 +45,7 @@ def _neg_path(settings: Settings, event_id: str) -> Path:
 
 
 def eligible(ev: dict[str, Any]) -> bool:
-    return bool(ev.get("camera_id")) and ev.get("type") not in SKIP_TYPES
+    return bool(ev.get("camera_id")) and ev.get("type") not in SKIP_TYPES and ev.get("source") != "frigate"  # NN5: a Frigate event has its own picture (the review thumbnail)
 
 
 class _DirIndex:
