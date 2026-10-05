@@ -1,9 +1,13 @@
 # Changelog — SmplWise Arx add-on
 
-## Unreleased
+## 2.0.0 (pilot) — Recorder health monitoring (seven new alert sources, per-recorder settings); the floor filter of the multimedia pages is the shared (capsule-capable) dropdown; friendly integration names
+**After installing:** no database migration (the last one stays `0055_multi_recorder`), the bridge integration stays **0.6.2**, no platform restart is needed. Reload the installed web app once. The version jumps from 0.1.163 to 2.0.0 (there is no 0.1.164); nothing about the upgrade path changes.
+- **עברית:** אחרי ההתקנה: אין מיגרציה (האחרונה נשארת `0055_multi_recorder`), רכיב החיבור נשאר 0.6.2, אין צורך להפעיל מחדש את התשתית. טוענים מחדש את אפליקציית הרשת פעם אחת. הגרסה קופצת מ־0.1.163 ל־2.0.0 (אין 0.1.164).
 
-### Recorder health monitoring (CR-026, `pilot/nvr-health`, release 2.0.0)
-No migration. Read-only: the monitor sends device reads only.
+### Recorder health monitoring (CR-026) - הגדרות › בריאות ועבודות
+No migration. Read-only: the monitor sends device reads only. **Defaults (owner decisions of 2026-10-05):** only recording faults the
+recorder itself reports are alerts; the continuous-recording expectation is a per-recorder choice and **off**; the disk-fill forecast
+is **off**. Hikvision recorders get reachability and latency only for now. `SW_RECORDER_HEALTH=0` turns the poller off.
 - **English - what was added:** every recorder is checked once a minute: is it answering and how fast; for Provision-ISR also the
   disks (read-only, locked, unformatted, error, no disk, disk alarms; a forecast of how soon the disks fill, off by default because
   an overwriting recorder is always full), recording faults the recorder reports (and, on recorders you mark as recording
@@ -29,13 +33,16 @@ No migration. Read-only: the monitor sends device reads only.
 - **עברית - איך מפעילים:** הגדרות › בריאות ועבודות: כרטיס לכל מקליט וכפתור "בדוק עכשיו". מנהל מערכת משנה את הספים ב"ספי התראה
   למקליטים", ושם גם מסמן אילו מקליטים מקליטים ברציפות. ערוצי ההתראה והנמענים של המקורות החדשים נמצאים בהגדרות › התראות.
 
-### Small UI items (`pilot/ui-small-0164`)
+### Floor filter as the shared dropdown; friendly integration names - מולטימדיה, הגדרות › מולטימדיה
+**How to enable:** nothing to switch on. The floor filter follows the dropdown style of the multimedia group; to see it as a capsule:
+הגדרות › לשוניות › "סגנון תפריט נפתח" → **קפסולה** (the group in "תפריטים נפתחים" or "משולב" mode in "תצוגת לשוניות").
 - **The floor filter of the multimedia players and screens pages is now the shared dropdown** (same component, style incl. capsule, size, ring and panel width as every other dropdown of the group, with an icon and a count per floor). The hand-built "כל הקומות" menu is gone; nothing else on those pages changed.
 - **Settings › Multimedia: friendly integration names.** The lists show "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" and so on instead of the raw platform id (list cell, filter chips, grouping, sorting, device connections); the raw id stays in the hover text and in the search. An unknown id is shown as it is. One table: `frontend/src/screens/media-integration-names.ts`.
 - Review of every hand-built menu: docs/changes/DD6-CAPSULE-CONVERSION.md.
 - **עברית:**
   - **סינון הקומות בדפי הנגנים והמסכים הוא עכשיו התפריט הנפתח המשותף** (אותו רכיב, אותו סגנון כולל קפסולה, גודל, עובי טבעת ורוחב לוח כמו כל תפריט נפתח בקבוצה, עם סמל ומספר לכל קומה). התפריט הבנוי ידנית "כל הקומות" הוסר; שום דבר אחר בדפים לא השתנה.
   - **הגדרות › מולטימדיה: שמות ידידותיים לאינטגרציות.** הרשימות מציגות "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" וכו' במקום מזהה הפלטפורמה הגולמי (תא הרשימה, כפתורי הסינון, קיבוץ, מיון, חיבורי ההתקן); המזהה הגולמי נשאר בטקסט הריחוף ובחיפוש. מזהה לא מוכר מוצג כמו שהוא. טבלה אחת: `frontend/src/screens/media-integration-names.ts`.
+  - **איך מפעילים:** אין מה להפעיל. סינון הקומות הולך לפי סגנון התפריט הנפתח של קבוצת המולטימדיה; כדי לראות אותו כקפסולה: הגדרות › לשוניות › "סגנון תפריט נפתח" ← **קפסולה** (הקבוצה במצב "תפריטים נפתחים" או "משולב" ב"תצוגת לשוניות").
 
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
