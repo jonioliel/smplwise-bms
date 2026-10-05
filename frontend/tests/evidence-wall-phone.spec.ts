@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pickCols } from './wall-count-helpers';
 
 // Owner bug 2026-09-30 (phone): the camera wall with a MANUAL column choice (localStorage `sw.wall.cols`, or the
 // "עמודות" buttons) rendered a narrow strip of small tiles instead of filling the width, because the tile size was
@@ -113,10 +114,7 @@ async function settle(page: Page) {
 }
 
 async function clickCols(page: Page, n: number) {
-  // the phone toolbar (mobile audit 2026-09-30): the columns are a compact select, not a row of buttons
-  const select = page.locator('live-wall [data-wall-cols-select]');
-  if (await select.count()) await select.selectOption(String(n));
-  else await page.locator(`live-wall [data-wall-cols-set="${n}"]`).click(); // a desktop keeps the row of buttons
+  await pickCols(page, n); // LV1: the columns are the shared compact dropdown on every width
   await settle(page);
 }
 

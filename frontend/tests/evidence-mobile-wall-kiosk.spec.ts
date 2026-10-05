@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pickCols } from './wall-count-helpers';
 
 // Mobile audit 2026-09-30 (owner screenshots, real Android Chrome, 390 wide):
 //  1. the camera wall's toolbar (quality dropdown, an 11-button count row, "סידור הקיר", the kiosk button, the column chips, the
@@ -66,7 +67,7 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
     await expect(bar).toBeVisible();
     const b = (await bar.boundingBox())!;
     expect(b.height, 'one row').toBeLessThanOrEqual(56);
-    for (const sel of ['[data-wall-quality]', '[data-wall-count-select]', '[data-wall-cols-select]']) {
+    for (const sel of ['[data-wall-quality]', '[data-wall-count-select]', '[data-wall-cols-dd]']) {
       const s = (await bar.locator(sel).boundingBox())!;
       expect(s.height, `${sel} is a touch-sized control`).toBeGreaterThanOrEqual(40);
       expect(s.x + s.width, `${sel} stays inside the screen`).toBeLessThanOrEqual(390);
@@ -82,9 +83,9 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
     // the choices work with two taps: the count select and the columns select
     await bar.locator('[data-wall-count-select]').selectOption('4');
     await expect(wall.locator('sw-camera-tile[data-cam]')).toHaveCount(4);
-    await bar.locator('[data-wall-cols-select]').selectOption('1');
+    await pickCols(page, 1);
     await expect(wall.locator('.grid')).toHaveAttribute('data-wall-cols', '1');
-    await bar.locator('[data-wall-cols-select]').selectOption('0');
+    await pickCols(page, 0);
     await expect(wall.locator('.grid')).not.toHaveAttribute('data-wall-cols-manual', '');
   });
 });

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { simulateStrictPlacement, simulateStrictRows } from '../src/screens/wall-grid';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pickCols } from './wall-count-helpers';
 
 /** UI round 1c (shell/screen-edit.ts): "סידור הקיר" is an item of the user menu, not a button in the wall's header. */
 async function openUserMenu(page: Page) {
@@ -111,9 +112,9 @@ test.describe('owner round 11: round-3 notes (SW A)', () => {
     await open(page, `/live/wall?cameras=${cams.slice(0, 2).map((c) => c.id).join(',')}`);
     const wall = page.locator('live-wall');
     await expect(wall.locator('sw-camera-tile')).toHaveCount(2, { timeout: 30000 });
-    await wall.locator('[data-wall-cols-set="1"]').click();
+    await pickCols(page, 1);
     await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '1');
-    await wall.locator('[data-wall-cols-set="0"]').click();
+    await pickCols(page, 0);
     await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '2');
     // coverage sliders in the editor
     const tree = await (await request.get('/api/v1/sites?tree=true')).json();
@@ -350,11 +351,11 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       const wall = page.locator('live-wall');
       // S4 review: do not assume the default layout count covers every camera on a real backend - cover all of
       // them explicitly, and locate tiles by their own camera id rather than by position/total count.
-      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await wall.locator('.layouts button[data-count="all"]').click();
       await expect(wall.locator(`sw-camera-tile[cameraid="${cam1.id}"]`)).toBeVisible({ timeout: 30000 });
       await expect(wall.locator(`sw-camera-tile[cameraid="${cam2.id}"]`)).toBeVisible({ timeout: 30000 });
       // a fixed 2-column layout makes the span geometry check below deterministic
-      await wall.locator('[data-wall-cols-set="2"]').click();
+      await pickCols(page, 2);
       await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '2');
 
       await enterWallArrange(page);
@@ -367,8 +368,8 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await expect(dialog).toHaveCount(0, { timeout: 20000 });
 
       await page.reload();
-      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
-      await wall.locator('[data-wall-cols-set="2"]').click();
+      await wall.locator('.layouts button[data-count="all"]').click();
+      await pickCols(page, 2);
       const orderedIds = await wall.locator('sw-camera-tile').evaluateAll((els) => els.map((el) => el.getAttribute('cameraid')));
       expect(orderedIds.indexOf(cam2.id)).toBeLessThan(orderedIds.indexOf(cam1.id));
 
@@ -411,7 +412,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await page.setViewportSize({ width: 1600, height: 900 });
       await open(page, '/live/wall');
       const wall = page.locator('live-wall');
-      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await wall.locator('.layouts button[data-count="all"]').click();
       await expect(wall.locator(`sw-camera-tile[cameraid="${cam.id}"]`)).toBeVisible({ timeout: 30000 });
 
       await enterWallArrange(page);
@@ -470,7 +471,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await open(page, '/live/wall');
       const wall = page.locator('live-wall');
       await wall.locator('.layouts button', { hasText: /^12$/ }).click();
-      await wall.locator('[data-wall-cols-set="0"]').click(); // automatic column fit, the owner's mode
+      await pickCols(page, 0); // automatic column fit, the owner's mode
       await expect(wall.locator(`sw-camera-tile[cameraid="${hallA}"]`)).toBeVisible({ timeout: 30000 });
 
       await enterWallArrange(page);
@@ -492,7 +493,7 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await page.reload();
       await wall.locator('.layouts button', { hasText: /^12$/ }).click();
       await expect(wall.locator(`sw-camera-tile[cameraid="${hallB}"]`)).toBeVisible({ timeout: 30000 });
-      await expect(wall.locator('[data-wall-cols-set="0"]')).toHaveClass(/on/);
+      expect(await wall.locator('sw-dropdown[data-wall-cols-dd]').evaluate((el) => (el as unknown as { value: string }).value)).toBe('0');
       await page.waitForTimeout(500); // the fit re-measures once after the first render
 
       // (2) on-screen order: where each tile really is, read row by row from the top and within a row from the
@@ -579,9 +580,9 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await page.setViewportSize({ width: 1600, height: 900 });
       await open(page, '/live/wall');
       const wall = page.locator('live-wall');
-      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
+      await wall.locator('.layouts button[data-count="all"]').click();
       for (const c of [c1, c2, c3, c4]) await expect(wall.locator(`sw-camera-tile[cameraid="${c.id}"]`)).toBeVisible({ timeout: 30000 });
-      await wall.locator('[data-wall-cols-set="4"]').click();
+      await pickCols(page, 4);
       await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '4');
 
       await enterWallArrange(page);
@@ -592,8 +593,8 @@ test.describe('T091: camera grid layout settings on the all-cameras wall (SW A)'
       await expect(dialog).toHaveCount(0, { timeout: 20000 });
 
       await page.reload();
-      await wall.locator('.layouts button', { hasText: /^32$/ }).click();
-      await wall.locator('[data-wall-cols-set="4"]').click();
+      await wall.locator('.layouts button[data-count="all"]').click();
+      await pickCols(page, 4);
       await expect(wall.locator(`sw-camera-tile[cameraid="${c1.id}"]`)).toBeVisible({ timeout: 30000 });
       await expect(wall.locator('[data-wall-cols]')).toHaveAttribute('data-wall-cols', '4');
 
