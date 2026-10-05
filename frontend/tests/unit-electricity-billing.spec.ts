@@ -3,7 +3,7 @@ import { astToTokens, coefficients, detectPreset, evaluate, factorLabel, meterId
 import { baseNumber, billNumber, nextPeriods, periodContaining } from '../src/electricity/elec-format';
 import { chartBars, hasComparison } from '../src/electricity/elec-chart-data';
 import { mockBackend, mockHistoryWire } from '../src/api/electricity-billing-mock';
-import { ERROR_TEXT, buildHistory, eventText, type BillHistory } from '../src/api/electricity-billing';
+import { ERROR_TEXT, PDF_RETRYABLE, buildHistory, eventText, type BillHistory } from '../src/api/electricity-billing';
 import { ENERGY_PERMISSIONS, ENERGY_PERMISSION_LABELS, energyPermissionLabel } from '../src/electricity/access';
 
 // Pure logic of the electricity screens (CR-023): the formula grammar and AST, presets, text mode, periods and numbers, the chart data and the golden
@@ -253,12 +253,18 @@ test.describe('bill sent / paid and the PDF state', () => {
       expect((await mockBackend.getBill('b102')).pdf).toMatchObject({ state: 'failed', error_code: 'pdf_page_limit' });
       ctl({ pdf_error: 'pdf_timeout' });
       await expect(mockBackend.fetchPdf('b102')).rejects.toMatchObject({ status: 503, body: { code: 'pdf_timeout', retryable: true } });
+      ctl({ pdf_error: 'pdf_no_lines' });
+      await expect(mockBackend.fetchPdf('b102')).rejects.toMatchObject({ status: 422, body: { code: 'pdf_no_lines', retryable: false } });
+      ctl({ pdf_error: 'pdf_invalid_snapshot' });
+      await expect(mockBackend.fetchPdf('b102')).rejects.toMatchObject({ status: 422, body: { code: 'pdf_invalid_snapshot', retryable: false } });
       ctl({ pdf_error: 'pdf_unavailable' });
       expect((await mockBackend.getBill('b102')).pdf?.state).toBe('unavailable');
     } finally {
       delete g.localStorage;
     }
-    for (const c of ['pdf_render_failed', 'pdf_timeout', 'pdf_page_limit', 'pdf_too_large', 'pdf_unavailable']) expect(ERROR_TEXT[c], c).toMatch(/[א-ת]/);
+    for (const c of ['pdf_render_failed', 'pdf_timeout', 'pdf_page_limit', 'pdf_too_large', 'pdf_no_lines', 'pdf_invalid_snapshot', 'pdf_unavailable']) expect(ERROR_TEXT[c], c).toMatch(/[א-ת]/);
+    for (const c of ['pdf_no_lines', 'pdf_invalid_snapshot', 'pdf_page_limit', 'pdf_too_large', 'pdf_unavailable']) expect(PDF_RETRYABLE, c).not.toContain(c);
+    for (const c of ['pdf_render_failed', 'pdf_timeout']) expect(PDF_RETRYABLE, c).toContain(c);
     expect(eventText({ at: '', action: 'pdf_failed', actor: { kind: 'system' }, details: { code: 'pdf_timeout' } })).toBe('הפקת ה-PDF נכשלה');
   });
 });

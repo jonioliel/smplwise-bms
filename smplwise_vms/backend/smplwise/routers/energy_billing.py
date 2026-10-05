@@ -982,6 +982,8 @@ PDF_ERROR_HE = {
     "pdf_timeout": "הפקת ה-PDF ארכה זמן רב מדי. אפשר לנסות שוב.",
     "pdf_page_limit": "החיוב ארוך מדי לקובץ PDF (יותר מ-40 עמודים).",
     "pdf_too_large": "קובץ ה-PDF גדול מדי.",
+    "pdf_no_lines": "אין שורות חיוב בחיוב הזה (המונים לא דיווחו בתקופה); אי אפשר להפיק PDF.",
+    "pdf_invalid_snapshot": "אי אפשר להפיק PDF: נתוני החיוב אינם שלמים. יש לחשב את החיוב מחדש או לפנות לתמיכה.",
 }
 
 
@@ -1017,7 +1019,10 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
             raise ApiError(503, "pdf_unavailable", "הפקת PDF אינה זמינה בגרסה זו.") from None
         except pdfseam.PdfFailed as exc:
             _pdf_failed(request, bid, exc.code)
-            raise ApiError(exc.status, exc.code, PDF_ERROR_HE.get(exc.code, PDF_ERROR_HE["pdf_render_failed"]), retryable=exc.retryable) from None
+            msg = PDF_ERROR_HE.get(exc.code, PDF_ERROR_HE["pdf_render_failed"])
+            if exc.code == "pdf_invalid_snapshot" and exc.field:
+                msg = msg[:-1] + f" (שדה: {exc.field})."
+            raise ApiError(exc.status, exc.code, msg, retryable=exc.retryable, details={"field": exc.field} if exc.field else None) from None
         if watermark is None and bill["state"] in eb.ISSUED_STATES and not bill["pdf_path"]:
             rel = eb.pdf_rel_path(bill)
             path = data_dir / rel

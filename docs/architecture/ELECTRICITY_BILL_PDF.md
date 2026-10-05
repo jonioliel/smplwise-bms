@@ -88,8 +88,10 @@ spans (`direction: ltr; unicode-bidi: isolate`) inside the RTL text. House style
   when the simple engine is active, ERROR when none works) and exposed by `bill_pdf.engine_status()` as `pdf_engine` in
   `GET /energy/billing-settings` and as `pdf.engine` on every bill, so a silent fallback to fpdf2 is visible.
 - The billing seam (`services/energy_billing_pdf.py`) calls `render_bill_pdf` and maps the errors: `pdf_render_failed`,
-  `pdf_timeout` -> 503 retryable; `pdf_page_limit`, `pdf_too_large` -> 422; a malformed snapshot -> 503 `pdf_render_failed`, not
-  retryable. Failures are recorded as bill events and shown as `pdf.state = failed`.
+  `pdf_timeout` -> 503 retryable; `pdf_page_limit`, `pdf_too_large` -> 422; a snapshot that cannot be printed -> 422, not
+  retryable: `pdf_no_lines` (an issued bill with no lines) or `pdf_invalid_snapshot` (+ `details.field`, the field name only; logged at
+  warning level as `field=...`). A meter with no reading at a period edge prints a dash (`reading_kwh: null`), and a DRAFT with no
+  lines prints with the note "טיוטה ללא צריכה" (watermarked as any draft); an issued bill without lines is still refused. Failures are recorded as bill events and shown as `pdf.state = failed`.
 - The logo upload of the business settings uses `sanitize_logo` (the same rules as at render time).
 
 ### 4.2 Found in the add-on image (EL8, 2.0.1)

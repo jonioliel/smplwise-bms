@@ -8,7 +8,7 @@
  */
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { ERROR_TEXT, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow } from '../api/electricity-billing';
+import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, billChip, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
@@ -197,7 +197,7 @@ export class ElecBillPage extends ElecBase {
     const code = b.pdf?.error_code || 'pdf_render_failed';
     const fail = this.pdfFail ?? (st === 'failed' ? { code, text: ERROR_TEXT[code] ?? ERROR_TEXT.pdf_render_failed } : st === 'unavailable' ? { code: 'pdf_unavailable', text: ERROR_TEXT.pdf_unavailable } : null);
     if (!fail) return nothing;
-    const retry = fail.code !== 'pdf_unavailable';
+    const retry = PDF_RETRYABLE.includes(fail.code); // only a failure that can pass on its own: a bill without lines or a full-size PDF stays the same
     const shown = fail.code === 'pdf_unavailable' ? 'unavailable' : 'failed';
     return html`<div class="alert ${retry ? 'err' : 'warn'}" role="alert" data-pdf-error data-pdf-state=${shown} data-pdf-code=${fail.code}><span class="x" aria-hidden="true">!</span><div>${fail.text}</div>${retry ? html`<button type="button" class="btn sm" data-pdf-retry @click=${() => void this.pdf(b.state === 'draft' ? 'view' : 'download')}>הפקת PDF מחדש</button>` : nothing}</div>`;
   }

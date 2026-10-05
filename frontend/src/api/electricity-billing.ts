@@ -54,6 +54,8 @@ export const ERROR_TEXT: Record<string, string> = {
   pdf_timeout: 'יצירת קובץ ה-PDF לקחה יותר מדי זמן. החיוב נשמר ואפשר לנסות שוב.',
   pdf_page_limit: 'החיוב ארוך מדי לקובץ PDF (יותר מדי עמודים).',
   pdf_too_large: 'קובץ ה-PDF גדול מדי. נסו לוגו קטן יותר.',
+  pdf_no_lines: 'אין שורות חיוב בחיוב הזה (המונים לא דיווחו בתקופה); אי אפשר להפיק PDF.',
+  pdf_invalid_snapshot: 'אי אפשר להפיק PDF: נתוני החיוב אינם שלמים. יש לחשב את החיוב מחדש או לפנות לתמיכה.',
   logo_invalid: 'הלוגו חייב להיות PNG או JPEG עד 1MB.',
   tariff_definition_invalid: 'הגדרת התעריף לפי שעות אינה תקינה.',
   tariff_kind_mixed: 'בתקופה יש גם מחיר קבוע וגם תעריף לפי שעות.',
@@ -308,8 +310,8 @@ export interface BillSnapshot {
   /** the first 12 hex characters of snapshot_sha256 (the server sends the full hash on the Bill) */
 }
 export type BillAction = 'recalculate' | 'delete' | 'issue' | 'sent' | 'paid' | 'correct' | 'void' | 'pdf';
-/** The PDF codes of the server (GET /energy/bills/{id}/pdf): 503 render_failed / timeout (retryable), 422 page_limit / too_large, 503 unavailable. */
-export type PdfErrorCode = 'pdf_render_failed' | 'pdf_timeout' | 'pdf_page_limit' | 'pdf_too_large' | 'pdf_unavailable';
+/** The PDF codes of the server (GET /energy/bills/{id}/pdf): 503 render_failed / timeout (retryable), 422 page_limit / too_large / no_lines / invalid_snapshot (none of them retryable: the same bill gives the same answer), 503 unavailable. */
+export type PdfErrorCode = 'pdf_render_failed' | 'pdf_timeout' | 'pdf_page_limit' | 'pdf_too_large' | 'pdf_no_lines' | 'pdf_invalid_snapshot' | 'pdf_unavailable';
 export const PDF_RETRYABLE: readonly string[] = ['pdf_render_failed', 'pdf_timeout'];
 /**
  * The bill's PDF: stored = an issued bill whose PDF file is saved; ready = can be produced on request; failed = the last attempt failed
