@@ -888,6 +888,22 @@ export class ExploreFloorMap extends LitElement {
       margin-block-end: 4px;
       color: var(--sw-text-3);
     }
+    .sidelist .grab {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      block-size: 22px;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .sidelist .grab span {
+      inline-size: 40px;
+      block-size: 4px;
+      border-radius: 2px;
+      background: var(--sw-border-strong);
+    }
     @media (max-width: 767px) {
       .head {
         padding: 12px 12px 8px;
@@ -960,37 +976,32 @@ export class ExploreFloorMap extends LitElement {
     @media (max-height: 500px) {
       .head {
         padding: 6px 12px 4px;
+        gap: 4px 8px;
         align-items: center;
+        flex-wrap: nowrap;
       }
       .crumbs,
       .sub,
-      .legend {
+      .legend,
+      .tools .layers,
+      .tools sw-field,
+      .tools sw-button[icon='edit'] {
         display: none;
+      }
+      .tools {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        max-inline-size: 100%;
       }
       h1 {
         font-size: var(--sw-fs-lg);
+        white-space: nowrap;
       }
       .stage {
         min-block-size: 200px;
         margin: 0;
         border-radius: 0;
       }
-    }
-    .sidelist .grab {
-      display: none;
-      justify-content: center;
-      align-items: center;
-      block-size: 22px;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-    .sidelist .grab span {
-      inline-size: 40px;
-      block-size: 4px;
-      border-radius: 2px;
-      background: var(--sw-border-strong);
     }
     /* K88: the selected room's card */
     .roomcard {

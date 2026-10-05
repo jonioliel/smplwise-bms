@@ -34,13 +34,15 @@ test.describe('floor map', () => {
     await canvas.locator(`[data-zone="${ZONE_FREE}"] [data-zone-body]`).click({ position: { x: 10, y: 10 } });
     await expect(map.locator('[data-room-card]')).toHaveAttribute('data-zone-id', ZONE_FREE);
     await expect(map.locator('[data-room-open-area]')).toHaveCount(0);
-    // the layer toggle hides the picture
-    const toggle = map.locator('.layers button[title="תמונת הקומה"]');
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-    await toggle.click();
-    await expect(canvas.locator('[data-floor-image]')).toHaveCount(0);
-    await toggle.click();
-    await expect(canvas.locator('[data-floor-image]')).toHaveCount(1);
+    // the layer toggle hides the picture (the icon row is a desktop control; the phone has the layers panel)
+    if ((page.viewportSize()?.width ?? 1440) > 640) {
+      const toggle = map.locator('.layers button[title="תמונת הקומה"]');
+      await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      await toggle.click();
+      await expect(canvas.locator('[data-floor-image]')).toHaveCount(0);
+      await toggle.click();
+      await expect(canvas.locator('[data-floor-image]')).toHaveCount(1);
+    }
   });
 
   test('without an own picture the layer button is not offered', async ({ page }) => {
@@ -50,6 +52,9 @@ test.describe('floor map', () => {
     await expect(map.locator('sw-plan-canvas [data-zone]')).toHaveCount(2);
     await expect(map.locator('.layers button[title="תמונת הקומה"]')).toHaveCount(0);
     await expect(map.locator('sw-plan-canvas [data-floor-image]')).toHaveCount(0);
+    await map.locator('sw-button[icon="layers"]').click();
+    await expect(map.locator('[data-layers-panel]')).toBeVisible();
+    await expect(map.locator('[data-layers-panel]')).not.toContainText('תמונת הקומה');
   });
 
   test('?zone= focuses the linked room (the "הצג על המפה" target)', async ({ page }) => {
@@ -99,7 +104,8 @@ test.describe('devices screens', () => {
     const building = page.locator('devices-building');
     const view = building.locator('[data-plan-view]');
     await expect(view).toBeVisible();
-    await expect(building.locator('[data-layout-view="plan"] [data-devices-tree]')).toBeVisible();
+    if ((page.viewportSize()?.width ?? 1440) >= 900) await expect(building.locator('[data-layout-view="plan"] [data-devices-tree]')).toBeVisible(); // the tree folds into the cards on a phone (existing rule)
+    else await expect(building.locator('[data-layout-view="plan"] [data-devices-tree]')).toHaveCount(1);
     const embedded = view.locator('explore-floor-map[data-plan-map]');
     await expect(embedded).toHaveAttribute('embedded', '');
     await expect(view.locator('[data-plan-floors] button')).toHaveCount(2);
@@ -145,13 +151,13 @@ test.describe('settings', () => {
     const free = admin.locator(`[data-area-link-row="${ZONE_FREE}"]`);
     await expect(free).toHaveAttribute('data-status', 'suggested');
     await expect(free.locator('[data-area-link-suggestion]')).toContainText('מחסן');
-    await expect(admin.locator('[data-area-links-counts]')).toContainText('הצעות 1');
+    await expect(admin.locator('[data-area-links-counts]')).toContainText(/הצעות\s*‎?1/);
     await free.locator('input[type="checkbox"]').check();
     await admin.locator('[data-area-links-accept]').click();
     await expect.poll(() => st.linkPosts.length).toBe(1);
     expect(st.linkPosts[0]).toEqual({ links: [{ zone_id: ZONE_FREE, area_id: 'store' }] });
     await expect(free).toHaveAttribute('data-status', 'linked');
-    await expect(admin.locator('[data-area-links-counts]')).toContainText('מקושרים 2');
+    await expect(admin.locator('[data-area-links-counts]')).toContainText(/מקושרים\s*‎?2/);
     // unlink from the row
     await free.locator('[data-area-link-clear]').click();
     await expect.poll(() => st.linkPosts.length).toBe(2);
@@ -192,6 +198,7 @@ test.describe('phone pass', () => {
     const map = page.locator('explore-floor-map');
     await expect(map.locator('sw-plan-canvas [data-zone]')).toHaveCount(2);
     await expect(map.locator('.crumbs')).toBeHidden();
+    await expect(map.locator('[data-tools] sw-field')).toBeHidden();
     const head = await map.locator('[data-head]').boundingBox();
     expect(head!.height).toBeLessThan(64);
     const stage = await map.locator('[data-stage]').boundingBox();

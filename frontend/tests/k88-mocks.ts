@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { areaDetail as bubbleAreaDetail } from './bubble-mocks';
 
 // K88 (2.0.1): a mocked backend for the real floor map, the devices screens and the settings map tab - one plan floor
 // with two rooms (one linked to the area "living"), one light anchor, the floor's own picture in both variants, the device
@@ -61,16 +62,10 @@ function tree() {
   };
 }
 
-const row = (entity_id: string, name: string, state: string, extra: Record<string, unknown> = {}) => ({ entity_id, name, domain: entity_id.split('.')[0], device_class: null, state, available: true, fresh: true, active: state === 'on', icon: null, last_changed: '2026-10-05T09:40:00Z', can_control: true, ...extra });
 function areaDetail() {
   const a = AREAS[0];
-  const empty = { entities: [] as unknown[], count: 0, active: 0 };
-  return {
-    area: { area_id: a.area_id, name: a.name, icon: null, floor_id: 'g', floor_name: 'קומת קרקע', level: 0, map: a.map },
-    floor_areas: AREAS.map((x) => ({ area_id: x.area_id, name: x.name, icon: null, counts: x.counts })),
-    cards: { lights: { entities: [row('light.salon', 'מנורת הסלון', 'on')], count: 1, active: 1 }, switches: empty, climate: empty, covers: empty, security: empty, media: empty, sensors: empty },
-    counts: a.counts, scoped: false, can_bulk: true, can_mark_bulk_protected: false, sync: SYNC,
-  };
+  const base = bubbleAreaDetail('living');
+  return { ...base, area: { ...base.area, map: a.map }, floor_areas: AREAS.map((x) => ({ area_id: x.area_id, name: x.name, icon: null, counts: x.counts })) };
 }
 
 export interface K88MockState {
