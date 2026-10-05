@@ -8,13 +8,13 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-live-player';
 import '../components/sw-case-picker';
-import type { NewCaseItem } from '../api/cases';
+import { listCases, type Case, type NewCaseItem } from '../api/cases';
 import '../map/sw-plan-canvas';
 import type { PlanMarker } from '../map/sw-plan-canvas';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
 import { isApi } from '../api/session';
-import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, getCorrelation, getEvent, getEventRoute, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type EventRoute, type VmsEvent } from '../api/events';
+import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, confirmEventRoute, getCorrelation, getEvent, getEventRoute, listEvents, pollThumbnail, thumbnailUrl, type Certainty, type Correlation, type EventDetail, type EventRoute, type RouteConfirmResult, type VmsEvent } from '../api/events';
 import type { StateKind } from '../components/sw-badge';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -63,6 +63,14 @@ export class InvestigateEventDetail extends LitElement {
   @state() private busy = false;
   @state() private thumbVersion = 0;
   @state() private casePick: NewCaseItem | null = null;
+  /** M064: the suggested cameras ticked for the case (all, until the operator unticks), the case to put them in
+   * ('' = a new case), the open cases on offer, and the last confirmation. */
+  @state() private routeTicked: Set<string> | null = null;
+  @state() private routeCase = '';
+  @state() private routeCases: Case[] | null = null;
+  @state() private routeBusy = false;
+  @state() private routeError = '';
+  @state() private routeDone: RouteConfirmResult | null = null;
   @state() private geometry: GeometryDoc | null = null;
   /** `plan.levels` (0.1.89) applied once per floor load: null (all levels) or the floor's default level id. There is
    * no level bar on this screen, so it stays fixed for the event's floor and only culls the 3D structure (walls,
@@ -258,6 +266,42 @@ export class InvestigateEventDetail extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
+    /* M064: a tick per suggested camera and the one-click confirmation row of the route card */
+    .corr .link.route {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+    .corr .link.route .rel {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .corr .link.route input[type='checkbox'] {
+      margin: 0;
+      accent-color: var(--sw-accent);
+    }
+    .routeconfirm {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-block-start: 10px;
+      padding-block-start: 10px;
+      border-block-start: 1px solid var(--sw-border);
+    }
+    .routeconfirm select {
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      padding: 6px 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: 8px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      max-inline-size: 220px;
+    }
+    .routeconfirm .ok {
+      color: var(--sw-success, #15803d);
+      font-size: var(--sw-fs-sm);
+    }
     .nearby {
       display: flex;
       flex-direction: column;
@@ -344,23 +388,73 @@ export class InvestigateEventDetail extends LitElement {
 
   private async loadRoute(id: string) {
     this.route = null;
+    this.routeTicked = null;
+    this.routeDone = null;
+    this.routeError = '';
     try {
       this.route = await getEventRoute(id);
+      if (this.route.suggestions.length && this.routeCases === null) {
+        listCases({ status: 'open' }).then((r) => { this.routeCases = r.can_manage ? r.cases : []; if (!r.can_manage) this.routeCases = null; }).catch(() => (this.routeCases = []));
+      }
     } catch {
       this.route = null;
+    }
+  }
+
+  /** The suggested cameras the confirmation takes: every suggestion until the operator unticks some. */
+  private routePicks(): string[] {
+    const all = (this.route?.suggestions ?? []).map((s) => s.camera_id);
+    return this.routeTicked ? all.filter((id) => this.routeTicked!.has(id)) : all;
+  }
+
+  private tickRoute(id: string, on: boolean) {
+    const next = new Set(this.routeTicked ?? this.routePicks());
+    if (on) next.add(id);
+    else next.delete(id);
+    this.routeTicked = next;
+  }
+
+  /** One click (M064): the event and a clip per ticked camera into the chosen case (or a new one). */
+  private async confirmRoute() {
+    const r = this.route;
+    const picks = this.routePicks();
+    if (!r || !picks.length || this.routeBusy) return;
+    this.routeBusy = true;
+    this.routeError = '';
+    try {
+      this.routeDone = await confirmEventRoute(r.event_id, { camera_ids: picks, case_id: this.routeCase || undefined });
+      if (this.routeDone.created) this.routeCases = [...(this.routeCases ?? []), { id: this.routeDone.case_id, title: this.routeDone.title } as Case];
+      this.routeCase = this.routeDone.case_id;
+    } catch (err) {
+      this.routeError = describeError(err);
+    } finally {
+      this.routeBusy = false;
     }
   }
 
   private renderRoute() {
     const r = this.route;
     if (!r || !r.spatial) return nothing;
+    const picks = new Set(this.routePicks());
+    const kind = (rel: string): StateKind => (rel === 'same_zone' ? 'recorded' : rel === 'adjacent_zone' ? 'partial' : rel === 'via_connector' ? 'stale' : 'neutral');
     return html`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000)} שניות" style="margin-block-start:12px" data-route>
       ${r.suggestions.length
-        ? html`<div class="corr" data-route-list>${r.suggestions.map((s) => html`<div class="link" data-route-item data-relation=${s.relation}>
-              <span><sw-badge kind=${s.relation === 'same_zone' ? 'recorded' : s.relation === 'adjacent_zone' ? 'partial' : 'neutral'} label=${s.relation_label}></sw-badge></span>
-              <span>${s.name}${s.zone ? html` · ${s.zone}` : nothing}<small>${s.activity_events ? `${s.activity_events} אירועים בחלון` : 'ללא אירועים בחלון'} · מרחק ${Math.round(s.distance * 100)} יח׳ תוכנית</small></span>
+        ? html`<div class="corr" data-route-list>${r.suggestions.map((s) => html`<div class="link route" data-route-item data-relation=${s.relation} data-camera=${s.camera_id}>
+              <span class="rel"><input type="checkbox" aria-label=${`כלול את ${s.name} במסלול`} data-route-tick=${s.camera_id} .checked=${picks.has(s.camera_id)} @change=${(e: Event) => this.tickRoute(s.camera_id, (e.target as HTMLInputElement).checked)} />${s.via ? html`<sw-icon name=${s.via.kind === 'elevator' ? 'elevator' : 'stairs'} size=${14}></sw-icon>` : nothing}<sw-badge kind=${kind(s.relation)} label=${s.relation_label}></sw-badge></span>
+              <span>${s.name}${s.zone ? html` · ${s.zone}` : nothing}${s.via ? html` · ${s.via.floor_name}` : nothing}<small>${s.activity_events ? `${s.activity_events} אירועים בחלון` : 'ללא אירועים בחלון'} · מרחק ${Math.round(s.distance * 100)} יח׳ תוכנית${s.via?.label ? ` · ${s.via.label}` : ''}</small></span>
               <sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: s.camera_id, t: s.playback_at })}>נגן</sw-button>
-            </div>`)}</div>`
+            </div>`)}</div>
+          ${this.routeCases !== null
+            ? html`<div class="routeconfirm" data-route-confirm>
+                <select aria-label="תיק" data-route-case .value=${this.routeCase} @change=${(e: Event) => (this.routeCase = (e.target as HTMLSelectElement).value)}>
+                  <option value="" ?selected=${!this.routeCase}>תיק חדש</option>
+                  ${(this.routeCases ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.routeCase}>${c.title}</option>`)}
+                </select>
+                <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? 'מוסיף…' : `אשר מסלול לתיק (${picks.size})`}</sw-button>
+                ${this.routeDone ? html`<span class="ok" data-route-done>נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
+                ${this.routeError ? html`<span class="err" role="alert" data-route-error>${this.routeError}</span>` : nothing}
+              </div>`
+            : nothing}`
         : html`<div class="note" style="margin:0">אין מצלמות נוספות בסביבה על התוכנית.</div>`}
       ${r.notes.length ? html`<ul class="corrnotes">${r.notes.map((n) => html`<li>${n}</li>`)}</ul>` : nothing}
       <div class="note">${r.policy}</div>

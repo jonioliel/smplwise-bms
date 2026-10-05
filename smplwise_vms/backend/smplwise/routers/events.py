@@ -17,11 +17,11 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
-from ..db import Database, database_of, now_iso
+from ..db import Database, database_of, new_id, now_iso
 from ..errors import ApiError
 from ..mode import is_ha_only
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import correlation, events_cache, events_derive, events_ingest, revocation, thumbnails
+from ..services import correlation, events_cache, events_derive, events_ingest, revocation, spotlights, thumbnails
 from ..services.access import RowScope, camera_allowed, require_camera, row_scope
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -409,15 +409,37 @@ def camera_groups(conn: sqlite3.Connection, by: str) -> dict[str, tuple[str, str
     return out
 
 
-def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "camera", groups: dict[str, tuple[str, str]] | None = None) -> list[dict[str, Any]]:
+MANUAL_LABEL = "קיבוץ ידני"
+
+
+def manual_groups(conn: sqlite3.Connection, event_ids: list[str]) -> dict[str, str]:
+    """event id -> manual group id for the events an operator regrouped (M047), read per request: never cached."""
+    if not event_ids:
+        return {}
+    out: dict[str, str] = {}
+    for i in range(0, len(event_ids), 400):
+        chunk = event_ids[i:i + 400]
+        for r in conn.execute(f"SELECT event_id, group_id FROM event_window_members WHERE event_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
+            out[r["event_id"]] = r["group_id"]
+    return out
+
+
+def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "camera", groups: dict[str, tuple[str, str]] | None = None,
+                  manual: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Merge events whose gaps are at most `gap_seconds` into review windows (newest first). `by` picks what a window
     spans: one camera (default), every camera together, a room (zone) or a floor - `groups` maps camera ids to the
     (key, label) of the last two; cameras without a place fall into "לא ממופה". System events (no camera) form one
-    window each. The raw events keep their ids inside the window."""
+    window each. The raw events keep their ids inside the window. `manual` (M047) maps event ids to the group an
+    operator put them in: those events form one window per group whatever the gap and the mode, and leave the
+    automatic windows. Every window carries its spotlight verdict (services/spotlights.py)."""
     groups = groups or {}
+    manual = manual or {}
 
     def key_of(ev: dict[str, Any]) -> tuple[str | None, str | None]:
         cam = ev.get("camera_id")
+        gid = manual.get(ev["id"])
+        if gid:
+            return f"manual:{gid}", MANUAL_LABEL
         if cam is None:
             return None, None
         if by == "camera":
@@ -440,12 +462,13 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "cam
         for ev in items:
             start = parse_utc(ev["occurred_at"])
             end = parse_utc(ev["ended_at"]) if ev.get("ended_at") else start
-            if current is not None and k is not None and (start - current["_end"]).total_seconds() <= gap_seconds:
+            is_manual = isinstance(k, str) and k.startswith("manual:")
+            if current is not None and k is not None and (is_manual or (start - current["_end"]).total_seconds() <= gap_seconds):
                 current["_end"] = max(current["_end"], end)
                 current["_events"].append(ev)
             else:
-                cam = ev.get("camera_id") if by == "camera" else None
-                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam, "_key": k, "_label": labels.get(k)}
+                cam = ev.get("camera_id") if by == "camera" and not is_manual else None
+                current = {"_start": start, "_end": end, "_events": [ev], "camera_id": cam, "_key": k, "_label": labels.get(k), "_manual": k[len("manual:"):] if is_manual else None}
                 windows.append(current)
     out: list[dict[str, Any]] = []
     for w in windows:
@@ -458,13 +481,19 @@ def group_windows(events: list[dict[str, Any]], gap_seconds: int, by: str = "cam
         acked = sum(1 for ev in evs if ev.get("acked_at"))
         thumb_ev = next((ev for ev in evs if ev.get("thumbnail") == "ready"), None) or next((ev for ev in evs if ev.get("thumbnail") == "pending"), None) or evs[0]
         cameras = sorted({ev.get("camera_id") for ev in evs if ev.get("camera_id")})
+        manual_id = w.get("_manual")
+        single = (by == "camera" or w["_key"] is None) and not manual_id
+        # a manual window of one camera keeps that camera's name; of several, the names joined (the label says "manual")
+        manual_name = evs[0].get("camera_name") if manual_id and len(cameras) <= 1 else " · ".join(sorted({ev.get("camera_name") for ev in evs if ev.get("camera_name")})) if manual_id else None
         out.append({
             "id": f"{w['_key'] or 'system'}:{iso_utc(w['_start'])}",
-            "camera_id": w["camera_id"],
-            "camera_name": evs[0].get("camera_name") if by == "camera" or w["_key"] is None else w["_label"],
-            "channel": evs[0].get("channel") if by == "camera" or w["_key"] is None else None,
-            "group": by,
+            "camera_id": w["camera_id"] if not manual_id else (cameras[0] if len(cameras) == 1 else None),
+            "camera_name": evs[0].get("camera_name") if single else (manual_name or w["_label"]),
+            "channel": evs[0].get("channel") if single else None,
+            "group": "manual" if manual_id else by,
             "group_label": w["_label"],
+            "manual_group_id": manual_id,
+            "spotlight": spotlights.evaluate(evs),
             "camera_ids": cameras,
             "camera_names": sorted({ev.get("camera_name") for ev in evs if ev.get("camera_name")}),
             "start": iso_utc(w["_start"]),
@@ -498,13 +527,83 @@ def list_windows(
     gap: int = Query(180, ge=30, le=3600),
     limit: int = Query(200, ge=1, le=1000),
     by: str = Query("camera", pattern="^(camera|all|zone|floor)$"),
+    spotlight: bool = False,
 ) -> dict[str, Any]:
     """Review windows (design M26): the day's events grouped by proximity - per camera, all cameras together, per
     room or per floor (`by`, 0.1.62); nothing is deleted or merged in the store, the raw events stay reachable
-    through their ids."""
+    through their ids. M047: every window carries its spotlight verdict (rules explained); `spotlight=true` lists
+    only the lit ones; an operator's manual groups (POST /events/windows/groups) override the automatic grouping."""
+    spotlight = spotlight if isinstance(spotlight, bool) else False
     raw = list_events(request, principal, conn, date=date, from_=from_, to=to, camera_id=camera_id, type=None, unacked=False, acked=False, limit=1000)
-    windows = group_windows(raw["events"], gap, by, camera_groups(conn, by))[:limit]
-    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "group": by, "events_total": len(raw["events"]), "ingest": raw["ingest"]}
+    windows = group_windows(raw["events"], gap, by, camera_groups(conn, by), manual_groups(conn, [ev["id"] for ev in raw["events"]]))
+    lit = sum(1 for w in windows if w["spotlight"]["on"])
+    if spotlight:
+        windows = [w for w in windows if w["spotlight"]["on"]]
+    windows = windows[:limit]
+    return {"windows": windows, "from": raw["from"], "to": raw["to"], "timezone": raw["timezone"], "gap_seconds": gap, "group": by, "events_total": len(raw["events"]),
+            "spotlights": lit, "spotlight_rules": [{"code": c, "score": s, "label": lbl, "why": why} for c, (s, lbl, why) in spotlights.RULES.items()], "ingest": raw["ingest"]}
+
+
+class WindowGroupIn(BaseModel):
+    """The raw events an operator puts into one review window (a split: part of a window; a join: two windows)."""
+    event_ids: list[str] = Field(min_length=1, max_length=500)
+    note: str = Field(default="", max_length=200)
+
+
+@router.post("/events/windows/groups", status_code=201)
+def group_window_events(body: WindowGroupIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Correct the grouping (M047): the named events form one review window from now on, whatever the gap or the
+    grouping mode. An event already in another manual group moves. Needs events.ack on every event's camera (the
+    same right as handling the window); unknown or out-of-scope events are skipped and reported; nothing is changed
+    on the events themselves. Audited by name."""
+    sc = row_scope(conn, principal, "events.ack")
+    kept: list[str] = []
+    skipped: list[str] = []
+    for eid in dict.fromkeys(body.event_ids):
+        row = conn.execute("SELECT camera_id FROM events WHERE id = ?", (eid,)).fetchone()
+        if not row or not sc.allows_row(row["camera_id"]):
+            skipped.append(eid)
+            continue
+        kept.append(eid)
+    if not kept:
+        if skipped and not sc.any():
+            require(conn, principal, "events.ack", INSTALLATION)
+        raise ApiError(422, "validation", "אף אחד מהאירועים לא נמצא או אינו בהרשאתך.", details={"skipped": skipped})
+    gid = new_id()
+    now = now_iso()
+    conn.execute("INSERT INTO event_window_groups(id, note, created_by, created_by_username, created_at) VALUES (?,?,?,?,?)", (gid, body.note.strip(), principal.user_id, principal.username, now))
+    emptied: set[str] = set()
+    for eid in kept:
+        prev = conn.execute("SELECT group_id FROM event_window_members WHERE event_id = ?", (eid,)).fetchone()
+        if prev:
+            emptied.add(prev["group_id"])
+        conn.execute("INSERT OR REPLACE INTO event_window_members(event_id, group_id, added_at) VALUES (?,?,?)", (eid, gid, now))
+    for old in emptied:  # a group its members all left is gone, not a ghost window
+        if not conn.execute("SELECT 1 FROM event_window_members WHERE group_id = ? LIMIT 1", (old,)).fetchone():
+            conn.execute("DELETE FROM event_window_groups WHERE id = ?", (old,))
+    audit(conn, actor=principal, action="event.window.group", decision="allowed", resource_type="event_window_group", resource_id=gid,
+          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": kept, "skipped": skipped, "note": body.note.strip()})
+    return {"group_id": gid, "event_ids": kept, "skipped": skipped, "note": body.note.strip()}
+
+
+@router.delete("/events/windows/groups/{group_id}", status_code=204)
+def ungroup_window_events(group_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
+    """Dissolve a manual group: its events go back to the automatic windows. Needs events.ack on every member's camera."""
+    members = conn.execute("SELECT m.event_id, e.camera_id FROM event_window_members m JOIN events e ON e.id = m.event_id WHERE m.group_id = ?", (group_id,)).fetchall()
+    if not conn.execute("SELECT 1 FROM event_window_groups WHERE id = ?", (group_id,)).fetchone():
+        raise ApiError(404, "not_found", "הקיבוץ לא נמצא.")
+    sc = row_scope(conn, principal, "events.ack")
+    for m in members:
+        if not sc.allows_row(m["camera_id"]):  # the audited 403 of the first member the caller may not handle
+            if m["camera_id"]:
+                require_camera(conn, principal, m["camera_id"], "events.ack")
+            require(conn, principal, "events.ack", INSTALLATION)
+    if not members:
+        require(conn, principal, "events.ack", INSTALLATION)
+    conn.execute("DELETE FROM event_window_members WHERE group_id = ?", (group_id,))
+    conn.execute("DELETE FROM event_window_groups WHERE id = ?", (group_id,))
+    audit(conn, actor=principal, action="event.window.ungroup", decision="allowed", resource_type="event_window_group", resource_id=group_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"event_ids": [m["event_id"] for m in members]})
 
 
 class AckManyIn(BaseModel):

@@ -456,6 +456,88 @@ def add_item(case_id: str, body: ItemIn, request: Request, principal: Principal 
     return _item(settings_of(request), conn, case_id, iid)
 
 
+class RouteConfirmIn(BaseModel):
+    """M064: the suggested route an operator confirms into a case - the event and a clip per chosen camera over the
+    route's window. `case_id` names an open case; without it a case is created (`title`, or a default)."""
+    camera_ids: list[str] = Field(min_length=1, max_length=20)
+    case_id: str | None = Field(default=None, max_length=32)
+    title: str | None = Field(default=None, max_length=120)
+    note: str = Field(default="", max_length=400)
+    window: int = Field(default=90, ge=10, le=900)
+
+
+@router.post("/events/{event_id}/route/confirm", status_code=201)
+def confirm_route(event_id: str, body: RouteConfirmIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One click from the suggested route (T064 / M064) into a case: the event (with its usual window) and one clip per
+    chosen suggested camera over the route's window, every clip's note saying it is a hypothesis, never an
+    identification. Only cameras the route suggests are accepted (422 otherwise), each needs video.playback; the
+    event's camera needs events.read; cases.manage as any case edit. Audited once with everything added."""
+    from ..services import correlation
+
+    row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if not row:
+        raise not_found("האירוע לא נמצא.")
+    ev = row_to_event(row)
+    if ev["camera_id"]:
+        require_camera(conn, principal, ev["camera_id"], "events.read")
+    else:
+        require(conn, principal, "events.read", INSTALLATION)
+    _require_manage(conn, principal)
+    allowed = visible_camera_ids(conn, principal, "events.read")
+    route = correlation.suggest_route(conn, ev, window_s=body.window, camera_ids_allowed=allowed)
+    offered = {s["camera_id"]: s for s in route["suggestions"]}
+    wanted = [c for c in dict.fromkeys(body.camera_ids) if c in offered]
+    if not wanted:
+        raise ApiError(422, "validation", "המצלמות שנבחרו אינן בהצעת המסלול של האירוע.", details={"offered": sorted(offered)})
+    skipped: list[dict[str, str]] = [{"camera_id": c, "reason": "לא בהצעת המסלול של האירוע"} for c in dict.fromkeys(body.camera_ids) if c not in offered]
+    _with_names(conn, [ev])
+    now = now_iso()
+    if body.case_id:
+        case = _get(conn, body.case_id)
+        if case["status"] == "closed":
+            raise conflict("case_closed", "התיק סגור; פתח אותו מחדש כדי להוסיף פריטים.")
+        cid, created = case["id"], False
+    else:
+        local = parse_utc(ev["occurred_at"]).astimezone(zone(read_settings(conn)["time.zone"])).strftime("%d.%m %H:%M")
+        title = (body.title or "").strip() or f"מסלול מוצע · {ev.get('camera_name') or 'אירוע'} · {local}"
+        cid, created = new_id(), True
+        conn.execute(
+            "INSERT INTO cases(id, title, description, status, tags_json, owner_user_id, owner_username, revision, created_at, updated_at, closed_at) VALUES (?,?,?,?,?,?,?,1,?,?,NULL)",
+            (cid, title[:120], "", "open", json.dumps(["מסלול מוצע"], ensure_ascii=False), principal.user_id, principal.username, now, now),
+        )
+        audit(conn, actor=principal, action="case.create", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request), details={"title": title[:120], "status": "open", "from": "route_confirm"})
+    added: list[dict[str, Any]] = []
+    # the event itself, with its usual window, unless it is already in the case
+    if not conn.execute("SELECT 1 FROM case_items WHERE case_id = ? AND event_id = ?", (cid, ev["id"])).fetchone():
+        t0 = parse_utc(ev["occurred_at"])
+        t1 = parse_utc(ev["ended_at"]) if ev["ended_at"] else t0
+        iid = new_id()
+        conn.execute(
+            "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,'event',?,?,NULL,?,?,?,?,?,?,0,NULL,NULL)",
+            (iid, cid, ev["camera_id"], ev["id"], iso_utc(t0 - dt.timedelta(seconds=EVENT_BEFORE_S)), iso_utc(t1 + dt.timedelta(seconds=EVENT_AFTER_S)), "נקודת המוצא של המסלול המוצע", principal.user_id, principal.username, now),
+        )
+        added.append({"id": iid, "kind": "event", "camera_id": ev["camera_id"], "event_id": ev["id"]})
+    for cam_id in wanted:
+        s = offered[cam_id]
+        if not camera_allowed(conn, principal, cam_id, "video.playback"):
+            skipped.append({"camera_id": cam_id, "reason": "אין הרשאת צפייה בהקלטות של המצלמה"})
+            continue
+        note = f"השערת מסלול · {s['relation_label']} · מ{ev.get('camera_name') or ev['camera_id']} — לא זיהוי של אותו אדם או רכב"
+        if body.note.strip():
+            note = f"{note} · {body.note.strip()}"
+        iid = new_id()
+        conn.execute(
+            "INSERT INTO case_items(id, case_id, kind, camera_id, event_id, export_job_id, from_at, to_at, note, added_by, added_by_username, created_at, sort_order, file_path, file_sha256) VALUES (?,?,'clip',?,NULL,NULL,?,?,?,?,?,?,0,NULL,NULL)",
+            (iid, cid, cam_id, route["window"]["from"], route["window"]["to"], note[:4000], principal.user_id, principal.username, now),
+        )
+        added.append({"id": iid, "kind": "clip", "camera_id": cam_id, "relation": s["relation"], "via": s.get("via")})
+    conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, cid))
+    audit(conn, actor=principal, action="case.route.confirm", decision="allowed", resource_type="case", resource_id=cid, request_id=_rid(request),
+          details={"event_id": ev["id"], "cameras": wanted, "skipped": skipped, "window": route["window"], "created": created, "hypothetical": True})
+    case = _get(conn, cid)
+    return {"case_id": cid, "title": case["title"], "created": created, "added": added, "skipped": skipped, "window": route["window"], "hypothetical": True}
+
+
 @router.delete("/cases/{case_id}/items/{item_id}", status_code=204)
 def remove_item(case_id: str, item_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> None:
     _require_manage(conn, principal)
