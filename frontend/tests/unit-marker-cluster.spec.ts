@@ -26,8 +26,9 @@ test('a large site clusters, and every marker is in exactly one place', () => {
 
 test('zooming in splits clusters; at the cap every marker is shown', () => {
   const m = mk(300);
-  const far = clusterMarkers(m, base).clusters.length;
-  const near = clusterMarkers(m, { ...base, scale: 1.6 }).clusters.length;
+  const inClusters = (s: number) => clusterMarkers(m, { ...base, scale: s }).clusters.reduce((t, c) => t + c.members.length, 0);
+  const far = inClusters(0.6);
+  const near = inClusters(1.6);
   expect(near).toBeLessThan(far);
   const cap = clusterMarkers(m, { ...base, scale: 2.5 });
   expect(cap.clusters).toHaveLength(0);
