@@ -113,7 +113,10 @@ test.describe('BV1 tiles', () => {
     // a quick action opens the screen's own bulk dialog (nothing is sent from the widget)
     const before = st.actions.length;
     await l.locator('[data-home-launch="quick:all_off"]').click();
-    await expect(page.locator('sw-app devices-building devices-bulk-dialog sw-dialog[open]')).toBeVisible({ timeout: 5000 });
+    // (the dialog host is display: contents, so "open" is the check; its preview request is not mocked here - the screen's own spec covers it)
+    const bulk = page.locator('sw-app devices-building devices-bulk-dialog sw-dialog');
+    await expect(bulk).toHaveAttribute('open', '', { timeout: 5000 });
+    expect(await bulk.getAttribute('data-bulk-dialog')).not.toBe('closed');
     expect(st.actions.length).toBe(before);
     await page.keyboard.press('Escape');
     // the agenda: sorted by start, the first is today's, the all-day one says so, the empty state is not shown
