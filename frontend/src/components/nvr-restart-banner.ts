@@ -5,7 +5,7 @@ import './sw-dialog';
 import './sw-icon';
 import { ApiError, describeError, get } from '../api/client';
 import { nvrConnection, restartSystem } from '../api/nvr-connection';
-import { can, isApi, onSession, session } from '../api/session';
+import { can, isApi, onRemote, onSession, session } from '../api/session';
 import type { Me } from '../api/types';
 
 /** The connection form tells the banner that a save / removal just made a restart necessary (it does not wait for the next /me). */
@@ -71,7 +71,7 @@ export class NvrRestartBanner extends LitElement {
 
   /** Whether the restart button can work here (the connection view says `restart: addon | manual`). */
   private async learnMode() {
-    if (this.asked) return;
+    if (this.asked || onRemote()) return;
     this.asked = true;
     try {
       this.manualOnly = (await nvrConnection()).restart === 'manual';
@@ -125,6 +125,7 @@ export class NvrRestartBanner extends LitElement {
   }
 
   render() {
+    if (onRemote()) return nothing; // the restart route is local-only; the banner says nothing a remote operator can act on
     if (!this.pending && this.phase === 'idle') return nothing;
     if (this.phase === 'waiting') {
       return html`<div class="bar" role="status" data-restart-banner data-restart-phase="waiting"><sw-icon name="refresh" size=${16}></sw-icon><span>המערכת מופעלת מחדש…</span></div>`;

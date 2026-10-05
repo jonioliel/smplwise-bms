@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-toggle';
 import './sw-badge';
+import { onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { describeError } from '../api/client';
 import { MA_STATE_LABEL, players, type MaConnection, type MaState, type MaTest } from '../api/media-players';
 
@@ -84,7 +85,7 @@ export class MediaMaConnection extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    void this.load();
+    if (!onRemote()) void this.load();
   }
 
   private async load() {
@@ -127,6 +128,7 @@ export class MediaMaConnection extends LitElement {
 
   protected render(): TemplateResult | typeof nothing {
     const c = this.conn;
+    if (onRemote()) return html`<div class="row"><span class="lbl">חיבור ישיר ל־Music Assistant<span class="muted" data-mc-local-only>${LOCAL_ONLY_GENERIC}</span></span></div>`;
     if (!c) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing;
     const t = this.test ?? c.last_test;
     const since = c.token_set_at ? new Date(c.token_set_at).toLocaleDateString('he-IL') : null;

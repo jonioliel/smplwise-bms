@@ -12,7 +12,7 @@ import {
 import {
   addRecorder, recorderConnection, removeRecorder, saveRecorderConnection, testRecorderConnection, PRIMARY_RECORDER,
 } from '../api/recorders';
-import { can, isApi } from '../api/session';
+import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 
 /** Fields the server keeps as columns; any other field of a vendor's catalogue entry travels in `extra`. */
@@ -116,7 +116,7 @@ export class NvrConnectionForm extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.mq.addEventListener('change', this.onMq);
-    if (isApi() && can('system.configure')) void this.load();
+    if (isApi() && can('system.configure') && !onRemote()) void this.load();
   }
 
   private async load() {
@@ -468,6 +468,7 @@ export class NvrConnectionForm extends LitElement {
 
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
+    if (onRemote()) return html`<p class="note" data-nvr-local-only role="status">${LOCAL_ONLY_TEXT}</p>`;
     if (this.loadState === 'loading') return html`<sw-state-panel state="loading" compact heading="קורא את פרטי החיבור…"></sw-state-panel>`;
     if (this.loadState === 'error' || !this.view) return html`<sw-state-panel state="error" compact heading="פרטי החיבור לא נטענו" hint=${this.loadError} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     const v = this.view;

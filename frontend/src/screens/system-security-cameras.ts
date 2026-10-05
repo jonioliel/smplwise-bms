@@ -17,6 +17,7 @@ import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
 import type { NvrEncodingBatch } from './nvr-encoding-batch';
 import { encodingStreams } from './nvr-encoding-logic';
 import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
+import { onRemote } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
 import type { SwToggle } from '../components/sw-toggle';
@@ -802,7 +803,7 @@ export class SystemSecurityCameras extends LitElement {
       ${this.select('SVC', 'svc', [['', 'כל ה־SVC'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
       ${this.select('WebRTC', 'webrtc', [['', 'כל ה־WebRTC'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
       ${filtersActive(f) || this.recorderFilter ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => { this.filters = { ...NO_FILTERS }; this.recorderFilter = ''; }}>נקה</sw-button>` : nothing}
-      ${this.data?.can_write && this.data.can_batch === true && !this.data.stale
+      ${this.data?.can_write && this.data.can_batch === true && !this.data.stale && !onRemote()
         ? html`<sw-button size="sm" data-nvr-encoding-open ?disabled=${this.batchRunning} title=${this.batchRunning ? BATCH_BUSY : ''} @click=${() => this.openEncoding()}>שינוי קידוד לכמה מצלמות</sw-button>`
         : nothing}
       <sw-button size="sm" icon="refresh" data-nvr-refresh ?disabled=${this.loading} @click=${() => void this.load()}>רענון</sw-button>
