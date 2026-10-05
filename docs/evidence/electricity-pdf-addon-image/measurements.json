@@ -1,0 +1,52 @@
+{
+ "host": "x86_64 Linux python 3.12.14",
+ "load_avg_at_start": 0.4013671875,
+ "note": "this machine only; not the target-hardware gate",
+ "weasyprint_cold_child_1_page": {
+  "seconds": [
+   0.54,
+   0.51,
+   0.55,
+   0.5,
+   0.5
+  ],
+  "median_s": 0.51,
+  "bytes": 31190
+ },
+ "fpdf2_cold_child_1_page": {
+  "seconds": [
+   0.45,
+   0.37,
+   0.35,
+   0.36,
+   0.36
+  ],
+  "median_s": 0.36,
+  "bytes": 18569
+ },
+ "weasyprint_cold_child_3_pages": {
+  "seconds": [
+   1.03,
+   1.02,
+   1.03,
+   1.02,
+   1.03
+  ],
+  "median_s": 1.03,
+  "bytes": 44469
+ },
+ "fpdf2_cold_child_3_pages": {
+  "seconds": [
+   0.68,
+   0.68,
+   0.68,
+   0.68,
+   0.69
+  ],
+  "median_s": 0.68,
+  "bytes": 38986
+ },
+ "peak_rss_mb_largest_child": 77.4,
+ "pages_of_3_page_sample": 4,
+ "load_avg_at_end": 0.53466796875
+}
