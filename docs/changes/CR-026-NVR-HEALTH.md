@@ -60,6 +60,7 @@ Every source is a normal CR-018 policy row: the administrator can change severit
 | Key | Default | Range |
 |---|---|---|
 | `continuous_recorders` | none (only recording faults the recorder reports) | recorder ids whose connected, enabled cameras should record all the time (chips per recorder in the card) |
+| `camera_recording` | none (every camera follows its recorder) | NN6B: camera id -> `continuous` or `events`, over the recorder's choice (at most 2000 entries) |
 | `recording_gap_min` | 30 | 5–1440 |
 | `clock_drift_s` | 60 | 5–3600 |
 | `latency_ms` | 1500 | 200–10000 |
@@ -91,7 +92,8 @@ reachability-only. Every scenario asserts `fake.writes == []`.
 1. Recording: by default only recording faults the recorder itself reports are alerts. The continuous-recording expectation
    is a per-recorder choice, off by default (many units, the owner's included, record on motion only).
 2. The disk-fill forecast is off by default (an overwriting NVR is always full); the setting stays.
-3. Hikvision detail comes after Provision; Hikvision recorders show reachability and latency only for now.
+3. Hikvision detail comes after Provision; Hikvision recorders show reachability and latency only for now (done in NN6H,
+   section 9).
 
 ## 8. Live read-only pass (owner's Provision NVR, 2026-10-05)
 
@@ -100,3 +102,33 @@ API reads (GetDeviceInfo, GetDiskInfo, GetRecordStatusInfo, GetChannelList, GetA
 Result: answering, 250 ms; no part failed; one disk `read/write` with **0 % free** (the unit overwrites - confirms decision
 2); no disk alarm; 16 channels, 15 connected, 1 disconnected; 14 recording, 2 idle (motion-only recording - confirms decision
 1); clock drift 0 s (NTP); certificate self-signed, about 2,650 days left. No address, account or serial number recorded.
+
+## 9. Follow-ups NN6B and NN6H (branch `pilot/NN6-health-detail`)
+
+**NN6B - continuous expectation per camera.** `camera_recording` (section 4) adds a per-camera choice on top of the
+recorder's: `continuous` (expected to record all the time, "not recording for `recording_gap_min`" alerts) or `events`
+(never "not recording"; a device-reported exception still alerts). A camera without an entry follows its recorder. Both
+stay off by default (owner decision 1 unchanged). Stored in the same `recorder_health.thresholds` JSON value: **no
+migration**. `GET|PUT /recorder-health/settings` also answer `cameras` (id, name, recorder, channel of the enabled cameras)
+for the card; the card's "לפי מצלמה" section (collapsed) has one choice per camera of a recorder that reports recording
+state ("כמו המקליט (רציפה / לא רציפה)" / "רציפה" / "לא רציפה"). The recording section of a card adds `expected` (cameras
+expected to record continuously).
+
+**NN6H - Hikvision detail.** `HikvisionAdapter` declares `health_detail` and implements `read_health()` with four GETs per
+pass (plus `deviceInfo` for reachability):
+
+| Part | Read | Mapping |
+|---|---|---|
+| Disks | `/ISAPI/ContentMgmt/Storage` (hdd and NAS) | status ok / idle / sleeping -> ok (property RO -> read-only); unformatted -> unformatted; formating -> formatting; error / abnormal / offline / smartFailed / mismatch / notexist -> error; other words -> unknown (raw word kept). No hdd and no NAS -> missing. |
+| Connectivity | `/ISAPI/ContentMgmt/InputProxy/channels/status` | `online` per input channel id (the same read discovery uses) |
+| Recording | `/ISAPI/System/workingstatus?format=json` | `ChanStatus.record` 1 -> recording, 0 -> idle. Used only when its channel numbers cover every input channel id (`channel_map_unproven` otherwise: not judged; no channel-number formula is guessed). |
+| Clock | `/ISAPI/System/time` | `localTime` read in the recorder's zone (`recorders.time_zone`, else the installation's) with the known summer-offset quirk (`nvr_system.device_instant`); drift against the host clock at the request midpoint. |
+
+Hikvision reports recording / not recording only, never a recording exception: with the owner's default (no continuous
+expectation) Hikvision produces no recording alert; disk faults, unreachable / slow, clock drift and camera connectivity
+(through `camera.offline`) do. No disk alarm read and no certificate (the ISAPI connection is not pinned). A 403 on one path
+is that part only (`errors`); a device that does not answer or refuses the credentials (401) stops the read.
+
+The shapes come from the lab's read-only probe capture of 2026-09-14 (workingstatus JSON, Storage, channel status, time);
+no new device call was made for this change. Tests: `smplwise_vms/backend/tests/test_recorder_health_nn6.py` (fake devices,
+GET-only assertions); layout and behaviour: `frontend/tests/layout-recorder-health.spec.ts`.

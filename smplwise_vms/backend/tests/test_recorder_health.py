@@ -334,7 +334,8 @@ def test_health_api_cards_and_permissions(w, settings, fake):
     assert fake.writes == []
 
 
-def test_hikvision_recorders_get_reachability_only(settings):
+def test_an_adapter_without_health_detail_gets_reachability_only(settings):
+    """A vendor that does not declare `health_detail` (Hikvision did until NN6H; its detail is in test_recorder_health_nn6)."""
     cap = base.RecorderCapabilities(vendor="hikvision", read_encodings=True, write_encodings=False, encoding_fields=frozenset(), add_channel=False,
                                     remove_channel=False, max_channels=None, live="rtsp", playback="rtsp", events="push")
     assert cap.health_detail is False

@@ -5,7 +5,7 @@ import './sw-button';
 import './sw-card';
 import './sw-field';
 import { describeError } from '../api/client';
-import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
+import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type CameraRecordingMode, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
 import type { StateKind } from './sw-badge';
 import { SkinController } from '../design/skin';
 
@@ -13,7 +13,7 @@ const KIND: Record<HealthState, StateKind> = { ok: 'live', warn: 'stale', error:
 const STATUS_TEXT: Record<HealthState, string> = { ok: 'תקין', warn: 'לתשומת לב', error: 'תקלה', unknown: 'לא ידוע', off: '' };
 
 /** The thresholds the settings card edits, in screen order: key, label, unit. */
-const FIELDS: { key: Exclude<keyof HealthThresholds, 'continuous_recorders'>; label: string; unit: string }[] = [
+const FIELDS: { key: Exclude<keyof HealthThresholds, 'continuous_recorders' | 'camera_recording'>; label: string; unit: string }[] = [
   { key: 'recording_gap_min', label: 'מצלמה לא מקליטה', unit: 'דקות' },
   { key: 'clock_drift_s', label: 'סטיית שעון', unit: 'שניות' },
   { key: 'latency_ms', label: 'תגובה איטית', unit: 'מ״ש' },
@@ -253,6 +253,56 @@ export class RecorderHealthPanel extends LitElement {
     :host([data-skin='bubble']) .r {
       border-block-start-color: transparent;
     }
+    .percam {
+      margin-block-end: 12px;
+      font-size: var(--sw-fs-sm);
+    }
+    .percam summary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 32px;
+      cursor: pointer;
+      color: var(--sw-text-2);
+    }
+    .percam .n {
+      color: var(--sw-accent);
+    }
+    .pc-h {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      margin-block: 8px 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pc-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+      gap: 6px 16px;
+    }
+    .pc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-inline-size: 0;
+    }
+    .pc-row span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-inline-size: 0;
+    }
+    .pc-row select {
+      flex: 0 1 auto;
+      max-inline-size: 60%;
+      min-block-size: 32px;
+    }
+    :host([data-skin='bubble']) .pc-row select,
+    :host([data-skin='bubble']) .percam summary {
+      min-block-size: 44px;
+    }
     .actions {
       display: flex;
       align-items: center;
@@ -316,6 +366,7 @@ export class RecorderHealthPanel extends LitElement {
             @click=${() => set('continuous_recorders', on ? cont.filter((x) => x !== c.id) : [...cont, c.id])}><i class="box" aria-hidden="true">${on ? '✓' : ''}</i><span>${c.name}</span></button>`;
         })}
       </div>` : nothing}
+      ${this.perCamera(detailed, v, set)}
       <div class="ths">
         ${FIELDS.map((f) => {
           const rg = this.th!.ranges[f.key];
@@ -328,6 +379,38 @@ export class RecorderHealthPanel extends LitElement {
         ${this.saveMsg ? html`<span class=${this.saveMsg.tone} data-rh-save-msg role="status">${this.saveMsg.text}</span>` : nothing}
       </div>
     </sw-card>`;
+  }
+
+  /** NN6B: the per-camera choice over the recorder's (follows the recorder / continuous / events only), for the recorders that
+   * report recording state. Collapsed by default: an installation can have many cameras. */
+  private perCamera(detailed: RecorderHealthCard[], v: HealthThresholds, set: (key: keyof HealthThresholds, value: unknown) => void) {
+    const ids = new Set(detailed.map((c) => c.id));
+    const cams = (this.th?.cameras ?? []).filter((c) => ids.has(c.recorder_id));
+    if (!cams.length) return nothing;
+    const map = v.camera_recording ?? {};
+    const cont = v.continuous_recorders ?? [];
+    const changed = cams.filter((c) => map[c.id]).length;
+    const choose = (id: string, mode: string) => {
+      const next = { ...map };
+      if (mode === 'continuous' || mode === 'events') next[id] = mode as CameraRecordingMode;
+      else delete next[id];
+      set('camera_recording', next);
+    };
+    return html`<details class="percam" data-rh-cameras>
+      <summary>לפי מצלמה${changed ? html` <span class="n" data-rh-cameras-changed>(${changed})</span>` : nothing}</summary>
+      ${detailed.map((r) => {
+        const list = cams.filter((c) => c.recorder_id === r.id);
+        if (!list.length) return nothing;
+        const inherit = cont.includes(r.id) ? 'כמו המקליט (רציפה)' : 'כמו המקליט (לא רציפה)';
+        return html`<div class="pc-h">${r.name}</div>
+          <div class="pc-list">${list.map((c) => html`<label class="pc-row"><span>${c.name}</span>
+            <select data-rh-camera-id=${c.id} aria-label=${c.name} .value=${map[c.id] ?? ''} @change=${(e: Event) => choose(c.id, (e.target as HTMLSelectElement).value)}>
+              <option value="" ?selected=${!map[c.id]}>${inherit}</option>
+              <option value="continuous" ?selected=${map[c.id] === 'continuous'}>רציפה</option>
+              <option value="events" ?selected=${map[c.id] === 'events'}>לא רציפה</option>
+            </select></label>`)}</div>`;
+      })}
+    </details>`;
   }
 
   render() {
