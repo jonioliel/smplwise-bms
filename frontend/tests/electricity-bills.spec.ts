@@ -123,6 +123,17 @@ test.describe('bill page: every state', () => {
     await page.locator('[data-act="pdf"]').click();
     await expect(page.locator('[data-pdf-error]')).toHaveAttribute('data-pdf-code', 'pdf_page_limit');
     await expect(page.locator('[data-pdf-error]')).toContainText('עמודים');
+    await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_no_lines' } });
+    await screen(page, 'bill');
+    await page.locator('[data-act="pdf"]').click();
+    await expect(page.locator('[data-pdf-error]')).toHaveAttribute('data-pdf-code', 'pdf_no_lines');
+    await expect(page.locator('[data-pdf-error]')).toContainText('אין שורות חיוב');
+    await expect(page.locator('[data-pdf-retry]')).toHaveCount(0); // the blind retry cannot help: the bill itself has nothing to print
+    await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_invalid_snapshot' } });
+    await screen(page, 'bill');
+    await page.locator('[data-act="pdf"]').click();
+    await expect(page.locator('[data-pdf-error]')).toHaveAttribute('data-pdf-code', 'pdf_invalid_snapshot');
+    await expect(page.locator('[data-pdf-retry]')).toHaveCount(0);
     await open(page, bill('b104'), { ctl: { pdf_error: 'pdf_unavailable' } });
     await screen(page, 'bill');
     const line = page.locator('[data-pdf-error]');

@@ -41,7 +41,16 @@ _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class BillSnapshotError(ValueError):
-    """The snapshot is malformed or beyond the renderer's limits (a caller bug, not retryable)."""
+    """The snapshot is malformed or beyond the renderer's limits (not retryable: rendering again gives the same answer).
+
+    `field` is the name of the offending snapshot field (the text before the colon: "customer.name", "lines"); it holds
+    names only, never a value, so it is safe to log and to show. `code` is "no_lines" for a bill that has nothing to
+    print, "invalid" for everything else."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.field = message.split(":", 1)[0].strip()[:60] if ":" in message else ""
+        self.code = "no_lines" if message.startswith("lines: at least one line") else "invalid"
 
 
 def clean_text(value: Any, max_chars: int = MAX_LINE_CHARS, multiline: bool = False) -> str:
@@ -86,6 +95,11 @@ def to_date(value: Any, field_name: str) -> date:
         except ValueError:
             pass
     raise BillSnapshotError(f"{field_name}: a date (YYYY-MM-DD) is required")
+
+
+def _opt_reading(value: Any, field_name: str) -> Decimal | None:
+    """A meter reading at a period edge; None when the meter had no reading there (it is printed as a dash)."""
+    return None if value is None else to_decimal(value, field_name)
 
 
 def _opt_date(value: Any, field_name: str) -> date | None:
@@ -152,8 +166,8 @@ class Customer:
 @dataclass(frozen=True)
 class MeterLine:
     name: str
-    start_reading: Decimal
-    end_reading: Decimal
+    start_reading: Decimal | None  # None: no reading at the period start (printed as a dash)
+    end_reading: Decimal | None
     consumption_kwh: Decimal  # what is billed for this meter before the account formula
     billed_kwh: Decimal  # contribution to the bill after the account formula (coefficient x consumption)
     share_text: str = ""  # "30%", "-" for a subtracted sub-meter, "" when the full reading counts
@@ -301,8 +315,8 @@ class BillSnapshot:
             flagged = m.get("reported_to_end") is False
             meters.append(MeterLine(
                 name=clean_text(m.get("name"), MAX_NAME_CHARS),
-                start_reading=to_decimal(start.get("reading_kwh"), "meters.start.reading_kwh"),
-                end_reading=to_decimal(end.get("reading_kwh"), "meters.end.reading_kwh"),
+                start_reading=_opt_reading(start.get("reading_kwh"), "meters.start.reading_kwh"),
+                end_reading=_opt_reading(end.get("reading_kwh"), "meters.end.reading_kwh"),
                 consumption_kwh=to_decimal(m.get("consumption_kwh"), "meters.consumption_kwh"),
                 billed_kwh=to_decimal(m.get("contribution_kwh", m.get("consumption_kwh")), "meters.contribution_kwh"),
                 share_text=_share_text(coefficient),
@@ -323,8 +337,10 @@ class BillSnapshot:
                 period_start=_opt_date(x.get("from"), "lines.from"), period_end=_opt_date(x.get("to"), "lines.to"),
                 band=clean_text(band.get("name_he"), 40), season=clean_text(season.get("name_he"), 40),
                 hours=to_decimal(x["hours"], "lines.hours") if x.get("hours") is not None else None))
-        if not charges:
+        if not charges and state != "draft":
             raise BillSnapshotError("lines: at least one line is required")
+        if not charges:  # a draft with no consumption still prints (watermarked) so the owner can see what the bill holds
+            general.append("טיוטה ללא צריכה: המונים לא דיווחו בתקופה, ולכן אין שורות חיוב. החישוב יתעדכן כשיגיעו קריאות.")
         tou_bands, tou_daily = _tou_table(_obj(raw, "tou"))
 
         p_start, p_end = to_date(period.get("from"), "period.from"), to_date(period.get("to"), "period.to")

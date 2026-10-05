@@ -39,8 +39,10 @@ def kwh(x: Decimal) -> str:
     return f"{x.quantize(_Q2, rounding=ROUND_HALF_UP):,.2f}"
 
 
-def reading(x: Decimal) -> str:
-    """A meter reading: 3 places as stored, but a trailing zero beyond the second place is not printed."""
+def reading(x: Decimal | None) -> str:
+    """A meter reading: 3 places as stored, but a trailing zero beyond the second place is not printed; none = a dash."""
+    if x is None:
+        return "-"
     text = f"{x.quantize(Decimal('0.001'), rounding=ROUND_HALF_UP):,.3f}"
     return text[:-1] if text.endswith("0") else text
 
