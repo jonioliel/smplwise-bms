@@ -108,9 +108,8 @@ async function shot(page: Page, name: string) {
 }
 
 async function noOverflow(page: Page) {
-  const over = await page.evaluate(() => {
-    const w = document.querySelector('sw-wall');
-    const r = w?.shadowRoot?.querySelector('.wall') as HTMLElement | null;
+  const over = await page.locator('sw-wall').evaluate((w) => {
+    const r = w.shadowRoot?.querySelector('.wall') as HTMLElement | null;
     return r ? r.scrollWidth - r.clientWidth : 0;
   });
   expect(over).toBeLessThanOrEqual(0);
@@ -129,7 +128,7 @@ test.describe('CR-030 wall display (mocked backend)', () => {
     await expect(page.locator('sw-app sw-wall')).toHaveCount(1);
     await expect(page.locator('sw-wall')).toHaveAttribute('data-wall-theme', 'dark');
     await expect(page.locator('sw-app >> css=nav, sw-app >> [data-rail]')).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => (document.querySelector('sw-wall')?.shadowRoot?.querySelector('.wall') as HTMLElement | null)?.getAttribute('data-wall-class'))).toBe('tablet');
+    await expect(page.locator('sw-wall [data-wall-state="base"]')).toHaveAttribute('data-wall-class', 'tablet');
   });
 
   for (const [name, dev] of [['phone', PHONE], ['desktop', DESKTOP]] as const) {
@@ -166,8 +165,8 @@ test.describe('CR-030 wall display (mocked backend)', () => {
           await expect(wall.locator('[data-wall-title]')).toHaveText('קבלה');
           await noOverflow(page);
           // the clock is the largest text on screen
-          const sizes = await page.evaluate(() => {
-            const r = document.querySelector('sw-wall')!.shadowRoot!;
+          const sizes = await page.locator('sw-wall').evaluate((w) => {
+            const r = w.shadowRoot!;
             const px = (sel: string) => parseFloat(getComputedStyle(r.querySelector(sel) as HTMLElement).fontSize);
             return { clock: px('[data-wall-clock]'), title: px('[data-wall-title]') };
           });
@@ -289,8 +288,7 @@ test.describe('CR-030 settings: הגדרות › מסכי קיר (mocked backend
     await expect(page.locator('system-wall [data-wall-count]')).toContainText('2');
     await shot(page, `wall-settings-list-${info.project.name}`);
     await page.locator('system-wall [data-wall-add-open]').click();
-    await expect(page.locator('sw-dialog[data-wall-add]')).toBeVisible();
-    await expect(page.locator('sw-dialog[data-wall-add] [data-wall-add-submit]')).toBeDisabled();
+    await expect(page.locator('sw-dialog[data-wall-add] [data-wall-add-submit]')).toBeDisabled(); // the dialog host has no box of its own
     await shot(page, 'wall-settings-add');
     await page.keyboard.press('Escape');
     await page.locator('system-wall [data-wall-edit="u-reception"]').click();

@@ -33,7 +33,7 @@ export class SwWall extends LitElement {
   @state() private vw = window.innerWidth;
   @state() private vh = window.innerHeight;
   @state() private panel = false;
-  @state() private updated = false;
+  @state() private chipUpdated = false;
   @state() private touchedAt = Date.now();
   @state() private wakeUntil = 0;
   @state() private tick = 0;
@@ -449,9 +449,9 @@ export class SwWall extends LitElement {
   }
 
   private flashUpdated(): void {
-    this.updated = true;
+    this.chipUpdated = true;
     window.clearTimeout(this.updatedTimer);
-    this.updatedTimer = window.setTimeout(() => (this.updated = false), 3000);
+    this.updatedTimer = window.setTimeout(() => (this.chipUpdated = false), 3000);
   }
 
   private async refreshStates(force = false): Promise<void> {
@@ -600,7 +600,7 @@ export class SwWall extends LitElement {
         : html`<div class="empty" data-wall-state="no-cameras">לא הוגדרו מצלמות למסך הזה</div>`}
       ${layout.preset === 'tablet-portrait' ? html`<div class="band" data-wall-band>${chips}</div>` : nothing}
       ${this.panel ? this.renderPanel(data) : nothing}
-      ${this.updated ? html`<span class="chip updated" data-wall-updated>ההגדרות עודכנו</span>` : nothing}
+      ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>ההגדרות עודכנו</span>` : nothing}
     </div>`;
   }
 
