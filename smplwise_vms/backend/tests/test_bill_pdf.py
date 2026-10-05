@@ -381,6 +381,53 @@ def test_chart_values_scale_to_the_largest_bar():
     assert max(heights) <= 104 - 22 - 22 + 0.1 and min(heights) > 0
 
 
+def test_chart_value_labels_get_a_plate_only_where_the_reference_line_runs():
+    """EL8 visual review: the dashed last-year line struck through value labels of bars of about the same height."""
+    with_ly = chart(S.base())
+    assert with_ly.count('class="vbg"') == 11 + 1 + 1
+    assert chart(hist(S.previous([("2026-08-01", "2026-08-31", "812.4")]))).count('class="vbg"') == 0
+
+
+# ================================================================================================ logo box
+@pytest.mark.parametrize("size, box", [((400, 120), (34.0, 10.2)), ((120, 400), (5.1, 17.0)), ((100, 100), (17.0, 17.0)),
+                                       ((800, 100), (34.0, 4.25)), ((50, 25), (34.0, 17.0)), (None, None), ((0, 10), None)])
+def test_logo_box_keeps_the_aspect_ratio_inside_the_header_box(size, box):
+    assert bill_pdf_html.logo_box_mm(size) == box
+
+
+def test_logo_size_is_printed_as_computed_numbers_only():
+    html = bill_pdf_html.build_html(snap(S.base()), True, (400, 120))
+    assert '<img class="logo" src="bill-logo:logo.png" alt="" style="width: 34.00mm; height: 10.20mm">' in html
+    assert '<img class="logo" src="bill-logo:logo.png" alt="">' in bill_pdf_html.build_html(snap(S.base()), True)
+
+
+def _png(w: int, h: int) -> bytes:
+    img = Image.new("RGB", (w, h), (200, 30, 160))  # magenta: nothing else on the bill has this colour
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+
+@needs_render
+@pytest.mark.parametrize("w, h", [(400, 120), (800, 60), (120, 400), (300, 300)])
+def test_logo_of_any_shape_stays_inside_the_page_margins(w, h, tmp_path):
+    """EL8 visual review: a wide logo was drawn 17 mm high with its natural width and ran off the left edge of the page."""
+    pdf = render_bill_pdf(S.base(), logo=_png(w, h))
+    (tmp_path / "b.pdf").write_bytes(pdf)
+    subprocess.run(["pdftoppm", "-r", "50", "-f", "1", "-l", "1", "-png", "-singlefile", str(tmp_path / "b.pdf"), str(tmp_path / "p")],
+                   check=True)
+    with Image.open(tmp_path / "p.png") as img:
+        page = img.convert("RGB")
+    px_per_mm = page.width / 210
+    margin = int(12 * px_per_mm)  # the page margin is 14 mm left and right; nothing may be drawn in the outer 12 mm
+    header = page.crop((0, 0, page.width, int(45 * px_per_mm)))
+    for x0, x1 in ((0, margin), (header.width - margin, header.width)):
+        strip = header.crop((x0, 0, x1, header.height))
+        assert all(c == (255, 255, 255) for _n, c in strip.getcolors(maxcolors=1 << 16)), (w, h, x0)
+    logo_px = sum(n for n, c in header.getcolors(maxcolors=1 << 16) if c[0] > 150 and c[1] < 90 and c[2] > 110)
+    assert logo_px > 0, "the logo is drawn"
+
+
 # ================================================================================================ fetcher
 @pytest.mark.skipif(not HAVE_WEASY, reason=WEASY_WHY)
 def test_locked_fetcher_serves_only_bundled_assets_and_the_logo():

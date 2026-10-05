@@ -8,6 +8,7 @@ ask for resources, and it knows exactly five names (four bundled font files and 
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import sys
@@ -68,7 +69,13 @@ def render_weasyprint(s: BillSnapshot, logo_png: bytes | None, max_pages: int = 
 
     logging.getLogger("weasyprint").setLevel(logging.ERROR)  # the log would repeat user strings; keep it quiet
     fetcher = LockedFetcher(logo_png)
-    doc = HTML(string=build_html(s, bool(logo_png)), base_url=None, url_fetcher=fetcher).render()
+    logo_size = None
+    if logo_png:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(logo_png)) as img:  # the re-encoded PNG made by sanitize_logo
+            logo_size = img.size
+    doc = HTML(string=build_html(s, bool(logo_png), logo_size), base_url=None, url_fetcher=fetcher).render()
     if len(doc.pages) > max_pages:
         raise RenderRefused("pdf_page_limit")
     pdf = doc.write_pdf()
