@@ -148,6 +148,14 @@ export class SystemDiagnostics extends LitElement {
       gap: 12px;
       max-inline-size: 760px;
     }
+    /* K88: the plan.surfaces check rows */
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+    }
     .row {
       display: flex;
       justify-content: space-between;
