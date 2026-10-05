@@ -125,7 +125,7 @@ test.describe('devices screens', () => {
     await page.addInitScript(() => localStorage.setItem('sw.devices.layout', 'plan'));
     await open(page, '/devices/building');
     const building = page.locator('devices-building');
-    await expect(building.locator('[data-devices-tree]')).toBeVisible();
+    await expect(building.locator('[data-devices-tree]')).toHaveCount(1); // folded into the cards on a phone
     await expect(building.locator('[data-plan-view]')).toHaveCount(0);
     await expect(building.locator('[data-layout-view="cards"]')).toHaveCount(1);
   });
@@ -185,8 +185,7 @@ test.describe('phone pass', () => {
     expect(box!.height).toBeLessThan(stage!.height * 0.45); // most of the map stays visible
     await sheet.locator('[data-sheet-grab]').click();
     await expect(sheet).toHaveAttribute('data-sheet-tall', '1');
-    const tall = await sheet.boundingBox();
-    expect(tall!.height).toBeGreaterThan(box!.height);
+    await expect.poll(async () => (await sheet.boundingBox())!.height).toBeGreaterThan(box!.height * 1.5); // past the 0.2 s transition
     const mask = await map.locator('[data-tools]').evaluate((n) => getComputedStyle(n).maskImage || (getComputedStyle(n) as unknown as { webkitMaskImage: string }).webkitMaskImage);
     expect(mask).toContain('linear-gradient');
   });
