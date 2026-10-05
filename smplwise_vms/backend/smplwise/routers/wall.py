@@ -281,7 +281,7 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
         conn.execute("ROLLBACK TO wall_patch")
         conn.execute("RELEASE wall_patch")
         raise
-    revocation.changed({user_id})
+    revocation.mark({user_id})  # a dropped camera must close its relay; a grant is picked up by the same signal
     return wall.profile_dict(conn, wall.profile_row(conn, user_id), _names(conn))
 
 

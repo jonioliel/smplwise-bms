@@ -52,9 +52,9 @@ def test_create_binds_cameras_and_me_carries_the_flag(settings):
     assert c.get(f"/api/v1/media/live/{cams[0]}", headers=W).status_code == 200
     assert c.get(f"/api/v1/media/live/{cams[2]}", headers=W).status_code in (403, 404), "an unlisted camera is not reachable"
     assert _add(c, cams).status_code == 409, "one profile per user"
-    # the audit row carries the actor and no secret
-    actions = [a["action"] for a in c.get("/api/v1/audit?limit=50", headers=ADMIN).json()["entries"]] if c.get("/api/v1/audit?limit=50", headers=ADMIN).status_code == 200 else []
-    assert not actions or "wall.profile.create" in actions
+    with app.state.db.connection() as conn:  # the audit row carries the actor and no secret
+        row = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'wall.profile.create'").fetchone()
+    assert row is not None and "password" not in (row["details_json"] or "")
 
 
 def test_patch_rewrites_bindings_and_bumps_the_version(settings):
