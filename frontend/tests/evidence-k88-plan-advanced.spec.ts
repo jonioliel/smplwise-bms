@@ -12,8 +12,6 @@ async function open(page: Page, hash: string) {
   await page.waitForSelector('sw-app');
 }
 
-const deep = `(root, sel) => { const seen = new Set(); const walk = (n) => { if (!n || seen.has(n)) return null; seen.add(n); const hit = n.querySelector?.(sel); if (hit) return hit; for (const c of n.querySelectorAll?.('*') ?? []) { if (c.shadowRoot) { const h = walk(c.shadowRoot); if (h) return h; } } return null; }; return walk(root); }`;
-
 test.describe('floor map', () => {
   test('a room tap opens the room card; a linked room offers its area; the own picture is a layer', async ({ page }) => {
     await installK88Mock(page);
