@@ -14,6 +14,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
+from ..services import floor_images
 from ..services.access import camera_reach_for_placement, camera_scope, floor_reach, require_camera_placement, require_floor_read
 from .catalog import building_row, floor_row, get_building, get_floor, get_site, site_row
 from ..services.timeutil import parse_utc
@@ -299,6 +300,7 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
                       for a, over in mirrored],
         "ha_sync": ha_sync.STATE.as_dict(),
         "zones": [] if camera_only else _marked_zones(conn, floor_id, can_name) + mirrored_zones,
+        "floor_images": None if camera_only else floor_images.bundle_part(conn, floor_id),  # K88: the floor's own picture(s) and alignment
         "reach": reach,
         "needs_alignment": needs_alignment(conn, version, anchors),
         "at": at_iso,

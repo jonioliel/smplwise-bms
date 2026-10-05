@@ -141,7 +141,7 @@ def test_area_cards_fields_and_empty_cards(dev_app):
     app, _ = dev_app
     c = TestClient(app)
     a = c.get("/api/v1/devices/areas/lobby").json()
-    assert a["area"] == {"area_id": "lobby", "name": "לובי", "icon": "mdi:sofa", "floor_id": "ground", "floor_name": "קרקע", "level": 0}
+    assert a["area"] == {"area_id": "lobby", "name": "לובי", "icon": "mdi:sofa", "floor_id": "ground", "floor_name": "קרקע", "level": 0, "map": None}
     assert [x["area_id"] for x in a["floor_areas"]] == ["lobby", "empty_room"]
     cards = a["cards"]
     assert list(cards) == list(svc.CARD_IDS)
