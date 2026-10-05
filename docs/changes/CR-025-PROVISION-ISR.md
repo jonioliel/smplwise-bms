@@ -45,7 +45,7 @@ settings unchanged. `device_key` hashes the destination like CR-024's Hikvision 
 1. Wire the adapter (after CR-024 merges): `register_vendor`, vendor spec fields (scheme, HTTPS port, TLS verify /
    pinning, RTSP style), go2rtc sync via `live_source`, snapshot route via `snapshot`, per-recorder poll loop for
    `events="poll"`, `/health` block.
-2. Encoding write: `write_stream_encoding` = read `GetVideoStreamConfig/{ch}` → refuse 409 `stale` when the stream's etag
+2. Encoding write (**built offline in NN2B, section 6.7**; not verified on a real device): `write_stream_encoding` = read `GetVideoStreamConfig/{ch}` → refuse 409 `stale` when the stream's etag
    moved → `SetVideoStreamConfig/{ch}` with the whole `streams` element (v1 rule: no attributes), only the target stream
    edited, values validated against `GetStreamCaps` and the stream's bounds → read again → `applied` / `no_effect` /
    `diverged` decided by the service (CR-020). Never retried; timeout after send = `outcome: unknown`. Bulk encoding
@@ -371,6 +371,52 @@ host port, and `set-alarm-server` pointed there instead of the PC. Not done here
 device write was made** by the agent: the approval reached the agent relayed through the lead, and the agent's own rule is
 that only the owner, directly or at the permission prompt, can authorise a real-device write. The device is unchanged
 (alarm server not configured). Steps 1-5 are for the owner.
+
+### 6.7 Encoding writes on Provision cameras (NN2B, branch pilot/NN2B-provision-encoding, 2026-10-05) - fake device only
+
+**No write of any kind was made to the real NVR.** Everything below is proven against `tests/fixtures/fake_provision.py` (guide
+and live-read shapes). The first real write is a separate, owner-run step: `docs/integrations/provision-isr/RUNBOOK_FIRST_REAL_ENCODING_WRITE.md`.
+
+**Built.** The editor (single stream, `PUT /nvr/cameras/{id}/streams/{ref}`) and the bulk encoding editor (preview, batch, undo-all)
+reuse the CR-020 services unchanged; the vendor part is data and adapter hooks.
+
+| Piece | What it does |
+|---|---|
+| Write mode | v1 (every Provision NVR so far): `SetVideoStreamConfig/{ch}` with the whole `streams` element, no attributes, target edited. v2: when the device's own `GetSupportedAPIs` lists `SetVideoStreamConfig` the body is one `<item id>` with only the changed fields (siblings not sent; no difference = nothing sent). `nvr_extra.stream_write: whole or partial` forces one. |
+| Fields | resolution, frame rate, VBR / CBR, bit rate, quality (1..5, VBR only), GOP, codec (+ H.264 / H.265 profile), smart codec where the stream lists a plus / smart token. **No SVC and no B-frame fields exist on Provision v1**: the stream carries `fields.svc / fields.b_frames = {supported: false}`, its options carry `svc: false`, `b_frames: false`; the existing editor logic hides them (`shownFields`, `control`, bulk `choicesFor`); a request that names them is refused (`value_not_allowed` / `field_not_supported`). |
+| Validation | Server-side `validate_changes` against the stream options (built from `GetStreamCaps` + the stream's own bounds) and, as the last line before a request, the adapter's check against the device documents: resolution listed for the stream, fps within the resolution's maximum, bit rate and GOP inside the published bounds, codec token listed. A refusal sends nothing. |
+| Etag / stale | the stream is read again before the write; a moved etag is 409 `stale`, nothing sent. |
+| Read-back | `applied` / `no_effect` (409 `nvr_no_effect`) / `diverged` (409 `nvr_diverged`) decided by the service from a fresh read; the undo restores only the fields the change touched. |
+| Never retried | a request that left and got no answer = `outcome: unknown` (503, `retryable: false`), settled later by a read-only check; busy (device code 7) = `nvr_busy`; rejected values (codes 3/15/16/18/19) = `nvr_rejected`. |
+| Support gate (`nvr_not_supported`) | `write_gate`: `write_api_missing` (a v2 device that does not list the command), `no_caps` (no capability document for the stream, so nothing can be validated), `device_refused` (see R2). The stream is declared `writable: false` with that reason in the camera detail and the options route, the editor shows a one-line Hebrew reason on the pencil, the bulk preview lists the stream as a skip with its reason, and a direct write is 409 `nvr_not_supported` with no request sent. |
+| R2 per-channel refusal | a channel whose capability or stream read the NVR refuses (device code 4 etc.) is left out of the read instead of failing the recorder; a channel whose **write** the device refuses (codes 1 / 4 / 11 / 12) answers 409 `nvr_not_supported`, is remembered for 10 minutes (per device, per channel) and is `writable: false, device_refused` from then on - the other cameras of the NVR stay writable. A login refusal (401, no device code) still stops everything. |
+| Batches | one recorder per batch (422 before any device read), one stream at a time, stop at the first failure (a refusing camera ends the batch, the rest `not_attempted`; the next preview already skips it), the CR-020 undo-all as a new reversed batch, audit rows `nvr.stream.write` / `nvr.stream.batch` (`mode: encoding`), no address / account / serial / MAC in any answer, audit row or journal. |
+| Real-write script | `scripts/provision_nvr_write.py set-encoding`: dry run prints support, mode, validation, the exact redacted body and the restore values; a real run saves the restore record + the device's full item first; a diverged read-back restores once; an unknown outcome is read back read-only and never rewritten (exit 7). |
+
+**Tests run (Windows workstation, repo venv, Python 3.12, from `smplwise_vms/backend`; Node 24 for the frontend).**
+`tests/test_provision_encoding_write.py` 31 passed (v1 whole body, v2 partial body, no-difference sends nothing, forced mode,
+value validation x6, SVC / B-frames refused, `write_api_missing`, `no_caps`, refusal codes 1 and 4 remembered per channel,
+unreadable channel left out, login refusal still stops, rejected / busy / unknown never retried, stale, detail declares
+`writable` per stream, refused stream disabled with its reason, route refuses SVC / B-frames, diverged, no effect, v2 route write +
+undo, bulk preview with skips, bulk batch + audit + undo-all, bulk v2 partial items, bulk stop at a refusing camera + next preview
+skip, batches never mix recorders, no secret leak); `tests/test_provision_nvr_write_script.py` 32 passed (6 new);
+regression set (the three Provision adapter files, wiring, P3 wiring, playback, and the CR-020 stream write / document / rollback / batch /
+encoding-batch / encoding-plan files) 389 passed, 1 failed together with the new files (390 collected): `test_nvr_encoding_batch.py::
+test_preview_refuses_bad_settings_and_unknown_cameras_with_zero_device_reads` counts a background Hikvision `alertStream` reconnect that
+landed inside the test window (an unrelated timing flake: it passes alone, failed again in a two-file rerun at the 5 s retry boundary; it was
+not run on `main` to confirm it is pre-existing). Frontend unit: `unit-nvr-provision-encoding.spec.ts` 10 new, 70 passed together with the four existing
+NVR logic specs. `tsc --noEmit` clean.
+Evidence / layout spec `evidence-nvr-provision-encoding.spec.ts` (mock layer, `provision: true`): see the lead's report for
+whether the runner run happened. **NOT_RUN:** the full backend suite, the existing layout sweeps, any real-device request.
+
+**Not verified on a real device (all of it).** That the unit accepts a whole-`streams` body from `SetVideoStreamConfig/{ch}` and applies
+exactly the asked fields; that attributes-free items are right for the live shape (stream ids from 0, names that are RTSP URLs,
+the `name` element is re-sent only when it is a plain name - a URL-shaped name is dropped from the body); that the NVR passes writes
+to proxied cameras (R2: per channel); that the bit-rate list (`bitRateLists`) is a constraint or a hint on the unit (the adapter
+checks only the published min / max); that quality / GOP bounds on the unit match `GetStreamCaps`; what the picture does while the
+encoder restarts; the v2 partial body (no v2 unit is available: the owner's NVR does not answer `GetSupportedAPIs`, so the v1 path
+is the one the first write will use). Fields outside the editor's set (watermark, `mutexList`, `alarmSnapBindStreamId`) are neither read
+nor written.
 
 ## 7. ETA (focused agent time; owner review time not included)
 
