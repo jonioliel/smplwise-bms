@@ -338,13 +338,18 @@ export interface CalibView {
   result: string;
   warning: string;
   busy: boolean;
+  /** K88: pairs already taken for this calibration (the save sends them all; the server averages by length). */
+  pairs?: { metres: number; pixels: number }[];
 }
 
-export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void, onSave: () => void, onReset: () => void): TemplateResult {
+export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void, onSave: () => void, onReset: () => void, onAddPair?: () => void, onDropPair?: (index: number) => void): TemplateResult {
   const metres = parseFloat(v.metres);
   // The server refuses a pair closer than 5 plan pixels and a distance over 1000 m.
   const tooClose = v.pixels !== null && v.pixels < 5;
-  const ready = !!v.a && !!v.b && v.pixels !== null && v.pixels >= 5 && metres > 0 && metres <= 1000 && !v.busy;
+  const pairs = v.pairs ?? [];
+  const currentOk = !!v.a && !!v.b && v.pixels !== null && v.pixels >= 5 && metres > 0 && metres <= 1000;
+  const ready = (currentOk || pairs.length > 0) && !v.busy;
+  const canAdd = currentOk && pairs.length < 3 && !v.busy && !!onAddPair;
   const notCalibrated = v.showEstimates ? 'התוכנית לא מכוילת: מידות מוצגות כמשוערות (≈)' : 'התוכנית לא מכוילת: מידות מוסתרות עד הכיול (הגדרות)';
   return html`<sw-card heading="כיול קנה מידה" subheading=${v.estimated ? notCalibrated : `מכויל · ${fmtScale(v.scale)}`} data-calib-panel>
     <ol class="steps">
@@ -357,8 +362,12 @@ export function renderCalibPanel(v: CalibView, onMetres: (value: string) => void
     ${v.pixels !== null
       ? html`<div class=${tooClose ? 'note err' : 'note'}>${v.pixels.toFixed(0)} פיקסלים בתוכנית${tooClose ? ' · הנקודות קרובות מדי' : metres > 0 ? ` · 1 מ׳ = ${(v.pixels / metres).toFixed(1)} פיקסלים` : ''}</div>`
       : nothing}
+    ${pairs.length
+      ? html`<div class="note" data-calib-pairs>זוגות שנמדדו: ${pairs.map((p, i) => html`<span class="pair" data-calib-pair=${i}>${p.metres} מ׳ / ${p.pixels.toFixed(0)} px${onDropPair ? html` <button type="button" class="x" aria-label="הסר זוג" data-calib-drop=${i} @click=${() => onDropPair(i)}>×</button>` : nothing}</span>`)}</div>`
+      : nothing}
     <div class="btns">
-      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>שמור כיול</sw-button>
+      <sw-button variant="primary" size="sm" icon="check" data-calib-save ?disabled=${!ready} @click=${onSave}>שמור כיול${pairs.length ? ` (${pairs.length + (currentOk ? 1 : 0)} זוגות)` : ''}</sw-button>
+      ${onAddPair ? html`<sw-button size="sm" icon="plus" data-calib-add ?disabled=${!canAdd} title="עד ארבעה זוגות; הממוצע משוקלל לפי האורך ומוצגת הסטייה" @click=${onAddPair}>זוג נוסף</sw-button>` : nothing}
       <sw-button variant="ghost" size="sm" data-calib-reset @click=${onReset}>נקה נקודות</sw-button>
     </div>
     ${v.result ? html`<div class="note" data-calib-result>${v.result}</div>` : nothing}
@@ -1775,5 +1784,25 @@ export const studioPanelStyles = css`
   }
   .dcand.bad {
     background: var(--sw-danger-soft);
+  }
+
+  /* K88: the calibration pairs already taken */
+  [data-calib-pairs] .pair {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-inline-end: 8px;
+    padding: 1px 6px;
+    border: 1px solid var(--sw-border);
+    border-radius: 999px;
+    direction: ltr;
+  }
+  [data-calib-pairs] .pair .x {
+    border: 0;
+    background: transparent;
+    color: var(--sw-text-3);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
   }
 `;

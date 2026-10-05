@@ -15,6 +15,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import plan_area_links
 from ..services import plan_geometry as pg
 from ..services import plan_zones
 from ..services import shared_spaces
@@ -39,9 +40,6 @@ class ZoneIn(BaseModel):
     color: str | None = Field(default=None, pattern="^#[0-9a-fA-F]{6}$")
     searchable: bool = True
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
 
 
 class ZonePatch(BaseModel):
@@ -55,9 +53,7 @@ class ZonePatch(BaseModel):
     ceiling_height_m: float | None = Field(default=None, ge=0, le=50)
     tags: list[str] | None = None  # replaces the list; [] clears it
     label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
-    label_pos: str | None = Field(default=None, pattern="^(auto|top|bottom|left|right)$")
+    area_id: str | None = Field(default=None, max_length=120)  # K88: the linked area of the device tree; "" clears the link
 
 
     @field_validator("tags")
@@ -103,6 +99,7 @@ def zone_row(r: sqlite3.Row) -> dict[str, Any]:
         "level_id": r["level_id"] if "level_id" in r.keys() else None,
         "ceiling_height_m": r["ceiling_height_m"] if "ceiling_height_m" in r.keys() else None,
         "tags": json.loads(r["tags_json"]) if "tags_json" in r.keys() and r["tags_json"] else [],
+        "area_id": (r["ha_area_id"] or None) if "ha_area_id" in r.keys() else None,
         "revision": r["revision"],
         "created_at": r["created_at"],
         "updated_at": r["updated_at"],
@@ -206,12 +203,8 @@ def update_zone(zone_id: str, body: ZonePatch, request: Request, from_floor_id: 
         fields["tags_json"] = json.dumps(body.tags, ensure_ascii=False) if body.tags else None  # [] = no tags
     if body.label_pos is not None:
         fields["label_pos"] = body.label_pos
-    if body.label_pos is not None:
-        fields["label_pos"] = body.label_pos
-    if body.label_pos is not None:
-        fields["label_pos"] = body.label_pos
-    if body.label_pos is not None:
-        fields["label_pos"] = body.label_pos
+    if body.area_id is not None:
+        fields["ha_area_id"] = plan_area_links.check_area(conn, body.area_id)  # "" = unlink; an unknown area answers 422
     if not fields:
         return zone_row(z)
     fields["revision"] = z["revision"] + 1

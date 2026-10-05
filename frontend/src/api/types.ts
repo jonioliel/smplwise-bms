@@ -243,6 +243,8 @@ export interface SpatialZone {
   ceiling_height_m?: number | null;
   /** Free-text tags (T085), as walls and objects of the structure document carry them; [] when none. */
   tags?: string[];
+  /** K88: the area of the device tree this room stands for (null = not linked). Local link only; nothing is written to the platform. */
+  area_id?: string | null;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -279,6 +281,8 @@ export interface FloorMap {
   catalog_revision?: string;
   levels?: import('../map/geometry').GeomLevel[];
   circuit_states?: Record<string, CircuitState>;
+  /** K88: the floor's own images (urls relative to the API root) and their alignment; null when none. */
+  floor_images?: { off: string | null; on: string | null; corners: [number, number][]; opacity?: number } | null;
   anchors: Anchor[];
   zones?: SpatialZone[];
   needs_alignment: boolean;

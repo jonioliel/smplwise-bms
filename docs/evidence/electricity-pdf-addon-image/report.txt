@@ -1,0 +1,160 @@
+EL8 add-on image check - repo 8a5c13f5 - 2026-10-05T06:21:28Z - host x86_64
+== pull
+   PASS
+   | layer sha256:d6bd987d0935 application/vnd.oci.image.layer.v1.tar+zstd 3.7 MB head=28b52ffd
+   | layer sha256:75416a3f8d79 application/vnd.oci.image.layer.v1.tar+zstd 13.9 MB head=28b52ffd
+   | layer sha256:f7d7d6804c68 application/vnd.oci.image.layer.v1.tar+zstd 18.4 MB head=28b52ffd
+   | {"from": "ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22", "manifest_digest": "sha256:1ba6ca9f91c138f867d0de6ab0d43a03abc9e6124920c8f6c9a483a460f0aefa", "architecture": "amd64"}
+== build_baseline
+   PASS
+   | Downloading cryptography-50.0.2-cp311-abi3-musllinux_1_2_x86_64.whl (5.0 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.0/5.0 MB 52.4 MB/s  0:00:00
+   | Downloading ezdxf-1.4.4-cp312-cp312-musllinux_1_2_x86_64.whl (5.9 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.9/5.9 MB 53.9 MB/s  0:00:00
+   | Downloading cffi-2.1.1-cp312-cp312-musllinux_1_2_x86_64.whl (223 kB)
+   | Downloading click-8.5.0-py3-none-any.whl (125 kB)
+   | Downloading httptools-0.8.0-cp312-cp312-musllinux_1_2_x86_64.whl (509 kB)
+   | Downloading pyyaml-6.0.3-cp312-cp312-musllinux_1_2_x86_64.whl (790 kB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 790.2/790.2 kB 70.5 MB/s  0:00:00
+   | Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+   | Downloading uvloop-0.23.0-cp312-cp312-musllinux_1_2_x86_64.whl (4.4 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 56.6 MB/s  0:00:00
+   | Downloading watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl (661 kB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 661.7/661.7 kB 80.5 MB/s  0:00:00
+   | Downloading fonttools-4.66.1-cp312-cp312-musllinux_1_2_x86_64.whl (5.5 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 53.6 MB/s  0:00:00
+   | Installing collected packages: websockets, uvloop, tzdata, typing-extensions, sniffio, pyyaml, python-multipart, python-dotenv, pyparsing, pycparser, pillow, numpy, idna, httptools, h11, fonttools, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, pydantic-core, httpcore, ezdxf, cffi, anyio, watchfiles, starlette, pydantic, httpx, cryptography, fastapi
+   | 
+   | Successfully installed annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 certifi-2026.7.22 cffi-2.1.1 click-8.5.0 cryptography-50.0.2 ezdxf-1.4.4 fastapi-0.141.1 fonttools-4.66.1 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.27.2 idna-3.20 numpy-2.5.3 pillow-12.3.0 pycparser-3.0 pydantic-2.13.5 pydantic-core-2.46.5 pyparsing-3.3.3 python-dotenv-1.2.4 python-multipart-0.0.32 pyyaml-6.0.3 sniffio-1.3.1 starlette-1.7.0 typing-extensions-4.16.0 typing-inspection-0.4.4 tzdata-2026.5 uvicorn-0.53.0 uvloop-0.23.0 watchfiles-1.3.0 websockets-15.0.1
+   | WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+   | COPY backend/smplwise /app/smplwise
+   | COPY www /app/www
+   | COPY integration /app/integration
+   | COPY run.sh /run.sh
+   | RUN chmod a+x /run.sh
+== build_full
+   PASS
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 56.9 MB/s  0:00:00
+   | Downloading httptools-0.8.0-cp312-cp312-musllinux_1_2_x86_64.whl (509 kB)
+   | Downloading pydyf-0.12.1-py3-none-any.whl (8.0 kB)
+   | Downloading pyphen-0.18.1-py3-none-any.whl (2.1 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 59.5 MB/s  0:00:00
+   | Downloading pyyaml-6.0.3-cp312-cp312-musllinux_1_2_x86_64.whl (790 kB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 790.2/790.2 kB 62.7 MB/s  0:00:00
+   | Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+   | Downloading tinycss2-1.5.1-py3-none-any.whl (28 kB)
+   | Downloading tinyhtml5-2.1.0-py3-none-any.whl (39 kB)
+   | Downloading uvloop-0.23.0-cp312-cp312-musllinux_1_2_x86_64.whl (4.4 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.4/4.4 MB 51.4 MB/s  0:00:00
+   | Downloading watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl (661 kB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 661.7/661.7 kB 71.6 MB/s  0:00:00
+   | Downloading zopfli-0.4.3-cp310-abi3-musllinux_1_2_x86_64.whl (1.9 MB)
+   |    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.9/1.9 MB 59.9 MB/s  0:00:00
+   | Installing collected packages: brotli, zopfli, websockets, webencodings, uvloop, uharfbuzz, tzdata, typing-extensions, sniffio, pyyaml, python-multipart, python-dotenv, Pyphen, pyparsing, pydyf, pycparser, pillow, numpy, idna, httptools, h11, fonttools, defusedxml, click, certifi, annotated-types, annotated-doc, uvicorn, typing-inspection, tinyhtml5, tinycss2, pydantic-core, httpcore, fpdf2, ezdxf, cffi, anyio, watchfiles, starlette, pydantic, httpx, cssselect2, cryptography, weasyprint, fastapi
+   | 
+   | Successfully installed Pyphen-0.18.1 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 brotli-1.2.0 certifi-2026.7.22 cffi-2.1.1 click-8.5.0 cryptography-50.0.2 cssselect2-0.10.1 defusedxml-0.7.1 ezdxf-1.4.4 fastapi-0.141.1 fonttools-4.66.1 fpdf2-2.8.9 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.27.2 idna-3.20 numpy-2.5.3 pillow-12.3.0 pycparser-3.0 pydantic-2.13.5 pydantic-core-2.46.5 pydyf-0.12.1 pyparsing-3.3.3 python-dotenv-1.2.4 python-multipart-0.0.32 pyyaml-6.0.3 sniffio-1.3.1 starlette-1.7.0 tinycss2-1.5.1 tinyhtml5-2.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4 tzdata-2026.5 uharfbuzz-0.56.2 uvicorn-0.53.0 uvloop-0.23.0 watchfiles-1.3.0 weasyprint-70.0 webencodings-0.6.1 websockets-15.0.1 zopfli-0.4.3
+   | WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+   | COPY backend/smplwise /app/smplwise
+   | COPY www /app/www
+   | COPY integration /app/integration
+   | COPY run.sh /run.sh
+   | RUN chmod a+x /run.sh
+   image size: {"base_bytes":125515196,"baseline_without_bill_pdf_bytes":489634572,"full_bytes":523081634,"bill_pdf_growth_mb":33.4,"gate_mb":60,"within_gate":true,"method":"apparentsizeoftheunpackedtree(hardlinksonce),asdockerimageinspectreportsuncompressedlayers"}
+== weasyprint_loads
+   PASS
+   | /usr/local/lib/python3.12/site-packages/weasyprint/text/fonts.py:70: UserWarning: No fonts configured in FontConfig. Expect ugly output.
+   |   warn('No fonts configured in FontConfig. Expect ugly output.')
+   | weasyprint 70.0 pages 1 3.12.14
+== native_libraries
+   PASS
+   | 3.22.5
+   | cairo-1.18.4-r0
+   | fontconfig-2.15.0-r3
+   | freetype-2.13.3-r0
+   | fribidi-1.0.16-r1
+   | glib-2.84.4-r0
+   | harfbuzz-11.2.1-r0
+   | pango-1.56.3-r0
+   | poppler-utils-25.04.0-r0
+   | ls: /usr/share/fonts: No such file or directory
+== engine_self_check
+   PASS
+   | {'configured': 'auto', 'active': 'weasyprint', 'checked': True, 'checked_at': 1791181347.9682088, 'detail': '', 'check_seconds': 0.36, 'last_render_engine': None, 'last_render_at': None, 'slow_fallbacks': 0, 'crash_fallbacks': 0, 'fallback_after_s': 5.0}
+== generate_evidence
+   PASS
+   |   "seconds": [
+   |    1.03,
+   |    1.02,
+   |    1.03,
+   |    1.02,
+   |    1.03
+   |   ],
+   |   "median_s": 1.03,
+   |   "bytes": 44469
+   |  },
+   |  "fpdf2_cold_child_3_pages": {
+   |   "seconds": [
+   |    0.68,
+   |    0.68,
+   |    0.68,
+   |    0.68,
+   |    0.69
+   |   ],
+   |   "median_s": 0.68,
+   |   "bytes": 38986
+   |  },
+   |  "peak_rss_mb_largest_child": 77.4,
+   |  "pages_of_3_page_sample": 4,
+   |  "load_avg_at_end": 0.53466796875
+   | }
+== rasterize
+   PASS
+   | name                                 type              encoding         emb sub uni object ID
+   | ------------------------------------ ----------------- ---------------- --- --- --- ---------
+   | XQHKGX+HeeboHe-Bold                  CID TrueType      Identity-H       yes yes yes     17  0
+   | PVLKMM+HeeboHe                       CID TrueType      Identity-H       yes yes yes     21  0
+   | YHJPFC+HeeboLa-Bold                  CID TrueType      Identity-H       yes yes yes     25  0
+   | DHNVOJ+HeeboLa                       CID TrueType      Identity-H       yes yes yes     29  0
+   | Producer:        WeasyPrint 70.0
+   | Pages:           1
+   | Page size:       595.276 x 841.89 pts (A4)
+== pytest_install
+   PASS
+== pytest_bill_pdf
+   PASS
+   | ........................................................................ [ 46%]
+   | ........................................................................ [ 92%]
+   | ............                                                             [100%]
+   | =============================== warnings summary ===============================
+   | ../usr/local/lib/python3.12/site-packages/fastapi/testclient.py:1
+   |   /usr/local/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+   |     from starlette.testclient import TestClient as TestClient  # noqa
+   | 
+   | ../usr/local/lib/python3.12/site-packages/weasyprint/text/fonts.py:70
+   |   /usr/local/lib/python3.12/site-packages/weasyprint/text/fonts.py:70: UserWarning: No fonts configured in FontConfig. Expect ugly output.
+   |     warn('No fonts configured in FontConfig. Expect ugly output.')
+   | 
+   | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+   | 156 passed, 2 warnings in 54.17s
+== rasterize_pipeline
+   PASS
+   | name                                 type              encoding         emb sub uni object ID
+   | ------------------------------------ ----------------- ---------------- --- --- --- ---------
+   | XQHKGX+HeeboHe-Bold                  CID TrueType      Identity-H       yes yes yes     17  0
+   | PVLKMM+HeeboHe                       CID TrueType      Identity-H       yes yes yes     21  0
+   | YHJPFC+HeeboLa-Bold                  CID TrueType      Identity-H       yes yes yes     25  0
+   | DHNVOJ+HeeboLa                       CID TrueType      Identity-H       yes yes yes     29  0
+== addon_server (python3 -m smplwise inside the image)
+   | 2026-10-05 06:23:50,994 INFO smplwise.bill_pdf: bill pdf engine: WeasyPrint (self-check 0.33 s)
+   PASS: {'configured': 'auto', 'active': 'weasyprint', 'checked': True, 'detail': '', 'last_render_engine': None, 'slow_fallbacks': 0, 'crash_fallbacks': 0, 'fallback_after_s': 5.0}
+== aarch64_wheels
+   PASS
+   | brotli-1.2.0-cp312-cp312-musllinux_1_2_aarch64.whl
+   | cffi-2.1.1-cp312-cp312-musllinux_1_2_aarch64.whl
+   | fonttools-4.66.1-cp312-cp312-musllinux_1_2_aarch64.whl
+   | fpdf2-2.8.9-py3-none-any.whl
+   | pillow-12.3.0-cp312-cp312-musllinux_1_2_aarch64.whl
+   | uharfbuzz-0.56.2-cp310-abi3-musllinux_1_2_aarch64.whl
+   | weasyprint-70.0-py3-none-any.whl
+   | zopfli-0.4.3-cp310-abi3-musllinux_1_2_aarch64.whl
+== result: ALL PASS

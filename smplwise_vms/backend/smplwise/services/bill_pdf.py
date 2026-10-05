@@ -46,7 +46,7 @@ _STATUS_LOCK = threading.Lock()
 # What the add-on really renders with (never a silent fallback): filled by self_check() and by every render.
 _STATUS: dict[str, Any] = {"configured": None, "active": None, "checked": False, "checked_at": None, "detail": "",
                            "check_seconds": None, "last_render_engine": None, "last_render_at": None, "slow_fallbacks": 0,
-                           "fallback_after_s": None}
+                           "crash_fallbacks": 0, "fallback_after_s": None}
 
 
 class BillPdfError(Exception):
@@ -131,16 +131,24 @@ def render_bill_pdf(snapshot: Mapping[str, Any], *, logo: bytes | None = None, w
            "memory_bytes": limits.memory_bytes, "cpu_seconds": int(limits.timeout_s) + 5,
            "fsize_bytes": limits.max_pdf_bytes + 1_000_000}
     fallback_s = _env_number("SW_BILL_PDF_FALLBACK_S", 5, 1, 60)
-    if limits.engine == "auto" and fallback_s < limits.timeout_s:
+    if limits.engine == "auto":
+        slow_budget = fallback_s < limits.timeout_s
         try:
-            out, used = _run_child(job, fallback_s)
+            out, used = _run_child(job, fallback_s if slow_budget else limits.timeout_s)
         except BillPdfError as exc:
-            if exc.code != "pdf_timeout":
+            if exc.code == "pdf_timeout" and slow_budget:
+                # owner round 4: WeasyPrint over 5 s on the target -> the simple engine, automatically
+                log.warning("bill pdf: WeasyPrint exceeded %.0f s; rendering again with the simple engine (fpdf2)", fallback_s)
+                counter = "slow_fallbacks"
+            elif exc.code == "pdf_render_failed":
+                # EL8: the WeasyPrint child died without a PDF (a native crash in Pango/cairo, out of memory). A Python
+                # error is already handled inside the child; this covers the process itself. Pages/size limits never retry.
+                log.warning("bill pdf: the WeasyPrint render process failed; rendering again with the simple engine (fpdf2)")
+                counter = "crash_fallbacks"
+            else:
                 raise
-            # owner round 4: WeasyPrint over 5 s on the target -> the simple engine, automatically
-            log.warning("bill pdf: WeasyPrint exceeded %.0f s; rendering again with the simple engine (fpdf2)", fallback_s)
             with _STATUS_LOCK:
-                _STATUS["slow_fallbacks"] += 1
+                _STATUS[counter] += 1
             out, used = _run_child({**job, "engine": "fpdf2"}, limits.timeout_s)
     else:
         out, used = _run_child(job, limits.timeout_s)
@@ -185,21 +193,15 @@ def _run_child(job: Mapping[str, Any], timeout_s: float) -> tuple[bytes, str | N
     return out, (m.group(1) if m else None)
 
 
-def self_check(timeout_s: float = SELF_CHECK_TIMEOUT_S) -> dict[str, Any]:
-    """Which engine this installation really renders with: a tiny render in the isolated child (WeasyPrint first unless
-    SW_BILL_PDF_ENGINE says otherwise, fpdf2 when WeasyPrint cannot load). Logged once; never raises."""
-    configured = _limits(None, None).engine
-    job = {"selfcheck": True, "engine": configured}
-    started = time.perf_counter()
-    active: str | None = None
-    detail = ""
+def _self_check_child(engine: str, timeout_s: float) -> tuple[str | None, str]:
+    """One self-check child: (the engine that rendered or None, the reason/detail text)."""
     try:
         kwargs: dict[str, Any] = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "cwd": _PACKAGE_PARENT}
         if os.name == "posix":
             kwargs["start_new_session"] = True
         proc = subprocess.Popen([sys.executable, "-s", "-m", "smplwise.services.bill_pdf_engine"], env=minimal_env(_child_extra()), **kwargs)
         try:
-            out, err = proc.communicate(json.dumps(job).encode("utf-8"), timeout=timeout_s)
+            out, err = proc.communicate(json.dumps({"selfcheck": True, "engine": engine}).encode("utf-8"), timeout=timeout_s)
         except subprocess.TimeoutExpired:
             _kill_group(proc)
             proc.communicate()
@@ -207,13 +209,27 @@ def self_check(timeout_s: float = SELF_CHECK_TIMEOUT_S) -> dict[str, Any]:
         finally:
             if proc.poll() is None:
                 _kill_group(proc)
-        text = (out + b"\n" + err).decode("utf-8", "replace")
-        m = re.search(r"engine=(weasyprint|fpdf2)", text)
-        active = m.group(1) if m else None
-        r = re.search(r"reason=([^\n]{0,160})", text)
-        detail = r.group(1).strip() if r else ("" if active else text.strip()[-160:])
     except OSError as exc:
-        detail = f"cannot start the render process: {type(exc).__name__}"
+        return None, f"cannot start the render process: {type(exc).__name__}"
+    text = (out + b"\n" + err).decode("utf-8", "replace")
+    m = re.search(r"engine=(weasyprint|fpdf2)", text)
+    active = m.group(1) if m else None
+    r = re.search(r"reason=([^\n]{0,160})", text)
+    return active, (r.group(1).strip() if r else ("" if active else text.strip()[-160:]))
+
+
+def self_check(timeout_s: float = SELF_CHECK_TIMEOUT_S) -> dict[str, Any]:
+    """Which engine this installation really renders with: a tiny render in the isolated child (WeasyPrint first unless
+    SW_BILL_PDF_ENGINE says otherwise, fpdf2 when WeasyPrint cannot load). Logged once; never raises."""
+    configured = _limits(None, None).engine
+    started = time.perf_counter()
+    active, detail = _self_check_child(configured, timeout_s)
+    if active is None and configured == "auto":
+        # EL8: the WeasyPrint check died without an answer (a native crash takes the whole child, so the child's own
+        # fallback never runs): ask for the simple engine alone, as a render would (render_bill_pdf crash fallback)
+        crashed = detail
+        active, detail = _self_check_child("fpdf2", timeout_s)
+        detail = f"weasyprint self-check crashed: {crashed[-120:]}" + (f"; {detail}" if detail else "")
     seconds = round(time.perf_counter() - started, 2)
     with _STATUS_LOCK:
         _STATUS.update(configured=configured, active=active, checked=True, checked_at=time.time(), detail=detail,

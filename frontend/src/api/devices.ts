@@ -44,6 +44,14 @@ export interface DeviceArea {
   climate?: ClimateSummary[];
   temperature?: number | null;
   open_count?: number;
+  /** K88: the plan room linked to this area (floor = the map's floor id, not the platform's) - "הצג על המפה"; null = not linked. */
+  map?: AreaMapLink | null;
+}
+
+/** K88: where an area sits on the maps - the plan floor and the linked room. */
+export interface AreaMapLink {
+  floor_id: string;
+  zone_id: string;
 }
 
 /** CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card. */
@@ -184,7 +192,7 @@ export interface DeviceCard {
 }
 
 export interface DeviceAreaDetail {
-  area: { area_id: string; name: string; icon: string | null; floor_id: string | null; floor_name: string | null; level: number | null };
+  area: { area_id: string; name: string; icon: string | null; floor_id: string | null; floor_name: string | null; level: number | null; map?: AreaMapLink | null };
   /** The areas of the same floor (this one included), for the chip row. Empty for the unassigned bucket. */
   floor_areas: { area_id: string; name: string; icon: string | null; counts: DeviceCounts }[];
   cards: Record<CardId, DeviceCard>;

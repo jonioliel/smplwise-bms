@@ -24,9 +24,11 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import energy_billing as eb
 from ..services import energy_billing_pdf as pdfseam
+from ..services import energy_calendar as ecal
 from ..services import energy_formula as fx
 from ..services import energy_periods as per
 from ..services import energy_pricing as px
+from ..services import energy_tou as tou
 from ..services.energy_billing_provider import get_provider
 from ..services.energy_consumption import meter_window
 
@@ -110,7 +112,9 @@ class PresetIn(_Body):
 
 class TariffCreate(_Body):
     name: str = Field(min_length=1, max_length=120)
-    price: str | int | float
+    kind: Literal["fixed", "tou"] = "fixed"
+    price: str | int | float | None = None  # required for kind 'fixed'
+    definition: dict[str, Any] | None = None  # required for kind 'tou' (docs/architecture/ELECTRICITY_TOU.md section 2)
     price_mode: Literal["ex_vat", "inc_vat"] | None = None
     effective_from: dt.date
 
@@ -121,17 +125,34 @@ class TariffPatch(_Body):
 
 class VersionBase(_Body):
     effective_from: dt.date
-    price: str | int | float
+    price: str | int | float | None = None
+    definition_sha256: str | None = Field(default=None, max_length=64)  # a time-of-use version: the hash the editor saw
     price_mode: Literal["ex_vat", "inc_vat"]
 
 
 class VersionCreate(_Body):
     effective_from: dt.date
-    price: str | int | float
+    price: str | int | float | None = None
+    definition: dict[str, Any] | None = None
     price_mode: Literal["ex_vat", "inc_vat"] | None = None
     replace_version_id: str | None = Field(default=None, max_length=64)  # a correction of this version (the date may change)
     base: VersionBase | None = None  # the values the editor saw; a mismatch means someone changed them meanwhile
     confirm: bool = False
+
+
+class TouCheck(_Body):
+    definition: dict[str, Any]
+
+
+class CalendarDayIn(_Body):
+    kind: Literal["holiday", "holiday_eve", "regular"]
+    name_he: str | None = Field(default=None, max_length=60)
+    base_revision: int | None = None
+
+
+class CalendarSettingsIn(_Body):
+    generator: Literal["israel", "none"]
+    base_revision: int | None = None
 
 
 class VatCreate(_Body):
@@ -524,16 +545,34 @@ def list_tariffs(principal: Principal = Depends(_money_read), conn: sqlite3.Conn
     return {"items": [eb.tariff_dict(conn, r, today) for r in conn.execute("SELECT * FROM energy_tariffs WHERE deleted_at IS NULL ORDER BY name").fetchall()]}
 
 
+def _version_value(kind: str, price: Any, definition: dict[str, Any] | None) -> tuple[px.Decimal | None, Any]:
+    """(price, definition) of a new version of a tariff of `kind`: a fixed tariff takes a price and never a definition, a
+    time-of-use tariff the opposite (one kind per tariff, so a period never mixes the two)."""
+    if kind == "tou":
+        if definition is None:
+            raise ApiError(422, "validation", "לתעריף לפי שעות יש להגדיר עונות, שעות ומחירים.", details={"fields": ["definition"]})
+        if price is not None:
+            raise ApiError(422, "validation", "בתעריף לפי שעות המחירים נקבעים לכל עונה ופס, לא כמחיר אחד.", details={"fields": ["price"]})
+        return None, eb.parse_definition_input(definition)
+    if definition is not None:
+        raise ApiError(422, "validation", "תעריף במחיר קבוע אינו מקבל הגדרת שעות. צרו תעריף לפי שעות.", details={"fields": ["definition"]})
+    if price is None:
+        raise ApiError(422, "validation", "יש להזין מחיר.", details={"fields": ["price"]})
+    return _price(price), None
+
+
 @router.post("/energy/tariffs", status_code=201)
 def create_tariff(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     body = _parse(request, raw, TariffCreate)
-    price = _price(body.price)
+    price, definition = _version_value(body.kind, body.price, body.definition)
     mode = body.price_mode or eb.read_settings(conn)["default_price_mode"]
     tid = eb.new_id()
     now = eb.now_iso()
-    conn.execute("INSERT INTO energy_tariffs(id, name, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", (tid, body.name.strip(), principal.user_id, now, now))
-    eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode)
-    audit(conn, actor=principal, action="energy.tariff.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request))
+    conn.execute("INSERT INTO energy_tariffs(id, name, kind, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                 (tid, body.name.strip(), body.kind, principal.user_id, now, now))
+    eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode, definition)
+    audit(conn, actor=principal, action="energy.tariff.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
+          details={"kind": body.kind})
     return eb.tariff_dict(conn, eb.get_tariff(conn, tid), _today(_tz(conn)))
 
 
@@ -553,11 +592,22 @@ def delete_tariff(tid: str, request: Request, principal: Principal = Depends(_ma
     return Response(status_code=204)
 
 
+def _base_changed(base: VersionBase, target: sqlite3.Row) -> bool:
+    if base.effective_from.isoformat() != target["effective_from"] or base.price_mode != target["price_mode"]:
+        return True
+    if target["definition_json"]:
+        return base.definition_sha256 != tou.definition_sha256(json.loads(target["definition_json"]))
+    try:
+        return base.price is None or px.parse_price(base.price) != px.Decimal(target["price"])
+    except ValueError:
+        return True
+
+
 @router.post("/energy/tariffs/{tid}/versions", status_code=201)
 def add_version(tid: str, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)):
     body = _parse(request, raw, VersionCreate)
-    eb.get_tariff(conn, tid)
-    price = _price(body.price)
+    tariff = eb.get_tariff(conn, tid)
+    price, definition = _version_value(tariff["kind"], body.price, body.definition)
     mode = body.price_mode or eb.read_settings(conn)["default_price_mode"]
     today = _today(_tz(conn))
     if body.replace_version_id:
@@ -567,13 +617,13 @@ def add_version(tid: str, request: Request, principal: Principal = Depends(_mana
     else:
         target = conn.execute("SELECT * FROM energy_tariff_versions WHERE tariff_id = ? AND effective_from = ?", (tid, body.effective_from.isoformat())).fetchone()
     if not target:
-        vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode)
+        vid = eb.add_tariff_version(conn, tid, principal.user_id, body.effective_from, price, mode, definition)
         audit(conn, actor=principal, action="energy.tariff.version.create", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request),
               details={"version_id": vid, "effective_from": body.effective_from.isoformat()})
         return eb.tariff_dict(conn, eb.get_tariff(conn, tid), today)
-    if body.base and (body.base.effective_from.isoformat() != target["effective_from"] or px.parse_price(body.base.price) != px.Decimal(target["price"]) or body.base.price_mode != target["price_mode"]):
+    if body.base and _base_changed(body.base, target):
         raise ApiError(409, "revision_conflict", "המחיר שונה בינתיים. יש לרענן ולנסות שוב.")
-    plan = eb.plan_version_change(conn, tid, target, body.effective_from, price, mode)
+    plan = eb.plan_version_change(conn, tid, target, body.effective_from, price, mode, definition)
     if not body.confirm:
         return JSONResponse({"applied": False, "plan": plan}, status_code=200)
     vid = eb.apply_version_change(conn, tid, principal.user_id, target, plan)
@@ -588,6 +638,78 @@ def delete_version(tid: str, vid: str, request: Request, principal: Principal = 
     eb.delete_tariff_version(conn, tid, vid)
     audit(conn, actor=principal, action="energy.tariff.version.delete", decision="allowed", resource_type="energy_tariff", resource_id=tid, request_id=_rid(request), details={"version_id": vid})
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------- EL5: time-of-use templates, check, special days
+
+@router.get("/energy/tou/templates")
+def tou_templates(principal: Principal = Depends(_money_read)) -> dict[str, Any]:
+    return {"items": [{"id": k, "name_he": t["name_he"], "source_he": t["source_he"], "definition": t["build"]()} for k, t in tou.TEMPLATES.items()]}
+
+
+def _structure_grid(definition: dict[str, Any]) -> dict[str, Any] | None:
+    """The day grid of a definition whose only problem is missing prices (the editor previews the hours before the prices
+    are typed): the same structure with every price set to 0."""
+    try:
+        bands = [b["id"] for b in definition.get("bands") or [] if isinstance(b, dict)]
+        seasons = [s["id"] for s in definition.get("seasons") or [] if isinstance(s, dict)]
+        probe = {**definition, "prices": {s: {b: "0" for b in bands} for s in seasons}}
+        return tou.week_grid(tou.parse_definition(probe))
+    except (tou.TouError, TypeError, KeyError, AttributeError):
+        return None
+
+
+@router.post("/energy/tou/check")
+def tou_check(request: Request, principal: Principal = Depends(_money_read), raw: bytes = Depends(_raw_body)) -> dict[str, Any]:
+    """Validate a time-of-use definition without saving: the normalised definition and the day grid per season and day type,
+    or the first error (code, path, Hebrew message). The grid is also returned when only prices are missing."""
+    body = _parse(request, raw, TouCheck)
+    try:
+        d = tou.parse_definition(body.definition)
+    except tou.TouError as e:
+        grid = _structure_grid(body.definition) if e.code in ("price", "price_missing", "required") and e.path.startswith("prices") else None
+        return {"ok": False, "errors": [e.as_dict()], "definition": None, "definition_sha256": None, "grid": grid}
+    return {"ok": True, "errors": [], "definition": d.raw, "definition_sha256": d.sha256(), "grid": tou.week_grid(d)}
+
+
+def _tou_drafts_on(conn: sqlite3.Connection, day: dt.date) -> int:
+    """Draft bills of time-of-use accounts whose period contains `day` (they show the old day type until recalculated)."""
+    return conn.execute("""SELECT COUNT(*) FROM energy_bills b JOIN energy_accounts a ON a.id = b.account_id JOIN energy_tariffs t ON t.id = a.tariff_id
+                           WHERE b.state = 'draft' AND t.kind = 'tou' AND b.period_start <= ? AND b.period_end > ?""", (day.isoformat(), day.isoformat())).fetchone()[0]
+
+
+@router.get("/energy/calendar")
+def calendar_year(principal: Principal = Depends(_view), conn: sqlite3.Connection = Depends(get_read_conn), year: int | None = Query(None)) -> dict[str, Any]:
+    return ecal.year_view(conn, year or _today(_tz(conn)).year)
+
+
+@router.put("/energy/calendar/days/{day}")
+def calendar_set_day(day: dt.date, request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body),
+                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    body = _parse(request, raw, CalendarDayIn)
+    ecal.set_override(conn, day, body.kind, body.name_he, body.base_revision)
+    audit(conn, actor=principal, action="energy.calendar.day.set", decision="allowed", resource_type="energy_calendar", resource_id=day.isoformat(),
+          request_id=_rid(request), details={"kind": body.kind})
+    return {**ecal.year_view(conn, day.year), "drafts_to_recalculate": _tou_drafts_on(conn, day)}
+
+
+@router.delete("/energy/calendar/days/{day}")
+def calendar_remove_day(day: dt.date, request: Request, principal: Principal = Depends(_manage), conn: sqlite3.Connection = Depends(get_conn),
+                        base_revision: int | None = Query(None)) -> dict[str, Any]:
+    ecal.remove_override(conn, day, base_revision)
+    audit(conn, actor=principal, action="energy.calendar.day.remove", decision="allowed", resource_type="energy_calendar", resource_id=day.isoformat(),
+          request_id=_rid(request))
+    return {**ecal.year_view(conn, day.year), "drafts_to_recalculate": _tou_drafts_on(conn, day)}
+
+
+@router.put("/energy/calendar/settings")
+def calendar_settings(request: Request, principal: Principal = Depends(_manage), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn),
+                      year: int | None = Query(None)) -> dict[str, Any]:
+    body = _parse(request, raw, CalendarSettingsIn)
+    ecal.set_generator(conn, body.generator, body.base_revision)
+    audit(conn, actor=principal, action="energy.calendar.generator", decision="allowed", resource_type="energy_calendar", resource_id="generator",
+          request_id=_rid(request), details={"generator": body.generator})
+    return ecal.year_view(conn, year or _today(_tz(conn)).year)
 
 
 def _vat_list(conn: sqlite3.Connection) -> dict[str, Any]:

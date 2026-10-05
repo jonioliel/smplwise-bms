@@ -17,7 +17,7 @@ export const route = {
   bill: (id: string) => `${ELEC_ROOT}/bills/${id}`,
   customers: () => `${ELEC_ROOT}/customers`,
   customer: (id: string) => `${ELEC_ROOT}/customers/${id}`,
-  settings: (section: 'prices' | 'business' | 'retention') => `${SETTINGS_ROOT}/${section}`,
+  settings: (section: 'prices' | 'calendar' | 'business' | 'retention') => `${SETTINGS_ROOT}/${section}`,
 };
 /** hash links for <a href> */
 export const href = {
@@ -28,6 +28,6 @@ export const href = {
   bill: (id: string) => p(route.bill(id)),
   customers: () => p(route.customers()),
   customer: (id: string) => p(route.customer(id)),
-  settings: (section: 'prices' | 'business' | 'retention') => p(route.settings(section)),
+  settings: (section: 'prices' | 'calendar' | 'business' | 'retention') => p(route.settings(section)),
 };
 export const go = (path: string): void => navigate(path);

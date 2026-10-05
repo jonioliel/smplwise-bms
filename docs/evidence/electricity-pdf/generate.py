@@ -39,6 +39,11 @@ def pages(pdf: Path) -> int:
     return int([line for line in info.splitlines() if line.startswith("Pages")][0].split(":")[1])
 
 
+def _foreign_name(snap: dict) -> dict:
+    snap["customer"]["name"] = "Иван Петров / مرحبا / € — ½"
+    return snap
+
+
 # name -> (snapshot, kwargs)
 samples = {
     "bill-issued": (S.base(), {"logo": S.logo_png()}),
@@ -54,6 +59,9 @@ samples = {
         {"from": "2025-09-01", "to": "2025-09-30", "kwh": "702.10", "status": "partial", "source": "readings"}), {}),
     "bill-3-pages": (S.big(120), {"logo": S.logo_png()}),
     "bill-fallback-engine": (S.missing_report(), {"engine": "fpdf2"}),
+    # EL8: a customer name outside the bundled Heebo subsets (Hebrew + Latin). On a machine with system fonts these
+    # characters come from them; in the add-on image (no system font) they show as missing-glyph boxes: decision open.
+    "bill-name-outside-heebo": (_foreign_name(S.base()), {}),
 }
 for name, (snap, kw) in samples.items():
     t0 = time.perf_counter()

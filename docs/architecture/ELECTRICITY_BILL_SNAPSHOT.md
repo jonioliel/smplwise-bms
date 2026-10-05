@@ -181,3 +181,42 @@ def render_bill_pdf(snapshot: dict, *, logo: bytes | None = None, watermark: str
   falls back to `render_bill_pdf(snapshot)`. A render failure is `pdf_render_failed` (503, retryable); the bill stays issued.
 - The server stores the first PDF of an issued bill (`/data/energy/bills/<yyyy>/<bill_id>.pdf`, `pdf_sha256`) and serves that
   file afterwards; drafts and watermarked copies are rendered on demand and not stored.
+
+## 6. Time-of-use additions (EL5; additive, `schema` stays `/1`)
+
+A bill of a time-of-use tariff (docs/architecture/ELECTRICITY_TOU.md) has the same shape plus optional keys. A fixed-price
+bill has none of them, and a renderer that ignores them still prints a correct bill (one line per band, same totals).
+
+```jsonc
+"account": {"tariff": {"id": "...", "name": "תעו״ז ביתי", "kind": "tou"}},   // "fixed" on a fixed-price bill
+"lines": [                                   // one line per price piece x season x band, in time order of the season, bands in the tariff's order
+  {"from": "2026-07-01", "to": "2026-07-31", "kwh": "132.00",
+   "price_entered": "1.6895",                // the band price of that season, as typed (mode on the line, as before)
+   "price_mode": "ex_vat", "unit_price_ex_vat": "1.6895", "amount_ex_vat": "223.01", "vat_rate_percent": "18",
+   "vat_amount": "40.14", "total": "263.15", "tariff_version_id": "...", "vat_rate_id": "...",
+   "season": {"id": "summer", "name_he": "קיץ"}, "band": {"id": "peak", "name_he": "פסגה"},
+   "hours": "132.00"}                        // clock hours of the period in this band and season (DST days count 23 / 25)
+],
+"tou": {
+  "engine": "arx.energy.tou/1",
+  "classification": "local_wall_clock_quarter_hour",
+  "names": {"seasons": {"summer": "קיץ"}, "day_types": {"weekday": "ימי חול"}, "bands": {"offpeak": "שפל", "peak": "פסגה"}},
+  "versions": [{"tariff_version_id": "...", "effective_from": "2026-01-01", "price_mode": "ex_vat",
+                "definition": {/* the full definition used, ELECTRICITY_TOU.md section 2 */}, "definition_sha256": "<64 hex>"}],
+  "special_days": [{"date": "2026-04-22", "kind": "holiday", "kind_he": "חג", "name_he": "יום העצמאות", "source": "generated"}],
+  "calendar": {"generator": "israel"},
+  "by_band": [{"band": {"id": "peak", "name_he": "פסגה"}, "kwh": "132.00", "amount_ex_vat": "223.01", "total": "263.15", "hours": "132.00"}],
+  "daily": [{"date": "2026-07-01", "season": "summer", "day_type": "weekday", "kwh": "24.00",
+             "bands": [{"band": "offpeak", "kwh": "18.00"}, {"band": "peak", "kwh": "6.00"}],
+             "special": null}]              // {"kind", "name_he"} on a holiday or its eve
+},
+"meta": {"tou_engine": "arx.energy.tou/1"}
+```
+
+Arithmetic (normative, §3 still holds): every line is rounded on its own and the totals are the sums of the rounded lines.
+`tou.by_band` sums the rounded lines per band. `tou.daily` is informational: every value is rounded on its own, energy
+carried from the previous bill is not inside it, so its sums may differ from the lines by a few hundredths or by the carried
+energy. New note codes: `tou_special_days` (the holidays and eves of the period), `tou_spread_gap` / `tou_spread_gap_more` (a
+reporting gap of 2 hours or more whose energy was spread by time over more than one band). The renderer prints a band line as
+"צריכת חשמל - {band} ({season})" (+ the date range when the period has more than one price piece) and the daily table after
+the notes. Limits in the PDF model: 96 charge lines, 400 daily rows, 8 bands.

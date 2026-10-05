@@ -160,8 +160,13 @@ def chart_svg(s: BillSnapshot, prev: list[HistoryPoint], ly: HistoryPoint | None
             style += ' stroke-dasharray="3 2"'
         parts.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{h:.1f}" {style}/>')
         weight = "700" if kind == "cur" else "400"
-        parts.append(f'<text x="{cx:.1f}" y="{max(y - 4, 10):.1f}" text-anchor="middle" font-family="HeeboLa" '
-                     f'font-size="9.5" font-weight="{weight}" fill="#1d2433">{E(f"{value:,.0f}")}{"+" if partial else ""}</text>')
+        value_txt = f"{value:,.0f}" + ("+" if partial else "")
+        ty = max(y - 4, 10)
+        if ly is not None:  # EL8 visual review: a white plate keeps the dashed reference line from striking through the digits
+            pw = 5.6 * len(value_txt) + 4
+            parts.append(f'<rect class="vbg" x="{cx - pw / 2:.1f}" y="{ty - 8.5:.1f}" width="{pw:.1f}" height="10.5" fill="#ffffff"/>')
+        parts.append(f'<text x="{cx:.1f}" y="{ty:.1f}" text-anchor="middle" font-family="HeeboLa" '
+                     f'font-size="9.5" font-weight="{weight}" fill="#1d2433">{E(value_txt)}</text>')
         parts.append(f'<text x="{cx:.1f}" y="{height - 7}" text-anchor="middle" font-family="HeeboLa" '
                      f'font-size="9.5" font-weight="{weight}" fill="#1d2433">{E(label)}</text>')
     parts.append("</svg>")
@@ -201,6 +206,22 @@ def chart_section(s: BillSnapshot) -> str:
             f'<table class="mini"><colgroup>{"<col class='c1'><col class='c2'>" * 3}</colgroup><tbody>{"".join(trs)}</tbody></table></section>')
 
 
+def tou_daily_section(s: BillSnapshot) -> str:
+    """EL5: the daily time-of-use table (kWh per band of each local date), after the notes; the header repeats on every page.
+    Informational: each value is rounded on its own, so the column sums may differ from the charge lines by a few hundredths."""
+    if not s.tou_daily:
+        return ""
+    head = "".join(f"<th class='n'>{E(b)}</th>" for b in s.tou_bands)
+    rows = []
+    for d in s.tou_daily:
+        cells = "".join(f"<td class='n'>{E(kwh(v)) if v is not None else ''}</td>" for v in d.kwh)
+        mark = f" <span class='sub'>{E(d.marker)}</span>" if d.marker else ""
+        rows.append(f"<tr><td>{num(dmy(d.day))}{mark}</td>{cells}<td class='n'>{E(kwh(d.total))}</td></tr>")
+    return ("<section class='daily'><h2>פירוט יומי לפי שעות (קוט״ש)</h2>"
+            f"<table class='mini daily'><thead><tr><th>תאריך</th>{head}<th class='n'>סה״כ</th></tr></thead><tbody>{''.join(rows)}</tbody></table>"
+            "<div class='note'>הפירוט היומי הוא לעיון; כל ערך מעוגל בנפרד, והחיוב מחושב מסיכום כל פס בתקופה.</div></section>")
+
+
 # ---------------------------------------------------------------------------------------------------- the page
 def _css(accent: str) -> str:
     return f"""
@@ -220,7 +241,7 @@ body {{ font-family: HeeboHe, HeeboLa, sans-serif; font-size: 9.5pt; color: #1d2
   padding-bottom: 3mm; }}
 .ph .biz {{ display: flex; gap: 4mm; align-items: flex-start; }}
 .ph .bizt {{ max-width: 70mm; overflow-wrap: anywhere; }}
-.ph .logo {{ flex: none; height: 17mm; width: auto; max-width: 34mm; }}
+.ph .logo {{ flex: none; width: auto; height: auto; max-width: 34mm; max-height: 17mm; }}
 .ph .bizt {{ flex: 1; }}
 h1 {{ font-size: 16pt; margin: 0; overflow-wrap: anywhere; }}
 h2 {{ font-size: 10.5pt; margin: 0 0 2mm; }}
@@ -253,6 +274,8 @@ table.mini {{ margin-top: 2mm; font-size: 7.5pt; table-layout: fixed; }}
 col.c1 {{ width: 25%; }} col.c2 {{ width: 8.3%; }}
 table.mini td {{ padding: 0.8mm 1.5mm; }}
 table.mini td.cur {{ font-weight: 700; }}
+section.daily {{ margin-top: 5mm; }}
+table.daily {{ table-layout: auto; font-size: 8pt; }}
 .runhash {{ position: running(runhash); font-size: 8pt; color: #8a94a8; line-height: 1; }}
 .wm {{ position: fixed; top: 95mm; left: 0; right: 0; text-align: center; font-size: 120pt; font-weight: 700;
   color: rgba(39, 103, 237, 0.10); transform: rotate(-24deg); }}
@@ -260,7 +283,20 @@ table.mini td.cur {{ font-weight: 700; }}
 """
 
 
-def build_html(s: BillSnapshot, has_logo: bool) -> str:
+LOGO_MAX_W_MM, LOGO_MAX_H_MM = 34.0, 17.0
+
+
+def logo_box_mm(size: tuple[int, int] | None) -> tuple[float, float] | None:
+    """The logo's printed size: its pixel aspect ratio fitted into the 34 x 17 mm header box (scaled up or down).
+    EL8: a fixed 17 mm height with `width: auto` let a wide logo (e.g. 400 x 120 px) grow past the page edge."""
+    if not size or size[0] <= 0 or size[1] <= 0:
+        return None
+    w, h = int(size[0]), int(size[1])
+    scale = min(LOGO_MAX_W_MM / w, LOGO_MAX_H_MM / h)
+    return round(w * scale, 2), round(h * scale, 2)
+
+
+def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | None = None) -> str:
     mark = STATE_MARKS.get(s.mark or "")
     biz, cust = s.business, s.customer
     number_txt = s.number or "טיוטה"
@@ -272,10 +308,16 @@ def build_html(s: BillSnapshot, has_logo: bool) -> str:
         biz_lines.append(f"ח.פ. {num(biz.reg_no)}")
     if biz.address:
         biz_lines.append(E(biz.address))
-    contact = " · ".join(x for x in (num(biz.phone) if biz.phone else "", num(biz.email) if biz.email else "") if x)
+    # phone and e-mail share a line when it fits; an em space (not " · ") between them, so a wrap leaves no dangling dot
+    # at the end of the line (EL8 visual review, narrow header next to a wide logo)
+    contact = " ".join(x for x in (num(biz.phone) if biz.phone else "", num(biz.email) if biz.email else "") if x)
     if contact:
         biz_lines.append(contact)
-    logo = f'<img class="logo" src="{LOGO_URL}" alt="">' if has_logo else ""
+    logo = ""
+    if has_logo:
+        box = logo_box_mm(logo_size)
+        size = f' style="width: {box[0]:.2f}mm; height: {box[1]:.2f}mm"' if box else ""  # numbers computed here, not data text
+        logo = f'<img class="logo" src="{LOGO_URL}" alt=""{size}>'
     meta = f"<b>מספר:</b> {num(number_txt) if s.number else E(number_txt)}"
     if s.replaces_number:
         meta += f' <span class="sub">(מחליף את {num(s.replaces_number)})</span>'
@@ -323,9 +365,10 @@ def build_html(s: BillSnapshot, has_logo: bool) -> str:
     # --- charges
     crow = []
     many = len(s.charges) > 1
+    pieces = {(c.period_start, c.period_end) for c in s.charges}
     for c in s.charges:
-        label = "צריכת חשמל"
-        if many and c.period_start and c.period_end:
+        label = E(c.label)
+        if (len(pieces) > 1 or (many and not c.band)) and c.period_start and c.period_end:
             label += f" {rng(c.period_start, c.period_end)}"
         crow.append(f"<tr><td>{label}</td><td class='n'>{E(kwh(c.kwh))} קוט״ש</td>"
                     f"<td class='n'>{E(price(c.price_per_kwh))} ₪</td><td class='n'>{E(money(c.amount))}</td></tr>")
@@ -374,7 +417,7 @@ def build_html(s: BillSnapshot, has_logo: bool) -> str:
         notes_html.append(f'<div class="runhash">מזהה חשבון: {num(s.snapshot_hash)}</div>')
 
     wm = f'<div class="wm {"void" if s.mark == "void" else ""}">{E(mark)}</div>' if mark else ""
-    body = "".join([wm, header, two, big, meters, formula, charges, chart_section(s), *notes_html])
+    body = "".join([wm, header, two, big, meters, formula, charges, chart_section(s), *notes_html, tou_daily_section(s)])
     return (f'<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>{E(title)}</title>'
             f'<meta name="author" content="SmplWise Arx"><style>{_css(E(biz.accent))}</style></head>'
             f"<body>{body}</body></html>")

@@ -429,8 +429,10 @@ export class SwSheet extends LitElement {
   // ---- swipe down to close (the grabber or the head row; bottom-sheet layout only) ----
   private onDown = (e: PointerEvent) => {
     if (this.layout !== 'bottom' || this.locked) return;
-    const t = e.target as HTMLElement;
-    if (t.closest('button:not(.grab), a, input, [role="slider"], sw-pill, sw-button')) return;
+    // a control anywhere on the composed path (also inside a nested shadow root, whose target is retargeted to its host) keeps its own
+    // pointer: a swipe would capture the pointer and swallow the control's click (EL5: the hour-range buttons of elec-tou-editor)
+    const control = 'button:not(.grab), a, input, select, textarea, [role="slider"], sw-pill, sw-button';
+    if (e.composedPath().some((n) => n instanceof Element && n.matches(control))) return;
     this.swipe = { y0: e.clientY, t0: performance.now(), id: e.pointerId };
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

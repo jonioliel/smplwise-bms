@@ -5,7 +5,7 @@ import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can, cap, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
-import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, type Profile, type VideoStep } from '../api/video-policy';
+import { badgeLabel, decodeLadder, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, webrtcUnreachable, type Profile, type VideoStep } from '../api/video-policy';
 
 /**
  * Live player over the add-on's WebSocket relay (go2rtc signalling behind it).
@@ -23,12 +23,26 @@ import { badgeLabel, decodeLadder, lanLadder, orderLadder, rememberStep, remembe
  * 0.1.148 (LAN / Ingress, no plan): a live camera player walks `lanLadder(profile, mode, autoProfile)` the same way -
  * a WebRTC step that connects but decodes nothing moves on (MSE on `auto`; the other profile only when `autoProfile`
  * and a step proved the stream undecodable) - and remembers per camera the step that played (api/video-policy).
+ *
+ * Owner decision 2026-10-05 (WebRTC first, MSE only when WebRTC cannot be used; `auto` is the installation default):
+ * an `auto` WebRTC attempt that reaches no ICE connection within WEBRTC_CONNECT_MS moves on to MSE at once, quietly
+ * (the poster stays, no error flashes), and the tab remembers that WebRTC is unreachable (api/video-policy
+ * `webrtcUnreachable`, 10 min) so the next `auto` players start on MSE without their own wait and WebRTC is probed again
+ * later. A stream that connected but did not decode keeps the GOP-sized decode grace (the first decodable frame is the next
+ * key frame on MSE too) and the 24 h per-camera memory. `webrtc` / `mse` players never fall back and never consult the
+ * memory. The remote plan (CR-008 D7) keeps its own first-frame cap: a mobile link may need longer than the LAN bound.
  */
 export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'ended' | 'error';
 
 const MSE_CODECS = ['avc1.640029', 'avc1.64002A', 'avc1.640033', 'hvc1.1.6.L153.B0', 'mp4a.40.2', 'mp4a.40.5', 'flac', 'opus'];
 /** ICE + first key frame: cameras with a 2–4 s GOP need well over 7 s before the first frame renders. */
 const WEBRTC_TIMEOUT_MS = 12000;
+/** Owner decision 2026-10-05: how long an `auto` player waits for the ICE connection (any inbound byte, or the peer
+ * connection reporting `connected`) before it calls WebRTC unreachable and moves on to MSE. On the LAN ICE completes well
+ * under 2 s (host candidates; the STUN reflexive pair a little later); where UDP to go2rtc is blocked (Ingress, Cloudflare,
+ * CGNAT) the browser only reports `failed` after its own ~15-30 s ICE timeout, which is what this bound cuts short. Once
+ * connected, the wait for media keeps WEBRTC_TIMEOUT_MS and the GOP-sized decode grace. */
+export const WEBRTC_CONNECT_MS = 5000;
 /** CR-008 review M2 (a WebRTC step under a remote plan): the first-frame watch polls the RTP statistics this often,
  * waits at most FIRST_FRAME_CAP_MS for media to arrive at all, and calls a stream undecodable when bytes arrive but no
  * frame decodes for DECODE_GRACE_MS (or the stream's GOP + 3 s, bounded, when the registry knows the GOP). */
@@ -97,6 +111,10 @@ export class SwLivePlayer extends LitElement {
   private chainIndex = 0;
   /** chain[0] is a remembered step (not the chain's own first): forgotten when it fails */
   private chainRemembered = false;
+  /** the chain starts on MSE because this tab remembers WebRTC as unreachable (never remembered per camera) */
+  private chainWebrtcDown = false;
+  /** a WebRTC step of this chain never connected (a network fact, remembered per tab - not per camera) */
+  private chainConnectFailed = false;
   /** True once fragments were dropped because the look-ahead buffer was full: the media after the buffer is gone. */
   stale = false;
   @state() status: PlayerStatus = 'idle';
@@ -409,6 +427,10 @@ export class SwLivePlayer extends LitElement {
     const remembered = rememberedStep(this.cameraId, this.profile, this.mode);
     this.chain = orderLadder(natural, remembered);
     this.chainRemembered = !!remembered && sameStep(this.chain[0], remembered) && !sameStep(natural[0], remembered);
+    this.chainConnectFailed = false;
+    // WebRTC known unreachable from this tab (owner 2026-10-05): an `auto` chain starts on MSE without its own wait
+    this.chainWebrtcDown = this.mode === 'auto' && !remembered && webrtcUnreachable();
+    if (this.chainWebrtcDown) this.chain = mseFirst(natural);
   }
 
   /** A LAN / Ingress chain is in force (live catalogue camera, no remote plan). */
@@ -429,6 +451,12 @@ export class SwLivePlayer extends LitElement {
   /** The current LAN step failed before its first frame: the next allowed step, or the end of the chain. */
   private chainNext(reason: string, decode = false) {
     if (decode) this.decodeFailed = true;
+    // a WebRTC step that never connected on an `auto` chain: WebRTC is unreachable from here for a while (every
+    // `auto` player of this tab starts on MSE until the memory expires), and this camera is not pinned to MSE for a day
+    if (!decode && this.mode === 'auto' && this.chain[this.chainIndex]?.transport === 'webrtc') {
+      this.chainConnectFailed = true;
+      noteWebrtcUnreachable();
+    }
     if (this.chainRemembered && this.chainIndex === 0) rememberStep(this.cameraId, this.profile, this.mode, null);
     this.chainRemembered = false;
     for (let j = this.chainIndex + 1; j < this.chain.length; j++) {
@@ -489,9 +517,12 @@ export class SwLivePlayer extends LitElement {
     this.error = '';
     this.capped = false;
     this.transport = '';
-    this.triedWebrtc = preferMse;
-    this.lastPreferMse = preferMse;
     const step = this.currentStep ?? this.lanStep;
+    // a chain-less `auto` live source (a Home Assistant camera on its own relay path) starts on MSE while this tab
+    // remembers WebRTC as unreachable (owner 2026-10-05), like a chained camera does
+    const mseNow = preferMse || (!step && !this.wsUrl && this.mode === 'auto' && webrtcUnreachable());
+    this.triedWebrtc = mseNow;
+    this.lastPreferMse = mseNow;
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile)));
@@ -506,7 +537,7 @@ export class SwLivePlayer extends LitElement {
       if (step) {
         if (step.transport === 'mse') this.startMse();
         else this.startWebrtc();
-      } else if (this.wsUrl || this.mode === 'mse' || (this.mode === 'auto' && preferMse)) this.startMse();
+      } else if (this.wsUrl || this.mode === 'mse' || (this.mode === 'auto' && mseNow)) this.startMse();
       else this.startWebrtc();
     };
     ws.onmessage = (ev) => {
@@ -693,7 +724,9 @@ export class SwLivePlayer extends LitElement {
       return;
     }
     window.clearTimeout(this.timer);
-    if (this.laddered || this.lanChained) {
+    // every `auto` attempt is watched (the connect bound applies to a chain-less HA camera too); `webrtc` without a chain
+    // keeps the fixed timeout below
+    if (this.laddered || this.lanChained || this.mode === 'auto') {
       this.watchFirstFrame(gen, pc, started);
       return;
     }
@@ -726,6 +759,9 @@ export class SwLivePlayer extends LitElement {
     // LAN / Ingress keeps its shorter first-frame bound (no mobile link to wait for); a stream whose bytes arrive
     // undecoded is judged by the decode grace on both channels
     const cap = this.laddered ? FIRST_FRAME_CAP_MS : WEBRTC_TIMEOUT_MS;
+    // owner 2026-10-05: an `auto` player outside the remote plan gives ICE WEBRTC_CONNECT_MS; the remote plan keeps its
+    // own cap (a mobile link), `webrtc` only has nothing to fall back to and keeps the full wait
+    const connectCap = !this.laddered && this.mode === 'auto' ? WEBRTC_CONNECT_MS : 0;
     let firstBytesAt = 0;
     let lastTickAt = performance.now();
     // re-review: a background tab defers play() and throttles timers - no judgement while hidden, and a fresh clock
@@ -789,6 +825,12 @@ export class SwLivePlayer extends LitElement {
       }
       const now = performance.now();
       if (bytes > 0 && !firstBytesAt) firstBytesAt = now;
+      // no ICE connection and no byte within the connect bound: WebRTC is unreachable from here - MSE, now
+      if (connectCap && now - started >= connectCap && bytes <= 0 && pc.connectionState !== 'connected' && !this.webrtcConnected) {
+        stop();
+        this.webrtcFailed('WebRTC לא התחבר (ייתכן ש-UDP חסום)');
+        return;
+      }
       if (bytes > 0 && decoded === 0 && now - firstBytesAt >= this.decodeGraceMs()) {
         stop();
         this.webrtcFailed('WebRTC התחבר אך הדפדפן לא מפענח את הזרם', true);
@@ -859,6 +901,7 @@ export class SwLivePlayer extends LitElement {
       return;
     }
     if (this.mode === 'auto') {
+      if (!decode) noteWebrtcUnreachable(); // never connected: a network fact this tab's next `auto` players act on
       // Fresh socket for MSE so go2rtc does not keep a dead WebRTC consumer on the old one.
       this.disconnect();
       this.connect(true);
@@ -1022,10 +1065,14 @@ export class SwLivePlayer extends LitElement {
     this.attempts = 0;
     this.status = 'playing';
     if (this.lanChained) {
-      // remember the step that plays when it is not the chain's own first (and forget the camera when that one plays)
+      // remember the step that plays when it is not the chain's own first (and forget the camera when that one plays);
+      // MSE reached because WebRTC could not CONNECT (or was remembered as unreachable) is a fact about the network, not
+      // about this camera: the per-tab memory carries it, the per-camera one is cleared
       const step = this.chain[this.chainIndex];
       const first = lanLadder(this.profile, this.mode, this.autoProfile)[0];
-      rememberStep(this.cameraId, this.profile, this.mode, step && !sameStep(step, first) ? step : null);
+      const network = this.chainWebrtcDown || this.chainConnectFailed;
+      rememberStep(this.cameraId, this.profile, this.mode, step && !network && !sameStep(step, first) ? step : null);
+      if (step?.transport === 'webrtc' && this.mode === 'auto') noteWebrtcUnreachable(false); // WebRTC works again: forget
     }
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.effectiveProfile }, bubbles: true, composed: true }));
   }

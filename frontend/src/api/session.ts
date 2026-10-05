@@ -6,6 +6,7 @@
 import { ApiError, apiUrl, get } from './client';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
+import { isRemoteChannel } from '../arx/channel';
 
 export type SessionMode = 'loading' | 'api' | 'demo' | 'unauthenticated' | 'no_access';
 
@@ -123,6 +124,14 @@ export function canReadNvrConfig(): boolean {
 }
 
 export const isApi = () => session.mode === 'api';
+
+/** The one-line state shown where a screen would call a route the remote channel answers 404 on purpose
+ * (`BLOCKED_ON_REMOTE` in backend/smplwise/remote_channel.py). Operator copy: no raw server error, no retry. */
+export const LOCAL_ONLY_TEXT = 'חיבור ה־NVR מנוהל רק מהרשת המקומית';
+export const LOCAL_ONLY_GENERIC = 'זמין רק מהרשת המקומית';
+
+/** True on the remote channel (`/arx/`): the server's own answer (`/me.channel`) or, before it is known, the address. */
+export const onRemote = () => session.me?.channel === 'remote' || isRemoteChannel();
 
 /** NN1: does this installation have the capability (always true without a backend)? The shell hides what cannot work;
  * the server still refuses the routes (409 nvr_not_configured / capability_unavailable), so hiding is never the protection. */

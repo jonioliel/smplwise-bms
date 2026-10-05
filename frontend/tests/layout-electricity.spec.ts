@@ -63,6 +63,10 @@ const SCREENS: Screen[] = [
   { name: 'settings-tariff-dialog', route: '/system/infra/prices', prep: click('[data-tariff-row="t1"]') },
   { name: 'settings-vat-dialog', route: '/system/infra/prices', prep: click('[data-new-vat]') },
   { name: 'settings-business', route: '/system/infra/business' },
+  // EL5 time-of-use: the new tariff dialog with the editor (its structure part unfolded), the special days, a TOU bill with its daily table
+  { name: 'settings-tou-dialog', route: '/system/infra/prices', prep: async (p) => { await p.locator('[data-new-tariff]').first().click(); await p.locator('[data-tariff-kind="tou"]').click(); await p.locator('elec-tou-editor [data-tou-structure] summary').click(); } },
+  { name: 'settings-calendar', route: '/system/infra/calendar' },
+  { name: 'bill-tou', route: `${EL}/bills/b101`, ctl: { tou: true }, prep: click('[data-tou-daily]') },
 ];
 
 test.describe('electricity layout guard', () => {

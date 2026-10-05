@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import './plan-area-links-admin';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -13,9 +14,9 @@ import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
-import { can, isApi, nvrLess } from '../api/session';
+import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
-import { invalidateSettings } from '../api/prefs';
+import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { describeError, get } from '../api/client';
 import { navigate, parseRoute } from '../router';
 import { TabsModeController } from '../shell/tabs-mode';
@@ -146,6 +147,14 @@ export class SystemDiagnostics extends LitElement {
       flex-direction: column;
       gap: 12px;
       max-inline-size: 760px;
+    }
+    /* K88: the plan.surfaces check rows */
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
     }
     .row {
       display: flex;
@@ -489,7 +498,7 @@ export class SystemDiagnostics extends LitElement {
     this.error = '';
     try {
       this.ha = await haStatus();
-      if (this.canEdit) this.pairing = await bridgePairing(regenerate);
+      if (this.canEdit && !onRemote()) this.pairing = await bridgePairing(regenerate);
       if (regenerate) {
         this.regenArmed = false;
         this.showCode = true;
@@ -553,7 +562,7 @@ export class SystemDiagnostics extends LitElement {
     if (!i) return nothing;
     const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
     const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
-    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
   }
 
   private renderHa() {
@@ -581,9 +590,11 @@ export class SystemDiagnostics extends LitElement {
           ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
             <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span style="display:flex;gap:8px;align-items:center"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
             <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span style="display:flex;gap:8px"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
-          : this.canEdit
-            ? nothing
-            : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
+          : onRemote()
+            ? html`<div class="muted" data-ha-local-only>${LOCAL_ONLY_GENERIC}</div>`
+            : this.canEdit
+              ? nothing
+              : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
       </sw-card>
       <sw-card heading="התקנת הגשר (פעם אחת)">
         <ol class="steps">
@@ -726,9 +737,9 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       ${NVR ? this.renderNvrLessNotice('הגדרות הווידאו וההקלטות אינן בשימוש') : nothing}
       <sw-card heading=${NVR ? 'תצוגה ומפה' : 'תעבורת וידאו'} subheading=${NVR ? 'מסך הפתיחה, המפה והתלת-ממד' : 'ברירת המחדל לכל הנגנים; כל נגן יכול לעקוף אותה לדפדפן הנוכחי'}>
-        ${NVR ? nothing : html`<div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">MSE (ברירת המחדל) עובד דרך Ingress, Cloudflare ומאחורי CGNAT · WebRTC נותן השהיה נמוכה אך דורש UDP ישיר ל־go2rtc (רשת מקומית או ללא CGNAT) · אוטומטי מנסה WebRTC ונופל ל־MSE</span></span>
-          <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
-            ${(['mse', 'auto', 'webrtc'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? 'mse') === t}>${t === 'auto' ? 'אוטומטי (WebRTC → MSE)' : t === 'webrtc' ? 'WebRTC בלבד' : 'MSE (ברירת מחדל)'}</option>`)}
+        ${NVR ? nothing : html`<div class="row"><span class="lbl">תעבורה ברירת מחדל<span class="muted">אוטומטי (ברירת המחדל): WebRTC תחילה (השהיה נמוכה), ו־MSE רק כש־WebRTC אינו זמין · WebRTC בלבד: לעולם לא MSE · MSE בלבד: בחירה מכוונת ללקוח שאצלו WebRTC בלתי אפשרי (אין UDP ישיר ל־go2rtc: Ingress, Cloudflare, CGNAT)</span></span>
+          <sw-field class="ctl"><select data-set-transport-default ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.transport_default', (e.target as HTMLSelectElement).value as ProductSettings['media.transport_default'])}>
+            ${(['auto', 'webrtc', 'mse'] as const).map((t) => html`<option value=${t} ?selected=${(this.value('media.transport_default') ?? TRANSPORT_DEFAULT) === t}>${t === TRANSPORT_DEFAULT ? `${transportLabel(t)} — ברירת המחדל` : transportLabel(t)}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">הודעות על אופן ההזרמה<span class="muted">הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה</span></span>
           <sw-field class="ctl"><select data-set-video-notices ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notices', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
@@ -856,6 +867,7 @@ export class SystemDiagnostics extends LitElement {
   private renderMap() {
     const api = isApi();
     const dirty = Object.keys(this.draft).length > 0;
+    const surfaces = (this.value('plan.surfaces') as ('devices' | 'area')[] | undefined) ?? ['devices', 'area'];
     const sel = (key: keyof ProductSettings, dflt: string, attr: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set=${attr} ?disabled=${!api || !this.canEdit}
         @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>${options.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value(key) ?? dflt) === v}>${l}</option>`)}</select></sw-field>`;
     return html`<div class="sections">
@@ -867,9 +879,14 @@ export class SystemDiagnostics extends LitElement {
           ${sel('plan.levels', 'all', 'map-plan-levels', [['all', 'כל המפלסים יחד'], ['default', 'מפלס ברירת המחדל של הקומה']])}</div>
         <div class="row"><span class="lbl">מפלסים של חלל משותף<span class="muted">בעורך של הקומה שמציגה חלל משותף (חלל בגובה כפול שהרצפה שלו בקומה אחרת): להציג בסרגל המפלסים גם את מפלסי הקומה שלו ("מפלס ראשי · קומה -1")</span></span>
           ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', 'מוצגים'], ['hide', 'מוסתרים']])}</div>
+        <div class="row" data-plan-surfaces><span class="lbl">התוכנית החיה מחוץ ללשונית המפה<span class="muted">איפה עוד מוצגת תוכנית הקומה עם מצבי החדרים; כל מקום לחוד</span></span>
+          <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
+            ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><input type="checkbox" data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', (e.target as HTMLInputElement).checked ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))} /> ${l}</label>`)}
+          </span></div>
         <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      ${api && this.canEdit ? html`<plan-area-links-admin data-section="area-links"></plan-area-links-admin>` : nothing}
     </div>`;
   }
 

@@ -9,11 +9,14 @@
 import { html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { recommendedColors } from '../design/palette';
-import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
+import { ApiError } from '../api/client';
+import { elec, elecErrorText, elecFieldErrors, elecToday, type BillSnapshot, type BillingSettings, type PaymentTerms, type PriceMode, type Tariff, type TariffKind, type TariffVersion, type TariffVersionPlan, type VatRates } from '../api/electricity-billing';
 import { energyAccess } from './access';
 import { ElecBase, alertBox, n, skeleton, stateBox, type LoadState } from './elec-ui';
 import './elec-bill-paper';
+import './elec-tou-editor';
 import { addDays, f4, fmtDate, isIsoDate } from './elec-format';
+import { cloneDef, israelTemplate, type TouDefinition } from './elec-tou';
 
 const NUM = /^\d+(\.\d+)?$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -21,6 +24,12 @@ const lum = (hex: string): number => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 };
+
+/** EL5: one line about a time-of-use tariff for the list ("2 פסים · 3 עונות"). */
+function touSummary(t: Tariff): string {
+  const d = t.current?.definition;
+  return d ? `${d.bands.map((b) => b.name_he).join(' / ')} · ${d.seasons.length} עונות` : 'לפי שעות';
+}
 
 // ================================================================================================ prices
 @customElement('elec-settings-prices')
@@ -37,6 +46,12 @@ export class ElecSettingsPrices extends ElecBase {
   @state() private tVer: TariffVersion | null = null;
   /** The plan the server returned for a correction; shown for one confirmation. */
   @state() private tPlan: TariffVersionPlan | null = null;
+  /** EL5: a fixed price or a time-of-use tariff (chosen when the tariff is created; one kind per tariff) */
+  @state() private tKind: TariffKind = 'fixed';
+  @state() private tDef: TouDefinition | null = null;
+  /** the path of the server's first error in the time-of-use definition */
+  @state() private tErrPath = '';
+  @state() private tSource = '';
   @state() private vOpen = false;
   @state() private vf = { rate: '', from: '' };
   @state() private vErr: Record<string, string> = {};
@@ -69,12 +84,33 @@ export class ElecSettingsPrices extends ElecBase {
 
   private openTariff(t: Tariff | null) {
     this.tEdit = t;
-    this.tf = t?.current ? { name: t.name, price: t.current.price, mode: t.current.price_mode, from: elecToday() } : { name: '', price: '', mode: this.settings?.default_price_mode ?? 'ex_vat', from: elecToday() };
+    this.tf = t?.current ? { name: t.name, price: t.current.price ?? '', mode: t.current.price_mode, from: elecToday() } : { name: '', price: '', mode: this.settings?.default_price_mode ?? 'ex_vat', from: elecToday() };
+    this.tKind = t?.kind === 'tou' ? 'tou' : 'fixed';
+    this.tDef = t?.kind === 'tou' && t.current?.definition ? cloneDef(t.current.definition) : null;
+    this.tSource = '';
+    this.tErrPath = '';
     this.tErr = {};
     this.tVer = null;
     this.tPlan = null;
     this.error = '';
     this.tOpen = true;
+  }
+  /** EL5: a new tariff is a fixed price or time-of-use; time-of-use starts from the template (hours filled, prices empty). */
+  private async setKind(k: TariffKind) {
+    if (this.tEdit || this.tKind === k) return;
+    this.tKind = k;
+    this.tErrPath = '';
+    this.error = '';
+    if (k === 'tou' && !this.tDef) {
+      try {
+        const tpl = (await elec().touTemplates())[0];
+        this.tDef = cloneDef(tpl?.definition ?? israelTemplate());
+        this.tSource = tpl?.source_he ?? '';
+      } catch (er) {
+        this.tDef = israelTemplate();
+        this.error = elecErrorText(er);
+      }
+    }
   }
   /** Load one existing price version into the form so it can be corrected. */
   private editVersion(v: TariffVersion) {
@@ -82,29 +118,33 @@ export class ElecSettingsPrices extends ElecBase {
     this.tVer = v;
     this.tPlan = null;
     this.tErr = {};
+    this.tErrPath = '';
     this.error = '';
-    this.tf = { name: this.tEdit.name, price: v.price, mode: v.price_mode, from: v.effective_from };
+    this.tf = { name: this.tEdit.name, price: v.price ?? '', mode: v.price_mode, from: v.effective_from };
+    if (v.definition) this.tDef = cloneDef(v.definition);
   }
   private setTf(patch: Partial<{ name: string; price: string; mode: PriceMode; from: string }>) {
     this.tf = { ...this.tf, ...patch };
     this.tPlan = null;
   }
   private planText(p: TariffVersionPlan): string {
-    const part = (x: { price: string; price_mode: PriceMode }) => `${f4(x.price)} ₪ ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ`;
+    const part = (x: { price: string | null; price_mode: PriceMode }) => (x.price === null ? `מחירים לפי שעות ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ` : `${f4(x.price)} ₪ ${x.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ`);
     return `${part(p.old)} ← ${part(p.new)}. ${p.message_he}`;
   }
   private async saveTariff() {
     const f = this.tf;
+    const tou = this.tKind === 'tou';
     const e: Record<string, string> = {};
     if (!f.name.trim()) e.name = 'צריך לתת שם לתעריף';
-    if (!NUM.test(f.price) || Number(f.price) <= 0) e.price = 'המחיר חייב להיות מספר גדול מאפס';
+    if (!tou && (!NUM.test(f.price) || Number(f.price) <= 0)) e.price = 'המחיר חייב להיות מספר גדול מאפס';
     if (!isIsoDate(f.from)) e.from = 'צריך לבחור תאריך';
     this.tErr = e;
-    if (Object.keys(e).length || this.busy) return;
+    if (Object.keys(e).length || this.busy || (tou && !this.tDef)) return;
     this.busy = true;
     this.error = '';
+    this.tErrPath = '';
     try {
-      const body = { name: f.name.trim(), price: f.price, price_mode: f.mode, effective_from: f.from };
+      const body = { name: f.name.trim(), price: tou ? '' : f.price, price_mode: f.mode, effective_from: f.from, definition: tou ? this.tDef : null };
       if (this.tEdit) {
         // a correction (or a new price on an existing date) is shown once for confirmation before anything is written
         const r = await elec().correctTariffVersion(this.tEdit.id, body, { replaceId: this.tVer?.id ?? null, base: this.tVer, confirm: !!this.tPlan });
@@ -120,6 +160,8 @@ export class ElecSettingsPrices extends ElecBase {
       const fe = elecFieldErrors(er);
       if (Object.keys(fe).length) this.tErr = fe;
       else this.error = elecErrorText(er);
+      const first = er instanceof ApiError ? (er.body.details?.errors as { path?: string }[] | undefined)?.[0] : undefined;
+      if (first?.path !== undefined) this.tErrPath = first.path;
     } finally {
       this.busy = false;
     }
@@ -171,9 +213,15 @@ export class ElecSettingsPrices extends ElecBase {
         <div class="card ${this.phone ? '' : 'flush'}"><div class="hd"><b class="h3">תעריפים</b><span class="sp"></span>${edit ? html`<button type="button" class="btn pri sm" data-new-tariff @click=${() => this.openTariff(null)}>+ תעריף</button>` : nothing}</div>
           ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', edit ? { label: '+ תעריף', primary: true, run: () => this.openTariff(null) } : undefined)
             : this.phone
-              ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">הוזן ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · מ-${n(fmtDate(t.current?.effective_from ?? ''))}</div></div><b class="num">${f4(t.current?.price ?? 0)} ₪</b></button>`)}</div>`
+              ? html`<div class="list" data-tariffs>${this.tariffs.map((t) => html`<button type="button" class="li" data-tariff-row=${t.id} data-kind=${t.kind} ?disabled=${!edit} @click=${() => edit && this.openTariff(t)}><div class="grow"><div class="t1">${t.name}</div><div class="t2">${t.kind === 'tou' ? html`${touSummary(t)} · ` : nothing}הוזן ${t.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · מ-${n(fmtDate(t.current?.effective_from ?? ''))}</div></div>${t.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(t.current?.price ?? 0)} ₪</b>`}</button>`)}</div>`
               : html`<div class="scrollx"><table class="t" data-tariffs><thead><tr><th>שם</th><th class="num">מחיר שהוזן</th><th>הוזן</th><th class="num">לפני מע״מ</th><th class="num">כולל מע״מ</th><th>בתוקף מ</th><th>חשבונות</th></tr></thead><tbody>
-                ${this.tariffs.map((t) => { const x = this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat'); return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}</td><td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td><td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`; })}</tbody></table></div>`}
+                ${this.tariffs.map((t) => {
+                  const x = this.derived(t.current?.price ?? '0', t.current?.price_mode ?? 'ex_vat');
+                  const tou = t.kind === 'tou';
+                  return html`<tr class="${edit ? 'go' : ''}" data-tariff-row=${t.id} data-kind=${t.kind} @click=${() => edit && this.openTariff(t)}><td class="b">${t.name}${tou ? html` <span class="chip c-acc nodot">לפי שעות</span>` : nothing}</td>${tou
+                    ? html`<td colspan="1" class="mut">${touSummary(t)}</td><td>${t.current?.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'}</td><td class="num">-</td><td class="num">-</td>`
+                    : html`<td class="num">${f4(t.current?.price ?? 0)} ₪</td><td>${t.current?.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'}</td><td class="num">${f4(x.ex)} ₪</td><td class="num">${f4(x.inc)} ₪</td>`}<td class="num" style="text-align:start">${fmtDate(t.current?.effective_from ?? '')}</td><td>${t.used_by}</td></tr>`;
+                })}</tbody></table></div>`}
         </div>
         <div class="col">
           <div class="card" data-card="vat"><div class="hd"><b class="h3">שיעור מע״מ</b><span class="sp"></span>${edit ? html`<button type="button" class="btn sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>+ שיעור חדש</button>` : nothing}</div>
@@ -183,15 +231,19 @@ export class ElecSettingsPrices extends ElecBase {
             ${(['ex_vat', 'inc_vat'] as PriceMode[]).map((m) => html`<label class="li ${mode === m ? 'sel' : ''}"><input type="radio" name="mode" data-default-mode=${m} .checked=${mode === m} ?disabled=${!edit} @change=${() => void this.setMode(m)} /><span class="ind"></span><div class="grow t1">${m === 'ex_vat' ? 'לפני מע״מ' : 'כולל מע״מ'}</div></label>`)}</div></div>
         </div>
       </div>
-      <elec-dialog heading=${this.tEdit ? 'עריכת תעריף' : 'תעריף חדש'} ?open=${this.tOpen} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
+      <elec-dialog heading=${this.tEdit ? 'עריכת תעריף' : 'תעריף חדש'} ?open=${this.tOpen} ?wide=${this.tKind === 'tou'} data-dialog="tariff" @close=${() => (this.tOpen = false)}>
         <div class="form">
           <div class="fld wide"><label for="tn">שם התעריף</label><input id="tn" class="${this.tErr.name ? 'err' : ''}" data-tariff-name .value=${this.tf.name} @input=${(e: Event) => this.setTf({ name: (e.target as HTMLInputElement).value })} />${this.tErr.name ? html`<div class="msg" role="alert">${this.tErr.name}</div>` : nothing}</div>
-          <div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>
-          <div class="fld"><span class="lbl">המחיר שהוזן</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
+          ${this.tEdit ? nothing : html`<div class="fld wide"><span class="lbl">סוג התעריף</span><div class="seg" role="group" aria-label="סוג התעריף"><button type="button" data-tariff-kind="fixed" aria-pressed=${this.tKind === 'fixed'} @click=${() => void this.setKind('fixed')}>מחיר קבוע</button><button type="button" data-tariff-kind="tou" aria-pressed=${this.tKind === 'tou'} @click=${() => void this.setKind('tou')}>לפי שעות (תעו״ז)</button></div></div>`}
+          ${this.tKind === 'fixed' ? html`<div class="fld"><label for="tp">מחיר לקוט״ש</label><div class="unit"><input id="tp" class="ltr ${this.tErr.price ? 'err' : ''}" data-tariff-price inputmode="decimal" .value=${this.tf.price} @input=${(e: Event) => this.setTf({ price: (e.target as HTMLInputElement).value })} /><span>₪</span></div>${this.tErr.price ? html`<div class="msg" role="alert">${this.tErr.price}</div>` : nothing}</div>` : nothing}
+          <div class="fld"><span class="lbl">${this.tKind === 'tou' ? 'המחירים שהוזנו' : 'המחיר שהוזן'}</span><div class="seg" role="group" aria-label="סוג מחיר"><button type="button" data-tariff-mode="ex_vat" aria-pressed=${this.tf.mode === 'ex_vat'} @click=${() => this.setTf({ mode: 'ex_vat' })}>לפני מע״מ</button><button type="button" data-tariff-mode="inc_vat" aria-pressed=${this.tf.mode === 'inc_vat'} @click=${() => this.setTf({ mode: 'inc_vat' })}>כולל מע״מ</button></div></div>
           <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" class="ltr ${this.tErr.effective_from ? 'err' : ''}" data-tariff-from .value=${this.tf.from} @change=${(e: Event) => this.setTf({ from: (e.target as HTMLInputElement).value })} />${this.tErr.effective_from ? html`<div class="msg" role="alert">${this.tErr.effective_from}</div>` : nothing}</div>
         </div>
-        ${cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>לפני מע״מ</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>מע״מ ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
-        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${f4(v.price)} ₪</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label="תיקון המחיר" @click=${() => this.editVersion(v)}>תיקון</button>` : nothing}</div>`)}</div>` : nothing}
+        ${this.tKind === 'fixed' && cur ? html`<div class="card soft" data-tariff-derived><dl class="kv"><dt>לפני מע״מ</dt><dd>${n(f4(d.ex) + ' ₪')}</dd><dt>מע״מ ${n(cur.rate_percent + '%')}</dt><dd>${n(f4(d.vat) + ' ₪')}</dd><dt>כולל מע״מ</dt><dd>${n(f4(d.inc) + ' ₪')}</dd></dl></div>` : nothing}
+        ${this.tKind === 'tou' && this.tSource && !this.tEdit ? alertBox('info', this.tSource) : nothing}
+        ${this.tKind === 'tou' && this.tDef ? html`<elec-tou-editor .definition=${this.tDef} .priceMode=${this.tf.mode} .vatRate=${cur ? Number(cur.rate_percent) / 100 : null} .errorPath=${this.tErrPath}
+            @tou-change=${(e: CustomEvent<TouDefinition>) => { this.tDef = e.detail; this.tPlan = null; this.tErrPath = ''; }}></elec-tou-editor>` : nothing}
+        ${this.tEdit && this.tEdit.versions.length ? html`<b class="h3">גרסאות</b><div class="list" data-tariff-versions>${this.tEdit.versions.map((v) => html`<div class="ver" data-version=${v.id} aria-current=${this.tVer?.id === v.id ? 'true' : 'false'}><span class="num">${v.definition ? 'לפי שעות' : `${f4(v.price ?? 0)} ₪`}</span><span>${v.price_mode === 'inc_vat' ? 'כולל מע״מ' : 'לפני מע״מ'} · מ-${n(fmtDate(v.effective_from))}</span>${energyAccess().manage ? html`<button type="button" class="btn ghost sm" data-version-edit=${v.id} aria-label="תיקון המחיר" @click=${() => this.editVersion(v)}>תיקון</button>` : nothing}</div>`)}</div>` : nothing}
         ${this.tPlan ? alertBox('warn', this.planText(this.tPlan)) : nothing}
         ${this.error ? alertBox('err', this.error) : nothing}
         <button slot="actions" type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.saveTariff()}>${this.tPlan ? 'אישור והחלפה' : this.tVer ? 'שמירת תיקון' : 'שמירה'}</button>

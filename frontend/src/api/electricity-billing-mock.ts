@@ -20,10 +20,11 @@ import { ApiError } from './client';
 import { buildHistory, buildStatus, demoControl, ERROR_TEXT, PDF_RETRYABLE } from './electricity-billing';
 import type {
   Account, AccountBody, AccountHistoryWire, AccountRow, AccountStatusWire, AutoMode, Bill, BillAction, BillEvent, BillHistory, BillList, BillPdf, BillSnapshot, BillState, BillSummary, BillsQuery, BillingSettings,
-  Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, Tariff, TariffVersionPlan, VatRates, StatusMeterWire,
+  CalendarDay, CalendarYear, Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, SnapshotLine, SnapshotTou, Tariff, TariffVersionBody, TariffVersionPlan, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
 import { addDays, baseNumber, daysInclusive, isIsoDate, periodContaining, r2 } from '../electricity/elec-format';
+import { bandsUsed, cloneDef, dayTypeOf, hoursBySeasonBand, israelTemplate, seasonOf, toMin, weekGrid, type TouCheck, type TouDefinition } from '../electricity/elec-tou';
 
 export const MOCK_TODAY = '2026-10-04';
 /** wire decimals: plain digits, never grouped */
@@ -207,7 +208,7 @@ const tariff = (id: string): Tariff => {
   return { ...t, current: t.versions[0] ?? null, used_by: accounts.filter((a) => a.tariff_id === t.id).length };
 };
 const vatRate = (): number => Number(vatItems[0].rate_percent) / 100 || VAT;
-const exPrice = (v: { price: string; price_mode: PriceMode }): number => (v.price_mode === 'ex_vat' ? Number(v.price) : Number(v.price) / (1 + vatRate()));
+const exPrice = (v: { price: string | null; price_mode: PriceMode }): number => (v.price_mode === 'ex_vat' ? Number(v.price) : Number(v.price) / (1 + vatRate()));
 function charge(t: Tariff, kwh: number): { amount: number; vat: number; total: number } {
   const v = t.versions[0];
   if (v.price_mode === 'ex_vat') {
@@ -218,6 +219,115 @@ function charge(t: Tariff, kwh: number): { amount: number; vat: number; total: n
   const total = r2(kwh * Number(v.price));
   const amount = r2(total / (1 + vatRate()));
   return { amount, vat: r2(total - amount), total };
+}
+
+// ------------------------------------------------------------------------------------------------ EL5: time-of-use (demo arithmetic)
+
+/** The generated Israeli special days the server computes for 2026-2027 (energy_calendar.israel_special_days), copied for the demo. */
+const GENERATED_DAYS: [string, 'holiday' | 'holiday_eve', string][] = [
+  ['2026-04-01', 'holiday_eve', 'ערב פסח'], ['2026-04-02', 'holiday', 'פסח'], ['2026-04-07', 'holiday_eve', 'ערב שביעי של פסח'], ['2026-04-08', 'holiday', 'שביעי של פסח'],
+  ['2026-04-21', 'holiday_eve', 'יום הזיכרון (ערב יום העצמאות)'], ['2026-04-22', 'holiday', 'יום העצמאות'], ['2026-05-21', 'holiday_eve', 'ערב שבועות'], ['2026-05-22', 'holiday', 'שבועות'],
+  ['2026-09-11', 'holiday_eve', 'ערב ראש השנה'], ['2026-09-12', 'holiday', 'ראש השנה'], ['2026-09-13', 'holiday', 'ראש השנה (יום שני)'], ['2026-09-20', 'holiday_eve', 'ערב יום כיפור'],
+  ['2026-09-21', 'holiday', 'יום כיפור'], ['2026-09-25', 'holiday_eve', 'ערב סוכות'], ['2026-09-26', 'holiday', 'סוכות'], ['2026-10-02', 'holiday_eve', 'הושענא רבה'],
+  ['2026-10-03', 'holiday', 'שמיני עצרת ושמחת תורה'], ['2027-04-21', 'holiday_eve', 'ערב פסח'], ['2027-04-22', 'holiday', 'פסח'], ['2027-04-27', 'holiday_eve', 'ערב שביעי של פסח'],
+  ['2027-04-28', 'holiday', 'שביעי של פסח'], ['2027-05-11', 'holiday_eve', 'יום הזיכרון (ערב יום העצמאות)'], ['2027-05-12', 'holiday', 'יום העצמאות'], ['2027-06-10', 'holiday_eve', 'ערב שבועות'],
+  ['2027-06-11', 'holiday', 'שבועות'], ['2027-10-01', 'holiday_eve', 'ערב ראש השנה'], ['2027-10-02', 'holiday', 'ראש השנה'], ['2027-10-03', 'holiday', 'ראש השנה (יום שני)'],
+  ['2027-10-10', 'holiday_eve', 'ערב יום כיפור'], ['2027-10-11', 'holiday', 'יום כיפור'], ['2027-10-15', 'holiday_eve', 'ערב סוכות'], ['2027-10-16', 'holiday', 'סוכות'],
+  ['2027-10-22', 'holiday_eve', 'הושענא רבה'], ['2027-10-23', 'holiday', 'שמיני עצרת ושמחת תורה'],
+];
+const KIND_HE: Record<CalendarDay['kind'], string> = { holiday: 'חג', holiday_eve: 'ערב חג', regular: 'יום רגיל' };
+let calendar: { revision: number; generator: 'israel' | 'none'; overrides: Record<string, { kind: CalendarDay['kind']; name_he: string }> } = { revision: 0, generator: 'israel', overrides: {} };
+function calendarEntry(iso: string): CalendarDay | null {
+  const o = calendar.overrides[iso];
+  const g = calendar.generator === 'israel' ? GENERATED_DAYS.find((x) => x[0] === iso) : undefined;
+  const gen = g ? { date: g[0], kind: g[1], kind_he: KIND_HE[g[1]], name_he: g[2], source: 'generated' } : null;
+  if (o) return { date: iso, kind: o.kind, kind_he: KIND_HE[o.kind], name_he: o.name_he, source: 'manual', generated: gen };
+  return g ? { date: g[0], kind: g[1], kind_he: KIND_HE[g[1]], name_he: g[2], source: 'generated', generated: null } : null;
+}
+const specialOf = (iso: string): 'holiday' | 'holiday_eve' | null => {
+  const e = calendarEntry(iso);
+  return e && e.kind !== 'regular' ? e.kind : null;
+};
+function calendarYear(year: number, extra: Partial<CalendarYear> = {}): CalendarYear {
+  const dates = new Set<string>([...GENERATED_DAYS.map((x) => x[0]), ...Object.keys(calendar.overrides)].filter((d) => d.startsWith(`${year}-`)));
+  const days = [...dates].sort().map((d) => calendarEntry(d)).filter((x): x is CalendarDay => x !== null);
+  return { year, revision: calendar.revision, generator: calendar.generator, days, note_he: 'רשימת החגים מחושבת לפי הלוח העברי. יש לאשר אותה מול חשבון חשמל אמיתי.', ...extra };
+}
+
+/** Demo pricing of a time-of-use bill: the period's kWh split by the clock hours of every season and band (a flat load), each line priced
+ * with its band price under the version's mode, the totals the sums of the rounded lines (the server measures the real split). */
+function touBill(t: Tariff, from: string, to: string, kwh: number): { lines: SnapshotLine[]; tou: SnapshotTou } {
+  const v = t.versions[0];
+  const d = v.definition as TouDefinition;
+  const hours = hoursBySeasonBand(d, from, to, specialOf);
+  const all = [...hours.values()].reduce((s, x) => s + x, 0) || 1;
+  const rate = vatRate();
+  const lines: SnapshotLine[] = [];
+  for (const s of d.seasons)
+    for (const b of d.bands) {
+      const h = hours.get(`${s.id}|${b.id}`);
+      if (!h) continue;
+      const k = r2((kwh * h) / all);
+      const price = Number(d.prices[s.id]?.[b.id] ?? 0);
+      let amount: number;
+      let vat: number;
+      let total: number;
+      if (v.price_mode === 'ex_vat') {
+        amount = r2(k * price);
+        vat = r2(amount * rate);
+        total = r2(amount + vat);
+      } else {
+        total = r2(k * price);
+        amount = r2(total / (1 + rate));
+        vat = r2(total - amount);
+      }
+      lines.push({ from, to, kwh: dec(k), price_entered: price.toFixed(4), price_mode: v.price_mode, unit_price_ex_vat: (v.price_mode === 'ex_vat' ? price : price / (1 + rate)).toFixed(4), amount_ex_vat: dec(amount), vat_rate_percent: String(rate * 100), vat_amount: dec(vat), total: dec(total), season: { id: s.id, name_he: s.name_he }, band: { id: b.id, name_he: b.name_he }, hours: dec(h) });
+    }
+  const byBand = d.bands.map((b) => {
+    const mine = lines.filter((l) => l.band?.id === b.id);
+    const sum = (k: 'kwh' | 'amount_ex_vat' | 'total' | 'hours') => dec(mine.reduce((acc, l) => acc + Number(l[k] ?? 0), 0));
+    return { band: { id: b.id, name_he: b.name_he }, kwh: sum('kwh'), amount_ex_vat: sum('amount_ex_vat'), total: sum('total'), hours: sum('hours') };
+  }).filter((x) => Number(x.hours) > 0);
+  const grid = weekGrid(d);
+  const daily: SnapshotTou['daily'] = [];
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    const season = seasonOf(d, day);
+    const dtype = dayTypeOf(d, day, specialOf(day));
+    const per = new Map<string, number>();
+    for (const c of grid[season]?.[dtype] ?? []) per.set(c.band, (per.get(c.band) ?? 0) + (toMin(c.to) - toMin(c.from)) / 60);
+    const e = calendarEntry(day);
+    daily.push({ date: day, season, day_type: dtype, kwh: dec((kwh * 24) / all), bands: d.bands.filter((b) => per.has(b.id)).map((b) => ({ band: b.id, kwh: dec((kwh * (per.get(b.id) ?? 0)) / all) })), special: e && e.kind !== 'regular' ? { kind: e.kind, name_he: e.name_he } : null });
+  }
+  const names = { seasons: Object.fromEntries(d.seasons.map((s) => [s.id, s.name_he])), day_types: Object.fromEntries(d.day_types.map((x) => [x.id, x.name_he])), bands: Object.fromEntries(d.bands.map((b) => [b.id, b.name_he])) };
+  const years = [...new Set([Number(from.slice(0, 4)), Number(to.slice(0, 4))])];
+  const special = years.flatMap((y) => calendarYear(y).days).filter((x) => x.date >= from && x.date <= to).map((x) => ({ date: x.date, kind: x.kind, kind_he: x.kind_he, name_he: x.name_he, source: x.source }));
+  return { lines, tou: { engine: 'arx.energy.tou/1', names, versions: [{ tariff_version_id: v.id, effective_from: v.effective_from, price_mode: v.price_mode, definition: d, definition_sha256: v.definition_sha256 ?? '' }], special_days: special, by_band: byBand, daily } };
+}
+/** The amount of `kwh` in a period of an account (fixed or time-of-use). */
+function amountOf(a: MA, from: string, to: string, kwh: number): string {
+  const t = tariff(a.tariff_id);
+  if (t.kind === 'tou') return dec(touBill(t, from, to, kwh).lines.reduce((s, l) => s + Number(l.total), 0));
+  return dec(charge(t, kwh).total);
+}
+/** A light imitation of the server's check (the server is the authority): every price a season can use, ranges on quarter hours. */
+function mockCheck(d: TouDefinition): TouCheck {
+  const errors: TouCheck['errors'] = [];
+  for (const s of d.seasons)
+    for (const [did, ranges] of Object.entries(d.schedule[s.id] ?? {}))
+      ranges.forEach((r, j) => {
+        for (const x of [r[0], r[1]]) if (!(toMin(x) % 15 === 0)) errors.push({ code: 'time_quarter', path: `schedule.${s.id}.${did}[${j}]`, message: 'השעות חייבות להיות ברבעי שעה (00, 15, 30, 45), כמו נתוני המונים.' });
+        if (r[0] === r[1]) errors.push({ code: 'empty_range', path: `schedule.${s.id}.${did}[${j}]`, message: 'שעת ההתחלה שווה לשעת הסיום.' });
+      });
+  for (const s of d.seasons)
+    for (const b of bandsUsed(d, s.id)) {
+      const p = d.prices[s.id]?.[b];
+      if (p === null || p === undefined || p === '' || !/^\d+(\.\d{1,4})?$/.test(String(p))) {
+        errors.push({ code: p === null || p === undefined ? 'price_missing' : 'price', path: `prices.${s.id}.${b}`, message: `חסר מחיר ל${d.bands.find((x) => x.id === b)?.name_he ?? b} ב${s.name_he}.` });
+      }
+    }
+  const ok = errors.length === 0;
+  const sha = ok ? `demo${JSON.stringify(d).length.toString(16).padStart(60, '0')}` : null;
+  return { ok, errors: errors.slice(0, 1), definition: ok ? cloneDef(d) : null, definition_sha256: sha, grid: weekGrid(d) };
 }
 
 /** kWh of one meter in a period: the fixture's last-period value for the whole of September, the month-to-date value for 1-4 October, a daily average otherwise. */
@@ -241,7 +351,7 @@ let settings: BillingSettings = {
   numbering: { customer_digits: 4, format: 'YYYY-MM-NNNN' },
   auto: { delay_hours: 6 },
   logo: null,
-  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, fallback_after_s: 20 },
+  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, crash_fallbacks: 0, fallback_after_s: 20 },
 };
 let logoDataUrl = '';
 
@@ -269,7 +379,9 @@ function buildSnapshot(a: MA, from: string, to: string, number: string | null, s
   const t = tariff(a.tariff_id);
   const c = custOf(a.customer_id);
   const kwh = kwhOverride ?? periodKwh(a, from, to);
-  const ch = charge(t, kwh);
+  const tb = t.kind === 'tou' ? touBill(t, from, to, kwh) : null;
+  const sumOf = (k: 'amount_ex_vat' | 'vat_amount' | 'total'): number => r2((tb?.lines ?? []).reduce((s, l) => s + Number(l[k]), 0));
+  const ch = tb ? { amount: sumOf('amount_ex_vat'), vat: sumOf('vat_amount'), total: sumOf('total') } : charge(t, kwh);
   const coef = coefficients(a.ast);
   const ids = meterIdsOf(a.ast);
   const notes: BillSnapshot['notes'] = [];
@@ -288,7 +400,7 @@ function buildSnapshot(a: MA, from: string, to: string, number: string | null, s
     };
   });
   if (mlines.some((x) => !x.reported_to_end)) notes.push({ code: 'carried_in', text_he: 'לוח מאפייה - פאזה 3 לא דיווח בין 28.09 18:40 ל-29.09 07:10. הצריכה בפער נספרה לפי הקריאה הבאה.' });
-  const unit = exPrice(t.versions[0]);
+  const unit = tb ? 0 : exPrice(t.versions[0]);
   return {
     schema: 'arx.energy.bill_snapshot/1',
     doc: { title_he: 'חשבון צריכת חשמל ודרישת תשלום', subtitle_he: 'אינו חשבונית מס', is_tax_invoice: false },
@@ -299,11 +411,12 @@ function buildSnapshot(a: MA, from: string, to: string, number: string | null, s
     period: { from, to, days: daysInclusive(from, to) },
     business: { ...settings.business, logo: settings.logo ? { sha256: settings.logo.sha256, mime: settings.logo.mime } : null },
     customer: { id: c.id, customer_number: c.customer_number, name: c.name, address: c.address ?? '', phone: c.phone ?? '', email: c.email ?? '', tax_id: c.tax_id ?? '' },
-    account: { id: a.id, name: a.name, tariff: { id: t.id, name: t.name }, formula: { text: textOf(a.ast), sentence_he: sentenceOf(a.ast) } },
+    account: { id: a.id, name: a.name, tariff: { id: t.id, name: t.name, kind: t.kind }, formula: { text: textOf(a.ast), sentence_he: sentenceOf(a.ast) } },
     meters: mlines,
-    lines: [{ from, to, kwh: dec(kwh), price_entered: t.versions[0].price, price_mode: t.versions[0].price_mode, unit_price_ex_vat: unit.toFixed(4), amount_ex_vat: dec(ch.amount), vat_rate_percent: String(vatRate() * 100), vat_amount: dec(ch.vat), total: dec(ch.total) }],
+    lines: tb ? tb.lines : [{ from, to, kwh: dec(kwh), price_entered: t.versions[0].price ?? '0', price_mode: t.versions[0].price_mode, unit_price_ex_vat: unit.toFixed(4), amount_ex_vat: dec(ch.amount), vat_rate_percent: String(vatRate() * 100), vat_amount: dec(ch.vat), total: dec(ch.total) }],
+    ...(tb ? { tou: tb.tou } : {}),
     totals: {
-      currency: 'ILS', kwh: dec(kwh), amount_ex_vat: dec(ch.amount), vat_amount: dec(ch.vat), total: dec(ch.total), vat_breakdown: [{ rate_percent: String(vatRate() * 100), base: dec(ch.amount), vat: dec(ch.vat) }],
+      currency: 'ILS', kwh: tb ? dec(tb.lines.reduce((s, l) => s + Number(l.kwh), 0)) : dec(kwh), amount_ex_vat: dec(ch.amount), vat_amount: dec(ch.vat), total: dec(ch.total), vat_breakdown: [{ rate_percent: String(vatRate() * 100), base: dec(ch.amount), vat: dec(ch.vat) }],
       price_mode_note_he: t.versions[0].price_mode === 'inc_vat' ? 'המחיר נקבע כולל מע״מ' : null,
     },
     notes,
@@ -352,7 +465,20 @@ function pushBill(o: { a: string; from: string; to: string; kwh: number; state: 
   return b;
 }
 
+/** Demo control `tou: true` (EL5): the shared-areas account a4 bills on a time-of-use tariff, so its bills show band lines. Off by default,
+ * so every other spec sees the original fixture. */
+function seedTou(): void {
+  if (!demoControl().tou) return;
+  if (!tariffs.some((t) => t.id === 't9')) {
+    const d = israelTemplate();
+    d.prices = { summer: { offpeak: '0.4823', peak: '1.6895' }, winter: { offpeak: '0.4512', peak: '1.2047' }, transition: { offpeak: '0.4630', peak: '0.8934' } };
+    tariffs = [...tariffs, { id: 't9', name: 'תעו״ז ביתי', currency: 'ILS', kind: 'tou', used_by: 0, current: null, versions: [{ id: 't9v1', effective_from: '2026-01-01', price: null, price_mode: 'ex_vat', definition: d, definition_sha256: 'demo-t9v1' }] }];
+  }
+  accOf('a4').tariff_id = 't9';
+}
+
 function seedBills(): void {
+  seedTou();
   bills = [];
   billSeq = 100;
   const k = (a: string, f: string, t: string) => periodKwh(accOf(a), f, t);
@@ -423,7 +549,7 @@ function wireAccount(a: MA): Account {
   return {
     id: a.id, name: a.name, customer: ref(c),
     formula: { ast: a.ast, text: textOf(a.ast), sentence_he: sentenceOf(a.ast), meter_ids: meterIdsOf(a.ast) },
-    tariff: moneyAllowed() ? { id: t.id, name: t.name, price: t.versions[0].price, price_mode: t.versions[0].price_mode } : { id: t.id, name: t.name },
+    tariff: moneyAllowed() ? { id: t.id, name: t.name, kind: t.kind, price: t.kind === 'tou' ? null : t.versions[0].price, price_mode: t.versions[0].price_mode } : { id: t.id, name: t.name, kind: t.kind },
     period_months: a.months, period_anchor_day: a.anchor_day, period_anchor_month: a.anchor_month, first_period_start: a.first, timezone: 'Asia/Jerusalem', auto_mode: a.auto, status: 'active', revision: a.revision,
     next_period: { from, to: p.to }, last_bill: last && moneyAllowed() ? summary(last) : null,
   };
@@ -487,7 +613,7 @@ const statusWire = (a: MA): AccountStatusWire => {
     }),
     notes: [],
   };
-  if (moneyAllowed()) w.amount_so_far = dec(charge(tariff(a.tariff_id), kwh).total);
+  if (moneyAllowed()) w.amount_so_far = amountOf(a, per.from, MOCK_TODAY, kwh);
   return w;
 };
 
@@ -620,7 +746,7 @@ export const mockBackend: ElecBackend = {
     await tick();
     guardManage();
     checkTariff(b);
-    const t: Tariff = { id: `t${tariffs.length + 1}`, name: b.name.trim(), currency: 'ILS', kind: 'fixed', used_by: 0, current: null, versions: [{ id: `tv${Date.now() % 100000}`, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode }] };
+    const t: Tariff = { id: `t${tariffs.length + 1}`, name: b.name.trim(), currency: 'ILS', kind: b.definition ? 'tou' : 'fixed', used_by: 0, current: null, versions: [newVersion(b)] };
     tariffs = [...tariffs, t];
     return tariff(t.id);
   },
@@ -630,9 +756,10 @@ export const mockBackend: ElecBackend = {
     checkTariff(b);
     const t = tariffs.find((x) => x.id === id);
     if (!t) throw err(404, 'not_found', 'התעריף לא נמצא.');
+    kindMatches(t, b);
     if (t.versions.some((v) => v.effective_from === b.effective_from)) throw err(409, 'version_exists', 'כבר קיימת גרסה עם תאריך התחלה זהה.');
     t.name = b.name.trim();
-    t.versions = [{ id: `tv${Date.now() % 100000}`, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode }, ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
+    t.versions = [newVersion(b), ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
     return tariff(id);
   },
   async correctTariffVersion(id, b, o) {
@@ -641,15 +768,17 @@ export const mockBackend: ElecBackend = {
     checkTariff(b);
     const t = tariffs.find((x) => x.id === id);
     if (!t) throw err(404, 'not_found', 'התעריף לא נמצא.');
+    kindMatches(t, b);
     const target = o.replaceId ? t.versions.find((v) => v.id === o.replaceId) : t.versions.find((v) => v.effective_from === b.effective_from);
     if (o.replaceId && !target) throw err(404, 'not_found', 'גרסת המחיר לא נמצאה.');
     if (!target) {
       if (o.confirm) t.name = b.name.trim();
-      t.versions = [{ id: `tv${Date.now() % 100000}`, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode }, ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
+      t.versions = [newVersion(b), ...t.versions].sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
       return { applied: true, plan: null };
     }
-    if (o.base && (o.base.price !== target.price || o.base.price_mode !== target.price_mode || o.base.effective_from !== target.effective_from)) throw err(409, 'revision_conflict', 'המחיר שונה בינתיים. יש לרענן ולנסות שוב.');
-    if (Number(b.price) === Number(target.price) && b.price_mode === target.price_mode && b.effective_from === target.effective_from) throw err(409, 'nothing_changed', 'לא בוצע שינוי במחיר.');
+    if (o.base && (o.base.price !== target.price || o.base.price_mode !== target.price_mode || o.base.effective_from !== target.effective_from || (o.base.definition_sha256 ?? null) !== (target.definition_sha256 ?? null))) throw err(409, 'revision_conflict', 'המחיר שונה בינתיים. יש לרענן ולנסות שוב.');
+    const sameValue = b.definition ? JSON.stringify(b.definition) === JSON.stringify(target.definition) : Number(b.price) === Number(target.price);
+    if (sameValue && b.price_mode === target.price_mode && b.effective_from === target.effective_from) throw err(409, 'nothing_changed', 'לא בוצע שינוי במחיר.');
     if (t.versions.some((v) => v !== target && v.effective_from === b.effective_from)) throw err(409, 'version_exists', 'כבר קיים מחיר מהתאריך הזה. יש לערוך אותו במקום.');
     const sealedThrough = SEALED_THROUGH[target.id];
     const applyFrom = sealedThrough && sealedThrough > b.effective_from ? sealedThrough : b.effective_from;
@@ -660,15 +789,53 @@ export const mockBackend: ElecBackend = {
       kind: sealedThrough ? 'later_only' : 'in_place',
       applies_from: applyFrom,
       old: { effective_from: target.effective_from, price: target.price, price_mode: target.price_mode },
-      new: { effective_from: applyFrom, price: b.price, price_mode: b.price_mode },
+      new: { effective_from: applyFrom, price: b.definition ? null : b.price, price_mode: b.price_mode },
       message_he: sealedThrough ? `החשבונות שכבר הופקו לא ישתנו. המחיר המתוקן יחול מ-${applyFrom.split('-').reverse().join('.')}.` : 'המחיר יוחלף. טיוטות, תחזית וחיובים עתידיים יחושבו במחיר החדש.',
     };
     if (!o.confirm) return { applied: false, plan };
     t.name = b.name.trim();
-    if (plan.kind === 'in_place') Object.assign(target, { effective_from: b.effective_from, price: b.price, price_mode: b.price_mode });
-    else t.versions.push({ id: `tv${Date.now() % 100000}`, effective_from: applyFrom, price: b.price, price_mode: b.price_mode });
+    if (plan.kind === 'in_place') Object.assign(target, { ...newVersion(b), id: target.id });
+    else t.versions.push({ ...newVersion(b), effective_from: applyFrom });
     t.versions.sort((x, y) => (x.effective_from < y.effective_from ? 1 : -1));
     return { applied: true, plan };
+  },
+  async touTemplates() {
+    await tick();
+    guardMoney();
+    return [{ id: 'israel_household', name_he: 'תעו״ז ביתי (ישראל)', source_he: 'מבנה תעו״ז ביתי לפי מקורות משניים: קיץ יוני-ספטמבר, חורף דצמבר-פברואר, מעבר בשאר החודשים. המחירים ריקים: יש להזין אותם מחשבון אמיתי. המבנה לא אומת מול נוסח הרשות.', definition: israelTemplate() }];
+  },
+  async checkTou(d) {
+    await tick();
+    guardMoney();
+    return mockCheck(d);
+  },
+  async getCalendar(year) {
+    await tick();
+    return calendarYear(year);
+  },
+  async setCalendarDay(date, kind, name_he, revision) {
+    await tick();
+    guardManage();
+    if (revision !== calendar.revision) throw err(409, 'revision_conflict', 'הימים המיוחדים שונו בינתיים. יש לרענן ולנסות שוב.');
+    calendar = { ...calendar, revision: calendar.revision + 1, overrides: { ...calendar.overrides, [date]: { kind, name_he: name_he.trim() } } };
+    return calendarYear(Number(date.slice(0, 4)), { drafts_to_recalculate: 0 });
+  },
+  async removeCalendarDay(date, revision) {
+    await tick();
+    guardManage();
+    if (revision !== calendar.revision) throw err(409, 'revision_conflict', 'הימים המיוחדים שונו בינתיים. יש לרענן ולנסות שוב.');
+    if (!calendar.overrides[date]) throw err(404, 'not_found', 'אין הגדרה ידנית לתאריך הזה.');
+    const { [date]: _gone, ...rest } = calendar.overrides;
+    void _gone;
+    calendar = { ...calendar, revision: calendar.revision + 1, overrides: rest };
+    return calendarYear(Number(date.slice(0, 4)), { drafts_to_recalculate: 0 });
+  },
+  async setCalendarGenerator(generator, revision, year) {
+    await tick();
+    guardManage();
+    if (revision !== calendar.revision) throw err(409, 'revision_conflict', 'הימים המיוחדים שונו בינתיים. יש לרענן ולנסות שוב.');
+    calendar = { ...calendar, revision: calendar.revision + 1, generator };
+    return calendarYear(year);
   },
   async getVat(): Promise<VatRates> {
     await tick();
@@ -881,14 +1048,28 @@ export const mockBackend: ElecBackend = {
   logoUrl: () => logoDataUrl,
 };
 
-function checkTariff(b: { name: string; price: string; effective_from: string }): void {
+function checkTariff(b: TariffVersionBody): void {
   if (!b.name.trim()) throw err(422, 'validation', 'צריך לתת שם לתעריף.', { fields: { name: 'צריך לתת שם לתעריף' } });
-  if (!(Number(b.price) > 0)) throw err(422, 'validation', 'המחיר חייב להיות מספר גדול מאפס.', { fields: { price: 'המחיר חייב להיות מספר גדול מאפס' } });
+  if (b.definition) {
+    const c = mockCheck(b.definition);
+    if (!c.ok) throw err(422, 'tariff_definition_invalid', c.errors[0].message, { errors: c.errors, fields: [`definition.${c.errors[0].path}`] });
+  } else if (!(Number(b.price) > 0)) throw err(422, 'validation', 'המחיר חייב להיות מספר גדול מאפס.', { fields: { price: 'המחיר חייב להיות מספר גדול מאפס' } });
   if (!isIsoDate(b.effective_from)) throw err(422, 'validation', 'תאריך התחלה לא תקין.', { fields: { effective_from: 'תאריך התחלה לא תקין' } });
+}
+/** A version from a body: a time-of-use definition (price null) or the flat price. */
+function newVersion(b: TariffVersionBody): Tariff['versions'][number] {
+  const id = `tv${Date.now() % 100000}`;
+  if (!b.definition) return { id, effective_from: b.effective_from, price: b.price, price_mode: b.price_mode };
+  const c = mockCheck(b.definition);
+  return { id, effective_from: b.effective_from, price: null, price_mode: b.price_mode, definition: cloneDef(b.definition), definition_sha256: c.definition_sha256 ?? '' };
+}
+function kindMatches(t: Tariff, b: TariffVersionBody): void {
+  if ((t.kind === 'tou') !== !!b.definition) throw err(422, 'validation', t.kind === 'tou' ? 'בתעריף לפי שעות המחירים נקבעים לכל עונה ופס.' : 'תעריף במחיר קבוע אינו מקבל הגדרת שעות.');
 }
 
 /** Specs: bring the store back to the fixture (a page reload does it too). */
 export function resetElectricityMock(): void {
+  calendar = { revision: 0, generator: 'israel', overrides: {} };
   seedBills();
 }
 export type { PriceMode };

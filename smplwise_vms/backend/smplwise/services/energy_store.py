@@ -12,6 +12,7 @@ installation zone, kept as long as bills), `cursor` (processing state). The coun
 """
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import logging
 import os
@@ -272,12 +273,38 @@ class EnergyStore:
                 return self._from_intervals(conn, mid, start, end)
             return self._from_daily(conn, mid, start, end, tz)
 
-    def _from_intervals(self, conn: sqlite3.Connection, mid: int, start: int, end: int) -> dict[str, Any]:
-        first = start - (start % BUCKET_S)
-        rows = conn.execute("SELECT bucket, wh, covered_s FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ?", (mid, first, end)).fetchall()
-        wh_num = 0  # exact numerators for the edge buckets (x BUCKET_S)
+    def consumption_windows(self, ext_id: str, windows: Sequence[tuple[int, int]]) -> list[dict[str, Any]]:
+        """EL5: `consumption` from the quarter-hour buckets for many windows with ONE read (a time-of-use bill asks for a few
+        hundred band segments per meter). Same arithmetic as `_from_intervals` per window; the caller guarantees that every
+        window is inside the quarter-hour retention."""
+        if not windows:
+            return []
+        lo = min(a for a, _ in windows)
+        hi = max(b for _, b in windows)
+        with self.db.connection(mode="read", label="energy.consumption_windows") as conn:
+            mid = self._mid(conn, ext_id, create=False)
+            if mid is None:
+                return [{"wh": None, "covered_s": 0, "total_s": max(0, b - a), "source": "intervals"} for a, b in windows]
+            rows = conn.execute("SELECT bucket, wh, covered_s FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ? ORDER BY bucket",
+                                (mid, lo - (lo % BUCKET_S), hi)).fetchall()
+        buckets = [r["bucket"] for r in rows]
+        out: list[dict[str, Any]] = []
+        for a, b in windows:
+            total = max(0, b - a)
+            if total == 0:
+                out.append({"wh": None, "covered_s": 0, "total_s": 0, "source": "intervals"})
+                continue
+            i = bisect.bisect_left(buckets, a - (a % BUCKET_S))
+            out.append(self._sum_rows(rows, i, a, b))
+        return out
+
+    @staticmethod
+    def _sum_rows(rows: Sequence[sqlite3.Row], i: int, start: int, end: int) -> dict[str, Any]:
+        wh_num = 0
         cov = 0
-        for r in rows:
+        while i < len(rows) and rows[i]["bucket"] < end:
+            r = rows[i]
+            i += 1
             b = r["bucket"]
             ov = min(end, b + BUCKET_S) - max(start, b)
             if ov <= 0:
@@ -288,6 +315,11 @@ class EnergyStore:
         if cov == 0:
             return {"wh": None, "covered_s": 0, "total_s": total, "source": "intervals"}
         return {"wh": int(round(wh_num / BUCKET_S)), "covered_s": min(cov, total), "total_s": total, "source": "intervals"}
+
+    def _from_intervals(self, conn: sqlite3.Connection, mid: int, start: int, end: int) -> dict[str, Any]:
+        first = start - (start % BUCKET_S)
+        rows = conn.execute("SELECT bucket, wh, covered_s FROM intervals WHERE meter_id = ? AND bucket >= ? AND bucket < ? ORDER BY bucket", (mid, first, end)).fetchall()
+        return self._sum_rows(rows, 0, start, end)  # exact numerators for the edge buckets (x BUCKET_S), prorated by time
 
     def _from_daily(self, conn: sqlite3.Connection, mid: int, start: int, end: int, tz: ZoneInfo) -> dict[str, Any]:
         d0 = local_date(start, tz)
