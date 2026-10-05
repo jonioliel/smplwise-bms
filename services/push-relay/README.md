@@ -7,9 +7,14 @@ SmplWise Arx phone app, without any customer ever holding our Apple or Google ke
 What it stores: `sha256(relay_token) → {platform, push_token, bundle_id, created_at}` in Workers KV (expires after 180
 days without use). What it never sees: notification text, user names, server addresses (only an opaque server id).
 
-Status: written and typechecked (`npm run typecheck`), **not yet deployed or run against APNs / FCM** - that needs the
-owner's Apple Developer Program membership and a Firebase project (below). `fake_relay.py` is a local stand-in for
-development; the backend tests use their own in-process fake.
+Status: written, typechecked, unit-tested (`npm test`: 27 tests with a fake KV and fake signing keys, covering the contract
+section 8 routes, limits, 404 / 410 handling, the APNs and FCM request shapes) and bundled / started locally with
+`wrangler dev --local` and fake secrets. **Not yet deployed, and never run against the real APNs / FCM** - that needs the
+owner's Firebase project and (iOS) Apple Developer Program membership. The step-by-step owner guide in Hebrew is
+`docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md`. `fake_relay.py` is a local stand-in for development; the backend tests use
+their own in-process fake.
+
+Run the checks: `make test-push-relay` (or `powershell -File scripts/test_push_relay.ps1`): typecheck + tests + a bundle dry run.
 
 ## 1. One-time setup (the owner, about 30 minutes)
 
@@ -32,11 +37,17 @@ development; the backend tests use their own in-process fake.
    Never commit it (`.gitignore` blocks `*service-account*.json`).
 5. **Server keys**: one key per Arx installation, `<server id>:<secret>` pairs, comma separated. Generate a secret per
    customer (`openssl rand -base64 32`), then `npx wrangler secret put SERVER_KEYS` with e.g.
-   `efrat:<secret1>,office2:<secret2>`. The server id is what the phone groups notifications by; keep it short and
-   stable. Give each installation its own secret: in the add-on options `push_relay_url = https://<worker>.workers.dev`
+   `efrat:<secret1>,office2:<secret2>`. The id before the colon is only a label of the key (the push payload carries the
+   installation's own `server_id` that the Arx server sends in the body); keep it short and stable. Use hex secrets
+   (`openssl rand -hex 32`): no commas or colons. Give each installation its own secret: in the add-on options `push_relay_url = https://<worker>.workers.dev`
    (or the custom domain) and `push_relay_key = <its secret>`. Rotating a key = replace the pair and update that one
    add-on.
-6. **Deploy**: `npm run deploy`. Check `https://<worker>/v1/health` → `{"ok":true,"apns":true,"fcm":false}`.
+6. **Stable relay tokens** (contract: register is idempotent per push token): `npx wrangler secret put RELAY_TOKEN_SECRET`
+   with 32+ random characters. The relay token is then `HMAC-SHA256(secret, platform:push_token)`, so the same phone gets
+   the same token back and only a hash is stored. Without it every register issues a fresh token and retires the old one
+   (works, but a re-register invalidates tokens the app already gave to its servers). Rotating this secret re-issues every
+   token (all phones re-register on the next launch).
+7. **Deploy**: `npm run deploy`. Check `https://<worker>/v1/health` → `{"ok":true,"apns":true,"fcm":false,"stable_tokens":true,"server_keys":1}`.
    Optional custom domain (e.g. `push.smplwise.com`): Workers → the Worker → Settings → Domains.
 
 ## 2. Operations
@@ -62,7 +73,8 @@ arrived at `GET /v1/pushes` (the app mock can poll it and raise a local notifica
 | `src/index.ts` | the routes, KV storage, rate limits, the server-key check |
 | `src/apns.ts` | APNs HTTP/2 with an ES256 provider token (Web Crypto), the generic payload (`mutable-content: 1`) |
 | `src/fcm.ts` | FCM HTTP v1 with a service-account OAuth2 token (RS256), a data-only message |
-| `src/crypto.ts` | base64url, SHA-256, JWS signing, constant-time compare |
+| `src/crypto.ts` | base64url, SHA-256, HMAC relay token, JWS signing, constant-time compare |
+| `test/relay.test.ts` | the unit tests (vitest; fake KV, throwaway keys, stubbed fetch) |
 | `src/env.d.ts` | the Worker bindings / secrets (typed locally; compatible with `@cloudflare/workers-types`) |
 | `wrangler.toml` | the Worker name, the KV binding, the non-secret vars |
 | `fake_relay.py` | the local stand-in |

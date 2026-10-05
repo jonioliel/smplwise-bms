@@ -49,7 +49,11 @@ export function fcmMessage(token: string, m: PushMessage): Record<string, unknow
   };
 }
 
-export async function sendFcm(cfg: FcmConfig, token: string, m: PushMessage, fetcher: typeof fetch = fetch): Promise<SendResult> {
+export function resetFcmTokenCache(): void {
+  cached = null;
+}
+
+export async function sendFcm(cfg: FcmConfig, token: string, m: PushMessage, fetcher: typeof fetch = fetch, retried = false): Promise<SendResult> {
   const bearer = await accessToken(cfg, fetcher);
   const res = await fetcher(`https://fcm.googleapis.com/v1/projects/${cfg.projectId}/messages:send`, {
     method: 'POST',
@@ -59,13 +63,19 @@ export async function sendFcm(cfg: FcmConfig, token: string, m: PushMessage, fet
   if (res.ok) return { status: 200 };
   let reason = '';
   try {
-    const err = (await res.json()) as { error?: { status?: string; details?: { errorCode?: string }[] } };
+    const err = (await res.json()) as { error?: { status?: string; details?: { errorCode?: string; fieldViolations?: { field?: string }[] }[] } };
     reason = err.error?.details?.find((d) => d.errorCode)?.errorCode ?? err.error?.status ?? '';
+    if (reason === 'INVALID_ARGUMENT' && err.error?.details?.some((d) => d.fieldViolations?.some((f) => (f.field ?? '').includes('message.token')))) reason = 'INVALID_TOKEN';
   } catch {
     reason = '';
   }
-  // UNREGISTERED (404) → the token is gone for good; INVALID_ARGUMENT on the token likewise
-  if (res.status === 404 || reason === 'UNREGISTERED') return { status: 410, reason };
+  // the OAuth token was rejected (revoked / expired early): mint a new one and try once more
+  if (!retried && res.status === 401) {
+    cached = null;
+    return sendFcm(cfg, token, m, fetcher, true);
+  }
+  // UNREGISTERED (404) → the token is gone for good; INVALID_ARGUMENT on message.token and SENDER_ID_MISMATCH (a token of another Firebase project) likewise
+  if (res.status === 404 || reason === 'UNREGISTERED' || reason === 'INVALID_TOKEN' || reason === 'SENDER_ID_MISMATCH') return { status: 410, reason };
   if (res.status === 429 || res.status >= 500) return { status: res.status, reason, retryAfter: Number(res.headers.get('retry-after') ?? '') || undefined };
   return { status: res.status, reason };
 }

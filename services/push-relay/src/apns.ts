@@ -42,7 +42,11 @@ export function apnsPayload(m: PushMessage): Record<string, unknown> {
   };
 }
 
-export async function sendApns(cfg: ApnsConfig, deviceToken: string, m: PushMessage, fetcher: typeof fetch = fetch): Promise<SendResult> {
+export function resetApnsTokenCache(): void {
+  cached = null;
+}
+
+export async function sendApns(cfg: ApnsConfig, deviceToken: string, m: PushMessage, fetcher: typeof fetch = fetch, retried = false): Promise<SendResult> {
   const headers: Record<string, string> = {
     authorization: `bearer ${await providerToken(cfg)}`,
     'apns-topic': cfg.bundleId,
@@ -59,6 +63,11 @@ export async function sendApns(cfg: ApnsConfig, deviceToken: string, m: PushMess
     reason = ((await res.json()) as { reason?: string }).reason ?? '';
   } catch {
     reason = '';
+  }
+  // an expired / rejected provider token (clock skew, key rotated): mint a fresh one and try once more
+  if (!retried && res.status === 403 && (reason === 'ExpiredProviderToken' || reason === 'InvalidProviderToken')) {
+    cached = null;
+    return sendApns(cfg, deviceToken, m, fetcher, true);
   }
   // Apple: 410 Unregistered / 400 BadDeviceToken → the token is gone for good
   if (res.status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered' || reason === 'DeviceTokenNotForTopic') return { status: 410, reason };
