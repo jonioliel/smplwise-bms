@@ -91,7 +91,7 @@ test.describe('הגדרות › אפליקציה לנייד (CR-027)', () => {
     await expect(policy.locator('[data-presence-required-sensor="location"]')).toBeDisabled();
     await expect(policy.locator('[data-presence-save] button')).toBeDisabled();
     const devices = page.locator('system-presence [data-presence-devices]');
-    await expect(devices.locator('[data-presence-device="dev_1"]')).toContainText(['יוסי', 'הנייד של יוסי', 'מיקום, סוללה', 'כן', 'רשום']);
+    for (const text of ['יוסי', 'הנייד של יוסי', 'מיקום, סוללה', 'כן', 'רשום']) await expect(devices.locator('[data-presence-device="dev_1"]')).toContainText(text);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     await shot(page, 'presence-settings-defaults');
   });
@@ -131,7 +131,8 @@ test.describe('הגדרות › אפליקציה לנייד (CR-027)', () => {
     await expect(policy.locator('[data-presence-glass] button')).toBeDisabled();
     await policy.locator('[data-presence-glass-reason]').fill('תקלה באפליקציה');
     await policy.locator('[data-presence-glass]').click();
-    await expect(policy.locator('[data-presence-row="glass"] .muted')).toContainText(['מושעה עד', 'תקלה באפליקציה']);
+    await expect(policy.locator('[data-presence-row="glass"] .muted')).toContainText('מושעה עד');
+    await expect(policy.locator('[data-presence-row="glass"] .muted')).toContainText('תקלה באפליקציה');
     expect(mock.glass).toEqual([{ hours: 24, reason: 'תקלה באפליקציה' }]);
     await policy.locator('[data-presence-glass-end]').click();
     await expect(policy.locator('[data-presence-row="glass"] .muted')).toContainText('24 שעות');
@@ -142,7 +143,8 @@ test.describe('הגדרות › אפליקציה לנייד (CR-027)', () => {
     await mockBackend(page, { gate: { required: ['location'], missing: ['location'], blocked: true, applies: true, channel: 'app', break_glass_until: null, reason: 'missing_sensors' } });
     await open(page, '/devices');
     const gate = page.locator('sw-app [data-presence-gate]');
-    await expect(gate).toContainText(['נדרש להפעיל שיתוף נתונים', 'מיקום']);
+    await expect(gate).toContainText('נדרש להפעיל שיתוף נתונים');
+    await expect(gate).toContainText('מיקום');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     await shot(page, 'presence-gate-blocked');
     await page.unroute('**/api/v1/**');
