@@ -52,6 +52,9 @@ options:
   # CR-008 SmplWise Arx: https://<your HA hostname>/arx through a Cloudflare tunnel path route (DOCS "Remote access").
   remote_access: false
   remote_path: /arx
+  # CR-027: the SmplWise push relay for the phone app's notifications (DOCS "Phone app push"). Empty = the app channel is off.
+  push_relay_url: ""
+  push_relay_key: ""
   # one database writer at a time, in arrival order (the round-10 lock storm fix); turn off only if support asks
   db_write_gate: true
   log_level: info
@@ -70,5 +73,7 @@ schema:
   openai_api_key: password?
   remote_access: bool
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
+  push_relay_url: str?
+  push_relay_key: password?
   db_write_gate: bool?
   log_level: list(debug|info|warning|error)

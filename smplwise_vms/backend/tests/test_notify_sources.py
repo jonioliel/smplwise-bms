@@ -44,7 +44,7 @@ def test_every_v1_source_has_a_policy_and_the_defaults_of_the_cr(w):
     off = sorted(s for s in wanted if not pols[s]["enabled"])
     assert off == ["alarm.state"], "every source is on by default except alarm.state (and the NVR smart events, which only rules turn into notifications)"
     assert all(not pols[s]["enabled"] for s in ("camera.motion", "camera.person", "camera.vehicle"))
-    assert pols["update.available"]["channels"] == {"inbox": True, "webpush": False, "email": True, "ha_mobile": False, "whatsapp": False}
+    assert pols["update.available"]["channels"] == {"inbox": True, "webpush": False, "email": True, "app": False, "ha_mobile": False, "whatsapp": False}
     assert (pols["opening.left_open"]["after_s"], pols["camera.offline"]["after_s"], pols["nvr.offline"]["after_s"], pols["system.health"]["after_s"], pols["device.unavailable"]["after_s"]) == (600, 120, 120, 300, 900)
 
 

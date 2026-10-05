@@ -89,6 +89,7 @@ OPTION_TYPES: dict[str, str] = {
     "nvr_password": "str?", "go2rtc_url": "str?", "go2rtc_api_username": "str?", "go2rtc_api_password": "str?", "wiskey_username": "str?",
     "wiskey_password": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
+    "push_relay_url": "str?", "push_relay_key": "str?",  # CR-027: the SmplWise push relay (config.py reads them into the environment)
 }
 OPTION_STR_MAX = 1024
 REMOTE_PATH_RE = re.compile(r"^/[a-z0-9][a-z0-9_-]{0,31}$")

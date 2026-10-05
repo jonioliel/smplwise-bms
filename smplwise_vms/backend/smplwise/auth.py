@@ -229,6 +229,12 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
         principal = resolve_principal(request, settings)
     touch_user(conn, principal)
     maybe_bootstrap(conn, settings, principal, getattr(request.state, "correlation_id", None))
+    # CR-027: the required-sensors policy - a session of the phone app (or, when the policy says so, any session) of a user
+    # who has not switched the required sensors on is refused here, except on the paths the app needs to get out of that
+    # state (services/presence.enforce; administrators are never refused)
+    from .services import presence
+
+    presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), getattr(request.state, "correlation_id", None))
     return principal
 
 

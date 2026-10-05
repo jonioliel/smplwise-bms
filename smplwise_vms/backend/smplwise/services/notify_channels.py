@@ -348,7 +348,7 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             users = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ? ORDER BY added_at, user_id", (nid,)).fetchall()]
         d = Dispatch(nid, mode, n, policy, st, tz, now, nsettings.in_quiet_hours(st["quiet"], now, tz), list(dict.fromkeys(users)), item)
         d._conn = conn
-        for name in ("webpush", "email"):  # the v1 channels, in the order they are shown; the reserved ones (ha_mobile, whatsapp, app) are never planned
+        for name in ("webpush", "email", "app"):  # the v1 channels, in the order they are shown; the reserved ones (ha_mobile, whatsapp) are never planned
             if not policy["channels"].get(name):
                 continue
             ch = CHANNELS.get(name)
@@ -419,3 +419,5 @@ def housekeeping(db: Any) -> None:
 
 # the e-mail channel registers itself here (CR-018 S4); imported last because it uses the interface defined above
 from . import notify_email  # noqa: E402,F401
+# the phone app channel (CR-027): the SmplWise push relay
+from . import mobile_push  # noqa: E402,F401

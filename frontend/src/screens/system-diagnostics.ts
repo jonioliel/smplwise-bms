@@ -41,6 +41,7 @@ import './system-design'; // design foundation: הגדרות › כללי › מ
 import './system-look'; // Bubble foundation: הגדרות › כללי › מראה (the look dials)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import { loadTree } from '../api/catalog';
@@ -75,6 +76,7 @@ const TABS = [
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'remote', label: 'גישה מרחוק' },
+  { id: 'mobile', label: 'אפליקציה לנייד' }, // CR-027: the phone app's data sharing, the employee notice, the required-sensors policy
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -1363,7 +1365,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

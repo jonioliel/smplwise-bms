@@ -12,7 +12,8 @@
         "alarm.view",
         "entity.state.read",
         "video.live",
-        "media.read"
+        "media.read",
+        "presence.report"
       ]
     },
     {
@@ -38,7 +39,8 @@
         "media.group",
         "media.browse",
         "media.queue",
-        "energy.view"
+        "energy.view",
+        "presence.report"
       ]
     },
     {
@@ -57,7 +59,8 @@
         "placement.edit",
         "views.edit",
         "catalog.manage",
-        "media.read"
+        "media.read",
+        "presence.report"
       ]
     },
     {
@@ -108,7 +111,8 @@
         "media.queue",
         "energy.view",
         "energy.bills",
-        "energy.manage"
+        "energy.manage",
+        "presence.report"
       ]
     },
     {
@@ -169,7 +173,9 @@
         "media.queue",
         "energy.view",
         "energy.bills",
-        "energy.manage"
+        "energy.manage",
+        "presence.report",
+        "presence.sensors.view"
       ]
     }
   ],

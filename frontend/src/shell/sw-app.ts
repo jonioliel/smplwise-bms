@@ -92,6 +92,7 @@ import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, res
 import { t } from '../i18n/he';
 import { refreshInfraVisibility } from '../electricity/visibility';
 import { can, canNav, isApi, loadSession, onSession, watchPermissions, type Session } from '../api/session';
+import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
 import { applyPlaybackDisplay } from '../api/playback-display';
@@ -1938,6 +1939,13 @@ export class SwApp extends LitElement {
     }
     if (s.mode === 'no_access') {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
+    }
+    const gate = s.me?.presence_gate;
+    if (gate?.blocked) {
+      // CR-027: the required-sensors policy - the server refuses everything but /me and the app's own routes until a registered
+      // phone of this user reports the required sensors on; the app's native sensor screen is where that happens
+      const missing = gate.missing.map((k) => SENSOR_LABEL[k] ?? k).join(', ');
+      return html`<div class="gate" data-presence-gate><sw-state-panel state="forbidden" heading="נדרש להפעיל שיתוף נתונים" hint="כדי להשתמש במערכת ${gate.channel === 'app' ? 'מהאפליקציה' : ''} יש להפעיל באפליקציה: ${missing}. לאחר ההפעלה טענו את המסך מחדש."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }

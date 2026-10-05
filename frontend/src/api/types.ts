@@ -27,6 +27,9 @@ export interface Me {
   /** NN1: what this installation has (NVR, media server, Home Assistant ...), derived by the server; the shell hides what cannot work.
    * Booleans for everyone; `recorders` only for whoever may read the NVR configuration (CR-022). */
   capabilities?: import('./capabilities').Capabilities;
+  /** CR-027: what the required-sensors policy says about this caller on this channel; present once a policy was ever written,
+   * null when it applies to nobody. `blocked` is what the shell acts on (the server refuses every other request too). */
+  presence_gate?: import('./presence').PresenceGate | null;
 }
 
 export interface Site {
