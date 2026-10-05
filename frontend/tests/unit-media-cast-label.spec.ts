@@ -30,7 +30,8 @@ test.describe('the cast marking', () => {
     expect(castSentence(c('none', 'confirmed', 'kind', null))).toBe(`לא נתמך · ${CAST_REASON_LABEL.kind}`);
     expect(castSentence(c('none', 'unknown', 'no_path', null))).toBe(`לא ידוע · ${CAST_REASON_LABEL.no_path}`);
     expect(castSentence(undefined)).toBe('—');
-    for (const r of Object.keys(CAST_REASON_LABEL) as (keyof typeof CAST_REASON_LABEL)[]) expect(castSentence(c('dlna', 'likely', r))).not.toContain(r);
+    // every reason code has words (a settings screen may name the integration inside them, e.g. apple_tv)
+    for (const r of Object.keys(CAST_REASON_LABEL) as (keyof typeof CAST_REASON_LABEL)[]) expect(castSentence(c('dlna', 'likely', r))).toContain(CAST_REASON_LABEL[r]);
   });
 
   test('every method has a label and no label names the platform outside its technology', () => {
