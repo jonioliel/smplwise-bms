@@ -174,3 +174,56 @@ table.t.routing tr.pick { cursor: pointer; }
 
 /* phone: segmented strips wrap instead of overflowing the frame */
 .d-phone .seg2 { flex-wrap: wrap; max-width: 100%; }
+
+/* ---------- power-flow diagram v2 (hero) ---------- */
+[data-skin][data-theme="light"] { --gen-shadow: #1e2e47; --gen-base: rgba(60, 75, 105, .18); }
+[data-skin][data-theme="dark"]  { --gen-shadow: #000000; --gen-base: rgba(255, 255, 255, .14); }
+.hero-card { padding: 20px 18px 10px; }
+.d-phone .hero-card { padding: 14px 10px 6px; }
+.app svg.flow.v2 { width: 100%; height: auto; display: block; }
+.app svg.flow.v2.vert { max-width: 360px; margin: 0 auto; }
+.flow.v2 .w-base { fill: none; stroke: var(--gen-base); stroke-width: 2; stroke-linecap: round; }
+.flow.v2 .w-glow { fill: none; stroke-width: 9; stroke-linecap: round; opacity: .35; }
+.flow.v2 .w-glow.gen { stroke: var(--gen-gen); } .flow.v2 .w-glow.grid { stroke: var(--gen-grid); }
+.flow.v2 .w-on { fill: none; stroke-width: 3; stroke-linecap: round; }
+.flow.v2 .w-dot { fill: #fff; stroke-width: 1.5; }
+.flow.v2 .w-dot.gen { stroke: var(--gen-gen); } .flow.v2 .w-dot.grid { stroke: var(--gen-grid); }
+[data-theme="dark"] .flow.v2 .w-dot { fill: var(--sw-surface-solid); }
+.flow.v2 .fcard { fill: var(--sw-surface-solid); }
+[data-skin="domus"] .flow.v2 .fcard, [data-skin="bubble"] .flow.v2 .fcard { fill: rgba(var(--sw-sheet-rgb), .92); }
+.flow.v2 .fring { fill: none; stroke: var(--sw-border-strong); stroke-width: 1; opacity: .7; }
+.flow.v2 .fnode.gen:not(.dim) .fring { stroke: var(--gen-gen); opacity: .55; }
+.flow.v2 .fnode.grid:not(.dim) .fring { stroke: var(--gen-grid); opacity: .55; }
+.flow.v2 .fnode.load:not(.dim) .fring { stroke: var(--gen-load); opacity: .55; }
+.flow.v2 .fico-bg { fill: var(--sw-surface-3); }
+.flow.v2 .fnode.gen:not(.dim) .fico-bg { fill: color-mix(in srgb, var(--gen-gen) 16%, transparent); }
+.flow.v2 .fnode.grid:not(.dim) .fico-bg { fill: color-mix(in srgb, var(--gen-grid) 16%, transparent); }
+.flow.v2 .fnode.load:not(.dim) .fico-bg { fill: color-mix(in srgb, var(--gen-load) 16%, transparent); }
+.flow.v2 .fico { fill: none; stroke: var(--sw-text-3); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.flow.v2 .fnode.gen:not(.dim) .fico { stroke: var(--gen-gen); } .flow.v2 .fnode.grid:not(.dim) .fico { stroke: var(--gen-grid); } .flow.v2 .fnode.load:not(.dim) .fico { stroke: var(--gen-load); }
+.flow.v2 text { font-family: var(--sw-font); }
+.flow.v2 .ft { font-size: 12px; fill: var(--sw-text-2); }
+.flow.v2 .fv { font-size: 16px; font-weight: 700; fill: var(--sw-heading); letter-spacing: -.01em; }
+.flow.v2 .fs { font-size: 11px; fill: var(--sw-text-3); }
+.flow.v2 .fnode.dim .fv { fill: var(--sw-text-3); font-weight: 600; }
+.flow.v2 .fpill rect { fill: var(--sw-muted-soft); } .flow.v2 .fpill text { font-size: 10.5px; font-weight: 700; fill: var(--sw-text-2); } .flow.v2 .fpill circle { fill: var(--sw-text-3); }
+.flow.v2 .fpill.gen rect { fill: var(--sw-success-soft); } .flow.v2 .fpill.gen text, .flow.v2 .fpill.gen circle { fill: var(--gen-gen); }
+.flow.v2 .fpill.grid rect { fill: var(--sw-accent-soft); } .flow.v2 .fpill.grid text, .flow.v2 .fpill.grid circle { fill: var(--gen-grid); }
+.flow.v2 .fpill.err rect { fill: var(--sw-danger-soft); } .flow.v2 .fpill.err text, .flow.v2 .fpill.err circle { fill: var(--sw-danger); }
+.flow.v2 .fpill.mut circle { display: none; }
+.flow.v2 .fats .fp.grid { fill: var(--gen-grid); } .flow.v2 .fats .fp.gen { fill: var(--gen-gen); }
+.flow.v2 .fblade { stroke: var(--sw-accent); stroke-width: 3.2; stroke-linecap: round; }
+.flow.v2 .fats.gen .fblade { stroke: var(--gen-gen); } .flow.v2 .fats.grid .fblade { stroke: var(--gen-grid); } .flow.v2 .fblade.off { stroke: var(--sw-text-3); }
+.flow.v2 .fpivot { fill: var(--sw-surface-solid); stroke: var(--sw-text-2); stroke-width: 2; }
+.flow.v2 .fs.c { fill: var(--sw-text-3); }
+@media (prefers-reduced-motion: reduce) { .flow.v2 .w-dot { display: none; } }
+/* capability-driven grids */
+.gauges { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.d-phone .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.d-phone .gauges.n1, .d-phone .gauges.n3 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.kpi-row { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+table.t.routing tr.na td { color: var(--sw-text-3); }
+
+/* before/after page grids */
+.cols.cmp2 { grid-template-columns: 1fr 1fr; } .cols.cmp3 { grid-template-columns: 1fr 1fr 1fr; } .cols.cmpp { grid-template-columns: repeat(3, 300px); }
+.d-tablet .cols.cmp3, .d-phone .cols.cmp2, .d-phone .cols.cmp3, .d-phone .cols.cmpp, .d-tablet .cols.cmpp { grid-template-columns: 1fr; }

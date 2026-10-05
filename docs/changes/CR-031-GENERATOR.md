@@ -1,6 +1,6 @@
 # CR-031 — Generator control screen ("תשתיות › גנרטור")
 
-**Status:** DRAFT, phase A (this document and the mockup gallery, 2026-10-05). Nothing implemented. No product code, no
+**Status:** DRAFT, phase A revision 2 (owner feedback round: hero power-flow diagram, capability-driven screen, rewritten questions; 2026-10-05). Nothing implemented. No product code, no
 migration, no device contact. Branch `pilot/GEN1-generator-mockup` from `origin/main` (2.0.2).
 **Numbering:** CR-031 as assigned by the coordinator (CR-028 cast-to-screens is the last one in `docs/changes/`; 029-030
 are reserved elsewhere).
@@ -57,6 +57,22 @@ ticketing (data-store direction note: future module).
 - Copy rules: no platform name on operator screens; the source is "תשתית המערטת" only in the detection card and the
   empty state. Clean operator screens, short confirmations. The power-flow geometry is never mirrored by RTL.
 
+## 4a. Capability-driven screen (revision 2)
+- Detection produces a **capability set**: the roles of §6 that the controller actually exposes. Only two roles are **core**
+  (engine state and at least one generator voltage); every other role is **optional**. Without the core roles the device
+  is listed in Settings as "זוהה חלקית" and no operator screen is built.
+- Every piece of the live screen is bound to roles: gauges (fuel, battery, coolant, oil), the phase table columns
+  (current, kW, load bar) and its row count (one voltage or L1/L2/L3), engine-card rows, the mode selector and commands
+  (role `controller_mode`), the phone KPIs. A piece whose role is missing is not rendered; grids use `auto-fit` so the
+  layout closes up with no holes.
+- The power-flow diagram adapts: no `mains_available` → no grid card; no `ats_position` → no transfer switch and a
+  running generator is drawn as feeding its load; no `gen_kw` → no kW label; the compact (two-card) layout is used when
+  both are missing. Phone uses the vertical layout of the same component.
+- Alert types carry a `needs` list of roles (§6 `generator_alert_types.needs_json`). The routing settings list only the
+  types whose needs are met; the others appear greyed with "דורש חיישן: X" and are never emitted. Groups with no
+  available type are hidden. The detection card shows "N of 22 values, M of 22 alert types".
+- Gallery scenarios: minimal (state + voltage), typical (no fuel, oil, pf, next test), full.
+
 ## 5. Detection method
 Order (mockup "not found" screen explains the same three steps in Hebrew):
 1. **By integration domain** (preferred, Q2): the existing infrastructure WebSocket session lists config entries
@@ -78,8 +94,8 @@ Main database, migration **0058 `generator.sql`** (0057 is taken by CR-027; renu
 | Table | Purpose | Key columns |
 |---|---|---|
 | `generator_devices` | One row per detected generator | `id`, `name`, `area_id`, `source_kind` ('integration','generic','manual'), `source_domain`, `source_entry_ref`, `source_device_ref`, `rated_kw`, `rated_kva`, `status` ('detected','unavailable','removed'), `detected_at`, `last_seen_at`, `revision` |
-| `generator_roles` | The semantic mapping: role → entity | `device_id`, `role` (engine_state, controller_mode, ats_position, mains_available, on_load, rpm, run_hours, starts, coolant_temp, oil_pressure, battery_v, charger_v, fuel_pct, fuel_l, gen_v_l1..l3, gen_a_l1..l3, gen_kw, gen_kva, pf, gen_hz, load_pct, mains_v_l1..l3, mains_hz, last_start_at, last_start_reason, last_test_at, last_test_result, next_test_at, service_hours_left), `entity_ref`, `unit`, `mapped_by` ('auto','manual'), `confidence` |
-| `generator_alert_types` | The alert catalogue per device (seeded from the built-in list, extended by controller alarms discovered as binary sensors) | `device_id`, `key`, `group` (engine, fuel, electrical, mains, maintenance, comm), `title_he`, `title_en`, `entity_ref` (binary sensor / event source), `builtin` |
+| `generator_roles` | The semantic mapping: role → entity | `device_id`, `role` (engine_state, controller_mode, ats_position, mains_available, on_load, rpm, run_hours, starts, coolant_temp, oil_pressure, battery_v, charger_v, fuel_pct, fuel_l, gen_v_l1..l3, gen_a_l1..l3, gen_kw, gen_kva, pf, gen_hz, load_pct, mains_v_l1..l3, mains_hz, last_start_at, last_start_reason, last_test_at, last_test_result, next_test_at, service_hours_left), `entity_ref`, `unit`, `mapped_by` ('auto','manual'), `confidence`, `core` (bool: engine_state, gen_v_*) |
+| `generator_alert_types` | The alert catalogue per device (seeded from the built-in list, extended by controller alarms discovered as binary sensors) | `device_id`, `key`, `group` (engine, fuel, electrical, mains, maintenance, comm), `title_he`, `title_en`, `entity_ref` (binary sensor / event source), `builtin`, `needs_json` (roles required; `available` is derived at read time from `generator_roles`) |
 | `generator_alert_policies` | Routing per alert type (§7) | `device_id`, `alert_key`, `enabled`, `severity` ('critical','alert','info'), `recipients_json` (`{roles:[...], users:[...]}`), `channels_json` (`['push','app','email','whatsapp']`; `inbox` implicit), `quiet_mode` ('pass','matrix','hold'), `escalate` (bool), `after_s`, `row_version`, updated by/at |
 | `generator_alerts` | Alert instances | `id`, `device_id`, `alert_key`, `severity`, `raised_at`, `cleared_at`, `acked_by`, `acked_at`, `ack_note`, `snapshot_json` (the role values at raise time: fuel, battery, coolant, load, rpm, ats, mains), `notification_id` (CR-018 row), `count` (re-raise fold), `last_at` |
 | `generator_commands` | Audit of phase D commands | `id`, `device_id`, `command` ('test_start','stop','mode_auto','mode_manual','mode_off','ack_controller'), `requested_by`, `requested_at`, `result`, `result_at`, `error` |
@@ -145,17 +161,17 @@ with the precondition, `revision_conflict` 409.
 viewer and kiosk get nothing; the area tab is hidden without `generator.view`. Server-side: commands are refused without
 `generator.control` regardless of client flags; the HA token is never the user's identity.
 
-## 10. Open questions for the owner (Hebrew, with options, in `index.html` §7)
-1. Entity export of the integration (a) send the entity list + domain (b) send a screenshot + list (c) read-only access.
-2. Detection (a) by domain (b) generic device match (c) both, domain first (recommended, as in the mockup).
-3. Number of generators (a) one (b) several (selector).
-4. Controller commands in v1 (a) yes with permission + confirm (b) view and alerts only.
-5. Extra source on the diagram (a) none (b) solar / UPS (specify).
-6. Thresholds (a) controller only (b) extra Arx thresholds in Settings.
-7. Default routing table (a) approve (b) change.
-8. WhatsApp channel (a) now, through the center (b) later.
-9. Value history charts in v1 (a) no (b) 24 h chart on the live screen.
-10. Menu placement (a) sibling tab of "מוני חשמל" under "תשתיות" (b) other.
+## 10. Open questions for the owner (Hebrew, with options and the recommended answer, in `index.html` §8)
+Blocking: 1 (entity export: list + domain / read-only access / screenshot; recommended: list + domain), 2 (commands in
+v1: yes with permission + confirm / view-only first; recommended: view-only first).
+Safe default (build with the recommendation, change later): 3 generators per site (one), 4 who reports the ATS
+(controller / separate device / none), 5 fuel type (diesel / gas / other), 6 scheduled test runs (controller schedules,
+Arx shows / Arx schedules, needs 2a), 7 maintenance reminders (by run hours / also by date / none), 8 default recipients
+(as mocked / admins only / other), 9 alert-history retention (1 year / 90 days / 7 years), 10 WhatsApp (automatic when
+the center opens the channel / open the channel now), 11 value-history charts (no / 24 h chart), 12 menu placement
+(sibling of "מוני חשמל" / other).
+Dropped since revision 1 (answered by the capability-driven design): the sensor list, the thresholds source, the extra
+source on the diagram (added when its role appears).
 
 ## 11. Test plan
 Backend (fixtures and a fake controller only, no device): detection by domain, by generic match, by manual pick, and the
@@ -176,19 +192,20 @@ Evidence: screenshots per screen and state under `docs/evidence/generator/`.
 | Phase | Content | Hours | Tier |
 |---|---|---|---|
 | **A** | This CR + mockup gallery + questions (done) | 6-8 | - |
-| B | Backend detection + entities: migration 0058, detection (domain, generic, manual), role mapping with override, live payload over the mirror, stale handling, devices / roles API, permissions, audit, backup | 12-16 | M |
-| C | Live screen: area tab, three pages shell, power-flow diagram component, gauges, phase table, engine card, mode card (display only), states, phone layout, four skins | 14-18 | M |
+| B | Backend detection + entities: migration 0058, detection (domain, generic, manual), role mapping with override, **capability set and core/optional roles, alert-type availability**, live payload over the mirror, stale handling, devices / roles API, permissions, audit, backup | 14-18 | M |
+| C | Live screen: area tab, three pages shell, **capability-bound rendering**, the v2 power-flow component (horizontal, vertical, compact; animated with reduced-motion fallback), gauges, phase table, engine card, mode card (display only), states, phone layout, four skins | 16-20 | M |
 | D | Alerts: raise / fold / clear engine from the mapped sources, snapshots, active list, history with filters, detail with timeline, ack / snooze / ack-all, WS events, retention | 10-14 | M |
-| E | Routing settings: policies table + CR-018 policy bridge, settings screens (table, edit drawer, defaults, test send), detection card, mapping screen (basic) | 10-12 | M |
+| E | Routing settings: policies table + CR-018 policy bridge, **availability by needs**, settings screens (table, edit drawer, defaults, test send), detection card with counts, mapping screen (basic) | 10-13 | M |
 | F | Tests + evidence + Hebrew guide + bilingual release notes | 6-8 | M |
-| **MVP (B-F)** | | **52-68** | one M release (L if shipped with phase G) |
+| **MVP (B-F)** | | **56-73** | one M release (L if shipped with phase G) |
 | G | Controller commands (`generator.control`): preconditions, confirm, audit, UI actions live | 6-9 | L |
 | H | Several generators, value history charts, extra thresholds | 10-14 | M |
 Dependencies: the owner's entity export (Q1) before B starts; CR-027 app channel merged for the `app` channel chip to be
 live; CR-018 center as the delivery path.
 
 ## 13. Phase A record
-- Built: `docs/design/mockups/generator/` (index, gallery, 17 screens x 3 widths x 2 themes x 4 skins), this CR.
+- Built: `docs/design/mockups/generator/` (index, gallery, 20 screens x 3 widths x 2 themes x 4 skins, a before/after page for the diagram), this CR.
+- Revision 2 (owner feedback): v2 power-flow diagram as a hero component (v1 kept only on the before/after page), capability-driven rendering with minimal / typical / full scenarios, alert types gated by `needs`, questions rewritten with recommendations and blocking / safe-default marks.
 - Lab access: one read-only `GET /api/states` listing to look for a generator integration (none found); no write, no
   entity shown here; no IP, token or id left in any file.
 - No product file, migration, setting or permission was changed.

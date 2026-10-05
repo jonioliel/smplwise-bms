@@ -81,6 +81,12 @@ const TYPES = [
   ['controller_offline', 'comm', 'אין תקשורת עם הבקר', 'alert', 'link'],
   ['not_auto', 'comm', 'הבקר אינו במצב אוטומטי', 'alert', 'gear'],
 ].map(([key, group, title, sev, icon]) => ({ key, group, title, sev, icon }));
+const NEEDS = { fail_to_start: ['state'], low_oil_pressure: ['oil'], high_coolant_temp: ['cool'], overspeed: ['rpm'], emergency_stop: ['state'], unexpected_stop: ['state'],
+  low_fuel: ['fuel'], fuel_shutdown: ['fuel'], overload: ['kw'], gen_voltage: ['v1'], gen_frequency: ['hz'], battery_low: ['batt'], charger_fail: ['batt'],
+  mains_lost: ['mains'], mains_restored: ['mains'], ats_to_gen: ['ats'], ats_fail: ['ats'], service_due: ['hours'], test_done: ['last_test'], test_failed: ['last_test'],
+  controller_offline: [], not_auto: ['mode'] };
+const needsMet = (key, caps) => (NEEDS[key] || []).every((r) => caps.has(r) || (r === 'v1' && caps.has('v3')));
+const needsMissing = (key, caps) => (NEEDS[key] || []).filter((r) => !(caps.has(r) || (r === 'v1' && caps.has('v3')))).map((r) => CAP_LABEL[r]).join(', ');
 const TY = Object.fromEntries(TYPES.map((t) => [t.key, t]));
 const SEV = { critical: 'קריטי', alert: 'התראה', info: 'מידע' };
 const sevChip = (s, label) => `<span class="sev ${s}">${label || SEV[s] || s}</span>`;
@@ -158,10 +164,21 @@ function shell(body, o) {
   </div>`;
 }
 
-/* ------------------------------------------------------------------ pieces: flow diagram, gauges, tables */
-function flowSvg(g) {
-  // geometry (LTR, never mirrored): grid top-left, generator bottom-left, ATS centre, load right
-  const T = (x) => x; // plain text: HTML spans are not allowed inside SVG text
+/* ------------------------------------------------------------------ capabilities (which roles the detected controller exposes) */
+// role keys: state mode ats mains onload rpm hours starts cool oil batt fuel v3 v1 a kw hz pf pct last_start last_test next_test service
+const CAPS = {
+  minimal: ['state', 'v1'],
+  typical: ['state', 'mode', 'ats', 'mains', 'onload', 'rpm', 'hours', 'cool', 'batt', 'v3', 'a', 'kw', 'hz', 'pct', 'last_start', 'last_test', 'service'],
+  full: ['state', 'mode', 'ats', 'mains', 'onload', 'rpm', 'hours', 'starts', 'cool', 'oil', 'batt', 'fuel', 'v3', 'a', 'kw', 'hz', 'pf', 'pct', 'last_start', 'last_test', 'next_test', 'service'],
+};
+const CAP_LABEL = { state: 'מצב מנוע', mode: 'מצב בקר', ats: 'מצב מתג העברה', mains: 'רשת זמינה', onload: 'גנרטור בעומס', rpm: 'סל״ד', hours: 'שעות עבודה', starts: 'מספר התנעות', cool: 'טמפרטורת נוזל קירור', oil: 'לחץ שמן', batt: 'מתח מצבר', fuel: 'מפלס דלק', v3: 'מתח לפי פאזה', v1: 'מתח גנרטור', a: 'זרם', kw: 'הספק', hz: 'תדר', pf: 'מקדם הספק', pct: 'אחוז עומס', last_start: 'התנעה אחרונה', last_test: 'מבחן אחרון', next_test: 'מבחן הבא', service: 'טיפול הבא' };
+let CAP = new Set(CAPS.full);
+const has = (...r) => r.every((x) => CAP.has(x));
+const capCount = () => CAP.size;
+
+/* ------------------------------------------------------------------ power-flow diagram v1 (the first draft, kept for the before/after page) */
+function flowSvgV1(g) {
+  const T = (x) => x;
   const onGen = g.onload && g.state === 'running';
   const mainsOn = g.mains;
   const W = 640, H = 300;
@@ -175,33 +192,28 @@ function flowSvg(g) {
   const loadD = 'M355 150 H 470';
   const bladeTo = onGen ? 'M325 150 L 297 162' : mainsOn ? 'M325 150 L 297 138' : 'M325 150 L 299 150';
   const kwOnWire = onGen ? g.kw : mainsOn ? MAINS_KW : 0;
-  return `<svg class="flow" viewBox="0 0 ${W} ${H}" role="img" aria-label="תרשים זרימת הספק">
+  return `<svg class="flow v1" viewBox="0 0 ${W} ${H}" role="img" aria-label="תרשים זרימת הספק (טיוטה ראשונה)">
     ${wire(gridD, mainsOn && !onGen, false)}
     ${wire(genD, onGen, true)}
     ${wire(loadD, kwOnWire > 0, onGen)}
-    <!-- grid -->
     ${node(20, 40, 160, 80, mainsOn ? 'grid' : 'dim')}
     ${iconG(34, 52, 'grid', mainsOn ? 'grid' : 'dim')}
     <text x="82" y="66" class="lbl">רשת החשמל</text>
     <text x="82" y="88" class="val">${mainsOn ? T('230 V · 50.0 Hz') : 'אין מתח'}</text>
     ${tag(100, 130, mainsOn ? 'זמינה' : 'נפלה ' + (g.since || ''), mainsOn ? 'ok' : 'err', mainsOn ? 60 : 92)}
-    <!-- generator -->
     ${node(20, 180, 160, 80, genRun ? 'gen' : 'dim')}
     ${iconG(34, 192, 'engine', genRun ? 'gen' : 'dim')}
     <text x="82" y="206" class="lbl">${GEN.name}</text>
     <text x="82" y="228" class="val">${genRun ? T(f0(g.rpm) + ' rpm · ' + f1(g.hz) + ' Hz') : 'כבוי'}</text>
     ${tag(100, 270, genRun ? (onGen ? 'פועל · בעומס' : 'פועל · ללא עומס') : 'במנוחה', genRun ? 'ok' : 'mut', 96)}
-    <!-- ATS -->
     ${node(295, 115, 60, 70, 'ats')}
     <circle cx="325" cy="150" r="4" fill="var(--sw-accent)"/>
     <path d="${bladeTo}" class="blade"/>
     <circle cx="297" cy="138" r="3" fill="var(--gen-grid)"/><circle cx="297" cy="162" r="3" fill="var(--gen-gen)"/>
     <text x="325" y="106" text-anchor="middle" class="small">מתג העברה</text>
     ${tag(325, 200, onGen ? 'גנרטור' : mainsOn ? 'רשת' : 'מנותק', onGen ? 'ok' : mainsOn ? 'ok' : 'err', 60)}
-    <!-- wire value -->
     <rect x="374" y="124" width="78" height="22" rx="11" class="tag ${kwOnWire ? (onGen ? 'ok' : '') : 'err'}"/>
     <text x="413" y="139" text-anchor="middle" class="tagt ${onGen ? 'ok' : 'mut'}">${kwOnWire ? T(f0(kwOnWire) + ' kW') : '0 kW'}</text>
-    <!-- load -->
     ${node(470, 110, 160, 80, kwOnWire ? 'load' : 'dim')}
     ${iconG(484, 122, 'load', kwOnWire ? 'load' : 'dim')}
     <text x="532" y="136" class="lbl">צרכני האתר</text>
@@ -209,8 +221,124 @@ function flowSvg(g) {
     ${tag(550, 200, onGen ? `${g.pct}% מהגנרטור` : mainsOn ? 'מוזן מהרשת' : 'ללא הזנה', onGen ? 'warn' : mainsOn ? 'ok' : 'err', 100)}
   </svg>`;
 }
+
+/* ------------------------------------------------------------------ power-flow diagram v2 (hero component; capability-driven; horizontal and vertical layouts) */
+function flowSvg(g, opt = {}) {
+  const id = opt.id || 'f';
+  const vertical = opt.vertical != null ? opt.vertical : PH();
+  const genRun = g.state === 'running';
+  const stale = g.state === 'unknown';
+  const showMains = has('mains');
+  const showAts = has('ats');
+  const onGen = showAts ? g.onload && genRun : genRun;            // without an ATS role, a running generator is assumed to feed its load
+  const mainsOn = showMains && g.mains;
+  const kwKnown = has('kw');
+  const siteKw = onGen ? g.kw : mainsOn ? MAINS_KW : 0;
+  const motion = !stale;
+  // ---- geometry
+  const compact = !showMains && !showAts;
+  const cw = vertical ? 160 : 190, ch = vertical ? 108 : 96;
+  let W = vertical ? 360 : compact ? 540 : 720, H;
+  let grid, gen, ats, load;
+  if (!vertical) {
+    const sy = showMains ? [24, 152] : [compact ? 40 : 88];
+    grid = showMains ? { x: 24, y: sy[0] } : null;
+    gen = { x: compact ? 40 : 24, y: showMains ? sy[1] : sy[0] };
+    ats = showAts ? { x: 332, y: 100 } : null;
+    load = { x: compact ? 310 : 506, y: compact ? 40 : 88 };
+    H = compact ? 176 : 272;
+  } else {
+    grid = showMains ? { x: 16, y: 16 } : null;
+    gen = { x: showMains ? 184 : 100, y: 16 };
+    ats = showAts ? { x: 150, y: 170 } : null;
+    load = { x: 100, y: showAts ? 300 : 210 };
+    H = load.y + ch + 14;
+  }
+  const port = (n, side) => !n ? null : side === 'r' ? [n.x + cw, n.y + ch / 2] : side === 'l' ? [n.x, n.y + ch / 2] : side === 'b' ? [n.x + cw / 2, n.y + ch] : [n.x + cw / 2, n.y];
+  const atsIn = (k) => !ats ? null : vertical ? [ats.x + (k === 'grid' ? 16 : 44), ats.y] : [ats.x, ats.y + (k === 'grid' ? 18 : 42)];
+  const atsOut = () => !ats ? null : vertical ? [ats.x + 30, ats.y + 60] : [ats.x + 60, ats.y + 30];
+  const curve = (a, b) => vertical
+    ? `M${a[0]} ${a[1]} C ${a[0]} ${a[1] + 46}, ${b[0]} ${b[1] - 46}, ${b[0]} ${b[1]}`
+    : `M${a[0]} ${a[1]} C ${a[0] + 70} ${a[1]}, ${b[0] - 70} ${b[1]}, ${b[0]} ${b[1]}`;
+  const srcOut = (n) => port(n, vertical ? 'b' : 'r');
+  const loadIn = port(load, vertical ? 't' : 'l');
+  const paths = [];
+  if (grid) paths.push({ k: 'grid', d: curve(srcOut(grid), ats ? atsIn('grid') : loadIn), on: mainsOn && !onGen, tone: 'grid' });
+  paths.push({ k: 'gen', d: curve(srcOut(gen), ats ? atsIn('gen') : loadIn), on: onGen, tone: 'gen' });
+  if (ats) paths.push({ k: 'out', d: curve(atsOut(), loadIn), on: siteKw > 0 || (onGen && !kwKnown), tone: onGen ? 'gen' : 'grid' });
+  // ---- primitives
+  const wire = (p) => {
+    const base = `<path d="${p.d}" class="w-base"/>`;
+    if (!p.on) return base;
+    const glow = `<path d="${p.d}" class="w-glow ${p.tone}" filter="url(#${id}-glow)"/><path d="${p.d}" class="w-on ${p.tone}" stroke="url(#${id}-g-${p.tone})"/>`;
+    const dots = motion ? [0, 0.55, 1.1].map((b) => `<circle r="3" class="w-dot ${p.tone}"><animateMotion dur="1.7s" begin="-${b}s" repeatCount="indefinite" path="${p.d}"/></circle>`).join('') : '';
+    return base + glow + dots;
+  };
+  const card = (n, o) => {
+    const tone = o.tone, dim = o.dim;
+    const ix = n.x + 16, iy = n.y + 16;
+    const tx = n.x + 60;
+    return `<g class="fnode ${dim ? 'dim' : ''} ${tone}">
+      <rect x="${n.x}" y="${n.y}" width="${cw}" height="${ch}" rx="18" class="fcard" filter="url(#${id}-shadow)"/>
+      <rect x="${n.x + 0.5}" y="${n.y + 0.5}" width="${cw - 1}" height="${ch - 1}" rx="17.5" class="fring"/>
+      <circle cx="${ix + 16}" cy="${iy + 16}" r="17" class="fico-bg"/>
+      <g transform="translate(${ix + 5} ${iy + 5}) scale(0.92)"><path d="${I[o.icon]}" class="fico"/></g>
+      <text x="${tx}" y="${n.y + 30}" class="ft">${o.title}</text>
+      <text x="${tx}" y="${n.y + 52}" class="fv">${o.value}</text>
+      ${o.sub ? `<text x="${tx}" y="${n.y + 68}" class="fs">${o.sub}</text>` : ''}
+      ${o.pill ? pill(n.x + cw - 12, n.y + ch - 14, o.pill, o.pillCls, 'end') : ''}
+    </g>`;
+  };
+  const pill = (x, y, text, cls, anchor = 'middle') => {
+    const w = Math.max(44, text.length * 6.6 + 18);
+    const x0 = anchor === 'end' ? x - w : anchor === 'start' ? x : x - w / 2;
+    return `<g class="fpill ${cls}"><rect x="${x0}" y="${y - 10}" width="${w}" height="20" rx="10"/><circle cx="${x0 + w - 10}" cy="${y}" r="3"/><text x="${x0 + w - 17}" y="${y + 3.6}" text-anchor="end">${text}</text></g>`;
+  };
+  const atsG = () => {
+    if (!ats) return '';
+    const cx = ats.x + 30, cy = ats.y + 30;
+    const toGrid = vertical ? [ats.x + 16, ats.y + 8] : [ats.x + 8, ats.y + 18];
+    const toGen = vertical ? [ats.x + 44, ats.y + 8] : [ats.x + 8, ats.y + 42];
+    const tgt = onGen ? toGen : mainsOn ? toGrid : null;
+    const lbl = onGen ? 'גנרטור' : mainsOn ? 'רשת' : 'מנותק';
+    const cls = onGen ? 'gen' : mainsOn ? 'grid' : 'err';
+    return `<g class="fats ${cls}">
+      <rect x="${ats.x}" y="${ats.y}" width="60" height="60" rx="16" class="fcard" filter="url(#${id}-shadow)"/>
+      <rect x="${ats.x + 0.5}" y="${ats.y + 0.5}" width="59" height="59" rx="15.5" class="fring"/>
+      <circle cx="${toGrid[0]}" cy="${toGrid[1]}" r="3.2" class="fp grid"/><circle cx="${toGen[0]}" cy="${toGen[1]}" r="3.2" class="fp gen"/>
+      ${tgt ? `<line x1="${cx}" y1="${cy}" x2="${tgt[0]}" y2="${tgt[1]}" class="fblade"/>` : `<line x1="${cx}" y1="${cy}" x2="${vertical ? cx : ats.x + 10}" y2="${vertical ? ats.y + 8 : cy}" class="fblade off"/>`}
+      <circle cx="${cx}" cy="${cy}" r="4.2" class="fpivot"/>
+      <text x="${cx}" y="${ats.y - 10}" text-anchor="middle" class="fs c">מתג העברה</text>
+      ${pill(cx, ats.y + 60 + 16, lbl, cls)}
+    </g>`;
+  };
+  const kwTag = () => {
+    if (!ats || (!kwKnown && !siteKw)) return '';
+    const o = atsOut(), l = loadIn; const x = (o[0] + l[0]) / 2, y = (o[1] + l[1]) / 2;
+    const txt = kwKnown ? f0(siteKw) + ' kW' : onGen ? 'מוזן' : '';
+    return txt ? pill(vertical ? x + 62 : x, y - (vertical ? 0 : 14), txt, siteKw || onGen ? (onGen ? 'gen' : 'grid') : 'mut') : '';
+  };
+  // ---- content
+  const gridCard = grid ? card(grid, { icon: 'grid', tone: 'grid', dim: !mainsOn, title: 'רשת החשמל', value: mainsOn ? '230 V · 50.0 Hz' : 'אין מתח', sub: mainsOn ? 'שלוש פאזות תקינות' : g.since ? 'נפלה ב-' + g.since : '', pill: mainsOn ? 'זמינה' : 'נפלה', pillCls: mainsOn ? 'grid' : 'err' }) : '';
+  const genVal = stale ? 'אין תקשורת' : genRun ? (has('rpm') ? f0(g.rpm) + ' rpm' : has('hz') ? f1(g.hz) + ' Hz' : has('v1') ? g.v[0] + ' V' : 'פועל') : 'כבוי';
+  const genSub = genRun ? [has('rpm') && has('hz') ? f1(g.hz) + ' Hz' : '', has('pct') ? 'עומס ' + g.pct + '%' : has('kw') ? f0(g.kw) + ' kW' : '', !has('rpm') && !has('hz') && has('v1') && !has('v3') ? '' : ''].filter(Boolean).join(' · ') : has('mode') ? 'מצב ' + MODE[g.mode] : '';
+  const genCard = card(gen, { icon: 'engine', tone: 'gen', dim: !genRun, title: GEN.name, value: genVal, sub: genSub, pill: stale ? 'לא ידוע' : genRun ? (onGen ? 'בעומס' : g.mode === 'test' ? 'מבחן' : 'פועל') : 'במנוחה', pillCls: stale ? 'err' : genRun ? 'gen' : 'mut' });
+  const loadOn = siteKw > 0 || (onGen && !kwKnown);
+  const loadCard = card(load, { icon: 'load', tone: 'load', dim: !loadOn, title: 'צרכני האתר', value: kwKnown ? f0(siteKw) + ' kW' : loadOn ? 'מוזן' : 'ללא הזנה', sub: onGen && has('pct') ? g.pct + '% מהספק הגנרטור' : mainsOn && !onGen ? 'מוזן מהרשת' : '', pill: onGen ? 'מהגנרטור' : mainsOn ? 'מהרשת' : loadOn ? 'מוזן' : 'ללא הזנה', pillCls: onGen ? 'gen' : mainsOn ? 'grid' : loadOn ? 'gen' : 'err' });
+  return `<svg class="flow v2 ${vertical ? 'vert' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="תרשים זרימת הספק">
+    <defs>
+      <filter id="${id}-glow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="4.5"/></filter>
+      <filter id="${id}-shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="var(--gen-shadow)" flood-opacity="0.35"/></filter>
+      <linearGradient id="${id}-g-gen" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${W}" y2="0"><stop offset="0" style="stop-color:var(--gen-gen)"/><stop offset="1" style="stop-color:color-mix(in srgb, var(--gen-gen) 55%, var(--gen-load))"/></linearGradient>
+      <linearGradient id="${id}-g-grid" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${W}" y2="0"><stop offset="0" style="stop-color:var(--gen-grid)"/><stop offset="1" style="stop-color:color-mix(in srgb, var(--gen-grid) 55%, var(--gen-load))"/></linearGradient>
+    </defs>
+    ${paths.map(wire).join('')}
+    ${gridCard}${genCard}${atsG()}${kwTag()}${loadCard}
+  </svg>`;
+}
+
+/* ------------------------------------------------------------------ gauges, tables, cards (every piece is drawn only when its role exists) */
 function gauge(label, val, unit, pct, cls, lim) {
-  // 240-degree arc from -210 to +30 degrees, radius 42 in a 120x90 box
   const r = 42, cx = 60, cy = 56;
   const a0 = (-210 * Math.PI) / 180;
   const total = 240;
@@ -229,71 +357,81 @@ function gauge(label, val, unit, pct, cls, lim) {
   </div>`;
 }
 function gauges(g, stale) {
-  const fuelCls = g.fuel < 25 ? 'err' : g.fuel < 40 ? 'warn' : 'ok';
-  const battCls = g.batt < 24 ? 'err' : g.batt < 25.5 ? 'warn' : 'ok';
-  const coolCls = g.cool > 98 ? 'err' : g.cool > 92 ? 'warn' : 'ok';
-  const oilCls = g.state === 'running' ? (g.oil < 1.5 ? 'err' : g.oil < 2.5 ? 'warn' : 'ok') : 'ok';
-  return `<div class="gauges ${stale ? 'stale' : ''}">
-    ${gauge('מפלס דלק', N(g.fuel), '%', g.fuel, fuelCls, 'התראה מתחת ל-25%')}
-    ${gauge('מתח מצבר', N(f1(g.batt)), 'V', ((g.batt - 20) / 10) * 100, battCls, 'תקין 25.5-29 וולט')}
-    ${gauge('טמפרטורת נוזל קירור', N(g.cool), '°C', (g.cool / 110) * 100, coolCls, 'גבול 98°')}
-    ${gauge('לחץ שמן', N(f1(g.oil)), 'bar', (g.oil / 6) * 100, oilCls, g.state === 'running' ? 'מינימום 1.5' : 'המנוע במנוחה')}
-  </div>`;
+  const items = [];
+  if (has('fuel')) items.push(gauge('מפלס דלק', N(g.fuel), '%', g.fuel, g.fuel < 25 ? 'err' : g.fuel < 40 ? 'warn' : 'ok', 'התראה מתחת ל-25%'));
+  if (has('batt')) items.push(gauge('מתח מצבר', N(f1(g.batt)), 'V', ((g.batt - 20) / 10) * 100, g.batt < 24 ? 'err' : g.batt < 25.5 ? 'warn' : 'ok', 'תקין 25.5-29 וולט'));
+  if (has('cool')) items.push(gauge('טמפרטורת נוזל קירור', N(g.cool), '°C', (g.cool / 110) * 100, g.cool > 98 ? 'err' : g.cool > 92 ? 'warn' : 'ok', 'גבול 98°'));
+  if (has('oil')) items.push(gauge('לחץ שמן', N(f1(g.oil)), 'bar', (g.oil / 6) * 100, g.state === 'running' ? (g.oil < 1.5 ? 'err' : g.oil < 2.5 ? 'warn' : 'ok') : 'ok', g.state === 'running' ? 'מינימום 1.5' : 'המנוע במנוחה'));
+  if (has('pct') && !has('fuel')) items.push(gauge('עומס', N(g.pct), '%', g.pct, g.pct > 90 ? 'err' : g.pct > 80 ? 'warn' : 'ok', 'מתוך ' + GEN.rated_kw + ' kW'));
+  if (!items.length) return '';
+  return `<div class="gauges n${items.length} ${stale ? 'stale' : ''}">${items.join('')}</div>`;
 }
 function phaseTable(g) {
   const run = g.state === 'running';
+  if (!has('v3') && !has('v1')) return '';
+  const cols = [['v', 'מתח', true], ['a', 'זרם', has('a')], ['kw', 'הספק', has('kw') && has('a')], ['bar', 'עומס', has('a')]].filter((c) => c[2]);
+  const rows = has('v3') ? [0, 1, 2] : [0];
   const row = (i) => {
     const kw = run && g.onload ? Math.round((g.v[i] * g.a[i] * g.pf) / 1000) : 0;
     const pct = run && g.onload ? Math.round((g.a[i] / 360) * 100) : 0;
-    const vCls = g.v[i] && (g.v[i] < 207 || g.v[i] > 253) ? 'err' : '';
-    return `<tr><td class="b">L${i + 1}</td><td class="num ${vCls}">${run ? f0(g.v[i]) + ' V' : '-'}</td><td class="num">${run ? f0(g.a[i]) + ' A' : '-'}</td><td class="num">${run ? kw + ' kW' : '-'}</td><td><div class="pbar"><i class="${pct > 90 ? 'err' : pct > 80 ? 'warn' : ''}" style="width:${pct}%"></i></div></td></tr>`;
+    const cell = { v: `<td class="num">${run ? f0(g.v[i]) + ' V' : '-'}</td>`, a: `<td class="num">${run ? f0(g.a[i]) + ' A' : '-'}</td>`, kw: `<td class="num">${run ? kw + ' kW' : '-'}</td>`, bar: `<td><div class="pbar"><i class="${pct > 90 ? 'err' : pct > 80 ? 'warn' : ''}" style="width:${pct}%"></i></div></td>` };
+    return `<tr><td class="b">${has('v3') ? 'L' + (i + 1) : 'גנרטור'}</td>${cols.map((c) => cell[c[0]]).join('')}</tr>`;
   };
-  return `<div class="card flush"><div class="hd"><span class="h3">מתח, זרם והספק לפי פאזה</span><div class="sp"></div>
-      <span class="mut">תדר ${N(run ? f1(g.hz) + ' Hz' : '-')} · מקדם הספק ${N(run && g.onload ? g.pf : '-')}</span></div>
-    <div class="scrollx"><table class="t phase"><thead><tr><th>פאזה</th><th>מתח</th><th>זרם</th><th>הספק</th><th>עומס</th></tr></thead>
-    <tbody>${[0, 1, 2].map(row).join('')}</tbody>
-    <tfoot><tr><td>סה״כ</td><td class="num">${run ? 'ממוצע ' + f0((g.v[0] + g.v[1] + g.v[2]) / 3) + ' V' : '-'}</td><td class="num">${run ? f0(g.a[0] + g.a[1] + g.a[2]) + ' A' : '-'}</td><td class="num">${run ? f0(g.kw) + ' kW' : '-'}</td><td>${run && g.onload ? N(g.pct + '%') + ' מ-' + N(GEN.rated_kw + ' kW') : ''}</td></tr></tfoot></table></div></div>`;
+  const foot = has('v3') ? `<tfoot><tr><td>סה״כ</td>${cols.map((c) => c[0] === 'v' ? `<td class="num">${run ? 'ממוצע ' + f0((g.v[0] + g.v[1] + g.v[2]) / 3) + ' V' : '-'}</td>` : c[0] === 'a' ? `<td class="num">${run ? f0(g.a[0] + g.a[1] + g.a[2]) + ' A' : '-'}</td>` : c[0] === 'kw' ? `<td class="num">${run ? f0(g.kw) + ' kW' : '-'}</td>` : `<td>${run && g.onload && has('pct') ? N(g.pct + '%') + ' מ-' + N(GEN.rated_kw + ' kW') : ''}</td>`).join('')}</tr></tfoot>` : '';
+  const hdExtra = [has('hz') ? 'תדר ' + N(run ? f1(g.hz) + ' Hz' : '-') : '', has('pf') ? 'מקדם הספק ' + N(run && g.onload ? g.pf : '-') : ''].filter(Boolean).join(' · ');
+  return `<div class="card flush"><div class="hd"><span class="h3">${has('v3') ? 'מתח, זרם והספק לפי פאזה' : 'מתח הגנרטור'}</span><div class="sp"></div><span class="mut">${hdExtra}</span></div>
+    <div class="scrollx"><table class="t phase"><thead><tr><th>${has('v3') ? 'פאזה' : ''}</th>${cols.map((c) => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map(row).join('')}</tbody>${foot}</table></div></div>`;
 }
 function engineCard(g, stale) {
   const [label, cls] = ST[g.state];
+  const rows = [];
+  rows.push(['מצב המנוע', `<span class="chip c-${cls === 'ok' ? 'ok' : cls === 'err' ? 'err' : cls === 'warn' ? 'warn' : 'mut'}">${label}</span>${g.since && has('last_start') ? ` <span class="mut">מאז ${g.since}</span>` : ''}`]);
+  if (has('mode')) rows.push(['מצב הבקר', `${MODE[g.mode]}${g.mode !== 'auto' ? ' <span class="chip c-warn nodot">לא אוטומטי</span>' : ''}`]);
+  if (has('hours')) rows.push(['שעות עבודה', `${N(f1(g.hours))} שעות${has('starts') ? ' · ' + N(g.starts) + ' התנעות' : ''}`]);
+  if (has('rpm')) rows.push(['סל״ד', g.state === 'running' ? N(f0(g.rpm)) : '-']);
+  if (has('last_start')) rows.push(['התנעה אחרונה', `${g.state === 'running' && g.since ? 'היום ' + g.since : '28.09 09:00'} · ${g.mode === 'test' ? 'ריצת מבחן' : g.onload ? 'אובדן רשת' : 'ריצת מבחן שבועית'}`]);
+  if (has('last_test')) rows.push(['מבחן אחרון', '28.09 09:00 · <span class="chip c-ok nodot">עבר</span> 20 דק׳']);
+  if (has('next_test')) rows.push(['מבחן הבא', '12.10 09:00 · שבועי, ללא עומס']);
+  if (has('service')) rows.push(['טיפול הבא', `ב-${N('1,330')} שעות · <span class="chip c-warn nodot">בעוד 46 שעות</span>`]);
   return `<div class="card ${stale ? 'stale' : ''}"><div class="hd"><span class="h3">מנוע ובקר</span><div class="sp"></div><span class="last-seen">${ic('clock')} ${stale ? 'נקלט לאחרונה 09:41' : 'עודכן לפני 4 שנ׳'}</span></div>
-    <dl class="kv">
-      <dt>מצב המנוע</dt><dd><span class="chip c-${cls === 'ok' ? 'ok' : cls === 'err' ? 'err' : cls === 'warn' ? 'warn' : 'mut'}">${label}</span>${g.since ? ` <span class="mut">מאז ${g.since}</span>` : ''}</dd>
-      <dt>מצב הבקר</dt><dd>${MODE[g.mode]}${g.mode !== 'auto' ? ' <span class="chip c-warn nodot">לא אוטומטי</span>' : ''}</dd>
-      <dt>שעות עבודה</dt><dd>${N(f1(g.hours))} שעות · ${N(g.starts)} התנעות</dd>
-      <dt>סל״ד</dt><dd>${g.state === 'running' ? N(f0(g.rpm)) : '-'}</dd>
-      <dt>התנעה אחרונה</dt><dd>${g.state === 'running' && g.since ? 'היום ' + g.since : '28.09 09:00'} · ${g.mode === 'test' ? 'ריצת מבחן' : g.onload ? 'אובדן רשת' : 'ריצת מבחן שבועית'}</dd>
-      <dt>מבחן אחרון</dt><dd>28.09 09:00 · <span class="chip c-ok nodot">עבר</span> 20 דק׳</dd>
-      <dt>מבחן הבא</dt><dd>12.10 09:00 · שבועי, ללא עומס</dd>
-      <dt>טיפול הבא</dt><dd>ב-${N('1,330')} שעות · <span class="chip c-warn nodot">בעוד 46 שעות</span></dd>
-    </dl></div>`;
+    <dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${capCount() < CAPS.full.length ? `<div class="mut" style="margin-top:10px">${capCount()} מתוך ${CAPS.full.length} ערכים זמינים מהבקר · <a class="btn ghost sm" style="min-height:24px">מיפוי חיישנים</a></div>` : ''}</div>`;
 }
 function modeCard(g, locked, why) {
-  return `<div class="card"><div class="hd"><span class="h3">מצב הפעלה</span><div class="sp"></div>${locked ? `<span class="chip c-mut nodot">${ic(why ? 'link' : 'user')} ${why || 'צפייה בלבד'}</span>` : ''}</div>
-    <div class="mode">${['auto', 'manual', 'off'].map((m) => `<a class="${g.mode === m || (m === 'auto' && g.mode === 'test') ? 'on ' + m : ''}">${MODE[m]}</a>`).join('')}</div>
+  const cmds = has('mode');
+  return `<div class="card"><div class="hd"><span class="h3">${cmds ? 'מצב הפעלה' : 'פעולות'}</span><div class="sp"></div>${locked ? `<span class="chip c-mut nodot">${ic(why ? 'link' : 'user')} ${why || 'צפייה בלבד'}</span>` : ''}</div>
+    ${cmds ? `<div class="mode">${['auto', 'manual', 'off'].map((m) => `<a class="${g.mode === m || (m === 'auto' && g.mode === 'test') ? 'on ' + m : ''}">${MODE[m]}</a>`).join('')}</div>` : ''}
     <div class="actions" style="margin-top:12px">
-      <button class="btn pri" onclick="go('confirm-test')" ${locked ? 'disabled' : ''}>${ic('play')} ריצת מבחן</button>
-      <button class="btn dng" ${g.state !== 'running' || locked ? 'disabled' : ''}>${ic('stop')} עצירה</button>
+      ${cmds ? `<button class="btn pri" onclick="go('confirm-test')" ${locked ? 'disabled' : ''}>${ic('play')} ריצת מבחן</button>
+      <button class="btn dng" ${g.state !== 'running' || locked ? 'disabled' : ''}>${ic('stop')} עצירה</button>` : ''}
       <button class="btn" ${locked ? 'disabled' : ''}>${ic('check')} אישור כל ההתראות</button>
-    </div></div>`;
+    </div>${cmds ? '' : '<div class="mut" style="margin-top:8px">הבקר אינו חושף פקודות</div>'}</div>`;
 }
 function statusStrip(g, extra = '') {
   const [label, cls] = ST[g.state];
-  const txt = g.state === 'running' ? (g.onload ? `${GEN.name} פועל ומזין את האתר` : g.mode === 'test' ? `${GEN.name} בריצת מבחן` : `${GEN.name} פועל ללא עומס`) : g.state === 'stopped' ? `${GEN.name} במנוחה · האתר מוזן מהרשת` : `${GEN.name} · ${label}`;
+  const onload = has('ats') ? g.onload : true;
+  const txt = g.state === 'running' ? (onload ? `${GEN.name} פועל ומזין את האתר` : g.mode === 'test' ? `${GEN.name} בריצת מבחן` : `${GEN.name} פועל ללא עומס`) : g.state === 'stopped' ? `${GEN.name} במנוחה${has('mains') ? ' · האתר מוזן מהרשת' : ''}` : `${GEN.name} · ${label}`;
   return `<div class="status-strip"><span class="big"><span class="pulse ${cls}"></span>${txt}</span>
     <span class="mut">${GEN.place} · ${N(GEN.rated_kva + ' kVA')}</span><div class="sp"></div>${extra}</div>`;
 }
 function liveScreen(key, opts = {}) {
+  CAP = new Set(CAPS[opts.caps || 'typical']);
   const g = SCEN[key];
   const locked = !!opts.locked;
   const stale = key === 'unavail';
   const banner = stale ? `<div class="banner err">${ic('link')}<b>אין תקשורת עם בקר הגנרטור</b><span>מאז 09:41 · הערכים מוצגים כפי שנקלטו לאחרונה</span><div class="sp"></div><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div>` : '';
-  const quick = PH() ? `<div class="kpi-row"><div class="kpi"><div class="k">עומס</div><div class="v">${N(g.pct + '%')}</div></div><div class="kpi"><div class="k">הספק</div><div class="v">${N(f0(g.kw) + ' kW')}</div></div><div class="kpi"><div class="k">דלק</div><div class="v">${N(g.fuel + '%')}</div></div></div>` : '';
+  const kpis = [];
+  if (has('pct')) kpis.push(['עומס', N(g.pct + '%')]);
+  if (has('kw')) kpis.push(['הספק', N(f0(g.kw) + ' kW')]);
+  if (has('fuel')) kpis.push(['דלק', N(g.fuel + '%')]);
+  else if (has('batt')) kpis.push(['מצבר', N(f1(g.batt) + ' V')]);
+  const quick = PH() && kpis.length ? `<div class="kpi-row n${kpis.length}">${kpis.map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>` : '';
+  const diagChip = has('mains') ? (g.onload && has('ats') ? sevChip('alert', 'אובדן רשת ' + g.since) : g.mode === 'test' ? sevChip('info', 'מבחן ללא עומס') : sevChip('cleared', 'רשת זמינה')) : '';
   const body = `${banner}
     ${statusStrip(g, stale ? '' : `<span class="last-seen">${ic('clock')} נתונים חיים</span>`)}
     ${quick}
     <div class="hero">
-      <div class="card ${stale ? 'stale' : ''}"><div class="hd"><span class="h3">זרימת הספק</span><div class="sp"></div>${g.onload ? sevChip('alert', 'אובדן רשת ' + g.since) : g.mode === 'test' ? sevChip('info', 'מבחן ללא עומס') : sevChip('cleared', 'רשת זמינה')}</div>${flowSvg(g)}</div>
+      <div class="card hero-card ${stale ? 'stale' : ''}"><div class="hd"><span class="h3">זרימת הספק</span><div class="sp"></div>${diagChip}</div>${flowSvg(g, { id: 'live' })}</div>
       ${engineCard(g, stale)}
     </div>
     ${gauges(g, stale)}
@@ -301,7 +439,34 @@ function liveScreen(key, opts = {}) {
       <div class="${stale ? 'stale' : ''}">${phaseTable(g)}</div>
       ${modeCard(g, locked || stale, stale ? 'אין תקשורת' : '')}
     </div>`;
-  return shell(body, { l2: 'live', activeCount: key === 'run' ? 2 : key === 'standby' ? 0 : 1, overlay: opts.overlay });
+  const out = shell(body, { l2: 'live', activeCount: key === 'run' ? 2 : key === 'standby' ? 0 : 1, overlay: opts.overlay });
+  CAP = new Set(CAPS.full);
+  return out;
+}
+function diagramCompareScreen() {
+  const g = SCEN.run, s = SCEN.standby;
+  const cell = (title, inner) => `<div class="card"><div class="hd"><span class="h3">${title}</span></div>${inner}</div>`;
+  const body = `<div class="row"><span class="h2">תרשים זרימת הספק: לפני ואחרי</span><div class="sp"></div><span class="mut">אותם נתונים, אותם טוקנים; רק התרשים השתנה</span></div>
+    <div class="cols cmp2">
+      ${cell('לפני: הטיוטה הראשונה', flowSvgV1(g))}
+      ${cell('אחרי: גרסה 2 (הגנרטור בעומס)', flowSvg(g, { id: 'c1', vertical: false }))}
+      ${cell('לפני: במנוחה', flowSvgV1(s))}
+      ${cell('אחרי: במנוחה, האתר מוזן מהרשת', flowSvg(s, { id: 'c2', vertical: false }))}
+    </div>
+    <div class="row"><span class="h3">גרסה 2 לפי יכולות הבקר</span></div>
+    <div class="cols cmp3">
+      ${cell('מלא: רשת + מתג העברה + הספק', (CAP = new Set(CAPS.full), flowSvg(g, { id: 'c3', vertical: false })))}
+      ${cell('טיפוסי: ללא דלק ושמן (התרשים זהה)', (CAP = new Set(CAPS.typical), flowSvg(g, { id: 'c4', vertical: false })))}
+      ${cell('מינימלי: מצב ומתח בלבד (אין רשת, אין מתג)', (CAP = new Set(CAPS.minimal), flowSvg(g, { id: 'c5', vertical: false })))}
+    </div>
+    <div class="row"><span class="h3">גרסה 2 בפריסת טלפון</span></div>
+    <div class="cols cmpp">
+      ${cell('בעומס', (CAP = new Set(CAPS.full), flowSvg(g, { id: 'p1', vertical: true })))}
+      ${cell('במנוחה', flowSvg(s, { id: 'p2', vertical: true }))}
+      ${cell('מינימלי', (CAP = new Set(CAPS.minimal), flowSvg(g, { id: 'p3', vertical: true })))}
+    </div>`;
+  CAP = new Set(CAPS.full);
+  return shell(body, { l2: 'live', activeCount: 2 });
 }
 
 /* ------------------------------------------------------------------ alerts */
@@ -369,12 +534,15 @@ function chIcons(p) {
   return `<span class="chs">${CH.map(([k, l, i, cls]) => `<span class="ch ${cls} ${k === 'inbox' || p.ch.includes(k) ? 'on' : ''}" title="${l}">${ic(i)}</span>`).join('')}</span>`;
 }
 function recChips(p) { return `<span class="rec">${p.rec.map((r) => `<span class="${r === 'maint' || r === 'owner' ? 'usr' : 'role'}">${ROLE[r]}</span>`).join('')}</span>`; }
-function routingRows() {
+function routingRows(caps) {
   let out = '';
   for (const [gk, gl] of GROUPS) {
+    const list = TYPES.filter((x) => x.group === gk);
+    if (!list.some((t) => needsMet(t.key, caps))) continue;
     out += `<tr class="grp"><td colspan="7">${gl}</td></tr>`;
-    for (const t of TYPES.filter((x) => x.group === gk)) {
+    for (const t of list) {
       const p = POL[t.key];
+      if (!needsMet(t.key, caps)) { out += `<tr class="off na"><td class="c1 c"><span class="tog dis"></span></td><td class="b">${t.title}</td><td colspan="5"><span class="chip c-mut nodot">דורש חיישן: ${needsMissing(t.key, caps)}</span></td></tr>`; continue; }
       out += `<tr class="pick ${p.on ? '' : 'off'}" onclick="go('set-routing-edit')">
         <td class="c1 c"><span class="tog ${p.on ? 'on' : ''}"></span></td>
         <td class="b">${t.title}</td>
@@ -388,29 +556,34 @@ function routingRows() {
   }
   return out;
 }
-function routingPhoneList() {
+function routingPhoneList(caps) {
   let out = '';
   for (const [gk, gl] of GROUPS) {
+    const list = TYPES.filter((x) => x.group === gk);
+    if (!list.some((t) => needsMet(t.key, caps))) continue;
     out += `<div class="h3" style="margin-top:6px">${gl}</div>`;
-    for (const t of TYPES.filter((x) => x.group === gk)) {
+    for (const t of list) {
       const p = POL[t.key];
+      if (!needsMet(t.key, caps)) { out += `<div class="li dis"><div class="grow"><div class="t1">${t.title}</div><div class="t2">דורש חיישן: ${needsMissing(t.key, caps)}</div></div><span class="tog dis"></span></div>`; continue; }
       out += `<div class="li ${p.on ? '' : 'dis'}" onclick="go('set-routing-edit')"><div class="grow"><div class="t1">${t.title}</div><div class="t2">${p.rec.map((r) => ROLE[r]).join(' · ')}</div><div style="margin-top:6px">${chIcons(p)}</div></div><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">${sevChip(p.sev)}<span class="tog ${p.on ? 'on' : ''}"></span></div></div>`;
     }
   }
   return `<div class="list only-phone" style="flex-direction:column">${out}</div>`;
 }
-function detectionCard(kind) {
+function detectionCard(kind, caps) {
+  const n = caps ? caps.size : CAPS.full.length; const al = caps ? TYPES.filter((t) => needsMet(t.key, caps)).length : TYPES.length;
   if (kind === 'none') return `<div class="card"><div class="det"><div class="ic err">${ic('x')}</div><div><b>לא נמצא בקר גנרטור בתשתית המערכת</b><small>הזיהוי מחפש התקן של אינטגרציית הגנרטור (לפי מזהה האינטגרציה) ולחלופין התקן שיש לו ישויות מצב מנוע, שעות עבודה ומפלס דלק. נבדק לאחרונה: היום 09:30.</small></div><button class="btn">${ic('refresh')} בדיקה חוזרת</button></div></div>`;
-  return `<div class="card"><div class="det"><div class="ic">${ic('check')}</div><div><b>${GEN.name} · ${GEN.model}</b><small>זוהה אוטומטית בתשתית המערכת · 38 חיישנים, 14 התראות ממופות, 3 פקודות · עודכן לפני 4 שנ׳</small></div><div class="row"><button class="btn sm">מיפוי חיישנים</button><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div></div></div>`;
+  return `<div class="card"><div class="det"><div class="ic">${ic('check')}</div><div><b>${GEN.name} · ${GEN.model}</b><small>זוהה אוטומטית בתשתית המערכת · ${n} מתוך ${CAPS.full.length} ערכים, ${al} מתוך ${TYPES.length} סוגי התראה${caps && caps.has('mode') ? ', 3 פקודות' : ', ללא פקודות'} · עודכן לפני 4 שנ׳</small></div><div class="row"><button class="btn sm">מיפוי חיישנים</button><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div></div></div>`;
 }
 function routingScreen(o = {}) {
+  const caps = new Set(CAPS[o.caps || 'typical']);
   const body = `<div class="row"><span class="h2">גנרטור</span><div class="sp"></div><div class="seg2"><a class="on">ניתוב התראות</a><a>מיפוי חיישנים</a><a>מבחנים ותחזוקה</a><a>הרשאות</a></div></div>
-    ${detectionCard('ok')}
+    ${detectionCard('ok', caps)}
     <div class="notice">${ic('info')}<span>ניתוב ההתראות מוגדר כאן כבר עכשיו ונשמר. המסירה בפועל לכל ערוץ מתבצעת דרך מרכז ההתראות של המערכת: דחיפה, יישומון ודוא״ל פעילים; WhatsApp יתווסף כשהערוץ ייפתח במרכז ההתראות, בלי להגדיר מחדש.</span></div>
-    <div class="row"><span class="h3">ניתוב לפי סוג התראה</span><span class="mut">${TYPES.filter((t) => POL[t.key].on).length} מתוך ${TYPES.length} פעילים</span><div class="sp"></div>
+    <div class="row"><span class="h3">ניתוב לפי סוג התראה</span><span class="mut">${TYPES.filter((t) => needsMet(t.key, caps) && POL[t.key].on).length} פעילים · ${TYPES.filter((t) => !needsMet(t.key, caps)).length} ללא חיישן מתאים</span><div class="sp"></div>
       <div class="inp" style="min-height:34px">${ic('search')}<span class="ph">חיפוש סוג התראה</span></div><button class="btn sm">${ic('moon')} שעות שקט: 23:00-07:00</button><button class="btn sm">הסלמה: 5 דק׳ · 2 שלבים</button></div>
-    <div class="card flush hide-phone"><div class="scrollx"><table class="t routing"><thead><tr><th class="c">פעיל</th><th>התראה</th><th>חומרה</th><th>נמענים</th><th>ערוצים</th><th class="c">בשעות שקט</th><th class="c">הסלמה</th></tr></thead><tbody>${routingRows()}</tbody></table></div></div>
-    ${routingPhoneList()}
+    <div class="card flush hide-phone"><div class="scrollx"><table class="t routing"><thead><tr><th class="c">פעיל</th><th>התראה</th><th>חומרה</th><th>נמענים</th><th>ערוצים</th><th class="c">בשעות שקט</th><th class="c">הסלמה</th></tr></thead><tbody>${routingRows(caps)}</tbody></table></div></div>
+    ${routingPhoneList(caps)}
     <div class="row"><button class="btn pri">שמירה</button><button class="btn">שחזור ברירות המחדל</button><div class="sp"></div><span class="mut">נשמר לאחרונה: היום 08:12 · דנה</span></div>`;
   return shell(body, { area: 'system', overlay: o.overlay });
 }
@@ -455,19 +628,24 @@ function confirmTestOverlay() {
 
 /* ------------------------------------------------------------------ screens index */
 const SCREENS = {
-  'live': ['מצב חי: הגנרטור מזין את האתר (אובדן רשת)', () => liveScreen('run')],
-  'live-standby': ['מצב חי: במנוחה, האתר מוזן מהרשת', () => liveScreen('standby')],
-  'live-test': ['מצב חי: ריצת מבחן ללא עומס', () => liveScreen('test')],
-  'live-view': ['מצב חי: משתמש עם צפייה בלבד', () => liveScreen('run', { locked: true })],
-  'confirm-test': ['אישור ריצת מבחן', () => liveScreen('standby', { overlay: confirmTestOverlay() })],
+  'live': ['מצב חי · בקר טיפוסי (ללא דלק ושמן): הגנרטור מזין את האתר', () => liveScreen('run', { caps: 'typical' })],
+  'live-full': ['מצב חי · בקר מלא (כל החיישנים)', () => liveScreen('run', { caps: 'full' })],
+  'live-min': ['מצב חי · בקר מינימלי (מצב ומתח בלבד)', () => liveScreen('run', { caps: 'minimal' })],
+  'diagram': ['תרשים הזרימה: לפני / אחרי, יכולות, טלפון', diagramCompareScreen],
+  'live-standby': ['מצב חי: במנוחה, האתר מוזן מהרשת', () => liveScreen('standby', { caps: 'full' })],
+  'live-test': ['מצב חי: ריצת מבחן ללא עומס', () => liveScreen('test', { caps: 'full' })],
+  'live-view': ['מצב חי: משתמש עם צפייה בלבד', () => liveScreen('run', { locked: true, caps: 'full' })],
+  'confirm-test': ['אישור ריצת מבחן', () => liveScreen('standby', { overlay: confirmTestOverlay(), caps: 'full' })],
   'alerts': ['התראות פעילות', alertsScreen],
   'alerts-empty': ['התראות פעילות: ריק', alertsEmptyScreen],
   'history': ['היסטוריית התראות עם מסננים', () => historyScreen()],
   'alert': ['פרטי התראה ואישור', () => historyScreen({ sel: 2, overlay: alertDetailOverlay() })],
-  'set-routing': ['הגדרות › תשתיות › גנרטור: ניתוב התראות', () => routingScreen()],
+  'set-routing': ['הגדרות › תשתיות › גנרטור: ניתוב התראות (בקר טיפוסי)', () => routingScreen({ caps: 'typical' })],
+  'set-routing-full': ['ניתוב התראות: בקר מלא', () => routingScreen({ caps: 'full' })],
+  'set-routing-min': ['ניתוב התראות: בקר מינימלי', () => routingScreen({ caps: 'minimal' })],
   'set-routing-edit': ['עריכת ניתוב של סוג התראה', () => routingScreen({ overlay: routingEditOverlay() })],
   'not-found': ['לא נמצא גנרטור', notFoundScreen],
-  'unavail': ['זוהה אך אין תקשורת', () => liveScreen('unavail')],
+  'unavail': ['זוהה אך אין תקשורת', () => liveScreen('unavail', { caps: 'typical' })],
   'set-not-found': ['הגדרות: לא זוהה בקר', () => shell(`<div class="row"><span class="h2">גנרטור</span></div>${detectionCard('none')}<div class="card"><div class="empty"><div class="ic">${ic('bell')}</div><h3>ניתוב ההתראות יופיע אחרי הזיהוי</h3><div class="mut">ברירות המחדל נטענות אוטומטית לפי קטלוג ההתראות של הבקר</div></div></div>`, { area: 'system' })],
   'loading': ['טעינה', loadingScreen],
 };
