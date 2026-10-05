@@ -1,35 +1,211 @@
-# CR-011 — Second factor for Arx: remote sign-in and step-up for sensitive actions
+# CR-011 — Second factor for Arx: login policy, step-up for sensitive actions, passkeys (decision paper, revision 2)
 
-**Numbering:** registered as CR-011 on 2026-09-30. Task card: T095 (requirements R193-R195, acceptance tests
-AT193-AT195). T093 is claimed by both CR-009 and CR-010 on their branches, so T094 / R190-R192 / AT190-AT192 are left
-for whichever of the two is renumbered at merge.
+**Status:** Proposed - decision paper, no product code, no migration number committed. Board task K11 (2.5.0 area);
+requirements R193-R195 / task T095 / tests AT193-AT195 stay the registry anchors. Revision 2 (2026-10-06) refreshes
+revision 1 (2026-09-30) against what shipped since: the remote channel (CR-008), the alarm with personal PINs
+(CR-010), the mobile presence server with device tokens (CR-027) and the wall display decision (CR-030). Revision 1's
+verified facts about HA MFA, Android biometrics and WebAuthn are kept in Appendix A and the sources at the end.
 
-**Status:** Proposed - design record, no product code. Decisions for the owner in §9.
+**Related:** CR-008 (remote `/arx`, HA login on our own screen, `__Secure-arx_session`, `remote.idle_lock_minutes`),
+CR-010 (`alarm.remote_codeless`, personal PIN, `confirmed:true` on disarm), CR-027 (device registry, `arxd_` tokens),
+CR-030 (wall users = `kiosk` role), CR-012 (notifications), `docs/security/HA_IDENTITY_RBAC_HE.md`.
 
-**Related:** CR-008 (remote channel `/arx`, sign-in through HA's login flow, sessions, `remote.require_mfa_admin`,
-Android shell with an optional app lock), CR-010 (alarm; `alarm.remote_codeless`, default on, owner decision
-2026-09-29 21:50 "relies on the Android app's biometric lock and plans 2FA"), CR-012 (notifications in the Android app;
-option D here depends on it).
+## 1. How Arx authenticates today (code read on origin/main @ 486d4ea7)
 
-## 1. The request and the gap today
+| Channel | Credential | Proof of a person | Lifetime |
+|---|---|---|---|
+| Local, Ingress | HA session of the browser; HA proxy adds `X-Remote-User-*`, trusted only from `172.30.32.2` | HA login (password, + HA MFA if the user enabled it) once, by HA itself | HA's own (long) |
+| Remote `/arx` | Arx login screen walks HA's login flow (incl. `select_mfa_module`/`mfa`), exchanges the HA access token at `POST auth/session` for the opaque cookie `__Secure-arx_session` (HttpOnly, Secure, SameSite=Strict, Path=/arx/) | HA password (+ HA code if enrolled) at sign-in only | `remote.session` = `rolling_90d` default; `rolling_90d_idle_lock` with `remote.idle_lock_minutes` (default 720) is an optional idle lock; the server revalidates sessions against HA periodically and drops revoked users |
+| Remote API client | `Authorization: Bearer <HA access token>` (any token HA validates, including long-lived ones) | none beyond the token | token life |
+| Mobile app (CR-027) | the web view holds the session cookie; the app's own HTTP calls use a **device token** `arxd_...` (SHA-256 hashed server side, 64 KiB bodies, rate-limited) | the token proves "this registered install", not a person present | until the device is removed |
+| Wall / kiosk (CR-030) | an ordinary HA user bound to the `kiosk` role (`map.read`, `video.live`), signs in once on a tablet | none beyond the sign-in; cannot change anything | the remote session (90 days rolling) |
 
-The owner said a second factor is coming and relies on it for (a) remote sign-in and (b) sensitive actions from outside,
-above all disarming the alarm without a code (CR-010 `alarm.remote_codeless`, on by default).
+Patterns that already exist and can be reused:
 
-What protects a code-less remote disarm today:
+- **Per-action confirmation (not authentication):** disarm requires `confirmed: true` (`409 confirmation_required`);
+  HA actions are recorded in `ha_actions` and confirmed by observed state.
+- **Per-action secret:** the alarm code policy (`services/alarm_codes.py`, `routers/alarm.py`): personal PIN (scrypt hash,
+  AES-256-GCM key file for panel codes), 5 wrong codes in 5 min then a 10 min lockout, one unsettled typed attempt per
+  user and panel. `alarm.remote_codeless` (default on) lets a remote user disarm **without any code** - the gap this CR closes.
+- **Sensitive permissions** are already a category (`door.unlock`, `alarm.disarm`, `system.configure`, listed as
+  "sensitive, not implied" in `routers/access.py`), so a step-up gate can key on the permission, not on routes.
+- **Sessions:** `auth/sessions` list/revoke (own / all), "sign out everywhere", audit rows `auth.remote_session.*`.
+- **Refusal flag:** `remote.require_mfa_admin` (default off) checks that the HA *account* has MFA enabled, not that this
+  sign-in used it.
+- **Known gap (unchanged):** a long-lived HA access token never passes a login flow, so the remote bearer path bypasses
+  HA MFA entirely.
 
-| Layer | What it proves | Gap |
+## 2. Threat model per channel
+
+Threats: T1 stolen unlocked device with a live session; T2 stolen cookie/token (malware, copied profile, XSS on the
+shared origin); T3 phished password and a relayed code; T4 hostile network; T5 insider/second admin abusing recovery.
+
+| Channel | Realistic attackers | What a second factor must achieve | Verdict |
+|---|---|---|---|
+| Local Ingress | someone on the LAN with HA access; HA login already gates it | little new; physical presence assumed | no mandatory factor; optional step-up for destructive admin actions (off by default) |
+| Remote `/arx` (browser, PWA) | internet attackers: password stuffing, phishing (T3), cookie theft (T2) | a factor at sign-in for users with sensitive permissions, and a **fresh** proof at the sensitive action | main target of this CR |
+| Mobile app | thief with the unlocked phone (T1), malware (T2) | a proof bound to the phone's biometric, checked by the server | strongest value: device key + biometric |
+| Kiosk / wall tablet | passer-by touching a screen; theft of the tablet | **no** interactive factor possible or needed: the role cannot change anything; the risk is a stolen tablet keeping a 90-day session | exempt from step-up and sign-in factor; mitigate by the session list, one-click revoke, and the role holding no sensitive permission |
+
+Out of scope: Cloudflare Access (CR-008 D3), changing HA users or MFA configuration (Arx never does, AGENTS.md).
+The iOS and Android shells are Codex-built; the device-key contract (challenge string, signature format, key
+properties) is handed over as an addendum, this CR does not touch `mobile/`.
+
+## 3. Options
+
+Where each is verified is the key design axis: **HA** (HA's login flow; Arx only infers) or **Arx** (the add-on
+verifies a proof itself, no HA round trip).
+
+| Option | Verified by | Sign-in | Step-up | T1 phone | T2 cookie | T3 phishing | Enrolment | Recovery |
+|---|---|---|---|---|---|---|---|---|
+| A. HA-side MFA reuse + Arx policy (`remote.mfa_policy`, provenance check of the sign-in via `auth/refresh_tokens`, refuse long-lived tokens remotely) | HA | yes | only by a fresh HA sign-in (password + code), awkward | no | no | partial (TOTP relay) | in the HA profile, by the user | HA's only: an operator edits `auth_module.totp`; no recovery codes |
+| B. Arx TOTP | Arx | possible (duplicate of A) | yes (6 digits) | weak if the authenticator is on the same phone | yes | partial | QR in Arx, confirm one code | 10 single-use recovery codes; admin reset |
+| C. Passkeys / WebAuthn (rpId = Arx hostname, user verification required) | Arx | optional | yes (touch / Hello / phone QR) | depends on UV | yes | **yes** | register in Arx; remote hostname only (different rpId than Ingress) | second passkey, device key, or admin reset; in the Android WebView needs an `assetlinks.json` route and a recent WebView |
+| D. Trusted-device cookie ("remember this browser") | Arx | reduces prompts only | no | no | no (it is a cookie) | no | automatic after one proof | revoke in the device list |
+| E. Device key in the app (Keystore / Secure Enclave key, biometric-bound; the server stores the public key beside the CR-027 device) | Arx | in-app | **yes**, cryptographic proof of a fresh biometric | **yes** (biometric-only) | yes | yes in the app | at device registration; needs a fresh HA sign-in or an existing factor | revoke the device; re-register |
+| F. Push approval with number match | Arx + E | - | yes, from a desktop | biometric | yes | yes | needs E and CR-012 | as E |
+
+Honest notes:
+- **D is a convenience, not a factor.** It must never replace step-up for door unlock or disarm; it is useful only to
+  avoid re-entering HA's sign-in code for non-sensitive remote use.
+- **A alone does not close the owner's actual risk** (code-less disarm from a signed-in phone or browser): the code is
+  asked at sign-in, not at the action.
+- **B has the weakest unique value** once A and C/E exist; keep it only as a fallback for users with neither the app nor
+  a passkey-capable browser.
+- An HA-verified factor needs the user to enrol in HA; Arx cannot enrol or reset it.
+
+## 4. Step-up for sensitive actions
+
+A request needing step-up gets `403 step_up_required {methods}` unless the session holds a fresh proof; the UI opens a
+sheet, collects the proof, retries once. The proof lives on the Arx session (never on the HA token); default freshness
+5 minutes, `0` = every action.
+
+| Action | Default | Reason |
 |---|---|---|
-| HA password (+ HA MFA if the user enabled it) | the person knew the password (and the code) **once, at sign-in** | the sign-in lasts up to 90 days (`remote.session = rolling_90d`); nothing is re-asked at the action |
-| Arx session cookie | the request comes from that browser / app | a stolen cookie or an unlocked signed-in phone acts as the user |
-| Android app lock (`AppLock.kt`, `BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, no `CryptoObject`) | the phone unlocked the app **locally** | optional, off by default; the server never learns it happened; a browser or PWA session has no such lock |
+| Disarm alarm, zone bypass (CR-010) | step-up on remote; `alarm.remote_codeless` then means "no typed code **after** a step-up" | the stated risk |
+| Door / lock unlock (`door.unlock`) | step-up on remote | physical entry |
+| Camera / NVR writes (`nvr_write`, `nvr_batch`, `nvr_settings`) | step-up on remote | irreversible device changes |
+| User admin: roles, bindings, remote-access flag, revoking others' sessions, factor reset | step-up everywhere (local too) | privilege change |
+| `system.configure` settings, alarm codes / PINs, remote alarm settings | step-up on remote | |
+| Arming, live video, map, normal device control | none | usability |
 
-So the server cannot tell, at the moment of a disarm, that the legitimate user is present. Everything below is about
-closing that gap without making the alarm unusable.
+Proof methods per channel: app = device key + biometric (E); browser / PWA = passkey (C). Until C exists, browser / PWA
+alarm actions fall back to the existing **personal alarm PIN** (per-user, throttled) and other sensitive actions to a
+fresh HA sign-in; TOTP (B) only if built.
 
-## 2. Facts verified (2026-09-30)
+### Kiosk and wall exemptions
+The `kiosk` role holds none of the sensitive permissions (`test_kiosk_role.py` proves it cannot reach events, settings,
+exports, playback or HA control), so no step-up applies and no sign-in factor is demanded: the policy is "users holding a
+sensitive permission", and a kiosk user is outside it by construction. The wall tablet's exposure is a stolen tablet;
+the answer is the session list (revoke, audit) and, as an option, a **shorter maximum session age for kiosk users**
+(not a factor). A user holding both a kiosk binding and a sensitive role is flagged in settings as a misconfiguration.
 
-### 2.1 Home Assistant MFA
+## 5. Recovery and break-glass
+
+- **Lost phone:** the user or an administrator removes the device (revokes its key, its `arxd_` token, its sessions).
+- **Factor reset** (device keys, passkeys, Arx TOTP) by a `system.configure` administrator **from the local channel only**
+  by default, with a notice to the user and an audit row. A remote attacker with an admin cookie cannot reset factors (T5).
+- **Break-glass:** the owner account can always act through Ingress (HA login, no Arx factor). Deliberate: local is the
+  recovery path, which is why local must not get a mandatory factor that could lock everyone out.
+- **At least one factor must remain** before the last one can be removed; enrolling a *new* factor needs a fresh proof or
+  a fresh HA sign-in (otherwise a stolen cookie enrols the attacker's phone).
+- **HA's own TOTP** stays HA's: reset by file edit by an operator (Appendix A). Arx never touches it.
+- **Offline / HA down:** Arx-verified proofs (C, E, B) work without HA; HA-verified (A) do not. Remote sign-in needs HA anyway.
+
+## 6. Enrollment UX
+
+- Settings, "Security" (Hebrew UI rules, no HA branding outside settings): a short per-user list - passkeys, phone keys,
+  trusted browsers - each with name, created, last used, remove; one "Add" button.
+- The first sensitive action without a factor offers enrolment inline ("Set up in 30 seconds"), never a wall of text.
+- App: after device registration (CR-027) one prompt "Use fingerprint to confirm sensitive actions", on by default.
+- Administrators see who has no factor in the users screen and can set a per-user override of the policy.
+- No internal codes (CR-011, K11) are ever shown to users.
+
+## 7. Effect on the mobile app and the wall display
+
+- **Mobile app:** gains the device key (CR-027 registration is the natural enrolment point: same `device_id`, public key
+  stored beside the token) and a biometric sheet fed by the `window.ArxApp` bridge. The `arxd_` token does not prove a
+  person is present, so no sensitive endpoint may accept a device token alone (today it is limited to presence / push
+  routes; a test must keep it that way). The app lock stays for UX but is no longer the only protection.
+- **Wall display:** no change (exempt, section 4); its session stays revocable.
+
+## 8. Data model (no migration number committed)
+
+- `auth_factors`: id, user_id, kind (`passkey|device_key|totp`), label, public key or encrypted-secret reference,
+  credential_id, sign_count, device_id (nullable, the CR-027 device), created_at, last_used_at, disabled_at.
+- Step-up challenges: in the session store (user, session, action, nonce hash, 60 s expiry, used flag); persisted only if
+  replay protection across restarts is wanted.
+- Session record: `step_up_until`, `step_up_method` (never on the HA token).
+- `recovery_codes` (scrypt hashes) only if B or printable recovery is chosen.
+- Settings: `remote.mfa_policy` (`off|admins|sensitive|all`, replaces `remote.require_mfa_admin`),
+  `security.step_up_minutes` (0-30, default 5), `security.step_up_local` (default off),
+  `security.device_key_auth` (`biometric|biometric_or_screen_lock`), `security.factor_reset_channel` (`local|any`).
+  TOTP secrets, if built, reuse the `<data>/keys/` key-file pattern and stay out of backups.
+
+## 9. API (proposed)
+
+- `GET auth/factors` (own; admin for others), `DELETE auth/factors/{id}`.
+- `POST auth/factors/passkey/options|register`, `POST auth/factors/device-key` (public key, optional attestation).
+- `POST auth/step-up/challenge {action}` -> `{nonce, methods, expires_in}`; `POST auth/step-up/verify {method, proof}` ->
+  `{fresh_until}`.
+- Gated routes answer `403 step_up_required {methods, action}` with a Hebrew `user_message` and a stable code.
+- Audit: `auth.factor.enrolled|removed|reset`, `auth.step_up.ok|failed|locked` (method only, never values).
+- Lockout: 5 failures in 5 minutes, 15 minutes, per user and per address (the alarm-code shape).
+
+## 10. Tests
+
+Unit: challenge binding (user, session, action), expiry, replay, WebAuthn sign-count and origin / rpId checks, TOTP window
+and no-reuse (if B), policy resolution per permission set, kiosk user outside the policy. API: every gated route 403
+without proof and 200 with, device token rejected on every sensitive route, long-lived bearer refused for policy users,
+factor reset only from local, last-factor removal refused, audit rows free of secrets. UI / e2e (Playwright with a virtual
+authenticator): the sheet appears and retries once, the kiosk flow is unaffected. App: device-key signature
+verification with a canned vector; real biometric and WebView cases stay NOT_RUN until a device is available. The
+existing alarm, kiosk and remote suites must stay green.
+
+## 11. Phases, realistic effort, quota
+
+Agent-hours are wall-clock agent work including runner tests; revision 1's day figures were 5-10x too high.
+Weekly-quota percentages are rough planning numbers (a Sonnet-class agent about 1-2% of the weekly quota per
+agent-hour, a Fable-class review pass 3-5%); replace them with the live usage reading before launching.
+
+| Phase | Content | Agent-hours | Weekly quota |
+|---|---|---|---|
+| P1 | `remote.mfa_policy`, sign-in provenance check, refuse long-lived tokens for policy users, settings + users-screen UI | 1.5-2 | 2-4% |
+| P2 | Step-up framework: session fields, challenge / verify, gates on the section 4 routes, UI sheet, PIN fallback for alarm, audit, lockout, tests | 2.5-3.5 | 4-6% |
+| P3 | Device key: table, CR-027 registration tie-in, server signature verification, "My devices" list; handoff addendum for the app shells | 1.5-2 | 2-4% |
+| P4 | Passkeys for browsers / PWA (library vs own verification decided in the task), virtual-authenticator tests | 2-3 | 3-5% |
+| P5 | Android WebView passkeys (asset-links route in the tunnel provisioning), only if the app wants it | 1-1.5 | 2-3% |
+| P6 | Push approval (needs CR-012 and P3) | 1.5-2 | 2-4% |
+| optional | Arx TOTP + recovery codes | 1.5-2 | 2-4% |
+| optional | Key attestation verification | 1 | 1-2% |
+
+Recommended first release: P1 + P2 (about 4-5.5 h, 6-10%), which closes the code-less remote disarm risk for browsers
+through the PIN fallback and gates every sensitive route; P3 with the app next; P4 after.
+
+## 12. Recommendation
+
+1. **A + the step-up framework first:** `remote.mfa_policy = sensitive` by default; step-up for the section 4 list on the
+   remote channel; local unchanged; kiosk exempt.
+2. Then the **device key** (E) with the app biometric as the primary proof and **passkeys** (C) for browsers; keep the
+   **personal alarm PIN** as the interim browser proof for alarm actions only.
+3. **Do not build Arx TOTP** now. Do not treat the trusted-device cookie as a factor; if offered at all, only for
+   non-sensitive prompts and only after P2.
+4. Factor reset from the local channel only; the owner account keeps Ingress as break-glass.
+
+## 13. Decisions for the owner
+
+See `private/review/second-factor/SUMMARY_HE.md` (Hebrew, lettered options, recommendation marked): sign-in policy scope;
+which actions need step-up; freshness window; whether the app biometric key counts as the second factor; interim browser
+proof for remote disarm; passkeys now or later; Arx TOTP; trusted-device cookie; factor reset channel; kiosk exemption;
+push approval timing.
+
+---
+
+# Appendix A — Verified facts (revision 1, 2026-09-30, unchanged)
+
+## A.0 Facts verified (2026-09-30)
+
+### A.1 Home Assistant MFA
 
 - **Modules:** `totp` ("Authenticator app") and `notify` (a one-time code sent through a notify service, e.g. the
   Companion app). "If no `auth_mfa_modules` configuration section is defined … a TOTP module named Authenticator app
@@ -52,7 +228,7 @@ closing that gap without making the alarm unusable.
   per sign-in `id, client_id, client_name, type, created_at, last_used_at, last_used_ip, auth_provider_type, expire_at,
   is_current`. [HA-CORE-AUTH], [HA-CORE-COMP-AUTH]
 
-### 2.2 What Arx does today (code read on `g0/intake` @ 8b23749)
+### A.2 What Arx does today (code read on `g0/intake` @ 8b23749)
 
 - `frontend/src/arx/arx-login.ts` / `auth.ts` walk HA's login flow including `select_mfa_module` / `mfa`, with Hebrew
   texts for `invalid_code`, `too_many_retry`.
@@ -65,7 +241,7 @@ closing that gap without making the alarm unusable.
   a 0700 directory, atomic create, never in a project backup), scrypt hashes for PINs, 5 wrong codes in 5 min → 10 min
   lockout. Web Push's VAPID pair is in the `push_vapid` table instead (outside `settings`, but inside the database).
 
-### 2.3 Android and WebAuthn
+### A.3 Android and WebAuthn
 
 - **Keystore + biometric:** a Keystore key can be bound to user authentication (`setUserAuthenticationRequired`,
   `setInvalidatedByBiometricEnrollment`) and used through `BiometricPrompt.authenticate(info, CryptoObject)`. Crypto-bound
@@ -92,176 +268,8 @@ Assumptions (not verified): the Cloudflare edge terminates TLS for `/arx` (it is
 inside the transport trust boundary; a phone thief who watched the phone PIN can use anything gated by
 `DEVICE_CREDENTIAL`.
 
-## 3. Threats considered
 
-| # | Threat | Example |
-|---|---|---|
-| T1 | Stolen **unlocked** phone, Arx app or browser signed in | picked up from a table; phone PIN possibly shoulder-surfed |
-| T2 | Stolen **session cookie / tokens** | malware or an XSS on the shared origin reads `arx.auth.v1`; a copied browser profile |
-| T3 | **Phished password** (+ phished TOTP relayed in real time) | fake "Arx" page on a look-alike domain |
-| T4 | **Malicious network** | hostile Wi-Fi; TLS stays intact (HSTS via Cloudflare), so mainly T3-style redirection and metadata |
-| T5 | **Insider / second admin** abusing recovery | resets a user's factor to enrol their own |
-
-## 4. Options
-
-### A. Rely on HA's MFA, enforced by Arx policy for remote sign-in
-
-- **What Arx can verify:** not that *this* sign-in used MFA directly (no claim in the token), but a sound inference:
-  (1) `auth/current_user` shows an enabled MFA module; (2) `auth/refresh_tokens` shows the token's sign-in (`iss`) is
-  `type = normal`, `client_id` = this Arx address, `auth_provider_type = homeassistant`; (3) its `created_at` is later
-  than the first moment Arx saw MFA enabled for that user (recorded by Arx - HA does not expose when MFA was enabled; an
-  older sign-in may predate MFA). HA's code then guarantees the code was asked (§2.1).
-- **Policy:** replace the boolean `remote.require_mfa_admin` with `remote.mfa_policy = off | admins | sensitive | all`
-  plus a per-user override in משתמשים והרשאות. Long-lived tokens and other clients' sign-ins are refused on the
-  remote channel for users under the policy (closes the §2.2 gap). A user without MFA gets a clear refusal pointing to
-  the profile page (settings wording may name HA; elsewhere "תשתית המערכת", UI_COPY_RULES).
-- **Step-up variant (A-re):** for a sensitive action Arx can ask for a *fresh* HA sign-in (password + code) and accept
-  it only when the new sign-in's `created_at` is under 2 minutes old; Arx then revokes the extra refresh token.
-- **Security:** T3 partly (a relayed TOTP is still phishable); T1/T2 not at all for sign-in-only; A-re covers T1/T2
-  but costs a password and a code per action.
-- **UX:** users enrol in the HA profile (a screen outside Arx); code entry at every sign-in. Desktop and phone alike.
-- **Installer:** nothing (TOTP is auto-loaded); explain enrolment to users.
-- **Recovery / offline:** HA's only (file edit by an operator, §2.1). No recovery codes.
-- **Effort:** policy + provenance check + LLAT refusal + UI + tests **1.5-2 d**; A-re **+1.5 d**. Depends on nothing.
-
-### B. Arx's own TOTP
-
-- Enrolment in Arx (QR rendered in the page, confirm one code), secret encrypted with AES-256-GCM under
-  `<data>/keys/second-factor.key` (the `alarm_codes.py` key-file pattern; associated data = user id), 10 single-use
-  recovery codes stored as scrypt hashes, last accepted time step stored (no replay), 5 wrong codes in 5 min → 15 min
-  lockout per user and per address, audit without values; administrator reset.
-- **Security:** same phishing weakness as any TOTP (T3 real-time relay); on T1 weak when the authenticator app is on
-  the same unlocked phone; good against T2 for step-up.
-- **UX:** works in every browser, PWA and the app; typing 6 digits per step-up. Recovery codes are Arx's advantage over HA.
-- **Installer:** nothing. **Effort:** **4-5 d** (QR, crypto, recovery, lockout, UI, tests). Duplicates HA's TOTP for
-  sign-in; its only unique value is step-up in browsers without passkeys, plus recovery codes.
-
-### C. WebAuthn / passkeys
-
-- Registration and assertion in Arx (`rpId` = the Arx hostname), `userVerification: "required"`, challenge bound
-  server-side to user + session + action; public keys only on the server.
-- **Security:** phishing-resistant (the browser binds the assertion to the origin) - the only option here that stops
-  T3; T2 covered for step-up; T1 depends on the phone's user verification (biometric or phone PIN). Synced passkeys are
-  not tied to one device.
-- **UX:** one touch of the fingerprint / Windows Hello / phone-as-authenticator (QR) on desktop. Browsers and installed
-  PWA: works on the Arx hostname. **Inside our Android WebView:** needs `setWebAuthenticationSupport(...FOR_APP)`, a
-  WebView new enough (runtime check; fall back otherwise), and `assetlinks.json` at
-  `https://<customer>.<arx-domain>/.well-known/assetlinks.json` - the root path goes to HA today, so each site needs an
-  extra tunnel route for that one path to the Arx add-on (the provisioning script, CR-008 D14, can add it).
-- A passkey made on the remote hostname does not work on the Ingress (local) hostname - a different `rpId`. Step-up is
-  a remote-channel feature by default, so this is acceptable.
-- **Installer:** the extra tunnel route (app case only). **Effort:** browsers + PWA **4-5 d**; Android WebView
-  **+2 d** (WebView setting, asset links route, fallback). Library choice (`webauthn` package vs own verification with
-  `cryptography`) decided in the task.
-
-### D. Push approval in the Android app
-
-- "Approve disarm on your phone?" with a number to match, approved with the biometric-bound device key of E; useful
-  when acting from a desktop.
-- **Security:** resists T2 (the attacker's desktop cannot approve); push fatigue is countered by number matching and
-  rate limits. **Depends on CR-012** (a way to wake the app) and on E's device key. **Effort:** **3 d** after both.
-
-### E. Step-up for sensitive actions (recommended core)
-
-A sensitive action is served only when the session holds a **fresh second-factor proof** (default: within 5 minutes,
-per session; setting `security.step_up_minutes`, 0 = every action).
-
-- **Sensitive actions (proposed default):** disarm and zone bypass (CR-010), door / lock unlock (CR-005 / CR-007),
-  alarm codes, PINs and remote alarm settings, user roles and the remote-access flag, `system.configure` settings,
-  revoking other users' sessions, second-factor reset. Arming stays one tap.
-- **Server:** `POST auth/step-up/challenge {action}` → a 32-byte nonce, 60 s, bound to user, session and action;
-  `POST auth/step-up/verify` with the proof → a step-up mark on the session (never on the HA token); a refused
-  sensitive call answers `403 step_up_required {methods}` and the UI opens the step-up sheet, then retries once. Audit
-  `auth.step_up.ok / .failed / .locked` with the method. Lockout as in B. Remote channel by default;
-  `security.step_up_local` (default off) extends it to Ingress.
-- **Proof methods:** (1) **Android device key** (below), (2) passkey (C), (3) Arx TOTP (B) if built, (4) HA re-sign-in
-  (A-re), (5) push approval (D). Until C exists, a browser / PWA session without a device key falls back to **the
-  personal alarm PIN of CR-010** for alarm actions (it is already a per-user secret with lockout) - proposed in §9 Q6.
-- **Android device key:** at enrolment the app creates an EC P-256 signing key in the Keystore
-  (`setUserAuthenticationRequired(true)`, per-use authentication, `setInvalidatedByBiometricEnrollment(true)`, StrongBox
-  when present), sends the public key (and optionally the attestation chain) to the server, which stores it per user
-  and device. A step-up is `BiometricPrompt` with a `CryptoObject(Signature)` over `arx-step-up|v1|<origin>|<user>|
-  <action>|<nonce>`; the server verifies the signature with the stored key. This is a **real cryptographic proof** that
-  the enrolled phone's user just passed a Class 3 biometric (or, if the owner allows, the phone's screen lock on API 30+).
-  The page asks the app through the existing `window.ArxApp` bridge (origin-limited `addWebMessageListener`); the app
-  shows the action text in the prompt. **Enrolment** of a device key itself requires a fresh HA sign-in (A-re) or an
-  existing factor, is announced to the user's other devices and audited - otherwise a stolen cookie (T2) could enrol the
-  attacker's phone. The same key can serve as the **sign-in second factor inside the app** (password + key).
-- **Security:** T1 covered when biometric-only (a known phone PIN does not unlock a `BIOMETRIC_STRONG`-only key, and a
-  new fingerprint invalidates it); T2 covered (the cookie alone cannot sign); T3 covered in the app (the app signs only
-  for stored servers' origins, the origin is inside the signed string); T4 no effect beyond TLS.
-- **Effort:** step-up framework (server + UI sheet + gates on the listed routes + tests) **3 d**; device registration
-  (table, enrolment rules, list / revoke in "המכשירים שלי", shared with CR-012) **2 d**; Android key + prompt + bridge
-  **2 d**; attestation verification (optional) **+2 d**.
-
-### Summary
-
-| | Sign-in 2FA | Step-up | Phishing (T3) | Stolen cookie (T2) | Unlocked phone (T1) | Effort |
-|---|---|---|---|---|---|---|
-| A HA MFA + policy | yes | A-re only (password + code) | partial | no (A-re: yes) | no (A-re: partial) | 1.5-2 d (+1.5) |
-| B Arx TOTP | duplicate of A | yes | partial | yes | weak | 4-5 d |
-| C Passkeys | possible | yes | **yes** | yes | depends on UV | 4-5 d (+2 app) |
-| D Push approval | - | yes | yes | yes | biometric | 3 d, after CR-012 + E |
-| E + device key | in the app | **yes** | yes (app) | yes | **yes** (biometric-only) | 7 d (+2 attestation) |
-
-## 5. Recovery and administration
-
-- **Lost phone:** the user or an administrator revokes the device key ("המכשירים שלי" / the user drawer); the HA
-  sign-ins of that phone are revoked with the existing "sign out everywhere".
-- **Reset of a user's factors** (device keys, passkeys, Arx TOTP) by a `system.configure` administrator, **only from
-  the local channel (Ingress)** by default - a remote attacker holding an admin's cookie cannot reset factors (T5
-  mitigated by audit + a notice to the user). HA's own TOTP stays HA's (file procedure, §2.1).
-- **Offline:** proofs are verified by the add-on itself; nothing needs the internet except the optional attestation
-  revocation list. With HA down, sign-in is impossible anyway (CR-008).
-- **Lockout protection:** at least one factor must remain; the owner account can always act through Ingress.
-
-## 6. Recommended plan
-
-| Phase | Content | Effort |
-|---|---|---|
-| 1 | A: `remote.mfa_policy` + sign-in provenance + long-lived-token refusal on the remote channel. E: step-up framework, device registration, Android biometric device key; browser / PWA fallback for alarm actions = the personal PIN; `alarm.remote_codeless` then means "no code **after a device-key step-up**" | ≈ 8-9 d |
-| 2 | C: passkeys for browsers and the PWA (desktop step-up by phone QR or Windows Hello); then in the Android WebView with the asset-links route | ≈ 6-7 d |
-| 3 | D: push approval, after CR-012 | ≈ 3 d |
-| optional | B Arx TOTP (only if some users have neither the app nor passkeys); key attestation | 4-5 d; 2 d |
-
-Why this order: the owner's risk is the code-less remote disarm; phase 1 turns the app's local lock into a server-checked
-proof on the device he already uses and closes the long-lived-token bypass, without asking users to learn a new
-authenticator. Passkeys follow for everything outside the app.
-
-## 7. Settings (proposed)
-
-| Key | Values | Default |
-|---|---|---|
-| `remote.mfa_policy` | `off` \| `admins` \| `sensitive` \| `all` (+ per-user override) | `sensitive` (replaces `remote.require_mfa_admin`) |
-| `security.step_up_minutes` | 0-30 | 5 |
-| `security.step_up_local` | bool | false |
-| `security.device_key_auth` | `biometric` \| `biometric_or_screen_lock` | `biometric` |
-| `security.factor_reset_channel` | `local` \| `any` | `local` |
-
-## 8. Out of scope
-
-Changing HA users, groups or MFA configuration (Arx never does, AGENTS.md); Cloudflare Access (CR-008 D3, unchanged);
-iOS app.
-
-## 9. Decisions for the owner
-
-1. Second factor at remote sign-in: (a) only users with administrative permissions; (b) users with any sensitive
-   permission (admin, disarm, door unlock) [recommended]; (c) every remote user; (d) optional, as today.
-2. In the Android app, may password + the phone's fingerprint-bound device key count as the second factor at sign-in
-   (instead of the HA code)? (a) yes [recommended]; (b) no, the HA code always.
-3. Which actions need a fresh second factor: (a) disarm and bypass only; (b) plus door unlock and alarm codes / settings;
-   (c) plus all settings and user management [recommended].
-4. How fresh: (a) every action; (b) 5 minutes [recommended]; (c) 15 minutes.
-5. In the app, the proof accepts: (a) fingerprint / face only [recommended]; (b) also the phone's PIN / pattern.
-6. From a browser / PWA without a device key, until passkeys exist, a remote disarm: (a) asks for the personal alarm
-   PIN [recommended]; (b) is refused; (c) works without a code, as today.
-7. Passkeys (phase 2): (a) browsers and PWA, then the app [recommended]; (b) browsers only; (c) not now.
-8. Arx's own TOTP: (a) not built, HA's code is used at sign-in [recommended]; (b) build it.
-9. Reset of a user's factors: (a) by an administrator from the local network only [recommended]; (b) from anywhere
-   with his own step-up; (c) plus printable recovery codes per user.
-10. Hardware attestation of the phone key: (a) not now [recommended]; (b) yes (the add-on fetches Google's revocation
-    list).
-11. Push approval on the phone: (a) after CR-012 [recommended]; (b) not needed.
+---
 
 ## Sources (read 2026-09-30)
 
