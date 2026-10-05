@@ -153,7 +153,10 @@ def test_120_mib_of_media_passes_the_relay_intact_and_bounded(big):
         with Database(s.db_path).connection(mode="read") as conn:
             stop = conn.execute("SELECT details_json FROM audit_log WHERE action = 'video.live.stop' ORDER BY rowid DESC LIMIT 1").fetchone()
         time.sleep(0.1)
-    assert stop is not None
+    if stop is None:
+        with Database(s.db_path).connection(mode="read") as conn:
+            seen = [r[0] for r in conn.execute("SELECT action FROM audit_log ORDER BY rowid").fetchall()]
+        raise AssertionError(f"no video.live.stop row; audit actions: {seen}")
     details = json.loads(stop["details_json"])
     assert details["bytes_down"] >= total
     assert not media.REGISTRY.sessions, "the session left the budget"
