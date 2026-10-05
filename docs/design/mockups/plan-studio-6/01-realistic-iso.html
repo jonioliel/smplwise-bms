@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan Studio 6 — mockup 1: realistic isometric (quality level 3)</title>
+<style>
+  :root {
+    --bg: #f3f5f8; --surface: #ffffff; --surface-3: #e9edf3; --border: #d7dde6; --border-strong: #b9c3d1;
+    --text: #15202b; --text-2: #4e5a68; --accent: #1f6fd0; --accent-text: #0f4fa0; --danger: #d23b3b;
+    --lit: #ffb84d; --presence: #3b7ddd; --temp: #0f4fa0; --sky: #bcd7f5; --sky-h: #eef4fb;
+    --r: 10px; --fs: 13px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: var(--fs)/1.4 "Segoe UI", Arial, sans-serif; color: var(--text); background: var(--bg); }
+  .shell { display: grid; grid-template-rows: 48px 1fr; min-height: 100vh; }
+  header { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  header .brand { font-weight: 700; color: var(--accent-text); }
+  header .crumbs { color: var(--text-2); }
+  header .modes { margin-inline-start: auto; display: flex; gap: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; }
+  .chip.sel { border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 1px var(--accent); }
+  .chip.new { border-style: dashed; }
+  main { display: grid; grid-template-columns: 1fr 300px; gap: 12px; padding: 12px 16px; }
+  .stage { position: relative; border-radius: var(--r); overflow: hidden; border: 1px solid var(--border); min-height: 640px;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-h) 100%); }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .bar { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .bar .sep { width: 1px; height: 18px; background: var(--border-strong); }
+  .strip { position: absolute; right: 12px; bottom: 60px; display: flex; flex-direction: column; gap: 6px; }
+  .strip button { width: 96px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 12px; color: var(--text-2); text-align: center; }
+  .strip button.sel { border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 1px var(--accent); }
+  .strip .pic { display: block; height: 55px; border-radius: 4px; background: linear-gradient(135deg, #cfd8e3, #a9b6c6); position: relative; margin-bottom: 2px; }
+  .dots { position: absolute; top: 3px; right: 3px; display: flex; gap: 3px; }
+  .dots i { display: block; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1.5px #fff; }
+  .sun { position: absolute; left: 12px; top: 12px; width: 300px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .sun .row { display: flex; align-items: center; gap: 8px; }
+  .sun input[type=range] { flex: 1; accent-color: var(--accent); }
+  .sun .t { font-weight: 600; min-width: 44px; text-align: center; }
+  .sun small { color: var(--text-2); }
+  .note { position: absolute; left: 12px; bottom: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 12px; color: var(--text-2); }
+  .chipT { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; font-size: 12px; font-weight: 600; color: var(--temp); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  aside { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 13px; }
+  .card .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 12px; }
+  .card .kv b { color: var(--text-2); font-weight: 500; }
+  .mat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .mat div { height: 34px; border-radius: 6px; border: 1px solid var(--border); position: relative; }
+  .mat div.sel { box-shadow: 0 0 0 2px var(--accent); }
+  .mat div span { position: absolute; inset-inline: 0; bottom: 0; font-size: 10px; text-align: center; background: rgba(255,255,255,.75); border-radius: 0 0 6px 6px; }
+  .caption { font-size: 12px; color: var(--text-2); padding: 0 16px 16px; }
+  .ladder { display: flex; gap: 6px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .ladder span { padding: 2px 8px; border-radius: 999px; background: var(--surface-3); }
+  .ladder span.on { background: #dcebff; color: var(--accent-text); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="brand">SmplWise Arx</span>
+    <span class="crumbs">חקירה › מתקן ראשי › קומה 0 › <b>תוכנית</b></span>
+    <div class="modes"><span class="chip">2D</span><span class="chip sel">3D</span><span class="chip">היסטוריה</span></div>
+  </header>
+  <main>
+    <section class="stage" aria-label="3D realistic">
+      <!-- isometric floor: the same geometry Plan Studio has, drawn here as a static SVG stand-in for level 3 -->
+      <svg viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="oak" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#d9b98a"/><stop offset=".5" stop-color="#c9a471"/><stop offset="1" stop-color="#b8905c"/></linearGradient>
+          <linearGradient id="conc" x1="0" x2="1"><stop offset="0" stop-color="#c9ccd1"/><stop offset="1" stop-color="#aeb3ba"/></linearGradient>
+          <linearGradient id="tile" x1="0" x2="1"><stop offset="0" stop-color="#e7eaee"/><stop offset="1" stop-color="#cfd4da"/></linearGradient>
+          <linearGradient id="wallL" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f4f1ea"/><stop offset="1" stop-color="#d8d3c8"/></linearGradient>
+          <linearGradient id="wallR" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#e6e2d9"/><stop offset="1" stop-color="#bdb7aa"/></linearGradient>
+          <linearGradient id="litRoom" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ffd27a" stop-opacity=".55"/><stop offset="1" stop-color="#ffb84d" stop-opacity=".25"/></linearGradient>
+          <radialGradient id="lampGlow" r=".5"><stop offset="0" stop-color="#fff2c4" stop-opacity=".95"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
+          <pattern id="wood" width="14" height="6" patternUnits="userSpaceOnUse" patternTransform="skewX(-30) rotate(-30)"><rect width="14" height="6" fill="url(#oak)"/><line x1="0" y1="5.5" x2="14" y2="5.5" stroke="#9c7a4c" stroke-width=".6"/></pattern>
+          <pattern id="tiles" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="matrix(.866 .5 -.866 .5 0 0)"><rect width="12" height="12" fill="url(#tile)"/><path d="M0 0H12V12" fill="none" stroke="#b7bec8" stroke-width=".7"/></pattern>
+          <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter>
+          <filter id="shadow" x="-20%" y="-20%" width="150%" height="150%"><feGaussianBlur stdDeviation="4"/></filter>
+        </defs>
+        <!-- ground shadow of the whole floor plate (sun from the west, 15:40) -->
+        <polygon points="520,610 950,380 560,150 140,380" fill="#1a2a44" opacity=".18" filter="url(#soft)"/>
+        <!-- floor plate -->
+        <polygon points="500,600 920,370 540,150 120,380" fill="url(#conc)"/>
+        <!-- room floors (materials): oak office, tiles corridor, sport parquet hall -->
+        <polygon points="330,485 560,360 400,275 170,395" fill="url(#wood)"/>
+        <polygon points="560,360 700,285 540,195 400,275" fill="url(#tiles)"/>
+        <polygon points="500,585 900,365 700,285 560,360 330,485" fill="url(#oak)" opacity=".85"/>
+        <!-- lit room: the warm plate + lamp glows (state layer at level 3: emissive lamps that light the room) -->
+        <polygon points="330,485 560,360 400,275 170,395" fill="url(#litRoom)"/>
+        <ellipse cx="365" cy="380" rx="70" ry="38" fill="url(#lampGlow)"/>
+        <ellipse cx="445" cy="340" rx="70" ry="38" fill="url(#lampGlow)"/>
+        <!-- presence ring (blue, fading) in the corridor -->
+        <polygon points="575,355 690,290 545,205 420,275" fill="none" stroke="#3b7ddd" stroke-width="5" opacity=".55"/>
+        <!-- cutaway walls: low on the camera side, full on the far side; left faces lighter (sun) -->
+        <g>
+          <!-- far walls (full height 2.8 m) -->
+          <polygon points="120,380 540,150 540,100 120,330" fill="url(#wallL)" stroke="#9a9488" stroke-width=".6"/>
+          <polygon points="540,150 920,370 920,320 540,100" fill="url(#wallR)" stroke="#9a9488" stroke-width=".6"/>
+          <!-- windows on the far wall with glass + daylight -->
+          <polygon points="210,310 300,262 300,236 210,284" fill="#bfe0ff" opacity=".8" stroke="#7fa6cc"/>
+          <polygon points="340,240 430,192 430,166 340,214" fill="#bfe0ff" opacity=".8" stroke="#7fa6cc"/>
+          <polygon points="620,196 700,240 700,214 620,170" fill="#bfe0ff" opacity=".8" stroke="#7fa6cc"/>
+          <!-- daylight patches on the floor from the windows -->
+          <polygon points="250,330 330,290 300,275 220,312" fill="#fff6d9" opacity=".45" filter="url(#shadow)"/>
+          <polygon points="380,262 460,222 430,205 350,245" fill="#fff6d9" opacity=".45" filter="url(#shadow)"/>
+          <!-- interior partition (full) between office and hall -->
+          <polygon points="330,485 560,360 560,318 330,443" fill="url(#wallR)" stroke="#9a9488" stroke-width=".6"/>
+          <polygon points="400,275 560,360 560,318 400,233" fill="url(#wallL)" stroke="#9a9488" stroke-width=".6" opacity=".95"/>
+          <!-- open door in the partition, leaf at 80°, red frame marker -->
+          <polygon points="470,409 500,393 500,351 470,367" fill="#3a2d22" opacity=".15"/>
+          <polyline points="470,409 500,393 500,351 470,367" fill="none" stroke="#d23b3b" stroke-width="3"/>
+          <polygon points="470,409 455,432 455,392 470,367" fill="#8b5a2b"/>
+          <!-- cutaway near walls (0.7 m) -->
+          <polygon points="120,380 500,600 500,585 120,365" fill="#8e8779"/>
+          <polygon points="500,600 920,370 920,355 500,585" fill="#7f786b"/>
+        </g>
+        <!-- furniture (procedural boxes with materials) -->
+        <g>
+          <polygon points="250,400 300,373 330,390 280,417" fill="#d8c3a0"/><polygon points="280,417 330,390 330,404 280,431" fill="#b59a74"/><polygon points="250,400 280,417 280,431 250,414" fill="#c4a983"/>
+          <polygon points="360,415 410,388 440,405 390,432" fill="#d8c3a0"/><polygon points="390,432 440,405 440,419 390,446" fill="#b59a74"/><polygon points="360,415 390,432 390,446 360,429" fill="#c4a983"/>
+          <!-- chairs (instanced) -->
+          <g fill="#3b4652"><polygon points="300,430 316,421 324,426 308,435"/><polygon points="335,448 351,439 359,444 343,453"/><polygon points="232,418 248,409 256,414 240,423"/><polygon points="420,440 436,431 444,436 428,445"/></g>
+          <!-- hall: goal + mat -->
+          <polygon points="620,470 740,405 760,416 640,481" fill="#ffffff" opacity=".9" stroke="#7a8794"/>
+          <polygon points="700,520 780,476 820,498 740,542" fill="#2f6fcb" opacity=".8"/>
+        </g>
+        <!-- cameras + cones stopped by walls -->
+        <g>
+          <polygon points="150,345 300,330 330,420" fill="#1f6fd0" opacity=".14"/>
+          <circle cx="150" cy="345" r="5" fill="#1f6fd0"/>
+          <polygon points="905,352 730,330 700,420" fill="#1f6fd0" opacity=".14"/>
+          <circle cx="905" cy="352" r="5" fill="#1f6fd0"/>
+        </g>
+        <!-- lamps -->
+        <g><circle cx="365" cy="380" r="4" fill="#ffd27a"/><circle cx="445" cy="340" r="4" fill="#ffd27a"/><circle cx="780" cy="400" r="4" fill="#8e97a3"/></g>
+        <!-- sun disc -->
+        <circle cx="60" cy="70" r="16" fill="#fff0b3" filter="url(#soft)"/>
+      </svg>
+      <!-- the time of day card (S2) -->
+      <div class="sun" dir="rtl">
+        <div class="row"><b>שעה ביום</b><span class="t">15:40</span><input type="range" min="0" max="1439" value="940" aria-label="שעה ביום"><span class="chip sel">עכשיו</span></div>
+        <small>שמש ממערב · 5 באוקטובר · צפון התוכנית 12°</small>
+      </div>
+      <span class="chipT" style="left:430px; top:300px">22.5°</span>
+      <span class="chipT" style="left:610px; top:245px">24.1°</span>
+      <div class="strip">
+        <button class="sel"><span class="pic"><span class="dots"><i style="background:var(--lit)"></i><i style="background:var(--presence)"></i><i style="background:var(--danger)"></i></span></span>קרקע</button>
+        <button><span class="pic"></span>גלריה</button>
+      </div>
+      <div class="bar">
+        <span class="chip">מלמעלה</span><span class="chip sel">איזומטרי</span><span class="chip">פרספקטיבה</span><span class="chip">מבט מהמצלמה…</span>
+        <span class="sep"></span>
+        <span class="chip">סכמטי</span><span class="chip">מלא</span><span class="chip sel new" title="רמה 3: חומרים, שמש לפי שעה, מנורות מאירות">ריאליסטי</span><span class="chip">לילה</span>
+        <span class="sep"></span>
+        <span class="chip new">🚶 סיור</span><span class="chip">ייצוא glTF</span>
+      </div>
+      <div class="note">רמה 3 · 58 fps · טקסטורות 1.1 MB · אפייה: אין (מומלץ להכין)</div>
+    </section>
+    <aside>
+      <div class="card">
+        <h3>משרד 2 · חדר נבחר</h3>
+        <div class="kv"><b>רצפה</b><span>פרקט אלון</span><b>קירות</b><span>טיח לבן</span><b>תקרה</b><span>3.0 מ׳ · מוצגת</span><b>תאורה</b><span>2 מנורות · דולקות · 3000K</span><b>נוכחות</b><span>לפני 40 ש׳</span></div>
+      </div>
+      <div class="card">
+        <h3>חומר הרצפה (עורך · map.edit)</h3>
+        <div class="mat">
+          <div class="sel" style="background:url(#) , linear-gradient(135deg,#d9b98a,#b8905c)"><span>אלון</span></div>
+          <div style="background:linear-gradient(135deg,#c9ccd1,#aeb3ba)"><span>בטון</span></div>
+          <div style="background:linear-gradient(135deg,#e7eaee,#cfd4da)"><span>אריחים</span></div>
+          <div style="background:linear-gradient(135deg,#8f9aa6,#6c7782)"><span>שטיח</span></div>
+          <div style="background:linear-gradient(135deg,#e2b27a,#c48f55)"><span>פרקט ספורט</span></div>
+          <div style="background:linear-gradient(135deg,#5a5f66,#3e434a)"><span>אספלט</span></div>
+          <div style="background:linear-gradient(135deg,#7fb36a,#5b8f4b)"><span>דשא</span></div>
+          <div style="background:linear-gradient(135deg,#f3eee4,#d8d1c2)"><span>טיח</span></div>
+        </div>
+        <p style="margin:8px 0 0; font-size:12px; color:var(--text-2)">ספרייה מובנית, CC0 בלבד · ריצוף במטרים (אריח 0.6 מ׳)</p>
+      </div>
+      <div class="card">
+        <h3>סולם הירידה ברמה (אוטומטי)</h3>
+        <div class="ladder"><span class="on">ריאליסטי</span>→<span>מלא</span>→<span>סכמטי</span>→<span>תמונות מוכנות</span>→<span>2D</span></div>
+        <p style="margin:8px 0 0; font-size:12px; color:var(--text-2)">נמדד ב־2.5 השניות הראשונות; מתחת ל־30 fps יורדים שלב ונשארים שם למשך ההפעלה.</p>
+      </div>
+    </aside>
+  </main>
+  <p class="caption">Mockup 1 of 3 — CR-029 §3.1 / §3.3: quality level 3 on the existing floor map. Static SVG stand-in for the three.js scene: materials by room, sun by hour (west, 15:40), window daylight, emissive lamps lighting the lit room, presence ring, open-door marker, camera cones stopped by walls, cutaway near walls, the floor strip with state dots, the new "ריאליסטי" and "סיור" chips. Not a build screenshot.</p>
+</div>
+</body>
+</html>

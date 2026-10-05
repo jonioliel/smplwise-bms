@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan Studio 6 — mockup 3: stills + masks (kiosk / weak-device fallback) and the bake card</title>
+<style>
+  :root {
+    --bg: #f3f5f8; --surface: #ffffff; --surface-3: #e9edf3; --border: #d7dde6; --border-strong: #b9c3d1;
+    --text: #15202b; --text-2: #4e5a68; --accent: #1f6fd0; --accent-text: #0f4fa0; --danger: #d23b3b;
+    --lit: #ffb84d; --presence: #3b7ddd; --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.4 "Segoe UI", Arial, sans-serif; color: var(--text); background: var(--bg); }
+  .wrap { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px; align-items: start; }
+  h2 { font-size: 14px; margin: 0 0 8px; color: var(--text-2); font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; }
+  .chip.sel { border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 1px var(--accent); }
+  .kiosk { position: relative; height: 560px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: linear-gradient(180deg, #060b18 0%, #152442 100%); }
+  .kiosk svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .badge { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,.9); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--text-2); }
+  .bar { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; }
+  .bar .chip { background: rgba(15,23,41,.85); color: #dfe7f5; border-color: #3a4a6b; }
+  .clock { position: absolute; left: 12px; bottom: 12px; color: #dfe7f5; font-size: 28px; font-weight: 300; letter-spacing: 1px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid div { height: 44px; border-radius: 6px; background: linear-gradient(135deg, #cfd8e3, #a9b6c6); position: relative; font-size: 10px; color: #233; }
+  .grid div span { position: absolute; inset-inline: 0; bottom: 0; background: rgba(255,255,255,.8); text-align: center; border-radius: 0 0 6px 6px; }
+  .grid div.night { background: linear-gradient(135deg, #1b2a4a, #0d1424); color: #cfd8e3; }
+  .grid div.night span { background: rgba(15,23,41,.8); color: #dfe7f5; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+  .kv b { color: var(--text-2); font-weight: 500; }
+  .btn { display: inline-block; padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 600; font-size: 12px; }
+  .btn.ghost { background: var(--surface); color: var(--accent-text); border: 1px solid var(--border-strong); }
+  .prog { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; margin: 6px 0; }
+  .prog i { display: block; height: 100%; width: 62%; background: var(--accent); }
+  .lov { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .lov .hd { padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+  .lov .pic { position: relative; height: 180px; background: linear-gradient(180deg, #bcd7f5, #eef4fb); }
+  .lov .pic svg { width: 100%; height: 100%; }
+  .caption { font-size: 12px; color: var(--text-2); padding: 0 16px 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h2>טאבלט־קיר (קיוסק) אחרי 10 דקות ללא שינוי — תמונה מוכנה של המבט הנוכחי + מסכות לחדרים הדלוקים; אפס פריימים</h2>
+    <div class="kiosk">
+      <svg viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="plate" x1="0" x2="1"><stop offset="0" stop-color="#3b4a63"/><stop offset="1" stop-color="#26324a"/></linearGradient>
+          <linearGradient id="wallN" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6b7892"/><stop offset="1" stop-color="#3c4760"/></linearGradient>
+          <radialGradient id="roomOn" r=".6"><stop offset="0" stop-color="#ffe3a3" stop-opacity=".95"/><stop offset="1" stop-color="#ffb84d" stop-opacity=".35"/></radialGradient>
+          <clipPath id="maskOffice"><polygon points="330,445 560,320 400,235 170,355"/></clipPath>
+          <clipPath id="maskHall"><polygon points="500,545 900,325 700,245 560,320 330,445"/></clipPath>
+          <filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>
+        </defs>
+        <!-- S_night_off: the base still -->
+        <polygon points="520,570 950,340 560,110 140,340" fill="#000" opacity=".4" filter="url(#blur)"/>
+        <polygon points="500,560 920,330 540,110 120,340" fill="url(#plate)"/>
+        <polygon points="120,340 540,110 540,60 120,290" fill="url(#wallN)"/>
+        <polygon points="540,110 920,330 920,280 540,60" fill="url(#wallN)" opacity=".85"/>
+        <polygon points="330,445 560,320 560,278 330,403" fill="url(#wallN)" opacity=".9"/>
+        <polygon points="400,235 560,320 560,278 400,193" fill="url(#wallN)"/>
+        <polygon points="120,340 500,560 500,545 120,325" fill="#2a3346"/>
+        <polygon points="500,560 920,330 920,315 500,545" fill="#222a3b"/>
+        <!-- S_night_on revealed only inside the lit room's mask (office) -->
+        <g clip-path="url(#maskOffice)">
+          <polygon points="330,445 560,320 400,235 170,355" fill="url(#roomOn)"/>
+          <ellipse cx="365" cy="340" rx="80" ry="40" fill="#fff2c4" opacity=".55" filter="url(#blur)"/>
+          <ellipse cx="445" cy="300" rx="80" ry="40" fill="#fff2c4" opacity=".55" filter="url(#blur)"/>
+          <polygon points="330,445 560,320 560,278 330,403" fill="#ffd9a0" opacity=".25"/>
+        </g>
+        <!-- the hall stays dark (mask not applied) but a cold moon wash shows the court -->
+        <g clip-path="url(#maskHall)"><polygon points="500,545 900,325 700,245 560,320 330,445" fill="#8ea0cc" opacity=".12"/></g>
+        <!-- overlays drawn by the state layer on top of the still: open door marker, presence ring, chips -->
+        <polyline points="470,369 500,353 500,311 470,327" fill="none" stroke="#d23b3b" stroke-width="3"/>
+        <polygon points="575,315 690,250 545,165 420,235" fill="none" stroke="#3b7ddd" stroke-width="5" opacity=".5"/>
+        <circle cx="150" cy="305" r="5" fill="#5aa0ff"/><polygon points="150,305 300,290 330,380" fill="#5aa0ff" opacity=".12"/>
+        <circle cx="905" cy="312" r="5" fill="#5aa0ff"/><polygon points="905,312 730,290 700,380" fill="#5aa0ff" opacity=".12"/>
+        <g font-size="13" font-weight="600" fill="#dfe7f5"><rect x="400" y="258" width="52" height="20" rx="10" fill="#0f1729" opacity=".85"/><text x="426" y="272" text-anchor="middle">22.5°</text></g>
+        <g font-size="13" font-weight="600" fill="#dfe7f5"><rect x="585" y="205" width="52" height="20" rx="10" fill="#0f1729" opacity=".85"/><text x="611" y="219" text-anchor="middle">19.8°</text></g>
+        <circle cx="900" cy="60" r="14" fill="#dfe7f5" opacity=".8"/>
+      </svg>
+      <span class="badge">תמונה מוכנה · איזומטרי · לילה · 0 פריימים ב־10 דק׳ · תאורה מאפייה מ־3.10</span>
+      <div class="bar"><span class="chip">קרקע</span><span class="chip">גלריה</span><span class="chip sel">⟳ חזרה לזמן־אמת בנגיעה</span></div>
+      <div class="clock">22:14</div>
+    </div>
+    <p style="font-size:12px;color:var(--text-2);margin:8px 0 0">אותו מנגנון משמש מכשיר שנכשל במדידה (סולם: ריאליסטי → מלא → סכמטי → <b>תמונות מוכנות</b> → 2D), את כרטיס הדשבורד ואת אפליקציית הטלפון: תמונה + מסכות לחדרים + מצבי החדרים — קריאה בלבד (map.read).</p>
+    <h2 style="margin-top:16px">כרטיס הדשבורד / האפליקציה — אותן תמונות ומסכות</h2>
+    <div class="lov" style="max-width:420px">
+      <div class="hd">מתקן ראשי · קומה 0</div>
+      <div class="pic">
+        <svg viewBox="0 0 420 180">
+          <polygon points="210,170 380,90 230,25 60,100" fill="#b7bec8"/>
+          <polygon points="130,118 220,70 160,45 80,88" fill="#ffd27a" opacity=".8"/>
+          <polygon points="60,100 230,25 230,10 60,85" fill="#e6e2d9"/>
+          <polygon points="230,25 380,90 380,75 230,10" fill="#d4cfc4"/>
+          <polyline points="185,98 200,90 200,76 185,84" fill="none" stroke="#d23b3b" stroke-width="2"/>
+          <circle cx="75" cy="92" r="3" fill="#1f6fd0"/>
+        </svg>
+      </div>
+      <div style="padding:8px 12px; display:flex; gap:6px"><span class="chip">2 דולקים</span><span class="chip" style="color:var(--danger)">דלת פתוחה</span><span class="chip">22.5°</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h3>הכן תאורה ותמונות לקומה (map.edit) — S3</h3>
+      <div class="kv">
+        <b>מפתח גאומטריה</b><span dir="ltr">a91c…e7f2 · תואם למבנה המפורסם</span>
+        <b>מפת תאורה</b><span>מוכנה · 3.10.2026 · 1.6 MB · 64 דגימות</span>
+        <b>תמונות מוכנות</b><span>12 / 12 · 3 מבטים × יום/לילה × כבוי/דולק</span>
+        <b>מסכות</b><span>7 חדרים · מחושבות מהפוליגונים</span>
+      </div>
+      <div class="prog"><i></i></div>
+      <div style="display:flex; gap:6px; margin-top:8px"><span class="btn">הכן מחדש (≈ 25 ש׳)</span><span class="btn ghost">מחק</span></div>
+      <p style="margin:8px 0 0; font-size:12px; color:var(--text-2)">נעשה בדפדפן של המנהל, נשמר בשרת, נכלל בגיבוי. שינוי במבנה או בחומרים = "מיושן" עד הכנה מחדש; לעולם לא מתחדש לבד.</p>
+    </div>
+    <div class="card">
+      <h3>התמונות המוכנות</h3>
+      <div class="grid">
+        <div><span>מלמעלה · יום · כבוי</span></div><div style="background:linear-gradient(135deg,#ffe3a3,#cfd8e3)"><span>מלמעלה · יום · דולק</span></div><div class="night"><span>מלמעלה · לילה · כבוי</span></div>
+        <div><span>איזומטרי · יום · כבוי</span></div><div style="background:linear-gradient(135deg,#ffe3a3,#cfd8e3)"><span>איזומטרי · יום · דולק</span></div><div class="night"><span>איזומטרי · לילה · כבוי</span></div>
+        <div><span>פרספקטיבה · יום · כבוי</span></div><div style="background:linear-gradient(135deg,#ffe3a3,#cfd8e3)"><span>פרספקטיבה · יום · דולק</span></div><div class="night"><span>פרספקטיבה · לילה · כבוי</span></div>
+      </div>
+      <p style="margin:8px 0 0; font-size:12px; color:var(--text-2)">+ 3 של לילה · דולק. כל תמונה ≤ 2 MB WebP; המסכות חוזרות על עצמן לכל מבט.</p>
+    </div>
+    <div class="card">
+      <h3>הגדרות (system.configure)</h3>
+      <div class="kv">
+        <b>plan.quality</b><span>1 · 2 · <u>3</u> (ברירת מחדל: 1)</span>
+        <b>plan.walk.eye_m</b><span>1.65 (1.2-2.0)</span>
+        <b>plan.walk.unsensed_doors</b><span><u>open</u> · closed</span>
+        <b>plan.kiosk.idle_still_min</b><span>10 (0 = כבוי)</span>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="caption">Mockup 3 of 3 — CR-029 §3.2 / §3.3 / §5.3: the stills + masks path. A kiosk wall tablet at night after the idle timer: the base still (night, lights off) with the lights-on still revealed through the lit room's mask (the owner's reference technique, generated from the room polygons), the state layer's overlays (open-door frame, presence ring, camera cones, temperature chips) drawn on top; a touch returns to real time. The same assets feed the dashboard card and the phone app. Right: the bake card (map.edit) with the geometry key, the 12 stills, and the three new settings. Not a build screenshot.</p>
+</body>
+</html>

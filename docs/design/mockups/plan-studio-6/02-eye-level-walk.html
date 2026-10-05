@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan Studio 6 — mockup 2: eye-level walk-through (tablet / phone)</title>
+<style>
+  :root {
+    --bg: #f3f5f8; --surface: #ffffff; --surface-3: #e9edf3; --border: #d7dde6; --border-strong: #b9c3d1;
+    --text: #15202b; --text-2: #4e5a68; --accent: #1f6fd0; --accent-text: #0f4fa0; --danger: #d23b3b;
+    --lit: #ffb84d; --presence: #3b7ddd; --temp: #0f4fa0; --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.4 "Segoe UI", Arial, sans-serif; color: var(--text); background: var(--bg); }
+  .wrap { display: grid; grid-template-columns: 1fr 390px; gap: 16px; padding: 16px; align-items: start; }
+  h2 { font-size: 14px; margin: 0 0 8px; color: var(--text-2); font-weight: 600; }
+  .device { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: #000; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .tablet { height: 640px; }
+  .phone { height: 760px; }
+  /* the eye-level scene: CSS 3D corridor */
+  .scene { position: absolute; inset: 0; perspective: 520px; perspective-origin: 50% 46%; overflow: hidden;
+    background: linear-gradient(180deg, #d9e8f7 0%, #e9eef3 44%, #8d8f93 44.2%, #5d6064 100%); }
+  .scene .plane { position: absolute; transform-style: preserve-3d; }
+  .floor { left: -50%; right: -50%; top: 46%; height: 1200px; transform-origin: top; transform: rotateX(90deg);
+    background: repeating-linear-gradient(90deg, #c9a471 0 60px, #b8905c 60px 64px), linear-gradient(#c9a471, #b8905c); background-blend-mode: multiply; }
+  .ceil { left: -50%; right: -50%; bottom: 54%; height: 1200px; transform-origin: bottom; transform: rotateX(-90deg); background: linear-gradient(#f4f1ea, #ded9cf); }
+  .wallL { top: -10%; bottom: -10%; left: 18%; width: 1200px; transform-origin: left; transform: rotateY(-88deg); background: linear-gradient(90deg, #f1ede4, #cfc9bd 60%, #b0a999); }
+  .wallR { top: -10%; bottom: -10%; right: 18%; width: 1200px; transform-origin: right; transform: rotateY(88deg); background: linear-gradient(270deg, #ebe6dc, #c7c1b4 60%, #a39c8d); }
+  .wallEnd { left: 18%; right: 18%; top: 8%; bottom: 20%; transform: translateZ(-420px); background: linear-gradient(#e8e3d9, #cfc8bb); }
+  /* door opening in the end wall, open leaf, red frame */
+  .door { position: absolute; left: 37%; width: 26%; top: 20%; bottom: 0; transform: translateZ(-419px); background: linear-gradient(180deg, #dfe9f3, #c7d3df); box-shadow: inset 0 0 0 4px #d23b3b; }
+  .leaf { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transform-origin: left; transform: rotateY(-75deg); background: linear-gradient(90deg, #8b5a2b, #6e4520); box-shadow: 2px 0 6px rgba(0,0,0,.35); }
+  .lamp { position: absolute; left: 50%; top: 2%; width: 160px; height: 24px; margin-left: -80px; border-radius: 12px; background: #fff3cc; box-shadow: 0 0 60px 30px rgba(255,220,140,.55); transform: translateZ(-120px); }
+  .lamp2 { transform: translateZ(-300px) scale(.6); opacity: .9; }
+  .cam { position: absolute; right: 22%; top: 12%; width: 22px; height: 14px; background: #1f6fd0; border-radius: 3px; transform: translateZ(-380px); }
+  .cone { position: absolute; right: 12%; top: 14%; width: 240px; height: 300px; transform: translateZ(-300px) rotateY(30deg); background: linear-gradient(200deg, rgba(31,111,208,.28), rgba(31,111,208,0)); clip-path: polygon(100% 0, 0 100%, 100% 100%); }
+  .presence { position: absolute; left: 28%; right: 28%; top: 70%; height: 90px; transform: rotateX(80deg); border: 6px solid rgba(59,125,221,.6); border-radius: 50%; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; }
+  .chip.sel { border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 1px var(--accent); }
+  .chip.danger { color: var(--danger); }
+  .hud { position: absolute; inset: 0; pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+  .topbar { position: absolute; top: 10px; right: 10px; left: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .topbar .grow { flex: 1; }
+  .roomlbl { position: absolute; left: 50%; top: 52%; transform: translate(-50%, 0); background: rgba(255,255,255,.85); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+  .tchip { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; font-size: 12px; font-weight: 600; color: var(--temp); }
+  .crosshair { position: absolute; left: 50%; top: 46%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+  .minimap { position: absolute; left: 10px; bottom: 10px; width: 160px; height: 120px; background: rgba(255,255,255,.92); border: 1px solid var(--border); border-radius: 8px; }
+  .minimap svg { width: 100%; height: 100%; }
+  .joy { position: absolute; right: 36px; bottom: 36px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.8); }
+  .joy i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: rgba(31,111,208,.85); transform: translate(10px, -14px); }
+  .hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(21,32,43,.75); color: #fff; border-radius: 999px; padding: 3px 12px; font-size: 12px; white-space: nowrap; }
+  .walkbar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .walkbar input { width: 64px; font: inherit; font-size: 12px; border: 1px solid var(--border-strong); border-radius: 999px; padding: 3px 8px; direction: ltr; text-align: center; }
+  .walkbar label { font-size: 12px; color: var(--text-2); }
+  .legend { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+  .popover { position: absolute; right: 24%; top: 30%; width: 180px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.14); }
+  .popover b { display: block; margin-bottom: 4px; }
+  .popover .row { display: flex; gap: 6px; }
+  .caption { font-size: 12px; color: var(--text-2); padding: 0 16px 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h2>טאבלט (1024×768) — סיור בגובה עין, מקלדת/עכבר/מגע</h2>
+    <div class="device tablet">
+      <div class="scene">
+        <div class="plane ceil"></div>
+        <div class="plane floor"></div>
+        <div class="plane wallL"></div>
+        <div class="plane wallR"></div>
+        <div class="plane wallEnd"></div>
+        <div class="door"><div class="leaf"></div></div>
+        <div class="lamp"></div>
+        <div class="lamp lamp2"></div>
+        <div class="cam"></div>
+        <div class="cone"></div>
+        <div class="presence"></div>
+      </div>
+      <div class="hud">
+        <div class="topbar">
+          <span class="chip sel">🚶 סיור · קומה 0 · מסדרון</span>
+          <span class="chip">ריאליסטי</span>
+          <span class="chip">גובה עין 1.65</span>
+          <span class="grow"></span>
+          <span class="chip">עמדות ▾</span>
+          <span class="chip">עמוד במצלמה ▾</span>
+          <span class="chip">עמוד בחדר ▾</span>
+          <span class="chip danger">✕ יציאה (Esc)</span>
+        </div>
+        <div class="crosshair"></div>
+        <span class="tchip" style="left: 46%; top: 36%">23.0°</span>
+        <div class="roomlbl">משרד 2 · הדלת פתוחה</div>
+        <div class="popover" dir="rtl">
+          <b>מצלמה · כניסה מזרחית</b>
+          <span style="font-size:12px;color:var(--text-2)">מקוונת · כיסוי נעצר בקיר</span>
+          <div class="row" style="margin-top:6px"><span class="chip">צפייה חיה</span><span class="chip">עמוד כאן</span></div>
+        </div>
+        <div class="minimap" aria-label="מפה קטנה">
+          <svg viewBox="0 0 160 120">
+            <rect x="8" y="8" width="144" height="104" fill="#f6f8fb" stroke="#b9c3d1"/>
+            <path d="M8 60H70M70 8V112M110 8V112M110 60H152" stroke="#8b94a1" stroke-width="3"/>
+            <path d="M70 70V86" stroke="#d23b3b" stroke-width="3"/>
+            <circle cx="90" cy="78" r="4" fill="#1f6fd0"/>
+            <path d="M90 78 L72 52 L108 52 Z" fill="#1f6fd0" opacity=".3"/>
+            <text x="20" y="30" font-size="8" fill="#4e5a68">משרד 2</text>
+            <text x="118" y="30" font-size="8" fill="#4e5a68">אולם</text>
+          </svg>
+        </div>
+        <div class="walkbar">
+          <span class="chip">WASD / חצים · Shift ריצה · Q/E סיבוב</span>
+          <label>x</label><input value="12.40"><label>y</label><input value="6.85"><label>כיוון</label><input value="312°">
+          <span class="chip">⟲ לעמדה 1</span>
+        </div>
+      </div>
+    </div>
+    <p class="legend">דלת פתוחה (חיישן: פתוח) = מסגרת אדומה וכנף ב־80°, עבירה. דלת סגורה / חיישן ישן / נעולה = חסומה. חלון לעולם לא. הקיר הנמוך (דלפק) חוסם את הגוף ולא את המבט. קונוס המצלמה כנפח שקוף — בודקים כיסוי מבפנים.</p>
+  </div>
+  <div>
+    <h2>טלפון (390×844) — ג׳ויסטיק, גרירה להסתכלות, הקשה להליכה</h2>
+    <div class="device phone">
+      <div class="scene" style="perspective: 380px">
+        <div class="plane ceil"></div>
+        <div class="plane floor"></div>
+        <div class="plane wallL" style="left: 8%"></div>
+        <div class="plane wallR" style="right: 8%"></div>
+        <div class="plane wallEnd" style="left: 8%; right: 8%"></div>
+        <div class="door" style="left: 30%; width: 40%"><div class="leaf"></div></div>
+        <div class="lamp"></div>
+        <div class="presence"></div>
+      </div>
+      <div class="hud">
+        <div class="topbar">
+          <span class="chip sel">🚶 מסדרון</span>
+          <span class="grow"></span>
+          <span class="chip">עמדות ▾</span>
+          <span class="chip danger">✕</span>
+        </div>
+        <div class="crosshair" style="top: 44%"></div>
+        <div class="roomlbl" style="top: 50%">משרד 2</div>
+        <div class="joy" aria-label="ג׳ויסטיק"><i></i></div>
+        <div class="minimap" style="width: 120px; height: 90px">
+          <svg viewBox="0 0 160 120">
+            <rect x="8" y="8" width="144" height="104" fill="#f6f8fb" stroke="#b9c3d1"/>
+            <path d="M8 60H70M70 8V112M110 8V112M110 60H152" stroke="#8b94a1" stroke-width="3"/>
+            <circle cx="90" cy="78" r="5" fill="#1f6fd0"/>
+            <path d="M90 78 L72 52 L108 52 Z" fill="#1f6fd0" opacity=".3"/>
+          </svg>
+        </div>
+        <div class="hint">הקש על הרצפה כדי ללכת לשם · גרור מימין כדי להסתכל</div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="caption">Mockup 2 of 3 — CR-029 §4: the eye-level walk-through at 1.65 m. CSS-3D stand-in for the perspective camera: corridor with oak floor, lit lamps, open door with red frame and leaf at 80°, camera body with its cone as a translucent volume, presence ring on the floor, temperature chip at 1.5 m, room label on entry. HUD: walk bar (keyboard hints, numeric x / y / heading fields, saved positions), "stand at camera / in room", minimap with heading cone (tap = teleport), the device popover opened by a click (the existing CR-007 popover, same permissions). Phone: virtual joystick on the right (RTL: the thumb side), drag-to-look on the other half, tap-to-walk. Not a build screenshot.</p>
+</body>
+</html>
