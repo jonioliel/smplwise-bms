@@ -122,19 +122,15 @@ const ROLE = { sys: 'מנהלי מערכת', site: 'מנהלי אתר', op: 'מ�
 const POL = {};
 for (const t of TYPES) {
   const crit = t.sev === 'critical';
-  POL[t.key] = { on: true, sev: t.sev, rec: crit ? ['sys', 'site', 'maint'] : t.sev === 'alert' ? ['site', 'maint'] : ['site'], ch: crit ? ['push', 'app', 'email'] : t.sev === 'alert' ? ['push', 'app'] : [], quiet: crit ? 'pass' : 'matrix', esc: crit };
+  POL[t.key] = { on: true, sev: t.sev, rec: [], ch: [], quiet: crit ? 'pass' : 'matrix', esc: false };
 }
-POL.service_due.ch = ['email']; POL.service_due.rec = ['maint'];
-POL.test_done.ch = []; POL.test_done.rec = ['maint'];
-POL.mains_restored.ch = ['push'];
 POL.not_auto.on = false;
-POL.ats_to_gen.rec = ['site', 'owner'];
 const CH = [['inbox', 'מרכז ההתראות', 'inbox', 'lock'], ['push', 'דחיפה לדפדפן', 'bell', ''], ['app', 'יישומון הטלפון', 'phone', ''], ['email', 'דוא״ל', 'mail', ''], ['whatsapp', 'WhatsApp - בקרוב', 'chat', 'soon']];
 
 /* ------------------------------------------------------------------ shell */
 const RAIL = [['devices', 'home', 'ראשי'], ['security', 'shield', 'אבטחה'], ['explore', 'map', 'מפה'], ['multimedia', 'media', 'מולטימדיה'], ['wiskey', 'door', 'WisKey'], ['infra', 'bolt', 'תשתיות']];
 const L1_INFRA = [['electricity', 'מוני חשמל'], ['generator', 'גנרטור']];
-const L2_GEN = [['live', 'מצב חי', 'live'], ['alerts', 'התראות פעילות', 'alerts'], ['history', 'היסטוריה', 'history']];
+const L2_GEN = [['live', 'מצב חי', 'live'], ['alerts', 'התראות פעילות', 'alerts'], ['charts', 'גרפים', 'charts'], ['history', 'היסטוריה', 'history']];
 const SET_TABS = [['general', 'כללי'], ['notif', 'התראות'], ['access', 'משתמשים והרשאות'], ['security', 'אבטחה'], ['storage', 'אחסון'], ['entities', 'קטלוג התקנים'], ['infra', 'תשתיות']];
 function shell(body, o) {
   const area = o.area || 'infra';
@@ -163,6 +159,10 @@ function shell(body, o) {
     ${o.overlay || ''}
   </div>`;
 }
+
+/* several generators: a picker by device name (live, charts, alerts, history, routing) */
+const GENS = ['גנרטור ראשי', 'גנרטור גיבוי'];
+const genPicker = () => `<div class="gpick"><span class="mut">התקן</span><div class="seg2">${GENS.map((n, i) => `<a class="${i === 0 ? 'on' : ''}">${n}</a>`).join('')}</div><span class="mut">${GENS.length} גנרטורים זוהו, מוצג אחד בכל פעם</span></div>`;
 
 /* ------------------------------------------------------------------ capabilities (which roles the detected controller exposes) */
 // role keys: state mode ats mains onload rpm hours starts cool oil batt fuel v3 v1 a kw hz pf pct last_start last_test next_test service
@@ -397,15 +397,12 @@ function engineCard(g, stale) {
     <dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     ${capCount() < CAPS.full.length ? `<div class="mut" style="margin-top:10px">${capCount()} מתוך ${CAPS.full.length} ערכים זמינים מהבקר · <a class="btn ghost sm" style="min-height:24px">מיפוי חיישנים</a></div>` : ''}</div>`;
 }
-function modeCard(g, locked, why) {
+function modeCard(g) {
   const cmds = has('mode');
-  return `<div class="card"><div class="hd"><span class="h3">${cmds ? 'מצב הפעלה' : 'פעולות'}</span><div class="sp"></div>${locked ? `<span class="chip c-mut nodot">${ic(why ? 'link' : 'user')} ${why || 'צפייה בלבד'}</span>` : ''}</div>
-    ${cmds ? `<div class="mode">${['auto', 'manual', 'off'].map((m) => `<a class="${g.mode === m || (m === 'auto' && g.mode === 'test') ? 'on ' + m : ''}">${MODE[m]}</a>`).join('')}</div>` : ''}
-    <div class="actions" style="margin-top:12px">
-      ${cmds ? `<button class="btn pri" onclick="go('confirm-test')" ${locked ? 'disabled' : ''}>${ic('play')} ריצת מבחן</button>
-      <button class="btn dng" ${g.state !== 'running' || locked ? 'disabled' : ''}>${ic('stop')} עצירה</button>` : ''}
-      <button class="btn" ${locked ? 'disabled' : ''}>${ic('check')} אישור כל ההתראות</button>
-    </div>${cmds ? '' : '<div class="mut" style="margin-top:8px">הבקר אינו חושף פקודות</div>'}</div>`;
+  return `<div class="card"><div class="hd"><span class="h3">מצב הבקר</span><div class="sp"></div><span class="chip c-mut nodot">${ic('user')} צפייה והתראות בלבד</span></div>
+    ${cmds ? `<div class="mode ro">${['auto', 'manual', 'off'].map((m) => `<a class="${g.mode === m || (m === 'auto' && g.mode === 'test') ? 'on ' + m : ''}">${MODE[m]}</a>`).join('')}</div>` : '<div class="mut">הבקר אינו מדווח על מצב הפעלה</div>'}
+    <div class="actions" style="margin-top:12px"><button class="btn">${ic('check')} אישור כל ההתראות</button></div>
+    <div class="mut" style="margin-top:8px">המערכת מציגה ומתריעה; הפעלה ועצירה נעשות בבקר עצמו</div></div>`;
 }
 function statusStrip(g, extra = '') {
   const [label, cls] = ST[g.state];
@@ -417,7 +414,6 @@ function statusStrip(g, extra = '') {
 function liveScreen(key, opts = {}) {
   CAP = new Set(CAPS[opts.caps || 'typical']);
   const g = SCEN[key];
-  const locked = !!opts.locked;
   const stale = key === 'unavail';
   const banner = stale ? `<div class="banner err">${ic('link')}<b>אין תקשורת עם בקר הגנרטור</b><span>מאז 09:41 · הערכים מוצגים כפי שנקלטו לאחרונה</span><div class="sp"></div><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div>` : '';
   const kpis = [];
@@ -428,6 +424,7 @@ function liveScreen(key, opts = {}) {
   const quick = PH() && kpis.length ? `<div class="kpi-row n${kpis.length}">${kpis.map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>` : '';
   const diagChip = has('mains') ? (g.onload && has('ats') ? sevChip('alert', 'אובדן רשת ' + g.since) : g.mode === 'test' ? sevChip('info', 'מבחן ללא עומס') : sevChip('cleared', 'רשת זמינה')) : '';
   const body = `${banner}
+    ${genPicker()}
     ${statusStrip(g, stale ? '' : `<span class="last-seen">${ic('clock')} נתונים חיים</span>`)}
     ${quick}
     <div class="hero">
@@ -435,11 +432,68 @@ function liveScreen(key, opts = {}) {
       ${engineCard(g, stale)}
     </div>
     ${gauges(g, stale)}
+    ${chartSection()}
     <div class="cols side-l">
       <div class="${stale ? 'stale' : ''}">${phaseTable(g)}</div>
-      ${modeCard(g, locked || stale, stale ? 'אין תקשורת' : '')}
+      ${modeCard(g)}
     </div>`;
   const out = shell(body, { l2: 'live', activeCount: key === 'run' ? 2 : key === 'standby' ? 0 : 1, overlay: opts.overlay });
+  CAP = new Set(CAPS.full);
+  return out;
+}
+/* ------------------------------------------------------------------ history charts (capability-driven, selectable range) */
+let RANGE = '24h', METRIC = 'pct';
+const RANGES = [['1h', 'שעה'], ['24h', '24 שעות'], ['7d', '7 ימים'], ['30d', '30 יום'], ['custom', 'מותאם']];
+const METRICS = [
+  ['pct', 'עומס', '%', 'pct', 0, 100, (t) => 8 + 55 * Math.max(0, Math.sin(t * 5.2 - 1.1)) + 6 * Math.sin(t * 40), 'סף: 90%'],
+  ['volt', 'מתח גנרטור', 'V', 'v3', 200, 250, (t) => 230 + 2.2 * Math.sin(t * 31) + 1.2 * Math.sin(t * 7), 'תקין 207-253'],
+  ['fuel', 'מפלס דלק', '%', 'fuel', 0, 100, (t) => 94 - 36 * t - 4 * Math.sin(t * 9), 'התראה מתחת ל-25%'],
+  ['batt', 'מתח מצבר', 'V', 'batt', 20, 30, (t) => 26.9 + 0.6 * Math.max(0, Math.sin(t * 5.2 - 1.1)) + 0.15 * Math.sin(t * 50), 'תקין 25.5-29'],
+  ['cool', 'טמפרטורת נוזל קירור', '°C', 'cool', 20, 110, (t) => 36 + 50 * Math.max(0, Math.sin(t * 5.2 - 1.1)) ** 0.6 + 2 * Math.sin(t * 30), 'גבול 98°'],
+];
+// the minimal controller has one phase voltage only (role v1), so volt is shown for v1 or v3
+const availMetrics = () => METRICS.filter((m) => has(m[3]) || (m[0] === 'volt' && has('v1')));
+function setRange(r) { RANGE = r; render(); }
+function setMetric(m) { METRIC = m; render(); }
+function rangeBar() { return `<div class="seg2">${RANGES.map(([k, l]) => `<a class="${RANGE === k ? 'on' : ''}" onclick="setRange('${k}')">${l}</a>`).join('')}</div>`; }
+const rangeAxis = () => ({ '1h': ['לפני שעה', '30 דק׳', 'עכשיו'], '24h': ['לפני 24 ש׳', '12 ש׳', 'עכשיו'], '7d': ['לפני 7 ימים', '3.5 ימים', 'עכשיו'], '30d': ['לפני 30 יום', '15 יום', 'עכשיו'], custom: ['01.10 00:00', '03.10 12:00', '05.10 00:00'] }[RANGE]);
+function chartSvg(m, big) {
+  const [id, label, , , lo, hi, fn] = m;
+  const W = 600, H = big ? 300 : 120, pl = 8, pr = 8, pt = 8, pb = 8, n = RANGE === '1h' ? 60 : RANGE === '24h' ? 96 : RANGE === '7d' ? 168 : 120;
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const t = i / n; const v = fn(t); pts.push([pl + t * (W - pl - pr), pt + (1 - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * (H - pt - pb)]); }
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = d + ` L${W - pr} ${H - pb} L${pl} ${H - pb} Z`;
+  const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="${pl}" x2="${W - pr}" y1="${pt + f * (H - pt - pb)}" y2="${pt + f * (H - pt - pb)}" stroke="var(--sw-border)" stroke-dasharray="3 4"/>`).join('');
+  const gid = `cg-${id}${big ? 'b' : ''}`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart ${big ? 'big' : ''}" role="img" aria-label="${label}" dir="ltr"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sw-accent)" stop-opacity=".28"/><stop offset="1" stop-color="var(--sw-accent)" stop-opacity="0"/></linearGradient></defs>${grid}<path d="${area}" fill="url(#${gid})"/><path d="${d}" fill="none" stroke="var(--sw-accent)" stroke-width="${big ? 2.2 : 1.8}" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+function metricStats(m) {
+  const unit = m[2], fn = m[6]; let mn = 1e9, mx = -1e9, sm = 0;
+  for (let i = 0; i <= 50; i++) { const v = fn(i / 50); mn = Math.min(mn, v); mx = Math.max(mx, v); sm += v; }
+  const f = unit === 'V' && m[0] === 'batt' ? f1 : f0;
+  return [f(mn), f(sm / 51), f(mx)];
+}
+function chartCard(m, big) {
+  const [id, label, unit, , lo, hi, fn, lim] = m; const [mn, av, mx] = metricStats(m); const ax = rangeAxis(); const cur = fn(1);
+  return `<div class="card chartcard ${big ? 'bigcard' : ''}" ${big ? '' : `onclick="METRIC='${id}';go('charts')"`}><div class="hd"><span class="h3">${label}</span><div class="sp"></div><span class="num cur">${id === 'batt' ? f1(cur) : f0(cur)} ${unit}</span></div>
+    <div class="plot">${chartSvg(m, big)}<div class="axy"><span class="num">${hi}</span><span class="num">${lo}</span></div></div>
+    <div class="axx"><span>${ax[0]}</span>${big ? `<span>${ax[1]}</span>` : ''}<span>${ax[2]}</span></div>
+    <div class="mut stats"><span>מינימום <b class="num">${mn}</b></span><span>ממוצע <b class="num">${av}</b></span><span>מקסימום <b class="num">${mx}</b></span>${big ? `<span>${lim}</span>` : ''}</div></div>`;
+}
+function chartSection() {
+  const ms = availMetrics(); if (!ms.length) return '';
+  return `<div class="row"><span class="h3">היסטוריית ערכים</span><div class="sp"></div>${rangeBar()}<a class="btn sm" onclick="go('charts')">${ic('up')} תצוגה מלאה</a></div>
+    <div class="charts n${ms.length}">${ms.map((m) => chartCard(m, false)).join('')}</div>`;
+}
+function chartsScreen(caps) {
+  CAP = new Set(CAPS[caps || 'full']);
+  const ms = availMetrics(); const m = ms.find((x) => x[0] === METRIC) || ms[0];
+  const body = `${genPicker()}<div class="row"><span class="h2">גרפים</span><div class="sp"></div>${rangeBar()}${RANGE === 'custom' ? '<div class="inp" style="min-height:34px"><span class="num">01.10 00:00 - 05.10 00:00</span></div>' : ''}<button class="btn sm">ייצוא CSV</button></div>
+    <div class="seg2 metrics">${ms.map((x) => `<a class="${x[0] === m[0] ? 'on' : ''}" onclick="setMetric('${x[0]}')">${x[1]}</a>`).join('')}</div>
+    ${chartCard(m, true)}
+    <div class="mut">הנתונים נשמרים לפי טווח: דגימה מלאה 30 יום, אחר כך ממוצע שעתי עד שנה${has('fuel') ? ' · צריכת דלק משוערת: 6.4 ליטר לשעת עבודה' : ''}</div>`;
+  const out = shell(body, { l2: 'charts', activeCount: 2 });
   CAP = new Set(CAPS.full);
   return out;
 }
@@ -482,13 +536,13 @@ function alertCard(a, sel) {
 }
 function alertsScreen() {
   const open = ACTIVE.filter((a) => !a.ack).length;
-  const body = `<div class="row"><span class="h2">התראות פעילות</span><span class="chip c-err">${open} ללא אישור</span><span class="chip c-mut">${ACTIVE.length - open} אושרו</span><div class="sp"></div>
+  const body = `${genPicker()}<div class="row"><span class="h2">התראות פעילות</span><span class="chip c-err">${open} ללא אישור</span><span class="chip c-mut">${ACTIVE.length - open} אושרו</span><div class="sp"></div>
       <button class="btn">${ic('check')} אישור הכול</button></div>
     <div class="list">${ACTIVE.map((a) => alertCard(a, false)).join('')}</div>`;
   return shell(body, { l2: 'alerts', activeCount: open });
 }
 function alertsEmptyScreen() {
-  const body = `<div class="row"><span class="h2">התראות פעילות</span></div>
+  const body = `${genPicker()}<div class="row"><span class="h2">התראות פעילות</span></div>
     <div class="card"><div class="empty"><div class="ic">${ic('check')}</div><h3>אין התראות פעילות</h3><div class="mut">ההתראה האחרונה נסגרה ב-28.09 09:20 · <a class="btn ghost sm" onclick="go('history')">להיסטוריה</a></div></div></div>`;
   return shell(body, { l2: 'alerts', activeCount: 0 });
 }
@@ -497,7 +551,7 @@ function historyScreen(o = {}) {
       <td class="num">${h.at}</td><td class="b">${TY[h.t].title}</td><td>${sevChip(h.sev)}</td><td>${h.closed === 'פעיל' ? '<span class="chip c-err">פעיל</span>' : '<span class="mut">' + h.closed + '</span>'}</td>
       <td>${h.ack === '-' ? '<span class="mut">לא נדרש</span>' : h.ack ? h.ack + ' <span class="mut num">' + h.ackAt + '</span>' : '<span class="chip c-warn">ממתין</span>'}</td></tr>`).join('');
   const phoneRows = HIST.map((h) => `<div class="li" onclick="go('alert')"><div class="grow"><div class="t1">${TY[h.t].title}</div><div class="t2 num">${h.at} · ${h.closed}</div></div>${sevChip(h.sev)}</div>`).join('');
-  const body = `<div class="row"><span class="h2">היסטוריית התראות</span><div class="sp"></div><button class="btn sm">ייצוא CSV</button></div>
+  const body = `${genPicker()}<div class="row"><span class="h2">היסטוריית התראות</span><span class="mut">נשמרת שנה</span><div class="sp"></div><button class="btn sm">ייצוא CSV</button></div>
     <div class="filters">
       <div class="inp">${ic('search')}<span class="ph">חיפוש</span></div>
       <div class="seg2"><a>היום</a><a>7 ימים</a><a class="on">30 יום</a><a>מותאם</a></div>
@@ -533,7 +587,7 @@ function alertDetailOverlay() {
 function chIcons(p) {
   return `<span class="chs">${CH.map(([k, l, i, cls]) => `<span class="ch ${cls} ${k === 'inbox' || p.ch.includes(k) ? 'on' : ''}" title="${l}">${ic(i)}</span>`).join('')}</span>`;
 }
-function recChips(p) { return `<span class="rec">${p.rec.map((r) => `<span class="${r === 'maint' || r === 'owner' ? 'usr' : 'role'}">${ROLE[r]}</span>`).join('')}</span>`; }
+function recChips(p) { if (!p.rec.length) return '<span class="mut">לא נבחרו נמענים</span>'; return `<span class="rec">${p.rec.map((r) => `<span class="${r === 'maint' || r === 'owner' ? 'usr' : 'role'}">${ROLE[r]}</span>`).join('')}</span>`; }
 function routingRows(caps) {
   let out = '';
   for (const [gk, gl] of GROUPS) {
@@ -550,7 +604,7 @@ function routingRows(caps) {
         <td>${recChips(p)}</td>
         <td>${chIcons(p)}</td>
         <td class="c">${p.quiet === 'pass' ? '<span class="chip c-ok nodot">עובר</span>' : p.quiet === 'hold' ? '<span class="chip c-mut nodot">מוחזק</span>' : '<span class="mut">לפי המטריצה</span>'}</td>
-        <td class="c">${p.esc ? '<span class="chip c-acc nodot">' + ic('up') + ' 5 דק׳ · 2 שלבים</span>' : '<span class="mut">-</span>'}</td>
+        <td class="c"><span class="mut">-</span></td>
       </tr>`;
     }
   }
@@ -565,23 +619,25 @@ function routingPhoneList(caps) {
     for (const t of list) {
       const p = POL[t.key];
       if (!needsMet(t.key, caps)) { out += `<div class="li dis"><div class="grow"><div class="t1">${t.title}</div><div class="t2">דורש חיישן: ${needsMissing(t.key, caps)}</div></div><span class="tog dis"></span></div>`; continue; }
-      out += `<div class="li ${p.on ? '' : 'dis'}" onclick="go('set-routing-edit')"><div class="grow"><div class="t1">${t.title}</div><div class="t2">${p.rec.map((r) => ROLE[r]).join(' · ')}</div><div style="margin-top:6px">${chIcons(p)}</div></div><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">${sevChip(p.sev)}<span class="tog ${p.on ? 'on' : ''}"></span></div></div>`;
+      out += `<div class="li ${p.on ? '' : 'dis'}" onclick="go('set-routing-edit')"><div class="grow"><div class="t1">${t.title}</div><div class="t2">${p.rec.length ? p.rec.map((r) => ROLE[r]).join(' · ') : 'לא נבחרו נמענים'}</div><div style="margin-top:6px">${chIcons(p)}</div></div><div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">${sevChip(p.sev)}<span class="tog ${p.on ? 'on' : ''}"></span></div></div>`;
     }
   }
   return `<div class="list only-phone" style="flex-direction:column">${out}</div>`;
 }
 function detectionCard(kind, caps) {
   const n = caps ? caps.size : CAPS.full.length; const al = caps ? TYPES.filter((t) => needsMet(t.key, caps)).length : TYPES.length;
-  if (kind === 'none') return `<div class="card"><div class="det"><div class="ic err">${ic('x')}</div><div><b>לא נמצא בקר גנרטור בתשתית המערכת</b><small>הזיהוי מחפש התקן של אינטגרציית הגנרטור (לפי מזהה האינטגרציה) ולחלופין התקן שיש לו ישויות מצב מנוע, שעות עבודה ומפלס דלק. נבדק לאחרונה: היום 09:30.</small></div><button class="btn">${ic('refresh')} בדיקה חוזרת</button></div></div>`;
-  return `<div class="card"><div class="det"><div class="ic">${ic('check')}</div><div><b>${GEN.name} · ${GEN.model}</b><small>זוהה אוטומטית בתשתית המערכת · ${n} מתוך ${CAPS.full.length} ערכים, ${al} מתוך ${TYPES.length} סוגי התראה${caps && caps.has('mode') ? ', 3 פקודות' : ', ללא פקודות'} · עודכן לפני 4 שנ׳</small></div><div class="row"><button class="btn sm">מיפוי חיישנים</button><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div></div></div>`;
+  if (kind === 'none') return `<div class="card"><div class="det"><div class="ic err">${ic('x')}</div><div><b>לא נמצא בקר גנרטור בתשתית המערכת</b><small>הזיהוי סורק את רשימת ההתקנים של תשתית המערכת ומחפש התקן שישויותיו מתאימות לבקר גנרטור (מצב מנוע ומתח לפחות); אינטגרציית ההתקן נלמדת ממנו. נבדק לאחרונה: היום 09:30.</small></div><button class="btn">${ic('refresh')} בדיקה חוזרת</button></div></div>`;
+  return `<div class="card"><div class="det"><div class="ic">${ic('check')}</div><div><b>${GEN.name} · ${GEN.model}</b><small>זוהה כהתקן אחד עם כל הישויות שלו · ${n} מתוך ${CAPS.full.length} ערכים, ${al} מתוך ${TYPES.length} סוגי התראה · עודכן לפני 4 שנ׳</small></div><div class="row"><button class="btn sm">מיפוי חיישנים</button><button class="btn sm">${ic('refresh')} בדיקה חוזרת</button></div></div></div>`;
 }
 function routingScreen(o = {}) {
   const caps = new Set(CAPS[o.caps || 'typical']);
   const body = `<div class="row"><span class="h2">גנרטור</span><div class="sp"></div><div class="seg2"><a class="on">ניתוב התראות</a><a>מיפוי חיישנים</a><a>מבחנים ותחזוקה</a><a>הרשאות</a></div></div>
+    ${genPicker()}
     ${detectionCard('ok', caps)}
+    <div class="notice warnbox">${ic('info')}<span><b>לא נבחרו נמענים.</b> ההתראות יישמרו במרכז ההתראות בלבד עד שתבחרו נמענים לכל סוג התראה. נוסחי ההודעות כבר מוכנים לכל סוג ואפשר לערוך אותם ולראות תצוגה מקדימה.</span></div>
     <div class="notice">${ic('info')}<span>ניתוב ההתראות מוגדר כאן כבר עכשיו ונשמר. המסירה בפועל לכל ערוץ מתבצעת דרך מרכז ההתראות של המערכת: דחיפה, יישומון ודוא״ל פעילים; WhatsApp יתווסף כשהערוץ ייפתח במרכז ההתראות, בלי להגדיר מחדש.</span></div>
     <div class="row"><span class="h3">ניתוב לפי סוג התראה</span><span class="mut">${TYPES.filter((t) => needsMet(t.key, caps) && POL[t.key].on).length} פעילים · ${TYPES.filter((t) => !needsMet(t.key, caps)).length} ללא חיישן מתאים</span><div class="sp"></div>
-      <div class="inp" style="min-height:34px">${ic('search')}<span class="ph">חיפוש סוג התראה</span></div><button class="btn sm">${ic('moon')} שעות שקט: 23:00-07:00</button><button class="btn sm">הסלמה: 5 דק׳ · 2 שלבים</button></div>
+      <div class="inp" style="min-height:34px">${ic('search')}<span class="ph">חיפוש סוג התראה</span></div><button class="btn sm">${ic('moon')} שעות שקט: 23:00-07:00</button><button class="btn sm">הסלמה: לפי מרכז ההתראות</button></div>
     <div class="card flush hide-phone"><div class="scrollx"><table class="t routing"><thead><tr><th class="c">פעיל</th><th>התראה</th><th>חומרה</th><th>נמענים</th><th>ערוצים</th><th class="c">בשעות שקט</th><th class="c">הסלמה</th></tr></thead><tbody>${routingRows(caps)}</tbody></table></div></div>
     ${routingPhoneList(caps)}
     <div class="row"><button class="btn pri">שמירה</button><button class="btn">שחזור ברירות המחדל</button><div class="sp"></div><span class="mut">נשמר לאחרונה: היום 08:12 · דנה</span></div>`;
@@ -593,11 +649,17 @@ function routingEditOverlay() {
   const inner = `<div class="row"><span class="h3">${t.title}</span><span class="chip c-mut nodot">מנוע</span><div class="sp"></div><a class="btn ghost sm" onclick="go('set-routing')">${ic('x')}</a></div>
     <div class="rowc"><span>ההתראה פעילה</span><span class="tog on"></span></div>
     <div class="fld"><label>חומרה</label><div class="seg2">${['critical', 'alert', 'info'].map((s) => `<a class="${p.sev === s ? 'on' : ''}">${SEV[s]}</a>`).join('')}</div></div>
+    <div class="notice warnbox">${ic('info')}<span>לא נבחרו נמענים: ההתראה תישמר במרכז ההתראות בלבד</span></div>
     <div class="fld"><label>נמענים לפי תפקיד</label>${chooser([['sys', 'מנהלי מערכת'], ['site', 'מנהלי אתר'], ['op', 'מפעילים'], ['view', 'צופים', 1]], p.rec)}</div>
     <div class="fld"><label>נמענים נוספים (משתמשים)</label>${chooser([['maint', 'יוסי · אחראי תחזוקה'], ['owner', 'דנה · בעלת האתר']], p.rec)}<div class="inp" style="margin-top:6px">${ic('search')}<span class="ph">הוספת משתמש</span></div></div>
     <div class="fld"><label>ערוצים</label>${chooser([['inbox', 'מרכז ההתראות (תמיד)'], ['push', 'דחיפה לדפדפן'], ['app', 'יישומון הטלפון'], ['email', 'דוא״ל'], ['whatsapp', 'WhatsApp - בקרוב', 1], ['companion', 'Companion - בקרוב', 1]], ['inbox', ...p.ch])}</div>
     <div class="fld"><label>בשעות שקט (23:00-07:00)</label><div class="seg2"><a class="${p.quiet === 'pass' ? 'on' : ''}">עובר תמיד</a><a class="${p.quiet === 'matrix' ? 'on' : ''}">לפי מטריצת החומרה</a><a class="${p.quiet === 'hold' ? 'on' : ''}">מוחזק</a></div></div>
-    <div class="fld"><label>הסלמה ללא אישור</label><div class="rowc"><span class="esc-steps"><span class="n">1</span> אחרי 5 דק׳ · מנהלי מערכת <span class="ar">←</span> <span class="n">2</span> אחרי 10 דק׳ · כל הערוצים</span><span class="tog ${p.esc ? 'on' : ''}"></span></div></div>
+    <div class="fld"><label>הסלמה ללא אישור</label><div class="rowc"><span class="mut">כבויה; ללא נמענים אין למי להסלים</span><span class="tog"></span></div></div>
+    <div class="fld"><label>נוסח ההודעה</label>
+      <div class="inp tpl"><span>כשל התנעה: {device} לא התניע ב-{time}. מתח מצבר {battery}, מפלס דלק {fuel}.</span></div>
+      <div class="mut">משתנים: <code>{device}</code> <code>{time}</code> <code>{battery}</code> <code>{fuel}</code> <code>{load}</code> <code>{site}</code> · משתנה שהחיישן שלו חסר נשמט מההודעה</div>
+      <div class="preview"><div class="mut">תצוגה מקדימה</div><b>כשל התנעה</b><div>גנרטור ראשי לא התניע ב-14:02. מתח מצבר 23.1 V, מפלס דלק 58%.</div></div>
+      <div class="row"><button class="btn sm ghost">שחזור הנוסח המוכן</button></div></div>
     <div class="fld"><label>השהיה לפני שליחה</label><div class="row"><div class="inp" style="width:120px"><span class="num">0</span><span class="mut">שניות</span></div><span class="mut">0 = מיידי; מונע התראות על תקלה שחולפת לבד</span></div></div>
     <div class="row" style="margin-top:4px"><button class="btn pri" onclick="go('set-routing')">שמירה</button><button class="btn" onclick="go('set-routing')">ביטול</button><div class="sp"></div><button class="btn ghost sm">${ic('bell')} שליחת בדיקה</button></div>`;
   return PH() ? `<div class="scrim" onclick="go('set-routing')"><div class="dlg" onclick="event.stopPropagation()" style="max-height:92%;overflow:auto">${inner}</div></div>` : `<div class="scrim" onclick="go('set-routing')"></div><aside class="drawer">${inner}</aside>`;
@@ -606,10 +668,10 @@ function routingEditOverlay() {
 /* ------------------------------------------------------------------ states */
 function notFoundScreen() {
   const body = `<div class="card"><div class="empty"><div class="ic">${ic('engine')}</div><h3>לא נמצא גנרטור</h3>
-      <div class="mut" style="max-width:520px">המסך נבנה אוטומטית כשבתשתית המערכת מותקנת אינטגרציית בקר גנרטור. נבדק לאחרונה: היום 09:30.</div>
+      <div class="mut" style="max-width:520px">המסך נבנה אוטומטית כשבתשתית המערכת קיים התקן של בקר גנרטור. נבדק לאחרונה: היום 09:30.</div>
       <div class="row" style="justify-content:center"><button class="btn pri">${ic('refresh')} בדיקה חוזרת</button><button class="btn">בחירת התקן ידנית</button></div></div></div>
     <div class="card"><div class="hd"><span class="h3">איך הזיהוי עובד</span></div>
-      <dl class="kv"><dt>1</dt><dd>חיפוש אינטגרציה לפי מזהה (רשימת האינטגרציות המותקנות).</dd><dt>2</dt><dd>אם אין: חיפוש התקן שיש לו יחד ישויות של מצב מנוע, שעות עבודה ומפלס דלק.</dd><dt>3</dt><dd>התקן שנמצא מופיע בהגדרות › תשתיות › גנרטור, ומסך הגנרטור נפתח למי שיש לו הרשאת צפייה.</dd></dl></div>`;
+      <dl class="kv"><dt>1</dt><dd>קריאת רשימת ההתקנים של התשתית; כל גנרטור הוא התקן אחד וכל הישויות שלו תחתיו.</dd><dt>2</dt><dd>התקן שיש לו ישויות של מצב מנוע ומתח נחשב גנרטור; שאר החיישנים נקבעים לפי היכולות שלו.</dd><dt>3</dt><dd>התקן שנמצא מופיע בהגדרות › תשתיות › גנרטור, ומסך הגנרטור נפתח למי שיש לו הרשאת צפייה.</dd></dl></div>`;
   return shell(body, { l2: 'live', activeCount: 0, noL2: true });
 }
 function loadingScreen() {
@@ -619,23 +681,17 @@ function loadingScreen() {
     <div class="gauges">${[1, 2, 3, 4].map(() => `<div class="gauge" style="min-height:140px">${sk('70px', 70)}${sk('60px')}</div>`).join('')}</div>`;
   return shell(body, { l2: 'live', activeCount: 0 });
 }
-function confirmTestOverlay() {
-  return `<div class="scrim"><div class="dlg"><h3>להתחיל ריצת מבחן?</h3>
-    <div class="kv" style="display:grid"><dt>גנרטור</dt><dd>${GEN.name}</dd><dt>סוג</dt><dd>ללא עומס · 20 דקות · עצירה אוטומטית</dd><dt>תנאים</dt><dd>רשת זמינה · מצב אוטומטי · דלק 92%</dd></div>
-    <div class="alert warn"><span class="x">!</span><span>הפקודה נשלחת לבקר הגנרטור ונרשמת ביומן על שמך.</span></div>
-    <div class="act"><button class="btn pri" onclick="go('live-test')">${ic('play')} התחלת מבחן</button><button class="btn" onclick="go('live-standby')">ביטול</button></div></div></div>`;
-}
-
 /* ------------------------------------------------------------------ screens index */
 const SCREENS = {
   'live': ['מצב חי · בקר טיפוסי (ללא דלק ושמן): הגנרטור מזין את האתר', () => liveScreen('run', { caps: 'typical' })],
   'live-full': ['מצב חי · בקר מלא (כל החיישנים)', () => liveScreen('run', { caps: 'full' })],
   'live-min': ['מצב חי · בקר מינימלי (מצב ומתח בלבד)', () => liveScreen('run', { caps: 'minimal' })],
+  'charts': ['גרפים: מסך מלא (עומס, 24 שעות)', () => { RANGE = '24h'; METRIC = 'pct'; return chartsScreen('full'); }],
+  'charts-7d': ['גרפים: מסך מלא (דלק, 7 ימים)', () => { RANGE = '7d'; METRIC = 'fuel'; return chartsScreen('full'); }],
+  'charts-min': ['גרפים: בקר מינימלי (מתח בלבד)', () => { RANGE = '24h'; METRIC = 'volt'; return chartsScreen('minimal'); }],
   'diagram': ['תרשים הזרימה: לפני / אחרי, יכולות, טלפון', diagramCompareScreen],
   'live-standby': ['מצב חי: במנוחה, האתר מוזן מהרשת', () => liveScreen('standby', { caps: 'full' })],
-  'live-test': ['מצב חי: ריצת מבחן ללא עומס', () => liveScreen('test', { caps: 'full' })],
-  'live-view': ['מצב חי: משתמש עם צפייה בלבד', () => liveScreen('run', { locked: true, caps: 'full' })],
-  'confirm-test': ['אישור ריצת מבחן', () => liveScreen('standby', { overlay: confirmTestOverlay(), caps: 'full' })],
+  'live-test': ['מצב חי: ריצת מבחן שהבקר הפעיל, ללא עומס', () => liveScreen('test', { caps: 'full' })],
   'alerts': ['התראות פעילות', alertsScreen],
   'alerts-empty': ['התראות פעילות: ריק', alertsEmptyScreen],
   'history': ['היסטוריית התראות עם מסננים', () => historyScreen()],

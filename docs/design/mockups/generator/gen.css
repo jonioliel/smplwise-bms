@@ -227,3 +227,24 @@ table.t.routing tr.na td { color: var(--sw-text-3); }
 /* before/after page grids */
 .cols.cmp2 { grid-template-columns: 1fr 1fr; } .cols.cmp3 { grid-template-columns: 1fr 1fr 1fr; } .cols.cmpp { grid-template-columns: repeat(3, 300px); }
 .d-tablet .cols.cmp3, .d-phone .cols.cmp2, .d-phone .cols.cmp3, .d-phone .cols.cmpp, .d-tablet .cols.cmpp { grid-template-columns: 1fr; }
+
+/* revision 3: generator picker, read-only mode, empty-routing note, template preview, history charts */
+.gpick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mode.ro { pointer-events: none; }
+.notice.warnbox { background: var(--sw-warning-soft); border-color: color-mix(in srgb, var(--sw-warning) 35%, transparent); }
+.notice.warnbox svg { color: var(--sw-warning); }
+.inp.tpl { height: auto; align-items: flex-start; padding: 8px 10px; line-height: 1.5; }
+.preview { border: 1px dashed var(--sw-border-strong); border-radius: var(--sw-r-sm); padding: 8px 10px; background: var(--sw-surface-2); display: flex; flex-direction: column; gap: 2px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.d-phone .charts { grid-template-columns: 1fr; }
+.chartcard { cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.chartcard.bigcard { cursor: default; }
+.chartcard .cur { font-weight: 700; color: var(--sw-heading); }
+.plot { position: relative; padding-inline-start: 0; }
+.plot .chart { width: 100%; height: 120px; display: block; }
+.plot .chart.big { height: 300px; }
+.d-phone .plot .chart.big { height: 220px; }
+.plot .axy { position: absolute; inset-block: 0; inset-inline-start: 0; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--sw-text-3); pointer-events: none; direction: ltr; }
+.axx { display: flex; justify-content: space-between; font-size: 11px; color: var(--sw-text-3); direction: ltr; }
+.chartcard .stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--sw-fs-sm); }
+.seg2.metrics { flex-wrap: wrap; }
