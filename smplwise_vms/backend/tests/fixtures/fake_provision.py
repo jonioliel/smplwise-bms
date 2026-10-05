@@ -26,7 +26,7 @@ NS = 'xmlns="http://www.ipc.com/ver10"'
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00fake-provision-jpeg\xff\xd9"
 READS = {"GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
          "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
-         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime"}  # P3 reads (the derived-events pass searches recordings)
+         "GetRecordType", "SearchRecordDate", "SearchByTime", "GetSnapshotByTime", "GetSupportedAPIs"}  # P3 reads (the derived-events pass searches recordings)
 SESSION = {"SetSubscribe", "SetRenew", "SetUnSubscribe", "GetPullMessages"}
 
 
@@ -66,6 +66,10 @@ class FakeProvision:
         self.clock: Any = None  # a string, or a callable returning one (evaluated per request)
         self.alarm_server_url = False  # True: the device form has a url element (path token possible)
         self.set_alarm_bodies: list[str] = []
+        # NN2A protocol fix: GetSupportedAPIs (v2) answers this list; None = errorCode 1 like every v1 firmware (the owner's
+        # NVR 1.4.7 is v1). `alarm_server_switch` (None | bool): a v2 answer with the required `switch` element first.
+        self.supported_apis: list[str] | None = None
+        self.alarm_server_switch: bool | None = None
         # "doc": the guide / Postman shapes. "live": what the owner's NVR (NVR8-16400AN, firmware 1.4.7) answered on
         # 2026-10-04 - stream ids from 0, each stream named by its RTSP URL (sub = `sub1`), channel names as an attribute
         # of the channel list, profiles in a top-level encodeLevelCaps, an empty encodeTypeCaps, chlOfflineAlarm in
@@ -248,6 +252,11 @@ class FakeProvision:
 
     def _GetAlarmServerConfig(self, request: httpx.Request, ch: int) -> httpx.Response:
         a = self.alarm_server
+        if self.alarm_server_switch is not None:  # v2 NVR (guide 2.1.0 5.3.2): switch, address, port, url, heartbeat
+            sw = "true" if self.alarm_server_switch else "false"
+            return self._xml(request, _doc(f"""<alarmServer><switch type="boolean">{sw}</switch><serverAddr type="string" maxLen="15"><![CDATA[{a['addr']}]]></serverAddr>
+<serverPort type="uint16" min="1" max="65535">{a['port']}</serverPort><url type="string" maxLen="60"><![CDATA[{a.get('url', '')}]]></url>
+<enableHeartbeat type="boolean">{'true' if a['heartbeat'] else 'false'}</enableHeartbeat><heartbeatInterval type="uint16" min="5" max="65535">{a['interval']}</heartbeatInterval></alarmServer>""", "2.0.0"))
         if self.shape == "live" or self.alarm_server_url:  # live NVR 1.4.7: address + port only; v2 NVRs add a url element
             url = f"<url type=\"string\"><![CDATA[{a.get('url', '')}]]></url>" if self.alarm_server_url else ""
             return self._xml(request, _doc(f"""<alarmServer><serverAddr type="string"><![CDATA[{a['addr']}]]></serverAddr>
@@ -267,7 +276,15 @@ class FakeProvision:
         self.set_alarm_bodies.append(request.content.decode())
         self.alarm_server = {"addr": get("serverAddr"), "port": int(get("serverPort") or 0), "heartbeat": get("enableHeartbeat") == "true",
                              "interval": int(get("heartbeatInterval") or 30), "url": get("url")}
+        if self.alarm_server_switch is not None:
+            self.alarm_server_switch = get("switch") == "true"
         return self._xml(request, '<?xml version="1.0" encoding="UTF-8"?><config status="success"/>')
+
+    def _GetSupportedAPIs(self, request: httpx.Request, ch: int) -> httpx.Response:
+        if self.supported_apis is None:
+            return self._xml(request, '<?xml version="1.0" encoding="utf-8"?><config status="failed" errorCode="1"/>', 400)
+        items = "".join(f"<item><![CDATA[{n}]]></item>" for n in self.supported_apis)
+        return self._xml(request, _doc(f'<applicationInterfaces type="list" count="{len(self.supported_apis)}"><itemType type="string" maxLen="63"/>{items}</applicationInterfaces>', "2.0.0"))
     def _GetStreamCaps(self, request: httpx.Request, ch: int) -> httpx.Response:
         if self.shape == "live":
             items = []

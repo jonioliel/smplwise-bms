@@ -26,6 +26,9 @@ def world(tmp_path):
     pisr.clear_auth_cache()
     fake = FakeProvision()
     fake.shape = "live"
+    # the write paths below need a recorder that accepts SetAlarmServerConfig; the owner's 1.4.7 unit does not (no
+    # GetSupportedAPIs, v1 answer shape) - that case is the NN2A protocol-fix tests at the end of this file
+    fake.supported_apis = ["GetAlarmServerConfig", "SetAlarmServerConfig"]
     env = tmp_path / "lab.env"
     env.write_text(f"PROVISION_NVR_URL=http://{HOST}:80\nPROVISION_NVR_USER={USER}\nPROVISION_NVR_PASS={PASSWORD}\n", encoding="utf-8")
     lines: list[str] = []
@@ -242,3 +245,58 @@ def test_server_auto_uses_the_local_address_and_prints_none(world, monkeypatch):
     assert fake.alarm_server["addr"] == "192.0.2.55" and "192.0.2.55" not in "\n".join(lines)
     monkeypatch.setattr(pe, "_local_address_towards", lambda host: None)
     assert run("set-alarm-server", "--server", "auto", "--port", "18091") == 2
+
+
+# ---------------------------------------------------------------------------------------------- NN2A protocol fix (2026-10-05)
+
+def test_v1_nvr_is_refused_before_any_request_or_journal(world):
+    """The 2026-10-05 live attempt: firmware 1.4.7 answers GetAlarmServerConfig with a serverAddr + serverPort stub, has no
+    GetSupportedAPIs, and rejected the Set. The script now stops before the journal, the snapshot and the write."""
+    fake, run, lines, tmp = world
+    fake.supported_apis = None
+    assert run("set-alarm-server", "--server", "192.0.2.77", "--port", "18091") == 2
+    assert fake.writes == [] and _log(tmp) == [] and not list(tmp.glob("log/alarm-server-before-*.xml"))
+    assert "support: no (v1_nvr_ipc_only)" in lines and lines[-1].startswith("refused:")
+    lines.clear()
+    assert run("--dry-run", "set-alarm-server", "--server", "192.0.2.77", "--port", "18091") == 2
+    assert any(x.startswith("body: ") for x in lines) and "support: no (v1_nvr_ipc_only)" in lines and fake.writes == []
+    assert "192.0.2.77" not in "\n".join(lines)
+
+
+def test_supported_apis_without_the_set_is_refused(world):
+    fake, run, lines, tmp = world
+    fake.supported_apis = ["GetDeviceInfo", "GetAlarmServerConfig"]
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 2
+    assert "support: no (supported_apis)" in lines and fake.writes == []
+
+
+def test_v2_nvr_shape_sends_switch_and_restores_it(world):
+    fake, run, lines, tmp = world
+    fake.supported_apis = None
+    fake.alarm_server_switch = False
+    fake.alarm_server = {"addr": "", "port": 8010, "heartbeat": False, "interval": 30, "url": "AlarmStatus"}
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 0
+    assert "support: yes (v2_nvr_shape)" in lines
+    body = fake.set_alarm_bodies[-1]
+    assert body.index("<switch>true</switch>") < body.index("<serverAddr>") and fake.alarm_server_switch is True
+    eid = _log(tmp)[0]["entry"]
+    assert run("restore-from-log", "--entry", eid) == 0
+    assert fake.alarm_server_switch is False and fake.alarm_server["addr"] == "" and fake.alarm_server["url"] == "AlarmStatus"
+
+
+def test_write_failure_records_what_the_device_said(world):
+    fake, run, lines, tmp = world
+    fake.fail["SetAlarmServerConfig"] = 3
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 6
+    failed = [e for e in _log(tmp) if e["phase"] == "write-failed"][0]
+    assert failed["code"] == "source_error" and failed["detail"] == {"status": 400, "device_code": 3, "reason": "invalid_xml_content"}
+    assert '"device_code": 3' in "\n".join(lines) and fake.writes == ["SetAlarmServerConfig"]
+
+
+def test_restore_document_round_trips_switch():
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    doc = px.alarm_server_restore_document({"switch": "false", "serverAddr": "", "serverPort": ""})
+    assert doc.index("<switch>false</switch>") < doc.index("<serverAddr>") and px.alarm_server_values(doc)["switch"] == "false"
+    with pytest.raises(ValueError):
+        px.alarm_server_restore_document({"switch": "yes"})

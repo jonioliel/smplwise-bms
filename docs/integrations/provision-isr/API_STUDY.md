@@ -234,6 +234,13 @@ Update 2026-10-05 (NN2A): implemented as an option, off by default (`event_mode:
 unmapped by default). The owner's NVR (firmware 1.4.7) has `serverAddr` + `serverPort` only, so it authenticates by source
 address. Validation tool and runbook: CR-025 section 6.6.
 
+Update 2026-10-05 (NN2A protocol fix): the one approved write was **rejected** by that NVR (`source_error`, device unchanged).
+Most likely cause: the v1 guide marks `GetAlarmServerConfig` / `SetAlarmServerConfig` "Only IPC is supported"; NVR support
+arrives with the v2 API (v2 examples show NVR firmware 1.4.12; the v2 NVR form has a required `switch` and an NVR-only `url`).
+The 1.4.7 answer is a v1 stub (empty `serverAddr` + `serverPort`, no attributes, no heartbeat). The adapter and the write
+script now refuse the Set unless the device lists it in `GetSupportedAPIs` (v2), is an IP camera, or answers with the v2
+NVR form; a v2 body sends `<switch>true</switch>` first. Details and evidence: CR-025 section 6.6.
+
 ## 5. Streams for go2rtc
 
 | Device | Live URL (guide 3.1.1 tip) | Notes |
