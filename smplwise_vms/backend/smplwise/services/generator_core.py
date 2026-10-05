@@ -58,8 +58,11 @@ def integration_domains(conn: sqlite3.Connection) -> list[str]:
 
 
 def thresholds(conn: sqlite3.Connection, device_id: str | None = None) -> dict[str, float]:
+    return thresholds_from(jget(conn, "generator.thresholds", {}), device_id)
+
+
+def thresholds_from(stored: Any, device_id: str | None = None) -> dict[str, float]:
     out = dict(cat.DEFAULT_THRESHOLDS)
-    stored = jget(conn, "generator.thresholds", {})
     if isinstance(stored, dict):
         for scope in ("default", device_id):
             part = stored.get(scope) if scope else None
@@ -222,10 +225,12 @@ def detect(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         ents = by_device.get(dev_id, [])
         if not ents:
             continue
-        auto = map_roles(ents)
+        old = known.get(dev_id)
         hint = bool(cat.GENERATOR_HINT.search(f"{_device_name(dev)} {dev['manufacturer'] or ''} {dev['model'] or ''}"))
         platform = next((e["platform"] for e in ents if (e["platform"] or "").lower() in domains), None)
-        old = known.get(dev_id)
+        if old is None and not hint and not platform and len(ents) < 4:
+            continue  # too small to be a controller: not even classified (a registry with thousands of devices stays one cheap pass)
+        auto = map_roles(ents)
         if platform:
             kind, domain = "integration", platform
         elif "engine_state" in auto and (hint or len(auto) >= 4):
@@ -279,13 +284,19 @@ def add_manual(conn: sqlite3.Connection, ha_device_id: str, name: str | None) ->
 
 # ---------------------------------------------------------------- live values
 
-def read_values(conn: sqlite3.Connection, device_id: str) -> dict[str, dict[str, Any]]:
-    """role -> {value, unit, available, updated_at} from the state mirror, normalised to the role's canonical unit."""
-    out: dict[str, dict[str, Any]] = {}
-    rows = conn.execute(
-        """SELECT g.role, g.invert, e.state, e.unit AS e_unit, e.available, e.removed_at, e.last_updated, e.state_seen_at
-           FROM generator_roles g LEFT JOIN ha_entities e ON e.entity_id = g.entity_ref WHERE g.device_id = ?""", (device_id,)).fetchall()
-    for r in rows:
+def read_values_bulk(conn: sqlite3.Connection, device_ids: list[str] | None = None) -> dict[str, dict[str, dict[str, Any]]]:
+    """device id -> role -> {value, unit, available, updated_at}: ONE joined query for all generators (or the given ones), normalised to the
+    role's canonical unit."""
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    sql = """SELECT g.device_id, g.role, g.invert, e.state, e.unit AS e_unit, e.available, e.removed_at, e.last_updated, e.state_seen_at
+             FROM generator_roles g LEFT JOIN ha_entities e ON e.entity_id = g.entity_ref"""
+    if device_ids is not None:
+        if not device_ids:
+            return out
+        sql += f" WHERE g.device_id IN ({','.join('?' * len(device_ids))})"
+    else:
+        sql += " WHERE g.device_id IN (SELECT id FROM generator_devices WHERE status <> 'removed')"
+    for r in conn.execute(sql, device_ids or ()).fetchall():
         role = r["role"]
         kind, unit, _label = cat.ROLES[role]
         raw = r["state"] if r["removed_at"] is None else None
@@ -303,10 +314,16 @@ def read_values(conn: sqlite3.Connection, device_id: str) -> dict[str, dict[str,
                 value = cat.norm_bool(raw, bool(r["invert"]))
             else:
                 value = str(raw)[:80]
-        out[role] = {"value": value, "unit": unit, "available": value is not None and bool(alive), "updated_at": r["last_updated"] or r["state_seen_at"]}
+        item: dict[str, Any] = {"value": value, "unit": unit, "available": value is not None and bool(alive), "updated_at": r["last_updated"] or r["state_seen_at"]}
         if kind == "enum":
-            out[role]["raw"] = str(raw)[:60] if raw is not None and str(raw).strip().lower() not in cat.DEAD else None
+            item["raw"] = str(raw)[:60] if raw is not None and str(raw).strip().lower() not in cat.DEAD else None
+        out.setdefault(r["device_id"], {})[role] = item
     return out
+
+
+def read_values(conn: sqlite3.Connection, device_id: str) -> dict[str, dict[str, Any]]:
+    """role -> {value, unit, available, updated_at} of ONE generator (see read_values_bulk)."""
+    return read_values_bulk(conn, [device_id]).get(device_id, {})
 
 
 def availability(values: dict[str, dict[str, Any]], mirror_connected: bool) -> str:

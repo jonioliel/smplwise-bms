@@ -111,7 +111,28 @@ def _generator_sources() -> tuple[Source, ...]:
 
 
 SOURCES = SOURCES + _generator_sources()
-BY_KEY: dict[str, Source] = {s.key: s for s in SOURCES}
+class _ByKey(dict):  # type: ignore[type-arg]
+    """The catalogue by key. A per-generator source `generator.<type>@<generator id>` (CR-031: routing is per generator) resolves to its
+    type's catalogue entry; its policy row is its own (`notify_policies.source` is the full key)."""
+
+    @staticmethod
+    def _base(key: Any) -> Any:
+        return key.split("@", 1)[0] if isinstance(key, str) and key.startswith("generator.") else key
+
+    def __missing__(self, key: Any) -> Source:
+        base = self._base(key)
+        if base == key:
+            raise KeyError(key)
+        return self[base]
+
+    def __contains__(self, key: object) -> bool:
+        return dict.__contains__(self, self._base(key))
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        return dict.get(self, self._base(key), default)
+
+
+BY_KEY: dict[str, Source] = _ByKey({s.key: s for s in SOURCES})
 
 
 class _Safe(dict):
@@ -204,6 +225,12 @@ def get_policy(conn: sqlite3.Connection, source: str) -> dict[str, Any] | None:
             return {**default_row(BY_KEY[source]), "revision": 0}
         ensure_defaults(conn)
         r = conn.execute("SELECT * FROM notify_policies WHERE source = ?", (source,)).fetchone()
+        if r is None:  # a per-generator source: its own row, created from the type's defaults on first use
+            d = default_row(BY_KEY[source])
+            conn.execute(
+                "INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?)",
+                (source, int(d["enabled"]), d["severity"], d["category"], d["after_s"], d["dedupe_window_s"], int(d["resolve_notice"]), json.dumps(d["recipients"]), json.dumps(d["channels"]), now_iso()))
+            r = conn.execute("SELECT * FROM notify_policies WHERE source = ?", (source,)).fetchone()
     return row_to_policy(r)
 
 

@@ -78,8 +78,8 @@ def _values_out(values: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {r: {"value": v["value"], "unit": v["unit"], "available": v["available"], "updated_at": v["updated_at"], "label": cat.ROLES[r][2]} for r, v in values.items()}
 
 
-def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool) -> dict[str, Any]:
-    values = core.read_values(conn, d["id"])
+def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool, values: dict[str, dict[str, Any]] | None = None, open_alerts: int | None = None) -> dict[str, Any]:
+    values = core.read_values(conn, d["id"]) if values is None else values
     roles = set(values)
     avail = core.availability(values, _mirror_connected())
     value_roles = [r for r in cat.ROLES if not r.startswith("alarm_")]
@@ -88,7 +88,7 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool) -> di
         "id": d["id"], "name": d["name"], "area_id": d["area_id"], "area_name": _area_name(conn, d["area_id"]), "status": d["status"], "source_kind": d["source_kind"],
         "rated_kw": d["rated_kw"], "rated_kva": d["rated_kva"], "fuel_type": d["fuel_type"], "detected_at": d["detected_at"], "last_seen_at": d["last_seen_at"], "revision": d["revision"],
         "availability": avail, "stale": avail != "online", "core_met": cat.is_core_met(roles),
-        "open_alerts": conn.execute("SELECT COUNT(*) FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (d["id"],)).fetchone()[0],
+        "open_alerts": open_alerts if open_alerts is not None else conn.execute("SELECT COUNT(*) FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (d["id"],)).fetchone()[0],
         "capabilities": {"roles": sorted(roles), "values": sum(1 for r in roles if r in value_roles), "values_total": len(value_roles),
                          "alert_types": len(types_ok), "alert_types_total": len(cat.ALERT_TYPES),
                          "disabled_roles": core.disabled_roles(conn, d["id"]),
@@ -104,11 +104,32 @@ def _device_out(conn: sqlite3.Connection, d: sqlite3.Row, *, detail: bool) -> di
 
 # ---------------------------------------------------------------- devices
 
+def _open_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    return {r[0]: r[1] for r in conn.execute("SELECT device_id, COUNT(*) FROM generator_alerts WHERE cleared_at IS NULL GROUP BY device_id").fetchall()}
+
+
 @router.get("/generator/devices")
 def list_devices(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     rows = conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
-    return {"devices": [_device_out(conn, d, detail=False) for d in rows], "detected": sum(1 for d in rows if d["status"] == "detected"), "partial": sum(1 for d in rows if d["status"] == "partial"),
-            "open_alerts": sum(_device_out(conn, d, detail=False)["open_alerts"] for d in rows), "last_detect_at": core.get_setting(conn, "generator.last_detect_at")}
+    values, counts = core.read_values_bulk(conn), _open_counts(conn)
+    devices = [_device_out(conn, d, detail=False, values=values.get(d["id"], {}), open_alerts=counts.get(d["id"], 0)) for d in rows]
+    return {"devices": devices, "detected": sum(1 for d in rows if d["status"] == "detected"), "partial": sum(1 for d in rows if d["status"] == "partial"),
+            "open_alerts": sum(counts.values()), "last_detect_at": core.get_setting(conn, "generator.last_detect_at")}
+
+
+@router.get("/generator/devices/live")
+def live_all(principal: Principal = Depends(_view_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """One call for a generator picker: every generator's availability, engine state, mode, supply source, mains, load, fuel and open alerts."""
+    rows = conn.execute("SELECT id, name, area_id, status FROM generator_devices WHERE status <> 'removed' ORDER BY name, id").fetchall()
+    values, counts, connected = core.read_values_bulk(conn), _open_counts(conn), _mirror_connected()
+    keys = ("engine_state", "controller_mode", "supply_source", "ats_position", "mains_available", "on_load", "gen_kw", "load_pct", "fuel_pct", "battery_v")
+    items = []
+    for d in rows:
+        v = values.get(d["id"], {})
+        avail = core.availability(v, connected)
+        items.append({"id": d["id"], "name": d["name"], "area_id": d["area_id"], "status": d["status"], "availability": avail, "stale": avail != "online",
+                      "open_alerts": counts.get(d["id"], 0), "summary": {k: {"value": v[k]["value"], "unit": v[k]["unit"]} for k in keys if k in v and v[k]["available"]}})
+    return {"devices": items, "open_alerts": sum(counts.values()), "at": now_iso()}
 
 
 @router.get("/generator/devices/{device_id}")

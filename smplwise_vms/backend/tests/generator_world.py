@@ -51,11 +51,12 @@ def _put(conn, device_id, spec, platform):
         (eid, platform, device_id, name, domain, dclass, unit, state, NOW_ISO, NOW_ISO, NOW_ISO, NOW_ISO))
 
 
-def make_generator(db: Database, level: str = "typical", *, device_id: str = GEN_DEVICE, name: str = "גנרטור ראשי", platform: str = "genset_ctl", model: str = "Genset Controller") -> list[str]:
+def make_generator(db: Database, level: str = "typical", *, device_id: str = GEN_DEVICE, name: str = "גנרטור ראשי", platform: str = "genset_ctl", model: str = "Genset Controller", suffix: str = "") -> list[str]:
     ids = []
     with db.connection() as conn:
         conn.execute("INSERT OR REPLACE INTO ha_devices(device_id, name, manufacturer, model, updated_at) VALUES (?,?,?,?,?)", (device_id, name, "Acme", model, NOW_ISO))
         for spec in LEVELS[level]:
+            spec = (spec[0].replace(".gen_", f".gen{suffix}_"), *spec[1:])  # another generator: its own entity ids
             _put(conn, device_id, spec, platform)
             ids.append(spec[0])
     return ids

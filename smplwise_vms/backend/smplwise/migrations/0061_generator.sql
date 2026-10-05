@@ -106,3 +106,9 @@ CREATE TABLE generator_samples_5m (                 -- rollup, five-minute bucke
   n          INTEGER NOT NULL,
   PRIMARY KEY (device_id, role, ts)
 ) WITHOUT ROWID;
+
+-- many generators: the retention deletes and the global history list must not scan
+CREATE INDEX idx_generator_samples_ts ON generator_samples (ts);
+CREATE INDEX idx_generator_samples_5m_ts ON generator_samples_5m (ts);
+CREATE INDEX idx_generator_alerts_raised ON generator_alerts (raised_at);
+CREATE INDEX idx_generator_alerts_cleared ON generator_alerts (cleared_at) WHERE cleared_at IS NOT NULL;

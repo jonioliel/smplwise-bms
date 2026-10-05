@@ -27,12 +27,12 @@ def record(conn: sqlite3.Connection, now_ts: int) -> int:
     ts = now_ts - now_ts % 60
     bucket = ts - ts % BUCKET_S
     n = 0
-    for dev in conn.execute("SELECT id FROM generator_devices WHERE status <> 'removed'").fetchall():
-        for role, item in core.read_values(conn, dev["id"]).items():
+    for dev_id, values in core.read_values_bulk(conn).items():
+        for role, item in values.items():
             if cat.ROLES[role][0] != "num" or not item["available"] or item["value"] is None:
                 continue
             v = float(item["value"])
-            cur = conn.execute("INSERT OR IGNORE INTO generator_samples(device_id, role, ts, v) VALUES (?,?,?,?)", (dev["id"], role, ts, v))
+            cur = conn.execute("INSERT OR IGNORE INTO generator_samples(device_id, role, ts, v) VALUES (?,?,?,?)", (dev_id, role, ts, v))
             if cur.rowcount == 0:
                 continue  # this minute was already recorded (two ticks in one minute)
             n += 1
@@ -40,7 +40,7 @@ def record(conn: sqlite3.Connection, now_ts: int) -> int:
                 """INSERT INTO generator_samples_5m(device_id, role, ts, v_avg, v_min, v_max, n) VALUES (?,?,?,?,?,?,1)
                    ON CONFLICT(device_id, role, ts) DO UPDATE SET v_avg = (v_avg * n + excluded.v_avg) / (n + 1), v_min = MIN(v_min, excluded.v_min),
                                                                   v_max = MAX(v_max, excluded.v_max), n = n + 1""",
-                (dev["id"], role, bucket, v, v, v))
+                (dev_id, role, bucket, v, v, v))
     return n
 
 

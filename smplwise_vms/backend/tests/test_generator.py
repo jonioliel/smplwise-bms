@@ -299,14 +299,14 @@ def test_low_fuel_raises_after_hold_clears_and_lands_in_the_centre(app):
     assert evaluate(db, T0 + 61)["raised"] == 1
     a = c.get(f"{API}/alerts", params={"state": "open"}).json()
     assert a["open_count"] == 1 and a["alerts"][0]["key"] == "low_fuel" and a["alerts"][0]["title"] == "מפלס דלק נמוך" and a["alerts"][0]["severity"] == "alert"
-    n = rows(db, "SELECT * FROM notifications WHERE source = 'generator.low_fuel'")
+    n = rows(db, "SELECT * FROM notifications WHERE source LIKE 'generator.low_fuel@%'")
     assert len(n) == 1 and n[0]["subject_kind"] == "generator" and "18%" in n[0]["body"] and n[0]["state"] == "open"
     detail = c.get(f"{API}/alerts/{a['alerts'][0]['id']}").json()
     assert detail["snapshot"]["fuel_pct"] == 18 and detail["timeline"][0]["kind"] == "raised"
     assert evaluate(db, T0 + 120) == {"raised": 0, "cleared": 0}  # still low: no second row
     set_state(db, "sensor.gen_fuel", "80")
     assert evaluate(db, T0 + 180)["cleared"] == 1
-    assert rows(db, "SELECT state FROM notifications WHERE source = 'generator.low_fuel'")[0]["state"] == "resolved"
+    assert rows(db, "SELECT state FROM notifications WHERE source LIKE 'generator.low_fuel@%'")[0]["state"] == "resolved"
     assert c.get(f"{API}/alerts", params={"state": "open"}).json()["open_count"] == 0
     assert c.get(f"{API}/alerts", params={"state": "closed", "device_id": g}).json()["alerts"][0]["cleared_at"]
 
@@ -391,7 +391,7 @@ def test_ack_mute_and_ack_all(app):
     a = next(x for x in open_ if x["key"] == "low_fuel")
     r = c.post(f"{API}/alerts/{a['id']}/ack", json={"note": "בדיקה"})
     assert r.status_code == 200 and r.json()["acknowledged"] is True and r.json()["ack_note"] == "בדיקה" and r.json()["state"] == "open"
-    assert rows(db, "SELECT state FROM notifications WHERE source = 'generator.low_fuel'")[0]["state"] == "acknowledged"
+    assert rows(db, "SELECT state FROM notifications WHERE source LIKE 'generator.low_fuel@%'")[0]["state"] == "acknowledged"
     assert rows(db, "SELECT 1 FROM audit_log WHERE action = 'generator.alert.ack'")
     assert c.post(f"{API}/alerts/{a['id']}/ack").status_code == 200  # idempotent
     assert c.post(f"{API}/devices/{g}/alerts/ack-all").json() == {"acknowledged": 1}
@@ -439,16 +439,16 @@ def test_routing_starts_empty_then_delivers_only_what_was_saved(app):
     set_state(db, "sensor.gen_fuel", "10")
     evaluate(db, T0)
     evaluate(db, T0 + 61)
-    n = rows(db, "SELECT id FROM notifications WHERE source = 'generator.low_fuel'")
+    n = rows(db, "SELECT id FROM notifications WHERE source LIKE 'generator.low_fuel@%'")
     assert len(n) == 1 and rows(db, "SELECT 1 FROM notification_recipients WHERE notification_id = ?", n[0]["id"]) == []  # in the centre, but nobody is addressed yet
     r = c.put(f"{API}/devices/{g}/policies/battery_low", json={"recipients": {"roles": ["operator"], "users": []}, "channels": ["push", "app"], "severity": "critical", "escalate": True})
     assert r.status_code == 200 and r.json()["channels"] == ["push", "app"] and r.json()["row_version"] == 1
-    src = rows(db, "SELECT * FROM notify_policies WHERE source = 'generator.battery_low'")[0]
+    src = rows(db, "SELECT * FROM notify_policies WHERE source LIKE 'generator.battery_low@%'")[0]
     assert src["severity"] == "critical" and json.loads(src["recipients_json"]) == {"rule": "generator"} and json.loads(src["channels_json"])["webpush"] is True
     set_state(db, "sensor.gen_battery", "10.5")
     evaluate(db, T0 + 300)
     evaluate(db, T0 + 361)
-    nb = rows(db, "SELECT id, severity FROM notifications WHERE source = 'generator.battery_low'")[0]
+    nb = rows(db, "SELECT id, severity FROM notifications WHERE source LIKE 'generator.battery_low@%'")[0]
     users = {r["user_id"] for r in rows(db, "SELECT user_id FROM notification_recipients WHERE notification_id = ?", nb["id"])}
     ops_id = rows(db, "SELECT id FROM users WHERE username = 'ops'")[0]["id"]
     assert nb["severity"] == "critical" and users == {ops_id}  # the operator by role; the viewer (no generator.view) and the admin (not named) are not addressed
@@ -456,7 +456,7 @@ def test_routing_starts_empty_then_delivers_only_what_was_saved(app):
     assert c.put(f"{API}/devices/{g}/policies/battery_low", json={"enabled": True, "row_version": 1}).status_code == 409
     assert c.post(f"{API}/devices/{g}/policies/reset").json() == {"reset": 1}
     assert rows(db, "SELECT * FROM generator_alert_policies") == []
-    assert json.loads(rows(db, "SELECT recipients_json FROM notify_policies WHERE source = 'generator.battery_low'")[0][0]) == {"rule": "generator"}
+    assert rows(db, "SELECT 1 FROM notify_policies WHERE source LIKE 'generator.battery_low@%' AND source LIKE '%@' || ?", g) == []  # the mirror row of this generator is gone (defaults again)
 
 
 def test_routing_validation(app):
@@ -600,3 +600,88 @@ def test_view_mode_preference(app):
     r = c.put("/api/v1/me/prefs", json={"generator.view_mode": "charts"})
     assert r.status_code == 200, r.text
     assert c.put("/api/v1/me/prefs", json={"generator.view_mode": "both"}).status_code == 422
+
+
+# ---------------------------------------------------------------- several generators (unbounded): independent routing, alerts and state
+
+def _three(db):
+    out = []
+    for i, sfx in enumerate(("", "2", "3")):
+        make_generator(db, "full", device_id=f"dev_gen_{i}", name=f"גנרטור {i + 1}", model="DSE7320", suffix=sfx)
+    detect(db)
+    with db.connection(mode="read") as conn:
+        out = [r["id"] for r in conn.execute("SELECT id FROM generator_devices ORDER BY name").fetchall()]
+    return out
+
+
+def test_three_generators_independent_routing_and_alerts(app):
+    c, db, settings = app
+    g1, g2, g3 = _three(db)
+    assert len(c.get(f"{API}/devices").json()["devices"]) == 3
+    bind(c, settings, "ops", "operator", "installation", "*")
+    bind(c, settings, "adm", "site_admin", "installation", "*")
+    ops_id = rows(db, "SELECT id FROM users WHERE username = 'ops'")[0]["id"]
+    adm_id = rows(db, "SELECT id FROM users WHERE username = 'adm'")[0]["id"]
+    # different routing for the SAME alert type on each generator
+    assert c.put(f"{API}/devices/{g1}/policies/battery_low", json={"recipients": {"roles": ["operator"], "users": []}, "channels": ["push"], "severity": "critical"}).status_code == 200
+    assert c.put(f"{API}/devices/{g2}/policies/battery_low", json={"recipients": {"roles": ["site_admin"], "users": []}, "channels": ["email"], "severity": "info"}).status_code == 200
+    pol = {r["source"]: r for r in rows(db, "SELECT * FROM notify_policies WHERE source LIKE 'generator.battery_low@%'")}
+    assert len(pol) == 2 and json.loads(pol[f"generator.battery_low@{g1}"]["channels_json"])["webpush"] is True and json.loads(pol[f"generator.battery_low@{g2}"]["channels_json"])["email"] is True
+    assert pol[f"generator.battery_low@{g1}"]["severity"] == "critical" and pol[f"generator.battery_low@{g2}"]["severity"] == "info"
+    assert c.get(f"{API}/devices/{g3}/policies").json()["items"][0]["policy"] is None  # the third generator has no routing
+    # the same fault on all three; independent state
+    for sfx in ("", "2", "3"):
+        set_state(db, f"sensor.gen{sfx}_battery", "10")
+    evaluate(db, T0)
+    evaluate(db, T0 + 61)
+    assert c.get(f"{API}/alerts", params={"state": "open", "type": "battery_low"}).json()["open_count"] == 3
+    got = {}
+    for g in (g1, g2, g3):
+        n = rows(db, "SELECT id, severity, subject_id FROM notifications WHERE source = ?", f"generator.battery_low@{g}")
+        assert len(n) == 1 and n[0]["subject_id"] == g
+        got[g] = (n[0]["severity"], {r["user_id"] for r in rows(db, "SELECT user_id FROM notification_recipients WHERE notification_id = ?", n[0]["id"])})
+    assert got[g1] == ("critical", {ops_id}) and got[g2] == ("info", {adm_id}) and got[g3][1] == set()
+    # clearing one generator leaves the others open; acknowledging one does not touch the others
+    set_state(db, "sensor.gen2_battery", "27")
+    evaluate(db, T0 + 90)
+    states = {g: c.get(f"{API}/alerts", params={"device_id": g, "type": "battery_low"}).json()["alerts"][0]["state"] for g in (g1, g2, g3)}
+    assert states == {g1: "open", g2: "closed", g3: "open"}
+    a3 = c.get(f"{API}/alerts", params={"device_id": g3, "state": "open"}).json()["alerts"][0]["id"]
+    c.post(f"{API}/alerts/{a3}/ack")
+    assert [x["acknowledged"] for x in c.get(f"{API}/alerts", params={"device_id": g1}).json()["alerts"]] == [False]
+    # one generator's fuel problem raises only on that generator (hold timers are per generator)
+    set_state(db, "sensor.gen3_fuel", "10")
+    evaluate(db, T0 + 100)
+    evaluate(db, T0 + 170)
+    assert {(r["device_id"], r["alert_key"]) for r in rows(db, "SELECT device_id, alert_key FROM generator_alerts WHERE alert_key = 'low_fuel'")} == {(g3, "low_fuel")}
+    # mute on one generator does not mute the others; reset is per generator
+    am = c.get(f"{API}/alerts", params={"device_id": g1, "type": "battery_low"}).json()["alerts"][0]["id"]
+    c.post(f"{API}/alerts/{am}/mute", json={"hours": 2})
+    assert [r["device_id"] for r in rows(db, "SELECT device_id FROM generator_mutes")] == [g1]
+    assert c.post(f"{API}/devices/{g1}/policies/reset").json() == {"reset": 1}
+    assert len(rows(db, "SELECT * FROM generator_alert_policies")) == 1 and {r["source"] for r in rows(db, "SELECT source FROM notify_policies WHERE source LIKE 'generator.battery_low@%'")} == {f"generator.battery_low@{g2}", f"generator.battery_low@{g3}"}  # g1 reset; g3 only has its created defaults
+
+
+def test_live_summary_history_and_retention_with_many_generators(app):
+    c, db, _ = app
+    g1, g2, g3 = _three(db)
+    set_state(db, "sensor.gen2_engine_state", "Running")
+    set_state(db, "sensor.gen3_fuel", "40")
+    r = c.get(f"{API}/devices/live").json()
+    assert [d["name"] for d in r["devices"]] == ["גנרטור 1", "גנרטור 2", "גנרטור 3"]
+    by = {d["id"]: d for d in r["devices"]}
+    assert by[g2]["summary"]["engine_state"]["value"] == "running" and by[g3]["summary"]["fuel_pct"]["value"] == 40 and by[g1]["summary"]["fuel_pct"]["value"] == 92
+    assert "entity_id" not in json.dumps(r) and by[g1]["availability"] in ("online", "stale")
+    now = int(dt.datetime.now(dt.timezone.utc).timestamp())
+    with db.connection() as conn:
+        assert history.record(conn, now) == 3 * 16  # every numeric role of every generator, one bulk read
+    for g in (g1, g2, g3):
+        assert c.get(f"{API}/devices/{g}/history", params={"roles": "fuel_pct", "range": "1h"}).json()["series"]["fuel_pct"]
+    plan = rows(db, "EXPLAIN QUERY PLAN DELETE FROM generator_samples WHERE ts < 5")
+    assert "idx_generator_samples_ts" in " ".join(str(tuple(x)) for x in plan)
+    assert c.get(f"{API}/devices/live", headers=as_user("nobody")).status_code == 403
+    # one generator removed from the registry leaves the others untouched
+    with db.connection() as conn:
+        conn.execute("UPDATE ha_devices SET removed_at = '2026-10-05T09:00:00Z' WHERE device_id = 'dev_gen_1'")
+    detect(db)
+    assert len(c.get(f"{API}/devices").json()["devices"]) == 2

@@ -300,6 +300,11 @@ EVENT_JUDGES: dict[str, Callable[[Ctx], bool]] = {"mains_restored": _ev_mains_re
 
 # ---------------------------------------------------------------- policy rows
 
+def source_of(device_id: str, key: str) -> str:
+    """The notification-centre source of one alert type on one generator: routing, channels, severity and quiet mode are per generator."""
+    return f"{SOURCE_PREFIX}{key}@{device_id}"
+
+
 def _policy_row(conn: sqlite3.Connection, device_id: str, key: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM generator_alert_policies WHERE device_id = ? AND alert_key = ?", (device_id, key)).fetchone()
 
@@ -313,7 +318,7 @@ def _muted(conn: sqlite3.Connection, device_id: str, key: str, now: str) -> bool
 
 def _signal(dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, alert_id: str, resolve: bool = False) -> notify.Signal:
     return notify.Signal(
-        SOURCE_PREFIX + t.key, "generator", dev["id"], severity=None if resolve else severity, dedupe_key=f"{SOURCE_PREFIX}{t.key}:{dev['id']}", resolve=resolve,
+        source_of(dev["id"], t.key), "generator", dev["id"], severity=None if resolve else severity, dedupe_key=f"{SOURCE_PREFIX}{t.key}:{dev['id']}", resolve=resolve,
         params={"name": dev["name"], "detail": detail, "place": dev["name"]}, origin={"alert_id": alert_id, "generator_id": dev["id"]}, link="#/infra/generator/alerts", area_id=dev["area_id"])
 
 
@@ -361,18 +366,27 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
     now = iso_utc(dt.datetime.fromtimestamp(now_ts, dt.timezone.utc))
     out = {"raised": 0, "cleared": 0}
     stale_s = core.int_setting(conn, "stale_after_s")
-    for dev in conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed'").fetchall():
-        values = core.read_values(conn, dev["id"])
+    devices = conn.execute("SELECT * FROM generator_devices WHERE status <> 'removed'").fetchall()
+    if not devices:
+        return out
+    all_values = core.read_values_bulk(conn)
+    policies = {(r["device_id"], r["alert_key"]): r for r in conn.execute("SELECT * FROM generator_alert_policies").fetchall()}
+    open_all: dict[str, dict[str, sqlite3.Row]] = {}
+    for r in conn.execute("SELECT * FROM generator_alerts WHERE cleared_at IS NULL").fetchall():
+        open_all.setdefault(r["device_id"], {})[r["alert_key"]] = r
+    stored_th = core.jget(conn, "generator.thresholds", {})
+    for dev in devices:
+        values = all_values.get(dev["id"], {})
         roles = set(values)
         avail = core.availability(values, mirror_connected)
         prev = _PREV.get(dev["id"], {})
-        ctx = Ctx(dev, values, core.thresholds(conn, dev["id"]), avail, prev, stale_s)
+        ctx = Ctx(dev, values, core.thresholds_from(stored_th, dev["id"]), avail, prev, stale_s)
         offline = avail == "offline"
-        open_rows = {r["alert_key"]: r for r in conn.execute("SELECT * FROM generator_alerts WHERE device_id = ? AND cleared_at IS NULL", (dev["id"],)).fetchall()}
+        open_rows = open_all.get(dev["id"], {})
         for t in cat.ALERT_TYPES:
             if not cat.type_available(t, roles):
                 continue
-            pol = _policy_row(conn, dev["id"], t.key)
+            pol = policies.get((dev["id"], t.key))
             enabled = True if pol is None else bool(pol["enabled"])
             severity = t.severity if pol is None else pol["severity"]
             row = open_rows.get(t.key)
@@ -589,20 +603,22 @@ def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dic
     return out
 
 
-def _bridge(conn: sqlite3.Connection, key: str, pol: dict[str, Any] | None, default_severity: str) -> None:
-    """Mirror the choice onto the CR-018 source policy `generator.<key>` (one transaction with the generator row)."""
+def _bridge(conn: sqlite3.Connection, device_id: str, key: str, pol: dict[str, Any] | None, default_severity: str) -> None:
+    """Mirror the choice onto the CR-018 source policy of THIS generator (`generator.<key>@<device id>`), in the same transaction."""
     from . import notify_policy
 
-    notify_policy.ensure_defaults(conn)
-    src = SOURCE_PREFIX + key
+    src = source_of(device_id, key)
     if pol is None:
-        d = notify_policy.default_row(notify_policy.BY_KEY[src])
-        conn.execute("UPDATE notify_policies SET enabled = ?, severity = ?, after_s = 0, recipients_json = ?, channels_json = ?, revision = revision + 1, updated_at = ? WHERE source = ?",
-                     (int(d["enabled"]), d["severity"], json.dumps(d["recipients"]), json.dumps(d["channels"]), now_iso(), src))
+        conn.execute("DELETE FROM notify_policies WHERE source = ?", (src,))  # back to the type's defaults, created again on first use
         return
     ch = {"inbox": True, "webpush": "push" in pol["channels"], "email": "email" in pol["channels"], "app": "app" in pol["channels"], "ha_mobile": False, "whatsapp": False}
-    conn.execute("UPDATE notify_policies SET enabled = ?, severity = ?, after_s = ?, recipients_json = ?, channels_json = ?, revision = revision + 1, updated_at = ? WHERE source = ?",
-                 (int(pol["enabled"]), pol["severity"] or default_severity, 0, json.dumps({"rule": "generator"}), json.dumps(ch), now_iso(), src))
+    base = notify_policy.default_row(notify_policy.BY_KEY[src])
+    conn.execute(
+        """INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,1,?)
+           ON CONFLICT(source) DO UPDATE SET enabled = excluded.enabled, severity = excluded.severity, after_s = excluded.after_s, recipients_json = excluded.recipients_json,
+             channels_json = excluded.channels_json, revision = revision + 1, updated_at = excluded.updated_at""",
+        (src, int(pol["enabled"]), pol["severity"] or default_severity, base["category"], 0, base["dedupe_window_s"], int(base["resolve_notice"]), json.dumps({"rule": "generator"}), json.dumps(ch), now_iso()))
 
 
 def save_policy(conn: sqlite3.Connection, principal: Any, device_id: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -620,7 +636,7 @@ def save_policy(conn: sqlite3.Connection, principal: Any, device_id: str, key: s
            ON CONFLICT(device_id, alert_key) DO UPDATE SET enabled = excluded.enabled, severity = excluded.severity, recipients_json = excluded.recipients_json, channels_json = excluded.channels_json,
              quiet_mode = excluded.quiet_mode, escalate = excluded.escalate, after_s = excluded.after_s, row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
         (device_id, key, int(new["enabled"]), new["severity"], json.dumps(new["recipients"]), json.dumps(new["channels"]), new["quiet_mode"], int(new["escalate"]), new["after_s"], principal.user_id, now_iso()))
-    _bridge(conn, key, new, t.severity)
+    _bridge(conn, device_id, key, new, t.severity)
     audit(conn, actor=principal, action="generator.policy.update", decision="allowed", resource_type="generator_policy", resource_id=f"{device_id}:{key}")
     return _policy_dict(_policy_row(conn, device_id, key)) or {}
 
@@ -629,7 +645,7 @@ def reset_policies(conn: sqlite3.Connection, principal: Any, device_id: str) -> 
     keys = [r["alert_key"] for r in conn.execute("SELECT alert_key FROM generator_alert_policies WHERE device_id = ?", (device_id,)).fetchall()]
     conn.execute("DELETE FROM generator_alert_policies WHERE device_id = ?", (device_id,))
     for k in keys:
-        _bridge(conn, k, None, cat.TYPE_BY_KEY[k].severity)
+        _bridge(conn, device_id, k, None, cat.TYPE_BY_KEY[k].severity)
     audit(conn, actor=principal, action="generator.policy.reset", decision="allowed", resource_type="generator_device", resource_id=device_id)
     return len(keys)
 
@@ -639,7 +655,7 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     Roles are resolved against the CURRENT bindings; the caller intersects the result with visibility (generator.view at installation
     scope), so role AND scope both apply. No policy row = no recipients (routing starts empty)."""
     source = str(n.get("source") or "")
-    key = source[len(SOURCE_PREFIX):] if source.startswith(SOURCE_PREFIX) else ""
+    key = source[len(SOURCE_PREFIX):].split("@", 1)[0] if source.startswith(SOURCE_PREFIX) else ""
     row = _policy_row(conn, str(n.get("subject_id") or ""), key) if key else None
     pol = _policy_dict(row)
     if pol is None or not pol["enabled"]:
