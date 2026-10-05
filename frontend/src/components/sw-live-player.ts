@@ -533,11 +533,11 @@ export class SwLivePlayer extends LitElement {
         // Playback reached the end of the requested range (or the session was superseded): show it as such.
         this.teardown();
         this.status = 'ended';
-        this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended' }, bubbles: true, composed: true }));
+        this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended', code: ev.code }, bubbles: true, composed: true }));
         return;
       }
       const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? (this.laddered ? VIDEO_SERVER_DOWN : 'go2rtc לא זמין') : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
-      this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410); // a quota hit retries later; a denial does not
+      this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410, ev.code); // a quota hit retries later; a denial does not
     };
   }
 
@@ -598,11 +598,13 @@ export class SwLivePlayer extends LitElement {
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: this.error, code: 'remote_live_cap', max: this.capMax }, bubbles: true, composed: true }));
   }
 
-  private fail(message: string, retryable = true) {
+  /** `code`: the socket's close code, or the relay's error value - carried in the event so a recording screen can tell a lost
+   * connection (resume automatically, 2.0.0) from a denial or a superseded generation (never). */
+  private fail(message: string, retryable = true, code?: number | string) {
     this.teardown(); // release the relay session and the upstream stream right away
     this.status = 'error';
     this.error = message;
-    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message, ...(code !== undefined ? { code } : {}) }, bubbles: true, composed: true }));
     if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl || this.livePath)) {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
       this.attempts += 1;
@@ -948,7 +950,7 @@ export class SwLivePlayer extends LitElement {
           else this.mseFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
         }
         else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`);
-        else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost');
+        else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
         break;
       default:
         break;

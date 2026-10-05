@@ -228,7 +228,7 @@ export class StallWatch {
         }
         if (fault || now - this.sentAt >= this.o.attemptTimeoutMs) {
           this.failAttempt(now);
-          return this.phase === 'stalled' ? this.dueAttempt(now, ctx) : 'none';
+          return (this.phase as StallPhase) === 'stalled' ? this.dueAttempt(now, ctx) : 'none';
         }
         return 'none';
       case 'gave_up':
