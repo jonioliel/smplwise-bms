@@ -295,9 +295,17 @@ export class RecorderHealthPanel extends LitElement {
       min-inline-size: 0;
     }
     .pc-row select {
-      flex: 0 1 auto;
+      flex: 0 0 auto;
+      inline-size: 190px;
       max-inline-size: 60%;
       min-block-size: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
     }
     :host([data-skin='bubble']) .pc-row select,
     :host([data-skin='bubble']) .percam summary {
