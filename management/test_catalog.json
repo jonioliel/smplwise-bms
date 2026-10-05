@@ -6094,5 +6094,101 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Registered 2026-10-05 at the 2.0.2 integration (CR-028 preparation); NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT219",
+    "requirement_ids": [
+      "R219"
+    ],
+    "task_ids": [
+      "T105"
+    ],
+    "title": "Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "See the card evidence for the test files that exist; a recorded run against a commit is required."
+    ],
+    "expected": "Provision-ISR recorders and cameras (CR-025; docs/changes/CR-025-PROVISION-ISR.md, docs/integrations/provision-isr/API_STUDY.md): an HTTP API v1 adapter behind the CR-020 vendor seam registered through the CR-024 vendor catalogue (Basic or Digest detected from the 401 challenge, HTTPS with certificate pinning), channel discovery, stream options, live RTSP for go2rtc, snapshots, disks, search, playback, export to MP4, sampled events and an optional push listener (off by default); device writes are off and sit behind approval gates; v2 is used only where v1 lacks a capability.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT220",
+    "requirement_ids": [
+      "R220"
+    ],
+    "task_ids": [
+      "T106"
+    ],
+    "title": "ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "See the card evidence for the test files that exist; a recorded run against a commit is required."
+    ],
+    "expected": "Recorder health monitoring (CR-026; docs/changes/CR-026-NVR-HEALTH.md): a read-only background poller per ready recorder (reachability and latency for every vendor; disk state, disk alarms, free-space trend, recording state per channel, channel connectivity for Provision-ISR) feeding the notification core sources recorder.unreachable / recorder.slow / recorder.disk / recorder.disk_space / recorder.recording and camera.offline, with per-recorder settings; only recorder-reported faults by default, the continuous-recording expectation and the disk-fill forecast off.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT221",
+    "requirement_ids": [
+      "R221"
+    ],
+    "task_ids": [
+      "T107"
+    ],
+    "title": "מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "See the card evidence for the test files that exist; a recorded run against a commit is required."
+    ],
+    "expected": "Wall display mode (CR-030; docs/changes/CR-030-WALL-DISPLAY.md): a wall user (the existing kiosk role) recognised because it signs in on a tablet, a wall shell with tablet presets, Settings > wall displays, wall_profiles, /wall/* routes, refused on the remote channel; picture-frame mode and alert tiles (WDX) as a follow-up; a TV shows cameras by casting (CR-028).",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit."
+  },
+  {
+    "id": "AT222",
+    "requirement_ids": [
+      "R222"
+    ],
+    "task_ids": [
+      "T108"
+    ],
+    "title": "גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "See the card evidence for the test files that exist; a recorded run against a commit is required."
+    ],
+    "expected": "Generators (CR-031; docs/changes/CR-031-GENERATOR.md on the design branch): view and alerts only (no start / stop command); detection from the registry mirror by device, capability-driven roles, a generator picker, live page and charts, per-generator alert routing and notification-centre policies with a validated Hebrew template per policy, history; reference device NMC DSE 8620 MKII.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit."
   }
 ]
