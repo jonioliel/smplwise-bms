@@ -570,7 +570,7 @@ export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
     { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
     { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
     { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
-    { id: 'reviews', label: 'Review', href: '#/investigate/reviews' },
+    { id: 'reviews', label: 'סקירה', href: '#/investigate/reviews' },
     { id: 'search', label: 'חיפוש', href: '#/investigate/search' },
     { id: 'cases', label: 'תיקים', href: '#/investigate/cases' },
     { id: 'rules', label: 'חוקים והתראות', href: '#/investigate/rules' },

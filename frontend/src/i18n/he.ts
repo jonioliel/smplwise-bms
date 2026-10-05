@@ -237,6 +237,7 @@ export const he = {
       objects: 'אובייקטים',
       zones: 'אזורים',
       noZones: 'ללא אזור',
+      where: 'מיקום',
       duration: 'משך',
       timeline: 'ציר האובייקט',
       noTimeline: 'אין פירוט נוסף על הפריט הזה',
