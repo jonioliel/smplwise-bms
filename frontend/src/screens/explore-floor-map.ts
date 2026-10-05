@@ -1126,9 +1126,11 @@ export class ExploreFloorMap extends LitElement {
       min-block-size: 240px;
     }
     :host([compact]) .legend,
-    :host([compact]) .floorbtns,
-    :host([compact]) .tools .layers {
-      display: none;
+    :host([compact]) .tools .layers,
+    :host([embedded]) .floorbtns,
+    :host([embedded]) .floorstrip,
+    :host([embedded]) .crumbs {
+      display: none; /* hosted: the host screen chooses the floor; the map's own floor controls would leave it */
     }
   `;
 
@@ -1939,9 +1941,9 @@ export class ExploreFloorMap extends LitElement {
       <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
       <label class="jz" data-jump-zoom-row><input type="checkbox" data-jump-zoom .checked=${this.jumpZoom} @change=${(e: Event) => this.setJumpZoom((e.target as HTMLInputElement).checked)} /> זום בקפיצה לרכיב</label>
       <div class="body">
-        <div class="grp">קומות</div>
+        ${this.embedded ? nothing : html`<div class="grp">קומות</div>
         ${this.floors.map((f) => html`<button class="it ${f.id === this.floorId ? 'on' : ''}" data-side-floor=${f.id} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>
-          <sw-icon name="building" size=${12}></sw-icon><span class="nm">${bidi(f.name)}</span><span class="st">${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</span></button>`)}
+          <sw-icon name="building" size=${12}></sw-icon><span class="nm">${bidi(f.name)}</span><span class="st">${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</span></button>`)}`}
         <div class="grp">מצלמות (${cams.length})</div>
         ${cams.map((a) => html`<button class="it ${this.selectedId === a.id || this.picked.includes(a.id) ? 'on' : ''}" data-side-camera=${a.resource_id} @click=${() => this.jumpTo(a)}>
           <span class="dot" style="--dot:${dotOf(a)}"></span><span class="nm">${a.camera?.name ?? a.label ?? a.resource_id}</span><span class="st">${a.camera?.status === 'online' ? 'חיה' : a.camera?.status === 'offline' ? 'מנותקת' : ''}</span></button>`)}
