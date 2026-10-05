@@ -10,6 +10,7 @@ import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
 import { tribuneEntrances } from './shared-space';
+import { affineAttr, affineFromCorners, type Corners } from './floor-image';
 
 export type MarkerKind = 'camera' | 'lock' | 'light' | 'binary_sensor';
 
@@ -269,6 +270,9 @@ export class SwPlanCanvas extends LitElement {
   /** The viewer's "plan picture" switch (owner request 2026-09-26): the raster of `imageUrl` is not drawn and the
    * structure sits on a plain sheet of the plan's size instead. Without an `imageUrl` there is nothing to hide. */
   @property({ type: Boolean }) hideImage = false;
+  /** K88: the floor's own picture(s) - "off" under everything but the plan image, "on" clipped to the lit rooms of `roomStates`. */
+  @property({ attribute: false }) floorImage: { off: string | null; on: string | null; corners: Corners; opacity: number } | null = null;
+  @property({ type: Boolean }) hideFloorImage = false;
   /** T087 (ruling R-P4-2): a camera cone is cut by the walls of its level when the document has any; off in the
    * candidates overlay of the editor is not needed - the editor keeps it on, so what is drawn is what viewers see. */
   @property({ type: Boolean }) clipCoverage = true;
@@ -2577,6 +2581,35 @@ export class SwPlanCanvas extends LitElement {
     </g>`;
   }
 
+  /** K88: the floor's own picture under the state layer; the lit variant shows only inside rooms the state layer says are lit. */
+  private renderFloorImage(): SVGTemplateResult | typeof nothing {
+    const fi = this.floorImage;
+    if (!fi || this.hideFloorImage || (!fi.off && !fi.on)) return nothing;
+    const w = this.planWidth, h = this.planHeight;
+    const tr = affineAttr(affineFromCorners(fi.corners, w, h));
+    const base = fi.off ?? fi.on;
+    const lit = fi.off && fi.on ? this.zones.filter((z) => this.roomStates?.rooms[z.id]?.lit) : [];
+    const clipId = `fi-lit-${this.floorImageSeq}`;
+    return svg`<g data-floor-image class="floor-image" opacity=${fi.opacity ?? 1} transform=${tr}>
+      <image data-floor-image-off href=${base} x="0" y="0" width=${w} height=${h} preserveAspectRatio="none" />
+      ${lit.length ? svg`<clipPath id=${clipId} clipPathUnits="userSpaceOnUse">${lit.map((z) => svg`<polygon points=${this.litClipPoints(z)} />`)}</clipPath>
+        <image data-floor-image-on href=${fi.on} x="0" y="0" width=${w} height=${h} preserveAspectRatio="none" clip-path="url(#${clipId})" />` : nothing}
+    </g>`;
+  }
+
+  private readonly floorImageSeq = Math.floor(Math.random() * 1e9);
+
+  /** A lit room's polygon in the picture's own coordinates (the inverse of the alignment), so the clip follows the room. */
+  private litClipPoints(z: PlanZone): string {
+    const fi = this.floorImage!;
+    const t = affineFromCorners(fi.corners, this.planWidth, this.planHeight);
+    const det = t.a * t.d - t.b * t.c || 1;
+    return z.polygon.map((p) => {
+      const x = p.x * this.planWidth - t.e, y = p.y * this.planHeight - t.f;
+      return `${((t.d * x - t.c * y) / det).toFixed(1)},${((-t.b * x + t.a * y) / det).toFixed(1)}`;
+    }).join(' ');
+  }
+
   render() {
     return html`
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.panActive ? 'spacepan' : ''}" data-space-pan=${this.panActive ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
@@ -2590,6 +2623,7 @@ export class SwPlanCanvas extends LitElement {
                 ? svg`<rect class="sheet" data-plan-sheet x="0" y="0" width=${this.planWidth} height=${this.planHeight} />`
                 : nothing}
             ${this.plan ?? nothing}
+            ${this.renderFloorImage()}
             ${this.renderGrid()}
             ${this.zones.map((z) => this.renderZone(z))}
             ${this.renderSharedOutlines()}

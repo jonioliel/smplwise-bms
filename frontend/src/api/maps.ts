@@ -10,6 +10,15 @@ import type { GeomLevel } from '../map/geometry';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
 import type { StateKind } from '../components/sw-badge';
 
+/** K88: own floor images as the map draws them (urls already resolved). Corners: top-left, top-right, bottom-right,
+ * bottom-left in plan-normalised coordinates. */
+export interface FloorImageLayer {
+  off: string | null;
+  on: string | null;
+  corners: [number, number][];
+  opacity: number;
+}
+
 export interface MapBundle {
   source: 'api' | 'demo';
   floorId: string;
@@ -46,6 +55,8 @@ export interface MapBundle {
   catalogRevision: string | null;
   levels: GeomLevel[];
   circuitStates: Record<string, CircuitState>;
+  /** K88: the floor's own picture(s) - lights off / on - and where their corners sit on the plan (null = none uploaded). */
+  floorImages: FloorImageLayer | null;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -77,6 +88,7 @@ function demoBundle(floorId: string): MapBundle {
     catalogRevision: null,
     levels: [],
     circuitStates: {},
+    floorImages: null,
     anchors: cams.map((c, i) => ({
       id: `demo-anchor-${c.id}`,
       floor_id: floor.id,
@@ -140,6 +152,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     catalogRevision: m.catalog_revision ?? null,
     levels: m.levels ?? [],
     circuitStates: m.circuit_states ?? {},
+    floorImages: m.floor_images ? { off: m.floor_images.off ? resourceUrl(m.floor_images.off) : null, on: m.floor_images.on ? resourceUrl(m.floor_images.on) : null, corners: m.floor_images.corners, opacity: m.floor_images.opacity ?? 1 } : null,
   };
 }
 

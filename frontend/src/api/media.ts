@@ -72,6 +72,9 @@ export interface ProductSettings {
   /** CR-006 1b: the presence tint's fade after the last motion - 'off' (the tint only while a sensor is on) or the
    * window in minutes as a string (default '3'), per installation. */
   'plan.presence_fade'?: string;
+  /** K88 (owner 2026-10-04): where the live plan shows besides the map tab - 'devices' (a plan view in חשמל והתקנים),
+   * 'area' (a card on the area page); [] = nowhere new. Default both. */
+  'plan.surfaces'?: ('devices' | 'area')[];
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
