@@ -240,6 +240,34 @@ screen said "requires a media server"; it now declares `rtsp`. A seek sent to th
 screen's player ("session replaced") - expected: the screen owns its session. Not measured: frame accuracy, speeds other than
 x1, reconnect after a network drop, two cameras in sync.
 
+**Second run (same set-up, 2026-10-04 evening; low confidence, to be repeated).** First frame 18.6 s (the first run's 6 s
+was with a warm go2rtc producer). Speed control: x0.25, x0.5 and x1 offered, x2 and x4 disabled by the screen (RTSP
+playback has no fast-forward on this firmware). Real-time advance read 0.36-0.71 s of media per 6 s - implausibly low next to
+the first run's 5.7-6.0 s; the cause is not established (the samples followed the speed changes, so a re-buffering player or
+the probe itself is suspected); NOT accepted as a result. +/-10 s nudges landed on the requested position and played
+again after about 20 s. Producer-drop recovery: 10.1 s measured, but the script's drop was not a faithful network drop, so the
+number is NOT accepted either. No `smplwise_pb_` stream left in HA2's go2rtc (0).
+Open: rerun advance and drop recovery with the corrected script.
+
+### 6.5 Security review fixes (2026-10-04/05, branch pilot/provision-wiring)
+
+Two reviews (adapter + multi-NVR). Fixed, each with tests: export credentials no longer stored (HIGH); disabled / removed
+recorders never contacted (M3); push listener bounded (M1); shared-address push refused (M2); certificate pin checked on the
+request's own connection and no credentials before a pin exists; Hikvision ISAPI routes refuse other vendors (finding 3);
+push token from its own secret plus a recorder generation (finding 5); Digest-to-Basic downgrade refused in auto mode
+(finding 10); exact alarm-server restore in the write script; UTF-8-only device XML (L1); per-recorder health detail only for
+who may see recorders (L2); recorder health cached 10 s (L3); export jobs bound to their recorder (L6); vendor extras validated
+by kind; stored password not reused across scheme / HTTPS port / certificate mode / auth changes; CDATA escaping; ffmpeg with
+a minimal environment and an input protocol whitelist; recorder ids limited to `nvr-<n>`; duplicate-recorder refusals audited.
+
+**Known limitation - DNS rebinding.** A recorder configured by host name is resolved again on every request (httpx), after
+the connection test's source-policy check. A name whose DNS answer changes later (rebinding, or an attacker controlling the
+resolver) can point the stored credentials at another address. This is shared with the Hikvision path and is not new. Mitigations
+in place: the source policy at test and save, HTTPS with certificate pinning (a different host cannot present the pinned
+certificate, so the request is closed before any byte), Digest preferred over Basic. Recommended for installers: configure
+recorders by IP address or use pinned HTTPS. Pinning the resolved address per session is deferred (it needs a custom
+transport for both vendors).
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |
@@ -261,6 +289,7 @@ x1, reconnect after a network drop, two cameras in sync.
 | R4 | Basic over HTTP exposes the password | HTTPS / Digest preferred; `transport_info().insecure` warning; owner question 4 |
 | R5 | Short polling misses alarms shorter than the interval | 2 s interval; long polling / push in P4 |
 | R6 | Firmware variation (ODM platform) | tolerant parsers, capability discovery, fixtures from real captures |
+| R7 | DNS rebinding of a recorder host name (section 6.5) | IP addresses or pinned HTTPS recommended; per-session address pinning deferred |
 
 ---
 
