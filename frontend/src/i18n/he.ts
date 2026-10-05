@@ -27,6 +27,7 @@ export const he = {
     doors: 'דלתות',
     lights: 'תאורה',
     sensors: 'חיישנים',
+    cluster: 'אשכול פריטים, לחיצה מרחיבה',
     zoomIn: 'הגדלה',
     zoomOut: 'הקטנה',
     fit: 'התאמה למסך',
