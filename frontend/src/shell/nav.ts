@@ -417,6 +417,7 @@ function entryHref(fallback: string, tabs: TabItem[], section: string | null): s
 /** CR-014: the schedules list (a tab of the home area) and its settings page (a tab of הגדרות). */
 export const SCHEDULES_HREF = '#/devices/schedules';
 export const SCHEDULES_SETTINGS_HREF = '#/system/schedules';
+export const WALL_SETTINGS_HREF = '#/system/wall'; // CR-030: wall display users (system.configure; the add / remove step also needs rbac.assign)
 /** CR-017: the automations screen (the third tab of the home area: automations, scenes, scripts) and its settings page. */
 export const AUTOMATIONS_HREF = '#/devices/automations';
 export const AUTOMATIONS_SETTINGS_HREF = '#/system/automations';
@@ -619,6 +620,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
+    { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)
@@ -795,6 +797,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [SCHEDULES_HREF]: ['schedule.view', 'schedule.manage'],
   // its settings page: system.configure at installation scope
   [SCHEDULES_SETTINGS_HREF]: ['system.configure'],
+  [WALL_SETTINGS_HREF]: ['system.configure'],
   // CR-017, owner decision 1b (2026-10-01, no view-only access): automation.manage, a script run (script.run / script.manage) or a scene activation
   // (scene.manage or the control of a device) at any scope - the server narrows the lists to the caller's floors and leaves automations out for a caller
   // without automation.manage; the settings page is system.configure at installation scope.
@@ -845,7 +848,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/security/manage', SECURITY_CAMERAS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;
