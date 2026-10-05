@@ -343,7 +343,7 @@ def test_retention_per_entity_cap_and_table_cap(app_s):
 def test_the_setting_changes_the_retention_and_the_janitor_prunes(app_s):
     app, s = app_s
     c = TestClient(app)
-    got = c.get(f"{API}/settings").json()
+    got = c.get(f"{API}/settings").json()["settings"]
     assert got["device_activity.retention_days"] == 90
     assert c.patch(f"{API}/settings", json={"device_activity.retention_days": 30}).status_code == 200
     assert c.patch(f"{API}/settings", json={"device_activity.retention_days": 3}).status_code == 422
@@ -396,7 +396,7 @@ def test_feed_shape_filters_paging_and_permission(app_s):
     first = body["items"][-1]
     assert first["actor"] == {"type": "person", "name": "דנה כהן"} and first["from"] == {"state": "off"} and first["to"] == {"state": "on", "brightness_pct": 50}
     assert first["changed"] == ["brightness_pct", "state"] and first["via"] == "ha" and first["confidence"] == "exact" and first["source"] is None
-    assert body["entity"] == {"entity_id": "light.lobby", "name": "Lobby light", "domain": "light", "virtual": False}
+    assert body["entity"] == {"entity_id": "light.lobby", "name": "Lobby light", "domain": "light", "activity_kind": "light", "virtual": False, "power": None}
     assert body["retention_days"] == 90 and body["coverage"]["from"] and body["next_cursor"] is None and body["availability"] in ("ok", "partial")
     assert "ha_url" not in r.text and "u-dana" not in r.text  # no HA user id, no host
     # filters
@@ -443,12 +443,12 @@ def test_security_devices_need_the_permission_that_operates_them(app_s):
     c = TestClient(app)
     push(app, _state("lock.front", "locked", 0), _state("lock.front", "unlocked", 5, ctx("l1", "u-dana")))
     push(app, _state("alarm_control_panel.house", "armed_away", 0), _state("alarm_control_panel.house", "disarmed", 5, ctx("l2", "u-dana")))
-    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "site_admin")):
+    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "system_admin")  # door.unlock is a system_admin permission):
         bind(c, s, name, role, "installation", "*")
     # a viewer sees both devices but not who locked / armed them
     assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("vi")).status_code == 403
     assert c.get(f"{API}/devices/alarm_control_panel.house/activity", headers=as_user("vi")).status_code == 403
-    # an operator may arm (alarm.arm) but holds no door.unlock
+    # an operator may arm (alarm.arm) but holds no door.unlock (system_admin only)
     assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("op")).status_code == 403
     assert c.get(f"{API}/devices/alarm_control_panel.house/activity", headers=as_user("op")).status_code == 200
     r = c.get(f"{API}/devices/lock.front/activity", headers=as_user("sa"))
