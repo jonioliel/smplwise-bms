@@ -49,6 +49,7 @@
         "media.browse",
         "media.queue",
         "energy.view",
+        "generator.view",
         "presence.report"
       ]
     },
@@ -124,6 +125,8 @@
         "energy.view",
         "energy.bills",
         "energy.manage",
+        "generator.view",
+        "generator.manage",
         "presence.report"
       ]
     },
@@ -203,6 +206,8 @@
         "energy.view",
         "energy.bills",
         "energy.manage",
+        "generator.view",
+        "generator.manage",
         "presence.report",
         "presence.sensors.view"
       ]

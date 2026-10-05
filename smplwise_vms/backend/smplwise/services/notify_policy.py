@@ -21,10 +21,10 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security")
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users")
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator")  # generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app")  # app = the SmplWise Arx phone app through the push relay (CR-027)
 CHANNELS_RESERVED = ("ha_mobile", "whatsapp")
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session")
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -97,6 +97,20 @@ SOURCES: tuple[Source, ...] = (
     _s("camera.person", "אדם (רק דרך חוקים)", "alerts", "info", "זיהוי אדם", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
     _s("camera.vehicle", "רכב (רק דרך חוקים)", "alerts", "info", "זיהוי רכב", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
 )
+
+
+def _generator_sources() -> tuple[Source, ...]:
+    """CR-031: one source per generator alert type (`generator.<key>`). Routing starts empty: the recipients rule `generator` finds nobody until an
+    administrator saves a routing; no push / e-mail by default. The alert always lands in the generator's own history and in the centre."""
+    from . import generator_catalog as gc
+
+    return tuple(
+        Source(f"generator.{t.key}", f"גנרטור: {t.title_he}", "device_faults", t.severity, t.title_he, t.body, who="generator", push=False, subject="generator", resolve_text="הסתיים", resolves=not t.event)
+        for t in gc.ALERT_TYPES
+    )
+
+
+SOURCES = SOURCES + _generator_sources()
 BY_KEY: dict[str, Source] = {s.key: s for s in SOURCES}
 
 
