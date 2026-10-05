@@ -9,6 +9,7 @@ import type { IconName } from '../components/sw-icon';
 import { ApiError, apiUrl } from '../api/client';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { snapshotUrl, type ProductSettings } from '../api/media';
+import { isStillRecorder } from '../api/frigate';
 import { snapshotRefreshMs } from '../api/live-budget';
 import { playerPlan } from '../api/video-policy';
 import { navigate } from '../router';
@@ -138,6 +139,8 @@ export class DevicesCameraCard extends LitElement {
 
   @state() private played = '';
   @state() private resolved: CameraResolved | null = null;
+  /** NN5-F1B: the camera belongs to a Frigate recorder without a restream - its card is a refreshing still, never a stream. */
+  @state() private stillRec = false;
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private settings: ProductSettings | null = null;
@@ -427,6 +430,8 @@ export class DevicesCameraCard extends LitElement {
       if (token !== this.token) return;
       this.settings = settings;
       cardBudget.setCap(liveCapOf(settings));
+      this.stillRec = r.state === 'live' && r.recorder_id ? await isStillRecorder(r.recorder_id) : false;
+      if (token !== this.token) return;
       this.resolved = r;
       this.posterBust = Date.now();
       this.snapBust = Date.now();
@@ -494,6 +499,7 @@ export class DevicesCameraCard extends LitElement {
   private get streaming(): boolean {
     const r = this.resolved;
     if (r?.state === 'ha_live') return this.canStream && this.granted && !this.expanded;
+    if (this.stillRec) return false;
     return !!r && r.state === 'live' && r.status !== 'offline' && r.status !== 'unknown' && !!r.camera_id && this.granted && !this.expanded;
   }
 
@@ -585,7 +591,7 @@ export class DevicesCameraCard extends LitElement {
     const live = this.streaming;
     const profile = cardProfile(this.size, wallProfileOf(this.settings), this.quality);
     const transport = effectiveTransport(this.settings);
-    const poster = r.status === 'offline' ? '' : snapshotUrl(id, streamable && !live ? this.snapBust : this.posterBust);
+    const poster = r.status === 'offline' ? '' : snapshotUrl(id, this.stillRec ? undefined : streamable && !live ? this.snapBust : this.posterBust);
     return html`<div data-camera-state=${live ? 'live' : streamable ? 'snapshot' : state} data-camera-id=${id} data-profile=${profile} data-quality=${this.quality} data-played=${live ? this.played : ''} style="display:contents">
       ${this.showQuality ? html`<span class="qbadge" data-camera-quality-badge>איכות: ${CARD_QUALITY_LABEL[this.quality]}</span>` : nothing}
       <sw-camera-tile
@@ -593,6 +599,7 @@ export class DevicesCameraCard extends LitElement {
         state=${state}
         ?live=${live}
         ?snapshotOnly=${streamable && !live}
+        .stillRefresh=${this.stillRec && streamable ? 10 : 0}
         cameraId=${id}
         profile=${profile}
         transport=${transport}

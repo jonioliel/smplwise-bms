@@ -642,6 +642,16 @@ async function stillRecorderIds(): Promise<Set<string>> {
   return out;
 }
 
+/** True when the recorder is a Frigate one without a restream: its cameras are refreshing stills (the area cards ask per camera). */
+export async function isStillRecorder(rid: string): Promise<boolean> {
+  if (!isApi() || !rid) return false;
+  try {
+    return (await stillRecorderIds()).has(rid);
+  } catch {
+    return false;
+  }
+}
+
 /** Mark the cameras of a Frigate recorder without a restream as stills (`live_kind`), so the live screens show a refreshing picture
  * instead of opening a stream that does not exist. A camera the server already marked keeps its own value. Quiet on any failure. */
 export async function markStillCameras(cams: Camera[]): Promise<void> {
