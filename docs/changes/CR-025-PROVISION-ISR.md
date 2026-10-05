@@ -290,6 +290,59 @@ certificate, so the request is closed before any byte), Digest preferred over Ba
 recorders by IP address or use pinned HTTPS. Pinning the resolved address per session is deferred (it needs a custom
 transport for both vendors).
 
+### 6.6 Device push validation (NN2A, branch pilot/NN2A-push-events, 2026-10-05)
+
+Goal: prove that the owner's NVR (firmware 1.4.7) pushes alarms to Arx's listener, with one bounded device write (the
+alarm-server address and port only). The product is unchanged: `event_mode` stays `poll` by default and the add-on's
+18091/tcp stays unmapped (`ports: 18091/tcp: null`), so no installation listens until an administrator chooses push.
+
+**Read-only facts (dry run, 2026-10-05).** `GetAlarmServerConfig` answers with `serverAddr` + `serverPort` only (no `url`,
+no heartbeat fields) and the alarm server is **not configured** (empty address). Consequences: the path token cannot be used
+on this firmware - the listener must run in source-address mode (`push_auth: address`); the write body carries only
+`serverAddr` + `serverPort`; the exact restore is "empty address, empty port"; whether this firmware sends heartbeats at all
+is unknown (the receiver falls back to sampling after 3 x `push_heartbeat_s` of silence, so a silent push path loses nothing).
+
+**What this branch adds.**
+- `scripts/provision_push_probe.py`: the product's `PushListener` / `PushReceiver`, unchanged, outside the add-on, answering
+  only the recorder's address. One line per message (time, path, kind, edges `type chN state`), never an address, serial or
+  body. Raw bodies are kept unmodified for future fixtures under `private-evidence/provision-isr-live/push-probe/<run>/`
+  (gitignored; they carry the device name / serial). Exit 0 = an alarm edge arrived, 1 = messages but no edge, 2 = nothing,
+  4 = cannot listen.
+- `scripts/provision_nvr_write.py set-alarm-server`: saves the device's full, unmodified `GetAlarmServerConfig` answer to
+  `private-evidence/provision-isr-live/alarm-server-before-<entry>.xml` **before** the write (in addition to the restore
+  record under `secrets/provision-restore/`); a refused / failed write or a read-back that differs from what was sent now
+  restores the saved values exactly, **once**, and stops (exit 3 diverged, 6 write failed; `--no-auto-restore` only prints
+  the restore command); `--server auto` = this machine's own address towards the recorder (never printed).
+- Tests: `tests/test_provision_push_probe.py` (3), six new cases in `tests/test_provision_nvr_write_script.py`.
+
+**Runbook (the owner runs it, from the repository root, project venv; every `provision_nvr_write` command asks at the
+permission prompt).**
+
+1. Listener (terminal A; Windows asks once for the firewall: allow on the private network only):
+   `.venv\Scripts\python.exe scripts\provision_push_probe.py --seconds 900`
+   Expected: `listening on port 18091 for the recorder only (address mode) ...`.
+2. Dry run (terminal B): `.venv\Scripts\python.exe scripts\provision_nvr_write.py --dry-run set-alarm-server --server auto --port 18091`
+   Expected: body with `<serverAddr><![CDATA[<IP>]]></serverAddr><serverPort>18091</serverPort>` only; current
+   `{"configured": false, "port": null, ... "fields": ["serverAddr", "serverPort"]}`; `dry-run: nothing written`.
+   Stop if `current` differs (someone configured an alarm server meanwhile).
+3. The write (the single approved write): the same command without `--dry-run`.
+   Expected: `entry <id>: verified (restore with: restore-from-log --entry <id>)`. Note the entry id. Any other ending
+   (`DIVERGED`, `write failed`) has already restored the previous values once; stop and report.
+4. Event: walk in front of a camera with motion detection (or wait for one). Terminal A shows e.g.
+   `/SendAlarmStatus  status  edges: VMD ch2 active`. With `--until-event` the probe stops at the first edge (exit 0).
+5. Revert (unless the owner keeps the NVR pointed at a permanent Arx listener):
+   `.venv\Scripts\python.exe scripts\provision_nvr_write.py restore-from-log --entry <id>`
+   Expected: `entry <new id>: verified` - address and port empty again, exactly as read in step 2. Then stop the probe.
+
+Keeping push permanently needs, in addition: the add-on's 18091/tcp mapped to a host port, the recorder set to
+`event_mode: push`, `push_auth: address`, `push_advertise_host` / `push_advertise_port` = the HA host's LAN address and that
+host port, and `set-alarm-server` pointed there instead of the PC. Not done here.
+
+**Result 2026-10-05:** code and offline tests done; dry run against the real NVR done (read-only, figures above). **No
+device write was made** by the agent: the approval reached the agent relayed through the lead, and the agent's own rule is
+that only the owner, directly or at the permission prompt, can authorise a real-device write. The device is unchanged
+(alarm server not configured). Steps 1-5 are for the owner.
+
 ## 7. ETA (focused agent time; owner review time not included)
 
 | Phase | Work | ETA |

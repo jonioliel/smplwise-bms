@@ -3,7 +3,11 @@
 Every real write runs as its own command whose text contains `provision_nvr_write`, so the project's permission rule asks the
 owner at a prompt and the prompt shows exactly what will be written. Whitelisted operations only:
 
-  set-alarm-server --server HOST --port N [--path /TOKEN/SendAlarmStatus]
+  set-alarm-server --server HOST|auto --port N [--path /TOKEN/SendAlarmStatus] [--no-auto-restore]
+      (auto = this machine's own address towards the recorder, e.g. where scripts/provision_push_probe.py listens)
+      before the write the device's full GetAlarmServerConfig answer is saved unmodified to
+      <log-dir>/alarm-server-before-<entry>.xml; a failed request or a read-back that differs from what was sent restores the
+      saved values exactly, once, and stops (exit 3 diverged / 6 write failed)
   set-encoding --channel N --stream main|sub --set field=value [--set field=value ...]
       fields: codec (H.264|H.265|MJPEG), profile (baseline|main|high), resolution (WxH), fps, bitrate_mode (CBR|VBR),
       bitrate_kbps, quality (1..5), gop, smart_codec (true|false)
@@ -100,6 +104,13 @@ class Journal:
         with self.log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
 
+    def save_snapshot(self, entry_id: str, name: str, text: str) -> Path:
+        """The device's full, unmodified answer before a write (NN2A: 'read and save the full previous configuration first').
+        Lives next to the log under private-evidence/ (gitignored); never printed, never committed."""
+        p = self.log_path.parent / f"{name}-before-{entry_id}.xml"
+        p.write_text(text, encoding="utf-8")
+        return p
+
     def save_restore(self, entry_id: str, data: dict[str, Any]) -> None:
         (self.restore_dir / f"{entry_id}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -131,7 +142,7 @@ def _alarm_body(px: Any, server: str, port: int | None, path: str | None, fields
 
 
 def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, server: str, port: int | None, path: str | None, dry_run: bool,
-                        restoring: str | None = None) -> int:
+                        restoring: str | None = None, auto_restore: bool = True) -> int:
     from smplwise.services.recorders import provision_isr as pisr
     from smplwise.services.recorders import provision_isr_xml as px
 
@@ -152,15 +163,50 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
     eid = uuid.uuid4().hex[:12]
     # the exact prior text of every element (address, port, url path, heartbeat): restore puts back precisely this
     j.save_restore(eid, {"op": "set-alarm-server", "values": before_values, "fields": sorted(fields)})
+    j.save_snapshot(eid, "alarm-server", before_xml if isinstance(before_xml, str) else before_xml.decode("utf-8"))
     j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "before", "restore_of": restoring,
              "before": {"configured": before.get("configured"), "port": before.get("port")}})
-    a._xml("SetAlarmServerConfig", None, body=body, allowed=pisr.WRITE_COMMANDS)
+    try:
+        a._xml("SetAlarmServerConfig", None, body=body, allowed=pisr.WRITE_COMMANDS)
+    except Exception as exc:  # noqa: BLE001 - the device may or may not have applied it: read back, never retry the write
+        j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "write-failed",
+                 "code": getattr(exc, "code", type(exc).__name__)})
+        out(f"entry {eid}: the write failed ({getattr(exc, 'code', type(exc).__name__)}); checking what the device holds now")
+        return _restore_if_changed(a, j, out, before_values=before_values, eid=eid, auto_restore=auto_restore, code=6)
     after = a._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
     ok = (after.get("address") or "") == server and (after.get("port") if server else None) == (port if server else None)
     j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "verified" if ok else "diverged",
              "after": {"configured": after.get("configured"), "port": after.get("port")}})
-    out(f"entry {eid}: {'verified' if ok else 'DIVERGED - restore with: restore-from-log --entry ' + eid}")
-    return 0 if ok else 3
+    if ok:
+        out(f"entry {eid}: verified (restore with: restore-from-log --entry {eid})")
+        return 0
+    out(f"entry {eid}: DIVERGED")
+    return _restore_if_changed(a, j, out, before_values=before_values, eid=eid, auto_restore=auto_restore, code=3)
+
+
+def _restore_if_changed(a: Any, j: Journal, out: Callable[[str], None], *, before_values: dict[str, str], eid: str, auto_restore: bool,
+                        code: int) -> int:
+    """Something unexpected after an alarm-server write (refused / failed request, or a read-back that is not what was sent):
+    when the device no longer holds the saved values, put them back exactly, ONCE (no retry), and stop. NN2A rule."""
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    try:
+        now = px.alarm_server_values(a._xml("GetAlarmServerConfig", None))
+    except Exception as exc:  # noqa: BLE001
+        out(f"entry {eid}: cannot read the device back ({getattr(exc, 'code', type(exc).__name__)}); "
+            f"restore by hand with: restore-from-log --entry {eid}")
+        return code
+    if all(now.get(k, "") == v for k, v in before_values.items()):
+        j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "unchanged"})
+        out(f"entry {eid}: the device still holds the previous configuration; nothing to restore")
+        return code
+    if not auto_restore:
+        out(f"entry {eid}: restore with: restore-from-log --entry {eid}")
+        return code
+    out(f"entry {eid}: restoring the previous configuration exactly (once)")
+    rc = op_restore_alarm_server(a, j, out, values=before_values, dry_run=False, restoring=eid)
+    out(f"entry {eid}: {'restored and verified' if rc == 0 else 'RESTORE DID NOT VERIFY - stop and check the device'}")
+    return code
 
 
 def _parse_sets(pairs: list[str]) -> dict[str, Any]:
@@ -285,6 +331,8 @@ def build_parser() -> argparse.ArgumentParser:
     s1.add_argument("--server", required=True)
     s1.add_argument("--port", type=int, required=True)
     s1.add_argument("--path")
+    s1.add_argument("--no-auto-restore", action="store_true",
+                    help="on a failed or diverging write, only print the restore command (default: restore the saved values once)")
     s2 = sub.add_parser("set-encoding")
     s2.add_argument("--channel", type=int, required=True)
     s2.add_argument("--stream", choices=("main", "sub"), required=True)
@@ -305,7 +353,14 @@ def main(argv: list[str] | None = None, *, transport: Any = None, out: Callable[
         j = Journal(Path(args.log_dir) / "nvr-write-log.jsonl", Path(args.restore_dir), redact)
         a = make_adapter(env, scheme=args.scheme, https_port=args.https_port, transport=transport)
         if args.op == "set-alarm-server":
-            return op_set_alarm_server(a, j, out, server=args.server, port=args.port, path=args.path, dry_run=args.dry_run)
+            if args.server == "auto":  # this machine's own address towards the recorder (where provision_push_probe listens)
+                from smplwise.services.recorders.provision_events import _local_address_towards
+
+                args.server = _local_address_towards(urlparse(env["PROVISION_NVR_URL"]).hostname or "") or ""
+                if not args.server:
+                    raise Refused("--server auto: no local address towards the recorder")
+            return op_set_alarm_server(a, j, out, server=args.server, port=args.port, path=args.path, dry_run=args.dry_run,
+                                       auto_restore=not args.no_auto_restore)
         if args.op == "set-encoding":
             return op_set_encoding(a, j, out, channel=args.channel, stream=args.stream, changes=_parse_sets(args.sets), dry_run=args.dry_run)
         return op_restore(a, j, out, entry=args.entry, dry_run=args.dry_run)
