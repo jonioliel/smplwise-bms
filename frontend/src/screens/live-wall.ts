@@ -223,17 +223,18 @@ export class LiveWall extends LitElement {
     /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
     .pbar {
       display: flex;
+      flex-wrap: wrap; /* 2.0.4: with a second recorder the filter makes five controls: they wrap to a second row instead of overflowing at 320 px */
       align-items: center;
       gap: 6px;
       inline-size: 100%;
     }
     .pbar sw-field {
-      flex: 1 1 0;
+      flex: 1 1 64px;
       inline-size: auto;
       min-inline-size: 0;
     }
     .pbar sw-dropdown[block] {
-      flex: 1 1 0;
+      flex: 1 1 64px;
       min-inline-size: 0;
     }
     .pbar select {
