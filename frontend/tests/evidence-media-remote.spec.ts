@@ -482,6 +482,8 @@ test.describe('the remote editor ("עריכת השלט")', () => {
       m.screenEdits().find((x: { id: string }) => x.id === 'multimedia-remote')?.run();
     }, EDIT_URL);
     await expect(R(page).locator('[data-ed-conns]')).toBeVisible();
+    // MS3: the connection rows name the integration, not its registry id ('cast' -> Google Cast)
+    await expect(R(page).locator('[data-ed-conns]')).toContainText('Google Cast');
     await page.setViewportSize({ width: 1440, height: 1700 });
     await page.waitForTimeout(300);
     await shot(page, 'remote-editor-dark-1440');

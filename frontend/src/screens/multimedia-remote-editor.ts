@@ -11,6 +11,7 @@ import {
 import { ICON, SECTION_SHORT, glyphPath, tint } from '../components/media-remote-keys';
 import { moveSection, setMore, toggleSection } from '../components/media-remote-logic';
 import { remoteStyles } from '../components/media-remote-css';
+import { integrationName, integrationTitle } from './media-integration-names';
 
 /**
  * "עריכת השלט" (CR-015 §7.3): the remote's editor, drawn inside the open remote (media-remote.ts) instead of the pad. Reached from
@@ -492,7 +493,7 @@ export class MediaRemoteEditor extends LitElement {
       ${dev && this.sources.length ? html`<div class="grp"><h4>מקורות · סדר, שם והצגה</h4>${this.itemRows('sources')}</div>` : nothing}
       ${dev && this.apps.length ? html`<div class="grp"><h4>אפליקציות · סדר, שם והצגה</h4>${this.itemRows('apps')}</div>` : nothing}
       ${dev && this.canConfigure && this.conns?.length
-        ? html`<div class="grp"><h4>חיבורים</h4><div class="conn" data-ed-conns>${this.conns.map((c) => html`<span>${c.primary_for.map((p) => CONTROL_LABEL[p] ?? p).join(', ') || (c.hidden ? 'מוסתר' : '—')}</span><span>${ROLE_LABEL[c.role] ?? c.role} · <bdi>${c.platform}</bdi></span>`)}</div></div>`
+        ? html`<div class="grp"><h4>חיבורים</h4><div class="conn" data-ed-conns>${this.conns.map((c) => html`<span>${c.primary_for.map((p) => CONTROL_LABEL[p] ?? p).join(', ') || (c.hidden ? 'מוסתר' : '—')}</span><span>${ROLE_LABEL[c.role] ?? c.role} · <bdi title=${integrationTitle(c.platform)}>${integrationName(c.platform)}</bdi></span>`)}</div></div>`
         : nothing}
       ${dev && this.device.remote.scope === 'device' ? html`<button type="button" class="btn quiet" data-ed-reset ?disabled=${this.busy} @click=${() => void this.resetDevice()}>חזרה לברירת המחדל</button>` : nothing}
     </div>`;

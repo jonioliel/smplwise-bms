@@ -1590,6 +1590,8 @@ def shared_tag(conn: sqlite3.Connection, floor_id: str, mode: str = "published",
 # ---------------------------------------------------------------- conversion (the owner's two drawings -> one room)
 
 def _centroid(poly: list[Pt]) -> Pt:
+    if not poly:
+        return (0.0, 0.0)  # a room without corners has no centre; never a division by zero
     a = cx = cy = 0.0
     for i in range(len(poly)):
         x0, y0 = poly[i - 1]
@@ -1676,13 +1678,15 @@ def candidates(conn: sqlite3.Connection, zone: sqlite3.Row, other_floor_id: str,
     the two plans share a frame, by overlap (IoU); best first."""
     zpoly = json.loads(zone["polygon_json"])
     out: list[dict[str, Any]] = []
+    shares = all_shares(conn)  # one read, not one per room
+    taken = {s.zone_id for s in shares} | {s.other_zone_id for s in shares if s.other_zone_id}  # already a shared room, or another room's outline
     for z in conn.execute("SELECT * FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY created_at, rowid", (other_floor_id,)).fetchall():
+        if z["id"] in taken:
+            continue  # the auto-pick of plan_conversion takes the first candidate, so a room that belongs to a share must never be one
         try:
             poly = json.loads(z["polygon_json"])
         except ValueError:
             continue
-        if any(s.floor_id == zone["floor_id"] for s in shares_of_zone(conn, z["id"])):
-            continue  # a room of that floor already shared here
         name = _name_score(zone["name"], z["name"])
         overlap = round(_overlap(zpoly, poly), 3) if same_frame else None
         score = round(max(name, overlap or 0.0) if overlap is None or name == 0 else (name + (overlap or 0)) / 2 + 0.25 * min(name, overlap or 0), 3)
@@ -1889,8 +1893,17 @@ def unshare(conn: sqlite3.Connection, zone_id: str, floor_id: str, actor_id: str
                            (now, actor_id, now, zone_id, floor_id))
     except sqlite3.OperationalError:
         return False
-    if cur.rowcount and not shares_of_zone(conn, zone_id):
-        conn.execute("UPDATE shared_space_members SET removed_at = ?, removed_by = ? WHERE zone_id = ? AND removed_at IS NULL", (now, actor_id, zone_id))
+    if cur.rowcount:
+        left = shares_of_zone(conn, zone_id)
+        if not left:
+            conn.execute("UPDATE shared_space_members SET removed_at = ?, removed_by = ? WHERE zone_id = ? AND removed_at IS NULL", (now, actor_id, zone_id))
+        else:
+            # a room still shared with another floor: a member anchored only on the floor that just left reaches nothing any more
+            # (N1) - its membership row ends with it, so the list does not keep a member that is on none of the room's floors
+            floors = {floor_of_share for sh in left for floor_of_share in (sh.floor_id, sh.home_floor_id)}
+            for m in member_rows(conn, zone_id):
+                if m["resource_type"] in ANCHORED_TYPES and not (_live_anchor_floors(conn, m["resource_type"], m["resource_id"]) & floors):
+                    remove_member(conn, zone_id, m["resource_type"], m["resource_id"], actor_id, now)
     return cur.rowcount > 0
 
 
