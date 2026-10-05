@@ -258,7 +258,7 @@ export class DeviceActivity extends LitElement {
           )}
           ${page?.next_cursor ? html`<div class="more"><sw-button size="sm" ?disabled=${this.loadingMore} data-load-more @click=${() => void this.loadFeed(true)}>${this.loadingMore ? t('deviceActivity.loadingMore') : t('deviceActivity.loadMore')}</sw-button></div>` : nothing}`
       : isFiltered(this.filters)
-        ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${t('deviceActivity.widen')} compact data-feed-state="empty-filtered" @action=${() => this.setFilter({ period: 'month' })}></sw-state-panel>``
+        ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${t('deviceActivity.widen')} compact data-feed-state="empty-filtered" @action=${() => this.setFilter({ period: 'month' })}></sw-state-panel>`
         : html`<sw-state-panel state="empty" heading=${page?.coverage.from ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
     return html`${head}${body}<div class="pf" data-foot>${since ? html`<span data-tracked-since>${since}</span> · ` : nothing}${footnote(page?.retention_days ?? 90, this.feed.some((x) => x.actor.type === 'device'))}</div>`;
   }
