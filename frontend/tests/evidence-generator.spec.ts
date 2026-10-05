@@ -96,8 +96,8 @@ test.describe('generator evidence', () => {
   test('alerts: list, empty, detail with acknowledge, history filters', async ({ page }) => {
     for (const scheme of ['light', 'dark'] as const) await shoot(page, '/infra/generator/alerts', 'alerts-active', `${S} [data-gen-alerts] [data-alert]`, {}, scheme);
     await shoot(page, '/infra/generator/alerts', 'alerts-empty', `${S} [data-state="empty"]`, { alerts: 'none' });
-    await shoot(page, '/infra/generator/history', 'history', `${S} [data-gen-alerts="history"] [data-alert]`);
-    await shoot(page, '/infra/generator/history', 'history-filtered', `${S} [data-gen-alerts="history"] [data-alert]`, {}, 'light', 'classic', async (p) => {
+    await shoot(page, '/infra/generator/history', 'history', `${S} [data-gen-alerts="history"] [data-alert] >> visible=true`);
+    await shoot(page, '/infra/generator/history', 'history-filtered', `${S} [data-gen-alerts="history"] [data-alert] >> visible=true`, {}, 'light', 'classic', async (p) => {
       await p.locator(`${S} [data-filter="severity"]`).selectOption('critical');
     });
     const mock = await shoot(page, '/infra/generator/alerts/al1', 'alert-detail', `${S} [data-detail]`);
@@ -112,8 +112,8 @@ test.describe('generator evidence', () => {
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-empty', 'sw-app gen-routing [data-routing-empty]', { level: 'typical' });
     await expect(page.locator('sw-app gen-routing tr.na, sw-app gen-routing .li.dis').first()).toBeAttached();
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-full', 'sw-app gen-routing [data-routing-empty]', { level: 'full' }, 'dark');
-    await shoot(page, '/system/infra/generator/routing', 'settings-routing-edit', 'sw-app gen-routing [data-type="battery_low"]', { level: 'typical' }, 'light', 'classic', async (p) => {
-      await p.locator('sw-app gen-routing [data-type="battery_low"]').first().click({ force: true });
+    await shoot(page, '/system/infra/generator/routing', 'settings-routing-edit', 'sw-app gen-routing [data-type="battery_low"] >> visible=true', { level: 'typical' }, 'light', 'classic', async (p) => {
+      await p.locator('sw-app gen-routing [data-type="battery_low"] >> visible=true').first().click({ force: true });
       await p.waitForSelector('sw-app gen-routing [data-preview]');
     });
     await expect(page.locator('sw-app gen-routing [data-preview]')).toContainText('מתח מצבר');
