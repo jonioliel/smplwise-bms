@@ -12,6 +12,11 @@ async function open(page: Page, hash: string) {
   await page.waitForSelector('sw-app');
 }
 
+/** A screenshot for the visual review (test-results/k88-shots, never committed). */
+async function shot(page: Page, name: string) {
+  await page.screenshot({ path: `test-results/k88-shots/${name}-${test.info().project.name}.png` });
+}
+
 test.describe('floor map', () => {
   test('a room tap opens the room card; a linked room offers its area; the own picture is a layer', async ({ page }) => {
     await installK88Mock(page);
@@ -30,6 +35,7 @@ test.describe('floor map', () => {
     await expect(card).toBeVisible();
     await expect(card).toHaveAttribute('data-zone-id', ZONE_LINKED);
     await expect(card.locator('[data-room-open-area]')).toHaveAttribute('href', '#/devices/areas/living');
+    await shot(page, 'map-room-card');
     // the unlinked room: the card without the link
     await canvas.locator(`[data-zone="${ZONE_FREE}"] [data-zone-body]`).click({ position: { x: 10, y: 10 } });
     await expect(map.locator('[data-room-card]')).toHaveAttribute('data-zone-id', ZONE_FREE);
@@ -80,6 +86,7 @@ test.describe('devices screens', () => {
     await expect(embedded).toHaveAttribute('compact', '');
     await expect(embedded.locator(`sw-plan-canvas [data-zone="${ZONE_LINKED}"]`)).toHaveClass(/selected/);
     await expect(embedded.locator('[data-head] h1')).toHaveCount(0); // no title / crumbs inside a card
+    await shot(page, 'area-plan-card');
     // the popover of the area's actions links to the map too
     await area.locator('[data-bulk-area] sw-button').first().click();
     await expect(area.locator('[data-open-map]')).toHaveAttribute('href', `#/explore/floors/${FLOOR}?zone=${ZONE_LINKED}`);
@@ -115,6 +122,7 @@ test.describe('devices screens', () => {
     await expect(pop).toHaveCount(1);
     await expect(pop.locator('[data-open-area]')).toHaveAttribute('href', '#/devices/areas/living');
     await expect(pop.locator('[data-chip]').first()).toBeVisible();
+    await shot(page, 'building-plan-view');
     // the tree row's popover carries the map link
     await expect(building.locator('[data-tree-area="living"]')).toHaveAttribute('maphref', `#/explore/floors/${FLOOR}?zone=${ZONE_LINKED}`);
     await expect(building.locator('[data-tree-area="kitchen"]')).toHaveAttribute('maphref', '');
@@ -152,6 +160,7 @@ test.describe('settings', () => {
     await expect(free).toHaveAttribute('data-status', 'suggested');
     await expect(free.locator('[data-area-link-suggestion]')).toContainText('מחסן');
     await expect(admin.locator('[data-area-links-counts]')).toContainText(/הצעות\s*‎?1/);
+    await shot(page, 'settings-links');
     await free.locator('input[type="checkbox"]').check();
     await admin.locator('[data-area-links-accept]').click();
     await expect.poll(() => st.linkPosts.length).toBe(1);
@@ -183,6 +192,7 @@ test.describe('phone pass', () => {
     expect(box!.width).toBeGreaterThan(stage!.width - 4); // full width
     expect(Math.abs(box!.y + box!.height - (stage!.y + stage!.height))).toBeLessThan(3); // at the bottom
     expect(box!.height).toBeLessThan(stage!.height * 0.45); // most of the map stays visible
+    await shot(page, 'phone-sheet');
     await sheet.locator('[data-sheet-grab]').click();
     await expect(sheet).toHaveAttribute('data-sheet-tall', '1');
     await expect.poll(async () => (await sheet.boundingBox())!.height).toBeGreaterThan(box!.height * 1.5); // past the 0.2 s transition
@@ -202,6 +212,7 @@ test.describe('phone pass', () => {
     expect(head!.height).toBeLessThan(64);
     const stage = await map.locator('[data-stage]').boundingBox();
     expect(stage!.height).toBeGreaterThan(200);
+    await shot(page, 'phone-landscape');
   });
 });
 
@@ -218,6 +229,7 @@ test.describe('3D night mode', () => {
     expect(await page.evaluate(() => localStorage.getItem('sw.plan3d.night'))).toBe('1');
     const bg = await el.evaluate((n) => getComputedStyle(n).backgroundImage);
     expect(bg).toContain('linear-gradient');
+    await shot(page, '3d-night');
     await el.locator('[data-night-toggle]').click();
     await expect(el).not.toHaveAttribute('data-night', '');
     expect(await page.evaluate(() => localStorage.getItem('sw.plan3d.night'))).toBeNull();
