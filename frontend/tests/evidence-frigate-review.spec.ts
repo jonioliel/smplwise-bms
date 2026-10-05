@@ -119,7 +119,7 @@ test('reviewed: one card, the bulk bar, "mark all shown" and un-marking - at onc
   // the last one through "mark all shown"; afterwards nothing is left to mark
   await page.locator(`${SCREEN} [data-review-mark-shown]`).click();
   await expect.poll(() => marks(m)[2]).toEqual({ ids: ['rv-5'], reviewed: true });
-  await expect(page.locator(`${SCREEN} [data-review-mark-shown]`)).toBeDisabled();
+  await expect(page.locator(`${SCREEN} [data-review-mark-shown]`)).toHaveAttribute('disabled', '');
   await expect(page.locator(`${SCREEN} [data-review-layer="alert"] [data-review-new]`)).toHaveCount(0);
   // un-mark one
   await cards(page).first().locator('[data-review-toggle]').click();

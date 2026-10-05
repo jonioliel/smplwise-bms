@@ -38,7 +38,7 @@ test.describe('settings: Frigate in the connection form', () => {
     await expect(form.locator('[data-conn-field="http_port"]')).toHaveValue('8971');
     await expect(form.locator('[data-conn-frigate-hint]')).toContainText('חשבון צפייה');
     await expect(form.locator('[data-conn-frigate-hint]')).toContainText('עורך המצלמות'); // the "same place on two systems" hint, nothing more
-    await expect(form.locator('[data-conn-test]')).toBeDisabled();
+    await expect(form.locator('[data-conn-test]')).toHaveAttribute('disabled', '');
     await form.locator('[data-conn-field="host"]').fill('frigate.fake.test');
     await form.locator('[data-conn-field="username"]').fill('viewer');
     await form.locator('[data-conn-field="password"]').fill(CANARY);

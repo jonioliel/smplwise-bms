@@ -83,6 +83,14 @@ const cam = (id: string, name: string, recorder_id: string, channel: number, ext
   can_view_live: true, recorder_name: recorder_id === 'nvr-2' ? 'Frigate מחסן' : 'מקליט ראשי', recorder_enabled: true, ...extra,
 });
 
+const HEALTH = {
+  status: 'ok', version: 'test', db: { ok: true, permission_revision: 1 }, data_dir_writable: true, nvr_configured: true, go2rtc_configured: true, mode: 'full',
+  discovery: { cameras_last_ok: '2026-10-06T08:00:00Z', cameras_last_error: null, cameras_last_run: null, streams_last_ok: null, streams_last_error: null, last_reason: null, cameras: 4, interval_s: 600 },
+  events: { ingest: { connected: true, last_heartbeat_at: null, last_event_at: '2026-10-06T08:00:00Z', last_error: null, reconnects: 0, events_stored: 3, started_at: null }, derive: { last_run: null, last_ok: null, last_error: null, derived: 0 }, stored: 3 },
+  home_assistant: { configured: true, connected: true, last_snapshot_at: null, last_event_at: null, last_registry_at: null, last_error: null, reconnects: 0, sequence: 1, entities: 10, started_at: null, ha_version: '2026.9' },
+  identity_source: 'ingress', renderer: 'fake',
+};
+
 const keyOf = (cameraId: string) => `cam_${cameraId.replace('fg-', '')}`;
 const epoch = (iso: string) => Date.parse(iso) / 1000;
 
@@ -112,7 +120,7 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
     if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
     if (p === 'settings') return json({ settings: { 'time.zone': 'Asia/Jerusalem', 'media.max_live_sessions': 16 }, can_edit: true, nvr_channels: 8, warnings: [] });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-10-06T08:00:00Z', version: 'test' });
-    if (p === 'health') return json({ status: 'ok', version: 'test', mode: 'full' });
+    if (p === 'health') return json(HEALTH);
     if (p.startsWith('health/report')) return json({ status: 'ok', mode: 'full', version: 'test', uptime_s: 7200, checked_at: '2026-10-06T08:00:00Z', probe_ttl_s: 20, checks: [] });
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
     if (p === 'sites') return json({ sites: [], can_create_site: false });
@@ -124,7 +132,7 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
       const cameras = [
         cam('hk-1', 'לובי', 'nvr-1', 1),
         ...FRIGATE_CAMERAS.map((c, i) => cam(c.id, c.name, 'nvr-2', i + 1, still)),
-        cam('fg-off', 'מצלמה כבויה', 'nvr-2', 9, { status: 'offline' }),
+        cam('fg-off', 'מצלמה כבויה', 'nvr-2', 9, { status: 'offline', sort_order: 1.5 }),
       ];
       return json({ cameras, recorders: [{ id: 'nvr-1', name: 'מקליט ראשי' }, { id: 'nvr-2', name: 'Frigate מחסן' }], recorder: null, can_sync: false });
     }
