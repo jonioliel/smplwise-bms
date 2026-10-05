@@ -38,6 +38,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      `https://<your HA hostname>/arx` opens the product with its own sign-in page (your Home Assistant username and
      password) through a Cloudflare tunnel path route. Off by default; while off, `/arx` answers 404 even if a tunnel
      route exists. See "Remote access (SmplWise Arx)" below and `docs/operations/ARX_CLOUDFLARE_GUIDE_HE.md`.
+   - `push_relay_url` and `push_relay_key` (optional, CR-027) — the SmplWise push relay that delivers notifications to
+     the SmplWise Arx phone app (`services/push-relay/README.md`). The key is this installation's credential at the relay:
+     kept only in the add-on options, never in the database, a backup, a log or an error. Empty = the "אפליקציה" channel
+     in הגדרות › התראות plans nothing (`channel_unavailable`).
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
      their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
      support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.

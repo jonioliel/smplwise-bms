@@ -131,6 +131,12 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     if path.exists():
         options = json.loads(path.read_text(encoding="utf-8"))
         in_addon = path == Path("/data/options.json")
+    # CR-027: the SmplWise push relay (the phone app's notifications) - the add-on options reach the channel as runtime
+    # environment only (services/mobile_push.py); the key is never stored in the database, a backup, a log or an error
+    for key, env in (("push_relay_url", "SW_PUSH_RELAY_URL"), ("push_relay_key", "SW_PUSH_RELAY_KEY")):
+        value = _opt(options, key, env)
+        if value:
+            os.environ[env] = value
 
     data_dir = Path(os.environ.get("SW_DATA_DIR") or ("/data" if in_addon else Path.cwd() / "data"))
     # CR-022: the workstation file <data>/nvr_connection.json of 0.1.71 is gone - the NVR connection is a database row

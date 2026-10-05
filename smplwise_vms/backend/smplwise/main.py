@@ -287,6 +287,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(rules.router, prefix=api, tags=["rules"])
     app.include_router(push.router, prefix=api, tags=["push"])
     app.include_router(energy_billing.router, prefix=api, tags=["energy"])  # CR-023 P2: electricity billing - customers, accounts, prices, bills
+    from .routers import mobile_notifications as mobile_notifications_router
+
+    app.include_router(mobile_notifications_router.router, prefix=api, tags=["notifications"])  # CR-027: the phone app's push registration and message fetch - BEFORE /notifications/{nid}
     app.include_router(notifications.router, prefix=api, tags=["notifications"])  # CR-018: התראות - the inbox, the push action endpoint, administration (notify.manage)
     from .routers import presence as presence_router
 

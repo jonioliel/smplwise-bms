@@ -124,8 +124,8 @@ priority}` only. The app's Notification Service Extension fetches `GET notificat
 (single-use in spirit, 24 h expiry) and shows the text; if that fails the generic text stays. No sensitive text ever
 travels through Apple, Google or the relay.
 
-Server side: `notify_policy` accepts `app` as a v1 channel (default off per source), the pass-through matrix gets an
-`app` column, the per-device mute list (`PATCH notifications/devices/{id} {muted: [...]}`) is honoured at planning, the
+Server side: `notify_policy` accepts `app` as a v1 channel (default off per source; a chip per source in הגדרות › התראות),
+quiet hours follow the matrix's **push** column (no column of its own), the per-device mute list (`PATCH notifications/devices/{id} {muted: [...]}`) is honoured at planning, the
 relay's 404 / 410 unregisters the device's push, 429 / 5xx retry with the notifier's heap, outcomes land in the delivery
 log like every channel. Configuration: add-on options / env `SW_PUSH_RELAY_URL` and `SW_PUSH_RELAY_KEY` (the server's
 key at the relay); without them the channel plans `skipped / channel_unavailable`. Tests use a fake relay (httpx
@@ -157,7 +157,12 @@ validation code, the batch cap); security (device token on another device, anoth
 and remove, token dies on revoke, audit rows; token guessing 429; 413 on an oversized body; 400 on an oversized value;
 per-device rate); rename; the required-sensors policy end to end (block / unblock by status, sharing off, stale report,
 new notice version, break-glass with reason and audit, roles / users scope, apply_to_web, exempt, inert while off,
-cleared); retention janitor. Phase 2 tests: `test_mobile_push.py`.
+cleared); retention janitor. Phase 2: `test_mobile_push.py` - registration validation, categories, mutes, unregister;
+the channel's generic payload (no text, no ids but the message id, the server key as bearer) and the device's text fetch
+(own device only, 24 h expiry, the generic lock-screen level); policy off / reach / mute / critical / quiet hours; the
+relay's 429 retry on the notifier heap with the re-check, 410 dropping the registration, the unconfigured relay; the test
+push and its rate; unregistering a device drops its messages. The relay Worker is typechecked (`tsc --noEmit -p
+services/push-relay`), NOT run against APNs / FCM (needs the owner's keys; README section 1).
 `frontend/tests/evidence-presence-settings.spec.ts` (desktop / tablet / mobile, mocked backend): defaults, the save
 patch, the notice version, the policy problem hints, break-glass, the shell's gate state.
 
