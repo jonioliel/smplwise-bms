@@ -280,11 +280,18 @@ def tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> di
         with db.connection(label="notify.sweeps") as conn:
             return {**ring_expiry(conn, now), **backup_resolution(conn, backups)}
 
+    def recorders() -> Any:
+        from . import recorder_health  # CR-026: the poller's readings -> recorder.* notifications (no device I/O here)
+
+        with db.connection(label="notify.recorders") as conn:
+            return recorder_health.tick(conn, now)
+
     group("health", health)
     group("faults", cameras)
     group("sensors", sensors)
     group("actions", actions)
     group("sweeps", sweeps)
+    group("recorders", recorders)
     group("update", lambda: update_tick(db, settings, now.timestamp()))
     return out
 
@@ -347,12 +354,15 @@ def _camera_name(row: sqlite3.Row) -> str:
 def cameras_tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, dict[str, int]]:
     """`camera.offline`. A camera is offline when the last discovery says so, or when the NVR reported a video loss for it after the
     last discovery (the loss event is never closed by the device - a discovery that finds the channel online is what ends it). The
-    policy's `after_s` is held by a timer, so a flapping channel makes no row."""
+    policy's `after_s` is held by a timer, so a flapping channel makes no row. CR-026: when the recorder health monitor has a fresh
+    reading of the channel (connected or not), that reading decides - camera disconnect / reconnect is noticed within a minute."""
+    from . import recorder_health
+
     ts = now.timestamp()
     hold = int((get_policy(conn, "camera.offline") or {}).get("after_s") or 0)
     cutoff = iso_utc(now - dt.timedelta(hours=24))
     rows = conn.execute(
-        """SELECT c.id, c.alias, c.name_source, c.channel, c.status, c.last_seen_at,
+        """SELECT c.id, c.recorder_id, c.alias, c.name_source, c.channel, c.status, c.last_seen_at,
                   (SELECT MAX(COALESCE(e.ended_at, e.occurred_at)) FROM events e
                     WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?) AS loss_at,
                   (SELECT e.id FROM events e WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?
@@ -369,6 +379,9 @@ def cameras_tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, dict[s
                 offline = r["last_seen_at"] is None or parse_utc(r["loss_at"]) > parse_utc(r["last_seen_at"])
             except ValueError:
                 offline = False
+        live = recorder_health.channel_connected(str(r["recorder_id"]), int(r["channel"]), ts)
+        if live is not None:  # CR-026: a fresh health read of the recorder (every minute) is newer than discovery and the loss event
+            offline = not live
         sig = notify.Signal("camera.offline", "camera", r["id"], params={"name": _camera_name(r), "place": _camera_name(r)}, origin={"camera_id": r["id"], "event_id": r["loss_event"]})
         key = notify.dedupe_key_of(sig)
         if offline:

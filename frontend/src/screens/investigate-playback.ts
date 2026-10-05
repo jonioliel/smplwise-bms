@@ -30,11 +30,16 @@ import { createExport, estimateExport, formatBytes, type ExportEstimate, type Ex
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
 import type { Camera } from '../api/types';
+import { StallWatch, stallOptionsFromSettings, type StallPhase } from '../api/playback-stall';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
+/** 2.0.0: player close codes / relay errors that are NOT a lost connection - a denial, a superseded generation (another seek owns
+ * the session now) or a quota refusal. Anything else (a network close, go2rtc down, an expired session, no video) may be resumed. */
+const FINAL_CODES: (number | string)[] = [4401, 4403, 4410, 4429, 'access_lost', 'remote_live_cap'];
+type PlayerDetail = { status: string; transport?: string; error?: string; code?: number | string };
 
 function hms(minute: number): string {
   return secondLabel(Math.max(0, Math.min(1439.983, minute)));
@@ -128,6 +133,13 @@ export class InvestigatePlayback extends LitElement {
   @state() private exportError = '';
   private ticker: number | undefined;
   private stopDisplay?: () => void;
+  /** 2.0.0 stall detection (api/playback-stall.ts): sampled every tick; options from playback.stall_s / playback.auto_resume_attempts. */
+  private stall = new StallWatch(stallOptionsFromSettings({}));
+  /** What the picture says: ok (nothing), stalled / reconnecting ("מתחבר מחדש"), gave_up ("הניגון נעצר" + retry). gave_up stays
+   * until the operator retries or moves (seek, camera, day); the session is released then, so nothing keeps pulling from the NVR. */
+  @state() private stallPhase: StallPhase = 'ok';
+  /** Where playback stopped when the screen gave up: the retry button starts there. */
+  private stoppedAt: Date | null = null;
 
   static styles = [css`
     .pick {
@@ -374,6 +386,56 @@ export class InvestigatePlayback extends LitElement {
       min-block-size: 44px;
       min-inline-size: 44px;
     }
+    /* 2.0.0 stall states over the picture (single video or the comparison grid): one short line, white on the video's own dark
+       shade in every skin and scheme; never covers the controls bar under the picture. */
+    .stage .stall {
+      align-self: stretch;
+      justify-self: stretch;
+      display: grid;
+      place-items: center;
+      z-index: 4;
+      border-radius: var(--sw-r-lg);
+      background: rgba(15, 23, 41, 0.55);
+      color: #fff;
+      min-inline-size: 0;
+    }
+    .stall .box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      padding: 8px 14px;
+      max-inline-size: calc(100% - 16px);
+      box-sizing: border-box;
+      border-radius: var(--sw-r-pill);
+      background: rgba(17, 24, 39, 0.78);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      text-align: center;
+    }
+    .stall sw-button {
+      min-block-size: 44px;
+    }
+    .stall .spin {
+      inline-size: 16px;
+      block-size: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-block-start-color: #fff;
+      border-radius: 50%;
+      animation: sw-stall-spin 0.9s linear infinite;
+      flex: none;
+    }
+    @keyframes sw-stall-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stall .spin {
+        animation: none;
+      }
+    }
     .filters {
       display: flex;
       gap: 6px;
@@ -540,6 +602,7 @@ export class InvestigatePlayback extends LitElement {
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
       this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false);
       this.crossSync = String(settings['playback.cross_recorder_sync'] ?? 'false') === 'true';
+      this.stall = new StallWatch(stallOptionsFromSettings(settings as unknown as Record<string, unknown>));
       const first = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
       const at = this.at ? new Date(this.at) : null;
       const validAt = !!at && !Number.isNaN(at.getTime());
@@ -578,6 +641,7 @@ export class InvestigatePlayback extends LitElement {
 
   private async selectCamera(id: string, fromRoute = false) {
     if (!id || (!fromRoute && id === this.cameraId)) return;
+    this.clearStall();
     await this.endSession();
     this.cameraId = id;
     this.extra = this.extra.filter((c) => c !== id);
@@ -588,6 +652,7 @@ export class InvestigatePlayback extends LitElement {
 
   private async setDate(date: string) {
     if (!date || date === this.date) return;
+    this.clearStall();
     await this.endSession();
     this.date = date;
     await this.loadRecordings();
@@ -687,9 +752,11 @@ export class InvestigatePlayback extends LitElement {
 
   // ---------- API mode: sessions ----------
 
-  /** Create the session/group at an instant, or seek the existing one (new generation). */
-  private async startAt(at: Date) {
-    if (!this.cameraId || this.busy) return;
+  /** Create the session/group at an instant, or seek the existing one (new generation). `auto`: the stall watch's own "resume from
+   * here" (2.0.0) - it keeps the watch's attempt count and says nothing in the error line (the picture says "מתחבר מחדש"). */
+  private async startAt(at: Date, opts: { auto?: boolean } = {}): Promise<'ok' | 'no_recording' | 'error' | 'skipped'> {
+    if (!this.cameraId || this.busy) return 'skipped';
+    if (!opts.auto) this.clearStall();
     this.busy = true;
     this.error = '';
     this.notice = '';
@@ -723,24 +790,99 @@ export class InvestigatePlayback extends LitElement {
       if (!this.isConnected) {
         // the screen went away while the session was being created (route change): release it, never leak it
         await this.endSession();
-        return;
+        return 'skipped';
       }
+      return 'ok';
     } catch (err) {
       if (err instanceof ApiError && err.body.code === 'no_recording') {
         this.notice = 'אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.';
         this.position = at;
+        return 'no_recording';
       } else if (err instanceof ApiError && (err.body.code === 'session_over' || err.body.code === 'not_found')) {
         this.session = null;
         this.group = null;
         this.busy = false;
-        await this.startAt(at);
-        return;
-      } else {
+        return this.startAt(at, opts);
+      } else if (!opts.auto) {
         this.error = describeError(err);
       }
+      return 'error';
     } finally {
       this.busy = false;
     }
+  }
+
+  // ---- 2.0.0: stall detection and automatic resume (api/playback-stall.ts, docs/changes/PLAYBACK-STALL-RESUME.md) ----
+
+  /** The operator moved (seek, camera, day, retry): the watch starts over and the picture's state goes away. */
+  private clearStall() {
+    this.stall.reset(performance.now());
+    this.stallPhase = 'ok';
+    this.stoppedAt = null;
+  }
+
+  /** Every tick: sample every tile's media clock; resume the session (or the whole group - all or none) when the watch says so. */
+  private watchStall() {
+    if (this.stallPhase === 'gave_up') return; // released; only the operator restarts
+    const sessions = this.groupMode ? (this.group?.sessions ?? []) : this.session ? [this.session] : [];
+    const live = new Set(sessions.filter((s) => !FINISHED.includes(s.state)).map((s) => s.camera_id));
+    const tracks = this.players()
+      .filter((p) => live.has(p.dataset.camera ?? ''))
+      .map((p) => ({ key: p.dataset.camera ?? '', mediaTime: p.mediaTime, playing: p.status === 'playing' }));
+    const expect = live.size > 0 && !this.paused && !this.scrubbing;
+    const answer = this.stall.step(performance.now(), tracks, { expect, canAct: !this.busy });
+    if (this.stall.phase === 'gave_up') {
+      void this.giveUp();
+      return;
+    }
+    this.stallPhase = this.stall.phase;
+    if (answer === 'resume') void this.autoResume();
+  }
+
+  /** "Resume from here": the same mechanism as a seek - a new generation of the same session (or every member of the group) at the
+   * position the picture froze on; the server deletes the old generation's go2rtc stream. At the end of the range: the next instant. */
+  private async autoResume() {
+    const cur = this.currentInstant() ?? this.position;
+    if (!cur) {
+      this.stall.attemptFailed(performance.now());
+      return;
+    }
+    let target = cur;
+    const end = this.masterSession ? new Date(this.masterSession.playback_end_at).getTime() : NaN;
+    if (Number.isFinite(end) && end - cur.getTime() < 3000) target = new Date(end + 1000);
+    const result = await this.startAt(target, { auto: true });
+    if (this.stallPhase === 'ok' && this.stall.phase === 'ok') return; // the operator moved meanwhile: the watch was reset
+    if (result === 'ok') this.stall.attemptSent(performance.now());
+    else if (result === 'no_recording') this.clearStall(); // a real gap: the notice says so, nothing to resume
+    else this.stall.attemptFailed(performance.now());
+    if (this.stall.phase === 'gave_up') void this.giveUp();
+    else this.stallPhase = this.stall.phase;
+  }
+
+  /** The attempts are used up: release the session (no stream left pulling from the recorder) and say so; the retry starts here. */
+  private async giveUp() {
+    if (this.stallPhase === 'gave_up') return;
+    this.stoppedAt = this.currentInstant() ?? this.position;
+    this.stallPhase = 'gave_up';
+    await this.endSession();
+  }
+
+  private async retryStalled() {
+    const at = this.stoppedAt ?? this.position ?? instantInZone(this.date, this.cursor, this.tz);
+    await this.startAt(at);
+  }
+
+  /** A tile's player lost its connection, or ended away from the end of its range: a stall without waiting for the frozen picture. */
+  private onTileLost(cameraId: string, d: PlayerDetail) {
+    if (d.status === 'error' && d.code !== undefined && FINAL_CODES.includes(d.code)) return;
+    if (d.status === 'ended') {
+      const sess = this.groupMode ? this.group?.sessions.find((s) => s.camera_id === cameraId) : this.session;
+      const p = this.players().find((x) => x.dataset.camera === cameraId);
+      if (!sess || !p) return;
+      const at = new Date(sess.requested_at).getTime() + p.mediaTime * 1000;
+      if (new Date(sess.playback_end_at).getTime() - at < 5000) return; // the real end of the range: handled as before
+    }
+    this.stall.lost();
   }
 
   private async endSession() {
@@ -751,6 +893,7 @@ export class InvestigatePlayback extends LitElement {
     this.tileStatus = {};
     this.drifts = {};
     this.resetClock();
+    this.stall.reset(performance.now());
     try {
       if (g) await closeGroup(g.id);
       else if (s && !FINISHED.includes(s.state)) await closePlayback(s.id);
@@ -784,6 +927,7 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private tick() {
+    this.watchStall();
     const s = this.masterSession;
     if (!s || this.paused || this.scrubbing) return;
     if (this.groupMode && this.group) {
@@ -920,6 +1064,7 @@ export class InvestigatePlayback extends LitElement {
     if (!g || !sess || FINISHED.includes(sess.state)) return;
     this.resyncAt[cid] = performance.now();
     this.resyncs[cid] = (this.resyncs[cid] ?? 0) + 1;
+    this.stall.disarm(cid, performance.now()); // a deliberate restart of one tile is not a stall
     this.driftSamples[cid] = [];
     // aim ahead by this tile's measured start-up latency, so it lands on the clock instead of behind it again
     const ahead = Math.min(this.startLatency[cid] ?? 4000, 15000);
@@ -1014,12 +1159,13 @@ export class InvestigatePlayback extends LitElement {
     this.paused = !this.paused;
   }
 
-  private onTilePlayer(cameraId: string, e: CustomEvent<{ status: string; transport?: string; error?: string }>) {
+  private onTilePlayer(cameraId: string, e: CustomEvent<PlayerDetail>) {
     this.tileStatus = { ...this.tileStatus, [cameraId]: e.detail.status };
     if (e.detail.status === 'playing' && this.seekSentAt[cameraId] && !this.firstPlayAt[cameraId]) {
       this.firstPlayAt[cameraId] = performance.now();
       this.startLatency[cameraId] = this.firstPlayAt[cameraId] - this.seekSentAt[cameraId];
     }
+    if (e.detail.status === 'error' || e.detail.status === 'ended') this.onTileLost(cameraId, e.detail);
     if (cameraId !== this.cameraId) return;
     if (this.masterSession && e.detail.status === 'playing') {
       if (this.session) this.session = { ...this.session, state: 'playing' };
@@ -1151,7 +1297,9 @@ export class InvestigatePlayback extends LitElement {
           return html`<div class="tile ${cid === this.cameraId ? 'master' : ''}">
             ${sess && !FINISHED.includes(sess.state)
               ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} recorded compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
-              : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
+              : this.stallPhase === 'gave_up'
+                ? nothing
+                : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
             <span class="name" data-tile=${cid} data-tile-state=${this.syncStats?.members[cid]?.state ?? ''}>${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}" title="סטייה מהשעון־אב, נמדדת מהפריים המוצג">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}${this.syncStats?.members[cid]?.state === 'late' ? html`<span class="drift bad">מאחרת</span>` : nothing}${(this.syncStats?.members[cid]?.resyncs ?? 0) > 0 ? html`<span class="drift">סונכרן מחדש ×${this.syncStats!.members[cid].resyncs}</span>` : nothing}</span>
           </div>`;
         })}
@@ -1161,11 +1309,22 @@ export class InvestigatePlayback extends LitElement {
     return html`<div class="video ${inGap ? 'gap' : ''}">
       ${live && session
         ? html`<sw-live-player data-camera=${cam.id} .wsUrl=${playbackWsUrl(session)} mode="mse" .retry=${false} recorded @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cam.id, e)}></sw-live-player>`
-        : inGap
+        : this.stallPhase === 'gave_up'
+          ? nothing // "הניגון נעצר" + retry is the only thing on the picture
+          : inGap
           ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || 'אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live'}</span></div></div>`
           : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? 'מכין ניגון…' : 'לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר'}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>נגן מ־${hms(this.cursor)}</sw-button>`}</div></div>`}
       <div class="tag"><sw-badge kind=${live ? 'recorded' : 'unknown'} ?onImage=${!!live}></sw-badge><span class="nm">${cam.name}</span></div>
     </div>`;
+  }
+
+  /** 2.0.0: the stall state over the picture - "מתחבר מחדש" while waiting / resuming, "הניגון נעצר" + retry after the last attempt. */
+  private renderStall() {
+    if (this.stallPhase === 'ok') return nothing;
+    if (this.stallPhase === 'gave_up') {
+      return html`<div class="stall" data-stall="gave_up" role="status"><div class="box"><span>הניגון נעצר</span><sw-button variant="primary" size="sm" icon="refresh" data-stall-retry ?disabled=${this.busy} @click=${() => this.retryStalled()}>נסה שוב</sw-button></div></div>`;
+    }
+    return html`<div class="stall" data-stall=${this.stallPhase} role="status"><div class="box"><span class="spin" aria-hidden="true"></span><span>מתחבר מחדש</span></div></div>`;
   }
 
   private renderApi() {
@@ -1200,8 +1359,9 @@ export class InvestigatePlayback extends LitElement {
         ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} ?disabled=${!this.extra.includes(c.id) && !sameRecorder(this.cameraId ? [this.cameraId] : [], this.cams ?? [], c.id, this.crossSync)} @click=${() => this.toggleExtra(c.id)}>${cameraLabel(c)}</sw-chip>`)}
         ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
       </div>
-      <div class="stage">
+      <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
         ${this.renderStage(cam)}
+        ${this.renderStall()}
         <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${this.speed}× הילוך איטי</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>מושהה · צעד־פריים</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
         <div class="bar"><div class="inner">
           <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} data-pause ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
@@ -1235,6 +1395,7 @@ export class InvestigatePlayback extends LitElement {
       ${showPlaybackItem('diagnostics') ? html`<div class="session" data-playback-diagnostics>
         <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
         <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>
+        <span data-stall-diag>חיבור מחדש: ${this.stall.attempts}/${this.stall.options.maxAttempts} · הצליחו ${this.stall.resumes}</span>
         <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
         <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
         ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}

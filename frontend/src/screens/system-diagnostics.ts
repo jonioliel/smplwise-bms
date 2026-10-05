@@ -10,6 +10,7 @@ import '../components/sw-toggle';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
+import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess } from '../api/session';
@@ -192,7 +193,7 @@ export class SystemDiagnostics extends LitElement {
     }
     .hgrid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); /* CR-026 guard: a 300px column overflowed a 320px phone */
       gap: 10px;
     }
     .hcard {
@@ -809,6 +810,8 @@ export class SystemDiagnostics extends LitElement {
             <option value="false" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('playback.cross_recorder_sync') ?? 'false') === 'true'}>פעיל (ניסיוני)</option>
           </select></sw-field></div>
         <div class="row"><span class="lbl">פקיעת סשן ניגון ללא פעילות (שניות)<span class="muted">אחרי הזמן הזה הזרם נמחק מ־go2rtc אוטומטית</span></span><sw-field class="ctl"><input type="number" min="60" max="3600" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.lease_s') ?? 600)} @change=${(e: Event) => this.set('playback.lease_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row" data-set-stall-row><span class="lbl">זיהוי תקיעה בניגון (שניות)<span class="muted">ללא התקדמות בזמן הזה הנגן מציג "מתחבר מחדש" וממשיך מאותה נקודה</span></span><sw-field class="ctl"><input type="number" min="2" max="30" data-ltr data-set-stall-s ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.stall_s') ?? 5)} @change=${(e: Event) => this.set('playback.stall_s', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
+        <div class="row" data-set-stall-attempts-row><span class="lbl">ניסיונות חיבור מחדש אוטומטיים<span class="muted">אחריהם: "הניגון נעצר" עם כפתור נסה שוב. 0 = בלי ניסיון אוטומטי</span></span><sw-field class="ctl"><input type="number" min="0" max="5" data-ltr data-set-stall-attempts ?disabled=${!api || !this.canEdit} .value=${String(this.value('playback.auto_resume_attempts') ?? 3)} @change=${(e: Event) => this.set('playback.auto_resume_attempts', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">גודל ייצוא מקסימלי (MB)<span class="muted">לפי הנפח המשוער של קבצי ה־NVR בטווח</span></span><sw-field class="ctl"><input type="number" min="50" max="20480" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.max_mb') ?? 2048)} @change=${(e: Event) => this.set('exports.max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         <div class="row"><span class="lbl">שמירת קבצי ייצוא (ימים)<span class="muted">אחרי התקופה הקבצים נמחקים מ־/data/exports</span></span><sw-field class="ctl"><input type="number" min="1" max="365" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('exports.retention_days') ?? 7)} @change=${(e: Event) => this.set('exports.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
         <div class="row"><span class="lbl">שמירת אירועים (ימים)<span class="muted">אירועים ישנים יותר נמחקים מהמאגר המקומי</span></span><sw-field class="ctl"><input type="number" min="1" max="3650" data-ltr data-set-events-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('events.retention_days') ?? 30)} @change=${(e: Event) => this.set('events.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
@@ -1133,6 +1136,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="hgrid">${r.checks.map((c) => html`<div class="hcard ${c.status}" data-health-card=${c.id}><div class="hh"><span>${c.label}</span><sw-badge kind=${STATUS_KIND[c.status]} label=${STATUS_LABEL[c.status]}></sw-badge></div><div class="hd">${c.detail}</div>${this.renderVideoHints(c)}</div>`)}</div>
         <div class="muted" style="margin-block-start:10px">בדיקות המכשירים (NVR, go2rtc) נשמרות ${r.probe_ttl_s} שניות; "בדוק עכשיו" מריץ אותן מחדש. זרמים זרים ב־go2rtc לעולם אינם נוגעים.</div>
       </sw-card>
+      ${r.mode !== 'ha_only' ? html`<recorder-health-panel ?manage=${this.canEdit}></recorder-health-panel>` : nothing}
     </div>`;
   }
 

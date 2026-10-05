@@ -1,5 +1,77 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.0.0 (pilot) — Recorder health monitoring (seven new alert sources, per-recorder settings); playback stall detection and automatic resume; the floor filter of the multimedia pages is the shared (capsule-capable) dropdown; friendly integration names
+**After installing:** no database migration (the last one stays `0055_multi_recorder`), the bridge integration stays **0.6.2**, no platform restart is needed. Reload the installed web app once. The version jumps from 0.1.163 to 2.0.0 (there is no 0.1.164); nothing about the upgrade path changes.
+- **עברית:** אחרי ההתקנה: אין מיגרציה (האחרונה נשארת `0055_multi_recorder`), רכיב החיבור נשאר 0.6.2, אין צורך להפעיל מחדש את התשתית. טוענים מחדש את אפליקציית הרשת פעם אחת. הגרסה קופצת מ־0.1.163 ל־2.0.0 (אין 0.1.164).
+
+### Recorder health monitoring (CR-026) - הגדרות › בריאות ועבודות
+No migration. Read-only: the monitor sends device reads only. **Defaults (owner decisions of 2026-10-05):** only recording faults the
+recorder itself reports are alerts; the continuous-recording expectation is a per-recorder choice and **off**; the disk-fill forecast
+is **off**. Hikvision recorders get reachability and latency only for now. `SW_RECORDER_HEALTH=0` turns the poller off.
+- **English - what was added:** every recorder is checked once a minute: is it answering and how fast; for Provision-ISR also the
+  disks (read-only, locked, unformatted, error, no disk, disk alarms; a forecast of how soon the disks fill, off by default because
+  an overwriting recorder is always full), recording faults the recorder reports (and, on recorders you mark as recording
+  continuously, cameras that stopped recording - off by default, many units record on motion only), which cameras are disconnected, the recorder's clock against the system's, and when its pinned HTTPS certificate expires.
+  Problems become notifications (new sources `recorder.unreachable`, `recorder.slow`, `recorder.disk`, `recorder.disk_space`,
+  `recorder.recording`, `recorder.clock`, `recorder.certificate`; camera disconnects stay `camera.offline` and are noticed within a
+  minute) with a hold before announcing, bands around numeric thresholds, a 2-minute clear period before a recovery notice, and no
+  resolution while a part cannot be read. Other vendors get reachability and latency now and plug in their detail through the
+  adapter's new `read_health`.
+- **English - bugs fixed:** the health report grid overflowed a 320 px phone.
+- **English - how to use:** הגדרות › בריאות ועבודות shows a card per recorder and "בדוק עכשיו"; system administrators change the
+  thresholds under "ספי התראה למקליטים" (which recorders record continuously, gap, clock drift, latency, disk fill days, certificate days, clear
+  period, interval). Notification channels and recipients of the new sources are in הגדרות › התראות. API: `GET /recorder-health`,
+  `POST /recorder-health/check`, `GET|PUT /recorder-health/settings`.
+- **עברית - מה נוסף:** כל מקליט נבדק פעם בדקה: האם הוא עונה ובאיזו מהירות; במקליטי Provision-ISR גם הדיסקים (לקריאה בלבד, נעול,
+  לא מאותחל, תקלה, אין דיסק, התרעת דיסק; תחזית מילוי הדיסק כבויה כברירת מחדל כי מקליט שדורס הקלטות ישנות תמיד מלא), תקלות הקלטה
+  שהמקליט מדווח עליהן (ובמקליטים שסומנו "הקלטה רציפה" גם מצלמה שהפסיקה להקליט - כבוי כברירת מחדל, רוב המקליטים מקליטים בתנועה
+  בלבד), אילו מצלמות מנותקות, סטיית השעון של המקליט
+  מול שעון המערכת, ומתי פגה תעודת ה־HTTPS הנעוצה. תקלות הופכות להתראות, עם המתנה לפני הודעה, טווח ביטחון סביב ספים מספריים,
+  שתי דקות של תקינות לפני הודעת חזרה, ובלי סגירת התראה כשאי אפשר לקרוא את החלק. ניתוק מצלמה נשאר ההתראה "מצלמה לא זמינה" ומזוהה
+  תוך דקה. יצרנים אחרים מקבלים כבר עכשיו בדיקת תקשורת וזמן תגובה.
+- **עברית - תיקונים:** רשת כרטיסי בריאות המערכת גלשה מרוחב טלפון של 320 פיקסלים.
+- **עברית - איך מפעילים:** הגדרות › בריאות ועבודות: כרטיס לכל מקליט וכפתור "בדוק עכשיו". מנהל מערכת משנה את הספים ב"ספי התראה
+  למקליטים", ושם גם מסמן אילו מקליטים מקליטים ברציפות. ערוצי ההתראה והנמענים של המקורות החדשים נמצאים בהגדרות › התראות.
+
+### Floor filter as the shared dropdown; friendly integration names - מולטימדיה, הגדרות › מולטימדיה
+**How to enable:** nothing to switch on. The floor filter follows the dropdown style of the multimedia group; to see it as a capsule:
+הגדרות › לשוניות › "סגנון תפריט נפתח" → **קפסולה** (the group in "תפריטים נפתחים" or "משולב" mode in "תצוגת לשוניות").
+- **The floor filter of the multimedia players and screens pages is now the shared dropdown** (same component, style incl. capsule, size, ring and panel width as every other dropdown of the group, with an icon and a count per floor). The hand-built "כל הקומות" menu is gone; nothing else on those pages changed.
+- **Settings › Multimedia: friendly integration names.** The lists show "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" and so on instead of the raw platform id (list cell, filter chips, grouping, sorting, device connections); the raw id stays in the hover text and in the search. An unknown id is shown as it is. One table: `frontend/src/screens/media-integration-names.ts`.
+- Review of every hand-built menu: docs/changes/DD6-CAPSULE-CONVERSION.md.
+- **עברית:**
+  - **סינון הקומות בדפי הנגנים והמסכים הוא עכשיו התפריט הנפתח המשותף** (אותו רכיב, אותו סגנון כולל קפסולה, גודל, עובי טבעת ורוחב לוח כמו כל תפריט נפתח בקבוצה, עם סמל ומספר לכל קומה). התפריט הבנוי ידנית "כל הקומות" הוסר; שום דבר אחר בדפים לא השתנה.
+  - **הגדרות › מולטימדיה: שמות ידידותיים לאינטגרציות.** הרשימות מציגות "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" וכו' במקום מזהה הפלטפורמה הגולמי (תא הרשימה, כפתורי הסינון, קיבוץ, מיון, חיבורי ההתקן); המזהה הגולמי נשאר בטקסט הריחוף ובחיפוש. מזהה לא מוכר מוצג כמו שהוא. טבלה אחת: `frontend/src/screens/media-integration-names.ts`.
+  - **איך מפעילים:** אין מה להפעיל. סינון הקומות הולך לפי סגנון התפריט הנפתח של קבוצת המולטימדיה; כדי לראות אותו כקפסולה: הגדרות › לשוניות › "סגנון תפריט נפתח" ← **קפסולה** (הקבוצה במצב "תפריטים נפתחים" או "משולב" ב"תצוגת לשוניות").
+
+### Recordings: stall detection and automatic resume, every recorder vendor - הקלטות; הגדרות › כללי › וידאו ומדיה
+No migration, no restart; reload the web app once.
+- **English.** When the recording source stops (a network drop, a recorder stall) the playback screen no longer keeps "playing" a frozen
+  picture in silence. No media progress for 5 s while it should be playing (or a lost connection) shows **"מתחבר מחדש"** on the picture at
+  once; after a 2 s grace period - in case the media server recovers by itself - it resumes from the frozen position with the same mechanism
+  as a seek (a new generation of the same session; the server deletes the old generation's stream, only `smplwise_pb_*` names). Failed
+  attempts back off (3 s, then 6 s; an attempt that shows no progress within 20 s has failed); after 3 attempts the picture says
+  **"הניגון נעצר"** with **"נסה שוב"**, and the session is released so nothing keeps pulling from the recorder. A synchronized multi-camera
+  group is resumed as a whole (one group seek, all members or none). Pause, scrubbing, slow motion and a slow first start are never a
+  stall; a denial, a quota refusal or a generation replaced by another seek is never resumed; the end of the range keeps continuing to the
+  next segment as before. The diagnostics line shows the attempts. Applies to Hikvision and Provision-ISR alike (it works on the player's
+  media clock, not on the vendor).
+- **How to enable (English):** on by default. הגדרות › כללי › וידאו ומדיה → "זיהוי תקיעה בניגון (שניות)" (2-30, default 5) and
+  "ניסיונות חיבור מחדש אוטומטיים" (0-5, default 3; 0 = detect and stop without an automatic attempt) → "שמור".
+- **עברית.** כשמקור ההקלטה נעצר (ניתוק רשת, תקיעה במקליט) מסך ההקלטות כבר לא ממשיך "לנגן" תמונה קפואה בשקט. אחרי 5 שניות בלי התקדמות
+  (או ניתוק חיבור) מופיע על התמונה **"מתחבר מחדש"**; אחרי 2 שניות נוספות הנגן ממשיך אוטומטית מאותה נקודה, באותו מנגנון של קפיצה בציר
+  הזמן (דור חדש של אותו סשן, הזרם הקודם נמחק). ניסיון שנכשל ממתין 3 ואז 6 שניות; אחרי 3 ניסיונות מופיע **"הניגון נעצר"** עם **"נסה
+  שוב"**, והסשן משוחרר. ניגון מסונכרן של כמה מצלמות ממשיך כקבוצה אחת - כולן או אף אחת. השהיה, גרירה בציר, הילוך איטי ופתיחה איטית אינם
+  תקיעה; חסימת הרשאה או מכסה לא מנוסות שוב. עובד לכל סוגי המקליטים.
+- **איך מפעילים:** פעיל כברירת מחדל. הגדרות › כללי › וידאו ומדיה → "זיהוי תקיעה בניגון (שניות)" ו"ניסיונות חיבור מחדש אוטומטיים" → "שמור".
+- **Settings / API:** two new installation settings, `playback.stall_s` (int 2-30, default 5) and `playback.auto_resume_attempts` (int
+  0-5, default 3), in `GET|PATCH /settings`; read by the browser only. The live player's `player-status` event now carries `code` (the
+  socket close code or the relay's error value) on `error` and `ended`.
+- **Not measured on a real recorder yet:** the recovery time after a real network drop (needs an owner-approved session that cuts the path
+  to the NVR for a moment, or a fake RTSP source in a test rig); the tests use a mocked backend and a stubbed media clock.
+- **Known, left as is:** Domus dark skin - the "נסה שוב" button has low contrast; it comes from the skin's primary button colour shared by
+  other screens and is left for the skin work.
+
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
 ### Several recorders in one system (CR-024)

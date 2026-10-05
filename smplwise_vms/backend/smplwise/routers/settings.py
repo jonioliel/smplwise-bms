@@ -116,6 +116,12 @@ DEFAULTS: dict[str, str] = {
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
+    # 2.0.0 stall detection (docs/changes/PLAYBACK-STALL-RESUME.md): seconds without media progress while a recording should be playing
+    # before the player says "מתחבר מחדש", and how many automatic "resume from here" attempts (each a new generation of the same session,
+    # the old go2rtc stream deleted) it makes before "הניגון נעצר" with a retry button; 0 = detect and stop, no automatic attempt.
+    # Read by the browser only: nothing server-side depends on them.
+    "playback.stall_s": "5",
+    "playback.auto_resume_attempts": "3",
     # CR-024 (owner 2026-10-04): EXPERIMENTAL, unproven synchronized playback of cameras of different recorders; off = such a group
     # is refused (409 sync_cross_recorder_unproven). On = each member is asked for in its recorder's zone and clock offset
     # (services/recorder_clock.py)
@@ -280,7 +286,7 @@ ALLOW_DISARM_WORD = "אפשר נטרול"
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", *automation_settings.INT_KEYS)
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -471,6 +477,8 @@ class SettingsPatch(BaseModel):
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
     playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
+    playback_stall_s: int | None = Field(default=None, ge=2, le=30, alias="playback.stall_s")
+    playback_auto_resume_attempts: int | None = Field(default=None, ge=0, le=5, alias="playback.auto_resume_attempts")
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")

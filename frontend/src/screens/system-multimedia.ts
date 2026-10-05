@@ -20,6 +20,7 @@ import {
 import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
+import { integrationName, integrationTitle } from './media-integration-names';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
@@ -462,7 +463,7 @@ export class SystemMultimedia extends LitElement {
 
   private connections(d: AdminDevice): TemplateResult {
     return html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
-        <span class="mono">${e.platform}</span>
+        <span class="mono" data-mm-ep-platform=${e.platform} title=${integrationTitle(e.platform)}>${integrationName(e.platform)}</span>
         <span>${ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
         <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.map((c) => CONTROL_LABEL[c]).join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
         <span style="display:flex;gap:6px">

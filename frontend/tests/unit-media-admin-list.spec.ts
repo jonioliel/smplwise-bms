@@ -75,6 +75,8 @@ test.describe('settings lists: filters', () => {
     expect(names({ q: 'MEDIA_PLAYER.tv_' })).toBe('ab');
     expect(names({ q: 'dev123' })).toBe('a');
     expect(names({ q: 'ampdev' })).toBe('d');
+    expect(names({ q: 'marantz' })).toBe('d'); // the friendly name of denonavr (0.1.164)
+    expect(names({ q: 'webos' })).toBe('b');
     expect(names({ q: 'סלון' })).toBe('adf');
     expect(names({ q: 'סלון sonos' })).toBe('f');
     expect(names({ q: 'cast' })).toBe('a'); // the id of a hidden endpoint
@@ -102,7 +104,7 @@ test.describe('settings lists: sort and group', () => {
     expect(ordered({ sort: 'name', dir: 'asc' })).toBe('fbaedc');
     expect(ordered({ sort: 'name', dir: 'desc' })).toBe('cdeabf');
     expect(ordered({ sort: 'type' })).toBe('edbafc');
-    expect(ordered({ sort: 'integration', dir: 'asc' })).toBe('dafcbe');
+    expect(ordered({ sort: 'integration', dir: 'asc' })).toBe('dbafce');
     expect(ordered({ sort: 'integration', dir: 'desc' }).endsWith('e')).toBe(true);
     expect(ordered({ sort: 'area', dir: 'asc' }).endsWith('c')).toBe(true);
     expect(ordered({ sort: 'area', dir: 'desc' }).endsWith('c')).toBe(true);
@@ -113,7 +115,7 @@ test.describe('settings lists: sort and group', () => {
 
   test('group by integration: one group per primary integration with its count, "no integration" last', () => {
     const { groups } = buildView(LIST, { ...DEFAULT_VIEW, group: 'integration' });
-    expect(groups.map((g) => `${g.label}:${g.rows.length}`)).toEqual(['denonavr:1', 'samsungtv_smart:1', 'sonos:2', 'webostv:1', 'ללא אינטגרציה:1']);
+    expect(groups.map((g) => `${g.label}:${g.rows.length}`)).toEqual(['Denon / Marantz (מגבר):1', 'LG webOS (טלוויזיה):1', 'Samsung (טלוויזיה, Smart):1', 'Sonos:2', 'ללא אינטגרציה:1']);
   });
 
   test('group by area and by type; a filter shrinks the groups and drops the empty ones', () => {

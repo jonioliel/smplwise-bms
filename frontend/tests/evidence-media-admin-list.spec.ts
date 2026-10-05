@@ -58,7 +58,7 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     const r = row(page, st.admin.find((d) => d.kind === 'screen')!.key);
     await expect(r.locator('[data-mm-entity-id]')).toHaveText(/media_player\./);
     await expect(r.locator('[data-mm-device-id]')).toContainText('dev_');
-    await expect(r.locator('[data-mm-int-cell]')).toContainText('samsungtv_smart');
+    await expect(r.locator('[data-mm-int-cell]')).toContainText('Samsung');
     await expect(r.locator('[data-mm-int-cell]')).toContainText('+1');
     await expect(screens(page).locator('[data-mm-toolbar]')).toBeVisible();
     await expect(players(page).locator('[data-mm-toolbar]')).toBeVisible();

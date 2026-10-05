@@ -234,6 +234,11 @@ consistent copy.
   key frame at or after the requested time (typically 2–4 s to first frame on the lab NVR).
 - A gap is shown as a gap. Requesting a time without recording starts at the next segment (and says
   so) or reports "no recording" — it never switches to live.
+- Stall detection (2.0.0): no media progress for `playback.stall_s` (default 5 s) while a recording should
+  play, or a lost connection, shows "מתחבר מחדש"; after a 2 s grace the screen resumes from the frozen
+  position as a seek (new generation), backing off 3 s / 6 s, at most `playback.auto_resume_attempts`
+  (default 3) times, then "הניגון נעצר" with "נסה שוב" and the session is released. A synchronized group
+  resumes as a whole. Details: `docs/changes/PLAYBACK-STALL-RESUME.md`.
 
 ## Events
 

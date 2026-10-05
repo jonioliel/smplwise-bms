@@ -134,38 +134,6 @@ export const mediaPageStyles = css`
       position: relative;
       flex: none;
     }
-    .floorbtn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      block-size: 40px;
-      padding-inline: 13px 12px;
-      border-radius: var(--dv-radius-control);
-      border: 1px solid var(--dv-border);
-      background: var(--mm-sheen), var(--dv-surface);
-      -webkit-backdrop-filter: var(--dv-surface-blur);
-      backdrop-filter: var(--dv-surface-blur);
-      box-shadow: var(--dv-shadow-control);
-      font-size: 13.5px;
-      font-weight: 600;
-      color: var(--dv-text);
-      white-space: nowrap;
-    }
-    .floorbtn .ic {
-      font-size: 17px;
-      color: var(--dv-text-2);
-    }
-    .floorbtn .ic:last-child {
-      font-size: 14px;
-      transition: transform var(--mm-motion) var(--mm-ease);
-    }
-    .floorbtn[aria-expanded='true'] .ic:last-child {
-      transform: rotate(180deg);
-    }
-    .flwrap .pop {
-      inset-block-start: calc(100% + 8px);
-      inset-inline-end: 0;
-    }
     .dh-det {
       display: flex;
       align-items: center;
@@ -389,7 +357,6 @@ export const mediaPageStyles = css`
     }
     @media (pointer: coarse), (max-width: 767px) {
       .rc,
-      .floorbtn,
       .search {
         block-size: 44px;
       }
