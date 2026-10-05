@@ -1,0 +1,6 @@
+# The prototype is self-contained (opened from file:///): the bundle and the data modules are committed on purpose,
+# against the repo-wide `dist/` and `data/` ignores.
+!dist/
+!dist/**
+!src/data/
+!src/data/**

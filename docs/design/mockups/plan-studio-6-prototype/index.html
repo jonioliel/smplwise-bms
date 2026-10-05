@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SmplWise Arx — Plan Studio 6 prototype (realistic 3D + walk-through)</title>
+<style>
+  :root {
+    --sw-bg: #f5f7fb; --sw-surface: #ffffff; --sw-surface-2: #f7f9fc; --sw-surface-3: #eef2f8; --sw-border: #e7ebf2; --sw-border-strong: #e1e6ef;
+    --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #5b6a85; --sw-text-3: #8a97ae; --sw-text-inverse: #fff;
+    --sw-accent: #2767ed; --sw-accent-hover: #1f57d1; --sw-accent-soft: #edf3ff; --sw-accent-text: #2767ed;
+    --sw-danger: #ef4444; --sw-danger-soft: #fdecec; --sw-success: #22c55e; --sw-success-soft: #e8f8ee; --sw-stale: #f59e0b; --sw-stale-soft: #fff4e0; --sw-offline: #9aa3b5;
+    --sw-map-lit: #ffc857; --sw-map-presence: #2767ed; --sw-map-temp: #1e3a63; --sw-map-sky: #dbe7f8; --sw-map-sky-horizon: #f5f8fc;
+    --sw-font: "Heebo", "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif; --sw-mono: ui-monospace, Consolas, monospace;
+    --r: 10px; --shadow: 0 1px 2px rgba(17,24,39,.06), 0 6px 18px rgba(17,24,39,.08);
+    --glass: rgba(255,255,255,.86);
+  }
+  :root[data-theme="dark"] {
+    --sw-bg: #0d1220; --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-3: #222d44; --sw-border: #232e45; --sw-border-strong: #2f3c58;
+    --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-text-3: #8190aa;
+    --sw-accent: #3a6ce0; --sw-accent-soft: rgba(91,140,255,.18); --sw-accent-text: #8fb2ff; --sw-danger-soft: rgba(255,107,98,.2); --sw-success-soft: rgba(61,220,132,.18);
+    --sw-map-sky: #0b1a33; --sw-map-sky-horizon: #1a2b47; --sw-map-temp: #cfe0ff; --glass: rgba(21,28,44,.86); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 13px/1.45 var(--sw-font); color: var(--sw-text); background: var(--sw-bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  .shell { display: grid; grid-template-rows: 48px 1fr; height: 100vh; }
+  header { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); }
+  header .brand { font-weight: 700; color: var(--sw-accent-text); letter-spacing: -.2px; }
+  header .crumbs { color: var(--sw-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .modes { margin-inline-start: auto; display: flex; gap: 6px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid var(--sw-border-strong); border-radius: 999px; background: var(--sw-surface); color: var(--sw-text); font-size: 12px; white-space: nowrap; cursor: pointer; line-height: 1.4; }
+  .chip:hover { border-color: var(--sw-accent); }
+  .chip.sel { border-color: var(--sw-accent); color: var(--sw-accent-text); box-shadow: 0 0 0 1px var(--sw-accent); background: var(--sw-accent-soft); }
+  .chip[disabled] { opacity: .5; cursor: default; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sw-success); }
+  main { display: grid; grid-template-columns: 1fr 320px; gap: 12px; padding: 12px 16px; min-height: 0; }
+  .stage { position: relative; border-radius: var(--r); overflow: hidden; border: 1px solid var(--sw-border); background: linear-gradient(180deg, var(--sw-map-sky) 0%, var(--sw-map-sky-horizon) 100%); min-height: 0; user-select: none; touch-action: none; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage.walk canvas { cursor: crosshair; }
+  .overlay { position: absolute; pointer-events: none; }
+  .card { background: var(--glass); backdrop-filter: blur(8px); border: 1px solid var(--sw-border); border-radius: var(--r); padding: 8px 12px; box-shadow: var(--shadow); pointer-events: auto; }
+  .sun { left: 12px; top: 12px; width: 320px; }
+  .sun .row { display: flex; align-items: center; gap: 8px; }
+  .sun input[type=range] { flex: 1; accent-color: var(--sw-accent); }
+  .sun .t { font-weight: 600; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  .sun small { color: var(--sw-text-2); display: block; margin-top: 2px; }
+  .sun .presets { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .bar { right: 12px; bottom: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; max-width: calc(100% - 200px); }
+  .bar .sep { width: 1px; height: 18px; background: var(--sw-border-strong); }
+  .strip { right: 12px; bottom: 60px; display: flex; flex-direction: column; gap: 6px; }
+  .strip button { width: 104px; padding: 4px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--glass); color: var(--sw-text-2); text-align: center; cursor: pointer; pointer-events: auto; }
+  .strip button.sel { border-color: var(--sw-accent); color: var(--sw-accent-text); box-shadow: 0 0 0 1px var(--sw-accent); }
+  .strip .pic { display: block; height: 56px; border-radius: 4px; background: linear-gradient(135deg, #cfd8e3, #a9b6c6); position: relative; margin-bottom: 2px; overflow: hidden; }
+  .strip .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dots { position: absolute; top: 3px; right: 3px; display: flex; gap: 3px; }
+  .dots i { display: block; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1.5px #fff; }
+  .hud { left: 12px; bottom: 12px; font: 11px/1.5 var(--sw-mono); color: var(--sw-text-2); padding: 6px 10px; min-width: 210px; direction: ltr; text-align: left; }
+  .hud b { color: var(--sw-text); font-weight: 600; }
+  .hud .warn { color: #b45309; }
+  .note { left: 12px; top: 172px; background: var(--glass); border: 1px solid var(--sw-border); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--sw-text-2); pointer-events: auto; max-width: 420px; }
+  .note.danger { color: #b91c1c; border-color: var(--sw-danger); }
+  .labels { inset: 0; overflow: hidden; }
+  .lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none; }
+  .lbl.room { font-size: 12px; font-weight: 600; color: var(--sw-text); background: var(--glass); padding: 1px 7px; border-radius: 999px; }
+  .lbl.temp { font-size: 12px; font-weight: 600; color: var(--sw-map-temp); background: var(--glass); border: 1px solid var(--sw-border); padding: 1px 7px; border-radius: 999px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .lbl.camera { font-size: 11px; color: var(--sw-accent-text); background: var(--glass); border: 1px solid var(--sw-border); padding: 0 6px; border-radius: 999px; }
+  .lbl.camera.off { color: var(--sw-text-3); }
+  .lbl.device { font-size: 11px; background: var(--glass); border: 1px solid var(--sw-border); padding: 0 6px; border-radius: 999px; color: var(--sw-text-2); }
+  .lbl.device.on { color: #b45309; border-color: var(--sw-map-lit); }
+  .lbl.device.open { color: #b91c1c; border-color: var(--sw-danger); }
+  .popover { position: absolute; z-index: 5; background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--r); box-shadow: var(--shadow); padding: 10px 12px; min-width: 200px; pointer-events: auto; }
+  .popover h4 { margin: 0 0 6px; font-size: 13px; }
+  .popover .state { color: var(--sw-text-2); font-size: 12px; margin-bottom: 8px; }
+  .popover .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn { padding: 4px 12px; border-radius: 8px; border: 1px solid var(--sw-border-strong); background: var(--sw-surface); cursor: pointer; }
+  .btn.primary { background: var(--sw-accent); color: var(--sw-text-inverse); border-color: var(--sw-accent); }
+  .btn.sm { padding: 2px 8px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  /* walk-through chrome */
+  .crosshair { left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 1.5px solid rgba(255,255,255,.9); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.35); display: none; }
+  .stage.walk .crosshair { display: block; }
+  .walkbar { left: 50%; bottom: 12px; transform: translateX(-50%); display: none; gap: 8px; align-items: center; padding: 6px 10px; }
+  .stage.walk .walkbar { display: flex; }
+  .walkbar input[type=number] { width: 62px; padding: 2px 6px; border: 1px solid var(--sw-border-strong); border-radius: 6px; background: var(--sw-surface); direction: ltr; text-align: center; }
+  .walkbar label { font-size: 11px; color: var(--sw-text-2); display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .minimap { left: 12px; bottom: 12px; display: none; pointer-events: auto; }
+  .stage.walk .minimap { display: block; }
+  .stage.walk .hud { bottom: 190px; }
+  .minimap canvas { width: 168px; height: 168px; display: block; border-radius: 10px; box-shadow: var(--shadow); cursor: pointer; }
+  .minimap .lv { position: absolute; top: 6px; right: 8px; font-size: 11px; font-weight: 600; color: var(--sw-text-2); }
+  .joystick { left: 24px; bottom: 200px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.25); border: 1.5px solid rgba(255,255,255,.6); display: none; pointer-events: auto; touch-action: none; }
+  .joystick .knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: rgba(39,103,237,.75); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  .stage.walk.touch .joystick { display: block; }
+  .roomname { left: 50%; top: 14px; transform: translateX(-50%); background: var(--glass); border: 1px solid var(--sw-border); border-radius: 999px; padding: 2px 12px; font-weight: 600; display: none; }
+  .stage.walk .roomname { display: block; }
+  .stage.walk .sun, .stage.walk .strip { display: none; }
+  .fade { inset: 0; background: #000; opacity: 0; transition: opacity .3s; }
+  /* stills / kiosk layer */
+  .kiosk-layer { inset: 0; display: none; background: #0b1220; }
+  .stage.stills .kiosk-layer { display: block; }
+  .stage.stills canvas { visibility: hidden; }
+  .stills-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stills-lit { animation: litfade .5s ease-out; }
+  @keyframes litfade { from { opacity: 0 } to { opacity: 1 } }
+  .stills-presence { fill: rgba(39,103,237,.18); stroke: #2767ed; stroke-width: 3; animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { stroke-opacity: .9 } 50% { stroke-opacity: .35 } }
+  .stills-door { fill: rgba(239,68,68,.15); stroke: #ef4444; stroke-width: 3; }
+  .stills-cam { fill: #2767ed; stroke: #fff; stroke-width: 2; }
+  .stills-chips { position: absolute; pointer-events: none; }
+  .stills-chips .chipT, .chipT { position: absolute; transform: translate(-50%, -50%); background: var(--glass); border: 1px solid var(--sw-border); border-radius: 999px; padding: 1px 7px; font-size: 12px; font-weight: 600; color: var(--sw-map-temp); }
+  .stills-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #cbd5e1; }
+  .kiosk-note { left: 12px; top: 12px; background: var(--glass); border: 1px solid var(--sw-border); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--sw-text-2); display: none; pointer-events: auto; }
+  .stage.stills .kiosk-note { display: block; }
+  .stage.stills .sun, .stage.stills .note, .stage.stills .labels { display: none; }
+  /* side panel */
+  aside { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { flex: 1; padding: 6px; border: 1px solid var(--sw-border-strong); border-radius: 8px; background: var(--sw-surface); cursor: pointer; }
+  .tabs button.sel { border-color: var(--sw-accent); color: var(--sw-accent-text); background: var(--sw-accent-soft); }
+  .panel { display: none; flex-direction: column; gap: 10px; }
+  .panel.sel { display: flex; }
+  .pcard { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--r); padding: 10px 12px; }
+  .pcard h3 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .pcard h3 .muted { font-weight: 400; color: var(--sw-text-3); font-size: 11px; margin-inline-start: auto; }
+  .room { border-top: 1px solid var(--sw-border); padding: 6px 0; }
+  .room:first-of-type { border-top: 0; }
+  .room .name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .room .name .t { margin-inline-start: auto; color: var(--sw-map-temp); font-weight: 600; font-size: 12px; }
+  .dev { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; color: var(--sw-text-2); }
+  .dev .lbl2 { flex: 1; }
+  .sw { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #c9d1dc; border: 0; cursor: pointer; flex: none; padding: 0; }
+  .sw::after { content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .sw.on { background: var(--sw-accent); }
+  .sw.on::after { transform: translateX(-14px); }
+  .sw.danger.on { background: var(--sw-danger); }
+  .sw.success.on { background: var(--sw-success); }
+  input[type=range].pos { width: 90px; accent-color: var(--sw-accent); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 12px; }
+  .kv b { color: var(--sw-text-2); font-weight: 500; }
+  .ladder { display: flex; gap: 6px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .ladder span { padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-3); cursor: pointer; }
+  .ladder span.on { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: 600; box-shadow: 0 0 0 1px var(--sw-accent); }
+  .ladder span.down { opacity: .5; text-decoration: line-through; }
+  .toggles { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 12px; align-items: center; }
+  .list { display: flex; flex-direction: column; gap: 4px; }
+  .list button { text-align: start; padding: 5px 8px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-surface-2); cursor: pointer; display: flex; gap: 6px; align-items: center; }
+  .list button .k { font: 11px var(--sw-mono); color: var(--sw-text-3); margin-inline-start: auto; }
+  .help { font-size: 11px; color: var(--sw-text-3); line-height: 1.5; }
+  kbd { font: 11px var(--sw-mono); background: var(--sw-surface-3); border: 1px solid var(--sw-border-strong); border-radius: 4px; padding: 0 4px; }
+  .mobile-toggle { display: none; position: fixed; right: 12px; bottom: 12px; z-index: 9; }
+  .progress { height: 4px; background: var(--sw-surface-3); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--sw-accent); transition: width .2s; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; padding: 8px; }
+    aside { position: fixed; inset: 56px 0 0 0; background: var(--sw-bg); padding: 10px; z-index: 8; display: none; }
+    aside.open { display: flex; }
+    .mobile-toggle { display: inline-flex; }
+    .sun { width: calc(100% - 24px); }
+    .bar { max-width: calc(100% - 24px); }
+    header .crumbs { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="brand">SmplWise Arx</span>
+    <span class="crumbs">חקירה › מתקן ראשי › <span id="crumb-floor">בית דו־קומתי (דמו)</span> › <b>תוכנית</b></span>
+    <div class="modes">
+      <select id="plan-select" class="chip" aria-label="תוכנית"></select>
+      <button class="chip" id="theme-toggle" title="ערכת נושא">☾</button>
+      <span class="chip">2D</span><span class="chip sel">3D</span><span class="chip">היסטוריה</span>
+    </div>
+  </header>
+  <main>
+    <section class="stage" id="stage" aria-label="3D">
+      <canvas id="gl"></canvas>
+      <div class="overlay labels" id="labels"></div>
+      <div class="overlay kiosk-layer" id="stills"></div>
+      <div class="overlay kiosk-note" id="kiosk-note">מצב קיוסק · תמונות מוכנות + מסכות · 0 פריימים · <a href="#" id="kiosk-exit">חזרה לתצוגה חיה</a></div>
+      <div class="overlay card sun" id="sun-card">
+        <div class="row"><b>שעה ביום</b><span class="t" id="sun-time">15:30</span><input type="range" id="sun-slider" min="0" max="1439" value="930" aria-label="שעה ביום"><button class="chip" id="sun-now">עכשיו</button></div>
+        <small id="sun-info"></small>
+        <div class="presets" id="weather"></div>
+      </div>
+      <div class="overlay note" id="note" hidden></div>
+      <div class="overlay strip" id="strip"></div>
+      <div class="overlay bar" id="bar"></div>
+      <div class="overlay card hud" id="hud"></div>
+      <div class="overlay crosshair"></div>
+      <div class="overlay roomname" id="roomname"></div>
+      <div class="overlay card walkbar" id="walkbar">
+        <label>X (מ׳)<input type="number" id="wx" step="0.1"></label>
+        <label>Y (מ׳)<input type="number" id="wz" step="0.1"></label>
+        <label>כיוון (°)<input type="number" id="wh" step="5"></label>
+        <button class="btn sm" id="walk-save">שמור עמדה</button>
+        <button class="btn sm" id="walk-exit">יציאה (Esc)</button>
+      </div>
+      <div class="overlay minimap" id="minimap"><canvas width="336" height="336"></canvas><span class="lv" id="mm-level"></span></div>
+      <div class="overlay joystick" id="joystick"><div class="knob" id="knob"></div></div>
+      <div class="overlay fade" id="fade"></div>
+    </section>
+    <aside id="aside">
+      <div class="tabs">
+        <button class="sel" data-tab="states">מצבים</button>
+        <button data-tab="walk">סיור</button>
+        <button data-tab="quality">איכות וביצועים</button>
+      </div>
+      <div class="panel sel" data-panel="states" id="panel-states"></div>
+      <div class="panel" data-panel="walk" id="panel-walk"></div>
+      <div class="panel" data-panel="quality" id="panel-quality"></div>
+    </aside>
+  </main>
+</div>
+<button class="chip mobile-toggle" id="mobile-toggle">לוח בקרה</button>
+<script src="dist/studio6.js"></script>
+</body>
+</html>

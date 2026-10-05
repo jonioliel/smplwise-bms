@@ -2,7 +2,8 @@
 
 **Status:** Proposed 2026-10-05 (planning only; no product code in this CR). Owner decision 2026-10-05: Studio 6 is planned
 and built **before** Studio 5 (T088, exports / DXF / plan packages). Nothing below is scheduled until the owner answers §11.
-Branch: `pilot/studio6-plan`. Hebrew summary and the owner questions: §12 (תקציר בעברית).
+Branch: `pilot/studio6-plan`; the interactive prototype of §13 on `pilot/studio6-prototype`
+(`docs/design/mockups/plan-studio-6-prototype/`, open `index.html`). Hebrew summary and the owner questions: §12.
 
 **Related:** CR-003 (Plan Studio, design document `docs/architecture/PLAN_STUDIO_DESIGN_HE.md` §10.4 items 2-3 and §15),
 CR-006 (3D visual level: quality level 2, the state layer, skins 2a - AI skins paused by the owner 2026-09-29), CR-027
@@ -500,3 +501,96 @@ S3 אפיית תאורה ותמונות מוכנות + אחסון (18-26) → S7
 
 > תזכורת רישומית: T089 תלוי ב־T087 שעדיין רשום BACKLOG בגלל כלל הרישום (תלויות שלו ב־BACKLOG). לפני שהכרטיס עובר
 > ל־READY צריך לסגור את T087 דרך הכלל או לרשום חריגה ב־`management/tasks.json`.
+
+> **אב־טיפוס (2026-10-05, §13):** שאלות 3, 4, 5, 7, 9 ו־12 מודגמות באב־הטיפוס האינטראקטיבי (גובה עין 1.2-2.0 כהגדרה,
+> דלת ללא חיישן עבירה, גרירה כברירת מחדל ונעילת סמן כאפשרות, מחוון שעה עם "עכשיו", מצב קיוסק עם מעבר לתמונה אחרי חוסר
+> פעילות). הן עדיין שאלות לבעלים - האב־טיפוס מראה את האפשרות המומלצת, לא מחליט. שאלה 12 מתייחסת עכשיו לאב־הטיפוס במקום
+> ל־HTML הסטטי (הבעלים: "המוקאפים הקודמים לא מספיק טובים").
+
+---
+
+## 13. Prototype findings (2026-10-05, branch `pilot/studio6-prototype`)
+
+The owner rejected the static HTML / CSS-3D mockups and asked for "deep, much more advanced work". The answer is a real
+three.js prototype in `docs/design/mockups/plan-studio-6-prototype/` (README there: controls, prototype-only vs production,
+limits): one `index.html` + one bundled script (three r0.186.1, the product's version, from `frontend/node_modules`; no
+CDN; `LICENSES.md` manifest), opened from `file:///`. It loads the repo's real fixture (`sample-v2.json`, verbatim at build
+time) and a synthetic two-floor house written in the same schema 2.0 (the 2.1 fields of §5.2 carried under `x_proto`).
+Verified in headless Chromium through Playwright on the workstation's real GPU (ANGLE / D3D11) and on SwiftShader;
+screenshots, GIF frame sequences and the measured numbers are in `shots/` (`perf-gpu.json`, `perf-swiftshader.json`).
+
+### 13.1 What worked (built and exercised)
+
+- **Level 3 look from the geometry alone**: box-mapped UVs in metres (the §3.1 rule) on walls cut by their openings
+  (`buildPrimitives` ported to JS), floors per room, lintels / sills / frames, procedural PBR texture sets (colour +
+  normal + roughness), IBL from a sky dome prefiltered per time of day, sun by hour / date / latitude / north with PCF
+  shadows, GTAO, emissive lamps + an 8-light pool + bloom, physical glass. The §6.2 id list is honoured (`plaster_white`,
+  `oak`, `tiles_grey`, …) so the CC0 sets drop in by id.
+- **Time of day and weather** move the sun, the shadows, the sky, the exposure and the lamp glow continuously; night
+  reads as the owner's reference (warm lit rooms, dark unlit ones).
+- **Device states as physical changes**: doors swing / slide 350 ms, shutters drop by `current_position`, lamps light
+  the room, the lock plate changes colour, the red open frame and the blue presence ring survive from level 1-2.
+- **The walk-through end to end**: collision against the ported `blockingSegments` + tall objects, doors passable only
+  when open (locked = closed, unsensed = passable), stairs climb between the levels and switch the level at the top,
+  A* tap-to-walk through open doors only, keyboard / mouse / touch joystick, saved viewpoints, stand-at-camera (mount
+  height + tilt, resumes eye height on the first step), minimap with teleport, numeric walk bar. The scripted checks in
+  `tools/capture.mjs` record the positions (blocked at the closed office door, on the stair, on L1 after it).
+- **Stills + masks (approach B1) in the browser**: 4 pictures per floor at a fixed camera in ~3 s on the iGPU, masks
+  from the room polygons through the same camera matrix, lit rooms revealed per mask, doors / presence / cameras as SVG,
+  temperature chips as DOM - the reference technique, generated. The kiosk idle timer swaps to the still and the HUD
+  shows 0 frames.
+- **The ladder**: the 2.5 s probe drops a rung under 30 fps and says so; a **"realistic lite"** rung (textures + IBL +
+  shadows + bloom, no AO / physical glass / reflector, DPR 1) was added because it is the rung an integrated GPU lands on.
+- **On-demand rendering + shadow maps only on change** (`shadowMap.autoUpdate = false`): a camera move never redraws
+  the 1 + 2×6 shadow passes; idle = 0 frames, as the kiosk rule requires.
+
+### 13.2 Measured (Intel UHD 630 integrated GPU, headless Chromium ANGLE/D3D11, 1076×828 canvas, DPR 1; GPU-synchronised frame timer, median of 12)
+
+| Rung | Orbit iso, ground floor | Walk | Phone-size walk (536×780) |
+|---|---|---|---|
+| Realistic (GTAO + physical glass + bloom) | 28 ms · 326 draws · 35 fps | 53 ms · 79 draws · 19 fps | - |
+| Realistic lite | 13 ms · 129 draws · 78 fps | 17.5 ms · 31 draws · 57 fps | 13 ms · 78 fps |
+| Full (level 2) | 12 ms · 117 draws · 82 fps | 13.5 ms · 74 fps | 12 ms · 81 fps |
+| Schematic (level 1) | 9 ms · 116 draws · 115 fps | - | - |
+
+Lever costs on the same GPU (walk, 1076×828): GTAO + denoise ≈ **30 ms**; physical glass (transmission pass) ≈ **55 ms**
+when windows fill the view; planar floor reflector ≈ **+115 ms** in orbit (a second full pass, nested with the
+transmission pass) - off by default; lamp shadows = 2×6 cube passes - off by default; bloom ≈ 1-2 ms; 2048 PCF sun
+shadow ≈ 1 ms once cached. Boot 5-15 s on the iGPU (shader compiles for the physical / post materials; textures 1.2 s).
+SwiftShader: realistic falls back on the probe as the product's baselines expect; its numbers are in
+`perf-swiftshader.json` and are software numbers only. **No phone, tablet or kiosk device was measured** - the phone row
+above is a viewport size on the workstation GPU, not a phone.
+
+### 13.3 Visual and performance risks found
+
+1. **No global illumination is the visible gap at eye level**: the sky's diffuse reaches every indoor wall unoccluded,
+   so interiors read flat / bright; the prototype lowers the fill indoors by a constant. S3's lightmap (AO + indirect)
+   is the real fix and should be considered for release A, not B, if the walk is the selling view.
+2. **The Sky shader is not usable as the drawn background with bloom**: its HDR output blooms the whole frame. The
+   prototype draws an LDR gradient dome (one draw) and prefilters the environment from it. Recorded against §6.4.
+3. **GTAO and physical glass are the two expensive levers on an iGPU**; both belong to "realistic" only, with "lite"
+   as the next rung. The reflector is not worth its cost; IBL specular on glossy floors gives the floor sheen.
+4. **The `three` chunk cap**: the prototype bundle is 783 KB minified (unmeasured gzip) with the composer, GTAO, bloom
+   and the Reflector included. GTAO + bloom + composer are likely ~25-35 KB gzip and should be a lazily loaded chunk of
+   their own; the Reflector and the Sky shader are not needed. To measure in S1 before the cap is touched.
+5. **Shader recompiles**: three.js recompiles every material when the number of lights (or shadow-casting lights)
+   changes - the light pool must be a fixed set created once (the prototype did this after a hang on SwiftShader).
+6. **Thumbnails / stills must not resize the post chain** (a composer resize re-allocates GTAO's targets and recompiles);
+   thumbnails render plain into a small target, stills go through the chain once per variant.
+7. **Procedural textures cost CPU at load** (256 px: 1.2 s; 512 px: 8-30 s in JS) - the product's CC0 files avoid this.
+8. **r0.186 removed `PCFSoftShadowMap`**; VSM is not supported for point lights. PCF + `shadow.radius` is the soft edge.
+
+### 13.4 Revised estimates (build hours, S0-S7)
+
+| Slice | Was | Now | Why |
+|---|---|---|---|
+| S0 schema + resolver | 10-14 | 10-14 | unchanged |
+| S1 materials + level 3 | 16-22 | 14-20 | box-mapped UVs, the material resolver by id, the lite rung and the lever table are proven; the chunk work (+2) is new |
+| S2 sun / sky / time / lamps | 8-12 | 8-10 | the solar function, the recipe by elevation, the fixed light pool and the door / cover animation exist as prototype code |
+| S4 walk core | 16-20 | 14-18 | the controller shape (collision, doors, stairs, level switch, ground function) is settled |
+| S5 walk UX | 12-16 | 12-16 | joystick / tap-to-walk / minimap / positions proven; the kiosk timer too |
+| S3 bake | 18-26 | 18-26 | unchanged; the B1 still + mask path is proven (~3 s per floor on an iGPU), the lightmap is not |
+| S7 perf + release | 8-10 | 8-12 | + the chunk measurement and a real-phone row |
+| **Total** | **88-120** | **84-116** | and a recommendation to move S3's stills (not the lightmap) into release A, where the kiosk needs them |
+
+The Hebrew questions of §12 stand; the prototype note above marks the ones it demonstrates.

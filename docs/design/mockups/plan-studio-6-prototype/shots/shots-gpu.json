@@ -1,0 +1,68 @@
+{
+  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "boot_ms": 5029,
+  "page_ready_ms": 5725,
+  "viewport": "1440x900",
+  "measured_at": "2026-10-05T12:44:21.316Z",
+  "url": "http://127.0.0.1:4190/index.html",
+  "after-load-probe": "idle (0 fps — on-demand) | draw 361 · tris 26k · tex 77 · geo 158 | 45 MB heap · 1076×828 @1.00× | orbit · ריאליסטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "probe_note": "ריאליסטי · נמדד 43 fps ב־2.5 ש׳ — נשאר",
+  "realistic-iso": "idle (0 fps — on-demand) | draw 361 · tris 26k · tex 77 · geo 158 | 45 MB heap · 1076×828 @1.00× | orbit · ריאליסטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "realistic-night-all-lamps": "idle (0 fps — on-demand) | draw 326 · tris 23k · tex 77 · geo 158 | 45 MB heap · 1076×828 @1.00× | orbit · ריאליסטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "realistic-lite": "idle (0 fps — on-demand) | draw 175 · tris 11k · tex 89 · geo 174 | 45 MB heap · 1076×828 @1.00× | orbit · ריאליסטי קל | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "full-level2": "3 fps · 9.8 ms/frame (CPU submit) | draw 169 · tris 11k · tex 87 · geo 187 | 45 MB heap · 1076×828 @1.00× | orbit · מלא | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "schematic-level1": "idle (0 fps — on-demand) | draw 132 · tris 6k · tex 85 · geo 187 | 45 MB heap · 1076×828 @1.00× | orbit · סכמטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "walk-entrance": "23 fps · 4.9 ms/frame (CPU submit) | draw 79 · tris 17k · tex 112 · geo 190 | 45 MB heap · 1076×828 @1.00× | walk · ריאליסטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "walk-after-keys": "25 fps · 5.2 ms/frame (CPU submit) | draw 108 · tris 20k · tex 112 · geo 191 | 45 MB heap · 1076×828 @1.00× | walk · ריאליסטי | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "tap_to_walk_waypoints": 5,
+  "walk_pos_after_tap": [
+    8.94,
+    6.03,
+    "L0"
+  ],
+  "blocked_by_closed_door": {
+    "before": [
+      2.75,
+      6.9
+    ],
+    "after": [
+      3.16,
+      6.9
+    ],
+    "door_x": 3.5
+  },
+  "on_stairs": [
+    1.25,
+    6.18,
+    2.54,
+    "L0",
+    true
+  ],
+  "after_stairs": [
+    1.25,
+    2.87,
+    4.55,
+    "L1"
+  ],
+  "after_stairs_down": [
+    1.25,
+    6.24,
+    2.49,
+    "L1"
+  ],
+  "stills-kiosk": "0 fps (still, no WebGL frames) | draw 365 · tris 26k · tex 113 · geo 191 | 45 MB heap · 1076×828 @1.00× | stills · תמונות מוכנות | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "stills": [
+    {
+      "masks": 8,
+      "pics": 4,
+      "w": 1280,
+      "h": 800,
+      "doors": 5
+    }
+  ],
+  "mobile-walk": "61 fps · 2.7 ms/frame (CPU submit) | draw 36 · tris 6k · tex 161 · geo 175 | 45 MB heap · 536×780 @1.00× | walk · ריאליסטי קל | GPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "console_errors": [
+    "warning: THREE.WebGLProgram: Program Info Log: (210,81-129): warning X4122: sum of 0.996094 and -2.98545e-017 cannot be represented accurately in double precision\n(209,37-61): warning X4122: sum of 1 and -1.49"
+  ],
+  "console_error_count": 1
+}
