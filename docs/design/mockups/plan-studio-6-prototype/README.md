@@ -52,8 +52,9 @@ SW_NODE_MODULES=C:\...\frontend\node_modules node build.mjs
 SW_NODE_MODULES=... SW_GPU=1 SW_URL=http://127.0.0.1:4190/index.html node tools/capture.mjs all
 ```
 
-`shots/` holds the screenshots, `shots/frames/` the GIF frame sequences, `shots/*.gif` the sequences, `shots/perf-*.json`
-the measured numbers (one file per renderer; the json says which renderer produced it). The page is served from a plain
+`shots/` holds the screenshots, `shots/frames/` the GIF frame sequences, `shots/*.gif` the sequences (built by
+`tools/make-gif.mjs`), `shots/perf-gpu.json` the measured numbers and `shots/shots-gpu.json` the scripted walk checks
+(blocked at a closed door, on the stair, on the upper floor after it, tap-to-walk arrival). The page is served from a plain
 static server for the headless runs only because Chromium's screenshot timing is more reliable there; `file:///` works
 the same (the smoke run uses it).
 
@@ -77,8 +78,12 @@ the same (the smoke run uses it).
 
 - The two-floor house is authored for the prototype; the repo's only real geometry fixture is the 4-wall sample, which also
   loads. No private plans were used.
-- Numbers in `shots/perf-gpu.json` are from the workstation's integrated Intel UHD GPU in headless Chromium through ANGLE/D3D11;
-  `shots/perf-swiftshader.json` is software rendering and says nothing about any real device. No phone, tablet or kiosk
-  was measured.
+- Numbers in `shots/perf-gpu.json` are from the workstation's integrated Intel UHD GPU in headless Chromium through ANGLE/D3D11.
+  The SwiftShader (software) measurement run is **NOT_RUN**: under SwiftShader the realistic level draws a frame in
+  seconds, the page's main thread stays busy during the probe and the Playwright harness times out before the HUD can be
+  read (`tools/capture.mjs measure` without `SW_GPU=1`). What was observed on SwiftShader in the staged boot checks: the
+  smoke run from `file:///` boots and the probe falls back down the ladder; first realistic frame ~4-6 s (shader compile),
+  later frames ~70 ms CPU-submit at 960x600 plus a multi-second GPU-side cost that only shows up on readback. No phone,
+  tablet or kiosk was measured.
 - Pointer lock was only exercised in a top-level page, not inside the product's Ingress iframe (CR §4.5 stays "to verify").
 - Three.js r0.186 (the version `frontend/` ships) — `PCFSoftShadowMap` no longer exists there; PCF + radius is used.

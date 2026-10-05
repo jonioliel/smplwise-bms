@@ -557,9 +557,10 @@ Lever costs on the same GPU (walk, 1076×828): GTAO + denoise ≈ **30 ms**; phy
 when windows fill the view; planar floor reflector ≈ **+115 ms** in orbit (a second full pass, nested with the
 transmission pass) - off by default; lamp shadows = 2×6 cube passes - off by default; bloom ≈ 1-2 ms; 2048 PCF sun
 shadow ≈ 1 ms once cached. Boot 5-15 s on the iGPU (shader compiles for the physical / post materials; textures 1.2 s).
-SwiftShader: realistic falls back on the probe as the product's baselines expect; its numbers are in
-`perf-swiftshader.json` and are software numbers only. **No phone, tablet or kiosk device was measured** - the phone row
-above is a viewport size on the workstation GPU, not a phone.
+SwiftShader: the smoke run from `file:///` boots and the probe falls back down the ladder as the product's baselines
+expect, but the full per-rung measurement there is **NOT_RUN** - a realistic frame takes seconds in software and the
+harness times out reading the HUD (README "Honest limits"). **No phone, tablet or kiosk device was measured** - the
+phone row above is a viewport size on the workstation GPU, not a phone.
 
 ### 13.3 Visual and performance risks found
 
