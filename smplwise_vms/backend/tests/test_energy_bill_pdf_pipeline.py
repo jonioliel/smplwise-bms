@@ -195,6 +195,12 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
     copy = c.get(f"{API}/bills/{bill['id']}/pdf?copy=1")
     assert copy.status_code == 200 and "העתק" in flat(copy.content) and copy.content != pdf
     assert c.get(f"{API}/bills/{bill['id']}").json()["pdf"]["state"] == "stored"
+    evidence = os.environ.get("SW_BILL_PDF_EVIDENCE_DIR")  # the add-on image check keeps these for the visual review
+    if evidence:
+        os.makedirs(evidence, exist_ok=True)
+        for name, data in (("pipeline-draft", r.content), ("pipeline-issued", pdf), ("pipeline-copy", copy.content)):
+            with open(os.path.join(evidence, f"{name}.pdf"), "wb") as fh:
+                fh.write(data)
 
 
 @pytest.fixture()

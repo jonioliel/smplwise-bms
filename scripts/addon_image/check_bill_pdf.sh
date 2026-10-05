@@ -60,8 +60,9 @@ sudo -n cp "$REPO/smplwise_vms/backend/pyproject.toml" "$FULL/app/pyproject.toml
 step generate_evidence inimg sh -c "cd /app && python3 /w/docs/evidence/electricity-pdf/generate.py /out/samples"
 step rasterize inimg sh -c "mkdir -p /out/png && for f in /out/samples/*.pdf; do pdftoppm -r 110 -png \"\$f\" /out/png/\$(basename \"\$f\" .pdf); done; pdffonts /out/samples/bill-issued.pdf; pdfinfo /out/samples/bill-issued.pdf | grep -E 'Pages|Page size|Producer'"
 step pytest_install inimg pip install --no-cache-dir --root-user-action=ignore -q pytest
-step pytest_bill_pdf inimg sh -c "cd /app && SW_REQUIRE_BILL_PDF=1 python3 -m pytest -q -rs -o addopts= -p no:cacheprovider --basetemp=/tmp/pt tests/test_bill_pdf.py tests/test_energy_bill_pdf_pipeline.py tests/test_energy_integration.py tests/test_energy_billing_api.py tests/test_energy_billing_engine.py"
+step pytest_bill_pdf inimg sh -c "cd /app && SW_REQUIRE_BILL_PDF=1 SW_BILL_PDF_EVIDENCE_DIR=/out/pipeline python3 -m pytest -q -rs -o addopts= -p no:cacheprovider --basetemp=/tmp/pt tests/test_bill_pdf.py tests/test_energy_bill_pdf_pipeline.py tests/test_energy_integration.py tests/test_energy_billing_api.py tests/test_energy_billing_engine.py"
 if grep -qE 'SKIPPED.*(WeasyPrint|poppler)' "$OUT/pytest_bill_pdf.log"; then log "   NOTE: a render test was skipped for a missing library"; FAIL=1; fi
+step rasterize_pipeline inimg sh -c "for f in /out/pipeline/*.pdf; do pdftoppm -r 110 -png \"\$f\" /out/png/\$(basename \"\$f\" .pdf); pdftotext -layout \"\$f\" /out/pipeline/\$(basename \"\$f\" .pdf).txt; done; pdffonts /out/pipeline/pipeline-issued.pdf"
 
 # --- 3. the add-on's own entry point: start-up engine line and the billing settings over HTTP (dev user, loopback only)
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
