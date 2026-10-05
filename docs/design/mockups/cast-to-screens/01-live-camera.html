@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1 · מצלמה בודדת: שדר למסך</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+/* ------------------------------------------------------------------ page state (one camera, one optional session) */
+const P = {
+  cam: CAM['c-lobby'], profile: 'sub', session: null, pendingPick: null, hasPerm: true, remote: false, relayDown: false, bridgeOld: false, noTargets: false,
+  sessions() { return P.session ? { [P.session.key]: P.session } : {}; },
+};
+const STATES = [
+  { id: 'idle', label: 'מנוחה: הכפתור בסרגל' },
+  { id: 'picker', label: 'הבורר פתוח' },
+  { id: 'busy', label: 'מסך עסוק: אישור' },
+  { id: 'starting', label: 'מתחבר…' },
+  { id: 'playing', label: 'משדר (גלולה + מגש)' },
+  { id: 'not_confirmed', label: 'המסך לא הגיע לזרם' },
+  { id: 'timeout', label: 'הופסק: תם הזמן' },
+  { id: 'codec', label: 'זרם ראשי H.265: מסכים חסומים' },
+  { id: 'noperm', label: 'בלי הרשאה: אין כפתור' },
+  { id: 'notargets', label: 'אין מסכים זמינים' },
+  { id: 'relay', label: 'ממסר לא זמין' },
+  { id: 'remote', label: 'מרחוק (/arx)' },
+];
+function applyState(id) {
+  P.session = null; P.profile = 'sub'; P.hasPerm = true; P.remote = false; P.relayDown = false; P.noTargets = false; P.cam = CAM['c-lobby']; P.open = false; P.confirm = false; P.done = null;
+  if (id === 'picker') P.open = true;
+  if (id === 'busy') { P.open = true; P.confirm = 'tv-kitchen'; }
+  if (id === 'starting') P.session = { key: 'tv-living', cam: P.cam.name, state: 'starting', kind: 'camera', user: 'me', until: '14:32', left: 30, total: 30, ext: 0 };
+  if (id === 'playing') P.session = { key: 'tv-living', cam: P.cam.name, state: 'playing', kind: 'camera', user: 'me', until: '14:32', left: 27.5, total: 30, ext: 0 };
+  if (id === 'not_confirmed') P.session = { key: 'tv-living', cam: P.cam.name, state: 'not_confirmed', kind: 'camera', user: 'me', until: '14:32', left: 29.7, total: 30, ext: 0 };
+  if (id === 'timeout') P.done = { state: 'stopped_timeout', room: 'סלון' };
+  if (id === 'codec') { P.cam = CAM['c-parking']; P.profile = 'main'; P.open = true; }
+  if (id === 'noperm') P.hasPerm = false;
+  if (id === 'notargets') { P.noTargets = true; P.open = true; }
+  if (id === 'relay') { P.relayDown = true; P.open = true; }
+  if (id === 'remote') { P.remote = true; P.session = { key: 'tv-living', cam: P.cam.name, state: 'playing', kind: 'camera', user: 'me', until: '14:32', left: 29, total: 30, ext: 0 }; }
+}
+
+/* ------------------------------------------------------------------ render */
+function videoHtml() {
+  const s = P.session; const pill = s ? castPill({ state: s.state, room: SCREEN[s.key].room, until: s.until, left: s.left, total: s.total, music: s.music, remote: P.remote, ann: s.state === 'playing' ? 6 : s.state === 'not_confirmed' ? 8 : 5 }) : P.done ? castPill(P.done) : '';
+  return `<div class="video"><div class="scene lobby" style="--c1:${P.cam.c1};--c2:${P.cam.c2}"></div><div class="shade"></div>
+    <span class="quality">${P.profile === 'main' ? `1440p · ${P.cam.main}` : '360p · H.264'}</span><span class="stamp">2026-10-05 14:02:36</span><span class="demo">דמו · נתוני הדגמה</span>${pill}</div>`;
+}
+function controlsHtml() {
+  const s = P.session;
+  const castBtn = P.hasPerm ? `<button class="cast ${s ? 'active' : ''}" data-cast title="שדר למסך" aria-label="שדר למסך" aria-haspopup="dialog" aria-expanded="${P.open ? 'true' : 'false'}" data-ann="1">${ic(s ? 'castOn' : 'cast', 's')}</button>` : '';
+  return `<div class="controls">
+    <div class="round" role="group" aria-label="פקדי מצלמה">
+      <button title="רענון תמונה" aria-label="רענון תמונה">${ic('aperture', 's')}</button>
+      <button title="מסך מלא" aria-label="מסך מלא">${ic('expand', 's')}</button>
+      <button title="התחבר מחדש" aria-label="התחבר מחדש">${ic('refresh', 's')}</button>
+      ${castBtn}
+      <button class="q ${P.profile === 'main' ? 'on' : ''}" data-prof="main">ראשי</button>
+      <button class="q ${P.profile === 'sub' ? 'on' : ''}" data-prof="sub">משני</button>
+      ${P.remote ? '' : `<div class="transport" role="group" aria-label="תעבורה"><button class="on">אוטומטי</button><button>WebRTC</button><button>MSE</button></div>`}
+    </div>
+    ${P.hasPerm ? '' : `<span class="pnote" data-ann="9">(אין הרשאת "שידור וידאו למסכים": הכפתור לא מוצג, בלי רמז)</span>`}
+  </div>`;
+}
+function pickerHtml(phoneSheet) {
+  const ctx = { profile: P.profile, codec: P.cam.main, canPublic: false, remote: P.remote, sessions: P.sessions() };
+  if (P.confirm) return confirmHtml(SCREEN[P.confirm]);
+  let body;
+  if (P.relayDown) body = `<div class="pk-empty" data-ann="11">${ic('warn')}<br>השידור לא זמין כרגע<br><span class="muted">נסה שוב בעוד רגע. אם זה חוזר: הגדרות › מולטימדיה › שידור למסך.</span></div>`;
+  else if (P.noTargets) body = `<div class="pk-empty" data-ann="10">אין מסכים זמינים לשידור<br><span class="muted">מנהל המערכת מאשר מסכים לשידור בהגדרות › מולטימדיה</span></div>`;
+  else body = pickerList(ctx);
+  const head = `<div class="sheet-head"><div class="h"><h2>לאיזה מסך?</h2><div class="sub">${esc(P.cam.name)} · ${P.profile === 'main' ? 'זרם ראשי' : 'זרם משני'}${P.remote ? ' · מרחוק: הלחיצה כאן, השידור ברשת המקומית' : ''}</div></div><button class="xbtn" data-close aria-label="סגירה">${ic('x', 's')}</button></div>`;
+  const foot = `<div class="pk-foot" data-ann="4"><span class="timer">${ic('clock', 's')}יעצור לבד אחרי 30 דקות</span><span class="sp"></span><span>${P.profile === 'main' && P.cam.main === 'H.265' ? 'H.265: רק מסכים שתומכים' : 'וידאו בלבד'}</span></div>`;
+  return `${phoneSheet ? '' : ''}${head}<div class="sheet-body" data-ann="2">${body}${P.relayDown || P.noTargets ? '' : foot}</div>`;
+}
+function confirmHtml(scr) {
+  return `<div class="sheet-head"><div class="h"><h2>המסך עסוק: מנגן מוזיקה</h2><div class="sub">${esc(scr.name)} · ${esc(scr.room)}</div></div><button class="xbtn" data-close aria-label="סגירה">${ic('x', 's')}</button></div>
+    <div class="sheet-body"><div class="confirm" data-ann="3"><h4>לעצור את המוזיקה ולשדר את "${esc(P.cam.name)}"?</h4>
+      <details><summary>פרטים</summary>המוזיקה ב${esc(scr.room)} לא תחזור לבד אחרי השידור. השידור ייעצר לבד ב־14:32.</details>
+      <div class="acts"><button class="btn primary" data-confirm="${scr.key}">${ic('cast', 's')}כן, שדר</button><button class="btn" data-back>חזרה לרשימה</button></div></div></div>`;
+}
+function page(state) { applyState(state); return page_noreset(); }
+function openPicker() {
+  const btn = document.querySelector('[data-cast]'); if (!btn) return;
+  btn.setAttribute('aria-expanded', 'true');
+  const phone = document.getElementById('device').offsetWidth <= 700;
+  if (phone) Sheet.open(() => pickerHtml(true)); else Pop.open(btn, pickerHtml(false), { width: 380 });
+  wirePicker();
+}
+function wirePicker() {
+  const root = Sheet.isOpen() ? Sheet.el : Pop.el;
+  root.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-pick]');
+    if (p) { if (p.getAttribute('aria-disabled') === 'true') { Mock.toast(p.title); return; } const scr = SCREEN[p.dataset.pick]; if (scr.busy === 'music') { P.confirm = scr.key; repaintPicker(); return; } start(scr.key); return; }
+    const c = e.target.closest('[data-confirm]'); if (c) { start(c.dataset.confirm, true); return; }
+    if (e.target.closest('[data-back]')) { P.confirm = false; repaintPicker(); }
+  });
+}
+function repaintPicker() { if (Sheet.isOpen()) { Sheet.build = () => pickerHtml(true); Sheet.rebuild(); } else { Pop.el.innerHTML = pickerHtml(false); Pop.el.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => Pop.close())); Ann.place(); } }
+function start(key, music) {
+  Sheet.close(); Pop.close(); P.open = false; P.confirm = false;
+  P.session = { key, cam: P.cam.name, state: 'starting', kind: 'camera', user: 'me', until: '14:32', left: 30, total: 30, ext: 0, music: !!music };
+  rerender();
+  clearTimeout(P._t); P._t = setTimeout(() => { if (P.session && P.session.state === 'starting') { P.session.state = 'playing'; P.session.left = 29.8; rerender(); } }, 1600);
+}
+function rerender() { document.getElementById('content').innerHTML = page_noreset(); wire(); Ann.place(); }
+function page_noreset() {
+  const acts = `<span class="badge live">חי</span>${trayPill(P.sessions(), { ann: 7 })}<button class="btn">${ic('history', 's')}הקלטות</button><button class="btn icon ghost" aria-label="במפה">${ic('map', 's')}</button>`;
+  const crumbs = `<a href="#">${P.remote ? 'מרחוק · ' : ''}שידור חי</a> ‹ <a href="#">מצלמות</a> ‹ <span>${esc(P.cam.name)}</span>`;
+  const remoteBar = P.remote ? `<div class="selbar" data-ann="12">${ic('globe', 's')}מחובר מרחוק · הלחיצה מכאן, השידור עצמו רץ ברשת המקומית של האתר<span class="sp"></span><span class="muted">לא נספר במכסת הזרמים שלך</span></div>` : '';
+  return `${pageHead(esc(P.cam.name), 'ערוץ 3 · קומת קרקע', acts, crumbs)}${remoteBar}${videoHtml()}${controlsHtml()}<details class="acc"><summary>${ic('chev', 's')}הגדרות מצלמה</summary></details>`;
+}
+function wire() {
+  const c = document.getElementById('content');
+  c.querySelector('[data-cast]')?.addEventListener('click', () => { if (P.session && P.session.state !== 'not_confirmed') { openTray(); return; } P.open = true; openPicker(); });
+  c.querySelectorAll('[data-prof]').forEach((b) => b.addEventListener('click', () => { P.profile = b.dataset.prof; rerender(); }));
+  c.querySelector('[data-stop]')?.addEventListener('click', () => { P.session = null; Mock.toast('השידור נעצר'); rerender(); });
+  c.querySelector('[data-extend]')?.addEventListener('click', () => { P.session.left += 30; P.session.total += 30; P.session.until = '15:02'; P.session.ext++; Mock.toast('הוארך עד 15:02'); rerender(); });
+  c.querySelector('[data-retry]')?.addEventListener('click', () => { P.session.state = 'starting'; rerender(); setTimeout(() => { if (P.session) { P.session.state = 'playing'; P.session.left = 29.5; rerender(); } }, 1600); });
+  c.querySelector('[data-again]')?.addEventListener('click', () => { P.done = null; P.open = true; rerender(); openPicker(); });
+  c.querySelector('[data-dismiss]')?.addEventListener('click', () => { P.done = null; rerender(); });
+  c.querySelector('[data-tray]')?.addEventListener('click', (e) => openTray(e.currentTarget));
+}
+function openTray(anchor) {
+  const build = () => trayHtml(P.sessions(), { cap: 2 });
+  Tray.open(build, anchor || document.querySelector('[data-tray]'));
+  Tray.el.addEventListener('click', (e) => {
+    const st = e.target.closest('[data-stop]'); if (st) { P.session = null; Tray.close(); Mock.toast('השידור נעצר'); rerender(); }
+    const ex = e.target.closest('[data-extend]'); if (ex) { P.session.left += 30; P.session.total += 30; P.session.until = '15:02'; P.session.ext++; Tray.rebuild(); rerender(); }
+    const sw = e.target.closest('[data-switch]'); if (sw) { Tray.close(); Mock.toast('בחר מצלמה אחרת: הבורר נפתח עם המסך הנוכחי מסומן'); }
+    const rt = e.target.closest('[data-retry]'); if (rt) { P.session.state = 'starting'; Tray.close(); rerender(); }
+  });
+}
+Mock.boot({
+  page: 'live', nav: 'security', states: STATES,
+  render: page,
+  after: (state) => { wire(); if (P.open) setTimeout(openPicker, 60); },
+  note: (state) => ({
+    idle: '<b>1</b> כפתור "שדר למסך" (אייקון cast, 36/44 px) בקבוצת הפקדים העגולה ליד "מסך מלא" - בדיוק איפה שהשידור החי מציב את הפעולות על הווידאו. אותו מקום בכל הרחבים; בטלפון 44 px. מוצג רק כשיש הרשאה וגם לפחות מסך אחד זמין.',
+    picker: '<b>2</b> הבורר: בדסקטופ/טאבלט - פאנל מעוגן לכפתור (סגנון הדרופדאון של ההתקנה); בטלפון - גיליון תחתון. מקובץ "לאחרונה" ואז לפי קומה. כל שורה: שם, חדר · מצב (פנוי / מנגן מוזיקה / משדר: X / כבוי), תג יכולת (מאומת / כנראה / לא ידוע). שורה חסומה מציגה את הסיבה במקום המצב. <b>4</b> שורת תחתית: הזמן האוטומטי.',
+    busy: '<b>3</b> מסך שמנגן מוזיקה: שאלה קצרה + "פרטים" מקופל (תבנית האישור הקיימת של המולטימדיה). המוזיקה לא חוזרת לבד.',
+    starting: '<b>5</b> גלולה "מתחבר…" מעל הנגן (תחתית-התחלה, כמו גלולת ההקלטה). "משדר" נקבע רק כשהמסך משך את המקטע הראשון.',
+    playing: '<b>6</b> גלולה "משדר אל סלון · יעצור ב־14:32" עם טבעת התקדמות, "עוד 30 דקות" ו"עצור". <b>7</b> גלולת "משדר 1" בכותרת (גלובלית, בכל מסך) פותחת את מגש השידורים הפעילים. כפתור ה-cast הופך כחול עם נקודה ירוקה.',
+    not_confirmed: '<b>8</b> 15 שניות בלי בקשת מקטע מהמסך: "המסך לא הגיע לזרם" (VLAN מבודד / פורט לא ממופה) עם "נסה שוב" ו"עצור". כנה, לא אופטימי.',
+    timeout: 'הטיימר נגמר: גלולה "השידור הופסק: תם הזמן" עם "שדר שוב" / "סגור". נשארת עד שסוגרים.',
+    codec: 'זרם ראשי H.265 נבחר: מסכים שאינם HEVC נחסמים עם "הזרם הראשי אינו נתמך במסך הזה"; Google TV נשאר זמין. ברירת המחדל לשידור היא תמיד הזרם המשני.',
+    noperm: '<b>9</b> בלי ההרשאה "שידור וידאו למסכים" הכפתור לא קיים ואין רמז (מסך מפעיל נקי). ההערה האפורה היא רק הסבר במוקאפ.',
+    notargets: '<b>10</b> יש הרשאה אבל אף מסך לא אושר/זמין: בפועל הכפתור לא מוצג; כאן מוצג מצב הריק של הבורר למקרה שהרשימה התרוקנה אחרי שהמסך נפתח.',
+    relay: '<b>11</b> הממסר לא עונה (פורט לא ממופה / כתובת לא אומתה): הודעה קצרה למפעיל; הפרטים הטכניים רק בהגדרות.',
+    remote: '<b>12</b> משתמש ב-/arx: פס "מחובר מרחוק"; הלחיצה מכאן, הטלוויזיה מושכת מהממסר ברשת המקומית. לא נספר במכסת הזרמים של המשתמש המרוחק.',
+  }[state] || ''),
+});
+</script>
+</body>
+</html>

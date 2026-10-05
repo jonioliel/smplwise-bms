@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5 · הרשאות, אישור מנהל וביקורת</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [
+  { id: 'matrix', label: 'מי רואה מה (מטריצה)' },
+  { id: 'approve', label: 'אישור מסך בהגדרות (טוגל + דריסה)' },
+  { id: 'audit', label: 'שורות ביקורת' },
+];
+const P = { allow: true, manual: '' };
+function matrix() {
+  const roles = ['צופה', 'מפעיל', 'מנהל אתר', 'מנהל מערכת', 'קיוסק'];
+  const rows = [
+    ['כפתור "שדר למסך" (מצלמה / קיר)', 'n', 'y', 'y', 'y', 'n', 'שידור וידאו למסכים'],
+    ['בורר: מסכים בטווח שלי', 'n', 'y', 'y', 'y', 'n', 'הטווח = עוגן המסך'],
+    ['מסך ציבורי בבורר', 'n', 'n*', 'y', 'y', 'n', 'מסכים ציבוריים (רגישה)'],
+    ['גלולת "משדר N" + המגש', 'y*', 'y', 'y', 'y', 'n', 'קריאת מדיה; שלי תמיד'],
+    ['עצירה של שידור שלי', 'n', 'y', 'y', 'y', 'n', ''],
+    ['עצירה של שידור של אחר', 'n', 'y*', 'y', 'y', 'n', 'שידור וידאו למסכים בעוגן'],
+    ['"עצור את כל השידורים"', 'n', 'n', 'y', 'y', 'n', 'פעולות גורפות (רגישה)'],
+    ['אישור מסך לשידור + דריסת שיטה', 'n', 'n', 'n', 'y', 'n', 'הגדרת מערכת'],
+    ['הגדרות השידור (ממסר, מכסה, דקות)', 'n', 'n', 'n', 'y', 'n', 'הגדרת מערכת'],
+  ];
+  return `<div class="card" data-ann="1"><h2>מי רואה מה</h2><div class="hint">ברירת המחדל של ההרשאה "שידור וידאו למסכים": מפעיל, מנהל אתר, מנהל מערכת. צופה לא. קיוסק לעולם לא משדר. הסבר ליד כל שורה: ההרשאה שקובעת.</div>
+    <div class="mx"><div class="h">פעולה</div>${roles.map((r) => `<div class="h">${r}</div>`).join('')}
+    ${rows.map((r) => `<div>${r[0]}<br><span class="muted" style="font-size:11px">${r[6]}</span></div>${r.slice(1, 6).map((v) => `<div class="${v[0] === 'y' ? 'y' : 'n'}">${v[0] === 'y' ? '✓' : '—'}${v.endsWith('*') ? '*' : ''}</div>`).join('')}`).join('')}</div>
+    <div class="note">* בתנאי: צופה רואה רק את השידורים שלו (ואין לו כפתור); מפעיל עוצר של אחר רק אם ההרשאה שלו חלה על עוגן המסך; מסך ציבורי למפעיל רק אם קיבל את "מסכים ציבוריים".</div></div>
+    <div class="gal">
+      <div class="card"><h3>מפעיל עם הרשאה</h3><div class="stage"><div class="scene"></div></div><div class="round" style="margin-top:8px"><button>${ic('aperture', 's')}</button><button>${ic('expand', 's')}</button><button class="cast" data-ann="2">${ic('cast', 's')}</button><button class="q on">משני</button></div></div>
+      <div class="card"><h3>צופה (בלי הרשאה)</h3><div class="stage"><div class="scene"></div></div><div class="round" style="margin-top:8px"><button>${ic('aperture', 's')}</button><button>${ic('expand', 's')}</button><button class="q on">משני</button></div><div class="note">אין כפתור, אין רמז, אין הסבר (מסך מפעיל נקי). השרת בודק בנפרד: גם אם הלקוח ישלח בקשה - 403 ושורת ביקורת "נדחה".</div></div>
+    </div>`;
+}
+function approve() {
+  const s = SCREEN['tv-pergola'];
+  return `${settingsTabs()}<div class="card"><h2>מסך פרגולה</h2><div class="hint">הטופס הפתוח של השורה בהגדרות › מולטימדיה › מסכים. סעיף "שידור למסך" נוסף אחרי "חיבורים".</div>
+    <div class="form">
+      <div class="f"><label>שם</label><div class="v">מסך פרגולה</div></div><div class="f"><label>חדר</label><div class="v">חוץ › פרגולה</div></div>
+      <div class="f"><label>אינטגרציה</label><div class="v"><code>cast</code></div></div><div class="f"><label>ישות</label><div class="v"><code>media_player.pergola_tv</code></div></div>
+      <div class="f full"><div class="sec-h">שידור למסך</div>
+        <div class="castsec" data-ann="3">
+          <div class="rowline"><span class="lbl">זיהוי אוטומטי</span>${badge(castChip({ ...s, allow: true }))}<span class="note">${esc(castSentence(s))}</span></div>
+          <div class="rowline" data-ann="4"><span class="lbl">מותר לשדר למסך הזה</span><button class="toggle" role="switch" aria-checked="${P.allow}" data-allow></button><span class="note">${P.allow ? 'המסך מופיע בבורר של מי שיש לו "שידור וידאו למסכים" בטווח "פרגולה"' : 'ברירת המחדל: כבוי. המסך לא מופיע באף בורר עד שמנהל מדליק.'}</span></div>
+          <div class="rowline" data-ann="5"><span class="lbl">שיטת השידור</span><div class="seg">${[['', 'אוטומטי'], ['cast_hls', 'Google Cast'], ['dlna', 'DLNA'], ['airplay', 'AirPlay'], ['none', 'ללא']].map(([v, l]) => `<button aria-pressed="${P.manual === v}" data-manual="${v}">${l}</button>`).join('')}</div><span class="why">דריסה ידנית מצמידה את הצ'יפ ל"ידני" ומדלגת על הזיהוי. DLNA / AirPlay מוצעים רק אחרי אימות חי (שלב 3).</span></div>
+          <div class="rowline"><span class="lbl">זרם ראשי מותר</span><button class="toggle" role="switch" aria-checked="false" ${s.hevc ? '' : 'disabled'}></button><span class="note">${s.hevc ? 'המסך מאומת HEVC' : 'כבוי: הדגם לא מאומת ל-H.265; הזרם המשני תמיד'}</span></div>
+          <div class="rowline"><span class="lbl">בדיקה</span><button class="btn" data-test>${ic('cast', 's')}שדר בדיקה של 60 שניות</button><span class="why">שולח את זרם הבדיקה (מצלמת המעבדה שנבחרה בהגדרות הכלליות) למסך הזה; נרשם בביקורת כ"בדיקה".</span></div>
+        </div></div>
+      <div class="f full"><div class="sheet-actions"><button class="btn primary">שמור</button><button class="btn">ביטול</button></div></div>
+    </div></div>`;
+}
+function audit() {
+  const rows = [
+    ['14:02:11', 'יוני', 'media.cast.start', 'לובי כניסה → טלוויזיה סלון · משני · סשן 7f3a… · פעולה a91c', 'מקומי'],
+    ['14:02:19', 'מערכת', 'media.cast.playing', 'סשן 7f3a… · המקטע הראשון נמשך על ידי המסך (8 ש׳)', ''],
+    ['14:08:40', 'דנה', 'media.cast.start', 'קיר 4 מצלמות (פסיפס) → טלוויזיה מטבח · סשן 2b77…', 'מרחוק'],
+    ['14:08:41', 'מערכת', 'media.cast.music_stopped', 'סשן 2b77… · המוזיקה במטבח נעצרה (אושר על ידי דנה)', ''],
+    ['14:31:02', 'יוני', 'media.cast.extend', 'סשן 7f3a… · +30 דק׳ (1/8) · עד 15:02', 'מקומי'],
+    ['14:40:00', 'מערכת', 'media.cast.stop', 'סשן 2b77… · סיבה: תם הזמן', ''],
+    ['14:52:30', 'גיא', 'media.cast.denied', 'מסך לובי · סיבה: media.public חסר', 'מקומי'],
+    ['15:02:00', 'מערכת', 'media.cast.stop', 'סשן 7f3a… · סיבה: תם הזמן · המסך אישר', ''],
+    ['15:10:05', 'אדמין', 'media.cast.config', 'מסך פרגולה · מותר לשדר: כבוי → דולק · שיטה: אוטומטי', 'מקומי'],
+  ];
+  return `${settingsTabs('audit')}<div class="card" data-ann="6"><h2>ביקורת · שידור למסכים</h2><div class="hint">הגדרות › ביקורת, מסונן ל"media.cast.*". לעולם לא נרשמים: האסימון, הכתובת, המארח של הממסר, פריים.</div>
+    <div class="audit"><div class="r h"><div>זמן</div><div>משתמש</div><div>פעולה · פרטים</div><div>ערוץ</div></div>
+    ${rows.map((r) => `<div class="r"><div class="num">${r[0]}</div><div>${r[1]}</div><div><code>${r[2]}</code> ${r[3]}</div><div>${r[4]}</div></div>`).join('')}</div></div>`;
+}
+function settingsTabs(cur = 'media') {
+  return `${pageHead('הגדרות', 'מולטימדיה')}<div class="tabs">${[['general', 'כללי'], ['media', 'מולטימדיה'], ['conn', 'חיבורים'], ['access', 'גישה'], ['audit', 'ביקורת']].map(([k, l]) => `<a href="#" ${k === cur ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</div>`;
+}
+function page(state) { if (state === 'matrix') return pageHead('הרשאות', 'מי רואה את הכפתור ומי מאשר מסכים') + matrix(); if (state === 'approve') return approve(); return audit(); }
+function wire() {
+  const c = document.getElementById('content');
+  c.querySelector('[data-allow]')?.addEventListener('click', () => { P.allow = !P.allow; c.innerHTML = approve(); wire(); Ann.place(); });
+  c.querySelectorAll('[data-manual]').forEach((b) => b.addEventListener('click', () => { P.manual = b.dataset.manual; c.innerHTML = approve(); wire(); Ann.place(); }));
+  c.querySelector('[data-test]')?.addEventListener('click', () => Mock.toast('שידור בדיקה נשלח: 60 שניות, נרשם בביקורת'));
+}
+Mock.boot({
+  page: 'perm', nav: 'settings', states: STATES, render: page, after: wire,
+  note: (s) => ({
+    matrix: '<b>1</b> המטריצה: מי רואה את הכפתור, את הבורר, את המגש; מי עוצר של אחר; מי מאשר מסכים. <b>2</b> אצל מפעיל הכפתור קיים; אצל צופה - לא קיים ואין רמז.',
+    approve: '<b>3</b> סעיף "שידור למסך" בטופס המסך בהגדרות › מולטימדיה: הזיהוי האוטומטי (צ\'יפ + משפט מלא), <b>4</b> הטוגל "מותר לשדר למסך הזה" (ברירת מחדל כבוי), <b>5</b> דריסת שיטה (אוטומטי / Google Cast / DLNA / AirPlay / ללא), זרם ראשי מותר, ושידור בדיקה של 60 שניות.',
+    audit: '<b>6</b> שורות הביקורת: התחלה, "משדר" (האות הכן), הארכה, עצירה עם סיבה, דחייה עם קוד, שינוי הגדרה (מה היה → מה נהיה). בלי אסימון, בלי כתובת.',
+  }[s] || ''),
+});
+</script>
+</body>
+</html>

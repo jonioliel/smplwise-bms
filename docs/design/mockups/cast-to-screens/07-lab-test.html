@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7 · הבדיקה הפיזית הראשונה במעבדה</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [
+  { id: 'prereq', label: 'א · תנאים מוקדמים' },
+  { id: 'origin', label: 'ב · כתובת הממסר: "בדוק"' },
+  { id: 'approve', label: 'ג · אישור המסך לבדיקה' },
+  { id: 'run', label: 'ד · השידור (5 דקות)' },
+  { id: 'evidence', label: 'ה · ראיות וסיכום' },
+];
+function tabs() { return `${pageHead('הגדרות', 'מולטימדיה › שידור למסך › בדיקה ראשונה')}<div class="tabs">${[['general', 'כללי'], ['media', 'מולטימדיה'], ['conn', 'חיבורים'], ['health', 'בריאות'], ['audit', 'ביקורת']].map(([k, l]) => `<a href="#" ${k === 'media' ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</div>`; }
+const STEPS = ['תנאים מוקדמים', 'כתובת הממסר', 'אישור המסך', 'השידור', 'ראיות'];
+function stepper(cur) { return `<div class="chips" data-ann="1">${STEPS.map((s, i) => `<span class="chip" aria-pressed="${i === cur}">${i < cur ? '✓ ' : ''}${i + 1} · ${s}</span>`).join('')}</div>`; }
+function prereq() {
+  return `${tabs()}${stepper(0)}<div class="card"><h2>לפני השידור הראשון</h2><div class="hint">מה שמנהל המערכת רואה כשמפעילים "שידור למסך" בפעם הראשונה. כל שורה נבדקת בפועל; "לא נבדק" הוא לא "עבר".</div>
+    <div class="steps" data-ann="2">
+      <div class="step done"><h3>פורט הממסר ממופה בהגדרות הרשת של התוסף</h3><p>פורט פנוי (למשל <span class="mono">18092</span>). עד שלא ממופה - שום דבר לא מאזין. <span class="ok">זוהה: 18092</span></p></div>
+      <div class="step done"><h3>גרסת רכיב החיבור (הגשר) 0.7.0 ומעלה</h3><p><span class="ok">0.7.0</span> · נדרש השירות הייעודי <span class="mono">cast_stream</span> (מקבל רק כתובת של הממסר).</p></div>
+      <div class="step cur"><h3>כתובת ה-LAN של המארח</h3><p>נלמדת אוטומטית; אפשר לדרוס. מאומתת בצעד הבא ("בדוק" מושך את הכתובת מהתוסף עצמו).</p><div class="acts"><span class="mono">http://&lt;host&gt;:18092</span><button class="btn">${ic('edit', 's')}דריסה ידנית</button></div></div>
+      <div class="step"><h3>גרסת go2rtc במעבדה</h3><p>צורת נתיבי ה-HLS תלויה בגרסה; מאומתת לפני שמחברים את המסך. <span class="bad">טרם נבדק</span></p></div>
+      <div class="step"><h3>המסך לבדיקה באותה רשת כמו המארח (לא VLAN מבודד)</h3><p>הבעלים מאשר את המכשיר בשם; שום מכשיר אחר לא נוגע. <span class="bad">ממתין להחלטת הבעלים (שאלה 3)</span></p></div>
+    </div></div>`;
+}
+function origin() {
+  return `${tabs()}${stepper(1)}<div class="card"><h2>שידור למסך · כללי</h2><div class="hint">הכרטיס "כללי" של הגדרות › מולטימדיה מקבל את הסעיף הזה.</div>
+    <div class="castsec" data-ann="3">
+      <div class="rowline"><span class="lbl">שידור למסכים</span><button class="toggle" role="switch" aria-checked="false" disabled></button><span class="note">נדלק אוטומטית רק אחרי שהכתובת אומתה</span></div>
+      <div class="rowline"><span class="lbl">כתובת הממסר</span><span class="mono">http://192.0.2.10:18092</span><button class="btn primary" data-check>${ic('refresh', 's')}בדוק</button><span class="why" id="chk">התוסף מושך בעצמו את <span class="mono">/cast/&lt;test&gt;/index.m3u8</span> דרך הכתובת הזו: אם זה עובד מהתוסף - זה יעבוד מהטלוויזיה באותה רשת.</span></div>
+      <div class="rowline"><span class="lbl">משך שידור ברירת מחדל</span><div class="seg">${[5, 15, 30, 60].map((n) => `<button aria-pressed="${n === 30}">${n} דק׳</button>`).join('')}</div><span class="why">לבדיקה הראשונה: 5 דקות.</span></div>
+      <div class="rowline"><span class="lbl">מכסת שידורים בו-זמנית</span><div class="seg">${[1, 2, 3, 4].map((n) => `<button aria-pressed="${n === 2}">${n}</button>`).join('')}</div></div>
+      <div class="rowline"><span class="lbl">מצב קיר</span><div class="seg"><button aria-pressed="true">פסיפס + קרוסלה</button><button>קרוסלה בלבד</button><button>כבוי</button></div><span class="why">שלב 2; בדיקת העומס של המארח רצה לפני שהפסיפס מוצע.</span></div>
+      <div class="rowline"><span class="lbl">כיבוי המסך אחרי עצירה</span><button class="toggle" role="switch" aria-checked="true"></button><span class="note">רק אם המסך היה כבוי לפני השידור (כלל השחזור). הבעלים יכול לבטל לבדיקה.</span></div>
+      <div class="rowline"><span class="lbl">מצלמת בדיקה</span><span class="field">לובי כניסה · משני</span><span class="why">זרם משני H.264, וידאו בלבד.</span></div>
+    </div></div>`;
+}
+function approve() {
+  return `${tabs()}${stepper(2)}<div class="card"><h2>המסך לבדיקה</h2><div class="hint">הבעלים נוקב בשם מכשיר Cast אחד (Chromecast / Google TV / Android TV / Nest Hub). רק הוא מאושר לבדיקה.</div>
+    <div class="tbl" data-ann="4"><div class="r h"><div class="c"></div><div class="c">שם</div><div class="c">סוג</div><div class="c">אינטגרציה</div><div class="c">מזהה</div><div class="c">חדר</div><div class="c">מצב</div><div class="c">שידור</div><div class="c">מאושר</div><div class="c">מותר לשדר</div></div>
+      ${['tv-living', 'tv-kitchen', 'hub-kitchen'].map((k, i) => { const s = SCREEN[k]; return `<div class="r ${i === 0 ? 'cur' : ''}"><div class="c c-x"><button class="x">${ic('back', 's')}</button></div><div class="c c-name name">${esc(s.name)}</div><div class="c c-type">מסך</div><div class="c c-int"><code>${s.integ}</code></div><div class="c c-id id"><span>${s.ent}</span><span>${s.dev}</span></div><div class="c c-room">${s.floor} › ${s.room}</div><div class="c c-st"><span class="badge neutral">זמין</span></div><div class="c c-cast">${badge(castChip(s))}</div><div class="c c-ap"><button class="toggle" aria-checked="true"></button></div><div class="c c-cn"><button class="toggle" aria-checked="${i === 0}" ${i === 0 ? 'data-ann="5"' : ''}></button></div></div>`; }).join('')}
+    </div>
+    <div class="confirm" style="margin-top:12px" data-ann="6"><h4>לשדר בדיקה של 5 דקות אל "טלוויזיה סלון"?</h4>
+      <details open><summary>מה יקרה במכשיר</summary>אם המסך כבוי - יתעורר (HDMI-CEC). האפליקציה שרצה תוחלף במקלט המדיה ותראה את "לובי כניסה" תוך 3-8 שניות עם שם המצלמה ככותרת, בלי קול. בתום 5 דקות - עצירה אוטומטית; גם "עצור" במסך החי, גם כל לחיצה בשלט של הטלוויזיה, וכמוצא אחרון - ניתוק הדונגל. אם המסך היה כבוי לפני - נשלח כיבוי אחד אחרי העצירה (אפשר לבטל).<br>כתיבות: אפס במקליט, אפס בתצורת go2rtc; כתיבת הגדרה אחת בתוסף, פקודת ניגון אחת ופקודת עצירה אחת דרך הגשר בזהות הבעלים, שתיהן בביקורת.</details>
+      <div class="acts"><button class="btn primary" data-go>${ic('cast', 's')}התחל בדיקה (5 דק׳)</button><button class="btn">ביטול</button></div></div></div>`;
+}
+function run() {
+  return `${tabs()}${stepper(3)}<div class="gal">
+    <div class="card" data-ann="7"><h3>מה המנהל רואה במסך החי</h3><div class="stage"><div class="scene"></div>${castPill({ state: 'playing', room: 'סלון', until: '14:07', left: 4.8, total: 5 })}</div><div class="note">גלולה עם ספירה לאחור של 5 דקות; "משדר" נקבע רק אחרי בקשת המקטע הראשון מהכתובת של הטלוויזיה (לא אופטימי).</div></div>
+    <div class="card" data-ann="8"><h3>מה הטלוויזיה מציגה</h3><div class="tv"><div class="scr g1"><div style="--c1:#2b3a55;--c2:#121a2b"><span></span></div><div class="ttl">לובי כניסה</div></div><div class="lbl">מקלט המדיה של Google Cast · HLS · ללא קול</div></div></div>
+    <div class="card"><h3>בריאות בזמן השידור</h3><div class="kv"><dt>זמן עד תמונה</dt><dd class="num">נמדד: — (יירשם)</dd><dt>בקשות מקטע</dt><dd class="num">1 / 2 ש׳ פלייליסט · ≤20 מקטעים / 10 ש׳</dd><dt>CPU התוסף</dt><dd class="num">נמדד: —</dd><dt>כתובת המקור</dt><dd>מוסווית בלוג</dd></div></div>
+    <div class="card"><h3>עצירה</h3><div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn danger" data-stop>${ic('stop', 's')}עצור עכשיו</button><span class="note">או: תום 5 הדקות · השלט של הטלוויזיה · ניתוק הדונגל</span></div></div>
+  </div>`;
+}
+function evidence() {
+  return `${tabs()}${stepper(4)}<div class="card" data-ann="9"><h2>סיכום הבדיקה</h2><div class="hint">נאסף אוטומטית ונשמר עם הסשן; הבעלים מוסיף צילום של הטלוויזיה.</div>
+    <div class="kv"><dt>סשן</dt><dd><code>7f3a…</code> · טלוויזיה סלון · לובי כניסה · משני</dd><dt>התחלה → תמונה</dt><dd class="num">14:02:11 → 14:02:19 (8 ש׳)</dd><dt>עצירה</dt><dd class="num">14:07:11 · תם הזמן · המסך אישר</dd><dt>שורות ביקורת</dt><dd>start · playing · stop · (turn_off)</dd><dt>לוג הממסר</dt><dd>N בקשות, כתובות מוסוות</dd><dt>CPU</dt><dd class="num">שיא: —</dd><dt>צילום הטלוויזיה</dt><dd><button class="btn">${ic('plus', 's')}צרף</button></dd></div>
+    <div class="sheet-actions" style="margin-top:12px"><button class="btn primary">${ic('check', 's')}סמן את המסך כמאומת בפועל</button><button class="btn">הורד דוח</button></div>
+    <div class="note" style="margin-top:8px">"מאומת בפועל" = תג הביטחון של המסך עובר ל"מאומת" עם תאריך הבדיקה; הדגם נרשם ברשימת הדגמים המאומתים של ההתקנה.</div></div>`;
+}
+function page(s) { return ({ prereq, origin, approve, run, evidence })[s](); }
+function wire() {
+  const c = document.getElementById('content');
+  c.querySelector('[data-check]')?.addEventListener('click', () => { const e = document.getElementById('chk'); e.innerHTML = '<span class="ok">אומת: התוסף משך את הפלייליסט דרך הכתובת (120 ms)</span>'; Mock.toast('הכתובת אומתה · "שידור למסכים" נדלק'); c.querySelector('.toggle[disabled]')?.removeAttribute('disabled'); c.querySelector('.toggle').setAttribute('aria-checked', 'true'); });
+  c.querySelector('[data-go]')?.addEventListener('click', () => Mock.setState('run'));
+  c.querySelector('[data-stop]')?.addEventListener('click', () => Mock.setState('evidence'));
+}
+Mock.boot({
+  page: 'lab', nav: 'settings', states: STATES, render: page, after: wire,
+  note: (s) => ({
+    prereq: '<b>1</b> סרגל צעדים בראש; <b>2</b> רשימת תנאים שנבדקים בפועל (פורט, גשר 0.7.0, כתובת, גרסת go2rtc, רשת המסך). "טרם נבדק" לעולם לא נחשב "עבר".',
+    origin: '<b>3</b> סעיף "שידור למסך" בכרטיס הכללי: הטוגל נדלק רק אחרי "בדוק" (התוסף מושך את הכתובת מעצמו), משך ברירת מחדל, מכסה, מצב קיר, כיבוי אחרי עצירה, מצלמת בדיקה.',
+    approve: '<b>4</b> הרשימה עם העמודה "שידור" ועמודה חדשה "מותר לשדר"; <b>5</b> רק המסך שהבעלים נקב בשמו מודלק; <b>6</b> האישור המפורש מפרט בדיוק מה יקרה במכשיר ואיך עוצרים (סעיף 8.3 של ה-CR).',
+    run: '<b>7</b> מה המנהל רואה (גלולה עם 5 דקות); <b>8</b> מה הטלוויזיה מציגה; הבריאות בזמן אמת; ארבע דרכי עצירה.',
+    evidence: '<b>9</b> הראיות שנאספות: הסשן, זמן עד תמונה, עצירה וסיבה, שורות הביקורת, לוג מוסווה, CPU, וצילום הטלוויזיה מהבעלים. "סמן כמאומת בפועל" מעלה את תג הביטחון.',
+  }[s] || ''),
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4 · שגיאות ומקרי קצה</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [{ id: 'gallery', label: 'כל המצבים' }];
+function stage(inner) { return `<div class="stage"><div class="scene"></div>${inner}</div>`; }
+function toastCard(t) { return `<div class="stage" style="aspect-ratio:16/5;display:grid;place-items:end center;padding-bottom:12px"><div class="scene"></div><div class="toast show" style="position:static;transform:none;opacity:1">${t}</div></div>`; }
+function optCard(name, why, cap) { return `<div class="pk"><button class="opt off" aria-disabled="true"><span class="ic">${ic('tv')}</span><span class="tx"><span class="nm">${name}</span><span class="st why">${why}</span></span>${cap || ''}</button></div>`; }
+function page() {
+  const cards = [
+    ['המסך עסוק: מנגן מוזיקה', 'בבורר · לפני ההתחלה', `<div class="pk"><button class="opt" ${''}><span class="ic">${ic('tv')}</span><span class="tx"><span class="nm">טלוויזיה מטבח</span><span class="st busy">מטבח · מנגן מוזיקה</span></span>${capBadge(SCREEN['tv-kitchen'])}</button></div><div class="confirm"><h4>לעצור את המוזיקה ולשדר את "לובי כניסה"?</h4><details><summary>פרטים</summary>המוזיקה לא תחזור לבד אחרי השידור.</details><div class="acts"><button class="btn primary">כן, שדר</button><button class="btn">חזרה</button></div></div>`, 1],
+    ['המסך עסוק: משדר אחר', 'בבורר · מחליף את הקיים', `<div class="pk"><button class="opt"><span class="ic">${ic('tv')}</span><span class="tx"><span class="nm">טלוויזיה סלון</span><span class="st busy">סלון · משדר: חניה (דנה)</span></span>${capBadge(SCREEN['tv-living'])}</button></div><div class="confirm"><h4>להחליף את השידור של דנה בסלון?</h4><details><summary>פרטים</summary>השידור של דנה ייעצר ויירשם "הוחלף" עם שני המשתמשים. דנה תראה "השידור הוחלף על ידי יוני".</details><div class="acts"><button class="btn primary">החלף</button><button class="btn">ביטול</button></div></div>`, 2],
+    ['הזרם הראשי אינו נתמך במסך הזה', 'בבורר · זרם ראשי H.265 נבחר', optCard('טלוויזיה מטבח', 'הזרם הראשי אינו נתמך במסך הזה') + `<div class="note">ברירת המחדל לשידור היא הזרם המשני (H.264 בכל מצלמות המעבדה). הזרם הראשי מוצע רק כשרישום הקידוד אומר H.264, או למסך שמאומת כ-HEVC.</div>`, 3],
+    ['לא אושר לשידור על ידי מנהל', 'בבורר · ברירת המחדל: כבוי לכל מסך', optCard('מסך פרגולה', 'לא אושר לשידור על ידי מנהל') + `<div class="note">מופיע רק למי שיש לו "הגדרת מערכת"; למפעיל רגיל המסך פשוט לא ברשימה (שאלה 2 לבעלים).</div>`, 4],
+    ['כבוי / לא זמין', 'בבורר', optCard('מסך חדר עבודה', 'כבוי'), 5],
+    ['הדרך לא אומתה', 'בבורר · ביטחון "לא ידוע"', optCard('מסך ילדים', 'הדרך לשדר למסך הזה עוד לא אומתה', '<span class="cap u">לא ידוע</span>'), 6],
+    ['ממסר לא זמין', 'בלחיצה על הכפתור · פורט לא ממופה / כתובת לא אומתה', `<div class="pk-empty">${ic('warn')}<br>השידור לא זמין כרגע<br><span class="muted">נסה שוב בעוד רגע. אם זה חוזר: הגדרות › מולטימדיה › שידור למסך.</span></div>`, 7],
+    ['נדרש עדכון של רכיב החיבור', 'בלחיצה · גשר ישן מ-0.7.0', `<div class="pk-empty">השידור לא זמין: נדרש עדכון של רכיב החיבור<br><span class="muted">מנהל המערכת רואה את הגרסה ב: הגדרות › מערכת › חיבורים</span></div>`, 8],
+    ['המסך לא הגיע לזרם', 'אחרי 15 שניות · VLAN מבודד', stage(castPill({ state: 'not_confirmed', room: 'סלון' })), 9],
+    ['המסך לא אישר את העצירה', 'בעצירה · הגשר לא ענה', stage(castPill({ state: 'stop_error' })), 10],
+    ['השידור הופסק: תם הזמן', 'הטיימר נגמר', stage(castPill({ state: 'stopped_timeout', room: 'סלון' })), 11],
+    ['השידור הוחלף על ידי משתמש אחר', 'אצל המשתמש שהוחלף', stage(castPill({ state: 'replaced', user: 'דנה', room: 'סלון', cam: 'חניה' })), 12],
+    ['נגמרה מכסת השידורים', 'בלחיצה · המכסה 2', toastCard('נגמרה מכסת השידורים (2) · עצור שידור אחר כדי להתחיל'), 13],
+    ['המסך לא זמין', 'המסך נעלם באמצע השידור', toastCard('השידור בסלון הסתיים: המסך לא זמין'), 14],
+    ['אין הרשאה לשדר למסך הזה', 'מסך ציבורי בלי "מסכים ציבוריים"', optCard('מסך לובי', 'מסך ציבורי: אין לך הרשאה', `<span class="cap v">${ic('check', 's')}מאומת</span>`), 15],
+    ['מרחוק (/arx)', 'ההפעלה מרחוק · השידור ברשת המקומית', stage(castPill({ state: 'starting', room: 'סלון', remote: true })) + `<div class="note">הלחיצה מגיעה דרך הערוץ המרוחק; המסך מושך מהממסר ברשת המקומית של האתר. לא נספר במכסת הזרמים המרוחקים.</div>`, 16],
+    ['המוזיקה נעצרה (אחרי אישור)', 'בזמן השידור', stage(castPill({ state: 'playing', room: 'מטבח', until: '14:32', left: 28, total: 30, music: true })), 17],
+    ['תגובה איטית / המסך מתעורר', 'מסך כבוי שהתעורר דרך HDMI-CEC', stage(castPill({ state: 'starting', room: 'סלון' })) + `<div class="note">אם המסך היה כבוי הוא מתעורר (CEC) - תופעת לוואי שהבעלים מאשר בבדיקה; אחרי העצירה נשלח כיבוי אחד (כלל השחזור), אפשר לבטל בהגדרות.</div>`, 18],
+  ];
+  return `${pageHead('שגיאות ומקרי קצה', 'כל נוסח בעברית קצרה, בלי שמות פלטפורמה; הפרטים הטכניים רק בהגדרות')}
+    <div class="gal">${cards.map(([h, w, b, n]) => `<div class="card" data-ann="${n}"><h3>${h}</h3><div class="when">${w}</div>${b}</div>`).join('')}</div>`;
+}
+Mock.boot({ page: 'errors', nav: 'security', states: STATES, render: page, note: 'גלריה של כל מצבי השגיאה והקצה (18), כל אחד במקום שבו הוא מופיע: בבורר (שורה חסומה עם סיבה), בלחיצה (מצב ריק), מעל הנגן (גלולה), או טוסט. המספרים מפנים לאינדקס.' });
+</script>
+</body>
+</html>

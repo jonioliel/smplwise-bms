@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6 · הגדרות › מולטימדיה: עמודת שידור, סינון, מיון</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [
+  { id: 'desktop', label: 'הרשימה: העמודה "שידור" (1440)' },
+  { id: 'filter', label: 'סינון לפי שיטת שידור' },
+  { id: 'sort', label: 'מיון לפי שידור' },
+  { id: 'tablet', label: 'טאבלט: העמודה מקופלת + בקרת עמודות' },
+  { id: 'form', label: 'הטופס הפתוח' },
+  { id: 'mine', label: 'המסכים שאני יכול לשדר אליהם' },
+  { id: 'general', label: 'כרטיס כללי: שידור למסך + שידורים פעילים' },
+];
+const P = { filter: [], sort: 'name', dir: 'asc', colsOpen: false, castCol: true, md: false, open: null, allow: { 'tv-pergola': false } };
+const METHOD_ORDER = { confirmed: 0, likely: 1, unknown: 2 };
+function rank(s) { if (s.method === 'none') return s.conf === 'confirmed' ? 4 : 3; return METHOD_ORDER[s.conf]; }
+function filterKey(s) { return s.method === 'none' ? (s.conf === 'confirmed' ? 'unsupported' : 'unknown') : s.manual || s.method; }
+const FILTERS = [['cast_hls', 'Google Cast'], ['dlna', 'DLNA'], ['airplay', 'AirPlay'], ['browser_url', 'דפדפן המסך'], ['unknown', 'לא ידוע'], ['unsupported', 'לא נתמך']];
+function rows() {
+  let list = SCREENS.filter((s) => !s.speaker);
+  if (P.filter.length) list = list.filter((s) => P.filter.includes(filterKey(s)));
+  const dir = P.dir === 'asc' ? 1 : -1;
+  list = [...list].sort((a, b) => (P.sort === 'cast' ? (rank(a) - rank(b)) * dir || a.name.localeCompare(b.name, 'he') : P.sort === 'room' ? a.room.localeCompare(b.room, 'he') * dir : a.name.localeCompare(b.name, 'he') * dir));
+  return list;
+}
+function toolbar() {
+  const n = rows().length;
+  return `<div class="tb"><span class="search">${ic('search', 's')}חיפוש שם, מזהה או אינטגרציה</span>
+      <span class="field">כל החדרים</span><span class="field">כל האישורים</span><span class="field">כל המצבים</span>
+      <span class="field ${P.filter.length ? 'on' : ''}" data-ann="2" data-filter-dd>${P.filter.length ? `שידור: ${P.filter.map((f) => FILTERS.find((x) => x[0] === f)[1]).join(', ')}` : 'כל שיטות השידור'}</span>
+      <span class="field ${P.sort === 'cast' ? 'on' : ''}" data-ann="3" data-sort-dd>מיון: ${P.sort === 'cast' ? 'שידור' : P.sort === 'room' ? 'חדר' : 'שם'}</span><button class="btn icon" data-dir aria-label="כיוון המיון">${P.dir === 'asc' ? '↑' : '↓'}</button>
+      <span class="field">ללא קיבוץ</span>
+      <span class="colsbtn"><button class="btn icon" data-cols aria-label="עמודות" aria-expanded="${P.colsOpen}" data-ann="${P.md ? 7 : 4}">${ic('cols', 's')}</button>
+        <div class="colmenu ${P.colsOpen ? 'open' : ''}">${[['type', 'סוג', true], ['integration', 'אינטגרציה', true], ['entityId', 'מזהה ישות', true], ['deviceId', 'מזהה התקן', true], ['room', 'חדר', !P.md], ['floor', 'קומה', false], ['status', 'מצב', true], ['cast', 'שידור', P.castCol], ['allow', 'מותר לשדר', true], ['connections', 'חיבורים', true]].map(([k, l, on]) => `<label><input type="checkbox" ${on ? 'checked' : ''} data-col="${k}">${l}</label>`).join('')}</div></span>
+      <span class="cnt num">${n}</span></div>
+    <div class="chips">${[['cast', 'cast', 7], ['androidtv_remote', 'androidtv_remote', 1], ['dlna_dmr', 'dlna_dmr', 1], ['samsungtv_smart', 'samsungtv_smart', 1], ['apple_tv', 'apple_tv', 1]].map(([k, l, c]) => `<button class="chip"><span class="n">${c}</span>${l}</button>`).join('')}</div>
+    ${P.filter.length ? `<div class="chips" data-ann="2">${P.filter.map((f) => `<button class="chip" aria-pressed="true" data-unfilter="${f}">${FILTERS.find((x) => x[0] === f)[1]} ${ic('x', 's')}</button>`).join('')}<button class="btn ghost" data-clear>נקה</button></div>` : ''}`;
+}
+function table() {
+  const head = `<div class="r h"><div class="c"></div><div class="c"><span class="${P.sort === 'name' ? 'sortk' : ''}">שם ${P.sort === 'name' ? '↑' : ''}</span></div><div class="c">סוג</div><div class="c">אינטגרציה</div><div class="c">מזהה</div><div class="c c-room">חדר</div><div class="c">מצב</div><div class="c c-cast"><span class="${P.sort === 'cast' ? 'sortk' : ''}" data-ann="1">שידור ${P.sort === 'cast' ? (P.dir === 'asc' ? '↑' : '↓') : ''}</span></div><div class="c">מאושר</div><div class="c">חיבורים</div></div>`;
+  const body = rows().map((s, i) => {
+    const open = P.open === s.key;
+    const allow = s.key in P.allow ? P.allow[s.key] : s.allow;
+    return `<div class="r ${open ? 'cur' : ''}" data-row="${s.key}">
+      <div class="c c-x"><button class="x" data-open="${s.key}" aria-expanded="${open}">${ic(open ? 'chev' : 'back', 's')}</button></div>
+      <div class="c c-name name">${esc(s.name)}</div>
+      <div class="c c-type"><span class="lb">סוג</span>מסך</div>
+      <div class="c c-int"><span class="lb">אינטגרציה</span><code>${s.integ}</code></div>
+      <div class="c c-id id"><span>${s.ent}</span><span>${s.dev}</span></div>
+      <div class="c c-room"><span class="lb">חדר</span>${esc(s.floor)} › ${esc(s.room)}</div>
+      <div class="c c-st"><span class="badge ${s.avail ? 'neutral' : 'stale'}">${s.avail ? 'זמין' : 'לא זמין'}</span></div>
+      <div class="c c-cast" ${i === 0 ? 'data-ann="5"' : ''}><span class="lb">שידור</span>${badge(castChip(s))}${allow ? '' : (s.method !== 'none' && s.conf !== 'unknown' ? `<span class="badge nodot" title="מנהל לא הדליק עדיין">לא מאושר</span>` : '')}</div>
+      <div class="c c-ap"><button class="toggle" role="switch" aria-checked="true" aria-label="מאושר"></button></div>
+      <div class="c c-cn"><span class="lb"></span><span class="cn">חיבורים (${s.integ === 'cast' ? 2 : 1}) ▾</span></div>
+    </div>${open ? form(s) : ''}`;
+  }).join('');
+  return `<div class="tbl ${P.md ? 'md' : ''} ${P.castCol ? '' : 'hide-cast'}">${head}${body}</div>`;
+}
+function form(s) {
+  const allow = s.key in P.allow ? P.allow[s.key] : s.allow;
+  return `<div class="card" style="margin:6px 0 12px" data-ann="6"><div class="form">
+      <div class="f"><label>שם</label><div class="v">${esc(s.name)}</div></div><div class="f"><label>חדר</label><div class="v">${esc(s.floor)} › ${esc(s.room)}</div></div>
+      <div class="f"><label>אינטגרציה</label><div class="v"><code>${s.integ}</code></div></div><div class="f"><label>ישות העוגן</label><div class="v"><code>${s.ent}</code></div></div>
+      <div class="f full"><label>שידור למסך</label><div class="v">${badge(castChip(s))}<span class="note">${esc(castSentence(s))}</span></div></div>
+      <div class="f full"><div class="sec-h">שידור למסך</div><div class="castsec">
+        <div class="rowline"><span class="lbl">מותר לשדר למסך הזה</span><button class="toggle" role="switch" aria-checked="${allow}" data-allow="${s.key}"></button><span class="note">${allow ? 'מופיע בבורר של מי שיש לו "שידור וידאו למסכים" בטווח הזה' : 'כבוי (ברירת המחדל): לא מופיע באף בורר'}</span></div>
+        <div class="rowline"><span class="lbl">שיטת השידור</span><div class="seg">${[['', 'אוטומטי'], ['cast_hls', 'Google Cast'], ['dlna', 'DLNA'], ['airplay', 'AirPlay'], ['none', 'ללא']].map(([v, l]) => `<button aria-pressed="${v === ''}">${l}</button>`).join('')}</div></div>
+        <div class="rowline"><span class="lbl">זרם ראשי מותר</span><button class="toggle" role="switch" aria-checked="false" ${s.hevc ? '' : 'disabled'}></button><span class="note">${s.hevc ? 'הדגם מאומת HEVC' : 'הדגם לא מאומת ל-H.265'}</span></div>
+        <div class="rowline"><span class="lbl">בדיקה</span><button class="btn">${ic('cast', 's')}שדר בדיקה של 60 שניות</button></div>
+      </div></div>
+      <div class="f full"><div class="sheet-actions"><button class="btn primary">שמור</button><button class="btn" data-open="${s.key}">סגור</button></div></div>
+    </div></div>`;
+}
+function mine() {
+  const ok = SCREENS.filter((s) => !s.speaker && s.allow && s.conf !== 'unknown');
+  return `<div class="card" data-ann="8"><h2>מסכים שאני יכול לשדר אליהם</h2><div class="hint">רשימה קריאה-בלבד לכל משתמש עם "שידור וידאו למסכים": מה יופיע לו בבורר, ולמה מסך חסר. זמינה גם מתחתית הבורר ("כל המסכים שלי").</div>
+    <div class="pk">${ok.map((s) => { const st = stateText(s); return `<div class="opt" style="cursor:default"><span class="ic">${ic(s.icon)}</span><span class="tx"><span class="nm">${esc(s.name)}</span><span class="st ${st.cls}">${esc(s.floor)} › ${esc(s.room)} · ${st.t}</span></span>${capBadge(s)}</div>`; }).join('')}</div>
+    <div class="sec-h" style="margin-top:14px">לא זמינים לי</div>
+    <div class="pk">${SCREENS.filter((s) => !s.speaker && !(s.allow && s.conf !== 'unknown')).map((s) => `<div class="opt off"><span class="ic">${ic(s.icon)}</span><span class="tx"><span class="nm">${esc(s.name)}</span><span class="st why">${esc(disabledWhy(s, {}) || 'מחוץ לטווח שלי')}</span></span></div>`).join('')}</div></div>`;
+}
+function general() {
+  return `<div class="card"><h2>כללי</h2><div class="hint">הכרטיס הכללי של הגדרות › מולטימדיה.</div>
+    <div class="sec-h">שידור למסך</div>
+    <div class="castsec" data-ann="9">
+      <div class="rowline"><span class="lbl">שידור למסכים</span><button class="toggle" role="switch" aria-checked="true"></button><span class="note">הכתובת אומתה ב-2026-10-05 14:00</span></div>
+      <div class="rowline"><span class="lbl">כתובת הממסר</span><span class="mono">http://192.0.2.10:18092</span><button class="btn">${ic('refresh', 's')}בדוק</button></div>
+      <div class="rowline"><span class="lbl">משך ברירת מחדל</span><div class="seg">${[5, 15, 30, 60].map((n) => `<button aria-pressed="${n === 30}">${n} דק׳</button>`).join('')}</div><span class="lbl" style="margin-inline-start:14px">מכסה</span><div class="seg">${[1, 2, 3, 4].map((n) => `<button aria-pressed="${n === 2}">${n}</button>`).join('')}</div></div>
+      <div class="rowline"><span class="lbl">זרם ראשי</span><button class="toggle" role="switch" aria-checked="false"></button><span class="note">כבוי: תמיד הזרם המשני</span></div>
+      <div class="rowline"><span class="lbl">מצב קיר</span><div class="seg"><button aria-pressed="true">פסיפס + קרוסלה</button><button>קרוסלה בלבד</button><button>כבוי</button></div><span class="note">בדיקת עומס אחרונה: 2.1× זמן אמת (פסיפס זמין)</span></div>
+      <div class="rowline"><span class="lbl">רכיב החיבור</span><span class="ok">0.7.0</span><span class="note">נדרש 0.7.0 ומעלה לשירות השידור</span></div>
+    </div>
+    <div class="sec-h" style="margin-top:14px">שידורים פעילים</div>
+    <div class="sess" data-ann="10" style="padding:0">
+      <div class="sess-row"><span class="ic">${ic('camera', 's')}</span><div class="t1">לובי כניסה <span class="muted">←</span> סלון <span class="own">(יוני)</span></div><div class="t2">${ic('clock', 's')}יעצור ב־14:32 · משני · מקומי</div><div class="acts"><button class="btn danger">${ic('stop', 's')}עצור</button></div></div>
+      <div class="sess-row"><span class="ic">${ic('grid', 's')}</span><div class="t1">קיר: 4 מצלמות <span class="muted">←</span> מטבח <span class="own">(דנה)</span></div><div class="t2">${ic('clock', 's')}יעצור ב־14:20 · פסיפס · מרחוק</div><div class="acts"><button class="btn danger">${ic('stop', 's')}עצור</button></div></div>
+    </div></div>`;
+}
+function page(state) {
+  Object.assign(P, { filter: [], sort: 'name', dir: 'asc', colsOpen: false, castCol: true, md: false, open: null });
+  if (state === 'filter') P.filter = ['cast_hls'];
+  if (state === 'sort') { P.sort = 'cast'; }
+  if (state === 'tablet') { P.md = true; P.castCol = false; P.colsOpen = true; }
+  if (state === 'form') P.open = 'tv-pergola';
+  const head = `${pageHead('הגדרות', 'מולטימדיה')}<div class="tabs">${[['general', 'כללי'], ['screens', 'מסכים'], ['players', 'נגנים ורמקולים'], ['mine', 'המסכים שלי לשידור']].map(([k, l]) => `<a href="#" ${(state === 'general' ? 'general' : state === 'mine' ? 'mine' : 'screens') === k ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</div>`;
+  if (state === 'mine') return head + mine();
+  if (state === 'general') return head + general();
+  return `${head}<div class="card"><h2>מסכים</h2><div class="hint">רק מסכים מאושרים מופיעים ב"מולטימדיה". העמודה "שידור" (CR-028 שלב 0) + "מותר לשדר" (שלב 1).</div>${toolbar()}${table()}</div>`;
+}
+function rerender() { document.getElementById('content').innerHTML = page_keep(); wire(); Ann.place(); }
+function page_keep() {
+  const head = `${pageHead('הגדרות', 'מולטימדיה')}<div class="tabs">${[['general', 'כללי'], ['screens', 'מסכים'], ['players', 'נגנים ורמקולים'], ['mine', 'המסכים שלי לשידור']].map(([k, l]) => `<a href="#" ${k === 'screens' ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</div>`;
+  return `${head}<div class="card"><h2>מסכים</h2><div class="hint">רק מסכים מאושרים מופיעים ב"מולטימדיה". העמודה "שידור" (CR-028 שלב 0) + "מותר לשדר" (שלב 1).</div>${toolbar()}${table()}</div>`;
+}
+function wire() {
+  const c = document.getElementById('content');
+  c.querySelector('[data-cols]')?.addEventListener('click', () => { P.colsOpen = !P.colsOpen; rerender(); });
+  c.querySelectorAll('[data-col]').forEach((i) => i.addEventListener('change', () => { if (i.dataset.col === 'cast') { P.castCol = i.checked; rerender(); } }));
+  c.querySelector('[data-dir]')?.addEventListener('click', () => { P.dir = P.dir === 'asc' ? 'desc' : 'asc'; rerender(); });
+  c.querySelector('[data-sort-dd]')?.addEventListener('click', (e) => { Pop.open(e.currentTarget, `<div class="sheet-body" style="padding:8px"><div class="pk">${[['name', 'שם'], ['type', 'סוג'], ['integration', 'אינטגרציה'], ['room', 'חדר'], ['id', 'מזהה'], ['status', 'מצב'], ['cast', 'שידור']].map(([k, l]) => `<button class="opt" data-sort="${k}" aria-selected="${P.sort === k}"><span class="tx"><span class="nm">${l}</span>${k === 'cast' ? '<span class="st">מאומת ← כנראה ← לא ידוע ← לא נתמך</span>' : ''}</span></button>`).join('')}</div></div>`, { width: 240 }); Pop.el.onclick = (ev) => { const b = ev.target.closest('[data-sort]'); if (b) { P.sort = b.dataset.sort; Pop.close(); rerender(); } }; });
+  c.querySelector('[data-filter-dd]')?.addEventListener('click', (e) => { Pop.open(e.currentTarget, `<div class="sheet-body" style="padding:8px"><div class="pk">${FILTERS.map(([k, l]) => { const n = SCREENS.filter((s) => !s.speaker && filterKey(s) === k).length; return `<label class="opt" style="gap:10px"><input type="checkbox" data-f="${k}" ${P.filter.includes(k) ? 'checked' : ''} style="accent-color:var(--sw-accent)"><span class="tx"><span class="nm">${l}</span></span><span class="muted num">${n}</span></label>`; }).join('')}</div><div class="sheet-actions"><button class="btn primary" data-apply>החל</button><button class="btn" data-close>ביטול</button></div></div>`, { width: 260 }); Pop.el.onclick = (ev) => { if (ev.target.closest('[data-apply]')) { P.filter = [...Pop.el.querySelectorAll('[data-f]:checked')].map((i) => i.dataset.f); Pop.close(); rerender(); } }; });
+  c.querySelectorAll('[data-unfilter]').forEach((b) => b.addEventListener('click', () => { P.filter = P.filter.filter((f) => f !== b.dataset.unfilter); rerender(); }));
+  c.querySelector('[data-clear]')?.addEventListener('click', () => { P.filter = []; rerender(); });
+  c.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => { P.open = P.open === b.dataset.open ? null : b.dataset.open; rerender(); }));
+  c.querySelectorAll('[data-allow]').forEach((b) => b.addEventListener('click', () => { P.allow[b.dataset.allow] = b.getAttribute('aria-checked') !== 'true'; rerender(); }));
+}
+Mock.boot({
+  page: 'settings', nav: 'settings', states: STATES, render: page, after: wire,
+  note: (s) => ({
+    desktop: '<b>1</b> העמודה "שידור" ברשימת המסכים (וברשימת הנגנים), בין "מצב" ל"מאושר", 132 px, מוצגת כברירת מחדל מעל 1280 px. <b>5</b> הצ\'יפ בכל שורה: ירוק = מאומת; ניטרלי = "· כנראה"; מקווקו = "· לא ידוע"; "לא נתמך" = רמקול. תוספת שלב 1: "לא מאושר" ליד הצ\'יפ כשמנהל עדיין לא הדליק. <b>2</b> סינון ו-<b>3</b> מיון לפי שידור בסרגל, <b>4</b> בקרת העמודות.',
+    filter: '<b>2</b> "שידור: Google Cast" בסרגל + צ\'יפ פעיל מתחתיו עם X ו"נקה" (כמו שאר המסננים). רב-בחירה: Google Cast / DLNA / AirPlay / דפדפן המסך / לא ידוע / לא נתמך, עם מונה לכל ערך.',
+    sort: '<b>3</b> "מיון: שידור": מאומת ← כנראה ← לא ידוע ← לא נתמך, ובתוך כל קבוצה לפי שם. החץ הופך את הכיוון.',
+    tablet: '<b>7</b> ברוחב 861-1280 (טאבלט 1024): הטבלה נשארת טבלה אבל "חדר" ו"שידור" מקופלות כברירת מחדל; בקרת העמודות (האייקון) פותחת תפריט ובו "שידור" לסימון - הבחירה נזכרת למשתמש. סמן "שידור" כדי לראות את העמודה חוזרת. (הצג במסך 1024 בסרגל המוקאפ.)',
+    form: '<b>6</b> הטופס הפתוח של השורה: שורת "שידור למסך: Google Cast · מאומת · דרך media_player.<id> · הסיבה" (שלב 0, קיים) ואחריה סעיף שלב 1: טוגל "מותר לשדר", דריסת שיטה, זרם ראשי, שידור בדיקה.',
+    mine: '<b>8</b> "המסכים שלי לשידור": מה שאני אראה בבורר, עם המצב והתג, ומתחת - מה לא זמין לי ולמה. (שאלה 5 לבעלים: איפה זה יושב.)',
+    general: '<b>9</b> הסעיף בכרטיס "כללי": הדלקה, כתובת + "בדוק", משך, מכסה, זרם ראשי, מצב קיר, גרסת רכיב החיבור. <b>10</b> "שידורים פעילים" של כל ההתקנה עם "עצור" לכל שורה.',
+  }[s] || ''),
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שדר למסך · אינדקס המוקאפים</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+<style>
+  body { background: var(--sw-bg); color: var(--sw-text); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: 28px; margin: 0; color: var(--sw-heading); letter-spacing: -0.6px; }
+  .lead { color: var(--sw-text-2); font-size: 15px; max-width: 820px; }
+  .top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pg { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .pgc { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; align-items: start; }
+  .pgc h2 { margin: 0 0 4px; font-size: 18px; }
+  .pgc .st { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+  .pgc .st a { text-decoration: none; }
+  ol.ann { margin: 0; padding-inline-start: 22px; font-size: 13.5px; color: var(--sw-text-2); display: flex; flex-direction: column; gap: 4px; }
+  ol.ann li::marker { color: #e8456f; font-weight: 700; }
+  ol.ann b { color: var(--sw-text); font-weight: 600; }
+  .where { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 12.5px; }
+  .where > div { background: var(--sw-surface-2); border-radius: 10px; padding: 8px 10px; }
+  .where b { display: block; font-size: 11px; color: var(--sw-text-3); margin-bottom: 2px; }
+  .q { counter-reset: q; display: flex; flex-direction: column; gap: 10px; }
+  .q > div { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: 12px; padding: 12px 14px; display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+  .q > div::before { counter-increment: q; content: counter(q); width: 26px; height: 26px; border-radius: 50%; background: var(--sw-accent); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 13px; }
+  .q p { margin: 0 0 4px; font-weight: 600; }
+  .q ul { margin: 0; padding-inline-start: 18px; color: var(--sw-text-2); font-size: 13.5px; list-style: none; }
+  .q li { padding: 1px 0; }
+  .q li.rec { color: var(--sw-text); }
+  .q li.rec::after { content: ' · מומלץ'; color: var(--sw-success-text); font-weight: 600; }
+  .thumb { border-radius: 10px; border: 1px solid var(--sw-border); overflow: hidden; background: #000; aspect-ratio: 16 / 10; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .limits { font-size: 13px; color: var(--sw-text-2); }
+  @media (max-width: 760px) { .pgc { grid-template-columns: 1fr; } .where { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>שדר למסך · מוקאפים אינטראקטיביים</h1>
+  <div class="lead">הזרימה המלאה של שידור מצלמה או קיר למסך: מהכפתור במסך החי, דרך הבורר, מצב השידור, המגש הגלובלי, השגיאות, ההרשאות, ההגדרות והבדיקה הפיזית הראשונה. כל דף הוא HTML סטטי, בלי רשת, לחיץ; כל דף נפתח בכל שילוב של <b>מסך</b> (1440 / 1024 / 390), <b>ערכה</b> (בהיר / כהה), <b>סקין</b> (classic / bubble) ו<b>מצב</b> (התפריט בסרגל העליון). העיגולים הוורודים הם מספרי ההערות שברשימה כאן; אפשר להסתיר אותם בסרגל.</div>
+  <div class="top">
+    <a class="btn primary" href="01-live-camera.html?vp=1440">התחל: מצלמה בודדת</a>
+    <a class="btn" href="README.md">README (אנגלית)</a>
+    <span class="muted">· עיצוב בלבד · נתוני הדגמה · שום מכשיר לא נגע</span>
+  </div>
+
+  <div class="card"><h2>איפה כל דבר יושב (תשובה לשאלה "לא ברור איפה")</h2>
+    <div class="where">
+      <div><b>דסקטופ 1440</b>מצלמה: כפתור cast עגול בקבוצת הפקדים מתחת לווידאו, ליד "מסך מלא". קיר: כפתור "שדר למסך" בסרגל הפעולות ליד "קיוסק". בורר: פאנל מעוגן לכפתור. גלולת "משדר N": שורת הפעולות של כל מסך, ליד ההתראות. הגדרות: עמודת "שידור" בין "מצב" ל"מאושר".</div>
+      <div><b>טאבלט 1024</b>אותם מקומות; הבורר - גיליון ממורכז. בהגדרות הטבלה נשארת טבלה אבל "חדר" ו"שידור" מקופלות כברירת מחדל - בקרת העמודות (אייקון העמודות בסרגל) מחזירה אותן, הבחירה נזכרת.</div>
+      <div><b>טלפון 390</b>מצלמה: אותו כפתור עגול, 44 px. קיר: אייקון בלבד בשורת הסרגל האחת. בורר ומגש: גיליון תחתון עם גרירה לסגירה. הגדרות: כרטיסים; "שידור" היא שורה עם תווית אחרי "חדר".</div>
+    </div></div>
+
+  <div class="pg">
+    <div class="card pgc"><div>
+      <h2>1 · מצלמה בודדת</h2><div class="muted">01-live-camera.html · 12 מצבים</div>
+      <div class="st"><a class="chip" href="01-live-camera.html?state=idle">מנוחה</a><a class="chip" href="01-live-camera.html?state=picker">הבורר</a><a class="chip" href="01-live-camera.html?state=busy">עסוק</a><a class="chip" href="01-live-camera.html?state=starting">מתחבר</a><a class="chip" href="01-live-camera.html?state=playing">משדר</a><a class="chip" href="01-live-camera.html?state=not_confirmed">לא הגיע לזרם</a><a class="chip" href="01-live-camera.html?state=timeout">תם הזמן</a><a class="chip" href="01-live-camera.html?state=codec">H.265</a><a class="chip" href="01-live-camera.html?state=noperm">בלי הרשאה</a><a class="chip" href="01-live-camera.html?state=notargets">אין מסכים</a><a class="chip" href="01-live-camera.html?state=relay">ממסר</a><a class="chip" href="01-live-camera.html?state=remote">מרחוק</a><a class="chip" href="01-live-camera.html?state=picker&vp=390">טלפון</a><a class="chip" href="01-live-camera.html?state=playing&skin=bubble&scheme=dark">bubble כהה</a></div>
+      <ol class="ann">
+        <li><b>כפתור "שדר למסך"</b> בקבוצת הפקדים העגולה ליד "מסך מלא" (36 px בדסקטופ, 44 בטלפון). קיים רק עם ההרשאה + לפחות מסך אחד זמין. בזמן שידור: כחול עם נקודה ירוקה, לחיצה פותחת את המגש.</li>
+        <li><b>הבורר</b>: "לאחרונה" ואז לפי קומה; כל שורה = שם, חדר · מצב, תג יכולת (מאומת / כנראה / לא ידוע). שורה חסומה: הסיבה במקום המצב (לא אושר על ידי מנהל / כבוי / לא אומתה / קודק / ציבורי).</li>
+        <li><b>אישור "מסך עסוק"</b>: שאלה + "פרטים" מקופל (תבנית המולטימדיה). המוזיקה לא חוזרת לבד.</li>
+        <li><b>שורת תחתית הבורר</b>: "יעצור לבד אחרי 30 דקות" ו"וידאו בלבד".</li>
+        <li><b>גלולת "מתחבר…"</b> מעל הנגן, תחתית-התחלה.</li>
+        <li><b>גלולת "משדר אל סלון · יעצור ב־14:32"</b> עם טבעת התקדמות, "עוד 30 דקות", "עצור".</li>
+        <li><b>גלולת "משדר 1"</b> בשורת הפעולות (גלובלית) - פותחת את המגש.</li>
+        <li><b>"המסך לא הגיע לזרם"</b> אחרי 15 שניות: "נסה שוב" / "עצור".</li>
+        <li><b>בלי הרשאה</b>: אין כפתור, אין רמז.</li>
+        <li><b>אין מסכים זמינים</b>: מצב ריק עם הפניה למנהל.</li>
+        <li><b>ממסר לא זמין</b>: הודעה קצרה; הטכני בהגדרות.</li>
+        <li><b>מרחוק (/arx)</b>: פס "מחובר מרחוק"; הלחיצה מכאן, השידור ברשת המקומית; לא נספר במכסה.</li>
+      </ol></div>
+      <a class="thumb" href="01-live-camera.html?state=picker"><img src="shots/01-live-camera-picker-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>2 · קיר מצלמות</h2><div class="muted">02-wall.html · 7 מצבים</div>
+      <div class="st"><a class="chip" href="02-wall.html?state=idle">מנוחה</a><a class="chip" href="02-wall.html?state=picker">הבורר</a><a class="chip" href="02-wall.html?state=select">בחירת אריחים</a><a class="chip" href="02-wall.html?state=mosaic">פסיפס</a><a class="chip" href="02-wall.html?state=carousel">קרוסלה</a><a class="chip" href="02-wall.html?state=cpu">מארח עמוס</a><a class="chip" href="02-wall.html?state=phase1">שלב 1</a><a class="chip" href="02-wall.html?state=mosaic&vp=390">טלפון</a></div>
+      <ol class="ann">
+        <li><b>כפתור "שדר למסך"</b> בסרגל הקיר ליד "קיוסק"; בטלפון אייקון בשורת הסרגל.</li>
+        <li><b>בחירת פריסה</b>: פסיפס 2×2 (4 האריחים הראשונים של העמוד), קרוסלה (כולם, N שניות לכל אחת), מצלמה אחת; ואז המסך.</li>
+        <li><b>מצב בחירת אריחים</b>: תיבות על האריחים, פס עם מונה ו"המשך לבחירת מסך".</li>
+        <li><b>גלולת "משדר 1"</b> בכותרת הקיר + פס מצב עם "עוד 30 דקות" / "עצור".</li>
+        <li><b>תג "משדר"</b> על כל אריח שבפסיפס.</li>
+        <li><b>תצוגה מקדימה</b> של מה שהמסך מציג (פסיפס עם שמות צרובים).</li>
+        <li><b>קרוסלה</b>: "עכשיו על המסך" על האריח הפעיל, "בתור" על השאר.</li>
+        <li><b>התצוגה המקדימה בקרוסלה</b>: הבאה בתור והזמן; 3-8 ש׳ שחור במעבר (כנה).</li>
+        <li><b>מארח עמוס</b>: הפסיפס מושבת עם הסיבה, הקרוסלה נשארת.</li>
+        <li><b>שלב 1</b>: אותו כפתור פותח "מצלמה אחת מהקיר".</li>
+      </ol></div>
+      <a class="thumb" href="02-wall.html?state=picker"><img src="shots/02-wall-picker-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>3 · שידורים פעילים (המגש הגלובלי)</h2><div class="muted">03-active-tray.html · 6 מצבים</div>
+      <div class="st"><a class="chip" href="03-active-tray.html?state=tray">המגש</a><a class="chip" href="03-active-tray.html?state=countdown">ספירה לאחור</a><a class="chip" href="03-active-tray.html?state=switch">החלף מצלמה</a><a class="chip" href="03-active-tray.html?state=limit">מכסת הארכות</a><a class="chip" href="03-active-tray.html?state=bulk">עצור את כולם</a><a class="chip" href="03-active-tray.html?state=closed">סגור</a><a class="chip" href="03-active-tray.html?state=tray&vp=390">טלפון</a></div>
+      <ol class="ann">
+        <li><b>גלולת "משדר N"</b> בשורת הפעולות של כל מסך; המגש: שורה לכל שידור עם טיימר, פס, "עוד 30 דקות" / "החלף מצלמה" / "עצור"; שידור של אחר מסומן בשמו.</li>
+        <li>(ספירה לאחור חיה: 5 דקות, יורד כל שנייה, "תם הזמן" בסוף.)</li>
+        <li><b>החלף מצלמה</b> על אותו מסך בלי סשן חדש.</li>
+        <li>(אחרי 8 הארכות הכפתור מושבת עם הסיבה.)</li>
+        <li><b>"עצור את כל השידורים"</b> למי שיש "פעולות גורפות", עם אישור שמונה את בעלי השידורים.</li>
+      </ol></div>
+      <a class="thumb" href="03-active-tray.html?state=tray"><img src="shots/03-active-tray-tray-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>4 · שגיאות ומקרי קצה</h2><div class="muted">04-errors.html · גלריה של 18 מצבים</div>
+      <div class="st"><a class="chip" href="04-errors.html">הגלריה</a><a class="chip" href="04-errors.html?scheme=dark">כהה</a><a class="chip" href="04-errors.html?vp=390">טלפון</a></div>
+      <ol class="ann">
+        <li>מסך עסוק: מנגן מוזיקה (אישור)</li><li>מסך עסוק: משדר אחר (החלפה עם אישור)</li><li>הזרם הראשי אינו נתמך (H.265)</li><li>לא אושר על ידי מנהל</li><li>כבוי / לא זמין</li><li>הדרך לא אומתה</li><li>ממסר לא זמין</li><li>נדרש עדכון של רכיב החיבור</li><li>המסך לא הגיע לזרם</li><li>המסך לא אישר את העצירה</li><li>תם הזמן</li><li>הוחלף על ידי משתמש אחר</li><li>נגמרה מכסת השידורים</li><li>המסך לא זמין (נעלם)</li><li>מסך ציבורי בלי הרשאה</li><li>מרחוק (/arx)</li><li>המוזיקה נעצרה</li><li>המסך מתעורר (CEC) + כיבוי אחרי</li>
+      </ol></div>
+      <a class="thumb" href="04-errors.html"><img src="shots/04-errors-gallery-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>5 · הרשאות, אישור מנהל, ביקורת</h2><div class="muted">05-permissions.html · 3 מצבים</div>
+      <div class="st"><a class="chip" href="05-permissions.html?state=matrix">המטריצה</a><a class="chip" href="05-permissions.html?state=approve">אישור מסך</a><a class="chip" href="05-permissions.html?state=audit">ביקורת</a></div>
+      <ol class="ann">
+        <li><b>המטריצה</b>: מי רואה כפתור / בורר / מגש, מי עוצר, מי מאשר (לפי התפקיד וההרשאה).</li>
+        <li><b>מפעיל מול צופה</b>: הכפתור קיים או לא קיים (בלי רמז).</li>
+        <li><b>סעיף "שידור למסך"</b> בטופס המסך: הזיהוי + המשפט המלא.</li>
+        <li><b>טוגל "מותר לשדר למסך הזה"</b> (ברירת מחדל כבוי).</li>
+        <li><b>דריסת שיטה</b> אוטומטי / Google Cast / DLNA / AirPlay / ללא + זרם ראשי + שידור בדיקה 60 ש׳.</li>
+        <li><b>שורות ביקורת</b>: start / playing / extend / stop (סיבה) / denied (קוד) / config (היה → נהיה). בלי אסימון ובלי כתובת.</li>
+      </ol></div>
+      <a class="thumb" href="05-permissions.html?state=approve"><img src="shots/05-permissions-approve-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>6 · הגדרות › מולטימדיה</h2><div class="muted">06-settings.html · 7 מצבים</div>
+      <div class="st"><a class="chip" href="06-settings.html?state=desktop">הרשימה 1440</a><a class="chip" href="06-settings.html?state=filter">סינון</a><a class="chip" href="06-settings.html?state=sort">מיון</a><a class="chip" href="06-settings.html?state=tablet&vp=1024">טאבלט 1024</a><a class="chip" href="06-settings.html?state=desktop&vp=390">טלפון 390</a><a class="chip" href="06-settings.html?state=form">הטופס</a><a class="chip" href="06-settings.html?state=mine">המסכים שלי</a><a class="chip" href="06-settings.html?state=general">כללי</a></div>
+      <ol class="ann">
+        <li><b>העמודה "שידור"</b> בין "מצב" ל"מאושר" (132 px); כותרת לחיצה = מיון.</li>
+        <li><b>סינון "שידור: …"</b> רב-בחירה בסרגל + צ'יפ פעיל עם X ו"נקה".</li>
+        <li><b>"מיון: שידור"</b>: מאומת ← כנראה ← לא ידוע ← לא נתמך.</li>
+        <li><b>בקרת העמודות</b> (דסקטופ).</li>
+        <li><b>הצ'יפ בשורה</b>: ירוק מאומת / ניטרלי כנראה / מקווקו לא ידוע / "לא נתמך"; + "לא מאושר" כשמנהל לא הדליק.</li>
+        <li><b>הטופס הפתוח</b>: המשפט המלא + סעיף שלב 1.</li>
+        <li><b>טאבלט</b>: "שידור" מקופלת; בקרת העמודות מחזירה.</li>
+        <li><b>"המסכים שלי לשידור"</b>: מה יופיע לי בבורר ומה לא ולמה.</li>
+        <li><b>כרטיס "כללי"</b>: הדלקה, כתובת + "בדוק", משך, מכסה, זרם ראשי, מצב קיר, גרסת רכיב החיבור.</li>
+        <li><b>"שידורים פעילים"</b> של ההתקנה עם "עצור".</li>
+      </ol></div>
+      <a class="thumb" href="06-settings.html?state=filter"><img src="shots/06-settings-filter-1440-light.png" alt="" loading="lazy"></a></div>
+
+    <div class="card pgc"><div>
+      <h2>7 · הבדיקה הפיזית הראשונה במעבדה</h2><div class="muted">07-lab-test.html · 5 צעדים</div>
+      <div class="st"><a class="chip" href="07-lab-test.html?state=prereq">תנאים</a><a class="chip" href="07-lab-test.html?state=origin">כתובת</a><a class="chip" href="07-lab-test.html?state=approve">אישור</a><a class="chip" href="07-lab-test.html?state=run">השידור</a><a class="chip" href="07-lab-test.html?state=evidence">ראיות</a></div>
+      <ol class="ann">
+        <li><b>סרגל הצעדים</b>.</li>
+        <li><b>תנאים מוקדמים</b> שנבדקים בפועל: פורט, גשר 0.7.0, כתובת, גרסת go2rtc, רשת המסך. "טרם נבדק" ≠ "עבר".</li>
+        <li><b>סעיף הכללי</b>: "בדוק" מדליק את השידור רק אחרי אימות.</li>
+        <li><b>הרשימה</b> עם "שידור" ו"מותר לשדר".</li>
+        <li><b>רק המסך שהבעלים נקב</b> מודלק.</li>
+        <li><b>האישור המפורש</b>: מה יקרה במכשיר, איך עוצרים, אילו כתיבות (סעיף 8.3).</li>
+        <li><b>מה המנהל רואה</b> (5 דקות).</li>
+        <li><b>מה הטלוויזיה מציגה</b>.</li>
+        <li><b>הראיות</b> + "סמן כמאומת בפועל".</li>
+      </ol></div>
+      <a class="thumb" href="07-lab-test.html?state=approve"><img src="shots/07-lab-test-approve-1440-light.png" alt="" loading="lazy"></a></div>
+  </div>
+
+  <div class="card"><h2>שאלות לבעלים</h2>
+    <div class="q">
+      <div><div><p>מיקום הכפתור במצלמה בודדת</p><ul><li class="rec">א · בקבוצת הפקדים העגולה ליד "מסך מלא" (כמו במוקאפ)</li><li>ב · בשורת הפעולות של הכותרת, ליד "הקלטות"</li><li>ג · בשניהם</li></ul></div></div>
+      <div><div><p>צורת הבורר בדסקטופ</p><ul><li class="rec">א · פאנל מעוגן לכפתור (סגנון הדרופדאון של ההתקנה)</li><li>ב · גיליון ממורכז כמו בקיר</li></ul></div></div>
+      <div><div><p>ברירת המחדל לכל מסך</p><ul><li>א · כל מסך "מאומת" זמין לשידור מיד</li><li class="rec">ב · מנהל מדליק "מותר לשדר" לכל מסך (כמו אישור התקן)</li></ul></div></div>
+      <div><div><p>מסך חסום בבורר: להראות או להסתיר?</p><ul><li>א · להסתיר לגמרי (רשימה קצרה)</li><li class="rec">ב · להראות אפור עם הסיבה (המפעיל מבין למה חסר)</li><li>ג · להראות אפור רק למי שיש "הגדרת מערכת"</li></ul></div></div>
+      <div><div><p>איפה יושבת "המסכים שלי לשידור"</p><ul><li class="rec">א · לשונית בהגדרות › מולטימדיה + קישור מתחתית הבורר</li><li>ב · רק מתחתית הבורר</li><li>ג · בתפריט המשתמש</li></ul></div></div>
+      <div><div><p>משך ברירת המחדל והספירה לאחור</p><ul><li class="rec">א · 30 דקות, "עוד 30 דקות" עד 8 פעמים</li><li>ב · 15 דקות</li><li>ג · 60 דקות</li></ul></div></div>
+      <div><div><p>קיר (שלב 2)</p><ul><li class="rec">א · פסיפס 2×2 + קרוסלה כגיבוי</li><li>ב · קרוסלה בלבד (בלי קידוד מחדש)</li></ul></div></div>
+      <div><div><p>זמן לכל מצלמה בקרוסלה</p><ul><li>א · 10 ש׳</li><li class="rec">ב · 15 ש׳</li><li>ג · 30 ש׳</li><li>ד · לבחירת המשתמש (כמו במוקאפ)</li></ul></div></div>
+      <div><div><p>גלולת "משדר N" הגלובלית</p><ul><li class="rec">א · בשורת הפעולות של כל מסך, ליד ההתראות</li><li>ב · רק במסכי השידור החי</li><li>ג · בפס העליון של המעטפת (קבוע)</li></ul></div></div>
+      <div><div><p>כיבוי המסך אחרי העצירה (כשהיה כבוי לפני)</p><ul><li class="rec">א · כן, כברירת מחדל (אפשר לבטל בהגדרות)</li><li>ב · לא, אף פעם</li></ul></div></div>
+      <div><div><p>המכשיר לבדיקה הפיזית הראשונה</p><ul><li>א · Chromecast / Google TV</li><li>ב · Android TV</li><li>ג · Nest Hub</li><li>ד · אחר (לנקוב בשם)</li></ul></div></div>
+      <div><div><p>שידור בדיקה של 60 שניות מהטופס בהגדרות</p><ul><li class="rec">א · כן, למנהל בלבד</li><li>ב · לא צריך, הבדיקה מהמסך החי מספיקה</li></ul></div></div>
+    </div></div>
+
+  <div class="card"><h2>גבולות כנים</h2><div class="limits">
+    עיצוב בלבד: אין קוד מוצר, אין ממסר, אין גשר, שום מכשיר לא נגע. הסקינים: classic ו-bubble מיושמים (טוקנים מ-tokens.ts ומ-bubble-skin.css); domus ו-tesla לא נבנו כאן. הטבלה בהגדרות היא העתק ויזואלי של media-admin-list, לא הרכיב עצמו. הבורר מצויר כפאנל פשוט ולא בששת סגנונות sw-dropdown. התזמונים (3-8 ש׳, 15 ש׳) הם המחלקות שבמסמך ה-CR, לא מדידות. צילומי המסך: Playwright Chromium על הקבצים הסטטיים; לא נבדק בטלפון אמיתי או ב-Safari.
+  </div></div>
+</div>
+</body>
+</html>

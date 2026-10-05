@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3 · שידורים פעילים: המגש הגלובלי</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [
+  { id: 'tray', label: 'המגש פתוח: 2 שידורים' },
+  { id: 'countdown', label: 'ספירה לאחור (5 דק׳ · מעבדה)' },
+  { id: 'switch', label: 'החלף מצלמה' },
+  { id: 'limit', label: 'מכסת ההארכות נגמרה' },
+  { id: 'bulk', label: 'עצור את כולם (מנהל)' },
+  { id: 'closed', label: 'המגש סגור: רק הגלולה' },
+];
+const P = { sessions: {}, bulk: false, open: true, confirmAll: false, tick: null };
+function applyState(id) {
+  clearInterval(P.tick); P.confirmAll = false; P.bulk = false; P.open = true; P.switching = false;
+  P.sessions = {
+    'tv-living': { cam: 'לובי כניסה', state: 'playing', kind: 'camera', user: 'me', until: '14:32', left: 27.4, total: 30, ext: 0 },
+    'tv-kitchen': { cam: '4 מצלמות', state: 'playing', kind: 'wall', user: 'דנה', until: '14:20', left: 18, total: 30, ext: 1 },
+  };
+  if (id === 'countdown') { P.sessions = { 'tv-living': { cam: 'לובי כניסה', state: 'playing', kind: 'camera', user: 'me', until: '14:07', left: 4.98, total: 5, ext: 0 } }; P.tick = setInterval(() => { const s = P.sessions['tv-living']; if (!s) return; s.left = Math.max(0, s.left - 1 / 60); if (s.left === 0) { delete P.sessions['tv-living']; clearInterval(P.tick); Mock.toast('השידור הופסק: תם הזמן'); rerender(); return; } Tray.rebuild(); }, 1000); }
+  if (id === 'switch') P.switching = true;
+  if (id === 'limit') P.sessions['tv-living'].ext = 8, P.sessions['tv-living'].until = '18:02';
+  if (id === 'bulk') { P.bulk = true; P.confirmAll = true; }
+  if (id === 'closed') P.open = false;
+}
+function body() {
+  const n = Object.keys(P.sessions).length;
+  const acts = `${trayPill(P.sessions, { ann: 1 })}<button class="btn ghost icon" aria-label="התראות">${ic('bell', 's')}</button>`;
+  return `${pageHead('אבטחה', 'סקירה · קומת קרקע', acts)}
+    <div class="card"><h2>המגש הגלובלי</h2><div class="hint">גלולת "משדר N" יושבת בשורת הפעולות של כל מסך (ליד ההתראות) כל עוד יש שידור פעיל שמותר לך לראות - שלך, או בטווח שלך אם יש לך "media.read". לחיצה פותחת את המגש. בטלפון הגלולה באותה שורה והמגש עולה מהתחתית.</div>
+      <div class="kv"><dt>מי רואה</dt><dd>בעל השידור תמיד; אחרים לפי טווח (העוגן של המסך)</dd><dt>מי עוצר</dt><dd>בעל השידור, "שידור וידאו למסכים" בעוגן, או "פעולות גורפות" (עצור את כולם)</dd><dt>הארכה</dt><dd>+30 דקות, עד 8 פעמים (4 שעות); אחר כך מתחילים מחדש</dd><dt>סיום</dt><dd>עצירה אחת, בלי ניסיונות חוזרים; אם הגשר לא ענה - האסימון נחסם והמסך נעצר על המקטע הבא</dd></div></div>
+    <div class="gal">
+      <div class="card"><h3>ספירה לאחור</h3><div class="when">כשנשארו פחות מ-5 דקות הטבעת הופכת כתומה והטקסט אומר "עוד 4:58"; בדקה האחרונה הגלולה בכותרת מהבהבת פעם אחת בשנייה (לא בהגדרת תנועה מופחתת).</div>
+        <div class="stage"><div class="scene"></div>${castPill({ state: 'playing', room: 'סלון', until: '14:07', left: 4.97, total: 5 })}</div></div>
+      <div class="card"><h3>החלף מצלמה</h3><div class="when">מהמגש: "החלף מצלמה" פותח את בורר המצלמות (אותו רכיב של הקיר) עם המסך כבר מסומן; הזמן שנותר נשמר, הפעולה נרשמת כ"הוחלף" עם שני המקורות.</div>
+        <div class="chips" data-ann="3">${CAMS.slice(0, 5).map((c, i) => `<button class="chip" aria-pressed="${i === 0}">${esc(c.name)}</button>`).join('')}</div></div>
+    </div>`;
+}
+function page(state) { applyState(state); return body(); }
+function rerender() { document.getElementById('content').innerHTML = body(); wire(); Ann.place(); }
+function trayBuild() {
+  if (P.confirmAll) return `<div class="th">${ic('stop')}<span>לעצור את כל השידורים?</span><span class="sp"></span><button class="xbtn" data-close aria-label="סגירה">${ic('x', 's')}</button></div>
+    <div class="sess"><div class="confirm" data-ann="5"><h4>${Object.keys(P.sessions).length} שידורים ייעצרו, כולל של משתמשים אחרים</h4><details><summary>פרטים</summary>${Object.entries(P.sessions).map(([k, s]) => `${esc(s.cam)} ← ${esc(SCREEN[k].room)}${s.user !== 'me' ? ` (${esc(s.user)})` : ''}`).join(' · ')}. נרשם בביקורת עם המשתמשים של כל שידור.</details>
+      <div class="acts"><button class="btn danger" data-stopall-yes>${ic('stop', 's')}עצור את כולם</button><button class="btn" data-stopall-no>ביטול</button></div></div></div>`;
+  let h = trayHtml(P.sessions, { cap: 2, bulk: P.bulk });
+  if (P.switching) h = h.replace('<div class="sess">', `<div class="sess"><div class="confirm" data-ann="3"><h4>להחליף את המצלמה בסלון?</h4><div class="chips">${CAMS.slice(0, 5).map((c, i) => `<button class="chip" aria-pressed="${i === 0}">${esc(c.name)}</button>`).join('')}</div><div class="acts"><button class="btn primary" data-sw-yes>${ic('swap', 's')}החלף</button><button class="btn" data-sw-no>ביטול</button></div></div>`);
+  return h;
+}
+function openTray(anchor) {
+  Tray.open(trayBuild, anchor || document.querySelector('[data-tray]'));
+  Tray.el.onclick = (e) => {
+    const st = e.target.closest('[data-stop]'); if (st) { delete P.sessions[st.dataset.stop]; Mock.toast('השידור נעצר'); Tray.rebuild(); rerender(); if (!Object.keys(P.sessions).length) Tray.close(); }
+    const ex = e.target.closest('[data-extend]'); if (ex && !ex.disabled) { const s = P.sessions[ex.dataset.extend]; s.left += 30; s.total += 30; s.ext++; s.until = s.ext >= 8 ? '18:02' : '15:02'; Mock.toast(`הוארך עד ${s.until}`); Tray.rebuild(); }
+    if (e.target.closest('[data-switch]')) { P.switching = true; Tray.rebuild(); }
+    if (e.target.closest('[data-sw-no]')) { P.switching = false; Tray.rebuild(); }
+    if (e.target.closest('[data-sw-yes]')) { P.switching = false; P.sessions['tv-living'].cam = 'לובי כניסה'; Mock.toast('המסך בסלון מציג עכשיו: לובי כניסה'); Tray.rebuild(); }
+    if (e.target.closest('[data-stopall]')) { P.confirmAll = true; Tray.rebuild(); }
+    if (e.target.closest('[data-stopall-no]')) { P.confirmAll = false; Tray.rebuild(); }
+    if (e.target.closest('[data-stopall-yes]')) { P.sessions = {}; P.confirmAll = false; Tray.close(); Mock.toast('כל השידורים נעצרו'); rerender(); }
+  };
+}
+function wire() { document.querySelector('[data-tray]')?.addEventListener('click', (e) => openTray(e.currentTarget)); }
+Mock.boot({
+  page: 'tray', nav: 'security', states: STATES, render: page,
+  after: () => { wire(); if (P.open && Object.keys(P.sessions).length) setTimeout(() => openTray(), 80); },
+  note: (state) => ({
+    tray: '<b>1</b> גלולת "משדר 2" בשורת הפעולות של כל מסך (ליד ההתראות). המגש: שורה לכל שידור - מצלמה/קיר ← חדר, "יעצור ב־", פס התקדמות, "עוד 30 דקות" / "החלף מצלמה" / "עצור". שידור של משתמש אחר מסומן בשמו; אפשר לעצור אותו רק עם הרשאה בעוגן.',
+    countdown: 'ספירה לאחור חיה (השידור הפיזי הראשון במעבדה הוא 5 דקות): "עוד 4:58" יורד כל שנייה; בסוף - "השידור הופסק: תם הזמן". בלי ניסיונות חוזרים.',
+    switch: '<b>3</b> "החלף מצלמה" מחליף את המקור על אותו מסך בלי להתחיל סשן חדש (אותו טיימר, אותו אסימון מוחלף בשרת, פעולת ביקורת "הוחלף").',
+    limit: 'אחרי 8 הארכות (4 שעות) "עוד 30 דקות" מושבת עם הסיבה; צריך להתחיל שידור חדש. מונע שידור-לנצח בלי כוונה.',
+    bulk: '<b>5</b> מי שיש לו "פעולות גורפות" רואה "עצור את כל השידורים" עם אישור שמונה את השידורים ומי מחזיק בהם.',
+    closed: 'בלי לפתוח: רק הגלולה בכותרת מעידה שיש שידור. אין באנרים, אין פסקאות (מסך מפעיל נקי).',
+  }[state] || ''),
+});
+</script>
+</body>
+</html>

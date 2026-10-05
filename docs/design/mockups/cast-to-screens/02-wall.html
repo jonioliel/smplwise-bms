@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="light" data-skin="classic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2 · קיר מצלמות: שדר למסך</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="cast.css">
+</head>
+<body>
+<script src="cast.js"></script>
+<script>
+'use strict';
+const STATES = [
+  { id: 'idle', label: 'מנוחה: הכפתור בסרגל הקיר' },
+  { id: 'picker', label: 'הבורר: פריסה + מסך' },
+  { id: 'select', label: 'בחירת אריחים לשידור' },
+  { id: 'mosaic', label: 'משדר פסיפס 2×2' },
+  { id: 'carousel', label: 'משדר קרוסלה' },
+  { id: 'cpu', label: 'מארח עמוס: רק קרוסלה' },
+  { id: 'phase1', label: 'שלב 1: מצלמה אחת מהקיר' },
+];
+const P = { count: 9, cols: 3, layout: 'mosaic', selected: [], session: null, open: false, cpuLow: false, phase1: false, selecting: false, step: 1, target: null, car: { i: 0, next: 12 } };
+P.sessions = () => (P.session ? { [P.session.key]: P.session } : {});
+function applyState(id) {
+  Object.assign(P, { layout: 'mosaic', selected: [], session: null, open: false, cpuLow: false, phase1: false, selecting: false, step: 1, target: null });
+  if (id === 'picker') { P.open = true; P.selected = CAMS.slice(0, 4).map((c) => c.id); }
+  if (id === 'select') { P.selecting = true; P.selected = ['c-lobby', 'c-gate', 'c-pool']; }
+  if (id === 'mosaic') { P.selected = CAMS.slice(0, 4).map((c) => c.id); P.session = { key: 'tv-living', cam: '4 מצלמות', state: 'playing', kind: 'wall', user: 'me', until: '14:32', left: 26, total: 30, ext: 0, layout: 'mosaic' }; }
+  if (id === 'carousel') { P.layout = 'carousel'; P.selected = CAMS.slice(0, 6).map((c) => c.id); P.session = { key: 'tv-kitchen', cam: '6 מצלמות', state: 'playing', kind: 'wall', user: 'me', until: '14:32', left: 24, total: 30, ext: 0, layout: 'carousel' }; }
+  if (id === 'cpu') { P.cpuLow = true; P.open = true; P.selected = CAMS.slice(0, 4).map((c) => c.id); }
+  if (id === 'phase1') { P.phase1 = true; P.open = true; }
+}
+const castOf = (id) => P.session && P.selected.includes(id);
+function tile(c, i) {
+  const sel = P.selected.includes(c.id);
+  const on = castOf(c.id);
+  const carNow = P.session && P.session.layout === 'carousel' && P.selected[P.car.i] === c.id;
+  return `<div class="tile ${P.selecting && sel ? 'selected' : ''}" data-tile="${c.id}" style="--c1:${c.c1};--c2:${c.c2}" ${i === 0 && P.selecting ? 'data-ann="3"' : ''}>
+    <div class="scene"></div>
+    ${P.selecting ? `<span class="cb">${sel ? ic('check', 's') : ''}</span>` : ''}
+    ${on && !carNow && P.session.layout === 'mosaic' ? `<span class="onair" ${i === 0 ? 'data-ann="5"' : ''}>${ic('cast', 's')}משדר</span>` : ''}
+    ${carNow ? `<span class="onair" data-ann="7">${ic('cast', 's')}עכשיו על המסך</span>` : ''}
+    ${on && P.session.layout === 'carousel' && !carNow ? `<span class="onair" style="opacity:.7">בתור</span>` : ''}
+    <span class="nm">${esc(c.name)}<span class="badge live" style="padding:0 6px">חי</span></span></div>`;
+}
+function wallHtml() {
+  const cams = CAMS.slice(0, P.count);
+  return `<div class="wall" style="--cols:${P.cols}">${cams.map(tile).join('')}</div>`;
+}
+function tvPreview() {
+  if (!P.session) return '';
+  const s = P.session; const scr = SCREEN[s.key];
+  if (s.layout === 'carousel') {
+    const c = CAM[P.selected[P.car.i]]; const n = CAM[P.selected[(P.car.i + 1) % P.selected.length]];
+    return `<div class="tv" data-ann="8"><div class="scr g1"><div style="--c1:${c.c1};--c2:${c.c2}"><span>${esc(c.name)}</span></div><div class="ttl">${esc(c.name)} · ${P.car.i + 1}/${P.selected.length}</div></div><div class="lbl">מה ${esc(scr.name)} מציגה · קרוסלה: הבאה "${esc(n.name)}" בעוד ${P.car.next} ש׳ (3-8 ש׳ שחור במעבר)</div></div>`;
+  }
+  const four = P.selected.slice(0, 4).map((id) => CAM[id]);
+  return `<div class="tv" data-ann="6"><div class="scr g4">${four.map((c) => `<div style="--c1:${c.c1};--c2:${c.c2}"><span>${esc(c.name)}</span></div>`).join('')}</div><div class="lbl">מה ${esc(scr.name)} מציגה · פסיפס 2×2 מזרמי המשנה, השמות צרובים בתמונה, זרם אחד</div></div>`;
+}
+function pickerHtml() {
+  const sel = P.selected.length ? P.selected : CAMS.slice(0, 4).map((c) => c.id);
+  const cams = sel.map((id) => CAM[id]);
+  const mosaicOff = P.cpuLow;
+  const layouts = P.phase1 ? '' : `<div class="sec-h">1 · מה לשדר</div>
+    <div class="lay" data-ann="2">
+      <button aria-pressed="${P.layout === 'mosaic'}" data-lay="mosaic" ${mosaicOff ? 'disabled title="המארח עמוס: הפסיפס לא זמין כרגע"' : ''}><span class="mini g4"><i></i><i></i><i></i><i></i></span>פסיפס 2×2<small>${mosaicOff ? 'המארח עמוס' : `${Math.min(4, cams.length)} מצלמות · זרם אחד`}</small></button>
+      <button aria-pressed="${P.layout === 'carousel'}" data-lay="carousel"><span class="mini car"><i style="background:#334"></i></span>קרוסלה<small>${cams.length} מצלמות · אחת אחרי השנייה</small></button>
+      <button aria-pressed="${P.layout === 'single'}" data-lay="single"><span class="mini g1"><i></i></span>מצלמה אחת<small>בחר אריח</small></button>
+    </div>
+    ${P.layout === 'carousel' ? `<div class="rowline"><span class="lbl">זמן לכל מצלמה</span><div class="seg">${[10, 15, 30, 60].map((n) => `<button aria-pressed="${n === 15}">${n} ש׳</button>`).join('')}</div></div>` : ''}
+    <div class="rowline"><span class="lbl">${P.layout === 'mosaic' ? 'האריחים שייכנסו לפסיפס' : P.layout === 'carousel' ? 'סדר הקרוסלה' : 'האריח'}</span><span class="sp"></span><button class="btn ghost" data-choose>${ic('grid', 's')}בחר אריחים אחרים</button></div>
+    <div class="chips">${(P.layout === 'single' ? cams.slice(0, 1) : P.layout === 'mosaic' ? cams.slice(0, 4) : cams).map((c, i) => `<span class="chip">${P.layout === 'carousel' ? `<span class="n">${i + 1}</span>` : ''}${esc(c.name)}</span>`).join('')}${P.layout === 'mosaic' && cams.length > 4 ? `<span class="chip" title="הפסיפס מוגבל ל-4 אריחים">+${cams.length - 4} לא ייכנסו</span>` : ''}</div>
+    ${mosaicOff ? `<div class="note" data-ann="9">${ic('warn', 's')} בדיקת העומס של המארח: הפסיפס רץ מתחת ל-1.5× זמן אמת, לכן מוצעת קרוסלה בלבד. פרטים: הגדרות › מולטימדיה › שידור למסך.</div>` : ''}`;
+  const phase1 = P.phase1 ? `<div class="note" data-ann="10">שלב 1 (לפני הפסיפס): הכפתור בקיר פותח את הבורר ל<b>מצלמה אחת מהקיר</b>: בוחרים אריח ואז מסך.</div><div class="chips">${CAMS.slice(0, 9).map((c, i) => `<button class="chip" aria-pressed="${i === 0}">${esc(c.name)}</button>`).join('')}</div>` : '';
+  const ctx = { profile: 'sub', codec: 'H.264', canPublic: false, sessions: P.sessions(), selected: P.target };
+  return `<div class="sheet-head"><div class="h"><h2>שדר את הקיר למסך</h2><div class="sub">כל המצלמות · עמוד 1 · ${P.phase1 ? 'מצלמה אחת' : P.layout === 'mosaic' ? 'פסיפס' : P.layout === 'carousel' ? 'קרוסלה' : 'מצלמה אחת'}</div></div><button class="xbtn" data-close aria-label="סגירה">${ic('x', 's')}</button></div>
+    <div class="sheet-body">${layouts}${phase1}<div class="sec-h">${P.phase1 ? '' : '2 · '}לאיזה מסך?</div>${pickerList(ctx)}
+    <div class="pk-foot"><span class="timer">${ic('clock', 's')}יעצור לבד אחרי 30 דקות</span><span class="sp"></span><span>${P.layout === 'mosaic' ? 'פסיפס אחד בכל פעם בהתקנה' : 'וידאו בלבד'}</span></div></div>`;
+}
+function page(state) { applyState(state); return body(); }
+function body() {
+  const s = P.session;
+  const castBtn = `<button class="btn ${s ? 'on' : ''}" data-cast aria-haspopup="dialog" data-ann="1">${ic(s ? 'castOn' : 'cast', 's')}שדר למסך</button>`;
+  const actsDesk = `<span class="cq-desk">${trayPill(P.sessions(), { ann: 4 })}<span class="field">תצוגה: כל המצלמות</span><span class="field">איכות: ברירת מחדל (רגילה)</span><div class="layouts" role="group" aria-label="פריסה">${[1, 4, 6, 9, 16].map((n) => `<button class="${n === P.count ? 'on' : ''}">${n}</button>`).join('')}</div>${castBtn}<button class="btn ghost">${ic('expand', 's')}קיוסק</button></span>`;
+  const actsPhone = `<span class="cq-phone">${trayPill(P.sessions(), {})}<span class="field">איכות: אוטו</span><span class="field">${P.count} מצלמות</span><button class="btn icon" data-cast aria-label="שדר למסך" data-ann="1">${ic(s ? 'castOn' : 'cast', 's')}</button><button class="btn icon ghost" aria-label="קיוסק">${ic('expand', 's')}</button></span>`;
+  const selbar = P.selecting ? `<div class="selbar" data-ann="3">${ic('grid', 's')}נבחרו ${P.selected.length} אריחים לשידור${P.selected.length > 4 && P.layout === 'mosaic' ? ' · הפסיפס לוקח את 4 הראשונים' : ''}<span class="sp"></span><button class="btn primary" data-sel-done>${ic('cast', 's')}המשך לבחירת מסך</button><button class="btn ghost" data-sel-cancel>ביטול</button></div>` : '';
+  const sessbar = s ? `<div class="selbar">${ic('cast', 's')}${s.layout === 'mosaic' ? 'פסיפס 2×2' : 'קרוסלה'} משודר אל ${esc(SCREEN[s.key].room)} · <span class="num">יעצור ב־${s.until}</span><span class="sp"></span><button class="btn" data-extend>עוד 30 דקות</button><button class="btn danger" data-stop>עצור</button></div>` : '';
+  return `${pageHead('כל המצלמות', `${P.count} מצלמות · נתוני הדגמה`, actsDesk + actsPhone)}${selbar}${sessbar}${tvPreview()}${wallHtml()}
+    <div class="note cq-desk">עמודות: <span class="chip" aria-pressed="true">אוטו</span></div>`;
+}
+function rerender() { document.getElementById('content').innerHTML = body(); wire(); Ann.place(); }
+function openPicker() {
+  Sheet.open(pickerHtml, { wide: true });
+  Sheet.el.addEventListener('click', (e) => {
+    const l = e.target.closest('[data-lay]'); if (l && !l.disabled) { P.layout = l.dataset.lay; Sheet.rebuild(); return; }
+    if (e.target.closest('[data-choose]')) { Sheet.close(); P.open = false; P.selecting = true; rerender(); return; }
+    const p = e.target.closest('[data-pick]'); if (p) { if (p.getAttribute('aria-disabled') === 'true') { Mock.toast(p.title); return; } startCast(p.dataset.pick); }
+  });
+}
+function startCast(key) {
+  Sheet.close(); P.open = false;
+  if (!P.selected.length) P.selected = CAMS.slice(0, 4).map((c) => c.id);
+  const lay = P.phase1 ? 'single' : P.layout;
+  P.session = { key, cam: lay === 'single' ? CAM[P.selected[0]].name : `${lay === 'mosaic' ? Math.min(4, P.selected.length) : P.selected.length} מצלמות`, state: 'playing', kind: lay === 'single' ? 'camera' : 'wall', user: 'me', until: '14:32', left: 30, total: 30, ext: 0, layout: lay === 'single' ? 'mosaic' : lay };
+  if (lay === 'single') P.selected = P.selected.slice(0, 1);
+  rerender(); Mock.toast('מתחבר… "משדר" ייקבע כשהמסך ימשוך את המקטע הראשון');
+}
+function wire() {
+  const c = document.getElementById('content');
+  c.querySelectorAll('[data-cast]').forEach((b) => b.addEventListener('click', () => { if (P.session) { openTray(); return; } P.open = true; openPicker(); }));
+  c.querySelectorAll('[data-tile]').forEach((t) => t.addEventListener('click', () => { if (!P.selecting) return; const id = t.dataset.tile; P.selected = P.selected.includes(id) ? P.selected.filter((x) => x !== id) : [...P.selected, id]; rerender(); }));
+  c.querySelector('[data-sel-done]')?.addEventListener('click', () => { P.selecting = false; P.open = true; rerender(); openPicker(); });
+  c.querySelector('[data-sel-cancel]')?.addEventListener('click', () => { P.selecting = false; rerender(); });
+  c.querySelector('[data-stop]')?.addEventListener('click', () => { P.session = null; Mock.toast('השידור נעצר'); rerender(); });
+  c.querySelector('[data-extend]')?.addEventListener('click', () => { P.session.until = '15:02'; P.session.left += 30; P.session.total += 30; Mock.toast('הוארך עד 15:02'); rerender(); });
+  c.querySelectorAll('[data-tray]').forEach((b) => b.addEventListener('click', (e) => openTray(e.currentTarget)));
+}
+function openTray(anchor) {
+  Tray.open(() => trayHtml(P.sessions(), { cap: 2 }), anchor || document.querySelector('[data-tray]'));
+  Tray.el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-stop]')) { P.session = null; Tray.close(); rerender(); }
+    if (e.target.closest('[data-extend]')) { P.session.until = '15:02'; P.session.left += 30; P.session.total += 30; Tray.rebuild(); rerender(); }
+  });
+}
+Mock.boot({
+  page: 'wall', nav: 'security', states: STATES, render: page,
+  after: () => { wire(); if (P.open) setTimeout(openPicker, 60); },
+  note: (state) => ({
+    idle: '<b>1</b> כפתור "שדר למסך" בסרגל הפעולות של הקיר, ליד "קיוסק" (אותו מקום שהקיר מציב פעולות). בטלפון: אייקון בלבד בשורת הסרגל האחת. מוצג רק עם הרשאה + מסך זמין.',
+    picker: '<b>2</b> הבורר של הקיר הוא גיליון רחב בשני צעדים: (1) מה לשדר: פסיפס 2×2 (ברירת מחדל: 4 האריחים הראשונים של העמוד הנוכחי), קרוסלה (כל האריחים, זמן לכל מצלמה), או מצלמה אחת; (2) לאיזה מסך: אותה רשימה כמו במצלמה בודדת. "בחר אריחים אחרים" חוזר לקיר במצב בחירה.',
+    select: '<b>3</b> מצב בחירת אריחים: תיבות סימון על האריחים, פס עליון עם המונה ו"המשך לבחירת מסך". הפסיפס לוקח עד 4; הקרוסלה - את כולם לפי הסדר.',
+    mosaic: '<b>4</b> גלולת "משדר 1" בכותרת; <b>5</b> תג "משדר" על כל אריח שבפסיפס; פס מצב מעל הקיר עם "עוד 30 דקות" / "עצור"; <b>6</b> תצוגה מקדימה של מה שהמסך מציג (זרם אחד, שמות צרובים).',
+    carousel: '<b>7</b> בקרוסלה האריח שעל המסך מסומן "עכשיו על המסך", השאר "בתור"; <b>8</b> התצוגה המקדימה מראה את הבאה בתור ואת זמן המעבר. המעבר על HLS = 3-8 שניות שחור (כנה).',
+    cpu: '<b>9</b> בדיקת העומס של המארח (10 ש׳ פסיפס, מתחת ל-1.5× זמן אמת): הפסיפס מושבת עם הסיבה; הקרוסלה נשארת. ההסבר הטכני בהגדרות בלבד.',
+    phase1: '<b>10</b> שלב 1 (לפני שהפסיפס נבנה): הכפתור בקיר פותח את הבורר ל"מצלמה אחת מהקיר": בוחרים אריח ואז מסך. אותו כפתור, אותו מקום - ההתנהגות גדלה בשלב 2.',
+  }[state] || ''),
+});
+</script>
+</body>
+</html>
