@@ -240,14 +240,32 @@ screen said "requires a media server"; it now declares `rtsp`. A seek sent to th
 screen's player ("session replaced") - expected: the screen owns its session. Not measured: frame accuracy, speeds other than
 x1, reconnect after a network drop, two cameras in sync.
 
-**Second run (same set-up, 2026-10-04 evening; low confidence, to be repeated).** First frame 18.6 s (the first run's 6 s
+**Second run (same set-up, 2026-10-04 evening; superseded by the third run below).** First frame 18.6 s (the first run's 6 s
 was with a warm go2rtc producer). Speed control: x0.25, x0.5 and x1 offered, x2 and x4 disabled by the screen (RTSP
 playback has no fast-forward on this firmware). Real-time advance read 0.36-0.71 s of media per 6 s - implausibly low next to
 the first run's 5.7-6.0 s; the cause is not established (the samples followed the speed changes, so a re-buffering player or
 the probe itself is suspected); NOT accepted as a result. +/-10 s nudges landed on the requested position and played
 again after about 20 s. Producer-drop recovery: 10.1 s measured, but the script's drop was not a faithful network drop, so the
 number is NOT accepted either. No `smplwise_pb_` stream left in HA2's go2rtc (0).
-Open: rerun advance and drop recovery with the corrected script.
+**Third run (2026-10-05 night, corrected script; accepted).** Every sample starts only once the player reports playing with
+data ready; the advance is sampled every second for 12 s (media time and the screen's own position, generation tracked).
+Channel 2, a 353 s recording segment, real NVR read-only, HA2 go2rtc (only our own `smplwise_pb_` stream; every other stream
+unchanged, 0 left after close):
+
+| Measure | Result |
+|---|---|
+| Open playback -> first frame | 7.7 s |
+| Advance at x1 (twice, before and after the speed changes) | 12.44 s of media in 12.4 s (ratio 1.00), screen position +12.5 s, 0 stalls, no new generation |
+| x0.5 | 6.15 s in 12.3 s (0.50), position +6.3 s, settled in 0.2 s, no new generation |
+| x0.25 | 3.10 s in 12.4 s (0.25), position +3.1 s, settled in < 0.1 s, no new generation |
+| x2 / x4 | disabled by the screen (no fast-forward on RTSP playback for this firmware) |
+| Resume at the current position (a new start, what the screen does after a failure) | playing again after 8.6 s |
+
+The second run's low advance numbers were a measurement artefact (samples taken before the player was ready). **Drop recovery
+is still not measured:** deleting our own stream in go2rtc's configuration does not end a running go2rtc session - playback
+continued for the full 60 s observation without a single stall - so that proxy cannot simulate a network drop (and the second
+run's 10.1 s was not a recovery either). A real drop needs the network path to the NVR cut for a moment, which is a network
+change outside the read-only approval; it is left for an owner-approved session (or a fake RTSP source in a test rig).
 
 ### 6.5 Security review fixes (2026-10-04/05, branch pilot/provision-wiring)
 
