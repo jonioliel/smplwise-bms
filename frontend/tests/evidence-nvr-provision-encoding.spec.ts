@@ -80,7 +80,7 @@ test.describe('CR-025 NN2B Provision encoding editor (mocked backend)', () => {
     const field = (f: string) => drawer.locator(`[data-field="${f}"]`);
     for (const f of ['codec', 'profile', 'resolution', 'fps', 'bitrate_mode', 'bitrate_kbps', 'quality', 'gop', 'smart_codec']) await expect(field(f)).toHaveCount(1);
     for (const f of ['svc', 'b_frames']) await expect(field(f)).toHaveCount(0);
-    await expect(field('quality').locator('select option')).toHaveCount(6); // "leave as is" + 1..5
+    await expect(field('quality').locator('select option')).toHaveCount(5); // 1..5: the stream already has a quality (4), so no empty placeholder option
     await shot(page, 'provision-enc-02-editor');
     // layout guard (this screen's own box): inside the viewport, no horizontal scroll, controls inside the panel
     const bad = await drawer.evaluate((el) => {

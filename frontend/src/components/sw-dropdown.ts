@@ -83,6 +83,8 @@ export class SwDropdown extends LitElement {
   @property() placeholder = '';
   /** Fills its flexible box (a chip of the pair row: equal widths, min 0, the text ellipsised). */
   @property({ type: Boolean, reflect: true }) block = false;
+  /** 2.0.4: the chip box itself is the touch target (the desktop dial, 44 px on touch layouts) - for a toolbar control pressed on its own (the live wall's columns). */
+  @property({ type: Boolean, reflect: true }) tall = false;
   /** 0.1.157: the style (attribute `dd-style`, reflected so the per-style CSS below matches the host); `auto` / unknown = today's look. */
   @property({ attribute: 'dd-style', reflect: true }) ddStyle: DdStyle = 'auto';
   /** Unreleased: the size (attribute `dd-size`, reflected): `md` = the reference size (and today's size of every other style), `sm` smaller, `lg` bigger. */
@@ -479,11 +481,16 @@ export class SwDropdown extends LitElement {
     :host([multiple]) .chip {
       min-block-size: var(--sw-touch-desktop, 44px);
     }
-    :host([multiple]) .chip::after {
+    :host([tall]) .chip {
+      min-block-size: var(--sw-touch-desktop, 44px);
+    }
+    :host([multiple]) .chip::after,
+    :host([tall]) .chip::after {
       inset-block: 0;
     }
     @media (max-width: 1100px), (pointer: coarse) {
-      :host([multiple]) .chip {
+      :host([multiple]) .chip,
+      :host([tall]) .chip {
         min-block-size: 44px;
       }
     }
