@@ -13,6 +13,7 @@ import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { applyAreaLinks, getAreaLinks, type AreaLinkRow, type AreaLinksTable } from '../api/plan-links';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { zoneKindLabel, type ZoneKind } from '../api/zones';
 
 type Filter = 'all' | 'suggested' | 'linked' | 'none';
 
@@ -197,7 +198,7 @@ export class PlanAreaLinksAdmin extends LitElement {
             <tbody>
               ${rows.map((r) => html`<tr data-area-link-row=${r.zone_id} data-status=${r.status}>
                 <td>${r.status === 'suggested' ? html`<input type="checkbox" aria-label=${`אשר הצעה ל${r.zone_name}`} .checked=${this.selected.has(r.zone_id)} ?disabled=${this.busy} @change=${(e: Event) => this.toggle(r.zone_id, (e.target as HTMLInputElement).checked)} />` : nothing}</td>
-                <td>${bidi(r.zone_name || 'חדר ללא שם')}<div class="muted">${r.kind}</div></td>
+                <td>${bidi(r.zone_name || 'חדר ללא שם')}<div class="muted">${zoneKindLabel(r.kind as ZoneKind)}</div></td>
                 <td>${bidi(r.floor_name)}<div class="muted">${bidi(r.building_name)}</div></td>
                 <td class="area">
                   <select data-area-link-select ?disabled=${this.busy} @change=${(e: Event) => void this.apply([{ zone_id: r.zone_id, area_id: (e.target as HTMLSelectElement).value || null }], 'עודכן')}>
