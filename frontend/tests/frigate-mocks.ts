@@ -131,8 +131,8 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
       const still = m.stillRefreshS ? { still_refresh_s: m.stillRefreshS } : {};
       const cameras = [
         cam('hk-1', 'לובי', 'nvr-1', 1),
+        cam('fg-off', 'מצלמה כבויה', 'nvr-2', 9, { status: 'offline' }), // second: the wall shows the first four
         ...FRIGATE_CAMERAS.map((c, i) => cam(c.id, c.name, 'nvr-2', i + 1, still)),
-        cam('fg-off', 'מצלמה כבויה', 'nvr-2', 9, { status: 'offline', sort_order: 1.5 }),
       ];
       return json({ cameras, recorders: [{ id: 'nvr-1', name: 'מקליט ראשי' }, { id: 'nvr-2', name: 'Frigate מחסן' }], recorder: null, can_sync: false });
     }
