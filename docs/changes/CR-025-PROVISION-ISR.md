@@ -417,3 +417,10 @@ gate: NOT_RUN (the runner is busy with a tier-L gate; this slice adds new files 
 ל־JPEG); מקור לייצוא (RTSP במצב גיבוי, פי 8 מהזמן האמיתי). זמנים: המכשיר כותב שעון מקומי בלי אזור; ההמרה לפי חוק השעון
 של המכשיר עצמו, כולל מעבר לשעון קיץ וחזרה ממנו, ודיווח על שבוע ב־2028 שבו חוק המכשיר שונה מחוק ישראל. עדיין לא חובר
 למסכים (מחכה למיזוג ניהול מספר מקליטים).
+
+## Health monitoring (CR-026)
+
+Recorder health (disks, recording per channel, channel connectivity, clock drift, API reachability / latency, pinned
+certificate expiry) is specified in `docs/changes/CR-026-NVR-HEALTH.md`. The Provision adapter implements it as
+`read_health()` (reads `GetDiskInfo`, `GetRecordStatusInfo`, `GetChannelList`, `GetAlarmStatus`, `GetDateAndTime`; all in
+`READ_COMMANDS`) and declares `health_detail=True`.

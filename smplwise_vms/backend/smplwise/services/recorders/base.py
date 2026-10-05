@@ -34,6 +34,7 @@ class RecorderCapabilities:
     live: Literal["rtsp", "none"]
     playback: Literal["rtsp", "hls", "none"]
     events: Literal["push", "poll", "none"]
+    health_detail: bool = False  # CR-026: the adapter implements `read_health` (disks, recording, channels, clock, certificate)
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,49 @@ class WriteOutcome:
     device_status: str
     reboot_required: bool
     verified: StreamSnapshot
+
+
+# ---------------------------------------------------------------------------------------------- health detail (CR-026)
+
+# Normalized disk states. A vendor maps its own words onto these; `raw` keeps the device's word as evidence.
+DISK_STATES = ("ok", "read_only", "locked", "unformatted", "formatting", "error", "missing", "unknown")
+
+
+@dataclass(frozen=True)
+class DiskReading:
+    ref: str  # the disk's position on the device ("1", "2", ...), never its serial or UUID
+    state: str  # one of DISK_STATES
+    raw: str | None
+    total_mb: int | None
+    free_mb: int | None
+
+
+@dataclass(frozen=True)
+class ChannelReading:
+    channel: int
+    connected: bool | None  # None = the device does not say
+    record_state: str | None  # "recording" | "idle" | "exception" | None (not reported)
+
+
+@dataclass(frozen=True)
+class HealthReading:
+    """One health read of a recorder (`HealthReader.read_health`). Every part is None when it could not be read; `errors`
+    names the part and the ApiError code (a partial read is still a reading). `clock_drift_s` = device clock minus the host's,
+    seconds, positive when the device is ahead. `certificate` only for pinned HTTPS connections: {"not_after": ISO UTC,
+    "self_signed": bool | None}."""
+    disks: tuple[DiskReading, ...] | None = None
+    channels: tuple[ChannelReading, ...] | None = None
+    clock_drift_s: float | None = None
+    clock_sync: str | None = None  # "NTP" | "manually" | ... (the device's word)
+    disk_alarms: tuple[str, ...] = ()  # active device-level disk alarm kinds (the device's own names)
+    certificate: dict[str, object] | None = None
+    errors: dict[str, str] = field(default_factory=dict)
+
+
+class HealthReader(Protocol):
+    """Optional adapter ability, declared by `RecorderCapabilities.health_detail`. Read-only, bounded, device I/O only."""
+
+    def read_health(self) -> HealthReading: ...
 
 
 class RecorderAdapter(Protocol):

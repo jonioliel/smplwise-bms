@@ -44,7 +44,8 @@ from .. import nvr
 from ..events_ingest import ParsedAlert
 from . import provision_isr_auth as pauth
 from . import provision_isr_xml as px
-from .base import ChannelInfo, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions, StreamSnapshot, WriteOutcome
+from .base import (ChannelInfo, ChannelReading, DiskReading, HealthReading, RecorderCapabilities, RecorderHealth, StreamEncoding, StreamOptions,
+                   StreamSnapshot, WriteOutcome)
 
 VENDOR = "provision_isr"
 
@@ -75,6 +76,46 @@ PIN_TTL_S = 600.0  # device_key -> non-secret facts of the last challenge (provi
 _REFUSED: dict[str, float] = {}  # device_key -> no login attempt before this (monotonic)
 _AUTH_LOCK = threading.Lock()
 _monotonic = time.monotonic
+_CERTS: dict[str, tuple[float, dict[str, Any]]] = {}  # device_key -> (expires at, certificate facts) - CR-026
+CERT_TTL_S = 6 * 3600.0
+
+# CR-026 health detail: the device's words -> the normalized values of base.DISK_STATES / ChannelReading.record_state
+DISK_STATE = {"read/write": "ok", "readwrite": "ok", "normal": "ok", "read": "read_only", "readonly": "read_only", "locked": "locked",
+              "unformat": "unformatted", "unformatted": "unformatted", "formatting": "formatting", "exception": "error", "error": "error",
+              "abnormal": "error", "nodisk": "missing"}
+RECORD_STATE = {"recording": "recording", "norecording": "idle", "exception": "exception"}
+OFFLINE_ALARMS = frozenset({"chlOfflineAlarm", "videoLossAlarm", "chlVideoLoss"})
+DISK_ALARM = re.compile(r"disk|hdd", re.IGNORECASE)
+# a health read stops at these (the recorder is not answering, or must not be asked again now); other part failures are recorded
+STOP_CODES = frozenset({"source_forbidden", "source_unavailable", "source_timeout", "deadline_exceeded", "nvr_not_configured", "recorder_unavailable",
+                        "source_not_configured", "tls_pin_mismatch", "tls_pin_missing"})
+
+
+def disk_state(raw: str | None) -> str:
+    return DISK_STATE.get((raw or "").replace(" ", "").lower(), "unknown")
+
+
+def _time_doc(xml: str | bytes) -> dict[str, Any]:
+    """GetDateAndTime with `daylight_switch` (provision_playback.parse_time_doc, imported late: playback imports this module)."""
+    from .provision_playback import parse_time_doc
+
+    return parse_time_doc(xml)
+
+
+def clock_drift(facts: dict[str, Any], host_ts: float) -> float | None:
+    """Device clock minus host clock, seconds: the device's wall clock read with the device's own POSIX rule (the rule that
+    produced the digits; CR-025 P3), the IANA default zone when the rule is missing or unreadable. None when unreadable."""
+    from . import provision_time as pt
+
+    raw = facts.get("current_time")
+    if not raw:
+        return None
+    tz, _source = pt.device_zone(facts.get("time_zone"), facts.get("daylight_switch"), None)
+    try:
+        device = pt.wall_to_utc(str(raw), tz)
+    except ValueError:
+        return None
+    return round(device.timestamp() - host_ts, 1)
 
 
 def clear_auth_cache() -> None:
@@ -83,6 +124,7 @@ def clear_auth_cache() -> None:
         _REFUSED.clear()
         _CHALLENGE.clear()
         _PINNED.clear()
+        _CERTS.clear()
 
 
 AUTH_FLOOR_NAME = "provision_auth_floor.json"  # device_key -> strongest scheme seen in auto mode (no address, no secret)
@@ -410,6 +452,7 @@ class ProvisionIsrAdapter:
             vendor=self.vendor, read_encodings=True, write_encodings=self.writes_enabled, encoding_fields=frozenset(px.ENCODING_FIELDS),
             add_channel=False, remove_channel=False, max_channels=(self._info or {}).get("chl_max_count"),
             live="rtsp", playback="rtsp", events=self.event_mode(),  # P3: RTSP playback (provision_playback)  # type: ignore[arg-type]
+            health_detail=True,  # CR-026: read_health
         )
     def device_info(self, *, refresh: bool = False) -> dict[str, Any]:
         if self._info is None or refresh:
@@ -726,6 +769,77 @@ class ProvisionIsrAdapter:
             return {1: True}
         return {ch: px.CHANNEL_ONLINE.get(st or "") for ch, st in self._xml("GetChannelList", None, px.parse_channel_list)}
 
+    # ------------------------------------------------------------------------------------------ health detail (CR-026)
+
+    def read_health(self) -> HealthReading:
+        """Disks, recording state, channel connectivity, disk alarms, clock drift and (pinned HTTPS) the certificate's expiry:
+        GetDiskInfo, GetRecordStatusInfo, GetChannelList (NVR), GetAlarmStatus, GetDateAndTime, plus at most one TLS handshake per
+        CERT_TTL_S. Each part is read on its own; a failed part is named in `errors`, but a refusal of the credentials or an
+        unreachable device stops the read (STOP_CODES: the caller reports the recorder as not answering)."""
+        errors: dict[str, str] = {}
+
+        def part(name: str, fn: Callable[[], Any]) -> Any:
+            try:
+                return fn()
+            except ApiError as exc:
+                if exc.code in STOP_CODES:
+                    raise
+                errors[name] = exc.code
+                return None
+
+        raw_disks = part("disks", self.storage)
+        disks: tuple[DiskReading, ...] | None = None
+        if raw_disks is not None:
+            disks = tuple(DiskReading(ref=str(i + 1), state=disk_state(d.get("status")), raw=(d.get("status") or None),
+                                      total_mb=d.get("total_mb"), free_mb=d.get("free_mb")) for i, d in enumerate(raw_disks))
+            if not disks and self.kind() == "nvr":
+                disks = (DiskReading(ref="0", state="missing", raw=None, total_mb=None, free_mb=None),)
+        record = part("recording", self.record_status)
+        states = part("channels", self.channel_states)
+        alarms = part("alarms", self.alarm_status) or {}
+        offline_by_alarm = {i for (k, i), on in alarms.items() if on and i is not None and k in OFFLINE_ALARMS}
+        disk_alarms = tuple(sorted({k for (k, _i), on in alarms.items() if on and DISK_ALARM.search(k)}))
+        channels: tuple[ChannelReading, ...] | None = None
+        if states is not None or record is not None:
+            out = []
+            for ch in sorted(set(states or {}) | set(record or {})):
+                connected = (states or {}).get(ch)
+                if ch in offline_by_alarm:
+                    connected = False
+                st = ((record or {}).get(ch) or {}).get("state")
+                out.append(ChannelReading(channel=int(ch), connected=connected, record_state=RECORD_STATE.get(st or "") if record is not None else None))
+            channels = tuple(out)
+        drift, sync = None, None
+        t0 = time.time()
+        facts = part("clock", lambda: self._xml("GetDateAndTime", None, _time_doc, timeout=HEALTH_TIMEOUT_S))
+        t1 = time.time()
+        if facts:
+            sync = facts.get("sync")
+            drift = clock_drift(facts, (t0 + t1) / 2)
+            if drift is None:
+                errors["clock"] = "unparsable"
+        cert = part("certificate", self.certificate_facts)
+        return HealthReading(disks=disks, channels=channels, clock_drift_s=drift, clock_sync=sync, disk_alarms=disk_alarms,
+                             certificate=cert, errors=errors)
+
+    def certificate_facts(self) -> dict[str, Any] | None:
+        """Pinned HTTPS only: the device certificate's expiry (one TLS handshake, no credentials), cached CERT_TTL_S per device."""
+        if self.scheme != "https" or self.tls_mode() != "pin":
+            return None
+        key = self.device_key
+        with _AUTH_LOCK:
+            hit = _CERTS.get(key)
+        if hit and hit[0] > _monotonic():
+            return dict(hit[1])
+        try:
+            got = PEER_CERTIFICATE(self._settings.nvr_host or "", int(self._extra.get("https_port") or 443), HEALTH_TIMEOUT_S)
+        except OSError as exc:
+            raise _unavailable("tls", exc) from exc
+        facts = {"not_after": got.get("not_after"), "self_signed": got.get("self_signed")}
+        with _AUTH_LOCK:
+            _CERTS[key] = (_monotonic() + CERT_TTL_S, facts)
+        return dict(facts)
+
     def poll_events(self, tracker: "AlarmTracker", *, channels: bool = True) -> list[ParsedAlert]:
         """One short-polling round: GetAlarmStatus (+ GetChannelList on an NVR for camera offline / back online), turned
         into edge events by `tracker`. The caller decides the interval (CR-025: 2 s default, never below 1 s)."""
@@ -1016,14 +1130,17 @@ def peer_certificate(host: str, port: int, timeout: float) -> dict[str, Any]:
     with socket.create_connection((host, port), timeout=timeout) as sock, ctx.wrap_socket(sock, server_hostname=host) as tls:
         der = tls.getpeercert(binary_form=True) or b""
     self_signed: bool | None = None
+    not_after: str | None = None
     try:
         from cryptography import x509
 
         cert = x509.load_der_x509_certificate(der)
         self_signed = cert.issuer == cert.subject
+        end = getattr(cert, "not_valid_after_utc", None) or cert.not_valid_after  # CR-026: expiry for the health monitor
+        not_after = end.strftime("%Y-%m-%dT%H:%M:%SZ")
     except Exception:  # noqa: BLE001 - optional detail
         pass
-    return {"sha256": hashlib.sha256(der).hexdigest(), "self_signed": self_signed}
+    return {"sha256": hashlib.sha256(der).hexdigest(), "self_signed": self_signed, "not_after": not_after}
 
 
 PEER_CERTIFICATE = peer_certificate  # tests replace this (no sockets)

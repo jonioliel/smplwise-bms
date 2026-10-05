@@ -1,5 +1,34 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+
+### Recorder health monitoring (CR-026, `pilot/nvr-health`, release 2.0.0)
+No migration. Read-only: the monitor sends device reads only.
+- **English - what was added:** every recorder is checked once a minute: is it answering and how fast; for Provision-ISR also the
+  disks (read-only, locked, unformatted, error, no disk, disk alarms; a forecast of how soon the disks fill, off by default because
+  an overwriting recorder is always full), recording faults the recorder reports (and, on recorders you mark as recording
+  continuously, cameras that stopped recording - off by default, many units record on motion only), which cameras are disconnected, the recorder's clock against the system's, and when its pinned HTTPS certificate expires.
+  Problems become notifications (new sources `recorder.unreachable`, `recorder.slow`, `recorder.disk`, `recorder.disk_space`,
+  `recorder.recording`, `recorder.clock`, `recorder.certificate`; camera disconnects stay `camera.offline` and are noticed within a
+  minute) with a hold before announcing, bands around numeric thresholds, a 2-minute clear period before a recovery notice, and no
+  resolution while a part cannot be read. Other vendors get reachability and latency now and plug in their detail through the
+  adapter's new `read_health`.
+- **English - bugs fixed:** the health report grid overflowed a 320 px phone.
+- **English - how to use:** הגדרות › בריאות ועבודות shows a card per recorder and "בדוק עכשיו"; system administrators change the
+  thresholds under "ספי התראה למקליטים" (which recorders record continuously, gap, clock drift, latency, disk fill days, certificate days, clear
+  period, interval). Notification channels and recipients of the new sources are in הגדרות › התראות. API: `GET /recorder-health`,
+  `POST /recorder-health/check`, `GET|PUT /recorder-health/settings`.
+- **עברית - מה נוסף:** כל מקליט נבדק פעם בדקה: האם הוא עונה ובאיזו מהירות; במקליטי Provision-ISR גם הדיסקים (לקריאה בלבד, נעול,
+  לא מאותחל, תקלה, אין דיסק, התרעת דיסק; תחזית מילוי הדיסק כבויה כברירת מחדל כי מקליט שדורס הקלטות ישנות תמיד מלא), תקלות הקלטה
+  שהמקליט מדווח עליהן (ובמקליטים שסומנו "הקלטה רציפה" גם מצלמה שהפסיקה להקליט - כבוי כברירת מחדל, רוב המקליטים מקליטים בתנועה
+  בלבד), אילו מצלמות מנותקות, סטיית השעון של המקליט
+  מול שעון המערכת, ומתי פגה תעודת ה־HTTPS הנעוצה. תקלות הופכות להתראות, עם המתנה לפני הודעה, טווח ביטחון סביב ספים מספריים,
+  שתי דקות של תקינות לפני הודעת חזרה, ובלי סגירת התראה כשאי אפשר לקרוא את החלק. ניתוק מצלמה נשאר ההתראה "מצלמה לא זמינה" ומזוהה
+  תוך דקה. יצרנים אחרים מקבלים כבר עכשיו בדיקת תקשורת וזמן תגובה.
+- **עברית - תיקונים:** רשת כרטיסי בריאות המערכת גלשה מרוחב טלפון של 320 פיקסלים.
+- **עברית - איך מפעילים:** הגדרות › בריאות ועבודות: כרטיס לכל מקליט וכפתור "בדוק עכשיו". מנהל מערכת משנה את הספים ב"ספי התראה
+  למקליטים", ושם גם מסמן אילו מקליטים מקליטים ברציפות. ערוצי ההתראה והנמענים של המקורות החדשים נמצאים בהגדרות › התראות.
+
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
 ### Several recorders in one system (CR-024)
