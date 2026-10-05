@@ -360,7 +360,10 @@ export type HaPush =
   /** CR-015: the media model was rebuilt, or a curation / approval / layout changed (no ids): the multimedia screens refetch. */
   | { type: 'media_devices_changed'; reason: string }
   /** CR-016: a saved group or the favourites curation changed (no ids): the groups page and the settings refetch. */
-  | { type: 'media_groups_changed' };
+  | { type: 'media_groups_changed' }
+  /** CR-028: a cast session started, extended, switched or ended (deliberately without a session id, screen or camera - the frame reaches every socket):
+   * the client refetches `GET multimedia/cast/sessions` with its own permissions. */
+  | { type: 'cast_sessions_changed'; reason: string };
 
 /** Subscribe to entity state pushes scoped to what the user may see; returns a stop function. */
 export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connected: boolean) => void): () => void {
@@ -396,6 +399,7 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
         else if (env.type === 'media_state') onMessage({ type: 'media_state', device_key: String(env.payload.device_key ?? ''), entity_id: String(env.payload.entity_id ?? ''), live: env.payload.live as unknown as MediaLive });
         else if (env.type === 'media_devices_changed') onMessage({ type: 'media_devices_changed', reason: String(env.payload?.reason ?? '') });
         else if (env.type === 'media_groups_changed') onMessage({ type: 'media_groups_changed' });
+        else if (env.type === 'cast_sessions_changed') onMessage({ type: 'cast_sessions_changed', reason: String(env.payload?.reason ?? '') });
       } catch {
         /* ignore malformed frames */
       }

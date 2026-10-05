@@ -8,10 +8,13 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './system-multimedia-players';
+import './system-cast'; // CR-028: שידור למסכים + המסכים שלי לשידור
+import '../components/sw-tabs';
 import { ApiError, describeError, patch } from '../api/client';
 import { can, isApi, session } from '../api/session';
 import { invalidateSettings, productSettings } from '../api/prefs';
 import { applyMultimediaHidden } from '../shell/nav';
+import { replaceRoute } from '../router';
 import { SECTION_LABEL, media, type KeyId, type MediaKind, type MediaStatus, type ProfileId, type RemoteConfig, type RemoteSection } from '../api/media-screens';
 import {
   CONFIDENCE_LABEL, CONTROL_LABEL, KIND_LABEL, PROFILE_LABEL, ROLE_LABEL, mediaAdmin,
@@ -61,11 +64,17 @@ export class SystemMultimedia extends LitElement {
   @state() private open = new Set<string>();
   @state() private editing = new Set<string>();
   @state() private view: ListView = { ...DEFAULT_VIEW };
+  /** CR-028: the page's views - the screens and players as before, the casting administration, and "המסכים שלי לשידור" (`?tab=cast|mine`). */
+  @state() private tab: 'main' | 'cast' | 'mine' = 'main';
   private noteTimer = 0;
 
   static styles = [mediaAdminListCss, css`
     :host {
       display: block;
+    }
+    sw-tabs {
+      --sw-tab-min-h: 44px;
+      margin-block-end: 10px;
     }
     .stack {
       display: flex;
@@ -260,6 +269,7 @@ export class SystemMultimedia extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.view = loadView('screens', session.me?.user.id ?? '');
+    this.readTab();
     void this.load();
   }
 
@@ -502,15 +512,34 @@ export class SystemMultimedia extends LitElement {
     </sw-card>`;
   }
 
+  private readTab() {
+    const q = (window.location.hash.split('?')[1] ?? '').split('&').find((x) => x.startsWith('tab='))?.slice(4);
+    this.tab = q === 'cast' || q === 'mine' ? q : 'main';
+  }
+
+  private setTab(id: string) {
+    const next = id === 'cast' || id === 'mine' ? id : 'main';
+    this.tab = next;
+    replaceRoute('/system/multimedia', next === 'main' ? undefined : new URLSearchParams({ tab: next }));
+  }
+
+  /** CR-028: the page's views. The casting tabs do not wait for (or depend on) the screens list: they load their own data. */
+  private tabsRow(): TemplateResult {
+    return html`<sw-tabs variant="underline" data-mm-tabs .items=${[{ id: 'main', label: 'מסכים ונגנים' }, { id: 'cast', label: 'שידור למסכים' }, { id: 'mine', label: 'המסכים שלי לשידור' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>`;
+  }
+
   render() {
     if (this.phase === 'forbidden') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
+    if (this.tab === 'cast') return html`<sw-page heading="מולטימדיה" subheading="שידור מצלמות למסכים">${this.tabsRow()}<system-cast></system-cast></sw-page>`;
+    if (this.tab === 'mine') return html`<sw-page heading="מולטימדיה" subheading="המסכים שאפשר לשדר אליהם">${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
     if (this.phase === 'loading') return html`<sw-page heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page heading="מולטימדיה">${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const st = this.status;
     const screens = this.list.devices.filter((d) => d.kind === 'screen');
     const pending = screens.filter((d) => !d.approved).length;
     const bridge = st?.bridge;
     return html`<sw-page heading="מולטימדיה" subheading=${`${screens.filter((d) => d.approved).length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
+      ${this.tabsRow()}
       <div class="stack">
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <sw-card heading="כללי" data-mm-general>

@@ -14,6 +14,9 @@ const PATHS: Record<string, ReturnType<typeof svg>> = {
   play: svg`<path d="M7 5v14l11-7z"/>`,
   /* CR-015: the multimedia rail entry (a screen with a play mark) */
   media: svg`<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/><path d="m10.2 8.3 4.3 2.2-4.3 2.2z"/>`,
+  /* CR-028: casting a camera to a screen (a screen with the wireless arcs) */
+  cast: svg`<path d="M3 7.5V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/><path d="M3 12a9 9 0 0 1 9 9M3 16.5A4.5 4.5 0 0 1 7.5 21"/><path d="M3 21h.01"/>`,
+  stopSquare: svg`<rect x="6" y="6" width="12" height="12" rx="2"/>`,
   expand: svg`<path d="M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6"/>`,
   close: svg`<path d="M6 6l12 12M18 6 6 18"/>`,
   chevron: svg`<path d="m9 6 6 6-6 6"/>`,
