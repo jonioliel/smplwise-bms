@@ -86,9 +86,8 @@ test.describe('device activity popup', () => {
             st.feedMode = mode;
             await page.keyboard.press('Escape');
             await expect(opened(page)).toHaveCount(0);
+            await page.waitForTimeout(500); // the closing animation of the sheet must end before the next press
             await hold(page, target, LONG);
-            if (mode === 'slow') await shot(page, `dbg-slow-${tag}-${scheme}`);
-            if (mode === 'slow') console.log('DBG', await opened(page).count(), (await panel(page).innerHTML().catch(() => 'nopanel')).slice(0, 300), st.feedCalls.length);
             if (mode === 'slow') await expect(panel(page).locator('[data-feed-state="loading"]')).toBeVisible();
             else await expect(panel(page).locator(`[data-feed-state]`).first()).toBeVisible();
             await shot(page, `state-${mode}-${skin}-${tag}-${scheme}`);
