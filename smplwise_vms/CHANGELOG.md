@@ -1,5 +1,33 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased
+
+### Recordings: stall detection and automatic resume, every recorder vendor (`pilot/playback-stall-detection`)
+No migration, no restart; reload the web app once.
+- **English.** When the recording source stops (a network drop, a recorder stall) the playback screen no longer keeps "playing" a frozen
+  picture in silence. No media progress for 5 s while it should be playing (or a lost connection) shows **"מתחבר מחדש"** on the picture at
+  once; after a 2 s grace period - in case the media server recovers by itself - it resumes from the frozen position with the same mechanism
+  as a seek (a new generation of the same session; the server deletes the old generation's stream, only `smplwise_pb_*` names). Failed
+  attempts back off (3 s, then 6 s; an attempt that shows no progress within 20 s has failed); after 3 attempts the picture says
+  **"הניגון נעצר"** with **"נסה שוב"**, and the session is released so nothing keeps pulling from the recorder. A synchronized multi-camera
+  group is resumed as a whole (one group seek, all members or none). Pause, scrubbing, slow motion and a slow first start are never a
+  stall; a denial, a quota refusal or a generation replaced by another seek is never resumed; the end of the range keeps continuing to the
+  next segment as before. The diagnostics line shows the attempts. Applies to Hikvision and Provision-ISR alike (it works on the player's
+  media clock, not on the vendor).
+- **How to enable (English):** on by default. הגדרות › כללי › וידאו ומדיה → "זיהוי תקיעה בניגון (שניות)" (2-30, default 5) and
+  "ניסיונות חיבור מחדש אוטומטיים" (0-5, default 3; 0 = detect and stop without an automatic attempt) → "שמור".
+- **עברית.** כשמקור ההקלטה נעצר (ניתוק רשת, תקיעה במקליט) מסך ההקלטות כבר לא ממשיך "לנגן" תמונה קפואה בשקט. אחרי 5 שניות בלי התקדמות
+  (או ניתוק חיבור) מופיע על התמונה **"מתחבר מחדש"**; אחרי 2 שניות נוספות הנגן ממשיך אוטומטית מאותה נקודה, באותו מנגנון של קפיצה בציר
+  הזמן (דור חדש של אותו סשן, הזרם הקודם נמחק). ניסיון שנכשל ממתין 3 ואז 6 שניות; אחרי 3 ניסיונות מופיע **"הניגון נעצר"** עם **"נסה
+  שוב"**, והסשן משוחרר. ניגון מסונכרן של כמה מצלמות ממשיך כקבוצה אחת - כולן או אף אחת. השהיה, גרירה בציר, הילוך איטי ופתיחה איטית אינם
+  תקיעה; חסימת הרשאה או מכסה לא מנוסות שוב. עובד לכל סוגי המקליטים.
+- **איך מפעילים:** פעיל כברירת מחדל. הגדרות › כללי › וידאו ומדיה → "זיהוי תקיעה בניגון (שניות)" ו"ניסיונות חיבור מחדש אוטומטיים" → "שמור".
+- **Settings / API:** two new installation settings, `playback.stall_s` (int 2-30, default 5) and `playback.auto_resume_attempts` (int
+  0-5, default 3), in `GET|PATCH /settings`; read by the browser only. The live player's `player-status` event now carries `code` (the
+  socket close code or the relay's error value) on `error` and `ended`.
+- **Not measured on a real recorder yet:** the recovery time after a real network drop (needs an owner-approved session that cuts the path
+  to the NVR for a moment, or a fake RTSP source in a test rig); the tests use a mocked backend and a stubbed media clock.
+
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
 ### Several recorders in one system (CR-024)

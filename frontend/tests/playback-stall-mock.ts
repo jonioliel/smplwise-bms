@@ -15,7 +15,7 @@ export interface MockState {
   sockets: WebSocketRoute[];
 }
 
-export async function mock(page: Page, opts: { group?: boolean } = {}): Promise<MockState> {
+export async function mock(page: Page): Promise<MockState> {
   const now = Date.now();
   const from = iso(now - 30 * 60000);
   const to = iso(now - 2 * 60000);
@@ -125,7 +125,7 @@ export const setAdv = (page: Page, on: boolean) => page.evaluate((v) => ((window
 export async function openAndPlay(page: Page, hashQuery = '', urlQuery = 'design=a') {
   const at = iso(Date.now() - 20 * 60000);
   await page.goto('about:blank');
-  await page.goto(`/?#/investigate/playback?camera=c1&t=${at}${hashQuery}`);
+  await page.goto(`/?${urlQuery}#/investigate/playback?camera=c1&t=${at}${hashQuery}`);
   await expect(page.locator('investigate-playback sw-live-player').first()).toBeAttached({ timeout: 20000 });
   await fakePlay(page);
   await setAdv(page, true);

@@ -103,7 +103,7 @@ test.describe('playback stall: detect, reconnect, resume, give up', () => {
   });
 
   test('a synchronized group: one frozen tile resumes the whole group (one group seek, never a single member)', async ({ page }) => {
-    const st = await mock(page, { group: true });
+    const st = await mock(page);
     await openAndPlay(page, '&extra=c2');
     expect(st.groupCreates).toBe(1);
     await expect(page.locator('investigate-playback sw-live-player')).toHaveCount(2);
