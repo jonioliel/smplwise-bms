@@ -20,10 +20,22 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media';
-/** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds. */
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה' };
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher';
+/** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
+ * BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way. */
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר' };
+
+/** BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card). */
+export type TileStyle = 'card' | 'tile';
+export const TILE_STYLES: TileStyle[] = ['card', 'tile'];
+export const TILE_STYLE_LABEL: Record<TileStyle, string> = { card: 'כרטיס', tile: 'אריח' };
+export type AgendaDays = 1 | 3 | 7 | 14;
+export const AGENDA_DAYS: AgendaDays[] = [1, 3, 7, 14];
+export const AGENDA_DAYS_LABEL: Record<AgendaDays, string> = { 1: 'היום', 3: '3 ימים', 7: 'שבוע', 14: 'שבועיים' };
+export const AGENDA_CALENDARS_MAX = 6;
+/** How many events the agenda tile lists per size. */
+export const AGENDA_SHOWN: Record<Size, number> = { s: 1, m: 3, l: 6 };
 
 export type Size = 's' | 'm' | 'l';
 export const SIZES: Size[] = ['s', 'm', 'l'];
@@ -89,12 +101,28 @@ export interface ClockCfg extends CommonCfg {
   mode: ClockMode;
   seconds: boolean;
   hebrew: boolean;
+  style: TileStyle;
 }
 export interface WeatherCfg extends CommonCfg {
   entity: string;
   fields: WeatherField[];
   forecast: ForecastLen;
   sources: Partial<Record<WeatherField, string>>;
+  style: TileStyle;
+}
+/** BV1: the agenda tile - the chosen `calendar.*` entities and how far ahead it looks. */
+export interface AgendaCfg extends CommonCfg {
+  calendars: string[];
+  days: AgendaDays;
+}
+/** BV1: the quick-launcher grid (api/launcher.ts knows what each item means and who may press it). */
+export interface LaunchItemCfg {
+  kind: 'route' | 'scene' | 'script' | 'quick';
+  id: string;
+  label: string;
+}
+export interface LauncherCfg extends CommonCfg {
+  items: LaunchItemCfg[];
 }
 export type ShabbatCfg = CommonCfg;
 export interface AlarmCfg extends CommonCfg {
@@ -122,6 +150,8 @@ export interface HomeConfig {
   alarm: AlarmCfg;
   quick: QuickCfg;
   media: MediaCfg;
+  agenda: AgendaCfg;
+  launcher: LauncherCfg;
   calendar: CalendarCfg;
 }
 
@@ -132,6 +162,8 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   alarm: { a: 'm', b: 's', c: 'm' },
   quick: { a: 'm', b: 's', c: 'm' },
   media: { a: 'm', b: 's', c: 'm' },
+  agenda: { a: 'm', b: 'm', c: 'm' },
+  launcher: { a: 'm', b: 's', c: 'm' },
 };
 
 export function defaultConfig(): HomeConfig {
@@ -139,12 +171,14 @@ export function defaultConfig(): HomeConfig {
   return {
     order: [...WIDGET_IDS],
     phone_layout: PHONE_LAYOUT_DEFAULT,
-    clock: { ...base('clock'), mode: 'datetime', seconds: false, hebrew: true },
-    weather: { ...base('weather'), entity: '', fields: [...WEATHER_FIELDS_DEFAULT], forecast: '5', sources: {} },
+    clock: { ...base('clock'), mode: 'datetime', seconds: false, hebrew: true, style: 'card' },
+    weather: { ...base('weather'), entity: '', fields: [...WEATHER_FIELDS_DEFAULT], forecast: '5', sources: {}, style: 'card' },
     shabbat: base('shabbat'),
     alarm: { ...base('alarm'), entity: '' },
     quick: { ...base('quick'), actions: [...QUICK_ACTIONS] },
     media: base('media'),
+    agenda: { ...base('agenda'), calendars: [], days: 7 },
+    launcher: { ...base('launcher'), items: [] },
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -183,18 +217,32 @@ export function configOf(raw: unknown): HomeConfig {
   const weather = isObj(o.weather) ? o.weather : {};
   const alarm = isObj(o.alarm) ? o.alarm : {};
   const quick = isObj(o.quick) ? o.quick : {};
+  const agenda = isObj(o.agenda) ? o.agenda : {};
+  const launcher = isObj(o.launcher) ? o.launcher : {};
   const cal = isObj(o.calendar) ? o.calendar : {};
   const sources: Partial<Record<WeatherField, string>> = {};
   if (isObj(weather.sources)) for (const f of WEATHER_SOURCE_FIELDS) if (typeof weather.sources[f] === 'string' && weather.sources[f]) sources[f] = weather.sources[f] as string;
+  const calendars: string[] = [];
+  if (Array.isArray(agenda.calendars)) for (const x of agenda.calendars) if (typeof x === 'string' && /^calendar\.[a-z0-9_]+$/.test(x) && !calendars.includes(x) && calendars.length < AGENDA_CALENDARS_MAX) calendars.push(x);
+  const items: LaunchItemCfg[] = [];
+  if (Array.isArray(launcher.items)) {
+    for (const x of launcher.items) {
+      if (!isObj(x) || !['route', 'scene', 'script', 'quick'].includes(x.kind as string) || typeof x.id !== 'string' || !x.id) continue;
+      if (items.some((i) => i.kind === x.kind && i.id === x.id) || items.length >= 12) continue;
+      items.push({ kind: x.kind as LaunchItemCfg['kind'], id: x.id, label: str(x.label) });
+    }
+  }
   return {
     order: [...order, ...WIDGET_IDS.filter((w) => !order.includes(w))],
     phone_layout: pick(o.phone_layout, PHONE_LAYOUTS, PHONE_LAYOUT_DEFAULT),
-    clock: { ...commonOf(o.clock, 'clock'), mode: pick(clock.mode, CLOCK_MODES, d.clock.mode), seconds: bool(clock.seconds, false), hebrew: bool(clock.hebrew, true) },
-    weather: { ...commonOf(o.weather, 'weather'), entity: str(weather.entity), fields: listOf(weather.fields, WEATHER_FIELDS, WEATHER_FIELDS_DEFAULT), forecast: pick(weather.forecast, FORECAST_LENS, '5'), sources },
+    clock: { ...commonOf(o.clock, 'clock'), mode: pick(clock.mode, CLOCK_MODES, d.clock.mode), seconds: bool(clock.seconds, false), hebrew: bool(clock.hebrew, true), style: pick(clock.style, TILE_STYLES, 'card') },
+    weather: { ...commonOf(o.weather, 'weather'), entity: str(weather.entity), fields: listOf(weather.fields, WEATHER_FIELDS, WEATHER_FIELDS_DEFAULT), forecast: pick(weather.forecast, FORECAST_LENS, '5'), sources, style: pick(weather.style, TILE_STYLES, 'card') },
     shabbat: commonOf(o.shabbat, 'shabbat'),
     alarm: { ...commonOf(o.alarm, 'alarm'), entity: str(alarm.entity) },
     quick: { ...commonOf(o.quick, 'quick'), actions: listOf(quick.actions, QUICK_ACTIONS, QUICK_ACTIONS) },
     media: commonOf(o.media, 'media'),
+    agenda: { ...commonOf(o.agenda, 'agenda'), calendars, days: AGENDA_DAYS.includes(agenda.days as AgendaDays) ? (agenda.days as AgendaDays) : 7 },
+    launcher: { ...commonOf(o.launcher, 'launcher'), items },
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -254,12 +302,31 @@ export interface AlarmData {
   since: string | null;
   available: boolean;
 }
+/** BV1: one coming event of a mirrored calendar (its next event, as the platform reported it). */
+export interface AgendaEvent {
+  calendar: string;
+  calendar_name: string;
+  message: string;
+  /** ISO instants (UTC); an all-day event's start is the day it names at 00:00. */
+  start: string;
+  end: string | null;
+  all_day: boolean;
+  location: string | null;
+}
+export interface AgendaData {
+  calendars: { entity_id: string; name: string; available: boolean; found: boolean }[];
+  events: AgendaEvent[];
+}
 export interface HomeData {
   weather: WeatherData | null;
   sensors: Record<string, SensorData>;
   alarm: AlarmData | null;
+  /** BV1: null when the agenda widget is off or has no calendar. */
+  agenda?: AgendaData | null;
+  /** BV1: the known names of the launcher's scene / script entities (entity id -> name). */
+  names?: Record<string, string>;
 }
-export const NO_DATA: HomeData = { weather: null, sensors: {}, alarm: null };
+export const NO_DATA: HomeData = { weather: null, sensors: {}, alarm: null, agenda: null, names: {} };
 
 /** GET /devices/tree `home`. */
 export interface HomeView {
@@ -285,8 +352,22 @@ export function homeViewOf(raw: unknown): HomeView | null {
       weather: isObj(data.weather) ? (data.weather as unknown as WeatherData) : null,
       sensors: isObj(data.sensors) ? (data.sensors as Record<string, SensorData>) : {},
       alarm: isObj(data.alarm) ? (data.alarm as unknown as AlarmData) : null,
+      agenda: agendaOf(data.agenda),
+      names: isObj(data.names) ? Object.fromEntries(Object.entries(data.names).filter(([, v]) => typeof v === 'string')) as Record<string, string> : {},
     },
   };
+}
+
+/** The agenda block as the server sent it, tolerant (an older server sends none = null). */
+export function agendaOf(raw: unknown): AgendaData | null {
+  if (!isObj(raw)) return null;
+  const calendars = Array.isArray(raw.calendars) ? raw.calendars.filter(isObj).map((c) => ({ entity_id: str(c.entity_id), name: str(c.name) || str(c.entity_id), available: c.available === true, found: c.found !== false })) : [];
+  const events = Array.isArray(raw.events)
+    ? raw.events.filter(isObj).filter((e) => typeof e.start === 'string' && typeof e.message === 'string').map((e) => ({
+        calendar: str(e.calendar), calendar_name: str(e.calendar_name), message: str(e.message), start: str(e.start), end: typeof e.end === 'string' ? e.end : null, all_day: e.all_day === true, location: typeof e.location === 'string' && e.location ? e.location : null,
+      }))
+    : [];
+  return { calendars, events };
 }
 
 /** GET /devices/home-candidates. */
@@ -295,6 +376,10 @@ export interface HomeCandidates {
   alarms: { entity_id: string; name: string; state: string | null }[];
   sensors: { entity_id: string; name: string; state: string | null; unit?: string | null; device_class: string | null; suggested: boolean; binary?: boolean }[];
   suggested_calendar?: Partial<Record<CalendarField, string>>;
+  /** BV1: the mirrored calendars (with their next event), scenes and scripts the agenda / launcher may be pointed at. */
+  calendars?: { entity_id: string; name: string; state: string | null; event: AgendaEvent | null }[];
+  scenes?: { entity_id: string; name: string; state: string | null }[];
+  scripts?: { entity_id: string; name: string; state: string | null }[];
 }
 
 const UNAVAILABLE = new Set(['', 'unavailable', 'unknown']);
@@ -343,14 +428,39 @@ export function previewData(cfg: HomeConfig, base: HomeData, cands: HomeCandidat
     const c = cands.alarms.find((a) => a.state === 'triggered') ?? cands.alarms[0];
     alarm = { entity_id: c.entity_id, name: c.name, state: c.state, since: null, available: !UNAVAILABLE.has(c.state ?? '') };
   }
-  return { weather, sensors, alarm };
+  // BV1: the agenda from the candidates' next events when the draft chose calendars the server did not resolve
+  let agenda: AgendaData | null = base.agenda ?? null;
+  const chosen = cfg.agenda.calendars;
+  if (!chosen.length) agenda = null;
+  else if (!agenda || agenda.calendars.map((c) => c.entity_id).join(',') !== chosen.join(',')) {
+    const known = new Map((agenda?.calendars ?? []).map((c) => [c.entity_id, c]));
+    const events = new Map((agenda?.events ?? []).map((e) => [e.calendar, e]));
+    const out: AgendaData = { calendars: [], events: [] };
+    for (const id of chosen) {
+      const k = known.get(id);
+      const c = cands?.calendars?.find((x) => x.entity_id === id);
+      out.calendars.push(k ?? { entity_id: id, name: c?.name ?? id, available: !!c && !UNAVAILABLE.has(c.state ?? ''), found: !!c });
+      const ev = events.get(id) ?? c?.event ?? null;
+      if (ev) out.events.push(ev);
+    }
+    out.events.sort((a, b) => a.start.localeCompare(b.start) || a.calendar.localeCompare(b.calendar));
+    agenda = out;
+  }
+  // the launcher's entity names: the server's, then the candidates' for an entity the draft just chose
+  const names: Record<string, string> = { ...(base.names ?? {}) };
+  for (const it of cfg.launcher.items) {
+    if (names[it.id] || (it.kind !== 'scene' && it.kind !== 'script')) continue;
+    const c = (it.kind === 'scene' ? cands?.scenes : cands?.scripts)?.find((x) => x.entity_id === it.id);
+    if (c) names[it.id] = c.name;
+  }
+  return { weather, sensors, alarm, agenda, names };
 }
 
 // ------------------------------------------------------------------------------------------------ what the screen draws
 
 /** Why a widget is not drawn: off (the switch), none (nothing chosen to feed it), unavail (the entity is not reporting),
  * noalarm (no alarm panel this user may see), noaction (no quick action this user may run), nomedia (no screen this user may see - the media widget). 'ok' = drawn. */
-export type Avail = 'ok' | 'off' | 'none' | 'unavail' | 'noalarm' | 'noaction' | 'nomedia';
+export type Avail = 'ok' | 'off' | 'none' | 'unavail' | 'noalarm' | 'noaction' | 'nomedia' | 'nolaunch';
 
 export interface WidgetItem {
   id: WidgetId;
@@ -369,6 +479,8 @@ export interface ResolveOpts {
   quickAllowed?: Partial<Record<QuickAction, boolean>>;
   /** Whether the media widget has anything to show for this user (media.read and at least one screen); unset = the widget decides itself. */
   mediaAvailable?: boolean;
+  /** BV1: whether this user may press a launcher item (api/launcher.ts launchAllowed); unset = every configured item counts. */
+  launchAllowed?: (item: LaunchItemCfg) => boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -403,6 +515,13 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
       avail = allowed.length ? 'ok' : 'noaction';
     } else if (id === 'media') {
       avail = opts.mediaAvailable === false ? 'nomedia' : 'ok';
+    } else if (id === 'agenda') {
+      // BV1: no calendar = none; calendars that are all missing / not reporting = unavail; a calendar with no coming event still draws (the empty state)
+      const cals = cfg.agenda.calendars;
+      avail = !cals.length ? 'none' : !data.agenda || !data.agenda.calendars.some((c) => c.available) ? 'unavail' : 'ok';
+    } else if (id === 'launcher') {
+      const items = cfg.launcher.items.filter((it) => (opts.launchAllowed ? opts.launchAllowed(it) : true));
+      avail = !cfg.launcher.items.length ? 'none' : items.length ? 'ok' : 'nolaunch';
     }
     if (avail === 'ok' || opts.editing) out.push({ id, avail, size: widgetSize(w, direction, !!opts.phone), title: w.label.trim() || WIDGET_NAME[id] });
   }
@@ -609,6 +728,27 @@ export function untilText(iso: string | null | undefined, now: Date): string {
   const rest = hours % 24;
   const d = days === 1 ? 'יום' : days === 2 ? 'יומיים' : `${days} ימים`;
   return rest ? `עוד ${d} ו־${rest === 1 ? 'שעה' : `${rest} שעות`}` : `עוד ${d}`;
+}
+
+/** BV1: when an agenda event happens, in the site's zone and relative to today: "היום · 14:30", "מחר · כל היום", "יום ג׳ · 10:00",
+ * "12.10 · 09:00" past the week. '' for a bad time. */
+export function agendaWhen(ev: Pick<AgendaEvent, 'start' | 'all_day'>, now: Date, zone: string): string {
+  const d = new Date(ev.start);
+  if (Number.isNaN(d.getTime())) return '';
+  const tz = safeZone(zone);
+  const dayKey = (x: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x);
+  // an all-day event's start is the day it names at 00:00 (the mirror keeps it as UTC midnight): compare the named day, never the instant
+  const key = ev.all_day ? ev.start.slice(0, 10) : dayKey(d);
+  const today = dayKey(now);
+  const tomorrow = dayKey(new Date(now.getTime() + 86_400_000));
+  const days = Math.round((Date.parse(`${key}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  let day: string;
+  if (key === today) day = 'היום';
+  else if (key === tomorrow) day = 'מחר';
+  else if (days > 0 && days < 7) day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'long' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  else day = new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: 'numeric', month: 'numeric' }).format(ev.all_day ? new Date(`${key}T12:00:00Z`) : d);
+  const time = ev.all_day ? 'כל היום' : new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  return `${day} · ${time}`;
 }
 
 /** "שונה לפני 3 שעות" from an ISO time; '' for none. */

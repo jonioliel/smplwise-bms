@@ -122,7 +122,7 @@ def test_defaults_are_the_control_centre_with_every_widget_on_and_the_catalogues
         assert st["home.title"] == "" and st["home.floor_order"] == "[]"
         assert st["home.direction"] == "a" and st["home.side"] == "end"  # owner decision: the default direction is the control centre
         cfg = st["home.widgets"]
-        assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media"]
+        assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher"]  # BV1 appends agenda + launcher
         assert all(cfg[w]["on"] for w in home_config.WIDGET_IDS)
         assert cfg["clock"]["sizes"] == {"a": "l", "b": "m", "c": "m"} and cfg["alarm"]["sizes"]["b"] == "s"
         # suggestions: the first available weather entity and one sensor per Jewish-calendar field, from the catalogue
@@ -171,8 +171,8 @@ def test_widget_configuration_round_trips_in_canonical_form_and_partial_input_ta
         r = _patch(c, {"home.widgets": {"order": ["quick", "clock"], "clock": {"mode": "time", "seconds": True, "label": " שעה "}, "weather": {"on": False, "fields": ["humidity", "temperature"], "forecast": "3", "sources": {"temperature": "sensor.kitchen_temp"}}}})
         assert r.status_code == 200, r.text
         cfg = r.json()["settings"]["home.widgets"]
-        assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media"]  # what is missing is appended in the default order
-        assert cfg["clock"] == {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "שעה", "phone_on": None, "phone_size": None, "mode": "time", "seconds": True, "hebrew": True}
+        assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher"]  # what is missing is appended in the default order
+        assert cfg["clock"] == {"on": True, "sizes": {"a": "l", "b": "m", "c": "m"}, "label": "שעה", "phone_on": None, "phone_size": None, "mode": "time", "seconds": True, "hebrew": True, "style": "card"}
         assert cfg["weather"]["on"] is False and cfg["weather"]["fields"] == ["humidity", "temperature"] and cfg["weather"]["forecast"] == "3"
         assert cfg["weather"]["sources"] == {"temperature": "sensor.kitchen_temp"}
         # saved: the catalogue's suggestions no longer fill an empty entity (the owner's explicit choice stands, even "none")
@@ -433,7 +433,7 @@ def test_the_permission_is_registered_granted_to_system_admin_only_and_not_sensi
 def test_normalise_personal_keeps_only_what_it_says_and_refuses_the_rest():
     assert home_config.normalise_personal({}) == {"direction": None, "order": None, "widgets": {}, "phone_layout": None}
     p = home_config.normalise_personal({"direction": "b", "order": ["alarm"], "widgets": {"clock": {"on": None, "size": "l"}, "weather": {}}})
-    assert p == {"direction": "b", "order": ["alarm", "clock", "weather", "shabbat", "quick", "media"], "widgets": {"clock": {"size": "l"}}, "phone_layout": None}
+    assert p == {"direction": "b", "order": ["alarm", "clock", "weather", "shabbat", "quick", "media", "agenda", "launcher"], "widgets": {"clock": {"size": "l"}}, "phone_layout": None}
     for bad in ({"direction": "z"}, {"order": ["nope"]}, {"order": "clock"}, {"widgets": {"nope": {}}}, {"widgets": {"clock": {"size": "xl"}}}, {"widgets": {"clock": {"on": "yes"}}},
                 {"widgets": {"clock": {"label": "x"}}}, {"extra": 1}, [], "a"):
         with pytest.raises(ValueError):
@@ -444,7 +444,7 @@ def test_apply_personal_lays_the_users_choices_over_the_installation_and_never_t
     cfg = home_config.default_config()
     cfg["weather"]["entity"] = "weather.home"
     out, d = home_config.apply_personal(cfg, "a", home_config.normalise_personal(PERSONAL))
-    assert d == "c" and out["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media"]
+    assert d == "c" and out["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher"]
     assert out["clock"]["sizes"] == {"a": "l", "b": "m", "c": "s"}  # the size lands on the direction that is shown
     assert out["weather"]["on"] is False and out["weather"]["entity"] == "weather.home"
     assert cfg["clock"]["sizes"]["c"] == "m" and cfg["weather"]["on"] is True  # the input is not modified

@@ -23,9 +23,12 @@ import rawPalettes from './palettes.json' with { type: 'json' };
 const palettesFile = rawPalettes as unknown as { palettes: { id: string; name: { he: string } }[] };
 
 export type Density = 'wide' | 'regular' | 'compact' | 'row';
-export type Surface = 'flat' | 'glass' | 'gradient' | 'fill';
+/** BV1 (2026-10-05): `none` = the surfaceless look - ring + text, no fill (a lit pill shows its fill as a bar under the text). */
+export type Surface = 'flat' | 'glass' | 'gradient' | 'fill' | 'none';
 export type Popup = 'sheet' | 'centred' | 'inline';
 export type Radius = 'pill' | 'soft' | 'square';
+/** BV1: the device sheet's sliders - pills (today) or tall vertical sliders side by side (`<sw-vslider>`). */
+export type Slider = 'horizontal' | 'vertical';
 export type Touch = 32 | 44;
 /** `default` (the skin's own colours), one of the ten ready palette ids, or `custom-<slug>` (an installation's custom palette, design/palette.ts). */
 export type PaletteId = string;
@@ -40,6 +43,7 @@ export interface Look {
   surface: Surface;
   popup: Popup;
   radius: Radius;
+  slider: Slider;
   /** Opacity of translucent layers in percent (100 = opaque). */
   transparency: number;
   /** Size of the components in percent. */
@@ -85,10 +89,10 @@ export const LOOK_DIALS = {
   } satisfies ChoiceDial<Density>,
   surface: {
     kind: 'choice',
-    values: ['flat', 'glass', 'gradient', 'fill'],
+    values: ['flat', 'glass', 'gradient', 'fill', 'none'],
     nameHe: 'משטח',
-    labelHe: { flat: 'שטוח', glass: 'זכוכית', gradient: 'צבעוני', fill: 'מילוי' },
-    hintHe: { flat: 'משטח אחיד', glass: 'שכבה שקופה ומטושטשת', gradient: 'גוון לכל פריט', fill: 'המילוי מראה את העוצמה' },
+    labelHe: { flat: 'שטוח', glass: 'זכוכית', gradient: 'צבעוני', fill: 'מילוי', none: 'בלי משטח' },
+    hintHe: { flat: 'משטח אחיד', glass: 'שכבה שקופה ומטושטשת', gradient: 'גוון לכל פריט', fill: 'המילוי מראה את העוצמה', none: 'טבעת וטקסט בלבד, בלי מילוי; העוצמה בפס דק' },
   } satisfies ChoiceDial<Surface>,
   popup: {
     kind: 'choice',
@@ -104,6 +108,13 @@ export const LOOK_DIALS = {
     labelHe: { pill: 'כמוסה', soft: 'רכות', square: 'ישרות' },
     hintHe: { pill: 'עגולות לגמרי', soft: 'מעוגלות', square: 'כמעט ישרות' },
   } satisfies ChoiceDial<Radius>,
+  slider: {
+    kind: 'choice',
+    values: ['horizontal', 'vertical'],
+    nameHe: 'מחוונים',
+    labelHe: { horizontal: 'אופקיים', vertical: 'אנכיים' },
+    hintHe: { horizontal: 'כמוסות: גרירה לאורך השורה', vertical: 'בחלון ההתקן: מחוונים גבוהים זה לצד זה' },
+  } satisfies ChoiceDial<Slider>,
   transparency: { kind: 'range', range: [40, 100], step: 2, unit: '%', nameHe: 'אטימות' } satisfies RangeDial,
   scale: { kind: 'range', range: [80, 130], step: 5, unit: '%', nameHe: 'גודל' } satisfies RangeDial,
   touch: {
@@ -168,10 +179,10 @@ export function materialMacro(current: Pick<Look, 'depth' | 'tint'>, preset: Mat
 /** A custom palette's dial value (the backend's CUSTOM_ID_RE): a lower-case kebab slug after `custom-`. */
 export const CUSTOM_PALETTE_ID = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'transparency', 'scale', 'touch', 'performance', 'palette', 'depth', 'tint', 'material'] as const satisfies readonly LookDial[];
+export const LOOK_DIAL_IDS = ['density', 'surface', 'popup', 'radius', 'slider', 'transparency', 'scale', 'touch', 'performance', 'palette', 'depth', 'tint', 'material'] as const satisfies readonly LookDial[];
 
-/** The built-in defaults; the material dials are OFF (today's pixels unchanged until an owner turns one). */
-export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default', depth: 0, tint: 0, material: 'none' };
+/** The built-in defaults; the material dials are OFF (today's pixels unchanged until an owner turns one); the sliders are horizontal (BV1). */
+export const LOOK_DEFAULT: Readonly<Look> = { density: 'regular', surface: 'fill', popup: 'sheet', radius: 'pill', slider: 'horizontal', transparency: 72, scale: 100, touch: 44, performance: 'auto', palette: 'default', depth: 0, tint: 0, material: 'none' };
 
 /** The backend's rule for one dial: a listed value / a whole in-range number, else null. */
 export function normalizeDial<K extends LookDial>(dial: K, v: unknown): Look[K] | null {
@@ -342,6 +353,7 @@ export function applyLook(): void {
   set('data-bubble-surface', lookOf('surface'));
   set('data-bubble-popup', lookOf('popup'));
   set('data-bubble-radius', lookOf('radius'));
+  set('data-bubble-slider', lookOf('slider'));
   set('data-bubble-touch', String(lookOf('touch')));
   if (probeDeferred && lookOf('performance') === 'auto') refreshAutoPerformance(); // the dial turned to auto after boot: resolve it now (cache, free check, probe)
   set('data-bubble-performance', effectivePerformance());
@@ -361,7 +373,7 @@ export function applyLook(): void {
 export function lookAttributes(l: Look, floor = alphaFloor): { attrs: Record<string, string>; style: Record<string, string> } {
   return {
     attrs: {
-      'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-touch': String(l.touch), 'data-bubble-performance': tierOf(l.performance), 'data-bubble-palette': l.palette,
+      'data-bubble-density': l.density, 'data-bubble-surface': l.surface, 'data-bubble-popup': l.popup, 'data-bubble-radius': l.radius, 'data-bubble-slider': l.slider, 'data-bubble-touch': String(l.touch), 'data-bubble-performance': tierOf(l.performance), 'data-bubble-palette': l.palette,
       'data-bubble-depth': String(l.depth), 'data-bubble-tint': String(l.tint), 'data-bubble-material': l.material,
     },
     style: {

@@ -48,7 +48,7 @@ export class SwPill extends LitElement {
   /** The list view: set by the host container when its density is `row`; '' = follow the look dial. */
   @property() density: '' | 'wide' | 'regular' | 'compact' | 'row' = '';
   /** The surface: set by a host that shows a draft (the settings preview); '' = follow the look dial. */
-  @property() surface: '' | 'flat' | 'glass' | 'gradient' | 'fill' = '';
+  @property() surface: '' | 'flat' | 'glass' | 'gradient' | 'fill' | 'none' = '';
   @state() private hasSubs = false;
   private look = new LookController(this);
   private drag: { x0: number; y0: number; id: number; moved: boolean } | null = null;
@@ -326,6 +326,39 @@ export class SwPill extends LitElement {
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
       }
+    }
+    /* none (BV1, the surfaceless look): no fill at all - the ring and the text on the canvas; a lit pill shows its fill as a 4 px bar
+       under the text (the fill still grows from the inline start, so the slider reads the same); hover is a faint layer */
+    :host([data-surface='none']:not([accent])) {
+      background: transparent;
+      box-shadow: none;
+    }
+    :host([data-surface='none'][variant='plain']:not([accent]):hover),
+    :host([data-surface='none'][variant='toggle']:not([on]):not([accent]):hover) {
+      background: var(--sw-layer);
+    }
+    :host([data-surface='none']:not([accent]))::before {
+      inset-block: auto 0;
+      block-size: 4px;
+      border-radius: 2px;
+      border-inline-end-width: 0;
+      inline-size: calc(var(--fill) * (100% - 2 * var(--pill-pad)));
+      margin-inline-start: var(--pill-pad);
+    }
+    :host([data-surface='none'][on]:not([accent])) .tx.base,
+    :host([data-surface='none'][on]:not([accent])) .pct {
+      color: var(--sw-text);
+    }
+    :host([data-surface='none']) .tx.over {
+      display: none;
+    }
+    :host([data-surface='none'][on]) .ring:not(.hue) {
+      background: var(--fill-c);
+      color: var(--sw-on-lit);
+    }
+    /* a list of surfaceless rows: a hairline under each row instead of touching fills */
+    :host([data-surface='none'][data-density='row']:not(:last-child)) {
+      box-shadow: inset 0 -1px 0 var(--sw-border-strong);
     }
     /* ---- touch layouts: 44 px targets whatever the density says ---- */
     @media (max-width: 1100px) {

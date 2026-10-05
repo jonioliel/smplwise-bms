@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ..db import get_setting
@@ -284,6 +285,71 @@ def _may_read(sensor: dict[str, Any], visible: set[str]) -> bool:
     return sensor["entity_id"] in visible or (sensor.get("platform") or "") == "jewish_calendar"
 
 
+def _iso_instant(v: Any) -> datetime | None:
+    """A calendar attribute's time as an aware UTC instant: an ISO timestamp (with or without an offset: naive = UTC, which is
+    how a mirrored all-day event's `start_time` date arrives: "2026-10-06 00:00:00" in the installation's local day - kept as
+    the day it names) or a plain date. None for anything else."""
+    if not isinstance(v, str) or not v.strip():
+        return None
+    s = v.strip()[:40]
+    try:
+        if len(s) == 10:
+            d = datetime.fromisoformat(s)
+        else:
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def calendar_event(c: dict[str, Any]) -> dict[str, Any] | None:
+    """The next event a mirrored `calendar.*` entity carries in its state attributes (what Home Assistant already reported:
+    `message`, `start_time`, `end_time`, `all_day`, `location`; never the description), as the agenda tile reads it. None when the
+    entity names no event (state off with no attributes, or unavailable)."""
+    a = c["attributes"]
+    message = a.get("message")
+    start = _iso_instant(a.get("start_time"))
+    if not c["available"] or not isinstance(message, str) or not message.strip() or start is None:
+        return None
+    end = _iso_instant(a.get("end_time"))
+    location = a.get("location")
+    return {
+        "calendar": c["entity_id"],
+        "calendar_name": c["name"],
+        "message": message.strip()[:120],
+        "start": start.isoformat(),
+        "end": end.isoformat() if end else None,
+        "all_day": a.get("all_day") is True,
+        "location": location.strip()[:80] if isinstance(location, str) and location.strip() else None,
+    }
+
+
+def agenda_data(conn: sqlite3.Connection, cfg: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
+    """The agenda tile (BV1): the chosen calendars with whether each one is there and reporting, and their next events sorted by
+    start - only those that have not ended and start within `days` (an all-day event counts for its whole day). The calendars are
+    the site's, like the weather entity: the owner chose them for the home screen."""
+    now = now or datetime.now(timezone.utc)
+    horizon = now + timedelta(days=int(cfg["agenda"]["days"]))
+    calendars: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
+    for cid in cfg["agenda"]["calendars"]:
+        c = _entity(conn, cid, "calendar")
+        if c is None:
+            calendars.append({"entity_id": cid, "name": cid, "available": False, "found": False})
+            continue
+        calendars.append({"entity_id": cid, "name": c["name"], "available": c["available"], "found": True})
+        ev = calendar_event(c)
+        if ev is None:
+            continue
+        start = datetime.fromisoformat(ev["start"])
+        end = datetime.fromisoformat(ev["end"]) if ev["end"] else (start + timedelta(days=1) if ev["all_day"] else start)
+        if end < now or start > horizon:
+            continue
+        events.append(ev)
+    events.sort(key=lambda e: (e["start"], e["calendar"]))
+    return {"calendars": calendars, "events": events}
+
+
 def widget_data(conn: sqlite3.Connection, cfg: dict[str, Any], entities: list[dict[str, Any]] | None) -> dict[str, Any]:
     """What the widgets show right now, for the entities `cfg` points at and the widgets that are on. A missing, out-of-scope or
     switched-off source is absent (null / not in the map): the screen draws no card for it and gives it no room. `entities` =
@@ -297,7 +363,27 @@ def widget_data(conn: sqlite3.Connection, cfg: dict[str, Any], entities: list[di
         s = _entity(conn, sid, "sensor", "binary_sensor")
         if s is not None and _may_read(s, visible):
             sensors[sid] = _sensor_data(s)
-    return {"weather": weather_data(w) if w else None, "sensors": sensors, "alarm": alarm_data(cfg, entities) if _active(cfg["alarm"]) else None}
+    return {
+        "weather": weather_data(w) if w else None,
+        "sensors": sensors,
+        "alarm": alarm_data(cfg, entities) if _active(cfg["alarm"]) else None,
+        # BV1: the agenda tile's calendars and events (null when the widget is off, so the screen gives it no room)
+        "agenda": agenda_data(conn, cfg) if _active(cfg["agenda"]) and cfg["agenda"]["calendars"] else None,
+        # BV1: the launcher's scene / script names (the button's label when the owner gave none)
+        "names": launch_names(conn, cfg) if _active(cfg["launcher"]) else {},
+    }
+
+
+def launch_names(conn: sqlite3.Connection, cfg: dict[str, Any]) -> dict[str, str]:
+    """entity id -> name of the launcher's scene / script items that are mirrored (names only; the permission to run is the route's)."""
+    out: dict[str, str] = {}
+    for it in cfg["launcher"]["items"]:
+        if it["kind"] not in ("scene", "script"):
+            continue
+        row = conn.execute("SELECT name FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (it["id"],)).fetchone()
+        if row is not None and row[0]:
+            out[it["id"]] = row[0]
+    return out
 
 def payload(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None, *, personalize: bool = False, personal: dict[str, Any] | None = None) -> dict[str, Any]:
     """The `home` block of GET /devices/tree: the direction, the widget configuration as THIS caller sees it (the personal
@@ -338,7 +424,16 @@ def candidates(conn: sqlite3.Connection) -> dict[str, Any]:
         sensors.append(_candidate_sensor(ha_sync.entity_row(r), binary=True))
     sensors.sort(key=lambda s: (not s["suggested"], s["name"].casefold(), s["entity_id"]))
     suggested_ids = [s["entity_id"] for s in sensors if s["suggested"] and not s["binary"]]
-    return {"weather": weather, "alarms": alarms, "sensors": sensors, "suggested_calendar": home_config.suggest_calendar(suggested_ids)}
+    # BV1: the calendars the agenda tile may list (with their next event, so the editor previews), the scenes and the scripts the launcher may offer
+    calendars = []
+    for r in conn.execute("SELECT * FROM ha_entities WHERE domain = 'calendar' AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id LIMIT 100").fetchall():
+        c = _trim(ha_sync.entity_row(r))
+        calendars.append({"entity_id": c["entity_id"], "name": c["name"], "state": c["state"], "event": calendar_event(c)})
+    launchable = {"scenes": [], "scripts": []}
+    for domain, key in (("scene", "scenes"), ("script", "scripts")):
+        for r in conn.execute("SELECT entity_id, name, state FROM ha_entities WHERE domain = ? AND removed_at IS NULL AND disabled = 0 ORDER BY name, entity_id LIMIT 200", (domain,)).fetchall():
+            launchable[key].append({"entity_id": r["entity_id"], "name": r["name"] or r["entity_id"], "state": r["state"]})
+    return {"weather": weather, "alarms": alarms, "sensors": sensors, "suggested_calendar": home_config.suggest_calendar(suggested_ids), "calendars": calendars, **launchable}
 
 
 def _candidate_sensor(e: dict[str, Any], binary: bool = False) -> dict[str, Any]:

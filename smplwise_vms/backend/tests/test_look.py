@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from smplwise.main import create_app
 from smplwise.services import look
 
-FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "transparency": 60, "scale": 110, "touch": 32, "performance": "lite", "palette": "default", "depth": 1, "tint": 2, "material": "frosted"}
+FULL = {"density": "compact", "surface": "glass", "popup": "centred", "radius": "soft", "slider": "vertical", "transparency": 60, "scale": 110, "touch": 32, "performance": "lite", "palette": "default", "depth": 1, "tint": 2, "material": "frosted"}
 
 BAD_FULL = [
     "compact",

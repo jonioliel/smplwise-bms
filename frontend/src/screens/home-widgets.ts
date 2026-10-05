@@ -14,7 +14,9 @@ import { canAnywhere, isApi } from '../api/session';
 import { isOn, media, type MediaDevice } from '../api/media-screens';
 import { isPlaying, players, type PlayerDevice } from '../api/media-players';
 import { SkinController } from '../design/skin';
+import { LookController } from '../design/look';
 import '../components/sw-pill';
+import { BV1_STYLES, renderAgenda, renderClockTile, renderLauncher, renderWeatherTile, type Bv1Host, type LaunchState } from './home-widgets-bv1';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
  * flat pills - the weather on its hue, the armed alarm on the accent, no gradients - and the quick actions are pill rows
@@ -169,6 +171,7 @@ const GHOST_MSG: Record<Exclude<Avail, 'ok'>, string> = {
   noalarm: 'אין מערכת אזעקה באתר',
   noaction: 'אין הרשאה לפעולות מהירות',
   nomedia: 'אין מסכים או נגנים להצגה',
+  nolaunch: 'אין פריט שמותר לך להפעיל',
 };
 
 /**
@@ -208,6 +211,11 @@ export class HomeWidgetsView extends LitElement {
   private timer = 0;
   /** Bubble phase C: the skin in force (the quick actions are pills there). */
   private skin = new SkinController(this);
+  /** BV1: the surface dial (the surfaceless / glass widgets) - mirrored to `data-surface` on the host. */
+  private look = new LookController(this);
+  /** BV1: the launcher's in-flight / just-done buttons and its one-line feedback. */
+  private launchSt: LaunchState = { busy: new Set(), done: new Set() };
+  @state() private launchNote = '';
 
   static styles = [css`
     :host {
@@ -1226,7 +1234,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1284,6 +1292,22 @@ export class HomeWidgetsView extends LitElement {
 
   protected updated() {
     this.schedule();
+    // BV1: the surface dial on the host (the surfaceless / glass widget rules key on it; the other skins ignore it)
+    const surface = this.look.of('surface');
+    if (this.getAttribute('data-surface') !== surface) this.setAttribute('data-surface', surface);
+  }
+
+  /** BV1: what the tile / agenda / launcher renderers (home-widgets-bv1.ts) need from this element. */
+  private get bv1(): Bv1Host {
+    return {
+      config: this.config, data: this.data, now: this.now, zone: this.zone, editing: this.editing, bubble: this.skin.bubble, quickAllowed: this.quick.allowed,
+      shell: (it, cls, extra, body) => this.shell(it, cls, extra, body),
+      head: (it, icon, small) => this.head(it, icon, small),
+      glyph: (g) => GLYPHS[g],
+      emit: (name, detail) => this.emit(name, detail),
+      launchNote: this.launchNote,
+      setLaunchNote: (v) => (this.launchNote = v),
+    };
   }
 
   render() {
@@ -1360,8 +1384,11 @@ export class HomeWidgetsView extends LitElement {
 
   private shell(it: WidgetItem, cls: string, extra: Record<string, string>, body: TemplateResult) {
     const d = this.drag(it) as { draggable?: string; onDragStart?: (e: DragEvent) => void; onDragEnd?: () => void; onDragOver?: (e: DragEvent) => void; onDrop?: (e: DragEvent) => void };
-    return html`<section class=${classMap({ wg: true, [cls]: true, dragging: this.dragId === it.id })} data-home-widget=${it.id} data-size=${it.size} data-w=${it.id} draggable=${d.draggable ?? 'false'} role=${this.layout === 'snap' ? 'listitem' : 'group'} aria-label=${it.title}
-      data-cond=${extra.cond ?? nothing} data-tone=${extra.tone ?? nothing}
+    // BV1: `cls` may carry several classes ("wg-weather tile hued"); `extra.style` is the tile's hue
+    const classes: Record<string, boolean> = { wg: true, dragging: this.dragId === it.id };
+    for (const c of cls.split(' ')) if (c) classes[c] = true;
+    return html`<section class=${classMap(classes)} data-home-widget=${it.id} data-size=${it.size} data-w=${it.id} draggable=${d.draggable ?? 'false'} role=${this.layout === 'snap' ? 'listitem' : 'group'} aria-label=${it.title}
+      data-cond=${extra.cond ?? nothing} data-tone=${extra.tone ?? nothing} style=${extra.style ?? nothing}
       @dragstart=${d.onDragStart} @dragend=${d.onDragEnd} @dragover=${d.onDragOver} @drop=${d.onDrop}>${body}${this.editing ? this.editBar(it) : nothing}</section>`;
   }
 
@@ -1382,15 +1409,20 @@ export class HomeWidgetsView extends LitElement {
   private card(it: WidgetItem) {
     switch (it.id) {
       case 'clock':
-        return this.clock(it);
+        // BV1: the tile style is the Bubble skin's; every other skin keeps the card
+        return this.skin.bubble && this.config.clock.style === 'tile' ? renderClockTile(this.bv1, it, CLOCK_ICON) : this.clock(it);
       case 'weather':
-        return this.weather(it);
+        return this.skin.bubble && this.config.weather.style === 'tile' ? renderWeatherTile(this.bv1, it, (f) => FIELD_ICON[f] ?? DROP) : this.weather(it);
       case 'shabbat':
         return this.shabbat(it);
       case 'alarm':
         return this.alarm(it);
       case 'media':
         return this.mediaCard(it);
+      case 'agenda':
+        return renderAgenda(this.bv1, it);
+      case 'launcher':
+        return renderLauncher(this.bv1, it, this.launchSt, new Map(Object.entries(this.data.names ?? {})), () => this.requestUpdate());
       default:
         return this.quickCard(it);
     }

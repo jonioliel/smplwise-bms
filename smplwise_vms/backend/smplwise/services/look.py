@@ -11,6 +11,8 @@ One value shape, `ui.look`, owned twice:
     "surface":      "flat" | "glass" | "gradient" | "fill",       what a pill is painted with
     "popup":        "sheet" | "centred" | "inline",               how a pop-up opens (sheet = bottom sheet on a phone)
     "radius":       "pill" | "soft" | "square",                   the corner scale
+    "slider":       "horizontal" | "vertical",                    BV1 (2026-10-05): the device sheet's sliders as pills (today) or as tall
+                                                                  vertical sliders side by side; `surface` also takes "none" - no fill at all
     "transparency": 40 .. 100,                                    opacity of translucent layers, in percent (100 = opaque)
     "scale":        80 .. 130,                                    size of the components, in percent
     "touch":        32 | 44,                                      the minimum pointer target on a desktop, in px (touch layouts are always 44)
@@ -41,9 +43,10 @@ from typing import Any
 from .palettes import BUILTIN_IDS, valid_dial_value
 
 DENSITIES: tuple[str, ...] = ("wide", "regular", "compact", "row")
-SURFACES: tuple[str, ...] = ("flat", "glass", "gradient", "fill")
+SURFACES: tuple[str, ...] = ("flat", "glass", "gradient", "fill", "none")  # BV1: `none` = the surfaceless look (ring + text, no fill)
 POPUPS: tuple[str, ...] = ("sheet", "centred", "inline")
 RADII: tuple[str, ...] = ("pill", "soft", "square")
+SLIDERS: tuple[str, ...] = ("horizontal", "vertical")  # BV1: the device sheet's sliders as pills, or as tall vertical sliders
 TOUCH: tuple[int, ...] = (32, 44)
 PALETTES: tuple[str, ...] = ("default", *BUILTIN_IDS)  # the fixed choices; a `custom-<slug>` id is valid too (palettes.valid_dial_value)
 PERFORMANCES: tuple[str, ...] = ("auto", "full", "lite")
@@ -52,16 +55,17 @@ LEVELS: tuple[int, ...] = (0, 1, 2)  # depth and tint: off / normal / strong
 TRANSPARENCY_RANGE = (40, 100)
 SCALE_RANGE = (80, 130)
 
-CHOICES: dict[str, tuple[str, ...]] = {"density": DENSITIES, "surface": SURFACES, "popup": POPUPS, "radius": RADII, "performance": PERFORMANCES, "palette": PALETTES, "material": MATERIALS}
+CHOICES: dict[str, tuple[str, ...]] = {"density": DENSITIES, "surface": SURFACES, "popup": POPUPS, "radius": RADII, "slider": SLIDERS, "performance": PERFORMANCES, "palette": PALETTES, "material": MATERIALS}
 INT_CHOICES: dict[str, tuple[int, ...]] = {"touch": TOUCH, "depth": LEVELS, "tint": LEVELS}
 RANGES: dict[str, tuple[int, int]] = {"transparency": TRANSPARENCY_RANGE, "scale": SCALE_RANGE}
-KEYS: tuple[str, ...] = ("density", "surface", "popup", "radius", "transparency", "scale", "touch", "performance", "palette", "depth", "tint", "material")
+KEYS: tuple[str, ...] = ("density", "surface", "popup", "radius", "slider", "transparency", "scale", "touch", "performance", "palette", "depth", "tint", "material")
 
 DEFAULT: dict[str, Any] = {
     "density": "regular",
     "surface": "fill",
     "popup": "sheet",
     "radius": "pill",
+    "slider": "horizontal",  # BV1: a stored default from before the dial reads as horizontal (no pixel change)
     "transparency": 72,
     "scale": 100,
     "touch": 44,
