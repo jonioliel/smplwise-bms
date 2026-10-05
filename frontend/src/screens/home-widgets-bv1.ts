@@ -346,6 +346,19 @@ export const BV1_STYLES = css`
     display: flex;
     flex-wrap: wrap;
   }
+  /* the hero band: the launcher takes a wider place (three to four columns of buttons), not a two-column tower that stretches the band */
+  :host([layout='hero']) .wg-launcher[data-size='m'] {
+    flex-basis: 330px;
+    flex-grow: 1.6;
+  }
+  :host([layout='hero']) .wg-launcher[data-size='l'] {
+    flex-basis: 420px;
+    flex-grow: 2;
+  }
+  :host([layout='hero']) .wg-launcher .wg-b,
+  :host([layout='side']) .wg-launcher .wg-b {
+    justify-content: flex-start;
+  }
   @media (max-width: 1100px) {
     .lb .lr {
       min-inline-size: 44px;
