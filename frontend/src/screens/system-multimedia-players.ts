@@ -26,6 +26,7 @@ import { DEFAULT_NIGHT, parseCeiling, parseNight, presetFloors, presetRooms } fr
 import { SkinController } from '../design/skin';
 import { adminTable, mediaAdminListCss } from './media-admin-list';
 import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-list-logic';
+import { integrationName, integrationTitle } from './media-integration-names';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -564,7 +565,7 @@ export class SystemMultimediaPlayers extends LitElement {
 
   private connections(d: AdminDevice): TemplateResult {
     return html`<div data-mm-endpoints=${d.key}>${d.music_provider && d.music_provider !== 'none' ? html`<div class="muted">שכבת המוזיקה: ${PROVIDER_LABEL[d.music_provider]}</div>` : nothing}${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
-        <span class="mono">${e.platform}</span>
+        <span class="mono" data-mm-ep-platform=${e.platform} title=${integrationTitle(e.platform)}>${integrationName(e.platform)}</span>
         <span>${ROLE_EXTRA[e.role] ?? ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
         <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
         <span class="acts">

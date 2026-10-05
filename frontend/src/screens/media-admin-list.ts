@@ -20,6 +20,7 @@ import {
   type Bp, type ColKey,
   type AvailFilter, type ApprovalFilter, type Group, type GroupKey, type ListView, type LiveAvail, type RowFacts, type SortKey,
 } from './media-admin-list-logic';
+import { integrationName, integrationTitle } from './media-integration-names';
 
 export const SORT_LABEL: Record<SortKey, string> = { name: 'שם', type: 'סוג', integration: 'אינטגרציה', area: 'חדר', id: 'מזהה', status: 'מצב' };
 const GROUP_LABEL: Record<GroupKey, string> = { none: 'ללא קיבוץ', integration: 'לפי אינטגרציה', area: 'לפי חדר', type: 'לפי סוג' };
@@ -319,7 +320,7 @@ export class MediaAdminToolbar extends LitElement {
     </div>
     ${o.integrations.length > 1 ? html`<div class="ints" role="group" aria-label="סינון לפי אינטגרציה" data-mm-f-int>
       ${o.integrations.map((i) => html`<button type="button" class="chip" data-mm-int=${i.id} aria-pressed=${String(v.integrations.includes(i.id))}
-        @click=${() => this.toggleInt(i.id)}>${i.id === NO_INTEGRATION ? 'ללא אינטגרציה' : i.id}<span class="n">${i.count}</span></button>`)}
+        @click=${() => this.toggleInt(i.id)}>${i.id === NO_INTEGRATION ? 'ללא אינטגרציה' : integrationName(i.id)}<span class="n">${i.count}</span></button>`)}
     </div>` : nothing}`;
   }
 }
@@ -387,7 +388,7 @@ function row(ctx: TableCtx, d: AdminDevice, f: RowFacts): TemplateResult {
       <div role="cell" class="c c-name"><span class="nm" title=${d.name} data-mm-row-name=${d.key}>${d.name}</span>${ctx.saved === d.key ? html`<span class="ok" role="status">נשמר</span>` : nothing}</div>
       <div role="cell" class=${`c c-type ${hz('type')}`}><span class="lb">סוג</span>${ctx.typeLabel(d)}</div>
       <div role="cell" class=${`c c-int ${hz('integration')}`} data-mm-int-cell=${d.key}><span class="lb">אינטגרציה</span>${f.integrations.length
-        ? html`<span class="mono" title=${f.integrations.join(', ')}>${f.primary}</span>${extra > 0 ? html`<span class="more">+${extra}</span>` : nothing}` : html`<span class="muted">—</span>`}</div>
+        ? html`<span class="mono" title=${f.integrations.map(integrationTitle).join(', ')}>${integrationName(f.primary)}</span>${extra > 0 ? html`<span class="more">+${extra}</span>` : nothing}` : html`<span class="muted">—</span>`}</div>
       <div role="cell" class=${`c c-id ${hid}`} data-mm-id-cell=${d.key}>
         ${f.entityId ? html`<span class=${`idl ${hz('entityId')}`}><span class="mono" title=${f.entityId} data-mm-entity-id>${f.entityId}</span>
           <button type="button" class="cp" data-mm-copy=${d.key} aria-label=${`העתק מזהה: ${f.entityId}`} @click=${() => ctx.onCopy(f.entityId)}><sw-icon name="copy" size="14"></sw-icon></button></span>` : nothing}

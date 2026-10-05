@@ -207,8 +207,8 @@ test.describe('players page (mocked backend)', () => {
     await playersPage(page).locator('[data-state-filter="all"]').click();
     // the floor menu: floors with their counts, the unplaced last
     await playersPage(page).locator('[data-floor-menu]').click();
-    expect(await playersPage(page).locator('[data-floor-pick]').evaluateAll((els) => els.map((e) => e.getAttribute('data-floor-pick')))).toEqual(['', 'g', 'u1', 'b', 'none']);
-    await playersPage(page).locator('[data-floor-pick="none"]').click();
+    expect(await playersPage(page).locator('[data-floor-menu] [role=option]').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(['', 'g', 'u1', 'b', 'none']);
+    await playersPage(page).locator('[data-floor-menu] [role=option][data-id="none"]').click();
     await expect(pcards(page)).toHaveCount(3);
     expect(await sectionIds(page)).toEqual(['none']);
     await expect(playersPage(page).locator('.rc[data-room="none"]')).toHaveText('ללא חדר');

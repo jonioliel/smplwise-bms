@@ -29,6 +29,14 @@ No migration. Read-only: the monitor sends device reads only.
 - **עברית - איך מפעילים:** הגדרות › בריאות ועבודות: כרטיס לכל מקליט וכפתור "בדוק עכשיו". מנהל מערכת משנה את הספים ב"ספי התראה
   למקליטים", ושם גם מסמן אילו מקליטים מקליטים ברציפות. ערוצי ההתראה והנמענים של המקורות החדשים נמצאים בהגדרות › התראות.
 
+### Small UI items (`pilot/ui-small-0164`)
+- **The floor filter of the multimedia players and screens pages is now the shared dropdown** (same component, style incl. capsule, size, ring and panel width as every other dropdown of the group, with an icon and a count per floor). The hand-built "כל הקומות" menu is gone; nothing else on those pages changed.
+- **Settings › Multimedia: friendly integration names.** The lists show "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" and so on instead of the raw platform id (list cell, filter chips, grouping, sorting, device connections); the raw id stays in the hover text and in the search. An unknown id is shown as it is. One table: `frontend/src/screens/media-integration-names.ts`.
+- Review of every hand-built menu: docs/changes/DD6-CAPSULE-CONVERSION.md.
+- **עברית:**
+  - **סינון הקומות בדפי הנגנים והמסכים הוא עכשיו התפריט הנפתח המשותף** (אותו רכיב, אותו סגנון כולל קפסולה, גודל, עובי טבעת ורוחב לוח כמו כל תפריט נפתח בקבוצה, עם סמל ומספר לכל קומה). התפריט הבנוי ידנית "כל הקומות" הוסר; שום דבר אחר בדפים לא השתנה.
+  - **הגדרות › מולטימדיה: שמות ידידותיים לאינטגרציות.** הרשימות מציגות "Sonos", "Google Cast (Chromecast)", "Samsung (טלוויזיה)", "LG webOS (טלוויזיה)" וכו' במקום מזהה הפלטפורמה הגולמי (תא הרשימה, כפתורי הסינון, קיבוץ, מיון, חיבורי ההתקן); המזהה הגולמי נשאר בטקסט הריחוף ובחיפוש. מזהה לא מוכר מוצג כמו שהוא. טבלה אחת: `frontend/src/screens/media-integration-names.ts`.
+
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
 ### Several recorders in one system (CR-024)

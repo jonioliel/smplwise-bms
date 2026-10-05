@@ -26,7 +26,9 @@ import { bidi } from '../i18n/bidi';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
 import { clearPairChip, publishPairChip } from '../shell/tab-pair';
-import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
+import { HYBRID_MAX_ITEMS, TabsModeController, ddPanelOf, ddRingOf, ddSizeOf, ddStyleOf } from '../shell/tabs-mode';
+import '../components/sw-dropdown';
+import type { DropdownItem } from '../components/sw-dropdown';
 import { mIcon, nameText } from '../components/media-icons';
 import { DEMO_FLOOR_ORDER, NO_FLOOR, floorsOf, isDirty, moveInGroup, setCard, togglePin, type FloorRef } from './multimedia-layout';
 import {
@@ -63,7 +65,6 @@ export class MultimediaPlayers extends LitElement {
   @state() private res: LayoutResponse = FALLBACK_LAYOUT;
   @state() private homeFloors: string[] = [];
   @state() private filters: PlayerFilters = PLAYER_NO_FILTER;
-  @state() private floorMenu = false;
   @state() private compactHeader = false;
   @state() private staleError = '';
   @state() private toast = '';
@@ -141,8 +142,6 @@ export class MultimediaPlayers extends LitElement {
     void applyMediaGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.addEventListener('scroll', this.onScroll, { passive: true });
-    window.addEventListener('pointerdown', this.onOutside, true);
-    window.addEventListener('keydown', this.onKey);
     // the layout editor is entered from the user menu (shell/screen-edit.ts), never from a button in the page
     this.offEdit = registerScreenEdit({
       id: 'multimedia-players-layout',
@@ -187,8 +186,6 @@ export class MultimediaPlayers extends LitElement {
     clearPairChip(this);
     this.phoneMq.removeEventListener('change', this.onPhone);
     this.removeEventListener('scroll', this.onScroll);
-    window.removeEventListener('pointerdown', this.onOutside, true);
-    window.removeEventListener('keydown', this.onKey);
     this.offEdit?.();
     this.offRoute?.();
     this.offPush?.();
@@ -341,14 +338,6 @@ export class MultimediaPlayers extends LitElement {
     else if (this.compactHeader && y < 12) this.compactHeader = false;
   };
 
-  private onOutside = (e: Event) => {
-    if (this.floorMenu && !e.composedPath().some((n) => (n as HTMLElement).classList?.contains('flwrap'))) this.floorMenu = false;
-  };
-
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.floorMenu) this.floorMenu = false;
-  };
-
   // ------------------------------------------------------------------------------------------------ the panel
 
   private openPlayer(key: string) {
@@ -374,7 +363,6 @@ export class MultimediaPlayers extends LitElement {
     this.editing = true;
     this.editHandled = true;
     this.filters = PLAYER_NO_FILTER;
-    this.floorMenu = false;
     if (!fromRoute) {
       const p = this.params();
       playerFiltersToParams(PLAYER_NO_FILTER, p);
@@ -508,7 +496,6 @@ export class MultimediaPlayers extends LitElement {
     const rooms = roomChips(scoped);
     const c = playerCounts(this.devices);
     const { floors, unplaced } = playerFloors(this.devices, this.floorOrder());
-    const floorName = f.floor === UNPLACED_ID ? UNPLACED_LABEL : f.floor ? floors.find((x) => x.id === f.floor)?.name ?? 'קומה' : 'כל הקומות';
     const showFloor = this.hasFloors && (floors.length > 1 || unplaced > 0 || !!f.floor);
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
     const lib = this.status?.library.state;
@@ -519,8 +506,7 @@ export class MultimediaPlayers extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
         </div>` : html`<span class="grow"></span>`}
-        ${tools && showFloor ? html`<div class="flwrap"><button type="button" class="floorbtn" aria-haspopup="menu" aria-expanded=${String(this.floorMenu)} data-floor-menu @click=${() => (this.floorMenu = !this.floorMenu)}>${mIcon('layers')}<span>${bidi(floorName)}</span>${mIcon('chevronDown')}</button>
-          ${this.floorMenu ? this.floorPop(floors, unplaced) : nothing}</div>` : nothing}
+        ${tools && showFloor ? this.floorChip(floors, unplaced) : nothing}
       </div>
       ${tools ? html`<div class="dh-det">
         <span class="amb">${c.playing ? html`<em><span class="n">${c.playing}</span></em> מנגנים מתוך <span class="n">${c.total}</span>` : html`אין ניגון כרגע · <span class="n">${c.total}</span> התקנים`}${c.unavailable ? html` · <span class="n">${c.unavailable}</span> לא זמין` : nothing}</span>
@@ -532,9 +518,11 @@ export class MultimediaPlayers extends LitElement {
     </header>`;
   }
 
-  private floorPop(floors: FloorRef[], unplaced: number): TemplateResult {
-    const row = (id: string, name: string, n: number, icon: 'home' | 'layers') => html`<button type="button" role="menuitemradio" aria-checked=${String(this.filters.floor === id)} data-floor-pick=${id} @click=${() => { this.floorMenu = false; this.setFilters({ floor: id, area: '' }); }}>${mIcon(icon)}${bidi(name)}<span class="cnt"><span class="n">${n}</span></span></button>`;
-    return html`<div class="pop" role="menu" aria-label="קומות">${row('', 'כל הקומות', this.devices.length, 'home')}<hr />${floors.map((x) => row(x.id, x.name, x.count, 'layers'))}${unplaced ? html`<hr />${row(UNPLACED_ID, UNPLACED_LABEL, unplaced, 'layers')}` : nothing}</div>`;
+  /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
+  private floorChip(floors: FloorRef[], unplaced: number): TemplateResult {
+    const items: DropdownItem[] = [{ id: '', label: 'כל הקומות', count: this.devices.length, icon: 'home' }, { id: '--sep', label: '', divider: true }, ...floors.map((x) => ({ id: x.id, label: x.name, count: x.count, icon: 'layers' as const }))];
+    if (unplaced) items.push({ id: '--sep2', label: '', divider: true }, { id: UNPLACED_ID, label: UNPLACED_LABEL, count: unplaced, icon: 'layers' });
+    return html`<div class="flwrap"><sw-dropdown data-floor-menu label="קומות" icon="layers" dd-style=${ddStyleOf('multimedia')} dd-size=${ddSizeOf('multimedia')} dd-ring=${ddRingOf('multimedia')} dd-panel=${ddPanelOf('multimedia')} .items=${items} .value=${this.filters.floor} @change=${(e: CustomEvent<{ id: string }>) => this.setFilters({ floor: e.detail.id, area: '' })}></sw-dropdown></div>`;
   }
 
   /** The room chips scroll by a mouse drag too (a touch scrolls natively). */
