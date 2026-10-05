@@ -56,8 +56,11 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.connection_store import any_pending_restart
 
         extra["connection_pending_restart"] = any_pending_restart(conn, settings_of(request))
+    from ..services import wall as wall_service
+
     return {
         **extra,
+        "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,
         "user": {

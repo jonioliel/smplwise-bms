@@ -20,7 +20,8 @@
       "name_he": "תצוגת קיוסק",
       "permissions": [
         "map.read",
-        "video.live"
+        "video.live",
+        "wall.view"
       ]
     },
     {
