@@ -3189,7 +3189,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "2026-10-04 (K58, CR-024 docs/changes/CR-024-MULTI-NVR.md): multi-NVR built on branch pilot/multi-nvr (code head 10799616), not released, migration 0055_multi_recorder. Recorders as entities (/recorders API, per-recorder connection in recorder_connections, per-recorder settings via recorder_scope.settings_for, discovery / stream sync / alert stream per recorder, removal keeps history and hides the cameras, ids never reused), every NVR route on the camera's recorder or ?recorder_id= (default nvr-1), recorder filters in the camera table, wall and event log, batches and sync groups never mix recorders. Fixture evidence only (two fake recorders): backend tests/test_multi_nvr.py; Playwright evidence-multi-nvr.spec.ts (mocked, desktop/tablet/mobile), evidence-multi-nvr-live.spec.ts (fixture backend multi_nvr_backend.py), layout-multi-nvr.spec.ts (4 skins x light/dark x 320..1440). Real two-recorder lab: NOT_RUN (no real device touched). Status stays BACKLOG in this registry because its dependencies T013/T019/T055 are not marked DONE here (project_status rule); acceptance AT115/AT116 need the lab."
+      "2026-10-04 (K58, CR-024 docs/changes/CR-024-MULTI-NVR.md): multi-NVR built on branch pilot/multi-nvr (code head 10799616), not released, migration 0055_multi_recorder. Recorders as entities (/recorders API, per-recorder connection in recorder_connections, per-recorder settings via recorder_scope.settings_for, discovery / stream sync / alert stream per recorder, removal keeps history and hides the cameras, ids never reused), every NVR route on the camera's recorder or ?recorder_id= (default nvr-1), recorder filters in the camera table, wall and event log, batches and sync groups never mix recorders. Fixture evidence only (two fake recorders): backend tests/test_multi_nvr.py; Playwright evidence-multi-nvr.spec.ts (mocked, desktop/tablet/mobile), evidence-multi-nvr-live.spec.ts (fixture backend multi_nvr_backend.py), layout-multi-nvr.spec.ts (4 skins x light/dark x 320..1440). Real two-recorder lab: NOT_RUN (no real device touched). Status stays BACKLOG in this registry because its dependencies T013/T019/T055 are not marked DONE here (project_status rule); acceptance AT115/AT116 need the lab.",
+      "2026-10-05 (TASKS-SYNC, housekeeping): partial - CR-024 multi-NVR is in the repository and shipped: code head 10799616 (pilot/multi-nvr), migration 0055_multi_recorder, released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Several recorders in one system (CR-024)'; docs/changes/CR-024-MULTI-NVR.md). Tests in the repository: test_multi_nvr.py, test_multi_nvr_identity.py, test_multi_nvr_live.py (fake recorders). Not proven: two real recorders (AT115/AT116 NOT_RUN); cross-recorder synced playback is experimental and off by default. Evidence is not acceptance; status stays BACKLOG because dependencies T013/T019/T055 are not DONE."
     ],
     "owner": null,
     "commit": null,
@@ -5290,7 +5291,8 @@
     ],
     "evidence": [
       "2026-09-30: design record CR-012 written (branch pilot/design-2fa-push): WebView has no Web Push; FCM high priority is Android's way to wake a dozing app and must end in a visible notification; FCM is not end-to-end encrypted, so a content-less wake + fetch from the customer's Arx server; recommendation A through a central SmplWise relay (≈7-9 d) with UnifiedPush as the fallback (≈3-4 d, push.py already speaks Web Push); foreground-socket option documented with Android 14/15 limits. Owner decisions Q1-Q8 open.",
-      "2026-09-30 (0.1.145): design record CR-012 and its Hebrew mirror merged (pilot/design-2fa-push) and shipped with the release documents; no code. Open: the owner's answers to the 8 questions."
+      "2026-09-30 (0.1.145): design record CR-012 and its Hebrew mirror merged (pilot/design-2fa-push) and shipped with the release documents; no code. Open: the owner's answers to the 8 questions.",
+      "2026-10-05 (TASKS-SYNC, housekeeping): partial - the server half of the phone push exists: CR-027 phase 2 'push to the phone app through the SmplWise relay' (commit 748d2b2f: the notification core's 'app' channel, device push routes, the relay Worker under services/push-relay with fake_relay.py; options push_relay_url / push_relay_key; migration 0057), released in 2.0.2, everything off by default; tests test_mobile_push.py (fake relay). Tracked by T103 (CR-027). Not built here: the CR-012 UnifiedPush fallback (no UnifiedPush code in the backend), the Android app side (built separately), the relay run against real FCM / APNs. Evidence is not acceptance; AT196-AT198 NOT_RUN; status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5684,6 +5686,168 @@
       "Open: the owner's decisions in CR-028 section 11 (video path, default approval per screen, the device for the first physical test); phases 1-3 (single camera to Google Cast with bridge 0.7.0 and the relay, mosaic wall, carousel) are not built. AT218 stays NOT_RUN as a recorded acceptance.",
       "2026-10-05: card registered at integration (2.0.2) by the integration lead.",
       "2.0.4 (integ/204, 2026-10-05): phases 1-2 merged from pilot/CAST1-backend @ 16e6b3f5 (relay, sessions, bridge 0.7.0 cast_stream, migration 0060) and pilot/CAST1-ui @ 941f78ca; cast is OFF by default (option cast_relay); tests with fakes only, no real screen contacted; the first physical test is NOT_RUN (docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md, owner present)."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T105",
+    "title": "Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": true,
+    "acceptance": [
+      "Provision-ISR recorders and cameras (CR-025; docs/changes/CR-025-PROVISION-ISR.md, docs/integrations/provision-isr/API_STUDY.md): an HTTP API v1 adapter behind the CR-020 vendor seam registered through the CR-024 vendor catalogue (Basic or Digest detected from the 401 challenge, HTTPS with certificate pinning), channel discovery, stream options, live RTSP for go2rtc, snapshots, disks, search, playback, export to MP4, sampled events and an optional push listener (off by default); device writes are off and sit behind approval gates; v2 is used only where v1 lacks a capability."
+    ],
+    "requirement_ids": [
+      "R219"
+    ],
+    "test_ids": [
+      "AT219"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Device access stays read-only by default; any write to a recorder needs the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-025-PROVISION-ISR.md",
+      "docs/integrations/provision-isr/API_STUDY.md",
+      "Backend: the Provision-ISR adapter and its wiring behind the vendor catalogue (no migration of its own)"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 2cd7c8d9 / 9a5f733f / 7db43ce2 and the merge 18bad5b9 (pilot/provision-wiring into integ/0163): the adapter, the wiring and the security fixes (Digest-to-Basic downgrade refused, vendor extras validated, exports bound to their recorder, Hikvision ISAPI refused for other vendors); released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Provision-ISR recorders (CR-025)'); the alarm-server write refusal on a v1 NVR in 2.0.3 (commit a90df7ff).",
+      "Tests in the repository: smplwise_vms/backend/tests/test_provision_isr.py, test_provision_isr_p2.py, test_provision_playback.py, test_provision_wiring.py, test_provision_p3_wiring.py, test_provision_tls_pin.py, test_provision_vendor_guard.py, test_provision_push_*.py; Playwright frontend/tests/evidence-provision-connection.spec.ts. All against fake devices.",
+      "Not proven by the repository: a real write to a Provision recorder (the owner does the first one, runbook in CR-025 section 6.6), drop recovery on a real network, v2 paths (P4). AT219 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T106",
+    "title": "ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Recorder health monitoring (CR-026; docs/changes/CR-026-NVR-HEALTH.md): a read-only background poller per ready recorder (reachability and latency for every vendor; disk state, disk alarms, free-space trend, recording state per channel, channel connectivity for Provision-ISR) feeding the notification core sources recorder.unreachable / recorder.slow / recorder.disk / recorder.disk_space / recorder.recording and camera.offline, with per-recorder settings; only recorder-reported faults by default, the continuous-recording expectation and the disk-fill forecast off."
+    ],
+    "requirement_ids": [
+      "R220"
+    ],
+    "test_ids": [
+      "AT220"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Device access stays read-only by default; any write to a recorder needs the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-026-NVR-HEALTH.md",
+      "Backend: recorder health poller and notification sources",
+      "Settings: health and jobs tab"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 45255e6e (merge of pilot/nvr-health into integ/200), released in 2.0.0 (release commit 50056b25; smplwise_vms/CHANGELOG.md section 2.0.0 'Recorder health monitoring (CR-026)'); the owner decisions of 2026-10-05 and the live read-only pass on the owner's Provision NVR are recorded in the CR (commit b7981fbd).",
+      "Tests in the repository: smplwise_vms/backend/tests/test_recorder_health.py, test_recorder_health_nn6.py, test_health_report.py, test_health_summary.py (fake devices).",
+      "Not proven by the repository: Hikvision health detail (planned after Provision); behaviour over time on the owner's installation. AT220 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T107",
+    "title": "מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט",
+    "epic": "HA",
+    "phase": "V2",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Wall display mode (CR-030; docs/changes/CR-030-WALL-DISPLAY.md): a wall user (the existing kiosk role) recognised because it signs in on a tablet, a wall shell with tablet presets, Settings > wall displays, wall_profiles, /wall/* routes, refused on the remote channel; picture-frame mode and alert tiles (WDX) as a follow-up; a TV shows cameras by casting (CR-028)."
+    ],
+    "requirement_ids": [
+      "R221"
+    ],
+    "test_ids": [
+      "AT221"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Design only on main; no product code or device access is advanced by this card until the owner's open questions are answered."
+    },
+    "deliverables": [
+      "docs/changes/CR-030-WALL-DISPLAY.md",
+      "docs/design/mockups/wall-display/"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The change request and mockups are merged on main (commit af63f050, docs only). An implementation exists only on the unmerged branch origin/pilot/WDM-wall-display (5971a25b backend with migration 0061_wall_profiles, 7e9722ad frontend): not on main, not released, so no implementation evidence is claimed. Status BACKLOG; the board plans it for 2.3.0."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T108",
+    "title": "גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה",
+    "epic": "HA",
+    "phase": "V2",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Generators (CR-031; docs/changes/CR-031-GENERATOR.md on the design branch): view and alerts only (no start / stop command); detection from the registry mirror by device, capability-driven roles, a generator picker, live page and charts, per-generator alert routing and notification-centre policies with a validated Hebrew template per policy, history; reference device NMC DSE 8620 MKII."
+    ],
+    "requirement_ids": [
+      "R222"
+    ],
+    "test_ids": [
+      "AT222"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Design only on main; no product code or device access is advanced by this card until the owner's open questions are answered."
+    },
+    "deliverables": [
+      "docs/changes/CR-031-GENERATOR.md (branch pilot/GEN1-backend)",
+      "docs/design/mockups/generator/"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The work exists only on unmerged branches origin/pilot/GEN1-backend (259c63a7 backend, a8d05ae0 routing, 663f2d90 fake generator and 42 backend tests, f65e2436) and origin/pilot/GEN1-ui (3e566787 UI, bbc9ed47, f1129e12, e57d1907, cdfdd64b); design revision 3 is 8c90a592. None of it is on main or released, so no implementation evidence is claimed. Status BACKLOG until integration."
     ],
     "owner": null,
     "commit": null,

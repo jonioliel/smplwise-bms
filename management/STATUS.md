@@ -1,16 +1,16 @@
 # Project status — generated view
 
-Generated: 2026-10-05T17:40:46.224729+00:00
+Generated: 2026-10-05T17:43:54.808747+00:00
 
-Tasks: 104 | Requirements: 217 | Tests: 217 | Screens: 32
+Tasks: 108 | Requirements: 221 | Tests: 221 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 92
+- BACKLOG: 94
 - BLOCKED: 2
 - DONE: 2
-- IN_PROGRESS: 4
+- IN_PROGRESS: 6
 - READY: 2
 - REVIEW: 2
 
@@ -18,8 +18,8 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 27
-- V2: 12
+- V1: 29
+- V2: 14
 - V3: 2
 
 ## Blockers
@@ -133,3 +133,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T102](tasks/T102.md) | V1 | IN_PROGRESS | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
 | [T103](tasks/T103.md) | V1 | IN_PROGRESS | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
 | [T104](tasks/T104.md) | V1 | IN_PROGRESS | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
+| [T105](tasks/T105.md) | V1 | IN_PROGRESS | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
+| [T106](tasks/T106.md) | V1 | IN_PROGRESS | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
+| [T107](tasks/T107.md) | V2 | BACKLOG | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
+| [T108](tasks/T108.md) | V2 | BACKLOG | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |

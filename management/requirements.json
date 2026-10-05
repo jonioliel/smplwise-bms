@@ -4494,5 +4494,69 @@
     "test_ids": [
       "AT218"
     ]
+  },
+  {
+    "id": "R219",
+    "title": "Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים",
+    "statement": "Provision-ISR recorders and cameras (CR-025; docs/changes/CR-025-PROVISION-ISR.md, docs/integrations/provision-isr/API_STUDY.md): an HTTP API v1 adapter behind the CR-020 vendor seam registered through the CR-024 vendor catalogue (Basic or Digest detected from the 401 challenge, HTTPS with certificate pinning), channel discovery, stream options, live RTSP for go2rtc, snapshots, disks, search, playback, export to MP4, sampled events and an optional push listener (off by default); device writes are off and sit behind approval gates; v2 is used only where v1 lacks a capability.",
+    "task_ids": [
+      "T105"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT219"
+    ]
+  },
+  {
+    "id": "R220",
+    "title": "ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR",
+    "statement": "Recorder health monitoring (CR-026; docs/changes/CR-026-NVR-HEALTH.md): a read-only background poller per ready recorder (reachability and latency for every vendor; disk state, disk alarms, free-space trend, recording state per channel, channel connectivity for Provision-ISR) feeding the notification core sources recorder.unreachable / recorder.slow / recorder.disk / recorder.disk_space / recorder.recording and camera.offline, with per-recorder settings; only recorder-reported faults by default, the continuous-recording expectation and the disk-fill forecast off.",
+    "task_ids": [
+      "T106"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT220"
+    ]
+  },
+  {
+    "id": "R221",
+    "title": "מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט",
+    "statement": "Wall display mode (CR-030; docs/changes/CR-030-WALL-DISPLAY.md): a wall user (the existing kiosk role) recognised because it signs in on a tablet, a wall shell with tablet presets, Settings > wall displays, wall_profiles, /wall/* routes, refused on the remote channel; picture-frame mode and alert tiles (WDX) as a follow-up; a TV shows cameras by casting (CR-028).",
+    "task_ids": [
+      "T107"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT221"
+    ]
+  },
+  {
+    "id": "R222",
+    "title": "גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה",
+    "statement": "Generators (CR-031; docs/changes/CR-031-GENERATOR.md on the design branch): view and alerts only (no start / stop command); detection from the registry mirror by device, capability-driven roles, a generator picker, live page and charts, per-generator alert routing and notification-centre policies with a validated Hebrew template per policy, history; reference device NMC DSE 8620 MKII.",
+    "task_ids": [
+      "T108"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V2",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT222"
+    ]
   }
 ]
