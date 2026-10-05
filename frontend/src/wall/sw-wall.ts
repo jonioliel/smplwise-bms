@@ -8,9 +8,9 @@ import { healthSummary } from '../api/health';
 import { effectiveTransport, productSettings } from '../api/prefs';
 import { loadSession, session } from '../api/session';
 import type { ProductSettings } from '../api/media';
-import { getWallConfig, getWallStates, wallSocketUrl, type WallDisplayConfig, type WallState } from '../api/wall';
+import { ackWallAlert, frameUrl, getFrameList, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
 import { classifyDevice, readDeviceEnv } from './device-class';
-import { isAwake, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, tileHealth, wallScale } from './wall-logic';
+import { alertView, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScale } from './wall-logic';
 
 type Phase = 'loading' | 'ready' | 'removed' | 'remote-refused' | 'no-connection';
 const RETRY_BACKOFF_S = [2, 4, 8, 15];
@@ -21,7 +21,9 @@ const RETRY_BACKOFF_S = [2, 4, 8, 15];
  * long-press (1.2 s) on the clock that shows the read-only installer panel for 10 s. Control is impossible by design
  * (the `kiosk` role is live video and map only).
  * Built here: layout presets, strip, page rotation, pixel shift / shuffle / dim, schedule sleep, camera and server
- * offline ladders, live configuration over the websocket. Not built here (WDX): alert tiles, picture frame.
+ * offline ladders, live configuration over the websocket. WDX adds: alert tiles (info chip, alert tile, critical takeover,
+ * seen / press-and-hold acknowledge, the 'alert' strip chip, wake on severity) and the picture frame (idle slideshow of the
+ * profile's own photo set, yields to touch / alerts / sleep).
  */
 @customElement('sw-wall')
 export class SwWall extends LitElement {
@@ -37,6 +39,19 @@ export class SwWall extends LitElement {
   @state() private touchedAt = Date.now();
   @state() private wakeUntil = 0;
   @state() private tick = 0;
+  @state() private alerts: WallAlert[] = [];
+  @state() private tap = 0;
+  @state() private resolved: { id: string; text: string; until: number }[] = [];
+  @state() private holdStart: number | null = null;
+  @state() private frameIdx = 0;
+  private photos: { id: string; w: number; h: number }[] = [];
+  private order: number[] = [];
+  private frameSwitchAt = 0;
+  private frameListFor = '';
+  private activityAt = Date.now();
+  private shownAt = new Map<string, number>();
+  private seenUntil = new Map<string, number>();
+  private holdTimer = 0;
   private settings: ProductSettings | null = null;
   private ws: WebSocket | null = null;
   private downSince: number | null = null;
@@ -59,6 +74,7 @@ export class SwWall extends LitElement {
   };
   private readonly onTouch = () => {
     this.touchedAt = Date.now();
+    this.activityAt = this.touchedAt;
     if (this.data?.config.schedule.wake_on_touch) this.wakeUntil = Date.now() + 10 * 60_000;
   };
 
@@ -346,9 +362,214 @@ export class SwWall extends LitElement {
       transform: translateX(50%);
       z-index: 4;
     }
+    .atile {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: var(--wall-tile);
+      border: 2px solid var(--sw-stale, #f5b043);
+      border-radius: var(--sw-r-md, 12px);
+      overflow: hidden;
+      min-block-size: 0;
+    }
+    .atile .head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: calc(10px * var(--s, 1)) calc(14px * var(--s, 1));
+      background: rgba(245, 176, 67, 0.14);
+    }
+    .atile .head b {
+      display: block;
+      font-size: calc(22px * var(--s, 1));
+    }
+    .atile .head span.sub {
+      font-size: calc(14px * var(--s, 1));
+      color: var(--wall-text-2);
+    }
+    .atile .icon {
+      inline-size: calc(40px * var(--s, 1));
+      block-size: calc(40px * var(--s, 1));
+      border-radius: 50%;
+      display: grid;
+      place-content: center;
+      background: var(--sw-stale, #f5b043);
+      color: #1b1403;
+      flex: none;
+    }
+    .atile .media {
+      position: relative;
+      min-block-size: 0;
+      direction: ltr;
+    }
+    .atile .media sw-camera-tile {
+      position: absolute;
+      inset: 0;
+      display: block;
+    }
+    .atile .foot,
+    .takeover .foot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: calc(10px * var(--s, 1)) calc(14px * var(--s, 1));
+    }
+    .more {
+      margin-inline-start: auto;
+      padding: 2px 10px;
+      border-radius: var(--sw-r-pill, 999px);
+      background: rgba(255, 255, 255, 0.14);
+      font-size: calc(14px * var(--s, 1));
+      cursor: pointer;
+    }
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: calc(44px * var(--s, 1));
+      padding: 0 calc(20px * var(--s, 1));
+      border: 0;
+      border-radius: var(--sw-r-pill, 999px);
+      background: rgba(127, 140, 170, 0.28);
+      color: inherit;
+      font: inherit;
+      font-weight: 600;
+      font-size: calc(16px * var(--s, 1));
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+    .btn[data-hold]::before {
+      content: '';
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: calc(var(--hold, 0) * 100%);
+      background: rgba(255, 107, 98, 0.55);
+    }
+    .btn > * {
+      position: relative;
+    }
+    .note {
+      font-size: calc(14px * var(--s, 1));
+      color: var(--wall-text-2);
+    }
+    .takeover {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      display: grid;
+      grid-template-rows: var(--strip-h) minmax(0, 1fr) auto;
+      gap: var(--gap);
+      padding: var(--pad);
+      background: #080506;
+      color: #f3f6fc;
+      border: calc(8px * var(--s, 1)) solid var(--sw-danger, #ff6b62);
+      animation: pulse 2s ease-in-out 30;
+    }
+    @keyframes pulse {
+      50% {
+        border-color: rgba(255, 107, 98, 0.35);
+      }
+    }
+    .takeover .strip {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .takeover .media {
+      position: relative;
+      border-radius: var(--sw-r-md, 12px);
+      overflow: hidden;
+      background: #14100f;
+      direction: ltr;
+    }
+    .takeover .media sw-camera-tile {
+      position: absolute;
+      inset: 0;
+      display: block;
+    }
+    .takeover .titles {
+      position: absolute;
+      z-index: 1;
+      inset-block-start: calc(16px * var(--s, 1));
+      inset-inline-start: calc(20px * var(--s, 1));
+      inset-inline-end: calc(20px * var(--s, 1));
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      direction: rtl;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+    }
+    .takeover .titles b {
+      display: block;
+      font-size: calc(44px * var(--s, 1));
+      line-height: 1.1;
+    }
+    .takeover .titles span.sub {
+      font-size: calc(20px * var(--s, 1));
+      color: rgba(243, 246, 252, 0.8);
+    }
+    .takeover .icon {
+      inline-size: calc(64px * var(--s, 1));
+      block-size: calc(64px * var(--s, 1));
+      border-radius: 50%;
+      display: grid;
+      place-content: center;
+      background: var(--sw-danger, #ff6b62);
+      color: #fff;
+      flex: none;
+    }
+    .takeover .foot {
+      justify-content: center;
+    }
+    .frame {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    .frame img {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      transition: opacity 0.6s;
+    }
+    .frame[data-motion='slow'] img {
+      animation: kb 40s ease-in-out infinite alternate;
+    }
+    @keyframes kb {
+      to {
+        transform: scale(1.08);
+      }
+    }
+    .frame .fclock {
+      position: absolute;
+      inset-block-end: calc(24px * var(--s, 1));
+      inset-inline-end: calc(28px * var(--s, 1));
+      text-align: end;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+      color: #fff;
+      direction: rtl;
+    }
+    .frame .fclock b {
+      display: block;
+      font-size: calc(54px * var(--s, 1));
+      font-variant-numeric: tabular-nums;
+    }
+    .frame .fclock span {
+      font-size: calc(16px * var(--s, 1));
+      opacity: 0.85;
+    }
+    .frame .chips {
+      position: absolute;
+      inset-block-start: calc(16px * var(--s, 1));
+      inset-inline-start: calc(16px * var(--s, 1));
+    }
     @media (prefers-reduced-motion: reduce) {
       * {
         transition: none !important;
+        animation: none !important;
       }
     }
   `;
@@ -373,6 +594,7 @@ export class SwWall extends LitElement {
     window.clearTimeout(this.longPress);
     window.clearTimeout(this.panelTimer);
     window.clearTimeout(this.updatedTimer);
+    window.clearInterval(this.holdTimer);
     this.closeSocket();
   }
 
@@ -382,6 +604,8 @@ export class SwWall extends LitElement {
       const cfg = await getWallConfig();
       const first = !this.data;
       this.data = cfg;
+      this.setAlerts(cfg.alerts ?? []);
+      void this.loadFrame();
       this.phase = 'ready';
       this.downSince = null;
       if (!first) this.flashUpdated();
@@ -416,8 +640,9 @@ export class SwWall extends LitElement {
       ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', payload: { class: classifyDevice(this.env), screen: `${this.env.screenWidth}x${this.env.screenHeight}` } }));
       ws.onmessage = (m) => {
         try {
-          const msg = JSON.parse(String(m.data)) as { type: string; payload?: { version?: number } };
+          const msg = JSON.parse(String(m.data)) as { type: string; payload?: { version?: number; alerts?: WallAlert[] } };
           if (msg.type === 'config' && msg.payload?.version !== this.data?.version) void this.load();
+          else if (msg.type === 'alerts') this.setAlerts((msg.payload as { alerts?: WallAlert[] } | undefined)?.alerts ?? []);
           else if (msg.type === 'disabled') void loadSession();
           else if (msg.type === 'revoked') this.phase = 'removed';
           else if (msg.type === 'hello') this.downSince = null;
@@ -452,6 +677,75 @@ export class SwWall extends LitElement {
     this.chipUpdated = true;
     window.clearTimeout(this.updatedTimer);
     this.updatedTimer = window.setTimeout(() => (this.chipUpdated = false), 3000);
+  }
+
+  // ---- alerts (CR-030 section 5): the server pushes the whole open list; the ladder is decided here, from the display's own clock
+  private setAlerts(next: WallAlert[]): void {
+    const now = Date.now();
+    const ids = new Set(next.map((a) => a.id));
+    for (const old of this.alerts) {
+      if (!ids.has(old.id) && old.severity !== 'info') this.resolved = [...this.resolved.filter((r) => r.id !== old.id), { id: old.id, text: `נסגר · ${old.place || old.title}`, until: now + 5000 }];
+    }
+    for (const a of next) if (!this.shownAt.has(a.id)) this.shownAt.set(a.id, now);
+    for (const id of [...this.shownAt.keys()]) if (!ids.has(id)) {
+      this.shownAt.delete(id);
+      this.seenUntil.delete(id);
+    }
+    this.alerts = next;
+  }
+
+  private alertsOn(): WallAlert[] {
+    return this.data?.config.alerts.enabled ? this.alerts : [];
+  }
+
+  private markSeen(a: WallAlert): void {
+    this.seenUntil.set(a.id, Date.now() + (this.data?.config.alerts.takeover_timeout_s ?? 120) * 1000);
+    this.requestUpdate();
+  }
+
+  private holdBegin = (a: WallAlert): void => {
+    this.holdStart = Date.now();
+    window.clearInterval(this.holdTimer);
+    this.holdTimer = window.setInterval(() => {
+      if (this.holdStart === null) return;
+      this.now = Date.now();
+      if (holdProgress(this.holdStart, this.now) >= 1) {
+        this.holdEnd();
+        void ackWallAlert(a.id).then(() => (this.alerts = this.alerts.filter((x) => x.id !== a.id))).catch(() => undefined);
+      }
+    }, 80);
+  };
+
+  private holdEnd = (): void => {
+    this.holdStart = null;
+    window.clearInterval(this.holdTimer);
+  };
+
+  // ---- picture frame (section 6)
+  private async loadFrame(): Promise<void> {
+    const fr = this.data?.config.frame;
+    const key = fr && fr.enabled && fr.folder ? `${fr.folder}:${this.data?.version}` : '';
+    if (key === this.frameListFor) return;
+    this.frameListFor = key;
+    if (!key) {
+      this.photos = [];
+      return;
+    }
+    try {
+      this.photos = (await getFrameList()).photos;
+      this.order = shuffleOrder(this.photos.length);
+      this.frameIdx = 0;
+      this.frameSwitchAt = Date.now();
+    } catch {
+      this.photos = [];
+      this.frameListFor = '';
+    }
+  }
+
+  private frameOn(): boolean {
+    const d = this.data;
+    if (!d) return false;
+    return frameActive({ enabled: d.config.frame.enabled, photos: this.photos.length, idleMin: d.config.frame.idle_min, lastActivityMs: this.activityAt, nowMs: this.now, asleep: !this.awake(), attention: needsAttention(this.alertsOn()) });
   }
 
   private async refreshStates(force = false): Promise<void> {
@@ -492,6 +786,15 @@ export class SwWall extends LitElement {
       }
     }
     void this.refreshStates();
+    if (needsAttention(this.alertsOn())) this.activityAt = this.now; // an open item keeps the frame away and restarts the idle timer when it ends
+    if (this.resolved.length) this.resolved = this.resolved.filter((r) => r.until > this.now);
+    if (this.photos.length && this.frameOn() && this.now - this.frameSwitchAt >= cfg.frame.interval_s * 1000) {
+      this.frameSwitchAt = this.now;
+      if (this.frameIdx + 1 >= this.order.length) {
+        this.order = shuffleOrder(this.photos.length, Math.random, this.order[this.order.length - 1]);
+        this.frameIdx = 0;
+      } else this.frameIdx += 1;
+    }
     const w = cfg.schedule.windows;
     if (w.length) this.emitSleepState(!this.awake());
   }
@@ -512,6 +815,7 @@ export class SwWall extends LitElement {
   private awake(): boolean {
     if (!this.data) return true;
     if (this.now < this.wakeUntil) return true;
+    if (wakesDisplay(this.alertsOn(), this.data.config.schedule.wake_on_alert_severity as 'alert' | 'critical')) return true;
     return isAwake(this.data.config.schedule.windows, this.data.zone, new Date(this.now));
   }
 
@@ -585,7 +889,15 @@ export class SwWall extends LitElement {
       return html`<div class="wall sleep" data-wall-state="server-offline-clock" style=${`--s:${scale};display:block`}><div class="bigclock" style="inset-inline-start:30%;inset-block-start:30%;opacity:.5">${clock.time}</div><div class="banner" style="position:absolute;inset-block-end:24px;inset-inline-start:24px">אין חיבור למערכת · מנסה שוב</div></div>`;
     }
     const transport = effectiveTransport(this.settings);
-    const chips = (cfg.strip.includes('health') ? [this.healthChip()] : []).concat(this.states.map((s) => html`<span class="chip" data-chip=${s.id}>${s.name} <b>${s.state ?? ''}${s.unit ? ` ${s.unit}` : ''}</b></span>`));
+    const view = alertView(this.alertsOn(), this.shownAt, this.seenUntil, this.now, cfg.alerts.takeover_timeout_s, this.tap);
+    const folded = view.chips.filter((a) => a.severity !== 'info');
+    const alertChips = [
+      ...this.resolved.map((r) => html`<span class="chip" data-wall-resolved>${r.text}</span>`),
+      ...view.chips.filter((a) => a.severity === 'info').map((a) => html`<span class="chip" data-wall-info-chip><i></i>${a.title}${a.place ? ` · ${a.place}` : ''}</span>`),
+      ...(folded.length ? [html`<span class="chip" data-tone="danger" data-wall-alert-chip><i></i>התראות · ${folded.length}</span>`] : []),
+    ];
+    if (this.frameOn() && this.photos.length) return this.renderFrame(data, clock, scale, alertChips);
+    const chips = alertChips.concat(cfg.strip.includes('health') ? [this.healthChip()] : []).concat(this.states.map((s) => html`<span class="chip" data-chip=${s.id}>${s.name} <b>${s.state ?? ''}${s.unit ? ` ${s.unit}` : ''}</b></span>`));
     const stripEl = html`<div class="strip" data-wall-strip>
       <span class="place" data-wall-title>${data.title}</span>
       ${cfg.strip.includes('clock')
@@ -595,12 +907,73 @@ export class SwWall extends LitElement {
     </div>`;
     return html`<div class=${`wall ${dim ? 'dim' : ''}`} data-wall-state="base" data-preset=${layout.preset} data-wall-class=${classifyDevice(this.env)} style=${`--s:${scale};--cols:${layout.cols};--rows:${layout.rows};transform:translate(${dx}px,${dy}px);opacity:${dim ? cfg.burn_in.dim_to : 1}`}>
       ${stripEl}
-      ${cams.length
-        ? html`<div class="grid" data-wall-grid>${cams.map((c) => this.renderTile(c, transport, cfg.offline.show_last_frame_s))}${layout.pages > 1 ? html`<div class="dots" data-wall-dots>${Array.from({ length: layout.pages }, (_, i) => html`<i ?data-on=${i === page}></i>`)}</div>` : nothing}</div>`
+      ${cams.length || view.tile
+        ? html`<div class="grid" data-wall-grid>${view.tile ? this.renderAlertTile(view.tile, view.more, cfg, transport) : nothing}${cams.slice(view.tile ? 1 : 0).map((c) => this.renderTile(c, transport, cfg.offline.show_last_frame_s))}${layout.pages > 1 ? html`<div class="dots" data-wall-dots>${Array.from({ length: layout.pages }, (_, i) => html`<i ?data-on=${i === page}></i>`)}</div>` : nothing}</div>`
         : html`<div class="empty" data-wall-state="no-cameras">לא הוגדרו מצלמות למסך הזה</div>`}
       ${layout.preset === 'tablet-portrait' ? html`<div class="band" data-wall-band>${chips}</div>` : nothing}
+      ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
       ${this.panel ? this.renderPanel(data) : nothing}
       ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>ההגדרות עודכנו</span>` : nothing}
+    </div>`;
+  }
+
+  private ago(a: WallAlert): string {
+    const mins = Math.max(0, Math.round((this.now - new Date(a.first_at).getTime()) / 60000));
+    const t = new Date(a.last_at);
+    let hhmm = '';
+    try {
+      hhmm = new Intl.DateTimeFormat('he-IL', { timeZone: this.data?.zone || 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+    } catch {
+      hhmm = t.toTimeString().slice(0, 5);
+    }
+    return `${mins < 1 ? 'עכשיו' : `${mins} דקות`} · ${hhmm}`;
+  }
+
+  private alertCamera(a: WallAlert, transport: ReturnType<typeof effectiveTransport>, name?: string) {
+    const cam = a.camera_id ? this.data?.cameras.find((c) => c.id === a.camera_id) : undefined;
+    return cam ? html`<sw-camera-tile dark noDemo name=${name ?? cam.name} state="live" live cameraId=${cam.id} profile="sub" transport=${transport}></sw-camera-tile>` : nothing;
+  }
+
+  /** Section 5.4: "ראיתי" (local) and, only when the profile allows it, "אישור" with a 1.5 s press-and-hold. */
+  private alertButtons(a: WallAlert, ackAllowed: boolean) {
+    const p = holdProgress(this.holdStart, this.now);
+    return html`<button class="btn" data-wall-seen=${a.id} @click=${() => this.markSeen(a)}><sw-icon name="eye"></sw-icon><span>ראיתי</span></button>
+      ${ackAllowed
+        ? html`<button class="btn" data-hold data-wall-ack=${a.id} style=${`--hold:${p}`} @pointerdown=${() => this.holdBegin(a)} @pointerup=${this.holdEnd} @pointerleave=${this.holdEnd} @pointercancel=${this.holdEnd}><sw-icon name="check"></sw-icon><span>אישור · החזק</span></button>`
+        : html`<span class="note" data-wall-ack-off><sw-icon name="lock" size="14"></sw-icon> אישור מהמסך הזה לא מופעל</span>`}`;
+  }
+
+  private renderAlertTile(a: WallAlert, more: number, cfg: WallDisplayConfig['config'], transport: ReturnType<typeof effectiveTransport>) {
+    return html`<div class="atile" data-wall-alert-tile=${a.id} data-severity=${a.severity}>
+      <div class="head"><span class="icon"><sw-icon name="warning"></sw-icon></span><div><b data-wall-alert-title>${a.title}${a.place ? ` · ${a.place}` : ''}</b><span class="sub">${this.ago(a)}${a.count > 1 ? ` · ×${a.count}` : ''}</span></div>
+        ${more > 0 ? html`<span class="more" data-wall-alert-more @click=${() => this.tap++}>+${more}</span>` : nothing}</div>
+      <div class="media">${this.alertCamera(a, transport)}</div>
+      <div class="foot">${this.alertButtons(a, cfg.alerts.ack_allowed)}</div>
+    </div>`;
+  }
+
+  private renderTakeover(list: WallAlert[], data: WallDisplayConfig, clock: { time: string; date: string }, transport: ReturnType<typeof effectiveTransport>) {
+    const a = list[0];
+    return html`<div class="takeover" data-wall-state="takeover" data-wall-takeover=${a.id}>
+      <div class="strip"><span class="place"><sw-icon name="warning"></sw-icon> התראה קריטית · ${data.title}</span><span class="clock">${clock.time}</span>${list.length > 1 ? html`<span class="chips"><span class="chip" data-tone="danger" data-wall-takeover-count>${list.length} התראות</span></span>` : nothing}</div>
+      <div class="media">${this.alertCamera(a, transport)}
+        <div class="titles"><span class="icon"><sw-icon name="warning"></sw-icon></span><div><b data-wall-alert-title>${a.title}</b><span class="sub">${a.place ? `${a.place} · ` : ''}${this.ago(a)}</span></div></div>
+      </div>
+      ${list.length > 1 ? html`<div class="foot" data-wall-takeover-stack>${list.slice(1, 4).map((x) => html`<span class="chip" data-tone="danger">${x.title}${x.place ? ` · ${x.place}` : ''}</span>`)}</div>` : nothing}
+      <div class="foot">${this.alertButtons(a, data.config.alerts.ack_allowed)}</div>
+    </div>`;
+  }
+
+  private renderFrame(data: WallDisplayConfig, clock: { time: string; date: string }, scale: number, alertChips: unknown[]) {
+    const fr = data.config.frame;
+    const [dx, dy] = pixelShift(this.now, data.config.burn_in.shift);
+    const id = this.photos[this.order[this.frameIdx] ?? 0]?.id ?? this.photos[0].id;
+    const idleMin = (this.now - this.touchedAt) / 60_000;
+    const dim = data.config.burn_in.dim_after_min > 0 && idleMin >= data.config.burn_in.dim_after_min;
+    return html`<div class="frame" data-wall-state="frame" data-motion=${fr.motion} style=${`--s:${scale};opacity:${dim ? data.config.burn_in.dim_to : 1};transform:translate(${dx}px,${dy}px)`}>
+      <img data-wall-photo=${id} alt="" src=${frameUrl(id)} style=${`object-fit:${fr.fit}`} />
+      ${alertChips.length ? html`<span class="chips" data-wall-frame-chips>${alertChips}</span>` : nothing}
+      ${fr.clock ? html`<div class="fclock" data-wall-frame-clock><b>${clock.time}</b><span>${clock.date}${clock.date ? ' · ' : ''}${data.title}</span></div>` : nothing}
     </div>`;
   }
 

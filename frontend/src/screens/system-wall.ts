@@ -10,16 +10,19 @@ import '../components/sw-field';
 import '../components/sw-dialog';
 import '../components/sw-drawer';
 import '../components/sw-state-panel';
+import './wall-photo-sets';
 import { describeError } from '../api/client';
 import { loadTree } from '../api/catalog';
 import { listCameras } from '../api/maps';
 import {
   WALL_STATUS_LABEL,
   createWallProfile,
+  listPhotoSets,
   listWallProfiles,
   patchWallProfile,
   removeWallProfile,
   wallCandidates,
+  type PhotoSet,
   type WallConfig,
   type WallProfile,
   type WallWindow,
@@ -36,11 +39,18 @@ const STRIP_CHIPS: { id: string; label: string }[] = [
   { id: 'date', label: 'תאריך' },
   { id: 'health', label: 'מצב המערכת' },
 ];
+const ALERT_CATEGORIES: { id: string; label: string }[] = [
+  { id: 'safety', label: 'בטיחות' },
+  { id: 'alerts', label: 'התראות חוקים' },
+  { id: 'doors', label: 'דלתות' },
+  { id: 'device_faults', label: 'תקלות התקנים' },
+  { id: 'security', label: 'אבטחה' },
+];
 const POLL_MS = 15_000;
 
 /** CR-030 section 8: הגדרות › מסכי קיר. A list of wall users (a table on desktop, cards on a phone), an add dialog that
- * picks an existing user, and a drawer with the user's wall configuration. Alert tiles and the picture frame (WDX) are
- * stored by the server but not offered here yet. */
+ * picks an existing user, and a drawer with the user's wall configuration. The drawer also holds the alert tile
+ * filter and the picture-frame settings (WDX); the photo sets are managed in `sw-wall-photo-sets`. */
 @customElement('system-wall')
 export class SystemWall extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -58,6 +68,8 @@ export class SystemWall extends LitElement {
   @state() private editing: WallProfile | null = null;
   @state() private draft: { title: string; enabled: boolean; remote: boolean; config: WallConfig } | null = null;
   @state() private removing: WallProfile | null = null;
+  @state() private photoSets: PhotoSet[] = [];
+  @state() private managingPhotos = false;
   @state() private query = '';
   private poll = 0;
 
@@ -152,8 +164,17 @@ export class SystemWall extends LitElement {
         this.error = describeError(e);
       }
     }
+    void this.loadPhotoSets();
     this.editing = p;
     this.draft = { title: p.title, enabled: p.enabled, remote: p.remote_allowed, config: structuredClone(p.config) };
+  }
+
+  private async loadPhotoSets(): Promise<void> {
+    try {
+      this.photoSets = (await listPhotoSets()).sets;
+    } catch {
+      this.photoSets = [];
+    }
   }
 
   private async save(): Promise<void> {
@@ -341,6 +362,26 @@ export class SystemWall extends LitElement {
         <div class="line"><span>שורת מצב</span><span class="days">${STRIP_CHIPS.map((s) => html`<label title=${s.label}><input type="checkbox" .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label.slice(0, 2)}</span></label>`)}</span></div>
         <sw-field label="ישויות בשורת המצב (עד 8, מופרדות בפסיק)"><input type="text" dir="ltr" data-wall-field="entities" .value=${c.state_entities.join(', ')} @change=${(e: Event) => { c.state_entities = (e.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); this.requestUpdate(); }} /></sw-field>
       </div>
+      <div class="sec" data-wall-section="alerts"><h3>התראות במסך</h3>
+        ${tog('להציג התראות', c.alerts.enabled, (v) => (c.alerts.enabled = v), 'alerts-enabled')}
+        <div class="line"><span>קטגוריות</span><span class="days">${ALERT_CATEGORIES.map((k) => html`<label title=${k.label}><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label.slice(0, 2)}</span></label>`)}</span></div>
+        <div class="muted">${ALERT_CATEGORIES.filter((k) => c.alerts.categories.includes(k.id)).map((k) => k.label).join(' · ') || 'לא נבחרה קטגוריה'}</div>
+        ${sel('חומרה מינימלית', c.alerts.min_severity, [['info', 'מידע ומעלה'], ['alert', 'התראה ומעלה'], ['critical', 'קריטי בלבד']], (v) => (c.alerts.min_severity = v), 'alerts-min')}
+        ${sel('התראה מתקפלת לשורת המצב אחרי', c.alerts.takeover_timeout_s, [[60, 'דקה'], [120, '2 דקות'], [300, '5 דקות'], [600, '10 דקות']], (v) => (c.alerts.takeover_timeout_s = Number(v)), 'alerts-timeout')}
+        ${tog('אישור התראה מהמסך (לחיצה ארוכה)', c.alerts.ack_allowed, (v) => (c.alerts.ack_allowed = v), 'alerts-ack')}
+        ${sel('להעיר מסך ישן בהתראה מחומרה', c.schedule.wake_on_alert_severity, [['critical', 'קריטית'], ['alert', 'התראה ומעלה']], (v) => (c.schedule.wake_on_alert_severity = v), 'alerts-wake')}
+      </div>
+      <div class="sec" data-wall-section="frame"><h3>מסגרת תמונות</h3>
+        ${tog('מסגרת תמונות כשהמסך במנוחה', c.frame.enabled, (v) => (c.frame.enabled = v), 'frame-enabled')}
+        ${sel('תיקיית תמונות', c.frame.folder ?? '', [['', 'ללא'], ...this.photoSets.map((x): [string, string] => [x.id, `${x.name} (${x.count})`])], (v) => (c.frame.folder = v || null), 'frame-folder')}
+        ${c.frame.enabled && !c.frame.folder ? html`<div class="warn">בחרו תיקייה כדי להפעיל את המסגרת</div>` : nothing}
+        <sw-button size="sm" data-wall-photos-open @click=${() => (this.managingPhotos = true)}>ניהול התמונות</sw-button>
+        ${sel('מופיעה אחרי', c.frame.idle_min, [[5, '5 דק׳'], [10, '10 דק׳'], [30, '30 דק׳'], [60, 'שעה']], (v) => (c.frame.idle_min = Number(v)), 'frame-idle')}
+        ${sel('החלפת תמונה כל', c.frame.interval_s, [[15, '15 שנ׳'], [30, '30 שנ׳'], [60, 'דקה'], [300, '5 דק׳']], (v) => (c.frame.interval_s = Number(v)), 'frame-interval')}
+        ${sel('התאמה', c.frame.fit, [['contain', 'כל התמונה'], ['cover', 'מילוי המסך']], (v) => (c.frame.fit = v), 'frame-fit')}
+        ${tog('שעון ותאריך', c.frame.clock, (v) => (c.frame.clock = v), 'frame-clock')}
+        ${tog('תנועה איטית בתמונה', c.frame.motion === 'slow', (v) => (c.frame.motion = v ? 'slow' : 'none'), 'frame-motion')}
+      </div>
       <div class="sec"><h3>שעות והגנה על המסך</h3>
         ${tog('הזזת פיקסלים', c.burn_in.shift, (v) => (c.burn_in.shift = v), 'shift')}
         ${sel('עמעום אחרי', c.burn_in.dim_after_min, [[0, 'לעולם לא'], [10, '10 דק׳'], [30, '30 דק׳'], [60, 'שעה']], (v) => (c.burn_in.dim_after_min = Number(v)), 'dim')}
@@ -372,11 +413,13 @@ export class SystemWall extends LitElement {
     return html`<sw-page heading="מסכי קיר">
       <div class="toolbar">
         <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${n >= this.max} @click=${() => void this.openAdd()}>הוספת משתמש מסך</sw-button>
+        <sw-button data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>תמונות למסכי קיר</sw-button>
         <span class="count" data-wall-count>${n} מסכים</span>
         ${this.error ? html`<span class="warn" role="alert">${this.error}</span>` : nothing}
       </div>
       ${this.profiles ? this.renderList() : html`<sw-state-panel state="loading"></sw-state-panel>`}
       ${this.renderAdd()}${this.renderDrawer()}${this.renderRemove()}
+      <sw-wall-photo-sets ?open=${this.managingPhotos} @close=${() => (this.managingPhotos = false)} @sets-changed=${() => void this.loadPhotoSets()}></sw-wall-photo-sets>
     </sw-page>`;
   }
 }

@@ -113,3 +113,73 @@ export function isAwake(windows: WallWindow[], zone: string, at: Date): boolean 
   const mins = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
   return windows.some((w) => w.days.includes(weekday) && minutes >= mins(w.from) && minutes < mins(w.to));
 }
+
+// ---- WDX: alert ladder (CR-030 section 5.2) and picture frame (section 6.1)
+export type AlertSeverity = 'info' | 'alert' | 'critical';
+export interface AlertLike { id: string; severity: AlertSeverity; last_at: string; count: number }
+export const INFO_CHIP_S = 20;
+const RANK: Record<AlertSeverity, number> = { info: 0, alert: 1, critical: 2 };
+
+export interface AlertView<T> {
+  /** critical items: the whole screen, newest first; never times out */
+  takeover: T[];
+  /** the alert tile of the top-start cell (the one `tap` selects) and how many more there are */
+  tile: T | null;
+  more: number;
+  /** items folded into the strip: seen, timed out or info */
+  chips: T[];
+}
+
+/**
+ * `shownAt`: when this display first showed each item (the display's own clock); `seenUntil`: the local "seen" collapse.
+ * critical -> takeover until acknowledged/resolved (a "seen" only collapses it for `timeoutS`, then it comes back);
+ * alert -> tile for `timeoutS` since first shown, then a chip; info -> a chip for 20 s.
+ */
+export function alertView<T extends AlertLike>(alerts: T[], shownAt: Map<string, number>, seenUntil: Map<string, number>, nowMs: number, timeoutS: number, tap = 0): AlertView<T> {
+  const newest = [...alerts].sort((a, b) => (a.last_at < b.last_at ? 1 : a.last_at > b.last_at ? -1 : 0));
+  const takeover: T[] = [];
+  const tiles: T[] = [];
+  const chips: T[] = [];
+  for (const a of newest) {
+    const seen = (seenUntil.get(a.id) ?? 0) > nowMs;
+    const age = (nowMs - (shownAt.get(a.id) ?? nowMs)) / 1000;
+    if (a.severity === 'critical') (seen ? chips : takeover).push(a);
+    else if (a.severity === 'alert') (seen || age >= timeoutS ? chips : tiles).push(a);
+    else if (age < INFO_CHIP_S) chips.push(a);
+  }
+  const i = tiles.length ? ((tap % tiles.length) + tiles.length) % tiles.length : 0;
+  return { takeover, tile: tiles[i] ?? null, more: Math.max(0, tiles.length - 1), chips };
+}
+
+/** An item of at least `severity` is open: a sleeping display wakes (section 4.3). */
+export function wakesDisplay(alerts: AlertLike[], severity: 'alert' | 'critical'): boolean {
+  return alerts.some((a) => RANK[a.severity] >= RANK[severity]);
+}
+
+/** An open item that needs attention (>= alert) keeps the frame away and resets the idle timer. */
+export function needsAttention(alerts: AlertLike[]): boolean {
+  return alerts.some((a) => RANK[a.severity] >= RANK.alert);
+}
+
+/** The picture frame shows after `idleMin` minutes without a touch and without an item needing attention. Sleep wins over it. */
+export function frameActive(i: { enabled: boolean; photos: number; idleMin: number; lastActivityMs: number; nowMs: number; asleep: boolean; attention: boolean }): boolean {
+  if (!i.enabled || i.photos < 1 || i.asleep || i.attention) return false;
+  return (i.nowMs - i.lastActivityMs) / 60_000 >= i.idleMin;
+}
+
+/** A random permutation of 0..n-1 (one per cycle); `rnd` is injectable for tests. Never starts with `avoidFirst` when n > 1. */
+export function shuffleOrder(n: number, rnd: () => number = Math.random, avoidFirst = -1): number[] {
+  const a = Array.from({ length: n }, (_, k) => k);
+  for (let k = n - 1; k > 0; k--) {
+    const j = Math.floor(rnd() * (k + 1));
+    [a[k], a[j]] = [a[j], a[k]];
+  }
+  if (n > 1 && a[0] === avoidFirst) [a[0], a[1]] = [a[1], a[0]];
+  return a;
+}
+
+/** Press-and-hold acknowledge progress, 0..1, over 1.5 s (section 5.4). */
+export const HOLD_MS = 1500;
+export function holdProgress(startedMs: number | null, nowMs: number): number {
+  return startedMs === null ? 0 : clamp((nowMs - startedMs) / HOLD_MS, 0, 1);
+}
