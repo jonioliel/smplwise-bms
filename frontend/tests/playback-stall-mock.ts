@@ -9,24 +9,38 @@ export interface MockState {
   creates: number;
   seeks: { id: string; start_at: string }[];
   groupCreates: number;
+  /** 2.0.1: the camera ids of every group created (the comparison picker's members, lead first). */
+  groups: string[][];
   groupSeeks: { start_at: string }[];
   closes: string[];
   seekFails: boolean;
   sockets: WebSocketRoute[];
 }
 
-export async function mock(page: Page): Promise<MockState> {
+/** 2.0.1 (compare-dropdown specs): more cameras than the two stall cameras, and settings on top of the defaults (`ui.dd_style`...). */
+export interface MockOptions {
+  /** Camera names beyond the two defaults (c3, c4, ... in this order); `recorder` puts a camera on another recorder ('r2'). */
+  cameras?: { name: string; recorder?: string }[];
+  settings?: Record<string, unknown>;
+}
+
+/** The two default cameras; a third recorder-less list is never returned. */
+export const DEFAULT_CAMERAS: { name: string; recorder?: string }[] = [{ name: 'כניסה' }, { name: 'חניה' }];
+
+export async function mock(page: Page, opts: MockOptions = {}): Promise<MockState> {
   const now = Date.now();
   const from = iso(now - 30 * 60000);
   const to = iso(now - 2 * 60000);
-  const st: MockState = { creates: 0, seeks: [], groupCreates: 0, groupSeeks: [], closes: [], seekFails: false, sockets: [] };
+  const st: MockState = { creates: 0, seeks: [], groupCreates: 0, groups: [], groupSeeks: [], closes: [], seekFails: false, sockets: [] };
+  const roster = [...DEFAULT_CAMERAS, ...(opts.cameras ?? [])];
+  let lastGroup: string[] = ['c1', 'c2'];
   const gens: Record<string, number> = {};
   const session = (id: string, cam: string, startAt: string) => ({
     id, camera_id: cam, generation: gens[id], state: 'playing', requested_at: startAt, actual_start_at: startAt, actual_end_at: null, media_anchor: null,
     time_precision: 'keyframe_limited', media_handle: `api/v1/playback/sessions/${id}/ws?generation=${gens[id]}`, expires_at: iso(now + 600000),
     capabilities: { seek: true, pause: true, frame_step: true, supported_speeds: [0.25, 0.5, 1] }, playback_end_at: to,
   });
-  const cam = (id: string, name: string, order: number) => ({ id, recorder_id: 'r', channel: order + 1, name, name_source: 'nvr', alias: null, enabled: true, sort_order: order, grid_col_span: 1, main_track: 101 + order * 100, sub_track: 102 + order * 100, status: 'online', last_seen_at: null, can_view_live: true });
+  const cam = (id: string, name: string, order: number, recorder = 'r') => ({ id, recorder_id: recorder, channel: order + 1, name, name_source: 'nvr', alias: null, enabled: true, sort_order: order, grid_col_span: 1, main_track: 101 + order * 100, sub_track: 102 + order * 100, status: 'online', last_seen_at: null, can_view_live: true });
   await page.routeWebSocket(/playback\/sessions\/.+\/ws/, (ws) => {
     st.sockets.push(ws); // held open, never connected to a server: the test drives the player's clock itself
   });
@@ -42,9 +56,9 @@ export async function mock(page: Page): Promise<MockState> {
       });
     }
     if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
-    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'time.zone': 'Asia/Jerusalem', 'playback.stall_s': 2, 'playback.auto_resume_attempts': 2, 'playback.diagnostics': 'all' }, can_edit: false });
-    if (p === 'cameras') return json({ cameras: [cam('c1', 'כניסה', 0), cam('c2', 'חניה', 1)], recorder: null, can_sync: false });
-    if (/^cameras\/c\d\/recordings/.test(p)) return json({ camera_id: p.split('/')[1], from, to, track_id: 101, segments: [{ start_at: from, end_at: to, kind: 'continuous', track_id: 101, start_raw: '', end_raw: '' }], coverage: 'complete', matches: 1, pages: 1, searched_at: from, timezone: 'Asia/Jerusalem', note: '' });
+    if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'time.zone': 'Asia/Jerusalem', 'playback.stall_s': 2, 'playback.auto_resume_attempts': 2, 'playback.diagnostics': 'all', ...(opts.settings ?? {}) }, can_edit: false });
+    if (p === 'cameras') return json({ cameras: roster.map((c, i) => cam(`c${i + 1}`, c.name, i, c.recorder)), recorder: null, can_sync: false });
+    if (/^cameras\/c\d+\/recordings/.test(p)) return json({ camera_id: p.split('/')[1], from, to, track_id: 101, segments: [{ start_at: from, end_at: to, kind: 'continuous', track_id: 101, start_raw: '', end_raw: '' }], coverage: 'complete', matches: 1, pages: 1, searched_at: from, timezone: 'Asia/Jerusalem', note: '' });
     if (p === 'playback/sessions' && req.method() === 'POST') {
       st.creates += 1;
       const id = `s${st.creates}`;
@@ -60,19 +74,21 @@ export async function mock(page: Page): Promise<MockState> {
       gens[seek[1]] += 1;
       return json(session(seek[1], 'c1', body.start_at));
     }
+    // a group: one session per member (ga, gb, gc, gd), the stall specs' two-camera shape when the picker holds one extra
+    const groupSessions = (members: string[], startAt: string) => members.map((c, i) => session(`g${'abcd'[i] ?? i}`, c, startAt));
     if (p === 'playback/groups' && req.method() === 'POST') {
       st.groupCreates += 1;
       const body = req.postDataJSON() as { camera_ids: string[]; start_at: string };
-      gens.ga = 1;
-      gens.gb = 1;
-      return json({ id: 'g1', requested_at: body.start_at, generation: 1, sessions: [session('ga', body.camera_ids[0], body.start_at), session('gb', body.camera_ids[1], body.start_at)], missing: {}, sync: 'best_effort' });
+      lastGroup = body.camera_ids;
+      st.groups.push([...body.camera_ids]);
+      for (let i = 0; i < lastGroup.length; i++) gens[`g${'abcd'[i] ?? i}`] = 1;
+      return json({ id: 'g1', requested_at: body.start_at, generation: 1, sessions: groupSessions(lastGroup, body.start_at), missing: {}, sync: 'best_effort' });
     }
     if (p === 'playback/groups/g1/seek') {
       const body = req.postDataJSON() as { start_at: string };
       st.groupSeeks.push({ start_at: body.start_at });
-      gens.ga += 1;
-      gens.gb += 1;
-      return json({ id: 'g1', requested_at: body.start_at, generation: gens.ga, sessions: [session('ga', 'c1', body.start_at), session('gb', 'c2', body.start_at)], missing: {}, sync: 'best_effort' });
+      for (let i = 0; i < lastGroup.length; i++) gens[`g${'abcd'[i] ?? i}`] += 1;
+      return json({ id: 'g1', requested_at: body.start_at, generation: gens.ga, sessions: groupSessions(lastGroup, body.start_at), missing: {}, sync: 'best_effort' });
     }
     if (p.startsWith('playback/groups/g1/sync')) return json({ ok: true, sync_report: null });
     if (req.method() === 'DELETE' && p.startsWith('playback/')) {

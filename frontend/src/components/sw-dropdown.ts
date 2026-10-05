@@ -9,6 +9,7 @@ import type { IconName } from './sw-icon';
  * skins, the ten palettes, light and dark, the radius / touch / performance dials all apply. Backend twin: services/dd_style.py.
  */
 import { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, ddPanelFloor, type DdPanel, type DdRing, type DdSize, type DdStyle } from './dd-style';
+import { limitNotice, pickedCount, pickedSummary, toggleCapped } from './multi-select';
 export { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle };
 /** A list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items). */
 export const DD_SEARCH_MIN_ITEMS = 8;
@@ -29,6 +30,14 @@ export interface DropdownItem {
   icon?: IconName;
   /** A separator line instead of an option (`capsule` style; the other styles skip it). Never selectable, never counted, skipped by the keys and the search. */
   divider?: boolean;
+  /** 2.0.1 (`multiple`): listed but not choosable now (a camera of another recorder in a comparison); `aria-disabled`, reachable by the keys, a press does nothing. */
+  disabled?: boolean;
+}
+
+/** `change` detail: the option chosen (single), or the option toggled and the whole selection (`multiple`; `id` is '' after "נקה"). */
+export interface DropdownChange {
+  id: string;
+  ids?: string[];
 }
 
 /** An item that can be chosen (not a divider). */
@@ -45,11 +54,26 @@ const isOption = (it: DropdownItem | undefined): it is DropdownItem => !!it && !
  * the `--sw-t-*` tokens, which are 0 ms under prefers-reduced-motion. Fires `change` ({ id }) when the choice changes.
  * 0.1.157 (styles other than `auto`): a list of 8+ options carries a search field (live filter, keys keep working from it); on the
  * phone the list is a bottom sheet / a centred box / inline following the Bubble `popup` dial (`data-bubble-popup` on <html>).
+ * 2.0.1 `multiple` (owner request 2026-10-05, the recordings screen's camera comparison): `values` instead of `value`, up to `max`
+ * picks; the list stays open while picking (Enter / Space / a press toggle), `aria-multiselectable`, the remaining options are
+ * `aria-disabled` once the limit is reached and a press on one says "אפשר לבחור עד N" (role=status) instead of swapping; the foot of the
+ * list carries the count ("n מתוך N"), "נקה" and "סיום"; the chip shows the picked names and the count. Fires `change` ({ id, ids }).
+ * Same styles, presentations, search and keys as the single mode (components/multi-select.ts holds the pure logic).
  */
 @customElement('sw-dropdown')
 export class SwDropdown extends LitElement {
   @property({ attribute: false }) items: DropdownItem[] = [];
   @property() value = '';
+  /** 2.0.1: several options at once (`values`, `max`, `count-base`); the single mode when absent. */
+  @property({ type: Boolean, reflect: true }) multiple = false;
+  /** 2.0.1 (`multiple`): the picked ids in pick order. */
+  @property({ attribute: false }) values: string[] = [];
+  /** 2.0.1 (`multiple`): at most this many picks (0 = no limit). */
+  @property({ type: Number }) max = 0;
+  /** 2.0.1 (`multiple`): a fixed member counted in "n מתוך N" on both sides but not in `values` (the recordings screen's lead camera: `max` 3, `count-base` 1 reads "עד 4"). */
+  @property({ type: Number, attribute: 'count-base' }) countBase = 0;
+  /** 2.0.1 (`multiple`): the short status line in the foot of the list after a refused pick (cleared by the next pick, a close). */
+  @state() private notice = '';
   /** The accessible name of the chip and the list. */
   @property() label = '';
   @property() icon?: IconName;
@@ -221,8 +245,18 @@ export class SwDropdown extends LitElement {
     .search:focus-within {
       border-color: var(--sw-accent);
     }
+    /* 2.0.1: the search field of a multiple list is a target like its options (44 px on touch layouts, the desktop dial above); the input fills its label */
+    :host([multiple]) .search {
+      min-block-size: max(38px, var(--sw-touch-desktop, 44px));
+    }
+    @media (max-width: 1100px), (pointer: coarse) {
+      :host([multiple]) .search {
+        min-block-size: 44px;
+      }
+    }
     .q {
       flex: 1;
+      align-self: stretch;
       min-inline-size: 0;
       border: 0;
       background: transparent;
@@ -386,6 +420,134 @@ export class SwDropdown extends LitElement {
     @media (forced-colors: active) {
       .opt[aria-selected='true'] {
         outline: 2px solid Highlight;
+      }
+    }
+    /* ---- 2.0.1 multiple: a check box drawn on every option, a dimmed one that cannot be picked now, the foot with the count / "נקה" / "סיום" ---- */
+    :host([multiple]) .opt::before {
+      content: '';
+      flex: none;
+      inline-size: 16px;
+      block-size: 16px;
+      box-sizing: border-box;
+      border: 1.5px solid var(--sw-dd-border, var(--sw-border-strong));
+      border-radius: var(--sw-r-xs, 4px);
+      background: var(--sw-surface);
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
+    }
+    :host([multiple]) .opt[aria-selected='true']::before {
+      border-color: var(--sw-accent);
+      background: var(--sw-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+    }
+    :host([multiple][dd-style='field']) .opt[aria-selected='true']::after {
+      display: none;
+    }
+    :host([multiple][dd-style='text']) .opt[aria-selected='true']::before {
+      inline-size: 16px;
+      block-size: 16px;
+      border-radius: var(--sw-r-xs, 4px);
+      margin-inline-end: 0;
+      background: var(--sw-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+    }
+    .opt[aria-disabled='true'] {
+      color: var(--sw-dd-text-3, var(--sw-text-3));
+      cursor: default;
+    }
+    .opt[aria-disabled='true']::before {
+      opacity: 0.5;
+    }
+    .opt[aria-disabled='true'] .lbl {
+      opacity: 0.7;
+    }
+    /* the chip in the multiple mode: the count always shows (the capsule hides the single mode's count); the chip box itself is the touch
+       target (the desktop dial, 44 px on touch layouts) - a picker that is pressed several times in a row, not a 32 px tab chip */
+    :host([multiple]) .chip .n,
+    :host([multiple][dd-style='capsule']) .chip .n {
+      display: inline;
+      flex: none;
+      white-space: nowrap;
+    }
+    :host([multiple]) .chip {
+      min-block-size: var(--sw-touch-desktop, 44px);
+    }
+    :host([multiple]) .chip::after {
+      inset-block: 0;
+    }
+    @media (max-width: 1100px), (pointer: coarse) {
+      :host([multiple]) .chip {
+        min-block-size: 44px;
+      }
+    }
+    .ft {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px 6px;
+      border-block-start: 1px solid var(--sw-dd-border-soft, var(--sw-border));
+    }
+    .ft .st {
+      flex: 1 1 auto;
+      min-inline-size: 0;
+      padding-inline: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-dd-text-3, var(--sw-text-3));
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ft .st[data-dd-notice] {
+      color: var(--sw-text-2, var(--sw-text));
+    }
+    .act {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-inline-size: 44px;
+      min-block-size: var(--_opt, 44px);
+      padding-inline: 12px;
+      border: 0;
+      border-radius: var(--sw-r-sm, 8px);
+      background: transparent;
+      color: var(--sw-dd-accent, var(--sw-accent-text, var(--sw-accent)));
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      cursor: pointer;
+    }
+    .act:hover {
+      background: var(--sw-dd-active, var(--sw-surface-3));
+    }
+    .act:focus-visible {
+      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline-offset: 1px;
+    }
+    .act[disabled] {
+      color: var(--sw-dd-text-3, var(--sw-text-3));
+      cursor: default;
+      background: transparent;
+    }
+    .act.done {
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse, #fff);
+    }
+    .act.done:hover {
+      background: var(--sw-accent);
+      filter: brightness(1.08);
+    }
+    .pop.sheet .act,
+    .pop.centred .act {
+      min-block-size: 48px;
+    }
+    @media (forced-colors: active) {
+      :host([multiple]) .opt::before {
+        border-color: ButtonText;
+      }
+      :host([multiple]) .opt[aria-selected='true']::before {
+        background-color: Highlight;
+      }
+      .act {
+        border: 1px solid ButtonText;
       }
     }
 
@@ -1042,7 +1204,7 @@ export class SwDropdown extends LitElement {
     const flip = below < 220 && above > below;
     const rowH = capsule ? { sm: 46, md: 54, lg: 64 }[size] : 44;
     const maxHeight = Math.max(160, Math.min(flip ? above : below, capsule ? 8 * rowH + 24 : 360));
-    const rows = Math.min(this.items.length, 8) * rowH + 16 + (this.hasSearch ? 46 : 0);
+    const rows = Math.min(this.items.length, 8) * rowH + 16 + (this.hasSearch ? 46 : 0) + (this.multiple ? 56 : 0);
     this.pos = { top: flip ? Math.max(pad, r.top - gap - Math.min(maxHeight, rows)) : r.bottom + gap, left, minWidth, maxHeight };
   }
 
@@ -1053,9 +1215,10 @@ export class SwDropdown extends LitElement {
     if (this.present === 'inline') this.setAttribute('data-present', 'inline');
     else this.removeAttribute('data-present');
     this.query = '';
+    this.notice = '';
     this.place();
     this.open = true;
-    const sel = this.items.findIndex((i) => i.id === this.value);
+    const sel = this.items.findIndex((i) => (this.multiple ? this.values.includes(i.id) : i.id === this.value));
     this.cursor = cursor ?? (sel >= 0 ? sel : Math.max(0, this.items.findIndex(isOption)));
     await this.updateComplete;
     const pop = this.popEl();
@@ -1122,6 +1285,7 @@ export class SwDropdown extends LitElement {
     }
     this.open = false;
     this.query = '';
+    this.notice = '';
     window.clearTimeout(this.typedTimer);
     this.typed = '';
     if (refocus) void this.updateComplete.then(() => this.chipEl()?.focus({ preventScroll: true }));
@@ -1161,7 +1325,7 @@ export class SwDropdown extends LitElement {
 
   /** Tab inside the sheet cycles between the search field and the list (a focus trap); Shift+Tab the other way. */
   private trapTab(e: KeyboardEvent) {
-    const ring = [this.searchEl(), this.lbEl()].filter((x): x is HTMLElement => !!x);
+    const ring = [this.searchEl(), this.lbEl(), ...Array.from(this.renderRoot.querySelectorAll<HTMLButtonElement>('.act:not([disabled])'))].filter((x): x is HTMLElement => !!x);
     const at = ring.findIndex((x) => x === (this.renderRoot as ShadowRoot).activeElement);
     const next = ring[(at + (e.shiftKey ? -1 : 1) + ring.length) % ring.length];
     e.preventDefault();
@@ -1209,10 +1373,43 @@ export class SwDropdown extends LitElement {
   private choose(i: number) {
     const it = this.items[i];
     if (!isOption(it)) return;
+    if (this.multiple) {
+      this.toggle(it);
+      return;
+    }
     const changed = it.id !== this.value;
     this.value = it.id;
     this.close(true);
-    if (changed) this.dispatchEvent(new CustomEvent('change', { detail: { id: it.id }, bubbles: true, composed: true }));
+    if (changed) this.dispatchEvent(new CustomEvent<DropdownChange>('change', { detail: { id: it.id }, bubbles: true, composed: true }));
+  }
+
+  /** Is this option choosable now (`multiple`)? Not when the item says so, not past the limit (a picked one can always be un-picked). */
+  private pickable(it: DropdownItem): boolean {
+    if (this.values.includes(it.id)) return true;
+    if (it.disabled) return false;
+    return !(this.max > 0 && this.values.length >= this.max);
+  }
+
+  /** `multiple`: toggle one option, the list stays open; a pick past the limit (or of a disabled option) is refused with the status line. */
+  private toggle(it: DropdownItem) {
+    if (it.disabled && !this.values.includes(it.id)) return;
+    const next = toggleCapped(this.values, it.id, this.max);
+    if (next.refused) {
+      this.notice = limitNotice(this.max, this.countBase);
+      return;
+    }
+    this.notice = '';
+    this.values = next.ids;
+    this.dispatchEvent(new CustomEvent<DropdownChange>('change', { detail: { id: it.id, ids: [...next.ids] }, bubbles: true, composed: true }));
+  }
+
+  /** `multiple`: "נקה" - nothing picked; the list stays open, the focus goes to the list. */
+  private clearAll() {
+    if (!this.values.length) return;
+    this.values = [];
+    this.notice = '';
+    this.dispatchEvent(new CustomEvent<DropdownChange>('change', { detail: { id: '', ids: [] }, bubbles: true, composed: true }));
+    void this.updateComplete.then(() => this.lbEl()?.focus({ preventScroll: true }));
   }
 
   /** Move the cursor by `d` among the options the search leaves (wrapping). */
@@ -1292,7 +1489,10 @@ export class SwDropdown extends LitElement {
 
   private onListKey(e: KeyboardEvent) {
     const k = e.key;
-    const inSearch = (e.composedPath()[0] as HTMLElement | undefined)?.classList?.contains('q') ?? false;
+    const target = e.composedPath()[0] as HTMLElement | undefined;
+    const inSearch = target?.classList?.contains('q') ?? false;
+    const inFoot = target?.classList?.contains('act') ?? false;
+    if (inFoot && k !== 'Escape' && k !== 'Tab') return; // the foot's buttons: Enter / Space press them
     if (k === 'ArrowDown') {
       e.preventDefault();
       this.step(1);
@@ -1313,7 +1513,8 @@ export class SwDropdown extends LitElement {
       e.stopPropagation();
       this.close(true);
     } else if (k === 'Tab') {
-      if (this.present === 'sheet') this.trapTab(e);
+      // the sheet traps the focus; the multiple mode's popover cycles too (its foot has buttons to reach); a single popover closes
+      if (this.present === 'sheet' || this.multiple) this.trapTab(e);
       else this.close(false);
     } else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // typeahead: the typed text so far (reset after 600 ms); the same letter again cycles through the options starting with it
@@ -1356,7 +1557,8 @@ export class SwDropdown extends LitElement {
       if (!shown.has(i)) return;
       if (it.group && it.group !== lastGroup) out.push(html`<div class="grp" role="presentation" aria-hidden="true">${it.group}</div>`);
       lastGroup = it.group;
-      out.push(html`<div class="opt" role="option" id=${this.optionId(i)} data-id=${it.id} aria-selected=${String(it.id === this.value)} ?data-active=${i === this.cursor}
+      const picked = this.multiple ? this.values.includes(it.id) : it.id === this.value;
+      out.push(html`<div class="opt" role="option" id=${this.optionId(i)} data-id=${it.id} aria-selected=${String(picked)} aria-disabled=${this.multiple && !this.pickable(it) ? 'true' : nothing} ?data-active=${i === this.cursor}
         @click=${() => this.choose(i)} @pointermove=${() => (this.cursor = i)}>
         ${anyIcon ? html`<span class="oi" aria-hidden="true">${it.icon ? html`<sw-icon .name=${it.icon} size=${this.iconPx}></sw-icon>` : nothing}</span>` : nothing}<span class="lbl">${it.label}</span>${it.count !== undefined ? html`<span class="n">(${it.count})</span><span class="cnt">${it.count}</span>` : nothing}${it.alert ? html`<span class="dot ${it.alert === 'warn' ? 'warn' : ''}" data-alert="${it.alert === 'warn' ? 'warn' : 'alert'}"></span>` : nothing}
       </div>`);
@@ -1372,18 +1574,45 @@ export class SwDropdown extends LitElement {
     }
   }
 
+  /** `multiple`: the picked options in pick order (ids the items no longer carry are skipped). */
+  private pickedItems(): DropdownItem[] {
+    return this.values.map((id) => this.items.find((it) => it.id === id)).filter((it): it is DropdownItem => !!it && !it.divider);
+  }
+
   render() {
+    if (this.multiple) return this.renderMultiple();
     const sel = this.selected;
     const alert = this.hiddenAlert;
     const name = sel ? `${sel.label}${sel.count !== undefined ? ` (${sel.count})` : ''}` : this.placeholder;
     const aria = `${[this.label, name].filter(Boolean).join(': ')}${alert ? ', יש התראות באפשרויות אחרות' : ''}`;
     const listId = `l-${this.seq}`;
+    return this.renderControl(listId, aria, html`<span class="txt">${sel?.label ?? this.placeholder}</span>${sel?.count !== undefined ? html`<span class="n">(${sel.count})</span>` : nothing}`, nothing, false);
+  }
+
+  /** 2.0.1 `multiple`: the chip reads the picked names and "n מתוך N"; the list has a foot with the count (or the refusal), "נקה" and "סיום". */
+  private renderMultiple() {
+    const picked = this.pickedItems();
+    const count = pickedCount(picked.length, this.max, this.countBase);
+    const names = pickedSummary(picked.map((it) => it.label), this.placeholder);
+    const aria = `${[this.label, names].filter(Boolean).join(': ')}${picked.length ? `, ${count}` : ''}`;
+    const listId = `l-${this.seq}`;
+    const foot = html`<div class="ft" data-dd-foot>
+      <span class="st" role="status" aria-live="polite" data-dd-count=${count} ?data-dd-notice=${!!this.notice}>${this.notice || count}</span>
+      <button type="button" class="act" data-dd-clear ?disabled=${!this.values.length} @click=${() => this.clearAll()}>נקה</button>
+      <button type="button" class="act done" data-dd-done @click=${() => this.close(true)}>סיום</button>
+    </div>`;
+    return this.renderControl(listId, aria, html`<span class="txt">${names}</span>${picked.length ? html`<span class="n" data-dd-chip-count>${count}</span>` : nothing}`, foot, true);
+  }
+
+  private renderControl(listId: string, aria: string, text: unknown, foot: unknown, multi: boolean) {
+    const sel = this.selected;
+    const alert = multi ? false : this.hiddenAlert;
     return html`<button type="button" class="chip" data-dropdown-chip aria-haspopup="listbox" aria-expanded=${String(this.open)} aria-controls=${listId} aria-label=${aria}
         @click=${() => (this.open ? this.close(true) : void this.openList())} @keydown=${(e: KeyboardEvent) => this.onChipKey(e)}>
         ${this.ddStyle === 'capsule'
           ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon ?? sel?.icon ?? 'layers'} size=${this.iconPx}></sw-icon></span>`
           : this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
-        <span class="txt">${sel?.label ?? this.placeholder}</span>${sel?.count !== undefined ? html`<span class="n">(${sel.count})</span>` : nothing}
+        ${text}
         <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${this.ddStyle === 'capsule' ? ({ sm: 14, md: 16, lg: 18 } as Record<string, number>)[this.ddSize] ?? 16 : 12}></sw-icon></span>
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}
       </button>
@@ -1395,7 +1624,8 @@ export class SwDropdown extends LitElement {
           ? html`<label class="search"><sw-icon name="search" size=${14}></sw-icon><input class="q" type="search" data-dd-search placeholder="חיפוש" aria-label=${`חיפוש ב${this.label || 'רשימה'}`} autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
               role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls=${listId} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing} .value=${this.query} @input=${(e: Event) => this.onQuery(e)} /></label>`
           : nothing}
-        <div class="lb" id=${listId} role="listbox" tabindex="-1" aria-label=${this.label || nothing} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing}>${this.open || this.closing ? this.renderItems() : nothing}</div>
+        <div class="lb" id=${listId} role="listbox" tabindex="-1" aria-label=${this.label || nothing} aria-multiselectable=${multi ? 'true' : nothing} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing}>${this.open || this.closing ? this.renderItems() : nothing}</div>
+        ${(this.open || this.closing) && multi ? foot : nothing}
       </div>`;
   }
 }
