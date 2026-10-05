@@ -223,13 +223,18 @@ export class LiveWall extends LitElement {
     /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
     .pbar {
       display: flex;
+      flex-wrap: wrap; /* 2.0.4: with a second recorder the filter makes five controls: they wrap to a second row instead of overflowing at 320 px */
       align-items: center;
       gap: 6px;
       inline-size: 100%;
     }
     .pbar sw-field {
-      flex: 1 1 0;
+      flex: 1 1 64px;
       inline-size: auto;
+      min-inline-size: 0;
+    }
+    .pbar sw-dropdown[block] {
+      flex: 1 1 64px;
       min-inline-size: 0;
     }
     .pbar select {
@@ -782,7 +787,7 @@ export class LiveWall extends LitElement {
   /** LV1: the column count as the shared compact dropdown (0 = automatic best fit). */
   private columnsDropdown(phone: boolean) {
     const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? 'עמודות אוטו' : n === 1 ? 'עמודה אחת' : `${n} עמודות` }));
-    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd tall ?block=${phone} label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
       .items=${items} .value=${String(this.colsOverride)} @change=${(e: CustomEvent<DropdownChange>) => this.setCols(Number(e.detail.id) || 0)}></sw-dropdown>`;
   }
 
