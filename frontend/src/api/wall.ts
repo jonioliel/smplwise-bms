@@ -1,5 +1,5 @@
 /** CR-030 wall display API: the display's own reads (`wall/config`, `wall/states`) and the Settings administration (`wall/profiles`). */
-import { apiUrl, del, get, patch, post } from './client';
+import { api, apiUrl, del, get, patch, post, upload } from './client';
 
 export type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
 export type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
@@ -32,7 +32,7 @@ export interface WallDisplayConfig {
   cameras: { id: string; name: string }[];
   server_time: string;
   zone: string;
-  alerts: unknown[];
+  alerts: WallAlert[];
 }
 
 export interface WallState { id: string; state: string | null; unit: string | null; name: string }
@@ -75,3 +75,37 @@ export const removeWallProfile = (userId: string) => del(`wall/profiles/${encode
 
 /** The Hebrew label of a list status (the "מצב" column). */
 export const WALL_STATUS_LABEL: Record<WallStatus, string> = { connected: 'מחובר', not_connected: 'לא מחובר', never: 'טרם התחבר', disabled: 'מושבת' };
+
+// ---- WDX: alert tiles and the picture frame
+export type WallAlertSeverity = 'info' | 'alert' | 'critical';
+export interface WallAlert {
+  id: string;
+  source: string;
+  category: string;
+  severity: WallAlertSeverity;
+  title: string;
+  place: string | null;
+  body: string;
+  count: number;
+  first_at: string;
+  last_at: string;
+  camera_id: string | null;
+}
+export const getWallAlerts = () => get<{ alerts: WallAlert[] }>('wall/alerts');
+export const ackWallAlert = (id: string) => post<{ acknowledged: boolean }>(`wall/alerts/${encodeURIComponent(id)}/ack`);
+export const getFrameList = () => get<{ photos: { id: string; w: number; h: number }[] }>('wall/frame/list');
+export const frameUrl = (id: string) => apiUrl(`wall/frame/${encodeURIComponent(id)}`);
+
+export interface PhotoSet { id: string; name: string; count: number; bytes: number; used_by: string[] }
+export interface PhotoSetsResponse { sets: PhotoSet[]; limits: { max_files: number; max_bytes: number; formats: string[] } }
+export const listPhotoSets = () => get<PhotoSetsResponse>('wall/photo-sets');
+export const createPhotoSet = (name: string) => post<PhotoSet>('wall/photo-sets', { name });
+export const deletePhotoSet = (id: string) => api<{ deleted: boolean; profiles_turned_off: number }>(`wall/photo-sets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const listSetPhotos = (id: string) => get<{ photos: { id: string; w: number; h: number }[] }>(`wall/photo-sets/${encodeURIComponent(id)}/photos`);
+export const photoPreviewUrl = (set: string, photo: string) => apiUrl(`wall/photo-sets/${encodeURIComponent(set)}/photos/${encodeURIComponent(photo)}`);
+export const deleteSetPhoto = (set: string, photo: string) => del(`wall/photo-sets/${encodeURIComponent(set)}/photos/${encodeURIComponent(photo)}`);
+export const uploadSetPhoto = (set: string, file: File) => {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return upload<{ id: string; w: number; h: number; bytes: number }>(`wall/photo-sets/${encodeURIComponent(set)}/upload`, form);
+};
