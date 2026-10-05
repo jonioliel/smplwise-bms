@@ -1,7 +1,9 @@
 # CR-028 — Cast live video to screens ("שדר למסך")
 
-**Status:** PROPOSED (research and design, 2026-10-05) with a safe, read-only preparation built on `pilot/cast-prep`
-(section 9). Nothing casts yet. The owner asked on 2026-10-05 for (1) a clear marking in Settings, per media screen and player,
+**Status:** phase 0 released (2.0.2, the read-only column); **phase 1 backend BUILT on `pilot/CAST1-backend` (section 12), not
+merged, never run against a real device**. The UI is the next task (a separate agent, against section 12.5); the first physical test
+waits for a Cast device in the lab and the owner's consent (`docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md`). The owner's
+decisions of 2026-10-05 (11.1 א relay, 11.2 ב per screen, duration / power-off / picker answers) are applied. The owner asked on 2026-10-05 for (1) a clear marking in Settings, per media screen and player,
 of whether it can receive a cast of our video and through which technology, and (2) a "שדר למסך" button on the live screen
 (a single camera and the wall) in a future version. **Builds on:** CR-015 (screens and the remote), CR-016 (players; the three
 read-only probes of the owner's systems), CR-008 (the remote channel), CR-024 (several recorders). **Number:** 027 is taken twice
@@ -376,3 +378,133 @@ client hitting the relay.
    ("מותר לשדר") - recommended, consistent with the approval-per-device rule of CR-015 / CR-016.
 3. **The first physical test (8.3):** which Cast device, and whether the `turn_off` restore after the stop is included.
 4. **Wall mode (phase 2):** (א) mosaic with the carousel fallback - recommended; (ב) carousel only (no transcoding anywhere).
+
+## 12. Phase 1 backend - what is built (`pilot/CAST1-backend`, 2026-10-05)
+
+Backend only; the live-screen button, picker, pill and the Settings forms are a separate UI task against 12.5. Owner decisions
+applied (private/planning/CAST_UX_OWNER_DECISIONS_2026-10-05.md): the relay path (11.1 א); casting OFF per screen until the
+administrator turns it on (11.2 ב / Q3); 30 minutes x up to 8 extensions plus a per-screen choice including a PERMANENT cast (Q6);
+power-off after the stop only when the screen was off before, cancellable (Q10); blocked screens in the picker as a SETTING (Q4,
+default grey with the reason); the administrator's 60-second test cast (Q12). The wall (mosaic / carousel) is phase 2 and not built.
+
+### 12.1 Files
+
+| Area | Files |
+|---|---|
+| Relay | `smplwise_vms/backend/smplwise/services/cast_relay.py` (listener, token index, HLS allow-list, playlist checks, rate limits, origin probe) |
+| Sessions | `services/cast_sessions.py` (config, readiness, per-screen settings, targets, start / extend / switch / stop, janitor, relay callbacks) |
+| API | `routers/cast.py` (12.5); `routers/ha.py` (the signed `cast` block in the directory answer); `services/ha_client.py` (`call_bridge_cast_stream`) |
+| Storage | `migrations/0060_cast_sessions.sql` (`media_devices.cast_json`, `cast_sessions`) |
+| Wiring | `main.py` (router, `attach`, listener start / stop, janitor step), `config.py` + `config.yaml` (`cast_relay`, `18092/tcp: null`), `services/self_update.py` (`OPTION_TYPES`), `remote_channel.py` (local-only administration) |
+| Permissions | `roles.json`, `contracts/examples/role-catalog.design.json`, `routers/access.py` (`media.cast`) |
+| Bridge 0.7.0 | `custom_components/smplwise_bridge/cast_policy.py`, `cast_service.py`, `__init__.py`, `const.py`, `manifest.json`, `services.yaml`, `strings.json` / translations, the card's VERSION; mirrored by `scripts/sync_integration.py` |
+| Tests | `tests/test_cast_relay.py`, `tests/test_cast_sessions.py`, `tests/test_bridge_cast_policy.py`; version / migration-list assertions moved to 0.7.0 / 0060 |
+| Docs | this section, `smplwise_vms/DOCS.md` + `DOCS_HE.md` (option `cast_relay`), the runbook |
+
+### 12.2 The relay (CR 3.3, built)
+
+- Listens on container port **18092** only when the add-on option **`cast_relay: true`**; `config.yaml` maps `18092/tcp: null`, so a
+  host port must be mapped too (the CR-025 push-port pattern). It is the add-on's only unauthenticated listener; it is never on
+  Ingress or `/arx`.
+- `GET /cast/<32 hex>/index.m3u8` -> go2rtc `/api/stream.m3u8?src=<session stream>&mp4` (fMP4 HLS; `HLS_FMP4` is the one switch if
+  a receiver needs TS). `GET /cast/<token>/hls/{playlist.m3u8|segment.ts|init.mp4|segment.m4s}?id=..&n=..` -> go2rtc `/api/hls/...`,
+  only for the go2rtc HLS session ids THIS token's master named. No stream name in any query; only `id` / `n` with plain values.
+- Every playlist from go2rtc is checked URI by URI (lines and `URI="..."`): absolute, climbing, other paths or other keys = 502.
+  Playlists <= 64 KB, segments <= 16 MB. CORS `*` (the Cast receiver page is cross-origin; no cookie exists), `no-store`, `nosniff`.
+- Token: `HMAC-SHA256(installation cast secret, "cast|session|generation")[:32]`; only its SHA-256 is stored (`token_hash`) and kept
+  in the relay's in-memory index with the expiry (looked up by that hash, so a timing difference says nothing about the token's
+  characters); a switch raises the generation (the old token dies at once); stop / expiry / replace / refusal drop it before any
+  command. Unknown / revoked / expired = 403. An add-on restart reloads the open sessions.
+- Rates per token: playlists 2/s (burst 6), media 4/s (burst 24); over = 429; 60 refusals end the session (`error`, one stop).
+- "playing" = the relay served the first segment (callback); 15 s without = `not_confirmed` (computed on read, persisted by the janitor).
+- Origin self-check: `GET /cast/probe/<one-use token>` answers 204 once - the add-on fetches it through its own origin.
+
+### 12.3 The bridge, 0.7.0 (CR 3.4, built)
+
+ONE new service `smplwise_bridge.cast_stream {user_id, op: play|stop|off, entity_id, url?, title?, request_id, ts, nonce, sig}`,
+closed schema. `cast_policy.py` decides independently of the add-on: target = one `media_player` whose registry platform is
+`cast`; URL exactly `http://<IP>:<port>/cast/<32 hex>/index.m3u8` (no credentials, query, fragment); `<IP>:<port>` equal to the origin
+the paired add-on announced - a block `{purpose: "cast_origin", cast_origin}` signed with the pairing secret in its answer to every
+user-directory push (forged, replayed, other purpose = ignored; `null` while casting is not ready clears it); the IP is an address of
+this Home Assistant host (network integration adapters; unreadable = refused); title <= 80 printable characters. `play` =
+`media_player.play_media {media_content_type: application/vnd.apple.mpegurl, media_content_id: url, extra: {stream_type: LIVE, title}}`,
+`stop` = `media_stop`, `off` = `turn_off`, all with `Context(user_id)`. Rate 30 calls / minute. **`execute` is unchanged: every other
+`play_media` URL is still refused by `media_policy.py`** (a test asserts it). An add-on paired with a bridge < 0.7.0 answers 503
+`bridge_outdated` before anything is sent. Version bump in both copies + the card; one platform restart to load it.
+
+### 12.4 Data, permissions, lifecycle (CR 5, as built)
+
+- `media_devices.cast_json` `{allow (default false), method: auto|cast_hls|none, minutes: 5-240|null, permanent: bool, allow_main: bool|null}`.
+- `cast_sessions` (migration 0060): see the SQL comments; one open session per screen (partial unique index), idempotent on
+  `(started_by, client_request_id)`. `restore_json = {was_off, power_off_after}`.
+- Settings (`multimedia.cast.*`): `enabled` (false), `origin` (`http://<LAN IP>:<port>`; a private IP literal - a name is refused,
+  a TV may not resolve it and the bridge compares addresses), `origin_verified_at`, `max_sessions` (2, 1-8), `minutes` (30, 5-240),
+  `allow_main` (false), `power_off_after` (true), `blocked_display` (`grey_reason` | `hide` | `grey_admin`), `secret` (internal).
+- `media.cast` (new; operator, site_admin, system_admin; not sensitive), scoped at the screen's anchor like `media.control`;
+  `video.live` on the camera; `media.public` on a public screen; stop also by `media.bulk` at the anchor and `system.configure`.
+- Start order (each refusal audited `media.cast.denied`): feature on -> ready (relay option + listener, enabled, origin, verified)
+  -> the screen approved and readable (else 404) -> `media.cast` (403) -> `video.live` on the camera (the live screen's audited 403)
+  -> method `cast_hls` through a `cast` entity, never confidence `unknown` -> the screen allowed (403 `cast_not_allowed`; not for the
+  test cast) -> public -> profile (`main` only when allowed - screen setting over installation - AND the encoding registry says
+  H.264, else 422 `main_not_supported`) -> duration (`permanent` only on a screen marked permanent) -> HA identity -> bridge >= 0.7.0
+  -> the Cast entity available -> music playing needs `confirmed: true` (409 `cast_busy`) -> the cap (409 `cast_limit`, a replaced
+  session does not count) -> one start per screen per 5 s (429) -> the stream (`ensure_camera_stream`, our namespace only) -> the
+  replaced session ends (`replaced`, no stop sent: the new play takes the screen; its `was_off` carries over) -> row, token, ONE play.
+- Extend: the session's user or `media.cast` at the anchor; +minutes (the screen's own or the installation's) from the later of
+  now / the current expiry; at most 8; never a permanent or a test cast. Switch: a new camera, a new token, one new play; the timer
+  and the restore stay. Stop: token first, ONE `stop`, then by the restore rule ONE `off` (cancel with `?power_off=false` or
+  `power_off_after: false` at start; the installation option switches the rule off). Janitor (30 s): expiry -> `timeout`; the Cast
+  entity missing / unavailable -> `target_gone` (no command); `not_confirmed` persisted. Never retried.
+- Audit: `media.cast.start | test | extend | switch | stop | power_off | denied | config | screen` - never the token, the URL or the
+  origin's address (a test scans every row).
+- Events: `{"type": "cast_sessions_changed", "reason"}` on `/ha/ws` - deliberately without a session id, screen or camera (the frame
+  reaches every socket; the client refetches `GET sessions` with its own permissions). Deviation from 5.2's `cast_session` frame.
+- Remote (`/arx`): start / extend / switch / stop / targets / sessions work; the playback is on the LAN and does not consume
+  `remote.max_live_streams`; casts have their own cap. The administration routes are local-only (`BLOCKED_ON_REMOTE`).
+
+### 12.5 API (all under `/api/v1/multimedia/cast`)
+
+| Method | Path | Who | Body / query -> answer |
+|---|---|---|---|
+| GET | `targets[?camera=<id>]` | `media.cast` somewhere | `{ready, reason, targets: [{key, name, kind, floor_id, floor_name, area_name, state, blocked, confidence, permanent_allowed, minutes, main_allowed, casting_session_id}], blocked_display, main_possible, max_sessions, active}`; `state` = free / casting / playing_music / off / unavailable; `blocked` = null / no_permission / unsupported / not_allowed / public / unavailable. Without `camera` this is "the screens I can cast to" |
+| GET | `sessions` | `media.read` or `media.cast` somewhere | `{sessions: [Session], max_sessions}` - open casts the caller may see |
+| GET | `sessions/{id}` | as above | `Session` (also after it ended: `state: stopped`, `stop_reason`) |
+| POST | `sessions` | `media.cast` at the anchor + `video.live` | `{target_key, camera_id, profile?: sub/main, duration?: default/permanent, client_request_id, confirmed?, power_off_after?}` -> 202 `{status: accepted, session}`; 200 `{status: existing or refused, error, session}`; 403 forbidden / cast_not_allowed / public_screen / permanent_not_allowed / identity_unmapped; 404; 409 cast_unavailable{reason} / cast_unsupported / unavailable / cast_busy / cast_limit; 422 main_not_supported / validation; 429 rate_limited; 503 bridge_outdated / bridge_not_paired / ha_unavailable |
+| POST | `sessions/{id}/extend` | own or `media.cast` at the anchor | -> `Session`; 409 extend_limit / not_extendable / stopped |
+| POST | `sessions/{id}/switch` | own or `media.cast`, + `video.live` | `{camera_id, profile?}` -> 202 / 200 refused, as start |
+| DELETE | `sessions/{id}[?power_off=false]` | own, `media.cast` / `media.bulk` at the anchor, `system.configure` | -> `{status: stopped, stop: sent / refused:<code> / failed:<code>, power_off: sent / failed / cancelled / skipped / null, session}` |
+| GET / PUT | `config` | `system.configure`, local only | `{config, relay: {option, listening, container_port, error}, bridge: {paired, version, required, ready}, ready, reason}`; PUT any of `enabled, origin, max_sessions, minutes, allow_main, power_off_after, blocked_display` |
+| POST | `origin/check` | `system.configure`, local only | `{ok, reason: null / relay_off / origin_missing / unreachable / not_this_relay}` |
+| GET | `screens` | `system.configure`, local only | every screen / player / speaker: `{key, name, kind, approved, public, floor_name, area_name, detected, effective, target_entity_id, settings, casting_session_id}` |
+| PUT | `screens/{key}` | `system.configure`, local only | any of `allow, method, minutes, permanent, allow_main` -> `{key, settings, changed}` |
+| POST | `test` | `system.configure`, local only | `{target_key, camera_id}` -> a 60-second cast (kind `test`), even before the screen is allowed |
+
+`Session = {session_id, device_key, screen_name, floor_name, area_name, kind: camera|test, camera_id, camera_name (null without
+video.live), profile, state: starting|playing|not_confirmed|stopped, started_at, expires_at (null = permanent), permanent, extended_n,
+extensions_left, first_segment_at, started_by_name, mine, channel: local|remote, stopped_at, stop_reason, power_off_after,
+power_off_state, can: {stop, extend, switch}}`. The detected cast capability per device stays on `GET /multimedia/admin/devices`
+(`cast`, phase 0); `screens` adds the effective one after the administrator's override.
+
+### 12.6 Add-on options and the first physical test
+
+Option `cast_relay` (bool, default false) + port `18092/tcp` (null by default): DOCS.md / DOCS_HE.md. The first physical test,
+with the owner-consent text, the prerequisites, the read-only steps, the device steps with stop rules, the evidence and the
+rollback: **`docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md`**.
+
+### 12.7 Tests (fakes only) and what is not verified
+
+`test_cast_relay.py` (token forgery / revocation / expiry / permanent, switch kills the old token, namespace guard, query and path
+allow-lists, HLS session binding, master / media playlist checks, methods, rates and abuse, upstream failures, the probe, the real
+listener on 127.0.0.1), `test_bridge_cast_policy.py` (URL / origin / local-address / platform / ops / keys, `execute` still refusing
+URLs, the handler: signed origin, forged / replayed / other-purpose blocks, bad signature, unknown user, replay, rate, exception
+text never returned, the registration and the mirror), `test_cast_sessions.py` (readiness ladder, origin validation, audit privacy,
+per-screen default off, override, the whole chain with a TV client through the real relay and a fake bridge running the real
+`cast_policy` with the origin from the signed directory answer, bridge refusal, HA unreachable, idempotency, permissions and scope,
+the picker and `blocked_display`, public screens, the test cast, local-only administration, replace + cap, start gap, 8 extensions,
+permanent, expiry with power-off, cancellation, target gone, not confirmed, switch, main stream rules, music confirmation,
+bridge < 0.7.0, a hammering TV, restart keeps the cast).
+
+**Not verified (needs the lab):** go2rtc's real HLS path shapes and `&mp4` on the lab version; a real Cast receiver's handling of
+fMP4 HLS, of `stream_type: LIVE` and of a 403 at stop; HA's `network.async_get_adapters` answer on HA OS (the bridge's local-address
+check); latency and CPU; VLAN behaviour. **Merge note:** migration 0060 assumes 0058 (EL6) and 0059 (map investigation) land first;
+the migration-list assertions in four tests carry only 0060 on top of main and are completed at the merge.

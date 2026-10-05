@@ -6,7 +6,7 @@ without any PDF engine.
 
 Errors (ELECTRICITY_BILL_PDF.md section 1): `PdfUnavailable` (no engine in this build: 503 pdf_unavailable) and
 `PdfFailed(code, retryable, status)`: pdf_render_failed / pdf_timeout -> 503 retryable, pdf_page_limit / pdf_too_large -> 422
-not retryable; a malformed snapshot (a caller bug) -> 503 pdf_render_failed, not retryable."""
+not retryable; a snapshot that cannot be printed -> 422 not retryable: pdf_no_lines (nothing to bill) or pdf_invalid_snapshot (+ the field name)."""
 from __future__ import annotations
 
 import inspect
@@ -24,13 +24,15 @@ class PdfUnavailable(Exception):
 
 
 class PdfFailed(Exception):
-    STATUS = {"pdf_render_failed": 503, "pdf_timeout": 503, "pdf_page_limit": 422, "pdf_too_large": 422}
+    STATUS = {"pdf_render_failed": 503, "pdf_timeout": 503, "pdf_page_limit": 422, "pdf_too_large": 422,
+              "pdf_no_lines": 422, "pdf_invalid_snapshot": 422}
 
-    def __init__(self, code: str = "pdf_render_failed", retryable: bool = True):
+    def __init__(self, code: str = "pdf_render_failed", retryable: bool = True, field: str = ""):
         super().__init__(code)
         self.code = code if code in self.STATUS else "pdf_render_failed"
         self.retryable = retryable
         self.status = self.STATUS[self.code]
+        self.field = field  # pdf_invalid_snapshot: the snapshot field that failed validation (a name, never a value)
 
 
 def UNAVAILABLE(snapshot: dict[str, Any], **_kw: Any) -> bytes:  # noqa: N802 - a sentinel renderer for tests
@@ -93,10 +95,15 @@ def render(snapshot: dict[str, Any], *, logo: bytes | None = None, watermark: st
     except Exception as exc:  # noqa: BLE001 - any renderer failure keeps the bill's state
         code = getattr(exc, "code", None)
         retryable = getattr(exc, "retryable", True)
+        field = ""
         if type(exc).__name__ == "BillSnapshotError":
-            code, retryable = "pdf_render_failed", False
-        log.warning("bill PDF render failed: %s %s", type(exc).__name__, code or "")
-        raise PdfFailed(code if isinstance(code, str) else "pdf_render_failed", bool(retryable)) from None
+            # the snapshot itself cannot be printed: rendering again gives the same answer, so say what is wrong
+            field = str(getattr(exc, "field", "") or "")[:60]
+            code, retryable = ("pdf_no_lines" if getattr(exc, "code", "") == "no_lines" else "pdf_invalid_snapshot"), False
+            log.warning("bill PDF render refused: snapshot invalid (%s) field=%s", code, field or "?")
+        else:
+            log.warning("bill PDF render failed: %s %s", type(exc).__name__, code or "")
+        raise PdfFailed(code if isinstance(code, str) else "pdf_render_failed", bool(retryable), field) from None
     if not isinstance(out, (bytes, bytearray)) or not bytes(out).startswith(b"%PDF"):
         raise PdfFailed()
     return bytes(out)

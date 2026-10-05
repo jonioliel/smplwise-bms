@@ -53,7 +53,7 @@ VENDOR = "provision_isr"
 READ_COMMANDS = frozenset({
     "GetDeviceInfo", "GetChannelList", "GetDiskInfo", "GetRecordStatusInfo", "GetPortConfig", "GetDateAndTime",
     "GetStreamCaps", "GetVideoStreamConfig", "GetImageOsdConfig", "GetSnapshot", "GetAlarmStatus", "GetAlarmServerConfig",
-    "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A protocol fix: decides whether a push write is possible)
+    "GetSupportedAPIs",  # v2 2.1.1; a v1 device answers errorCode 1 (NN2A: decides whether a push write is possible; NN2B: whole-streams v1 vs partial v2 write)
 })
 # The long-polling session commands: named Set*, but they manage this client's own subscription, not the device's
 # configuration (v1 long-polling guide 2.1-2.4).
@@ -79,6 +79,15 @@ _AUTH_LOCK = threading.Lock()
 _monotonic = time.monotonic
 _CERTS: dict[str, tuple[float, dict[str, Any]]] = {}  # device_key -> (expires at, certificate facts) - CR-026
 CERT_TTL_S = 6 * 3600.0
+# NN2B: v2 capability discovery per device (GetSupportedAPIs; None = the device does not answer it = v1) and the channels whose
+# encoding writes the device refused (R2: an NVR may not pass writes to some cameras) - both per device_key, both short-lived.
+_SUPPORT: dict[str, tuple[float, frozenset[str] | None]] = {}
+SUPPORT_TTL_S = 600.0
+_WRITE_REFUSED: dict[str, dict[int, float]] = {}  # device_key -> {channel: refused until (monotonic)}
+WRITE_REFUSED_TTL_S = 600.0
+# device error codes that mean "this device / channel does not take this write" (not "this value is wrong"): 1 unsupported,
+# 4 permission denied (the NVR's account may not configure that camera), 11 / 12 (see ERROR_CODES)
+CHANNEL_REFUSAL_CODES = frozenset({1, 4, 11, 12})
 
 # CR-026 health detail: the device's words -> the normalized values of base.DISK_STATES / ChannelReading.record_state
 DISK_STATE = {"read/write": "ok", "readwrite": "ok", "normal": "ok", "read": "read_only", "readonly": "read_only", "locked": "locked",
@@ -126,6 +135,8 @@ def clear_auth_cache() -> None:
         _CHALLENGE.clear()
         _PINNED.clear()
         _CERTS.clear()
+        _SUPPORT.clear()
+        _WRITE_REFUSED.clear()
 
 
 AUTH_FLOOR_NAME = "provision_auth_floor.json"  # device_key -> strongest scheme seen in auto mode (no address, no secret)
@@ -513,6 +524,10 @@ class ProvisionIsrAdapter:
             except ApiError as exc:
                 if exc.code in ("source_error", "nvr_not_supported", "source_invalid"):
                     continue
+                # R2: the NVR's account may not read some cameras (device errorCode 4 on one channel); a login refusal (401) has no
+                # device code and still stops the read
+                if exc.code == "source_forbidden" and exc.details.get("device_code") in CHANNEL_REFUSAL_CODES:
+                    continue
                 raise
             out[str(ch)] = [self._encoding(s) for s in streams]
         return out
@@ -547,7 +562,12 @@ class ProvisionIsrAdapter:
         resolutions per codec, fps values, bitrate / GOP bounds, bitrate modes, quality 1..5, smart codec. Built from
         GetStreamCaps + the stream's own bounds and codec tokens. `writable` only when writes are enabled for this recorder."""
         ch, s = self._find_stream(stream_ref)
-        caps = self.stream_caps(ch).get("streams", {}).get(s["stream_no"], {})
+        try:
+            caps = self.stream_caps(ch).get("streams", {}).get(s["stream_no"], {})
+        except ApiError as exc:
+            if exc.code in ("source_error", "nvr_not_supported", "source_invalid"):  # R2: the NVR does not publish this camera's caps
+                return StreamOptions(writable=False, reason="capabilities_unreadable", options=None, write_via=None, source=None)
+            raise
         tokens = [t.lower() for t in (s["limits"]["codecs"] or caps.get("codecs") or [s["codec_raw"] or ""]) if t]
         families: list[str] = []
         for tok in tokens:
@@ -576,6 +596,9 @@ class ProvisionIsrAdapter:
         }
         if not self.writes_enabled:
             return StreamOptions(writable=False, reason="writes_disabled", options=options, write_via=None, source="stream_caps")
+        why = self.write_gate(ch, caps)
+        if why is not None:  # declared per stream AFTER validation (NN2B): the editor shows the reason, the planner skips the stream
+            return StreamOptions(writable=False, reason=why, options=options, write_via=None, source="stream_caps")
         return StreamOptions(writable=True, reason=None, options=options, write_via="direct", source="stream_caps")
 
     # -- vendor hooks used by services/nvr_settings.py (getattr seam; Hikvision keeps nvr.stream_document / parse_stream_element)
@@ -605,13 +628,77 @@ class ProvisionIsrAdapter:
         out["source"] = "provision_isr"
         return out
 
-    def _check_limits(self, ch: int, item: str) -> None:
-        """fps against the resolution's own maximum (GetStreamCaps), which validate_changes cannot see."""
+    # -- NN2B: support gate, write mode, value validation
+
+    def supported_apis(self) -> frozenset[str] | None:
+        """v2 GetSupportedAPIs, or None when the device does not answer it (every v1 firmware: errorCode 1). Cached per device."""
+        now = _monotonic()
+        with _AUTH_LOCK:
+            hit = _SUPPORT.get(self.device_key)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+        try:
+            got: frozenset[str] | None = self._xml("GetSupportedAPIs", None, px.parse_supported_apis)
+        except ApiError as exc:
+            if exc.code not in ("nvr_not_supported", "source_error", "source_invalid"):
+                raise
+            got = None
+        with _AUTH_LOCK:
+            _SUPPORT[self.device_key] = (now + SUPPORT_TTL_S, got)
+        return got
+
+    def write_mode(self) -> str:
+        """`whole` (v1: SetVideoStreamConfig carries every stream of the channel) or `partial` (v2: only the target item with the
+        changed fields). `nvr_extra.stream_write` forces one; otherwise partial only when the device itself lists the command."""
+        forced = self._extra.get("stream_write")
+        if forced in ("whole", "partial"):
+            return str(forced)
+        apis = self.supported_apis()
+        return "partial" if apis is not None and "SetVideoStreamConfig" in apis else "whole"
+
+    def write_gate(self, ch: int, caps: dict[str, Any] | None = None) -> str | None:
+        """None when this channel's streams may be written, else the reason code: `write_api_missing` (a v2 device that does not
+        list SetVideoStreamConfig), `device_refused` (the device refused a write for this channel recently - R2), `no_caps`
+        (the NVR publishes no capability document for this stream, so no value can be validated)."""
+        apis = self.supported_apis()
+        if apis is not None and "SetVideoStreamConfig" not in apis:
+            return "write_api_missing"
+        with _AUTH_LOCK:
+            until = _WRITE_REFUSED.get(self.device_key, {}).get(ch, 0.0)
+        if until > _monotonic():
+            return "device_refused"
+        if caps is not None and not (caps.get("resolutions") or caps.get("codecs")):
+            return "no_caps"
+        return None
+
+    def _mark_refused(self, ch: int) -> None:
+        with _AUTH_LOCK:
+            _WRITE_REFUSED.setdefault(self.device_key, {})[ch] = _monotonic() + WRITE_REFUSED_TTL_S
+
+    def _check_limits(self, ch: int, item: str, before: dict[str, Any] | None = None) -> None:
+        """The value check against the device's own documents (GetStreamCaps + the stream's bounds), the last line of defence
+        behind `nvr_settings.validate_changes`: resolution listed for the stream, fps within the resolution's maximum, bitrate and
+        GOP inside the stream's bounds (and in its list when it publishes one), codec token in the stream's list."""
         p = px.parse_element(item, ch)
         caps = next((c for c in self.stream_caps(ch).get("streams", {}).values() if c.get("device_id") == p["stream_id"]), {})
-        top = {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", [])}.get(p["resolution"])
+        res = {r["resolution"]: r["max_fps"] for r in caps.get("resolutions", [])}
+
+        def bad(field: str, allowed: Any = None) -> ApiError:
+            return ApiError(422, "value_not_allowed", "הערך אינו בין הערכים שהמכשיר מקבל.", details={"field": field, **({"allowed": allowed} if allowed else {})})
+
+        if res and p["resolution"] and p["resolution"] not in res:
+            raise bad("resolution")
+        top = res.get(p["resolution"])
         if top and p["fps"] and p["fps"] > top:
             raise ApiError(422, "value_not_allowed", "קצב הפריימים גבוה מהמותר ברזולוציה הזו.", details={"field": "fps", "allowed": {"max": top}})
+        lim = (before or {}).get("limits") or {}
+        for field, key in (("bitrate_kbps", "bitrate"), ("gop", "gop")):
+            bounds, v = lim.get(key), p.get(field)
+            if bounds and v is not None and not bounds["min"] <= v <= bounds["max"]:
+                raise bad(field, bounds)
+        tokens = [t.lower() for t in (lim.get("codecs") or caps.get("codecs") or [])]
+        if tokens and p["codec_raw"] and p["codec_raw"].lower() not in tokens:
+            raise bad("codec")
 
     def write_stream_encoding(self, stream_ref: str, expect_etag: str, element: str, write_via: str) -> WriteOutcome:
         """CR-020 contract: read the channel again, refuse 409 `stale` when the stream's etag moved, send
@@ -635,17 +722,37 @@ class ProvisionIsrAdapter:
             raise ApiError(422, "value_not_allowed", "הערך אינו מותר.", details={"field": "stream_ref"})
         if before["etag"] != expect_etag:
             raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"op": "pre_put", "etag": before["etag"]})
-        self._check_limits(ch, element)
-        body = px.set_streams_document(get_xml, element)
+        try:
+            caps = self.stream_caps(ch).get("streams", {}).get(sid, {})
+        except ApiError as exc:
+            if exc.code not in ("source_error", "nvr_not_supported", "source_invalid"):
+                raise
+            caps = {}  # no capability document: no value can be validated, so the gate refuses (`no_caps`)
+        why = self.write_gate(ch, caps)
+        if why is not None:  # the support gate: a clean refusal before anything is built or sent
+            raise ApiError(409, "nvr_not_supported", "ה־NVR אינו מאפשר לשנות את הזרם הזה.", details={"op": "put", "reason": why})
+        self._check_limits(ch, element, before)
+        mode = self.write_mode()
+        if mode == "partial":
+            body, changed = px.streams_partial_document(get_xml, element)
+            if not changed:  # nothing differs from what the device shows: nothing is sent
+                return WriteOutcome(device_status="unchanged", reboot_required=False, verified=self.read_stream(stream_ref))
+        else:
+            body = px.set_streams_document(get_xml, element)
         nvr.check_deadline("put")  # past the deadline before anything was sent: a plain refusal, never unknown
         try:
             data, _ = self._call("SetVideoStreamConfig", ch, body=body, allowed=WRITE_COMMANDS, timeout=25.0)
         except ApiError as exc:
+            code = exc.details.get("device_code")
             if exc.code in ("source_unavailable", "source_timeout", "source_too_large"):
                 exc.retryable = False
                 exc.details = {**exc.details, "op": "put", "outcome": "unknown"}
-            elif exc.code == "source_error" and exc.details.get("device_code") in (3, 15, 16, 18, 19):
-                raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": "put", "device_code": exc.details.get("device_code")}) from exc
+            elif exc.code == "source_error" and code in (3, 15, 16, 18, 19):
+                raise ApiError(409, "nvr_rejected", "ה־NVR דחה את ההגדרות.", details={"op": "put", "device_code": code}) from exc
+            elif code in CHANNEL_REFUSAL_CODES and exc.code in ("nvr_not_supported", "source_forbidden"):
+                self._mark_refused(ch)  # R2: this NVR does not pass writes to this camera; the stream is declared not writable
+                raise ApiError(409, "nvr_not_supported", "ה־NVR אינו מאפשר לשנות את הזרם הזה.",
+                               details={"op": "put", "reason": "device_refused", "device_code": code}) from exc
             raise
         status, code, _desc = px.response_status(data)
         if status == "failed":
@@ -662,15 +769,6 @@ class ProvisionIsrAdapter:
     def push_config(self) -> dict[str, Any]:
         """GetAlarmServerConfig: where the device posts alarms today (address redacted to a boolean)."""
         return self._xml("GetAlarmServerConfig", None, px.parse_alarm_server)
-
-    def supported_apis(self) -> frozenset[str] | None:
-        """v2 GetSupportedAPIs, or None when the device does not answer it (every v1 firmware: errorCode 1)."""
-        try:
-            return self._xml("GetSupportedAPIs", None, px.parse_supported_apis)
-        except ApiError as exc:
-            if exc.code in ("nvr_not_supported", "source_error", "source_invalid"):
-                return None
-            raise
 
     def alarm_server_support(self, before: dict[str, Any]) -> tuple[bool, str]:
         """(supported, reason) for SetAlarmServerConfig on this device; `before` = parse_alarm_server of its answer."""

@@ -42,6 +42,13 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      the SmplWise Arx phone app (`services/push-relay/README.md`). The key is this installation's credential at the relay:
      kept only in the add-on options, never in the database, a backup, a log or an error. Empty = the "אפליקציה" channel
      in הגדרות › התראות plans nothing (`channel_unavailable`).
+   - `cast_relay` (default `false`, CR-028) — "שדר למסך": the cast relay from which a Google Cast TV fetches one camera's
+     video (HLS) on the local network, with a short-lived token per cast and nothing else (no recorder address, no
+     credential, no go2rtc URL). Off by default; to use it, turn the option on, map a host port to **18092/tcp** in the
+     add-on's **Network** section (unmapped by default), restart the add-on, then in הגדרות › מולטימדיה enter the relay
+     address `http://<the HA host's LAN IP>:<the host port>`, press "בדוק", switch casting on and allow each screen. Needs
+     bridge **0.7.0** (one platform restart). Only `smplwise_*` streams are ever relayed. See
+     `docs/changes/CR-028-CAST-TO-SCREENS.md` section 12.
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
      their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
      support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.

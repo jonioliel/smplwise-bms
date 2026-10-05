@@ -7,6 +7,10 @@ import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-dialog';
+import '../components/sw-dropdown';
+import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
+import { TabsModeController } from '../shell/tabs-mode';
+import { COLUMN_CHOICES, COUNT_ALL, COUNT_ALL_ID, countChoiceId, countLadder, effectiveCount, parseCountId, parseStoredCount, storeCount } from './wall-count';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
@@ -36,7 +40,6 @@ function storedQuality(): 'auto' | 'main' | 'sub' {
   }
 }
 
-const COUNTS = [1, 2, 4, 6, 8, 9, 12, 16, 20, 25, 32];
 /** The wall grid's own CSS gap on desktop (`.grid { gap: 12px }` below); the fit maths uses the same value. */
 const WALL_GAP = 12;
 const COUNT_KEY = 'sw.wall.count';
@@ -52,6 +55,8 @@ const VIEWS = [
 export class LiveWall extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** LV1: the columns picker is the shared dropdown, drawn in the video group's style and size (Settings). */
+  private readonly tabsMode = new TabsModeController(this, 'security');
   /** Below 768 px the toolbar is one short row of compact selects (mobile audit 2026-09-30). */
   private readonly phone = new PhoneWidth(this);
   /** Comma-separated camera ids chosen on a floor map (T043); empty = all cameras. */
@@ -145,21 +150,6 @@ export class LiveWall extends LitElement {
       grid-auto-flow: row;
     }
     /* best fit (0.1.68): the tiles fill the screen as a rectangle - as many columns as make the tiles biggest */
-    .colbtn {
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      border: 1px solid var(--sw-border);
-      background: var(--sw-surface);
-      color: var(--sw-text-2);
-      border-radius: 6px;
-      padding: 2px 8px;
-      cursor: pointer;
-    }
-    .colbtn.on {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: #fff;
-    }
     .grid.fit {
       grid-template-columns: repeat(var(--cols), var(--tile));
       justify-content: center;
@@ -233,13 +223,18 @@ export class LiveWall extends LitElement {
     /* the phone's toolbar (mobile audit 2026-09-30): quality, count and columns as three compact selects and the kiosk button, one row */
     .pbar {
       display: flex;
+      flex-wrap: wrap; /* 2.0.4: with a second recorder the filter makes five controls: they wrap to a second row instead of overflowing at 320 px */
       align-items: center;
       gap: 6px;
       inline-size: 100%;
     }
     .pbar sw-field {
-      flex: 1 1 0;
+      flex: 1 1 64px;
       inline-size: auto;
+      min-inline-size: 0;
+    }
+    .pbar sw-dropdown[block] {
+      flex: 1 1 64px;
       min-inline-size: 0;
     }
     .pbar select {
@@ -526,7 +521,7 @@ export class LiveWall extends LitElement {
   private setCount(n: number) {
     this.count = n;
     try {
-      localStorage.setItem(COUNT_KEY, String(n));
+      localStorage.setItem(COUNT_KEY, storeCount(n));
     } catch {
       /* private mode */
     }
@@ -546,12 +541,11 @@ export class LiveWall extends LitElement {
       this.restartSnapTimer();
       let stored = 0;
       try {
-        stored = Number(localStorage.getItem(COUNT_KEY) ?? 0);
+        stored = parseStoredCount(localStorage.getItem(COUNT_KEY));
       } catch {
         /* private mode */
       }
-      const def = Number(settings['ui.wall_count'] ?? 0);
-      const pick = COUNTS.includes(stored) ? stored : COUNTS.includes(def) ? def : 0;
+      const pick = stored || parseStoredCount(String(settings['ui.wall_count'] ?? ''));
       if (pick) this.count = pick;
     } catch (err) {
       this.error = describeError(err);
@@ -686,7 +680,7 @@ export class LiveWall extends LitElement {
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
     // a selection from the map is an explicit choice: it still shows a camera hidden in the wall
     const pool = wanted.length ? enabled.filter((c) => wanted.includes(c.id)) : cams;
-    const n = wanted.length ? Math.max(1, pool.length) : this.count;
+    const n = wanted.length ? Math.max(1, pool.length) : effectiveCount(this.count, pool.length);
     const shown = pool.slice(0, n);
     // A span is capped at 4 columns server-side already (CameraPatch), clamped again here defensively.
     const spanOf = (c: Camera) => Math.max(1, Math.min(c.grid_col_span, 4));
@@ -765,21 +759,19 @@ export class LiveWall extends LitElement {
         })}
       </div>
       ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a>${this.fromMap ? html` · <a href="#" data-back-to-map @click=${(e: Event) => { e.preventDefault(); history.back(); }}>חזרה למפה</a>` : nothing}</div>` : nothing}
-      ${this.phone.matches ? nothing : html`<div class="note" data-wall-cols-row style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">עמודות:
-        ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<button class="colbtn ${this.colsOverride === n ? 'on' : ''}" data-wall-cols-set=${n} @click=${() => this.setCols(n)}>${n === 0 ? 'אוטו' : n}</button>`)}
-      </div>`}
       <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}</div>
     `;
   }
 
   private renderDemo() {
-    const cams = demoWall.slice(0, this.count);
-    const cols = this.count === 1 ? 1 : this.count === 2 ? 2 : this.count <= 4 ? 2 : this.count <= 9 ? 3 : 4;
+    const count = effectiveCount(this.count, demoWall.length);
+    const cams = demoWall.slice(0, count);
+    const cols = count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
     return html`
       <div class="grid" style="--cols:${cols}">
-        ${cams.map((c) => html`<sw-camera-tile name=${c.name} meta=${`${c.floor} · ${this.stream === 'auto' ? (this.count > 4 ? 'משני' : 'ראשי') : this.stream === 'main' ? 'ראשי' : 'משני'}`} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} ?compact=${this.count >= 9} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
+        ${cams.map((c) => html`<sw-camera-tile name=${c.name} meta=${`${c.floor} · ${this.stream === 'auto' ? (count > 4 ? 'משני' : 'ראשי') : this.stream === 'main' ? 'ראשי' : 'משני'}`} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} ?compact=${count >= 9} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
       </div>
-      <div class="note">נתוני הדגמה: קיר של ${this.count} אריחים אינו פותח ${this.count} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.</div>
+      <div class="note">נתוני הדגמה: קיר של ${count} אריחים אינו פותח ${count} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.</div>
     `;
   }
 
@@ -792,22 +784,28 @@ export class LiveWall extends LitElement {
     window.open(url, '_blank', 'noopener');
   }
 
+  /** LV1: the column count as the shared compact dropdown (0 = automatic best fit). */
+  private columnsDropdown(phone: boolean) {
+    const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? 'עמודות אוטו' : n === 1 ? 'עמודה אחת' : `${n} עמודות` }));
+    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd tall ?block=${phone} label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+      .items=${items} .value=${String(this.colsOverride)} @change=${(e: CustomEvent<DropdownChange>) => this.setCols(Number(e.detail.id) || 0)}></sw-dropdown>`;
+  }
+
   /** The phone's one-row toolbar: quality, camera count and columns as native selects (two taps to change any of them), and the
    * kiosk button. The cap note lives in the footer line on a phone (renderApi). */
-  private renderPhoneBar(api: boolean) {
+  private renderPhoneBar(api: boolean, total: number) {
     const short = (p: 'sub' | 'main') => (p === 'sub' ? 'רגילה' : 'גבוהה');
     return html`<div slot="actions" class="pbar" data-wall-phone-bar>
       <sw-field><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
         <option value="auto" ?selected=${this.stream === 'auto'}>איכות: אוטו</option>
         ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${short(p)}</option>`)}
       </select></sw-field>
-      <sw-field><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(Number((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
+      <sw-field><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
         ${this.cameras ? html`<option value="" selected disabled>נבחרו במפה</option>` : nothing}
-        ${COUNTS.map((n) => html`<option value=${n} ?selected=${n === this.count && !this.cameras}>${n} מצלמות</option>`)}
+        ${countLadder(total).map((n) => html`<option value=${n} ?selected=${String(n) === countChoiceId(this.count, total) && !this.cameras}>${n} מצלמות</option>`)}
+        <option value=${COUNT_ALL_ID} ?selected=${countChoiceId(this.count, total) === COUNT_ALL_ID && !this.cameras}>כל המצלמות (${total})</option>
       </select></sw-field>
-      ${api ? html`<sw-field><select aria-label="עמודות" data-wall-cols-select @change=${(e: Event) => this.setCols(Number((e.target as HTMLSelectElement).value))}>
-        ${[0, 1, 2, 3, 4, 5, 6].map((n) => html`<option value=${n} ?selected=${this.colsOverride === n}>עמודות: ${n === 0 ? 'אוטו' : n}</option>`)}
-      </select></sw-field>` : nothing}
+      ${api ? this.columnsDropdown(true) : nothing}
       ${api ? this.recorderSelect(true) : nothing}
       <button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}><sw-icon name="expand" size=${18}></sw-icon></button>
     </div>`;
@@ -817,17 +815,20 @@ export class LiveWall extends LitElement {
     const api = isApi();
     const pool = this.cams && this.recorderFilter ? this.cams.filter((c) => c.recorder_id === this.recorderFilter) : this.cams;
     const total = api ? (pool ? wallCameras(pool).length : 0) : demoWall.length;
+    const choice = countChoiceId(this.count, total);
     const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
       <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
-        ${this.phone.matches ? this.renderPhoneBar(api) : nothing}
+        ${this.phone.matches ? this.renderPhoneBar(api, total) : nothing}
         ${api || this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
         ${this.phone.matches ? nothing : html`<sw-field slot="actions"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
         ${api && !this.phone.matches ? this.recorderSelect(false) : nothing}
         ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות › ${this.capNote.where}</span>` : nothing}
-        ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה">
-          ${COUNTS.map((n) => html`<button class=${n === this.count && !this.cameras ? 'on' : ''} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${n === this.count && !this.cameras}>${n}</button>`)}
+        ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה" data-wall-count>
+          ${countLadder(total).map((n) => html`<button class=${String(n) === choice && !this.cameras ? 'on' : ''} data-count=${n} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${String(n) === choice && !this.cameras}>${n}</button>`)}
+          <button class=${choice === COUNT_ALL_ID && !this.cameras ? 'on' : ''} data-count=${COUNT_ALL_ID} @click=${() => { this.setCount(COUNT_ALL); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${choice === COUNT_ALL_ID && !this.cameras}>הכול</button>
         </div>
+        ${api ? this.columnsDropdown(false) : nothing}
         <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>`}
         ${body}
         ${this.renderSettingsDialog()}

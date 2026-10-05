@@ -40,6 +40,17 @@ def world(tmp_path):
     return fake, run, lines, tmp_path
 
 
+@pytest.fixture()
+def v1world(world):
+    """The v1 firmware the encoding write targets (NN2B): no GetSupportedAPIs answer, so the whole-streams body. (`world` itself
+    lists the alarm-server commands for the NN2A tests, and a v2 list without SetVideoStreamConfig gates the encoding write.)"""
+    from smplwise.services.recorders import provision_isr as pisr
+
+    world[0].supported_apis = None
+    pisr.clear_auth_cache()
+    return world
+
+
 def _log(tmp_path) -> list[dict]:
     p = tmp_path / "log" / "nvr-write-log.jsonl"
     return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()] if p.exists() else []
@@ -117,8 +128,8 @@ def test_restore_document_escapes_cdata():
         px.alarm_server_restore_document({"heartbeatInterval": "1;2"})
 
 
-def test_encoding_write_verify_and_restore(world):
-    fake, run, lines, tmp = world
+def test_encoding_write_verify_and_restore(v1world):
+    fake, run, lines, tmp = v1world
     assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "bitrate_kbps=2048", "--set", "gop=40") == 0
     e = _log(tmp)
     assert e[0]["before"] == {"bitrate_kbps": 3072, "gop": 50} and e[-1]["phase"] == "verified" and e[-1]["after"] == {"bitrate_kbps": 2048, "gop": 40}
@@ -127,8 +138,8 @@ def test_encoding_write_verify_and_restore(world):
     assert fake.streams[1][1]["maxBitRate"] == "3072" and fake.streams[1][1]["GOP"] == "50"
 
 
-def test_refusals(world):
-    fake, run, lines, tmp = world
+def test_refusals(v1world):
+    fake, run, lines, tmp = v1world
     assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "password=x") == 2
     assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "resolution=1;rm") == 2
     assert run("restore-from-log", "--entry", "../../etc") == 2
@@ -143,8 +154,8 @@ def test_stops_at_the_first_401(world):
     assert "source_forbidden" in lines[-1] and fake.writes == [] and _log(tmp) == []
 
 
-def test_encoding_dry_run_is_redacted_and_writes_nothing(world):
-    fake, run, lines, tmp = world
+def test_encoding_dry_run_is_redacted_and_writes_nothing(v1world):
+    fake, run, lines, tmp = v1world
     assert run("--dry-run", "set-encoding", "--channel", "1", "--stream", "sub", "--set", "fps=10") == 0
     text = "\n".join(lines)
     assert "POST /SetVideoStreamConfig/1" in text and "<frameRate>10</frameRate>" in text and "dry-run" in text
@@ -300,3 +311,75 @@ def test_restore_document_round_trips_switch():
     assert doc.index("<switch>false</switch>") < doc.index("<serverAddr>") and px.alarm_server_values(doc)["switch"] == "false"
     with pytest.raises(ValueError):
         px.alarm_server_restore_document({"switch": "yes"})
+
+# ------------------------------------------------------------------------------------------------ NN2B: encoding write safeguards
+
+def test_encoding_dry_run_reports_support_mode_validation_and_the_restore_values(v1world):
+    fake, run, lines, tmp = v1world
+    assert run("--dry-run", "set-encoding", "--channel", "1", "--stream", "main", "--set", "gop=40") == 0
+    text = "\n".join(lines)
+    assert "support: writable; write mode: whole" in text and "validation: every value is inside" in text
+    assert '"gop": 50' in text and "restore-from-log" in text and "dry-run: nothing written" in text
+    assert fake.writes == [] and _log(tmp) == []
+    lines.clear()
+    fake.supported_apis = ["GetSupportedAPIs", "SetVideoStreamConfig", "GetStreamCaps"]
+    from smplwise.services.recorders import provision_isr as pisr
+
+    pisr.clear_auth_cache()
+    assert run("--dry-run", "set-encoding", "--channel", "1", "--stream", "main", "--set", "gop=40") == 0
+    text = "\n".join(lines)
+    assert "write mode: partial" in text and text.count("&lt;item") + text.count("<item id=") == 1 and "<frameRate>" not in text
+    assert fake.writes == []
+
+
+def test_encoding_value_outside_the_device_caps_is_refused_before_anything_is_recorded(v1world):
+    fake, run, lines, tmp = v1world
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "resolution=320x240") == 4
+    assert "validation: REFUSED (resolution)" in "\n".join(lines)
+    assert fake.writes == [] and _log(tmp) == [] and not list((tmp / "restore").glob("*.json"))
+
+
+def test_encoding_support_gate_refuses_without_a_journal_entry(v1world):
+    fake, run, lines, tmp = v1world
+    fake.set_refused = {1: 4}
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "gop=40") == 4  # the device refuses the one write
+    assert fake.writes == ["SetVideoStreamConfig"] and "nothing was changed on the device" in lines[-1]
+    lines.clear()
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "gop=41") == 4  # now the gate stops it before a request
+    text = "\n".join(lines)
+    assert "NOT writable (device_refused)" in text and fake.writes == ["SetVideoStreamConfig"]
+
+
+def test_encoding_diverged_readback_restores_once(v1world):
+    fake, run, lines, tmp = v1world
+    fake.set_effect = "partial"
+    calls = []
+
+    def hook(f, ch):
+        calls.append(ch)
+        if len(calls) >= 2:
+            f.set_effect = "apply"  # the restore write is applied in full
+
+    fake.set_hook = hook
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "bitrate_kbps=2048", "--set", "gop=40") == 3
+    text = "\n".join(lines)
+    assert "DIVERGED" in text and "restored and verified" in text
+    assert fake.writes == ["SetVideoStreamConfig"] * 2, "one write and one restore, nothing else"
+    assert fake.streams[1][1]["maxBitRate"] == "3072" and fake.streams[1][1]["GOP"] == "50"
+    assert [e["phase"] for e in _log(tmp)] == ["before", "diverged", "before", "verified"]
+
+
+def test_encoding_diverged_without_auto_restore_only_prints_the_command(v1world):
+    fake, run, lines, tmp = v1world
+    fake.set_effect = "partial"
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "bitrate_kbps=2048", "--set", "gop=40", "--no-auto-restore") == 3
+    assert fake.writes == ["SetVideoStreamConfig"] and "restore with: restore-from-log --entry" in lines[-1]
+
+
+def test_encoding_unknown_outcome_is_read_back_and_never_rewritten(v1world):
+    fake, run, lines, tmp = v1world
+    fake.set_after = "drop"
+    assert run("set-encoding", "--channel", "1", "--stream", "main", "--set", "gop=40") == 7
+    text = "\n".join(lines)
+    assert "OUTCOME UNKNOWN" in text and "No further write was made" in text and fake.writes == ["SetVideoStreamConfig"]
+    assert _log(tmp)[-1]["phase"] == "unknown-readback"

@@ -90,6 +90,7 @@ OPTION_TYPES: dict[str, str] = {
     "wiskey_password": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
     "push_relay_url": "str?", "push_relay_key": "str?",  # CR-027: the SmplWise push relay (config.py reads them into the environment)
+    "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)
 }
 OPTION_STR_MAX = 1024
 REMOTE_PATH_RE = re.compile(r"^/[a-z0-9][a-z0-9_-]{0,31}$")

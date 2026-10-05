@@ -5682,7 +5682,8 @@
       "Preparation shipped in 2.0.2 (integ/202; smplwise_vms/CHANGELOG.md section 2.0.2) from branch pilot/cast-prep @ 7b89c4ab: read-only, no migration, no feature flag, no device write.",
       "Tests in the repository: tests/test_media_cast_caps.py (pure rules, the route over media_seed, privacy guard), unit-media-cast-label.spec.ts, unit-media-admin-list.spec.ts, evidence-media-cast-chips.spec.ts (desktop / tablet / mobile). Run in the 2.0.2 release gate on the Linux test machine.",
       "Open: the owner's decisions in CR-028 section 11 (video path, default approval per screen, the device for the first physical test); phases 1-3 (single camera to Google Cast with bridge 0.7.0 and the relay, mosaic wall, carousel) are not built. AT218 stays NOT_RUN as a recorded acceptance.",
-      "2026-10-05: card registered at integration (2.0.2) by the integration lead."
+      "2026-10-05: card registered at integration (2.0.2) by the integration lead.",
+      "2.0.4 (integ/204, 2026-10-05): phases 1-2 merged from pilot/CAST1-backend @ 16e6b3f5 (relay, sessions, bridge 0.7.0 cast_stream, migration 0060) and pilot/CAST1-ui @ 941f78ca; cast is OFF by default (option cast_relay); tests with fakes only, no real screen contacted; the first physical test is NOT_RUN (docs/operations/CAST_FIRST_PHYSICAL_TEST_RUNBOOK.md, owner present)."
     ],
     "owner": null,
     "commit": null,

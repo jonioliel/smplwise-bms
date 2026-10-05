@@ -123,6 +123,10 @@ BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory", "/
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 # CR-024: the recorders' management (connections, add, remove, health) is local-only like the CR-022 connection routes
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/recorders",)
+# CR-028: the cast administration (the relay origin and its self-check, the per-screen switches, the test cast) is local-only; a remote user
+# may start / extend / switch / stop a cast (the playback runs on the LAN)
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/multimedia/cast/config", "/api/v1/multimedia/cast/origin", "/api/v1/multimedia/cast/screens",
+                                         "/api/v1/multimedia/cast/test")
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 CSRF_BODY = json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.",
                         "retryable": False, "correlation_id": "", "details": {}}, ensure_ascii=False).encode("utf-8")

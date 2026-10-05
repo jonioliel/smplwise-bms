@@ -805,6 +805,8 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [MULTIMEDIA_SCREENS_HREF]: ['media.read'],
   '#/multimedia/players': ['media.read'],
   '#/multimedia/groups': ['media.read'],
+  // CR-028: "המסכים שלי לשידור" - a person who may cast anywhere (media.cast); a link from the live screen's picker, not a tab
+  '#/multimedia/cast': ['media.cast'],
   [MULTIMEDIA_SETTINGS_HREF]: ['system.configure'],
   // CR-023: energy.view / energy.manage are installation-scope in v1; the settings tab is for managers (prices, business) and system administrators (retention)
   [INFRA_METERS_HREF]: ['energy.view'],

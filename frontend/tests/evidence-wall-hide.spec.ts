@@ -100,7 +100,7 @@ test.describe('wall arrangement: "מוצגת" per camera', () => {
     await page.locator('live-wall .layouts button', { hasText: /^2$/ }).click();
     await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(2);
     await expect(page.locator('live-wall')).toContainText('מוצגות 2 מתוך 4 מצלמות');
-    await page.locator('live-wall .layouts button', { hasText: /^32$/ }).click();
+    await page.locator('live-wall .layouts button[data-count="all"]').click();
 
     // the kiosk "all" follows the wall arrangement; an address with its own camera list still reaches the hidden camera
     await page.goto('about:blank');

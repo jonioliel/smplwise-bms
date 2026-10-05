@@ -51,6 +51,11 @@ export const REASON_HE: Record<string, string> = {
   stale: 'ה־NVR אינו זמין',
   detail_error: 'ה־NVR אינו זמין',
   no_options: 'יכולות הזרם אינן ידועות',
+  // Provision-ISR (CR-025 NN2B): the NVR itself cannot write this stream (server support gate, 409 `nvr_not_supported`)
+  device_refused: 'ה־NVR אינו מעביר שינויים למצלמה הזו',
+  write_api_missing: 'ה־NVR אינו תומך בשינוי הגדרות זרם',
+  no_caps: 'יכולות הזרם אינן ידועות',
+  writes_disabled: 'כתיבה ל־NVR הזה כבויה',
 };
 
 /** `not_writable_reason` is a code of the server or - when the device's capability documents were refused - the device's own short status

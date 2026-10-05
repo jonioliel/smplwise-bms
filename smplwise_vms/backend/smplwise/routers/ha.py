@@ -473,7 +473,12 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
             set_setting(conn, "bridge.delegated_authoring", new)
             set_setting(conn, "bridge.delegation_changed_at", changed)
             audit(conn, actor=None, action="bridge.delegation_seen", decision="allowed", resource_type="installation", resource_id="*", details={"delegated_authoring": new == "true", "changed_at": changed})
-    return {"ok": True, "users": len(ids)}
+    # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
+    # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
+    from ..services import cast_sessions
+
+    origin = cast_sessions.announced_origin(conn, settings_of(request))
+    return {"ok": True, "users": len(ids), "cast": ha_bridge.sign(ha_bridge.signing_key(conn) or "", {"purpose": "cast_origin", "cast_origin": origin})}
 
 
 def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed: dict[str, dict[str, Any]]) -> None:

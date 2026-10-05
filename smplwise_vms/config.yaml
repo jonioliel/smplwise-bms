@@ -1,5 +1,5 @@
 name: SmplWise Arx
-version: "2.0.3"
+version: "2.0.4"
 slug: smplwise_vms
 description: Map-centred video management for Hikvision NVRs and Home Assistant (pilot build)
 url: https://github.com/jonioliel/smplwise-bms
@@ -31,10 +31,14 @@ watchdog: http://[HOST]:[PORT:8099]/healthz
 # CR-025: the push listener for Provision-ISR alarm messages. Unmapped (null) by default: nothing listens on the host until the
 # owner maps the port in the add-on's Network settings AND chooses "push" for a recorder. Incoming pushes carry a per-recorder
 # path token; recorders that cannot send a path are matched by their source address.
+# CR-028: the cast relay for "send to screen" (Google Cast TVs fetch the camera's HLS from here, one short-lived token per cast). Unmapped
+# (null) by default and the listener runs only when the option `cast_relay` is on: nothing is reachable until the owner does both.
 ports:
   18091/tcp: null
+  18092/tcp: null
 ports_description:
   18091/tcp: Provision-ISR alarm push (optional; only for recorders set to push events)
+  18092/tcp: Cast relay for media screens (optional; only with the cast_relay option)
 backup: hot
 options:
   bootstrap_admin_username: ""
@@ -55,6 +59,8 @@ options:
   # CR-027: the SmplWise push relay for the phone app's notifications (DOCS "Phone app push"). Empty = the app channel is off.
   push_relay_url: ""
   push_relay_key: ""
+  # CR-028: "send to screen" - the cast relay listener (container port 18092; map a host port in Network too). Off by default.
+  cast_relay: false
   # one database writer at a time, in arrival order (the round-10 lock storm fix); turn off only if support asks
   db_write_gate: true
   log_level: info
@@ -75,5 +81,6 @@ schema:
   remote_path: match(^/[a-z0-9][a-z0-9_-]{0,31}$)
   push_relay_url: str?
   push_relay_key: password?
+  cast_relay: bool?
   db_write_gate: bool?
   log_level: list(debug|info|warning|error)

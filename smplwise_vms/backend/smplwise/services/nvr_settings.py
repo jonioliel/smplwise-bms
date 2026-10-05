@@ -111,6 +111,19 @@ def list_recorders(conn: sqlite3.Connection, settings: Settings, can_write: bool
 
 # ------------------------------------------------------------------------------------------------ cameras (read)
 
+# NN2B: why a vendor's stream cannot be written although writes are on - the NVR itself cannot (support gate), as opposed to
+# `capabilities_unreadable` (its capability document could not be read). These end as 409 `nvr_not_supported`, never a 5xx.
+NOT_SUPPORTED_REASONS = frozenset({"write_api_missing", "device_refused", "no_caps"})
+
+
+def not_writable_error(opts: StreamOptions, unreadable_message: str, details: dict[str, Any] | None = None) -> ApiError:
+    """The refusal for a stream whose options say not writable: `nvr_not_supported` for a support-gate reason, else the
+    existing 503 `capabilities_unreadable`."""
+    if opts.reason in NOT_SUPPORTED_REASONS:
+        return ApiError(409, "nvr_not_supported", "ה־NVR אינו מאפשר לשנות את הזרם הזה.", details={**(details or {}), "reason": opts.reason})
+    return ApiError(503, "capabilities_unreadable", unreadable_message, details={**(details or {}), "reason": opts.reason})
+
+
 def _writability(opts: StreamOptions | None) -> tuple[bool | None, str | None]:
     """`writable` of a stream: True / False from its capability discovery, None when not discovered yet (the list view
     never probes 20 capability documents; the detail view and the write itself do)."""
@@ -667,7 +680,7 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
             raise ApiError(409, "stale", "ההגדרות השתנו ב־NVR. נטען מחדש.", details={"stream": stream_from_parsed(snap.parsed, opts)})
         assert opts is not None
         if not opts.writable or opts.options is None or opts.write_via is None:
-            raise ApiError(503, "capabilities_unreadable", "ה־NVR אינו מפרסם את יכולות הזרם הזה, ולכן השינוי בוטל.", details={"reason": opts.reason})
+            raise not_writable_error(opts, "ה־NVR אינו מפרסם את יכולות הזרם הזה, ולכן השינוי בוטל.")
         check = opts.options
         new_codec = req.changes.get("codec")
         if isinstance(new_codec, str) and new_codec != snap.parsed.get("codec") and new_codec in (check.get("codec") or []):
@@ -739,7 +752,7 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
         if snap.etag != orig["etag_after"]:
             raise ApiError(409, "stale", "הזרם השתנה מאז השינוי, ולכן אי אפשר לבטל אותו.", details={"stream": stream_from_parsed(snap.parsed, opts)})
         if not opts.writable or opts.write_via is None:
-            raise ApiError(503, "capabilities_unreadable", "ה־NVR אינו מפרסם את יכולות הזרם הזה, ולכן הביטול בוטל.", details={"reason": opts.reason})
+            raise not_writable_error(opts, "ה־NVR אינו מפרסם את יכולות הזרם הזה, ולכן הביטול בוטל.")
         try:
             original = json.loads(orig["fields_json"] or "{}")
         except ValueError:

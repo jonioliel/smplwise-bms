@@ -999,7 +999,7 @@ export const mockBackend: ElecBackend = {
     const code = demoControl().pdf_error;
     if (code) {
       // the server answers 503 for render_failed / timeout / unavailable, 422 for page_limit / too_large; a failed render of an issued bill is remembered
-      const status = code === 'pdf_page_limit' || code === 'pdf_too_large' ? 422 : 503;
+      const status = ['pdf_page_limit', 'pdf_too_large', 'pdf_no_lines', 'pdf_invalid_snapshot'].includes(code) ? 422 : 503;
       if (b.state !== 'draft' && code !== 'pdf_unavailable') pdfFailedAt.set(id, { code, at: `${MOCK_TODAY}T09:32:00Z` });
       throw new ApiError(status, { code, user_message: ERROR_TEXT[code] ?? '', retryable: PDF_RETRYABLE.includes(code), correlation_id: '', details: {} });
     }

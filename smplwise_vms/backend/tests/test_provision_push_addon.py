@@ -111,6 +111,7 @@ def test_configure_push_follows_the_device_form(settings, fake):
         a.configure_push("ha.local.test", 18091)
     assert fake.set_alarm_bodies == []
     fake.supported_apis = ["GetAlarmServerConfig", "SetAlarmServerConfig"]  # a firmware with this form that lists the command
+    pisr.clear_auth_cache()  # the support answer is cached per device (NN2B), the fake changed its answer
     out = a.configure_push("ha.local.test", 18091, path="/abc123/SendAlarmStatus")
     assert out["applied"] is True and out["path_supported"] is False and out["previous"] == {"configured": False, "port": None}
     body = fake.set_alarm_bodies[-1]
