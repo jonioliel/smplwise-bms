@@ -62,8 +62,11 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services import presence
 
         extra["presence_gate"] = presence.gate_for(conn, principal.user_id, app=presence.is_app_user_agent(request.headers.get("user-agent")))
+    from ..services import wall as wall_service
+
     return {
         **extra,
+        "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,
         "user": {

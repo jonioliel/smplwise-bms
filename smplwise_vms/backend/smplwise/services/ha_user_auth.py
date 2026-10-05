@@ -829,6 +829,10 @@ def policy_refusal(conn, principal: Principal, ha_user: HaUser) -> ApiError | No
     vms_row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     if (ha_row is not None and not ha_row["is_active"]) or (vms_row is not None and not vms_row["active"]):
         return ApiError(403, "remote_user_inactive", INACTIVE_HE)
+    from . import wall as wall_service  # CR-030: a wall user does not travel (remote_allowed, default off)
+
+    if wall_service.remote_refusal_needed(conn, principal.user_id):
+        return ApiError(403, "wall_user_remote_not_allowed", "משתמש מסך קיר לא מורשה להתחבר מרחוק.")
     rs = remote_settings(conn)
     if remote_basis(conn, principal.user_id, rs) is None:
         if rs.get("remote.policy", "flag") == "any_role":

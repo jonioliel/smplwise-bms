@@ -57,6 +57,8 @@ import '../screens/live-wall';
 import '../screens/live-camera';
 import '../screens/live-views';
 import '../screens/kiosk-wall';
+import '../screens/system-wall';
+import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import '../screens/investigate-playback';
 import '../screens/investigate-sync';
 import '../screens/investigate-history-map';
@@ -2023,6 +2025,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
         if (s[1] === 'schedules') return html`<system-schedules></system-schedules>`; // הגדרות › תזמונים (CR-014)
+        if (s[1] === 'wall') return html`<system-wall></system-wall>`; // הגדרות › מסכי קיר (CR-030)
         if (s[1] === 'automations') return html`<system-automations></system-automations>`; // הגדרות › אוטומציות (CR-017)
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
@@ -2513,7 +2516,17 @@ export class SwApp extends LitElement {
     }
   }
 
+  /** CR-030: an enabled wall user on a tablet-class device gets the wall display INSTEAD of the application (no rail, router or user menu).
+   * The classification is presentation only; the server never looks at it. Phones and desktops get the normal limited application. */
+  private wallMode(): boolean {
+    const s = this.session;
+    if (s.mode !== 'api' || !wallModeFor(s.me, classifyDevice(readDeviceEnv()))) return false;
+    void import('../wall/sw-wall');
+    return true;
+  }
+
   render() {
+    if (this.wallMode()) return html`<sw-wall></sw-wall>`;
     if (this.route?.segments[0] === 'kiosk') return html`<main style="block-size:100dvh">${this.renderScreen()}</main>`;
     if (this.embedded()) return html`<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
     return this.renderA();

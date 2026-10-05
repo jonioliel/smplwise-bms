@@ -204,7 +204,7 @@ def wait_for(pred: Callable[[], bool], timeout: float = 5.0) -> None:
 def test_access_read_permission_catalogue(settings):
     for role in ("viewer", "operator", "editor", "site_admin", "system_admin"):
         assert "access.read" in ROLES[role], role
-    assert ROLES["kiosk"] == ["map.read", "video.live"], "the kiosk role stays live + map only (T057)"
+    assert ROLES["kiosk"] == ["map.read", "video.live", "wall.view"], "the kiosk role stays live + map only (T057)"
     assert PERMISSION_LABELS["access.read"]
     contract = json.loads((ROOT / "contracts" / "examples" / "role-catalog.design.json").read_text(encoding="utf-8"))
     assert {r["id"]: "access.read" in r["permissions"] for r in contract["roles"]} == {r["id"]: "access.read" in ROLES[r["id"]] for r in contract["roles"]}

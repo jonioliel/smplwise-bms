@@ -56,6 +56,7 @@ PERMISSION_LABELS: dict[str, str] = {
     # and area actions over the entities placed on its floors; a building action needs installation scope.
     "devices.control_bulk": "פעולות מרוכזות בחשמל והתקנים: כיבוי תאורה / מיזוג / מסכים וסגירת תריסים לאזור, קומה או מבנה",
     "video.live": "שידור חי",
+    "wall.view": "מסך קיר (קריאה בלבד)",
     "video.playback": "ניגון הקלטות",
     "events.read": "צפייה באירועים",
     "events.ack": "סימון אירועים כטופלו",
