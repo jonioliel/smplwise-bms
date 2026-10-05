@@ -85,7 +85,7 @@ DEFAULTS: dict[str, str] = {
     "ui.dd_style": "auto",
     "ui.dd_style_groups": "{}",
     # owner 2026-10-03: how a dropdown opens on a phone - sheet (a bottom sheet, default) | list (the small list under the field). services/dd_style.py.
-    "ui.dd_phone": "sheet",
+    "ui.dd_phone": "list",
     # Unreleased (owner 2026-10-04): the SIZE of a dropdown - sm | md (the reference size, default) | lg - global and per tab group
     # (a JSON object read back as an object). A user's own value (/me/prefs) wins. services/dd_style.py.
     "ui.dd_size": "md",

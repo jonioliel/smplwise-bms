@@ -75,7 +75,7 @@ export function asDdPanel(v: unknown): DdPanel | null {
  * One global value, installation (`ui.dd_phone`) and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
 export type DdPhone = 'sheet' | 'list';
 export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
-export const DD_PHONE_DEFAULT: DdPhone = 'sheet';
+export const DD_PHONE_DEFAULT: DdPhone = 'list';
 export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: 'גיליון שעולה מלמטה', list: 'רשימה קטנה מתחת לשדה' };
 export function asDdPhone(v: unknown): DdPhone | null {
   return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
