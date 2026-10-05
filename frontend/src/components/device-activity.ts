@@ -344,7 +344,7 @@ export class DeviceActivity extends LitElement {
 
     .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); }
     .fl { display: flex; flex-wrap: wrap; gap: var(--sw-s-2); padding-block: var(--sw-s-1h) var(--sw-s-2); }
-    .day { position: sticky; top: 0; z-index: 1; padding: var(--sw-s-2) 0 var(--sw-s-1); background: var(--sw-surface-solid); color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+    .day { padding: var(--sw-s-2) 0 var(--sw-s-1); color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
     .ev { display: grid; grid-template-columns: 28px 1fr auto; gap: var(--sw-s-3); align-items: center; min-block-size: 52px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1h); }
     .av { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
     .av.unknown { background: transparent; border: 1px dashed var(--sw-border-strong); color: var(--sw-text-3); }
