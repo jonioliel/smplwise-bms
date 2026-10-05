@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-skin="bubble" data-theme="light" data-preset="frosted" data-depth="1" data-tint="1" data-surface="glass" data-radius="pill" data-perf="lite" data-touch="44" data-width="desktop">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Material dials - mockup gallery</title>
+<!-- Heebo subset of the approved Bubble taste mockup (same repository, no network). -->
+<link rel="stylesheet" href="../../mockups/bubble-taste/fonts.css">
+<script src="./palettes-data.js"></script>
+<style>
+/* ---------------------------------------------------------------------------------------------------------------------
+   MD1 phase 1 - static mockup. Design only. The material is ONE formula driven by custom properties; the presets, the
+   depth dial and the tint dial only change the numbers. Our own formula, written for this mockup (no code copied from any
+   reference product; see README.md, "Licence").
+   ------------------------------------------------------------------------------------------------------------------- */
+:root {
+  --sw-font: 'Heebo', 'Segoe UI', -apple-system, 'Noto Sans Hebrew', Roboto, Arial, sans-serif;
+  /* material numbers (the preset writes them; depth / tint multiply them) */
+  --m-depth: 1; --m-tint: 1;
+  --m-sheen: .07; --m-shade: .06; --m-rim: 1; --m-lift: .45; --m-wash: 28%; --m-blur: 20px; --m-glow: 0px; --m-glowa: 0;
+  --m-grain: none; --m-border: transparent;
+  --m-clarity: .72;         /* = the existing transparency dial (sheet alpha); presets suggest a value, the slider owns it */
+  --touch: 44px;
+  --r-tile: 28px; --r-ctl: 999px; --r-row: 999px;
+}
+/* ---------- skin bases (resting tokens of frontend/src/design/skins/*.ts; a palette overrides the Bubble ones) ---------- */
+[data-skin="bubble"] {
+  --sw-bg: #eceef5; --sw-canvas: radial-gradient(60% 50% at 85% 0%, rgba(120,140,255,.22), transparent 70%), radial-gradient(50% 45% at 10% 100%, rgba(255,170,120,.18), transparent 70%), linear-gradient(#eceef5,#eceef5);
+  --sw-surface: #dfe3ee; --sw-surface-2: #cfd5e3; --sw-surface-solid: #f4f5fa; --sw-text: #20263b; --sw-heading: #171c2e; --sw-text-2: #3d4459;
+  --sw-border-strong: rgba(34,49,76,.2); --sw-accent: #2767ed; --sw-accent-contrast: #fff; --sw-accent-text: #1d4fc4;
+  --sw-sheet-rgb: 246,247,252; --sw-layer: rgba(255,255,255,.55); --sw-overlay: rgba(30,36,56,.28); --sw-nav-glass: rgba(246,247,252,.62);
+  --sw-success: #16a34a; --sw-warning: #f59e0b; --sw-danger: #ef4444; --sw-off: #7c879a; --sw-success-text: #116330; --sw-warning-text: #9a4a06; --sw-danger-text: #a01515;
+  --sw-ent-light: #ac6e07; --sw-ent-climate: #017e9a; --sw-ent-cover: #3275b4; --sw-ent-media: #8059bb; --sw-ent-security: #b94642; --sw-ent-camera: #0a8379; --sw-ent-icon: #fff;
+  --sw-lit: #f3a43c; --sw-on-lit: #281600; --sw-grad-1: #c0d4fe; --sw-grad-2: #ccb9f1; --sw-grad-text: #151a26;
+  --r-lg: 28px; --r-md: 18px; --r-sm: 12px;
+}
+[data-skin="bubble"][data-theme="dark"] {
+  --sw-bg: #2b2a37; --sw-canvas: radial-gradient(55% 45% at 88% 0%, rgba(110,120,230,.22), transparent 70%), radial-gradient(50% 45% at 8% 100%, rgba(230,120,80,.14), transparent 70%), linear-gradient(#2b2a37,#2b2a37);
+  --sw-surface: #4a4356; --sw-surface-2: #5a5268; --sw-surface-solid: #3b3548; --sw-text: #fff; --sw-heading: #fff; --sw-text-2: #ddd6e8;
+  --sw-border-strong: rgba(255,255,255,.18); --sw-accent: #4c6fd9; --sw-accent-contrast: #fff; --sw-accent-text: #c9d6ff;
+  --sw-sheet-rgb: 59,53,72; --sw-layer: rgba(255,255,255,.08); --sw-overlay: rgba(14,12,22,.42); --sw-nav-glass: rgba(43,42,55,.6);
+  --sw-success: #3ddc84; --sw-warning: #f5b043; --sw-danger: #ff6b62; --sw-off: #8b96a8; --sw-success-text: #7ff0b0; --sw-warning-text: #ffd08a; --sw-danger-text: #ffc8c3;
+  --sw-ent-light: #ffd27a; --sw-ent-climate: #6fd3ea; --sw-ent-cover: #8fbdf2; --sw-ent-media: #c9b1f5; --sw-ent-security: #ff9c93; --sw-ent-camera: #7fd9cc; --sw-ent-icon: #0b152d;
+  --sw-lit: #f19e33; --sw-on-lit: #281600; --sw-grad-1: #3b4e8a; --sw-grad-2: #5a4a7e; --sw-grad-text: #fff;
+}
+[data-skin="classic"] {
+  --sw-bg: #f5f7fb; --sw-canvas: linear-gradient(#f5f7fb,#f5f7fb); --sw-surface: #fff; --sw-surface-2: #f7f9fc; --sw-surface-solid: #fff;
+  --sw-text: #22314c; --sw-heading: #1e2e47; --sw-text-2: #5b6a85; --sw-border-strong: #e7ebf2; --sw-accent: #2767ed; --sw-accent-contrast: #fff; --sw-accent-text: #1d4fc4;
+  --sw-sheet-rgb: 255,255,255; --sw-layer: rgba(39,103,237,.06); --sw-nav-glass: rgba(255,255,255,.92);
+  --sw-success: #16a34a; --sw-warning: #d98a0b; --sw-danger: #dc2626; --sw-off: #7c879a; --sw-success-text: #116330; --sw-warning-text: #9a4a06; --sw-danger-text: #a01515;
+  --sw-ent-light: #ac6e07; --sw-ent-climate: #017e9a; --sw-ent-cover: #3275b4; --sw-ent-media: #8059bb; --sw-ent-security: #b94642; --sw-ent-camera: #0a8379; --sw-ent-icon: #fff;
+  --sw-lit: #f3a43c; --sw-on-lit: #281600; --sw-grad-1: #dbe6ff; --sw-grad-2: #e9e2ff; --sw-grad-text: #151a26;
+  --r-lg: 14px; --r-md: 12px; --r-sm: 8px; --m-border: var(--sw-border-strong);
+}
+[data-skin="classic"][data-theme="dark"] {
+  --sw-bg: #0d1220; --sw-canvas: linear-gradient(#0d1220,#0d1220); --sw-surface: #151c2c; --sw-surface-2: #1a2336; --sw-surface-solid: #151c2c;
+  --sw-text: #e6ebf5; --sw-heading: #f3f6fc; --sw-text-2: #a9b4ca; --sw-border-strong: #232e45; --sw-accent: #3a6ce0; --sw-accent-text: #a9c2ff;
+  --sw-sheet-rgb: 21,28,44; --sw-layer: rgba(255,255,255,.06); --sw-nav-glass: rgba(21,28,44,.92);
+  --sw-success: #3ddc84; --sw-warning: #f5b043; --sw-danger: #ff6b62; --sw-off: #8b96a8; --sw-success-text: #7ff0b0; --sw-warning-text: #ffd08a; --sw-danger-text: #ffc8c3;
+  --sw-ent-light: #ffd27a; --sw-ent-climate: #6fd3ea; --sw-ent-cover: #8fbdf2; --sw-ent-media: #c9b1f5; --sw-ent-security: #ff9c93; --sw-ent-camera: #7fd9cc; --sw-ent-icon: #0b152d;
+  --sw-grad-1: #22305a; --sw-grad-2: #32295a; --sw-grad-text: #fff;
+}
+[data-skin="domus"] {
+  --sw-bg: #d9e1f0; --sw-canvas: radial-gradient(1100px 680px at 90% -8%, rgba(255,168,60,.62), transparent 62%), radial-gradient(1300px 820px at 4% 108%, rgba(72,124,255,.58), transparent 64%), radial-gradient(820px 560px at 52% 50%, rgba(255,255,255,.42), transparent 70%), linear-gradient(170deg,#e4e9f4 0%,#d6dfef 55%,#dce1ee 100%);
+  --sw-surface: rgba(255,255,255,.52); --sw-surface-2: rgba(255,255,255,.66); --sw-surface-solid: #fbfcfe; --sw-text: #172033; --sw-heading: #0f1727; --sw-text-2: #3f4c63;
+  --sw-border-strong: rgba(20,30,50,.2); --sw-accent: #2a63f0; --sw-accent-contrast: #fff; --sw-accent-text: #1d4fc4;
+  --sw-sheet-rgb: 255,255,255; --sw-layer: rgba(255,255,255,.5); --sw-nav-glass: rgba(255,255,255,.55);
+  --sw-success: #16a34a; --sw-warning: #d98a0b; --sw-danger: #dc2626; --sw-off: #7c879a; --sw-success-text: #116330; --sw-warning-text: #9a4a06; --sw-danger-text: #a01515;
+  --sw-ent-light: #ac6e07; --sw-ent-climate: #017e9a; --sw-ent-cover: #3275b4; --sw-ent-media: #8059bb; --sw-ent-security: #b94642; --sw-ent-camera: #0a8379; --sw-ent-icon: #fff;
+  --sw-lit: #f3a43c; --sw-on-lit: #281600; --sw-grad-1: #cfe0ff; --sw-grad-2: #e1d6ff; --sw-grad-text: #151a26;
+  --r-lg: 24px; --r-md: 16px; --r-sm: 10px; --m-border: rgba(255,255,255,.72);
+}
+[data-skin="domus"][data-theme="dark"] {
+  --sw-bg: #0c1018; --sw-canvas: radial-gradient(900px 560px at 92% -6%, rgba(255,150,40,.16), transparent 62%), radial-gradient(1100px 700px at 4% 104%, rgba(80,140,255,.22), transparent 64%), linear-gradient(180deg,#0e131c 0%,#0a0d14 100%);
+  --sw-surface: rgba(22,27,38,.66); --sw-surface-2: rgba(255,255,255,.06); --sw-surface-solid: #161b26; --sw-text: #eef2f8; --sw-heading: #fff; --sw-text-2: #aab5c9;
+  --sw-border-strong: rgba(255,255,255,.18); --sw-accent: #6ea2ff; --sw-accent-contrast: #0b152d; --sw-accent-text: #c9d6ff;
+  --sw-sheet-rgb: 22,27,38; --sw-layer: rgba(255,255,255,.06); --sw-nav-glass: rgba(22,27,38,.6);
+  --sw-success: #3ddc84; --sw-warning: #f5b043; --sw-danger: #ff6b62; --sw-off: #8b96a8; --sw-success-text: #7ff0b0; --sw-warning-text: #ffd08a; --sw-danger-text: #ffc8c3;
+  --sw-ent-light: #ffd27a; --sw-ent-climate: #6fd3ea; --sw-ent-cover: #8fbdf2; --sw-ent-media: #c9b1f5; --sw-ent-security: #ff9c93; --sw-ent-camera: #7fd9cc; --sw-ent-icon: #0b152d;
+  --sw-grad-1: #22305a; --sw-grad-2: #32295a; --sw-grad-text: #fff; --m-border: rgba(255,255,255,.1);
+}
+/* ---------- existing dials ---------- */
+[data-radius="pill"] { --r-tile: var(--r-lg); --r-ctl: 999px; --r-row: 999px; }
+[data-radius="soft"] { --r-tile: var(--r-md); --r-ctl: var(--r-md); --r-row: var(--r-md); }
+[data-radius="square"] { --r-tile: var(--r-sm); --r-ctl: 6px; --r-row: 6px; }
+[data-touch="32"] { --touch: 32px; }
+@media (max-width: 1100px) { :root { --touch: 44px !important; } }
+/* ---------- presets (macros over the numbers) ---------- */
+[data-preset="none"]    { --m-sheen: 0; --m-shade: 0; --m-rim: 0; --m-lift: 0; --m-wash: 0%; --m-blur: 0px; --m-glow: 0px; --m-glowa: 0; --m-grain: none; }
+[data-preset="frosted"] { --m-sheen: .07; --m-shade: .06; --m-rim: 1; --m-lift: .45; --m-wash: 28%; --m-blur: 20px;
+  --m-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .05 0'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>"); }
+[data-preset="paper"]   { --m-sheen: .03; --m-shade: .04; --m-rim: .5; --m-lift: .22; --m-wash: 18%; --m-blur: 0px; --m-grain: none; --m-border: color-mix(in srgb, var(--sw-text) 10%, transparent); }
+[data-preset="chalk"]   { --m-sheen: 0; --m-shade: 0; --m-rim: 0; --m-lift: 0; --m-wash: 14%; --m-blur: 0px; --m-grain: none; }
+[data-preset="neon"]    { --m-sheen: .05; --m-shade: .08; --m-rim: 1.2; --m-lift: .5; --m-wash: 34%; --m-blur: 14px; --m-glow: 16px; --m-glowa: 1; --m-grain: none; }
+[data-depth="0"] { --m-depth: 0; } [data-depth="1"] { --m-depth: 1; } [data-depth="2"] { --m-depth: 1.8; }
+[data-tint="0"]  { --m-tint: 0; }  [data-tint="1"]  { --m-tint: 1; }  [data-tint="2"]  { --m-tint: 1.8; }
+
+/* ---------- THE material ---------- */
+.mat {
+  position: relative;
+  --_d: var(--m-depth);
+  --_t: calc(var(--m-tint) * var(--wash, 0));              /* a tile sets --wash: 1 when its state carries a tone */
+  --_tone: var(--tone, transparent);
+  color: var(--sw-text);
+  border: 1px solid var(--m-border);
+  border-radius: var(--r-tile);
+  background:
+    radial-gradient(120% 120% at 22% 8%, rgba(255,255,255, calc(var(--m-sheen) * var(--_d))) 0%, transparent 60%),
+    radial-gradient(90% 80% at 82% 100%, rgba(0,0,0, calc(var(--m-shade) * var(--_d))) 0%, transparent 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--_tone) calc(var(--m-wash) * var(--_t)), transparent) 0%, transparent 72%),
+    var(--m-grain),
+    var(--m-base, rgba(var(--sw-sheet-rgb), var(--m-clarity)));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255, calc(.22 * var(--m-rim) * var(--_d))),
+    inset 2px 2px 5px -3px rgba(255,255,255, calc(.5 * var(--m-rim) * var(--_d))),
+    inset -2px -2px 4px -2px rgba(0,0,0, calc(.12 * var(--m-rim) * var(--_d))),
+    inset 0 -2px 4px color-mix(in srgb, var(--_tone) calc(30% * var(--_t)), transparent),
+    0 10px 30px -16px rgba(0,0,0, calc(var(--m-lift) * var(--_d))),
+    0 0 var(--m-glow) color-mix(in srgb, var(--glow-c, var(--sw-accent)) calc(55% * var(--m-glowa)), transparent);
+}
+/* surface dial: flat and fill are opaque surfaces; gradient paints its pair (no tone wash then); glass is the translucent sheet */
+[data-surface="flat"] .mat, [data-surface="fill"] .mat { --m-base: var(--sw-surface); }
+[data-surface="gradient"] .tile.mat { --m-base: linear-gradient(135deg, var(--sw-grad-1), var(--sw-grad-2)); --_t: 0; color: var(--sw-grad-text); }
+[data-surface="fill"] .tile.mat[data-state="on"] { --m-base: linear-gradient(90deg, color-mix(in srgb, var(--_tone) 34%, var(--sw-surface)) var(--fill, 100%), var(--sw-surface) 0); }
+/* chrome (strip, tree, dock) always has blur when the preset has any; tiles, rows and tables only in the full tier */
+.chrome.mat { -webkit-backdrop-filter: blur(var(--m-blur)) saturate(140%); backdrop-filter: blur(var(--m-blur)) saturate(140%); }
+[data-perf="full"] .tile.mat, [data-perf="full"] .row.mat, [data-perf="full"] .frame.mat { -webkit-backdrop-filter: blur(var(--m-blur)) saturate(140%); backdrop-filter: blur(var(--m-blur)) saturate(140%); }
+/* chalk: an ink outline instead of a rim, slightly irregular; everything else stays the system's (same font, same text) */
+[data-preset="chalk"] .mat { border: 2px solid color-mix(in srgb, var(--sw-text) 72%, transparent); border-radius: calc(var(--r-tile) * .9) calc(var(--r-tile) * 1.15) calc(var(--r-tile) * .85) calc(var(--r-tile) * 1.1) / calc(var(--r-tile) * 1.1) calc(var(--r-tile) * .85) calc(var(--r-tile) * 1.15) calc(var(--r-tile) * .9); box-shadow: none; --m-base: rgba(var(--sw-sheet-rgb), calc(var(--m-clarity) * .5)); }
+[data-preset="chalk"] .mat::after { content: ""; position: absolute; inset: -4px; border: 1.5px solid color-mix(in srgb, var(--sw-text) 30%, transparent); border-radius: inherit; transform: rotate(-.5deg); pointer-events: none; }
+[data-preset="chalk"] .row.mat::after, [data-preset="chalk"] .chrome.mat::after, [data-preset="chalk"] .frame.mat::after { display: none; }
+[data-preset="neon"] .tile.mat[data-state="on"] { --glow-c: var(--_tone); }
+[data-preset="neon"] .tile.mat:not([data-state="on"]) { --m-glowa: 0; }
+@media (prefers-reduced-transparency: reduce) { .mat { --m-base: var(--sw-surface-solid); -webkit-backdrop-filter: none !important; backdrop-filter: none !important; } }
+
+/* ---------- gallery page ---------- */
+* { box-sizing: border-box; }
+html { background: #e9ebf1; color: #1b2030; font-family: var(--sw-font); font-size: 15px; }
+body { margin: 0; }
+h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 17px; margin: 28px 0 10px; }
+.page { max-width: 1240px; margin: 0 auto; padding: 16px; }
+.doc { color: #434a5c; font-size: 13px; line-height: 1.5; max-width: 900px; }
+.doc code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: #dfe3ec; padding: 0 4px; border-radius: 4px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; padding: 12px 14px; background: #fff; border: 1px solid #d9dde6; border-radius: 12px; margin: 12px 0 18px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #555c6e; }
+.ctl .seg { display: flex; flex-wrap: wrap; gap: 2px; background: #eef0f5; padding: 2px; border-radius: 8px; }
+.ctl .seg button { font: inherit; font-size: 13px; color: #1b2030; background: transparent; border: 0; border-radius: 6px; padding: 5px 9px; min-height: 30px; cursor: pointer; }
+.ctl .seg button[aria-pressed="true"] { background: #1b2030; color: #fff; }
+.ctl select, .ctl input[type=range] { font: inherit; min-height: 30px; }
+.ctl.disabled { opacity: .45; }
+.caption { font-size: 12.5px; color: #4b5266; margin: 6px 2px 0; }
+.caption b { color: #1b2030; }
+/* a screen frame = the product canvas; inside it, the operator-screen rules apply (no hints, no badges, no paragraphs) */
+.screen { color: var(--sw-text); background: var(--sw-canvas); border: 1px solid #c8cdd8; border-radius: 10px; padding: 16px; display: grid; grid-template-columns: 208px 1fr; gap: 14px; overflow: hidden; }
+.screen > * { min-width: 0; }
+[data-width="phone"] .screen { grid-template-columns: 1fr; max-width: 390px; padding: 12px; }
+[data-width="phone"] .tree { display: none; }
+.screen.notree { grid-template-columns: 1fr; }
+/* the floors/areas tree stays in every design */
+.tree { padding: 10px 8px; align-self: start; border-radius: var(--r-tile); }
+.tree .floor { font-weight: 600; font-size: 13px; padding: 0 12px; min-height: 36px; display: flex; align-items: center; justify-content: space-between; color: var(--sw-text-2); }
+.tree .floor span:last-child { font-size: 11px; }
+.tree .trow { display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; border-radius: var(--r-row); font-size: 14px; cursor: pointer; }
+.tree .trow:hover { background: var(--sw-layer); }
+.tree .trow.sel { background: var(--sw-accent); color: var(--sw-accent-contrast); }
+.tree .trow .n { margin-inline-start: auto; font-size: 12px; opacity: .8; }
+/* home tiles */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 12px; align-content: start; }
+.tile { min-height: 124px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; }
+.tile .ic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--_tone) 92%, var(--sw-surface)); color: var(--sw-ent-icon); }
+.tile[data-state="off"] .ic, .tile[data-state="unavailable"] .ic { background: var(--sw-surface-2); color: var(--sw-text-2); }
+.tile .ic svg { width: 20px; height: 20px; fill: currentColor; }
+.tile .nm { font-weight: 600; font-size: 15px; line-height: 1.2; margin-top: 10px; }
+.tile .st { font-size: 13px; color: var(--sw-text-2); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+.tile .st::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--_tone); }
+.tile[data-state="off"] .st::before { background: var(--sw-off); } .tile[data-state="unavailable"] .st::before { background: transparent; border: 1.5px solid var(--sw-off); width: 6px; height: 6px; }
+.tile.wide { grid-column: span 2; min-height: 124px; }
+.tile .bar { height: 6px; border-radius: 3px; background: var(--sw-surface-2); margin-top: 8px; overflow: hidden; }
+.tile .bar i { display: block; height: 100%; width: var(--fill, 0%); background: var(--_tone); }
+/* list rows */
+.list { display: flex; flex-direction: column; gap: 6px; align-content: start; }
+.row { display: grid; grid-template-columns: 6px 36px 1fr auto auto; align-items: center; gap: 12px; min-height: max(var(--touch), 52px); padding: 4px 8px 4px 14px; border-radius: var(--r-row); }
+.row .stripe { width: 6px; height: 28px; border-radius: 3px; background: var(--_tone); }
+.row[data-state="off"] .stripe { background: var(--sw-surface-2); }
+.row .ic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--_tone) 92%, var(--sw-surface)); color: var(--sw-ent-icon); }
+.row[data-state="off"] .ic { background: var(--sw-surface-2); color: var(--sw-text-2); }
+.row .ic svg { width: 20px; height: 20px; fill: currentColor; }
+.row .t { display: flex; flex-direction: column; min-width: 0; } .row .t b { font-weight: 600; font-size: 14px; } .row .t small { font-size: 12px; color: var(--sw-text-2); }
+.row .sw { font-size: 13px; color: var(--sw-text-2); white-space: nowrap; }
+.row .mini { width: 3px; }
+.toggle { width: 52px; height: 32px; border-radius: 999px; background: var(--sw-surface-2); border: 0; position: relative; cursor: pointer; min-width: var(--touch); min-height: var(--touch); display: grid; align-items: center; padding: 0; }
+.toggle::before { content: ""; width: 52px; height: 30px; border-radius: 999px; background: var(--sw-surface-2); margin: auto; }
+.toggle::after { content: ""; position: absolute; top: 50%; inset-inline-start: calc(50% - 24px); width: 24px; height: 24px; margin-top: -12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform 200ms; }
+.toggle[aria-checked="true"]::before { background: var(--sw-accent); } .toggle[aria-checked="true"]::after { transform: translateX(-22px); }
+/* security chrome strip */
+.strip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; min-height: 60px; border-radius: var(--r-tile); margin-bottom: 12px; }
+.strip .armed { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 0 14px; min-height: var(--touch); border-radius: var(--r-ctl); background: color-mix(in srgb, var(--sw-success) 18%, transparent); color: var(--sw-success-text); }
+.strip .armed::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--sw-success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-success) 30%, transparent); }
+.chip { font: inherit; font-size: 13px; min-height: var(--touch); padding: 0 12px; border-radius: var(--r-ctl); border: 0; background: var(--sw-layer); color: var(--sw-text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--sw-success); } .chip.open i { background: var(--sw-warning); } .chip.bypass i { background: var(--sw-off); }
+.btn { font: inherit; font-weight: 600; font-size: 14px; min-height: var(--touch); padding: 0 16px; border-radius: var(--r-ctl); border: 0; background: var(--sw-surface-2); color: var(--sw-text); cursor: pointer; }
+.btn.primary { background: var(--sw-accent); color: var(--sw-accent-contrast); }
+.btn.danger { background: color-mix(in srgb, var(--sw-danger) 16%, transparent); color: var(--sw-danger-text); }
+.strip .sp { flex: 1; }
+.cams { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.cam { aspect-ratio: 16/9; border-radius: var(--r-md); background: linear-gradient(160deg, #1b2538, #0f1729); position: relative; overflow: hidden; color: #fff; }
+.cam .lbl { position: absolute; inset-inline-start: 10px; bottom: 8px; font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.cam .lbl i { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; }
+.cam .lbl.off i { background: #8b96a8; }
+/* dense table: the frame gets the material, the rows stay rows */
+.frame { padding: 4px 0; border-radius: var(--r-md); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: start; padding: 0 14px; height: 40px; border-bottom: 1px solid color-mix(in srgb, var(--sw-text) 10%, transparent); white-space: nowrap; }
+th { font-weight: 600; color: var(--sw-text-2); font-size: 12px; height: 36px; }
+tr:last-child td { border-bottom: 0; }
+td .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); margin-inline-end: 6px; vertical-align: middle; }
+td.num { font-variant-numeric: tabular-nums; direction: ltr; text-align: end; }
+tbody tr:hover td { background: var(--sw-layer); }
+/* overlap panel */
+.cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.cmp .box { color: var(--sw-text); background: var(--sw-canvas); border: 1px solid #c8cdd8; border-radius: 10px; padding: 14px; }
+.cmp .box .lbl { font-size: 12px; color: #4b5266; margin-bottom: 8px; background: #fff; display: inline-block; padding: 2px 8px; border-radius: 6px; }
+.phone-dock { display: flex; gap: 8px; justify-content: center; margin-top: 12px; padding: 8px; border-radius: var(--r-ctl); }
+.phone-dock a { width: var(--touch); height: var(--touch); min-width: 44px; min-height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--sw-text-2); }
+.phone-dock a.active { background: var(--sw-accent); color: var(--sw-accent-contrast); }
+.phone-dock svg { width: 22px; height: 22px; fill: currentColor; }
+.phone-dock { display: none; } [data-width="phone"] .phone-dock { display: flex; }
+.cost { border-collapse: collapse; font-size: 13px; } .cost th, .cost td { border: 1px solid #d3d8e2; padding: 5px 10px; text-align: start; height: auto; white-space: normal; color: #1b2030; } .cost th { background: #eef0f5; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Material dials - mockups (MD1, phase 1)</h1>
+  <div class="doc">גלריה סטטית לשיפוט בלבד. חומר אחד בנוסחה אחת: קדם-הגדרה (Preset) קובעת מספרים, חוגות <code>depth</code> ו-<code>tint</code> מכפילות אותם, ושאר החוגות הן אלה שכבר קיימות ב-<code>ui.look</code>. ברירת המחדל כאן: שכבת ביצועים "קל" (בלי טשטוש על אריחים, רשימות וטבלאות). קישור משתף מצב: הפרמטרים נשמרים ב-URL.</div>
+
+  <div class="controls" id="controls">
+    <div class="ctl"><span>חומר (preset) - חדש</span><div class="seg" data-dial="preset"><button data-v="none">ללא (Bubble היום)</button><button data-v="frosted">Frosted</button><button data-v="paper">Paper</button><button data-v="chalk">Chalk</button><button data-v="neon">Neon</button></div></div>
+    <div class="ctl"><span>עומק (depth) - חדש</span><div class="seg" data-dial="depth"><button data-v="0">כבוי</button><button data-v="1">רגיל</button><button data-v="2">עמוק</button></div></div>
+    <div class="ctl"><span>גוון מצב (tint) - חדש</span><div class="seg" data-dial="tint"><button data-v="0">כבוי</button><button data-v="1">עדין</button><button data-v="2">חזק</button></div></div>
+    <div class="ctl"><span>סגנון</span><div class="seg" data-dial="skin"><button data-v="bubble">Bubble</button><button data-v="domus">Domus</button><button data-v="classic">Classic</button></div></div>
+    <div class="ctl"><span>ערכת נושא</span><div class="seg" data-dial="theme"><button data-v="light">בהיר</button><button data-v="dark">כהה</button></div></div>
+    <div class="ctl" id="palCtl"><span>צבעים (Bubble)</span><select id="palette"></select></div>
+    <div class="ctl"><span>משטח (קיים)</span><div class="seg" data-dial="surface"><button data-v="flat">שטוח</button><button data-v="glass">זכוכית</button><button data-v="gradient">צבעוני</button><button data-v="fill">מילוי</button></div></div>
+    <div class="ctl"><span>אטימות (קיים) <span id="opv"></span></span><input type="range" id="opacity" min="40" max="100" step="2" value="72"></div>
+    <div class="ctl"><span>פינות (קיים)</span><div class="seg" data-dial="radius"><button data-v="pill">כמוסה</button><button data-v="soft">רכות</button><button data-v="square">ישרות</button></div></div>
+    <div class="ctl"><span>ביצועים (קיים)</span><div class="seg" data-dial="perf"><button data-v="lite">קל</button><button data-v="full">מלא</button></div></div>
+    <div class="ctl"><span>יעד לחיצה (קיים)</span><div class="seg" data-dial="touch"><button data-v="44">44</button><button data-v="32">32</button></div></div>
+    <div class="ctl"><span>רוחב</span><div class="seg" data-dial="width"><button data-v="desktop">מחשב</button><button data-v="phone">טלפון 390</button></div></div>
+  </div>
+
+  <h2>1. בית - אריחי אזורים (state-tinted tiles)</h2>
+  <section class="screen">
+    <nav class="tree mat chrome" aria-label="קומות ואזורים">
+      <div class="floor"><span>קומה 1</span><span>▾</span></div>
+      <div class="trow sel">סלון <span class="n">6</span></div><div class="trow">מטבח <span class="n">3</span></div><div class="trow">כניסה <span class="n">4</span></div>
+      <div class="floor"><span>קומה 2</span><span>▾</span></div>
+      <div class="trow">חדר שינה <span class="n">5</span></div><div class="trow">חדר עבודה <span class="n">2</span></div>
+      <div class="floor"><span>חוץ</span><span>▸</span></div>
+    </nav>
+    <div>
+      <div class="grid">
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-ent-light); --wash: 1; --fill: 60%"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת סלון</div><div class="st">דולק · 60%</div><div class="bar"><i></i></div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-ent-climate); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 0-4 4v8.3a6 6 0 1 0 8 0V6a4 4 0 0 0-4-4zm1 13.2V6a1 1 0 0 0-2 0v9.2a4 4 0 1 0 2 0z"/></svg></div><div><div class="nm">מיזוג סלון</div><div class="st">מקרר · 22°</div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-success); --wash: 1"><div class="ic" style="background: color-mix(in srgb, var(--sw-ent-security) 92%, var(--sw-surface))"><svg viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm0 6a3 3 0 0 1 3 3v1h1v6H8v-6h1v-1a3 3 0 0 1 3-3zm0 2a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1z"/></svg></div><div><div class="nm">דלת כניסה</div><div class="st">נעול</div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-warning); --wash: 1"><div class="ic" style="background: color-mix(in srgb, var(--sw-ent-cover) 92%, var(--sw-surface))"><svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm1 3h16v4H4V6zm0 5h16v2H4v-2zm0 3h16v2H4v-2zm0 3h16v2H4v-2z"/></svg></div><div><div class="nm">תריס חניה</div><div class="st">פתוח</div></div></div>
+        <div class="tile mat" data-state="off" style="--tone: var(--sw-ent-light)"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת מטבח</div><div class="st">כבוי</div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-ent-camera); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 6h11a2 2 0 0 1 2 2v1.5l4-2.5v10l-4-2.5V16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg></div><div><div class="nm">מצלמה חניה</div><div class="st">חי · מקליט</div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-ent-media); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div><div class="nm">מוזיקה סלון</div><div class="st">מנגן</div></div></div>
+        <div class="tile mat" data-state="unavailable" style="--tone: var(--sw-ent-climate)"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 0-4 4v8.3a6 6 0 1 0 8 0V6a4 4 0 0 0-4-4z"/></svg></div><div><div class="nm">מיזוג חדר שינה</div><div class="st">לא זמין</div></div></div>
+        <div class="tile mat" data-state="on" style="--tone: var(--sw-danger); --wash: 1"><div class="ic" style="background: color-mix(in srgb, var(--sw-ent-security) 92%, var(--sw-surface))"><svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm0 6 6.5 11h-13L12 8zm-1 4v4h2v-4h-2zm0 5v2h2v-2h-2z"/></svg></div><div><div class="nm">גלאי עשן מטבח</div><div class="st">אזעקה</div></div></div>
+      </div>
+      <nav class="phone-dock mat chrome" aria-label="ניווט"><a class="active" href="#"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v9h6v-6h2v6h6v-9h3L12 3z"/></svg></a><a href="#"><svg viewBox="0 0 24 24"><path d="M4 6h11a2 2 0 0 1 2 2v1.5l4-2.5v10l-4-2.5V16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/></svg></a><a href="#"><svg viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/></svg></a><a href="#"><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg></a></nav>
+    </div>
+  </section>
+  <div class="caption"><b>מה לבדוק:</b> הגוון יושב על המשטח (לא על תג), אבל המילה ("נעול", "פתוח", "אזעקה") והנקודה נשארות - צבע לעולם לא לבד. אריח כבוי נשאר ניטרלי. ב"צבעוני" (surface=gradient) הגוון מבוטל, כי שני צבעים על אריח אחד מתנגשים.</div>
+
+  <h2>2. רשימת התקנים (density=row) - הגוון רק בפס ובטבעת</h2>
+  <section class="screen">
+    <nav class="tree mat chrome" aria-label="קומות ואזורים">
+      <div class="floor"><span>קומה 1</span><span>▾</span></div>
+      <div class="trow">סלון <span class="n">6</span></div><div class="trow sel">מטבח <span class="n">3</span></div><div class="trow">כניסה <span class="n">4</span></div>
+      <div class="floor"><span>קומה 2</span><span>▸</span></div>
+    </nav>
+    <div class="list" id="list"></div>
+  </section>
+  <div class="caption"><b>מה לבדוק:</b> שורות אינן אריחים: שטיפת הגוון על שורה שלמה הופכת רשימה לפסי צבע (נסו tint=חזק ותראו למה זה מוגבל לפס הצד). הרשימה לא מקבלת טשטוש בשכבת "קל".</div>
+
+  <h2>3. רצועת אבטחה (chrome) + מצלמות</h2>
+  <section class="screen notree">
+    <div>
+      <div class="strip mat chrome">
+        <div class="armed">דרוך בבית</div>
+        <button class="chip"><i></i>כניסה</button><button class="chip"><i></i>סלון</button><button class="chip open"><i></i>מטבח</button><button class="chip"><i></i>חניה</button><button class="chip bypass"><i></i>גינה</button>
+        <span class="sp"></span>
+        <button class="btn">דרוך מלא</button><button class="btn danger">נטרל</button>
+      </div>
+      <div class="cams">
+        <div class="cam"><div class="lbl"><i></i>כניסה ראשית</div></div>
+        <div class="cam"><div class="lbl"><i></i>חניה</div></div>
+        <div class="cam"><div class="lbl off"><i></i>גינה אחורית</div></div>
+        <div class="cam"><div class="lbl"><i></i>מסדרון</div></div>
+      </div>
+    </div>
+  </section>
+  <div class="caption"><b>מה לבדוק:</b> ה-chrome (רצועה, עץ, dock) הוא המקום היחיד שבו הטשטוש פועל גם ב"קל". גיאומטריית הווידאו לא מקבלת חומר ולא משתקפת ב-RTL.</div>
+
+  <h2>4. טבלה צפופה - אירועים</h2>
+  <section class="screen notree">
+    <div class="frame mat"><table><thead><tr><th>זמן</th><th>התקן</th><th>אזור</th><th>אירוע</th><th>מצב</th><th>משך</th></tr></thead><tbody id="tbody"></tbody></table></div>
+  </section>
+  <div class="caption"><b>מה לבדוק:</b> החומר נעצר במסגרת הטבלה. השורות נשארות שורות עם קו שיער, בלי שטיפה ובלי טשטוש; הצבע בתא "מצב" הוא נקודה + מילה.</div>
+
+  <h2>5. חפיפה: אותו אריח בשלוש דרכים</h2>
+  <div class="cmp">
+    <div class="box" data-skin="bubble" data-preset="none" data-depth="0" data-tint="0" data-surface="glass" style="--m-clarity:.72"><div class="lbl">Bubble היום · surface=glass</div><div class="tile mat" data-state="on" style="--tone: var(--sw-ent-light); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת סלון</div><div class="st">דולק</div></div></div></div>
+    <div class="box" data-skin="bubble" data-preset="frosted" data-depth="1" data-tint="1" data-surface="glass" style="--m-clarity:.62"><div class="lbl">Bubble + Frosted · depth 1 · tint 1</div><div class="tile mat" data-state="on" style="--tone: var(--sw-ent-light); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת סלון</div><div class="st">דולק</div></div></div></div>
+    <div class="box" data-skin="bubble" data-preset="none" data-depth="1" data-tint="1" data-surface="glass" style="--m-clarity:.72; --m-rim:1; --m-wash:28%; --m-lift:.45"><div class="lbl">Bubble + רק depth ו-tint (בלי preset)</div><div class="tile mat" data-state="on" style="--tone: var(--sw-ent-light); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת סלון</div><div class="st">דולק</div></div></div></div>
+    <div class="box" data-skin="domus" data-preset="none" data-depth="0" data-tint="0" data-surface="glass" style="--m-clarity:.52; --m-border: rgba(255,255,255,.72)"><div class="lbl">Domus היום</div><div class="tile mat" data-state="on" style="--tone: var(--sw-ent-light); --wash: 1"><div class="ic"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div><div><div class="nm">תאורת סלון</div><div class="st">דולק</div></div></div></div>
+  </div>
+  <div class="caption">התיבות כאן עוקבות אחרי ערכת הנושא בלבד; שאר החוגות קבועות בכוונה, כדי להשוות. התיבה השלישית מראה ש"depth" ו-"tint" לבדם, בלי preset, כבר נותנים את רוב ההבדל.</div>
+
+  <h2>6. עלות (סיכום; הפירוט ב-README.md)</h2>
+  <table class="cost"><thead><tr><th>פריט</th><th>מה נבנה</th><th>הערכה</th></tr></thead><tbody>
+    <tr><td><code>depth</code></td><td>חוגה 0/1/2; חמש שורות box-shadow + שתי שכבות רקע; מופעל רק ב-Bubble/Domus</td><td>~2 h</td></tr>
+    <tr><td><code>tint</code></td><td>חוגה 0/1/2; שטיפת גוון לפי מצב על אריחים בלבד, פס צד בשורות; טבלת גוון למצב</td><td>~3 h + בדיקת ניגודיות</td></tr>
+    <tr><td><code>material</code> Frosted/Paper</td><td>שתי קדם-הגדרות = ערכים לחוגות קיימות + depth/tint + גרגר (Frosted)</td><td>~2 h</td></tr>
+    <tr><td>Chalk, Neon</td><td>מומלץ לא לבנות (ראו README)</td><td>0</td></tr>
+    <tr><td>בדיקות + מסמכים</td><td>evidence ל-2 סגנונות x 2 ערכות x 3 presets, layout guard, ניגודיות על גוון</td><td>~4 h</td></tr>
+  </tbody></table>
+</div>
+
+<script>
+(function () {
+  const root = document.documentElement;
+  const DIALS = ['preset', 'depth', 'tint', 'skin', 'theme', 'surface', 'radius', 'perf', 'touch', 'width'];
+  const params = new URLSearchParams(location.search);
+  const state = {};
+  for (const d of DIALS) state[d] = params.get(d) || root.dataset[d];
+  state.palette = params.get('palette') || 'default';
+  const SUGGESTED_OPACITY = { none: 72, frosted: 62, paper: 96, chalk: 60, neon: 56 };
+  state.opacity = +(params.get('op') || SUGGESTED_OPACITY[state.preset] || 72);
+
+  // palette select
+  const sel = document.getElementById('palette');
+  sel.innerHTML = '<option value="default">ברירת מחדל (Bubble)</option>' + window.SW_PALETTES.palettes.map((p) => `<option value="${p.id}">${p.name.he}</option>`).join('');
+  sel.value = state.palette;
+
+  function applyPalette() {
+    const st = root.style;
+    const keys = ['--sw-bg','--sw-canvas','--sw-surface','--sw-surface-2','--sw-surface-solid','--sw-text','--sw-heading','--sw-text-2','--sw-border-strong','--sw-accent','--sw-accent-contrast','--sw-accent-text','--sw-sheet-rgb','--sw-layer','--sw-overlay','--sw-nav-glass','--sw-success','--sw-warning','--sw-danger','--sw-off','--sw-success-text','--sw-warning-text','--sw-danger-text','--sw-ent-light','--sw-ent-climate','--sw-ent-cover','--sw-ent-media','--sw-ent-security','--sw-ent-camera','--sw-ent-icon','--sw-lit','--sw-on-lit','--sw-grad-1','--sw-grad-2','--sw-grad-text'];
+    for (const k of keys) st.removeProperty(k);
+    const bubble = state.skin === 'bubble';
+    document.getElementById('palCtl').classList.toggle('disabled', !bubble);
+    sel.disabled = !bubble;
+    if (!bubble || state.palette === 'default') return;
+    const p = window.SW_PALETTES.palettes.find((x) => x.id === state.palette);
+    if (!p) return;
+    const s = p.schemes[state.theme];
+    const hex2rgb = (h) => h.length === 7 ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',') : '255,255,255';
+    const set = (k, v) => st.setProperty(k, v);
+    set('--sw-bg', s.bg); set('--sw-canvas', `linear-gradient(${s.wallpaper.angle}deg, ${s.wallpaper.stops.join(', ')})`);
+    set('--sw-surface', s.surface); set('--sw-surface-2', s.surface2); set('--sw-surface-solid', s.surfaceElevated);
+    set('--sw-text', s.text); set('--sw-heading', s.text); set('--sw-text-2', s.textMuted); set('--sw-border-strong', s.border);
+    set('--sw-accent', s.accent); set('--sw-accent-contrast', s.accentContrast); set('--sw-accent-text', s.accentText);
+    set('--sw-sheet-rgb', hex2rgb(s.glass.tint)); set('--sw-layer', s.glass.layer); set('--sw-overlay', s.glass.overlay);
+    set('--sw-nav-glass', `rgba(${hex2rgb(s.glass.tint)}, ${s.glass.opacity.default})`);
+    set('--sw-success', s.state.success); set('--sw-warning', s.state.warning); set('--sw-danger', s.state.danger); set('--sw-off', s.state.off);
+    set('--sw-success-text', s.state.successText); set('--sw-warning-text', s.state.warningText); set('--sw-danger-text', s.state.dangerText);
+    for (const e of ['light','climate','cover','media','security','camera','icon']) set('--sw-ent-' + e, s.entity[e]);
+    set('--sw-lit', s.slider.fill); set('--sw-on-lit', s.slider.onFill);
+    set('--sw-grad-1', s.gradient.pairs[0][0]); set('--sw-grad-2', s.gradient.pairs[0][1]); set('--sw-grad-text', s.gradient.text);
+  }
+
+  function render() {
+    for (const d of DIALS) root.dataset[d] = state[d];
+    root.style.setProperty('--m-clarity', String(state.opacity / 100));
+    document.getElementById('opv').textContent = state.opacity + '%';
+    document.getElementById('opacity').value = state.opacity;
+    document.querySelectorAll('.seg').forEach((seg) => {
+      const d = seg.dataset.dial;
+      seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === String(state[d]))));
+    });
+    applyPalette();
+    const q = new URLSearchParams();
+    for (const d of DIALS) q.set(d, state[d]);
+    q.set('palette', state.palette); q.set('op', String(state.opacity));
+    history.replaceState(null, '', '?' + q.toString());
+  }
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    const d = b.closest('.seg').dataset.dial; state[d] = b.dataset.v;
+    // a preset suggests an opacity; the slider stays the owner of the value afterwards
+    if (d === 'preset') state.opacity = SUGGESTED_OPACITY[state[d]];
+    render();
+  }));
+  sel.addEventListener('change', () => { state.palette = sel.value; render(); });
+  document.getElementById('opacity').addEventListener('input', (e) => { state.opacity = +e.target.value; render(); });
+
+  // list rows
+  const ICON = { light: '<path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>', climate: '<path d="M12 2a4 4 0 0 0-4 4v8.3a6 6 0 1 0 8 0V6a4 4 0 0 0-4-4z"/>', cover: '<path d="M3 3h18v2H3V3zm1 3h16v4H4V6zm0 5h16v2H4v-2zm0 3h16v2H4v-2zm0 3h16v2H4v-2z"/>', camera: '<path d="M4 6h11a2 2 0 0 1 2 2v1.5l4-2.5v10l-4-2.5V16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>', media: '<path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/>', security: '<path d="M12 1 3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/>' };
+  const rows = [
+    ['תאורת מטבח', 'מטבח', 'light', 'on', 'דולק · 80%'], ['תאורת שיש', 'מטבח', 'light', 'off', 'כבוי'], ['מיזוג מטבח', 'מטבח', 'climate', 'on', 'מחמם · 24°'],
+    ['חלון מטבח', 'מטבח', 'cover', 'on', 'פתוח'], ['מצלמה מטבח', 'מטבח', 'camera', 'on', 'חי'], ['רמקול מטבח', 'מטבח', 'media', 'off', 'מושהה'], ['גלאי עשן', 'מטבח', 'security', 'off', 'תקין'],
+  ];
+  document.getElementById('list').innerHTML = rows.map(([n, a, e, s, w]) => `<div class="row mat" data-state="${s}" style="--tone: var(--sw-ent-${e}); --wash: 0"><span class="stripe"></span><span class="ic"><svg viewBox="0 0 24 24">${ICON[e]}</svg></span><span class="t"><b>${n}</b><small>${a}</small></span><span class="sw">${w}</span>${e === 'light' || e === 'media' ? `<button class="toggle" role="switch" aria-checked="${s === 'on'}" aria-label="${n}"></button>` : '<span class="mini"></span>'}</div>`).join('');
+  // tint=strong washes rows too, to show why it should not
+  const mo = new MutationObserver(() => document.querySelectorAll('.row.mat').forEach((r) => r.style.setProperty('--wash', root.dataset.tint === '2' && r.dataset.state === 'on' ? '0.5' : '0')));
+  mo.observe(root, { attributes: true, attributeFilter: ['data-tint'] });
+
+  // table
+  const ev = [
+    ['14:02:11', 'דלת כניסה', 'כניסה', 'נעילה', 'success', 'נעול', '-'], ['13:58:40', 'מצלמה חניה', 'חניה', 'תנועה', 'camera', 'הוקלט', '00:42'], ['13:51:05', 'תריס חניה', 'חניה', 'פתיחה', 'warning', 'פתוח', '-'],
+    ['13:44:19', 'מיזוג סלון', 'סלון', 'שינוי יעד', 'climate', '22°', '-'], ['13:30:00', 'תאורת סלון', 'סלון', 'תזמון', 'light', 'דולק 60%', '-'], ['13:12:57', 'גלאי עשן מטבח', 'מטבח', 'בדיקה', 'success', 'תקין', '-'],
+    ['12:58:31', 'מצלמה כניסה', 'כניסה', 'תנועה', 'camera', 'הוקלט', '01:15'], ['12:40:12', 'רמקול מטבח', 'מטבח', 'השהיה', 'media', 'מושהה', '-'], ['12:21:44', 'דלת כניסה', 'כניסה', 'פתיחה', 'warning', 'נפתח', '00:08'],
+    ['11:59:03', 'מיזוג חדר שינה', 'חדר שינה', 'ניתוק', 'off', 'לא זמין', '-'], ['11:35:26', 'תאורת חניה', 'חניה', 'כיבוי', 'off', 'כבוי', '-'], ['11:10:50', 'מצלמה גינה', 'גינה', 'אובדן אות', 'danger', 'מנותק', '-'],
+  ];
+  const toneOf = (k) => ({ success: 'var(--sw-success)', warning: 'var(--sw-warning)', danger: 'var(--sw-danger)', off: 'var(--sw-off)' }[k] || `var(--sw-ent-${k})`);
+  document.getElementById('tbody').innerHTML = ev.map(([t, d, a, e, k, s, m]) => `<tr><td class="num">${t}</td><td>${d}</td><td>${a}</td><td>${e}</td><td><span class="dot" style="--tone:${toneOf(k)}"></span>${s}</td><td class="num">${m}</td></tr>`).join('');
+
+  render();
+})();
+</script>
+</body>
+</html>
