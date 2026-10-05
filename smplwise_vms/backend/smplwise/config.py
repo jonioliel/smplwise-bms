@@ -74,6 +74,9 @@ class Settings:
     # `recorder_settings` is always empty. Never in a repr (the children carry passwords).
     nvr_recorder_id: str = "nvr-1"
     recorder_settings: dict = field(default_factory=dict, repr=False, compare=False)
+    # CR-028: the cast relay (services/cast_relay.py) listens on container port 18092 only when this add-on option is on; config.yaml
+    # maps 18092/tcp to null, so the owner also maps a host port before a TV can reach it. SW_CAST_RELAY=1 outside the add-on.
+    cast_relay: bool = False
 
     @property
     def plans_dir(self) -> Path:
@@ -178,6 +181,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
         ha_token=os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HA_TOKEN") or None,
         remote_access=_truthy(options["remote_access"]) if "remote_access" in options else _truthy(os.environ.get("SW_REMOTE_ACCESS", "")),
         db_write_gate=(_truthy(options["db_write_gate"]) if "db_write_gate" in options else True) and os.environ.get("SW_DB_WRITE_GATE", "1") != "0",
+        cast_relay=_truthy(options["cast_relay"]) if "cast_relay" in options else _truthy(os.environ.get("SW_CAST_RELAY", "")),
         remote_path=normalize_remote_path(_opt(options, "remote_path", "SW_REMOTE_PATH", DEFAULT_REMOTE_PATH)),
         # inside the add-on HA core is `homeassistant:<port>` on the Supervisor network (port / TLS from /core/info);
         # outside, the developer's HA (HA_CORE_URL, else HA_URL)

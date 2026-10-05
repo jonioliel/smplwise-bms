@@ -49,6 +49,10 @@
     "stream_source": {
       "name": "Stream source (SMPLWISE add-on only)",
       "description": "Read-only, signed: the stream source of one camera entity, for the SMPLWISE add-on. Not meant to be called from automations."
+    },
+    "cast_stream": {
+      "name": "Cast a camera to a screen (SMPLWISE add-on only)",
+      "description": "Signed: plays the SMPLWISE add-on's cast-relay address on one Google Cast media player, stops it or switches it off. Not meant to be called from automations."
     }
   }
 }

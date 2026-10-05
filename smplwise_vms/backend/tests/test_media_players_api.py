@@ -425,7 +425,7 @@ def test_migration_0044_applies_on_a_database_of_the_previous_release_and_keeps_
         conn.execute("INSERT INTO media_device_endpoints(endpoint_id, source, ref, device_key, role, platform, rule, link_source, hidden, updated_at) VALUES ('ha:media_player.x', 'ha', 'media_player.x', 'k1', 'vendor', 'sonos', 'single', 'auto', 0, ?)", (now,))
         conn.execute("INSERT INTO device_bulk_actions(id, scope, scope_id, kind, principal_user_id, client_request_id, entity_count, status, requested_at, not_after) VALUES ('b1', 'floor', 'f', 'screens_off', 'u', 'r', 1, 'done', ?, ?)", (now, now))
     monkeypatch.setattr(dbmod, "MIGRATIONS_DIR", real)
-    assert database.migrate() == [44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57], "0057 (CR-027 phone app), 0056 (K88); 0044 is the one under test; 0045-0047 (CR-018), 0048 (CR-017), 0049 (switch protection), 0050 (CR-020 S2), 0051-0052 and 0053-0054 (CR-023 meters, billing) follow it in the real set"
+    assert database.migrate() == [44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 60], "0060 (CR-028 cast), 0057 (CR-027 phone app), 0056 (K88); 0044 is the one under test; 0045-0047 (CR-018), 0048 (CR-017), 0049 (switch protection), 0050 (CR-020 S2), 0051-0052 and 0053-0054 (CR-023 meters, billing) follow it in the real set"
     with database.connection() as conn:
         row = dict(conn.execute("SELECT * FROM media_devices WHERE device_key = 'k1'").fetchone())
         assert (row["kind"], row["approved"], row["volume_max"], row["volume_night_json"], row["music_provider"], row["zones_json"]) == ("speaker", 1, 30, None, "none", None), "rows kept, ceilings stay NULL by default"

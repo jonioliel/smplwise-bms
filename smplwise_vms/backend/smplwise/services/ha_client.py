@@ -284,6 +284,32 @@ def call_bridge_config_item(settings: Settings, payload: dict[str, Any], timeout
     return (body.get("service_response") or body) if isinstance(body, dict) else {}
 
 
+def call_bridge_cast_stream(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
+    """POST /api/services/smplwise_bridge/cast_stream?return_response (CR-028, bridge >= 0.7.0) - the only path by which a camera
+    reaches a screen: `play` (a relay URL of this add-on's own cast origin, re-checked by the bridge's cast_policy.py), `stop`
+    and `off` on ONE Cast media_player, as the caller's own HA user. Never retried (a play that timed out may have started).
+    The error never carries the body: a refusal could echo the URL, whose path is the token."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    try:
+        with httpx.Client(timeout=timeout) as c:
+            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/cast_stream?return_response", headers=_headers(settings), content=json.dumps(payload))
+    except httpx.HTTPError as exc:
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in (400, 404) and "not found" in r.text.lower():
+        raise ApiError(503, "bridge_outdated", "השידור לא זמין: נדרש עדכון של רכיב החיבור.", details={"status": r.status_code, "required": "0.7.0"})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    try:
+        body = r.json()
+    except ValueError:
+        return {}
+    answer = (body.get("service_response") or body) if isinstance(body, dict) else {}
+    return {k: answer[k] for k in ("ok", "request_id", "context_id", "error") if isinstance(answer, dict) and k in answer}
+
+
 STREAM_SOURCE_ANSWER_MAX = 8192  # bytes of the bridge's answer we are willing to read (a source is <= 2048 characters)
 
 

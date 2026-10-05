@@ -39,6 +39,7 @@
         "media.group",
         "media.browse",
         "media.queue",
+        "media.cast",
         "energy.view",
         "presence.report"
       ]
@@ -109,6 +110,7 @@
         "media.group",
         "media.browse",
         "media.queue",
+        "media.cast",
         "energy.view",
         "energy.bills",
         "energy.manage",
@@ -171,6 +173,7 @@
         "media.group",
         "media.browse",
         "media.queue",
+        "media.cast",
         "energy.view",
         "energy.bills",
         "energy.manage",
