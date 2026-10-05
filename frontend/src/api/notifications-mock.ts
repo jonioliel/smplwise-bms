@@ -85,7 +85,7 @@ interface Seed {
 }
 const LINK: Record<SubjectKind, (id: string | null) => string> = {
   camera: (id) => `#/live/cameras/${id}`, entity: (id) => `#/devices/entities/${id}`, area: (id) => `#/devices/areas/${id}`, alarm_panel: () => '#/security/alarm', door: (id) => `#/doors/${id}`,
-  schedule: (id) => `#/devices/schedules/${id}`, automation: (id) => `#/devices/automations/${id}`, bulk_job: (id) => `#/devices/actions/${id}`, system: () => '#/system/diagnostics', session: () => '#/system/remote',
+  schedule: (id) => `#/devices/schedules/${id}`, automation: (id) => `#/devices/automations/${id}`, bulk_job: (id) => `#/devices/actions/${id}`, system: () => '#/system/diagnostics', session: () => '#/system/remote', generator: () => '#/infra/generator/alerts',
 };
 /** The mockup's notifications plus one row for each remaining v1 source (the sources that are off by default - alarm.state and the rule-only camera events - have none). */
 const SEEDS: Seed[] = [
