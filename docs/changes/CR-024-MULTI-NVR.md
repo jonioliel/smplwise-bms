@@ -194,6 +194,18 @@ screens, `tsc --noEmit`.
 - Visibility: `GET /cameras` marks its cameras `recorder_enabled: false`, `can_view_live: false`; the wall and the playback /
   sync pickers leave them out at once; snapshots answer 409 (no cached copy); the capability set drops the recorder. Settings
   lists keep them. `/me` and `/health` report no pending restart for enable / disable.
+- Visibility, every surface (2026-10-05, pilot/recorder-disable-meter-backup - the disable dialog used to say "the cameras stay in
+  the lists", which contradicted the above):
+  | Surface | While the recorder is disabled |
+  |---|---|
+  | Live wall, kiosk wall, overview (counts, favourites, offline notices) | left out |
+  | Playback, synchronized playback, saved views, the case snapshot picker, the video connection test | left out |
+  | Single camera page (opened by a link) | stays, with "ה־NVR של המצלמה מושבת" instead of a picture |
+  | Floor map / 3D | the pin stays (`recorder_enabled: false` in the map bundle); no picture, no "full view" or recordings button, not offered for a saved view |
+  | Settings › camera table, event-rule camera picker | kept (configuration) |
+  | Events, cases, change log | kept (history); the event filter still names the camera |
+  The confirmation dialog says exactly this (nvr-recorders-card.ts `DISABLE_TEXT`). Tests: `tests/test_multi_nvr_live.py`
+  (map bundle), `frontend/tests/evidence-multi-nvr.spec.ts` (dialog text, wall, kiosk, camera page).
 - Removal also stops the recorder at once (same stop), while `restart_required` stays true (its loaded connection leaves memory
   with the restart).
 - Limit: a recorder added after the start, then enabled, still needs the restart (its connection is not loaded yet).

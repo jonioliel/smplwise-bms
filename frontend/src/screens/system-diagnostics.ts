@@ -23,7 +23,7 @@ import { TabsModeController } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
-import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
+import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
@@ -113,6 +113,9 @@ export class SystemDiagnostics extends LitElement {
   @state() private backupBusy = false;
   @state() private backupNote = '';
   @state() private backupMsg = '';
+  @state() private meterBackup: MeterBackupSetting | null = null;
+  @state() private meterBackupBusy = false;
+  @state() private meterBackupError = '';
   @state() private skins: SkinsStatus | null = null;
   @state() private skinsTest: SkinsTestResult | null = null;
   @state() private skinsBusy = false;
@@ -1179,6 +1182,7 @@ export class SystemDiagnostics extends LitElement {
 
   private async loadBackups() {
     if (!isApi()) return;
+    void getMeterBackup().then((m) => (this.meterBackup = m));
     try {
       const r = await listBackups();
       this.backups = r.backups;
@@ -1187,6 +1191,33 @@ export class SystemDiagnostics extends LitElement {
       this.error = describeError(err);
       this.backups = [];
     }
+  }
+
+  /** CR-023: "include the meter readings in the backup" (energy.include_history_in_backup) - saved at once, like the other switches. */
+  private async toggleMeterBackup(on: boolean) {
+    const before = this.meterBackup;
+    if (!before || this.meterBackupBusy) return;
+    this.meterBackupBusy = true;
+    this.meterBackupError = '';
+    this.meterBackup = { ...before, on };
+    try {
+      this.meterBackup = (await setMeterBackup(on)) ?? { ...before, on };
+    } catch (err) {
+      this.meterBackup = before;
+      this.meterBackupError = describeError(err);
+    } finally {
+      this.meterBackupBusy = false;
+    }
+  }
+
+  private renderMeterBackup() {
+    const m = this.meterBackup;
+    if (!m) return nothing;
+    const size = m.bytes != null && m.bytes > 0 ? ` (כרגע ${fmtBytes(m.bytes)})` : '';
+    return html`<div class="row" data-backup-meters><span class="lbl">נתוני מוני החשמל<span class="muted">${m.on ? `כל הקריאות נכנסות לגיבוי${size}` : 'בלי הקריאות עצמן; מונים, חיובים וסיכומים יומיים נכנסים תמיד'}</span></span>
+        <sw-toggle data-backup-meters-toggle ?checked=${m.on} ?disabled=${!m.editable || this.meterBackupBusy} label="לכלול את נתוני המונים בגיבוי" labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleMeterBackup(e.detail.checked)}></sw-toggle></div>
+      ${this.meterBackupError ? html`<div class="muted" role="alert" style="color:var(--sw-error)" data-backup-meters-error>${this.meterBackupError}</div>` : nothing}`;
   }
 
   private async createBackup() {
@@ -1297,6 +1328,7 @@ export class SystemDiagnostics extends LitElement {
           <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
+        ${this.renderMeterBackup()}
         ${this.backupMsg ? html`<div class="muted" style="color:#15803d;padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`

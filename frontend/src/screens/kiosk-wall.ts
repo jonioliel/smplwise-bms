@@ -395,7 +395,7 @@ export class KioskWall extends LitElement {
     if (!isApi()) return;
     try {
       const [list, settings] = await Promise.all([listCameras(), productSettings()]);
-      this.cams = list.cameras.filter((c) => c.enabled);
+      this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false); // CR-024: a disabled recorder leaves the kiosk wall too
       this.settings = settings;
       this.view = viewParams(defaultLayout(settings));
     } catch {

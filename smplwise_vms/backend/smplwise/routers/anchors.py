@@ -215,7 +215,12 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     # viewer's list is the visible cameras on this map (below)
     placeable = camera_reach_for_placement(conn, principal) if can_edit else None
     hidden = removed_recorder_cameras(conn) if not at_iso else set()  # CR-024: a removed recorder's cameras are not offered or listed
-    cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
+    from ..recorder_scope import is_disabled
+
+    # CR-024 section 7.2: a disabled recorder's cameras keep their place on the map but are marked `recorder_enabled: false`
+    # (no live picture, no snapshot, not offered for a saved view) - the same flag `GET /cameras` carries
+    cameras = {r["id"]: dict(camera_row(r), recorder_enabled=not is_disabled(r["recorder_id"]))
+               for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
                if r["id"] not in hidden and (cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"])))}
     from ..services import ha_bridge, ha_history, ha_sync
 

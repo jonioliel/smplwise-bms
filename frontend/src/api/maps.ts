@@ -160,6 +160,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
 export function cameraState(anchor: Anchor, demoFallback?: StateKind): StateKind {
   const cam = anchor.camera;
   if (!cam) return demoFallback ?? 'unknown';
+  if (cam.recorder_enabled === false) return 'neutral'; // CR-024: its recorder is disabled - no live picture, no snapshot
   if (cam.status === 'online') return 'live';
   if (cam.status === 'offline') return 'offline';
   return demoFallback ?? 'unknown';
