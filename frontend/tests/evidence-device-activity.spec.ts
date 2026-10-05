@@ -37,6 +37,7 @@ const panel = (page: Page) => page.locator('sw-app device-activity #da-panel');
 
 /** Hold the mouse on the title area of a tile (away from its toggle and slider). */
 async function hold(page: Page, loc: Locator, ms: number, move = 0) {
+  await loc.scrollIntoViewIfNeeded();
   const b = (await loc.boundingBox())!;
   const x = b.x + b.width - 34;
   const y = b.y + 14;
