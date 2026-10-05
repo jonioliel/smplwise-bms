@@ -10,8 +10,9 @@ export const R2 = 14; // recorder "NVR 2"
 export async function mockWall(page: Page, opts: { count?: string | null; cols?: string | null } = {}): Promise<void> {
   await page.addInitScript((o) => {
     try {
-      if (o.count) localStorage.setItem('sw.wall.count', o.count);
-      if (o.cols) localStorage.setItem('sw.wall.cols', o.cols);
+      // only a first load: a reload keeps what the page itself saved
+      if (o.count && localStorage.getItem('sw.wall.count') === null) localStorage.setItem('sw.wall.count', o.count);
+      if (o.cols && localStorage.getItem('sw.wall.cols') === null) localStorage.setItem('sw.wall.cols', o.cols);
     } catch {
       /* private mode */
     }

@@ -779,8 +779,8 @@ export class LiveWall extends LitElement {
 
   /** LV1: the column count as the shared compact dropdown (0 = automatic best fit). */
   private columnsDropdown(phone: boolean) {
-    const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: `עמודות: ${n === 0 ? 'אוטו' : n}` }));
-    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd label="עמודות" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+    const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? 'עמודות אוטו' : n === 1 ? 'עמודה אחת' : `${n} עמודות` }));
+    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
       .items=${items} .value=${String(this.colsOverride)} @change=${(e: CustomEvent<DropdownChange>) => this.setCols(Number(e.detail.id) || 0)}></sw-dropdown>`;
   }
 

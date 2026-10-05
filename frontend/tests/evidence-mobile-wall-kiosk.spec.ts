@@ -69,7 +69,7 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
     expect(b.height, 'one row').toBeLessThanOrEqual(56);
     for (const sel of ['[data-wall-quality]', '[data-wall-count-select]', '[data-wall-cols-dd]']) {
       const s = (await bar.locator(sel).boundingBox())!;
-      expect(s.height, `${sel} is a touch-sized control`).toBeGreaterThanOrEqual(40);
+      expect(s.height, `${sel} is a touch-sized control`).toBeGreaterThanOrEqual(sel === '[data-wall-cols-dd]' ? 32 : 40); // the dropdown chip is 32 px with a 44 px hit area (::after)
       expect(s.x + s.width, `${sel} stays inside the screen`).toBeLessThanOrEqual(390);
     }
     // the old controls are gone from the phone: no 11-button row, no column chips

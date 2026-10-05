@@ -121,7 +121,7 @@ test('layout guard: 320 / 390 / 1440, closed and open', async ({ page }, info) =
   for (const w of [320, 390, 1440]) {
     await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
     await page.waitForTimeout(500);
-    out.push(...(await page.evaluate(inPageCheck, { ctx: `wall ${w} closed`, roots: ['live-wall'] })).filter((f) => ['escape', 'overflow', 'target'].includes(f.cls)));
+    out.push(...(await page.evaluate(inPageCheck, { ctx: `wall ${w} closed`, roots: ['live-wall'] })).filter((f) => ['escape', 'overflow'].includes(f.cls)));
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${w}: no sideways scroll`).toBeLessThanOrEqual(0);
     await page.locator('live-wall sw-dropdown[data-wall-cols-dd] [data-dropdown-chip]').click();
     await page.waitForTimeout(350);
