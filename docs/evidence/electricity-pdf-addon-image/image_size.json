@@ -1,0 +1,9 @@
+{
+ "base_bytes": 125515196,
+ "baseline_without_bill_pdf_bytes": 489634572,
+ "full_bytes": 523081634,
+ "bill_pdf_growth_mb": 33.4,
+ "gate_mb": 60,
+ "within_gate": true,
+ "method": "apparent size of the unpacked tree (hard links once), as docker image inspect reports uncompressed layers"
+}

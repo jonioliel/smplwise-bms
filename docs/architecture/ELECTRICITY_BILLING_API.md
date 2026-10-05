@@ -131,7 +131,7 @@ Read: manage or bills. Write: manage.
 ## 7. Billing settings (Settings › פרטי העסק, numbering, payment)
 
 `GET /billing-settings` (manage or bills), `PUT /billing-settings` (manage) with `{base_revision, ...any subset}`. The GET answer also
-carries `pdf_engine: {configured, active, checked, detail, last_render_engine, slow_fallbacks, fallback_after_s}` (which PDF engine this
+carries `pdf_engine: {configured, active, checked, detail, last_render_engine, slow_fallbacks, crash_fallbacks, fallback_after_s}` (which PDF engine this
 installation really renders with; null while a test renderer is registered). Stored in the settings key `energy.billing`, registered
 in the energy settings registry with its own route (ELECTRICITY_INTERFACES.md section 5):
 

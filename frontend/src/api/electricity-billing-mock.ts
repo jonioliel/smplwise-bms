@@ -241,7 +241,7 @@ let settings: BillingSettings = {
   numbering: { customer_digits: 4, format: 'YYYY-MM-NNNN' },
   auto: { delay_hours: 6 },
   logo: null,
-  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, fallback_after_s: 20 },
+  pdf_engine: { configured: 'auto', active: 'weasyprint', checked: `${MOCK_TODAY}T06:00:00Z`, detail: null, last_render_engine: 'weasyprint', slow_fallbacks: 0, crash_fallbacks: 0, fallback_after_s: 20 },
 };
 let logoDataUrl = '';
 

@@ -8,6 +8,7 @@ ask for resources, and it knows exactly five names (four bundled font files and 
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import sys
@@ -68,7 +69,13 @@ def render_weasyprint(s: BillSnapshot, logo_png: bytes | None, max_pages: int = 
 
     logging.getLogger("weasyprint").setLevel(logging.ERROR)  # the log would repeat user strings; keep it quiet
     fetcher = LockedFetcher(logo_png)
-    doc = HTML(string=build_html(s, bool(logo_png)), base_url=None, url_fetcher=fetcher).render()
+    logo_size = None
+    if logo_png:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(logo_png)) as img:  # the re-encoded PNG made by sanitize_logo
+            logo_size = img.size
+    doc = HTML(string=build_html(s, bool(logo_png), logo_size), base_url=None, url_fetcher=fetcher).render()
     if len(doc.pages) > max_pages:
         raise RenderRefused("pdf_page_limit")
     pdf = doc.write_pdf()
@@ -332,8 +339,14 @@ def self_check(engine: str) -> int:
 
             from weasyprint import HTML
 
+            from .bill_pdf_html import _css
+
             logging.getLogger("weasyprint").setLevel(logging.ERROR)
-            HTML(string="<p>\u05d1\u05d3\u05d9\u05e7\u05d4 123</p>", base_url=None, url_fetcher=LockedFetcher(None)).render().write_pdf()
+            # the same bundled fonts and page CSS as a real bill (EL8: the add-on image has no system font at all, so a
+            # page without the bundled @font-face rules crashes Pango there while every real bill renders fine)
+            page = (f"<html><head><style>{_css('#1565c0')}</style></head><body><h1>\u05d1\u05d3\u05d9\u05e7\u05d4</h1>"
+                    "<p>\u05d1\u05d3\u05d9\u05e7\u05d4 <span class=\"n\">2026-09-0001 497.35 \u20aa</span> SmplWise Arx</p></body></html>")
+            HTML(string=page, base_url=None, url_fetcher=LockedFetcher(None)).render().write_pdf()
             sys.stdout.write("engine=weasyprint\n")
             return 0
         except Exception as exc:  # noqa: BLE001 - any failure of the stack means the fallback is in force

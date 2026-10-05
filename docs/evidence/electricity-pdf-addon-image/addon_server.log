@@ -1,0 +1,15 @@
+2026-10-05 06:23:50,573 INFO smplwise: applied migrations [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55]
+2026-10-05 06:23:50,593 INFO smplwise: installation mode: full with a placeholder NVR host (developer backend without NVR_HOST); SW_MODE=ha_only starts the NVR-less mode
+2026-10-05 06:23:50,593 WARNING smplwise: developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+INFO:     Started server process [4001745]
+INFO:     Waiting for application startup.
+2026-10-05 06:23:50,675 INFO smplwise.bridge: bridge integration not delivered automatically (ha_config_not_mapped); manual install remains possible
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:33349 (Press CTRL+C to quit)
+2026-10-05 06:23:50,680 INFO smplwise.storage: storage report warmed in 0.0 s
+2026-10-05 06:23:50,994 INFO smplwise.bill_pdf: bill pdf engine: WeasyPrint (self-check 0.33 s)
+INFO:     127.0.0.1:46218 - "GET /api/v1/energy/billing-settings HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4001745]

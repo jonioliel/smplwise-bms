@@ -344,6 +344,8 @@ export interface PdfEngine {
   detail: string | null;
   last_render_engine: string | null;
   slow_fallbacks: number;
+  /** EL8: renders retried with the simple engine because the WeasyPrint process died (2.0.1+; absent on older servers). */
+  crash_fallbacks?: number;
   fallback_after_s: number;
 }
 export type BillingSettingsPatch = Partial<Pick<BillingSettings, 'default_price_mode' | 'payment_terms' | 'business' | 'auto'>>;
