@@ -350,3 +350,47 @@ def test_the_ws_url_follows_the_scheme_and_carries_no_credentials_in_it(settings
     b = fr.FrigateAdapter(RID, s, transport=fake.transport())
     assert b.http.websocket_url() == "wss://frigate.test:8971/ws" and b.http.websocket_ssl() is not None
     assert "viewer-pass" not in b.http.websocket_url() and "arx-viewer" not in b.http.websocket_url()
+
+
+def test_the_ws_feed_works_with_the_real_websockets_library(settings, fake):
+    """A real local WebSocket server (127.0.0.1, ephemeral port): the feed connects with the session cookie, receives frames into
+    the queue, never sends anything, and stops when asked. Plain `ws://` only (the TLS contexts are covered above)."""
+    import dataclasses
+    import queue
+
+    from websockets.sync.server import serve
+
+    got_headers: list[str] = []
+    received_from_client: list = []
+    frame = json.dumps({"topic": "reviews", "payload": json.dumps({"type": "new", "before": {}, "after": review("1791227990.400000-eee555", "cam_yard", T0 - 5, None)})})
+
+    def handler(ws):
+        got_headers.append(ws.request.headers.get("Cookie", ""))
+        ws.send(frame)
+        try:
+            for msg in ws:  # anything the client sends is a failure of the listen-only rule
+                received_from_client.append(msg)
+        except Exception:  # noqa: BLE001
+            pass
+
+    with serve(handler, "127.0.0.1", 0) as server:
+        port = server.socket.getsockname()[1]
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        s = dataclasses.replace(settings_for(settings), nvr_host="127.0.0.1", nvr_http_port=port)
+        ad = fr.FrigateAdapter(RID, s, transport=fake.transport())
+        out: "queue.Queue" = queue.Queue(maxsize=10)
+        stop = threading.Event()
+        st = fe.state_of(RID)
+        feed = fe.WsFeed(ad, out, stop, st)
+        feed.start()
+        try:
+            msg = out.get(timeout=10)
+        finally:
+            stop.set()
+            feed.thread.join(timeout=15)
+            server.shutdown()
+    assert json.loads(msg)["topic"] == "reviews" and fe.parse_frame(msg)[0][0] == "review"
+    assert got_headers and got_headers[0].startswith("frigate_token=jwt-fake-")
+    assert received_from_client == [] and st.ws_frames >= 1
+    assert fake.non_get == ["POST /api/login"]
