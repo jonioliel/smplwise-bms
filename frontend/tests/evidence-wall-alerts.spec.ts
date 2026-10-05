@@ -192,7 +192,7 @@ test.describe('CR-030 WDX wall alerts and frame (mocked backend)', () => {
     await shot(page, 'wdx-takeover-P-dark');
     await take.locator('[data-wall-seen]').click();
     await expect(wall(page).locator('[data-wall-takeover]')).toHaveCount(0);
-    await expect(wall(page).locator('[data-wall-alert-chip]')).toBeVisible();
+    await expect(wall(page).locator('[data-wall-alert-chip]').first()).toBeVisible(); // portrait repeats the chips in the band
   });
 
   test('the websocket pushes alerts live; a resolve shows the "closed" chip', async ({ page }) => {
