@@ -147,6 +147,10 @@ PERMISSION_LABELS: dict[str, str] = {
     # deletes, plays next and clears queue rows - with media.control, and at every follower's anchor when the queue is a live leader's. Neither is sensitive.
     "media.browse": "עיון וחיפוש בספריית המוזיקה",
     "media.queue": "עריכת תור הניגון",
+    # CR-028 (שדר למסך): media.cast (operator, site_admin, system_admin; not sensitive) starts, extends, switches and stops a cast of a camera to a
+    # media screen within scope (the screen's anchor placement, like media.control) - with video.live on the camera, and only to a screen the
+    # administrator allowed (system.configure, per screen, off by default). Stopping anyone's cast on a screen is also media.bulk there.
+    "media.cast": "שידור וידאו של מצלמה למסכים",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

@@ -1,6 +1,6 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.6.2"
+VERSION = "0.7.0"
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
@@ -21,6 +21,10 @@ SERVICE_CONFIG_ITEM = "config_item"
 # humidifiers, vacuums, cover tilt and climate swing / humidity - each still checked by shape and range here, by capability in the add-on.
 # 0.6.2 (0.1.163; 0.6.1 shipped in 0.1.162 without them), owner decisions of 2026-10-04: sirens (sensitive), media players (on / off,
 # play / pause / stop, volume, source) and number / select values join the schedule allow-list.
+# 0.7.0 (CR-028 phase 1, "שדר למסך"): ONE narrow service that plays the add-on's cast-relay URL on a Google Cast media_player (and stops /
+# switches it off), re-checked by cast_policy.py: the URL's origin must be the one the paired add-on announced (signed) and an address of
+# this host. The CR-015 refusal of every other `play_media` URL on `execute` is unchanged.
+SERVICE_CAST_STREAM = "cast_stream"
 CONF_DELEGATED_AUTHORING = "delegated_authoring"
 CONF_DELEGATED_CHANGED_AT = "delegated_changed_at"
 DIRECTORY_INTERVAL_S = 60

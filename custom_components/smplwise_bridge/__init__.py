@@ -32,6 +32,10 @@ It does two things and nothing else:
    changed only inside Home Assistant) and only for simple-builder content (profile `builder`) - an HA administrator is always needed for the `code` profile.
    Never called from here: a reload of anything else, `homeassistant.*`, `hassio.*`, the user directory, an item that calls this bridge. The switch state and its change
    time travel to the add-on with the user directory push.
+10. `smplwise_bridge.cast_stream` (0.7.0, CR-028 phase 1): play the add-on's cast-relay URL on ONE Google Cast media_player, stop it, or switch it off - as the
+   caller's own HA user. cast_policy.py decides independently of the add-on: the target's registry platform is `cast`, the URL is exactly
+   `http://<host>:<port>/cast/<32 hex>/index.m3u8`, `<host>:<port>` is the origin the paired add-on announced (a signed `cast` block in its answer to the
+   user-directory push) and the host is an address of THIS machine. `execute` still refuses every other `play_media` URL (media_policy.py, unchanged).
 """
 from __future__ import annotations
 
@@ -50,9 +54,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
+from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CONFIG_ITEM, SERVICE_EXECUTE,
-                    SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_PAIRING_CODE, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM, SERVICE_CONFIG_ITEM,
+                    SERVICE_EXECUTE, SERVICE_MEDIA_QUERY, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 from . import media_policy
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
@@ -170,6 +175,23 @@ CONFIG_ITEM_SCHEMA = vol.Schema(
         vol.Required("sig"): cv.string,
     },
     extra=vol.ALLOW_EXTRA,
+)
+
+# 0.7.0 (CR-028): the cast service. Exactly these keys, no defaults and no extras (the signature covers every key but ts / nonce / sig); cast_policy.py
+# refuses a key outside the op's own set and judges every value.
+CAST_STREAM_SCHEMA = vol.Schema(
+    {
+        vol.Required("user_id"): cv.string,
+        vol.Required("op"): cv.string,
+        vol.Required("entity_id"): cv.string,
+        vol.Optional("url"): cv.string,
+        vol.Optional("title"): cv.string,
+        vol.Required("request_id"): cv.string,
+        vol.Required("ts"): vol.Coerce(int),
+        vol.Required("nonce"): cv.string,
+        vol.Required("sig"): cv.string,
+    },
+    extra=vol.PREVENT_EXTRA,
 )
 
 # Only these may ever be executed, whatever the add-on asks for (defence in depth: the add-on has the same list).
@@ -370,6 +392,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(DOMAIN, SERVICE_MEDIA_QUERY, media_query, schema=MEDIA_QUERY_SCHEMA, supports_response=SupportsResponse.ONLY)
 
+    def _registry_platform(entity_id: str) -> Any:
+        reg = er.async_get(hass).async_get(entity_id)
+        return reg.platform if reg is not None else None
+
+    async def cast_stream(call: ServiceCall) -> ServiceResponse:
+        """0.7.0 (CR-028): play / stop / off on ONE Cast media_player as the VMS user (see cast_service.py and cast_policy.py)."""
+        return await async_handle_cast_stream(hass, verifier, dict(call.data), _registry_platform)
+
+    hass.services.async_register(DOMAIN, SERVICE_CAST_STREAM, cast_stream, schema=CAST_STREAM_SCHEMA, supports_response=SupportsResponse.ONLY)
+
     def delegated() -> bool:
         """The owner-approved switch (CR-017 section 8.3): read live from the options, so a change inside Home Assistant applies to the next call."""
         return bool(entry.options.get(CONF_DELEGATED_AUTHORING, False))
@@ -396,6 +428,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if resp.status != 200:
                     _LOGGER.debug("directory push answered %s", resp.status)
                     return 0
+                try:  # 0.7.0 (CR-028): the add-on's signed cast origin (or null) - verified with the pairing secret in cast_service.note_origin
+                    answer = await resp.json(content_type=None)
+                    note_origin(verifier, answer.get("cast") if isinstance(answer, dict) else None)
+                except Exception:  # noqa: BLE001 - an older add-on answers without it: the origin stays unknown and no cast is played
+                    pass
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug("directory push failed: %s", type(exc).__name__)
             return 0
@@ -424,5 +461,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_STREAM_SOURCE)
     hass.services.async_remove(DOMAIN, SERVICE_MEDIA_QUERY)
     hass.services.async_remove(DOMAIN, SERVICE_CONFIG_ITEM)
+    hass.services.async_remove(DOMAIN, SERVICE_CAST_STREAM)
     hass.services.async_remove(DOMAIN, SERVICE_SYNC)
     return True

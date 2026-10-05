@@ -93,6 +93,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         update_runs.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("update runs janitor failed", exc_info=True)
+    try:  # CR-028: casts past their time end (one stop, the restore rule), casts whose screen vanished end, "not confirmed" after 15 s
+        from .services import cast_sessions
+
+        cast_sessions.janitor(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("cast janitor failed", exc_info=True)
     try:  # CR-027: the phone app's presence event log past its retention, expired app push messages, revoked device rows
         from .services import presence as presence_svc
 
@@ -317,6 +323,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import remote as remote_router
 
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
+    from .routers import cast as cast_router
+
+    app.include_router(cast_router.router, prefix=api, tags=["multimedia"])  # CR-028: שדר למסך - cast sessions, targets, the cast administration
+    from .services import cast_sessions as cast_svc
+
+    cast_svc.attach(app.state.db, settings)  # the relay's callbacks and the live tokens of open casts (an add-on restart keeps them)
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
@@ -423,6 +435,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             recorder_health.POLLER.start(app.state.db, settings)  # CR-026: read-only health reads of every recorder (default once a minute)
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
+        if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
+            from .services import cast_relay
+
+            cast_relay.SERVER.start(cast_relay.go2rtc_fetch(settings))
 
         async def loop() -> None:
             while True:
@@ -446,6 +462,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import nvr_batch
 
         nvr_batch.signal_shutdown()  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
+        from .services import cast_relay
+
+        cast_relay.SERVER.stop()  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
         for name in ("janitor", "remote_revalidation"):
             task = getattr(app.state, name, None)
             if task:

@@ -212,3 +212,34 @@ config_item:
       description: Random nonce.
     sig:
       description: HMAC-SHA256 signature computed by the add-on with the pairing secret.
+
+cast_stream:
+  name: Cast a camera to a screen (SMPLWISE add-on only)
+  description: >-
+    Plays the SMPLWISE add-on's cast-relay address (one camera's live HLS, a short-lived token in the path) on ONE Google
+    Cast media player, stops it, or switches it off - on behalf of a Home Assistant user, with that user's own
+    permissions. Called by the add-on with a signed request. The address must be the relay origin the paired add-on
+    announced, on this Home Assistant host; nothing else is ever played. Not meant to be called from automations.
+  fields:
+    user_id:
+      description: Home Assistant user id the request is made for.
+      example: "12d05a26b0214c9eac77ac26f6cd652c"
+    op:
+      description: play, stop or off.
+      example: play
+    entity_id:
+      description: The Google Cast media player.
+      example: media_player.living_room_tv
+    url:
+      description: (play only) the add-on's cast-relay address.
+    title:
+      description: (play only) the title the screen shows (the camera's name).
+    request_id:
+      description: Add-on request id (for the audit trail).
+      example: "a1b2c3"
+    ts:
+      description: Unix timestamp of the signature.
+    nonce:
+      description: Random nonce.
+    sig:
+      description: HMAC-SHA256 signature computed by the add-on with the pairing secret.

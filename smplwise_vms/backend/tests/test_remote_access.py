@@ -504,7 +504,10 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("GET", "/api/v1/multimedia/admin/ma-connection"), ("PUT", "/api/v1/multimedia/admin/ma-connection"),
                      ("POST", "/api/v1/multimedia/admin/ma-connection/test"),
                      # CR-020 phase D: the bulk encoding change and its preview are local-only
-                     ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview")}
+                     ("POST", "/api/v1/nvr/encoding-batches"), ("POST", "/api/v1/nvr/encoding-batches/preview"),
+                     # CR-028: the cast administration (relay origin and its self-check, per-screen switches, the test cast) is local-only
+                     ("GET", "/api/v1/multimedia/cast/config"), ("PUT", "/api/v1/multimedia/cast/config"), ("POST", "/api/v1/multimedia/cast/origin/check"),
+                     ("GET", "/api/v1/multimedia/cast/screens"), ("PUT", "/api/v1/multimedia/cast/screens/{key}"), ("POST", "/api/v1/multimedia/cast/test")}
 
 
 def test_every_route_needs_a_remote_session(arx):
