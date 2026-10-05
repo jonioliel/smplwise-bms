@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סקירת מוקאפ: מסך בקרת גנרטור</title>
+<style>
+  body { font-family: system-ui, "Segoe UI", Arial, sans-serif; margin: 24px; background: #f4f5f7; color: #1d2433; line-height: 1.55; }
+  h1 { font-size: 22px; } h2 { margin-top: 32px; font-size: 17px; } h3 { font-size: 15px; margin: 18px 0 6px; }
+  .box { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); margin-bottom: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #e5e8ee; vertical-align: top; }
+  th { background: #f1f4f9; }
+  code { direction: ltr; unicode-bidi: isolate; font: 12.5px Consolas, monospace; background: #f1f4f9; padding: 1px 4px; border-radius: 4px; }
+  a { color: #1d4fc4; } a.btn { display: inline-block; padding: 2px 8px; border: 1px solid #c4cad6; border-radius: 6px; text-decoration: none; margin: 2px 0; background: #fff; font-size: 12.5px; }
+  ol.q > li { margin-bottom: 10px; } ol.q ol { list-style: none; padding-inline-start: 10px; }
+  .tag { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: #fde8c8; color: #8a4b00; }
+  .mut { color: #5b6a85; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>מוקאפ: מסך בקרת גנרטור תחת "תשתיות" (2026-10-05)</h1>
+<p class="mut">שלב א בלבד: עיצוב סטטי לאישור. אין קוד מוצר, אין מגע בהתקנים. הנתונים מומצאים. הגלריה נפתחת מקובץ מקומי; הסרגל העליון בוחר מסך, רוחב (1440 / 820 / 390), בהיר/כהה וסקין (classic / domus / tesla / bubble). מסמך השינוי: <code>docs/changes/CR-031-GENERATOR.md</code>.</p>
+
+<div class="box">
+<h2 style="margin-top:0">1. המסך הראשי (מצב חי)</h2>
+<p>תרשים זרימת הספק (רשת ← מתג העברה ← צרכנים / גנרטור ← מתג העברה ← צרכנים, מונפש לפי המסלול הפעיל), מצב מנוע ובקר, שעות עבודה והתנעות, מדי דלק / מצבר / נוזל קירור / לחץ שמן, מתח־זרם־הספק לכל פאזה, תדר, אחוז עומס, מצב אוטומטי/ידני/כבוי, התנעה ומבחן אחרונים, מבחן הבא, טיפול הבא, ופעולות (ריצת מבחן, עצירה, אישור הכול).</p>
+<a class="btn" href="gallery.html#s=live&d=desktop&t=light&k=classic">הגנרטור מזין את האתר (אובדן רשת) · בהיר</a>
+<a class="btn" href="gallery.html#s=live&d=desktop&t=dark&k=classic">אותו מסך · כהה</a>
+<a class="btn" href="gallery.html#s=live-standby&d=desktop&t=light&k=classic">במנוחה, האתר מוזן מהרשת</a>
+<a class="btn" href="gallery.html#s=live-test&d=desktop&t=light&k=classic">ריצת מבחן ללא עומס</a>
+<a class="btn" href="gallery.html#s=live-view&d=desktop&t=light&k=classic">משתמש עם צפייה בלבד (ללא פקודות)</a>
+<a class="btn" href="gallery.html#s=confirm-test&d=desktop&t=light&k=classic">אישור לפני ריצת מבחן</a>
+<a class="btn" href="gallery.html#s=live-standby&d=desktop&t=dark&k=domus">domus כהה</a>
+<a class="btn" href="gallery.html#s=live&d=desktop&t=light&k=bubble">bubble בהיר</a>
+<a class="btn" href="gallery.html#s=live&d=desktop&t=dark&k=tesla">tesla כהה</a>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">2. התראות</h2>
+<a class="btn" href="gallery.html#s=alerts&d=desktop&t=light&k=classic">התראות פעילות</a>
+<a class="btn" href="gallery.html#s=alerts-empty&d=desktop&t=light&k=classic">התראות פעילות: ריק</a>
+<a class="btn" href="gallery.html#s=history&d=desktop&t=light&k=classic">היסטוריה עם מסננים (תקופה, חומרה, סוג, אישור, מצב)</a>
+<a class="btn" href="gallery.html#s=alert&d=desktop&t=light&k=classic">פרטי התראה: ערכים ברגע האירוע, ציר זמן מסירה והסלמה, אישור עם הערה</a>
+<a class="btn" href="gallery.html#s=alert&d=desktop&t=dark&k=classic">פרטי התראה · כהה</a>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">3. הגדרות › תשתיות › גנרטור: ניתוב התראות</h2>
+<p>לכל סוג התראה: פעיל, חומרה, נמענים (תפקידים ומשתמשים), ערוצים (מרכז ההתראות תמיד; דחיפה לדפדפן, יישומון הטלפון, דוא״ל; WhatsApp ו-Companion מסומנים "בקרוב" כפי שהם במרכז ההתראות היום), התנהגות בשעות שקט, הסלמה והשהיה. ההגדרה נשמרת כבר עכשיו; המסירה בפועל עוברת דרך מרכז ההתראות הקיים.</p>
+<a class="btn" href="gallery.html#s=set-routing&d=desktop&t=light&k=classic">טבלת הניתוב</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=desktop&t=light&k=classic">עריכת ניתוב של "כשל התנעה"</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=desktop&t=dark&k=classic">עריכה · כהה</a>
+<a class="btn" href="gallery.html#s=set-not-found&d=desktop&t=light&k=classic">הגדרות כשלא זוהה בקר</a>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">4. מצבים: לא נמצא / אין תקשורת / טעינה</h2>
+<a class="btn" href="gallery.html#s=not-found&d=desktop&t=light&k=classic">לא נמצא גנרטור (איך הזיהוי עובד)</a>
+<a class="btn" href="gallery.html#s=unavail&d=desktop&t=light&k=classic">זוהה אך אין תקשורת עם הבקר (ערכים אחרונים מעומעמים)</a>
+<a class="btn" href="gallery.html#s=loading&d=desktop&t=light&k=classic">טעינה</a>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">5. טלפון (390)</h2>
+<a class="btn" href="gallery.html#s=live&d=phone&t=light&k=classic">מצב חי</a>
+<a class="btn" href="gallery.html#s=live-standby&d=phone&t=dark&k=classic">במנוחה · כהה</a>
+<a class="btn" href="gallery.html#s=alerts&d=phone&t=light&k=classic">התראות פעילות</a>
+<a class="btn" href="gallery.html#s=history&d=phone&t=light&k=classic">היסטוריה (רשימה)</a>
+<a class="btn" href="gallery.html#s=alert&d=phone&t=light&k=classic">פרטי התראה (גיליון תחתון)</a>
+<a class="btn" href="gallery.html#s=set-routing&d=phone&t=light&k=classic">ניתוב התראות (רשימה)</a>
+<a class="btn" href="gallery.html#s=set-routing-edit&d=phone&t=light&k=classic">עריכת ניתוב</a>
+<a class="btn" href="gallery.html#s=not-found&d=phone&t=light&k=classic">לא נמצא</a>
+<a class="btn" href="gallery.html#s=unavail&d=phone&t=light&k=classic">אין תקשורת</a>
+<a class="btn" href="gallery.html#s=alert&d=phone&t=dark&k=bubble">bubble כהה</a>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">6. קטלוג החיישנים שהמוקאפ מניח <span class="tag">הנחה</span></h2>
+<p class="mut">לא נמצא אזכור לגנרטור במאגר ולא נמצאה אינטגרציית גנרטור במערכת המעבדה (נסרקה לקריאה בלבד: 418 ישויות, אף אחת של בקר גנרטור). לכן המוקאפ מניח קטלוג גנרי של בקר גנרטור (בסגנון DSE / ComAp / InteliLite). המיפוי האמיתי ייקבע מייצוא הישויות של האינטגרציה שלך (שאלה 1).</p>
+<table>
+<tr><th>קבוצה</th><th>ערכים (ישויות מניחות)</th><th>במסך</th></tr>
+<tr><td>מצב</td><td>מצב מנוע (stopped / starting / running / cooling / fault), מצב בקר (auto / manual / off / test), מתג העברה (grid / generator / open), רשת זמינה (כן/לא), גנרטור בעומס (כן/לא)</td><td>רצועת מצב, תרשים הזרימה, מצב הפעלה</td></tr>
+<tr><td>מנוע</td><td>סל״ד, שעות עבודה, מספר התנעות, טמפרטורת נוזל קירור, לחץ שמן, מתח מצבר, מתח מטען</td><td>מנוע ובקר, מדים</td></tr>
+<tr><td>דלק</td><td>מפלס דלק %, (אופציונלי) ליטרים, צריכה שעתית</td><td>מד דלק</td></tr>
+<tr><td>חשמל גנרטור</td><td>מתח L1/L2/L3, זרם L1/L2/L3, הספק קילוואט (סה״כ ולפי פאזה), kVA, מקדם הספק, תדר, אחוז עומס</td><td>טבלת פאזות, תרשים</td></tr>
+<tr><td>רשת</td><td>מתח רשת L1/L2/L3, תדר רשת</td><td>תרשים</td></tr>
+<tr><td>אירועים</td><td>התנעה אחרונה (זמן + סיבה), מבחן אחרון (זמן, תוצאה, משך), מבחן הבא, טיפול הבא (שעות)</td><td>מנוע ובקר</td></tr>
+<tr><td>התראות (22 סוגים)</td><td>כשל התנעה, לחץ שמן נמוך, טמפ׳ קירור גבוהה, מהירות יתר, עצירת חירום, עצירה לא מתוכננת, דלק נמוך, דלק אזל, עומס יתר, מתח חריג, תדר חריג, מצבר נמוך, כשל מטען, אובדן רשת, רשת חזרה, מעבר לגנרטור, כשל מתג העברה, טיפול תקופתי, מבחן הושלם, מבחן נכשל, אין תקשורת, הבקר לא באוטומטי</td><td>התראות, ניתוב</td></tr>
+<tr><td>פקודות (אם הבקר מאפשר)</td><td>התחלת מבחן, עצירה, שינוי מצב (auto / manual / off), אישור תקלה בבקר</td><td>מצב הפעלה (מוגן בהרשאה ובאישור)</td></tr>
+</table>
+</div>
+
+<div class="box">
+<h2 style="margin-top:0">7. שאלות לבעלים</h2>
+<ol class="q">
+<li><b>ייצוא הישויות של האינטגרציה</b>: כדי למפות את המסך לנתונים אמיתיים.
+  <ol><li>א. אשלח ייצוא של רשימת הישויות (שמות, יחידות, device_class) ואת שם האינטגרציה (ה-domain).</li><li>ב. אשלח צילום מסך של הכרטיס הקיים + רשימת הישויות.</li><li>ג. אפתח גישה לקריאה בלבד למערכת שבה האינטגרציה מותקנת.</li></ol></li>
+<li><b>דרך הזיהוי</b> שהמסך "נבנה לבד":
+  <ol><li>א. לפי שם האינטגרציה (מזהה קבוע, הכי אמין) - מומלץ.</li><li>ב. לפי התקן שיש לו יחד ישויות מצב מנוע + שעות עבודה + מפלס דלק (עובד גם עם אינטגרציות אחרות).</li><li>ג. שניהם: שם האינטגרציה קודם, ואז חיפוש גנרי כגיבוי (כפי שבמוקאפ).</li></ol></li>
+<li><b>כמה גנרטורים</b> באתר אחד?
+  <ol><li>א. אחד (המסך מציג אותו ישירות).</li><li>ב. יותר מאחד (מוסיפים בורר גנרטור בראש המסך; לא צויר).</li></ol></li>
+<li><b>פקודות לבקר</b> (ריצת מבחן, עצירה, שינוי מצב) בגרסה הראשונה?
+  <ol><li>א. כן, עם הרשאה נפרדת ואישור לפני כל פקודה (כפי שבמוקאפ).</li><li>ב. לא, צפייה והתראות בלבד; פקודות בשלב מאוחר יותר.</li></ol></li>
+<li><b>תרשים הזרימה</b>: האם קיים גם מקור הספק נוסף (סולארי / UPS) שצריך להופיע?
+  <ol><li>א. לא, רשת + גנרטור בלבד.</li><li>ב. כן (לפרט מה), התרשים יורחב.</li></ol></li>
+<li><b>ספי ההתראות</b> (דלק נמוך, מצבר, טמפרטורה): מי קובע?
+  <ol><li>א. הבקר בלבד (המערכת רק מציגה ומנתבת את מה שהבקר מרים).</li><li>ב. גם ספים נוספים במערכת (למשל "דלק מתחת ל-40%" כאזהרה מוקדמת) בהגדרות.</li></ol></li>
+<li><b>ניתוב ברירת מחדל</b> לסוגי ההתראות: לאשר את ברירות המחדל שבמוקאפ (קריטי: מנהלים + תחזוקה, כל הערוצים, עובר שעות שקט, הסלמה; התראה: מנהלי אתר + תחזוקה, דחיפה ויישומון; מידע: מרכז ההתראות בלבד)?
+  <ol><li>א. כן.</li><li>ב. לא, אשנה (לציין).</li></ol></li>
+<li><b>ערוץ WhatsApp</b> במוקאפ מופיע "בקרוב" כפי שבמרכז ההתראות. במערכת המעבדה קיים שער WhatsApp; לחבר אותו לגנרטור?
+  <ol><li>א. בשלב הזה, יחד עם שאר ההתראות (מחייב לפתוח את הערוץ במרכז ההתראות).</li><li>ב. מאוחר יותר.</li></ol></li>
+<li><b>היסטוריית ערכים</b> (גרפים של עומס, דלק, טמפרטורה לאורך זמן) בגרסה הראשונה?
+  <ol><li>א. לא (ערכים חיים + היסטוריית התראות בלבד, כפי שבמוקאפ).</li><li>ב. כן, גרף 24 שעות למסך הראשי.</li></ol></li>
+<li><b>מיקום בתפריט</b>: לשונית אחות ל"מוני חשמל" תחת "תשתיות" (כפי שבמוקאפ)?
+  <ol><li>א. כן.</li><li>ב. אחרת (לציין).</li></ol></li>
+</ol>
+</div>
+</body>
+</html>
