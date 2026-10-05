@@ -157,11 +157,11 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
     i = c.post(f"{API}/bills/{draft['id']}/issue", json={"row_version": draft["row_version"], "client_request_id": rid()})
     assert i.status_code == 200, i.text
     bill = i.json()
-    assert bill["number"] == "2026-09-0003"
+    assert bill["number"] == "2026-09-0001"
     r1 = c.get(f"{API}/bills/{bill['id']}/pdf")
     assert r1.status_code == 200, r1.text
     pdf = r1.content
-    assert 'filename="2026-09-0003.pdf"' in r1.headers["content-disposition"]
+    assert 'filename="2026-09-0001.pdf"' in r1.headers["content-disposition"]
     info = info_of(pdf)
     assert info["Pages"] == "1" and re.match(r"595\.\d+ x 841\.\d+ pts \(A4\)", info["Page size"]), info
     fonts = fonts_of(pdf)
@@ -171,12 +171,12 @@ def test_bill_pdf_end_to_end_with_the_real_renderer(world):
         assert active not in pdf
 
     text = text_of(pdf)
-    for token in ("חשבון צריכת חשמל ודרישת תשלום", "אינו חשבונית מס", "2026-09-0003", "ניהול מבנים אורן בע״מ", "515000000",
+    for token in ("חשבון צריכת חשמל ודרישת תשלום", "אינו חשבונית מס", "2026-09-0001", "ניהול מבנים אורן בע״מ", "515000000",
                   "סטודיו אורן לעיצוב", "רחוב יפו 1, ירושלים", "דירה 4", "תקופת החיוב", "01.09.2026", "30.09.2026",
                   "תעריף ביתי", "סה״כ לתשלום", "497.35", "776.20", "421.48", "75.87", "0.5430", "לוח ראשי",
                   "מע״מ 18%", "02.10.2026", "התשלום בהעברה בנקאית בלבד", "SmplWise Arx", "₪"):
         assert token in text, token
-    for reversed_token in ("3000-90-6202", "53.794", "02.677", "6202.90.10"):
+    for reversed_token in ("1000-90-6202", "53.794", "02.677", "6202.90.10"):
         assert reversed_token not in text, reversed_token
     assert re.search(r"עמוד\s*1\s*מתוך\s*1", text)
     # the history chart: July and August of this year and September last year (labels MM.YY), values printed
