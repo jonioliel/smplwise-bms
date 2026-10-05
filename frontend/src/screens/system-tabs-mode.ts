@@ -658,7 +658,7 @@ export class SystemTabsMode extends LitElement {
           <fieldset><legend>ברירת המחדל של ההתקנה</legend>
             <div class="sub">תצוגה</div>
             ${this.choiceRadios('picker', 'inst', DD_PICKERS, DD_PICKER_LABEL, this.pkInst, this.pkInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_picker': v }))}
-            <div class="sub">חיפוש ברשימה</div>
+            <div class="sub">חיפוש ברשימת המצלמות</div>
             ${this.choiceRadios('search', 'inst', DD_SEARCHES, DD_SEARCH_LABEL, this.seInst, this.seInst, ddInstDisabled, (v) => v && void this.savePickerInstallation({ 'ui.dd_search': v }))}
           </fieldset>
         </div>
@@ -666,7 +666,7 @@ export class SystemTabsMode extends LitElement {
           <fieldset><legend>ההעדפה שלי</legend>
             <div class="sub">תצוגה</div>
             ${this.choiceRadios('picker', 'own', DD_PICKERS, DD_PICKER_LABEL, this.pkOwn, this.pkInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdPicker(asDdPicker(v))))}
-            <div class="sub">חיפוש ברשימה</div>
+            <div class="sub">חיפוש ברשימת המצלמות</div>
             ${this.choiceRadios('search', 'own', DD_SEARCHES, DD_SEARCH_LABEL, this.seOwn, this.seInst, this.busy, (v) => void this.savePickerOwn(() => saveOwnDdSearch(asDdSearch(v))))}
           </fieldset>
         </div>

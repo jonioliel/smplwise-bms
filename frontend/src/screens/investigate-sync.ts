@@ -167,7 +167,7 @@ export class InvestigateSync extends LitElement {
               <div class="filters" data-sync-cameras data-picker=${this.tabsMode.ddPicker}>
                 ${this.tabsMode.ddPicker === 'chips'
                   ? this.renderChips()
-                  : html`<sw-dropdown multiple data-sync-pick-cameras label="מצלמות" icon="camera" placeholder="בחר מצלמות (עד 4)" max="4" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+                  : html`<sw-dropdown multiple camera-picker data-sync-pick-cameras label="מצלמות" icon="camera" placeholder="בחר מצלמות (עד 4)" max="4" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
                       .items=${this.syncItems()} .values=${this.picked} @change=${(e: CustomEvent<DropdownChange>) => this.applyPicked(e.detail.ids ?? [])}></sw-dropdown>`}
               </div>
               ${this.renderSlots()}

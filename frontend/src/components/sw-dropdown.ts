@@ -69,6 +69,8 @@ export class SwDropdown extends LitElement {
   @property() value = '';
   /** 2.0.1: several options at once (`values`, `max`, `count-base`); the single mode when absent. */
   @property({ type: Boolean, reflect: true }) multiple = false;
+  /** CMP3: this is a camera picker (compare, synchronized playback): only these follow the search dial `ui.dd_search`. */
+  @property({ type: Boolean, attribute: 'camera-picker' }) cameraPicker = false;
   /** 2.0.1 (`multiple`): the picked ids in pick order. */
   @property({ attribute: false }) values: string[] = [];
   /** 2.0.1 (`multiple`): at most this many picks (0 = no limit). */
@@ -1159,7 +1161,8 @@ export class SwDropdown extends LitElement {
 
   private get hasSearch(): boolean {
     const n = this.items.filter(isOption).length;
-    if (!this.multiple) return n >= DD_SEARCH_MIN_ITEMS;
+    // CMP3 (owner 2026-10-05): the dial (ui.dd_search) belongs to the camera pickers only (camera-picker); every other list keeps the fixed rule
+    if (!this.cameraPicker) return n >= DD_SEARCH_MIN_ITEMS;
     let dial: string | null = null;
     try {
       dial = document.documentElement.getAttribute('data-dd-search');

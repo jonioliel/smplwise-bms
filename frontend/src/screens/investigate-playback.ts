@@ -1396,7 +1396,7 @@ export class InvestigatePlayback extends LitElement {
       <div class="compare" data-compare data-picker=${this.tabsMode.ddPicker}>
         ${this.tabsMode.ddPicker === 'chips'
           ? this.renderCompareChips()
-          : html`<sw-dropdown multiple data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+          : html`<sw-dropdown multiple camera-picker data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
               .items=${this.compareItems()} .values=${this.extra} @change=${(e: CustomEvent<DropdownChange>) => void this.applyExtra(e.detail.ids ?? [])}></sw-dropdown>`}
       </div>
       <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
