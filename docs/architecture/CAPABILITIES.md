@@ -34,7 +34,7 @@ call from the connection settings; **configured, not reachable**: a go2rtc or Ho
 | `ha_cameras_still` | `ha`. |
 | `ha_cameras_live` | `ha` AND `go2rtc` (per-camera opt-in by an administrator stays a separate, stored choice). |
 | `supported` / `unsupported_reason` | `false` / `nvr_without_go2rtc` when `nvr` AND NOT `go2rtc` (D2); otherwise `true` / `null`. |
-| `recorders[]` | One entry today: `{id: "nvr-1", vendor: "hikvision", live, playback, events, write_encodings}` from the adapter's `RecorderCapabilities`. |
+| `recorders[]` | One entry per configured recorder (CR-024: `nvr-1` and every further recorder loaded at start-up): `{id, vendor, live, playback, events, write_encodings}` from that recorder's adapter `RecorderCapabilities`. `nvr` is true when any recorder is configured. |
 
 `mode.installation_mode()` is a thin wrapper: `ha_only` = no `nvr` capability. `mode.describe()`, `ensure_nvr()` and the
 `mode` field everywhere are unchanged (compatibility for the shell of today and `tests/test_nvr_less.py`).
@@ -156,7 +156,8 @@ shell is P2 work; it belongs to the P2 evidence.
 - P2 leftovers: see section 4a.
 - HA events in the event centre (D3: future option only).
 - Intercom snapshot 503 → 409 (small follow-up; needs a change to an existing intercom test).
-- Multi-recorder (`recorders[]` with more than one entry), recorder credentials and vendor adapters: P4-P6, migrations 0052+.
+- ~~Multi-recorder (`recorders[]` with more than one entry), recorder credentials~~: done by CR-024 (migration 0055; credentials in the
+  CR-022 `recorder_connections` table). Vendor adapters other than Hikvision (P6): still open; the seam is `registry.register_vendor`.
 - Runtime re-resolution without restart (D4 keeps restart).
 - D5 needs no backend change in P1: nothing deletes or rewrites camera rows when the NVR host disappears, and the NVR routes
   answer 409. Making leftover rows invisible is done in P2 (map layer / camera lists hidden without `nvr`); a server-side

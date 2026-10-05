@@ -10,6 +10,8 @@ export interface VmsEvent {
   type: EventKind;
   camera_id: string | null;
   camera_name?: string | null;
+  /** CR-024: the recorder whose alert stream (or camera) produced it; null for Home Assistant and system events. */
+  recorder_id?: string | null;
   channel: number | null;
   occurred_at: string;
   ended_at: string | null;
@@ -117,7 +119,7 @@ export interface EventsSummary {
   derive: DeriveState;
 }
 
-export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number ; floorId?: string; zoneId?: string; buildingId?: string; siteId?: string; source?: string; severity?: string; query?: string } = {}) {
+export function listEvents(opts: { date?: string; from?: string; to?: string; cameraId?: string; type?: string; unacked?: boolean; acked?: boolean; limit?: number ; floorId?: string; zoneId?: string; buildingId?: string; siteId?: string; source?: string; severity?: string; query?: string; recorderId?: string } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
   if (opts.from && opts.to) {
@@ -136,6 +138,7 @@ export function listEvents(opts: { date?: string; from?: string; to?: string; ca
   if (opts.source) q.set('source', opts.source);
   if (opts.severity) q.set('severity', opts.severity);
   if (opts.query) q.set('q', opts.query);
+  if (opts.recorderId) q.set('recorder_id', opts.recorderId); // CR-024: the multi-source event log, one recorder
   const qs = q.toString();
   return get<EventsResponse>(`events${qs ? `?${qs}` : ''}`);
 }

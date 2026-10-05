@@ -1,6 +1,6 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
@@ -19,6 +19,8 @@ SERVICE_CONFIG_ITEM = "config_item"
 # 0.6.0: the owner-approved delegation switch (CR-017 section 8.3), in the options flow: off by default; an HA administrator turns it on inside Home Assistant.
 # 0.6.1 (schedules: more actions): the schedule allow-list (schedule_policy.ACTION_ARGS) gains scripts with their variables, scenes, helpers,
 # humidifiers, vacuums, cover tilt and climate swing / humidity - each still checked by shape and range here, by capability in the add-on.
+# 0.6.2 (0.1.163; 0.6.1 shipped in 0.1.162 without them), owner decisions of 2026-10-04: sirens (sensitive), media players (on / off,
+# play / pause / stop, volume, source) and number / select values join the schedule allow-list.
 CONF_DELEGATED_AUTHORING = "delegated_authoring"
 CONF_DELEGATED_CHANGED_AT = "delegated_changed_at"
 DIRECTORY_INTERVAL_S = 60

@@ -210,6 +210,30 @@ test.describe('bill actions and dialogs', () => {
     await expect(page.locator('[data-act="sent"]')).toHaveCount(0);
   });
 
+  test('a field the user already chose keeps the focus when the dialog autofocus comes late (no typed reference lost)', async ({ page }) => {
+    // integ/0163 gate: on a loaded machine the sheet's autofocus (one animation frame after opening) landed after the user / the test had
+    // focused "אסמכתה", moved the focus to the date field and the typed reference was lost (the bill was marked paid without it).
+    await open(page, bill('b104'));
+    await screen(page, 'bill');
+    await page.evaluate(() => {
+      const w = window as unknown as { __rafLate: number; requestAnimationFrame: typeof requestAnimationFrame };
+      const raf = window.requestAnimationFrame.bind(window);
+      w.__rafLate = 0;
+      w.requestAnimationFrame = (cb: FrameRequestCallback) => raf(() => setTimeout(() => { w.__rafLate += 1; cb(performance.now()); }, 1500));
+    });
+    await page.locator('[data-act="paid"]').click();
+    const p = page.locator('[data-dialog="paid"]');
+    const ref = p.locator('[data-reference]');
+    await ref.focus();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __rafLate: number }).__rafLate), { timeout: 10_000 }).toBeGreaterThan(0);
+    await expect(ref).toBeFocused();
+    await page.keyboard.type('R-77');
+    await expect(ref).toHaveValue('R-77');
+    await p.locator('[data-confirm]').click();
+    await expect(state(page)).toHaveAttribute('data-bill-state', 'paid');
+    await expect(state(page)).toContainText('R-77');
+  });
+
   test('delete a draft returns to the list; recalculate keeps the draft', async ({ page }) => {
     await open(page, bill('b101'));
     await screen(page, 'bill');

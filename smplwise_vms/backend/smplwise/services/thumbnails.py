@@ -199,8 +199,11 @@ def generate(db: Database, settings: Settings, event_id: str) -> bool:
         start = parse_utc(ev["occurred_at"]) + dt.timedelta(seconds=1)
         end = start + dt.timedelta(seconds=30)
         try:
-            url = playback.playback_rtsp_url(settings, int(cam["main_track"]), start, end, tz_name)
-            ok = _grab(url, out, settings)
+            from ..recorder_scope import camera_settings
+
+            rs = camera_settings(settings, cam)  # CR-024: the camera's recorder (its credentials are redacted from ffmpeg's output too)
+            url = playback.playback_rtsp_url(rs, int(cam["main_track"]), start, end, tz_name)
+            ok = _grab(url, out, rs)
         except Exception as exc:  # noqa: BLE001 - a thumbnail must never take the worker down
             STATE["last_error"] = type(exc).__name__
             ok = False

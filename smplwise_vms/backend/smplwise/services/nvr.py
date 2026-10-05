@@ -9,7 +9,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -27,6 +27,10 @@ class DiscoveredChannel:
     sub_track: int | None
     stream: dict[str, object] | None = None  # from the main track's Description (evidence, not assumption)
     sub_stream: dict[str, object] | None = None  # the sub track's Description, when the device fills it
+    # CR-024 (ADP section 3.3): the physical camera behind the slot, from InputProxyChannel/sourceInputPortDescriptor. Used only
+    # to compute the keyed `cameras.device_fingerprint`; the serial number itself is never stored, logged or returned.
+    device_model: str | None = field(default=None, repr=False)
+    device_serial: str | None = field(default=None, repr=False)
 
 
 def parse_track_description(desc: str) -> dict[str, object]:
@@ -74,10 +78,26 @@ def _ssl_context():
     return _SSL_CONTEXT
 
 
+ISAPI_VENDORS = ("hikvision", "none", "")
+
+
+def ensure_isapi_vendor(settings: Settings, op: str = "isapi") -> None:
+    """Security review finding 3 (2026-10-04): the shared ISAPI layer (every /nvr/* and camera write route, Digest over
+    http) speaks Hikvision only. A recorder of another vendor is refused with 409 vendor_unsupported before any request,
+    so its credentials never go out over a protocol it does not speak and no Hikvision write lands on it."""
+    vendor = str(getattr(settings, "nvr_vendor", "") or "").strip().lower()
+    if vendor not in ISAPI_VENDORS:
+        raise ApiError(409, "vendor_unsupported", "הפעולה אינה נתמכת עבור סוג ה־NVR הזה.", details={"op": op, "vendor": vendor})
+
+
 def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured, reached only after the caller's permission check
+    from ..mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # CR-024: a recorder disabled while running is never contacted
+    ensure_isapi_vendor(settings)
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     return httpx.Client(
@@ -191,7 +211,8 @@ def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")
     root = xmlsafe.parse(xml)
-    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType")}
+    return {"model": _text(root, "model"), "firmware": _text(root, "firmwareVersion"), "device_type": _text(root, "deviceType"),
+            "serial": _text(root, "serialNumber")}  # CR-024: hashed into recorders.device_fingerprint, never stored, logged or returned
 
 
 def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
@@ -234,7 +255,12 @@ def discover_channels(settings: Settings) -> list[DiscoveredChannel]:
             continue
         ch = int(cid)
         ids = sorted(tracks.get(ch, []), key=lambda t: t[0])
+        desc = _child(el, "sourceInputPortDescriptor")
+        dev_model = (_text(desc, "model").strip() or None) if desc is not None else None
+        dev_serial = (_text(desc, "serialNumber").strip() or None) if desc is not None else None
         result.append(DiscoveredChannel(
+            device_model=dev_model,
+            device_serial=dev_serial,
             channel=ch,
             name=re.sub(r"\s+", " ", _text(el, "name")).strip(),
             online=online.get(ch),

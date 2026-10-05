@@ -116,6 +116,10 @@ DEFAULTS: dict[str, str] = {
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
+    # CR-024 (owner 2026-10-04): EXPERIMENTAL, unproven synchronized playback of cameras of different recorders; off = such a group
+    # is refused (409 sync_cross_recorder_unproven). On = each member is asked for in its recorder's zone and clock offset
+    # (services/recorder_clock.py)
+    "playback.cross_recorder_sync": "false",
     "exports.max_mb": "2048",  # refuse export jobs whose NVR files exceed this estimate
     "exports.retention_days": "7",  # finished export files are deleted after this many days
     "events.retention_days": "30",  # stored events are pruned after this many days
@@ -245,15 +249,16 @@ DEFAULTS: dict[str, str] = {
     # back as an array, like ui.tabs); the safety rules (trash, confirmations, code refusal, the allow-list ceiling) are
     # not settings. `schedules.shabbat_sensor` is the "issur melacha in effect" binary_sensor the presets use.
     "schedules.enabled": "false",
-    "schedules.classes": '["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum"]',
+    "schedules.classes": '["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select"]',
     "schedules.snap_minutes": "15",
     "schedules.default_repeat": "repeat",
     "schedules.runs_retention_days": "90",
     "schedules.shabbat_sensor": "",
-    # 2026-10-04 (schedules: more actions): may a NEW schedule disarm an alarm panel directly? Off by default; only a system administrator
-    # switches it on, with the typed confirmation `schedules.allow_disarm_confirm` (never stored), and the change is audited on its own row.
-    # A disarm that needs a code is never schedulable, whatever this says.
-    "schedules.allow_disarm": "false",
+    # 2026-10-04 (schedules: more actions; owner decision the same day, option ג): may a NEW schedule disarm an alarm panel directly? ALLOWED by
+    # default (with the disarm grant, schedule.sensitive and the explicit confirmation in the editor); a system administrator may restrict it
+    # (and lift the restriction again with the typed confirmation `schedules.allow_disarm_confirm`, never stored); every change is audited on its
+    # own row. A disarm that needs a code is never schedulable, whatever this says. A stored value is read as stored (no migration).
+    "schedules.allow_disarm": "true",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 9): the feature and its rail entry; `multimedia.remote_default` is the
     # installation default of the remote's sections (a JSON object, read back as an object; "" = the built-in default), written from the
     # settings page and from "עריכת השלט" (PUT /multimedia/remote-default). The safety rules (no power key, rate limits, confirmations)
@@ -268,7 +273,7 @@ DEFAULTS: dict[str, str] = {
     **automation_settings.DEFAULTS,
 }
 
-SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum")
+SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
 ALLOW_DISARM_WORD = "אפשר נטרול"
 
 # CR-007 6a/6b: the registered device-screen palettes - keep in step with DEVICE_THEMES in
@@ -465,6 +470,7 @@ class SettingsPatch(BaseModel):
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
+    playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
     exports_max_mb: int | None = Field(default=None, ge=50, le=20480, alias="exports.max_mb")
     exports_retention_days: int | None = Field(default=None, ge=1, le=365, alias="exports.retention_days")
     events_retention_days: int | None = Field(default=None, ge=1, le=3650, alias="events.retention_days")
@@ -571,7 +577,7 @@ class SettingsPatch(BaseModel):
     alarm_remote_codeless: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_codeless")
     alarm_pin_min_length: str | None = Field(default=None, pattern="^[4-8]$", alias="alarm.pin_min_length")
     schedules_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="schedules.enabled")
-    schedules_classes: list[str] | None = Field(default=None, max_length=13, alias="schedules.classes")  # each one of SCHEDULE_CLASSES (checked in the handler)
+    schedules_classes: list[str] | None = Field(default=None, max_length=17, alias="schedules.classes")  # each one of SCHEDULE_CLASSES (checked in the handler)
     schedules_snap_minutes: str | None = Field(default=None, pattern="^(5|15|30)$", alias="schedules.snap_minutes")
     schedules_default_repeat: str | None = Field(default=None, pattern="^(repeat|pause|single)$", alias="schedules.default_repeat")
     schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
@@ -711,7 +717,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
     disarm_change = None
     if "schedules.allow_disarm" in changes:
-        current = get_setting(conn, "schedules.allow_disarm", DEFAULTS["schedules.allow_disarm"]) or "false"
+        current = get_setting(conn, "schedules.allow_disarm", DEFAULTS["schedules.allow_disarm"]) or DEFAULTS["schedules.allow_disarm"]
         if changes["schedules.allow_disarm"] == current:
             changes.pop("schedules.allow_disarm")
         else:

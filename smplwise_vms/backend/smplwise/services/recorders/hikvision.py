@@ -97,8 +97,16 @@ class HikvisionAdapter:
         """The physical device this adapter talks to (CR-020 S2C review finding 6). The adapter always speaks to the
         add-on's configured NVR (the add-on options), whatever recorder row it was built for - registry: "until then every
         recorder row is the add-on's NVR" - so every row shares this one key. When rows carry their own connection
-        (ADP section 7) the key must name that connection. Never an address: it is stored in `settings`."""
-        return "addon-nvr"
+        (ADP section 7) the key must name that connection. Never an address: it is stored in `settings`.
+        CR-024: the first recorder keeps "addon-nvr" (a batch lock written by an older version still matches); every further
+        recorder's adapter is built with its own connection (registry.adapter_for), so its key is a hash of that destination
+        (never the address itself). Two recorder rows naming the same device are refused when added (409 recorder_duplicate)."""
+        if self.recorder_id == "nvr-1" or not self._settings.nvr_host:
+            return "addon-nvr" if self.recorder_id == "nvr-1" else f"recorder-{self.recorder_id}"
+        import hashlib
+
+        dest = f"{(self._settings.nvr_host or '').strip('[]').lower()}|{self._settings.nvr_http_port}"
+        return "nvr-" + hashlib.sha256(dest.encode("utf-8")).hexdigest()[:16]
 
     def capabilities(self) -> RecorderCapabilities:
         # S2: one stream's encoding is writable (guarded path); add / remove a channel stay false until S3.

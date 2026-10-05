@@ -298,20 +298,22 @@ def test_a_backup_neither_carries_nor_deletes_the_batch_keys(bw, settings):
 
 # ------------------------------------------------------------------------------------------------ 6. lock by device
 
-def test_a_batch_blocks_single_writes_on_another_recorder_row_of_the_same_device(bw):
-    """Until recorder rows carry their own connection every row is the add-on's NVR: a second row (re-discovery) is the
-    SAME device and the SAME streams, so a batch on one blocks a single write through the other."""
+def test_a_second_recorder_row_without_its_own_connection_never_reaches_the_first_device(bw):
+    """Review finding 6 assumed every recorder row was the add-on's NVR ("until recorder rows carry their own connection").
+    CR-024: every row carries its own connection (recorder_connections) and its adapter talks to that destination only, so a
+    second row WITHOUT a connection is not the first device: a single write through it is 409 recorder_unavailable and nothing is
+    sent, while the batch on the first recorder completes. Two rows naming one device are refused when added (recorder_duplicate,
+    tests/test_multi_nvr.py), and a further recorder's device lock is keyed by its own destination."""
     app, c, fake, ids = bw
     with app.state.db.connection() as conn:
         conn.execute("INSERT INTO recorders(id, name, created_at) VALUES ('nvr-2', 'again', ?)", (now_iso(),))
         conn.execute("UPDATE cameras SET recorder_id = 'nvr-2' WHERE id = ?", (ids[4],))
     tg = targets(c, ids, (1, 2))
-    etag4 = stream(c, ids[4], "401")["etag"]
     fake.nvr["put_hold_s"] = 1.0
     bid = start(c, tg).json()["batch_id"]
     wait_put(fake, 1)
-    single = c.put(f"/api/v1/nvr/cameras/{ids[4]}/streams/401", json={"if_match": etag4, "confirm": True, "changes": {"svc": False}})
-    assert single.status_code == 409 and single.json()["code"] == "batch_in_progress", single.text
+    single = c.put(f"/api/v1/nvr/cameras/{ids[4]}/streams/401", json={"if_match": "0" * 16, "confirm": True, "changes": {"svc": False}})
+    assert single.status_code == 409 and single.json()["code"] == "recorder_unavailable", single.text
     fake.nvr["put_hold_s"] = 0.0
     assert wait_done(c, bid)["state"] == "completed"
     assert "401" not in puts(fake)

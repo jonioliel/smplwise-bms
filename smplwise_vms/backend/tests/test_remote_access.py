@@ -526,7 +526,8 @@ def test_every_route_needs_a_remote_session(arx):
                     continue
                 checked += 1
                 r = fresh.request(method, "/arx" + path, headers={"X-Remote-User-Id": "u-owner", "X-SW-Dev-User": "joni"})
-                if r.status_code != (404 if (method, full) in BLOCKED_ON_REMOTE else 401):
+                blocked = (method, full) in BLOCKED_ON_REMOTE or full.startswith("/api/v1/recorders")  # CR-024: recorders are local-only
+                if r.status_code != (404 if blocked else 401):
                     leaks.append((method, full, r.status_code))
         elif isinstance(route, APIWebSocketRoute):
             checked += 1

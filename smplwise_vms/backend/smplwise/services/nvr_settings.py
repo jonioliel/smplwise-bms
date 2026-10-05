@@ -58,6 +58,11 @@ REFUSED = ("stale", "nvr_busy", "nvr_not_supported", "nvr_rejected")
 BATCH_ACTIVE_KEY = "nvr.batch.active.{}"
 
 
+def _stream_document(adapter: Any) -> Callable[[str, dict[str, Any]], str]:
+    """CR-025 seam: the adapter's own document editor when it has one (Provision-ISR), else the Hikvision one."""
+    return getattr(adapter, "stream_document", None) or nvr.stream_document
+
+
 def batch_lock_key(adapter: Any, recorder_id: str) -> str:
     """The `settings` key of the batch lock of the device behind `adapter` (an adapter without `device_key`: its row)."""
     return BATCH_ACTIVE_KEY.format(str(getattr(adapter, "device_key", None) or f"recorder-{recorder_id}"))
@@ -428,7 +433,7 @@ def classify(parsed: dict[str, Any], fields: dict[str, list[Any]]) -> str:
     return "diverged"
 
 
-def refresh_registry(conn: sqlite3.Connection, camera_id: str | None, role: str, element: str) -> None:
+def refresh_registry(conn: sqlite3.Connection, camera_id: str | None, role: str, element: str, adapter: Any = None) -> None:
     """API 5.3: the verified document of a main / sub stream becomes the camera's registry entry for that role (the same
     shape the discovery builds), so the player verdict, /health and the hints change at once. Other roles: nothing."""
     if not camera_id or role not in ("main", "sub"):
@@ -436,7 +441,12 @@ def refresh_registry(conn: sqlite3.Connection, camera_id: str | None, role: str,
     row = conn.execute("SELECT capabilities_json FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if row is None:
         return
-    parsed = nvr.parse_streaming_channel(xmlsafe.parse(element))
+    vendor_parse = getattr(adapter, "registry_encoding", None)  # CR-025: a vendor whose element is not ISAPI
+    if vendor_parse is not None:
+        got = vendor_parse(element)
+        parsed = (0, got) if got is not None else None
+    else:
+        parsed = nvr.parse_streaming_channel(xmlsafe.parse(element))
     if parsed is None:
         return
     try:
@@ -597,7 +607,7 @@ def _record_outcome(conn: sqlite3.Connection, principal: Any, *, cid: str, actio
         row = conn.execute("SELECT * FROM nvr_changes WHERE id = ?", (cid,)).fetchone()
         return change_row(row), str(row["status"]), verified
     if status != "no_effect":
-        refresh_registry(conn, camera_id, role, verified.element)
+        refresh_registry(conn, camera_id, role, verified.element, adapter)
     if status == "applied" and rollback_of:
         conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status IN ('applied', 'diverged')", (rollback_of,))
     audit(conn, actor=principal, action=action, decision="allowed" if status == "applied" else "denied", resource_type="camera", resource_id=camera_id,
@@ -668,7 +678,7 @@ def write_stream(conn: sqlite3.Connection, settings: Settings, principal: Any, c
             check = _with_codec_lists(check, for_codec.options, new_codec)
         effective, fields, unchanged = validate_changes(snap.parsed, check, req.changes)
         if effective:
-            document = nvr.stream_document(snap.element, effective)
+            document = _stream_document(adapter)(snap.element, effective)
     except ApiError as exc:
         raise _refuse(conn, principal, "nvr.stream.write", camera_id, exc, base, request_id) from None
     if not effective:  # every requested value is already the device's: no change row, nothing sent
@@ -740,7 +750,7 @@ def rollback_stream(conn: sqlite3.Connection, settings: Settings, principal: Any
                   if isinstance(v, list) and len(v) == 2 and not _same(field_value(snap.parsed, k), v[0])}
         if not fields:
             raise ApiError(409, "not_rollbackable", "אי אפשר לבטל את השינוי הזה.")
-        document = nvr.stream_document(snap.element, {k: v[1] for k, v in fields.items()})  # only our fields, on what the stream shows now
+        document = _stream_document(adapter)(snap.element, {k: v[1] for k, v in fields.items()})  # only our fields, on what the stream shows now
         if batch is None:
             batch_guard(conn, lock_key)
         if authorize is not None:
@@ -797,7 +807,7 @@ def _settle_one(conn: sqlite3.Connection, settings: Settings, r: sqlite3.Row) ->
     # Security review (2026-10-04, finding 1): after an unknown outcome the device may also have been changed by someone
     # else (the NVR's own interface). `applied` only when our fields have their new values AND every other encoding field
     # still has its value from before our change; otherwise the change is not provably ours alone -> `diverged`.
-    foreign = verdict == "applied" and not _others_unchanged(r["before_xml"], snap.parsed, fields)
+    foreign = verdict == "applied" and not _others_unchanged(r["before_xml"], snap.parsed, fields, getattr(adapter, "parse_element", None))
     if foreign:
         verdict = "diverged"
     status, error = {"applied": ("applied", None), "no_effect": ("failed", "interrupted")}.get(verdict, ("diverged", "diverged"))
@@ -805,7 +815,7 @@ def _settle_one(conn: sqlite3.Connection, settings: Settings, r: sqlite3.Row) ->
                         (status, error, status, snap.element, snap.etag, r["id"])).rowcount:
         return None  # settled by someone else meanwhile
     if status != "failed":
-        refresh_registry(conn, r["camera_id"], str(snap.parsed.get("role")), snap.element)
+        refresh_registry(conn, r["camera_id"], str(snap.parsed.get("role")), snap.element, adapter)
         _forget_options(adapter, str(r["stream_ref"]))
     if status == "applied" and r["rollback_of"]:
         conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ? AND status IN ('applied', 'diverged')", (r["rollback_of"],))
@@ -816,13 +826,13 @@ def _settle_one(conn: sqlite3.Connection, settings: Settings, r: sqlite3.Row) ->
     return status
 
 
-def _others_unchanged(before_xml: Any, now: dict[str, Any], fields: dict[str, Any]) -> bool:
+def _others_unchanged(before_xml: Any, now: dict[str, Any], fields: dict[str, Any], parse: Callable[[str], dict[str, Any]] | None = None) -> bool:
     """True when every encoding field our change did not touch reads now as it did before the change (`before_xml`, the
     element read right before the PUT). An unreadable or missing before document proves nothing: False."""
     if not before_xml:
         return False
     try:
-        before = nvr.parse_stream_element(str(before_xml))
+        before = (parse or nvr.parse_stream_element)(str(before_xml))
     except (ApiError, ET.ParseError):
         return False
     return all(_same(field_value(before, name), field_value(now, name)) for name in WRITE_FIELDS if name not in fields)

@@ -170,8 +170,12 @@ def test_recorder_detail_needs_nvr_or_system_permissions(settings, monkeypatch, 
     bind(c, s, "ron", "viewer", "installation", "*")
     ron = c.get("/api/v1/me", headers=as_user("ron")).json()
     assert ron["has_access"] is True and "recorders" not in ron["capabilities"]
-    assert "recorders" not in c.get("/api/v1/health", headers=as_user("ron")).json()["capabilities"]
-    assert c.get("/api/v1/health").json()["capabilities"]["recorders"][0]["vendor"] == "hikvision"
+    ron_health = c.get("/api/v1/health", headers=as_user("ron")).json()
+    assert "recorders" not in ron_health["capabilities"]
+    assert ron_health["recorders"] == [], "security review L2: per-recorder state (error codes) only for who may see recorders"
+    admin_health = c.get("/api/v1/health").json()
+    assert admin_health["capabilities"]["recorders"][0]["vendor"] == "hikvision"
+    assert [r["id"] for r in admin_health["recorders"]] == ["nvr-1"]
 
 
 @pytest.mark.parametrize("ha", ("none", "up"))

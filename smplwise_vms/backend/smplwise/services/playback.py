@@ -48,6 +48,10 @@ class PlaybackSession:
     bytes_down: int = 0
     ws_open: bool = False
     first_frame_at: float | None = None  # wall-clock when the first media bytes were relayed (this generation)
+    recorder_id: str = "nvr-1"  # CR-024: the camera's recorder - the playback source is built from ITS connection
+    # CR-024 experimental cross-recorder sync: the recorder's clock minus this server's (s); the RTSP request asks for
+    # [start + offset, end + offset] in `tz_name`, the recorder's own zone. 0 everywhere else (the proven path).
+    clock_offset_s: float = 0.0
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -84,11 +88,22 @@ def stream_name(session_id: str, generation: int) -> str:
 
 
 def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
+    from .recorders import vendor_io
+
+    if vendor_io.handles(settings):  # CR-025 P3: Provision-ISR plays by channel (track_id = channel) in the device's wall clock
+        return vendor_io.playback_url(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1", track_id, start, end, tz_name)
+    return _hikvision_playback_rtsp_url(settings, track_id, start, end, tz_name)
+
+
+def _hikvision_playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end: dt.datetime, tz_name: str) -> str:
     """rtsp://user:pass@host:rtsp/Streaming/tracks/<track>?starttime=<local compact>&endtime=<local compact>.
     Times are the NVR's local wall clock (KNOWN_QUIRKS T4). Server-side only."""
     from ..mode import ensure_nvr
 
     ensure_nvr(settings)  # NVR-less mode: 409 nvr_not_configured
+    from ..mode import ensure_recorder_enabled
+
+    ensure_recorder_enabled(settings)  # CR-024: a disabled recorder is never asked for a recording
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     tz = zone(tz_name)
@@ -101,7 +116,15 @@ def playback_rtsp_url(settings: Settings, track_id: int, start: dt.datetime, end
 def _create_stream(settings: Settings, session: PlaybackSession, start: dt.datetime) -> None:
     client = g2.Go2rtc(settings)
     name = stream_name(session.id, session.generation)
-    src = playback_rtsp_url(settings, session.track_id, start, session.end_at, session.tz_name)
+    from ..recorder_scope import settings_for
+
+    off = dt.timedelta(seconds=session.clock_offset_s or 0)  # CR-024: the recorder's clock offset (cross-recorder sync)
+    rs = settings_for(settings, session.recorder_id)
+    src = playback_rtsp_url(rs, session.track_id, start + off, session.end_at + off, session.tz_name)
+    from .recorders import vendor_io
+
+    if vendor_io.handles(rs):
+        src = vendor_io.go2rtc_source(rs, src)  # CR-025 live finding: go2rtc plays this NVR through its ffmpeg source
     client.ensure_stream(name, src)
     session.stream = name
     log.info("playback session %s g%s stream %s from %s", session.id, session.generation, name, iso_utc(start))
@@ -116,7 +139,8 @@ def _delete_stream(settings: Settings, name: str) -> None:
         log.warning("could not delete playback stream %s: %s", name, exc.code)
 
 
-def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, segment_end: dt.datetime, tz_name: str, cap: int) -> PlaybackSession:
+def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, segment_end: dt.datetime, tz_name: str, cap: int,
+           clock_offset_s: float = 0.0) -> PlaybackSession:
     with REGISTRY.lock:
         if len(REGISTRY.active()) >= cap:
             raise ApiError(429, "playback_quota", "הגיע למכסת סשני הניגון; סגור ניגון אחר ונסה שוב.", retryable=True, details={"max": cap})
@@ -131,6 +155,8 @@ def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, 
             end_at=min(segment_end, start + MAX_SPAN),
             stream="",
             tz_name=tz_name,
+            recorder_id=str(camera["recorder_id"]) if "recorder_id" in camera.keys() else "nvr-1",
+            clock_offset_s=float(clock_offset_s or 0),
         )
         REGISTRY.sessions[session.id] = session
     try:

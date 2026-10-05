@@ -75,7 +75,11 @@ def merge(segments: list[Segment]) -> list[Segment]:
 
 def list_matches(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[nvr.SearchMatch], str, int]:
     """Raw NVR matches (one per recording file) for [start, end): paged, serialized, de-duplicated.
-    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached)."""
+    Returns (matches, coverage, pages) where coverage is complete | partial (page cap reached).
+    CR-024: the search goes to the camera's own recorder."""
+    from ..recorder_scope import camera_settings
+
+    settings = camera_settings(settings, cam)
     track = cam["main_track"]
     if not track:
         raise ApiError(409, "no_track", "למצלמה אין track הקלטה ידוע; הרץ סנכרון מצלמות.", details={"camera": cam["id"]})
@@ -116,7 +120,7 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
         raise ApiError(422, "validation", "טווח הזמן ריק.")
     if (end - start) > dt.timedelta(days=7):
         raise ApiError(422, "validation", "טווח חיפוש מקסימלי: 7 ימים.")
-    key = (cam["id"], iso_utc(start), iso_utc(end))
+    key = (cam["id"], iso_utc(start), iso_utc(end), tz_name)  # CR-024: a recorder's own zone is part of the question
     now = time.time()
     touches_now = end >= dt.datetime.now(UTC) - dt.timedelta(minutes=1)
     ttl = 30 if touches_now else 600
@@ -137,6 +141,14 @@ def search_segments(settings: Settings, conn: sqlite3.Connection | None, cam: sq
 
 def _search_uncached(settings: Settings, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str, key: tuple[str, str, str], ttl: int) -> SearchResult:
     now = time.time()
+    from ..recorder_scope import camera_settings
+    from .recorders import vendor_io
+
+    rs = camera_settings(settings, cam)
+    if vendor_io.handles(rs):  # CR-025 P3: the Provision search (cursor paging, device clock, DST-safe ends)
+        result = vendor_io.search(rs, cam["recorder_id"], cam["channel"], start, end, tz_name)
+        _cache[key] = (now, result)
+        return result
     tz = zone(tz_name)
     matches, coverage, pages = list_matches(settings, cam, start, end, tz_name)
     segments: list[Segment] = []

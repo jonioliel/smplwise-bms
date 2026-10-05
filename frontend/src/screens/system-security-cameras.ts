@@ -107,6 +107,9 @@ export class SystemSecurityCameras extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @state() private data: CameraList | null = null;
   @state() private recorder: Recorder | null = null;
+  /** CR-024 (multi-NVR): every recorder the server reads, and the table's recorder filter ('' = all); shown with 2+ recorders. */
+  @state() private recorders: Recorder[] = [];
+  @state() private recorderFilter = '';
   @state() private loading = true;
   /** A failure with nothing to show: the error panel (a partial failure is `data.stale`). */
   @state() private failure: { status: number; code: string; message: string } | null = null;
@@ -477,6 +480,7 @@ export class SystemSecurityCameras extends LitElement {
       if (mine !== this.seq) return;
       this.data = list;
       this.recorder = recs?.recorders[0] ?? null;
+      this.recorders = recs?.recorders ?? [];
       this.failure = null;
       this.details = new Map();
       this.lines = new Map();
@@ -576,7 +580,8 @@ export class SystemSecurityCameras extends LitElement {
   /** The names the batch's rows show (its items carry only the camera id). */
   private cameraInfo(): Record<string, CameraInfo> {
     const out: Record<string, CameraInfo> = {};
-    for (const c of this.data?.cameras ?? []) if (c.camera_id) out[c.camera_id] = { name: c.name, channel: c.channel };
+    const multi = this.multiRecorder;
+    for (const c of this.data?.cameras ?? []) if (c.camera_id) out[c.camera_id] = { name: multi ? `${c.name} · ${this.recorderName(c.recorder_id)}` : c.name, channel: c.channel };
     return out;
   }
 
@@ -663,9 +668,29 @@ export class SystemSecurityCameras extends LitElement {
     this.confirm = { model, cameraId: r.cameraId, ref: s.stream_ref, changes };
   }
 
+  /** CR-024: the recorders the camera list spans (ids in server order). */
+  private recorderIds(): string[] {
+    return [...new Set((this.data?.cameras ?? []).map((c) => c.recorder_id))];
+  }
+
+  private get multiRecorder(): boolean {
+    return this.recorderIds().length > 1;
+  }
+
+  private recorderName(id: string): string {
+    return this.recorders.find((r) => r.recorder_id === id)?.name ?? id;
+  }
+
+  /** CR-024: a multi-camera change never mixes recorders - its checklist holds the cameras of the recorder chosen in the table's
+   * filter (the first recorder when none is chosen). The server refuses a mixed batch as well. */
+  private batchRecorder(): string | null {
+    return this.multiRecorder ? this.recorderFilter || this.recorderIds()[0] || null : null;
+  }
+
   private batchCandidates() {
     const d = this.data;
-    return d ? batchCandidates(d.cameras, this.details, d.stale) : [];
+    const only = this.batchRecorder();
+    return d ? batchCandidates(d.cameras, this.details, d.stale).filter((c) => !only || c.recorderId === only) : [];
   }
 
   /** "החל גם על מצלמות נוספות": the single dialog gives way to the checklist (the current camera ticked and fixed). */
@@ -766,16 +791,22 @@ export class SystemSecurityCameras extends LitElement {
     const f = this.filters;
     return html`<div class="toolbar" data-nvr-toolbar>
       <sw-field class="search"><input type="search" placeholder="חיפוש מצלמה, קידוד, רזולוציה" aria-label="חיפוש" data-nvr-search .value=${f.q} @input=${(e: Event) => this.patch({ q: (e.target as HTMLInputElement).value })} /></sw-field>
+      ${this.multiRecorder
+        ? html`<sw-field><select aria-label="NVR" data-nvr-filter="recorder" .value=${this.recorderFilter} @change=${(e: Event) => (this.recorderFilter = (e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.recorderFilter}>כל ה־NVR</option>
+            ${this.recorderIds().map((id) => html`<option value=${id} ?selected=${id === this.recorderFilter}>${this.recorderName(id)}</option>`)}
+          </select></sw-field>`
+        : nothing}
       ${this.select('קידוד', 'codec', [['', 'כל הקידודים'], ['h264', 'H.264'], ['h265', 'H.265'], ['other', 'אחר']] satisfies [CodecFilter, string][], 'codec')}
       ${this.select('סוג זרם', 'role', [['', 'כל הזרמים'], ['main', 'ראשי'], ['sub', 'משני'], ['other', 'נוסף']] satisfies [RoleFilter, string][], 'role')}
       ${this.select('SVC', 'svc', [['', 'כל ה־SVC'], ['on', 'SVC פעיל'], ['off', 'SVC כבוי'], ['none', 'ללא SVC']] satisfies [SvcFilter, string][], 'svc')}
       ${this.select('WebRTC', 'webrtc', [['', 'כל ה־WebRTC'], ['ok', 'מתנגן'], ['no', 'לא מתנגן'], ['unknown', 'לא ידוע']] satisfies [VerdictFilter, string][], 'webrtc')}
-      ${filtersActive(f) ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => (this.filters = { ...NO_FILTERS })}>נקה</sw-button>` : nothing}
+      ${filtersActive(f) || this.recorderFilter ? html`<sw-button size="sm" variant="ghost" data-nvr-clear @click=${() => { this.filters = { ...NO_FILTERS }; this.recorderFilter = ''; }}>נקה</sw-button>` : nothing}
       ${this.data?.can_write && this.data.can_batch === true && !this.data.stale
         ? html`<sw-button size="sm" data-nvr-encoding-open ?disabled=${this.batchRunning} title=${this.batchRunning ? BATCH_BUSY : ''} @click=${() => this.openEncoding()}>שינוי קידוד לכמה מצלמות</sw-button>`
         : nothing}
       <sw-button size="sm" icon="refresh" data-nvr-refresh ?disabled=${this.loading} @click=${() => void this.load()}>רענון</sw-button>
-      <span class="count" data-nvr-count>${filtersActive(f) ? `${shown} מתוך ${total} זרמים` : `${total} זרמים`}</span>
+      <span class="count" data-nvr-count>${filtersActive(f) || this.recorderFilter ? `${shown} מתוך ${total} זרמים` : `${total} זרמים`}</span>
     </div>`;
   }
 
@@ -800,7 +831,7 @@ export class SystemSecurityCameras extends LitElement {
     const line = this.lines.get(r.key);
     return html`<tr class="${first ? 'first' : 'repeat'} ${r.enabledInArx ? '' : 'off'}" data-stream-row data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
       <td class="muted c-chan" data-col="channel"><span class="ltr">${r.channel}</span></td>
-      <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span><span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
+      <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder> · ${this.recorderName(r.recorderId)}</span>` : nothing}<span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
       <td data-col="role">${s ? ROLE_HE[s.role] : html`<span class="muted" data-unread>לא נקרא</span>`}</td>
       <td data-col="codec"><span class="ltr"><bdi>${codecLabel(s)}</bdi>${s?.profile ? html` <bdi class="muted">${s.profile}</bdi>` : nothing}</span></td>
       <td data-col="svc">${this.renderSvc(r)}</td>
@@ -816,7 +847,7 @@ export class SystemSecurityCameras extends LitElement {
   private renderCard(r: StreamRow) {
     const s = r.stream;
     return html`<div class="card ${r.enabledInArx ? '' : 'off'}" data-stream-card data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
-      <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span><span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px">${this.verdict(r)}${this.renderPen(r)}</span></div>
+      <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder>${this.recorderName(r.recorderId)}</span>` : nothing}<span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px">${this.verdict(r)}${this.renderPen(r)}</span></div>
       ${s
         ? html`<div class="line"><span>${ROLE_HE[s.role]}</span><bdi class="ltr">${codecLabel(s)}</bdi><bdi class="ltr">${resolutionLabel(s)}</bdi><span class="ltr">${fpsLabel(s)}</span></div>
           <div class="line facts"><span class="svcline">SVC ${this.renderSvc(r)}</span><bdi class="ltr">${bitrateLabel(s)}${s.bitrate_mode && s.bitrate_kbps ? ` ${s.bitrate_mode}` : ''}</bdi><span>GOP <span class="ltr">${numberLabel(s.gop)}</span></span>${s.profile ? html`<bdi class="ltr muted">${s.profile}</bdi>` : nothing}</div>`
@@ -829,7 +860,8 @@ export class SystemSecurityCameras extends LitElement {
     const data = this.data;
     if (!data) return nothing;
     const all = flatten(data.cameras);
-    const shown = sortRows(applyFilters(all, this.filters), this.sort);
+    const rf = this.multiRecorder ? this.recorderFilter : '';
+    const shown = sortRows(applyFilters(rf ? all.filter((r) => r.recorderId === rf) : all, this.filters), this.sort);
     const c = counts(all);
     const body = !all.length
       ? html`<sw-state-panel state="empty" heading="לא נמצאו מצלמות ב־NVR." actionLabel="רענן" data-nvr-empty @action=${() => void this.load()}></sw-state-panel>`
@@ -870,6 +902,7 @@ export class SystemSecurityCameras extends LitElement {
   }
 
   private subheading(): string {
+    if (this.multiRecorder) return this.recorderFilter ? this.recorderName(this.recorderFilter) : `${this.recorderIds().length} מקליטים`;
     const r = this.recorder;
     if (!r) return '';
     return [r.name, r.model].filter(Boolean).join(' · ');

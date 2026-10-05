@@ -1,5 +1,11 @@
 """Camera registry: stable local ids per (recorder, channel), aliases and order kept locally (T013),
-discovery by a read-only ISAPI sync that never renames anything on the device."""
+discovery by a read-only ISAPI sync that never renames anything on the device.
+
+CR-024 (multi-NVR): every camera carries its `recorder_id`; device calls use the camera's own recorder
+(recorder_scope.camera_settings). `GET /cameras` takes `?recorder_id=` and lists the recorders that have visible cameras
+(`recorders`, id + name only - for the operator screens' recorder filter); cameras of a REMOVED recorder are never listed
+(owner decision: disabled and invisible, history kept). `POST /cameras/sync` and `POST /cameras` take `recorder_id`
+(default: every active recorder / the first recorder)."""
 from __future__ import annotations
 
 import json
@@ -8,7 +14,7 @@ import sqlite3
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from fastapi.responses import Response
@@ -19,6 +25,7 @@ from ..db import unlocked, new_id, now_iso
 from ..errors import ApiError, not_found
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
+from ..recorder_scope import PRIMARY, camera_settings, ready_ids, settings_for
 from ..services import autosync, nvr, stream_codecs
 from ..services.access import camera_allowed, require_camera, visible_camera_ids
 from .anchors import camera_row
@@ -26,7 +33,7 @@ from .settings import read_settings
 
 router = APIRouter()
 
-DEFAULT_RECORDER = "nvr-1"
+DEFAULT_RECORDER = PRIMARY
 
 
 def _rid(request: Request) -> str | None:
@@ -41,29 +48,61 @@ def _ensure_recorder(conn: sqlite3.Connection, name: str = "NVR ראשי", model
     )
 
 
-def disambiguate(cameras: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def disambiguate(cameras: list[dict[str, Any]], recorder_names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """Two channels with the same NVR name (the lab has "כניסה M1" twice) are told apart by their channel number in
-    every list, wall and selector; an alias set in the VMS wins as before (live review F24)."""
+    every list, wall and selector; an alias set in the VMS wins as before (live review F24). CR-024: when the same name
+    sits on two recorders, the recorder's name is added too ("שער · NVR מחסן · ערוץ 1")."""
     seen: dict[str, int] = {}
+    recorders_of: dict[str, set[str]] = {}
     for c in cameras:
         seen[c["name"]] = seen.get(c["name"], 0) + 1
+        recorders_of.setdefault(c["name"], set()).add(str(c.get("recorder_id") or PRIMARY))
     for c in cameras:
         if seen[c["name"]] > 1:
-            c["name"] = f"{c['name']} · ערוץ {c['channel']}"
+            if len(recorders_of[c["name"]]) > 1 and recorder_names:
+                rec = recorder_names.get(str(c.get("recorder_id") or PRIMARY)) or str(c.get("recorder_id"))
+                c["name"] = f"{c['name']} · {rec} · ערוץ {c['channel']}"
+            else:
+                c["name"] = f"{c['name']} · ערוץ {c['channel']}"
     return cameras
 
 
+def removed_recorders(conn: sqlite3.Connection) -> set[str]:
+    """CR-024: recorders removed by an administrator - their cameras are left out of every camera list (history kept)."""
+    try:
+        return {r[0] for r in conn.execute("SELECT id FROM recorders WHERE removed_at IS NOT NULL").fetchall()}
+    except sqlite3.OperationalError:  # a database before 0055
+        return set()
+
+
+def recorder_names(conn: sqlite3.Connection) -> dict[str, str]:
+    return {r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM recorders").fetchall()}
+
+
 @router.get("/cameras")
-def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+def list_cameras(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+                 recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Cameras the caller may see: everything for installation-wide readers, otherwise only cameras
-    anchored on floors the caller can read."""
-    rows = conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
+    anchored on floors the caller can read. CR-024: `recorder_id` filters by recorder; cameras of a removed recorder are
+    never listed; `recorders` names the recorders of the visible cameras (for a recorder filter, shown when there are 2+)."""
+    gone = removed_recorders(conn)
+    rows = [r for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall() if r["recorder_id"] not in gone]
     ids = visible_camera_ids(conn, principal, "map.read")
     visible = rows if ids is None else [r for r in rows if r["id"] in ids]
+    names = recorder_names(conn)
+    present = sorted({r["recorder_id"] for r in visible}, key=lambda rid: (rid != PRIMARY, rid))
+    if recorder_id:
+        visible = [r for r in visible if r["recorder_id"] == recorder_id]
     recorder = conn.execute("SELECT * FROM recorders WHERE id = ?", (DEFAULT_RECORDER,)).fetchone()
     live_ok = {r["id"]: camera_allowed(conn, principal, r["id"], "video.live") for r in visible}
+    multi = len(present) > 1
+    from ..recorder_scope import is_disabled
+
+    off = {rid for rid in present if is_disabled(rid)}  # CR-024: a disabled recorder's cameras are not offered for live / snapshots
     return {
-        "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]]) for r in visible]),
+        "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]] and r["recorder_id"] not in off, recorder_enabled=r["recorder_id"] not in off,
+                                      recorder_name=names.get(r["recorder_id"]) if multi else None) for r in visible], names),
+        "recorders": [{"id": rid, "name": names.get(rid) or rid} for rid in present],
         "recorder": {"id": recorder["id"], "name": recorder["name"], "model": recorder["model"], "firmware": recorder["firmware"], "last_seen_at": recorder["last_seen_at"]} if recorder else None,
         "can_sync": authorize(conn, principal, "sources.configure", INSTALLATION).allowed,
         "media": read_settings(conn),
@@ -80,6 +119,11 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
+    from ..mode import recorder_unavailable
+    from ..recorder_scope import is_disabled
+
+    if is_disabled(cam["recorder_id"]):  # CR-024: disabled now - not even a cached picture
+        raise recorder_unavailable(cam["recorder_id"])
     max_age = read_settings(conn)["snapshots.max_age_s"]
     folder = settings.data_dir / "snapshots"
     folder.mkdir(parents=True, exist_ok=True)
@@ -89,7 +133,10 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     if not fresh:
         try:
             with unlocked(conn):
-                data = nvr.fetch_snapshot(settings, cam["channel"])
+                from ..services.recorders import vendor_io
+
+                rs = camera_settings(settings, cam)
+                data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])
             path.write_bytes(data)
         except ApiError as exc:
             if not stale_ok:
@@ -106,12 +153,35 @@ def now_ts() -> float:
 
 
 @router.post("/cameras/sync")
-def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def sync_cameras(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+                 recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
     """Read-only discovery from the NVR: channels, online flag and track ids. Existing aliases/order survive.
-    The same discovery also runs automatically at start-up and every few minutes (services/autosync)."""
+    The same discovery also runs automatically at start-up and every few minutes (services/autosync).
+    CR-024: `recorder_id` syncs one recorder; without it the first recorder answers as before and every further recorder
+    this process runs is synced too (`recorders`: each one's outcome; one failing recorder never fails another)."""
     require(conn, principal, "sources.configure", INSTALLATION)
-    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
-    return autosync.sync_cameras(settings_of(request), conn, actor=principal, request_id=_rid(request), reason="manual")
+    settings = settings_of(request)
+    ensure_nvr(settings)  # NVR-less mode: 409 after the permission check
+    if recorder_id:
+        from .recorders import recorder_settings
+
+        recorder_settings(request, conn, recorder_id)  # 404 for an unknown / removed recorder
+        return autosync.sync_cameras(settings, conn, actor=principal, request_id=_rid(request), reason="manual", recorder_id=recorder_id)
+    others = [rid for rid in ready_ids(settings) if rid != PRIMARY]
+    if not others:
+        return autosync.sync_cameras(settings, conn, actor=principal, request_id=_rid(request), reason="manual")
+    results: dict[str, Any] = {}
+    first: dict[str, Any] | None = None
+    for rid in ([PRIMARY] if settings_for(settings, PRIMARY).nvr_host else []) + others:
+        try:
+            out = autosync.sync_cameras(settings, conn, actor=principal, request_id=_rid(request), reason="manual", recorder_id=rid)
+            results[rid] = {"ok": True, **out}
+            first = first or out
+        except ApiError as exc:
+            results[rid] = {"ok": False, "error": exc.code}
+    base = first or {"channels": 0, "created": 0, "updated": 0, "recorder": None}
+    return {**base, "channels": sum(r.get("channels", 0) for r in results.values()), "created": sum(r.get("created", 0) for r in results.values()),
+            "updated": sum(r.get("updated", 0) for r in results.values()), "recorders": results}
 
 
 class CameraPatch(BaseModel):
@@ -140,24 +210,36 @@ def update_camera(camera_id: str, body: CameraPatch, request: Request, principal
 
 
 class CameraIn(BaseModel):
-    """Manual registration (no NVR reachable yet): channel number and a local alias."""
+    """Manual registration (no NVR reachable yet): channel number and a local alias. CR-024: `recorder_id` (default the first)."""
     channel: int = Field(ge=1, le=256)
     alias: str = Field(min_length=1, max_length=120)
+    recorder_id: str | None = Field(default=None, max_length=40)
 
 
 @router.post("/cameras", status_code=201)
 def create_camera(body: CameraIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "sources.configure", INSTALLATION)
     ensure_nvr(settings_of(request))  # NVR-less mode: no NVR channel to register (after the permission check)
-    _ensure_recorder(conn)
-    existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (DEFAULT_RECORDER, body.channel)).fetchone()
+    rec = body.recorder_id or DEFAULT_RECORDER
+    if rec == DEFAULT_RECORDER:
+        _ensure_recorder(conn)
+    else:
+        from .recorders import recorder_settings
+
+        recorder_settings(request, conn, rec)  # 404 for an unknown / removed recorder
+    existing = conn.execute("SELECT id FROM cameras WHERE recorder_id = ? AND channel = ?", (rec, body.channel)).fetchone()
     if existing:
         conn.execute("UPDATE cameras SET alias = ?, updated_at = ? WHERE id = ?", (body.alias, now_iso(), existing["id"]))
         cid = existing["id"]
     else:
         cid, now = new_id(), now_iso()
-        conn.execute("INSERT INTO cameras(id, recorder_id, channel, alias, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, DEFAULT_RECORDER, body.channel, body.alias, body.channel, now, now))
-    audit(conn, actor=principal, action="camera.register", decision="allowed", resource_type="camera", resource_id=cid, request_id=_rid(request), details={"channel": body.channel, "alias": body.alias})
+        conn.execute("INSERT INTO cameras(id, recorder_id, channel, alias, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, rec, body.channel, body.alias, body.channel, now, now))
+        try:  # CR-024: the vendor key (Hikvision: the channel number) so a later discovery matches this row
+            conn.execute("UPDATE cameras SET source_ref = ? WHERE id = ?", (str(body.channel), cid))
+        except sqlite3.OperationalError:
+            pass
+    audit(conn, actor=principal, action="camera.register", decision="allowed", resource_type="camera", resource_id=cid, request_id=_rid(request),
+          details={"channel": body.channel, "alias": body.alias, **({"recorder_id": rec} if rec != DEFAULT_RECORDER else {})})
     return camera_row(conn.execute("SELECT * FROM cameras WHERE id = ?", (cid,)).fetchone())
 
 
@@ -168,13 +250,13 @@ _ZONES_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 ZONES_TTL_S = 60
 
 
-def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int) -> dict[str, int] | None:
+def _motion_caps(request: Request, conn: sqlite3.Connection, channel: int, cam: Any = None) -> dict[str, int] | None:
     """The sensitivity min / max / step the device reports (only for editors; one cached GET per channel)."""
     from ..services import nvr_write
 
     try:
         with unlocked(conn):
-            return nvr_write.motion_capabilities(settings_of(request), channel)
+            return nvr_write.motion_capabilities(camera_settings(settings_of(request), cam), channel)
     except ApiError:
         return None
 
@@ -196,7 +278,7 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
-            data = ZONES(settings_of(request), int(cam["channel"]))
+            data = ZONES(camera_settings(settings_of(request), cam), int(cam["channel"]))
         fetched_at = now
         _ZONES_CACHE[camera_id] = (fetched_at, data)
     return {
@@ -206,7 +288,7 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
         "read_only": True,
         "write_reason": "editing the motion grid needs the sensitive permission nvr.config.detection (custom role); masks and smart rules are still read-only",
         "can_edit_motion": authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed,
-        "sensitivity_caps": _motion_caps(request, conn, int(cam["channel"])) if authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed else None,
+        "sensitivity_caps": _motion_caps(request, conn, int(cam["channel"]), cam) if authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed else None,
         "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "cached": bool(hit) and not refresh and now - hit[0] < ZONES_TTL_S,
         **data,
@@ -238,7 +320,7 @@ def camera_capabilities(camera_id: str, request: Request, refresh: bool = False,
         data, fetched_at = hit[1], hit[0]
     else:
         with unlocked(conn):
-            data = CAPS(settings_of(request), int(cam["channel"]))
+            data = CAPS(camera_settings(settings_of(request), cam), int(cam["channel"]))
         fetched_at = now
         _CAPS_CACHE[camera_id] = (fetched_at, data)
     return {
@@ -262,6 +344,6 @@ def _video_facts(conn: sqlite3.Connection, cam: sqlite3.Row) -> dict[str, Any] |
     enc = stream_codecs.encoding_of(cam)
     if not enc:
         return None
-    hint = stream_codecs.main_hint(stream_codecs.camera_name(cam), int(cam["channel"]), enc.get("main"), stream_codecs.recorder_model(conn))
+    hint = stream_codecs.main_hint(stream_codecs.camera_name(cam), int(cam["channel"]), enc.get("main"), stream_codecs.recorder_model(conn, cam["recorder_id"]))
     return {**enc, "hint": hint}
 

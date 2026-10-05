@@ -121,6 +121,8 @@ BLOCKED_ON_REMOTE = ("/api/v1/ha/bridge/ping", "/api/v1/ha/bridge/directory", "/
 
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+# CR-024: the recorders' management (connections, add, remove, health) is local-only like the CR-022 connection routes
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/recorders",)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 CSRF_BODY = json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.",
                         "retryable": False, "correlation_id": "", "details": {}}, ensure_ascii=False).encode("utf-8")

@@ -33,7 +33,7 @@ def test_status_when_feature_is_off_and_on(sched_app):
     assert st["capabilities"] == {"tags": True, "negative_sun_offset": True}
     assert st["can"] == {"view": True, "manage": True, "sensitive": True, "configure": True, "acknowledge": True}
     assert st["counts"]["visible"] == 12 and st["counts"]["hidden"] == 0
-    assert st["settings"]["shabbat_sensor"]["entity_id"] == SHABBAT and st["settings"]["classes"] == ["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum"]
+    assert st["settings"]["shabbat_sensor"]["entity_id"] == SHABBAT and st["settings"]["classes"] == ["light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select"]
     assert st["admin"]["bridge_required"] == "0.3.0" and st["admin"]["component"] == "found"
     assert c.patch(f"{API}/settings", json={"schedules.enabled": "false"}).status_code == 200
     off = c.get(f"{API}/schedules/status").json()
@@ -163,7 +163,7 @@ def test_catalog_selectability_and_reasons(sched_app):
     # an alarm panel that needs a code to disarm offers arming only; a lock that needs a code offers nothing
     panel = {a["service"] for a in by["alarm_control_panel.home_panel"]["actions"]}
     assert "alarm_control_panel.alarm_arm_home" in panel and "alarm_control_panel.alarm_disarm" not in panel
-    assert "alarm_control_panel.alarm_disarm" not in {a["service"] for a in by["alarm_control_panel.shed_panel"]["actions"]}  # 2026-10-04: not by default
+    assert "alarm_control_panel.alarm_disarm" in {a["service"] for a in by["alarm_control_panel.shed_panel"]["actions"]}  # owner decision 2026-10-04: allowed by default
     assert by["lock.side_door"]["selectable"] is False and by["lock.side_door"]["reason"]["code"] == "lock_code_needed"
     # the schedules' own switches never appear
     assert not any(e["entity_id"].startswith("switch.schedule_") for e in cat["entities"]) and cat["truncated"] is False
@@ -280,6 +280,7 @@ def test_create_validation_errors_use_the_contract_codes(sched_app):
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office")), slot("18:30:00", "19:30:00", act("light.turn_off", "light.office"))]))) == (422, "slots_overlap")
     assert create(draft_of("x", [slot("18:00:00", "19:00:00", act("light.turn_on", "light.office")), slot("18:30:00", "19:30:00", act("light.turn_off", "light.office"))])).json()["user_message"] == "משבצות חופפות באותו תזמון."
     assert code(create(draft_of("x", conditions=[cond(entity="light.office")]))) == (422, "condition_domain_not_allowed")
+    restrict_disarm(c)  # owner decision 2026-10-04: allowed by default; a system administrator may restrict it
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"))]))) == (422, "disarm_not_allowed")
     allow_disarm(c)
     assert code(create(draft_of("x", [slot("18:00:00", "19:00:00", act("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"))]))) == (422, "alarm_code_needed")

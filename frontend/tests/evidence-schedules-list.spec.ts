@@ -500,7 +500,7 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await expect(s.locator('[data-schedules-settings]')).toBeVisible();
     await expect(s.locator('[data-component-line]')).toContainText('גרסה 3.3.8');
     await expect(s.locator('[data-shabbat-sensor] option')).toContainText(['ללא חיישן', 'איסור מלאכה']); // the suggested sensor first, in its own group
-    await expect(s.locator('[data-class]')).toHaveCount(13); // 2026-10-04: + scripts, scenes, helpers, humidifiers, vacuums
+    await expect(s.locator('[data-class]')).toHaveCount(17); // 2026-10-04: + scripts, scenes, helpers, humidifiers, vacuums; + sirens, players, numbers, selects
     await expect(s.locator('[data-sched-roles] tbody tr')).toHaveCount(5);
     await shot(page, '12-settings', info);
     await expect(s.locator('[data-settings-bar]')).toHaveCount(0);
@@ -516,11 +516,13 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await expect(s.locator('[data-help]')).toContainText('2024.11.0');
   });
 
-  test('הגדרות › תזמונים: disarming in schedules is off by default and needs the typed word to switch on', async ({ page }, info) => {
+  test('הגדרות › תזמונים: disarming in schedules is allowed by default; an administrator restricts it and lifts it with the typed word', async ({ page }, info) => {
     await open(page, '/system/schedules');
     const s = page.locator('sw-app system-schedules');
     const card = s.locator('[data-sched-disarm]');
-    await expect(card).toContainText('חסום');
+    await expect(card.locator('[data-disarm-state]')).toContainText('נטרול אזעקה בתזמונים: מותר (ניתן להגביל)');
+    await card.locator('[data-allow-disarm]').locator('button').click(); // restricting needs no word
+    await expect(card.locator('[data-disarm-state]')).toContainText('מוגבל');
     await card.locator('[data-allow-disarm]').locator('button').click();
     const dlg = s.locator('[data-disarm-confirm]');
     await expect(dlg.locator('[data-disarm-word]')).toBeVisible();
@@ -531,9 +533,21 @@ test.describe('the home tabs and the settings page (demo mode)', () => {
     await shot(page, '12b-settings-disarm-confirm', info);
     await dlg.locator('[data-disarm-ok]').click();
     await expect(s.locator('[data-disarm-confirm]')).toHaveCount(0);
-    await expect(card).toContainText('מאופשר');
-    await card.locator('[data-allow-disarm]').locator('button').click(); // off needs no word
-    await expect(card).toContainText('חסום');
+    await expect(card.locator('[data-disarm-state]')).toContainText('מותר (ניתן להגביל)');
+  });
+
+  test('הגדרות › תזמונים: a script that disarms is schedulable only once an administrator marks it "allowed in schedules"', async ({ page }, info) => {
+    await open(page, '/system/schedules');
+    const s = page.locator('sw-app system-schedules');
+    const row = s.locator('[data-sched-scripts] [data-script-row="script.night_alarm"]');
+    await expect(row).toContainText('לא מסומן');
+    await expect(s.locator('[data-sched-scripts] [data-script-row="script.morning_routine"]')).toHaveCount(0); // an ordinary script needs no mark
+    await row.locator('[data-script-mark]').locator('button').click();
+    await expect(row).toContainText('מותר בתזמונים');
+    await expect(row).toContainText('יוני');
+    await shot(page, '12c-settings-script-marks', info);
+    await row.locator('[data-script-mark]').locator('button').click();
+    await expect(row).toContainText('לא מסומן');
   });
 
   test('הגדרות › תזמונים: a sensor that is not a calendar one is confirmed before it is saved', async ({ page }) => {
@@ -696,7 +710,12 @@ test.describe('with a session: permissions, the setting, ui.tabs and what the cl
     await expect.poll(() => post(/schedules\/8b21d4\/enable/).length).toBe(1);
     expect(post(/schedules\/8b21d4\/enable/)[0].body).toMatchObject({ confirm_lowering: false, alarm_code: null });
     expect(String((post(/enable/)[0].body as { client_request_id: string }).client_request_id).length).toBeGreaterThanOrEqual(8);
-    await page.locator('sw-app devices-schedules article[data-schedule="4d6e0a"] input[data-select]').check();
+    // the enable re-sorts the list by the next run (time-of-day dependent); pick only after that refresh has rendered
+    await expect(page.locator('sw-app devices-schedules article[data-schedule="8b21d4"] [data-toggle]')).toHaveAttribute('aria-checked', 'true');
+    const pick = page.locator('sw-app devices-schedules article[data-schedule="4d6e0a"] input[data-select]');
+    await pick.check();
+    await expect(pick).toBeChecked();
+    await expect(page.locator('sw-app devices-schedules input[data-select]:checked')).toHaveCount(1);
     await page.locator('sw-app devices-schedules [data-bulk-disable]').click();
     await expect.poll(() => post(/schedules\/bulk/).length).toBe(1);
     expect(post(/schedules\/bulk/)[0].body).toMatchObject({ op: 'disable', ids: ['4d6e0a'], confirm: true });

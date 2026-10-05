@@ -21,6 +21,7 @@ from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
 from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
+from . import recorder_scope
 from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, zones
 
 log = logging.getLogger("smplwise")
@@ -285,6 +286,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup.router, prefix=api, tags=["ops"])
     app.include_router(views.router, prefix=api, tags=["views"])
     app.include_router(nvr_connection.router, prefix=api, tags=["nvr"])  # CR-022: vendors, the stored connection, its test, the restart that applies it
+    from .routers import recorders as recorders_router
+
+    app.include_router(recorders_router.router, prefix=api, tags=["nvr"])  # CR-024: recorders (multi-NVR) - list, add, edit, remove, connection, health
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
@@ -327,7 +331,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await run_in_threadpool(lambda: nvr_batch.recover_batches(app.state.db, settings, startup=True))
         if settings.go2rtc_url:
             await run_in_threadpool(pb.sweep_orphans, settings)
-        ha_only = is_ha_only(settings)  # NVR-less mode: none of the NVR background work starts (mode.py)
+        # NVR-less mode: none of the NVR background work starts (mode.py). CR-024: a recorder that is only disabled still counts -
+        # enabling it applies at once, so its workers must exist (each skips a disabled recorder by itself)
+        ha_only = is_ha_only(settings) and not recorder_scope.loaded_any(settings)
         if not ha_only:
             ex.WORKER.start(app.state.db, settings)
         from .services import autosync, events_derive, events_ingest
@@ -346,9 +352,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
                 storage.warm(app.state.db, settings, force=True)
 
+        def _tz_of(recorder_id: str):
+            """CR-024: a further recorder's alert-stream times are converted in its own zone (recorders.time_zone), else the
+            installation's."""
+            def getter() -> str:
+                with app.state.db.connection(mode="read") as conn:
+                    try:
+                        row = conn.execute("SELECT time_zone FROM recorders WHERE id = ?", (recorder_id,)).fetchone()
+                    except Exception:  # noqa: BLE001 - a database before 0055
+                        row = None
+                    return (row["time_zone"] if row and row["time_zone"] else None) or read_settings(conn)["time.zone"]
+            return getter
+
+        app.state.tz_of = _tz_of  # CR-024: a recorder enabled while running starts its alert stream with its own zone
         if not ha_only:
             app.state.discovery = asyncio.create_task(discover("startup"))
-            events_ingest.LISTENER.start(app.state.db, settings, _tz)
+            if recorder_scope.is_disabled(recorder_scope.PRIMARY):
+                # disabled first recorder: never connected, but ready for an enable that applies at once
+                events_ingest.LISTENER.db, events_ingest.LISTENER.settings, events_ingest.LISTENER.tz_getter = app.state.db, settings, _tz
+            else:
+                events_ingest.LISTENER.start(app.state.db, settings, _tz)
+            for rid in recorder_scope.ready_ids(settings):
+                if rid != recorder_scope.PRIMARY:
+                    events_ingest.start_extra_one(app.state.db, settings, rid, _tz_of(rid))
         from .services import ha_sync
 
         ha_sync.SYNC.start(app.state.db, settings)
@@ -408,6 +434,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         ex.WORKER.shutdown()
         events_ingest.LISTENER.shutdown()
+        events_ingest.shutdown_extra()  # CR-024: the further recorders' alert streams
         from .services import thumbnails as th
 
         th.WORKER.stop_evt.set()

@@ -346,7 +346,7 @@ def test_policy_refusals_carry_a_path_and_reach_no_component():
     out = call(hass, body("edit", payload=bad))
     assert (out["ok"], out["error"], out["path"]) == (False, "argument_not_allowed", "timeslots[1].actions[0].service_data.temperature")
     bad = payload()
-    bad["timeslots"][0]["actions"] = [act("siren.turn_on", "siren.hall")]
+    bad["timeslots"][0]["actions"] = [act("siren.toggle", "siren.hall")]
     assert call(hass, body("edit", payload=bad))["error"] == "service_not_allowed"
     bad = payload()
     bad["timeslots"][0]["actions"] = [act("lock.unlock", "lock.front", {"code": "1234"})]
@@ -580,8 +580,8 @@ def test_execute_allow_list_is_intact_and_never_reaches_the_scheduler():
 
 def test_version_is_consistent_in_const_manifest_and_card_and_the_mirror_matches():
     manifest = json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == const.VERSION == "0.6.1"
-    assert "const VERSION = '0.6.1'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert manifest["version"] == const.VERSION == "0.6.2"
+    assert "const VERSION = '0.6.2'" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     import sync_integration
 
     assert sync_integration.differences() == [], "run python scripts/sync_integration.py"

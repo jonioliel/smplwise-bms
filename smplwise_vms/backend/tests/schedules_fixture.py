@@ -20,7 +20,7 @@ from smplwise.services import ha_bridge, schedule_ops, schedules
 BOSS = {"X-SW-Dev-User": "boss"}
 
 __all__ = ["grant", "place", "BOSS", "SHABBAT", "sched_app", "put_draft", "post_json", "rid", "as_user", "bind", "seed_tree", "role", "draft_of", "slot", "act", "cond", "fake_scheduler",
-           "allow_disarm"]
+           "allow_disarm", "restrict_disarm"]
 
 _n = [0]
 
@@ -63,8 +63,15 @@ def sched_app(settings, monkeypatch):
     codes.LOCKOUT.reset()
 
 
+def restrict_disarm(c: TestClient) -> None:
+    """Owner decision 2026-10-04: scheduled disarming is allowed by default; a system administrator may restrict it (audited)."""
+    r = c.patch("/api/v1/settings", json={"schedules.allow_disarm": "false"})
+    assert r.status_code == 200, r.text
+
+
 def allow_disarm(c: TestClient) -> None:
-    """A system administrator (the bootstrap `joni`) allows scheduled disarming, typing the confirmation (2026-10-04: off by default)."""
+    """A system administrator (the bootstrap `joni`) allows scheduled disarming, typing the confirmation (allowed by default since the owner's decision of
+    2026-10-04: this lifts a restriction; with nothing restricted the PATCH changes nothing)."""
     r = c.patch("/api/v1/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": "אפשר נטרול"})
     assert r.status_code == 200, r.text
 

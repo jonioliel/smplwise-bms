@@ -117,6 +117,12 @@ EXPECTED_SERVICES = {
     "helper": {"input_boolean.turn_on", "input_boolean.turn_off", "input_number.set_value", "input_select.select_option"},
     "humidifier": {"humidifier.set_humidity", "humidifier.set_mode"},
     "vacuum": {"vacuum.start", "vacuum.return_to_base"},
+    # the 2026-10-04 follow-up (owner decision 3, "add everything")
+    "siren": {"siren.turn_on", "siren.turn_off"},
+    "media": {"media_player.turn_on", "media_player.turn_off", "media_player.media_play", "media_player.media_pause", "media_player.media_stop", "media_player.volume_set",
+              "media_player.select_source"},
+    "number": {"number.set_value"},
+    "select": {"select.select_option"},
 }
 
 
@@ -128,7 +134,8 @@ def test_the_allow_list_is_explicit_and_every_new_service_is_listed():
     assert policy.SCHEDULE_ACTION_SERVICES <= set(ha_bridge.ACTIONS)
     for service, args in policy.SERVICE_ARGS.items():
         assert not ({"code", "pin", "password"} & set(args)), service
-    assert "alarm_control_panel.alarm_trigger" not in policy.SCHEDULE_ACTION_SERVICES and not any(s.startswith(("siren.", "media_player.", "notify.")) for s in policy.SCHEDULE_ACTION_SERVICES)
+    assert "alarm_control_panel.alarm_trigger" not in policy.SCHEDULE_ACTION_SERVICES and not any(s.startswith(("notify.", "remote.", "automation.")) for s in policy.SCHEDULE_ACTION_SERVICES)
+    assert not any(ha_bridge.ACTIONS[s].get("route") == "media" and s != "media_player.select_source" for s in policy.SCHEDULE_ACTION_SERVICES), "no remote-only media command"
 
 
 def test_capability_rules_never_invent_a_service():
@@ -155,8 +162,11 @@ def test_catalog_offers_only_what_each_entity_really_supports(more):
     minutes = variables["fields"][0]
     assert minutes == {"name": "minutes", "label": "Minutes", "required": True, "type": "int", "min": 1, "max": 60}
     assert variables["fields"][1]["type"] == "enum" and variables["fields"][1]["choices"] == ["hall", "office"] and variables["fields"][2]["type"] == "bool"
-    assert cat["script.opaque"]["selectable"] and cat["script.opaque"]["actions"][0]["args"] == [] and cat["script.opaque"]["sensitive"] is True  # effects unknown = sensitive
-    assert cat["script.night_alarm"]["sensitive"] is True and cat["script.night_alarm"]["actions"][0]["lowering"] is True
+    # effects unknown = sensitive, and (owner decision 2) listed but disabled until a system administrator marks it "allowed in schedules"
+    assert cat["script.opaque"]["selectable"] is False and cat["script.opaque"]["reason"]["code"] == "script_not_approved" and cat["script.opaque"]["actions"][0]["args"] == []
+    assert cat["script.opaque"]["sensitive"] is True and cat["script.opaque"]["approval"]["required"] is True and cat["script.opaque"]["approval"]["approved"] is False
+    assert cat["script.night_alarm"]["sensitive"] is True and cat["script.night_alarm"]["actions"][0]["lowering"] is True and cat["script.night_alarm"]["reason"]["code"] == "script_not_approved"
+    assert morning["approval"]["required"] is False, "an ordinary script needs no mark"
     assert cat["script.needs_device"]["selectable"] is False and cat["script.needs_device"]["reason"]["code"] == "script_field_unsupported"
     assert [a["service"] for a in cat["scene.movie"]["actions"]] == ["scene.turn_on"]
     num = next(a for a in cat["input_number.boiler_minutes"]["actions"])
@@ -175,7 +185,7 @@ def test_catalog_offers_only_what_each_entity_really_supports(more):
     assert swing["climate.set_swing_mode"]["args"][0]["choices"] == ["off", "vertical"]
     assert "climate.set_swing_mode" not in {a["service"] for a in cat["climate.living_room"]["actions"]}
     panel = {a["service"] for a in cat["alarm_control_panel.shed_panel"]["actions"]}
-    assert "alarm_control_panel.alarm_disarm" not in panel and "alarm_control_panel.alarm_arm_home" in panel, "disarming is not offered by default"
+    assert "alarm_control_panel.alarm_disarm" in panel and "alarm_control_panel.alarm_arm_home" in panel, "owner decision 2026-10-04: disarming is offered by default"
     assert _catalog(c, **{"class": "script"}).keys() == {"script.morning_routine", "script.night_alarm", "script.opaque", "script.needs_device"}
 
 
@@ -223,8 +233,13 @@ def test_script_variables_follow_the_scripts_own_fields(more, variables, code):
     assert not any(b["op"] == "add" for b in tr.fake.bridge_calls), "nothing reaches the bridge"
 
 
+def _mark(c, eid: str, undo: bool = False, headers: dict[str, str] | None = None):
+    return c.post(f"{API}/schedules/scripts/{eid}/mark", json={"undo": undo}, headers=headers or {})
+
+
 def test_a_script_whose_fields_are_not_known_runs_without_variables_only(more):
     app, s, c, fake, tr = more
+    assert _mark(c, "script.opaque").status_code == 200  # its content is not known: a system administrator's mark first (owner decision 2)
     assert _create(c, _one("script.turn_on", "script.opaque", variables={"x": 1})).status_code == 422
     assert _create(c, _one("script.turn_on", "script.opaque")).status_code == 201
 
@@ -232,6 +247,9 @@ def test_a_script_whose_fields_are_not_known_runs_without_variables_only(more):
 def test_an_alarm_script_is_an_ordinary_script_with_the_alarm_grants_and_the_lowering_confirmation(more):
     app, s, c, fake, tr = more
     d = _one("script.turn_on", "script.night_alarm", name="Night")
+    r = _create(c, d, confirm_lowering=True)
+    assert r.status_code == 422 and r.json()["code"] == "script_not_approved", "owner decision 2: a disarming script needs a system administrator's mark"
+    assert _mark(c, "script.night_alarm").status_code == 200
     r = _create(c, d)
     assert r.status_code == 409 and r.json()["code"] == "lowering_confirmation_required"
     # a manager without the sensitive permission may not schedule it
@@ -298,24 +316,31 @@ def test_settings_classes_switch_the_new_classes_off_and_an_old_every_class_list
     assert "scene.movie" not in _catalog(c)
 
 
-# ---------------------------------------------------------------- disarming (owner decision pending; default: not schedulable)
+# ---------------------------------------------------------------- disarming (owner decision 2026-10-04, option ג: allowed, restrictable)
 
-def test_disarm_is_refused_until_a_system_administrator_allows_it_with_a_typed_confirmation(more, monkeypatch):
+def test_disarm_is_allowed_by_default_and_a_system_administrator_may_restrict_it(more, monkeypatch):
     app, s, c, fake, tr = more
     d = _one("alarm_control_panel.alarm_disarm", "alarm_control_panel.shed_panel", name="Disarm")
-    r = _create(c, d, confirm_lowering=True)
-    assert r.status_code == 422 and r.json()["code"] == "disarm_not_allowed" and "מנהל מערכת" in r.json()["user_message"]
+    assert c.get(f"{API}/schedules/status").json()["settings"]["allow_disarm"] is True
+    assert c.get(f"{API}/settings").json()["settings"]["schedules.allow_disarm"] == "true"
     # a site administrator (no system.configure) cannot touch it; a configurator who is not a system administrator neither (audited)
     bind(c, s, "conf", "site_admin", "installation", "*")
-    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": "אפשר נטרול"}, headers={"X-SW-Dev-User": "conf"})
+    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"}, headers={"X-SW-Dev-User": "conf"})
     assert r.status_code == 403
     import smplwise.rbac as rbac
 
     real = rbac.is_system_admin
     monkeypatch.setattr(rbac, "is_system_admin", lambda conn, uid: False)
-    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true", "schedules.allow_disarm_confirm": "אפשר נטרול"})
+    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"})
     assert r.status_code == 403 and _audit(app, "schedules.allow_disarm")[-1]["decision"] == "denied"
     monkeypatch.setattr(rbac, "is_system_admin", real)
+    # the system administrator restricts it: audited, and a NEW disarm is refused with the reason
+    r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"})
+    assert r.status_code == 200 and r.json()["settings"]["schedules.allow_disarm"] == "false"
+    assert json.loads(_audit(app, "schedules.allow_disarm")[-1]["details_json"]) == {"to": "false"}
+    r = _create(c, d, confirm_lowering=True)
+    assert r.status_code == 422 and r.json()["code"] == "disarm_not_allowed" and "מנהל המערכת" in r.json()["user_message"]
+    assert "alarm_control_panel.alarm_disarm" not in {a["service"] for a in _catalog(c)["alarm_control_panel.shed_panel"]["actions"]}
     # the administrator must type the word
     r = c.patch(f"{API}/settings", json={"schedules.allow_disarm": "true"})
     assert r.status_code == 422 and r.json()["code"] == "confirm_required"
@@ -334,7 +359,7 @@ def test_disarm_is_refused_until_a_system_administrator_allows_it_with_a_typed_c
     # a panel that needs a code to disarm stays unschedulable whatever the setting says
     r = _create(c, _one("alarm_control_panel.alarm_disarm", "alarm_control_panel.home_panel"), confirm_lowering=True)
     assert r.status_code == 422 and r.json()["code"] == "alarm_code_needed"
-    # switching it off needs no word, still audited
+    # restricting it again needs no word, still audited
     assert c.patch(f"{API}/settings", json={"schedules.allow_disarm": "false"}).status_code == 200
     assert json.loads(_audit(app, "schedules.allow_disarm")[-1]["details_json"]) == {"to": "false"}
 
@@ -382,6 +407,7 @@ def test_an_entity_that_lost_the_service_makes_the_run_fail_visibly(more):
 
 def test_bridge_refusal_and_timeout_on_a_script_schedule(more):
     app, s, c, fake, tr = more
+    assert _mark(c, "script.opaque").status_code == 200
     tr.fake.fail_next["add"] = "entity_not_found"
     r = _create(c, _one("script.turn_on", "script.opaque"))
     assert r.status_code == 502 and r.json()["code"] == "scheduler_refused"

@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { cameraLabel, sameRecorder } from '../api/recorders';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
@@ -13,6 +14,7 @@ import '../components/sw-card';
 import '../components/sw-state-panel';
 import { isApi } from '../api/session';
 import { listCameras } from '../api/maps';
+import { productSettings } from '../api/prefs';
 import { snapshotUrl } from '../api/media';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
@@ -41,6 +43,8 @@ export class InvestigateSync extends LitElement {
   @state() private cursor = 615;
   @state() private playing = false;
   @state() private cams: Camera[] | null = null;
+  /** CR-024: the experimental cross-recorder synchronized playback setting (off: one recorder per synchronized set). */
+  @state() private crossSync = false;
   @state() private picked: string[] = [];
   @state() private when = localInput(new Date(Date.now() - 10 * 60_000));
   @state() private recent: RecentSet[] = [];
@@ -59,8 +63,9 @@ export class InvestigateSync extends LitElement {
 
   private async load() {
     try {
-      const list = await listCameras();
+      const [list, settings] = await Promise.all([listCameras(), productSettings().catch(() => null)]);
       this.cams = list.cameras.filter((c) => c.enabled && c.can_view_live !== false);
+      this.crossSync = String(settings?.['playback.cross_recorder_sync'] ?? 'false') === 'true';
       this.error = '';
     } catch (err) {
       this.error = describeError(err);
@@ -69,6 +74,7 @@ export class InvestigateSync extends LitElement {
   }
 
   private toggle(id: string) {
+    if (!this.picked.includes(id) && !sameRecorder(this.picked, this.cams ?? [], id, this.crossSync)) return; // CR-024: one recorder per synchronized set
     this.picked = this.picked.includes(id) ? this.picked.filter((x) => x !== id) : this.picked.length >= 4 ? this.picked : [...this.picked, id];
   }
 
@@ -100,7 +106,7 @@ export class InvestigateSync extends LitElement {
           : html`
             <sw-card heading="מצלמות להשוואה" subheading=${`${this.picked.length} מתוך 4 · הראשונה שנבחרת היא המובילה (שעון הייחוס)`}>
               <div class="filters" data-sync-cameras>
-                ${cams.map((c) => html`<sw-chip ?selected=${this.picked.includes(c.id)} ?disabled=${!this.picked.includes(c.id) && this.picked.length >= 4} data-sync-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggle(c.id)}>${c.name}</sw-chip>`)}
+                ${cams.map((c) => html`<sw-chip ?selected=${this.picked.includes(c.id)} ?disabled=${!this.picked.includes(c.id) && (this.picked.length >= 4 || !sameRecorder(this.picked, cams, c.id, this.crossSync))} data-sync-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggle(c.id)}>${cameraLabel(c)}</sw-chip>`)}
               </div>
               ${this.picked.length
                 ? html`<div class="picks">${this.picked.map((id, i) => html`<div class="pick" data-sync-pick=${id}>

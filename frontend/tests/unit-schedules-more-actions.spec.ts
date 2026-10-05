@@ -62,13 +62,16 @@ test('an alarm script is sensitive by what it drives, not by its class', () => {
   expect(isSensitiveAction(a, 'script', script)).toBe(false);
 });
 
-test('the demo catalogue offers scripts with their fields, and disarming only after the typed decision', async () => {
+test('the demo catalogue offers scripts with their fields; disarming is offered by default, and again after a restriction only with the typed word', async () => {
   const store = new ScheduleDemoStore();
   let cat = (await store.catalog({})).entities;
   const morning = cat.find((e) => e.entity_id === 'script.morning_routine')!;
   expect(morning.actions[0].args[0].type).toBe('vars');
   expect(morning.actions[0].args[0].fields?.map((f) => f.name)).toEqual(['minutes', 'room', 'loud']);
   expect(cat.find((e) => e.entity_id === 'script.night_alarm')!.sensitive).toBe(true);
+  expect(cat.find((e) => e.entity_id === 'alarm_control_panel.house')!.actions.map((a) => a.service)).toContain('alarm_control_panel.alarm_disarm');
+  await store.saveSettings({ ...store.settings, allowDisarm: false }); // restricting needs no word
+  cat = (await store.catalog({})).entities;
   expect(cat.find((e) => e.entity_id === 'alarm_control_panel.house')!.actions.map((a) => a.service)).not.toContain('alarm_control_panel.alarm_disarm');
   await expect(store.saveSettings({ ...store.settings, allowDisarm: true }, 'לא')).rejects.toMatchObject({ code: 'confirm_required' });
   await store.saveSettings({ ...store.settings, allowDisarm: true }, 'אפשר נטרול');
@@ -78,7 +81,8 @@ test('the demo catalogue offers scripts with their fields, and disarming only af
 });
 
 test('the settings patch carries the typed word only when switching disarming on', () => {
-  const from = { ...SCHEDULE_SETTINGS_DEFAULT };
+  expect(SCHEDULE_SETTINGS_DEFAULT.allowDisarm).toBe(true); // owner decision 2026-10-04
+  const from = { ...SCHEDULE_SETTINGS_DEFAULT, allowDisarm: false };
   expect(scheduleSettingsPatch(from, { ...from, allowDisarm: true }, 'אפשר נטרול')).toEqual({ 'schedules.allow_disarm': 'true', 'schedules.allow_disarm_confirm': 'אפשר נטרול' });
   expect(scheduleSettingsPatch({ ...from, allowDisarm: true }, from)).toEqual({ 'schedules.allow_disarm': 'false' });
 });

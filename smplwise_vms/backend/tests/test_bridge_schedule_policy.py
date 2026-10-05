@@ -148,8 +148,9 @@ def test_message_field_rules_per_op():
 
 
 @pytest.mark.parametrize("service,entity", [
-    ("script.night", "script.night"), ("script.turn_off", "script.night"), ("scene.apply", "scene.movie"), ("media_player.media_play", "media_player.tv"),
-    ("input_boolean.toggle", "input_boolean.x"), ("siren.turn_on", "siren.hall"), ("vacuum.stop", "vacuum.robo"), ("number.set_value", "number.x"),
+    ("script.night", "script.night"), ("script.turn_off", "script.night"), ("scene.apply", "scene.movie"), ("media_player.play_media", "media_player.tv"),
+    ("input_boolean.toggle", "input_boolean.x"), ("siren.toggle", "siren.hall"), ("vacuum.stop", "vacuum.robo"), ("number.increment", "number.x"),
+    ("media_player.volume_mute", "media_player.tv"), ("media_player.join", "media_player.tv"), ("select.select_next", "select.x"),
     ("alarm_control_panel.alarm_trigger", "alarm_control_panel.house"), ("climate.set_aux_heat", "climate.living_room"), ("notify.notify", "notify.x"),
     ("switch.toggle", "switch.sockets"), ("scheduler.remove", "switch.schedule_x"), ("homeassistant.turn_off", "light.hall"),
     ("switch", "switch.sockets"), ("", "switch.sockets"),
@@ -412,8 +413,10 @@ def test_allow_list_is_inside_the_bridges_allowed_services_and_the_addons_action
     assert policy.SCHEDULE_ACTION_SERVICES <= addon, sorted(policy.SCHEDULE_ACTION_SERVICES - addon)
     domains = {d for d, _ in policy.SCHEDULE_ACTION_SERVICES}
     assert domains == {"light", "switch", "cover", "climate", "fan", "alarm_control_panel", "lock", "button", "script", "scene", "input_boolean", "input_number", "input_select",
-                       "humidifier", "vacuum"}  # 0.6.1
-    assert not {"siren", "media_player", "number", "select", "remote", "notify", "automation"} & domains
+                       "humidifier", "vacuum", "siren", "media_player", "number", "select"}  # 0.6.1 (with the 2026-10-04 follow-up)
+    assert not {"remote", "notify", "automation", "webostv", "music_assistant"} & domains
+    assert {s for d, s in policy.SCHEDULE_ACTION_SERVICES if d == "media_player"} == {"turn_on", "turn_off", "media_play", "media_pause", "media_stop", "volume_set", "select_source"}
+    assert policy.sensitive_required("siren", "turn_on", {}) and not policy.sensitive_required("media_player", "turn_on", {})
     assert ("alarm_control_panel", "alarm_trigger") not in policy.SCHEDULE_ACTION_SERVICES
 
 

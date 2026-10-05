@@ -9,7 +9,12 @@ Used by tests/test_setup_wizard.py and by the Playwright fixture backend fronten
 Every knob is a plain attribute (`fake.nvr["up"] = False`, `fake.nvr["drift_s"] = 45`, `fake.nvr["offset"] = "+02:00"`,
 `fake.go2rtc["streams"]`, `fake.ha["drift_s"]` ...); `reset()` restores the defaults below. `writes` lists every
 non-GET request a fake device received - the wizard must never add one (the fixture backend's own stream sync does:
-it creates `smplwise_` streams in the fake go2rtc at start-up, as the real add-on would)."""
+it creates `smplwise_` streams in the fake go2rtc at start-up, as the real add-on would).
+
+CR-024 (multi-NVR): `FakeDevices(nvr_host=..., nvr_addr=..., shared=False)` is a further fake NVR on its own reserved name
+(go2rtc and Home Assistant stay answered by the first fake only); `install_many([first, second, ...])` answers all of them.
+`nvr["serials"]` ({channel: serial}) adds the camera behind each slot (sourceInputPortDescriptor model + serialNumber, as the
+lab firmware reports it); `nvr["picture"]` answers the snapshot endpoint with a tiny JPEG."""
 from __future__ import annotations
 
 import datetime as dt
@@ -40,9 +45,12 @@ def _xml(body: str) -> str:
 
 
 class FakeDevices:
-    def __init__(self, zone: str = "Asia/Jerusalem") -> None:
+    def __init__(self, zone: str = "Asia/Jerusalem", nvr_host: str = NVR_HOST, nvr_addr: str = NVR_ADDR, shared: bool = True) -> None:
         self.lock = threading.Lock()
         self.zone = ZoneInfo(zone)
+        self.nvr_host = nvr_host
+        self.nvr_addr = nvr_addr
+        self.shared = shared  # answers go2rtc and Home Assistant too (the first fake); a further NVR fake does not
         self.reset()
 
     def reset(self) -> None:
@@ -88,6 +96,10 @@ class FakeDevices:
                 # CR-020 S2C review fixes: list_inject (text put right after the LIST root's start tag, e.g. a forged
                 # comment); drip_from: n makes the nth and later LIST reads arrive slowly (drip_s per 64-byte piece)
                 "list_inject": None, "drip_from": None, "drip_s": 0.2,
+                # CR-024: the camera behind each slot ({channel: serial}; the model is "DS-2CD-FAKE") and the snapshot endpoint
+                "serials": {}, "picture": True,
+                # CR-024: the recorder's own serial in deviceInfo (None = the device does not report one)
+                "serial": None,
             }
             self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
@@ -126,9 +138,16 @@ class FakeDevices:
         path = request.url.path
         chans = range(1, n["channels"] + 1)
         if path == "/ISAPI/System/deviceInfo":
-            return self._ok(request, f"<DeviceInfo version=\"2.0\" {NS}><deviceName>fake</deviceName><model>{n['model']}</model><firmwareVersion>{n['firmware']}</firmwareVersion><deviceType>NVR</deviceType></DeviceInfo>")
+            serial = f"<serialNumber>{n['serial']}</serialNumber>" if n.get("serial") else ""
+            return self._ok(request, f"<DeviceInfo version=\"2.0\" {NS}><deviceName>fake</deviceName><model>{n['model']}</model>{serial}<firmwareVersion>{n['firmware']}</firmwareVersion><deviceType>NVR</deviceType></DeviceInfo>")
         if path == "/ISAPI/ContentMgmt/InputProxy/channels":
-            return self._ok(request, f"<InputProxyChannelList {NS}>" + "".join(f"<InputProxyChannel><id>{c}</id><name>מצלמה {c}</name></InputProxyChannel>" for c in chans) + "</InputProxyChannelList>")
+            def desc(c: int) -> str:
+                serial = n["serials"].get(c)
+                return (f"<sourceInputPortDescriptor><proxyProtocol>HIKVISION</proxyProtocol><model>DS-2CD-FAKE</model><serialNumber>{serial}</serialNumber>"
+                        f"</sourceInputPortDescriptor>") if serial else ""
+            return self._ok(request, f"<InputProxyChannelList {NS}>" + "".join(f"<InputProxyChannel><id>{c}</id><name>מצלמה {c}</name>{desc(c)}</InputProxyChannel>" for c in chans) + "</InputProxyChannelList>")
+        if n["picture"] and re.fullmatch(r"/ISAPI/Streaming/channels/\d+01/picture", path):
+            return httpx.Response(200, content=b"\xff\xd8\xff\xe0fake-jpeg", headers={"Content-Type": "image/jpeg"}, request=request)
         if path == "/ISAPI/ContentMgmt/InputProxy/channels/status":
             return self._ok(request, f"<InputProxyChannelStatusList {NS}>" + "".join(
                 f"<InputProxyChannelStatus><id>{c}</id><online>{'false' if c in n['offline'] else 'true'}</online></InputProxyChannelStatus>" for c in chans) + "</InputProxyChannelStatusList>")
@@ -376,13 +395,13 @@ class FakeDevices:
 
     def handle(self, request: httpx.Request) -> httpx.Response | None:
         host = request.url.host
-        if host == NVR_ADDR:
-            host = NVR_HOST
-        if host not in (NVR_HOST, GO2RTC_HOST, HA_HOST):
+        if host == self.nvr_addr:
+            host = self.nvr_host
+        if host not in ((self.nvr_host, GO2RTC_HOST, HA_HOST) if self.shared else (self.nvr_host,)):
             return None
         with self.lock:
-            delay = float(self.nvr["delay_s"]) if host == NVR_HOST else 0.0
-            stream_put = host == NVR_HOST and request.method == "PUT" and _STREAM_PUT.match(request.url.path) is not None
+            delay = float(self.nvr["delay_s"]) if host == self.nvr_host else 0.0
+            stream_put = host == self.nvr_host and request.method == "PUT" and _STREAM_PUT.match(request.url.path) is not None
             hold = float(self.nvr["put_hold_s"]) if stream_put else 0.0
             on_put = self.nvr["on_put"] if stream_put else None
         if delay:
@@ -397,7 +416,7 @@ class FakeDevices:
             time.sleep(hold)
         with self.lock:
             self.hits.append(f"{host} {request.method} {request.url.path}")
-            if host == NVR_HOST:
+            if host == self.nvr_host:
                 return self._nvr(request)
             if host == GO2RTC_HOST:
                 return self._go2rtc(request)
@@ -405,14 +424,21 @@ class FakeDevices:
 
     def install(self, monkeypatch: Any | None = None) -> None:
         """Answer the fake hosts from this object; with pytest's monkeypatch the hook is undone after the test."""
-        real = httpx.HTTPTransport.handle_request
-        fake = self
+        install_many([self], monkeypatch)
 
-        def handle_request(transport: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+
+def install_many(fakes: list[FakeDevices], monkeypatch: Any | None = None) -> None:
+    """CR-024: answer several fakes (one per fake NVR name; the first also answers go2rtc and Home Assistant)."""
+    real = httpx.HTTPTransport.handle_request
+
+    def handle_request(transport: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+        for fake in fakes:
             answer = fake.handle(request)
-            return answer if answer is not None else real(transport, request)
+            if answer is not None:
+                return answer
+        return real(transport, request)
 
-        if monkeypatch is not None:
-            monkeypatch.setattr(httpx.HTTPTransport, "handle_request", handle_request)
-        else:
-            httpx.HTTPTransport.handle_request = handle_request  # type: ignore[method-assign]
+    if monkeypatch is not None:
+        monkeypatch.setattr(httpx.HTTPTransport, "handle_request", handle_request)
+    else:
+        httpx.HTTPTransport.handle_request = handle_request  # type: ignore[method-assign]

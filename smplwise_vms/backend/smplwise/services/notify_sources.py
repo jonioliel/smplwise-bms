@@ -357,7 +357,7 @@ def cameras_tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, dict[s
                     WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?) AS loss_at,
                   (SELECT e.id FROM events e WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?
                     ORDER BY e.occurred_at DESC LIMIT 1) AS loss_event
-           FROM cameras c WHERE c.enabled = 1 AND c.recorder_id = 'nvr-1' ORDER BY c.channel LIMIT 500""",
+           FROM cameras c WHERE c.enabled = 1 ORDER BY c.recorder_id, c.channel LIMIT 500""",  # CR-024: every recorder's cameras
         (cutoff, cutoff),
     ).fetchall()
     due: dict[str, notify.Signal] = {}

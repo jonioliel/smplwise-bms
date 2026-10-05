@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -76,10 +77,17 @@ class Payload:
     pauses: int = 0  # disk-full pauses in a row (reset when the job finishes a pass without one)
     resume_after: str | None = None  # UTC: no automatic resume before this (back-off)
     need_bytes: int = 0  # bytes still needed when it last paused: at least what the aborted file had reached
+    recorder_id: str | None = None  # security review L6: the recorder the files were searched on (the download goes there only)
 
 
 def _files_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[ExportFile], str]:
     """Raw NVR files overlapping [start, end) with their playbackURIs and sizes (from the URI's size param)."""
+    from ..recorder_scope import camera_settings
+    from .recorders import vendor_io
+
+    rs = camera_settings(settings, cam)
+    if vendor_io.handles(rs):  # CR-025 P3: one RTSP `backup` request per recording (sizes unknown)
+        return vendor_io.export_files(rs, cam["recorder_id"], cam["channel"], start, end, tz_name)
     tz = zone(tz_name)
     matches, coverage, _pages = recordings.list_matches(settings, cam, start, end, tz_name)
     files: list[ExportFile] = []
@@ -314,7 +322,7 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     if total > max_bytes:
         raise ApiError(422, "export_too_large", f"נפח משוער {total // (1024 * 1024)} MB מעל המגבלה ({max_bytes // (1024 * 1024)} MB).", details={"estimate_bytes": total})
     require_disk(settings, min_mb, estimate_with_unknown(files))  # the NVR files land on the data disk first (unknown sizes estimated)
-    payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage)
+    payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage, recorder_id=_recorder_of(cam))
     job_id = uuid.uuid4().hex[:12]
     now = now_iso()
     conn.execute(
@@ -323,6 +331,15 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     )
     WORKER.wake()
     return _row_to_job(conn.execute("SELECT * FROM export_jobs WHERE id = ?", (job_id,)).fetchone())
+
+
+def _recorder_of(cam: Any) -> str:
+    from ..recorder_scope import PRIMARY
+
+    try:
+        return cam["recorder_id"] or PRIMARY
+    except (KeyError, IndexError, TypeError):
+        return PRIMARY
 
 
 def _payload_dict(p: Payload) -> dict[str, Any]:
@@ -406,6 +423,9 @@ class Worker:
     def start(self, db: Database, settings: Settings) -> None:
         self.db, self.settings = db, settings
         with db.connection() as conn:
+            n = scrub_credentials(conn)
+            if n:
+                log.warning("%d export job(s) held a URL with credentials; scrubbed", n)
             n = conn.execute("UPDATE export_jobs SET state = 'interrupted', error = 'הופסק בהפעלה מחדש של ה־Add-on', updated_at = ? WHERE state = 'running'", (now_iso(),)).rowcount
         if n:
             log.warning("%d export job(s) were running at shutdown; marked interrupted", n)
@@ -497,6 +517,18 @@ class Worker:
             row = conn.execute("SELECT * FROM export_jobs WHERE id = ?", (job_id,)).fetchone()
         raw = json.loads(row["payload_json"])
         payload = Payload(**{**raw, "files": [ExportFile(**f) for f in raw["files"]]})
+        from ..recorder_scope import settings_for
+
+        with self.db.connection(mode="read") as conn:
+            cam = conn.execute("SELECT recorder_id FROM cameras WHERE id = ?", (row["camera_id"],)).fetchone()
+        # security review L6: the job downloads only from the recorder its files were searched on (stored in the payload; a row
+        # from before falls back to the camera's). A camera that is gone or now belongs to another recorder fails the job: its
+        # playback requests would otherwise be sent to a recorder they were never meant for.
+        rid = payload.recorder_id or (_recorder_of(cam) if cam is not None else None)
+        if cam is None or rid is None or _recorder_of(cam) != rid:
+            self._update(job_id, state="failed", payload=payload, error="המצלמה או ה־NVR של הייצוא אינם זמינים עוד")
+            return
+        source = settings_for(settings, rid)  # CR-024: the files are downloaded from the camera's own recorder
         d = job_dir(settings, job_id)
         d.mkdir(parents=True, exist_ok=True)
         total_expected = sum(f.size or 0 for f in payload.files) or None
@@ -542,7 +574,14 @@ class Worker:
                 return job_id not in self.cancel_flags  # False = abort
 
             try:
-                self.downloader(settings, f.playback_uri, dest, progress)
+                from .recorders import vendor_io
+
+                if vendor_io.handles(source) and self.downloader is nvr.download_file:
+                    from .recorders.provision_playback import rtsp_download
+
+                    rtsp_download(source, f.playback_uri, dest, progress)  # CR-025: RTSP backup -> MPEG-TS, no re-encode
+                else:
+                    self.downloader(source, f.playback_uri, dest, progress)
                 f.state = "downloaded"
                 f.bytes = dest.stat().st_size
                 done_bytes += f.bytes
@@ -600,7 +639,9 @@ class Worker:
             self._update(job_id, state="failed", payload=payload, error="אף קובץ לא ירד מה־NVR")
             return
         try:
-            self._finish(job_id, d, payload, ok_files, row)
+            from .recorders import vendor_io
+
+            self._finish(job_id, d, payload, ok_files, row, ts=vendor_io.handles(source))
         except Exception as exc:
             log.exception("export %s post-processing failed", job_id)
             payload.remux = "failed"
@@ -609,16 +650,21 @@ class Worker:
         state = "done" if all(f.state in ("downloaded", "remuxed") for f in payload.files) else "partial"
         self._update(job_id, state=state, progress=1.0, payload=payload, error=None if state == "done" else "חלק מהקבצים לא ירדו; הייצוא חלקי")
 
-    def _finish(self, job_id: str, d: Path, payload: Payload, files: list[ExportFile], row: sqlite3.Row) -> None:
+    def _finish(self, job_id: str, d: Path, payload: Payload, files: list[ExportFile], row: sqlite3.Row, ts: bool = False) -> None:
         ff = ffmpeg_path()
         req_from, req_to = parse_utc(row["requested_from"]), parse_utc(row["requested_to"])
         first_start = parse_utc(files[0].start_at)
-        if ff:
+        if ts and not ff:
+            # CR-025: without ffmpeg a Provision export is handed over as the MPEG-TS the device sent (clip.ts / a zip of .ts)
+            self._deliver_ts(d, payload, files)
+        elif ff:
+            # CR-025 (owner, corrected 2026-10-04): Provision exports are remuxed to MP4 like Hikvision ones - the downloaded
+            # files are MPEG-TS (RTSP backup copied by ffmpeg), so only the input format differs; video is never re-encoded
             parts: list[Path] = []
             for f in files:
                 idx = payload.files.index(f)
                 src, mp4 = d / f"{idx:03d}.ps", d / f"{idx:03d}.mp4"
-                _ffmpeg(ff, ["-f", "mpeg", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy", "-c:a", "aac", "-ar", "8000", "-b:a", "32k", "-movflags", "+faststart", str(mp4)])
+                _ffmpeg(ff, ["-f", "mpegts" if ts else "mpeg", "-i", str(src), "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy", "-c:a", "aac", "-ar", "8000", "-b:a", "32k", "-movflags", "+faststart", str(mp4)])
                 f.state = "remuxed"
                 parts.append(mp4)
                 src.unlink(missing_ok=True)
@@ -662,7 +708,7 @@ class Worker:
             "actual_from": payload.actual_from,
             "actual_to": payload.actual_to,
             "timezone": payload.timezone,
-            "source": {"kind": "hikvision-nvr-download-by-file", "files": [{k: v for k, v in asdict(f).items() if k != "playback_uri"} for f in payload.files]},
+            "source": {"kind": "provision-isr-rtsp-backup" if ts else "hikvision-nvr-download-by-file", "files": [{k: v for k, v in asdict(f).items() if k != "playback_uri"} for f in payload.files]},
             "container": payload.container,
             "remux": payload.remux,
             "output": {"name": payload.output_name, "bytes": out.stat().st_size, "sha256": payload.sha256},
@@ -671,6 +717,27 @@ class Worker:
         }
         (d / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         payload.manifest = "manifest.json"
+
+    def _deliver_ts(self, d: Path, payload: Payload, files: list[ExportFile]) -> None:
+        idxs = [payload.files.index(f) for f in files if (d / f"{payload.files.index(f):03d}.ps").exists()]
+        if not idxs:
+            raise ApiError(500, "export_failed", "לא נשארו קבצים למסירה.")
+        if len(idxs) == 1:
+            out = d / "clip.ts"
+            (d / f"{idxs[0]:03d}.ps").rename(out)
+            payload.output, payload.media_type, payload.container = out.name, "video/mp2t", "mpegts"
+        else:
+            import zipfile
+
+            out = d / "clip.zip"
+            with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
+                for i in idxs:
+                    z.write(d / f"{i:03d}.ps", f"{i:03d}.ts")
+            payload.output, payload.media_type, payload.container = out.name, "application/zip", "zip"
+        payload.remux = "skipped"
+        payload.actual_from = files[0].start_at
+        payload.actual_to = files[-1].end_at
+        payload.note = "הקובץ הוא MPEG-TS כפי שה־NVR שלח אותו (ללא המרה); לא נחתך לטווח."
 
     def _deliver_raw(self, d: Path, payload: Payload, files: list[ExportFile]) -> None:
         """No ffmpeg (or remux failed): hand over the NVR container unchanged, honestly labelled."""
@@ -735,3 +802,19 @@ def _aged_cutoff() -> str:
 
 
 WORKER = Worker()
+
+
+
+_CRED_URL = re.compile(r"((?:rtsp|rtsps|http|https)://)[^/@\s\"']+:[^/@\s\"']*@")
+
+
+def scrub_credentials(conn: sqlite3.Connection) -> int:
+    """Security review HIGH (2026-10-04): remove `user:password@` from every URL stored in export_jobs.payload_json (rows a
+    Provision export wrote before the fix). Runs at every worker start; idempotent; returns the rows changed."""
+    n = 0
+    for row in conn.execute("SELECT id, payload_json FROM export_jobs WHERE payload_json LIKE '%@%'").fetchall():
+        clean = _CRED_URL.sub(r"\1", row["payload_json"] or "")
+        if clean != row["payload_json"]:
+            conn.execute("UPDATE export_jobs SET payload_json = ? WHERE id = ?", (clean, row["id"]))
+            n += 1
+    return n

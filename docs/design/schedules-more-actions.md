@@ -12,7 +12,9 @@ delta is `docs/architecture/SCHEDULER_API.md` §14; the screen design stays `doc
 | A schedule that runs a script showed "סקריפט, ללא התקן" and the banner "התזמון כולל תוכן שהמערכת אינה מציגה במלואו; אפשר לערוך אותו רק ברכיב המקורי" | The script is shown by its friendly name and area ("הפעלת סקריפט · שגרת בוקר"), editable, runnable now; its variables are fields in the slot panel |
 | Only lights, switches, covers, climate, fans, alarm panels, locks and door-layer items | Plus scripts, scenes, helpers (input_boolean / input_number / input_select), humidifiers, vacuums, cover tilt, climate swing and humidity |
 | The action list of a device was the class's full list | Only what that entity reports it can do (feature bits / attributes); a value is offered only inside the entity's own range and options |
-| Disarming could be scheduled (with the lowering confirmation) | Not schedulable unless a system administrator allows it in הגדרות › תזמונים with the typed word "אפשר נטרול"; a disarm that needs a code is never schedulable |
+| Disarming could be scheduled (with the lowering confirmation) | Still schedulable with the explicit confirmation ("נטרול אזעקה בתזמונים: מותר (ניתן להגביל)"); a system administrator may restrict it; a disarm that needs a code is never schedulable (owner decision 1, 2026-10-04) |
+| - | A script that disarms / unlocks / opens a door is schedulable only once a system administrator marks it "מותר בתזמונים" (bound to its content; owner decision 2) |
+| - | Sirens, media players (multimedia rules), `number` / `select` values (owner decision 3) |
 | An action whose device disappeared made the schedule read-only ("original platform") | The schedule stays editable (to fix it); the card shows "פעולה לא תקפה", "run now" is refused with the reason, a fired run is recorded at once as not confirmed and the administrators are told |
 | The review chips could only be removed by changing the schedule | A system administrator marks "אשר כתקין" (the chip becomes a muted "אושר", with "בטל אישור"); it comes back by itself when the content changes |
 
@@ -27,8 +29,8 @@ delta is `docs/architecture/SCHEDULER_API.md` §14; the screen design stays `doc
    (e.g. a gate that reports open / close only no longer offers "stop" and "position").
 3. **The whitelist stays explicit.** Every new service is in the add-on's allow-list, the bridge's `ACTION_ARGS` (0.6.1) and the execute
    allow-list it must stay inside; `tests/test_schedules_more_actions.py::EXPECTED_SERVICES` fails when one is added or removed without
-   being listed. Not added (on purpose): sirens, media players (the multimedia screens own them), `number` / `select` (often device
-   configuration), notifications, `automation.*`, anything with free-form data.
+   being listed. Not added (on purpose): notifications, `automation.*`, anything with free-form data. (Sirens, media players and `number` /
+   `select` were left out at first; the owner's decision 3 added them on `pilot/schedules-followup`, SCHEDULER_API.md §15.3.)
 4. **Scripts are judged like running them by hand.** The rights are automations' run rules (script.run at every device the script drives,
    control there, the same grant manual control needs for each sensitive step), so an alarm script that disarms needs `alarm.disarm` at
    that panel and the remote channel refuses it where it refuses manual disarming. A script whose content Arx cannot read (the automations
@@ -42,28 +44,24 @@ delta is `docs/architecture/SCHEDULER_API.md` §14; the screen design stays `doc
 7. **Setting name.** The coordinator's brief said `scheduler.allow_disarm`; the setting is `schedules.allow_disarm` to sit with every other
    schedules setting (`schedules.enabled`, `schedules.classes` ...).
 
-## Owner decisions pending (recorded, not guessed)
+## Owner decisions taken (2026-10-04; built on `pilot/schedules-followup`, contract SCHEDULER_API.md §15)
 
-1. Direct disarm in schedules - the built default is (א):
-   - (א) Off by default; a system administrator may switch it on with the typed word; audited (built).
-   - (ב) Never schedulable, no setting at all.
-   - (ג) Allowed like before, with the lowering confirmation only.
-2. A script that disarms (or unlocks) - the built default is (א):
-   - (א) An ordinary script: allowed with the same rights as running it by hand, the lowering confirmation and the sensitive permission (built).
-   - (ב) Allowed only when a system administrator marks that script "מותר בתזמונים" (not built; about half a day).
-   - (ג) Follows the disarm setting of question 1.
-3. Sirens and media players as schedule actions:
-   - (א) Leave them out (current).
-   - (ב) Add sirens as a sensitive class.
-   - (ג) Add media players through the multimedia rules.
-4. The acknowledgement after an edit made in Arx:
-   - (א) Any content change brings the warning back (built).
-   - (ב) An edit made in Arx keeps the acknowledgement; only a change outside Arx brings it back.
+1. Direct disarm in schedules: **(ג) allowed as before, with explicit confirmation only.** `schedules.allow_disarm` now defaults to allowed; the
+   setting stays so a system administrator can restrict it (audited; lifting the restriction asks for the typed word). The disarm grant at the panel,
+   the sensitive permission, the editor's confirmation, the remote channel's refusal, no code ever stored and "a disarm that needs a code is never
+   schedulable" all stay. Card text: "נטרול אזעקה בתזמונים: מותר (ניתן להגביל)". No stored value is migrated or overwritten.
+2. A script that disarms or unlocks (alarm scripts included): **(ב) only when a system administrator marks that script "מותר בתזמונים".** Per script,
+   system administrators only, audited with who / when, bound to the script's content hash (a changed script loses the mark by itself, like
+   "אשר כתקין"); enforced on create / edit / copy / split / restore and at "run now"; the picker lists an unmarked script disabled with the reason; the
+   settings page has the list "סקריפטים שמנטרלים או פותחים". Built choice (recorded): a script whose content Arx cannot read needs the mark too (it might
+   disarm); its mark cannot lapse on a change Arx cannot see.
+3. Sirens and media players: **"add everything".** Sirens as a sensitive class (the device's own tones / duration / volume bits only), media players
+   under the multimedia rules (approved and visible devices only, what the player reports, the multimedia permissions at its anchor, the volume
+   ceiling, hidden sources never offered), and `number` / `select` values from the entity's own range and options (configuration entities never).
+4. The acknowledgement after an edit made in Arx: **keep (א)** - any content change brings the warning back.
 
 ## Not built (and why)
 
-- An administrator's per-script "allowed in schedules" mark: an owner question (2 above), not guessed.
-- `number` / `select` / `siren` / `media_player` actions: see decision 3.
 - Script variables of kinds the schedules do not model (entity / area / device pickers, templates): such a variable is not offered; a
   required one makes the script unschedulable with the reason.
 - Live verification: everything ran against the fake scheduler and the fake bridge; nothing touched a real system or a real alarm.

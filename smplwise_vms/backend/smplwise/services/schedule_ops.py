@@ -57,6 +57,10 @@ PROMOTED = {
     "service_not_supported": (422, "ההתקן אינו תומך בפעולה זו."),
     "bridge_too_old_for_action": (503, "נדרש עדכון של רכיב החיבור כדי לתזמן פעולה זו."),
     "script_field_unsupported": (422, "לסקריפט משתנה חובה שהמערכת אינה מציגה; אפשר לתזמן אותו רק ברכיב המקורי."),
+    # 2026-10-04 follow-up: a script that disarms / unlocks without the administrator's mark; a media player outside the multimedia settings
+    "script_not_approved": (422, model.SCRIPT_NOT_APPROVED),
+    "media_not_approved": (422, model.REFUSAL_MESSAGES["media_not_approved"]),
+    "media_disabled": (422, model.REFUSAL_MESSAGES["media_disabled"]),
 }
 BRIDGE_UNAVAILABLE = {
     "feature_disabled": ApiError(409, "feature_disabled", "התזמונים כבויים בהגדרות המערכת."),
@@ -758,6 +762,9 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         if slot_res.get("invalid"):
             # run-time revalidation: an entity that disappeared or lost the service is never run "anyway" - the caller sees why
             raise ApiError(409, "action_invalid", slot_res["invalid"][0]["message"], details={"invalid": slot_res["invalid"]})
+        if slot_res.get("blocked"):
+            # owner decision 2: a script that disarms / unlocks runs from a schedule only while its administrator's mark holds (a changed script lost it)
+            raise ApiError(409, "script_not_approved", slot_res["blocked"][0]["message"], details={"blocked": slot_res["blocked"]})
         pairs = [(a["service"], a["entity_id"], a["class"]) for a in slot_res["actions"] if a["entity_id"] and a["class"]]
         risky = any(ha_bridge.ACTIONS.get(s, {}).get("risk", "routine") != "routine" for s, _, _ in pairs) or any(a["sensitive"] for a in slot_res["actions"])
         if risky and confirm is not True:
@@ -1211,6 +1218,42 @@ def acknowledge(w: W, schedule_id: str, issue: str, undo: bool) -> dict[str, Any
         ha_sync.publish({"type": "schedules_changed"})
         rec = view.ack_of(present, schedule_id, issue, row["revision"])
         return {"schedule_id": schedule_id, "issue": issue, "acknowledged": rec is not None, "acknowledgement": rec}
+
+
+def mark_script(w: W, entity_id: str, undo: bool) -> dict[str, Any]:
+    """Owner decision 2 (2026-10-04): a system administrator marks ONE script "allowed in schedules" (or, with `undo`, removes the mark). The mark
+    is bound to the script's current content (`view.script_content_hash`): when the script changes it no longer holds, by itself. Who and when are
+    kept with it and on the audit row. Only a script that needs it may be marked (one that disarms / unlocks / opens a door, or whose content is
+    not known); an ordinary script is schedulable without one."""
+    action = "schedule.script_unmark" if undo else "schedule.script_mark"
+    w.require_manage()
+    with w.audited(action, entity_id):
+        from ..rbac import is_system_admin
+
+        if not is_system_admin(w.conn, w.principal.user_id):
+            raise ApiError(403, "forbidden", "רק מנהל מערכת יכול לסמן סקריפט כמותר בתזמונים.")
+        rate_limit(w.principal.user_id, "write", WRITES_PER_MIN)
+        info = w.ctx.entity(entity_id)
+        if info is None or info.get("class") != "script" or not w.ctx.access.can_read_state(entity_id):
+            raise ApiError(404, "not_found", "הסקריפט אינו מוכר למערכת.")
+        marks = view.read_script_marks(w.conn)
+        if undo:
+            if entity_id not in marks:
+                raise ApiError(409, "not_marked", "הסקריפט אינו מסומן.")
+            marks.pop(entity_id, None)
+        else:
+            if not info.get("approval_required"):
+                raise ApiError(409, "mark_not_needed", "הסקריפט אינו מנטרל או פותח, ואפשר לתזמן אותו בלי סימון.")
+            marks[entity_id] = {"hash": info["content_hash"], "by": w.principal.user_id, "by_name": w.principal.username, "at": store.stamp()}
+        from ..db import set_setting
+
+        set_setting(w.conn, view.SCRIPT_MARKS_KEY, json.dumps(marks, ensure_ascii=False, separators=(",", ":")))
+        w.audit(action, "allowed", entity_id, entities=[], script=entity_id, hash=info.get("content_hash"), lowering=bool(info.get("lowering")), effects_known=bool(info.get("effects_known")))
+        ha_sync.publish({"type": "schedules_changed"})
+        w.ctx._marks = None
+        w.ctx._entities.pop(entity_id, None)
+        fresh_info = w.ctx.entity(entity_id) or info
+        return {"entity_id": entity_id, "approval": view.script_approval_view(w.ctx, entity_id, fresh_info)}
 
 
 # ---------------------------------------------------------------- organisation (§3.15)

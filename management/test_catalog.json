@@ -3232,7 +3232,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (stable ids per recorder, never reused; per-recorder connection; time zone stored and used by the alert stream; camera scope per recorder) - fixture only; NOT_RUN against two real recorders."
   },
   {
     "id": "AT116",
@@ -3260,7 +3260,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-10-04 fixture coverage on pilot/multi-nvr (10799616): tests/test_multi_nvr.py (one recorder down / 401 never stops the other's discovery, snapshot, alert stream; batches never mix recorders; per-recorder search). Synchronized cross-recorder playback is refused (not proven). NOT_RUN against two real recorders."
   },
   {
     "id": "AT117",

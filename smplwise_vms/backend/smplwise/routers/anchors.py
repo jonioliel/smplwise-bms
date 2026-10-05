@@ -90,6 +90,14 @@ def camera_row(r: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def removed_recorder_cameras(conn: sqlite3.Connection) -> set[str]:
+    """CR-024: the cameras of recorders an administrator removed (disabled and invisible; their rows and history are kept)."""
+    try:
+        return {r[0] for r in conn.execute("SELECT c.id FROM cameras c JOIN recorders r ON r.id = c.recorder_id WHERE r.removed_at IS NOT NULL").fetchall()}
+    except sqlite3.OperationalError:  # a database before 0055
+        return set()
+
+
 def get_anchor(conn: sqlite3.Connection, anchor_id: str) -> sqlite3.Row:
     row = conn.execute("SELECT * FROM map_anchors WHERE id = ? AND effective_to IS NULL", (anchor_id,)).fetchone()
     if not row:
@@ -155,6 +163,9 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     # T055: a camera the caller cannot see is not in the bundle - not as an anchor, not in the camera list; a
     # camera-only reader gets camera anchors alone
     anchors = [a for a in anchors if (cam_scope.allows(a["resource_id"]) if a["resource_type"] == "camera" else not camera_only)]
+    if not at_iso:  # CR-024: the cameras of a removed recorder leave the current map (their anchors stay for the history view)
+        gone = removed_recorder_cameras(conn)
+        anchors = [a for a in anchors if not (a["resource_type"] == "camera" and a["resource_id"] in gone)]
     from ..services import geometry_store, plan_catalog, shared_spaces
 
     geometry_row = None
@@ -202,8 +213,9 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
     # every camera but its denied ones for an installation-wide placement.edit holder) plus the ones it sees here; a
     # viewer's list is the visible cameras on this map (below)
     placeable = camera_reach_for_placement(conn, principal) if can_edit else None
+    hidden = removed_recorder_cameras(conn) if not at_iso else set()  # CR-024: a removed recorder's cameras are not offered or listed
     cameras = {r["id"]: camera_row(r) for r in conn.execute("SELECT * FROM cameras ORDER BY sort_order, channel").fetchall()
-               if cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"]))}
+               if r["id"] not in hidden and (cam_scope.allows(r["id"]) or (placeable is not None and placeable.allows(r["id"])))}
     from ..services import ha_bridge, ha_history, ha_sync
 
     # CR-009: the members of a shared room anchored on another floor are read like the floor's own
@@ -342,7 +354,8 @@ def list_anchors(floor_id: str, principal: Principal = Depends(current_principal
     require(conn, principal, "map.read", ("floor", floor_id))
     rows = conn.execute("SELECT * FROM map_anchors WHERE floor_id = ? AND effective_to IS NULL ORDER BY layer_id, resource_id", (floor_id,)).fetchall()
     scope = camera_scope(conn, principal, "map.read")  # T055: a denied camera's anchor is not listed
-    return {"anchors": [anchor_row(r) for r in rows if r["resource_type"] != "camera" or scope.allows(r["resource_id"])]}
+    gone = removed_recorder_cameras(conn)  # CR-024: a removed recorder's cameras are not on the current map
+    return {"anchors": [anchor_row(r) for r in rows if r["resource_type"] != "camera" or (scope.allows(r["resource_id"]) and r["resource_id"] not in gone)]}
 
 
 def _shared_error(exc: Exception) -> ApiError:

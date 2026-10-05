@@ -8,9 +8,13 @@ export type VendorId = 'hikvision' | 'provision_isr' | 'frigate' | 'none';
 export interface VendorField {
   key: string;
   label: string;
-  kind: 'host' | 'port' | 'text' | 'password' | 'bool';
+  kind: 'host' | 'port' | 'text' | 'password' | 'bool' | 'select';
   required: boolean;
   secret: boolean;
+  /** CR-025: `select` choices as [value, label]; the first is the default. */
+  options?: [string, string][];
+  /** CR-025: shown under "הגדרות מתקדמות". */
+  advanced?: boolean;
 }
 
 export interface Vendor {
@@ -69,6 +73,14 @@ export interface TestResult {
   model?: string | null;
   firmware?: string | null;
   channels?: number | null;
+  /** CR-025 (Provision-ISR): how the candidate authenticates; `insecure` = Basic over plain HTTP. */
+  transport?: { scheme: string; auth: string | null; insecure: boolean };
+  /** CR-025: warning codes for the settings screen (basic_over_http, tls_trust_any, vendor_auth_version). */
+  warnings?: string[];
+  /** CR-025: the device's HTTPS certificate (SHA-256) so the form can pin it; `matches_pin` null = nothing pinned yet. */
+  certificate?: { sha256: string; self_signed: boolean | null; matches_pin: boolean | null };
+  /** CR-025: "pin" chosen and no fingerprint yet - pin the certificate shown before saving. */
+  pin_required?: boolean;
 }
 
 export interface SaveResult extends NvrConnection {
@@ -78,6 +90,10 @@ export interface SaveResult extends NvrConnection {
   revision: number;
   device: { model?: string | null; firmware?: string | null; channels?: number | null } | null;
   untested: boolean;
+  /** CR-024: the recorder the connection was saved for - another id than the first recorder's when a removed `nvr-1` with history
+   * met a different (or unidentifiable) device (`new_recorder`). */
+  recorder_id?: string;
+  new_recorder?: boolean;
 }
 
 /** The two typed words (CR-022 D6 / D7). Kept next to the API so the dialogs and the tests share them. */

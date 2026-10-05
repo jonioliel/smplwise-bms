@@ -25,6 +25,9 @@ class PlaybackGroup:
     generation: int = 0
     created: float = field(default_factory=time.time)
     sync_report: dict[str, Any] | None = None  # what the browser measured against its master clock (T042)
+    # CR-024: members on different recorders (only with playback.cross_recorder_sync on) - EXPERIMENTAL, unproven; per recorder the
+    # zone and clock offset each member's recording is asked for in (services/recorder_clock.measure), read once per group
+    clocks: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 log = logging.getLogger("smplwise.playback")
@@ -42,8 +45,9 @@ def to_dict(group: PlaybackGroup, lease_s: int) -> dict[str, Any]:
         "generation": group.generation,
         "sessions": [pb.to_dict(s, lease_s) for s in sessions_of(group)],
         "missing": group.missing,
-        "sync": "best_effort",
+        "sync": "experimental_cross_recorder" if group.clocks else "best_effort",
         "sync_report": group.sync_report,
+        **({"experimental": True, "recorders": group.clocks} if group.clocks else {}),
     }
 
 

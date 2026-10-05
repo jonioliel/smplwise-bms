@@ -148,13 +148,14 @@ def test_key_creation_race_uses_the_winners_key(settings, monkeypatch):
 # ---------------------------------------------------------------- AT-022-03 catalogue and GET shape
 
 def test_vendor_catalogue_hikvision_and_none_selectable_others_coming_soon(world):
+    """CR-025 (owner, 2026-10-04): Provision-ISR is selectable since its adapter is registered; Frigate stays planned."""
     _, c = world
     r = j(c, "get", "/api/v1/nvr/vendors")
     assert r.status_code == 200
     by = {v["id"]: v for v in r.json()["vendors"]}
     assert [v["id"] for v in r.json()["vendors"]] == ["hikvision", "provision_isr", "frigate", "none"]
     assert by["hikvision"]["status"] == "available" and by["none"]["status"] == "available"
-    assert by["provision_isr"]["status"] == "planned" and by["frigate"]["status"] == "planned"
+    assert by["provision_isr"]["status"] == "available" and by["frigate"]["status"] == "planned"
     assert by["hikvision"]["default_ports"] == {"http_port": 80, "rtsp_port": 554}
     fields = {f["key"]: f for f in by["hikvision"]["fields"]}
     assert fields["password"]["secret"] is True and fields["password"]["kind"] == "password" and not fields["host"]["secret"]
@@ -218,7 +219,7 @@ def test_only_the_system_admin_holds_system_configure_and_no_custom_role_can(wor
     ({**GOOD, "host": ""}, "host_invalid"),
     ({**GOOD, "http_port": 0}, "port_invalid"),
     ({**GOOD, "rtsp_port": 70000}, "port_invalid"),
-    ({**GOOD, "vendor": "provision_isr"}, "vendor_not_available"),
+    ({**GOOD, "vendor": "frigate"}, "vendor_not_available"),
     ({**GOOD, "vendor": "frigate"}, "vendor_not_available"),
     ({**GOOD, "vendor": "dahua"}, "vendor_not_available"),
     ({**GOOD, "username": ""}, "username_required"),
@@ -696,10 +697,10 @@ def test_a_vendor_without_an_adapter_is_refused_not_served_by_another(settings):
     from smplwise.errors import ApiError
 
     with pytest.raises(ApiError) as exc:
-        registry.constructor_for(dataclasses.replace(settings, nvr_vendor="provision_isr"))
+        registry.constructor_for(dataclasses.replace(settings, nvr_vendor="frigate"))
     assert exc.value.code == "vendor_not_supported"
     assert registry.constructor_for(settings) is registry.VENDORS["hikvision"]
-    assert not registry.selectable("provision_isr") and registry.selectable("none") and registry.selectable("hikvision")
+    assert not registry.selectable("frigate") and registry.selectable("none") and registry.selectable("hikvision")
 
 
 def test_migration_0052_shape(settings):

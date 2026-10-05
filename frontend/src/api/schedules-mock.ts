@@ -57,7 +57,9 @@ import {
   type ScheduleDraft,
   type ScheduleList,
   type ScheduleQuery,
+  type ScheduleScriptItem,
   type ScheduleSettings,
+  type ScriptApproval,
   type ScheduleSlot,
   type ScheduleState,
   type ScheduleStatus,
@@ -91,6 +93,8 @@ interface DemoEntity {
   lowering?: boolean;
   /** A script's fields (the server's `vars` argument). */
   fields?: ArgSpec[];
+  /** A script that disarms / unlocks (or whose content is not known): schedulable only with a system administrator's mark (2026-10-04). */
+  needsMark?: boolean;
 }
 
 const F0 = { floor_id: 'f0', floor_name: 'קומת קרקע' };
@@ -124,10 +128,15 @@ export const DEMO_ENTITIES: DemoEntity[] = [
       { name: 'loud', label: 'בקול', type: 'bool', required: false },
     ],
   },
-  { entity_id: 'script.night_alarm', name: 'סקריפט אזעקת לילה', domain: 'script', class: 'script', area_id: 'lobby', area_name: 'לובי', ...F0, sensitive: true },
+  { entity_id: 'script.night_alarm', name: 'סקריפט אזעקת לילה', domain: 'script', class: 'script', area_id: 'lobby', area_name: 'לובי', ...F0, sensitive: true, lowering: true, needsMark: true },
   { entity_id: 'scene.evening', name: 'סצנת ערב', domain: 'scene', class: 'scene', area_id: 'living', area_name: 'סלון', ...F0 },
   { entity_id: 'input_boolean.guest_mode', name: 'מצב אורחים', domain: 'input_boolean', class: 'helper', area_id: 'living', area_name: 'סלון', ...F0 },
   { entity_id: 'vacuum.robot', name: 'שואב רובוטי', domain: 'vacuum', class: 'vacuum', area_id: 'living', area_name: 'סלון', ...F0 },
+  // the 2026-10-04 follow-up: a siren (sensitive), an approved speaker of the multimedia settings, a number and a select
+  { entity_id: 'siren.yard', name: 'צופר חצר', domain: 'siren', class: 'siren', area_id: 'yard', area_name: 'חצר', ...F0, attributes: { available_tones: ['אש', 'פריצה'] } },
+  { entity_id: 'media_player.lobby_speaker', name: 'רמקול לובי', domain: 'media_player', class: 'media', area_id: 'lobby', area_name: 'לובי', ...F0, attributes: { source_list: ['רדיו', 'Spotify'] } },
+  { entity_id: 'number.boiler_temp', name: 'טמפרטורת דוד', domain: 'number', class: 'number', area_id: 'kitchen', area_name: 'מטבח', ...F0, attributes: { min: 40, max: 70, step: 5 } },
+  { entity_id: 'select.irrigation_program', name: 'תוכנית השקיה', domain: 'select', class: 'select', area_id: 'yard', area_name: 'חצר', ...F0, attributes: { options: ['קצרה', 'ארוכה', 'כבויה'] } },
 ];
 
 export const DEMO_CONDITION_ENTITIES: ConditionCandidate[] = [
@@ -158,6 +167,18 @@ const ALLOW: Record<ScheduleClass, Record<string, ArgSpec[]>> = {
   helper: { 'input_boolean.turn_on': [], 'input_boolean.turn_off': [] },
   humidifier: {},
   vacuum: { 'vacuum.start': [], 'vacuum.return_to_base': [] },
+  siren: { 'siren.turn_on': [{ name: 'tone', type: 'enum', choices: [], required: false, label: 'צליל' }, { ...int('duration', 1, 3600, false), label: 'משך (שניות)' }], 'siren.turn_off': [] },
+  media: {
+    'media_player.turn_on': [],
+    'media_player.turn_off': [],
+    'media_player.media_play': [],
+    'media_player.media_pause': [],
+    'media_player.media_stop': [],
+    'media_player.volume_set': [{ name: 'volume_level', type: 'float', min: 0, max: 0.6, step: 0.01, required: true, label: 'עוצמה' }],
+    'media_player.select_source': [{ name: 'source', type: 'enum', choices: [], required: true, label: 'מקור' }],
+  },
+  number: { 'number.set_value': [{ name: 'value', type: 'float', min: 40, max: 70, step: 5, required: true, label: 'ערך' }] },
+  select: { 'select.select_option': [{ name: 'option', type: 'enum', choices: [], required: true, label: 'אפשרות' }] },
   climate: {
     'climate.set_hvac_mode': [{ name: 'hvac_mode', type: 'enum', choices: [], required: true }],
     'climate.set_temperature': [{ name: 'temperature', type: 'float', min: 16, max: 30, required: true }, { name: 'hvac_mode', type: 'enum', choices: [], required: false }],
@@ -337,6 +358,10 @@ function canonicalDraft(d: ScheduleDraft): ScheduleDraft {
   return { ...d, slots: d.slots.map((s) => ({ ...s, actions: s.actions.map(canonicalAction) })) };
 }
 
+/** The attribute that lists an enum argument's values on the entity itself (the server's OFFERED_LIST, the siren's tones). */
+const OFFERED: Record<string, string> = { tone: 'available_tones', source: 'source_list', option: 'options' };
+const SCRIPT_NOT_APPROVED = 'הסקריפט מנטרל אזעקה או פותח נעילה (או שתוכנו אינו ידוע), ולכן אפשר לתזמן אותו רק אחרי שמנהל מערכת סימן אותו "מותר בתזמונים".';
+
 const sensitiveOf = (e: DemoEntity | undefined): boolean => !!e && (SENSITIVE_CLASSES.includes(e.class) || ((e.class === 'script' || e.class === 'scene') && !!e.sensitive));
 
 // ------------------------------------------------------------------------------------------------ helpers
@@ -423,7 +448,7 @@ interface DemoTrash {
 export class ScheduleDemoStore {
   persona: DemoPersona = 'admin';
   availability: Availability = 'ok';
-  settings: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: DEMO_SHABBAT_SENSOR, allowDisarm: false };
+  settings: ScheduleSettings = { enabled: true, classes: [...ALL_CLASSES], snapMinutes: 15, defaultRepeat: 'repeat', runsRetentionDays: 90, shabbatSensor: DEMO_SHABBAT_SENSOR, allowDisarm: true };
   private items: Seed[] = [];
   private trashItems: DemoTrash[] = [];
   private runItems: DemoRun[] = [];
@@ -510,6 +535,7 @@ export class ScheduleDemoStore {
         const supported = gone || (!!e && !!cls && a.service in ALLOW[cls] && !('code' in a.data));
         const out: Schedule['slots'][number]['actions'][number] = { service: a.service, entity_id: a.entity_id, data: { ...a.data }, supported, class: supported && cls ? cls : null, sensitive: sensitiveOf(e), lowering: isLowering(cls, a.service, a.data, e) };
         if (gone) out.invalid = { code: 'entity_missing', message: 'ההתקן של הפעולה אינו קיים עוד במערכת.' };
+        else if (e?.needsMark && !this.marks.has(e.entity_id)) out.blocked = { code: 'script_not_approved', message: SCRIPT_NOT_APPROVED };
         return out;
       });
       const unsupported: Problem<'action_without_entity' | 'action_not_allowed'>[] = actions
@@ -546,6 +572,7 @@ export class ScheduleDemoStore {
     const sensitiveClasses = [...new Set(allActions.filter((a) => a.sensitive && a.class).map((a) => a.class as ScheduleClass))];
     const sensitive = sensitiveClasses.length > 0;
     const invalid = allActions.filter((a) => a.invalid);
+    const blockedActions = allActions.filter((a) => a.blocked);
     const lowering = allActions.some((a) => a.lowering);
     const upcoming = approximateUpcoming(draftOf(s), now, DEMO_SUN).map((u) => ({ ...u, summary: this.slotSummary(s.slots[u.slot_index]) }));
     const state: ScheduleState = s.state ?? (s.enabled ? (upcoming.length ? 'on' : 'unavailable') : 'off');
@@ -596,12 +623,12 @@ export class ScheduleDemoStore {
       can: {
         edit: rights && understood,
         toggle: understood ? rights : wide && s.enabled,
-        run: rights && understood && !invalid.length,
+        run: rights && understood && !invalid.length && !blockedActions.length,
         delete: understood ? rights : wide,
         copy: rights && understood,
       },
       read_only: reasons.length ? { reasons } : null,
-      warnings: [...invalid.map((a) => ({ code: a.invalid!.code, message: a.invalid!.message })), ...(s.repeat === 'single' ? [{ code: 'single_deletes', message: 'התזמון יימחק אחרי ההרצה האחרונה.' }] : [])],
+      warnings: [...invalid.map((a) => ({ code: a.invalid!.code, message: a.invalid!.message })), ...blockedActions.map((a) => ({ code: a.blocked!.code, message: a.blocked!.message })), ...(s.repeat === 'single' ? [{ code: 'single_deletes', message: 'התזמון יימחק אחרי ההרצה האחרונה.' }] : [])],
       raw: { ...(contentOf(s) as Record<string, unknown>), entity_id: s.entity_id, enabled: s.enabled, timestamps: upcoming.map((u) => u.at), next_entries: upcoming.map((u) => u.slot_index) },
     };
   }
@@ -706,7 +733,9 @@ export class ScheduleDemoStore {
       .filter((e) => (!q.floor || e.floor_id === q.floor) && (!q.area || e.area_id === q.area) && (!q.class || e.class === q.class))
       .map((e): CatalogEntity => {
         const sensitive = sensitiveOf(e);
-        const blocked: Problem | null = e.reason ?? (sensitive && !this.canSensitive ? { code: 'sensitive_permission_required', message: 'דורש הרשאה לתזמון פעולות רגישות.' } : null);
+        const blocked: Problem | null = e.reason
+          ?? (sensitive && !this.canSensitive ? { code: 'sensitive_permission_required', message: 'דורש הרשאה לתזמון פעולות רגישות.' } : null)
+          ?? (e.needsMark && !this.marks.has(e.entity_id) ? { code: 'script_not_approved', message: SCRIPT_NOT_APPROVED } : null);
         const services = Object.entries(ALLOW[e.class])
           .filter(([svc]) => svc.split('.')[0] === e.domain)
           .filter(([svc]) => svc !== 'alarm_control_panel.alarm_disarm' || this.settings.allowDisarm); // disarming only when a system administrator allowed it
@@ -719,6 +748,7 @@ export class ScheduleDemoStore {
               args: args
                 .map((a) => (a.type === 'enum' && a.name === 'hvac_mode' ? { ...a, choices: ((e.attributes?.hvac_modes as string[]) ?? []).filter((m) => m !== 'off') } : a))
                 .map((a) => (a.type === 'vars' ? { ...a, label: 'משתני הסקריפט', fields: e.fields ?? [] } : a))
+                .map((a) => (a.type === 'enum' && OFFERED[a.name] ? { ...a, choices: ((e.attributes?.[OFFERED[a.name]] as string[]) ?? []) } : a))
                 .filter((a) => a.type !== 'vars' || (a.fields ?? []).length > 0),
             }));
         return {
@@ -736,6 +766,7 @@ export class ScheduleDemoStore {
           reason: blocked,
           attributes: { ...(e.attributes ?? {}) },
           actions,
+          ...(e.class === 'script' ? { approval: this.approvalOf(e) } : {}),
         };
       });
     return { entities, truncated: false };
@@ -778,8 +809,9 @@ export class ScheduleDemoStore {
         if (e.selectable === false) errors.push({ path: `slots[${i}].actions[${j}].entity_id`, code: e.reason?.code ?? 'action_not_allowed', message: e.reason?.message ?? 'לא ניתן לתזמן.' });
         if ('code' in a.data) errors.push({ path: `slots[${i}].actions[${j}].data.code`, code: 'code_not_allowed', message: 'אסור לשמור קוד בתוך תזמון.' });
         if (a.service === 'alarm_control_panel.alarm_disarm' && !this.settings.allowDisarm) {
-          errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'disarm_not_allowed', message: 'נטרול אזעקה אינו ניתן לתזמון. רק מנהל מערכת יכול לאפשר זאת בהגדרות › תזמונים, עם אישור מוקלד.' });
+          errors.push({ path: `slots[${i}].actions[${j}].service`, code: 'disarm_not_allowed', message: 'מנהל המערכת הגביל נטרול אזעקה בתזמונים (הגדרות › תזמונים).' });
         }
+        if (e.needsMark && !this.marks.has(e.entity_id)) errors.push({ path: `slots[${i}].actions[${j}].entity_id`, code: 'script_not_approved', message: SCRIPT_NOT_APPROVED });
         if (a.service === 'script.turn_on') {
           const vars = (a.data.variables ?? {}) as Record<string, unknown>;
           for (const f of e.fields ?? []) {
@@ -829,7 +861,7 @@ export class ScheduleDemoStore {
       const first = v.errors[0];
       if (first.code === 'sensitive_permission_required') fail(403, first.code, first.message);
       if (first.code === 'slots_overlap') fail(422, 'slots_overlap', 'משבצות חופפות באותו תזמון.', { errors: v.errors });
-      if (first.code === 'disarm_not_allowed') fail(422, 'disarm_not_allowed', first.message, { errors: v.errors });
+      if (first.code === 'disarm_not_allowed' || first.code === 'script_not_approved') fail(422, first.code, first.message, { errors: v.errors });
       fail(422, 'validation', `ערך לא תקין — ${first.path}: ${first.message}`, { errors: v.errors });
     }
     if (v.lowering && !confirmLowering) fail(409, 'lowering_confirmation_required', 'תזמון שמנטרל אזעקה, פותח נעילה, דלת או שער דורש אישור מפורש.');
@@ -1042,6 +1074,37 @@ export class ScheduleDemoStore {
 
   /** The administrator's acknowledgements: schedule id -> issue -> the content revision it holds for. */
   private acks = new Map<string, Map<AckableIssue, { revision: string; at: string; by: PersonRef }>>();
+  /** The system administrator's "allowed in schedules" marks (the server binds each to the script's content). */
+  private marks = new Map<string, { by: PersonRef; at: string }>();
+
+  private approvalOf(e: DemoEntity): ScriptApproval {
+    const m = this.marks.get(e.entity_id);
+    return { required: !!e.needsMark, approved: !!m, stale: false, by: m?.by ?? null, at: m?.at ?? null };
+  }
+
+  async scripts(): Promise<{ scripts: ScheduleScriptItem[]; can_mark: boolean }> {
+    await delay(60);
+    if (!this.canManage) fail(403, 'forbidden', 'אין הרשאה לפעולה זו בהיקף המבוקש.');
+    const scripts = DEMO_ENTITIES.filter((e) => e.class === 'script').map((e) => ({
+      entity_id: e.entity_id, name: e.name, area_name: e.area_name, lowering: !!e.lowering, effects_known: true, sensitive: sensitiveOf(e), approval: this.approvalOf(e),
+    }));
+    return { scripts: clone(scripts), can_mark: this.persona === 'admin' };
+  }
+
+  async markScript(entityId: string, undo: boolean): Promise<{ entity_id: string; approval: ScriptApproval }> {
+    await delay(80);
+    if (this.persona !== 'admin') fail(403, 'forbidden', 'רק מנהל מערכת יכול לסמן סקריפט כמותר בתזמונים.');
+    const e = ENTITY.get(entityId);
+    if (!e || e.class !== 'script') fail(404, 'not_found', 'הסקריפט אינו מוכר למערכת.');
+    if (undo) {
+      if (!this.marks.has(entityId)) fail(409, 'not_marked', 'הסקריפט אינו מסומן.');
+      this.marks.delete(entityId);
+    } else {
+      if (!e!.needsMark) fail(409, 'mark_not_needed', 'הסקריפט אינו מנטרל או פותח, ואפשר לתזמן אותו בלי סימון.');
+      this.marks.set(entityId, { by: JONI, at: new Date().toISOString() });
+    }
+    return { entity_id: entityId, approval: this.approvalOf(e!) };
+  }
 
   private reviewRows(): ReviewItem[] {
     const out: ReviewItem[] = [];
