@@ -106,9 +106,9 @@ export class SwWallPhotoSets extends LitElement {
       }
     }
     this.progress = '';
-    this.error = problems.slice(0, 3).join(' · ');
     this.busy = false;
     await this.refresh();
+    if (problems.length) this.error = problems.slice(0, 3).join(' · ');
   }
 
   private async removePhoto(id: string): Promise<void> {
