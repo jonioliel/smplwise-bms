@@ -263,9 +263,50 @@ def correlate(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 120,
 # ---------------------------------------------------------------- suggested path (T064): topology only, always hypothetical
 
 ROUTE_RADIUS = 0.2
+# M064: a stair / elevator within this of the event camera (or in its room) is a way to another floor worth suggesting
+CONNECTOR_REACH = 0.35
 ROUTE_BEFORE_S = 15
-ROUTE_POLICY = "הצעה לפי טופולוגיית המפה בלבד (אותו חדר, חדר סמוך, קרבה). אין כאן טענה שמדובר באותו אדם או רכב; המפעיל בוחר את הרצף ומאשר אותו בתיק. שום פעולת אבטחה אינה מופעלת מהצעה."
-RELATION_LABEL = {"same_zone": "אותו חדר", "adjacent_zone": "חדר סמוך", "nearby": "בקרבת מקום"}
+ROUTE_POLICY = "הצעה לפי טופולוגיית המפה בלבד (אותו חדר, חדר סמוך, קרבה, מעבר קומה במדרגות או במעלית). אין כאן טענה שמדובר באותו אדם או רכב; המפעיל בוחר את הרצף ומאשר אותו בתיק. שום פעולת אבטחה אינה מופעלת מהצעה."
+RELATION_LABEL = {"same_zone": "אותו חדר", "adjacent_zone": "חדר סמוך", "nearby": "בקרבת מקום", "via_connector": "דרך מעבר קומה"}
+RELATION_RANK = {"same_zone": 0, "adjacent_zone": 1, "nearby": 2, "via_connector": 3}
+CONNECTOR_KIND_LABEL = {"stairs": "מדרגות", "elevator": "מעלית", "ramp": "רמפה", "corridor": "מעבר", "ladder": "סולם"}
+
+
+def _polyline_middle(polyline: Any) -> tuple[float, float] | None:
+    pts = [(float(p[0]), float(p[1])) for p in polyline if isinstance(p, (list, tuple)) and len(p) >= 2] if isinstance(polyline, list) else []
+    if not pts:
+        return None
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    return (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+
+
+def floor_connectors(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
+    """The published stairs / elevators of a floor that lead to another floor (M064): id, kind, the middle of the
+    walking line on this floor, the other floor and the middle of the twin there (the same position when the other
+    floor has not published its twin yet - the floors are assumed to share a frame then, and the answer says so).
+    Reads the published documents only: what the map shows, never a draft."""
+    from . import geometry_store as store
+
+    v = store._published_version(conn, floor_id)
+    row = store.published_row(conn, v["id"]) if v is not None else None
+    if row is None:
+        return []
+    out: list[dict[str, Any]] = []
+    twins: dict[str, dict[str, Any]] = {}
+    for c in store.load_doc(row).get("connectors") or []:
+        other = store._cross_other(c, floor_id)
+        mid = _polyline_middle(c.get("polyline")) if other else None
+        if other is None or mid is None:
+            continue
+        if other not in twins:
+            ov = store._published_version(conn, other)
+            orow = store.published_row(conn, ov["id"]) if ov is not None else None
+            twins[other] = {x["id"]: x for x in (store.load_doc(orow).get("connectors") or []) if isinstance(x, dict) and isinstance(x.get("id"), str)} if orow is not None else {}
+        twin = twins[other].get(c["id"])
+        far = _polyline_middle(twin.get("polyline")) if twin else None
+        out.append({"id": c["id"], "kind": str(c.get("kind") or "stairs"), "label": c.get("label"), "x": mid[0], "y": mid[1],
+                    "other_floor_id": other, "far_x": far[0] if far else mid[0], "far_y": far[1] if far else mid[1], "twin_published": far is not None})
+    return out
 
 
 def _seg_dist(px: float, py: float, a: dict[str, float], b: dict[str, float]) -> float:
@@ -326,7 +367,6 @@ def suggest_route(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 
     if ids:
         q = f"SELECT camera_id, COUNT(*) AS n FROM events WHERE camera_id IN ({','.join('?' * len(ids))}) AND occurred_at >= ? AND occurred_at <= ? AND id != ? GROUP BY camera_id"
         activity = {r["camera_id"]: r["n"] for r in conn.execute(q, (*ids, lo, hi, ev["id"])).fetchall()}
-    rank = {"same_zone": 0, "adjacent_zone": 1, "nearby": 2}
     for a in others:
         if camera_ids_allowed is not None and a["resource_id"] not in camera_ids_allowed:
             continue
@@ -342,12 +382,70 @@ def suggest_route(conn: sqlite3.Connection, ev: dict[str, Any], window_s: int = 
             continue
         out["suggestions"].append({
             "camera_id": a["resource_id"], "name": names.get(a["resource_id"], a["resource_id"]), "relation": relation, "relation_label": RELATION_LABEL[relation],
-            "distance": round(dist, 3), "zone": cz, "activity_events": activity.get(a["resource_id"], 0), "playback_at": ev["occurred_at"],
+            "distance": round(dist, 3), "zone": cz, "floor_id": anchor["floor_id"], "floor_name": anchor["floor_name"], "via": None,
+            "activity_events": activity.get(a["resource_id"], 0), "playback_at": ev["occurred_at"],
         })
-    out["suggestions"].sort(key=lambda s_: (rank[s_["relation"]], s_["distance"]))
+    # M064: the other floors through the published stairs / elevators within reach of the event camera (or in its room):
+    # the cameras next to the twin there, ranked after everything on this floor, the connector named on each
+    connectors = floor_connectors(conn, anchor["floor_id"])
+    reachable = []
+    for cx in connectors:
+        d1 = math.hypot(cx["x"] - anchor["x"], cx["y"] - anchor["y"])
+        in_room = zpoly is not None and _inside(cx["x"], cx["y"], zpoly)
+        if d1 <= CONNECTOR_REACH or in_room:
+            reachable.append((cx, d1))
+    out["connectors"] = [{"id": cx["id"], "kind": cx["kind"], "kind_label": CONNECTOR_KIND_LABEL.get(cx["kind"], cx["kind"]), "other_floor_id": cx["other_floor_id"],
+                          "distance": round(d1, 3), "twin_published": cx["twin_published"]} for cx, d1 in reachable]
+    floors_named: dict[str, tuple[str, int]] = {}
+    for cx, d1 in reachable:
+        fid = cx["other_floor_id"]
+        if fid not in floors_named:
+            fr = conn.execute("SELECT f.name, f.level FROM floors f WHERE f.id = ? AND f.deleted_at IS NULL", (fid,)).fetchone()
+            if fr is None:
+                continue
+            floors_named[fid] = (fr["name"], int(fr["level"]))
+        fname, flevel = floors_named[fid]
+        here = conn.execute("SELECT level FROM floors WHERE id = ?", (anchor["floor_id"],)).fetchone()
+        direction = None if here is None or flevel == int(here["level"]) else ("up" if flevel > int(here["level"]) else "down")
+        far_zones = [(z["name"], json.loads(z["polygon_json"])) for z in conn.execute("SELECT name, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL", (fid,)).fetchall()]
+        far_zones = [(n, p) for n, p in far_zones if len(p) >= 3]
+        twin_zone = next((p for _n, p in far_zones if _inside(cx["far_x"], cx["far_y"], p)), None)
+        far_cams = conn.execute("SELECT resource_id, x, y FROM map_anchors WHERE floor_id = ? AND resource_type = 'camera' AND effective_to IS NULL", (fid,)).fetchall()
+        far_ids = [r["resource_id"] for r in far_cams]
+        far_activity: dict[str, int] = {}
+        if far_ids:
+            q = f"SELECT camera_id, COUNT(*) AS n FROM events WHERE camera_id IN ({','.join('?' * len(far_ids))}) AND occurred_at >= ? AND occurred_at <= ? AND id != ? GROUP BY camera_id"
+            far_activity = {r["camera_id"]: r["n"] for r in conn.execute(q, (*far_ids, lo, hi, ev["id"])).fetchall()}
+        for r in far_cams:
+            if camera_ids_allowed is not None and r["resource_id"] not in camera_ids_allowed:
+                continue
+            d2 = math.hypot(r["x"] - cx["far_x"], r["y"] - cx["far_y"])
+            same_room = twin_zone is not None and _inside(r["x"], r["y"], twin_zone)
+            if d2 > ROUTE_RADIUS and not same_room:
+                continue
+            cz = next((n for n, p in far_zones if _inside(r["x"], r["y"], p)), None)
+            via = {"connector_id": cx["id"], "kind": cx["kind"], "kind_label": CONNECTOR_KIND_LABEL.get(cx["kind"], cx["kind"]), "label": cx["label"],
+                   "floor_id": fid, "floor_name": fname, "direction": direction, "twin_published": cx["twin_published"]}
+            arrow = "↑" if direction == "up" else "↓" if direction == "down" else "↔"
+            cand = {
+                "camera_id": r["resource_id"], "name": names.get(r["resource_id"], r["resource_id"]), "relation": "via_connector",
+                "relation_label": f"{via['kind_label']} {arrow} {fname}", "distance": round(d1 + d2, 3), "zone": cz, "floor_id": fid, "floor_name": fname, "via": via,
+                "activity_events": far_activity.get(r["resource_id"], 0), "playback_at": ev["occurred_at"],
+            }
+            prev = next((s_ for s_ in out["suggestions"] if s_["camera_id"] == cand["camera_id"]), None)
+            if prev is None:
+                out["suggestions"].append(cand)
+            elif prev["relation"] == "via_connector" and cand["distance"] < prev["distance"]:
+                out["suggestions"][out["suggestions"].index(prev)] = cand
+    out["suggestions"].sort(key=lambda s_: (RELATION_RANK[s_["relation"]], s_["distance"]))
     if not zones:
         out["notes"].append("אין חדרים או אזורים מוגדרים בקומה; ההצעה לפי מרחק בלבד.")
-    out["notes"].append("מעברי קומה (מדרגות, מעליות) אינם מוגדרים עדיין; ההצעה נשארת באותה קומה.")
+    if not connectors:
+        out["notes"].append("אין מעברי קומה (מדרגות, מעליות) מקושרים בתוכנית הקומה; ההצעה נשארת באותה קומה.")
+    elif not reachable:
+        out["notes"].append("מעברי הקומה בתוכנית רחוקים מהמצלמה; ההצעה נשארת באותה קומה.")
+    elif any(not cx["twin_published"] for cx, _d in reachable):
+        out["notes"].append("לחלק ממעברי הקומה אין תאום מפורסם בקומה השנייה; מיקומו שם הונח לפי אותה מסגרת תוכנית.")
     if not out["suggestions"]:
         out["notes"].append("אין מצלמות נוספות בסביבה על התוכנית.")
     return out
