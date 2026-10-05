@@ -175,6 +175,9 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
     assert gone == len(deleted) and total_rows == N + len(added)
     assert tree_counts(c) == expected_area_counts(fake)
 
+    cur, peak = tracemalloc.get_traced_memory()  # heap of connect / disconnect / return; stopped so the burst timing is not tracemalloc-inflated
+    tracemalloc.stop()
+
     # ---- 4. a burst of 1,000 live events on the returned link
     live_ids = [s_["entity_id"] for s_ in fake.states][:N]
     seq0 = ha_sync.STATE.sequence
@@ -199,8 +202,6 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
     assert sum(1 for e in ents3 if e["state"] == "burst") == len(live_ids)
     assert EVIDENCE["burst_1000_events_s"] < 60 * f
 
-    cur, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
     EVIDENCE["py_heap_peak_mb"] = round(peak / 1048576, 1)
     EVIDENCE["process_max_rss_mb"] = round(rss_mb(), 1)
     EVIDENCE["entities"] = N
