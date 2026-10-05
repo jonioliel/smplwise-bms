@@ -6,6 +6,10 @@ import '../components/sw-camera-tile';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
+import '../components/sw-dropdown';
+import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
+import { extraFromParam } from '../components/multi-select';
+import { TabsModeController } from '../shell/tabs-mode';
 import '../components/sw-field';
 import '../components/sw-timeline';
 import { minuteLabel } from '../components/sw-timeline';
@@ -40,6 +44,8 @@ function localInput(d: Date): string {
 export class InvestigateSync extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** 2.0.1: the camera picker is a multi-select dropdown in the security group's style (re-rendered when the installation / the user changes it). */
+  private tabsMode = new TabsModeController(this, 'security');
   @state() private cursor = 615;
   @state() private playing = false;
   @state() private cams: Camera[] | null = null;
@@ -73,9 +79,26 @@ export class InvestigateSync extends LitElement {
     }
   }
 
-  private toggle(id: string) {
-    if (!this.picked.includes(id) && !sameRecorder(this.picked, this.cams ?? [], id, this.crossSync)) return; // CR-024: one recorder per synchronized set
-    this.picked = this.picked.includes(id) ? this.picked.filter((x) => x !== id) : this.picked.length >= 4 ? this.picked : [...this.picked, id];
+  /**
+   * The picked set changed (2.0.1: the dropdown's `change`, one toggle or "נקה"). The dropdown keeps the limit (4) and refuses the 5th
+   * pick; the ids are trusted only after the same filter the recordings screen gives its route parameter (known cameras, no repeats,
+   * at most four, pick order kept: the first is the lead), plus CR-024 (one recorder per synchronized set unless the experimental
+   * setting allows more) - exactly what a chip press checked.
+   */
+  private applyPicked(ids: string[]) {
+    const cams = this.cams ?? [];
+    const next: string[] = [];
+    for (const id of extraFromParam(ids.join(','), '', cams.map((c) => c.id), 4)) {
+      if (!this.picked.includes(id) && !sameRecorder(next, cams, id, this.crossSync)) continue;
+      next.push(id);
+    }
+    this.picked = next;
+  }
+
+  /** The picker's options: every camera; one of another recorder is listed but cannot join the set (CR-024); an offline camera carries the alert dot. */
+  private syncItems(): DropdownItem[] {
+    const cams = this.cams ?? [];
+    return cams.map((c) => ({ id: c.id, label: cameraLabel(c), icon: 'camera' as const, alert: c.status !== 'online', disabled: !this.picked.includes(c.id) && !sameRecorder(this.picked, cams, c.id, this.crossSync) }));
   }
 
   private launch(cameras = this.picked, atIso?: string) {
@@ -104,16 +127,17 @@ export class InvestigateSync extends LitElement {
         ${cams === null
           ? html`<sw-state-panel state="loading" heading="טוען מצלמות…"></sw-state-panel>`
           : html`
-            <sw-card heading="מצלמות להשוואה" subheading=${`${this.picked.length} מתוך 4 · הראשונה שנבחרת היא המובילה (שעון הייחוס)`}>
+            <sw-card heading="מצלמות להשוואה" subheading="הראשונה שנבחרת היא המובילה">
               <div class="filters" data-sync-cameras>
-                ${cams.map((c) => html`<sw-chip ?selected=${this.picked.includes(c.id)} ?disabled=${!this.picked.includes(c.id) && (this.picked.length >= 4 || !sameRecorder(this.picked, cams, c.id, this.crossSync))} data-sync-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggle(c.id)}>${cameraLabel(c)}</sw-chip>`)}
+                <sw-dropdown multiple data-sync-pick-cameras label="מצלמות" icon="camera" placeholder="בחר מצלמות (עד 4)" max="4" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+                  .items=${this.syncItems()} .values=${this.picked} @change=${(e: CustomEvent<DropdownChange>) => this.applyPicked(e.detail.ids ?? [])}></sw-dropdown>
               </div>
               ${this.picked.length
                 ? html`<div class="picks">${this.picked.map((id, i) => html`<div class="pick" data-sync-pick=${id}>
                     <img src=${snapshotUrl(id)} alt="" loading="lazy" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />
                     <div class="cap"><span>${this.name(id)}</span>${i === 0 ? html`<sw-badge kind="live" label="מובילה"></sw-badge>` : nothing}</div>
                   </div>`)}</div>`
-                : html`<div class="note">עדיין לא נבחרו מצלמות. אפשר גם להתחיל מהמפה: בחירה מרובה › "ניגון מסונכרן".</div>`}
+                : nothing}
             </sw-card>
             <sw-card heading="זמן התחלה" subheading="זמן מקומי של הדפדפן; ההקלטה נפתחת מהפריים הקרוב ביותר">
               <div class="transport">
@@ -177,6 +201,10 @@ export class InvestigateSync extends LitElement {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
+    }
+    /* 2.0.1: the picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the card */
+    .filters sw-dropdown {
+      max-inline-size: 100%;
     }
     .note {
       font-size: var(--sw-fs-xs);

@@ -35,11 +35,34 @@ on a phone the picker alone took most of the screen. It is now one dropdown in w
 - `tests/layout-compare-dropdown.spec.ts` (desktop project; `LAYOUT_FULL=1` for the ten widths) - the layout guard over the picker,
   closed and open at the limit, four skins x light / dark x `auto` + one style per skin; `SW_SHOTS=<dir>` saves the screenshots.
 
-## Other screens with the same chip-row pattern (reported, not changed)
+## Synchronized playback (ניגון מסונכרן): the same dropdown (owner approval 2026-10-05, second step)
 
-- `screens/investigate-sync.ts` (ניגון מסונכרן, "מצלמות להשוואה"): the same up-to-4 + same-recorder chip row; its evidence specs click
-  `[data-sync-camera]` chips and the picks drive the snapshot cards, so it is not a drop-in swap. Candidate for the same dropdown
-  (`max="4"`, no base).
+- `frontend/src/screens/investigate-sync.ts`: the card "מצלמות להשוואה" held a chip per camera (up to 4, same recorder); it is now
+  `<sw-dropdown multiple max="4">` (`data-sync-pick-cameras`) in the `security` group's style, with no base: the first pick IS the lead
+  (the "מובילה" badge on the first snapshot card follows the pick order, as before). The state semantics are the chips' exactly: `picked`
+  in pick order, the launch button at 2+ picks, the route it opens unchanged (`#/investigate/playback?camera=<first>&extra=<rest>&t=`),
+  the recent sets in `localStorage` unchanged. Every id the dropdown reports passes the same filter the recordings screen gives its
+  route parameter (`extraFromParam` with an empty lead, at most four) plus CR-024 (one recorder per set unless the experimental setting
+  allows more); a camera of another recorder is listed `disabled` once the set has a lead, an offline camera carries the alert dot (the
+  chips drew a red / green dot). The 5th pick is refused ("אפשר לבחור עד 4"); the chips silently ignored it. The chip is a 44 px target on
+  touch layouts, the dropdown style / size / ring / panel dials and the phone bottom sheet come from הגדרות.
+- Text moved out of the way (an operator screen keeps no paragraphs): the card's subheading no longer repeats the count (the chip reads
+  "n מתוך 4") and says only "הראשונה שנבחרת היא המובילה"; the empty-state paragraph ("עדיין לא נבחרו מצלמות. אפשר גם להתחיל מהמפה…") is
+  gone - the chip's placeholder "בחר מצלמות (עד 4)" says it. The note under the start-time card (speeds, p95, "אין הקלטה") is unchanged.
+- `frontend/tests/layout-guard.ts`: the rounded-corner / clipping walk stops at a `position: fixed` ancestor (the open list is a fixed
+  layer painted over the card; the bubble skin's card corner flagged the list's foot "4 מתוך 4" at 1440 px as "text in the rounded
+  corner of sw-card"). `visRect()` already made the same cut; the layer itself is still checked. The rule only removes that false
+  positive, it adds no finding.
+- Tests: `tests/sync-dropdown.spec.ts` (desktop / tablet / mobile: picks up to four, the refused 5th, the cards and the lead badge, "נקה",
+  the launch route, keys, aria, another recorder's camera off / on by the setting, `ui.dd_style` + the phone sheet),
+  `tests/layout-sync-dropdown.spec.ts` (the layout guard over the picker, four skins x light / dark x `auto` + one style per skin,
+  closed with four picks and open at the limit; `SW_SHOTS=<dir>`), `tests/unit-multi-select.spec.ts` (the no-lead / max-4 case).
+  `evidence-multi-nvr.spec.ts` and `evidence-review-fixes.spec.ts` drive the dropdown instead of `[data-sync-camera]` chips.
+- Evidence: `docs/evidence/sync-dropdown/before` (the chip row, classic + bubble, 390 / 1440) and `after` (closed / open, classic `auto`
+  + bubble `capsule`, 390 / 1440).
+
+## Other screens with the same chip-row pattern (reported, not changed; the owner said no for the two editors)
+
 - `screens/live-views.ts` (the saved live views editor): a chip per camera, no limit.
 - `screens/investigate-rules.ts` ("מצלמות ספציפיות" of a rule, plus floors / zones / days / types): chip rows inside a form, no limit.
 - `screens/system-access.ts` (delegable roles): a chip row, not cameras.

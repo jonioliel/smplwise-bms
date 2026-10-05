@@ -157,17 +157,26 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     await page.locator('system-diagnostics sw-button', { hasText: 'שמור' }).first().click();
     await expect.poll(() => st.crossSync).toBe('true');
     expect(st.writes.find((w) => w.method === 'PATCH' && w.path === 'settings')?.body).toMatchObject({ 'playback.cross_recorder_sync': 'true' });
-    // the synchronized-playback picker: off = a camera of another recorder cannot join; on = it can
+    // the synchronized-playback picker (2.0.1: one multi-select dropdown): off = a camera of another recorder is listed disabled once
+    // the set has a lead; on = it can join
+    const pick = page.locator('investigate-sync sw-dropdown[data-sync-pick-cameras]');
+    const option = (id: string) => pick.locator(`[role=option][data-id="${id}"]`);
     st.crossSync = 'false';
     await open(page, '/investigate/playback/sync');
-    const chips = page.locator('investigate-sync [data-sync-camera]');
-    await expect(chips.first()).toBeVisible();
-    await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
-    await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).toHaveAttribute('disabled', '');
+    await expect(pick.locator('.chip')).toBeVisible();
+    await page.waitForTimeout(1500); // the shell recreates the screen once after the session settles
+    await pick.locator('.chip').click();
+    await option('cam-1').click();
+    await expect(option('cam-1')).toHaveAttribute('aria-selected', 'true');
+    await expect(option('w-cam-1')).toHaveAttribute('aria-disabled', 'true');
     st.crossSync = 'true';
     await open(page, '/investigate/playback/sync');
-    await page.locator('investigate-sync [data-sync-camera="cam-1"]').click();
-    await expect(page.locator('investigate-sync [data-sync-camera="w-cam-1"]')).not.toHaveAttribute('disabled', '');
+    await expect(pick.locator('.chip')).toBeVisible();
+    await page.waitForTimeout(1500);
+    await pick.locator('.chip').click();
+    await option('cam-1').click();
+    await expect(option('cam-1')).toHaveAttribute('aria-selected', 'true');
+    await expect(option('w-cam-1')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   test('a recorder disabled while running leaves the wall at once; a removed first recorder with history is re-added under a new id', async ({ page }) => {
