@@ -189,7 +189,11 @@ async function open(page: Page, hash: string, size: Size = '1440') {
 async function shot(page: Page, name: string, size: Size) {
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(350); // let the entrance / glow settle
-  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`) });
+  // One image pixel per CSS pixel in every project: the evidence set is 1440x900 / 820x1180 / 390x844. The mobile project
+  // emulates a Pixel 7 (deviceScaleFactor 2.625); a device-scale capture of the 1440 glass page is 3780x2363 and took ~4.4 s
+  // (~0.5 s on desktop), so the view-only test (four loads, three shots) ran past the 60 s test timeout on a loaded
+  // workstation (GT2). It also overwrote the committed evidence with images of another size.
+  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`), scale: 'css' });
 }
 
 const page$ = (page: Page) => page.locator('sw-app multimedia-screens');
