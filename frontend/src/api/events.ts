@@ -1,5 +1,5 @@
 /** Event centre (chapter 26): scoped listing, timeline markers, acknowledge and the push socket. */
-import { apiUrl, get, post } from './client';
+import { apiUrl, del, get, post } from './client';
 
 export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'offline' | 'tamper' | 'door' | 'io' | 'storage' | 'system' | 'coverage_gap' | 'manual' | 'other';
 
@@ -52,8 +52,9 @@ export interface EventWindow {
   id: string;
   camera_id: string | null;
   camera_name?: string | null;
-  /** 0.1.62: what the window spans and the cameras inside it (group modes other than 'camera'). */
-  group?: WindowGroup;
+  /** 0.1.62: what the window spans and the cameras inside it (group modes other than 'camera'); 'manual' (M047) = an
+   * operator's own grouping, whatever the mode. */
+  group?: WindowGroup | 'manual';
   group_label?: string | null;
   camera_ids?: string[];
   camera_names?: string[];
@@ -72,6 +73,25 @@ export interface EventWindow {
   thumbnail: 'ready' | 'pending' | 'unavailable' | 'none';
   thumbnail_event_id: string;
   confidence: 'measured' | 'inferred';
+  /** M047: the deterministic spotlight verdict - every rule it meets, named and explained. */
+  spotlight?: Spotlight;
+  /** M047: set when an operator regrouped these events by hand (POST events/windows/groups). */
+  manual_group_id?: string | null;
+}
+
+/** One deterministic rule a window met (M047); `why` is the rule in the operator's words. */
+export interface SpotlightRule {
+  code: string;
+  score: number;
+  label: string;
+  why: string;
+}
+export interface Spotlight {
+  on: boolean;
+  score: number;
+  rules: SpotlightRule[];
+  confidence: 'measured' | 'inferred';
+  sources: string[];
 }
 
 export interface WindowsResponse {
@@ -81,6 +101,9 @@ export interface WindowsResponse {
   timezone: string;
   gap_seconds: number;
   events_total: number;
+  /** M047: how many of the day's windows are lit (before the `spotlight` filter). */
+  spotlights?: number;
+  spotlight_rules?: SpotlightRule[];
   ingest: IngestState;
 }
 
@@ -149,16 +172,20 @@ export const ackMany = (ids: string[]) => post<{ acked: string[]; skipped: strin
 export type WindowGroup = 'camera' | 'all' | 'zone' | 'floor';
 export const WINDOW_GROUP_LABEL: Record<WindowGroup, string> = { camera: 'לפי מצלמה', all: 'כל המצלמות יחד', zone: 'לפי חדר', floor: 'לפי קומה' };
 
-export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number; by?: WindowGroup } = {}) {
+export function listWindows(opts: { date?: string; cameraId?: string; gap?: number; limit?: number; by?: WindowGroup; spotlight?: boolean } = {}) {
   const q = new URLSearchParams();
   if (opts.date) q.set('date', opts.date);
   if (opts.cameraId) q.set('camera_id', opts.cameraId);
   if (opts.gap) q.set('gap', String(opts.gap));
   if (opts.by) q.set('by', opts.by);
   if (opts.limit) q.set('limit', String(opts.limit));
+  if (opts.spotlight) q.set('spotlight', 'true');
   const qs = q.toString();
   return get<WindowsResponse>(`events/windows${qs ? `?${qs}` : ''}`);
 }
+/** M047: the named events form one review window from now on (a split or a join); the raw events are untouched. */
+export const groupWindowEvents = (eventIds: string[], note = '') => post<{ group_id: string; event_ids: string[]; skipped: string[] }>('events/windows/groups', { event_ids: eventIds, note });
+export const ungroupWindow = (groupId: string) => del(`events/windows/groups/${groupId}`);
 export const getEvent = (id: string) => get<EventDetail>(`events/${id}`);
 export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnail${v ? `?v=${v}` : ''}`);
 
@@ -318,7 +345,32 @@ export interface EventFacets {
 export const getEventFacets = (days = 90) => get<EventFacets>(`events/facets?days=${days}`);
 export const SOURCE_LABEL: Record<string, string> = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' };
 
-/** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. */
+/** Suggested next cameras after an event (T064): topology only, always hypothetical, never an action. M064: the
+ * floors reached through the published stairs / elevators near the camera rank last, each naming its connector. */
+export type RouteRelation = 'same_zone' | 'adjacent_zone' | 'nearby' | 'via_connector';
+export interface RouteVia {
+  connector_id: string;
+  kind: string;
+  kind_label: string;
+  label: string | null;
+  floor_id: string;
+  floor_name: string;
+  direction: 'up' | 'down' | null;
+  twin_published: boolean;
+}
+export interface RouteSuggestion {
+  camera_id: string;
+  name: string;
+  relation: RouteRelation;
+  relation_label: string;
+  distance: number;
+  zone: string | null;
+  floor_id?: string;
+  floor_name?: string;
+  via?: RouteVia | null;
+  activity_events: number;
+  playback_at: string;
+}
 export interface EventRoute {
   event_id: string;
   hypothetical: true;
@@ -326,8 +378,22 @@ export interface EventRoute {
   subject: { camera_id: string; name: string; zone: string | null } | null;
   location: { floor_id: string; floor_name: string; building_name: string } | null;
   window: { from: string; to: string };
-  suggestions: { camera_id: string; name: string; relation: 'same_zone' | 'adjacent_zone' | 'nearby'; relation_label: string; distance: number; zone: string | null; activity_events: number; playback_at: string }[];
+  suggestions: RouteSuggestion[];
+  /** M064: the floor connectors within reach of the event camera. */
+  connectors?: { id: string; kind: string; kind_label: string; other_floor_id: string; distance: number; twin_published: boolean }[];
   notes: string[];
   policy: string;
 }
 export const getEventRoute = (id: string, windowS = 90) => get<EventRoute>(`events/${id}/route?window=${windowS}`);
+
+/** M064: one click from the suggested route into a case - the event and a clip per chosen camera over the route window. */
+export interface RouteConfirmResult {
+  case_id: string;
+  title: string;
+  created: boolean;
+  added: { id: string; kind: 'event' | 'clip'; camera_id: string | null; relation?: RouteRelation }[];
+  skipped: { camera_id: string; reason: string }[];
+  window: { from: string; to: string };
+  hypothetical: true;
+}
+export const confirmEventRoute = (id: string, body: { camera_ids: string[]; case_id?: string; title?: string; note?: string; window?: number }) => post<RouteConfirmResult>(`events/${id}/route/confirm`, body);
