@@ -12,7 +12,8 @@ import sqlite3
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request, WebSocket
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile, WebSocket
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -21,7 +22,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import Database, get_setting, now_iso
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
-from ..services import revocation, wall
+from ..services import revocation, wall, wall_alerts, wall_photos
 from ..services.access import visible_camera_ids
 from .access import BindingBody, insert_binding, revoke_one, user_known, validate_binding
 
@@ -62,6 +63,62 @@ def _scope_of(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, 
     return [{"id": c, "name": names[c]} for c in order]
 
 
+def _alerts_now(conn: sqlite3.Connection, principal: Principal, row: sqlite3.Row, cfg: dict[str, Any]) -> list[dict[str, Any]]:
+    cams = {c["id"] for c in _scope_of(conn, principal, row, cfg)}
+    return wall_alerts.alerts_for(conn, cfg, cams, row["area_id"])
+
+
+@router.get("/wall/alerts")
+def wall_alerts_list(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    row = _wall_user(conn, principal)
+    return {"alerts": _alerts_now(conn, principal, row, wall.config_of(row))}
+
+
+@router.post("/wall/alerts/{alert_id}/ack")
+def wall_alert_ack(alert_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Acknowledge in the core like a person's acknowledge, with the wall user as the actor. Only when the profile allows it
+    (an owner-level choice, not a role permission); the server enforces it - the press-and-hold is the client's."""
+    row = _wall_user(conn, principal)
+    cfg = wall.config_of(row)
+    if not cfg["alerts"]["ack_allowed"]:
+        raise ApiError(403, "wall_ack_not_allowed", "אישור התראה לא מופעל במסך הזה.")
+    cams = {c["id"] for c in _scope_of(conn, principal, row, cfg)}
+    if wall_alerts.ack(conn, principal.user_id, alert_id, cfg, cams, row["area_id"]) != "ok":
+        raise not_found("ההתראה לא נמצאה.")
+    audit(conn, actor=principal, action="wall.alert.ack", decision="allowed", resource_type="notification", resource_id=alert_id, request_id=_rid(request),
+          details={"notification_id": alert_id, "via": "wall", "title": row["title"]})
+    return {"acknowledged": True}
+
+
+@router.post("/wall/alerts/{alert_id}/seen")
+def wall_alert_seen(alert_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """'Seen' is local to the display (it collapses the tile); the server only confirms the item is one this display may see."""
+    row = _wall_user(conn, principal)
+    if not any(a["id"] == alert_id for a in _alerts_now(conn, principal, row, wall.config_of(row))):
+        raise not_found("ההתראה לא נמצאה.")
+    return {"seen": True}
+
+
+# ---- picture frame (display side): the list and the renditions of the profile's own set
+@router.get("/wall/frame/list")
+def frame_list(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    row = _wall_user(conn, principal)
+    fr = wall.config_of(row)["frame"]
+    if not fr["enabled"] or not fr["folder"]:
+        return {"photos": []}
+    return {"photos": wall_photos.list_photos(settings_of(request), fr["folder"])}
+
+
+@router.get("/wall/frame/{photo_id}")
+def frame_photo(photo_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    row = _wall_user(conn, principal)
+    fr = wall.config_of(row)["frame"]
+    path = wall_photos.photo_path(settings_of(request), fr["folder"], photo_id) if fr["enabled"] and fr["folder"] else None
+    if path is None:
+        raise not_found("התמונה לא נמצאה.")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
 @router.get("/wall/config")
 def wall_config(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     row = _wall_user(conn, principal)
@@ -74,7 +131,7 @@ def wall_config(request: Request, principal: Principal = Depends(current_princip
         "title": row["title"], "area_id": row["area_id"], "floor_id": row["floor_id"], "version": int(row["version"]),
         "config": cfg, "cameras": _scope_of(conn, principal, row, cfg),
         "server_time": now_iso(), "zone": get_setting(conn, "time.zone", "Asia/Jerusalem"),
-        "alerts": [],  # WDX (S6) delivers alert tiles; the contract field exists so the client does not change later
+        "alerts": _alerts_now(conn, principal, row, cfg),
     }
 
 
@@ -250,6 +307,11 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
             raise ApiError(422, "validation", "הגדרות מסך הקיר אינן תקינות.", details={"errors": [{"loc": list(e["loc"]), "msg": e["msg"]} for e in exc.errors()[:6]]}) from exc
     cfg["cameras"] = _check_cameras(conn, cfg["cameras"])
     _check_entities(conn, cfg["state_entities"])
+    folder = cfg["frame"]["folder"]
+    if folder != old_cfg["frame"]["folder"] and folder is not None and not wall_photos.set_exists(settings_of(request), folder):
+        raise ApiError(403, "frame_source_not_allowed", "תיקיית התמונות חייבת להיות אחת מהתיקיות של המערכת.")
+    if cfg["frame"]["enabled"] and not cfg["frame"]["folder"]:
+        raise ApiError(422, "validation", "מצב מסגרת תמונות דורש בחירת תיקייה.")
     title = body.title.strip() if body.title is not None else row["title"]
     area_id = body.area_id if "area_id" in body.model_fields_set else row["area_id"]
     enabled = int(body.enabled) if body.enabled is not None else int(row["enabled"])
@@ -274,6 +336,9 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
         if "enabled" in changed:
             audit(conn, actor=principal, action="wall.profile.enable" if enabled else "wall.profile.disable", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
                   details={"title": title})
+        if "config.frame.folder" in changed:
+            audit(conn, actor=principal, action="wall.frame.folder_set", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
+                  details={"title": title, "folder": cfg["frame"]["folder"]})
         audit(conn, actor=principal, action="wall.profile.update", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),
               details={"title": title, "changed": changed})
         conn.execute("RELEASE wall_patch")
@@ -316,6 +381,104 @@ def remove_profile(user_id: str, request: Request, principal: Principal = Depend
     return {"removed": True, "sessions_dropped": dropped}
 
 
+# ---- photo sets (Settings > wall displays), administrators only
+def _photo_error(exc: wall_photos.PhotoError) -> ApiError:
+    return ApiError(exc.status, exc.code, exc.message, details=exc.details or None)
+
+
+class PhotoSetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=40)
+
+
+def _used_by(conn: sqlite3.Connection, set_id: str) -> list[sqlite3.Row]:
+    return [r for r in conn.execute("SELECT * FROM wall_profiles").fetchall() if wall.config_of(r)["frame"]["folder"] == set_id]
+
+
+@router.get("/wall/photo-sets")
+def photo_sets(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    _need_admin(conn, principal)
+    sets = wall_photos.list_sets(settings_of(request))
+    for s in sets:
+        s["used_by"] = [r["title"] for r in _used_by(conn, s["id"])]
+    return {"sets": sets, "limits": {"max_files": wall_photos.MAX_FILES, "max_bytes": wall_photos.MAX_BYTES, "formats": ["image/jpeg", "image/png", "image/webp"]}}
+
+
+@router.post("/wall/photo-sets", status_code=201)
+def photo_set_create(body: PhotoSetCreate, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _need_admin(conn, principal)
+    try:
+        out = wall_photos.create_set(settings_of(request), body.name)
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+    audit(conn, actor=principal, action="wall.photo_set.create", decision="allowed", resource_type="wall_photo_set", resource_id=out["id"], request_id=_rid(request), details={"name": out["name"]})
+    return out
+
+
+@router.post("/wall/photo-sets/{set_id}/upload", status_code=201)
+async def photo_upload(set_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    _need_admin(conn, principal)
+    data = await file.read(wall_photos.MAX_BYTES + 1)
+    try:
+        out = wall_photos.add_photo(settings_of(request), set_id, data)
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+    audit(conn, actor=principal, action="wall.photo_set.upload", decision="allowed", resource_type="wall_photo_set", resource_id=set_id, request_id=_rid(request), details={"photo": out["id"], "bytes": out["bytes"]})
+    return out
+
+
+@router.get("/wall/photo-sets/{set_id}/photos")
+def photo_set_photos(set_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    _need_admin(conn, principal)
+    try:
+        return {"photos": wall_photos.list_photos(settings_of(request), set_id)}
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+
+
+@router.get("/wall/photo-sets/{set_id}/photos/{photo_id}")
+def photo_preview(set_id: str, photo_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> FileResponse:
+    _need_admin(conn, principal)
+    try:
+        path = wall_photos.photo_path(settings_of(request), set_id, photo_id)
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+    if path is None:
+        raise not_found("התמונה לא נמצאה.")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.delete("/wall/photo-sets/{set_id}/photos/{photo_id}", status_code=204)
+def photo_delete(set_id: str, photo_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    _need_admin(conn, principal)
+    try:
+        ok = wall_photos.delete_photo(settings_of(request), set_id, photo_id)
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+    if not ok:
+        raise not_found("התמונה לא נמצאה.")
+    audit(conn, actor=principal, action="wall.photo_set.photo_delete", decision="allowed", resource_type="wall_photo_set", resource_id=set_id, request_id=_rid(request), details={"photo": photo_id})
+    return Response(status_code=204)
+
+
+@router.delete("/wall/photo-sets/{set_id}")
+def photo_set_delete(set_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Deleting a set a profile uses turns that profile's frame off; the version moves so the display follows."""
+    _need_admin(conn, principal)
+    try:
+        used = _used_by(conn, set_id)
+        if not wall_photos.delete_set(settings_of(request), set_id):
+            raise not_found("תיקיית התמונות לא נמצאה.")
+    except wall_photos.PhotoError as exc:
+        raise _photo_error(exc) from exc
+    for r in used:
+        cfg = wall.config_of(r)
+        cfg["frame"]["enabled"], cfg["frame"]["folder"] = False, None
+        conn.execute("UPDATE wall_profiles SET config_json = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE user_id = ?", (wall.dumps(cfg), now_iso(), principal.user_id, r["user_id"]))
+    audit(conn, actor=principal, action="wall.photo_set.delete", decision="allowed", resource_type="wall_photo_set", resource_id=set_id, request_id=_rid(request), details={"profiles_turned_off": len(used)})
+    return {"deleted": True, "profiles_turned_off": len(used)}
+
+
 # ---- the display's websocket
 @router.websocket("/wall/ws")
 async def wall_ws(websocket: WebSocket) -> None:
@@ -337,6 +500,11 @@ async def wall_ws(websocket: WebSocket) -> None:
             if row is None:
                 return "revoked", None
             return ("ok" if row["enabled"] else "disabled"), int(row["version"])
+
+    def _alerts() -> list[dict[str, Any]]:
+        with db.connection(mode="read", label="wall/ws alerts") as conn:
+            row = wall.enabled_profile(conn, principal.user_id)
+            return _alerts_now(conn, principal, row, wall.config_of(row)) if row is not None else []
 
     def _touch(channel: str) -> None:
         with db.connection(label="wall/ws seen") as conn:
@@ -369,6 +537,8 @@ async def wall_ws(websocket: WebSocket) -> None:
                 wall.remember_hello(principal.user_id, msg["payload"])
 
     listen = asyncio.create_task(reader())
+    sent_sig = ""
+    tick = 0
     last_store = 0.0
     try:
         await send("hello", {"version": version, "state": state})
@@ -387,6 +557,13 @@ async def wall_ws(websocket: WebSocket) -> None:
             elif fresh_version != version:
                 await send("config", {"version": fresh_version})
             version = fresh_version
+            tick += 1
+            if fresh == "ok" and tick % 2 == 0:  # alerts every 2 s: a leak is on the wall within seconds, the read is one indexed query
+                fresh_alerts = await run_in_threadpool(_alerts)
+                sig = wall_alerts.signature(fresh_alerts)
+                if sig != sent_sig:
+                    sent_sig = sig
+                    await send("alerts", {"alerts": fresh_alerts})
             if time.time() - last_store >= WS_HEARTBEAT_STORE_S:
                 last_store = time.time()
                 await run_in_threadpool(_touch, channel)
