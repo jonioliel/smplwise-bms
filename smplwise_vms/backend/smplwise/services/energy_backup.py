@@ -25,7 +25,7 @@ log = logging.getLogger("smplwise.energy")
 
 # The ONE list of electricity tables in the main DB that join the project backup (meters + billing). energy_bill_numbers stays
 # OUT on purpose: the ledger of used bill numbers is never restored or emptied, so a restore can never make a number reusable.
-MAIN_TABLES = ["energy_meters", "energy_meter_epochs",
+MAIN_TABLES = ["energy_meters", "energy_meter_epochs", "energy_meter_manual_readings", "energy_meter_calibrations",
                "energy_customers", "energy_tariffs", "energy_tariff_versions", "energy_vat_rates", "energy_accounts", "energy_account_meters",
                "energy_bills", "energy_bill_events", "energy_auto_runs", "energy_assets"]
 # Issued bills are financial records and accounts reference meters by id: a `replace` restore of an archive written before the

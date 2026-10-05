@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { fixtureCandidates, fixtureEpochs, fixtureMeters, fixtureSeries } from '../src/electricity/fixtures';
+import { fixtureReadingLog, type ReadingLog } from '../src/api/electricity-readings';
 
 // CR-023 electricity UI: the mock layer of the Playwright specs. It speaks the WIRE contract of pilot/elec-server
 // (docs/architecture/ELECTRICITY_INTERFACES.md section 3: `items`, `display_name`, `value_kwh`, `state`, candidates with `ref` / `verdict` / `code`, settings
@@ -55,6 +56,8 @@ export interface ElectricityMock {
   settings: Record<string, number>;
   /** Every request to /energy/*: method, path (after energy/), body. */
   calls: { method: string; path: string; body: unknown }[];
+  /** EL6: the manual-reading logs served so far, by meter id. */
+  readingLogs?: Map<string, ReadingLog>;
 }
 
 export interface MockOptions {
@@ -134,6 +137,12 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
     if (!epochs.has(id)) epochs.set(id, fixtureEpochs(id).filter((e) => e.reason !== 'reset').map((e, i) => ({ id: `e${i}`, started_at: e.started_at, ended_at: e.ended_at, start_reading_wh: (e.start_reading_kwh ?? 0) * 1000, reason: 'first', note: e.note })));
     return epochs.get(id)!;
   };
+  const logs = new Map<string, ReadingLog>();
+  const logOf = (id: string, kwh: number): ReadingLog => {
+    if (!logs.has(id)) logs.set(id, fixtureReadingLog(id, kwh));
+    return logs.get(id)!;
+  };
+  st.readingLogs = logs;
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -192,6 +201,53 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
       const m: WireMeterM = { id: `m${st.meters.length + 1}`, display_name: typed || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, source_ref: ref, unit: 'kWh', area_id: c.area_id, area_name: c.area_name, status: 'active', status_reason: null, revision: 1, state: 'reporting', last_report_at: '2026-10-04T18:49:00Z', value_kwh: 1204.5, today_kwh: 0, used_in: [], month_kwh: 0, floor: { id: 'f-p', name: 'חניון' } };
       st.meters.push(m);
       return json(route, out(m), 201);
+    }
+    // EL6: manual readings and calibrations (wire: docs/changes/EL6-MANUAL-READING-CALIBRATION.md)
+    const rd = /^meters\/([^/?]+)\/(manual-readings|calibrations)(?:\/([^/?]+)\/undo)?$/.exec(e.split('?')[0]);
+    if (rd) {
+      const id = decodeURIComponent(rd[1]);
+      const m = st.meters.find((x) => x.id === id);
+      if (!m) return err(route, 404, 'not_found', 'המונה לא נמצא');
+      const log = logOf(id, m.value_kwh ?? 0);
+      if (method === 'GET') return perms.includes('energy.view') ? json(route, log) : err(route, 403, 'forbidden', 'אין הרשאה');
+      if (!perms.includes('energy.manage')) return err(route, 403, 'forbidden', 'אין הרשאה');
+      if (rd[3]) {
+        const list: { id: string | null; voided_at: string | null; can_undo: boolean; voided_by_name: string | null; in_force?: boolean }[] = rd[2] === 'manual-readings' ? log.items : log.calibrations;
+        const it = list.find((x) => x.id === rd[3]);
+        if (!it) return err(route, 404, 'not_found', 'לא נמצא');
+        if (!it.can_undo) return err(route, 409, 'undo_window_passed', 'עבר הזמן שבו אפשר לבטל (24 שעות).');
+        Object.assign(it, { voided_at: '2026-10-04T18:50:00Z', voided_by_name: 'דנה', can_undo: false, in_force: false });
+        return json(route, log);
+      }
+      if (rd[2] === 'manual-readings') {
+        const b = body as { read_at: string; value: string; unit: 'kWh' | 'Wh' | 'MWh'; note?: string; dry_run?: boolean };
+        const kwh = (Number(b.value) * { kWh: 1000, Wh: 1, MWh: 1_000_000 }[b.unit]) / 1000;
+        if (!Number.isFinite(kwh) || kwh < 0) return err(route, 422, 'validation', 'הערך אינו מספר.', { fields: ['value'] });
+        const prev = log.items.filter((x) => !x.voided_at && x.read_at < b.read_at).sort((x, y) => (x.read_at < y.read_at ? 1 : -1))[0];
+        if (prev && kwh < prev.value_kwh) return err(route, 422, 'reading_not_monotonic', 'הקריאה נמוכה מקריאה ידנית קודמת של אותו מונה.', { fields: ['value'] });
+        const stale = m.state === 'not_reporting';
+        const sys = stale ? null : m.value_kwh ?? 0;
+        const reason = stale ? 'open_gap' : 'reported';
+        const r = { id: b.dry_run ? null : `r${log.items.length + 10}`, read_at: b.read_at, value_kwh: kwh, value_wh: Math.round(kwh * 1000), typed_value: b.value, typed_unit: b.unit,
+          system_kwh: sys, system_exact: sys != null, deviation_kwh: sys == null ? null : Math.round((kwh - sys) * 1000) / 1000, effect: stale ? 'allocation' : 'record', effect_reason: reason,
+          message: stale ? 'הקריאה השלימה את הפער מאז הדיווח האחרון. הצריכה עד הקריאה חולקה לפי זמן.' : 'המונה דיווח בזמן הזה. הקריאה נשמרה להשוואה בלבד.', note: b.note ?? null,
+          created_at: '2026-10-04T18:49:00Z', created_by_name: 'דנה', voided_at: null, voided_by_name: null, void_reason: null, can_undo: true, undo_until: '2026-10-05T18:49:00Z' } as const;
+        if (b.dry_run) return json(route, { dry_run: true, reading: r });
+        log.items = [r, ...log.items].sort((x, y) => (x.read_at < y.read_at ? 1 : -1)) as typeof log.items;
+        return json(route, { dry_run: false, reading: r, log });
+      }
+      const b = body as { effective_date: string; factor: string; offset_kwh?: string; anchor_reading_id?: string; note?: string; dry_run?: boolean };
+      const f = Number(b.factor);
+      if (!(f >= 0.5 && f <= 2)) return err(route, 422, 'validation', 'המקדם חייב להיות בין 0.5 ל-2.', { fields: ['factor'] });
+      if (log.first_calibration_date && b.effective_date < log.first_calibration_date) return err(route, 409, 'calibration_billed', 'התקופה עד 01.10.2026 כבר חויבה. אפשר לכייל רק מהתאריך הזה והלאה.', { fields: ['effective_date'] });
+      const anchor = log.items.find((x) => x.id === b.anchor_reading_id);
+      const offset = anchor && anchor.system_kwh != null ? Math.round((anchor.value_kwh - f * anchor.system_kwh) * 1000) / 1000 : Number(b.offset_kwh ?? 0);
+      const c = { id: b.dry_run ? null : `c${log.calibrations.length + 10}`, effective_date: b.effective_date, effective_from: `${b.effective_date}T00:00:00Z`, factor: b.factor, offset_kwh: offset,
+        anchor_reading_id: b.anchor_reading_id ?? null, note: b.note ?? null, in_force: false, created_at: '2026-10-04T18:49:00Z', created_by_name: 'דנה', voided_at: null, voided_by_name: null,
+        void_reason: null, can_undo: true, undo_until: '2026-10-05T18:49:00Z' };
+      if (b.dry_run) return json(route, { dry_run: true, calibration: c });
+      log.calibrations = [c, ...log.calibrations];
+      return json(route, { dry_run: false, calibration: c, log });
     }
     const one = /^meters\/([^/?]+)(\/(series|replace))?/.exec(e);
     if (one) {

@@ -41,6 +41,23 @@ const SHOTS: Shot[] = [
   { name: 'meters-cards', hash: '/infra/electricity/meters', wait: `${P} [data-state="ready"]`, then: async (p) => void (await p.locator(`${P} [data-view="cards"]`).evaluate((el) => (el as HTMLElement).click()).catch(() => undefined)) },
   { name: 'meters-viewonly', hash: '/infra/electricity/meters', wait: `${P} [data-state="ready"]`, perms: PERMS.view },
   { name: 'meter-card', hash: '/infra/electricity/meters?meter=m2', wait: `${P} elec-meter-card [data-meter-card="m2"]` },
+  // EL6: the manual readings and calibrations section, and its two dialogs
+  { name: 'meter-card-readings', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]` },
+  {
+    name: 'reading-dialog', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]`,
+    then: async (p) => {
+      await p.locator(`${P} elec-meter-card elec-meter-readings [data-reading-add]`).evaluate((el) => (el as HTMLElement).click());
+      await p.locator(`${P} elec-meter-card elec-reading-dialogs [data-reading-value]`).fill('248950.5');
+      await p.waitForSelector(`${P} elec-meter-card elec-reading-dialogs [data-reading-preview]`);
+    },
+  },
+  {
+    name: 'calibrate-dialog', hash: '/infra/electricity/meters?meter=m1', wait: `${P} elec-meter-card elec-meter-readings [data-reading-list]`,
+    then: async (p) => {
+      await p.locator(`${P} elec-meter-card elec-meter-readings [data-calibrate]`).evaluate((el) => (el as HTMLElement).click());
+      await p.waitForSelector(`${P} elec-meter-card elec-reading-dialogs [data-cal-preview]`);
+    },
+  },
   { name: 'meter-add', hash: '/infra/electricity/meters?add=1', wait: `${P} [data-add-dialog] [data-picker-list]` },
   { name: 'retention', hash: '/system/infra/retention', wait: 'sw-app system-infra elec-settings-retention [data-state="ready"]', perms: PERMS.admin },
 ];

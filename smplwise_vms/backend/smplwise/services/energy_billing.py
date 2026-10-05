@@ -34,7 +34,7 @@ from . import energy_pricing as px
 from . import energy_settings as es
 from . import energy_tou as tou
 from .energy_billing_provider import BillingReadings, get_provider
-from .energy_consumption import MeterWindow, meter_window
+from .energy_consumption import MeterWindow, data_until, meter_window
 
 log = logging.getLogger("smplwise.energy_billing")
 
@@ -824,19 +824,39 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
         cons = _kwh(w.wh)
         coef = comp.coefficients[mid]
         last_report = provider.last_report_at(mid)
-        meters_out.append({
+        known_to = data_until(provider, mid)  # EL6: a manual reading after the last report extends what is known (and billed)
+        if known_to is None or (last_report is not None and last_report > known_to):
+            known_to = last_report
+        manual_fn = getattr(provider, "manual_readings", None)
+        manual = manual_fn(mid, w.start.at, w_end + dt.timedelta(seconds=1)) if manual_fn is not None else []
+        cal_fn = getattr(provider, "calibrations", None)
+        cals = cal_fn(mid, w.start.at, w_end) if cal_fn is not None else []
+        entry: dict[str, Any] = {
             "meter_id": mid, "name": name, "coefficient": fx._dec_str(coef),
             "start": {"at": _iso(w.start.at), "reading_kwh": str(px.r3(_kwh(w.start.reading_wh))) if w.start.reading_wh is not None else None, "kind": w.start.kind},
             "end": {"at": _iso(w.end.at), "reading_kwh": str(px.r3(_kwh(w.end.reading_wh))) if w.end.reading_wh is not None else None, "kind": w.end.kind},
             "consumption_kwh": px.s2(cons), "contribution_kwh": px.s2(cons * coef), "carried_in_kwh": px.s2(_kwh(w.carried_in_wh)),
             "resets": [{"at": _iso(r)} for r in w.resets],
             "last_report_at": _iso(last_report),
-            "reported_to_end": bool(last_report is not None and last_report >= w_end - stale),
-        })
-        if last_report is None or last_report < w_end - stale:
-            since = f"מאז {_fmt_local(last_report, tz)}" if last_report else "מעולם"
-            notes.append({"code": "meter_not_reporting", "meter_id": mid, "at": _iso(last_report),
+            "reported_to_end": bool(known_to is not None and known_to >= w_end - stale),
+        }
+        if cals:
+            entry["calibrations"] = [{"from": s.effective_date, "factor": str(s.factor), "offset_kwh": str(px.r3(_kwh(Decimal(s.offset_wh))))} for s in cals]
+        if manual:
+            entry["manual_readings"] = [{"at": _iso(at), "reading_kwh": str(px.r3(_kwh(Decimal(v)))), "effect": eff} for at, v, eff in manual[:12]]
+        meters_out.append(entry)
+        if known_to is None or known_to < w_end - stale:
+            since = f"מאז {_fmt_local(known_to, tz)}" if known_to else "מעולם"
+            notes.append({"code": "meter_not_reporting", "meter_id": mid, "at": _iso(known_to),
                           "text_he": f"המונה {name} לא מדווח {since}. הצריכה שלאחר מכן תחויב בחיוב הבא."})
+        for s in cals:
+            day = _fmt_date(dt.date.fromisoformat(s.effective_date)) if s.effective_date else ""
+            notes.append({"code": "meter_calibrated", "meter_id": mid,
+                          "text_he": f"קריאות המונה {name} מכוילות לפי המונה הפיזי מ-{day} (מקדם {s.factor})."})
+        if any(eff == "allocation" for _a, _v, eff in manual):
+            at = next(a for a, _v, eff in manual if eff == "allocation")
+            notes.append({"code": "manual_reading", "meter_id": mid, "at": _iso(at),
+                          "text_he": f"כולל קריאה ידנית של המונה {name} מ-{_fmt_local(at, tz)}."})
         if w.carried_in_wh > 0:
             notes.append({"code": "carried_in", "meter_id": mid, "text_he": f"כולל {px.s2(_kwh(w.carried_in_wh))} קוט״ש של {name} מתקופה קודמת שדווחו באיחור."})
         for r in w.resets:

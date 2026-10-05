@@ -29,3 +29,9 @@ export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return '-';
   return `${fmtDate(iso)} ${fmtTime(iso)}`;
 }
+
+/** EL6: meter readings carry up to three decimals (Wh); kWh elsewhere on the screens carry two. */
+const R3 = nf(0, 3);
+export const fmtReading = (v: number | null | undefined): string => (v == null ? '-' : R3.format(v));
+/** EL6: a signed kWh difference (the sign before the digits; render it in an LTR-isolated span inside RTL text). */
+export const fmtSigned = (v: number): string => `${v > 0 ? '+' : v < 0 ? '\u2212' : ''}${R3.format(Math.abs(v))}`;
