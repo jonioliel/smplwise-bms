@@ -44,9 +44,8 @@ test('the ladder stops below the visible total and ends with "all"; the count is
   if (isPhone(page)) {
     const first = (await tiles(page).first().boundingBox())!;
     expect(first.width, 'phone tiles stay readable').toBeGreaterThanOrEqual(140);
-    const last = tiles(page).last();
-    await last.scrollIntoViewIfNeeded();
-    expect(await page.evaluate(() => window.scrollY + document.documentElement.scrollTop), 'a phone scrolls to reach the last tile').toBeGreaterThan(0);
+    const last = (await tiles(page).last().boundingBox())!;
+    expect(last.y + last.height, 'the last tile is below the first screen: a phone scrolls to reach it').toBeGreaterThan(page.viewportSize()!.height);
   }
   if (SHOTS) {
     fs.mkdirSync(SHOTS, { recursive: true });
