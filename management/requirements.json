@@ -4558,5 +4558,117 @@
     "test_ids": [
       "AT222"
     ]
+  },
+  {
+    "id": "R223",
+    "title": "מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות",
+    "statement": "Switch protection (CR-019; docs/changes/CR-019-SWITCH-PROTECTION.md, docs/release/CR-019-RELEASE-NOTES.md): group actions reach every switch unless an administrator protects it; the classifier only suggests protection; the review list 'מתגים מוגנים' in Settings; a protected switch stays controllable one by one, by schedules and by automations.",
+    "task_ids": [
+      "T109"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT223"
+    ]
+  },
+  {
+    "id": "R224",
+    "title": "הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות",
+    "statement": "NVR camera settings (CR-020; docs/changes/CR-020-NVR-CAMERA-SETTINGS.md): a read-only cameras table (codec, SVC, resolution, frame rate, bitrate, GOP, WebRTC playability); a guarded two-phase stream write behind the permission nvr.configure (capability check, etag, one confirmation, before/after record, undo, unknown outcome settled from a device read, never retried blindly); SVC off on many cameras in one batch and a bulk encoding change with a preview; device writes only with the owner's approval.",
+    "task_ids": [
+      "T110"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT224"
+    ]
+  },
+  {
+    "id": "R225",
+    "title": "עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש",
+    "statement": "Self-update (CR-021; docs/changes/CR-021-SELF-UPDATE.md): the permission system.update (built-in system administrator only), a version check against the store, one-confirmation update with a backup first and a status screen that survives Arx's own restart, restart-Arx and restart-platform buttons (configuration check first), a single allow-list for every infrastructure call, unknown outcomes never resent, a restart-loop guard; refused while a guarded NVR write is pending.",
+    "task_ids": [
+      "T111"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT225"
+    ]
+  },
+  {
+    "id": "R226",
+    "title": "חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש",
+    "statement": "The NVR connection inside Arx (CR-022; docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md): choose the NVR type (Hikvision or none), address, ports and user, a read-only connection test, an encrypted write-only password (AES-256-GCM, separate key, never in a backup, log or audit), save then a restart banner (saving never restarts by itself), 'remove NVR' with a typed word, routes refused over the remote channel, the NVR-less installation as an explicit wizard choice.",
+    "task_ids": [
+      "T112"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT226"
+    ]
+  },
+  {
+    "id": "R227",
+    "title": "מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF",
+    "statement": "Electricity meters and consumption bills (CR-023; docs/changes/CR-023-ELECTRICITY-METERS-BILLS.md, CR-023-INTEGRATION.md, EL6-MANUAL-READING-CALIBRATION.md): energy-sensor meters with counter rules in a separate energy.db, accounts with formulas and customers, fixed and time-of-use tariffs with VAT versions, bills (consumption bill and payment demand, not a tax invoice) with a numbering ledger and an A4 Hebrew PDF (WeasyPrint + Heebo, fpdf2 fallback, Cyrillic / Arabic subsets), manual meter readings and calibration, permissions energy.view / energy.manage / energy.bills, Settings > infrastructure, backup rules.",
+    "task_ids": [
+      "T113"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT227"
+    ]
+  },
+  {
+    "id": "R228",
+    "title": "וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח",
+    "statement": "More Bubble variants (BV1; skin authoring guide section 6d): clock and weather widgets with style 'tile', the home widgets 'agenda' (next event per calendar entity) and 'launcher' (round launch buttons for screens, scenes, scripts and quick actions), the look dials 'sliders: vertical' and 'surface: none'; nothing changes until chosen; every option editable in the UI, installation default and personal choice.",
+    "task_ids": [
+      "T114"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT228"
+    ]
+  },
+  {
+    "id": "R229",
+    "title": "בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן",
+    "statement": "Camera comparison pickers (CMP1 / CMP2; docs/changes/RECORDINGS-COMPARE-DROPDOWN.md): the recordings comparison row and the synchronized-playback card use one multi-select dropdown (the lead plus up to three, a fifth pick answers 'אפשר לבחור עד 4', another recorder's camera disabled unless the experimental setting allows it), search from 4 cameras and dropdown-or-buttons as installation and personal settings.",
+    "task_ids": [
+      "T115"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT229"
+    ]
   }
 ]

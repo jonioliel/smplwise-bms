@@ -5496,7 +5496,8 @@
       "P0 mockup + S0 client, S1 backend service, S2 model/sentences/policy/fake/bridge 0.6.0/probe, S3 lists/scenes/scripts/settings, S4 builder/templates/editors (AUTOMATIONS_API.md §7)"
     ],
     "evidence": [
-      "2026-10-01: architecture proposed on branch pilot/CR017-automations-arch (public web research of HA core/frontend source and docs, and the anonymised read-only probe docs/research/AUTOMATIONS_PROBE_2026-10-01.md on branch pilot/automations-probe; no HA, lab or device contact by this task; nothing implemented or run). Awaiting the owner's answers."
+      "2026-10-01: architecture proposed on branch pilot/CR017-automations-arch (public web research of HA core/frontend source and docs, and the anonymised read-only probe docs/research/AUTOMATIONS_PROBE_2026-10-01.md on branch pilot/automations-probe; no HA, lab or device contact by this task; nothing implemented or run). Awaiting the owner's answers.",
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-017 (automations, scenes and scripts) is in the repository and shipped: release 0.1.152 (release commit df4fd3b8; smplwise_vms/CHANGELOG.md section 0.1.152 'Automations, scenes and scripts'), migration 0048_automations.sql, docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md, guide page commit 9b04714e. Tests in the repository: smplwise_vms/backend/tests/test_automations_*.py, test_automation_model.py / _policy.py / _text.py (fake HA); Playwright frontend/tests/evidence-automations-builder.spec.ts, evidence-automations-list.spec.ts, unit-automation*.spec.ts. Not proven: writes against the owner's real Home Assistant beyond what the release recorded. Evidence is not acceptance; status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5543,7 +5544,8 @@
       "P0 mockup + S0 client, S1 core, S2 sources, S3 center/settings/SW, S4 HA phones (+ email if approved), S5 evidence and guide (NOTIFICATIONS_API.md §5)"
     ],
     "evidence": [
-      "2026-10-01: architecture proposed on branch pilot/CR018-notifications-arch (repository inventory and public web research only; no device, HA, WisKey or lab contact; nothing implemented or run). Awaiting the owner's answers."
+      "2026-10-01: architecture proposed on branch pilot/CR018-notifications-arch (repository inventory and public web research only; no device, HA, WisKey or lab contact; nothing implemented or run). Awaiting the owner's answers.",
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-018 (notification centre) is in the repository and shipped: release 0.1.151 (release commit 4293badf; smplwise_vms/CHANGELOG.md section 0.1.151), migrations 0045_notifications / 0046_notify_settings / 0047_notify_policies (renumbered at commit 03897e09), docs/changes/CR-018-NOTIFICATIONS.md; later extended by the recorder-health sources (CR-026) and the phone-app channel (CR-027, commit 748d2b2f). Tests in the repository: smplwise_vms/backend/tests/test_notify_core.py, test_notify_channels.py, test_notify_sources.py, test_notify_email.py, test_notify_payload_golden.py; Playwright frontend/tests/evidence-notifications.spec.ts, unit-notifications.spec.ts. Not proven: delivery to real phones or mail on the owner's installation. Evidence is not acceptance; status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5848,6 +5850,300 @@
     ],
     "evidence": [
       "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The work exists only on unmerged branches origin/pilot/GEN1-backend (259c63a7 backend, a8d05ae0 routing, 663f2d90 fake generator and 42 backend tests, f65e2436) and origin/pilot/GEN1-ui (3e566787 UI, bbc9ed47, f1129e12, e57d1907, cdfdd64b); design revision 3 is 8c90a592. None of it is on main or released, so no implementation evidence is claimed. Status BACKLOG until integration."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T109",
+    "title": "מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Switch protection (CR-019; docs/changes/CR-019-SWITCH-PROTECTION.md, docs/release/CR-019-RELEASE-NOTES.md): group actions reach every switch unless an administrator protects it; the classifier only suggests protection; the review list 'מתגים מוגנים' in Settings; a protected switch stays controllable one by one, by schedules and by automations."
+    ],
+    "requirement_ids": [
+      "R223"
+    ],
+    "test_ids": [
+      "AT223"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No write to a device, recorder or Home Assistant without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-019-SWITCH-PROTECTION.md",
+      "Backend: migration 0049_switch_protection.sql, the classifier and the reach guard",
+      "Frontend: the 'מתגים מוגנים' review list in Settings"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-019 S1-S4 are in the repository and shipped in 0.1.153 (release commit ff59ef6f; smplwise_vms/CHANGELOG.md section 0.1.153 'Protected switches'; merge c53c6d18 of pilot/switch-model; commit 0b95ca7f 'the default is included - the classifier only suggests protection'; S3 review list commit 20e4f1bf; S4 docs commit 07ce4d53), migration 0049_switch_protection.sql.",
+      "Tests in the repository: smplwise_vms/backend/tests/test_switch_protection_classifier.py, test_switch_protection_migration.py, test_switch_protection_reach_guard.py; Playwright frontend/tests/unit-protected-switches.spec.ts, evidence-protected-switches.spec.ts (mocked / fixture backend).",
+      "Not proven by the repository: behaviour on the owner's real switch inventory (the release notes warn that right after the update 'turn everything off' reaches every switch until the owner protects what must stay). AT223 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T110",
+    "title": "הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "NVR camera settings (CR-020; docs/changes/CR-020-NVR-CAMERA-SETTINGS.md): a read-only cameras table (codec, SVC, resolution, frame rate, bitrate, GOP, WebRTC playability); a guarded two-phase stream write behind the permission nvr.configure (capability check, etag, one confirmation, before/after record, undo, unknown outcome settled from a device read, never retried blindly); SVC off on many cameras in one batch and a bulk encoding change with a preview; device writes only with the owner's approval."
+    ],
+    "requirement_ids": [
+      "R224"
+    ],
+    "test_ids": [
+      "AT224"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Device access stays read-only by default; every write to a recorder needs the owner's explicit, task-specific approval, and the owner does the first lab write."
+    },
+    "deliverables": [
+      "docs/changes/CR-020-NVR-CAMERA-SETTINGS.md",
+      "Backend: migration 0050_nvr_stream_changes.sql, the stream write, the S2C batch runner and the bulk encoding plan",
+      "Frontend: the cameras table, the stream editor drawer, the batch and bulk-encoding dialogs"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-020 is in the repository and shipped in four steps: S1 read-only table in 0.1.153 (merge 92cfdba1 of pilot/cr020-s1; release commit ff59ef6f), S2 guarded write in 0.1.158 (merge b5c9a17c of pilot/CR020-s2-b, migration 0050_nvr_stream_changes.sql; release commit 07d629a6), S2C multi-camera SVC off in 0.1.159 (merges 8aa27600 backend and 78306931 UI; release commit 31b474ed), bulk encoding change in 0.1.162 (merge 74997a4a of pilot/nvr-bulk-encoding, backend 59d4d056, UI 06d0ac88; release commit c7432361). smplwise_vms/CHANGELOG.md sections 0.1.153 / 0.1.158 / 0.1.159 / 0.1.162.",
+      "Tests in the repository (fake NVR only): smplwise_vms/backend/tests/test_nvr_cameras_settings.py, test_nvr_stream_document.py, test_nvr_stream_write.py, test_nvr_stream_write_locks.py, test_nvr_stream_rollback.py, test_nvr_stream_review_fixes.py, test_nvr_stream_batch*.py, test_nvr_encoding_plan.py, test_nvr_encoding_batch.py; Playwright frontend/tests/evidence-nvr-encoding-batch.spec.ts, layout-nvr-encoding-batch.spec.ts, pixel-nvr-encoding-batch.spec.ts, unit-nvr-encoding-logic.spec.ts.",
+      "Not proven by the repository: any real write to a camera or recorder - the release notes state that no real write was made; the first real bulk encoding change is a lab session the owner runs. AT224 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T111",
+    "title": "עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Self-update (CR-021; docs/changes/CR-021-SELF-UPDATE.md): the permission system.update (built-in system administrator only), a version check against the store, one-confirmation update with a backup first and a status screen that survives Arx's own restart, restart-Arx and restart-platform buttons (configuration check first), a single allow-list for every infrastructure call, unknown outcomes never resent, a restart-loop guard; refused while a guarded NVR write is pending."
+    ],
+    "requirement_ids": [
+      "R225"
+    ],
+    "test_ids": [
+      "AT225"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No real update, restart or platform call without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-021-SELF-UPDATE.md",
+      "Backend: migration 0051_self_update.sql, the update / restart service and its allow-list",
+      "Frontend: Settings > system > updates, the restart card and the status screen"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-021 S1-S3 are in the repository and shipped in 0.1.159 (merge 5e4370bf of pilot/CR021-s3-merged, migration 0051_self_update.sql; security-review fixes 5a086664, screens 3c6e727a; release commit 31b474ed; smplwise_vms/CHANGELOG.md section 0.1.159 'Updates and restarts from inside Arx').",
+      "Tests in the repository (fake infrastructure only): smplwise_vms/backend/tests/test_self_update.py, test_self_update_s3.py, test_self_update_s3_fixes.py; Playwright frontend/tests/evidence-system-update.spec.ts, evidence-system-update-apply.spec.ts, evidence-system-update-fixture.spec.ts, layout-update-screens.spec.ts; scripts/self_update_probe.py.",
+      "Not proven by the repository: a real in-app update, a real platform restart and Arx restart, and the one-time manual install that grants the manager role (lab sessions with the owner, CR-021 section 13.5 checklist). AT225 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T112",
+    "title": "חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "The NVR connection inside Arx (CR-022; docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md): choose the NVR type (Hikvision or none), address, ports and user, a read-only connection test, an encrypted write-only password (AES-256-GCM, separate key, never in a backup, log or audit), save then a restart banner (saving never restarts by itself), 'remove NVR' with a typed word, routes refused over the remote channel, the NVR-less installation as an explicit wizard choice."
+    ],
+    "requirement_ids": [
+      "R226"
+    ],
+    "test_ids": [
+      "AT226"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No write to a device, recorder or Home Assistant without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-022-NVR-CONNECTION-IN-ARX.md (+ _HE)",
+      "Backend: migration 0052_recorder_connections.sql, the connection store and test",
+      "Frontend: Settings > connections and the wizard's NVR step"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-022 is in the repository and shipped in 0.1.159 (merge 88eb0790 of pilot/nn4-final-fixes into integ/0159, migration 0052_recorder_connections.sql; three security reviews, last fix 352bb11c; release commit 31b474ed; smplwise_vms/CHANGELOG.md section 0.1.159 'The NVR connection inside Arx'). Later generalised per recorder by CR-024 (T058).",
+      "Tests in the repository (fake NVR only): smplwise_vms/backend/tests/test_nvr_connection.py, test_nvr_less.py; Playwright frontend/tests/evidence-nvr-connection.spec.ts, evidence-nvr-connection-live.spec.ts.",
+      "Not proven by the repository: AT-022-16 - one restart and the one-time options import on the owner's real installation (on the owner's word). AT226 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T113",
+    "title": "מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Electricity meters and consumption bills (CR-023; docs/changes/CR-023-ELECTRICITY-METERS-BILLS.md, CR-023-INTEGRATION.md, EL6-MANUAL-READING-CALIBRATION.md): energy-sensor meters with counter rules in a separate energy.db, accounts with formulas and customers, fixed and time-of-use tariffs with VAT versions, bills (consumption bill and payment demand, not a tax invoice) with a numbering ledger and an A4 Hebrew PDF (WeasyPrint + Heebo, fpdf2 fallback, Cyrillic / Arabic subsets), manual meter readings and calibration, permissions energy.view / energy.manage / energy.bills, Settings > infrastructure, backup rules."
+    ],
+    "requirement_ids": [
+      "R227"
+    ],
+    "test_ids": [
+      "AT227"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No write to a device, recorder or Home Assistant without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-023-ELECTRICITY-METERS-BILLS.md (+ _HE), CR-023-INTEGRATION.md, EL6-MANUAL-READING-CALIBRATION.md",
+      "Backend: migrations 0053_electricity_meters, 0054_electricity_billing, 0058_energy_manual_readings; energy services, bill PDF renderer",
+      "Frontend: the 'תשתיות' area, meters overview, accounts, bills, Settings > infrastructure"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-023 is in the repository and shipped: meters, accounts, bills and the PDF in 0.1.160 (merge d33d21d2 of pilot/elec-server; PDF commit 2c50229d; release commit c41dfa2a; migrations renumbered to 0053 / 0054 at merge d484ac8e); price correction and meter device name in 0.1.161 (f45c84ca); meter rename in 0.1.162 (c7432361); EL5 time-of-use tariffs (commit 7a6c7170) and the EL8 fix of the bill PDF in the real add-on image in 2.0.1 (fc6f5269); Cyrillic / Arabic names in bill PDFs and the meter-readings backup switch (55bd584e) in 2.0.2 (bf522a1b); EL6 manual readings and calibration (commit 1724e08e, merge 51059bcc, migration 0058) in 2.0.3 (567a7a78). smplwise_vms/CHANGELOG.md sections 0.1.160 / 2.0.1 / 2.0.2 / 2.0.3.",
+      "Tests in the repository (fake meters only): smplwise_vms/backend/tests/test_energy_counter.py, test_energy_store.py, test_energy_api.py, test_energy_billing_engine.py, test_energy_billing_api.py, test_energy_tou_engine.py, test_energy_tou_billing.py, test_energy_manual_readings.py, test_bill_pdf.py, test_energy_bill_pdf_pipeline.py, test_energy_integration.py; Playwright frontend/tests/electricity-*.spec.ts, evidence-electricity-*.spec.ts, layout-electricity*.spec.ts. The 2.0.1 CHANGELOG records the bill PDF produced inside the add-on image rebuilt on the runner (evidence under docs/evidence/).",
+      "Not proven by the repository: a real energy sensor or real customer, real Israeli time-of-use prices, the PDF time on the owner's ARM hardware, the first real bill. AT227 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T114",
+    "title": "וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "More Bubble variants (BV1; skin authoring guide section 6d): clock and weather widgets with style 'tile', the home widgets 'agenda' (next event per calendar entity) and 'launcher' (round launch buttons for screens, scenes, scripts and quick actions), the look dials 'sliders: vertical' and 'surface: none'; nothing changes until chosen; every option editable in the UI, installation default and personal choice."
+    ],
+    "requirement_ids": [
+      "R228"
+    ],
+    "test_ids": [
+      "AT228"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No write to a device, recorder or Home Assistant without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Frontend: the BV1 tiles, the agenda and launcher widgets, the look dials",
+      "Backend: home-config entries for the new widgets and dials",
+      "Evidence screenshots (commit 4858a7ee)"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - BV1 is in the repository and shipped in 2.0.2 (merge a81c208b of pilot/BV1-bubble-tiles into integ/202; release commit bf522a1b; smplwise_vms/CHANGELOG.md section 2.0.2 'More Bubble variants (BV1)'); agenda-tile layout fix b7bbdb9b, launcher / guide commit e91dc355, evidence screenshots 4858a7ee at 1440 / 820 / 390, light and dark; the agenda test pins the route clock in 4db5168a (2.0.3).",
+      "Tests in the repository: Playwright frontend/tests/unit-bv1-tiles.spec.ts, evidence-bv1-tiles.spec.ts, layout-bv1-tiles.spec.ts (mocks in bv1-mocks.ts); backend smplwise_vms/backend/tests/test_home_config.py follows the BV1 additions (commit 0b7b1dd5).",
+      "Not proven by the repository: behaviour with the owner's real calendar entities on a wall tablet. The item named LV1 (live count) has no trace in the repository and is not recorded here. AT228 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T115",
+    "title": "בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Camera comparison pickers (CMP1 / CMP2; docs/changes/RECORDINGS-COMPARE-DROPDOWN.md): the recordings comparison row and the synchronized-playback card use one multi-select dropdown (the lead plus up to three, a fifth pick answers 'אפשר לבחור עד 4', another recorder's camera disabled unless the experimental setting allows it), search from 4 cameras and dropdown-or-buttons as installation and personal settings."
+    ],
+    "requirement_ids": [
+      "R229"
+    ],
+    "test_ids": [
+      "AT229"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No write to a device, recorder or Home Assistant without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/RECORDINGS-COMPARE-DROPDOWN.md",
+      "Frontend: the compare picker, the synchronized-playback card, Settings > tabs 'בחירת מצלמות להשוואה'",
+      "Evidence screenshots docs/evidence/sync-dropdown/, docs/evidence/sync-polish/"
+    ],
+    "evidence": [
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CMP1 shipped in 2.0.2 (merge 21e3d465 of pilot/compare-dropdown into integ/202; release commit bf522a1b) and CMP2 in 2.0.3 (merge 05979c84 of pilot/compare-polish into integ/203; release commit 567a7a78); smplwise_vms/CHANGELOG.md sections 2.0.2 / 2.0.3.",
+      "Tests in the repository: Playwright frontend/tests/compare-dropdown.spec.ts, layout-compare-dropdown.spec.ts, sync-dropdown.spec.ts, layout-sync-dropdown.spec.ts, unit-multi-select.spec.ts, evidence-sync.spec.ts.",
+      "Not proven by the repository: use on the owner's installation with two real recorders (cross-recorder synced playback stays experimental). AT229 stays NOT_RUN as a recorded acceptance."
     ],
     "owner": null,
     "commit": null,

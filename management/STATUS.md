@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-10-05T17:43:54.808747+00:00
+Generated: 2026-10-05T17:54:19.524339+00:00
 
-Tasks: 108 | Requirements: 221 | Tests: 221 | Screens: 32
+Tasks: 115 | Requirements: 228 | Tests: 228 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 94
+- BACKLOG: 101
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 6
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 29
+- V1: 36
 - V2: 14
 - V3: 2
 
@@ -137,3 +137,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T106](tasks/T106.md) | V1 | IN_PROGRESS | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
 | [T107](tasks/T107.md) | V2 | BACKLOG | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
 | [T108](tasks/T108.md) | V2 | BACKLOG | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
+| [T109](tasks/T109.md) | V1 | BACKLOG | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
+| [T110](tasks/T110.md) | V1 | BACKLOG | הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות | — |
+| [T111](tasks/T111.md) | V1 | BACKLOG | עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש | — |
+| [T112](tasks/T112.md) | V1 | BACKLOG | חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש | — |
+| [T113](tasks/T113.md) | V1 | BACKLOG | מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF | — |
+| [T114](tasks/T114.md) | V1 | BACKLOG | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
+| [T115](tasks/T115.md) | V1 | BACKLOG | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
