@@ -5810,7 +5810,8 @@
       "docs/design/mockups/wall-display/"
     ],
     "evidence": [
-      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The change request and mockups are merged on main (commit af63f050, docs only). An implementation exists only on the unmerged branch origin/pilot/WDM-wall-display (5971a25b backend with migration 0061_wall_profiles, 7e9722ad frontend): not on main, not released, so no implementation evidence is claimed. Status BACKLOG; the board plans it for 2.3.0."
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The change request and mockups are merged on main (commit af63f050, docs only). An implementation exists only on the unmerged branch origin/pilot/WDM-wall-display (5971a25b backend with migration 0061_wall_profiles, 7e9722ad frontend): not on main, not released, so no implementation evidence is claimed. Status BACKLOG; the board plans it for 2.3.0.",
+      "2026-10-05 (INT205, release 2.0.5): wall display built and integrated - WDM (wall_profiles, migration 0062 after renumbering from 0061, kiosk role wall.view, /wall/* routes, /me.wall, tablet detection, Settings > wall displays) and WDX (alert tiles, takeover, photo frame); off unless a wall profile exists on a user; tests: backend test_wall / test_wall_alerts, Playwright evidence-wall*; physical tablet check NOT_RUN. Status stays BACKLOG: the registry refuses IN_PROGRESS while dependencies are not DONE."
     ],
     "owner": null,
     "commit": null,
@@ -5849,7 +5850,8 @@
       "docs/design/mockups/generator/"
     ],
     "evidence": [
-      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The work exists only on unmerged branches origin/pilot/GEN1-backend (259c63a7 backend, a8d05ae0 routing, 663f2d90 fake generator and 42 backend tests, f65e2436) and origin/pilot/GEN1-ui (3e566787 UI, bbc9ed47, f1129e12, e57d1907, cdfdd64b); design revision 3 is 8c90a592. None of it is on main or released, so no implementation evidence is claimed. Status BACKLOG until integration."
+      "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. The work exists only on unmerged branches origin/pilot/GEN1-backend (259c63a7 backend, a8d05ae0 routing, 663f2d90 fake generator and 42 backend tests, f65e2436) and origin/pilot/GEN1-ui (3e566787 UI, bbc9ed47, f1129e12, e57d1907, cdfdd64b); design revision 3 is 8c90a592. None of it is on main or released, so no implementation evidence is claimed. Status BACKLOG until integration.",
+      "2026-10-05 (INT205, release 2.0.5): generator control screen built and integrated (CR-031: backend detection from the registry mirror, history, alert engine, routing and Hebrew templates, migration 0061; UI under Infrastructure when a generator controller is detected, view only, no command to the controller); tests: backend test_generator (45), unit-generator and evidence-generator Playwright; no live controller contacted (NOT_RUN on the real DSE 8620). Status stays BACKLOG: dependencies not DONE."
     ],
     "owner": null,
     "commit": null,

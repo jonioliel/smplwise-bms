@@ -1,5 +1,41 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.0.5 (pilot) — Generator control screen under Infrastructure (view only); wall display mode for fixed tablets; plain status text while Home Assistant restarts; the phone-app push relay is deploy-ready (docs only)
+**After installing:** two database migrations run on start, `0061_generator` (generator history, alert and routing tables) and `0062_wall_profiles` (one table of wall profiles); nothing existing is rewritten. The bridge integration stays 0.7.0. Reload the installed web app once. **Wall display mode is off** until an administrator creates a wall profile for a user. **The generator tab appears only when a generator controller device is detected.** The push relay is documentation and a Cloudflare Worker for the owner to deploy; nothing in the add-on changes.
+- **עברית:** אחרי ההתקנה: שתי מיגרציות רצות בהפעלה, `0061_generator` (טבלאות היסטוריה, התראות וניתוב של גנרטור) ו־`0062_wall_profiles` (טבלה אחת של פרופילי קיר); שום דבר קיים לא נכתב מחדש. רכיב החיבור נשאר 0.7.0. טוענים מחדש את אפליקציית הרשת פעם אחת. **מצב מסך קיר כבוי** עד שמנהל יוצר פרופיל קיר למשתמש. **לשונית הגנרטור מופיעה רק כשמזוהה בקר גנרטור.** ממסר ההתראות הוא תיעוד ו־Worker של Cloudflare שהבעלים מעלה; שום דבר בתוסף לא משתנה.
+
+### Generator control screen (CR-031, GEN1) - מסך שליטה בגנרטור
+Documents: `docs/changes/CR-031-GENERATOR.md`; mockups `docs/design/mockups/generator`.
+- **English - what was added:** a **Generator** tab under Infrastructure (next to the electricity meters): live status and power flow, engine and controller, voltage / current / power per phase, gauges and charts with history, active alerts with acknowledge, alert history, a picker when several generators exist, and Settings › Infrastructure › Generator (sensor mapping, thresholds, per-generator alert routing that starts empty, Hebrew message templates with validated placeholders and a server preview). View and alerts only: no command is sent to the controller.
+- **English - bugs fixed:** none (new capability).
+- **English - how to enable:** nothing to switch on: the tab appears under Infrastructure when the Home Assistant device list contains a generator controller (DSE 7x20 / 8620 or ComAp InteliLite class integration) and the user holds the generator view permission; an administrator then maps the sensors and sets the alert routing in Settings.
+- **עברית - מה נוסף:** לשונית **גנרטור** תחת תשתיות (ליד מוני החשמל): מצב חי וזרימת הספק, מנוע ובקר, מתח / זרם / הספק לפי פאזה, מדים וגרפים עם היסטוריה, התראות פעילות עם אישור, היסטוריית התראות, בורר כשיש כמה גנרטורים, והגדרות › תשתיות › גנרטור (מיפוי חיישנים, ספים, ניתוב התראות לכל גנרטור שמתחיל ריק, נוסחי הודעה בעברית עם משתנים מאומתים ותצוגה מקדימה מהשרת). צפייה והתראות בלבד: לא נשלחת שום פקודה לבקר.
+- **עברית - באגים שתוקנו:** אין (יכולת חדשה).
+- **עברית - איך מפעילים:** אין מה להפעיל: הלשונית מופיעה תחת תשתיות כשברשימת ההתקנים של Home Assistant יש בקר גנרטור (אינטגרציה ממשפחת DSE 7x20 / 8620 או ComAp InteliLite) ולמשתמש יש הרשאת צפייה בגנרטור; מנהל ממפה את החיישנים וקובע את ניתוב ההתראות בהגדרות.
+
+### Wall display mode (CR-030, WDM / WDX) - מצב מסך קיר
+Documents: `docs/changes/CR-030-WALL-DISPLAY.md`.
+- **English - what was added:** a wall user on a fixed tablet: after sign-in on a tablet the application switches by itself to the wall interface (live cameras, map, tablet presets, schedule windows, clock state when the connection drops), alert tiles with takeover and an alert chip, a photo frame, and Settings › Wall displays for the profiles. A remote session is refused.
+- **English - bugs fixed:** none (new capability).
+- **English - how to enable:** Settings › Wall displays › create a wall profile for a user (the user is bound to the `kiosk` role, which gains the `wall.view` permission, at the floor or cameras chosen); sign that user in on the tablet: detection is automatic (tablet class), no pairing. A desktop sign-in of the same user sees the normal application limited by the role. Switching the profile off returns the tablet to the normal application within seconds.
+- **עברית - מה נוסף:** משתמש קיר בטאבלט קבוע: אחרי כניסה בטאבלט האפליקציה עוברת לבד לממשק הקיר (מצלמות לייב, מפה, תבניות טאבלט, חלונות זמן, מצב שעון כשהחיבור נופל), אריחי התראות עם השתלטות ותג התראה, מסגרת תמונות, והגדרות › מסכי קיר לניהול הפרופילים. כניסה מרחוק נדחית.
+- **עברית - באגים שתוקנו:** אין (יכולת חדשה).
+- **עברית - איך מפעילים:** הגדרות › מסכי קיר › יוצרים פרופיל קיר למשתמש (המשתמש משויך לתפקיד `kiosk`, שמקבל את ההרשאה `wall.view`, בקומה או במצלמות שנבחרו); מחברים את המשתמש בטאבלט: הזיהוי אוטומטי (סוג מכשיר טאבלט), בלי צימוד. כניסה של אותו משתמש במחשב מציגה את האפליקציה הרגילה במגבלת התפקיד. כיבוי הפרופיל מחזיר את הטאבלט לאפליקציה הרגילה תוך שניות.
+
+### Home Assistant restart status (HA1) - מצב כשהתשתית מופעלת מחדש
+- **English - what was added:** when the system infrastructure restarts or cannot be reached, the status shows plain Hebrew text ("restarting" vs "unreachable") instead of a raw failure, sync retries back off to at most 15 s for five minutes after a restart, and the back-off resets when the add-on platform restarts.
+- **English - bugs fixed:** failed syncs during a restart were all reported alike and retried too aggressively; they are now classified (`ha_restarting` / `ha_unreachable`).
+- **English - how to enable:** nothing.
+- **עברית - מה נוסף:** כשתשתית המערכת מופעלת מחדש או לא זמינה, הסטטוס מציג טקסט פשוט בעברית ("מופעלת מחדש" לעומת "לא זמינה") במקום כשל גולמי; ניסיונות הסנכרון מאטים עד 15 שניות במשך חמש דקות אחרי הפעלה מחדש, והאיפוס קורה בהפעלה מחדש של פלטפורמת התוסף.
+- **עברית - באגים שתוקנו:** כשלי סנכרון בזמן הפעלה מחדש דווחו כולם אותו דבר ונוסו מחדש בתדירות גבוהה מדי; עכשיו הם מסווגים (`ha_restarting` / `ha_unreachable`).
+- **עברית - איך מפעילים:** אין מה להפעיל.
+
+### Push relay deploy-ready (RELAY1) - ממסר התראות מוכן להעלאה
+- **English - what was added:** `services/push-relay` (Cloudflare Worker) with stable relay tokens, server id from the body, token-refresh retries and 27 tests, plus the Hebrew owner guide `docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md`. Not deployed and never tried against the real Apple / Google servers.
+- **English - bugs fixed:** none. **How to enable:** the owner follows the deploy guide (Firebase and Apple accounts are required first); the add-on options `push_relay_url` / `push_relay_key` point to it.
+- **עברית - מה נוסף:** `services/push-relay` (Worker של Cloudflare) עם אסימוני ממסר יציבים, מזהה שרת מגוף הבקשה, ניסיונות חוזרים לרענון אסימון ו־27 בדיקות, ומדריך הפריסה בעברית `docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md`. לא הועלה ולא נוסה מול השרתים האמיתיים של Apple / Google.
+- **עברית - באגים שתוקנו:** אין. **איך מפעילים:** הבעלים פועל לפי מדריך הפריסה (קודם נדרשים חשבונות Firebase ו־Apple); אפשרויות התוסף `push_relay_url` / `push_relay_key` מצביעות עליו.
+
 ## 2.0.4 (pilot) — Cast one camera to a Google Cast screen (off by default; the first physical test comes after release); the Provision encoding editor; the live wall chooses how many cameras it shows; the bill PDF says why it cannot be printed
 **After installing:** one database migration runs on start, `0060_cast_sessions` (one column `media_devices.cast_json` and a new table `cast_sessions`; nothing existing is rewritten). The bridge integration becomes **0.7.0** (new service `smplwise_bridge.cast_stream`): update it and restart the platform once, or the cast button reports the screen as unreachable (everything else works on 0.6.2). **Casting is OFF**: the add-on option `cast_relay` is `false`, port 18092 maps to nothing and no screen is allowed until an administrator switches it on. Reload the installed web app once. 585 API routes (572 + 13, all cast).
 - **עברית:** אחרי ההתקנה: מיגרציה אחת רצה בהפעלה, `0060_cast_sessions` (עמודה אחת `media_devices.cast_json` וטבלה חדשה `cast_sessions`; שום דבר קיים לא נכתב מחדש). רכיב החיבור הופך ל־**0.7.0** (שירות חדש `smplwise_bridge.cast_stream`): מעדכנים ומפעילים מחדש את הפלטפורמה פעם אחת, אחרת כפתור השידור יודיע שהמסך לא נגיש (כל השאר עובד על 0.6.2). **השידור כבוי**: אפשרות התוסף `cast_relay` היא `false`, פורט 18092 לא ממופה ושום מסך לא מורשה עד שמנהל מדליק. טוענים מחדש את אפליקציית הרשת פעם אחת. 585 נתיבי API (572 + 13, כולם של השידור).
