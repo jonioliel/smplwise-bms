@@ -87,7 +87,7 @@ test.describe('home config', () => {
     const view = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { quickAllowed: {}, mediaAvailable: false });
     expect(view.map((i) => i.id)).toEqual(['clock']); // no weather entity, Shabbat off, no alarm panel, no permitted action, no screen
     const edit = resolveWidgets(c, 'a', { ...DATA, alarm: null }, { editing: true, quickAllowed: {}, mediaAvailable: false });
-    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:none', 'shabbat:off', 'alarm:noalarm', 'quick:noaction', 'media:nomedia']);
+    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:none', 'shabbat:off', 'alarm:noalarm', 'quick:noaction', 'media:nomedia', 'agenda:none', 'launcher:none']); // BV1: no calendars, no items
     // an entity that exists but is not reporting
     const c2 = cfg();
     expect(resolveWidgets(c2, 'a', { ...DATA, weather: { ...DATA.weather!, available: false } }, { editing: true }).find((i) => i.id === 'weather')?.avail).toBe('unavail');
@@ -106,7 +106,7 @@ test.describe('home config', () => {
   test('moveWidget and moveId keep the list whole and clamp', () => {
     const o = defaultConfig().order;
     expect(moveWidget(o, 'alarm', 0)).toEqual(['alarm', 'clock', 'weather', 'shabbat', 'quick', 'media', 'agenda', 'launcher']);
-    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'clock']);
+    expect(moveWidget(o, 'clock', 99)).toEqual(['weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'clock']);
     expect(moveWidget(o, 'clock', -5)).toBe(o);
     expect(moveWidget(o, 'clock', 0)).toBe(o);
     expect(moveId(['a', 'b', 'c'], 'a', 2)).toEqual(['b', 'c', 'a']);
@@ -283,7 +283,7 @@ test.describe('home config', () => {
     const phone = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true });
     expect(phone.map((i) => `${i.id}:${i.size}`)).toEqual(['clock:m', 'weather:s', 'shabbat:m', 'media:m']); // no alarm, no quick, weather at its own size (BV1: agenda / launcher need calendars / items)
     const edit = resolveWidgets(c, 'a', DATA, { quickAllowed: allowed, phone: true, editing: true });
-    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:ok', 'shabbat:ok', 'alarm:off', 'quick:off', 'media:ok']);
+    expect(edit.map((i) => `${i.id}:${i.avail}`)).toEqual(['clock:ok', 'weather:ok', 'shabbat:ok', 'alarm:off', 'quick:off', 'media:ok', 'agenda:none', 'launcher:none']);
     // a widget that is off on the desktop but on for the phone is drawn there only
     c.shabbat.on = false;
     c.shabbat.phone_on = true;

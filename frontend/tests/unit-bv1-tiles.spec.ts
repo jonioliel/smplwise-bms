@@ -101,7 +101,8 @@ test.describe('BV1: agenda text and preview', () => {
     expect(agendaWhen({ start: at(24 * 12), all_day: false }, NOW, 'Asia/Jerusalem')).toMatch(/^17\.10 · 16:00$/);
     expect(agendaWhen({ start: 'nope', all_day: false }, NOW, 'Asia/Jerusalem')).toBe('');
     // a late-evening Jerusalem event is still "today" there although it is tomorrow in UTC
-    expect(agendaWhen({ start: '2026-10-05T21:30:00Z', all_day: false }, NOW, 'Asia/Jerusalem')).toBe('היום · 00:30');
+    expect(agendaWhen({ start: '2026-10-05T20:30:00Z', all_day: false }, NOW, 'Asia/Jerusalem')).toBe('היום · 23:30');
+    expect(agendaWhen({ start: '2026-10-05T21:30:00Z', all_day: false }, NOW, 'Asia/Jerusalem')).toBe('מחר · 00:30');
   });
 
   test('agendaOf tolerates a missing or odd block; previewData builds the agenda from the candidates for a draft', () => {
