@@ -68,11 +68,12 @@ export const BV1_STYLES = css`
   :host([data-skin='bubble']) .wg.tile .wx-fc {
     border-color: rgba(255, 255, 255, 0.25);
   }
-  :host([layout='hero'][data-skin='bubble']) .wg.tile:not([data-size='l']) {
+  /* only the clock / weather tiles are square (their content is fixed); the agenda grows with its rows */
+  :host([layout='hero'][data-skin='bubble']) .wg.tile.sq:not([data-size='l']) {
     aspect-ratio: 1 / 1;
     flex-grow: 0;
   }
-  :host([layout='side'][data-skin='bubble']) .wg.tile:not([data-size='l']) {
+  :host([layout='side'][data-skin='bubble']) .wg.tile.sq:not([data-size='l']) {
     aspect-ratio: 4 / 3;
   }
   :host([layout='row'][data-skin='bubble']) .wg.tile {
@@ -217,6 +218,7 @@ export const BV1_STYLES = css`
   .ag-more {
     font-size: 11.5px;
     color: var(--sw-text-3);
+    align-self: center; /* away from the tile's rounded corners */
   }
   :host([data-skin='bubble']) .wg-agenda {
     --h: var(--sw-hue-5);
@@ -436,7 +438,7 @@ export function renderClockTile(h: Bv1Host, it: WidgetItem, clockIcon: TemplateR
   const dated = c.mode === 'datetime';
   const sensor = h.config.calendar.date ? h.data.sensors[h.config.calendar.date] : undefined;
   const hebrew = c.hebrew && dated ? (h.config.calendar.date ? (hasValue(sensor) ? sensor.state : '') : hebrewDate(h.now, h.zone)) : '';
-  return h.shell(it, 'wg-clock tile', {}, html`${h.head(it, clockIcon)}
+  return h.shell(it, 'wg-clock tile sq', {}, html`${h.head(it, clockIcon)}
     <div class="t-main"><div><span class="t-big" role="timer" aria-label="השעה עכשיו" data-home-time>${p.h}<b>:</b>${p.m}${c.seconds && it.size === 'l' ? html`<b class="ss"> ${p.s}</b>` : nothing}</span>
       ${dated ? html`<span class="t-sub"><span class="only-s">${p.weekdayShort} · ${p.dateShort}</span><span class="ge-m">${p.weekdayLong}, ${it.size === 'l' ? p.dateYear : p.dateLong}</span></span>` : nothing}</div></div>
     ${hebrew ? html`<span class="t-chip ge-m" data-home-hebrew-date>${hebrew}</span>` : nothing}`);
@@ -464,7 +466,7 @@ export function renderWeatherTile(h: Bv1Host, it: WidgetItem, fieldIcon: (f: Wea
   const entries = has('forecast') && it.size === 'l' ? forecastShown(w.forecast, cfg.forecast) : [];
   const daily = forecastIsDaily(entries);
   const glyph = weatherGlyph(cond);
-  return h.shell(it, 'wg-weather tile hued', { cond: glyph, style: `--h:var(--sw-hue-${weatherHue(cond)})` }, html`${h.head(it, h.glyph('partly'), w.name)}
+  return h.shell(it, 'wg-weather tile hued sq', { cond: glyph, style: `--h:var(--sw-hue-${weatherHue(cond)})` }, html`${h.head(it, h.glyph('partly'), w.name)}
     <div class="t-main"><svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true">${h.glyph(glyph)}</svg>
       <div>${temp ? html`<span class="t-big" data-home-temp>${valueText('temperature', { v: temp.v, unit: temp.unit ?? null })}</span>` : nothing}
         ${has('condition') && cond ? html`<span class="t-sub" data-home-cond>${WEATHER_HE[cond] ?? cond}</span>` : nothing}</div></div>

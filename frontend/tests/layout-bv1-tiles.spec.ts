@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
-import { installBv1Mock, bv1Config, BV1_NOW } from './bv1-mocks';
+import { installBv1Mock, bv1Config, BV1_NOW, BV1_PERMS } from './bv1-mocks';
 
 // BV1 (2026-10-05): the layout guard (tests/layout-guard.ts) over the home screen with the new widgets - the clock and weather TILES,
 // the agenda and the launcher grid - in the FOUR skins (classic, domus, tesla, bubble) x light / dark x 10 widths (320 .. 1440);
@@ -42,9 +42,11 @@ async function open(page: Page, hash: string, skin: string, theme: string, outer
   await page.waitForTimeout(250);
 }
 
-async function check(page: Page, results: Finding[], ctx: string, roots: string[]) {
+/** `within` narrows the measured subtree (the other skins' own chrome - 26 px tree buttons, 30 px chips - is theirs, not BV1's); `classes` keeps only those finding classes. */
+async function check(page: Page, results: Finding[], ctx: string, roots: string[], within?: string, classes?: Finding['cls'][]) {
   await settle(page);
-  results.push(...(await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots })));
+  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots, within });
+  results.push(...(classes ? found.filter((f) => classes.includes(f.cls)) : found));
 }
 
 async function scrollMain(page: Page, to: 'top' | 'bottom') {
@@ -103,9 +105,11 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
             await setLook(page, { density: 'regular', surface: 'fill', radius: 'pill', touch: 44, performance: 'full', ...c });
             await scrollMain(page, 'top');
             runs++;
-            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)}`, ['devices-building']);
+            // bubble: the whole home (its chrome follows the touch dial); the other skins: the widgets only (their chrome keeps its own sizes)
+            const within = skin === 'bubble' ? undefined : 'home-widgets';
+            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)}`, ['devices-building'], within);
             await scrollMain(page, 'bottom');
-            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)} bottom`, ['devices-building']);
+            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)} bottom`, ['devices-building'], within);
           }
         }
       }
@@ -141,7 +145,8 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
         await panel.locator(`[data-home-wopen="${id}"]`).click();
         await expect(panel.locator(`[data-home-wbody="${id}"]`)).toBeVisible();
         runs++;
-        await check(page, results, `home-edit bubble ${theme} 1440 ${id}`, ['devices-building']);
+        // the open body only, without the target class: the edit panel's compact admin controls (30-32 px segments, inputs) are the panel's own design
+        await check(page, results, `home-edit bubble ${theme} 1440 ${id}`, ['devices-building'], `[data-home-wbody="${id}"]`, ['escape', 'overflow', 'clipped', 'floating']);
         await panel.locator(`[data-home-wopen="${id}"]`).click();
       }
     }
@@ -150,7 +155,8 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
 
   test('bubble: the device sheet with vertical sliders (light, cover with tilt, fan) x surfaces x widths', async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the whole sweep');
-    await installBv1Mock(page);
+    // without media.read: the area then draws its media rows as plain pills (the multimedia card of the area is not a BV1 element; bubble-mocks leaves it out too)
+    await installBv1Mock(page, { perms: BV1_PERMS.filter((p) => p !== 'media.read') });
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const results: Finding[] = [];
