@@ -614,7 +614,7 @@ test.describe('notifications client: scope-aware visibility', () => {
     const subj = (kind: Notification['subject']['kind'], area: string | null = 'kitchen') => ({ subject: { kind, id: 'x', area_id: area }, source: 'x', category: 'alerts' as const });
     expect(VISIBILITY_PERMISSION).toEqual({
       camera: 'events.read', entity: 'devices.read', area: 'devices.read', alarm_panel: 'alarm.view', door: 'access.read', schedule: 'schedule.view', automation: 'schedule.view',
-      bulk_job: null, system: 'system.configure', session: null,
+      bulk_job: null, system: 'system.configure', session: null, generator: 'generator.view',
     });
     const v = viewerWith({ 'events.read': ['parking'], 'devices.read': ['kitchen'], 'alarm.view': '*' });
     expect(canSeeNotification(subj('camera', 'parking'), v)).toBe(true);
