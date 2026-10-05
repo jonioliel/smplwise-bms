@@ -101,7 +101,7 @@ export class ElecSettingsCalendar extends ElecBase {
       ${this.note ? alertBox('info', this.note) : nothing}
       <div class="card ${this.phone ? '' : 'flush'}">
         <div class="hd"><b class="h3">ימים מיוחדים</b>
-          <div class="row" role="group" aria-label="שנה"><button type="button" class="btn ghost sm" aria-label="השנה הקודמת" data-year-prev @click=${() => this.setYear(this.year - 1)}>→</button><b class="num" data-year>${this.year}</b><button type="button" class="btn ghost sm" aria-label="השנה הבאה" data-year-next @click=${() => this.setYear(this.year + 1)}>←</button></div>
+          <div class="row" role="group" aria-label="שנה"><button type="button" class="btn ghost sm ic" aria-label="השנה הקודמת" data-year-prev @click=${() => this.setYear(this.year - 1)}>→</button><b class="num" data-year>${this.year}</b><button type="button" class="btn ghost sm ic" aria-label="השנה הבאה" data-year-next @click=${() => this.setYear(this.year + 1)}>←</button></div>
           <span class="sp"></span>
           <div class="seg" role="group" aria-label="מקור החגים"><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>חגי ישראל מחושבים</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>ימים ידניים בלבד</button></div>
         </div>

@@ -178,8 +178,8 @@ export class ElecBillPage extends ElecBase {
     if (!t) return nothing;
     return html`<div class="card" data-card="tou"><div class="hd"><b class="h3">לפי שעות</b><span class="sp"></span>
         <button type="button" class="btn ghost sm" data-tou-daily aria-expanded=${this.daily ? 'true' : 'false'} @click=${() => (this.daily = !this.daily)}>${this.daily ? 'הסתרת הפירוט היומי' : 'פירוט יומי'}</button></div>
-      <table class="t" data-tou-bands><thead><tr><th>פס</th><th class="num">שעות</th><th class="num">קוט״ש</th><th class="num">לפני מע״מ</th></tr></thead>
-        <tbody>${t.by_band.map((x) => html`<tr data-band=${x.band.id}><td class="b">${x.band.name_he}</td><td class="num">${f2(x.hours)}</td><td class="num">${f2(x.kwh)}</td><td class="num">${f2(x.amount_ex_vat)} ₪</td></tr>`)}</tbody></table>
+      <div class="scrollx"><table class="t" data-tou-bands><thead><tr><th>פס</th><th class="num">שעות</th><th class="num">קוט״ש</th><th class="num">לפני מע״מ</th></tr></thead>
+        <tbody>${t.by_band.map((x) => html`<tr data-band=${x.band.id}><td class="b">${x.band.name_he}</td><td class="num">${f2(x.hours)}</td><td class="num">${f2(x.kwh)}</td><td class="num">${f2(x.amount_ex_vat)} ₪</td></tr>`)}</tbody></table></div>
       ${t.special_days.some((d) => d.kind !== 'regular') ? html`<div class="mut" style="margin-block-start:8px">ימים מיוחדים: ${t.special_days.filter((d) => d.kind !== 'regular').map((d) => `${fmtDate(d.date)} ${d.name_he}`).join(', ')}</div>` : nothing}</div>`;
   }
   private dailyTable(t: NonNullable<BillSnapshot['tou']>) {

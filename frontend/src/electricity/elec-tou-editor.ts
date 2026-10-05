@@ -196,7 +196,7 @@ export class ElecTouEditor extends ElecBase {
           <span>עד</span>
           <select aria-label="עד שעה" ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][1] = (e.target as HTMLSelectElement).value; })}>${QUARTERS.slice(1).map((q) => html`<option .selected=${q === r[1]} value=${q}>${q}</option>`)}</select>
           <select aria-label="פס" ?disabled=${this.readonly} @change=${(e: Event) => this.edit((x) => { x.schedule[sid][did][j][2] = (e.target as HTMLSelectElement).value; })}>${d.bands.map((b) => html`<option .selected=${b.id === r[2]} value=${b.id}>${b.name_he}</option>`)}</select>
-          ${this.readonly ? nothing : html`<button type="button" class="btn ghost sm" aria-label="הסרת טווח" data-tou-remove @click=${() => this.edit((x) => { x.schedule[sid][did].splice(j, 1); if (!x.schedule[sid][did].length) delete x.schedule[sid][did]; })}>✕</button>`}
+          ${this.readonly ? nothing : html`<button type="button" class="btn ghost sm ic" aria-label="הסרת טווח" data-tou-remove @click=${() => this.edit((x) => { x.schedule[sid][did].splice(j, 1); if (!x.schedule[sid][did].length) delete x.schedule[sid][did]; })}>✕</button>`}
         </div>`)}
         ${this.readonly || !others.length ? nothing : html`<div><button type="button" class="btn ghost sm" data-tou-add=${`${sid}:${did}`} @click=${() => this.edit((x) => { ((x.schedule[sid] ??= {})[did] ??= []).push(['17:00', '22:00', others[0].id]); })}>+ טווח שעות</button></div>`}
       </div>`;
@@ -227,10 +227,10 @@ export class ElecTouEditor extends ElecBase {
           <b>עונות</b>
           ${d.seasons.map((s, i) => html`<div class="season ${this.bad(`seasons[${i}]`)}" data-tou-season-def=${s.id}>
             <div class="row"><input aria-label="שם העונה" .value=${s.name_he} ?disabled=${ro} @input=${(e: Event) => this.edit((x) => { x.seasons[i].name_he = (e.target as HTMLInputElement).value; })} />
-              ${ro || d.seasons.length < 2 ? nothing : html`<button type="button" class="btn ghost sm" aria-label="הסרת העונה" @click=${() => this.edit((x) => { const [gone] = x.seasons.splice(i, 1); delete x.schedule[gone.id]; delete x.prices[gone.id]; })}>✕</button>`}</div>
+              ${ro || d.seasons.length < 2 ? nothing : html`<button type="button" class="btn ghost sm ic" aria-label="הסרת העונה" @click=${() => this.edit((x) => { const [gone] = x.seasons.splice(i, 1); delete x.schedule[gone.id]; delete x.prices[gone.id]; })}>✕</button>`}</div>
             ${s.ranges.map((r, j) => html`<div class="rng"><span class="mut">מ</span><input class="md ltr" aria-label="מתאריך (חודש-יום)" placeholder="MM-DD" .value=${r[0]} ?disabled=${ro} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); if (MD.test(v)) this.edit((x) => { x.seasons[i].ranges[j][0] = v; }); }} />
               <span class="mut">עד</span><input class="md ltr" aria-label="עד תאריך (חודש-יום)" placeholder="MM-DD" .value=${r[1]} ?disabled=${ro} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); if (MD.test(v)) this.edit((x) => { x.seasons[i].ranges[j][1] = v; }); }} />
-              ${ro || s.ranges.length < 2 ? nothing : html`<button type="button" class="btn ghost sm" aria-label="הסרת טווח תאריכים" @click=${() => this.edit((x) => { x.seasons[i].ranges.splice(j, 1); })}>✕</button>`}</div>`)}
+              ${ro || s.ranges.length < 2 ? nothing : html`<button type="button" class="btn ghost sm ic" aria-label="הסרת טווח תאריכים" @click=${() => this.edit((x) => { x.seasons[i].ranges.splice(j, 1); })}>✕</button>`}</div>`)}
             ${ro ? nothing : html`<div><button type="button" class="btn ghost sm" @click=${() => this.edit((x) => { x.seasons[i].ranges.push(['01-01', '01-31']); })}>+ טווח תאריכים</button></div>`}
           </div>`)}
           ${ro ? nothing : html`<div><button type="button" class="btn sm" data-tou-add-season @click=${() => this.edit((x) => { const id = freshId('season', x.seasons.map((s) => s.id)); x.seasons.push({ id, name_he: 'עונה חדשה', ranges: [['01-01', '01-31']] }); x.prices[id] = {}; })}>+ עונה</button></div>`}
@@ -240,7 +240,7 @@ export class ElecTouEditor extends ElecBase {
           <b>פסי תעריף</b>
           ${d.bands.map((b, i) => html`<div class="row ${this.bad(`bands[${i}]`)}"><span class="sw" style="background:${bandColor(d, b.id)}"></span>
             <input aria-label="שם הפס" .value=${b.name_he} data-tou-band-name=${b.id} ?disabled=${ro} @input=${(e: Event) => this.edit((x) => { x.bands[i].name_he = (e.target as HTMLInputElement).value; })} />
-            ${ro || b.id === d.default_band || d.bands.length < 2 ? nothing : html`<button type="button" class="btn ghost sm" aria-label="הסרת הפס" @click=${() => this.edit((x) => {
+            ${ro || b.id === d.default_band || d.bands.length < 2 ? nothing : html`<button type="button" class="btn ghost sm ic" aria-label="הסרת הפס" @click=${() => this.edit((x) => {
               x.bands.splice(i, 1);
               for (const per of Object.values(x.schedule)) for (const k of Object.keys(per)) { per[k] = per[k].filter((r) => r[2] !== b.id); if (!per[k].length) delete per[k]; }
               for (const p of Object.values(x.prices)) delete p[b.id];
