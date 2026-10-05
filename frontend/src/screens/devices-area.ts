@@ -31,6 +31,8 @@ import { applyDevicesPrefs, DEVICES_PREFS_DEFAULT, devicesStyleTokens, loadDevic
 import { isCameraSource } from '../api/camera-card';
 import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type MeasuredGrid, type TileEntry } from './devices-layout';
 import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards';
+import { activityTag, ActivityPress } from '../components/device-activity-press';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
 import { SkinController, hueOf } from '../design/skin';
 import { bubbleAreaStyles, renderBubblePill, renderBubbleSensorTile, renderBubbleSep, renderBubbleSheetBody, sectionIcon } from './devices-area-bubble';
@@ -513,6 +515,8 @@ export class DevicesArea extends LitElement {
   private loadAgain = false;
   /** CR-007 single-entity controls (devices-controls.ts, shared with the overview tiles' panel). */
   private ctl = new DeviceControls(this);
+  /** CR-032: long press / menu item / Alt+Enter on a tile the server flagged `activity` opens the device activity popup (components/device-activity.ts). */
+  private press = new ActivityPress(this, { area: () => this.detail?.area.name ?? '' });
   /** CR-007 6a: style, density and the sensors card (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
   private prefsReady: Promise<void> = Promise.resolve();
@@ -1455,7 +1459,7 @@ export class DevicesArea extends LitElement {
           : rowLabel(r)
         : rowLabel(r);
     const on = r.active && !unavailable;
-    return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.ctl.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
+    return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.ctl.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.ctl.renderPowerToggle(r) : nothing}</div>
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
@@ -1592,7 +1596,7 @@ export class DevicesArea extends LitElement {
     const pendingCls = controllable && this.ctl.rowPending(r.entity_id);
     if (card === 'climate' || card === 'heating') {
       const isClimate = r.domain === 'climate';
-      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
+      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
         <span class="n">${bidi(r.name)}</span>
         <span class="v big">${unavailable ? 'לא זמין' : isClimate ? deg(r.current_temperature) : rowLabel(r)}</span>
         ${isClimate && !unavailable
@@ -1620,7 +1624,7 @@ export class DevicesArea extends LitElement {
     }
     if (card === 'covers') {
       const coverIcon: IconName = r.door_class ? (COVER_CLASS_ICON[r.device_class ?? ''] ?? 'lock') : 'layers';
-      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} data-door-class=${String(!!r.door_class)} ?data-can-control=${controllable} title=${r.entity_id}>
+      return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} data-door-class=${String(!!r.door_class)} ?data-can-control=${controllable} title=${r.entity_id}>
         <span class="n">${r.door_class ? html`<sw-icon .name=${coverIcon} size=${14}></sw-icon> ` : nothing}${bidi(r.name)}<span class="muted"> · ${this.coverLabel(r)}</span></span>
         <span class="v">${rowLabel(r)}</span>
         ${r.position !== null && r.position !== undefined && !unavailable ? html`<div class="bar" role="img" aria-label=${`פתוח ${r.position}%`}><i style=${`inline-size:${r.position}%`}></i></div>` : nothing}
@@ -1639,7 +1643,7 @@ export class DevicesArea extends LitElement {
       else if (r.kind === 'camera') badge = { kind: 'neutral', label: 'מצלמת התקן' };
       else badge = { kind: r.state === 'on' ? 'stale' : 'neutral', label: rowLabel(r) };
       const kindIcon: IconName = r.kind === 'lock' ? (r.locked ? 'lock' : 'unlock') : r.kind === 'alarm' ? 'shield' : r.kind === 'camera' ? 'camera' : 'sensor';
-      return html`<div class=${classMap({ row: true, unavailable })} data-entity=${r.entity_id} data-kind=${r.kind ?? ''} title=${r.entity_id}>
+      return html`<div class=${classMap({ row: true, unavailable })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-kind=${r.kind ?? ''} title=${r.entity_id}>
         <span class="n"><sw-icon .name=${kindIcon} size=${14}></sw-icon> ${bidi(r.name)}</span>
         <sw-badge kind=${badge.kind} label=${badge.label}></sw-badge>
         ${r.kind === 'camera' ? html`<div class="d"><span>אין תמונה ממצלמת התקן במסך הזה עדיין; מצלמות ה־NVR מוצגות ב"מצלמות".</span></div>` : nothing}
@@ -1647,7 +1651,7 @@ export class DevicesArea extends LitElement {
       </div>`;
     }
     // media
-    return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
+    return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>
       <span class="n"><sw-icon name="play" size=${14}></sw-icon> ${bidi(r.name)}</span>
       <span class="v">${rowLabel(r)}</span>
       ${!unavailable && (r.media_title || r.source || r.volume_pct !== null)
