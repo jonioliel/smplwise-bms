@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smplwise:arx-exchange:schemas:1:clock-health",
+  "title": "Clock-health sample handed by the bridge to the trusted API (arx-exchange schema 1)",
+  "description": "In-process object (Python dict or frozen dataclass with the same fields) that the bridge passes with each trusted door call. JSON form documented here so both sides test the same shape. Not persisted, never sent over the network. Semantics and freshness rules: COMPAT.md section 5. Model only: not verified on a real system.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source",
+    "read_ok",
+    "dt_synchronized",
+    "dt_utc",
+    "sampled_monotonic",
+    "read_duration_ms",
+    "process_boot_id"
+  ],
+  "properties": {
+    "schema": { "const": "arx-exchange/clock-health/1" },
+    "source": {
+      "const": "supervisor_host_info",
+      "description": "The only accepted source: Supervisor GET /host/info. No fallback source exists."
+    },
+    "read_ok": {
+      "type": "boolean",
+      "description": "false when the Supervisor read failed, timed out, or returned an unparsable or incomplete body."
+    },
+    "dt_synchronized": {
+      "type": ["boolean", "null"],
+      "description": "Copied from data.dt_synchronized. Only the JSON boolean true counts as healthy; null = field missing or read failed. use_ntp alone is not a signal."
+    },
+    "dt_utc": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "description": "Copied verbatim from data.dt_utc (ISO 8601 / RFC 3339 as Supervisor returns it); null when missing. Never used as 'now'."
+    },
+    "sampled_monotonic": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Bridge process time.monotonic() in seconds, taken when the Supervisor response was received."
+    },
+    "read_duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall duration of the read measured on the monotonic clock."
+    },
+    "process_boot_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "Random id generated once per bridge process start (or config-entry setup). A sample whose id differs from the current one is invalid, so a sample never survives a restart or reload."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "read_ok": { "const": false } } },
+      "then": { "properties": { "dt_synchronized": { "type": "null" }, "dt_utc": { "type": "null" } } }
+    }
+  ]
+}
