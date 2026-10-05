@@ -828,7 +828,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
   '#/investigate/floors/f0/history': ['video.playback'],
-  '#/investigate/reviews': ['events.read'],
+  '#/investigate/reviews': ['events.read', 'analytics.read'], // NN5-F1B: the Frigate review screen's own permission opens it too
   '#/investigate/search': ['events.read'],
   '#/investigate/cases': ['cases.manage'],
   '#/investigate/rules': ['rules.manage'],

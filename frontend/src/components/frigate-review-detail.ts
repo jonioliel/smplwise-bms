@@ -3,17 +3,10 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import './sw-button';
 import './sw-state-panel';
-import { LAYER_TEXT, objectLabel, playbackState, reviewThumbUrl, spanText, type ReviewDetail, type TimelineKind } from '../api/frigate';
+import { LAYER_TEXT, cardTime, objectLabel, playbackState, reviewThumbUrl, spanText, timelineText, type ReviewDetail } from '../api/frigate';
 import { he } from '../i18n/he';
-import { cardTime } from './frigate-review-card';
 
 const hms = (iso: string, tz: string) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
-
-/** The timeline row's wording: "נכנס לאזור: מדרגות כניסה". Data only (no overlay, no seek: F2). */
-export function timelineText(kind: TimelineKind, zone?: string | null, note?: string | null): string {
-  const base = he.frigate.review.kind[kind] ?? kind;
-  return [base, zone || note].filter(Boolean).join(': ');
-}
 
 /**
  * NN5-F1B: the body of the review drawer - the still, the facts, the tracked-object timeline (data only) and the actions.

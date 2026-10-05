@@ -182,7 +182,7 @@ export class InvestigateReviews extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (!this.list?.available) return;
-    const act = keyAction(e);
+    const act = keyAction({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, target: e.target as Element | null, path: e.composedPath().map((n) => (n as Element).tagName?.toLowerCase() ?? '') });
     if (!act) return;
     const items = this.list.items;
     if (this.drawer) {

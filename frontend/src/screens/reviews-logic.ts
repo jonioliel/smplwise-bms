@@ -4,9 +4,14 @@ import type { ReviewItem, ReviewList } from '../api/frigate';
 export type ReviewKeyAction = 'next' | 'prev' | 'toggle-select' | 'toggle-reviewed' | 'open' | 'select-all' | 'escape' | null;
 
 /** The keys of the screen. Typing in a field is never a shortcut (the caller passes the event's target tag). */
-export function keyAction(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; target?: { tagName?: string; isContentEditable?: boolean } | null }): ReviewKeyAction {
+export function keyAction(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; target?: { tagName?: string; isContentEditable?: boolean } | null; path?: readonly string[] }): ReviewKeyAction {
   const tag = e.target?.tagName?.toLowerCase() ?? '';
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return null;
+  // a key typed into a dropdown (its typeahead) or any field inside a shadow root is the control's, not a shortcut
+  const path = e.path ?? [];
+  if (path.some((t) => t === 'sw-dropdown' || t === 'input' || t === 'textarea' || t === 'select')) return null;
+  // Space and Enter on a focused button or link activate it natively
+  if ((e.key === ' ' || e.key === 'Enter') && (tag === 'button' || tag === 'a' || path[0] === 'button' || path[0] === 'a' || tag === 'sw-button')) return null;
   if (e.altKey) return null;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if ((e.ctrlKey || e.metaKey) && k === 'a') return 'select-all';

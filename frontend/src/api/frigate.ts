@@ -278,3 +278,19 @@ export function stillDue(s: { hidden: boolean; inView: boolean; lastAt: number; 
 export function withBust(url: string, bust: number): string {
   return `${url}${url.includes('?') ? '&' : '?'}t=${bust}`;
 }
+
+/** The time of an item in a zone: "10:12" and, when it is not today, the date before it. */
+export function cardTime(iso: string, tz: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const day = (x: Date) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(x);
+  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+  return day(d) === day(now) ? hm : `${day(d)} ${hm}`;
+}
+
+
+/** The timeline row's wording: "נכנס לאזור: מדרגות כניסה". Data only (no overlay, no seek: F2). */
+export function timelineText(kind: TimelineKind, zone?: string | null, note?: string | null): string {
+  const base = he.frigate.review.kind[kind] ?? kind;
+  return [base, zone || note].filter(Boolean).join(': ');
+}
+

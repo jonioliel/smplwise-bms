@@ -2,18 +2,10 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
-import { LAYER_TEXT, objectLabel, reviewThumbUrl, spanText, type ReviewItem, type ReviewLayer } from '../api/frigate';
+import { LAYER_TEXT, cardTime, objectLabel, reviewThumbUrl, spanText, type ReviewItem, type ReviewLayer } from '../api/frigate';
 import { he } from '../i18n/he';
 
 const LAYER_ICON: Record<ReviewLayer, IconName> = { alert: 'warning', detection: 'eye', motion: 'activity' };
-
-/** The time of an item in a zone: "10:12" and, when it is not today, the date before it. */
-export function cardTime(iso: string, tz: string, now: Date = new Date()): string {
-  const d = new Date(iso);
-  const day = (x: Date) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, day: '2-digit', month: '2-digit' }).format(x);
-  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
-  return day(d) === day(now) ? hm : `${day(d)} ${hm}`;
-}
 
 /**
  * NN5-F1B: one review item as a card - still, camera, time, where, objects, zones, severity layer, per-user reviewed state.
