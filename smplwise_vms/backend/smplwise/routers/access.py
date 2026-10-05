@@ -119,6 +119,12 @@ PERMISSION_LABELS: dict[str, str] = {
     # everyone's delivery log. Installation scope, held by system_admin only, in sensitive_permissions_not_implied (a custom role grants it to one
     # person by naming it among its sensitive permissions). Receiving a notification needs NO permission - a user gets only what they may see.
     "notify.manage": "ניהול התראות: מקורות, נמענים, ערוצים, שעות שקט, הסלמה, דואר יוצא ויומן מסירה",
+    # CR-027 (the phone app): presence.report lets a signed-in person register THEIR OWN phone and report what it shares
+    # (held by every default role but kiosk - a kiosk display is not a person); presence.sensors.view (system_admin) sees
+    # everyone's registered devices, what each one shares and its current presence state. Presence settings (the master
+    # switch, the allowed sensors, the employee notice, the required-sensors policy, retention) are system.configure.
+    "presence.report": "רישום המכשיר הנייד שלי ודיווח נוכחות",
+    "presence.sensors.view": "צפייה במכשירים הניידים של כולם ובמה שהם משתפים",
     # CR-015 (מולטימדיה · מסכים ושלט, docs/architecture/MEDIA_API.md 6 / CR 6.1): six permissions, all scoped like devices.control (the
     # screen's anchor entity placement; HA areas and floors are never a scope). media.read (viewer and above, not kiosk) sees the
     # page, the cards and the state; media.control (operator and above) sends volume, keys, transport and text; media.power (operator
