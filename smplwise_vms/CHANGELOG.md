@@ -69,6 +69,8 @@ No migration, no restart; reload the web app once.
   socket close code or the relay's error value) on `error` and `ended`.
 - **Not measured on a real recorder yet:** the recovery time after a real network drop (needs an owner-approved session that cuts the path
   to the NVR for a moment, or a fake RTSP source in a test rig); the tests use a mocked backend and a stubbed media clock.
+- **Known, left as is:** Domus dark skin - the "נסה שוב" button has low contrast; it comes from the skin's primary button colour shared by
+  other screens and is left for the skin work.
 
 ## 0.1.163 (pilot) — Several recorders in one system; Provision-ISR recorders (search, playback, export to MP4, events); schedules: sirens, players, values, marked scripts, scheduled disarm allowed by default
 **After installing, restart once (the platform, then the system when the banner asks):** **database migration `0055_multi_recorder`** runs on start (additive), and the bridge integration moves to **0.6.2** (its schedule allow-list grows; Home Assistant loads it on restart - until then sirens, players, numbers and selects are refused in schedules with "נדרש עדכון של רכיב החיבור" and everything else works as before). Reload the installed web app once.
