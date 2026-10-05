@@ -77,6 +77,7 @@ class Payload:
     pauses: int = 0  # disk-full pauses in a row (reset when the job finishes a pass without one)
     resume_after: str | None = None  # UTC: no automatic resume before this (back-off)
     need_bytes: int = 0  # bytes still needed when it last paused: at least what the aborted file had reached
+    recorder_id: str | None = None  # security review L6: the recorder the files were searched on (the download goes there only)
 
 
 def _files_for(settings: Settings, conn: sqlite3.Connection, cam: sqlite3.Row, start: dt.datetime, end: dt.datetime, tz_name: str) -> tuple[list[ExportFile], str]:
@@ -321,7 +322,7 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     if total > max_bytes:
         raise ApiError(422, "export_too_large", f"נפח משוער {total // (1024 * 1024)} MB מעל המגבלה ({max_bytes // (1024 * 1024)} MB).", details={"estimate_bytes": total})
     require_disk(settings, min_mb, estimate_with_unknown(files))  # the NVR files land on the data disk first (unknown sizes estimated)
-    payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage)
+    payload = Payload(files=files, estimate_bytes=total or None, timezone=tz_name, coverage=coverage, recorder_id=_recorder_of(cam))
     job_id = uuid.uuid4().hex[:12]
     now = now_iso()
     conn.execute(
@@ -330,6 +331,15 @@ def create_job(conn: sqlite3.Connection, settings: Settings, principal: Any, cam
     )
     WORKER.wake()
     return _row_to_job(conn.execute("SELECT * FROM export_jobs WHERE id = ?", (job_id,)).fetchone())
+
+
+def _recorder_of(cam: Any) -> str:
+    from ..recorder_scope import PRIMARY
+
+    try:
+        return cam["recorder_id"] or PRIMARY
+    except (KeyError, IndexError, TypeError):
+        return PRIMARY
 
 
 def _payload_dict(p: Payload) -> dict[str, Any]:
@@ -507,11 +517,18 @@ class Worker:
             row = conn.execute("SELECT * FROM export_jobs WHERE id = ?", (job_id,)).fetchone()
         raw = json.loads(row["payload_json"])
         payload = Payload(**{**raw, "files": [ExportFile(**f) for f in raw["files"]]})
-        from ..recorder_scope import camera_settings
+        from ..recorder_scope import settings_for
 
         with self.db.connection(mode="read") as conn:
             cam = conn.execute("SELECT recorder_id FROM cameras WHERE id = ?", (row["camera_id"],)).fetchone()
-        source = camera_settings(settings, cam)  # CR-024: the files are downloaded from the camera's own recorder
+        # security review L6: the job downloads only from the recorder its files were searched on (stored in the payload; a row
+        # from before falls back to the camera's). A camera that is gone or now belongs to another recorder fails the job: its
+        # playback requests would otherwise be sent to a recorder they were never meant for.
+        rid = payload.recorder_id or (_recorder_of(cam) if cam is not None else None)
+        if cam is None or rid is None or _recorder_of(cam) != rid:
+            self._update(job_id, state="failed", payload=payload, error="המצלמה או ה־NVR של הייצוא אינם זמינים עוד")
+            return
+        source = settings_for(settings, rid)  # CR-024: the files are downloaded from the camera's own recorder
         d = job_dir(settings, job_id)
         d.mkdir(parents=True, exist_ok=True)
         total_expected = sum(f.size or 0 for f in payload.files) or None

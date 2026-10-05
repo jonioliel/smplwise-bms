@@ -297,6 +297,10 @@ def write_row(conn: sqlite3.Connection, settings: Settings, *, vendor: str, host
     (None = no password). Encryption happens BEFORE anything is written, so a key failure writes nothing."""
     if vendor not in VENDOR_IDS:
         raise ValueError("unknown vendor")
+    from ..recorder_scope import valid_id
+
+    if not valid_id(recorder_id):  # security review Low: only server-assigned nvr-<n> ids are ever stored
+        raise ValueError("recorder id")
     password_enc = encrypt(settings, recorder_id, "password", password) if password else None
     state = "ok" if vendor == NO_NVR or password_enc else "incomplete"
     old = revision_of(conn, recorder_id)

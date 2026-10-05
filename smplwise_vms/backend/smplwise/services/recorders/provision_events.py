@@ -51,6 +51,16 @@ def _sink(recorder_id: str, alerts: list) -> None:
 AUTH_MODES = ("token", "address", "token_and_address")
 
 
+def _poll_interval(value: Any) -> float:
+    """Security review Low: a stored value that is not a number (saved before validation) falls back to 2 s with a warning
+    instead of ending the event loop; bounded to 1..3600 s."""
+    try:
+        return min(3600.0, max(1.0, float(value or 2.0)))
+    except (TypeError, ValueError):
+        log.warning("provision: poll_interval_s is not a number; using 2 s")
+        return 2.0
+
+
 PUSH_KEY_NAME = "push.key"
 PUSH_GENERATIONS_NAME = "push_generations.json"
 _GEN_LOCK = threading.Lock()
@@ -227,7 +237,7 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
     s = listener.settings
     st = listener.state
     ad = adapter or ProvisionIsrAdapter(listener.recorder_id, s)
-    interval = max(1.0, float(_extra(s).get("poll_interval_s") or 2.0))
+    interval = _poll_interval(_extra(s).get("poll_interval_s"))
     tracker = AlarmTracker()
     receiver = _register_push(listener, ad) if ad.event_mode() == "push" else None
     wait = sleep or listener.stop.wait

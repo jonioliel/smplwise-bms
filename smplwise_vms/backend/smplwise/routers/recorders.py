@@ -269,6 +269,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
 
     def create(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, rid):
+            nc._deny(request, c, principal, "nvr.recorder.add", "recorder_duplicate", fields["vendor"], rid)  # security review Low: audited
             raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
         create_recorder_row(c, rid, name, fields["vendor"])
 

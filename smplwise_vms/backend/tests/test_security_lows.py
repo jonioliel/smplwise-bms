@@ -92,3 +92,27 @@ def test_ffmpeg_inputs_are_whitelisted_and_env_minimal(monkeypatch):
     assert "SUPERVISOR_TOKEN" not in kw["env"] and "PATH" in kw["env"]
     src = Path(pp.__file__).read_text(encoding="utf-8")
     assert '"-protocol_whitelist", "rtsp,rtp,tcp,udp", "-i", playback_uri' in src
+
+@pytest.mark.parametrize("rid", ["intercom_door", "wiskey-1", "pb_1", "ha_x", "nvr-1x", "../nvr-1", "nvr_1"])
+def test_only_server_assigned_recorder_ids(settings, rid):
+    """Low: recorder ids are nvr-<n> only (they end up in go2rtc stream names)."""
+    from smplwise import recorder_scope as rs
+    from smplwise.services import connection_store as cs
+
+    assert not rs.valid_id(rid)
+    assert rs.settings_for(settings, rid).nvr_host is None
+    with pytest.raises(ValueError):
+        cs.write_row(None, settings, vendor="hikvision", host="h.test", http_port=80, rtsp_port=554, username="u", password=None, extra={},
+                     source="ui", actor_id=None, recorder_id=rid)
+
+
+def test_server_assigned_ids_stay_valid():
+    from smplwise import recorder_scope as rs
+
+    assert all(rs.valid_id(r) for r in ("nvr-1", "nvr-2", "nvr-123456")) and not rs.valid_id("nvr-1234567")
+
+
+def test_bad_stored_poll_interval_never_ends_the_loop():
+    from smplwise.services.recorders import provision_events as pe
+
+    assert pe._poll_interval("abc") == 2.0 and pe._poll_interval(None) == 2.0 and pe._poll_interval("0.1") == 1.0 and pe._poll_interval(99999) == 3600.0
