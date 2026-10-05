@@ -3455,6 +3455,7 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
+      "EXCLUDED - owner decision 2026-10-05 (\"no AI track needed; semantic search with an external provider is not wanted\"): out of scope; the local baseline stays as built.",
       "pre-evidence 2026-09-17 (0.1.44): services/semantic.py local baseline (no model, no network) parses Hebrew/English questions into object class (device detection target), catalogue places (rooms/floors/cameras, scoped) and a site-zone time window; GET /search/semantic runs the scoped event query and labels hits exact/partial with their basis; colour/appearance terms reported unsupported with the reason; GET /search/providers publishes the adapter contract (model version, privacy, budget, opt-in) and settings ai.provider/ai.privacy_ack/ai.budget_daily; ai.provider=external refused (none bundled); every answer states results are not identity evidence. UI: חיפוש AI real mode. tests/test_semantic.py; live evidence private-evidence/T063-semantic-live. Embeddings / image similarity remain excluded until the owner chooses a provider, acknowledges its privacy policy and sets a budget. Status stays BACKLOG."
     ],
     "owner": null,
@@ -4014,6 +4015,7 @@
       "Technical review record"
     ],
     "evidence": [
+      "EXCLUDED - owner decision 2026-10-05 (\"no need to run against a local CLI\"): out of scope; the runner gate replaces it.",
       "pre-evidence 2026-09-17: scripts/task_runner.py — one invocation per task card through a validated local CLI (--version), dependency gate (DONE, or evidence with --gate evidence), attempt cap (2 failed runs → needs_review, no automatic retry), workspace allowlist (inside the repo, never secrets/ private-evidence/ legacy/ data/), budget bound per run (no spend authorisation path), hard timeout, manual STOP file, invocation.json + result.json against schema smplwise-task-run/1 with changed files and violations from git; dry run prints the invocation only. tests/test_task_runner.py (fake CLI: validation, gates, cap, schema, timeout, manual stop); docs/operations/TASK_RUNNER.md. Status stays BACKLOG."
     ],
     "owner": null,
