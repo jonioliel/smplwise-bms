@@ -34,6 +34,8 @@ import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards'
 import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
 import { SkinController, hueOf } from '../design/skin';
 import { bubbleAreaStyles, renderBubblePill, renderBubbleSensorTile, renderBubbleSep, renderBubbleSheetBody, sectionIcon } from './devices-area-bubble';
+import { mapHrefForArea } from '../api/plan-links';
+import './explore-floor-map';
 
 export { rowLabel };
 
@@ -617,6 +619,31 @@ export class DevicesArea extends LitElement {
   };
 
   static styles = [devicesStyleTokens, deviceControlStyles, css`
+    /* K88: the live plan card */
+    .plancard {
+      display: block;
+      margin-block-end: 16px;
+    }
+    .plancard explore-floor-map {
+      display: flex;
+      block-size: 360px;
+      border-radius: var(--sw-r-md);
+      overflow: hidden;
+      border: 1px solid var(--sw-border);
+    }
+    .plancard .plan-open {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--sw-accent-text, var(--sw-accent));
+      font-size: var(--sw-fs-sm);
+      text-decoration: none;
+    }
+    @media (max-width: 767px) {
+      .plancard explore-floor-map {
+        block-size: 300px;
+      }
+    }
     :host {
       display: block;
     }
@@ -1058,7 +1085,8 @@ export class DevicesArea extends LitElement {
     return html`<sw-page heading=${bubble ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
       <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
-        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
+        ${d.area.map ? html`<sw-button size="sm" variant="ghost" icon="map" data-show-on-map @click=${() => { location.hash = mapHrefForArea(d.area.map) ?? location.hash; }}>הצג על המפה</sw-button>` : nothing}
+        ${bulk ? html`<devices-bulk-menu scope="area" .targetId=${d.area.area_id} .targetName=${d.area.name} .counts=${d.counts} variant="popover" label="פעולות לאזור" mapHref=${mapHrefForArea(d.area.map) ?? ''} data-bulk-area=${d.area.area_id}></devices-bulk-menu>` : nothing}
         ${d.counts.alarm && !bubble ? html`<sw-badge data-area-alarm kind=${alarmTone(d.counts.alarm)} label=${`אזעקה: ${ALARM_HE[d.counts.alarm] ?? d.counts.alarm}`}></sw-badge>` : nothing}
         ${bubble && connected ? nothing : html`<sw-badge data-devices-sync kind=${connected ? 'live' : 'stale'} label=${connected ? 'מסונכרן' : 'לא מסונכרן'}></sw-badge>`}
         ${this.structureFlash ? html`<sw-badge data-structure-changed kind="live" label="מבנה עודכן"></sw-badge>` : nothing}
@@ -1067,6 +1095,7 @@ export class DevicesArea extends LitElement {
       ${bubble ? this.renderBubbleHead(d) : nothing}
       ${this.lay.renderBar()}
       ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
+      ${this.lay.editing || !d.area.map || !this.prefs.planSurfaces.includes('area') || !isApi() ? nothing : this.renderPlanCard(d)}
       ${arranging
         ? this.lay.stage(`card:${arranging.id}`, this.renderCard(arranging))
         : arrangingCustom
@@ -1096,6 +1125,15 @@ export class DevicesArea extends LitElement {
     },
     assignButton: (r: DeviceRow) => (this.canAssignArea ? html`<sw-button slot="subs" class="assign-btn" size="sm" variant="ghost" data-assign-entity=${r.entity_id} @click=${(e: Event) => { e.stopPropagation(); void this.openAssign(r); }}>שייך לאזור</sw-button>` : nothing),
   };
+
+  /** K88 (plan.surfaces has "area"): the area's room on its floor's live plan, the room focused; the title opens the full map. */
+  private renderPlanCard(d: DeviceAreaDetail) {
+    const link = d.area.map!;
+    return html`<sw-card class="plancard" data-area-plan-card heading="על התוכנית">
+      <a slot="actions" class="plan-open" href=${mapHrefForArea(link) ?? ''} data-area-plan-open>למפה המלאה<sw-icon name="chevron" size=${12}></sw-icon></a>
+      <explore-floor-map embedded compact .floorId=${link.floor_id} .focusZone=${link.zone_id}></explore-floor-map>
+    </sw-card>`;
+  }
 
   /** The area's head pill: name, counts, the room temperature (its first temperature sensor), and "כבה הכל" for a bulk holder. */
   private renderBubbleHead(d: DeviceAreaDetail) {

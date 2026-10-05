@@ -41,7 +41,7 @@ export const createZone = (floorId: string, body: { name: string; kind?: ZoneKin
   post<SpatialZone>(`floors/${floorId}/zones`, body);
 /** `signal`: an abort (a timeout) for a caller that must not wait forever - the editor's zone saves (review of T085, R4).
  * `fromFloorId` (CR-009): a shared room edited on another floor's map - its polygon is in that plan's coordinates. */
-export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] }, signal?: AbortSignal, fromFloorId?: string) => {
+export const updateZone = (id: string, body: { revision: number; name?: string; kind?: ZoneKind; polygon?: ZonePoint[]; color?: string; searchable?: boolean; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[]; area_id?: string | null }, signal?: AbortSignal, fromFloorId?: string) => {
   const path = `zones/${id}${fromFloorId ? `?from_floor_id=${encodeURIComponent(fromFloorId)}` : ''}`;
   return signal ? api<SpatialZone>(path, { method: 'PATCH', body: JSON.stringify(body), signal }) : patch<SpatialZone>(path, body);
 };

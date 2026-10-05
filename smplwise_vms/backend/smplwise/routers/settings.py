@@ -113,6 +113,7 @@ DEFAULTS: dict[str, str] = {
     "map.default_floor": "",  # owner 2026-09-30: the floor the map's floor tab opens first when several floors exist ("" = the built-in order); an existing floor id, cleared when that floor is deleted
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
     "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
+    "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
@@ -314,6 +315,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
+    out["plan.surfaces"] = stored_plan_surfaces(out["plan.surfaces"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
@@ -367,6 +369,20 @@ def _stored_area_row(raw: Any, normalize: Any, default: dict[str, Any]) -> dict[
         return normalize(json.loads(raw) if isinstance(raw, str) else raw)
     except ValueError:
         return json.loads(json.dumps(default))
+
+
+PLAN_SURFACES = ("devices", "area")  # K88: the places the live plan may appear besides the map tab
+
+
+def stored_plan_surfaces(raw: Any) -> list[str]:
+    """The stored `plan.surfaces` as an ordered list of known surfaces; a corrupt value reads as the default (both)."""
+    try:
+        value = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return list(PLAN_SURFACES)
+    if not isinstance(value, list):
+        return list(PLAN_SURFACES)
+    return [s for s in PLAN_SURFACES if s in value]
 
 
 CLASSES_REV_KEY = "schedules.classes_rev"  # "2" once `schedules.classes` was saved knowing the 2026-10-04 classes
@@ -525,6 +541,7 @@ class SettingsPatch(BaseModel):
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
     plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
+    plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
@@ -706,6 +723,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["devices.floor_row"] = area_row.normalize_floor(changes["devices.floor_row"])
         except ValueError as exc:
             raise ApiError(422, "validation", "מה מוצג בכותרת הקומה: ערך לא תקין.", details={"devices.floor_row": str(exc)})
+    if "plan.surfaces" in changes:
+        bad = [c for c in changes["plan.surfaces"] if c not in PLAN_SURFACES]
+        if bad:
+            raise ApiError(422, "validation", "מיקומי התוכנית החיה: ערך לא מוכר.", details={"plan.surfaces": bad})
+        changes["plan.surfaces"] = [c for c in PLAN_SURFACES if c in changes["plan.surfaces"]]
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -789,7 +811,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now

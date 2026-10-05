@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import './plan-area-links-admin';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-card';
@@ -146,6 +147,14 @@ export class SystemDiagnostics extends LitElement {
       flex-direction: column;
       gap: 12px;
       max-inline-size: 760px;
+    }
+    /* K88: the plan.surfaces check rows */
+    .chk {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
     }
     .row {
       display: flex;
@@ -858,6 +867,7 @@ export class SystemDiagnostics extends LitElement {
   private renderMap() {
     const api = isApi();
     const dirty = Object.keys(this.draft).length > 0;
+    const surfaces = (this.value('plan.surfaces') as ('devices' | 'area')[] | undefined) ?? ['devices', 'area'];
     const sel = (key: keyof ProductSettings, dflt: string, attr: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set=${attr} ?disabled=${!api || !this.canEdit}
         @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>${options.map(([v, l]) => html`<option value=${v} ?selected=${String(this.value(key) ?? dflt) === v}>${l}</option>`)}</select></sw-field>`;
     return html`<div class="sections">
@@ -869,9 +879,14 @@ export class SystemDiagnostics extends LitElement {
           ${sel('plan.levels', 'all', 'map-plan-levels', [['all', 'כל המפלסים יחד'], ['default', 'מפלס ברירת המחדל של הקומה']])}</div>
         <div class="row"><span class="lbl">מפלסים של חלל משותף<span class="muted">בעורך של הקומה שמציגה חלל משותף (חלל בגובה כפול שהרצפה שלו בקומה אחרת): להציג בסרגל המפלסים גם את מפלסי הקומה שלו ("מפלס ראשי · קומה -1")</span></span>
           ${sel('map.shared_levels', 'show', 'map-shared-levels', [['show', 'מוצגים'], ['hide', 'מוסתרים']])}</div>
+        <div class="row" data-plan-surfaces><span class="lbl">התוכנית החיה מחוץ ללשונית המפה<span class="muted">איפה עוד מוצגת תוכנית הקומה עם מצבי החדרים; כל מקום לחוד</span></span>
+          <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
+            ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><input type="checkbox" data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', (e.target as HTMLInputElement).checked ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))} /> ${l}</label>`)}
+          </span></div>
         <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
+      ${api && this.canEdit ? html`<plan-area-links-admin data-section="area-links"></plan-area-links-admin>` : nothing}
     </div>`;
   }
 

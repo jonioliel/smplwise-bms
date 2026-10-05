@@ -37,6 +37,8 @@ export interface SceneViewOptions {
   /** After every drawn frame (the element lays out its DOM chips on the projected points). */
   onDraw?: () => void;
   quality?: QualityLevel;
+  /** K88: start in night mode (see setNight). */
+  night?: boolean;
   /** A fixed device pixel ratio (the control image of a skin: exactly its size in pixels on every screen); default
    * min(2, devicePixelRatio). */
   pixelRatio?: number;
@@ -119,6 +121,17 @@ const HEMI_INTENSITY = 2.1;
 const SUN_COLOR = 0xfff3dc;
 const SUN_INTENSITY = 3.0;
 const EXPOSURE = 1.12;
+/** K88 3D round 2, night mode (opt-in, never the default: the pixel baselines keep the day look): a dim cool sky, a
+ * faint moon instead of the sun, lower exposure, and the lit rooms' glow lights stronger so the picture reads as a
+ * house at night with its windows lit. */
+const NIGHT_HEMI_SKY = 0x2a3c66;
+const NIGHT_HEMI_GROUND = 0x0d1424;
+const NIGHT_HEMI_INTENSITY = 0.75;
+const NIGHT_MOON_COLOR = 0xbfd0ff;
+const NIGHT_MOON_INTENSITY = 0.55;
+const NIGHT_EXPOSURE = 0.9;
+const NIGHT_GLOW_FACTOR = 2.6;
+const NIGHT_AMBIENT = 0x8ea0cc;
 const THUMB_W = 160;
 const THUMB_H = 100;
 
@@ -289,6 +302,7 @@ export class SceneView {
   /** The dark section caps on the cut walls (level 2): one instanced box, rebuilt with the cut set. */
   private caps: InstancedMesh | null = null;
   private quality: QualityLevel;
+  private night = false;
   private framed = false;
   private hideSmall = false;
   /** The description is heavy (above HIDE_SMALL_ABOVE_PARTS parts): level 2 runs HEAVY_CONFIG. */
@@ -308,6 +322,7 @@ export class SceneView {
 
   constructor(private readonly opts: SceneViewOptions) {
     this.quality = opts.quality ?? 1;
+    this.night = !!opts.night;
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(opts.pixelRatio ?? Math.min(2, window.devicePixelRatio || 1));
     this.renderer.outputColorSpace = SRGBColorSpace;
@@ -406,6 +421,19 @@ export class SceneView {
 
   /** Switch the quality level: the lights and the renderer change, the cached materials are dropped and the same
    * description is realised again - the camera, the preset and the selection stay. */
+  /** K88: night mode on / off - the lights and the glow strength change, the parts stay. */
+  setNight(on: boolean): void {
+    if (on === this.night) return;
+    this.night = on;
+    this.applyQuality();
+    for (const light of this.glowPool) if (light.intensity > 0) light.intensity = GLOW_INTENSITY * (on ? NIGHT_GLOW_FACTOR : 1);
+    this.invalidate();
+  }
+
+  getNight(): boolean {
+    return this.night;
+  }
+
   setQuality(q: QualityLevel): void {
     if (q === this.quality) return;
     this.quality = q;
@@ -430,12 +458,13 @@ export class SceneView {
     this.sun = null;
     this.cutAzimuth = null;
     this.cutNow.clear();
+    const night = this.night;
     if (this.quality === 2) {
       this.renderer.shadowMap.enabled = true;
       this.renderer.toneMapping = ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = EXPOSURE;
-      this.lights.add(new HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY));
-      const sun = new DirectionalLight(SUN_COLOR, SUN_INTENSITY);
+      this.renderer.toneMappingExposure = night ? NIGHT_EXPOSURE : EXPOSURE;
+      this.lights.add(night ? new HemisphereLight(NIGHT_HEMI_SKY, NIGHT_HEMI_GROUND, NIGHT_HEMI_INTENSITY) : new HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY));
+      const sun = night ? new DirectionalLight(NIGHT_MOON_COLOR, NIGHT_MOON_INTENSITY) : new DirectionalLight(SUN_COLOR, SUN_INTENSITY);
       sun.castShadow = true;
       sun.shadow.mapSize.set(SHADOW_MAP_PX, SHADOW_MAP_PX);
       sun.shadow.bias = -0.0004;
@@ -448,8 +477,8 @@ export class SceneView {
       this.renderer.shadowMap.enabled = false;
       this.renderer.toneMapping = NoToneMapping;
       this.renderer.toneMappingExposure = 1;
-      this.lights.add(new AmbientLight(0xffffff, 1.6));
-      const sun = new DirectionalLight(0xffffff, 1.4);
+      this.lights.add(night ? new AmbientLight(NIGHT_AMBIENT, 0.7) : new AmbientLight(0xffffff, 1.6));
+      const sun = night ? new DirectionalLight(NIGHT_MOON_COLOR, 0.5) : new DirectionalLight(0xffffff, 1.4);
       sun.position.set(1, 2, 1.2);
       this.lights.add(sun);
     }
@@ -736,7 +765,7 @@ export class SceneView {
       const light = this.glowPool[glows++];
       if (!light) continue; // past the pool: the lamp keeps its glow colour, without a light of its own
       light.color.set(this.opts.color(p.color));
-      light.intensity = GLOW_INTENSITY;
+      light.intensity = GLOW_INTENSITY * (this.night ? NIGHT_GLOW_FACTOR : 1);
       light.distance = Math.max(p.size[0], 1);
       light.position.set(p.position[0], p.position[1], p.position[2]);
     }
@@ -1122,13 +1151,13 @@ export class SceneView {
     const scene = new Scene();
     scene.add(built.root);
     if (this.quality === 2) {
-      scene.add(new HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY));
-      const sun = new DirectionalLight(SUN_COLOR, SUN_INTENSITY);
+      scene.add(this.night ? new HemisphereLight(NIGHT_HEMI_SKY, NIGHT_HEMI_GROUND, NIGHT_HEMI_INTENSITY) : new HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY));
+      const sun = this.night ? new DirectionalLight(NIGHT_MOON_COLOR, NIGHT_MOON_INTENSITY) : new DirectionalLight(SUN_COLOR, SUN_INTENSITY);
       sun.position.set(SUN_DIR[0] * 50, SUN_DIR[1] * 50, SUN_DIR[2] * 50);
       scene.add(sun);
     } else {
-      scene.add(new AmbientLight(0xffffff, 1.6));
-      const sun = new DirectionalLight(0xffffff, 1.4);
+      scene.add(this.night ? new AmbientLight(NIGHT_AMBIENT, 0.7) : new AmbientLight(0xffffff, 1.6));
+      const sun = this.night ? new DirectionalLight(NIGHT_MOON_COLOR, 0.5) : new DirectionalLight(0xffffff, 1.4);
       sun.position.set(1, 2, 1.2);
       scene.add(sun);
     }

@@ -16,7 +16,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 
-from . import ha_sync, home_screen
+from . import ha_sync, home_screen, plan_area_links
 
 ControlChecker = Callable[[str], bool]
 
@@ -311,12 +311,14 @@ def build_tree(conn: sqlite3.Connection, entities: list[dict[str, Any]], *, scop
         if e["domain"] == "camera":
             area_has_camera[aid] = True
     by_floor: dict[str | None, list[dict[str, Any]]] = {}
+    on_map = plan_area_links.area_to_zone(conn)  # K88: the plan room linked to the area, for "הצג על המפה"
     for a in areas:
         counts = area_counts.get(a["area_id"])
         if scoped and counts is None:
             continue
         by_floor.setdefault(a.get("floor_id") or None, []).append(
             {"area_id": a["area_id"], "name": a["name"], "icon": a.get("icon"), "floor_id": a.get("floor_id") or None, "counts": counts or empty_counts(), "has_camera": area_has_camera.get(a["area_id"], False),
+             "map": on_map.get(a["area_id"]),
              **_area_indicators(climate_by_area.get(a["area_id"], []), temp_by_area.get(a["area_id"], []), open_by_area.get(a["area_id"], 0))}
         )
     def _climate_strip(fl_areas: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -609,7 +611,7 @@ def build_area(conn: sqlite3.Connection, entities: list[dict[str, Any]], area_id
     body = build_cards(mine, control_of)
     siblings = [{"area_id": a["area_id"], "name": a["name"], "icon": a["icon"], "counts": a["counts"]} for a in floor["areas"]]
     return {
-        "area": {"area_id": area["area_id"], "name": area["name"], "icon": area["icon"], "floor_id": floor["floor_id"], "floor_name": floor["name"], "level": floor["level"]},
+        "area": {"area_id": area["area_id"], "name": area["name"], "icon": area["icon"], "floor_id": floor["floor_id"], "floor_name": floor["name"], "level": floor["level"], "map": area.get("map")},
         "floor_areas": siblings,
         **body,
         "scoped": scoped,

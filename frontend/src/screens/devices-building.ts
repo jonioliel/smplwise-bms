@@ -15,6 +15,11 @@ import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaSyncState } from '../api/ha';
 import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type DeviceCounts, type DeviceFloor, type DeviceTree } from '../api/devices';
+import { mapHrefForArea } from '../api/plan-links';
+import { loadTree as loadCatalogTree } from '../api/catalog';
+import type { Floor as PlanFloor } from '../api/types';
+import './explore-floor-map';
+import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -411,14 +416,14 @@ const BUILDING_BUBBLE = css`
   }
 `;
 
-export type BuildingLayout = 'cards' | 'tiles';
+export type BuildingLayout = 'cards' | 'tiles' | 'plan';
 export const LAYOUT_KEY = 'sw.devices.layout';
 
 /** The viewer's own choice, or null when they never toggled (then הגדרות › חשמל והתקנים › devices.default_view decides). */
 function readLayout(): BuildingLayout | null {
   try {
     const v = localStorage.getItem(LAYOUT_KEY);
-    return v === 'tiles' || v === 'cards' ? v : null;
+    return v === 'tiles' || v === 'cards' || v === 'plan' ? v : null;
   } catch {
     return null;
   }
@@ -987,6 +992,12 @@ export class DevicesBuilding extends LitElement {
   private layoutChosen = readLayout() !== null;
   /** CR-007 6a: style, density, sensors count, climate strip (הגדרות › חשמל והתקנים). */
   @state() private prefs: DevicesPrefs = DEVICES_PREFS_DEFAULT;
+  /** K88 plan view: the plan floors of the catalogue (the map's floors, not the platform's), the chosen one, and the
+   * area summary opened by a room tap. */
+  @state() private planFloors: PlanFloor[] = [];
+  @state() private planFloorId: string | null = null;
+  @state() private planPop: { area: DeviceArea; x: number; y: number } | null = null;
+  private planFloorsLoaded = false;
   /** Release 0.1.149: the user's own choice of what shows next to an area's name (a holder of screen.personalize), over prefs.areaRow. */
   @state() private personalRow: AreaRowPersonal | null = null;
   private prefsReady: Promise<void> = Promise.resolve();
@@ -1569,6 +1580,60 @@ export class DevicesBuilding extends LitElement {
       margin-inline-start: auto;
     }
     /* ---- the mockup's layout: tree panel (inline start) + floor cards */
+    /* K88: the plan view - the live plan beside the tree, the floor chooser above it, the room's area summary over it */
+    .planview {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+      min-block-size: min(70vh, 720px);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg, 14px);
+      background: var(--sw-surface);
+      overflow: hidden;
+    }
+    .planview explore-floor-map {
+      flex: 1;
+      min-block-size: 0;
+    }
+    .planfloors {
+      display: flex;
+      gap: 6px;
+      padding: 8px 10px 0;
+      overflow-x: auto;
+    }
+    .planfloors button {
+      border: 1px solid var(--sw-border);
+      border-radius: 999px;
+      background: var(--sw-surface-2, var(--sw-surface));
+      color: var(--sw-text-2);
+      padding: 4px 12px;
+      font: inherit;
+      font-size: var(--sw-fs-sm);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .planfloors button.on {
+      border-color: var(--sw-accent);
+      color: var(--sw-text);
+      background: var(--sw-accent-soft);
+    }
+    .planpop {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      z-index: 6;
+    }
+    .planpop .poptrig {
+      display: block;
+      inline-size: 1px;
+      block-size: 1px;
+    }
+    @media (max-width: 899px) {
+      .planview {
+        min-block-size: 70vh;
+      }
+    }
     .split {
       display: grid;
       /* owner 2026-09-29: a wide screen gives the tree (and its area names) more room */
@@ -2119,14 +2184,8 @@ export class DevicesBuilding extends LitElement {
     window.addEventListener(HOME_PERSONAL_EVENT, this.onPersonal);
     void this.loadMediaScreens();
     // the view choice (cards | tiles) lives in the user menu, not on the page (home redesign follow-up)
-    this.offView = registerScreenView({
-      id: 'devices-building-view',
-      label: 'תצוגה',
-      options: [{ value: 'cards', label: 'כרטיסים' }, { value: 'tiles', label: 'אריחים' }],
-      value: () => this.layout,
-      set: (v) => this.setLayout(v === 'tiles' ? 'tiles' : 'cards'),
-      can: () => !this.lay.editing && !this.forbidden,
-    });
+    this.registerView();
+    void this.prefsReady.then(() => this.registerView()); // K88: the plan view appears once plan.surfaces says so
     // the tiles' panel follows the address (a deep link from search or the Live overview, or this screen's own tiles)
     this.offRoute = onRouteChange((r) => {
       if (r.segments[0] !== 'devices' || (r.segments[1] ?? 'building') !== 'building') return;
@@ -2300,7 +2359,7 @@ export class DevicesBuilding extends LitElement {
         ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
         : nothing}
       ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
-      ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
+      ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
     return html`<sw-page heading=${heading} subheading=${sub} wide @bulk-request=${this.onBulkRequest}>
@@ -2417,6 +2476,85 @@ export class DevicesBuilding extends LitElement {
     </div>`;
   }
 
+  /** The view choice (cards | tiles | plan) in the user menu; the plan view only when the installation shows the live plan here. */
+  private registerView(): void {
+    this.offView?.();
+    const plan = this.prefs.planSurfaces.includes('devices') && isApi();
+    if (!plan && this.layout === 'plan') this.layout = this.prefs.defaultView;
+    this.offView = registerScreenView({
+      id: 'devices-building-view',
+      label: 'תצוגה',
+      options: [{ value: 'cards', label: 'כרטיסים' }, { value: 'tiles', label: 'אריחים' }, ...(plan ? [{ value: 'plan', label: 'תוכנית' }] : [])],
+      value: () => this.layout,
+      set: (v) => this.setLayout(v === 'tiles' ? 'tiles' : v === 'plan' && plan ? 'plan' : 'cards'),
+      can: () => !this.lay.editing && !this.forbidden,
+    });
+  }
+
+  /** K88: the plan view - the floors tree stays at the side, the selected floor's live plan fills the rest; a room tap
+   * opens the area's summary (the same popover as a tree row), "פתח אזור" and "הצג על המפה" inside it. */
+  private renderPlan(t: DeviceTree, noTree = false) {
+    if (!this.planFloorsLoaded) {
+      this.planFloorsLoaded = true;
+      void loadCatalogTree().then((c) => { this.planFloors = c.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => b.floors ?? [])); }).catch(() => {});
+    }
+    const floors = this.planFloors.filter((f) => f.has_plan);
+    const floorId = this.planFloorFor(t, floors);
+    const pop = this.planPop;
+    return html`<div class="split" data-layout-view="plan" data-fit=${this.fit} ?data-no-tree=${noTree}>
+      ${noTree ? nothing : this.renderTreePanel(t)}
+      <div class="planview" data-plan-view>
+        ${floors.length > 1
+          ? html`<div class="planfloors" role="group" aria-label="קומות התוכנית" data-plan-floors>
+              ${floors.map((f) => html`<button class=${f.id === floorId ? 'on' : ''} data-plan-floor=${f.id} aria-pressed=${f.id === floorId} @click=${() => { this.planFloorId = f.id; this.planPop = null; }}>${bidi(f.name)}</button>`)}
+            </div>`
+          : nothing}
+        ${floorId
+          ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
+          : this.planFloorsLoaded && this.planFloors.length
+            ? html`<sw-state-panel state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
+            : html`<sw-state-panel state="loading"></sw-state-panel>`}
+        ${pop
+          ? html`<div class="planpop" data-plan-pop style=${`left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px`}>
+              <devices-bulk-menu data-plan-pop-menu scope="area" .targetId=${pop.area.area_id} .targetName=${pop.area.name} .counts=${pop.area.counts} variant="popover" align="start"
+                .actions=${this.bulkAllowed && pop.area.can_bulk === true} openHref=${`#/devices/areas/${encodeURIComponent(pop.area.area_id)}`} label=${pop.area.name}>
+                <span slot="trigger" class="poptrig" aria-hidden="true"></span>
+              </devices-bulk-menu>
+            </div>`
+          : nothing}
+      </div>
+    </div>`;
+  }
+
+  /** The plan floor to show: the viewer's pick, else the plan floor most of the selected tree floor's areas link to,
+   * else the first floor with a plan. */
+  private planFloorFor(t: DeviceTree, floors: PlanFloor[]): string | null {
+    if (this.planFloorId && floors.some((f) => f.id === this.planFloorId)) return this.planFloorId;
+    const treeFloor = this.selected !== 'all' ? t.floors.find((f) => f.floor_id === this.selected) : null;
+    const votes = new Map<string, number>();
+    for (const a of treeFloor?.areas ?? t.floors.flatMap((f) => f.areas)) if (a.map?.floor_id) votes.set(a.map.floor_id, (votes.get(a.map.floor_id) ?? 0) + 1);
+    const best = [...votes.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+    if (best && floors.some((f) => f.id === best)) return best;
+    return floors[0]?.id ?? null;
+  }
+
+  private async onAreaOpen(t: DeviceTree, e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) {
+    const { area_id: areaId, x, y } = e.detail;
+    const area = areaId ? t.floors.flatMap((f) => f.areas).find((a) => a.area_id === areaId) : undefined;
+    if (!area) {
+      this.planPop = null;
+      return;
+    }
+    const host = (e.target as HTMLElement | null);
+    const stage = host?.shadowRoot?.querySelector<HTMLElement>('[data-stage]') ?? host;
+    const view = this.renderRoot.querySelector<HTMLElement>('[data-plan-view]');
+    const sr = stage?.getBoundingClientRect();
+    const vr = view?.getBoundingClientRect();
+    this.planPop = { area, x: (sr && vr ? sr.left - vr.left : 0) + x, y: (sr && vr ? sr.top - vr.top : 0) + y };
+    await this.updateComplete;
+    this.renderRoot.querySelector<DevicesBulkMenu>('[data-plan-pop-menu]')?.showPanel();
+  }
+
   private renderTreePanel(t: DeviceTree) {
     // the count column is always drawn (empty without lights), so the rows line up (owner 2026-09-29)
     const lit = (c: DeviceCounts) => (c.lights ? html`<span class=${classMap({ lit: true, warm: c.lights_on > 0 })} title="תאורה דולקת"><sw-icon name="light" size=${12}></sw-icon>${ltrNum(c.lights_on)}</span>` : html`<span class="lit" aria-hidden="true"></span>`);
@@ -2518,7 +2656,7 @@ export class DevicesBuilding extends LitElement {
     if (unassigned) {
       return html`<a class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style="text-decoration:none">${body}</a>`;
     }
-    const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} label="סיכום האזור"
+    const menu = html`<devices-bulk-menu block hover scope="area" .targetId=${a.area_id} .targetName=${a.name} .counts=${c} variant="popover" align="start" .actions=${bulk} openHref=${href} mapHref=${mapHrefForArea(a.map) ?? ''} label="סיכום האזור"
         data-tree-area=${where === 'tree' ? a.area_id : nothing} data-card-area=${where === 'card' ? a.area_id : nothing}>
         <a slot="trigger" class=${where === 'tree' ? 'tree-row' : 'arow'} href=${href} data-area-row=${attrs.area} data-on=${attrs.on} data-counts=${attrs.counts} style=${hueStyle || nothing} aria-label=${`${a.name} · ${c.entities} התקנים · כניסה לאזור`}>${body}</a>
       </devices-bulk-menu>`;

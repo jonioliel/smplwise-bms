@@ -19,6 +19,8 @@ const TOAST_MS = 4000;
 export const QUALITY_KEY = 'sw.plan3d.quality';
 /** A fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
+/** K88: the viewer's night-mode choice for this browser. */
+export const NIGHT_KEY = 'sw.plan3d.night';
 export const DEFAULT_MIN_FPS = 30;
 export { PILL_CAP } from './scene-frame';
 /** The pill's bottom edge sits this far above its point, so the object under it stays clickable from straight above. */
@@ -125,6 +127,8 @@ export class SwPlan3d extends LitElement {
   @state() private installDefault: QualityLevel | null = null;
   /** Level 2 missed the frame budget on this device: level 1 draws and the note says so. */
   @state() private fallback = readStore('session', FALLBACK_KEY) === '1';
+  /** K88 3D round 2: night mode (dark sky, a moon instead of the sun, the lit rooms glow) - the viewer's choice, stored. */
+  @state() private night = readStore('local', NIGHT_KEY) === '1';
   private toastTimer = 0;
   @query('.stage') private stage!: HTMLDivElement;
   private view: SceneView | null = null;
@@ -166,6 +170,15 @@ export class SwPlan3d extends LitElement {
     /* level 2: the sky-gradient backdrop behind the transparent canvas (the two map-sky tokens of the theme) */
     :host([data-quality='2']) {
       background: linear-gradient(180deg, var(--sw-map-sky) 0%, var(--sw-map-sky-horizon) 100%);
+    }
+    /* K88 night mode: a night sky whatever the theme (the dark theme's own sky tokens are its night) */
+    :host([data-night]) {
+      background: linear-gradient(180deg, #060b18 0%, #152442 100%);
+    }
+    :host([data-night]) .bar,
+    :host([data-night]) .strip {
+      background: color-mix(in srgb, #0f1729 80%, transparent);
+      color: #dfe7f5;
     }
     .stage {
       position: absolute;
@@ -493,7 +506,9 @@ export class SwPlan3d extends LitElement {
         },
         onDraw: () => this.layoutOverlays(),
         quality: this.quality,
+        night: this.night,
       });
+      this.toggleAttribute('data-night', this.night);
     } catch (err) {
       console.warn('sw-plan-3d: WebGL failed to start', err);
       this.error = WEBGL_UNAVAILABLE_HE;
@@ -590,6 +605,21 @@ export class SwPlan3d extends LitElement {
     if (q === 2 && this.applied) this.startProbe();
     else this.endProbe(false);
     this.requestUpdate();
+  }
+
+  /** K88: night mode on / off for this browser (stored); the strip's thumbnails follow. */
+  setNight(on: boolean): void {
+    if (on === this.night) return;
+    this.night = on;
+    writeStore('local', NIGHT_KEY, on ? '1' : null);
+    this.toggleAttribute('data-night', on);
+    this.view?.setNight(on);
+    this.thumbs.clear();
+    this.requestUpdate();
+  }
+
+  get isNight(): boolean {
+    return this.night;
   }
 
   /** The viewer's choice for this browser (the chips): stored; level 2 clears a fallback and measures again. */
@@ -853,6 +883,7 @@ export class SwPlan3d extends LitElement {
         <span class="sep" aria-hidden="true"></span>
         <sw-chip data-quality-1 title="רמה סכמטית: חומרים שטוחים, בלי צללים" ?selected=${q === 1} @click=${() => this.setQuality(1)}>סכמטי</sw-chip>
         <sw-chip data-quality-2 title="רמה מלאה: צללים רכים, חומרים, חיתוך קירות" ?selected=${q === 2} @click=${() => this.setQuality(2)}>מלא</sw-chip>
+        <sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>
         <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
