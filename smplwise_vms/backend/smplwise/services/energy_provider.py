@@ -15,10 +15,12 @@ import datetime as dt
 import sqlite3
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Literal, Protocol, Sequence
 from zoneinfo import ZoneInfo
 
 from ..db import get_setting
+from . import energy_calibration as cal
 from . import energy_counter as ec
 from . import energy_meters as meters
 from . import energy_settings as es
@@ -209,9 +211,67 @@ class EnergyProvider:
         self.tz_name = tz_name or get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
         self.tz: ZoneInfo = zone(self.tz_name)
         self._now = now
+        self._segs: dict[str, list[cal.Segment]] = {}
 
     def now(self) -> int:
         return int(self._now if self._now is not None else time.time())
+
+    # EL6: calibration (physical = factor x counter + offset), applied here and only here - every reader of energy goes through
+    # this provider, so the meters screen, the bill, the time-of-use split, the history chart and the PDF agree.
+    def segments(self, meter_id: str) -> list[cal.Segment]:
+        segs = self._segs.get(meter_id)
+        if segs is None:
+            segs = self._segs[meter_id] = cal.segments(self.conn, meter_id)
+        return segs
+
+    def _calibrated(self, meter_id: str, a: int, b: int, floor: int | None) -> dict[str, Any]:
+        """The store's consumption of [a, b) with the factor of each calibration segment applied (Decimal, rounded half up once)."""
+        segs = self.segments(meter_id)
+        if cal.all_identity(segs, a, b):
+            return self.store.consumption(meter_id, a, b, tz=self.tz, interval_floor=floor)
+        exact = Decimal(0)
+        cov = 0
+        known = False
+        source = "intervals"
+        for x, y, s in cal.pieces(segs, a, b):
+            r = self.store.consumption(meter_id, x, y, tz=self.tz, interval_floor=floor)
+            if r["source"] == "daily":
+                source = "daily"
+            if r["wh"] is not None:
+                known = True
+                exact += s.energy(int(r["wh"]))
+                cov += int(r["covered_s"])
+        return {"wh": cal.round_int(exact) if known else None, "covered_s": min(cov, max(0, b - a)), "total_s": max(0, b - a), "source": source}
+
+    def consumption_live(self, meter_id: str, start: int, end: int) -> int | None:
+        """Calibrated Wh of [start, end) from the quarter-hour buckets (the meters screen's today / month)."""
+        return self._calibrated(meter_id, start, end, None)["wh"]
+
+    def physical_at(self, meter_id: str, ts: int | None, raw_wh: int | None) -> int | None:
+        if ts is None or raw_wh is None:
+            return raw_wh
+        return cal.segment_at(self.segments(meter_id), ts).physical(raw_wh)
+
+    def factor_at(self, meter_id: str, ts: int) -> Decimal:
+        return cal.segment_at(self.segments(meter_id), ts).factor
+
+    def data_until(self, meter_id: str) -> dt.datetime | None:
+        """The last instant the counter's energy is known to: the last report, or a later manual reading that closed the gap since
+        (EL6). Billing bills up to here; `last_report_at` stays the last report of the meter itself."""
+        c = self.store.cursor_info([meter_id]).get(meter_id)
+        if c is None:
+            return None
+        ts = max([t for t in (c.seen_ts, c.last_ts) if t is not None], default=None)
+        return _dt(ts)
+
+    def calibrations(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> list[cal.Segment]:
+        """The non-identity calibration segments that overlap [start, end) (bill notes)."""
+        a, b = _ts(start), _ts(end)
+        return [s for _x, _y, s in cal.pieces(self.segments(meter_id), a, b) if not s.identity]
+
+    def manual_readings(self, meter_id: str, start: dt.datetime, end: dt.datetime) -> list[tuple[dt.datetime, int, str]]:
+        """Manual readings (not undone) inside [start, end): (instant, physical Wh, effect)."""
+        return [(parse_utc(r["read_at"]), int(r["value_wh"]), r["effect"]) for r in cal.readings_between(self.conn, meter_id, _ts(start), _ts(end))]
 
     # meters
     @staticmethod
@@ -253,7 +313,7 @@ class EnergyProvider:
                 state = "reporting"
             else:
                 state = "not_reporting"
-            out[mid] = MeterStatus(mid, state, _dt(seen), c.seen_value_wh if c else None, stale // 60)
+            out[mid] = MeterStatus(mid, state, _dt(seen), self.physical_at(mid, seen, c.seen_value_wh) if c else None, stale // 60)
         return out
 
     def last_report_at(self, meter_id: str) -> dt.datetime | None:
@@ -270,7 +330,7 @@ class EnergyProvider:
         a, b = _ts(start), _ts(end)
         if b < a:
             raise ValueError("range_invalid")
-        res = self.store.consumption(meter_id, a, b, tz=self.tz, interval_floor=self.interval_floor())
+        res = self._calibrated(meter_id, a, b, self.interval_floor())
         return Consumption(meter_id, start.astimezone(UTC), end.astimezone(UTC), res["wh"], coverage_of(res["covered_s"], res["total_s"], res["wh"]),
                            int(res["covered_s"]), int(res["total_s"]), res["source"], tuple(self.events(meter_id, start, end)))
 
@@ -289,7 +349,11 @@ class EnergyProvider:
         floor = self.interval_floor()
         if min(a for a, _ in spans) < floor:
             return [self.consumption(meter_id, a, b) for a, b in windows]
-        res = self.store.consumption_windows(meter_id, spans)
+        segs = self.segments(meter_id)
+        if cal.all_identity(segs, min(a for a, _ in spans), max(b for _, b in spans)):
+            res = self.store.consumption_windows(meter_id, spans)
+        else:
+            res = self._calibrated_windows(meter_id, spans, segs)
         lo, hi = min(windows, key=lambda w: w[0])[0], max(windows, key=lambda w: w[1])[1]
         evs = self.events(meter_id, lo, hi)
         out: list[Consumption] = []
@@ -297,6 +361,36 @@ class EnergyProvider:
             mine = tuple(e for e in evs if a <= e.at < b)
             out.append(Consumption(meter_id, a.astimezone(UTC), b.astimezone(UTC), r["wh"], coverage_of(r["covered_s"], r["total_s"], r["wh"]),
                                    int(r["covered_s"]), int(r["total_s"]), r["source"], mine))
+        return out
+
+    def _calibrated_windows(self, meter_id: str, spans: list[tuple[int, int]], segs: list[cal.Segment]) -> list[dict[str, Any]]:
+        """`consumption_windows` with calibration: each window cut at the segment edges, ONE read of the buckets for all the parts,
+        the factor applied per part; windows that follow each other (a bill's segments) are rounded on the cumulative line, so their
+        sum equals the rounded calibrated energy of the whole run (no drift over hundreds of time-of-use segments)."""
+        parts: list[tuple[int, int, cal.Segment, int]] = []
+        for i, (a, b) in enumerate(spans):
+            for x, y, s in (cal.pieces(segs, a, b) if b > a else [(a, b, cal.IDENTITY)]):
+                parts.append((x, y, s, i))
+        raw = self.store.consumption_windows(meter_id, [(x, y) for x, y, _s, _i in parts])
+        exact: list[Decimal | None] = [None] * len(spans)
+        cov = [0] * len(spans)
+        for (x, y, s, i), r in zip(parts, raw):
+            if r["wh"] is not None:
+                exact[i] = (exact[i] or Decimal(0)) + s.energy(int(r["wh"]))
+                cov[i] += int(r["covered_s"])
+        out: list[dict[str, Any]] = []
+        run_exact, run_rounded, prev_end = Decimal(0), 0, None
+        for i, (a, b) in enumerate(spans):
+            if prev_end is None or a != prev_end:
+                run_exact, run_rounded = Decimal(0), 0
+            prev_end = b
+            if exact[i] is None:
+                out.append({"wh": None, "covered_s": 0, "total_s": max(0, b - a), "source": "intervals"})
+                continue
+            run_exact += exact[i]  # type: ignore[operator]
+            rounded = cal.round_int(run_exact)
+            out.append({"wh": rounded - run_rounded, "covered_s": min(cov[i], max(0, b - a)), "total_s": max(0, b - a), "source": "intervals"})
+            run_rounded = rounded
         return out
 
     def reporting_gaps(self, meter_id: str, start: dt.datetime, end: dt.datetime, min_gap: dt.timedelta) -> list[tuple[dt.datetime, dt.datetime, int]]:
@@ -348,8 +442,10 @@ class EnergyProvider:
         for e in meters.epochs(self.conn, meter_id):
             if parse_utc(e["started_at"]).timestamp() <= t and (e["ended_at"] is None or t < parse_utc(e["ended_at"]).timestamp()):
                 epoch_id = e["id"]
-        return BoundaryReading(meter_id, at.astimezone(UTC), _dt(before[0]) if before else None, before[1] if before else None,
-                               _dt(after[0]) if after else None, after[1] if after else None, value, exact, epoch_id)
+        # EL6: every counter value leaves on the physical meter's scale (the calibration in force at its own instant)
+        return BoundaryReading(meter_id, at.astimezone(UTC), _dt(before[0]) if before else None, self.physical_at(meter_id, before[0], before[1]) if before else None,
+                               _dt(after[0]) if after else None, self.physical_at(meter_id, after[0], after[1]) if after else None,
+                               self.physical_at(meter_id, t, value), exact, epoch_id)
 
     def epochs(self, meter_id: str, start: dt.datetime | None = None, end: dt.datetime | None = None) -> list[EpochInfo]:
         out: list[EpochInfo] = []
@@ -364,8 +460,21 @@ class EnergyProvider:
         return out
 
     # daily / monthly / history
-    def daily(self, meter_id: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, int | None]]:
+    def daily_rows(self, meter_id: str, start: dt.date, end: dt.date) -> dict[dt.date, tuple[int, int, int]]:
+        """The store's daily totals with the calibration factor of each day (calibrations start at a local midnight, so a day has one
+        factor; on the day of a meter replacement the factor in force at the day's start is used)."""
         rows = self.store.daily(meter_id, start, end)
+        segs = self.segments(meter_id)
+        if all(s.identity for s in segs) or not rows:
+            return rows
+        out: dict[dt.date, tuple[int, int, int]] = {}
+        for d, (wh, cov, day_s) in rows.items():
+            f = cal.segment_at(segs, st.day_bounds(d, self.tz)[0]).factor
+            out[d] = (wh if f == 1 else cal.round_int(f * wh), cov, day_s)
+        return out
+
+    def daily(self, meter_id: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, int | None]]:
+        rows = self.daily_rows(meter_id, start, end)
         out: list[tuple[dt.date, int | None]] = []
         d = start
         while d < end:
@@ -376,7 +485,7 @@ class EnergyProvider:
 
     def monthly(self, meter_id: str, start: dt.date, end: dt.date) -> list[tuple[dt.date, int | None, Coverage]]:
         first = start.replace(day=1)
-        rows = self.store.daily(meter_id, first, end)
+        rows = self.daily_rows(meter_id, first, end)
         out: list[tuple[dt.date, int | None, Coverage]] = []
         m = first
         while m < end:
@@ -392,7 +501,7 @@ class EnergyProvider:
         hi = max([w[1] for w in windows] + [last_year[1]])
         out: dict[str, MeterHistory] = {}
         for mid in meter_ids:
-            rows = self.store.daily(mid, lo, hi)
+            rows = self.daily_rows(mid, lo, hi)
             out[mid] = MeterHistory(mid, tuple(window_from_daily(rows, a, b) for a, b in windows), window_from_daily(rows, *last_year))
         return out
 

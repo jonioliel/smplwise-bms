@@ -61,6 +61,13 @@ def _gap(br: Any) -> tuple[dt.datetime, dt.datetime] | None:
     return None
 
 
+def data_until(provider: BillingReadings, meter_id: str) -> dt.datetime | None:
+    """How far the meter's energy is known: the last report, or a later manual reading that closed the gap since (EL6; a provider
+    without `data_until` - the test doubles, NullReadings - answers with the last report)."""
+    fn = getattr(provider, "data_until", None)
+    return fn(meter_id) if fn is not None else provider.last_report_at(meter_id)
+
+
 def _consumptions(provider: BillingReadings, meter_id: str, windows: list[tuple[dt.datetime, dt.datetime]]) -> list[Any]:
     """`consumption` of every window. A provider with `consumption_windows` (the real store: one read of the quarter-hour
     buckets for many windows, EL5) answers in one call with the same semantics; any other provider is asked per window."""
@@ -88,7 +95,7 @@ def meter_window(provider: BillingReadings, meter_id: str, bounds: list[dt.datet
         w_end = max(stop_at, w_start)
         bounds = [min(b, w_end) for b in bounds]
     eff_start = carried_from if carried_from is not None and carried_from < w_start else w_start
-    last = provider.last_report_at(meter_id)
+    last = data_until(provider, meter_id)
     if last is not None and last >= w_end:
         until = w_end
     elif last is not None:

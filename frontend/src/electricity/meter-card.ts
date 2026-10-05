@@ -4,12 +4,15 @@ import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import './meter-readings';
 import { ApiError, describeError } from '../api/client';
 import { getMeter, listMeters, meterSeries, pauseMeter, removeMeter, renameMeter, replaceMeter, resumeMeter, type MeterDetail, type MeterStatus, type SeriesPoint, type SeriesStep } from '../api/electricity-meters';
 import { fmtDate, fmtDateTime, fmtKwh, fmtTime } from './format';
 import { checkMeterName, DUPLICATE_NAME_ERROR, meterNames, RENAME_HINT } from './meter-name';
 import { elecCss } from './styles';
 import { SkinController } from '../design/skin';
+import { getReadingLog, type ReadingLog } from '../api/electricity-readings';
+import type { OpenDialogDetail, ReadingsDialog } from './meter-readings';
 
 export const STATUS_LABEL: Record<MeterStatus, string> = { reporting: 'מדווח', stale: 'לא מדווח', paused: 'מושהה' };
 export const STATUS_CLASS: Record<MeterStatus, string> = { reporting: 'c-ok', stale: 'c-warn', paused: 'c-mut' };
@@ -56,7 +59,11 @@ export class ElecMeterCard extends LitElement {
   @state() private range: Range = 'days';
   @state() private points: SeriesPoint[] = [];
   @state() private chartError = false;
-  @state() private dlg: '' | 'remove' | 'replace' | 'rename' = '';
+  @state() private dlg: '' | 'remove' | 'replace' | 'rename' | Exclude<ReadingsDialog, ''> = '';
+  /** EL6: manual readings and calibrations of the meter, and the dialog's target */
+  @state() private log: ReadingLog | null = null;
+  @state() private logError = '';
+  @state() private dlgDetail: OpenDialogDetail | null = null;
   @state() private newName = '';
   @state() private otherNames: string[] = [];
   @state() private nameError = '';
@@ -151,12 +158,14 @@ export class ElecMeterCard extends LitElement {
   private async load() {
     const my = ++this.seq;
     this.phase = 'loading';
+    if (this.log?.meter_id !== this.meterId) this.log = null;
     try {
       const d = await getMeter(this.meterId);
       if (my !== this.seq) return;
       this.detail = d;
       this.phase = 'ready';
       void this.loadSeries();
+      void this.loadLog();
     } catch (err) {
       if (my !== this.seq) return;
       this.error = describeError(err);
@@ -179,6 +188,32 @@ export class ElecMeterCard extends LitElement {
     } catch {
       this.chartError = true;
     }
+  }
+
+  /** EL6: the meter's manual readings and calibrations (a failure shows in that section only). */
+  private async loadLog() {
+    const id = this.meterId;
+    try {
+      const l = await getReadingLog(id);
+      if (id !== this.meterId) return;
+      this.log = l;
+      this.logError = '';
+    } catch (err) {
+      if (id === this.meterId) this.logError = describeError(err);
+    }
+  }
+
+  private openReadingsDialog(e: CustomEvent<OpenDialogDetail>) {
+    this.dlgDetail = e.detail;
+    this.dlg = e.detail.kind;
+  }
+
+  /** After a reading or a calibration: the readings, the current value and the list all change. */
+  private async onReadingsSaved(e: CustomEvent<ReadingLog>) {
+    this.log = e.detail;
+    this.fire('changed');
+    await this.refresh();
+    void this.loadSeries();
   }
 
   private label(p: SeriesPoint): string {
@@ -322,6 +357,7 @@ export class ElecMeterCard extends LitElement {
       <h3>תקופות מונה</h3>
       <div class="list" data-epochs>${d.epochs.map((e) => html`<div class="li"><div class="grow"><div class="t1">${REASON_LABEL[e.reason] ?? e.reason} · <span class="num">${fmtDate(e.started_at)}</span></div>
         <div class="t2 wrap">קריאת התחלה <span class="num">${fmtKwh(e.start_reading_kwh)}</span>${e.ended_at ? html` · עד <span class="num">${fmtDate(e.ended_at)}</span>` : ''}${e.note ? ` · ${e.note}` : ''}</div></div>${e.ended_at ? nothing : html`<span class="chip acc nodot">פעיל</span>`}</div>`)}</div>
+      <elec-meter-readings .log=${this.log} error=${this.logError} ?canManage=${this.canManage} @open-dialog=${(e: CustomEvent<OpenDialogDetail>) => this.openReadingsDialog(e)}></elec-meter-readings>
       ${this.actionError ? html`<div class="alert err" role="alert" data-meter-action-error>${this.actionError}</div>` : nothing}
       ${this.canManage
         ? html`<div class="actions">
@@ -379,7 +415,11 @@ export class ElecMeterCard extends LitElement {
         </div>
         <sw-button slot="footer" variant="primary" data-replace-save ?disabled=${this.busy} @click=${() => void this.replace()}>החלפה</sw-button>
         <sw-button slot="footer" @click=${() => (this.dlg = '')}>ביטול</sw-button>
-      </sw-dialog>`;
+      </sw-dialog>
+      ${this.dlg === 'reading' || this.dlg === 'calibrate' || this.dlg === 'undo-reading' || this.dlg === 'undo-calibration'
+        ? html`<elec-reading-dialogs .meterId=${this.meterId} .log=${this.log} .kind=${this.dlg} .targetId=${this.dlgDetail?.id ?? ''} .presetFactor=${this.dlgDetail?.factor ?? ''}
+            .presetAnchor=${this.dlgDetail?.anchor ?? ''} @close=${() => { this.dlg = ''; this.dlgDetail = null; }} @saved=${(e: CustomEvent<ReadingLog>) => void this.onReadingsSaved(e)}></elec-reading-dialogs>`
+        : nothing}`;
   }
 }
 
