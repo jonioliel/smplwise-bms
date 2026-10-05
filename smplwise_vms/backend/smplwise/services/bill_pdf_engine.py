@@ -123,7 +123,11 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
     pdf.set_title(f"{s.title} {s.number or 'טיוטה'}")
     pdf.add_font("HeeboHe", fname=he_regular)
     pdf.add_font("HeeboLa", fname=la_regular)
-    pdf.set_fallback_fonts(["HeeboLa"])
+    # 2.0.2: Cyrillic and Arabic names fall through to the Noto subsets (glyph-level fallback; the Arabic letters are drawn
+    # with the Hebrew shaping settings of the line, so they come out in isolated forms here - WeasyPrint shapes them properly)
+    pdf.add_font("NotoCy", fname=str(FONT_DIR / "NotoSans-cy-400.ttf"))
+    pdf.add_font("NotoAr", fname=str(FONT_DIR / "NotoSansArabic-ar-400.ttf"))
+    pdf.set_fallback_fonts(["HeeboLa", "NotoCy", "NotoAr"])
     pdf.alias_nb_pages("{nb}")
     pdf.set_margins(14, 14, 14)
     pdf.set_auto_page_break(True, margin=20)

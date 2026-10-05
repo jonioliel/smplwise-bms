@@ -212,6 +212,7 @@ def test_relay_410_drops_the_registration_429_retries_and_unconfigured_skips(w, 
 
 
 def test_test_push_is_rate_limited_and_stored_for_the_device(w, relay):
+    web_push_sent_before = web_push.STATS["sent"]  # module-level counter: other test files in the same process add to it
     did, tok = register(w, "ops2")
     r = w.c.post(f"{API}/notifications/app/test", headers=tok)
     assert r.status_code == 200 and r.json()["sent"] is True
@@ -226,7 +227,7 @@ def test_test_push_is_rate_limited_and_stored_for_the_device(w, relay):
     _, tok3 = register(w, "ops3", name="בלי", relay_token=None)
     assert w.c.post(f"{API}/notifications/app/test", headers=tok3).json()["code"] == "push_not_registered"
     # the web-push test path is untouched by the app channel
-    assert web_push.STATS["sent"] == 0
+    assert web_push.STATS["sent"] == web_push_sent_before
 
 
 def test_unregistering_the_device_drops_push_and_its_messages(w, relay):

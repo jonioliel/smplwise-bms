@@ -630,6 +630,49 @@ def test_golden_mixed_hebrew_digits_and_latin():
         assert token in text, token
 
 
+CYRILLIC_ARABIC_NAMES = dict(customer="Иванов Пётр Сергеевич", meter="Щиток №3 підвал", address="ул. Бабеля 12, Київ",
+                             business="شركة النور للكهرباء", account="محمد عبد الله")
+
+
+def arabic_letters(text: str) -> set[str]:
+    """pdftotext may emit Arabic presentation forms (U+FBxx / U+FExx) in visual order; compare the base letters only."""
+    import unicodedata
+
+    return {ch for ch in unicodedata.normalize("NFKC", text) if "ؠ" <= ch <= "ي"}
+
+
+@needs_render
+def test_golden_cyrillic_and_arabic_names():
+    """2.0.2: names typed in Cyrillic or Arabic render through the bundled Noto subsets (the Heebo subsets have no such glyphs)."""
+    data = S.base()
+    data["customer"].update(name=CYRILLIC_ARABIC_NAMES["customer"], address=CYRILLIC_ARABIC_NAMES["address"])
+    data["account"]["name"] = CYRILLIC_ARABIC_NAMES["account"]
+    data["business"]["name"] = CYRILLIC_ARABIC_NAMES["business"]
+    data["meters"][0]["name"] = CYRILLIC_ARABIC_NAMES["meter"]
+    pdf = render_bill_pdf(data)
+    text = pdf_text(pdf)
+    for token in ("Иванов", "Пётр", "Сергеевич", "Щиток", "підвал", "Бабеля", "Київ"):
+        assert token in text, token
+    assert arabic_letters(CYRILLIC_ARABIC_NAMES["business"] + CYRILLIC_ARABIC_NAMES["account"]) <= arabic_letters(text)
+    names = {f[0] for f in pdf_fonts(pdf)}
+    assert any("NotoSans" in n and "Arabic" not in n for n in names) and any("NotoSansArabic" in n for n in names), names
+    assert any("Heebo" in n for n in names)  # the layout itself stays Heebo
+    # a bill without such names embeds no Noto at all
+    assert not any("Noto" in f[0] for f in pdf_fonts(render_bill_pdf(S.base())))
+
+
+@pytest.mark.skipif(not HAVE_POPPLER, reason="poppler-utils not installed")
+def test_fpdf2_fallback_draws_cyrillic_and_arabic_names():
+    pytest.importorskip("fpdf")
+    data = S.base()
+    data["customer"]["name"] = CYRILLIC_ARABIC_NAMES["customer"]
+    data["account"]["name"] = CYRILLIC_ARABIC_NAMES["account"]
+    pdf = render_bill_pdf(data, engine="fpdf2")
+    text = pdf_text(pdf)
+    assert "Иванов" in text and "Сергеевич" in text
+    assert arabic_letters(CYRILLIC_ARABIC_NAMES["account"]) <= arabic_letters(text)  # unjoined forms are accepted here
+
+
 def bbox_words(pdf: bytes) -> list[tuple[float, float, float, float]]:
     return [w[:4] for w in bbox_text_words(pdf)]
 
