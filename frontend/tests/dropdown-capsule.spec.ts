@@ -431,6 +431,7 @@ test.describe('the size dial', () => {
 
   test('phone: the capsule opens as the bottom sheet with 48 px rows; the pair-row chip does not overflow at 320 px', async ({ page }) => {
     await stage(page, 'classic', 320);
+    await page.evaluate(() => document.documentElement.setAttribute('data-dd-phone', 'sheet')); // the default is the small list (2026-10-05)
     await page.evaluate(() => {
       const st = document.querySelector('#stage') as HTMLElement;
       st.style.alignItems = 'stretch';

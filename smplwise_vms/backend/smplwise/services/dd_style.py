@@ -32,7 +32,7 @@ DEFAULT_PANEL = "240"
 # `list` = the regular small list under the field. One global value (no per-group override): `ui.dd_phone` as the installation's default
 # and as a user's own choice (null = follow the installation). Presentation only; desktop and tablet widths are unaffected.
 PHONE_MODES: tuple[str, ...] = ("sheet", "list")
-DEFAULT_PHONE = "sheet"
+DEFAULT_PHONE = "list"
 
 
 def normalize_phone(value: Any) -> str:

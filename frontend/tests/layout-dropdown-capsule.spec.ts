@@ -35,6 +35,7 @@ async function stage(page: Page, skin: string, scheme: string, width: number) {
     st.id = 'stage';
     st.style.cssText = 'position:fixed;inset:0;z-index:10;background:var(--sw-bg,#fff);padding:24px 16px;display:flex;flex-direction:column;gap:20px;align-items:flex-start';
     document.body.appendChild(st);
+    document.documentElement.setAttribute('data-dd-phone', 'sheet'); // the default is the small list (2026-10-05); keep guarding the sheet
   });
 }
 

@@ -71,7 +71,7 @@ test.describe('recordings comparison picker layout guard', () => {
       for (const theme of THEMES) {
         for (const style of ['auto', STYLE_OF[skin]]) {
           await page.setViewportSize({ width: 1440, height: 900 });
-          const st = await mock(page, { cameras: MORE, settings: { 'ui.dd_style': style } });
+          const st = await mock(page, { cameras: MORE, settings: { 'ui.dd_style': style, 'ui.dd_phone': 'sheet' } });
           await openAndPlay(page, '&extra=c2,c3,c4', `design=a&skin=${skin}&scheme=${theme}`);
           await expect.poll(() => st.groups.length).toBe(1);
           await expect(pick(page)).toHaveAttribute('dd-style', style);
