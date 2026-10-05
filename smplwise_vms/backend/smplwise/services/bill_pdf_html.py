@@ -290,7 +290,9 @@ def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | Non
         biz_lines.append(f"ח.פ. {num(biz.reg_no)}")
     if biz.address:
         biz_lines.append(E(biz.address))
-    contact = " · ".join(x for x in (num(biz.phone) if biz.phone else "", num(biz.email) if biz.email else "") if x)
+    # phone and e-mail share a line when it fits; an em space (not " · ") between them, so a wrap leaves no dangling dot
+    # at the end of the line (EL8 visual review, narrow header next to a wide logo)
+    contact = " ".join(x for x in (num(biz.phone) if biz.phone else "", num(biz.email) if biz.email else "") if x)
     if contact:
         biz_lines.append(contact)
     logo = ""

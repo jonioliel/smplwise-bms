@@ -4,8 +4,9 @@ FROM ${BUILD_FROM}
 # poppler-utils provides pdftoppm/pdfinfo: PDF pages are rasterized in a separate, time-bounded process.
 # pango: text shaping (HarfBuzz) and bidi (FriBidi) for the electricity bill PDF (WeasyPrint); with poppler-utils already
 # present it adds only pango + libxft (~1 MB). Fonts are bundled in the package (assets/bill/fonts), none are installed.
-# NOT VERIFIED on the real image (Alpine, amd64/aarch64) yet: docs/architecture/ELECTRICITY_BILL_PDF.md section 8. The add-on
-# logs the active PDF engine at start-up ("bill pdf engine: ...") and shows it in the billing settings.
+# Verified on this image for amd64 (EL8: scripts/addon_image/check_bill_pdf.sh, docs/architecture/ELECTRICITY_BILL_PDF.md
+# section 8.0); aarch64 checked for wheels only. The add-on logs the active PDF engine at start-up ("bill pdf engine: ...") and
+# shows it in the billing settings. The image has no system fonts on purpose: every bill font is bundled.
 RUN apk add --no-cache poppler-utils jpeg zlib libpng ffmpeg pango
 
 WORKDIR /app

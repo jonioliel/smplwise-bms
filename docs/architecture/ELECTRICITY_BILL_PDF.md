@@ -2,8 +2,9 @@
 
 Owner: `pilot/elec-pdf`. Callers: `pilot/elec-billing` (issue, draft preview, re-render), `pilot/elec-server` (routes).
 Input contract: `docs/architecture/ELECTRICITY_BILL_SNAPSHOT.md` v1 (`arx.energy.bill_snapshot/1`), section 5.
-Status: built and tested on the Ubuntu runner (amd64, glibc); the add-on image (Alpine, amd64 and aarch64) is NOT built
-here - see section 8.
+Status: built and tested on the Ubuntu runner (amd64, glibc) and, since EL8 (2.0.1), inside the real add-on image for amd64
+(Alpine 3.22, musl, rebuilt from the Dockerfile without Docker): 156 tests, the add-on's own start-up and the evidence renders pass
+there. aarch64 is checked for installability only (every wheel exists); running it needs emulation - see section 8.
 
 ## 1. Call
 
@@ -91,6 +92,30 @@ spans (`direction: ltr; unicode-bidi: isolate`) inside the RTL text. House style
   retryable. Failures are recorded as bill events and shown as `pdf.state = failed`.
 - The logo upload of the business settings uses `sanitize_logo` (the same rules as at render time).
 
+### 4.2 Found in the add-on image (EL8, 2.0.1)
+
+- **The self-check crashed in the image, so the add-on refused every bill PDF.** The image has no system font at all (Alpine, no
+  font package). The self-check rendered a bare `<p>` without the bundled `@font-face` rules, Pango found no font and the child died
+  (`pango_font_get_hb_font: assertion 'PANGO_IS_FONT (font)' failed`). Result in 2.0.0: start-up log "NO PDF engine works",
+  `pdf_engine.active = null`, and `energy_billing_pdf._real()` then answers every `GET /bills/{id}/pdf` with 503 `pdf_unavailable` -
+  although a real bill (bundled Heebo) renders fine in the same image. The runner never showed it because it has system fonts.
+  Fix: the self-check page uses the bill's own CSS and fonts (`bill_pdf_html._css`), Hebrew + digits + Latin + the shekel sign.
+  Regression: `test_self_check_finds_weasyprint_on_a_system_without_fonts` reproduces the image on any Linux with an empty
+  fontconfig (`FONTCONFIG_FILE`), red before the fix.
+- **A crashed WeasyPrint child now falls back to fpdf2 in `auto`.** Before, the child's own fallback only covered Python errors; a
+  native crash (or the memory limit) gave 503. Now `render_bill_pdf` renders again with fpdf2 when the `auto` child returns
+  `pdf_render_failed` (counted as `crash_fallbacks`, logged as a warning, visible in `pdf_engine` and `pdf.engine`), and
+  `self_check` asks for fpdf2 alone when the WeasyPrint check dies without an answer (detail "weasyprint self-check crashed: ...").
+  Page and size limits never retry; an explicit engine never falls back.
+- **Wide logos ran off the page.** `.logo` was `height: 17mm; width: auto; max-width: 34mm`, and WeasyPrint kept the natural width
+  of a wide logo (400 x 120 px -> 57 mm), past the left page edge. The printed size is now computed from the re-encoded logo's
+  pixel size, fitted into 34 x 17 mm by its aspect ratio (`logo_box_mm`; numbers computed in code, never data text), with
+  `max-width/max-height` as the CSS fallback. Regression: `test_logo_of_any_shape_stays_inside_the_page_margins` (rasterised page,
+  the outer 12 mm must stay white; red for 400 x 120 and 800 x 60 before the fix).
+- **Visual polish from the review:** chart values of bars near the last-year line were struck through by the dashed line; they now
+  sit on a white plate (only when the line exists). Phone and e-mail are separated by an em space instead of " · ", so a wrap next
+  to a wide logo no longer leaves a dangling dot at the end of the line.
+
 ## 5. Security
 
 - No network: the child process replaces `socket.connect/getaddrinfo/create_connection` with refusals at start-up, and WeasyPrint is
@@ -128,6 +153,14 @@ automatic fallback; timeout kills and reaps the child; page cap; limits parsing 
 scrubbed environment. Render tests skip with a stated reason when WeasyPrint or poppler is missing (Windows workstation): they ran on
 the runner. `pdftotext` shows Hebrew in logical order with bidi marks around runs; tests strip the marks.
 
+EL8 added: logo box (sizes, printed style, any logo shape inside the margins on the rasterised page), value plates on the chart, and
+`tests/test_energy_bill_pdf_pipeline.py` - the whole add-on path with the REAL renderer: real readings store -> billing engine ->
+snapshot -> `GET /bills/{id}/pdf` -> child -> PDF, then A4, embedded Heebo only, no active PDF objects, Hebrew phrases and digits in
+order, the chart labels, the snapshot hash in the footer, stored once and byte-identical, a watermarked copy; the self-check on a
+system without fonts; the crash fallback of renders and of the self-check; the engine reported by the billing settings.
+`SW_REQUIRE_BILL_PDF=1` (set by the image check) turns every "WeasyPrint/poppler missing" skip into a failure and requires the active
+engine to be WeasyPrint. `SW_BILL_PDF_EVIDENCE_DIR` keeps the pipeline PDFs for the visual review.
+
 ## 7. Fonts
 
 `backend/smplwise/assets/bill/fonts/`: `Heebo-he-{400,700}.ttf` (Hebrew subset), `Heebo-la-{400,700}.ttf` (Latin subset), `OFL.txt` (SIL OFL 1.1,
@@ -136,9 +169,35 @@ Total 67 KB. These are subsets, not the complete Heebo; characters outside Hebre
 (none is printed by the layout; user text outside those scripts would show missing-glyph boxes). Listed in `THIRD_PARTY_NOTICES.md`
 ("Heebo - SIL OFL 1.1"); the OFL text travels with the fonts.
 
-## 8. Add-on image: what changed and what is NOT VERIFIED
+## 8. Add-on image
 
-Changed (not built here):
+### 8.0 Verified on the real image (EL8, 2.0.1, amd64)
+
+`scripts/addon_image/check_bill_pdf.sh` (runner, `sudo -n`, no Docker) rebuilds the add-on image with `scripts/addon_image/addon_rootfs.py`:
+the base image is pulled from the registry exactly as `BUILD_FROM` names it (OCI distribution API, zstd layers, whiteouts, paths
+resolved inside the tree), and the Dockerfile's RUN steps are replayed in a chroot inside a private mount namespace (`unshare --mount`,
+nothing is mounted on the host), COPY/WORKDIR/ENV applied. It builds a second tree without the bill PDF additions (no `pango`, no
+`weasyprint`/`fpdf2`/`uharfbuzz`) to measure the growth, then runs inside the full tree. Evidence: `docs/evidence/electricity-pdf-addon-image/`.
+
+| Check (inside the image unless stated) | Result |
+|---|---|
+| Base image | `ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22`, Alpine 3.22.5, Python 3.12.14, musl |
+| pip installs only wheels (no compiler) | yes, all `musllinux_1_2_x86_64` or pure Python |
+| Native stack | pango 1.56.3, harfbuzz 11.2.1, fribidi 1.0.16, cairo 1.18.4, fontconfig 2.15.0, freetype 2.13.3, poppler-utils 25.04.0; `/usr/share/fonts` does not exist |
+| Image growth for the bill PDF (gate 60 MB) | **33.4 MB** (baseline 489.6 MB -> 523.1 MB, apparent size of the unpacked tree incl. `.pyc`) |
+| WeasyPrint 70.0 loads and renders | yes (warning "No fonts configured in FontConfig" is expected: fonts are bundled) |
+| Engine self-check | WeasyPrint, 0.33 s (after the fix in 4.2; before it: "no PDF engine") |
+| Evidence samples (generate.py) | all render; 1 page 0.51 s, 4 pages 1.03 s, fpdf2 0.36 s / 0.67 s (median of 5 cold children), peak RSS 77.5 MB |
+| Tests with `SW_REQUIRE_BILL_PDF=1`: test_bill_pdf, test_energy_bill_pdf_pipeline, test_energy_integration, test_energy_billing_api, test_energy_billing_engine | 156 passed, 0 skipped |
+| The add-on's entry point `python3 -m smplwise` in the tree | start-up log "bill pdf engine: WeasyPrint (self-check 0.33 s)"; `GET /api/v1/energy/billing-settings` over HTTP: `pdf_engine.active = weasyprint` |
+| aarch64 installability | every requirement has a `musllinux_1_2_aarch64` (or pure Python) wheel |
+| Visual review (110 dpi pages in the evidence folder) | Hebrew RTL, digits, dates, the shekel sign, the chart and the watermarks correct; three layout defects found and fixed (4.2) |
+
+Not verified here: **running on aarch64** (needs qemu-user + binfmt on the runner, a host change the owner has not approved; or a
+Docker host with buildx) and the **5-second gate on the owner's ARM hardware** (step 5 below). The real `docker build` itself was not
+run (the replay follows the same Dockerfile; differences would be in Docker-only behaviour such as layer metadata, not in files).
+
+Previously listed changes and the manual Docker steps (still valid on a machine with Docker):
 - `smplwise_vms/Dockerfile`: `apk add ... pango` added to the existing `apk add` line (poppler-utils already pulls cairo, fontconfig, freetype,
   harfbuzz, fribidi, glib; the spike measured pango + libxft at 0.7 MB on x86_64 and 0.9 MB on aarch64 on top of that).
 - `smplwise_vms/backend/requirements.txt`: `weasyprint==70.0`, `fpdf2==2.8.9`, `uharfbuzz>=0.50,<1`. All wheels exist for musllinux_1_2 on
@@ -172,5 +231,9 @@ NOT VERIFIED (no Docker on the runner; steps for the lead, on any machine with D
 - Time gate on ARM is unmeasured; if missed, choose between the fpdf2 engine and a lighter layout.
 - Third-party notices: `THIRD_PARTY_NOTICES.md` at the repository root (Heebo OFL 1.1, the WeasyPrint / fpdf2 / uharfbuzz stack), added at integration.
 - Fonts are subsets: a customer name in Arabic, Russian, Cyrillic etc. would show missing glyph boxes. Tell me if full Heebo (about 100 KB per weight more) or a fallback font family is wanted.
+  EL8 measured this in the image (`bill-name-outside-heebo`): Cyrillic and Arabic print as empty boxes there (on the runner they came
+  from the system fonts, so the old evidence hid it), and the fpdf2 fallback silently drops those characters. Full Heebo would not help
+  (Heebo has no Cyrillic or Arabic); the options are a bundled Noto Sans subset for Cyrillic (+ Noto Sans Arabic), or refusing such
+  names at input. Still open for the owner.
 - Snapshot suggestion for billing: store the pre-computed `snapshot_sha256` inside the row (already so) and also let the PDF print it instead of
   recomputing; today the PDF prints the first 12 hex of the same canonical hash, so they match as long as the canonical rule is unchanged.
