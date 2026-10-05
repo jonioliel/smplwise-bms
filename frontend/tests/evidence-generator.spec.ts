@@ -84,8 +84,9 @@ test.describe('generator evidence', () => {
         await p.waitForSelector(`${S} gen-chart-set [data-chart]`);
       });
     }
-    await shoot(page, '/infra/generator/charts', 'charts-custom', `${S} [data-custom]`, { level: 'full' }, 'light', 'classic', async (p) => {
+    await shoot(page, '/infra/generator/charts', 'charts-custom', `${S} [data-range]`, { level: 'full' }, 'light', 'classic', async (p) => {
       await p.locator(`${S} [data-range] button`).nth(4).click();
+      await p.waitForSelector(`${S} [data-custom]`);
       await p.waitForSelector(`${S} gen-chart-set [data-chart]`);
     });
     await shoot(page, '/infra/generator/charts', 'charts-minimal', `${S} gen-chart-set [data-chart]`, { level: 'minimal' });
@@ -111,8 +112,9 @@ test.describe('generator evidence', () => {
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-empty', 'sw-app gen-routing [data-routing-empty]', { level: 'typical' });
     await expect(page.locator('sw-app gen-routing tr.na, sw-app gen-routing .li.dis').first()).toBeAttached();
     await shoot(page, '/system/infra/generator/routing', 'settings-routing-full', 'sw-app gen-routing [data-routing-empty]', { level: 'full' }, 'dark');
-    await shoot(page, '/system/infra/generator/routing', 'settings-routing-edit', 'sw-app gen-routing [data-drawer="routing"] [data-preview]', { level: 'typical' }, 'light', 'classic', async (p) => {
+    await shoot(page, '/system/infra/generator/routing', 'settings-routing-edit', 'sw-app gen-routing [data-type="battery_low"]', { level: 'typical' }, 'light', 'classic', async (p) => {
       await p.locator('sw-app gen-routing [data-type="battery_low"]').first().click({ force: true });
+      await p.waitForSelector('sw-app gen-routing [data-preview]');
     });
     await expect(page.locator('sw-app gen-routing [data-preview]')).toContainText('מתח מצבר');
     await shoot(page, '/system/infra/generator/mapping', 'settings-mapping', 'sw-app gen-settings [data-section="mapping"]');

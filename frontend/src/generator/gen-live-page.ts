@@ -1,4 +1,4 @@
-import { LitElement, html, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, svg, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-button';
@@ -35,7 +35,7 @@ function gaugeSvg(g: Gauge): TemplateResult {
   return html`<div class="gauge" data-gauge=${g.role}>
     <svg viewBox="0 0 120 92" aria-hidden="true">
       <path class="track" d="M${sx} ${sy} A${r} ${r} 0 1 1 ${tx} ${ty}"></path>
-      ${g.pct > 0 ? html`<path class="arc ${g.tone}" d="M${sx} ${sy} A${r} ${r} 0 ${large} 1 ${ex} ${ey}"></path>` : nothing}
+      ${g.pct > 0 ? svg`<path class="arc ${g.tone}" d="M${sx} ${sy} A${r} ${r} 0 ${large} 1 ${ex} ${ey}"></path>` : nothing}
       <text x="60" y="60" text-anchor="middle" class="gv">${fmtNum(g.value, g.digits)}</text>
       <text x="60" y="76" text-anchor="middle" class="gu">${g.unit}</text>
     </svg>

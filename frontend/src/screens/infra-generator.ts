@@ -12,7 +12,7 @@ import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
 import type { RouteState } from '../router';
 import { navigate } from '../router';
 import { describeError } from '../api/client';
-import { getDevice, listDevices, runDetect, type DevicesResponse, type GenDevice } from '../api/generator';
+import { getDevice, listDevices, listLive, runDetect, type LiveSummaryItem, type DevicesResponse, type GenDevice } from '../api/generator';
 import { generatorAccess, onGeneratorAccess, type GeneratorAccess } from '../generator/access';
 import { fill, fmtDateTime } from '../generator/gen-logic';
 import { INFRA_TABS, tabStyleOf, visibleTabs } from '../shell/nav';
@@ -43,6 +43,7 @@ export class InfraGenerator extends LitElement {
   @state() private access: GeneratorAccess = generatorAccess();
   @state() private list: DevicesResponse | null = null;
   @state() private device: GenDevice | null = null;
+  @state() private summary: Record<string, LiveSummaryItem> = {};
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private detecting = false;
@@ -93,6 +94,7 @@ export class InfraGenerator extends LitElement {
   private async loadList(quiet = false) {
     try {
       this.list = await listDevices();
+      void listLive().then((r) => (this.summary = Object.fromEntries(r.devices.map((x) => [x.id, x])))).catch(() => undefined);
       this.phase = 'ready';
       const id = this.selectedId();
       if (id) await this.loadDevice(id);
@@ -148,7 +150,7 @@ export class InfraGenerator extends LitElement {
     const q = d ? `?device=${encodeURIComponent(d.id)}` : '';
     const open = d?.open_alerts ?? 0;
     const items: TabItem[] = PAGES.map((p) => ({ id: p, label: G.pages[p], href: `#/infra/generator/${p}${q}`, ...(p === 'alerts' && open ? { count: open } : {}) }));
-    const picker: DropdownItem[] = ds.map((x) => ({ id: x.id, label: x.name, ...(x.open_alerts ? { alert: true as const } : {}) }));
+    const picker: DropdownItem[] = ds.map((x) => ({ id: x.id, label: `${x.name}${this.summary[x.id] && typeof this.summary[x.id].summary.engine_state?.value === 'string' ? ` · ${(G.engine as Record<string, string>)[String(this.summary[x.id].summary.engine_state.value)] ?? ''}` : ''}`, ...(x.open_alerts ? { alert: true as const } : {}) }));
     const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${G.pickerLabel}</span><sw-dropdown .items=${picker} .value=${d?.id ?? ''} label=${G.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.pick(e)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
     let body;
     if (!d) body = html`<div class="skl" style="block-size:240px" data-state="loading"></div>`;

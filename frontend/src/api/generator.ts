@@ -266,3 +266,16 @@ export async function loadViewMode(): Promise<ViewMode> {
   return normalizeViewMode(r.prefs['generator.view_mode']);
 }
 export const saveViewMode = (mode: ViewMode) => put<unknown>('me/prefs', { 'generator.view_mode': mode });
+
+export interface LiveSummaryItem {
+  id: string;
+  name: string;
+  area_id: string | null;
+  status: DeviceStatus;
+  availability: Availability;
+  stale: boolean;
+  open_alerts: number;
+  summary: Record<string, { value: number | string | boolean | null; unit: string }>;
+}
+/** One call for the picker of any number of generators: availability, engine state, load, fuel and open alerts of each. */
+export const listLive = () => get<{ devices: LiveSummaryItem[]; open_alerts: number; at: string }>('generator/devices/live');

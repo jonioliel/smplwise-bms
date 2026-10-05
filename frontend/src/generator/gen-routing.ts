@@ -45,7 +45,13 @@ export class GenRouting extends LitElement {
   static styles = [elecCss, genCss];
 
   protected updated(c: Map<string, unknown>) {
-    if (c.has('device')) void this.load();
+    if (c.has('device')) {
+      this.editing = null; // the routing is per generator: never carry an editor, a message or a draft across generators
+      this.msg = '';
+      this.fail = '';
+      this.data = null;
+      void this.load();
+    }
   }
   connectedCallback() {
     super.connectedCallback();

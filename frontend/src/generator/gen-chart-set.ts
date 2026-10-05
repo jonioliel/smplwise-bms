@@ -1,4 +1,4 @@
-import { LitElement, html, nothing } from 'lit';
+import { LitElement, html, svg, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-state-panel';
 import { getHistory, type GenRange, type HistoryResponse } from '../api/generator';
@@ -80,9 +80,9 @@ export class GenChartSet extends LitElement {
     const body = p.n
       ? html`<div class="plot"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart ${big ? 'big' : ''}" role="img" aria-label=${label(m.role)} dir="ltr" data-chart=${m.role}>
             <defs><linearGradient id=${gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sw-accent)" stop-opacity=".28"></stop><stop offset="1" stop-color="var(--sw-accent)" stop-opacity="0"></stop></linearGradient></defs>
-            ${[0.25, 0.5, 0.75].map((f) => html`<line x1="8" x2=${W - 8} y1=${8 + f * (H - 16)} y2=${8 + f * (H - 16)} stroke="var(--sw-border)" stroke-dasharray="3 4"></line>`)}
-            ${p.areas.map((a) => html`<path d=${a} fill="url(#${gid})"></path>`)}
-            ${p.lines.map((l) => html`<path d=${l} fill="none" stroke="var(--sw-accent)" stroke-width=${big ? 2.2 : 1.8} vector-effect="non-scaling-stroke" stroke-linejoin="round"></path>`)}
+            ${[0.25, 0.5, 0.75].map((f) => svg`<line x1="8" x2=${W - 8} y1=${8 + f * (H - 16)} y2=${8 + f * (H - 16)} stroke="var(--sw-border)" stroke-dasharray="3 4"></line>`)}
+            ${p.areas.map((a) => svg`<path d=${a} fill="url(#${gid})"></path>`)}
+            ${p.lines.map((l) => svg`<path d=${l} fill="none" stroke="var(--sw-accent)" stroke-width=${big ? 2.2 : 1.8} vector-effect="non-scaling-stroke" stroke-linejoin="round"></path>`)}
           </svg><div class="axy"><span class="num">${fmtNum(p.hi, m.digits)}</span><span class="num">${fmtNum(p.lo, m.digits)}</span></div></div>
           <div class="axx"><span>${axis[0]}</span><span>${axis[1]}</span></div>
           <div class="mut stats"><span>${G.charts.min} <b class="num">${fmtNum(p.min, m.digits)}</b></span><span>${G.charts.avg} <b class="num">${fmtNum(p.avg, m.digits)}</b></span><span>${G.charts.max} <b class="num">${fmtNum(p.max, m.digits)}</b></span></div>`
