@@ -9,7 +9,7 @@ import './sw-state-panel';
 import './nvr-connection-form';
 import { ApiError, describeError } from '../api/client';
 import { listRecorders, updateRecorder, STATE_TEXT, type Recorder, type RecorderList } from '../api/recorders';
-import { can, isApi } from '../api/session';
+import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import type { StateKind } from './sw-badge';
 
@@ -47,7 +47,7 @@ export class NvrRecordersCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.mq.addEventListener('change', this.onMq);
-    if (isApi() && can('system.configure')) void this.load();
+    if (isApi() && can('system.configure') && !onRemote()) void this.load();
   }
 
   disconnectedCallback() {
@@ -155,6 +155,7 @@ export class NvrRecordersCard extends LitElement {
 
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
+    if (onRemote()) return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><p class="local-only" data-nvr-local-only role="status">${LOCAL_ONLY_TEXT}</p></sw-card>`;
     if (this.loadState === 'loading') return html`<sw-card heading="מקליטים (NVR)"><sw-state-panel state="loading" compact heading="קורא…"></sw-state-panel></sw-card>`;
     if (this.fallback) {
       return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><nvr-connection-form context="settings"></nvr-connection-form></sw-card>`;
@@ -202,6 +203,11 @@ export class NvrRecordersCard extends LitElement {
   }
 
   static styles = css`
+    .local-only {
+      margin: 0;
+      color: var(--sw-text-secondary, #5b6573);
+      font-size: 14px;
+    }
     :host {
       display: block;
       min-inline-size: 0;

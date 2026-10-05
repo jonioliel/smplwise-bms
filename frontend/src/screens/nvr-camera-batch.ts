@@ -5,6 +5,7 @@ import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
 import './nvr-confirm';
+import { onRemote } from '../api/session';
 import { ApiError } from '../api/client';
 import { nvrBatch, type Batch, type BatchItem } from '../api/nvr-batch';
 import type { ConfirmModel } from './nvr-cameras-edit';
@@ -683,10 +684,10 @@ export class NvrCameraBatch extends LitElement {
               ? this.vlist(matching.length, SEL_ROW, 'select', (i) => this.selectRow(matching[i]), 'מצלמות')
               : html`<p class="msg" data-nvr-batch-none role="status">אין מצלמות שמתאימות לחיפוש.</p>`}
             ${this.line ? html`<p class="msg" data-nvr-batch-line role="alert">${this.line}</p>` : nothing}
-            <div><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
+            ${onRemote() ? nothing : html`<div><sw-button size="sm" variant="ghost" data-nvr-batch-to-encoding @click=${() => {
               this.phase = 'closed';
               this.emit('encoding-open');
-            }}>שינוי קידוד לכמה מצלמות</sw-button></div>
+            }}>שינוי קידוד לכמה מצלמות</sw-button></div>`}
             <sw-button slot="footer" variant="ghost" data-nvr-batch-cancel @click=${() => (this.phase = 'closed')}>ביטול</sw-button>
             <sw-button slot="footer" variant="primary" data-nvr-batch-next ?disabled=${ticked < MIN_BATCH} @click=${() => this.askStart()}>המשך</sw-button>`
         : nothing}

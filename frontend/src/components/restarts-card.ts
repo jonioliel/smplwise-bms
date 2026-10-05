@@ -5,7 +5,7 @@ import './sw-card';
 import './sw-dialog';
 import './sw-icon';
 import { get } from '../api/client';
-import { can } from '../api/session';
+import { can, onRemote } from '../api/session';
 import { classifyRunError, newIdempotencyKey, restartArx, restartPlatform, runFailureRequestText, type RunView } from '../api/system-update-runs';
 
 /** How long the screen waits for Arx to answer again before it asks for a manual start (the same two minutes as the connection banner). */
@@ -203,7 +203,7 @@ export class SwRestartsCard extends LitElement {
         : this.phase === 'manual'
           ? html`<div class="row" role="alert" data-restart-phase="manual"><span class="lbl" data-restart-manual>המערכת לא חזרה. הפעילו ידנית.</span><sw-button data-restart-again @click=${() => this.again()}>בדקו שוב</sw-button></div>`
           : html`<div class="rows">
-              ${can('system.configure')
+              ${can('system.configure') && !onRemote()
                 ? html`<div class="row"><span class="lbl">Arx</span><sw-button icon="power" ?disabled=${disabled} data-restart-arx @click=${() => this.ask('arx')}>הפעל מחדש את Arx</sw-button></div>`
                 : nothing}
               <div class="row"><span class="lbl">תשתית המערכת</span><sw-button icon="power" variant=${this.required ? 'primary' : 'secondary'} ?disabled=${disabled} data-restart-platform @click=${() => this.ask('platform')}>הפעל מחדש את תשתית המערכת</sw-button></div>

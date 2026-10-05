@@ -13,7 +13,7 @@ import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
-import { can, isApi, nvrLess } from '../api/session';
+import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { describeError, get } from '../api/client';
@@ -489,7 +489,7 @@ export class SystemDiagnostics extends LitElement {
     this.error = '';
     try {
       this.ha = await haStatus();
-      if (this.canEdit) this.pairing = await bridgePairing(regenerate);
+      if (this.canEdit && !onRemote()) this.pairing = await bridgePairing(regenerate);
       if (regenerate) {
         this.regenArmed = false;
         this.showCode = true;
@@ -553,7 +553,7 @@ export class SystemDiagnostics extends LitElement {
     if (!i) return nothing;
     const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
     const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
-    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
   }
 
   private renderHa() {
@@ -581,9 +581,11 @@ export class SystemDiagnostics extends LitElement {
           ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
             <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span style="display:flex;gap:8px;align-items:center"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
             <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span style="display:flex;gap:8px"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
-          : this.canEdit
-            ? nothing
-            : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
+          : onRemote()
+            ? html`<div class="muted" data-ha-local-only>${LOCAL_ONLY_GENERIC}</div>`
+            : this.canEdit
+              ? nothing
+              : html`<div class="muted">קוד הצימוד מוצג למנהלי מערכת בלבד.</div>`}
       </sw-card>
       <sw-card heading="התקנת הגשר (פעם אחת)">
         <ol class="steps">
