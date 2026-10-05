@@ -18,7 +18,7 @@ export interface RecorderHealthCard {
   model?: string | null;
   api: Section & { latency_ms?: number | null; text?: string };
   disks: (Section & { items?: { ref: string; state: string; text: string; total_mb: number | null; free_mb: number | null }[]; free_pct?: number | null; full?: boolean; fill_days?: number | null; alarms?: string[] }) | null;
-  recording: (Section & { recording?: number; watched?: number; stopped?: { channel: number; name: string }[]; exception?: { channel: number; name: string }[] }) | null;
+  recording: (Section & { recording?: number; watched?: number; continuous?: boolean; expected?: number; stopped?: { channel: number; name: string }[]; exception?: { channel: number; name: string }[] }) | null;
   channels: (Section & { total?: number; connected?: number; disconnected?: { channel: number; name: string }[] }) | null;
   clock: (Section & { drift_s?: number }) | null;
   certificate: (Section & { days_left?: number | null }) | null;
@@ -39,11 +39,23 @@ export interface HealthThresholds {
   cert_days: number;
   recover_s: number;
   continuous_recorders: string[];
+  /** NN6B: a camera's own choice over its recorder's ("continuous" | "events"); a camera without an entry follows its recorder. */
+  camera_recording: Record<string, CameraRecordingMode>;
+}
+
+export type CameraRecordingMode = 'continuous' | 'events';
+
+export interface CameraChoice {
+  id: string;
+  name: string;
+  recorder_id: string;
+  channel: number;
 }
 
 export interface ThresholdsAnswer {
   values: HealthThresholds;
   ranges: Record<string, { default: number; min: number; max: number }>;
+  cameras?: CameraChoice[];
 }
 
 export const recorderHealth = () => get<RecorderHealthList>('recorder-health');
