@@ -443,7 +443,7 @@ def test_security_devices_need_the_permission_that_operates_them(app_s):
     c = TestClient(app)
     push(app, _state("lock.front", "locked", 0), _state("lock.front", "unlocked", 5, ctx("l1", "u-dana")))
     push(app, _state("alarm_control_panel.house", "armed_away", 0), _state("alarm_control_panel.house", "disarmed", 5, ctx("l2", "u-dana")))
-    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "system_admin")  # door.unlock is a system_admin permission):
+    for name, role in (("vi", "viewer"), ("op", "operator"), ("sa", "system_admin")):  # door.unlock is a system_admin permission
         bind(c, s, name, role, "installation", "*")
     # a viewer sees both devices but not who locked / armed them
     assert c.get(f"{API}/devices/lock.front/activity", headers=as_user("vi")).status_code == 403
