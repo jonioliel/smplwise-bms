@@ -160,7 +160,7 @@ test.describe('recorder health layout guard', () => {
     expect(overflow, 'no sideways page scroll').toBeLessThanOrEqual(0);
     if (process.env.SW_SHOTS) {
       await panel.locator('[data-rh-cameras]').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `../docs/design/evidence/cr026/nn6-per-camera-${test.info().project.name}.png`, fullPage: false });
+      await page.screenshot({ path: `${process.env.SW_SHOTS_DIR ?? "../docs/design/evidence/cr026"}/nn6-per-camera-${test.info().project.name}.png`, fullPage: false });
     }
     expect(errors, 'page errors').toEqual([]);
   });
