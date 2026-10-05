@@ -111,6 +111,7 @@ class PrefsPatch(BaseModel):
     ui_dd_ring_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_ring_groups")  # the same per tab group
     ui_dd_panel: str | None = Field(default=None, alias="ui.dd_panel")  # Unreleased: button | 240 | 300, open-panel width, capsule style only; null = follow the installation
     ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # the same per tab group
+    generator_view_mode: str | None = Field(default=None, alias="generator.view_mode")  # CR-031: gauges | charts, the generator live screen's presentation (null = gauges)
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)

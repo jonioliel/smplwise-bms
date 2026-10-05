@@ -21,10 +21,10 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security")
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users")
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator")  # generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app")  # app = the SmplWise Arx phone app through the push relay (CR-027)
 CHANNELS_RESERVED = ("ha_mobile", "whatsapp")
-SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session")
+SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
 
 
@@ -97,7 +97,42 @@ SOURCES: tuple[Source, ...] = (
     _s("camera.person", "אדם (רק דרך חוקים)", "alerts", "info", "זיהוי אדם", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
     _s("camera.vehicle", "רכב (רק דרך חוקים)", "alerts", "info", "זיהוי רכב", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),
 )
-BY_KEY: dict[str, Source] = {s.key: s for s in SOURCES}
+
+
+def _generator_sources() -> tuple[Source, ...]:
+    """CR-031: one source per generator alert type (`generator.<key>`). Routing starts empty: the recipients rule `generator` finds nobody until an
+    administrator saves a routing; no push / e-mail by default. The alert always lands in the generator's own history and in the centre."""
+    from . import generator_catalog as gc
+
+    return tuple(
+        Source(f"generator.{t.key}", f"גנרטור: {t.title_he}", "device_faults", t.severity, t.title_he, t.body, who="generator", push=False, subject="generator", resolve_text="הסתיים", resolves=not t.event)
+        for t in gc.ALERT_TYPES
+    )
+
+
+SOURCES = SOURCES + _generator_sources()
+class _ByKey(dict):  # type: ignore[type-arg]
+    """The catalogue by key. A per-generator source `generator.<type>@<generator id>` (CR-031: routing is per generator) resolves to its
+    type's catalogue entry; its policy row is its own (`notify_policies.source` is the full key)."""
+
+    @staticmethod
+    def _base(key: Any) -> Any:
+        return key.split("@", 1)[0] if isinstance(key, str) and key.startswith("generator.") else key
+
+    def __missing__(self, key: Any) -> Source:
+        base = self._base(key)
+        if base == key:
+            raise KeyError(key)
+        return self[base]
+
+    def __contains__(self, key: object) -> bool:
+        return dict.__contains__(self, self._base(key))
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        return dict.get(self, self._base(key), default)
+
+
+BY_KEY: dict[str, Source] = _ByKey({s.key: s for s in SOURCES})
 
 
 class _Safe(dict):
@@ -111,7 +146,11 @@ def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
     p = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
     if s is None:
         return _clip(str(params.get("title") or source), 80), _clip(str(params.get("body") or ""), 180)
-    return _clip(s.title.format_map(p) or s.label, 80), _clip(s.body.format_map(p), 180)
+    try:
+        body = (str(params.get("_template")) if params.get("_template") else s.body).format_map(p)  # CR-031: a generator alert may carry its own body template
+    except (ValueError, IndexError, KeyError):
+        body = s.body.format_map(p)
+    return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
 
 
 def _clip(text: str, n: int) -> str:
@@ -190,6 +229,12 @@ def get_policy(conn: sqlite3.Connection, source: str) -> dict[str, Any] | None:
             return {**default_row(BY_KEY[source]), "revision": 0}
         ensure_defaults(conn)
         r = conn.execute("SELECT * FROM notify_policies WHERE source = ?", (source,)).fetchone()
+        if r is None:  # a per-generator source: its own row, created from the type's defaults on first use
+            d = default_row(BY_KEY[source])
+            conn.execute(
+                "INSERT INTO notify_policies(source, enabled, severity, category, after_s, dedupe_window_s, resolve_notice, recipients_json, channels_json, revision, updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?)",
+                (source, int(d["enabled"]), d["severity"], d["category"], d["after_s"], d["dedupe_window_s"], int(d["resolve_notice"]), json.dumps(d["recipients"]), json.dumps(d["channels"]), now_iso()))
+            r = conn.execute("SELECT * FROM notify_policies WHERE source = ?", (source,)).fetchone()
     return row_to_policy(r)
 
 

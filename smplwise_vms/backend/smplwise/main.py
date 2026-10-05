@@ -87,6 +87,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         energy_sampler.janitor(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("energy janitor failed", exc_info=True)
+    try:  # CR-031: generator history and closed alerts past their retention (hourly inside; no Home Assistant call)
+        from .services import generator_runtime
+
+        generator_runtime.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("generator janitor failed", exc_info=True)
     try:  # CR-021 S3 review: update / platform-restart runs past their ceiling are settled on a schedule, not only when someone asks
         from .services import update_runs
 
@@ -316,6 +322,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
 
+    from .routers import generator as generator_router
+
+    app.include_router(generator_router.router, prefix=api, tags=["generator"])  # CR-031: גנרטור - devices, live values, history, alerts, routing (view and alerts only)
     app.include_router(energy_meters_router.router, prefix=api, tags=["energy"])  # CR-023 P1: מוני חשמל - meters, readings, consumption, settings
     from .routers import nvr_batch as nvr_batch_router
 
@@ -413,6 +422,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
+        from .services import generator_runtime
+
+        generator_runtime.RUNNER.start(app.state.db, settings)  # CR-031: generator detection, history samples and alerts from the state mirror (read-only)
         if os.environ.get("SW_BILL_PDF_SELFCHECK", "1") != "0":  # CR-023: log and expose which bill PDF engine really works here
             from .services import bill_pdf
 
@@ -487,6 +499,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.shutdown()
+        from .services import generator_runtime
+
+        generator_runtime.RUNNER.shutdown()
         from .services import push as push_svc
 
         from starlette.concurrency import run_in_threadpool as _in_thread
