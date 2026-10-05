@@ -685,3 +685,35 @@ def test_live_summary_history_and_retention_with_many_generators(app):
         conn.execute("UPDATE ha_devices SET removed_at = '2026-10-05T09:00:00Z' WHERE device_id = 'dev_gen_1'")
     detect(db)
     assert len(c.get(f"{API}/devices").json()["devices"]) == 2
+
+
+# ---------------------------------------------------------------- message template per policy
+
+def test_message_template(app):
+    c, db, _ = app
+    g = _full(db)
+    url = f"{API}/devices/{g}/policies/low_fuel"
+    pol = c.get(f"{API}/devices/{g}/policies").json()
+    assert set(pol["placeholders"]) == {"name", "detail", "type", "severity"} and pol["template_max"] == 500
+    item = next(i for i in pol["items"] if i["key"] == "low_fuel")
+    assert item["policy"] is None and item["message_sample"]
+    for bad in ("{oops}", "{name", "{name!r}", "{name:>10}", "{0}", "{name.x}"):
+        r = c.put(url, json={"template_he": bad})
+        assert r.status_code == 400 and r.json()["error"]["code"] == "template_invalid" if "error" in r.json() else r.status_code == 400, bad
+    assert c.put(url, json={"template_he": "x" * 501}).status_code == 422
+    r = c.post(f"{url}/preview", json={"template_he": "⚠ {type}: {detail} ({name}, {severity})"})
+    assert r.json()["text"] == "⚠ מפלס דלק נמוך: מפלס הדלק 18% (גנרטור ראשי, התראה)"
+    assert c.post(f"{url}/preview", json={"template_he": "{bad}"}).status_code == 400
+    assert c.put(url, json={"template_he": "דחוף! {name} - {detail}"}).json()["template_he"] == "דחוף! {name} - {detail}"
+    assert next(i for i in c.get(f"{API}/devices/{g}/policies").json()["items"] if i["key"] == "low_fuel")["policy"]["template_he"] == "דחוף! {name} - {detail}"
+    set_state(db, "sensor.gen_fuel", "10")
+    evaluate(db, T0)
+    evaluate(db, T0 + 61)
+    assert rows(db, "SELECT body FROM notifications WHERE source LIKE 'generator.low_fuel@%'")[0]["body"] == "דחוף! גנרטור ראשי - מפלס הדלק 10%"
+    assert c.put(url, json={"template_he": None}).json()["template_he"] is None  # back to the built-in text
+    set_state(db, "sensor.gen_fuel", "80")
+    evaluate(db, T0 + 100)
+    set_state(db, "sensor.gen_fuel", "5")
+    evaluate(db, T0 + 2000)
+    evaluate(db, T0 + 2100)
+    assert [r["body"] for r in rows(db, "SELECT body FROM notifications WHERE source LIKE 'generator.low_fuel@%' ORDER BY first_at")][-1] == "גנרטור ראשי: מפלס הדלק 5%."

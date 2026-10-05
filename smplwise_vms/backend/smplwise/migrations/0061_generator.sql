@@ -55,6 +55,7 @@ CREATE TABLE generator_alert_policies (
   quiet_mode       TEXT NOT NULL DEFAULT 'matrix' CHECK (quiet_mode IN ('pass', 'matrix', 'hold')),
   escalate         INTEGER NOT NULL DEFAULT 0,
   after_s          INTEGER NOT NULL DEFAULT 0,
+  template_he      TEXT,                            -- custom Hebrew message body; NULL = the built-in template of the alert type
   row_version      INTEGER NOT NULL DEFAULT 1,
   updated_by       TEXT,
   updated_at       TEXT,

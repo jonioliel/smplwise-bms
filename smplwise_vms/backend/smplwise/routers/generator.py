@@ -353,6 +353,7 @@ class PolicyBody(_Body):
     quiet_mode: Literal["pass", "matrix", "hold"] | None = None
     escalate: bool | None = None
     after_s: int | None = None
+    template_he: str | None = Field(default=None, max_length=alerts.TEMPLATE_MAX)  # null = the built-in template; placeholders: alerts.PLACEHOLDERS
     row_version: int | None = None
 
 
@@ -364,8 +365,24 @@ def put_policy(device_id: str, alert_key: str, body: PolicyBody, principal: Prin
     try:
         return alerts.save_policy(conn, principal, device_id, alert_key, body.model_dump(exclude_unset=True))
     except alerts.RoutingInvalid as exc:
-        status = 409 if exc.code == "revision_conflict" else 422
+        status = 409 if exc.code == "revision_conflict" else 400 if exc.code == "template_invalid" else 422
         raise ApiError(status, exc.code, exc.message, details=exc.details) from None
+
+
+class PreviewBody(_Body):
+    template_he: str | None = Field(default=None, max_length=alerts.TEMPLATE_MAX)
+
+
+@router.post("/generator/devices/{device_id}/policies/{alert_key}/preview")
+def preview_policy(device_id: str, alert_key: str, body: PreviewBody, principal: Principal = Depends(_manage_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The message as it would read, with sample values; nothing is stored or sent."""
+    _device(conn, device_id)
+    if alert_key not in cat.TYPE_BY_KEY:
+        raise not_found("סוג ההתראה לא נמצא.")
+    try:
+        return {"text": alerts.render_preview(alerts.validate_template(body.template_he), alert_key)}
+    except alerts.RoutingInvalid as exc:
+        raise ApiError(400, exc.code, exc.message, details=exc.details) from None
 
 
 @router.post("/generator/devices/{device_id}/policies/reset")

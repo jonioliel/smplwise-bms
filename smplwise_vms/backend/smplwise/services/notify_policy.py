@@ -146,7 +146,11 @@ def render(source: str, params: dict[str, Any]) -> tuple[str, str]:
     p = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
     if s is None:
         return _clip(str(params.get("title") or source), 80), _clip(str(params.get("body") or ""), 180)
-    return _clip(s.title.format_map(p) or s.label, 80), _clip(s.body.format_map(p), 180)
+    try:
+        body = (str(params.get("_template")) if params.get("_template") else s.body).format_map(p)  # CR-031: a generator alert may carry its own body template
+    except (ValueError, IndexError, KeyError):
+        body = s.body.format_map(p)
+    return _clip(s.title.format_map(p) or s.label, 80), _clip(body, 180)
 
 
 def _clip(text: str, n: int) -> str:

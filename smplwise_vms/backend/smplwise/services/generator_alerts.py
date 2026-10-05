@@ -29,6 +29,7 @@ from ..rbac import INSTALLATION, authorize
 from . import generator_catalog as cat
 from . import generator_core as core
 from . import notify
+from . import notify_policy
 from .notify_visibility import principal_of
 from .timeutil import iso_utc, parse_utc
 
@@ -316,10 +317,10 @@ def _muted(conn: sqlite3.Connection, device_id: str, key: str, now: str) -> bool
 
 # ---------------------------------------------------------------- raise / clear
 
-def _signal(dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, alert_id: str, resolve: bool = False) -> notify.Signal:
+def _signal(dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, alert_id: str, resolve: bool = False, template: str | None = None) -> notify.Signal:
     return notify.Signal(
         source_of(dev["id"], t.key), "generator", dev["id"], severity=None if resolve else severity, dedupe_key=f"{SOURCE_PREFIX}{t.key}:{dev['id']}", resolve=resolve,
-        params={"name": dev["name"], "detail": detail, "place": dev["name"]}, origin={"alert_id": alert_id, "generator_id": dev["id"]}, link="#/infra/generator/alerts", area_id=dev["area_id"])
+        params={"name": dev["name"], "detail": detail, "place": dev["name"], "type": t.title_he, "severity": notify_policy.SEVERITY_LABEL_HE[severity], **({"_template": template} if template else {})}, origin={"alert_id": alert_id, "generator_id": dev["id"]}, link="#/infra/generator/alerts", area_id=dev["area_id"])
 
 
 def _emit(conn: sqlite3.Connection, signal: notify.Signal) -> str | None:
@@ -331,7 +332,7 @@ def _emit(conn: sqlite3.Connection, signal: notify.Signal) -> str | None:
         return None
 
 
-def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, snapshot: dict[str, Any], now: str, now_ts: float) -> str:
+def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severity: str, detail: str, snapshot: dict[str, Any], now: str, now_ts: float, template: str | None = None) -> str:
     muted = _muted(conn, dev["id"], t.key, now)
     recent = None if t.event else conn.execute(
         "SELECT id, count FROM generator_alerts WHERE device_id = ? AND alert_key = ? AND cleared_at IS NOT NULL ORDER BY cleared_at DESC LIMIT 1", (dev["id"], t.key)).fetchone()
@@ -349,7 +350,7 @@ def _raise(conn: sqlite3.Connection, dev: sqlite3.Row, t: cat.AlertType, severit
             "INSERT INTO generator_alerts(id, device_id, alert_key, severity, raised_at, cleared_at, snapshot_json, count, last_at) VALUES (?,?,?,?,?,?,?,1,?)",
             (aid, dev["id"], t.key, severity, now, now if t.event else None, json.dumps(snapshot, ensure_ascii=False), now))
     if not muted:
-        nid = _emit(conn, _signal(dev, t, severity, detail, aid))
+        nid = _emit(conn, _signal(dev, t, severity, detail, aid, template=template))
         if nid:
             conn.execute("UPDATE generator_alerts SET notification_id = ? WHERE id = ?", (nid, aid))
     return aid
@@ -392,7 +393,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
             row = open_rows.get(t.key)
             if t.event:
                 if enabled and not offline and EVENT_JUDGES[t.key](ctx):
-                    _raise(conn, dev, t, severity, "", ctx.snapshot(), now, now_ts)
+                    _raise(conn, dev, t, severity, "", ctx.snapshot(), now, now_ts, pol["template_he"] if pol else None)
                     out["raised"] += 1
                 continue
             if t.key != "controller_offline" and offline:
@@ -402,7 +403,7 @@ def evaluate(conn: sqlite3.Connection, now_ts: float, mirror_connected: bool = T
                 continue
             due = _held(dev["id"], t.key, bool(active) and enabled, int(t.hold_s + (pol["after_s"] if pol else 0)), now_ts)
             if due and row is None:
-                _raise(conn, dev, t, severity, detail, ctx.snapshot(), now, now_ts)
+                _raise(conn, dev, t, severity, detail, ctx.snapshot(), now, now_ts, pol["template_he"] if pol else None)
                 out["raised"] += 1
             elif row is not None and (not active or not enabled):
                 _clear(conn, dev, t, row, now)
@@ -538,7 +539,7 @@ def _policy_dict(r: sqlite3.Row | None) -> dict[str, Any] | None:
     except ValueError:
         ch = []
     return {"enabled": bool(r["enabled"]), "severity": r["severity"], "recipients": {"roles": list(rec.get("roles") or []), "users": list(rec.get("users") or [])},
-            "channels": [c for c in ch if c in CHANNELS], "quiet_mode": r["quiet_mode"], "escalate": bool(r["escalate"]), "after_s": r["after_s"], "row_version": r["row_version"]}
+            "channels": [c for c in ch if c in CHANNELS], "quiet_mode": r["quiet_mode"], "escalate": bool(r["escalate"]), "after_s": r["after_s"], "template_he": r["template_he"], "row_version": r["row_version"]}
 
 
 def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
@@ -548,14 +549,43 @@ def list_policies(conn: sqlite3.Connection, device_id: str) -> dict[str, Any]:
     for t in cat.ALERT_TYPES:
         ok = cat.type_available(t, roles)
         items.append({"key": t.key, "group": t.group, "title": t.title_he, "title_en": t.title_en, "default_severity": t.severity, "event": t.event, "available": ok,
-                      "needs": None if ok else cat.needs_label(t), "message": t.body, "policy": _policy_dict(stored.get(t.key))})
+                      "needs": None if ok else cat.needs_label(t), "message": t.body, "message_sample": render_preview(None, t.key), "policy": _policy_dict(stored.get(t.key))})
     return {"groups": [{"key": k, "title": v} for k, v in cat.GROUPS], "items": items, "available": sum(1 for i in items if i["available"]), "total": len(items),
             "channels": list(CHANNELS), "channels_reserved": list(CHANNELS_RESERVED), "quiet_modes": list(QUIET),
-            "note": "ניתוב נשמר כאן; ההתראות תמיד מגיעות למרכז ההתראות, ושליחה בערוצים נוספים נעשית דרכו."}
+            "placeholders": PLACEHOLDERS, "template_max": TEMPLATE_MAX, "note": "ניתוב נשמר כאן; ההתראות תמיד מגיעות למרכז ההתראות, ושליחה בערוצים נוספים נעשית דרכו."}
+
+
+PLACEHOLDERS = {"name": "שם הגנרטור", "detail": "פירוט הערך (למשל מפלס דלק 18%)", "type": "סוג ההתראה", "severity": "חומרה"}
+TEMPLATE_MAX = 500
+SAMPLE = {"name": "גנרטור ראשי", "detail": "מפלס הדלק 18%", "type": "מפלס דלק נמוך", "severity": "התראה"}
+
+
+def validate_template(value: Any) -> str | None:
+    """None / empty = the built-in template. Otherwise plain text with only {name} {detail} {type} {severity}; anything else is refused."""
+    import string
+
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if not isinstance(value, str) or len(value) > TEMPLATE_MAX:
+        raise RoutingInvalid("template_invalid", f"התבנית חייבת להיות טקסט עד {TEMPLATE_MAX} תווים.", {"field": "template_he"})
+    try:
+        parts = list(string.Formatter().parse(value))
+    except ValueError:
+        raise RoutingInvalid("template_invalid", "סוגריים מסולסלים לא מאוזנים בתבנית.", {"field": "template_he"}) from None
+    bad = sorted({f or "" for _lit, f, spec, conv in parts if f is not None and (f not in PLACEHOLDERS or spec or conv)})
+    if bad:
+        raise RoutingInvalid("template_invalid", "משתנה לא מוכר בתבנית: " + ", ".join("{" + b + "}" for b in bad), {"field": "template_he", "unknown": bad, "allowed": list(PLACEHOLDERS)})
+    return value.strip()
+
+
+def render_preview(template: str | None, key: str) -> str:
+    from . import notify_policy
+
+    return notify_policy.render(SOURCE_PREFIX + key, {**SAMPLE, "type": cat.TYPE_BY_KEY[key].title_he, **({"_template": template} if template else {})})[1]
 
 
 def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dict[str, Any] | None) -> dict[str, Any]:
-    out = dict(current or {"enabled": True, "severity": None, "recipients": {"roles": [], "users": []}, "channels": [], "quiet_mode": "matrix", "escalate": False, "after_s": 0})
+    out = dict(current or {"enabled": True, "severity": None, "recipients": {"roles": [], "users": []}, "channels": [], "quiet_mode": "matrix", "escalate": False, "after_s": 0, "template_he": None})
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
             raise RoutingInvalid("validation", "הערך חייב להיות כן/לא.", {"field": "enabled"})
@@ -595,6 +625,8 @@ def validate_policy(conn: sqlite3.Connection, body: dict[str, Any], current: dic
         if not isinstance(body["escalate"], bool):
             raise RoutingInvalid("validation", "הערך חייב להיות כן/לא.", {"field": "escalate"})
         out["escalate"] = body["escalate"]
+    if "template_he" in body:
+        out["template_he"] = validate_template(body["template_he"])
     if "after_s" in body:
         v = body["after_s"]
         if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 86400:
@@ -631,11 +663,11 @@ def save_policy(conn: sqlite3.Connection, principal: Any, device_id: str, key: s
     new = validate_policy(conn, body, _policy_dict(row))
     new["severity"] = new["severity"] or t.severity
     conn.execute(
-        """INSERT INTO generator_alert_policies(device_id, alert_key, enabled, severity, recipients_json, channels_json, quiet_mode, escalate, after_s, row_version, updated_by, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,1,?,?)
+        """INSERT INTO generator_alert_policies(device_id, alert_key, enabled, severity, recipients_json, channels_json, quiet_mode, escalate, after_s, template_he, row_version, updated_by, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?)
            ON CONFLICT(device_id, alert_key) DO UPDATE SET enabled = excluded.enabled, severity = excluded.severity, recipients_json = excluded.recipients_json, channels_json = excluded.channels_json,
-             quiet_mode = excluded.quiet_mode, escalate = excluded.escalate, after_s = excluded.after_s, row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
-        (device_id, key, int(new["enabled"]), new["severity"], json.dumps(new["recipients"]), json.dumps(new["channels"]), new["quiet_mode"], int(new["escalate"]), new["after_s"], principal.user_id, now_iso()))
+             quiet_mode = excluded.quiet_mode, escalate = excluded.escalate, after_s = excluded.after_s, template_he = excluded.template_he, row_version = row_version + 1, updated_by = excluded.updated_by, updated_at = excluded.updated_at""",
+        (device_id, key, int(new["enabled"]), new["severity"], json.dumps(new["recipients"]), json.dumps(new["channels"]), new["quiet_mode"], int(new["escalate"]), new["after_s"], new.get("template_he"), principal.user_id, now_iso()))
     _bridge(conn, device_id, key, new, t.severity)
     audit(conn, actor=principal, action="generator.policy.update", decision="allowed", resource_type="generator_policy", resource_id=f"{device_id}:{key}")
     return _policy_dict(_policy_row(conn, device_id, key)) or {}
