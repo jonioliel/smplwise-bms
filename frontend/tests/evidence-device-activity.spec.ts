@@ -87,6 +87,7 @@ test.describe('device activity popup', () => {
             await page.keyboard.press('Escape');
             await expect(opened(page)).toHaveCount(0);
             await hold(page, target, LONG);
+            if (mode === 'slow') await shot(page, `dbg-slow-${tag}-${scheme}`);
             if (mode === 'slow') console.log('DBG', await opened(page).count(), (await panel(page).innerHTML().catch(() => 'nopanel')).slice(0, 300), st.feedCalls.length);
             if (mode === 'slow') await expect(panel(page).locator('[data-feed-state="loading"]')).toBeVisible();
             else await expect(panel(page).locator(`[data-feed-state]`).first()).toBeVisible();
