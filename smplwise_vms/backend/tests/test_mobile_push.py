@@ -116,6 +116,18 @@ def test_server_id_is_returned_everywhere_and_matches_the_relay_payload(w, relay
     assert [c["server"] for c in relay.calls] == [sid]
 
 
+def test_relay_url_is_returned_with_server_id_and_never_the_key(w, relay, monkeypatch):
+    did, tok = register(w, "ops2")
+    cfg = w.c.get(f"{API}/presence/config", headers=tok).json()
+    assert cfg["relay_url"] == "https://relay.test"
+    r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": []}, headers=tok).json()
+    assert r["relay_url"] == "https://relay.test"
+    assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123"}, headers=tok).json()["relay_url"] == "https://relay.test"
+    assert "srvkey-test-0001" not in json.dumps([cfg, r])
+    monkeypatch.delenv("SW_PUSH_RELAY_URL")
+    assert w.c.get(f"{API}/presence/config", headers=tok).json()["relay_url"] is None
+
+
 def test_server_id_created_by_the_config_route_when_no_push_ever_ran(w, relay):
     r = w.c.post(f"{API}/presence/devices", json={"name": "הנייד שלי", "platform": "ios", "install_id": "ops2-install-0000-0000"}, headers=as_user("ops2"))
     tok = bearer(r.json()["device_token"])

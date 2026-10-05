@@ -223,6 +223,7 @@ def get_config(request: Request, caller: Caller = Depends(any_caller)) -> dict[s
             with _db(request).write_aside() as w:
                 sid = mobile_push.server_id(w)
         cfg["server_id"] = sid
+        cfg["relay_url"] = mobile_push.relay_url()  # never the relay key
         if caller.device is not None:
             cfg["device"] = {"device_id": caller.device["id"], "name": caller.device["name"], "notice_ack_version": caller.device["notice_ack_version"]}
         return cfg

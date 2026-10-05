@@ -63,6 +63,7 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
 ```json
 {
   "server_id": "srv_0a1b2c3d4e5f6071",
+  "relay_url": "https://relay.example",
   "enabled": false,
   "mode": "continuous",
   "interval_s": 60,
@@ -87,6 +88,8 @@ Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidd
   administrator configured (the second gate).
 - `server_id` is always present (device token or session) and equals the `server_id` of section 1 and the relay payload's
   `server` (section 7.3); it carries no address.
+- `relay_url` is the installation's configured push relay base URL (add-on option `push_relay_url`), `null` when unset;
+  it is also returned by `POST` / `PATCH notifications/devices` next to `server_id`. The relay key is never returned.
 - `device` is present only with a device token. `notice_ack_version < notice_version` means the notice must be shown
   again before anything is reported.
 - `required_sensors` tells the app which sensors the administrator requires for using the system from the app
@@ -240,7 +243,9 @@ no match → drop the push).
 
 ## 8. The relay API (app ↔ relay; server ↔ relay)
 
-Base `https://<relay>/v1` (the URL ships in the app). All bodies JSON, <= 2 KiB.
+Base `https://<relay>/v1`. The app **prefers the `relay_url` its Arx server returns** (section 2, section 7.2) and falls
+back to the default baked into the build when it is `null` / absent, so moving the relay to another domain needs a server
+option change, not an app update. The app uses the relay of the server it is registering with, per server. All bodies JSON, <= 2 KiB.
 
 - `POST /v1/register` (app) `{ "platform": "ios" | "android", "push_token": "<APNs hex | FCM token>", "app_version": "…",
   "bundle_id": "com.smplwise.arx.app" }` → `200 { "relay_token": "rt_…" }`. Idempotent per push token (the same relay

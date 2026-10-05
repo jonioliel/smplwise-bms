@@ -111,7 +111,7 @@ def unregister(conn: sqlite3.Connection, device_id: str) -> None:
 
 def push_view(r: sqlite3.Row, sid: str) -> dict[str, Any]:
     """`server_id` is the opaque id the relay payload's `server` carries: the app stores it with the origin it registered at."""
-    return {"device_id": r["id"], "server_id": sid, "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
+    return {"device_id": r["id"], "server_id": sid, "relay_url": relay_url(), "push": {"registered": bool(r["push_relay_token"]), "platform": r["push_platform"], "muted": _json(r["push_muted_json"], []),
                                            "last_ok_at": r["push_last_ok_at"], "failures": r["push_failures"], "last_error": r["push_last_error"], "app_version": r["push_app_version"]}}
 
 
