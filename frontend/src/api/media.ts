@@ -75,6 +75,10 @@ export interface ProductSettings {
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
+  /** 2.0.0: seconds without media progress before the recording player says "מתחבר מחדש" (2-30, default 5). */
+  'playback.stall_s'?: number;
+  /** 2.0.0: automatic "resume from here" attempts before "הניגון נעצר" (0-5, default 3; 0 = none). */
+  'playback.auto_resume_attempts'?: number;
   /** CR-024: EXPERIMENTAL synchronized playback of cameras of different recorders ('true' | 'false', default 'false'). */
   'playback.cross_recorder_sync'?: string;
   'exports.max_mb'?: number;
