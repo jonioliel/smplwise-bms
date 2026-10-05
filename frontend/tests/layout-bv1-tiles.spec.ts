@@ -43,9 +43,9 @@ async function open(page: Page, hash: string, skin: string, theme: string, outer
 }
 
 /** `within` narrows the measured subtree (the other skins' own chrome - 26 px tree buttons, 30 px chips - is theirs, not BV1's); `classes` keeps only those finding classes. */
-async function check(page: Page, results: Finding[], ctx: string, roots: string[], within?: string, classes?: Finding['cls'][]) {
+async function check(page: Page, results: Finding[], ctx: string, roots: string[], within?: string, classes?: Finding['cls'][], skipMore = '') {
   await settle(page);
-  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP, roots, within });
+  const found = await page.evaluate(inPageCheck, { ctx, bubble: BUBBLE, skip: SKIP + (skipMore ? ', ' + skipMore : ''), roots, within });
   results.push(...(classes ? found.filter((f) => classes.includes(f.cls)) : found));
 }
 
@@ -106,10 +106,12 @@ test.describe('BV1 layout guard: the tiles, the agenda, the launcher, the vertic
             await scrollMain(page, 'top');
             runs++;
             // bubble: the whole home (its chrome follows the touch dial); the other skins: the widgets only (their chrome keeps its own sizes)
+            // (the 38 px quick-action buttons of those skins' quick widget predate BV1 and are not measured; bubble draws pills there)
             const within = skin === 'bubble' ? undefined : 'home-widgets';
-            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)}`, ['devices-building'], within);
+            const skipMore = skin === 'bubble' ? '' : '.qbtn';
+            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)}`, ['devices-building'], within, undefined, skipMore);
             await scrollMain(page, 'bottom');
-            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)} bottom`, ['devices-building'], within);
+            await check(page, results, `home ${skin} ${theme} ${w} ${JSON.stringify(c)} bottom`, ['devices-building'], within, undefined, skipMore);
           }
         }
       }
