@@ -25,7 +25,8 @@ test('a large site clusters, and every marker is in exactly one place', () => {
 });
 
 test('zooming in splits clusters; at the cap every marker is shown', () => {
-  const m = mk(300);
+  // distinct positions (mk() repeats each position three times for 300 markers, which stay clustered at every zoom below the cap)
+  const m: ClusterInput[] = Array.from({ length: 300 }, (_, i) => ({ id: `z${i}`, x: ((i * 37) % 100) / 100, y: ((i * 53) % 100) / 100 * 0.3 + Math.floor(i / 100) * 0.35, state: 'live' as const }));
   const inClusters = (s: number) => clusterMarkers(m, { ...base, scale: s }).clusters.reduce((t, c) => t + c.members.length, 0);
   const far = inClusters(0.6);
   const near = inClusters(1.6);
