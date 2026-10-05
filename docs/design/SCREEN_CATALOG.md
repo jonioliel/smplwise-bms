@@ -318,3 +318,18 @@ Delete, Enter).
 **States:** loading, ready, dirty, saved, error, view-only, demo
 **Record:** `docs/architecture/TABS_CONFIG.md`.
 
+
+## SC31 (superseded for fixed tablets, CR-030) — מסך קיר
+**Mode:** Live | **Phase:** 2.3.0 (planned) | **Route:** none of its own: the normal Arx login; a user with an enabled wall profile who signs in on a tablet-class device is switched to the wall shell (`frontend/src/wall/`)
+טאבלט קבוע בקיר: משתמש מסך קיר (התפקיד קיוסק הקיים) שמתחבר מטאבלט; הזיהוי לפי מגע ראשי והצלע הקצרה של המסך; בטלפון ובמחשב - המערכת הרגילה. אין צימוד ואין אסימון. רשימת מצלמות מפורשת (הרשאות ברמת מצלמה); פריסה לפי גודל וכיוון (לרוחב, לאורך עם רצועת מפה, מצלמה אחת); אריחי התראה והשתלטות קריטית; מסגרת תמונות; הגנה על המסך, לו"ז שינה, התנהגות בניתוק. טלוויזיה - בשידור (CR-028). `#/kiosk/:view` for signed-in HA users stays as it is.
+**Visual reference:** `docs/design/mockups/wall-display/` (index.html, detect.html)
+**States:** login (form, error, tablet detected, access removed), base, rotating, info chip, alert tile / stack, takeover, resolved, frame, dim, sleep, camera stale / lost, server offline / clock, no connection, remote refused, no cameras, installer (with password-guarded sign-out), sound locked
+Tablet landscape 1280×800 (large tablets scale), portrait 800×1280, single camera; RTL strip, video / map / user names not mirrored; touch >= 44 px.
+**Record:** CR-030 (`docs/changes/CR-030-WALL-DISPLAY.md`).
+
+## SC38 — הגדרות › מסכי קיר
+**Mode:** System | **Phase:** 2.3.0 (planned) | **Route:** `#/system/wall` (`system.configure`, installation scope; adding a user also needs `rbac.assign`)
+רשימת משתמשי מסך (מצב, נראה לאחרונה, ערוץ, מצלמות, התראות, פעולות: עריכה / השבתה / הסרה), "הוספת משתמש מסך" (בחירת משתמש קיים ומקום), מגירת עריכה בארבע לשוניות (משתמש ומצלמות עם עץ האזורים, התראות, תמונות, שעות ושמירה), תיקיות תמונות. בטלפון כרטיסים.
+**Visual reference:** `docs/design/mockups/wall-display/settings.html`
+**States:** loading, empty, ready, error, add (pick a user), add form, drawer (4 tabs), remove confirmation, saved
+**Record:** CR-030.
