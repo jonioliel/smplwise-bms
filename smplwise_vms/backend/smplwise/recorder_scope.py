@@ -46,7 +46,9 @@ def set_disabled(recorder_id: str, disabled: bool) -> None:
 
 
 def valid_id(recorder_id: Any) -> bool:
-    return isinstance(recorder_id, str) and bool(RECORDER_ID_RE.fullmatch(recorder_id)) and not recorder_id.startswith("ha_")
+    """Security review Low (2026-10-04): only server-assigned `nvr-<n>` ids. Recorder ids end up in go2rtc stream names
+    (`smplwise_<id>_...`); anything else (an `intercom`, `wiskey`, `pb` or `ha` prefix) could reach another namespace."""
+    return isinstance(recorder_id, str) and bool(NEW_ID_RE.fullmatch(recorder_id)) and bool(RECORDER_ID_RE.fullmatch(recorder_id))
 
 
 def is_child(settings: Settings) -> bool:
@@ -64,6 +66,8 @@ def settings_for(settings: Settings, recorder_id: str | None) -> Settings:
     """The effective settings of `recorder_id` (None = the primary). The primary is `settings` itself; a further recorder is
     its start-up child; an unknown, disabled or removed one is `unconfigured` (409 at the device boundary)."""
     rid = recorder_id or PRIMARY
+    if not valid_id(rid):  # a malformed id never selects a connection (409 at the device boundary)
+        return unconfigured(settings, "nvr-0")  # never assigned (next_id starts at nvr-2; the first is nvr-1)
     if rid == settings.nvr_recorder_id:
         return settings
     child = settings.recorder_settings.get(rid) if isinstance(settings.recorder_settings, Mapping) else None

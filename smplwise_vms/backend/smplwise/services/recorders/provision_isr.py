@@ -25,6 +25,8 @@ owner's unit has been validated live (CR-025 section 6)."""
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 import re
 import ssl
 import threading
@@ -81,6 +83,53 @@ def clear_auth_cache() -> None:
         _REFUSED.clear()
         _CHALLENGE.clear()
         _PINNED.clear()
+
+
+AUTH_FLOOR_NAME = "provision_auth_floor.json"  # device_key -> strongest scheme seen in auto mode (no address, no secret)
+_FLOOR_LOCK = threading.Lock()
+
+
+def _floor_path(settings: Any):  # noqa: ANN202
+    from ..connection_store import key_path
+
+    return key_path(settings).parent / AUTH_FLOOR_NAME
+
+
+def _read_floor(settings: Any) -> dict[str, str]:
+    try:
+        data = json.loads(_floor_path(settings).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _auth_floor(settings: Any, device_key: str) -> str | None:
+    """Finding 10: the strongest scheme this device ever challenged with in auto mode. Kept on disk (keys/, 0600) so a
+    restart does not reopen the downgrade window."""
+    return _read_floor(settings).get(device_key)
+
+
+def _raise_auth_floor(settings: Any, device_key: str) -> None:
+    import os
+    import secrets
+
+    with _FLOOR_LOCK:
+        data = _read_floor(settings)
+        if data.get(device_key) == "digest":
+            return
+        data[device_key] = "digest"
+        p = _floor_path(settings)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_name(f".{p.name}.{secrets.token_hex(4)}.tmp")
+            tmp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+            try:
+                os.chmod(tmp, 0o600)
+            except OSError:
+                pass
+            os.replace(tmp, p)
+        except OSError as exc:
+            logging.getLogger("smplwise").warning("provision: could not store the auth floor: %s", type(exc).__name__)
 
 
 def _unavailable(op: str, exc: Exception) -> ApiError:
@@ -260,6 +309,16 @@ class ProvisionIsrAdapter:
                 raise _unavailable("auth", exc) from exc
         challenge = r.headers.get("www-authenticate", "")
         scheme = pauth.detect(challenge)
+        if scheme == "digest":
+            _raise_auth_floor(self._settings, self.device_key)
+        elif _auth_floor(self._settings, self.device_key) == "digest":
+            # security review finding 10: this device challenged with Digest before; a Basic (or missing) challenge now is
+            # what a man in the middle would send to harvest the password. Refused, nothing sent; choosing Basic explicitly in
+            # the connection settings (a deliberate device change) is the only way down.
+            with _AUTH_LOCK:
+                _CHALLENGE[self.device_key] = pauth.describe(challenge)
+            raise ApiError(503, "auth_downgrade_refused", "ה־NVR ביקש שיטת אימות חלשה מבעבר. אם שיניתם את הגדרות ה־NVR, בחרו את שיטת האימות במפורש בהגדרות החיבור.",
+                           details={"op": "auth", "was": "digest", "offered": scheme})
         with _AUTH_LOCK:
             _AUTH[self.device_key] = (_monotonic() + AUTH_TTL_S, scheme)
             _CHALLENGE[self.device_key] = pauth.describe(challenge)
@@ -813,9 +872,10 @@ def subscribe_document(init_term_s: int = 60, types: tuple[str, ...] = SUBSCRIBE
 
 
 def _address_document(address: str, extra: str = "") -> str:
-    safe = address.replace("]]>", "")
+    # security review Low: a single replace("]]>", "") is bypassed by "]]]]>>>" (the removal re-forms "]]>"); px.cdata splits
+    # every "]]>" across two sections, so the value can never close the section
     return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10">'
-            f"<serverAddress><![CDATA[{safe}]]></serverAddress>{extra}</config>")
+            f"<serverAddress>{px.cdata(address)}</serverAddress>{extra}</config>")
 
 
 class PullSubscription:

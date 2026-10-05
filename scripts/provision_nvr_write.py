@@ -135,7 +135,9 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
     from smplwise.services.recorders import provision_isr as pisr
     from smplwise.services.recorders import provision_isr_xml as px
 
-    before = a._xml("GetAlarmServerConfig", None, px.parse_alarm_server, True)
+    before_xml = a._xml("GetAlarmServerConfig", None)
+    before = px.parse_alarm_server(before_xml, True)
+    before_values = px.alarm_server_values(before_xml)
     fields = set(before.get("fields") or ())
     try:
         body = _alarm_body(px, server, port, path, fields)
@@ -148,8 +150,8 @@ def op_set_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, serve
         out("dry-run: nothing written")
         return 0
     eid = uuid.uuid4().hex[:12]
-    j.save_restore(eid, {"op": "set-alarm-server", "before": {"server": before.get("address") or "", "port": before.get("port"),
-                                                              "url": None}, "fields": sorted(fields)})
+    # the exact prior text of every element (address, port, url path, heartbeat): restore puts back precisely this
+    j.save_restore(eid, {"op": "set-alarm-server", "values": before_values, "fields": sorted(fields)})
     j.write({"entry": eid, "time": _now(), "op": "set-alarm-server", "phase": "before", "restore_of": restoring,
              "before": {"configured": before.get("configured"), "port": before.get("port")}})
     a._xml("SetAlarmServerConfig", None, body=body, allowed=pisr.WRITE_COMMANDS)
@@ -225,9 +227,41 @@ def op_set_encoding(a: Any, j: Journal, out: Callable[[str], None], *, channel: 
     return 0 if ok else 3
 
 
+def op_restore_alarm_server(a: Any, j: Journal, out: Callable[[str], None], *, values: dict[str, str], dry_run: bool, restoring: str) -> int:
+    """Put back exactly the elements and values saved before the write (address, port, url path, heartbeat), then verify
+    every one of them against a fresh read."""
+    from smplwise.services.recorders import provision_isr as pisr
+    from smplwise.services.recorders import provision_isr_xml as px
+
+    try:
+        body = px.alarm_server_restore_document(values)
+    except ValueError as exc:
+        raise Refused(f"saved value not allowed: {exc}") from exc
+    current = px.alarm_server_values(a._xml("GetAlarmServerConfig", None))
+    out("request: POST /SetAlarmServerConfig  (exact restore)")
+    out("body: " + j.redact(body))
+    out("current: " + j.redact(json.dumps(current, sort_keys=True)))
+    if dry_run:
+        out("dry-run: nothing written")
+        return 0
+    eid = uuid.uuid4().hex[:12]
+    j.save_restore(eid, {"op": "set-alarm-server", "values": current, "fields": sorted(current)})
+    j.write({"entry": eid, "time": _now(), "op": "restore-alarm-server", "phase": "before", "restore_of": restoring,
+             "before": {"configured": bool(current.get("serverAddr")), "port": current.get("serverPort")}})
+    a._xml("SetAlarmServerConfig", None, body=body, allowed=pisr.WRITE_COMMANDS)
+    after = px.alarm_server_values(a._xml("GetAlarmServerConfig", None))
+    ok = all(after.get(k, "") == v for k, v in values.items())
+    j.write({"entry": eid, "time": _now(), "op": "restore-alarm-server", "phase": "verified" if ok else "diverged",
+             "after": {"configured": bool(after.get("serverAddr")), "port": after.get("serverPort")}})
+    out(f"entry {eid}: {'verified' if ok else 'DIVERGED - restore with: restore-from-log --entry ' + eid}")
+    return 0 if ok else 3
+
+
 def op_restore(a: Any, j: Journal, out: Callable[[str], None], *, entry: str, dry_run: bool) -> int:
     rec = j.load_restore(entry)
-    if rec["op"] == "set-alarm-server":
+    if rec["op"] == "set-alarm-server" and isinstance(rec.get("values"), dict):
+        return op_restore_alarm_server(a, j, out, values=rec["values"], dry_run=dry_run, restoring=entry)
+    if rec["op"] == "set-alarm-server":  # a record written before exact restore (address and port only)
         b = rec["before"]
         return op_set_alarm_server(a, j, out, server=b.get("server") or "", port=b.get("port") if b.get("server") else None, path=None,
                                    dry_run=dry_run, restoring=entry)

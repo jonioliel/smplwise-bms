@@ -296,6 +296,7 @@ def test_duplicate_destination_rename_disable_and_time_zone(base, fakes):
     assert r.status_code == 409 and r.json()["code"] == "recorder_duplicate", "the first recorder's device cannot be added twice"
     r = c.post("/api/v1/recorders", json={**ADD, "name": "שוב"})
     assert r.status_code == 409 and r.json()["code"] == "recorder_duplicate"
+    assert rows(base, "SELECT COUNT(*) AS n FROM audit_log WHERE action = 'nvr.recorder.add' AND decision = 'denied' AND reason = 'recorder_duplicate'")[0]["n"] >= 2
     assert c.patch("/api/v1/recorders/nvr-2", json={"time_zone": "Mars/Base"}).json()["code"] == "time_zone_invalid"
     r = c.patch("/api/v1/recorders/nvr-2", json={"name": "מחסן צפון", "time_zone": "Europe/London", "sort_order": 5})
     assert r.status_code == 200 and r.json()["recorder"]["name"] == "מחסן צפון" and r.json()["recorder"]["time_zone"] == "Europe/London"
@@ -415,6 +416,39 @@ def test_the_installation_stays_full_when_only_a_further_recorder_is_left(base, 
     r = c2.post("/api/v1/recorders", json={**ADD, "host": NVR_HOST, "password": PW1, "name": "ראשי"})
     assert r.status_code == 201 and r.json()["recorder_id"] == "nvr-3"
     assert not rows(base, "SELECT 1 FROM cameras WHERE recorder_id = 'nvr-1' AND enabled = 1")
+
+
+def test_a_provision_nvr_added_after_the_removed_first_recorder_gets_a_new_id(base, fakes, monkeypatch):
+    """Merge risk (CR-024 x CR-025): the only recorder (nvr-1, with history) is removed; a Provision NVR added next must not
+    take nvr-1 - its events and cameras would otherwise be attributed to the new device."""
+    from fake_provision import HOST as PHOST
+    from fake_provision import PASSWORD as PPW
+    from fake_provision import USER as PUSER
+    from fake_provision import FakeProvision
+
+    from smplwise.services.recorders import provision_isr as pisr
+
+    app = create_app(base)
+    autosync.run_once(app.state.db, app.state.settings, reason="startup")
+    c = client(app)
+    cam1 = rows(base, "SELECT id FROM cameras WHERE recorder_id = 'nvr-1' ORDER BY channel")[0]["id"]
+    with Database(base.db_path).connection() as conn:
+        conn.execute("INSERT INTO events(id, source, raw_type, type, camera_id, channel, occurred_at, received_at, state, count, severity, confidence, dedup_key, created_at, recorder_id) "
+                     "VALUES ('ev-first', 'alertstream', 'VMD', 'motion', ?, 1, ?, ?, 'inactive', 1, 'info', 'measured', 'k-first', ?, 'nvr-1')", (cam1, now_iso(), now_iso(), now_iso()))
+    rev = c.get("/api/v1/recorders/nvr-1/connection").json().get("revision") or 0
+    assert c.request("DELETE", "/api/v1/recorders/nvr-1", json={"confirm_text": "הסר", "if_revision": rev}).status_code == 200
+    pisr.clear_auth_cache()
+    pfake = FakeProvision()
+    monkeypatch.setattr(connection_probe, "TRANSPORT", pfake.transport())
+    monkeypatch.setattr(connection_probe, "RESOLVE", lambda h: ["192.0.2.50"] if h.strip().lower().rstrip(".") == PHOST else [])
+    monkeypatch.setattr("smplwise.services.connection_store.connect_host", lambda target: PHOST)
+    c2 = client(create_app(base))
+    r = c2.post("/api/v1/recorders", json={"vendor": "provision_isr", "host": PHOST, "http_port": 80, "rtsp_port": 554, "username": PUSER,
+                                           "password": PPW, "name": "Provision", "extra": {"scheme": "http", "auth": "basic"}})
+    assert r.status_code == 201, r.text
+    assert r.json()["recorder_id"] == "nvr-2", "nvr-1 keeps its history and is never reused"
+    assert rows(base, "SELECT recorder_id FROM events WHERE id = 'ev-first'") == [{"recorder_id": "nvr-1"}]
+    assert rows(base, "SELECT vendor FROM recorder_connections WHERE recorder_id = 'nvr-1'") == [{"vendor": "none"}]
 
 
 # ---------------------------------------------------------------- the adapter registration seam (a fake second vendor)

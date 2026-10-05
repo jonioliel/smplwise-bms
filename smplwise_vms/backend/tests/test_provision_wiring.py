@@ -259,3 +259,45 @@ def test_save_with_pin_mode_and_no_pin_is_refused_without_credentials(settings, 
         r = c.put("/api/v1/nvr/connection", json=body)
     assert r.status_code == 422 and r.json()["code"] == "tls_pin_required", r.text
     assert fake.hits[before:] == []
+
+
+@pytest.mark.parametrize("extra", [
+    {"https_port": "abc"},  # was a 500 (int() in the probe)
+    {"https_port": 70000},
+    {"scheme": "ftp"},  # not a listed select value
+    {"tls_mode": "bogus"},
+    {"tls_pin": "zz"},
+    {"poll_interval_s": "1;x"},
+    {"push_advertise_host": "http://x/y"},
+    {"suppress_tls_warning": "yes"},
+])
+def test_extra_fields_are_validated_by_kind(settings, fake, monkeypatch, extra):
+    """Security review Low: every vendor extra is checked for its kind; a bad value is 422 extra_invalid, never a 500."""
+    from smplwise.main import create_app
+
+    _probe_env(monkeypatch, fake)
+    with TestClient(create_app(settings)) as c:
+        body = {"vendor": "provision_isr", "host": HOST, "http_port": 80, "rtsp_port": 554, "username": USER, "password": PASSWORD, "extra": extra}
+        r = c.post("/api/v1/nvr/connection/test", json=body)
+    assert r.status_code == 422 and r.json()["code"] == "extra_invalid", r.text
+
+
+def test_stored_password_never_moves_to_another_transport(settings, fake, monkeypatch):
+    """Security review Low: scheme, HTTPS port and certificate mode are part of the stored password's destination."""
+    from smplwise.main import create_app
+
+    _probe_env(monkeypatch, fake)
+    monkeypatch.setattr(pisr, "PEER_CERTIFICATE", lambda host, port, timeout: {"sha256": PIN, "self_signed": True})
+    base = {"vendor": "provision_isr", "host": HOST, "http_port": 80, "rtsp_port": 554, "username": USER}
+    with TestClient(create_app(settings)) as c:
+        r = c.put("/api/v1/nvr/connection", json={**base, "password": PASSWORD, "if_revision": 0,
+                                                  "extra": {"scheme": "https", "https_port": 443, "tls_mode": "pin", "tls_pin": PIN, "auth": "basic"}})
+        assert r.status_code == 200, r.text
+        for changed in ({"scheme": "http"}, {"scheme": "https", "https_port": 8443, "tls_mode": "pin", "tls_pin": PIN},
+                        {"scheme": "https", "https_port": 443, "tls_mode": "trust"},
+                        {"scheme": "https", "https_port": 443, "tls_mode": "pin", "tls_pin": PIN, "auth": ""}):
+            r = c.post("/api/v1/nvr/connection/test", json={**base, "use_stored_password": True, "extra": {"auth": "basic", **changed}})
+            assert r.status_code == 422 and r.json()["details"]["reason"] == "destination_changed", (changed, r.text)
+        same = {"scheme": "https", "https_port": 443, "tls_mode": "pin", "tls_pin": PIN, "auth": "basic", "event_mode": "push"}
+        r = c.post("/api/v1/nvr/connection/test", json={**base, "use_stored_password": True, "extra": same})
+        assert r.status_code == 200, r.text

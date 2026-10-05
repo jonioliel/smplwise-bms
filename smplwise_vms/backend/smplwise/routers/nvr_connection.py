@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from typing import Any
 
@@ -176,7 +177,53 @@ def _validated(body: _Base) -> dict[str, Any]:
     extra = body.extra or {}
     if any(k not in allowed_extra for k in extra) or any(not isinstance(v, (str, int, bool)) or isinstance(v, str) and len(v) > 200 for v in extra.values()):
         raise ApiError(422, "extra_invalid", "שדה נוסף אינו מוכר לסוג ה־NVR הזה.", details={"field": "extra"})
-    return {"vendor": vendor, "host": host, **ports, "username": username, "extra": extra}
+    by_key = {f.key: f for f in spec.fields}
+    extra = {k: _extra_value(by_key[k], v) for k, v in extra.items()}
+    return {"vendor": vendor, "host": host, **ports, "username": username, "extra": {k: v for k, v in extra.items() if v is not None}}
+
+
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_TEXT_RULES: dict[str, Any] = {  # text extras with a known shape (security review Low: no 500 / no odd value reaches a device)
+    "tls_pin": lambda v: _HEX64.fullmatch(v.lower().replace(":", "")) is not None,
+    "poll_interval_s": lambda v: v.isdigit() and 1 <= int(v) <= 3600,
+    "push_advertise_host": connection_probe.valid_host,
+}
+
+
+def _extra_value(f: Any, v: Any) -> Any:
+    """One vendor extra checked against its field kind (port 1-65535, bool, a listed select value, text without control
+    characters and, for known keys, of the right shape). Empty text = not set (None). 422 extra_invalid otherwise."""
+    def bad() -> ApiError:
+        return ApiError(422, "extra_invalid", "ערך לא תקין בשדה נוסף.", details={"field": f"extra.{f.key}"})
+
+    if isinstance(v, str):
+        v = v.strip()
+        if v == "" and f.kind != "select":
+            return None
+    if f.kind == "port":
+        if isinstance(v, bool) or not (isinstance(v, int) or (isinstance(v, str) and v.isdigit())) or not 1 <= int(v) <= 65535:
+            raise bad()
+        return int(v)
+    if f.kind == "bool":
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str) and v.lower() in ("true", "false"):
+            return v.lower() == "true"
+        raise bad()
+    if f.kind == "select":
+        allowed = {o[0] for o in getattr(f, "options", ())}
+        if not isinstance(v, str) or v not in allowed:
+            raise bad()
+        return v
+    if isinstance(v, bool) or not isinstance(v, (str, int)):
+        raise bad()
+    original, v = v, str(v)
+    if any(ord(ch) < 32 or 127 <= ord(ch) < 160 for ch in v):
+        raise bad()
+    rule = _TEXT_RULES.get(f.key)
+    if rule is not None and not rule(v):
+        raise bad()
+    return original if isinstance(original, int) else v
 
 
 def _norm_host(host: str | None) -> str:
@@ -189,16 +236,36 @@ def _stored_destination(settings: Settings, row: sqlite3.Row | None, rid: str = 
     if row is not None:
         if row["vendor"] == registry.NO_NVR or not row["host"]:
             return None
-        return (row["vendor"], _norm_host(row["host"]), row["http_port"], row["rtsp_port"])
+        try:
+            stored_extra = json.loads(row["extra_json"] or "{}")
+        except ValueError:
+            stored_extra = {}
+        return (row["vendor"], _norm_host(row["host"]), row["http_port"], row["rtsp_port"], *_transport(stored_extra))
     if rid != PRIMARY:  # CR-024: only the first recorder has a legacy connection
         return None
     host = settings.nvr_host
     if not host or host == DEV_NVR_PLACEHOLDER:
         return None
-    return (registry.DEFAULT_VENDOR, _norm_host(host), settings.nvr_http_port, settings.nvr_rtsp_port)
+    return (registry.DEFAULT_VENDOR, _norm_host(host), settings.nvr_http_port, settings.nvr_rtsp_port, *_transport({}))
 
 
-DESTINATION_CHANGED = "הכתובת, הפורט או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש."
+def _transport(extra: dict[str, Any] | None) -> tuple[Any, ...]:
+    """Security review Low: how the password travels is part of its destination - scheme, HTTPS port and certificate mode.
+    A stored password is not reused when a save moves it from HTTPS to plain HTTP, to another HTTPS port, or from a
+    verified / pinned certificate to "trust any"."""
+    e = extra or {}
+    auth = str(e.get("auth") or "").lower()  # a changed auth method (e.g. to Basic) is a new destination too
+    scheme = str(e.get("scheme") or "http").lower()
+    if scheme != "https":
+        return ("http", None, None, auth)
+    try:
+        port = int(e.get("https_port") or 443)
+    except (TypeError, ValueError):
+        port = None
+    return ("https", port, str(e.get("tls_mode") or "verify").lower(), auth)
+
+
+DESTINATION_CHANGED = "הכתובת, הפורט, סוג החיבור או סוג ה־NVR השתנו - יש להזין את הסיסמה מחדש."
 
 
 def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, fields: dict[str, Any], *, use_stored: bool, rid: str = PRIMARY) -> tuple[str | None, bool]:
@@ -212,7 +279,7 @@ def _password_for(body: _Base, settings: Settings, row: sqlite3.Row | None, fiel
         stored = _stored_destination(settings, row, rid)
         if stored is None:  # second review N1: no stored destination = no stored password goes anywhere (422 password_required)
             return None, False
-        wanted = (fields["vendor"], _norm_host(fields["host"]), fields["http_port"], fields["rtsp_port"])
+        wanted = (fields["vendor"], _norm_host(fields["host"]), fields["http_port"], fields["rtsp_port"], *_transport(fields.get("extra")))
         if stored != wanted:
             raise ApiError(422, "password_required", DESTINATION_CHANGED, details={"field": "password", "reason": "destination_changed"})
         try:
@@ -401,7 +468,8 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
         else:
             messages = {"source_forbidden": "ה־NVR דחה את שם המשתמש או הסיסמה.", "source_unavailable": "לא ניתן להתחבר ל־NVR.", "timeout": "ה־NVR לא ענה בזמן.",
                         "source_error": "ה־NVR החזיר שגיאה.", "tls_pin_mismatch": "תעודת ה־NVR אינה התעודה שננעצה.",
-                        "auth_scheme_unsupported": "שיטת האימות של ה־NVR אינה נתמכת."}
+                        "auth_scheme_unsupported": "שיטת האימות של ה־NVR אינה נתמכת.",
+                        "auth_downgrade_refused": "ה־NVR ביקש שיטת אימות חלשה מבעבר. בחרו את שיטת האימות במפורש."}
             audit(conn, actor=principal, action="nvr.connection.update", decision="denied", resource_type="nvr", resource_id=_res(rid), reason=code,
                   request_id=_rid(request), details={"vendor": fields["vendor"], "outcome": code})
             raise ApiError(503 if code != "source_forbidden" else 502, code, messages.get(code, "בדיקת החיבור נכשלה."), retryable=code in UNTESTED_OK,

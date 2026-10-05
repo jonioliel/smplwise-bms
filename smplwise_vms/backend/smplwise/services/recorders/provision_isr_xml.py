@@ -644,6 +644,56 @@ def alarm_server_document(server: str, port: int, heartbeat_s: int, *, path: str
             f"<enableHeartbeat>true</enableHeartbeat><heartbeatInterval>{heartbeat_s}</heartbeatInterval></alarmServer></config>")
 
 
+ALARM_SERVER_FIELDS = ("serverAddr", "serverPort", "url", "enableHeartbeat", "heartbeatInterval")
+
+
+def alarm_server_values(xml: str | bytes) -> dict[str, str]:
+    """The exact text of every known alarmServer element the device returned (for the write script's restore record only:
+    it lives under secrets/, never in a log or a response)."""
+    root = parse(xml)
+    srv = child(root, "alarmServer")
+    if srv is None:
+        raise ET.ParseError("not an alarm server document")
+    return {name: (text(srv, name, cap=255) or "") for name in ALARM_SERVER_FIELDS if child(srv, name) is not None}
+
+
+def cdata(value: str) -> str:
+    """`value` as CDATA, safe for any text: a `]]>` inside is split across two sections."""
+    return "<![CDATA[" + str(value).replace("]]>", "]]]]><![CDATA[>") + "]]>"
+
+
+def alarm_server_restore_document(values: dict[str, str]) -> str:
+    """SetAlarmServerConfig body that puts back exactly the elements and values of `values` (alarm_server_values), in the
+    device's order. Each value is validated for its element; an empty address / port clears it as it was."""
+    parts = []
+    for name in ALARM_SERVER_FIELDS:
+        if name not in values:
+            continue
+        v = str(values[name] or "")
+        if name == "serverAddr":
+            if v and (not _HOST.match(v) or len(v) > 253):
+                raise ValueError("serverAddr")
+            parts.append(f"<serverAddr>{cdata(v)}</serverAddr>")
+        elif name == "serverPort":
+            if v and not (v.isdigit() and 1 <= int(v) <= 65535):
+                raise ValueError("serverPort")
+            parts.append(f"<serverPort>{v}</serverPort>")
+        elif name == "url":
+            if len(v) > 255 or any(ord(ch) < 32 for ch in v):
+                raise ValueError("url")
+            parts.append(f"<url>{cdata(v)}</url>")
+        elif name == "enableHeartbeat":
+            if v not in ("", "true", "false"):
+                raise ValueError("enableHeartbeat")
+            parts.append(f"<enableHeartbeat>{v}</enableHeartbeat>")
+        elif name == "heartbeatInterval":
+            if v and not (v.isdigit() and len(v) <= 5):
+                raise ValueError("heartbeatInterval")
+            parts.append(f"<heartbeatInterval>{v}</heartbeatInterval>")
+    return ('<?xml version="1.0" encoding="UTF-8"?><config version="1.0" xmlns="http://www.ipc.com/ver10"><alarmServer>'
+            + "".join(parts) + "</alarmServer></config>")
+
+
 def parse_push(body: str | bytes) -> dict[str, Any]:
     """A message the device posts to the alarm server (v1 guide 5.3.2 tips; v2 long-polling / HTTP POST guide):
     `{"kind": "status" | "heartbeat", "status": {(kind, id): bool}, "data_time": str | None, "channel": int | None}`.

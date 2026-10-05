@@ -38,6 +38,7 @@ HANDLER_TIMEOUT_S = 10  # a client that sends its request line / headers / body 
 MAX_CONNECTIONS = 16  # concurrent connections in total (each is one thread)
 MAX_PER_SOURCE = 4  # concurrent connections from one source address
 RATE_PER_SOURCE = 20  # requests per second per source address (token bucket, burst = the same number)
+DRAIN_MAX = 16 * 1024  # a refused request's body is read up to this size before the answer (no reset on close)
 PATHS = {"/SendAlarmStatus", "/SendAlarmData", "/SendKeepalive", "/SubscribeTimeOut", "/"}
 
 
@@ -105,7 +106,20 @@ class PushListener:
             def log_message(self, fmt: str, *args: Any) -> None:  # never log request lines (addresses) or bodies
                 return
 
+            def _drain(self) -> None:
+                """A refusal still reads a small body (up to DRAIN_MAX, within the socket timeout): closing with unread
+                bytes makes the OS send a reset, and the device then never sees the answer."""
+                length = self.headers.get("Content-Length", "")
+                n = int(length) if length.isdigit() else 0
+                if 0 < n <= DRAIN_MAX:
+                    try:
+                        self.rfile.read(n)
+                    except OSError:
+                        pass
+
             def _answer(self, code: int) -> None:
+                if code != 200:
+                    self._drain()
                 self.send_response(code)
                 self.send_header("Content-Length", "0")
                 self.end_headers()

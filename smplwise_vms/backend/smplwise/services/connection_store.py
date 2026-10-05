@@ -90,8 +90,9 @@ def _fsync_dir(d: Path) -> None:
         os.close(fd)
 
 
-def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
-    p = key_path(settings)
+def _load_or_create_key(settings: Settings, create: bool, path: Path | None = None) -> bytes | None:
+    """The 32-byte key at `path` (default: the connection key), created at random on first use when `create`."""
+    p = path or key_path(settings)
     with _key_lock:
         if p.exists():
             _tighten(p)
@@ -110,7 +111,7 @@ def _load_or_create_key(settings: Settings, create: bool) -> bytes | None:
         key = secrets.token_bytes(32)
         # written to a temporary file (0600, binary), flushed, then hard-linked into place: a crash never leaves a half
         # key, and of two processes creating it at once the second finds the first one's file and uses it
-        tmp = p.with_name(f".{KEY_NAME}.{secrets.token_hex(4)}.tmp")
+        tmp = p.with_name(f".{p.name}.{secrets.token_hex(4)}.tmp")
         fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         try:
             os.write(fd, key)
@@ -332,6 +333,10 @@ def write_row(conn: sqlite3.Connection, settings: Settings, *, vendor: str, host
     (None = no password). Encryption happens BEFORE anything is written, so a key failure writes nothing."""
     if vendor not in VENDOR_IDS:
         raise ValueError("unknown vendor")
+    from ..recorder_scope import valid_id
+
+    if not valid_id(recorder_id):  # security review Low: only server-assigned nvr-<n> ids are ever stored
+        raise ValueError("recorder id")
     password_enc = encrypt(settings, recorder_id, "password", password) if password else None
     state = "ok" if vendor == NO_NVR or password_enc else "incomplete"
     old = revision_of(conn, recorder_id)
@@ -376,6 +381,10 @@ def remove(conn: sqlite3.Connection, settings: Settings, actor_id: str | None, r
     from ..recorder_scope import set_disabled
 
     set_disabled(recorder_id, True)  # CR-024: never contacted again from this moment (its loaded connection leaves memory at the restart)
+    from .recorders.provision_events import bump_push_generation, unregister_push
+
+    bump_push_generation(settings, recorder_id)  # finding 5: a device still pointed at the removed recorder's path is refused
+    unregister_push(recorder_id)
     return revision, disabled
 
 

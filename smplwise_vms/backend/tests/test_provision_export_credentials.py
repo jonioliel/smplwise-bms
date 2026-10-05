@@ -60,6 +60,31 @@ def test_export_payload_never_holds_credentials(world, monkeypatch):
     assert pp.export_url(s, REQ) == f"rtsp://{USER}:{PASSWORD}@{HOST}:554{REQ}"
 
 
+def test_export_job_is_bound_to_its_recorder(world, monkeypatch):
+    """Security review L6: the payload names the recorder the files were searched on; a job whose camera is gone or now
+    belongs to another recorder fails instead of sending its playback requests elsewhere."""
+    app, c, s, cid = world
+    monkeypatch.setattr(ex.WORKER, "downloader", lambda st, uri, dest, progress=None: Path(dest).write_bytes(b"ts"))
+    r = c.post("/api/v1/exports", json={"camera_id": cid, "from_at": "2026-10-04T09:00:00Z", "to_at": "2026-10-04T09:05:00Z"})
+    assert r.status_code == 201, r.text
+    with app.state.db.connection(mode="read") as conn:
+        payload = json.loads(conn.execute("SELECT payload_json FROM export_jobs WHERE id = ?", (r.json()["id"],)).fetchone()["payload_json"])
+    assert payload["recorder_id"] == "nvr-1"
+    calls = []
+    monkeypatch.setattr(ex.WORKER, "downloader", lambda *a, **k: calls.append(a))
+    for job, camera in (("movedjob", cid), ("gonejob", "no-such-camera")):
+        moved = {**payload, "recorder_id": "nvr-9"} if job == "movedjob" else payload
+        with app.state.db.connection() as conn:  # 'cancelled' so the background worker leaves it alone; _run is called directly
+            conn.execute("INSERT INTO export_jobs(id, owner_user_id, owner_username, camera_id, camera_name, requested_from, requested_to, state, progress, "
+                         "payload_json, created_at, updated_at) VALUES (?, 'u', 'u', ?, 'c', '2026-10-04T09:00:00Z', '2026-10-04T09:05:00Z', 'cancelled', 0, ?, "
+                         "'2026-10-04T09:00:00Z', '2026-10-04T09:00:00Z')", (job, camera, json.dumps(moved)))
+        ex.WORKER._run(job)
+        with app.state.db.connection(mode="read") as conn:
+            assert conn.execute("SELECT state FROM export_jobs WHERE id = ?", (job,)).fetchone()["state"] == "failed"
+    mine = [a for a in calls if any(j in str(a[2]) for j in ("movedjob", "gonejob"))]  # the first job may still be running
+    assert mine == [], "nothing was downloaded from any recorder"
+
+
 def test_old_rows_are_scrubbed_and_old_urls_never_reused(world):
     app, c, s, cid = world
     old_url = f"rtsp://olduser:oldpass@198.51.100.9:554{REQ}"

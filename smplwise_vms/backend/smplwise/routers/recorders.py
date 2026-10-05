@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -268,6 +269,7 @@ def add_recorder(request: Request, principal: Principal = Depends(_admin_ro), ra
 
     def create(c: sqlite3.Connection, fields: dict[str, Any]) -> None:
         if _destination_taken(c, settings, fields, rid):
+            nc._deny(request, c, principal, "nvr.recorder.add", "recorder_duplicate", fields["vendor"], rid)  # security review Low: audited
             raise ApiError(409, "recorder_duplicate", "ה־NVR הזה כבר מחובר למערכת.", details={"field": "host"})
         create_recorder_row(c, rid, name, fields["vendor"])
 
@@ -380,10 +382,28 @@ def recorder_health(recorder_id: str, request: Request, principal: Principal = D
     """A live, read-only check of one recorder (one deviceInfo GET, at most 4 s). Model, firmware and the outcome code only."""
     _may_read(conn, principal)
     _known(conn, recorder_id)
+    # security review L3: at most one device check per recorder every HEALTH_CACHE_S (a burst of requests is answered from cache)
+    cache = _health_cache(request)
+    hit = cache.get(recorder_id)
+    if hit and time.monotonic() - hit[0] < HEALTH_CACHE_S:
+        return {**hit[1], "cached": True}
     adapter = registry.adapter_for(conn, settings_of(request), recorder_id)
     with unlocked(conn), nvr.deadline(4.0):
         try:
             h = adapter.health()
+            out = {"recorder_id": recorder_id, "online": h.online, "model": h.model, "firmware": h.firmware, "error": h.error}
         except ApiError as exc:
-            return {"recorder_id": recorder_id, "online": False, "model": None, "firmware": None, "error": exc.code}
-    return {"recorder_id": recorder_id, "online": h.online, "model": h.model, "firmware": h.firmware, "error": h.error}
+            out = {"recorder_id": recorder_id, "online": False, "model": None, "firmware": None, "error": exc.code}
+    cache[recorder_id] = (time.monotonic(), out)
+    return out
+
+
+HEALTH_CACHE_S = 10.0
+
+
+def _health_cache(request: Request) -> dict[str, tuple[float, dict[str, Any]]]:
+    """Per app (not per process), so a recorder id reused by another app instance never reads a stale answer."""
+    cache = getattr(request.app.state, "recorder_health_cache", None)
+    if cache is None:
+        cache = request.app.state.recorder_health_cache = {}
+    return cache
