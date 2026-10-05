@@ -37,9 +37,11 @@ export interface DevicesPrefs {
   floorRow: FloorRow;
   density: DevicesDensity;
   scheme: DevicesScheme;
+  /** K88 (plan.surfaces): where the live plan shows besides the map tab - the devices screen's plan view, the area page's card. */
+  planSurfaces: ('devices' | 'area')[];
 }
 
-export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, areaRow: AREA_ROW_DEFAULT, floorRow: FLOOR_ROW_DEFAULT, density: 'comfortable', scheme: 'light' };
+export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, areaRow: AREA_ROW_DEFAULT, floorRow: FLOOR_ROW_DEFAULT, density: 'comfortable', scheme: 'light', planSurfaces: ['devices', 'area'] };
 
 /** The `devices.*` settings as the screens use them; anything unknown falls back to today's look / the default palette. */
 export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): DevicesPrefs {
@@ -53,6 +55,7 @@ export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): 
     floorRow: floorRowOf(s?.['devices.floor_row']),
     density: s?.['devices.density'] === 'compact' ? 'compact' : 'comfortable',
     scheme: s?.['devices.scheme'] === 'dark' || s?.['devices.scheme'] === 'auto' ? s['devices.scheme'] : 'light',
+    planSurfaces: Array.isArray(s?.['plan.surfaces']) ? s['plan.surfaces'].filter((x): x is 'devices' | 'area' => x === 'devices' || x === 'area') : ['devices', 'area'],
   };
 }
 

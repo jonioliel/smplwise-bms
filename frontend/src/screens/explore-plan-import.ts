@@ -10,7 +10,8 @@ import '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { navigate } from '../router';
-import { createVersion, getDxf, listAssets, loadMap, publishVersion, setDxf, uploadAsset, type DxfDetails } from '../api/maps';
+import { createVersion, getDxf, listAssets, loadMap, publishVersion, setDxf, uploadAsset, versionDiff, type DxfDetails, type VersionDiff } from '../api/maps';
+import '../components/sw-dialog';
 import { findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { ApiError, describeError, resourceUrl } from '../api/client';
 import { can, isApi } from '../api/session';
@@ -71,6 +72,8 @@ export class ExplorePlanImport extends LitElement {
   @state() private crop = { x: 0, y: 0, w: 1, h: 1 };
   @state() private notes = '';
   @state() private version: PlanVersion | null = null;
+  /** K88 (phase-2 leftover): publishing goes through a preview of what the viewers' map gains and what moves. */
+  @state() private preview: { data: VersionDiff | null; error: string } | null = null;
   @state() private busy = false;
   @state() private error = '';
   @state() private dragOver = false;
@@ -700,17 +703,54 @@ export class ExplorePlanImport extends LitElement {
     }
   }
 
+  /** Open the publish preview: the previous published version, the carried items and those that need alignment. */
+  private async openPublish() {
+    if (!this.version) return;
+    this.preview = { data: null, error: '' };
+    try {
+      const data = await versionDiff(this.version.id);
+      if (this.preview) this.preview = { data, error: '' };
+    } catch (err) {
+      this.preview = { data: null, error: describeError(err) };
+    }
+  }
+
   private async publish() {
     if (!this.version) return;
     this.busy = true;
     this.error = '';
     try {
       this.version = await publishVersion(this.version.id);
+      this.preview = null;
     } catch (err) {
       this.error = describeError(err);
+      if (this.preview) this.preview = { ...this.preview, error: describeError(err) };
     } finally {
       this.busy = false;
     }
+  }
+
+  private renderPublishPreview() {
+    const p = this.preview;
+    if (!p) return nothing;
+    const d = p.data;
+    const an = d?.anchors;
+    return html`<sw-dialog open heading="פרסום התוכנית" subheading="מה ישתנה לצופים במפה" data-import-publish-preview ?locked=${this.busy} @close=${() => (this.preview = null)}>
+      ${p.error ? html`<div class="err">${p.error}</div>` : nothing}
+      ${!d && !p.error ? html`<sw-state-panel state="loading" compact></sw-state-panel>` : nothing}
+      ${d
+        ? html`<ul class="steps" data-import-publish-summary>
+            <li>${d.from ? `מחליפה את הגרסה שפורסמה ב-${new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(d.from.published_at ?? d.from.created_at))}` : 'הרקע הראשון של הקומה'}</li>
+            <li>${an?.total ? `${an.total} פריטים מוצבים: ${an.carried} עוברים כמו שהם${an.needs_alignment ? `, ${an.needs_alignment} דורשים בדיקת מיקום על הרקע החדש` : ''}` : 'אין פריטים מוצבים על הקומה'}</li>
+            <li>${d.geometry.same ? 'המבנה (קירות, פתחים, עצמים) נשאר כפי שהוא' : `המבנה משתנה (${d.geometry.changes.length} שדות)`}</li>
+          </ul>
+          ${an?.items.filter((i) => i.outcome === 'needs_alignment').slice(0, 8).map((i) => html`<div class="note">· ${i.name}</div>`)}`
+        : nothing}
+      <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
+        <sw-button variant="ghost" ?disabled=${this.busy} @click=${() => (this.preview = null)}>ביטול</sw-button>
+        <sw-button variant="primary" icon="check" data-import-publish-confirm ?disabled=${this.busy || !d} @click=${() => this.publish()}>פרסם</sw-button>
+      </div>
+    </sw-dialog>`;
   }
 
   private setCrop(key: 'x' | 'y' | 'w' | 'h', pct: number) {
@@ -814,7 +854,8 @@ export class ExplorePlanImport extends LitElement {
             : html`<div class="note">סיכום: ${a?.original_name} · עמוד ${this.page} · סיבוב ${this.rotation}° · חיתוך ${Math.round(this.crop.w * 100)}%×${Math.round(this.crop.h * 100)}%. השמירה מייצרת רקע נגזר; המקור לא משתנה.</div>`}
           <div class="row">
             ${!this.version ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.save()}>שמור כטיוטה</sw-button>` : nothing}
-            ${this.version && this.version.status === 'draft' ? html`<sw-button variant="primary" icon="check" ?disabled=${this.busy} @click=${() => this.publish()}>פרסום</sw-button>` : nothing}
+            ${this.version && this.version.status === 'draft' ? html`<sw-button variant="primary" icon="check" data-import-publish ?disabled=${this.busy} @click=${() => void this.openPublish()}>פרסום</sw-button>` : nothing}
+            ${this.renderPublishPreview()}
             ${this.version ? html`<sw-button icon="map" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח במפה</sw-button><sw-button variant="ghost" icon="edit" @click=${() => navigate(`/explore/floors/${this.floorId}/edit`)}>הצב מצלמות</sw-button>` : nothing}
           </div>
           ${a?.kind === 'dxf' ? this.renderDxfMap() : nothing}`;

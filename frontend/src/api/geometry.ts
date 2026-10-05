@@ -173,6 +173,17 @@ export async function publishGeometry(versionId: string, sharedSkip: string[] = 
   return r;
 }
 export const geometryDiff = (versionId: string) => get<GeometryDiffResponse>(`plan-versions/${versionId}/geometry/diff`);
+/** K88 (editor leftover): every published structure of the version, newest first, with what each held. */
+export interface GeometryVersionRow extends GeometryRow {
+  counts: Record<string, number>;
+}
+export const listGeometryVersions = (versionId: string) => get<{ versions: GeometryVersionRow[] }>(`plan-versions/${versionId}/geometry/versions`);
+/** Publish an archived structure again as a new published copy (the history is never deleted); map.publish. */
+export async function rollbackGeometry(versionId: string, geometryId: string) {
+  const r = await post<{ published: GeometryRow }>(`plan-versions/${versionId}/geometry/rollback`, { geometry_id: geometryId });
+  timelines.delete(versionId);
+  return r;
+}
 export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
   post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>

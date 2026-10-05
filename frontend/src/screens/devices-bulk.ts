@@ -129,6 +129,8 @@ export class DevicesBulkMenu extends LitElement {
   @property({ type: Boolean }) actions = true;
   /** "פתח אזור ›": the area screen's link, shown at the foot of the popover. */
   @property() openHref = '';
+  /** K88: "הצג על המפה ›" - the map route of the room linked to this area (empty = not linked, no link shown). */
+  @property() mapHref = '';
   /** The host fills its row (a slotted row trigger). */
   @property({ type: Boolean, reflect: true }) block = false;
   /** The slotted row navigates; the popover is the hover / focus summary (and the row's own "⋯" on touch). */
@@ -371,6 +373,15 @@ export class DevicesBulkMenu extends LitElement {
     this.open = true;
   }
 
+  /** K88: open the panel from outside (the devices plan view: a room tap opens its area's summary). */
+  showPanel(): void {
+    this.show('click');
+  }
+
+  hidePanel(): void {
+    this.open = false;
+  }
+
   private pick(kind: BulkKind) {
     this.open = false;
     this.dispatchEvent(requestEvent({ scope: this.scope, id: this.targetId, name: this.targetName, kind }));
@@ -467,6 +478,7 @@ export class DevicesBulkMenu extends LitElement {
             <div class="foot">כל פעולה נפתחת בחלון אישור. מנעולים ואזעקה אינם נכללים.</div>`
         : nothing}
       ${this.openHref ? html`<a class="open" href=${this.openHref} data-open-area role="menuitem" @click=${() => (this.open = false)}>פתח אזור<span aria-hidden="true">›</span></a>` : nothing}
+      ${this.mapHref ? html`<a class="open" href=${this.mapHref} data-open-map role="menuitem" @click=${() => (this.open = false)}>הצג על המפה<span aria-hidden="true">›</span></a>` : nothing}
     </div>`;
   }
 

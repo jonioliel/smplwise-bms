@@ -27,7 +27,11 @@ import { OTHER_FLOOR, findGeomItem, geomIds, geomItemPoint, overhangZone, shared
 import { bidi } from '../i18n/bidi';
 import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
-import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, publishGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse } from '../api/geometry';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
+import { getPlanAreas, type PlanArea } from '../api/plan-links';
+import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
+import { isDefaultCorners, type Corners } from '../map/floor-image';
+import '../map/sw-floor-image-align';
 import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandState } from '../map/candidates';
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
@@ -46,7 +50,7 @@ type Strength = 'light' | 'medium' | 'strong';
 const ZONE_SAVE_TIMEOUT_MS = 15000;
 /** A zone request's failure in words: a timeout says so, anything else as describeError does. */
 const zoneErrorText = (err: unknown): string => (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'השרת לא ענה בזמן' : describeError(err));
-type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[] };
+type ZoneBody = { name?: string; kind?: ZoneKind; color?: string; searchable?: boolean; polygon?: ZonePoint[]; label_pos?: string; level_id?: string; ceiling_height_m?: number; tags?: string[]; area_id?: string | null };
 interface ZoneCandidate {
   polygon: ZonePoint[];
   name: string;
@@ -83,8 +87,10 @@ interface CalibState {
   metres: string;
   result: string;
   warning: string;
+  /** K88: pairs taken before the current one (design §6.1 "זוג נוסף אופציונלי"; up to four in all). */
+  pairs: { a: Pt; b: Pt; metres: number }[];
 }
-const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '' };
+const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '', pairs: [] };
 /** Arrow presses on one structure item less than this far apart (a held key, a quick run of taps) are one undo step. */
 const NUDGE_BURST_MS = 1000;
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
@@ -177,6 +183,15 @@ export class ExplorePlanEditor extends LitElement {
   @state() private zones: SpatialZone[] = [];
   /** Version history of the floor (T038) and the compare / publish / rollback dialog. */
   @state() private versions: PlanVersion[] = [];
+  /** K88: the published structures of the shown version (history / rollback), the device-tree areas for the room panel,
+   * the floor's own images and their alignment draft. */
+  @state() private geomVersions: GeometryVersionRow[] = [];
+  @state() private areas: PlanArea[] = [];
+  @state() private floorImages: FloorImagesInfo | null = null;
+  @state() private alignDraft: { corners: Corners; opacity: number } | null = null;
+  @state() private alignShowPlan = true;
+  @state() private imageBusy = false;
+  @state() private imageNote = '';
   @state() private diff: { mode: DiffMode; version: PlanVersion; data: VersionDiff | null; error: string } | null = null;
   @state() private selectedZoneId: string | null = null;
   /** The corner of the selected zone picked by a press without a move (0.1.87): Delete removes that corner. */
@@ -671,6 +686,17 @@ export class ExplorePlanEditor extends LitElement {
       gap: 8px;
       flex-wrap: wrap;
       margin-block-start: 10px;
+    }
+    /* K88: the floor-image upload buttons (the file input stays hidden behind the button) */
+    .upl {
+      display: inline-flex;
+    }
+    .upl input[type='file'] {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      opacity: 0;
+      pointer-events: none;
     }
     .chk {
       display: flex;
@@ -1607,8 +1633,10 @@ export class ExplorePlanEditor extends LitElement {
     const b = this.bundle;
     if (!b || b.source === 'demo' || !b.permissions.edit) {
       this.versions = [];
+      this.geomVersions = [];
       return;
     }
+    void this.loadSideData(b);
     try {
       this.versions = (await listVersions(b.floorId)).versions;
     } catch {
@@ -4376,11 +4404,20 @@ export class ExplorePlanEditor extends LitElement {
     return [];
   }
 
+  /** K88: keep the current pair and start another (up to four in all; the save sends them together). */
+  private addCalibPair() {
+    const { a, b, metres, pairs } = this.calib;
+    const m = parseFloat(metres);
+    if (!a || !b || !(m > 0) || pairs.length >= 3) return;
+    this.calib = { ...this.calib, a: null, b: null, metres: '', pairs: [...pairs, { a, b, metres: m }] };
+  }
+
   private async saveCalibration() {
     const bundle = this.bundle;
-    const { a, b: end, metres } = this.calib;
+    const { a, b: end, metres, pairs } = this.calib;
     const m = parseFloat(metres);
-    if (!bundle?.planVersionId || !a || !end || !(m > 0)) return;
+    const all = [...pairs, ...(a && end && m > 0 ? [{ a, b: end, metres: m }] : [])];
+    if (!bundle?.planVersionId || !all.length) return;
     this.busy = true;
     this.error = '';
     try {
@@ -4389,14 +4426,157 @@ export class ExplorePlanEditor extends LitElement {
         this.error = this.studio.error;
         return;
       }
-      const r = await calibrate(bundle.planVersionId, [{ a, b: end, metres: m }]);
+      const r = await calibrate(bundle.planVersionId, all);
       await this.loadStudio(bundle, true); // the server rewrote the draft's dimensions
-      this.calib = { ...EMPTY_CALIB, result: `קנה המידה נשמר: ${fmtScale(r.scale_m_per_px)}`, warning: r.warning ?? '' };
+      const residual = all.length > 1 && r.residual_pct !== null ? ` · ${all.length} זוגות, סטייה ${r.residual_pct.toFixed(1)}%` : '';
+      this.calib = { ...EMPTY_CALIB, result: `קנה המידה נשמר: ${fmtScale(r.scale_m_per_px)}${residual}`, warning: r.warning ?? '' };
     } catch (err) {
       this.error = describeError(err);
     } finally {
       this.busy = false;
     }
+  }
+
+  /** K88: the structure history, the areas list and the floor's own images - each on its own, a failure leaves it empty. */
+  private async loadSideData(b: MapBundle) {
+    if (b.planVersionId && b.permissions.structure) {
+      listGeometryVersions(b.planVersionId).then((r) => { if (this.bundle === b) this.geomVersions = r.versions; }, () => { this.geomVersions = []; });
+    } else this.geomVersions = [];
+    getPlanAreas(b.floorId).then((r) => { if (this.bundle?.floorId === b.floorId) this.areas = r.areas; }, () => { this.areas = []; });
+    getFloorImages(b.floorId).then((r) => {
+      if (this.bundle?.floorId !== b.floorId) return;
+      this.floorImages = r;
+      this.alignDraft = null;
+    }, () => { this.floorImages = null; });
+  }
+
+  /** K88: publish an archived structure again (a new published copy; the history stays). */
+  private async rollbackStructure(row: GeometryVersionRow) {
+    const b = this.bundle;
+    if (!b?.planVersionId || !row.id) return;
+    if (!window.confirm(`לשחזר את המבנה שפורסם ב-${fmtWhen(row.published_at)}? המבנה הנוכחי נשמר בהיסטוריה.`)) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await rollbackGeometry(b.planVersionId, row.id);
+      this.info = 'המבנה שוחזר ופורסם; הצופים רואים אותו עכשיו';
+      setTimeout(() => (this.info = ''), 4000);
+      await this.loadStudio(b, true);
+      await this.loadVersions();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private renderStructureHistory(b: MapBundle) {
+    if (!b.permissions.structure || !this.geomVersions.length) return nothing;
+    const counts = (c: Record<string, number>) => [c.walls ? `${c.walls} קירות` : '', c.openings ? `${c.openings} פתחים` : '', c.objects ? `${c.objects} עצמים` : '', c.connectors ? `${c.connectors} מחברים` : ''].filter(Boolean).join(' · ') || 'מבנה ריק';
+    return html`<div class="row" style="margin-block-start:10px"><span class="lbl">היסטוריית המבנה<span class="muted">כל פרסום של קירות, פתחים ועצמים נשמר; שחזור מפרסם מחדש גרסה מהארכיון כגרסה חדשה</span></span></div>
+      <div class="vlist" data-geom-version-list>
+        ${this.geomVersions.map((g) => html`<div class="vrow ${g.status === 'published' ? 'cur' : ''}" data-geom-version-row data-geom-version-id=${g.id ?? ''} data-geom-version-status=${g.status}>
+          <div class="meta">
+            <span><sw-badge kind=${g.status === 'published' ? 'recorded' : 'neutral'} label=${g.status === 'published' ? 'מפורסם' : 'ארכיון'}></sw-badge> <span class="ltr">${fmtWhen(g.published_at ?? g.created_at)}</span>${g.archived_at ? html` <span class="note">עד ${fmtWhen(g.archived_at)}</span>` : nothing}</span>
+            <span class="note">${counts(g.counts)}${g.published_by ? ` · ${g.published_by}` : ''}</span>
+          </div>
+          <div class="acts">
+            ${g.status === 'archived' && b.permissions.publish ? html`<sw-button size="sm" icon="history" data-geom-rollback ?disabled=${this.busy} @click=${() => void this.rollbackStructure(g)}>שחזר מבנה</sw-button>` : nothing}
+          </div>
+        </div>`)}
+      </div>`;
+  }
+
+  // ---- K88: the floor's own images (CR-006 2c without AI) ----
+
+  private async uploadImage(variant: FloorImageVariant, input: HTMLInputElement) {
+    const b = this.bundle;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!b || !file) return;
+    this.imageBusy = true;
+    this.imageNote = '';
+    try {
+      await uploadFloorImage(b.floorId, variant, file);
+      this.imageNote = variant === 'off' ? 'תמונת הקומה נשמרה' : 'תמונת התאורה נשמרה';
+      await this.loadSideData(b);
+      await this.load(); // the map draws it at once
+    } catch (err) {
+      this.imageNote = describeError(err);
+    } finally {
+      this.imageBusy = false;
+    }
+  }
+
+  private async removeImage(variant: FloorImageVariant) {
+    const b = this.bundle;
+    if (!b || !window.confirm(variant === 'off' ? 'להסיר את תמונת הקומה?' : 'להסיר את תמונת התאורה?')) return;
+    this.imageBusy = true;
+    try {
+      await deleteFloorImage(b.floorId, variant);
+      this.imageNote = 'התמונה הוסרה';
+      await this.loadSideData(b);
+      await this.load();
+    } catch (err) {
+      this.imageNote = describeError(err);
+    } finally {
+      this.imageBusy = false;
+    }
+  }
+
+  private async saveAlignment() {
+    const b = this.bundle;
+    const d = this.alignDraft;
+    if (!b || !d) return;
+    this.imageBusy = true;
+    try {
+      const layout = await putFloorImageLayout(b.floorId, d.corners, d.opacity);
+      this.floorImages = this.floorImages ? { ...this.floorImages, layout } : this.floorImages;
+      this.alignDraft = null;
+      this.imageNote = 'היישור נשמר';
+      await this.load();
+    } catch (err) {
+      this.imageNote = describeError(err);
+    } finally {
+      this.imageBusy = false;
+    }
+  }
+
+  private renderFloorImages(b: MapBundle) {
+    if (b.source === 'demo' || !b.permissions.edit || this.phone.matches) return nothing; // a desktop tool, like the structure editor
+    const fi = this.floorImages;
+    const off = fi?.images.off ?? null, on = fi?.images.on ?? null;
+    const layout = fi?.layout;
+    const draft = this.alignDraft ?? (layout ? { corners: layout.corners, opacity: layout.opacity } : null);
+    const dirty = !!this.alignDraft;
+    const slot = (variant: FloorImageVariant, row: typeof off, title: string, hint: string) => html`<div class="row" data-floor-image-row=${variant}>
+      <span class="lbl">${title}<span class="muted">${row ? `${row.width}×${row.height} · ${Math.round(row.bytes / 1024)} KB` : hint}</span></span>
+      <span class="btns" style="margin:0">
+        <label class="upl"><input type="file" accept="image/png,image/jpeg" data-floor-image-input=${variant} ?disabled=${this.imageBusy} @change=${(e: Event) => void this.uploadImage(variant, e.target as HTMLInputElement)} /><sw-button size="sm" icon="upload" ?disabled=${this.imageBusy} @click=${(e: Event) => ((e.currentTarget as HTMLElement).closest('label') as HTMLLabelElement | null)?.querySelector('input')?.click()}>${row ? 'החלף' : 'העלה'}</sw-button></label>
+        ${row ? html`<sw-button size="sm" variant="ghost" icon="trash" data-floor-image-delete=${variant} ?disabled=${this.imageBusy} @click=${() => void this.removeImage(variant)}>הסר</sw-button>` : nothing}
+      </span>
+    </div>`;
+    const walls = this.studio.doc?.walls.flatMap((w) => w.polyline.slice(1).map((p, i) => [[w.polyline[i][0], w.polyline[i][1]], [p[0], p[1]]] as [[number, number], [number, number]])) ?? [];
+    return html`<sw-card heading="תמונת הקומה" subheading="תמונה של הקומה מכל מקור (הדמיה, תוכנית צבעונית, צילום מודל); ממוקמת פעם אחת ומוצגת במפה מתחת למצבי החדרים" data-floor-images>
+      ${slot('off', off, 'תמונה בסיסית', 'PNG או JPEG עד 12 MB; מוצגת תמיד')}
+      ${slot('on', on, 'תמונה עם תאורה', 'אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה')}
+      ${off || on
+        ? html`<div class="row" style="margin-block-start:8px"><span class="lbl">יישור על התוכנית<span class="muted">גרור את הפינות אל פינות הקומה בתוכנית (או את התמונה כולה); מקשי החצים מכוונים פינה מסומנת</span></span>
+            <label class="chk"><input type="checkbox" .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = (e.target as HTMLInputElement).checked)} /> הצג את תוכנית הרקע</label></div>
+          <sw-floor-image-align data-floor-image-align .planWidth=${b.width} .planHeight=${b.height} .planUrl=${b.imageUrl} .showPlan=${this.alignShowPlan} .imageUrl=${floorImageUrl(off ?? on)}
+            .corners=${draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]]} .opacity=${draft?.opacity ?? 1} .rooms=${this.zones.map((z) => ({ id: z.id, polygon: z.polygon }))} .walls=${walls} ?disabled=${this.imageBusy}
+            @corners-change=${(e: CustomEvent<{ corners: Corners }>) => (this.alignDraft = { corners: e.detail.corners, opacity: draft?.opacity ?? 1 })}></sw-floor-image-align>
+          <div class="two">
+            <sw-field label="שקיפות התמונה במפה"><input type="range" min="0.2" max="1" step="0.05" data-ltr data-floor-image-opacity .value=${String(draft?.opacity ?? 1)} @input=${(e: Event) => (this.alignDraft = { corners: draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
+            <div class="btns" style="align-items:flex-end">
+              <sw-button variant="primary" size="sm" icon="check" data-floor-image-save ?disabled=${!dirty || this.imageBusy} @click=${() => void this.saveAlignment()}>שמור יישור</sw-button>
+              <sw-button variant="ghost" size="sm" data-floor-image-reset ?disabled=${this.imageBusy || (!dirty && isDefaultCorners(layout?.corners))} @click=${() => (this.alignDraft = { corners: [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: 1 })}>אפס</sw-button>
+            </div>
+          </div>`
+        : nothing}
+      ${this.imageNote ? html`<div class="note" data-floor-image-note role="status">${this.imageNote}</div>` : nothing}
+      <div class="note">התמונה נשמרת במתקן בלבד ונכללת בגיבוי; שום דבר לא נשלח החוצה. תמונה בפרספקטיבה (צילום) מיושרת בקירוב - עדיף רינדור ישר מלמעלה או איזומטרי.</div>
+    </sw-card>`;
   }
 
   private renderCalibrate(bundle: MapBundle) {
@@ -4405,14 +4585,19 @@ export class ExplorePlanEditor extends LitElement {
     const { scale, estimated } = effectiveScale(doc);
     const c = this.calib;
     const pixels = c.a && c.b ? Math.hypot((c.b[0] - c.a[0]) * bundle.width, (c.b[1] - c.a[1]) * bundle.height) : null;
+    const px = (p: { a: Pt; b: Pt }) => Math.hypot((p.b[0] - p.a[0]) * bundle.width, (p.b[1] - p.a[1]) * bundle.height);
     return renderCalibPanel(
-      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy },
+      { a: c.a, b: c.b, metres: c.metres, pixels, scale, estimated, showEstimates: this.showEstimates, result: c.result, warning: c.warning, busy: this.busy, pairs: c.pairs.map((p) => ({ metres: p.metres, pixels: px(p) })) },
       (value) => {
         this.calib = { ...this.calib, metres: value };
       },
       () => void this.saveCalibration(),
       () => {
         this.calib = { ...EMPTY_CALIB };
+      },
+      () => this.addCalibPair(),
+      (i) => {
+        this.calib = { ...this.calib, pairs: this.calib.pairs.filter((_, k) => k !== i) };
       },
     );
   }
@@ -4612,6 +4797,13 @@ export class ExplorePlanEditor extends LitElement {
       </div>
       <sw-field label="מיקום שם החדר"><select data-zone-label-pos @change=${(e: Event) => this.patchZone(z, { label_pos: (e.target as HTMLSelectElement).value })}>${[['auto', 'אוטומטי'], ['top', 'מעל'], ['bottom', 'מתחת'], ['left', 'משמאל'], ['right', 'מימין']].map(([v, l]) => html`<option value=${v} ?selected=${(z.label_pos ?? 'auto') === v}>${l}</option>`)}</select></sw-field>
       ${(this.studio.doc?.levels.length ?? 0) > 1 ? html`<sw-field label="מפלס"><select data-zone-level @change=${(e: Event) => this.patchZone(z, { level_id: (e.target as HTMLSelectElement).value })}>${this.studio.doc!.levels.map((l) => html`<option value=${l.id} ?selected=${(z.level_id ?? defaultLevelId(this.studio.doc!)) === l.id}>${l.name}</option>`)}</select></sw-field>` : nothing}
+      ${this.areas.length
+        ? html`<sw-field label="אזור בעץ ההתקנים" hint=${z.area_id && !this.areas.some((a) => a.area_id === z.area_id) ? 'האזור המקושר כבר לא קיים' : '"הצג על המפה" מהעץ ומדף האזור מגיע לחדר הזה; לחיצה על החדר במפה פותחת את האזור'}>
+            <select data-zone-area ?disabled=${this.zoneBusy} @change=${(e: Event) => this.patchZone(z, { area_id: (e.target as HTMLSelectElement).value })}>
+              <option value="" ?selected=${!z.area_id}>ללא קישור</option>
+              ${this.areas.map((a) => html`<option value=${a.area_id} ?selected=${z.area_id === a.area_id}>${bidi(a.name)}${a.floor_name ? ` · ${bidi(a.floor_name)}` : ''}</option>`)}
+            </select></sw-field>`
+        : nothing}
       ${this.renderZoneTags(z)}
       ${this.renderZoneShare(z)}
       <div class="kv"><span class="k">מצלמות באזור</span><span>${cams.length ? cams.map((a) => this.anchorName(a)).join(', ') : 'אין'}</span></div>
@@ -4675,8 +4867,10 @@ export class ExplorePlanEditor extends LitElement {
               <div class="note" style="margin-block-start:6px">עיבוד תמונה מקומי (ללא AI וללא שליחה החוצה): קירות וחדרים מזוהים לפי עובי הקווים; חדרים אינם מזוהים בשמם. אפשר לחזור למקור בכל רגע.</div>`
             : nothing}`}
       ${this.renderVersionHistory(b)}
+      ${this.renderStructureHistory(b)}
       <div style="margin-block-start:8px"><sw-button size="sm" icon="upload" @click=${() => navigate(`/explore/floors/${b.floorId}/import`)}>ייבוא תוכנית חדשה</sw-button></div>
-    </sw-card>`;
+    </sw-card>
+    ${this.renderFloorImages(b)}`;
   }
 
   private renderVersionHistory(b: MapBundle) {
