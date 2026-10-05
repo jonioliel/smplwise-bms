@@ -200,16 +200,21 @@ consistent copy.
 - Browser ↔ add-on WebSocket relay ↔ go2rtc. The browser never learns the go2rtc address or any
   RTSP URL; every stream request is authorized per camera (a viewer sees only cameras anchored on
   floors in their scope).
-- Transport: **MSE** is the default (fMP4 over the relay socket: works through Ingress, Cloudflare
-  tunnels and behind CGNAT). **WebRTC** gives the lowest latency but needs UDP between the browser
-  and the go2rtc host (fine on the LAN, not through a tunnel or CGNAT); `auto` tries WebRTC and
-  falls back to MSE. The product default is set in Settings → וידאו ומדיה; every player can
-  override it for the current browser.
+- Transport: **automatic** is the default (owner decision 2026-10-05): the player tries **WebRTC**
+  first (the lowest latency; needs UDP between the browser and the go2rtc host - fine on the LAN, not
+  through Ingress, a tunnel or CGNAT) and plays **MSE** (fMP4 over the relay socket, which works
+  everywhere) only when WebRTC cannot be used: no connection within 5 s, a stream the browser does
+  not decode, go2rtc refusing it. A WebRTC that could not connect is remembered by the browser tab for
+  10 minutes, so the other players start on MSE at once; it is probed again later. **WebRTC only**
+  never plays MSE; **MSE only** is the deliberate choice for a customer whose browsers can never reach
+  go2rtc over UDP. The product default is set in Settings → וידאו ומדיה (an installation that stored a
+  choice before this version keeps it); every player can override it for the current browser.
 - What to expect with a Hikvision NVR (measured on the pilot lab, Chrome): the **sub** profile (H.264
   Baseline 640×360) plays over WebRTC within a few seconds; the **main** profile (H.264 Main
   2560×1440) connects over WebRTC but browsers do not decode it from RTP, so `auto` switches to MSE
-  after ~12 s. MSE shows the first frame only at the next key frame — with the NVR's ~8 s GOP that is
-  8–12 s. Failed streams retry with back-off (3 s → 30 s); a denied camera or a quota hit is shown as
+  once no frame decoded for the stream's key-frame interval plus 3 s (6-20 s; ~11 s on the lab), and
+  remembers MSE for that camera for a day. MSE shows the first frame only at the next key frame — with
+  the NVR's ~8 s GOP that is 8–12 s. Failed streams retry with back-off (3 s → 30 s); a denied camera or a quota hit is shown as
   such and never as "live".
 - First open the streams in go2rtc: Settings → וידאו ומדיה → **סנכרון זרמים** (system.configure).
   Only `smplwise_*` streams are created or updated; other streams on the same go2rtc are listed as

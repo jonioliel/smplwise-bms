@@ -1,5 +1,37 @@
 # Changelog — SmplWise Arx add-on
 
+## Unreleased — Live video: WebRTC first, MSE only when WebRTC cannot be used (the new installation default)
+**After installing:** no database migration, no restart of the platform; reload the web app once. An installation that never
+changed the transport opens on **automatic**; an installation whose administrator chose a transport earlier (including "MSE")
+keeps that choice - switch it in הגדרות › וידאו ומדיה if you want the new behaviour.
+- **עברית:** אחרי ההתקנה: אין מיגרציה, אין צורך להפעיל מחדש את התשתית; טוענים מחדש את אפליקציית הרשת פעם אחת. התקנה שמעולם לא שינתה
+  את התעבורה נפתחת על **אוטומטי**; התקנה שמנהל המערכת בחר בה תעבורה בעבר (כולל "MSE") שומרת את הבחירה - אפשר לעבור בהגדרות › וידאו ומדיה.
+
+### WebRTC first (owner decision 2026-10-05) - הגדרות › וידאו ומדיה
+Decision record: `docs/changes/WEBRTC-FIRST-DEFAULT.md` (supersedes the "MSE by default" decision of 2026-09-14).
+- **English - what was added:** the default live transport is **automatic: WebRTC first, MSE only when WebRTC cannot be used** - no
+  connection within 5 s (UDP to go2rtc blocked: Ingress, Cloudflare, CGNAT), a stream the browser does not decode from RTP, or go2rtc
+  refusing the stream. The fallback is quiet (the poster stays, nothing flashes) and happens once per browser tab: a WebRTC that could
+  not connect is remembered for 10 minutes, so every other player of the tab starts on MSE at once, and WebRTC is probed again later
+  (immediately forgotten when any player plays over WebRTC). A stream that connected but did not decode keeps the per-camera memory of
+  0.1.148 (a day). The settings dropdown names the three choices: **אוטומטי (WebRTC, ואם אינו זמין MSE) — ברירת המחדל**, **WebRTC בלבד**,
+  **MSE בלבד** - the last one a deliberate choice for a customer whose browsers can never reach go2rtc over UDP. The remote channel's
+  own ladder (WebRTC first, MSE as the announced last resort when "MSE דרך המנהרה" allows it) is unchanged.
+- **English - bugs fixed:** none in this change.
+- **English - how to enable:** nothing to switch on for a new installation. An existing installation that stored "MSE" earlier:
+  הגדרות › וידאו ומדיה › "תעבורה ברירת מחדל" → **אוטומטי**, then שמור. Behind Home Assistant Ingress or a tunnel the first automatic player
+  of a tab waits up to 5 s before MSE; choose **MSE בלבד** there to skip even that.
+- **עברית - מה נוסף:** תעבורת הווידאו החי כברירת מחדל היא **אוטומטי: WebRTC תחילה, ו-MSE רק כש-WebRTC אינו זמין** - אין חיבור תוך 5 שניות
+  (UDP ל-go2rtc חסום: Ingress, Cloudflare, CGNAT), זרם שהדפדפן לא מפענח מ-RTP, או go2rtc שדוחה את הזרם. המעבר שקט (התמונה נשארת, שום דבר
+  לא מהבהב) וקורה פעם אחת ללשונית: WebRTC שלא הצליח להתחבר נזכר ל-10 דקות, כך שכל נגן אחר בלשונית מתחיל ב-MSE מיד, ו-WebRTC נבדק שוב
+  מאוחר יותר (ונשכח מיד כשנגן כלשהו מנגן ב-WebRTC). זרם שהתחבר אך לא פוענח שומר את הזיכרון למצלמה מ-0.1.148 (יום). התפריט בהגדרות
+  מציג שלוש בחירות: **אוטומטי (WebRTC, ואם אינו זמין MSE) — ברירת המחדל**, **WebRTC בלבד**, **MSE בלבד** - האחרונה בחירה מכוונת ללקוח
+  שהדפדפנים שלו לעולם לא מגיעים ל-go2rtc ב-UDP. סולם הגישה מרחוק (WebRTC תחילה, MSE כמוצא אחרון מוכרז כש"MSE דרך המנהרה" מותר) לא השתנה.
+- **עברית - תיקונים:** אין בשינוי הזה.
+- **עברית - איך מפעילים:** בהתקנה חדשה אין מה להפעיל. התקנה קיימת ששמרה "MSE" בעבר: הגדרות › וידאו ומדיה › "תעבורה ברירת מחדל" →
+  **אוטומטי**, ואז שמור. מאחורי Ingress או מנהרה הנגן האוטומטי הראשון בלשונית ממתין עד 5 שניות לפני MSE; בוחרים שם **MSE בלבד** כדי
+  לדלג גם על זה.
+
 ## 2.0.0 (pilot) — Recorder health monitoring (seven new alert sources, per-recorder settings); playback stall detection and automatic resume; the floor filter of the multimedia pages is the shared (capsule-capable) dropdown; friendly integration names
 **After installing:** no database migration (the last one stays `0055_multi_recorder`), the bridge integration stays **0.6.2**, no platform restart is needed. Reload the installed web app once. The version jumps from 0.1.163 to 2.0.0 (there is no 0.1.164); nothing about the upgrade path changes.
 - **עברית:** אחרי ההתקנה: אין מיגרציה (האחרונה נשארת `0055_multi_recorder`), רכיב החיבור נשאר 0.6.2, אין צורך להפעיל מחדש את התשתית. טוענים מחדש את אפליקציית הרשת פעם אחת. הגרסה קופצת מ־0.1.163 ל־2.0.0 (אין 0.1.164).

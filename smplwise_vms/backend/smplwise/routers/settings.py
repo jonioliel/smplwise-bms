@@ -20,9 +20,13 @@ from ..services import area_row, automation_settings, home_config, home_screen, 
 router = APIRouter()
 
 DEFAULTS: dict[str, str] = {
-    # auto | webrtc | mse. MSE by default (owner decision 2026-09-14): it works through Ingress, Cloudflare
-    # and behind CGNAT; WebRTC/auto are selectable in Settings once UDP to the go2rtc host is possible.
-    "media.transport_default": "mse",
+    # auto | webrtc | mse. Automatic by default (owner decision 2026-10-05, supersedes the MSE default of 2026-09-14):
+    # the player tries WebRTC first and falls back to MSE only when WebRTC cannot be used (no ICE connection within a
+    # short bound, a stream the browser does not decode from RTP, go2rtc refusing the stream). `webrtc` = WebRTC only,
+    # `mse` = MSE only (a deliberate choice for a customer whose browsers can never reach go2rtc over UDP: Ingress /
+    # Cloudflare / CGNAT with no direct path). Migration: no row in `settings` = the new default; a stored value (only
+    # ever written by an administrator's PATCH) is a choice and stays as it is - including a stored "mse".
+    "media.transport_default": "auto",
     "media.max_live_sessions": "16",
     "media.wall_profile": "sub",  # sub | main — profile used by the camera wall
     # owner 2026-10-01: the notes the live player draws about HOW it plays (the banner "WebRTC לא זמין לזרם הזה · MSE דרך המנהרה", the

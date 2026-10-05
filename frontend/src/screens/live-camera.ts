@@ -20,7 +20,7 @@ import { canReadNvrConfig, isApi } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
-import { effectiveTransport, productSettings } from '../api/prefs';
+import { effectiveTransport, productSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { playerPlan, remoteVideo, remoteVideoFor } from '../api/video-policy';
 import { describeError } from '../api/client';
 import type { Camera } from '../api/types';
@@ -958,7 +958,7 @@ export class LiveCamera extends LitElement {
   }
 
   private setTransport(t: Transport) {
-    setTransportOverride(t === (this.settings?.['media.transport_default'] ?? 'mse') ? '' : t);
+    setTransportOverride(t === (this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT) ? '' : t);
     this.transport = t;
   }
 
@@ -995,7 +995,7 @@ export class LiveCamera extends LitElement {
             : html`<div class="transport" role="group" aria-label="תעבורה">
                   ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
                 </div>
-                ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${this.settings?.['media.transport_default'] ?? 'mse'}</span>` : nothing}`}
+                ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${transportLabel(this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT)}</span>` : nothing}`}
         </div>
         ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
       </div>

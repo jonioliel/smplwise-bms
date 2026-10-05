@@ -43,3 +43,9 @@ authorization denial for a camera outside scope, MSE fallback with UDP blocked, 
 revocation. Rollback: none needed for the legacy add-on, which keeps its own path.
 
 Approver / supersedes: owner 2026-09-14 / refines ADR-005.
+
+Amendment 2026-10-05 (owner decision, [WEBRTC-FIRST-DEFAULT](../changes/WEBRTC-FIRST-DEFAULT.md)): the installation
+default of the transport is **automatic - WebRTC first, MSE only when WebRTC cannot be used** (bounded 5 s connect
+attempt, per-tab memory of an unreachable WebRTC, administrator choice אוטומטי / WebRTC בלבד / MSE בלבד per
+installation). The 2026-09-14 "MSE by default" product default is superseded; the media path, the relay and the
+authorization of this ADR are unchanged. A stored transport choice of an existing installation is kept.
