@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 
 // CR-026 recorder health: the layout guard (tests/layout-guard.ts) over הגדרות › בריאות ועבודות with the per-recorder health cards
-// (one healthy, one with every kind of fault, one not answering, one Hikvision with reachability only) and the thresholds card, in
+// (one healthy, one with every kind of fault, one not answering, one Hikvision with detail (NN6H), one vendor with reachability only)
+// and the thresholds card with the per-camera choice (NN6B, opened), in
 // the four skins at widths 320-1440. Against a MOCKED backend (page.route on api/v1); every value is fake. FAILS on escape /
 // overflow / floating / clipped / target. Run with the Vite dev server or the preview:
 //   SW_BASE_URL=http://127.0.0.1:<port>/ LAYOUT_QUICK=1 npx playwright test tests/layout-recorder-health.spec.ts --project=desktop --workers=1
@@ -29,11 +30,25 @@ const CARDS = [
     clock: { state: 'warn', drift_s: -340 }, certificate: { state: 'warn', days_left: 9 } },
   { id: 'nvr-3', name: 'מקליט משרדים', status: 'error', checked_at: '2026-10-04T08:00:00Z', detail_supported: true, api: { state: 'error', latency_ms: null, text: 'אין תקשורת' },
     disks: ok('unknown'), recording: ok('unknown'), channels: ok('unknown'), clock: ok('unknown'), certificate: null },
-  { id: 'nvr-4', name: 'Hikvision', status: 'ok', checked_at: '2026-10-04T08:00:00Z', detail_supported: false, api: { state: 'ok', latency_ms: 90 },
+  { id: 'nvr-4', name: 'Hikvision', vendor: 'hikvision', status: 'warn', checked_at: '2026-10-04T08:00:00Z', detail_supported: true, api: { state: 'ok', latency_ms: 90 },
+    disks: { state: 'ok', items: [{ ref: '2', state: 'ok', text: 'תקין', total_mb: 1907729, free_mb: 0 }], free_pct: 0, full: true, fill_days: null, alarms: [] },
+    recording: { state: 'ok', recording: 5, watched: 9, stopped: [], exception: [], continuous: false, expected: 1 },
+    channels: { state: 'warn', total: 10, connected: 9, disconnected: [{ channel: 6, name: 'חצר אחורית' }] }, clock: { state: 'ok', drift_s: 0 }, certificate: null },
+  { id: 'nvr-5', name: 'מקליט ללא פירוט', status: 'ok', checked_at: '2026-10-04T08:00:00Z', detail_supported: false, api: { state: 'ok', latency_ms: 40 },
     disks: ok('off'), recording: ok('off'), channels: ok('off'), clock: ok('off'), certificate: ok('off') },
 ];
+const CAMERAS = [
+  { id: 'cam-a', name: 'לובי', recorder_id: 'nvr-1', channel: 1 },
+  { id: 'cam-b', name: 'כניסה ראשית לחניון התחתון עם שם ארוך מאוד', recorder_id: 'nvr-1', channel: 2 },
+  { id: 'cam-c', name: 'רמפה', recorder_id: 'nvr-2', channel: 3 },
+  { id: 'cam-d', name: 'שער', recorder_id: 'nvr-4', channel: 1 },
+  { id: 'cam-e', name: 'חצר אחורית', recorder_id: 'nvr-4', channel: 6 },
+  { id: 'cam-x', name: 'ללא פירוט', recorder_id: 'nvr-5', channel: 1 },
+];
 const RANGES = { interval_s: [60, 30, 900], latency_ms: [1500, 200, 10000], recording_gap_min: [30, 5, 1440], clock_drift_s: [60, 5, 3600], disk_fill_days: [0, 0, 60], cert_days: [30, 1, 365], recover_s: [120, 0, 3600] };
-const VALUES = { ...Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, v[0]])), continuous_recorders: ['nvr-2'] };
+const VALUES = { ...Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, v[0]])), continuous_recorders: ['nvr-2'], camera_recording: { 'cam-d': 'continuous' } };
+const RANGE_ANSWER = Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, { default: v[0], min: v[1], max: v[2] }]));
+let saved: Record<string, unknown>[] = [];
 
 async function mock(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
@@ -47,7 +62,14 @@ async function mock(page: Page) {
     if (p === 'health') return json({ status: 'ok', version: 'test', mode: 'full' });
     if (p.startsWith('health/report')) return json({ status: 'warn', mode: 'full', version: 'test', uptime_s: 7200, checked_at: '2026-10-04T08:00:00Z', probe_ttl_s: 20, checks: [{ id: 'db', label: 'מסד נתונים', status: 'ok', detail: 'תקין', meta: {} }] });
     if (p === 'recorder-health') return json({ recorders: CARDS, interval_s: 60, can_manage: true });
-    if (p === 'recorder-health/settings') return json({ values: VALUES, ranges: Object.fromEntries(Object.entries(RANGES).map(([k, v]) => [k, { default: v[0], min: v[1], max: v[2] }])) });
+    if (p === 'recorder-health/settings') {
+      if (req.method() === 'PUT') {
+        const body = req.postDataJSON() as Record<string, unknown>;
+        saved.push(body);
+        return json({ values: { ...VALUES, ...body }, ranges: RANGE_ANSWER, cameras: CAMERAS });
+      }
+      return json({ values: VALUES, ranges: RANGE_ANSWER, cameras: CAMERAS });
+    }
     if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
     if (p === 'sites') return json({ sites: [], can_create_site: false });
     return json({ code: 'not_found', user_message: 'לא נמצא (בדיקה)', retryable: false, correlation_id: '', details: {} }, 404);
@@ -76,10 +98,18 @@ test.describe('recorder health layout guard', () => {
         await page.waitForSelector('sw-app system-diagnostics recorder-health-panel [data-rh-settings]', { timeout: 20_000 });
         await page.evaluate(() => document.fonts.ready);
         const panel = page.locator('recorder-health-panel');
-        await expect(panel.locator('[data-rh-card]')).toHaveCount(4);
-        await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row]')).toHaveCount(1); // reachability only
+        await expect(panel.locator('[data-rh-card]')).toHaveCount(5);
+        await expect(panel.locator('[data-rh-card="nvr-5"] [data-rh-row]')).toHaveCount(1); // reachability only
+        await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row]')).toHaveCount(5); // NN6H: Hikvision detail, no certificate
         await expect(panel.locator('[data-rh-card="nvr-1"] [data-rh-row]')).toHaveCount(6);
-        await expect(panel.locator('[data-rh-continuous-id]')).toHaveCount(3); // the recorders that report recording state
+        await expect(panel.locator('[data-rh-continuous-id]')).toHaveCount(4); // the recorders that report recording state
+        // NN6B: the per-camera choice, collapsed; only cameras of recorders that report recording state
+        await expect(panel.locator('[data-rh-cameras]')).not.toHaveAttribute('open', '');
+        await expect(panel.locator('[data-rh-cameras-changed]')).toHaveText('(1)');
+        await panel.locator('[data-rh-cameras] summary').click();
+        await expect(panel.locator('[data-rh-camera-id]')).toHaveCount(5);
+        await expect(panel.locator('[data-rh-camera-id="cam-d"]')).toHaveValue('continuous');
+        await expect(panel.locator('[data-rh-camera-id="cam-a"]')).toHaveValue('');
         await expect(panel.locator('[data-rh-continuous-id="nvr-2"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(panel.locator('[data-rh-continuous-id="nvr-1"]')).not.toHaveAttribute('aria-pressed', 'true');
         for (const w of WIDTHS) {
@@ -101,5 +131,37 @@ test.describe('recorder health layout guard', () => {
     for (const l of lines) console.log('  ' + l);
     expect(errors, 'page errors').toEqual([]);
     expect(lines, 'layout findings').toEqual([]);
+  });
+
+  // NN6B + NN6H on every project (desktop / tablet / mobile): the Hikvision card shows its detail, the per-camera choice opens,
+  // a change is saved as the whole per-camera map, and the page never scrolls sideways.
+  test('per-camera continuous choice and Hikvision detail', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await mock(page);
+    saved = [];
+    await page.goto('/?design=a&skin=classic&scheme=light#/system/diagnostics?tab=health');
+    const panel = page.locator('recorder-health-panel');
+    await page.waitForSelector('sw-app system-diagnostics recorder-health-panel [data-rh-settings]', { timeout: 20_000 });
+    await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row="disks"]')).toContainText('מלא');
+    await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row="recording"]')).toContainText('5/9');
+    await expect(panel.locator('[data-rh-card="nvr-4"] [data-rh-row="channels"]')).toContainText('חצר אחורית');
+    await panel.locator('[data-rh-cameras] summary').click();
+    await expect(panel.locator('[data-rh-camera-id="cam-a"] option').first()).toHaveText('כמו המקליט (לא רציפה)');
+    await expect(panel.locator('[data-rh-camera-id="cam-c"] option').first()).toHaveText('כמו המקליט (רציפה)');
+    await panel.locator('[data-rh-camera-id="cam-c"]').selectOption('events');
+    await panel.locator('[data-rh-camera-id="cam-d"]').selectOption('');
+    await expect(panel.locator('[data-rh-cameras-changed]')).toHaveText('(1)');
+    await panel.locator('[data-rh-save] button').click();
+    await expect(panel.locator('[data-rh-save-msg]')).toHaveText('נשמר');
+    expect(saved).toEqual([{ camera_recording: { 'cam-c': 'events' } }]);
+    await expect(panel.locator('[data-rh-camera-id="cam-c"]')).toHaveValue('events');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, 'no sideways page scroll').toBeLessThanOrEqual(0);
+    if (process.env.SW_SHOTS) {
+      await panel.locator('[data-rh-cameras]').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${process.env.SW_SHOTS_DIR ?? "../docs/design/evidence/cr026"}/nn6-per-camera-${test.info().project.name}.png`, fullPage: false });
+    }
+    expect(errors, 'page errors').toEqual([]);
   });
 });

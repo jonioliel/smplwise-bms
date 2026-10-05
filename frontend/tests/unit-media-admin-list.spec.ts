@@ -191,8 +191,11 @@ test.describe('settings lists: column visibility', () => {
   });
 
   test("today's grid templates are reproduced exactly by the defaults", () => {
-    expect(gridColumns({}, 'wide')).toBe('var(--hit) minmax(150px, 1.5fr) 96px 130px minmax(200px, 1.9fr) minmax(110px, 1fr) 90px 64px 110px');
+    // CR-028 prep: the "שידור" column (132px) sits between the status and the approval at the wide width; a tablet width folds it like the room
+    expect(gridColumns({}, 'wide')).toBe('var(--hit) minmax(150px, 1.5fr) 96px 130px minmax(200px, 1.9fr) minmax(110px, 1fr) 90px 132px 64px 110px');
     expect(gridColumns({}, 'md')).toBe('var(--hit) minmax(130px, 1.4fr) 84px 110px minmax(170px, 1.7fr) 80px 60px 104px');
+    expect(hideClass({}, 'cast')).toBe('hm');
+    expect(gridColumns({ cast: true }, 'md')).toContain('80px 120px 60px');
   });
 
   test('an explicit choice wins at every width; the grid follows the visible columns', () => {
@@ -204,7 +207,7 @@ test.describe('settings lists: column visibility', () => {
     const noRoom = { room: false };
     expect(hideClass(noRoom, 'room')).toBe('hw hm');
     expect(tracks(gridColumns(noRoom, 'wide'))).toBe(tracks(gridColumns({}, 'wide')) - 1);
-    const lean = { type: false, integration: false, status: false, connections: false };
+    const lean = { type: false, integration: false, status: false, cast: false, connections: false };
     expect(gridColumns(lean, 'wide')).toBe('var(--hit) minmax(150px, 1.5fr) minmax(200px, 1.9fr) minmax(110px, 1fr) 64px');
   });
 

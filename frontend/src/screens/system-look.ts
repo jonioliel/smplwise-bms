@@ -528,6 +528,7 @@ export class SystemLook extends LitElement {
       ${this.choiceRow('surface')}
       ${this.choiceRow('popup')}
       ${this.choiceRow('radius')}
+      ${this.choiceRow('slider')}
       ${this.rangeRow('transparency')}
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}

@@ -19,6 +19,7 @@ A release takes the highest tier any of its changes needs. When in doubt, go one
 - A nightly full run of backend + Playwright on the integration branch (when the machine is idle) keeps a current full-suite number, so a small release is never based on a stale full result.
 - Known time-of-day-dependent tests (quiet hours) are run in daytime, or fixed with a frozen clock.
 - Specs that import `/src/...` need the Vite dev server; the camera-card spec needs its fixture backend.
+- On the Linux test machine `~/release_gate.sh <branch> [--tier S|M|L]` runs the whole tier-L routine by itself (backend in shards, tsc, build, the dist-preview specs, the dev-server specs, the camera-card fixture spec, the `-linux.png` pixel baselines when they exist, `release_check.py`), re-runs each failure once alone (a pass is reported FLAKY, not a failure), reads the allowlist `~/known_issues.json` (KNOWN) and writes a pass/fail verdict to `~/smplwise-results/gate_<branch>_<sha>.md|json` and `gate_status.json`. Fixture-backed specs other than the camera card are not part of it yet (they self-skip and are listed in the report).
 - Evidence screenshots overwritten by a run are restored (`git checkout -- docs/...`) unless the change is intended.
 
 ## Release steps (all tiers)

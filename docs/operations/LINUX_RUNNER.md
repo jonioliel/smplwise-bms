@@ -95,6 +95,9 @@ Cleanup after a run (stops only listeners on the ports you name, and temp dirs o
 scripts/dev_cleanup.sh --ports "4173 5173"         # add --stop-backend for 8099, --dry-run to preview
 ```
 
+Disk retention on the shared runner (gate scratch, per-branch worktrees under `~/work`) and the cleanup script are described in
+`scripts/gate/INSTALL_ON_RUNNER.md`, section "Retention and disk housekeeping".
+
 ## 4. Cron / GitHub Actions
 
 A nightly job is the two shard commands plus the two Playwright passes above. Skeleton for a self-hosted runner:

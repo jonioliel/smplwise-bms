@@ -1,0 +1,71 @@
+{
+  "schema": "arx-exchange/capabilities/1",
+  "package": "smplwise_intercom",
+  "version": "2.0.0-rc.38",
+  "capabilities": [
+    {
+      "id": "intercom.door_open",
+      "name_he": "פתיחת דלת",
+      "description_he": "פותח את הדלת של עמדה אחת לזמן הקצר שמוגדר בעמדה.",
+      "kind": "physical_action",
+      "physical_action": {
+        "what_happens_he": "הממסר של העמדה נפתח והדלת משתחררת.",
+        "confirmation": "confirm",
+        "conditions_he": "רק דרך הנתיב החתום, עם מפעיל אמיתי. תוצאה לא ודאית מוצגת כ'לא ידוע' ואינה נשלחת שוב.",
+        "requires_signed_path": true
+      },
+      "suggested_permission": "access.release",
+      "suggested_roles": [
+        "operator",
+        "site_admin",
+        "system_admin"
+      ],
+      "suggested_screen": {
+        "type": "existing_template",
+        "template_id": "example.door_button",
+        "reason_he": "דוגמה: כפתור פתיחה קיים במסכי הגישה."
+      },
+      "data_read": [
+        "station id",
+        "station online state"
+      ],
+      "data_written": [
+        "audit entry with the real actor"
+      ],
+      "when_unavailable_he": "הכפתור מושבת ומוצג 'העמדה לא זמינה'. אין ניסיון חוזר אוטומטי.",
+      "contract_changes": "none",
+      "doc_file": "capabilities/intercom.door_open.he.md",
+      "since_version": "2.0.0-rc.38"
+    },
+    {
+      "id": "intercom.station_status",
+      "name_he": "מצב עמדה",
+      "description_he": "מציג אם העמדה מחוברת ומתי נראתה לאחרונה.",
+      "kind": "read_only",
+      "suggested_permission": "access.read",
+      "suggested_roles": [
+        "viewer",
+        "operator",
+        "editor",
+        "site_admin",
+        "system_admin"
+      ],
+      "suggested_screen": {
+        "type": "existing_template",
+        "template_id": "example.status_list",
+        "reason_he": "דוגמה: רשימת מצב קיימת."
+      },
+      "data_read": [
+        "station online state",
+        "last seen time"
+      ],
+      "data_written": [
+        "people"
+      ],
+      "when_unavailable_he": "מוצג 'לא ידוע'.",
+      "contract_changes": "none",
+      "doc_file": "capabilities/intercom.station_status.he.md",
+      "since_version": "2.0.0-rc.38"
+    }
+  ]
+}

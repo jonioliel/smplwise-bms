@@ -166,8 +166,16 @@ engine to be WeasyPrint. `SW_BILL_PDF_EVIDENCE_DIR` keeps the pipeline PDFs for 
 `backend/smplwise/assets/bill/fonts/`: `Heebo-he-{400,700}.ttf` (Hebrew subset), `Heebo-la-{400,700}.ttf` (Latin subset), `OFL.txt` (SIL OFL 1.1,
 copyright line of the Heebo project), `README.txt` (provenance: the product's own WOFF2 subsets converted to static TrueType with fontTools).
 Total 67 KB. These are subsets, not the complete Heebo; characters outside Hebrew, Latin, digits and common punctuation are not covered
-(none is printed by the layout; user text outside those scripts would show missing-glyph boxes). Listed in `THIRD_PARTY_NOTICES.md`
-("Heebo - SIL OFL 1.1"); the OFL text travels with the fonts.
+by Heebo (none is printed by the layout itself). Listed in `THIRD_PARTY_NOTICES.md` ("Heebo - SIL OFL 1.1"); the OFL text travels
+with the fonts.
+
+**2.0.2 - Cyrillic and Arabic names.** `NotoSans-cy-{400,700}.ttf` (Noto Sans, Cyrillic subset, 50 KB each) and
+`NotoSansArabic-ar-{400,700}.ttf` (Noto Sans Arabic, Arabic subset with its joining features, 150 KB each) sit next to Heebo in the
+same allow-list (`FONT_FILES`, the locked fetcher); the page's `font-family` is `HeeboHe, HeeboLa, NotoCy, NotoAr`, so a customer,
+meter or address typed in Russian / Ukrainian / Bulgarian or in Arabic renders in Noto while everything else stays Heebo. The fpdf2
+fallback engine registers the two regular files as fallback fonts (glyph-level; Arabic letters come out unjoined there, WeasyPrint
+joins them). Provenance in `README.txt` (Debian `fonts-noto-core`, `pyftsubset`); "Noto" is a Reserved Font Name, hence the
+`-cy` / `-ar` file names. Test: `test_golden_cyrillic_and_arabic_names` (WeasyPrint + pdftotext) and the fpdf2 case.
 
 ## 8. Add-on image
 

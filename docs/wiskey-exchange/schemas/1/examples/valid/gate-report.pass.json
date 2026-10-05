@@ -1,0 +1,46 @@
+{
+  "schema": "arx-exchange/gate-report/1",
+  "package": "smplwise_intercom",
+  "version": "2.0.0-rc.38",
+  "source_commit": "0123456789abcdef0123456789abcdef01234567",
+  "started_at": "2026-10-06T10:00:00Z",
+  "finished_at": "2026-10-06T10:07:12Z",
+  "duration_seconds": 432.4,
+  "budget_seconds": 600,
+  "timed_out": false,
+  "result": "pass",
+  "exit_code": 0,
+  "environment": {
+    "python_version": "3.13.1",
+    "ha_test_version": "2026.9.1",
+    "network": "disabled_os",
+    "wheelhouse_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "downloads_attempted": 0,
+    "platform": "linux-x86_64 container"
+  },
+  "counts": {
+    "expected": 120,
+    "collected": 120,
+    "passed": 120,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "excluded": 1,
+    "missing": 0
+  },
+  "missing_tests": [],
+  "unexpected_tests": [],
+  "exclusions_check": {
+    "baseline_version": 1,
+    "status": "ok",
+    "added": [],
+    "removed": [],
+    "explained_in": []
+  },
+  "mandatory_check": {
+    "status": "ok",
+    "violations": []
+  },
+  "junit_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "summary_he": "השער עבר: 120 מתוך 120 בדיקות, ללא רשת, בתוך תקציב הזמן."
+}

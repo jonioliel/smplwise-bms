@@ -133,6 +133,39 @@ def test_disabling_a_recorder_applies_at_once_and_enabling_brings_it_back_withou
     assert c.get("/api/v1/me").json()["connection_pending_restart"] is False
 
 
+def test_a_disabled_recorders_cameras_stay_on_the_map_marked_without_a_picture(base, fakes):
+    """CR-024 section 7.2 (the disable dialog promises it): the placement stays, the map bundle marks the camera
+    `recorder_enabled: false` (the map shows no live picture or snapshot and offers it for no saved view); enabling clears it."""
+    import sqlite3
+
+    from conftest import seed_tree
+
+    app, c = two_recorders(base)
+    tree = seed_tree(c)
+    cam1, cam2 = cam_of(base, "nvr-1"), cam_of(base, "nvr-2")
+    raw = sqlite3.connect(base.db_path)
+    raw.execute("PRAGMA foreign_keys=OFF")
+    for aid, cam in (("a1", cam1), ("a2", cam2)):
+        raw.execute("INSERT INTO map_anchors(id, floor_id, plan_version_id, resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label, revision, effective_from, created_by, updated_by, updated_at) "
+                    "VALUES (?, ?, 'pv', 'camera', ?, 0.5, 0.5, 0, 90, 'cameras', 'x', 1, '2026-09-01T00:00:00Z', 't', 't', '2026-09-01T00:00:00Z')", (aid, tree["floor2"], cam))
+    raw.commit()
+    raw.close()
+
+    def map_cams():
+        bundle = c.get(f"/api/v1/floors/{tree['floor2']}/map").json()
+        return {a["resource_id"]: a["camera"] for a in bundle["anchors"] if a["resource_type"] == "camera"}
+
+    assert {k: v["recorder_enabled"] for k, v in map_cams().items()} == {cam1: True, cam2: True}
+    assert c.patch("/api/v1/recorders/nvr-2", json={"enabled": False}).status_code == 200
+    assert {k: v["recorder_enabled"] for k, v in map_cams().items()} == {cam1: True, cam2: False}, "placed, marked"
+    assert len(rows(base, "SELECT id FROM map_anchors WHERE resource_id = ? AND effective_to IS NULL", (cam2,))) == 1
+    # the camera table (Settings) keeps the row as it was; only the recorder flag changes
+    listed = {x["id"]: x for x in c.get("/api/v1/cameras").json()["cameras"]}
+    assert listed[cam2]["enabled"] is True and listed[cam2]["recorder_enabled"] is False
+    assert c.patch("/api/v1/recorders/nvr-2", json={"enabled": True}).status_code == 200
+    assert map_cams()[cam2]["recorder_enabled"] is True
+
+
 def test_the_first_recorder_disables_at_once_too_and_a_restart_keeps_the_choice(base, fakes):
     one, two = fakes
     app, c = two_recorders(base)

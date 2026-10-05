@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -53,6 +54,12 @@ THRESHOLDS: dict[str, tuple[int, int, int]] = {
 # every connected camera records all the time is a per-recorder choice, off by default (many units record on motion only)
 CONTINUOUS_KEY = "continuous_recorders"
 CONTINUOUS_MAX = 64
+# NN6B: a per-camera choice on top of the recorder's: camera id -> "continuous" (expected to record all the time) or "events"
+# (records on events only, never "not recording"). A camera without an entry follows its recorder. Empty by default.
+CAMERA_KEY = "camera_recording"
+CAMERA_MODES = ("continuous", "events")
+CAMERA_MAX = 2000
+_CAMERA_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 SOURCES = ("recorder.unreachable", "recorder.slow", "recorder.disk", "recorder.disk_space", "recorder.recording", "recorder.clock", "recorder.certificate")
 DETAIL_SOURCES = SOURCES[2:]
@@ -84,12 +91,25 @@ def error_text(code: str | None) -> str:
 # ---------------------------------------------------------------- thresholds (Settings)
 
 def thresholds_defaults() -> dict[str, Any]:
-    return {**{k: v[0] for k, v in THRESHOLDS.items()}, CONTINUOUS_KEY: []}
+    return {**{k: v[0] for k, v in THRESHOLDS.items()}, CONTINUOUS_KEY: [], CAMERA_KEY: {}}
 
 
 def continuous(th: dict[str, Any], recorder_id: str) -> bool:
-    """Whether every connected, enabled camera of this recorder is expected to record all the time."""
+    """Whether every connected, enabled camera of this recorder is expected to record all the time (the recorder's choice)."""
     return recorder_id in (th.get(CONTINUOUS_KEY) or ())
+
+
+def camera_continuous(th: dict[str, Any], recorder_id: str, camera_id: Any) -> bool:
+    """NN6B: the camera's own choice when it has one, else its recorder's."""
+    mode = (th.get(CAMERA_KEY) or {}).get(str(camera_id)) if camera_id is not None else None
+    if mode in CAMERA_MODES:
+        return mode == "continuous"
+    return continuous(th, recorder_id)
+
+
+def _valid_camera_map(v: Any) -> bool:
+    return (isinstance(v, dict) and len(v) <= CAMERA_MAX
+            and all(isinstance(k, str) and _CAMERA_ID.fullmatch(k) and m in CAMERA_MODES for k, m in v.items()))
 
 
 def _valid_ids(v: Any) -> bool:
@@ -112,6 +132,8 @@ def thresholds(conn: sqlite3.Connection) -> dict[str, Any]:
                 out[k] = v
         if _valid_ids(stored.get(CONTINUOUS_KEY)):
             out[CONTINUOUS_KEY] = sorted(set(stored[CONTINUOUS_KEY]))
+        if _valid_camera_map(stored.get(CAMERA_KEY)):
+            out[CAMERA_KEY] = dict(sorted(stored[CAMERA_KEY].items()))
     return out
 
 
@@ -125,6 +147,11 @@ def validate(body: Any) -> dict[str, Any]:
             if not _valid_ids(v):
                 raise ApiError(422, "validation", "רשימת מקליטים לא תקינה.", details={"field": k})
             out[k] = sorted(set(v))
+            continue
+        if k == CAMERA_KEY:
+            if not _valid_camera_map(v):
+                raise ApiError(422, "validation", "בחירת מצלמות לא תקינה.", details={"field": k})
+            out[k] = dict(sorted(v.items()))
             continue
         spec = THRESHOLDS.get(k)
         if spec is None:
@@ -140,6 +167,13 @@ def save_thresholds(conn: sqlite3.Connection, changes: dict[str, Any]) -> dict[s
     current.update(changes)
     set_setting(conn, SETTING_KEY, json.dumps(current, sort_keys=True))
     return current
+
+
+def camera_choices(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """NN6B: the enabled cameras the per-camera choice can name (id, name, recorder), in recorder and channel order."""
+    return [{"id": str(r["id"]), "name": _camera_name(r, int(r["channel"])), "recorder_id": str(r["recorder_id"]), "channel": int(r["channel"])}
+            for r in conn.execute("SELECT id, recorder_id, channel, alias, name_source FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel LIMIT ?",
+                                  (CAMERA_MAX,)).fetchall()]
 
 
 def ranges() -> dict[str, dict[str, int]]:
@@ -335,7 +369,7 @@ def evaluate(state: RecState, th: dict[str, Any], now_ts: float, cameras: dict[i
             if c.connected is not False:  # a disconnected camera is `camera.offline`, not a recording fault
                 if c.record_state == "exception":
                     stopped = True
-                elif continuous(th, rid) and c.record_state == "idle":
+                elif camera_continuous(th, rid, cam["id"]) and c.record_state == "idle":
                     stopped = now_ts - state.idle_since.get(c.channel, now_ts) >= gap
             cname = _camera_name(cam, c.channel)
             detail = "תקלת הקלטה" if c.record_state == "exception" else f"לא מקליט יותר מ־{th['recording_gap_min']} דקות"
@@ -450,8 +484,21 @@ def _targets(db: Database, settings: Settings, only: str | None = None) -> list[
                 adapter = registry.adapter_for(conn, settings, rid)
             except ApiError:
                 continue
+            if hasattr(adapter, "health_zone"):
+                adapter.health_zone = _zone_of(conn, rid)
             out.append((rid, (meta[0] if meta else None) or rid, getattr(adapter, "vendor", ""), adapter))
     return out
+
+
+def _zone_of(conn: sqlite3.Connection, rid: str) -> str | None:
+    """The recorder's IANA zone (recorders.time_zone), else the installation's; None when neither can be read."""
+    from .recorder_clock import recorder_zones
+
+    try:
+        fallback = get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
+    except sqlite3.Error:  # a settings table that cannot be read: the clock is not judged
+        return None
+    return recorder_zones(conn, [rid], fallback).get(rid) or None
 
 
 def probe(rid: str, name: str, vendor: str, adapter: Any, now_ts: float | None = None) -> RecState:
@@ -602,13 +649,14 @@ def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[i
                 nm = _camera_name(cams.get(c.channel), c.channel)
                 if c.record_state == "exception":
                     exception.append({"channel": c.channel, "name": nm})
-                elif c.record_state == "idle" and continuous(th, st.recorder_id) and now_ts - st.idle_since.get(c.channel, now_ts) >= th["recording_gap_min"] * 60:
+                elif c.record_state == "idle" and camera_continuous(th, st.recorder_id, cams[c.channel]["id"] if cams.get(c.channel) is not None else None) and now_ts - st.idle_since.get(c.channel, now_ts) >= th["recording_gap_min"] * 60:
                     stopped.append({"channel": c.channel, "name": nm, "since": _iso(st.idle_since.get(c.channel))})
             rec_n = sum(1 for c in watched if c.record_state == "recording")
             reported = [c for c in watched if c.record_state is not None and c.connected is not False]
             recording_ok = not stopped and not exception
             recording = _section("error" if exception else "warn" if stopped else "ok" if reported else "unknown", recording=rec_n, watched=len(reported),
-                                 stopped=stopped, exception=exception, continuous=continuous(th, st.recorder_id))
+                                 stopped=stopped, exception=exception, continuous=continuous(th, st.recorder_id),
+                                 expected=sum(1 for c in reported if camera_continuous(th, st.recorder_id, cams[c.channel]["id"] if cams.get(c.channel) is not None else None)))
             down = [{"channel": c.channel, "name": _camera_name(cams.get(c.channel), c.channel)} for c in watched if c.connected is False]
             known = [c for c in watched if c.connected is not None]
             channels = _section("warn" if down else "ok" if known else "unknown", total=len(known), connected=sum(1 for c in known if c.connected), disconnected=down)

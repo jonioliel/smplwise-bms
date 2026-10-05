@@ -4462,5 +4462,37 @@
     "test_ids": [
       "AT216"
     ]
+  },
+  {
+    "id": "R217",
+    "title": "אפליקציית הטלפון - צד השרת",
+    "statement": "The phone app's server side (CR-027; docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md, docs/api/mobile-presence-contract.md): device registration with a hashed device token shown once (not an HA token, never on the remote channel's bearer path), presence/config with the employee notice version that must be acknowledged before any event batch, validated fix / enter / exit / sensor batches against a sensor allow-list, the required-sensors policy (403 presence_required, presence_gate on /me, break-glass), retention janitor, permissions presence.report / presence.sensors.view in both role catalogues, the Settings tab הגדרות › אפליקציה לנייד; push through the SmplWise relay as the notification core's 'app' channel (generic payload to the relay, the app fetches the text with its device token, 24 h expiry, mutes, quiet hours, retries, dead registration dropped), add-on options push_relay_url / push_relay_key kept out of the database and backups; everything off by default; migration 0057.",
+    "task_ids": [
+      "T103"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT217"
+    ]
+  },
+  {
+    "id": "R218",
+    "title": "שידור וידאו למסכים - הכנה",
+    "statement": "Cast-to-screens preparation (CR-028; docs/changes/CR-028-CAST-TO-SCREENS.md): read-only capability detection per media device from the mirrored registry data only (technology + confidence מאומת / כנראה / לא ידוע; manufacturer / model, never connections or identifiers), the 'שידור' column in the settings lists of screens and players and the reason sentence in the open form; no command, no device write, no migration, no feature flag; the phased plan (relay on an optional host port, bridge 0.7.0 cast_stream, mosaic wall) waits for the owner's three decisions (section 11) and the first physical test needs his approval.",
+    "task_ids": [
+      "T104"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT218"
+    ]
   }
 ]

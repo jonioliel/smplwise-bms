@@ -23,7 +23,7 @@ import { TabsModeController } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
 import { TILE_LAYOUT_LABEL, TILE_LAYOUTS, resolveTileLayout, setInstallationTileLayout, setTileLayoutOverride, tileLayoutOverride, type TileLayoutSetting } from '../api/tile-layout';
-import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, listBackups, restoreBackup, uploadBackup, type BackupEntry } from '../api/backup';
+import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
@@ -41,6 +41,7 @@ import './system-design'; // design foundation: הגדרות › כללי › מ
 import './system-look'; // Bubble foundation: הגדרות › כללי › מראה (the look dials)
 import './system-home-screen'; // home redesign: הגדרות › חשמל והתקנים › מסך ראשי
 import './system-mobile-options'; // owner 2026-09-30: הגדרות › כללי › אפשרויות נייד
+import './system-presence'; // CR-027: הגדרות › אפליקציה לנייד
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import { loadTree } from '../api/catalog';
@@ -75,6 +76,7 @@ const TABS = [
   { id: 'access-control', label: 'בקרות כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'remote', label: 'גישה מרחוק' },
+  { id: 'mobile', label: 'אפליקציה לנייד' }, // CR-027: the phone app's data sharing, the employee notice, the required-sensors policy
   { id: 'health', label: 'בריאות ועבודות' },
   { id: 'backup', label: 'גיבוי ושחזור' },
   { id: 'support', label: 'תמיכה' },
@@ -113,6 +115,9 @@ export class SystemDiagnostics extends LitElement {
   @state() private backupBusy = false;
   @state() private backupNote = '';
   @state() private backupMsg = '';
+  @state() private meterBackup: MeterBackupSetting | null = null;
+  @state() private meterBackupBusy = false;
+  @state() private meterBackupError = '';
   @state() private skins: SkinsStatus | null = null;
   @state() private skinsTest: SkinsTestResult | null = null;
   @state() private skinsBusy = false;
@@ -976,14 +981,14 @@ export class SystemDiagnostics extends LitElement {
               <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>Arx</option>
             </select></sw-field></div>`,
         )}
-        <div class="row"><span class="lbl">הטמעה גם באפליקציית Companion (ניסיוני)<span class="muted">כבוי: באפליקציית Home Assistant בטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה ל־Home Assistant שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+        <div class="row"><span class="lbl">הטמעה גם באפליקציית הטלפון (ניסיוני)<span class="muted">כבוי: באפליקציית הטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה לתשתית המערכת שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
           <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
           </select></sw-field></div>
         <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (עמדות, סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
-        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך Home Assistant, עם החיבור של המשתמש ל־Home Assistant: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
+        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך תשתית המערכת, עם החיבור של המשתמש אליה: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
-        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון ה־Home Assistant שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל Home Assistant, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
+        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
         ${this.canEdit
           ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
@@ -1179,6 +1184,7 @@ export class SystemDiagnostics extends LitElement {
 
   private async loadBackups() {
     if (!isApi()) return;
+    void getMeterBackup().then((m) => (this.meterBackup = m));
     try {
       const r = await listBackups();
       this.backups = r.backups;
@@ -1187,6 +1193,33 @@ export class SystemDiagnostics extends LitElement {
       this.error = describeError(err);
       this.backups = [];
     }
+  }
+
+  /** CR-023: "include the meter readings in the backup" (energy.include_history_in_backup) - saved at once, like the other switches. */
+  private async toggleMeterBackup(on: boolean) {
+    const before = this.meterBackup;
+    if (!before || this.meterBackupBusy) return;
+    this.meterBackupBusy = true;
+    this.meterBackupError = '';
+    this.meterBackup = { ...before, on };
+    try {
+      this.meterBackup = (await setMeterBackup(on)) ?? { ...before, on };
+    } catch (err) {
+      this.meterBackup = before;
+      this.meterBackupError = describeError(err);
+    } finally {
+      this.meterBackupBusy = false;
+    }
+  }
+
+  private renderMeterBackup() {
+    const m = this.meterBackup;
+    if (!m) return nothing;
+    const size = m.bytes != null && m.bytes > 0 ? ` (כרגע ${fmtBytes(m.bytes)})` : '';
+    return html`<div class="row" data-backup-meters><span class="lbl">נתוני מוני החשמל<span class="muted">${m.on ? `כל הקריאות נכנסות לגיבוי${size}` : 'בלי הקריאות עצמן; מונים, חיובים וסיכומים יומיים נכנסים תמיד'}</span></span>
+        <sw-toggle data-backup-meters-toggle ?checked=${m.on} ?disabled=${!m.editable || this.meterBackupBusy} label="לכלול את נתוני המונים בגיבוי" labelHidden
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleMeterBackup(e.detail.checked)}></sw-toggle></div>
+      ${this.meterBackupError ? html`<div class="muted" role="alert" style="color:var(--sw-error)" data-backup-meters-error>${this.meterBackupError}</div>` : nothing}`;
   }
 
   private async createBackup() {
@@ -1297,6 +1330,7 @@ export class SystemDiagnostics extends LitElement {
           <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="note-in" placeholder="הערה (אופציונלי)" .value=${this.backupNote} @input=${(e: Event) => (this.backupNote = (e.target as HTMLInputElement).value)} /><sw-button variant="primary" size="sm" icon="download" ?disabled=${this.backupBusy || !isApi()} data-backup-create @click=${() => this.createBackup()}>${this.backupBusy ? 'עובד…' : 'צור גיבוי'}</sw-button></span></div>
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
+        ${this.renderMeterBackup()}
         ${this.backupMsg ? html`<div class="muted" style="color:#15803d;padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
@@ -1331,7 +1365,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

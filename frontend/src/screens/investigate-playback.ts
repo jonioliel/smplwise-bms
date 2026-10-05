@@ -6,6 +6,10 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-chip';
 import '../components/sw-dialog';
+import '../components/sw-dropdown';
+import type { DropdownChange, DropdownItem } from '../components/sw-dropdown';
+import { extraFromParam } from '../components/multi-select';
+import { TabsModeController } from '../shell/tabs-mode';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-scene';
@@ -67,6 +71,8 @@ function p95Abs(values: number[]): number {
 export class InvestigatePlayback extends LitElement {
   /** 0.1.157: the bubble skin's chrome keys on the host's data-skin (styles/bubble-chrome.ts). */
   readonly bubbleSkin = new SkinController(this);
+  /** 2.0.1: the comparison picker is a dropdown in the security group's style (re-rendered when the installation / the user changes it). */
+  private tabsMode = new TabsModeController(this, 'security');
   /** Route params (#/investigate/playback?camera=<id>&t=<utc iso>) */
   @property() cameraId = '';
   @property() at = '';
@@ -504,6 +510,10 @@ export class InvestigatePlayback extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    /* 2.0.1: the comparison picker is one dropdown (the chips of 2.0.0 took a row per camera on the phone); it never grows past the row */
+    .compare sw-dropdown {
+      max-inline-size: 100%;
+    }
     .dlg {
       display: grid;
       gap: 10px;
@@ -609,7 +619,7 @@ export class InvestigatePlayback extends LitElement {
       this.date = dateInZone(validAt ? at! : new Date(), this.tz);
       if (first) {
         this.cameraId = first.id;
-        if (this.extraParam) this.extra = this.extraParam.split(',').filter((id) => id && id !== first.id && this.cams!.some((c) => c.id === id)).slice(0, 3);
+        if (this.extraParam) this.extra = extraFromParam(this.extraParam, first.id, this.cams.map((c) => c.id));
         await this.loadRecordings();
         if (validAt) {
           this.cursor = minuteInZone(at!, this.tz);
@@ -902,12 +912,25 @@ export class InvestigatePlayback extends LitElement {
     }
   }
 
-  private async toggleExtra(id: string) {
-    const next = this.extra.includes(id) ? this.extra.filter((c) => c !== id) : [...this.extra, id].slice(-3);
+  /**
+   * The comparison set changed (2.0.1: the dropdown's `change`, one toggle or "נקה"): the running session / group ends and a new one
+   * opens at the same instant with the new members, exactly as a chip press did. The dropdown itself keeps the limit (3 extras + the
+   * lead = 4) and refuses the 5th; the ids are trusted only after the same filter the route parameter gets.
+   */
+  private async applyExtra(ids: string[]) {
+    const next = extraFromParam(ids.join(','), this.cameraId, this.cams?.map((c) => c.id) ?? []);
+    if (next.join(',') === this.extra.join(',')) return;
     const cur = this.currentInstant();
-    await this.endSession();
+    // the new set is shown at once (the picker is re-rendered while the old session closes); endSession() reads only the session / group
     this.extra = next;
+    await this.endSession();
     if (cur) await this.startAt(cur);
+  }
+
+  /** The comparison picker's options: every other camera; one of another recorder cannot join (CR-024) unless the experimental setting allows it. */
+  private compareItems(): DropdownItem[] {
+    const lead = this.cameraId ? [this.cameraId] : [];
+    return (this.cams ?? []).filter((c) => c.id !== this.cameraId).map((c) => ({ id: c.id, label: cameraLabel(c), icon: 'camera' as const, disabled: !this.extra.includes(c.id) && !sameRecorder(lead, this.cams ?? [], c.id, this.crossSync) }));
   }
 
   private players(): SwLivePlayer[] {
@@ -1354,10 +1377,9 @@ export class InvestigatePlayback extends LitElement {
         <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
         <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
       </div>
-      <div class="compare">
-        <span>השוואה (עד 4):</span>
-        ${this.cams.filter((c) => c.id !== this.cameraId).map((c) => html`<sw-chip ?selected=${this.extra.includes(c.id)} ?disabled=${!this.extra.includes(c.id) && !sameRecorder(this.cameraId ? [this.cameraId] : [], this.cams ?? [], c.id, this.crossSync)} @click=${() => this.toggleExtra(c.id)}>${cameraLabel(c)}</sw-chip>`)}
-        ${this.groupMode ? html`<span>· שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
+      <div class="compare" data-compare>
+        <sw-dropdown multiple data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+          .items=${this.compareItems()} .values=${this.extra} @change=${(e: CustomEvent<DropdownChange>) => void this.applyExtra(e.detail.ids ?? [])}></sw-dropdown>
       </div>
       <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
         ${this.renderStage(cam)}
@@ -1399,6 +1421,7 @@ export class InvestigatePlayback extends LitElement {
         <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
         <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
         ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
+        ${this.groupMode ? html`<span data-sync-method>סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת)</span>` : nothing}
       </div>` : nothing}
       ${this.renderExportDialog()}
     `;

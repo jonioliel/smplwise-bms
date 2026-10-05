@@ -161,3 +161,84 @@ def test_log_has_no_secret(world):
     raw = (tmp / "log" / "nvr-write-log.jsonl").read_text(encoding="utf-8")
     for secret in (HOST, USER, PASSWORD, "192.0.2.77"):
         assert secret not in raw
+
+# ---------------------------------------------------------------------------------------------- NN2A (2026-10-05)
+
+def test_full_previous_answer_saved_before_the_write(world):
+    fake, run, lines, tmp = world
+    fake.alarm_server = {"addr": "old.server.test", "port": 9000, "heartbeat": False, "interval": 30}
+    seen_before_write = []
+    real = fake._SetAlarmServerConfig
+
+    def spy(request, ch):
+        seen_before_write.extend(p.name for p in (tmp / "log").glob("alarm-server-before-*.xml"))
+        return real(request, ch)
+
+    fake._SetAlarmServerConfig = spy
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 0
+    eid = _log(tmp)[0]["entry"]
+    assert seen_before_write == [f"alarm-server-before-{eid}.xml"], "saved BEFORE the write"
+    snap = (tmp / "log" / f"alarm-server-before-{eid}.xml").read_text(encoding="utf-8")
+    assert "old.server.test" in snap and "<serverPort" in snap and "alarmServer" in snap, "the device's own answer, unmodified"
+    assert "old.server.test" not in "\n".join(lines), "the snapshot is never printed"
+
+
+def test_dry_run_saves_no_snapshot(world):
+    fake, run, lines, tmp = world
+    assert run("--dry-run", "set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 0
+    assert not list(tmp.glob("log/alarm-server-before-*.xml")) and fake.writes == []
+
+
+def test_diverged_read_back_restores_exactly_once(world):
+    fake, run, lines, tmp = world
+    fake.alarm_server = {"addr": "old.server.test", "port": 9000, "heartbeat": False, "interval": 30}
+    real = fake._SetAlarmServerConfig
+    calls = []
+
+    def mangle(request, ch):  # the device stores something else than what was sent (first write only)
+        calls.append(1)
+        r = real(request, ch)
+        if len(calls) == 1:
+            fake.alarm_server["port"] = 1234
+        return r
+
+    fake._SetAlarmServerConfig = mangle
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 3
+    assert len(calls) == 2, "one write + one restore, no retry"
+    assert (fake.alarm_server["addr"], fake.alarm_server["port"]) == ("old.server.test", 9000)
+    phases = [e["phase"] for e in _log(tmp)]
+    assert phases == ["before", "diverged", "before", "verified"] and _log(tmp)[2]["restore_of"] == _log(tmp)[0]["entry"]
+    assert "restored and verified" in lines[-1]
+
+
+def test_no_auto_restore_only_prints_the_command(world):
+    fake, run, lines, tmp = world
+    real = fake._SetAlarmServerConfig
+
+    def mangle(request, ch):
+        r = real(request, ch)
+        fake.alarm_server["port"] = 1234
+        return r
+
+    fake._SetAlarmServerConfig = mangle
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091", "--no-auto-restore") == 3
+    assert fake.writes == ["SetAlarmServerConfig"] and "restore-from-log --entry" in lines[-1]
+
+
+def test_refused_write_with_device_unchanged_restores_nothing(world):
+    fake, run, lines, tmp = world
+    fake.fail["SetAlarmServerConfig"] = 5
+    assert run("set-alarm-server", "--server", "ha.local.test", "--port", "18091") == 6
+    assert fake.writes == ["SetAlarmServerConfig"], "never retried, no restore write"
+    assert [e["phase"] for e in _log(tmp)] == ["before", "write-failed", "unchanged"]
+
+
+def test_server_auto_uses_the_local_address_and_prints_none(world, monkeypatch):
+    from smplwise.services.recorders import provision_events as pe
+
+    fake, run, lines, tmp = world
+    monkeypatch.setattr(pe, "_local_address_towards", lambda host: "192.0.2.55")
+    assert run("set-alarm-server", "--server", "auto", "--port", "18091") == 0
+    assert fake.alarm_server["addr"] == "192.0.2.55" and "192.0.2.55" not in "\n".join(lines)
+    monkeypatch.setattr(pe, "_local_address_towards", lambda host: None)
+    assert run("set-alarm-server", "--server", "auto", "--port", "18091") == 2

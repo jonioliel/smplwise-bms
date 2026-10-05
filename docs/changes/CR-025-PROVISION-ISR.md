@@ -267,6 +267,35 @@ continued for the full 60 s observation without a single stall - so that proxy c
 run's 10.1 s was not a recovery either). A real drop needs the network path to the NVR cut for a moment, which is a network
 change outside the read-only approval; it is left for an owner-approved session (or a fake RTSP source in a test rig).
 
+**Drop recovery against a simulated RTSP source (2026-10-05 night).** Test rig: the same throwaway backend, but every playback
+session's source replaced by `rtsp://127.0.0.1:8554/smplwise_pb_simsrc` inside HA2's go2rtc (our own name); the PC publishes an
+ffmpeg test pattern (640x360, 15 fps, H.264 baseline, GOP 1 s) into it, and killing / restarting the publisher is the source
+dropping and coming back. The full chain is the production one (go2rtc ffmpeg source -> MSE -> the playback screen); only the
+NVR's RTSP server is replaced. No real network change; the NVR was read only for the camera list and the recording search;
+every non-`smplwise_pb_` stream unchanged, 0 left afterwards. Media advance before each drop: ratio 1.00.
+
+| Outage | Stall seen by the screen | Back to real time after the source returned | Session generation | Screen status during the stall |
+|---|---|---|---|---|
+| 5 s (run 1) | 2.1 s | 16.4 s (slow ramp, then 1.00) | unchanged | "playing" |
+| 5 s (run 2) | 2.3 s | not within 60 s (media crawled at about 0.2); the screen's resume-at-position restored 1.00 in 8.9 s | unchanged | "playing" |
+| 20 s | 6.3 s (the buffer covered the first 5 s) | 5.3 s | unchanged | "playing" |
+| 60 s | 2.0 s | 6.2 s | unchanged | "playing" |
+
+Findings:
+1. go2rtc re-pulls the source by itself; in 3 of 4 trials playback came back on its own 5-16 s after the source returned,
+   with no new session generation. One short outage left the stream crawling until the screen's resume-at-position (8.9 s).
+2. The screen does not tell the operator anything during a stall: status stays "playing" with a frozen picture. A stall
+   detector (no media progress for N s -> "reconnecting" state, and after M s an automatic resume at the current position) is
+   recommended.
+3. Caveat for the real NVR: a recorded-playback URL carries its own start time, so when go2rtc re-pulls it after a drop the
+   NVR replays from the session's start, not from where the operator was - the picture would come back at an older moment
+   while the screen's position keeps counting. The screen's resume-at-position does not have this problem. To be verified
+   on the unit in the owner-approved network-cut session.
+4. A first rig attempt with a 1280x720 / 25 fps pattern did not even play in real time (ratio 0.11) and ended in "ended"
+   after every drop; it is discarded as a rig artefact, not a product result.
+
+**Real-network drop recovery stays untested** until the owner approves a brief network cut between HA2 and the NVR.
+
 **Follow-up (2.0.0, all vendors):** the screen now detects the stall itself (no media progress for `playback.stall_s`, default 5 s),
 says "מתחבר מחדש", resumes automatically from the frozen position with the same new-generation seek (back-off, at most
 `playback.auto_resume_attempts`, default 3), then says "הניגון נעצר" with a retry. See `docs/changes/PLAYBACK-STALL-RESUME.md`.
@@ -289,6 +318,59 @@ in place: the source policy at test and save, HTTPS with certificate pinning (a 
 certificate, so the request is closed before any byte), Digest preferred over Basic. Recommended for installers: configure
 recorders by IP address or use pinned HTTPS. Pinning the resolved address per session is deferred (it needs a custom
 transport for both vendors).
+
+### 6.6 Device push validation (NN2A, branch pilot/NN2A-push-events, 2026-10-05)
+
+Goal: prove that the owner's NVR (firmware 1.4.7) pushes alarms to Arx's listener, with one bounded device write (the
+alarm-server address and port only). The product is unchanged: `event_mode` stays `poll` by default and the add-on's
+18091/tcp stays unmapped (`ports: 18091/tcp: null`), so no installation listens until an administrator chooses push.
+
+**Read-only facts (dry run, 2026-10-05).** `GetAlarmServerConfig` answers with `serverAddr` + `serverPort` only (no `url`,
+no heartbeat fields) and the alarm server is **not configured** (empty address). Consequences: the path token cannot be used
+on this firmware - the listener must run in source-address mode (`push_auth: address`); the write body carries only
+`serverAddr` + `serverPort`; the exact restore is "empty address, empty port"; whether this firmware sends heartbeats at all
+is unknown (the receiver falls back to sampling after 3 x `push_heartbeat_s` of silence, so a silent push path loses nothing).
+
+**What this branch adds.**
+- `scripts/provision_push_probe.py`: the product's `PushListener` / `PushReceiver`, unchanged, outside the add-on, answering
+  only the recorder's address. One line per message (time, path, kind, edges `type chN state`), never an address, serial or
+  body. Raw bodies are kept unmodified for future fixtures under `private-evidence/provision-isr-live/push-probe/<run>/`
+  (gitignored; they carry the device name / serial). Exit 0 = an alarm edge arrived, 1 = messages but no edge, 2 = nothing,
+  4 = cannot listen.
+- `scripts/provision_nvr_write.py set-alarm-server`: saves the device's full, unmodified `GetAlarmServerConfig` answer to
+  `private-evidence/provision-isr-live/alarm-server-before-<entry>.xml` **before** the write (in addition to the restore
+  record under `secrets/provision-restore/`); a refused / failed write or a read-back that differs from what was sent now
+  restores the saved values exactly, **once**, and stops (exit 3 diverged, 6 write failed; `--no-auto-restore` only prints
+  the restore command); `--server auto` = this machine's own address towards the recorder (never printed).
+- Tests: `tests/test_provision_push_probe.py` (3), six new cases in `tests/test_provision_nvr_write_script.py`.
+
+**Runbook (the owner runs it, from the repository root, project venv; every `provision_nvr_write` command asks at the
+permission prompt).**
+
+1. Listener (terminal A; Windows asks once for the firewall: allow on the private network only):
+   `.venv\Scripts\python.exe scripts\provision_push_probe.py --seconds 900`
+   Expected: `listening on port 18091 for the recorder only (address mode) ...`.
+2. Dry run (terminal B): `.venv\Scripts\python.exe scripts\provision_nvr_write.py --dry-run set-alarm-server --server auto --port 18091`
+   Expected: body with `<serverAddr><![CDATA[<IP>]]></serverAddr><serverPort>18091</serverPort>` only; current
+   `{"configured": false, "port": null, ... "fields": ["serverAddr", "serverPort"]}`; `dry-run: nothing written`.
+   Stop if `current` differs (someone configured an alarm server meanwhile).
+3. The write (the single approved write): the same command without `--dry-run`.
+   Expected: `entry <id>: verified (restore with: restore-from-log --entry <id>)`. Note the entry id. Any other ending
+   (`DIVERGED`, `write failed`) has already restored the previous values once; stop and report.
+4. Event: walk in front of a camera with motion detection (or wait for one). Terminal A shows e.g.
+   `/SendAlarmStatus  status  edges: VMD ch2 active`. With `--until-event` the probe stops at the first edge (exit 0).
+5. Revert (unless the owner keeps the NVR pointed at a permanent Arx listener):
+   `.venv\Scripts\python.exe scripts\provision_nvr_write.py restore-from-log --entry <id>`
+   Expected: `entry <new id>: verified` - address and port empty again, exactly as read in step 2. Then stop the probe.
+
+Keeping push permanently needs, in addition: the add-on's 18091/tcp mapped to a host port, the recorder set to
+`event_mode: push`, `push_auth: address`, `push_advertise_host` / `push_advertise_port` = the HA host's LAN address and that
+host port, and `set-alarm-server` pointed there instead of the PC. Not done here.
+
+**Result 2026-10-05:** code and offline tests done; dry run against the real NVR done (read-only, figures above). **No
+device write was made** by the agent: the approval reached the agent relayed through the lead, and the agent's own rule is
+that only the owner, directly or at the permission prompt, can authorise a real-device write. The device is unchanged
+(alarm server not configured). Steps 1-5 are for the owner.
 
 ## 7. ETA (focused agent time; owner review time not included)
 

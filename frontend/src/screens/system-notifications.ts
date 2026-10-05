@@ -1151,8 +1151,9 @@ export class SystemNotifications extends LitElement {
     const s = this.settings;
     const push = channelCell(p, 'webpush', s);
     const mail = channelCell(p, 'email', s);
+    const app = channelCell(p, 'app', s);
     const chip = (c: Channel, cell: ReturnType<typeof channelCell>, icon: string) => html`<button type="button" class=${classMap({ chip: true, unconf: cell.note === 'unconfigured' })} aria-pressed=${String(cell.on)} data-pol-ch=${`${p.source}:${c}`} title=${cell.note === 'unconfigured' ? 'הדוא"ל לא מוגדר' : ''} @click=${() => this.patchPolicy(p.source, (x) => policyWithChannel(x, c, !cell.on))}>${nIcon(icon)}${CHANNEL_LABEL[c]}</button>`;
-    return html`<span class="chs"><span class="chip lock" title="תמיד">${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}<span class="chip soon" aria-disabled="true" title="Companion – בקרוב" aria-label="Companion – בקרוב">${nIcon('phone')}</span><span class="chip soon" aria-disabled="true" title="WhatsApp – בקרוב" aria-label="WhatsApp – בקרוב">${nIcon('chat')}</span></span>`;
+    return html`<span class="chs"><span class="chip lock" title="תמיד">${nIcon('inbox')}${CHANNEL_LABEL.inbox}</span>${chip('webpush', push, 'phone')}${chip('email', mail, 'mail')}${chip('app', app, 'phone')}<span class="chip soon" aria-disabled="true" title="Companion – בקרוב" aria-label="Companion – בקרוב">${nIcon('phone')}</span><span class="chip soon" aria-disabled="true" title="WhatsApp – בקרוב" aria-label="WhatsApp – בקרוב">${nIcon('chat')}</span></span>`;
   }
   private tog(on: boolean, attr: string, label: string, click: () => void, disabled = false) {
     return html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${label} ?disabled=${disabled} data-tog=${attr} @click=${click}></button>`;
@@ -1281,6 +1282,7 @@ export class SystemNotifications extends LitElement {
         <div class="chc" data-channel="inbox"><span class="ring">${nIcon('inbox')}</span><b>מרכז ההתראות</b><small>פעיל תמיד · לכל המשתמשים</small>${pill('always', '')}</div>
         <div class="chc" data-channel="webpush"><span class="ring">${nIcon('phone')}</span><b>דחיפה (Arx)</b><small>${push.state === 'on' ? `${this.devices} מכשירים רשומים אצלך` : push.text}</small>${pill(push.state, push.text)}</div>
         <div class="chc" data-channel="email"><span class="ring">${nIcon('mail')}</span><b>דוא"ל</b><small>${mail.state === 'on' ? 'תקלות מערכת וגיבויים' : 'לא מוגדר'}</small>${pill(mail.state, mail.text)}</div>
+        <div class="chc" data-channel="app"><span class="ring">${nIcon('phone')}</span><b>אפליקציה לנייד</b><small>לפי המכשירים שנרשמו באפליקציה · שעות השקט כמו דחיפה</small>${pill('on', '')}</div>
         <div class="chc soon" data-channel="ha_mobile"><span class="ring">${nIcon('phone')}</span><b>Companion</b><small>טלפונים לפי משתמש</small><span class="tag soon">בקרוב</span></div>
         <div class="chc soon" data-channel="whatsapp"><span class="ring">${nIcon('chat')}</span><b>WhatsApp</b><small></small><span class="tag soon">בקרוב</span></div>
       </div>

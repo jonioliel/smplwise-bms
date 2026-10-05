@@ -71,7 +71,7 @@ test.describe('bubble palettes', () => {
     await open(page, '&scheme=light');
     const card = lookCard(page);
     // "ההעדפה שלי": the other eleven dials (MD1 added material, depth, tint), no palette row at all
-    await expect(card.locator('[data-look-row]')).toHaveCount(11);
+    await expect(card.locator('[data-look-row]')).toHaveCount(12); // BV1 adds the slider dial
     await expect(card.locator('[data-look-row="palette"]')).toHaveCount(0);
     await expect(card.locator('[data-look-follow="palette"]')).toHaveCount(0);
     // a personal palette left in the browser store by an older version is ignored
@@ -93,7 +93,7 @@ test.describe('bubble palettes', () => {
     // the installation: ten + default, a draft until saved
     await card.locator('[data-look-target="installation"]').click();
     await expect(card.locator('[data-look-row="palette"] [data-look-option]')).toHaveCount(11);
-    await expect(card.locator('[data-look-row]')).toHaveCount(12);
+    await expect(card.locator('[data-look-row]')).toHaveCount(13);
     await card.locator('[data-look-option="palette:forest"]').click();
     expect(await attr(page, 'data-bubble-palette')).toBe('default');
     await card.locator('[data-look-save]').click();

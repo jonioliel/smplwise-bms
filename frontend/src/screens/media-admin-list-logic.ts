@@ -31,20 +31,21 @@ export interface ListView {
   cols: ColPrefs;
 }
 
-/** The optional columns (name, the edit key, approval are always there). `room` shows "floor › room" until `floor` has a column of its own. */
-export type ColKey = 'type' | 'integration' | 'entityId' | 'deviceId' | 'room' | 'floor' | 'status' | 'connections';
+/** The optional columns (name, the edit key, approval are always there). `room` shows "floor › room" until `floor` has a column of its own.
+ * `cast` (CR-028 prep) is the "שידור" marking: whether the device could receive a cast of our video. */
+export type ColKey = 'type' | 'integration' | 'entityId' | 'deviceId' | 'room' | 'floor' | 'status' | 'cast' | 'connections';
 export type ColPrefs = Partial<Record<ColKey, boolean>>;
-export const COL_KEYS: ColKey[] = ['type', 'integration', 'entityId', 'deviceId', 'room', 'floor', 'status', 'connections'];
-export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 'אינטגרציה', entityId: 'מזהה ישות', deviceId: 'מזהה התקן', room: 'חדר', floor: 'קומה', status: 'מצב', connections: 'חיבורים' };
+export const COL_KEYS: ColKey[] = ['type', 'integration', 'entityId', 'deviceId', 'room', 'floor', 'status', 'cast', 'connections'];
+export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 'אינטגרציה', entityId: 'מזהה ישות', deviceId: 'מזהה התקן', room: 'חדר', floor: 'קומה', status: 'מצב', cast: 'שידור', connections: 'חיבורים' };
 /** Table widths: `wide` above 1280 px, `md` (tablet) from 861 to 1280 px; at 860 px and below the rows are cards and every column choice is ignored. */
 export type Bp = 'wide' | 'md';
 export const BREAKPOINT_MD = 1280;
 export const BREAKPOINT_PHONE = 860;
 
-/** Today's behaviour: everything shows, except the separate floor column, and the room on a tablet width. */
+/** Today's behaviour: everything shows, except the separate floor column, and the room and the cast marking on a tablet width. */
 export function defaultVisible(k: ColKey, bp: Bp): boolean {
   if (k === 'floor') return false;
-  if (k === 'room') return bp === 'wide';
+  if (k === 'room' || k === 'cast') return bp === 'wide';
   return true;
 }
 
@@ -59,8 +60,8 @@ export function hideClass(prefs: ColPrefs, k: ColKey): string {
 }
 
 const W: Record<Bp, Record<string, string>> = {
-  wide: { x: 'var(--hit)', name: 'minmax(150px, 1.5fr)', type: '96px', integration: '130px', id: 'minmax(200px, 1.9fr)', floor: '110px', room: 'minmax(110px, 1fr)', status: '90px', ap: '64px', connections: '110px' },
-  md: { x: 'var(--hit)', name: 'minmax(130px, 1.4fr)', type: '84px', integration: '110px', id: 'minmax(170px, 1.7fr)', floor: '100px', room: 'minmax(100px, 1fr)', status: '80px', ap: '60px', connections: '104px' },
+  wide: { x: 'var(--hit)', name: 'minmax(150px, 1.5fr)', type: '96px', integration: '130px', id: 'minmax(200px, 1.9fr)', floor: '110px', room: 'minmax(110px, 1fr)', status: '90px', cast: '132px', ap: '64px', connections: '110px' },
+  md: { x: 'var(--hit)', name: 'minmax(130px, 1.4fr)', type: '84px', integration: '110px', id: 'minmax(170px, 1.7fr)', floor: '100px', room: 'minmax(100px, 1fr)', status: '80px', cast: '120px', ap: '60px', connections: '104px' },
 };
 
 /** The grid template of one width for the user's choices (the id column exists while either id shows). */
@@ -74,6 +75,7 @@ export function gridColumns(prefs: ColPrefs, bp: Bp): string {
   if (on('floor')) parts.push(w.floor);
   if (on('room')) parts.push(w.room);
   if (on('status')) parts.push(w.status);
+  if (on('cast')) parts.push(w.cast);
   parts.push(w.ap);
   if (on('connections')) parts.push(w.connections);
   return parts.join(' ');

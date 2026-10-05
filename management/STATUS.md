@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-10-04T16:38:26.697484+00:00
+Generated: 2026-10-05T10:01:19.559762+00:00
 
-Tasks: 102 | Requirements: 215 | Tests: 215 | Screens: 32
+Tasks: 104 | Requirements: 217 | Tests: 217 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -10,7 +10,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BACKLOG: 92
 - BLOCKED: 2
 - DONE: 2
-- IN_PROGRESS: 2
+- IN_PROGRESS: 4
 - READY: 2
 - REVIEW: 2
 
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 25
+- V1: 27
 - V2: 12
 - V3: 2
 
@@ -131,3 +131,5 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T100](tasks/T100.md) | V1 | BACKLOG | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
 | [T101](tasks/T101.md) | V1 | BACKLOG | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
 | [T102](tasks/T102.md) | V1 | IN_PROGRESS | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
+| [T103](tasks/T103.md) | V1 | IN_PROGRESS | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
+| [T104](tasks/T104.md) | V1 | IN_PROGRESS | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |

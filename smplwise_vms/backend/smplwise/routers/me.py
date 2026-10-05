@@ -56,6 +56,12 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         from ..services.connection_store import any_pending_restart
 
         extra["connection_pending_restart"] = any_pending_restart(conn, settings_of(request))
+    if get_setting(conn, "presence.required_sensors") is not None:
+        # CR-027: what the required-sensors policy says about this caller on this channel (the app's user agent counts as the
+        # app); `blocked` is what the shell acts on, the rest is the reason it shows. Absent until the policy was ever written.
+        from ..services import presence
+
+        extra["presence_gate"] = presence.gate_for(conn, principal.user_id, app=presence.is_app_user_agent(request.headers.get("user-agent")))
     return {
         **extra,
         "channel": channel,

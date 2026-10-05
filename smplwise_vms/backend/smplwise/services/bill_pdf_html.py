@@ -19,7 +19,9 @@ E = html.escape
 
 ASSET_SCHEME = "bill-asset:"
 LOGO_URL = "bill-logo:logo.png"
-FONT_FILES = ("Heebo-he-400.ttf", "Heebo-he-700.ttf", "Heebo-la-400.ttf", "Heebo-la-700.ttf")
+FONT_FILES = ("Heebo-he-400.ttf", "Heebo-he-700.ttf", "Heebo-la-400.ttf", "Heebo-la-700.ttf",
+              # 2.0.2: names in Cyrillic or Arabic (customers, meters, addresses) - Noto subsets, used only for those scripts
+              "NotoSans-cy-400.ttf", "NotoSans-cy-700.ttf", "NotoSansArabic-ar-400.ttf", "NotoSansArabic-ar-700.ttf")
 
 CHART_MAX_PREVIOUS = 12
 
@@ -229,12 +231,16 @@ def _css(accent: str) -> str:
 @font-face {{ font-family: HeeboHe; src: url("{ASSET_SCHEME}Heebo-he-700.ttf"); font-weight: 700; }}
 @font-face {{ font-family: HeeboLa; src: url("{ASSET_SCHEME}Heebo-la-400.ttf"); font-weight: 400; }}
 @font-face {{ font-family: HeeboLa; src: url("{ASSET_SCHEME}Heebo-la-700.ttf"); font-weight: 700; }}
+@font-face {{ font-family: NotoCy; src: url("{ASSET_SCHEME}NotoSans-cy-400.ttf"); font-weight: 400; }}
+@font-face {{ font-family: NotoCy; src: url("{ASSET_SCHEME}NotoSans-cy-700.ttf"); font-weight: 700; }}
+@font-face {{ font-family: NotoAr; src: url("{ASSET_SCHEME}NotoSansArabic-ar-400.ttf"); font-weight: 400; }}
+@font-face {{ font-family: NotoAr; src: url("{ASSET_SCHEME}NotoSansArabic-ar-700.ttf"); font-weight: 700; }}
 @page {{ size: A4; margin: 10mm 14mm 16mm;
   @bottom-center {{ content: "עמוד " counter(page) " מתוך " counter(pages); font: 8pt HeeboHe, HeeboLa; color: #5b6a85; }}
   @bottom-left {{ content: element(runhash); font: 8pt HeeboHe, HeeboLa; color: #8a94a8; }}
   @bottom-right {{ content: "הופק ב-SmplWise Arx"; font: 8pt HeeboHe, HeeboLa; color: #8a94a8; }} }}
 html {{ direction: rtl; }}
-body {{ font-family: HeeboHe, HeeboLa, sans-serif; font-size: 9.5pt; color: #1d2433; margin: 0; line-height: 1.3; }}
+body {{ font-family: HeeboHe, HeeboLa, NotoCy, NotoAr, sans-serif; font-size: 9.5pt; color: #1d2433; margin: 0; line-height: 1.3; }}
 .n {{ direction: ltr; unicode-bidi: isolate; text-align: left; white-space: nowrap; }}
 .r {{ text-align: left; }}
 .ph {{ display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid {accent};

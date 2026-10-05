@@ -1,0 +1,18 @@
+# SmplWise push relay (CR-027). Deploy with `npx wrangler deploy`; secrets with `npx wrangler secret put <NAME>` (README).
+name = "smplwise-push-relay"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# The only storage: sha256(relay_token) -> {platform, push_token, bundle_id, ...}. Create it once:
+#   npx wrangler kv namespace create RELAY_KV        -> paste the id below
+[[kv_namespaces]]
+binding = "RELAY_KV"
+id = "REPLACE_WITH_THE_KV_NAMESPACE_ID"
+
+[vars]
+# `production` (App Store / TestFlight builds) or `sandbox` (Xcode development builds); a second Worker can serve the other
+APNS_ENV = "production"
+# the bundle / package ids the app may register with
+ALLOWED_BUNDLE_IDS = "com.smplwise.arx.app,com.smplwise.arx"
+
+# Secrets (never here, never in git): SERVER_KEYS, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, FCM_SERVICE_ACCOUNT

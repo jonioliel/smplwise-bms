@@ -194,7 +194,7 @@ test.describe('the home screen against the devices fixture backend', () => {
     await resetHome(request);
     const st = await settings(request);
     expect(st['home.direction']).toBe('a');
-    expect(st['home.widgets'].order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media']);
+    expect(st['home.widgets'].order).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher']);
     expect(st['home.widgets'].weather.entity).toBe(WEATHER); // the first available weather entity of the catalogue
     expect(st['home.widgets'].calendar).toMatchObject({ date: HEBDATE, parsha: PARSHA, candles: CANDLES, havdalah: HAVDALAH, holiday: HOLIDAY });
     await open(page, '/devices/building');
@@ -571,7 +571,7 @@ test.describe('the home screen against the devices fixture backend', () => {
       expect((await settings(request))['home.widgets'].order[0]).toBe('clock');
       await savedWait(page);
       const cfg = (await settings(request))['home.widgets'];
-      expect(cfg.order).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat', 'media']);
+      expect(cfg.order).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat', 'media', 'agenda', 'launcher']);
       expect(cfg.weather.sizes).toEqual({ a: 's', b: 'm', c: 'm' });
       expect(cfg.clock).toMatchObject({ label: 'שעה בבניין', seconds: true, on: true });
       expect((await settings(request))['home.direction']).toBe('a');

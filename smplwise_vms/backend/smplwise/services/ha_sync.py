@@ -83,6 +83,9 @@ ATTR_ALLOW = {
     "id", "current", "max",
     # schedules follow-up (2026-10-04, owner decision 3): a siren's own tones - the only tones a schedule may offer it (a list, or id -> name)
     "available_tones",
+    # BV1 (2026-10-05, the home screen's agenda tile): the next event a `calendar.*` entity carries - its title, times, the all-day
+    # flag and the location. Never `description` (free text of a private calendar; the tile does not show it).
+    "message", "start_time", "end_time", "all_day", "location",
 }
 AUTOMATION_PREFIXES = ("automation.", "script.", "scene.")  # CR-017
 AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_triggered", "script_started")

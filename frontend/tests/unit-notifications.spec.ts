@@ -393,12 +393,14 @@ test.describe('notifications client: lock screen, push actions, quiet hours', ()
     const quiet = at(0, 23, 30);
     expect(planChannels(s, policy, 'alert', day, TZ)).toEqual([
       { channel: 'inbox', send: true, reason: null }, { channel: 'webpush', send: true, reason: null }, { channel: 'email', send: false, reason: 'channel_unavailable' },
+      { channel: 'app', send: false, reason: 'category_off' }, // CR-027: the app channel, off unless the policy switches it on
     ]);
     const mail = { ...s, email: { ...s.email, configured: true } };
-    expect(planChannels(mail, policy, 'alert', quiet, TZ).map((d) => [d.channel, d.send, d.reason])).toEqual([['inbox', true, null], ['webpush', false, 'quiet_hours'], ['email', false, 'quiet_hours']]);
-    expect(planChannels(mail, policy, 'critical', quiet, TZ).every((d) => d.send)).toBe(true);
+    expect(planChannels(mail, policy, 'alert', quiet, TZ).map((d) => [d.channel, d.send, d.reason])).toEqual([['inbox', true, null], ['webpush', false, 'quiet_hours'], ['email', false, 'quiet_hours'], ['app', false, 'category_off']]);
+    expect(planChannels(mail, policy, 'critical', quiet, TZ).filter((d) => d.channel !== 'app').every((d) => d.send)).toBe(true);
     expect(planChannels(mail, { channels: { ...policy.channels, webpush: false } }, 'critical', day, TZ)[1]).toEqual({ channel: 'webpush', send: false, reason: 'category_off' });
-    expect(planChannels(mail, policy, 'alert', quiet, TZ, { escalation: true }).every((d) => d.send)).toBe(true);
+    expect(planChannels(mail, policy, 'alert', quiet, TZ, { escalation: true }).filter((d) => d.channel !== 'app').every((d) => d.send)).toBe(true);
+    expect(planChannels(mail, { channels: { ...policy.channels, app: true } }, 'alert', quiet, TZ).find((d) => d.channel === 'app')).toEqual({ channel: 'app', send: false, reason: 'quiet_hours' });
   });
 
   test('the quiet banner and the center banners', () => {

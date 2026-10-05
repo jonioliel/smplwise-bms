@@ -9,6 +9,7 @@ test runner on 2026-10-04 for transitive packages); re-check them whenever the p
 
 | Component | Where | License |
 |---|---|---|
+| Noto Sans and Noto Sans Arabic fonts (subsets: Cyrillic, Arabic; weights 400 and 700; files `NotoSans-cy-*.ttf`, `NotoSansArabic-ar-*.ttf`) - Copyright 2012 Google Inc., Noto Project Authors (https://github.com/notofonts) | `smplwise_vms/backend/smplwise/assets/bill/fonts/` (the bill PDF, names in Cyrillic or Arabic; since 2.0.2) | SIL Open Font License 1.1 - full text in `smplwise_vms/backend/smplwise/assets/bill/fonts/OFL.txt`. Modified (subset) versions; "Noto" is a Reserved Font Name, so the files carry the `-cy` / `-ar` names and are not distributed as "Noto" |
 | Heebo font (subset: Hebrew and Latin, weights 400 and 700, converted to TrueType) - Copyright 2016 The Heebo Project Authors (https://github.com/OdedEzer/heebo) | `smplwise_vms/backend/smplwise/assets/bill/fonts/` (the bill PDF) and `frontend/public/fonts/` (the UI) | SIL Open Font License 1.1 - full text in `smplwise_vms/backend/smplwise/assets/bill/fonts/OFL.txt`, which travels with the fonts. Modified (subset, converted) versions; "Heebo" is not a Reserved Font Name |
 
 ## Python packages of the electricity bill PDF (installed from PyPI into the add-on image)

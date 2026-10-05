@@ -60,6 +60,10 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     // disable: a short confirmation, then the state and the restart
     await page.locator(`${CARD} [data-recorder="nvr-2"] [data-recorder-toggle]`).click();
     await expect(page.locator(`${CARD} sw-dialog[open][data-recorder-toggle-dialog] [data-recorder-toggle-confirm]`)).toBeVisible();
+    // the dialog says what really happens (CR-024 section 7.2): the cameras leave the wall and the pickers, they do not "stay in the lists"
+    const why = page.locator(`${CARD} [data-recorder-toggle-text]`);
+    await expect(why).toContainText('יורדות מהקיר');
+    await expect(why).not.toContainText('נשארות ברשימות');
     await shot(page, 'recorder-disable-dialog');
     await page.locator(`${CARD} [data-recorder-toggle-confirm]`).click();
     await expect(page.locator(`${CARD} [data-recorder="nvr-2"]`)).toHaveAttribute('data-recorder-state', 'disabled');
@@ -184,6 +188,13 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     await open(page, '/live/wall');
     await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(3);
     expect(await page.locator('live-wall sw-camera-tile[data-cam]').evaluateAll((els) => els.every((e) => !(e.getAttribute('data-cam') ?? '').startsWith('w-')))).toBe(true);
+    // the kiosk wall leaves them out too
+    await open(page, '/kiosk/all?cols=4');
+    await expect(page.locator('kiosk-wall [data-kiosk-tile]')).toHaveCount(3);
+    expect(await page.locator('kiosk-wall [data-kiosk-tile]').evaluateAll((els) => els.every((e) => !String((e as unknown as { cameraId?: string }).cameraId ?? '').startsWith('w-')))).toBe(true);
+    // opened directly, its camera page names the reason (not "no permission")
+    await open(page, '/live/cameras/w-cam-1');
+    await expect(page.locator('live-camera [data-camera-off-reason]')).toHaveText('ה־NVR של המצלמה מושבת');
     // no recorder left, history under nvr-1: the card is the add form (a new id), never the first recorder's connection form
     st.disabled = [];
     st.noRecorders = true;

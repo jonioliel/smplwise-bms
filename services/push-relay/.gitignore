@@ -1,0 +1,7 @@
+# secrets never enter git: Apple auth keys, Firebase service accounts, wrangler's local secret files
+*.p8
+*.p12
+*service-account*.json
+.dev.vars
+.wrangler/
+node_modules/

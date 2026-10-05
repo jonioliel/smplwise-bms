@@ -42,7 +42,7 @@ const OPTIONS: { key: string; label: string }[] = [
   { key: 'go2rtc_api_password', label: 'סיסמת go2rtc' },
   { key: 'wiskey_username', label: 'משתמש עמדות WisKey (מצלמות)' },
   { key: 'wiskey_password', label: 'סיסמת עמדות WisKey' },
-  { key: 'bootstrap_admin_username', label: 'שם משתמש HA של המנהל הראשון' },
+  { key: 'bootstrap_admin_username', label: 'שם משתמש של המנהל הראשון' },
   { key: 'log_level', label: 'רמת לוג' },
 ];
 
@@ -465,14 +465,14 @@ export class SystemSetup extends LitElement {
                 ${this.check('go2rtc') ? this.row('בדיקת בריאות', this.check('go2rtc')!.detail, this.check('go2rtc')!.status === 'ok' ? 'ok' : this.check('go2rtc')!.status === 'warn' ? 'warn' : 'err') : html`<div class="hint">פרטי הזרמים והגרסה מוצגים ב"הגדרות › כללי › בריאות ועבודות" (דורש הרשאת ניהול).</div>`}
               </sw-card>
               ${this.renderWiskeyCard()}
-              <sw-card heading="Home Assistant" subheading=${h.home_assistant.connected ? `מחובר · HA ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
+              <sw-card heading="תשתית המערכת" subheading=${h.home_assistant.connected ? `מחובר · גרסה ${h.home_assistant.ha_version ?? ''}` : h.home_assistant.configured ? 'מוגדר, מנותק' : 'לא מוגדר'}>
                 ${this.row('חיבור', h.home_assistant.connected ? 'מחובר' : `מנותק${h.home_assistant.last_error ? ` · ${h.home_assistant.last_error}` : ''}`, h.home_assistant.connected ? 'ok' : 'err')}
                 ${this.row('ישויות בקטלוג', h.home_assistant.entities)}
                 ${this.row('תמונת מצב אחרונה', when(h.home_assistant.last_snapshot_at))}
                 ${this.row('עדכון ישות אחרון', when(h.home_assistant.last_event_at))}
                 ${this.row('רישום (אזורים / קומות) עודכן', when(h.home_assistant.last_registry_at))}
                 ${this.row('התחברויות מחדש מאז ההפעלה', h.home_assistant.reconnects, h.home_assistant.reconnects > 3 ? 'warn' : '')}
-                ${this.row('מקור הזהות', h.identity_source === 'ingress' ? 'Home Assistant Ingress' : h.identity_source)}
+                ${this.row('מקור הזהות', h.identity_source === 'ingress' ? 'תשתית המערכת (כניסה מקומית)' : h.identity_source)}
               </sw-card>
               <sw-card heading="אחסון וכלים" subheading=${`גרסה ${h.version}`}>
                 ${this.row('בסיס הנתונים', h.db.ok ? `תקין · מהדורת הרשאות ${h.db.permission_revision}` : 'שגיאה', h.db.ok ? 'ok' : 'err')}

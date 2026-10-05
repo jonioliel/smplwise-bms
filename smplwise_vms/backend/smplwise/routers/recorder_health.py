@@ -2,7 +2,7 @@
 
 - GET  /recorder-health            the cards (whoever may read the recorders: system.configure or any NVR permission)
 - POST /recorder-health/check      one fresh pass now (system.configure; at most every 15 s; device reads only)
-- GET  /recorder-health/settings   the thresholds with their ranges (system.configure)
+- GET  /recorder-health/settings   the thresholds with their ranges and the cameras a per-camera choice can name (system.configure)
 - PUT  /recorder-health/settings   change thresholds (system.configure, audited)
 
 Names and states only: never an address, a credential, a serial number or a MAC. The path is not under /recorders/ so it
@@ -49,7 +49,7 @@ def check(request: Request, principal: Principal = Depends(current_principal), c
 def get_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """CR-026: the recorder health thresholds with their defaults and ranges."""
     require(conn, principal, PERMISSION, INSTALLATION)
-    return {"values": rh.thresholds(conn), "ranges": rh.ranges()}
+    return {"values": rh.thresholds(conn), "ranges": rh.ranges(), "cameras": rh.camera_choices(conn)}
 
 
 @router.put("/recorder-health/settings")
@@ -61,4 +61,4 @@ def put_settings(request: Request, body: dict[str, Any] = Body(...), principal: 
     values = rh.save_thresholds(conn, changes)
     audit(conn, actor=principal, action="recorder_health.settings", decision="allowed", resource_type="settings", resource_id=rh.SETTING_KEY,
           request_id=getattr(request.state, "correlation_id", None), details={"changed": sorted(changes)})
-    return {"values": values, "ranges": rh.ranges()}
+    return {"values": values, "ranges": rh.ranges(), "cameras": rh.camera_choices(conn)}

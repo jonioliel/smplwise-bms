@@ -234,7 +234,8 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     const panel = list.locator('[data-mm-cols-panel]');
     await expect(panel).toBeVisible();
     await expect(ctl).toHaveAttribute('aria-expanded', 'true');
-    await expect(panel.locator('[data-mm-col]')).toHaveCount(8);
+    await expect(panel.locator('[data-mm-col]')).toHaveCount(9); // CR-028 prep added the "שידור" column
+    await expect(panel.locator('[data-mm-col="cast"]')).toBeChecked({ checked: wide }); // folded on the tablet width like the room
     await expect(panel.locator('[data-mm-col="room"]')).toBeChecked({ checked: wide });
     await expect(list.locator('[data-mm-cols-reset]')).toHaveCount(0); // nothing chosen yet
     // the room: flip it from the keyboard

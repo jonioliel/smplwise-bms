@@ -24,7 +24,11 @@ default, an unknown key is refused - this is never free-form client storage):
      "alarm":    {"on", "sizes", "label", "entity"},
      "quick":    {"on", "sizes", "label", "actions": ["lights_off", "all_off"]},
      "media":    {"on", "sizes", "label", "phone_on", "phone_size"},
+     "agenda":   {"on", "sizes", "label", "calendars": ["calendar.x", ...], "days": 1|3|7|14},          (BV1, 2026-10-05)
+     "launcher": {"on", "sizes", "label", "items": [{"kind": "route|scene|script|quick", "id", "label"}]},  (BV1)
      "calendar": {"date", "parsha", "candles", "havdalah", "holiday", "extras": [{"entity_id", "label"}]}}
+
+BV1 also gives the clock and the weather a `style` ("card" | "tile"): the Bubble skin draws the tile, the other skins keep the card.
 """
 from __future__ import annotations
 
@@ -37,8 +41,9 @@ DIRECTIONS = ("a", "b", "c")
 DEFAULT_DIRECTION = "a"  # owner decision 2026-09-30: the control centre
 SIDES = ("start", "end")
 DEFAULT_SIDE = "end"
-# `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds
-WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media")
+# `media` (CR-015) is appended: a stored order without it keeps its look, the widget lands last like every widget a release adds.
+# BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way.
+WIDGET_IDS = ("clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher")
 SIZES = ("s", "m", "l")
 PHONE_LAYOUTS = ("snap", "stack", "two")  # a horizontal snap row | one card under the other | two per row (wrapping)
 DEFAULT_PHONE_LAYOUT = "stack"
@@ -51,8 +56,18 @@ DEFAULT_SIZES: dict[str, dict[str, str]] = {
     "alarm": {"a": "m", "b": "s", "c": "m"},
     "quick": {"a": "m", "b": "s", "c": "m"},
     "media": {"a": "m", "b": "s", "c": "m"},
+    "agenda": {"a": "m", "b": "m", "c": "m"},
+    "launcher": {"a": "m", "b": "s", "c": "m"},
 }
 CLOCK_MODES = ("time", "datetime")
+# BV1: the clock and the weather have a second presentation in the Bubble skin - a tile (the other skins keep the card)
+TILE_STYLES = ("card", "tile")
+AGENDA_DAYS = (1, 3, 7, 14)
+AGENDA_CALENDARS_MAX = 6
+LAUNCHER_ITEMS_MAX = 12
+LAUNCH_KINDS = ("route", "scene", "script", "quick")
+# the product's own screens a launcher button may open (the frontend table api/launcher.ts carries the route and the permission of each)
+LAUNCH_ROUTES = ("live", "events", "map", "alarm", "screens", "players", "schedules", "automations", "wiskey", "energy", "settings", "home")
 WEATHER_FIELDS = ("condition", "temperature", "apparent", "humidity", "wind", "pressure", "visibility", "uv", "precipitation", "forecast")
 # the numeric fields a sensor may feed instead of the weather entity's own attribute
 WEATHER_SOURCE_FIELDS = ("temperature", "apparent", "humidity", "wind", "pressure", "visibility", "uv", "precipitation")
@@ -68,18 +83,25 @@ _WEATHER = re.compile(r"^weather\.[a-z0-9_]{1,100}$")
 _SENSOR = re.compile(r"^sensor\.[a-z0-9_]{1,100}$")
 _EXTRA = re.compile(r"^(sensor|binary_sensor)\.[a-z0-9_]{1,100}$")
 _ALARM = re.compile(r"^alarm_control_panel\.[a-z0-9_]{1,100}$")
+_CALENDAR = re.compile(r"^calendar\.[a-z0-9_]{1,100}$")
+_SCENE = re.compile(r"^scene\.[a-z0-9_]{1,100}$")
+_SCRIPT = re.compile(r"^script\.[a-z0-9_]{1,100}$")
 
 
 def _default_widget(wid: str) -> dict[str, Any]:
     base: dict[str, Any] = {"on": True, "sizes": dict(DEFAULT_SIZES[wid]), "label": "", "phone_on": None, "phone_size": None}
     if wid == "clock":
-        base.update({"mode": "datetime", "seconds": False, "hebrew": True})
+        base.update({"mode": "datetime", "seconds": False, "hebrew": True, "style": "card"})
     elif wid == "weather":
-        base.update({"entity": "", "fields": list(DEFAULT_WEATHER_FIELDS), "forecast": "5", "sources": {}})
+        base.update({"entity": "", "fields": list(DEFAULT_WEATHER_FIELDS), "forecast": "5", "sources": {}, "style": "card"})
     elif wid == "alarm":
         base.update({"entity": ""})
     elif wid == "quick":
         base.update({"actions": list(QUICK_ACTIONS)})
+    elif wid == "agenda":
+        base.update({"calendars": [], "days": 7})
+    elif wid == "launcher":
+        base.update({"items": []})
     return base
 
 
@@ -152,7 +174,8 @@ def _ordered_subset(value: Any, allowed: tuple[str, ...], name: str) -> list[str
 
 def _widget(wid: str, value: Any) -> dict[str, Any]:
     common = {"on", "sizes", "label", "phone_on", "phone_size"}
-    extra = {"clock": {"mode", "seconds", "hebrew"}, "weather": {"entity", "fields", "forecast", "sources"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set()}[wid]
+    extra = {"clock": {"mode", "seconds", "hebrew", "style"}, "weather": {"entity", "fields", "forecast", "sources", "style"}, "shabbat": set(), "alarm": {"entity"}, "quick": {"actions"}, "media": set(),
+             "agenda": {"calendars", "days"}, "launcher": {"items"}}[wid]
     given = _obj(value, wid, common | extra)
     out = _default_widget(wid)
     if "on" in given:
@@ -172,6 +195,8 @@ def _widget(wid: str, value: Any) -> dict[str, Any]:
         for k in ("seconds", "hebrew"):
             if k in given:
                 out[k] = _bool(given[k], f"clock.{k}")
+        if "style" in given:
+            out["style"] = _choice(given["style"], TILE_STYLES, "clock.style")
     elif wid == "weather":
         if "entity" in given:
             out["entity"] = _entity(given["entity"], _WEATHER, "weather.entity")
@@ -182,12 +207,66 @@ def _widget(wid: str, value: Any) -> dict[str, Any]:
         if "sources" in given:
             src = _obj(given["sources"], "weather.sources", set(WEATHER_SOURCE_FIELDS))
             out["sources"] = {k: _entity(v, _SENSOR, f"weather.sources.{k}") for k, v in src.items() if v}
+        if "style" in given:
+            out["style"] = _choice(given["style"], TILE_STYLES, "weather.style")
     elif wid == "alarm":
         if "entity" in given:
             out["entity"] = _entity(given["entity"], _ALARM, "alarm.entity")
     elif wid == "quick":
         if "actions" in given:
             out["actions"] = _ordered_subset(given["actions"], QUICK_ACTIONS, "quick.actions")
+    elif wid == "agenda":
+        if "calendars" in given:
+            out["calendars"] = _entity_list(given["calendars"], _CALENDAR, AGENDA_CALENDARS_MAX, "agenda.calendars")
+        if "days" in given:
+            d = given["days"]
+            if isinstance(d, bool) or not isinstance(d, int) or d not in AGENDA_DAYS:
+                raise ValueError(f"agenda.days must be one of {', '.join(str(x) for x in AGENDA_DAYS)}")
+            out["days"] = d
+    elif wid == "launcher":
+        if "items" in given:
+            out["items"] = _launch_items(given["items"])
+    return out
+
+
+def _entity_list(value: Any, pattern: re.Pattern[str], limit: int, name: str) -> list[str]:
+    """A list of distinct entity ids of one domain, at most `limit` of them."""
+    if not isinstance(value, list) or len(value) > limit:
+        raise ValueError(f"{name} must be a list of at most {limit}")
+    out: list[str] = []
+    for item in value:
+        eid = _entity(item, pattern, name)
+        if not eid:
+            raise ValueError(f"{name} holds an empty entity id")
+        if eid not in out:
+            out.append(eid)
+    return out
+
+
+def _launch_items(value: Any) -> list[dict[str, Any]]:
+    """The launcher's items: `{"kind": route|scene|script|quick, "id": <route id | entity id | quick action>, "label": <own label or "">}`,
+    distinct by (kind, id), at most LAUNCHER_ITEMS_MAX. The permission each needs is the server's business on the item's own route;
+    the configuration only says what is drawn."""
+    if not isinstance(value, list) or len(value) > LAUNCHER_ITEMS_MAX:
+        raise ValueError(f"launcher.items must be a list of at most {LAUNCHER_ITEMS_MAX}")
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in value:
+        e = _obj(item, "launcher.items item", {"kind", "id", "label"})
+        kind = _choice(e.get("kind"), LAUNCH_KINDS, "launcher.items.kind")
+        raw_id = e.get("id")
+        if kind == "route":
+            iid = _choice(raw_id, LAUNCH_ROUTES, "launcher.items.id (route)")
+        elif kind == "quick":
+            iid = _choice(raw_id, QUICK_ACTIONS, "launcher.items.id (quick)")
+        else:
+            iid = _entity(raw_id, _SCENE if kind == "scene" else _SCRIPT, f"launcher.items.id ({kind})")
+            if not iid:
+                raise ValueError(f"launcher.items.id ({kind}) is empty")
+        if (kind, iid) in seen:
+            raise ValueError("launcher.items needs distinct items")
+        seen.add((kind, iid))
+        out.append({"kind": kind, "id": iid, "label": _label(e.get("label", ""), "launcher.items.label")})
     return out
 
 
