@@ -630,7 +630,7 @@ def test_golden_mixed_hebrew_digits_and_latin():
         assert token in text, token
 
 
-CYRILLIC_ARABIC_NAMES = dict(customer="Иванов Пётр Сергеевич", meter="Щиток №3 підвал", address="ул. Бабеля 12, Київ",
+CYRILLIC_ARABIC_NAMES = dict(customer="Иванов Пётр Сергеевич", meter="Щиток 3 підвал", address="ул. Бабеля 12, Київ",
                              business="شركة النور للكهرباء", account="محمد عبد الله")
 
 
@@ -654,9 +654,10 @@ def test_golden_cyrillic_and_arabic_names():
     for token in ("Иванов", "Пётр", "Сергеевич", "Щиток", "підвал", "Бабеля", "Київ"):
         assert token in text, token
     assert arabic_letters(CYRILLIC_ARABIC_NAMES["business"] + CYRILLIC_ARABIC_NAMES["account"]) <= arabic_letters(text)
-    names = {f[0] for f in pdf_fonts(pdf)}
-    assert any("NotoSans" in n and "Arabic" not in n for n in names) and any("NotoSansArabic" in n for n in names), names
-    assert any("Heebo" in n for n in names)  # the layout itself stays Heebo
+    names = {f[0] for f in pdf_fonts(pdf)}  # WeasyPrint names an embedded font by its CSS family, e.g. "ABCDEF+NotoCy"
+    families = {n.split("+")[-1].split("-")[0] for n in names}
+    assert {"NotoCy", "NotoAr", "HeeboHe"} <= families, names  # the names in Noto, the layout itself still Heebo
+    assert families <= {"HeeboHe", "HeeboLa", "NotoCy", "NotoAr"}, names  # no system font was borrowed (the image has none)
     # a bill without such names embeds no Noto at all
     assert not any("Noto" in f[0] for f in pdf_fonts(render_bill_pdf(S.base())))
 

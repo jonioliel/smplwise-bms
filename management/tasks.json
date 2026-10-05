@@ -5593,5 +5593,93 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T103",
+    "title": "אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "The phone app's server side (CR-027; docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md, docs/api/mobile-presence-contract.md): device registration with a hashed device token shown once (not an HA token, never on the remote channel's bearer path), presence/config with the employee notice version that must be acknowledged before any event batch, validated fix / enter / exit / sensor batches against a sensor allow-list, the required-sensors policy (403 presence_required, presence_gate on /me, break-glass), retention janitor, permissions presence.report / presence.sensors.view in both role catalogues, the Settings tab הגדרות › אפליקציה לנייד; push through the SmplWise relay as the notification core's 'app' channel (generic payload to the relay, the app fetches the text with its device token, 24 h expiry, mutes, quiet hours, retries, dead registration dropped), add-on options push_relay_url / push_relay_key kept out of the database and backups; everything off by default; migration 0057."
+    ],
+    "requirement_ids": [
+      "R217"
+    ],
+    "test_ids": [
+      "AT217"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Identity rules of docs/security/HA_IDENTITY_RBAC_HE.md apply: a device token is never an HA token; no change to HA users or groups. Running the relay against APNs / FCM and switching presence on for real users need the owner's explicit approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md (design, decisions, phases), docs/api/mobile-presence-contract.md (the app-facing contract)",
+      "Backend: migration 0057_mobile_presence_push.sql, services/presence.py, services/mobile_push.py, routers/presence.py, routers/mobile_notifications.py, roles.json + contracts/examples/role-catalog.design.json (presence.report, presence.sensors.view)",
+      "Frontend: screens/system-presence.ts (הגדרות › אפליקציה לנייד), api/presence.ts, the shell's presence gate, the 'app' channel in system-notifications.ts",
+      "services/push-relay/: the Cloudflare Worker (APNs ES256 + FCM OAuth2 signers, KV relay-token mapping, rate limits), deploy README, fake_relay.py",
+      "smplwise_vms/DOCS.md: push_relay_url / push_relay_key"
+    ],
+    "evidence": [
+      "Shipped in 2.0.2 (integ/202; smplwise_vms/CHANGELOG.md section 2.0.2) from branch pilot/mobile-presence-push-server @ 13053407, everything off by default; migration 0057.",
+      "Backend tests in the repository: tests/test_presence.py, tests/test_mobile_push.py (fake relay), migration lists in test_migrations.py / test_media_api.py / test_media_players_api.py / test_notify_core.py end 55, 56, 57; frontend: evidence-presence-settings.spec.ts, unit-notifications.spec.ts (app channel). Run in the 2.0.2 release gate on the Linux test machine (gate file named in docs/release/2.0.2-INTEGRATION-NOTES.md).",
+      "Not done: the relay Worker was not run against APNs / FCM (owner keys needed); nothing tried on the owner's installation; the app itself is built separately (Codex). AT217 stays NOT_RUN as a recorded acceptance until a run against a commit is written here.",
+      "2026-10-05: card registered at integration (2.0.2) by the integration lead."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T104",
+    "title": "שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Cast-to-screens preparation (CR-028; docs/changes/CR-028-CAST-TO-SCREENS.md): read-only capability detection per media device from the mirrored registry data only (technology + confidence מאומת / כנראה / לא ידוע; manufacturer / model, never connections or identifiers), the 'שידור' column in the settings lists of screens and players and the reason sentence in the open form; no command, no device write, no migration, no feature flag; the phased plan (relay on an optional host port, bridge 0.7.0 cast_stream, mosaic wall) waits for the owner's three decisions (section 11) and the first physical test needs his approval."
+    ],
+    "requirement_ids": [
+      "R218"
+    ],
+    "test_ids": [
+      "AT218"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "No cast command, bridge service or device write before the owner's decisions; the first physical test runs only with his step-by-step approval on the device he names."
+    },
+    "deliverables": [
+      "docs/changes/CR-028-CAST-TO-SCREENS.md (research, capability model, phased plan with ETAs, the first physical test, the owner's open decisions)",
+      "Backend: services/media_model.py cast_capability + CAST_METHODS / CAST_CONFIDENCE, admin_rows carries cast per device",
+      "Frontend: screens/media-cast-label.ts, media-admin-list.ts / -logic.ts (the 'שידור' column and chips), system-multimedia*.ts (the reason sentence), demo and players-mock values"
+    ],
+    "evidence": [
+      "Preparation shipped in 2.0.2 (integ/202; smplwise_vms/CHANGELOG.md section 2.0.2) from branch pilot/cast-prep @ 7b89c4ab: read-only, no migration, no feature flag, no device write.",
+      "Tests in the repository: tests/test_media_cast_caps.py (pure rules, the route over media_seed, privacy guard), unit-media-cast-label.spec.ts, unit-media-admin-list.spec.ts, evidence-media-cast-chips.spec.ts (desktop / tablet / mobile). Run in the 2.0.2 release gate on the Linux test machine.",
+      "Open: the owner's decisions in CR-028 section 11 (video path, default approval per screen, the device for the first physical test); phases 1-3 (single camera to Google Cast with bridge 0.7.0 and the relay, mosaic wall, carousel) are not built. AT218 stays NOT_RUN as a recorded acceptance.",
+      "2026-10-05: card registered at integration (2.0.2) by the integration lead."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]
