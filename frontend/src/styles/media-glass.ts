@@ -925,6 +925,11 @@ export const mediaBubbleKnobs = css`
     min-block-size: var(--sw-touch-desktop, 44px);
     block-size: auto;
   }
+  /* the floor filter (sw-dropdown, 2.0.0): its host is an inline flex box, so a taller host stretches the chip itself to the bubble target,
+     in every dropdown style and size (the old hand-built .floorbtn was in the list above) */
+  :host([data-skin='bubble']) sw-dropdown[data-floor-menu] {
+    min-block-size: var(--sw-touch-desktop, 44px);
+  }
   :host([data-skin='bubble']) .rb,
   :host([data-skin='bubble']) .pw,
   :host([data-skin='bubble']) .vrock button,
@@ -979,7 +984,8 @@ export const mediaBubbleKnobs = css`
     :host([data-skin='bubble']) .btn.sm,
     :host([data-skin='bubble']) .seg button,
     :host([data-skin='bubble']) .rc,
-      :host([data-skin='bubble']) .search,
+    :host([data-skin='bubble']) sw-dropdown[data-floor-menu],
+    :host([data-skin='bubble']) .search,
     :host([data-skin='bubble']) .search input,
     :host([data-skin='bubble']) .shlink,
     :host([data-skin='bubble']) .pop button,
