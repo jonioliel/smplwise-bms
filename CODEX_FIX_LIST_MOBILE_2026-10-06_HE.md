@@ -1,0 +1,156 @@
+# רשימת תיקונים לאפליקציות המובייל (Android + iOS) - 2026-10-06 (גרסה 2: חוזה v2)
+
+עדכון 2026-10-06 (אחרי אישור הבעלים): החוזה `docs/api/mobile-presence-contract.md` עודכן ל-**v2** והשרת/הממסר תוקנו בענף `pilot/mobile-contract-v2`. אפליקציה אחת משרתת הרבה שרתי Arx של הרבה לקוחות: האפליקציה שומרת רשימת שרתים, לכל שרת origin, `server_id` ואסימון מכשיר, וכל push משויך לשרת השמור הנכון. פריטי W-1, W-2, W-3, W-9, W-10 ו-W-8 (חלק ה-`relay_url`) עברו לטבלאות הפעילות למטה עם השדות המדויקים. השאר ממתין (סעיף 4).
+
+אל: Codex. מאת: צוות SmplWise Arx.
+מקור: שני דוחות סקירה סטטיים (קוד בלבד, כלום לא הורץ מול שרת או מכשיר) על המסירות שלכם: Android v4 (2.1.0 debug mock) ו-iOS v3. הרשימה כאן נגזרת רק מהם. לפני שכללנו פריטי חומרה גבוהה, אימתנו אותם מול הקוד בפועל (ראו "אימותים שבוצעו" בסוף סעיף 1).
+
+## 1. הקדמה וכללי עבודה
+
+תודה על העבודה. המסירות מוצקות בשכבת האבטחה (Keystore/Keychain, WebView, טקסט push גנרי, נעילת הערוצים) והסקירה אישרה זאת. הבעיה היא שבמסלול המלא מול השרת האמיתי כמה דברים לא עובדים, ושה-mock שלכם מסתיר אותם כי הוא סוטה מהשרת האמיתי. הרשימה למטה היא מה לתקן.
+
+כללי עבודה:
+1. החוזה `docs/api/mobile-presence-contract.md` הוא הסמכות. אם יש סתירה בינו לבין הקוד שלכם או ה-mock - החוזה (והשרת האמיתי) גוברים. הסעיפים שבהם החוזה עדיין שותק נמצאים בסעיף 4 ("ממתין להחלטה") ואין ליישם אותם עדיין. מה שהוחלט כלול בחוזה v2 ומסומן למטה.
+2. אין להמציא טקסט חוזה, טקסט משפטי, נוסח הסכמה או נוסח הרשאה. כשצריך טקסט למשתמש - משתמשים ב-`catalog[].purpose_he` מהשרת. הצעת שינוי חוזה נכתבת כהצעה נפרדת, לא משנים אצלכם.
+3. אין סודות: לא `google-services.json`, לא keystores, לא טוקנים, לא כתובות מעבדה, מספרים סידוריים או כתובות MAC, לא בקוד, לא בפיקסצ'רים ולא בלוגים.
+4. לא נוגעים בקוד השרת של Arx (`smplwise_vms/backend`, `services/push-relay`, frontend). רק `mobile/android-shell` ו-`mobile/ios-shell` (וה-mock שלהם).
+5. בסוף כל פריט מדווחים סטטוס אחד: `BUILT` (נבנה ועבר בדיקה שהורצה בפועל), `NOT_RUN` (נכתב ולא הורץ), `BLOCKED` (חסום, עם סיבה). אין לכתוב "עבר" על בדיקה שלא הורצה.
+6. אמולטור/סימולטור אינו הוכחה לחיישנים, FCM, Doze, SSID, beacon, צעדים/ברומטר או APNs. אלה נשארים NOT_RUN עד בדיקה על מכשיר פיזי.
+7. תיקון ה-mock הוא חלק מהמשימה: כל תיקון שמושפע מהסטייה בין ה-mock לשרת האמיתי מלווה בבדיקה שנכשלת על הבאג הישן (ראו פריטי AM-1 ו-IM-1).
+8. סדר עבודה מומלץ: לפי סדר העדיפויות בכל טבלה (הראשון = הכי חשוב). כל פריט ב-commit נפרד על הענף שלכם.
+
+אימותים שבוצעו מול הקוד לפני הכללת הפריטים (נבדק, לא רק מהדוחות):
+- CSRF: `remote_channel.py` - `csrf_ok` מחייב `Origin` או `Sec-Fetch-Site`; "Neither header -> refused" ומופעל על כל בקשה משנה-מצב עם עוגיית הסשן. אומת. (שני הדוחות מציינים מספרי שורות שונים מעט; מה שקובע הוא הפונקציה.)
+- שער: `routers/presence.py` מחזיר `{"gate": ..., "sensors": {...}}` ולא את אובייקט השער חשוף. אומת (נכון ל-iOS בלבד כי Android קורא את השער אחרת, ראו AND-14 בבדיקות).
+- `config_for` ב-`services/presence.py` לא החזיר server_id או relay_url בעת הסקירה (אומת אז). **מחוזה v2 הוא מחזיר** `server_id` ו-`relay_url` גם ב-`POST presence/devices`, ב-`GET presence/config` וב-`POST/PATCH notifications/devices`.
+- קטגוריות critical: `mobile_push.py` מדלג על השתקה ל-critical ול-escalate. אומת.
+- Android `PresenceRuntime.kt:20`: בדיקת `> 300` על `config_at`. אומת.
+- iOS: `authorization` מתחיל כ-`not_determined`, `updateAuthorization` נקרא רק מתוך `ensureManager()`, וזה נקרא רק ממסכי ההרשאה ומ-`reconcile` כשחיישן כבר כשיר; ה-`init` לא קורא לו. אומת.
+- iOS: `PresenceStore.swift:250` מפענח `PresenceGate` חשוף. אומת.
+- iOS: ב-`Release.entitlements` אין `time-sensitive`. אומת (קובץ של 10 שורות).
+
+סימון: **[משותף]** = אותו פגם ב-Android וב-iOS, מומלץ ליישם אותו באופן עקבי בשתי האפליקציות.
+
+### 1.1 פגמים משותפים (מפה)
+
+| קוד משותף | Android | iOS | מהות |
+|---|---|---|---|
+| SH-1 | A5 | C-3 | חסר `Origin` בקריאות POST עם עוגיית סשן, השרת דוחה `403 csrf_refused` |
+| SH-2 | A2 | C-1, C-2 | טיפול ב-config: ישן/נכשל מבטל איסוף ותור, במקום לשמור את האחרון הידוע |
+| SH-3 | B4 | C-11 | שגיאות בגוף התשובה (`code`, `details`) לא נקראות; אצווה פסולה נתקעת בתור; אין back-off |
+| SH-4 | B3 | G-2a | `push.registered` ב-`GET presence/devices/me` לא נקרא; רישום push שהשרת זרק לא מתוקן |
+| SH-5 | C2 | C-11 | `409 device_name_taken` ו-`details.suggestion` לא מנוצלים |
+| SH-6 | B6 | (C-12) | ביטול מכשיר ישן בשרת בעת מחיקת שרת / החלפת משתמש; אימות זהות מול `/me` |
+| SH-7 | AND-19 (A4) | IOS-18 (G-1) | קשירת `server_id` ל-origin ו-`relay_url` - **פעיל, חוזה v2** (סעיפים 0.1, 1, 2, 7.2, 8) |
+
+## 2. Android
+
+נתיבים יחסיים ל-`android-shell/app/src/main/java/com/smplwise/arx/app/` אלא אם צוין אחרת. סדר = סדר עדיפות.
+
+| id | חומרה | קובץ:שורה | מה לא תקין | שינוי מבוקש | בדיקת קבלה |
+|---|---|---|---|---|---|
+| AND-1 (A5) **[משותף SH-1; חוזה v2 סעיף 0]** | High | `PresenceApi.kt:22-34`, `PresenceRuntime.kt:49` | `POST presence/devices` עם עוגיית סשן נשלח בלי `Origin`/`Sec-Fetch-Site`; בערוץ המרוחק (`/arx/`) השרת דוחה `403 csrf_refused` ורישום לא יכול להסתיים | לשלוח `Origin: <scheme>://<host[:port]>` של השרת הנבחר (בלי path, בדיוק כפי ששמור) בכל בקשה שנושאת עוגיית סשן ושאינה בטוחה (POST/PATCH/DELETE); חובה לפי החוזה v2. לקרוא את גוף `403 csrf_refused`: `details.reason` = `missing_origin` / `origin_mismatch` / `cross_site` ולהציג הודעה לפי הסיבה (בלי ניסיון חוזר זהה). לא לשלוח עוגיה וטוקן מכשיר יחד (נשמר). | בדיקת יחידה: בקשת רישום מכילה Origin תואם; כל אחד משלושת ה-`reason` ממופה להודעה; בדיקה מול ה-mock המתוקן (AM-1) שדוחה בלי Origin; NOT_RUN מול שרת אמיתי עד בדיקה בערוץ המרוחק |
+| AND-2 (A1) | High | `PresenceUi.kt:44-45,53,88-93,260-264`; `WebActivity.kt:273-277,1000,1007` | בדיקת הנוכחות כל 60 שניות ובכל `onResume` מכסה את האתר ב"בודקים את הגדרות השיתוף" ומריצה `BridgeScript.lock(true)` שעוצר וידאו, מיקרופון, AudioContext ויוצא ממסך מלא; שיחת אינטרקום/וידאו נהרסת וה-UI שהמשתמש מקליד בו מתאפס | בדיקת רקע/חידוש = שקטה: בלי `showLoading()`, בלי `page()`, בלי `blockingChanged(true)`. מציגים כיסוי ונועלים רק כשהתוצאה מחייבת (notice / gate חוסם / שגיאה). לא לבנות מחדש מסך שהמשתמש מקליד בו. | בדיקת מכשיר/אמולטור עם עמוד בדיקה שמנגן וידאו ומחזיק getUserMedia: אחרי 90 שניות וחזרה מהרקע הוידאו ממשיך והמיקרופון חי; בדיקת instrumentation חדשה לכך. הערה: חלק מה-UI אינו הוכחה למדיה אמיתית (NOT_RUN במכשיר) |
+| AND-3 (A3) | High | `ServersActivity.kt:372`, `ServerStore.kt:10,31,50`, `PresenceStore.kt:16-41`, `PresenceRuntime.kt:24-26` | עריכת כתובת שרת שומרת את אותו `id` מקומי; טוקן המכשיר (credential של שרת A) נשלח לשרת B | כשה-origin משתנה בעריכה: לשכוח את הרשומה לפני שהכתובת החדשה בשימוש (וגם ניסיון best-effort לבטל מכשיר ב-origin הישן, מוצג כשל). לקשור config/queue/relay ל-origin. | בדיקת יחידה: עריכת URL ל-origin אחר מנקה token/config/queue; אין שום בקשה עם Bearer ל-origin החדש לפני רישום חדש |
+| AND-4 (A2) **[משותף SH-2]** | High | `PresenceRuntime.kt:18-23`, `GeofenceReceiver.kt:21`, `ActivityTransitionReceiver.kt:24`, `PresenceRuntime.kt:82,91,96,99`, `PresenceGeofences.kt:17,26-31`, `SensorCoordinator.kt:50-70` | `active()` מחזיר ריק כש-`config_at` ישן מ-300 שניות. יציאה מגדר שמגיעה אחרי 8 דקות בכיס נזרקת בלי תור; במצב לא-מקוון > 5 דקות גדרות מוסרות ו-FGS נעצר, והתור (200 אירועים / 24 שעות) לא מתמלא | לבסס את הכשירות על ה-config האחרון הידוע (enabled / ack / allowed) עם גבול ישן הרבה יותר (לא 5 דקות; סדר גודל של max_stale_hours, לא להמציא ערך אחר ללא תיעוד). ב-receivers: ניסיון רענון קצר ואז שליחה, ואם נכשל - להכניס לתור. ניקוי config רק על 401 / `presence_disabled`. | בדיקת יחידה: אירוע exit עם config בן 10 דקות נכנס לתור ונשלח כשחוזר חיבור; אין הסרת גדרות בגלל כשל רשת; FGS לא נעצר בגלל ניתוק רשת |
+| AND-5 (B1) **[חוזה v2 סעיף 7.3]** | Medium | `PushDelivery.kt:23,33`, `PushSettings.kt:28-36` | השתקה מקומית מפילה גם התראות קטגוריה `critical` שהשרת מכוון שיגיעו | החוזה v2: קטגוריה `critical` ושלב escalation לעולם אינם מושתקים (השרת שולח בכל מקרה). לא להציג מתג השתקה לקטגוריות עם `critical:true` (מ-`GET notifications/categories`), ולעולם לא להפיל push של קטגוריה כזו | בדיקת יחידה: push critical עם muted מכיל את הקטגוריה - מוצג; UI לא מציג מתג ל-critical |
+| AND-6 (B2) | Medium | `NotificationFetchWorker.kt:15-17`, `PresencePolicy.kt:16-19` | `age in 0..86400` - שעון טלפון מאחר בכמה שניות נותן age שלילי ומבטל את ההתראה | לסבול הטיה שלילית (למשל להתייחס ל-age < 0 כ-0); השרת כבר מסרב להודעות ישנות מ-24 שעות (404) | בדיקת יחידה: age = -5s מוצג; age = 90000s מטופל כ-404 מהשרת בלי קריסה |
+| AND-7 (B3) **[משותף SH-4; חוזה v2 סעיפים 7.2, 8]** | Medium | `PushCoordinator.kt:35-43` | רישום push נעשה רק כש-`relay_registered != relay`; כשהשרת זורק את הרישום (relay 404/410) האפליקציה לא יודעת | בעת `sync` לקרוא `GET presence/devices/me` -> `push.registered` ולרשום מחדש כשיש אי-התאמה; retry per server. `POST notifications/devices` אידמפוטנטי (אותו מכשיר + אותו אסימון = אותו רישום, ההשתקות נשמרות) ולכן בטוח לחזור עליו; אסימון ממסר חדש מחליף את הישן; אסימון ממסר שנרשם למכשיר אחר באותו שרת (משתמש אחר על אותו טלפון) מבטל את הרישום של הישן. הממסר: `POST /v1/register` אידמפוטנטי לפי push token (אותו relay token חוזר) ו-`503 relay_unconfigured` = לנסות מאוחר יותר | בדיקת יחידה: `push.registered=false` מפעיל רישום מחדש; mock מתוקן מחזיר את הערך הזה |
+| AND-8 (B4) **[משותף SH-3]** | Medium | `PresenceRuntime.kt:24-36,116-128` | `invalid_event` (השרת דוחה את כל האצווה על האירוע הפסול הראשון) נבלע, האירוע נשאר בראש התור וחוסם הכול עד 24 שעות; `sensor_not_allowed` עם `details.sensor` שאינו מחרוזת נותן "null" ולא מסיר דבר; `q` נקרא לפני ה-HTTP ונכתב אחריו - אירועים שנוספו בינתיים נדרסים; נשלחת אצווה אחת של 50 בלבד | להסיר/לבודד את האירוע שמופיע ב-`details.client_event_id`; לסדר flush (mutex אחד לשרת); לקרוא את התור מחדש בתוך העדכון; להמשיך לשלוח אצוות עד ריקון | בדיקת יחידה: אירוע פסול בראש התור מוסר והבא אחריו נשלח; שתי קריאות flush במקביל לא מאבדות אירוע; 120 אירועים נשלחים ב-3 אצוות |
+| AND-9 (B6) **[משותף SH-6]** | Medium | `ServerStore.kt:52-56`, `ServersActivity.kt:259`, `PresenceUi.kt:81,111`, `PresenceRuntime.kt:130` | מחיקת שרת, החלפת משתמש או "רישום מחדש" לא מבטלים את המכשיר בשרת; הטוקן, ההיסטוריה ורישום ה-push נשארים והמנהל עדיין רואה מכשיר פעיל | לפני מחיקת שרת/החלפת משתמש: `DELETE` best-effort של הרישום הישן, עם הצגת כשל (לא לחסום מחיקה מקומית). יציאה (sign-out) ממשיכה לשמור את הרישום, כמתוכנן | בדיקת יחידה: מחיקת שרת שולחת DELETE; כשל רשת מוצג ולא חוסם |
+| AND-10 (B7) | Medium | `PresenceRuntime.kt:13`, `PresenceApi.kt:27`, `SensorCoordinator.kt:39-62`, `GeofenceReceiver.kt:15-25`, `ActivityTransitionReceiver.kt:15-27` | executor בודד לכל עבודת הרשת וגם לעבודת ה-receivers; שרת לא נגיש חוסם עד 30 שניות ו-`goAsync` (~10 שניות) יכול לפקוע - אירוע אבוד / ANR | pool או בידוד לפי שרת; ב-receivers timeouts קצרים והכנסה לתור מהירה (תלוי AND-4) | בדיקת יחידה/סימולציה: שרת תקוע לא מעכב עבודת receiver; NOT_RUN ב-ANR אמיתי |
+| AND-11 (B5) | Medium | `PresenceGeofences.kt:22`, `PresencePolicy.kt:15` | רק `^[A-Za-z0-9_-]{1,128}$` מתקבל כ-site id; השרת מקבל כל id עד 64 תווים (עברית, רווחים, נקודות) - אתר "משרד ראשי" לא מקבל גדר ואיש לא יודע | לקבל את מה שהשרת מקבל: להשתמש באינדקס מקומי כ-request id של הגדר; לדווח באתר סטטוס (UI) על אתרים שלא נתמכים. רדיוס מתחת למעשי - להציג אזהרה, לא להסיר בשקט | בדיקת יחידה: site id עם עברית ורווח מקבל גדר; אתר לא נתמך מדווח ב-UI |
+| AND-12 (B9) | Medium | `ActivityTransitionReceiver.kt:20-24`, `PresenceRuntime.kt:91` | מעבר EXIT מדווח כ-`"unknown"` (רעש), וכל אירוע נחתם בשעת המסירה ולא ב-`elapsedRealTimeNanos` של המעבר; Play Services מאגד, אז הזמן והסדר שגויים | לא לדווח EXIT כ-unknown; להמיר `elapsedRealTimeNanos` לזמן מוחלט ולחתום בו | בדיקת יחידה על ההמרה; NOT_RUN במכשיר פיזי |
+| AND-13 (C1) | Low | `PresenceUi.kt:194-198,221`; `PushSettings.kt:18-21`; `PresenceLocationService.kt:43-47` | הסבר ההרשאה הוא משפט קבוע לכל חיישן; ההרשאה לרקע מוסתרת מאחורי כפתור אופציונלי; `POST_NOTIFICATIONS` מתבקשת רק במסך push, ולכן עם שיתוף מיקום פעיל והתראות חסומות (Android 13+) ההתראה הקבועה "שיתוף פעיל" לא מוצגת | להשתמש ב-`catalog[].purpose_he` של השרת (לא טקסט משלכם); לבקש התראות כשמתחיל שיתוף מיקום. אין להוסיף טקסט משפטי. | בדיקת UI: ההסבר מציג `purpose_he`; בהתחלת שיתוף מתבקשת הרשאת התראות |
+| AND-14 (C2) **[משותף SH-5]** | Low | `PresenceUi.kt:136,148-157,216` | `enable(key)` חוזר בשקט כשהחיישן לא ב-`sensors.allowed` / ה-notice לא אושר / אין חומרה, ונוצר שער קבוע עם כפתור מת; `409 device_name_taken` - `details.suggestion` לא בשימוש | להציג סיבה (קוד) כשהכפתור לא פועל, בלי להמציא נוסח מדיניות (ראו W-6 בסעיף 4); להציג את `details.suggestion` בשם תפוס | בדיקת UI: שם תפוס מציע את ההצעה; חיישן נדרש-אך-לא-מותר מציג מצב ברור |
+| AND-15 (C3) | Low | `PresenceStore.kt:26-41`; `PushSettings.kt:33` | `get()` מחזיר אובייקט ריק על כל חריג (כולל שגיאת Keystore חולפת), ו-`update()` כותב עליו - אובדן טוקן ומזהה בעוד המכשיר רשום בשרת; `store.update` רץ על ה-UI thread | להבחין בין "מפתח פסול" לשגיאה חולפת; לעולם לא לכתוב אחרי קריאה כושלת; להזיז כתיבות מה-UI thread | בדיקת יחידה עם Keystore שמדמה כשל חולף: הרשומה לא נמחקת |
+| AND-16 (C4) | Low | `PushDelivery.kt:19,23`; `NotificationFetchWorker.kt:20-23`; `PushCoordinator.kt:12-22` | רשימת קטגוריות מקודדת (קטגוריה חדשה נזרקת); `mode:"resolved"` לא מטופל; ב-401 הרישום לא מבוטל; `enable()` ללא Firebase בבילד לא-debug מסמן `push_enabled=true` ולא עושה כלום; `updatedToken` משאיר רישום יתום בממסר | לקרוא קטגוריות מ-`GET notifications/categories` (לא רשימה קשיחה); לטפל ב-`resolved` לפי סעיף 7.2 בחוזה; ב-401 לבטל את הרישום; לא להציג "מופעל" כש-FCM לא זמין | בדיקות יחידה לכל תת-פריט |
+| AND-17 (C5) | Low | `SensorCoordinator.kt:53-54,83-86,102-114`, `PresenceUi.kt` | פענוח Keystore לכל שידור סוללה; `refreshConfigs` (config+status+categories+PATCH) וגם `PresenceUi.check` (5 קריאות) כל דקה; `app_state` "background" נבלע ב-throttle של 300 שניות | מטמון בזיכרון של `active`; איחוד שתי הלולאות לקריאה אחת; לשלוח `app_state` background תמיד | בדיקת יחידה: מספר קריאות רשת לדקה בחזית פחת |
+| AND-18 (C6) | Low | `AndroidManifest.xml:3-4`, `README.md`, `WebActivity.kt:225` | הערות ישנות "no Google Play services / no Firebase" (שקר היום); `BLUETOOTH_CONNECT` מתבקשת למרות שיש רק סריקה; ה-APK חתום debug עם `ALLOW_DEV_HTTP=true` וניפוי WebView | לעדכן הערות; להסיר `BLUETOOTH_CONNECT` אם לא נדרשת; להוסיף בדיקת בילד שמונעת הפצת בילד debug (לא להפיץ APK זה) | grep על ההערות; בדיקת manifest |
+| AND-19 (A4, W-1/W-8) **[משותף SH-7; חוזה v2 סעיפים 0.1, 1, 2, 7.2]** | High | `PushCoordinator.kt:47-67`, `PushDelivery.kt:21`, `PushSettings.kt:17`, `ServerStore.kt`, `PresenceStore.kt` | `server_id` לא נקשר לשרת ו-`relay_url` לא נקרא: אף push אמיתי לא מוצג כטקסט | לשמור לכל שרת: origin + `server_id` + טוקן מכשיר, מהתשובה של `POST presence/devices` (ושל `GET presence/config` ושל `POST/PATCH notifications/devices`, אותו ערך). `server` ב-payload של ה-push (FCM data) נפתר לרשומה השמורה בלבד; אין התאמה - להפיל את ה-push, לעולם לא לנחש ולא ליפול ל"שרת היחיד". אם אותו origin עונה אחר כך ב-`server_id` שונה - הרישום ישן (התקנה שוחזרה): לרשום מחדש. `server_id` ששמור כבר ל-origin אחד לעולם אינו נקשר ל-origin אחר (origin שני שמצהיר עליו - נדחה, מוצג למשתמש). לקרוא `relay_url` מהשרת (עדיף על ברירת המחדל שבבילד; `null` = ברירת המחדל), לפי שרת. לפני הרישום בממסר: `POST <relay_url>/v1/register`, ואז לרשום את `relay_token` בכל שרת | בדיקת יחידה: push עם `server` שמתאים לרשומה מביא טקסט מה-origin הנכון עם הטוקן הנכון; `server` לא מוכר נזרק; שני שרתים עם אותו `server_id` - השני נדחה; `relay_url=null` משתמש בברירת המחדל; mock מתוקן (AM-1) מחזיר `server_id`/`relay_url` לפי החוזה |
+| AM-1 | בדיקות | `tools/mock_arx_server.py`, `PresenceApiTest` | ה-mock הוא עותק של פיקסצ'ר iOS: אינו מחזיר את `server_id` / `relay_url` לפי חוזה v2 בכל הנתיבים, אינו אוכף CSRF/Origin, אינו אוכף `presence_required`, אין rate limits, ושער חשוף | להתאים ל-shape של חוזה v2: `server_id` ו-`relay_url` (ב-`POST presence/devices`, `GET presence/config`, `POST/PATCH notifications/devices`); שער `{gate, sensors}`; CSRF בלי Origin -> 403 `csrf_refused` עם `details.reason`; `push.registered`; `POST notifications/devices` אידמפוטנטי; להוסיף בדיקות שכושלות על הבאג הישן. בדיקות ה-PATCH/DELETE מריצות מול `HttpURLConnection` אמיתי (במכשיר/instrumentation), לא ב-JVM שאינו תומך ב-PATCH | הבדיקות החדשות נכשלות על הקוד הישן ועוברות על התיקון |
+
+הערה לגבי פריט AND-14 בבדיקות האימות: Android משתמש ב-`GET /presence/gate` ובסטטוס כפי שמופיע בסעיף 5 בחוזה. מאחר שהשרת האמיתי מחזיר `{gate, sensors}` יש לוודא שפענוח השער ב-Android מתאים לצורה הזו (הסקירה לא סימנה פגם ב-Android, רק ב-iOS), ולהוסיף בדיקה מול ה-shape האמיתי.
+
+## 3. iOS
+
+נתיבים יחסיים ל-`ios-shell/`. סדר = סדר עדיפות.
+
+| id | חומרה | קובץ:שורה | מה לא תקין | שינוי מבוקש | בדיקת קבלה |
+|---|---|---|---|---|---|
+| IOS-1 (C-3) **[משותף SH-1; חוזה v2 סעיף 0]** | High | `Presence/PresenceTransport.swift:163-186`; `PresenceStore.swift:165` | בקשות עם עוגיית סשן בלי `Origin` - רישום ראשון בערוץ המרוחק מקבל `403 csrf_refused` והאפליקציה מציגה `device_register_failed` גנרי | לשלוח `Origin: <scheme>://<host[:port]>` (בלי path, בדיוק כפי ששמור) בבקשות session-credential שאינן בטוחות; חובה לפי החוזה v2. לקרוא את `details.reason` של `403 csrf_refused` (`missing_origin` / `origin_mismatch` / `cross_site`) ולהציג הודעה לפי הסיבה במקום `device_register_failed` גנרי; לא לשלוח עוגיה וטוקן יחד | בדיקת יחידה על בניית הבקשה; mock מתוקן (IM-1) דוחה בלי Origin; NOT_RUN מול שרת אמיתי |
+| IOS-2 (C-1) **[משותף SH-2]** | High | `PresenceStore.swift:39,374-381,472-479,480-497`, init `:62-75` | `authorization` מתחיל `not_determined` ומתעדכן רק אחרי שנוצר `CLLocationManager`, שנוצר רק כשחיישן כשיר, והכשירות דורשת `authorization` - מעגל. אחרי kill/אתחול מיקום לא חוזר ו-`status.location_auth="not_determined"` חוסם את המשתמש בשער | ליצור את ה-manager ולקרוא `updateAuthorization` ב-`PresenceStore.init` (וגם כשהאפליקציה הופעלה מ-`.location`) לפני ה-`reconcile` הראשון | בדיקת יחידה עם manager מדומה: אחרי init מצב ההרשאה נקרא בלי מסך הרשאה; NOT_RUN: relaunch אמיתי ב-iOS |
+| IOS-3 (C-2) **[משותף SH-2]** | High | `PresenceStore.swift:211-218,655-661,472-479,496` | כשל בקשת config יחידה (timeout / 5xx / 429) מוחק את ה-config, ו-`reconcile` עוצר מיקום, significant-change וניטור אזורים; תור 200 האירועים / 24 שעות לא נגיש כי `enqueue` דורש כשירות | לשמור את ה-config האחרון הטוב בשגיאות תעבורה; לנקות רק על 401 / `presence_disabled`; `flush` לא תלוי ברענון config טרי | בדיקת יחידה: timeout על config לא עוצר איסוף; אירוע נכנס לתור במצב לא מקוון |
+| IOS-4 (C-4) **[חוזה v2 סעיף 5]** | High | `PresenceStore.swift:246-254`, `Presence/PresenceTransport.swift:55-63` | `GET presence/gate` מפוענח כאובייקט חשוף, השרת מחזיר `{gate, sensors}`; הפענוח תמיד נכשל, נבלע, והשער לעולם לא נראה - משתמש חסום (`presence_required` 403) בלי שום מסך; `gate:null` לא מיוצג | לפענח `{gate: PresenceGate?, sensors}` (כך מוגדר עכשיו בחוזה v2) או לקרוא `/me` -> `presence_gate`; כשל פענוח = מצב שגיאה גלוי, לא בליעה | בדיקת יחידה על התשובה האמיתית (כולל `gate:null`); mock מתוקן |
+| IOS-5 (C-5) | Medium | `PresenceStore.swift:667,105-111` | סטטוס נשלח רק עם אירועים/שינויים; השרת מפקיע אותו אחרי 48 שעות (`max_stale_hours`) - משתמש יציב בסוף שבוע נחסם | לשלוח status-only heartbeat בהפעלה ולפחות כל כמה שעות בזמן שיתוף פעיל (ערך נבחר בהתאם ל-max_stale_hours; לא להמציא טענה בחוזה) | בדיקת יחידה על מתזמן ה-heartbeat |
+| IOS-6 (C-6) | Medium | `PresenceStore.swift:391-393,670` | `status.sensors[x]="on"` משמעותו "המשתמש בחר", לא "מדווח": חיישן פעילות שנבחר ואז הרשאת Motion נדחתה מדווח `on` והשרת סופר אותו כמספק - עקיפת שער | לדווח `on` רק כש-`isSensorEligible` נכון (הרשאה, זמינות, מותר, notice אושר); אחרת `off` (כפי שסוכם: חיישן לא זמין לא נשלח כ-on) | בדיקת יחידה: Motion נדחה -> `activity: off` |
+| IOS-7 (C-8) | Medium | `PresenceStore.swift:255-268` | "יציאה" במסך חיישנים נדרשים לא מנקה סשן לדומיין-משנה (`displayName` הוא הדומיין הרשום, לא `arx.example.com`) ואין קריאת logout | להתאים `host.hasSuffix(record.displayName)` או למחוק את עוגיית Arx בשם/דומיין מה-cookie store; לקרוא ל-logout בשרת | בדיקה: אחרי יציאה העוגיה נעלמת לדומיין-משנה; NOT_RUN באמולציה של סשן אמיתי |
+| IOS-8 (C-12) **[משותף SH-6]** | Medium | `Web/WebScreen.swift:198`, `PresenceStore.swift:126-138` | זהות המשתמש נלקחת מהדף (`signedIn`) ולא מ-`/me`; אי-התאמה נותנת רשומה מקומית עם תווית שגויה והחלטת החלפה/רישום שגויה | אחרי `signedIn` לאמת `GET /me` -> `user.id` לפני רישום/החלפה; להשתמש רק ב-`user.id` | בדיקת יחידה: user.id מהדף שונה מ-`/me` - נקבע לפי `/me` |
+| IOS-9 (C-9) | Medium | `SmplWiseArx/Release.entitlements` | חסר `com.apple.developer.usernotifications.time-sensitive`; הממסר שולח `interruption-level: time-sensitive` ל-`priority: high` (critical ו-escalation) - התראות בטיחות נבלמות ע"י Focus/DND | להוסיף את ה-entitlement ל-Release (ול-NSE אם נדרש). Critical Alerts דורשים entitlement נפרד של Apple ואינם בחוזה - לא להוסיף. ייתכן BLOCKED אם חשבון המפתח של הבעלים לא הפעיל את ה-capability - לדווח | בדיקת קובץ entitlements ובילד חתום; NOT_RUN: התראה בזמן DND על מכשיר |
+| IOS-10 (C-10) | Medium | `Presence/PushCoordinator.swift:149-153` | בהצגה בחזית מוצג banner/צליל רק עבור השרת הנוכחי, אחרת `[]` - התראה לשרת B נעלמת בזמן שהמשתמש בשרת A | להציג את ההתראה (טקסט גנרי עד שטקסט אמיתי נשלף) גם לשרת שאינו הנוכחי (ה-`server` של ה-push נפתר לפי IOS-18); מסך נוכח בלבד - לפי הנוסח שבמסמך המסירה | בדיקת יחידה על ה-delegate |
+| IOS-11 (C-11) **[משותף SH-3/SH-5]** | Medium | `PresenceTransport.swift:192`, `PresenceStore.swift:175,679` | רק מספר ה-HTTP נקרא; מעטפת `{code, details}` מתעלמת: `device_name_taken` בלי `suggestion`; `notice_version_stale / notice_ack_required / presence_disabled / sensor_not_allowed / invalid_event` משאירים את האצווה בתור וחוזרים עליה בכל flush (והסטטוס של האצווה אובד); `429` בלי back-off | לקרוא את `code` ו-`details`; להסיר/לבודד את האירוע הפסול (`details.client_event_id`); `notice_*` - להפעיל את זרימת ההסכמה; `429` - back-off; להציג `details.suggestion` | בדיקות יחידה לכל קוד |
+| IOS-12 (G-2a) **[משותף SH-4; חוזה v2 סעיפים 7.2, 8]** | High | `SmplWiseArxApp.swift:37`, `PushCoordinator.swift:78-82,171-206` | רישום מחדש מול הממסר ומול כל שרת בכל הפעלה, וכשל ב-server אחד רק קובע `error`, בלי retry: אחרי רישום ממסר חדש הטוקן הישן נמחק, ושרת שלא נגיש בהפעלה נשאר עם טוקן ישן -> `404 relay_token_unknown` והשרת זורק את הרישום | retry per server עם back-off; התאמה מול `GET presence/devices/me` -> `push.registered`; לא להפעיל רישום ממסר מחדש בלי צורך (רק כשטוקן ה-APNs השתנה או `push.registered` שקרי). חלק הממסר נעשה בחוזה v2: `POST /v1/register` אידמפוטנטי (אותו push token = אותו relay token), חזרה על קריאה אינה נספרת במגבלת 60 לשעה, `503 relay_unconfigured` = לנסות מאוחר יותר; `POST notifications/devices` אידמפוטנטי ובטוח לחזרה. | בדיקת יחידה: כשל שרת אחד לא מאבד רישום; ממסר נקרא פעם אחת לכל שינוי טוקן |
+| IOS-13 (C-13) | Low | `Presence/SensorCollector.swift` | `sensors.intervals_s` מהשרת מפוענח ומתעלמים ממנו; מחזורים קשיחים (סוללה 900, צעדים 300, app_state 300, גובה 300) | להשתמש ב-`intervals_s` של ה-config (טווח 30-86400 בצד השרת) עם ברירות מחדל כשחסר | בדיקת יחידה |
+| IOS-14 (C-14) | Low | `PresenceStore.swift:483` | `pausesLocationUpdatesAutomatically = true` במצב רציף: iOS עלול להשהות ולחדש רק בתנועה משמעותית | לשקול `false` כשאחד החיישנים הנדרשים הוא מיקום רציף, ולתעד; NOT_RUN עד בדיקה על מכשיר | NOT_RUN במכשיר |
+| IOS-15 (C-15) | Low | `PresenceStore.swift:655-680` | כל `flush` = config GET, gate GET, events POST, gate GET (עד 4 בקשות עם timeouts של 6 שניות ו-`beginBackgroundTask(expirationHandler:nil)`) - חלון רקע וסוללה | לצמצם: לא להתניית flush ב-config; gate רק כשצריך; `expirationHandler` תקין שמסיים את המשימה | בדיקת יחידה: מספר בקשות ל-flush |
+| IOS-16 (C-16) | Low | `Info.plist:75-79`, `PresenceStore.swift:164` | `remote-notification` ב-UIBackgroundModes בלי טיפול ב-silent push (שאלת App Review); `model: UIDevice.current.model` מדווח "iPhone" ולא מזהה כמו `iPhone15,3` שבדוגמת החוזה | להסיר את `remote-notification` אם אין שימוש; לשלוח את מזהה המכשיר לפי הדוגמה בחוזה (בלי לחשוף מידע לא נחוץ) | בדיקת plist; בדיקת יחידה על שדה model |
+| IOS-17 (C-17) | Low | `NotificationService.swift:33-35,92-100`; `PresenceTransport.swift:110-158` | `finish` יכול להיקרא מה-expiry ומה-fetch במקביל עם `contentHandler` לא מסונכרן; פריטי Keychain `<uuid>.token` יתומים אחרי התקנה מחדש כי מפתחות ה-UUID נוצרים מחדש | לסנכרן קריאה ל-`finish` (פעם אחת); לנקות פריטים יתומים בהפעלה ראשונה אחרי התקנה | בדיקת יחידה על הסנכרון |
+| IOS-18 (G-1, W-1/W-8) **[משותף SH-7; חוזה v2 סעיפים 0.1, 1, 2, 7.2]** | High | `PresenceStore.swift:190-193`, `Presence/PushCoordinator.swift:20-39`, `NotificationServiceExtension/NotificationService.swift:37,70-72` | טבלת הניתוב נבנית רק מ-`config.server_id` שבפועל לא הגיע; ה-NSE לא יכול להביא טקסט ו-tap לא עושה כלום | לשמור לכל שרת: origin + `server_id` + טוקן מכשיר מהתשובות של `POST presence/devices` / `GET presence/config` / `POST/PATCH notifications/devices` (אותו ערך). ה-`server` של ה-push (גם `thread-id`) נפתר לרשומה השמורה בלבד; אין התאמה - להפיל, לעולם לא לנחש. `server_id` שונה מאותו origin - רישום ישן, לרשום מחדש; `server_id` שכבר שמור ל-origin אחר - נדחה ומוצג. לקרוא `relay_url` מהשרת (עדיף על ה-build, `null` = ברירת המחדל), לפי שרת. ה-NSE קורא את אותה טבלה (keychain group משותף) | בדיקת יחידה: ניתוב לפי `server`; לא מוכר נזרק; כפילות `server_id` נדחית; `relay_url` לפי שרת; mock מתוקן |
+| IM-1 | בדיקות | `tools/mock_arx_server.py`, בדיקות Swift | ה-mock מחזיר `server_id` רק בחלק מהנתיבים (חוזה v2: גם ב-`POST presence/devices` וב-`notifications/devices`, ועם `relay_url`), שער חשוף, בלי בדיקת CSRF/Origin, ובדיקות Swift נבנו (`build-for-testing`) ולא הורצו; בדיקות Python בודקות את ה-mock ולא את השרת | להתאים את ה-mock לצורות של חוזה v2 (כמו AM-1); להריץ את בדיקות ה-Swift ולדווח; להוסיף בדיקות שנכשלות על הבאגים (C-1, C-2, C-3, C-4). בדיקת Debug: להגדיר `aps-environment`, app group, keychain group ב-Debug.entitlements ו-NSE, ו-`ArxKeychainAccessGroup` ב-`Info-Debug.plist` - אחרת התקנת Debug לא מוכיחה push | הבדיקות החדשות נכשלות על הקוד הישן; דוח הרצה אמיתי |
+
+## 4. ממתין לבעלים / ל-Arx (אין ליישם עדיין)
+
+**עברו לטבלאות הפעילות (חוזה v2, אושרו ע"י הבעלים 2026-10-06):** W-1 (`server_id`: AND-19, IOS-18), W-2 (אידמפוטנטיות הממסר: AND-7, IOS-12), W-3 (`Origin`: AND-1, IOS-1), W-9 (צורת השער: IOS-4), W-10 (השתקת critical: AND-5), וחלק ה-`relay_url` של W-8 (השרת מחזיר אותו; האפליקציה מעדיפה אותו על ברירת המחדל שבבילד).
+
+הפריטים שנשארים: PENDING DECISION. אין לנחש, אין להמציא שדה.
+
+| id | נושא | מקור בדוחות | מה כבר ידוע / מה נעשה בינתיים |
+|---|---|---|---|
+| W-4 | מי מתאים Wi-Fi/beacon (הטלפון מול `ssid_hashes`, או השרת), אלגוריתם ה-hash ואירועי "יציאה" | B8, C-7, G3, G-3 | עד ההחלטה: לא לשנות את ההתנהגות הנוכחית לאירועי Wi-Fi לפי אתר (Android: אירוע + POST לכל אתר; iOS: ביטול כפילויות שחוסם חזרה). האלגוריתם `sha256_hex(salt + ssid)` הוא כיוון בלבד וייכתב בחוזה אחרי אימות. |
+| W-5 | צורת `value` לכל חיישן (G1) | G1 | השרת שומר כל אובייקט שטוח תקף. אין להוסיף מפתחות מעבר למוסכם; ליצור הצעת שינוי במקום להמציא. |
+| W-6 | חיישן נדרש שהחומרה לא מספקת / לא מותר (אין ערך "זמין"; הכפתור מת / "יציאה" בלבד) | G-4, C2 | החלטה בצד המדיניות. בינתיים: רק להבהיר מצב למשתמש בלי להמציא נוסח (החלק ב-AND-14). |
+| W-7 | מנהל שמפעיל נוכחות עם notice ריק: האפליקציה לא מציגה מסך והשרת חוסם | G-6 | שרת/חוזה: ולידציה בהגדרות או נוסח ברירת מחדל. אין לשנות את `consentReady` באפליקציה עד החלטה. |
+| W-8 (חלק) | כתובת ה-HTTPS בפועל של הממסר (פריסת Cloudflare ו-Firebase) | CONTRACT_GAPS 2, תשובה קודמת | ממתין לבעלים. עד אז הכול mock; `relay_url` מהשרת יהיה `null` בלי הגדרה, והאפליקציה משתמשת בברירת המחדל שבבילד. |
+| W-11 | הצהרות פרטיות/משפט: `PrivacyInfo.xcprivacy`, מחרוזות usage ב-Info.plist, גילוי רקע/מיקום ב-Play | N-8, N6 | החלטת בעלים/משפטית. אין לכתוב נוסח. |
+
+## 5. פריטים של צד השרת של Arx (לא של Codex)
+
+אלה לא נוגעים בקוד שלכם ואין לבצע אותם. הסטטוס נכון לענף `pilot/mobile-contract-v2` (נבדק בבדיקות backend על הרץ ובבדיקות ה-Worker; לא נבדק מול מכשיר או ממסר חי).
+
+| id | נושא | סטטוס |
+|---|---|---|
+| S-1 | להחזיר `server_id` ו-`relay_url` בתשובות | DONE: `POST presence/devices`, `GET presence/config`, `POST/PATCH notifications/devices`; ה-`server` שהממסר שולח הוא אותו `server_id` |
+| S-2 | הממסר: רישום אידמפוטנטי; מגבלת 60 לשעה לכתובת | DONE: אסימון יציב (דורש `RELAY_TOKEN_SECRET`, אחרת `503 relay_unconfigured`), חזרה על push token מוכר חינמית ואינה כותבת ל-KV; `server_id` שייך למפתח השרת הראשון שמצהיר עליו (`403 server_id_claimed` לאחר) |
+| S-3 | חוזה: `Origin`, צורת השער, critical | DONE: `Origin` ופירוט `details.reason`, `{gate, sensors}`, סמנטיקת critical, אידמפוטנטיות. נשארו: צורות `value` (W-5), אלגוריתם hash ומי מתאים Wi-Fi (W-4) - החלטות |
+| S-4 | frontend: `ArxApp.signedIn / signedOut / deviceStatus` | NOT DONE: עבודת frontend/גשר, מחוץ לטווח הסבב הזה; דורשת משימה נפרדת |
+| S-5 | `enabled:true` עם `notice_text` ריק | NOT DONE: דורש החלטה (ולידציה או נוסח ברירת מחדל; W-7) |
+| S-6 | ולידציית אתרים (id, רדיוס מינימלי) | NOT DONE: דורש החלטה על המגבלות |
+| S-7 | `status.sensors` ללא ערך זמינות | NOT DONE: החלטת מדיניות (W-6) |
+| S-8 | `PATCH`/`DELETE`, rate limits ו-`presence_required` בסביבת בדיקה | NOT DONE: `services/push-relay/fake_relay.py` תואם עכשיו לאידמפוטנטיות; שאר ה-mock של Arx דורש משימה נפרדת |
+| S-9 | מכשיר/שרת מעבדה ובדיקת ערוץ מרוחק אמיתי | NOT DONE: דורש אישור הבעלים ומכשיר |
+
+## 6. רשימת אימות סופית ובדיקות פיזיות פתוחות
+
+### 6.1 רשימת אימות (לפני דיווח "BUILT")
+1. כל פריט בסעיפים 2 ו-3 מדווח BUILT / NOT_RUN / BLOCKED, בלי ניסוח כללי.
+2. ה-mock של כל אפליקציה זהה בצורות של חוזה v2 (`server_id` ו-`relay_url`, שער `{gate, sensors}`, CSRF בלי Origin = 403, `push.registered`); הבדיקות החדשות נכשלות על הקוד הישן.
+3. Android: `assembleDebug`, בדיקות היחידה והבדיקות המכשיריות רצות והתוצאות מצורפות; `assembleRelease` נבנה (R8) ונבדק smoke; 42 אזהרות Lint - להציג רשימה ולהתמקד בחדשות.
+4. iOS: `build-for-testing` ובנוסף **הרצה** של כל בדיקות ה-Swift; Release חתום עם `aps-environment`, `time-sensitive` ו-keychain group משותף עם ה-NSE.
+5. בדיקת קוד: אין לוגים, אין טוקנים/קואורדינטות בלוגים, אין סודות בריפו, אין כתובות מעבדה או מזהי מכשיר.
+6. לא שונה קוד Arx. אין שינוי חוזה אצלכם - רק הצעות כתובות (החוזה v2 הוא של Arx).
+7. בדיקת רגרסיה לאבטחה: הטקסט של ה-push נשאר גנרי ונשלף רק עם טוקן המכשיר מהשרת השמור; deep link נבנה רק מול שרתים שמורים; הטוקן לעולם לא נשלח לשרת אחר.
+
+### 6.2 בדיקות פיזיות שעדיין פתוחות (NOT_RUN; אמולטור אינו הוכחה)
+Android:
+1. מיקום ברקע, גדרות (30-100 מ'), מעברי פעילות, FGS נהרג/מופעל מחדש, ניהול סוללה של יצרנים.
+2. FCM אמיתי: מסירה, רוטציית טוקן, התנהגות Doze; עבודה מהירה רק ב-API 31 ומעלה, בגרסאות 26-30 ייתכנו עיכובים של דקות.
+3. SSID (הצנזור לפי יצרן/API), beacon (`ScanFilter` על 18 בתים), ברומטר וצעדים, ובדיקת `Geofence.toString()` כטביעת אצבע.
+4. הגבלות הפעלת foreground service ב-Android 14/15 (target 35); גילוי מיקום ברקע ב-Play (לא הוגש).
+5. קריאת `/me` עם עוגיית `__Secure-arx_session` בערוץ המרוחק; PATCH/DELETE על `HttpURLConnection` אמיתי.
+iOS:
+1. מיקום ברקע: השהיה, relaunch דרך significant-change/regions, חיווי מיקום, force-quit, Low Power Mode, `when_in_use` בלבד.
+2. APNs מקצה לקצה עם NSE (`mutable-content`) בבילד חתום דמוי-Release (Debug אינו מוכיח push); זמן-רגיש מול Focus/DND.
+3. SSID: דורש אישור Wi-Fi Information של Apple ואימות מיקום; `NEHotspotNetwork.fetchCurrent` מחזיר nil בלעדיהם.
+4. Core Motion (פעילות, צעדים, גובה) ברקע; האם `Timer` של 30 שניות רץ אחרי השהיה.
+5. beacon (ranging, תקציב 20 אזורים משותף למעגלים ול-beacons); גישה משותפת ל-Keychain עם ה-NSE על מכשיר חתום.
+6. כל הבדיקות מחייבות מכשיר ושרת אמיתיים ויבוצעו אחרי שהממסר מוכן ובאישור הבעלים.

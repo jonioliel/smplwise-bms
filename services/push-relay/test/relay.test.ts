@@ -106,12 +106,23 @@ describe('register / unregister (contract section 8)', () => {
     const other = ((await (await call('POST', '/v1/register', { platform: 'ios', push_token: 'b'.repeat(64), app_version: '1', bundle_id: 'com.smplwise.arx.app' })).json()) as any).relay_token;
     expect(other).not.toBe(a);
   });
-  it('without RELAY_TOKEN_SECRET a fresh token is issued and the previous one stops working', async () => {
+  it('without RELAY_TOKEN_SECRET register is refused (503), never a rotating token', async () => {
     delete env.RELAY_TOKEN_SECRET;
+    const res = await reg();
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as any).code).toBe('relay_unconfigured');
+    expect([...kv.store.keys()].filter((k) => k.startsWith('reg:'))).toHaveLength(0);
+  });
+  it('a lost response is harmless: the repeat gets the same token and the push token keeps working', async () => {
+    const a = await token('android');
+    expect(await token('android')).toBe(a);
+    expect(await token('android')).toBe(a);
+    expect((await push(a)).status).toBe(200);
+  });
+  it('a rotated push token gets a new relay token; the old one is dropped by the 410 of the platform', async () => {
     const a = await token();
-    const b = await token();
+    const b = ((await (await call('POST', '/v1/register', { platform: 'ios', push_token: 'c'.repeat(64), app_version: '1', bundle_id: 'com.smplwise.arx.app' })).json()) as any).relay_token;
     expect(b).not.toBe(a);
-    expect((await push(a)).status).toBe(404);
     expect((await push(b)).status).toBe(200);
   });
   it('stores only hashes of relay tokens, never the token itself', async () => {
@@ -135,9 +146,11 @@ describe('register / unregister (contract section 8)', () => {
   it('rejects bodies over 2 KiB', async () => {
     expect((await reg('ios', { app_version: 'x'.repeat(3000) })).status).toBe(400);
   });
-  it('limits registrations to 60 per hour per address', async () => {
-    for (let i = 0; i < 60; i++) expect((await reg()).status).toBe(200);
-    expect((await reg()).status).toBe(429);
+  it('limits NEW registrations to 60 per hour per address; a repeat of a known push token is free', async () => {
+    const fresh = (i: number) => call('POST', '/v1/register', { platform: 'ios', push_token: i.toString(16).padStart(64, '0'), app_version: '1', bundle_id: 'com.smplwise.arx.app' });
+    for (let i = 0; i < 60; i++) expect((await fresh(i)).status).toBe(200);
+    expect((await fresh(60)).status).toBe(429);
+    for (let i = 0; i < 5; i++) expect((await fresh(0)).status).toBe(200);
   });
   it('DELETE answers 204 and the token then is unknown', async () => {
     const relay_token = await token();
@@ -196,6 +209,15 @@ describe('push (server to relay)', () => {
     expect(calls.at(-1)!.url).toContain('api.sandbox.push.apple.com');
     expect(JSON.parse(calls.at(-1)!.init.body as string).aps['interruption-level']).toBeUndefined();
     expect((calls.at(-1)!.init.headers as any)['apns-priority']).toBe('5');
+  });
+  it('a server id belongs to the first key that names it; another key naming it is refused (403 server_id_claimed)', async () => {
+    const relay_token = await token();
+    expect((await push(relay_token)).status).toBe(200);
+    expect((await push(relay_token, { notification_id: 'msg_0002' })).status).toBe(200);
+    const res = await push(relay_token, { notification_id: 'msg_0003' }, OTHER_SECRET);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as any).code).toBe('server_id_claimed');
+    expect((await push(relay_token, { server: 'srv_other00000000000' }, OTHER_SECRET)).status).toBe(200);
   });
   it('falls back to the server key id when the body names no valid server', async () => {
     const relay_token = await token();

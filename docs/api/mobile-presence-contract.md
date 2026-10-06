@@ -1,4 +1,4 @@
-# SmplWise Arx — mobile presence and push contract (v1, CR-027)
+# SmplWise Arx — mobile presence and push contract (v2, CR-027)
 
 The server contract the SmplWise Arx phone apps (iOS first, Android later; same shape) are built against. It is the
 implemented truth of `smplwise_vms/backend/smplwise/routers/presence.py` and `routers/mobile_notifications.py`; where
@@ -6,6 +6,13 @@ it differs from the drafts in `mobile/ios-shell/HANDOFF_IOS_CODEX.md` section 6 
 `HANDOFF_IOS_ADDENDUM_SENSORS_PUSH.md` sections A.4 / B.4, **this file wins** (the differences are listed in
 `docs/changes/CR-027-MOBILE-PRESENCE-PUSH.md` section 9). Codex extends the local mock (`mobile/ios-shell/tools/`) to
 this shape; the mock never points at the lab.
+
+Changelog: **v2 (2026-10-06, owner-approved)** - one app serves many Arx servers: the registration also returns `relay_url`
+(section 1); every state-changing request that carries the session cookie must send `Origin`, and the refusal is
+machine-readable (section 0); `GET presence/gate` answers `{gate, sensors}` (section 5); relay registration is idempotent
+per push token and one relay token is one phone per server (sections 7.2, 8); a server id is owned by the first relay key
+that names it, and the app never re-binds a stored `server_id` to another origin (sections 0.1, 8); critical categories
+cannot be muted (section 7.3). v1 was the first implemented text.
 
 ## 0. Conventions
 
@@ -18,6 +25,14 @@ this shape; the mock never points at the lab.
     registration, kept in the Keychain, stored by the server as a SHA-256 hash. Sent on its own, never together with a
     session cookie. `401 device_token_invalid` on any route means the registration is gone: forget it and show the
     registration screen again. Twenty unknown tokens a minute from the same client → `429 rate_limited`.
+- **`Origin` is required** on every state-changing request (POST / PATCH / DELETE) that carries the session cookie (a
+  device-token call carries none, so it is exempt): `Origin: <scheme>://<host[:port]>` of the server the request goes to,
+  no path, exactly as the app has it stored (the app's own HTTP calls send it too; a web view sends it by itself). The
+  server's rule is unchanged (`Sec-Fetch-Site: same-origin`, or an `Origin` equal to the request's scheme + host; neither
+  → refused). The refusal is `403 csrf_refused` (on the system update routes `403 cross_site_refused`) with a stable code and
+  `details = { "reason": "missing_origin" | "origin_mismatch" | "cross_site", "required": { "header": "Origin", "value": "…",
+  "alternative": "Sec-Fetch-Site: same-origin" } }`; `retryable: false`. The app shows the message for the `reason` and
+  does not retry the same request unchanged.
 - Request bodies of a device-token call are capped at **64 KiB** (the remote channel's anonymous tier); a batch holds at
   most 50 events.
 - The user agent of the web view **and** of the app's own HTTP calls carries `SmplWiseArx/<version> (iOS app)` /
@@ -33,7 +48,9 @@ this shape; the mock never points at the lab.
   (section 7.3). **The app stores `server_id` together with the origin and device token it registered with** (one record
   per Arx server). A push whose `server` matches no stored record is dropped: never guess an origin, never fall back to
   "the only server". If the same origin later answers with a different `server_id` (a restored or replaced
-  installation), the stored registration is stale: re-register.
+  installation), the stored registration is stale: re-register. A `server_id` that is already stored for one origin is **never
+re-bound to another origin**: a second origin answering with an id the app already holds is refused (the app tells the
+user and does not store it), so a push is always attributable to exactly one stored server.
 
 ### 0.2 PROPOSED AMENDMENT - pending owner approval (security review 2.2.0, H1); not normative until approved
 
@@ -77,8 +94,11 @@ generated once per install per server. `platform`: `ios | android`.
 Response `201` (new) or `200` (the same `install_id` again: the token is **rotated**, the old one stops working):
 
 ```json
-{ "device_id": "dev_…", "device_token": "arxd_…", "name": "הנייד של יוסי", "registered_at": "2026-10-05T10:00:00Z", "created": true, "server_id": "srv_0a1b2c3d4e5f6071" }
+{ "device_id": "dev_…", "device_token": "arxd_…", "name": "הנייד של יוסי", "registered_at": "2026-10-05T10:00:00Z", "created": true, "server_id": "srv_0a1b2c3d4e5f6071", "relay_url": "https://relay.example" }
 ```
+
+`server_id` and `relay_url` are the same values as in `GET presence/config` (section 2; `relay_url` is `null` when no relay is
+configured), so the app can store them with the origin and device token it just registered with.
 
 Errors: `400 invalid_name | invalid_platform | invalid_install_id`, `403 forbidden` (no role at all),
 `409 device_name_taken` (`details.suggestion` = "הנייד של יוסי 2"), `409 too_many_devices`, `429 rate_limited`.
@@ -201,7 +221,9 @@ covered user whose phone does not report the required sensors is refused:
   then reload `/me`.
 - The policy is inert while the master switch is off; administrators are never blocked; the administrator may suspend it
   (break-glass) or exempt users; a browser session is covered only when the administrator says so (`apply_to_web`).
-- `GET presence/gate` (session) answers the same object for the current channel, for the app's own screen.
+- `GET presence/gate` (session) answers `{ "gate": <the object above, or null when the policy applies to nobody>,
+  "sensors": { "<key>": "<Hebrew name>", … } }` for the current channel, for the app's own screen (the object is not
+  returned bare).
 
 ## 6. Manage
 
@@ -242,9 +264,14 @@ extension fetches the real title and body from the originating server with its d
 ### 7.2 Server routes (device token)
 
 - `POST notifications/devices` `{ "platform": "ios", "relay_token": "…", "app_version": "1.0.0" }` → `200 { "device_id", "server_id",
-  "push": {…} }`. Re-sent on every launch when the relay token changed. `400 invalid_relay_token`.
+  "relay_url", "push": {…} }`. Re-sent whenever the relay token changed and whenever `GET presence/devices/me` shows
+  `push.registered: false`. `400 invalid_relay_token`. **Idempotent**: the same device with the same relay token again changes
+  nothing (the mutes stay), so the app may repeat it freely (a lost answer, a retry, every launch); a different relay token
+  replaces the stored one (a rotated push token). One relay token is one phone: when it is registered for another device of
+  this server (another user signed in on the same phone), the older device loses its push registration
+  (`push.registered: false`; re-register it with a token of its own).
 - `PATCH notifications/devices/{device_id}` `{ "muted": ["automations", "system"] }` → `200 { "device_id", "server_id", "push": {…} }`
-  (category ids of 7.3; unknown ids `400 validation`).
+  (category ids of 7.3; unknown ids `422 validation`; a critical category is accepted but never muted, see 7.3).
 - `DELETE notifications/devices/{device_id}` → `204`: push unregistered (the device registration itself stays; use
   `DELETE presence/devices/{id}` to remove the device).
 - `GET notifications/categories` (device token or session) →
@@ -257,9 +284,10 @@ extension fetches the real title and body from the originating server with its d
 
 ### 7.3 Categories and the payload the relay delivers
 
-Categories are CR-018's: `safety` (critical), `alerts`, `doors`, `device_faults`, `automations`, `system`, `security`.
+Categories are CR-018's: `safety` (critical; `GET notifications/categories` marks it `critical: true`), `alerts`, `doors`, `device_faults`, `automations`, `system`, `security`.
 The administrator decides per source whether the `app` channel is on (הגדרות › התראות); the user mutes categories per
-device in the app (`muted`). The generic payload (APNs: `alert {title: "SmplWise Arx", body: "התראה חדשה"}`,
+device in the app (`muted`). **A `critical` category and an escalation step are never muted**: the server sends them
+whatever `muted` holds, and the app never drops a push of a `critical` category (it shows no mute switch for it). The generic payload (APNs: `alert {title: "SmplWise Arx", body: "התראה חדשה"}`,
 `mutable-content: 1`, `thread-id` = the server id the app registered, `interruption-level: time-sensitive` only for
 `priority: "high"`; FCM: a data message with the same fields and `priority: high`) carries
 `{ "notification_id": "<message_id>", "category": "safety", "server": "<server_id>" }` and nothing else. `server` is the
@@ -273,16 +301,22 @@ back to the default baked into the build when it is `null` / absent, so moving t
 option change, not an app update. The app uses the relay of the server it is registering with, per server. All bodies JSON, <= 2 KiB.
 
 - `POST /v1/register` (app) `{ "platform": "ios" | "android", "push_token": "<APNs hex | FCM token>", "app_version": "…",
-  "bundle_id": "com.smplwise.arx.app" }` → `200 { "relay_token": "rt_…" }`. Idempotent per push token (the same relay
-  token comes back). 60 per hour per client address.
+  "bundle_id": "com.smplwise.arx.app" }` → `200 { "relay_token": "rt_…" }`. **Idempotent per push token**: the same
+  push token always gets the same relay token back, however often the app repeats the call (the relay derives it from a
+  secret and stores only its hash, so a lost answer or a restarted app never retires a token the Arx servers already
+  hold); a rotated push token gets a new relay token. A repeat of a known push token does not count against the limit
+  of 60 *new* registrations per hour per client address. `503 relay_unconfigured` when the relay is not set up for stable
+  tokens (retry later; nothing was stored).
 - `DELETE /v1/register` (app) `{ "relay_token": "rt_…" }` → `204`.
 - `POST /v1/push` (server; `Authorization: Bearer <server key>`) `{ "relay_token": "rt_…", "category": "safety",
   "notification_id": "…", "priority": "high" | "normal", "server": "<server id, <= 64 chars>", "collapse": "<optional>" }`
   → `200 { "ok": true }`; `404 relay_token_unknown` (the server drops the device's push registration);
   `410 push_token_gone` (same); `429 rate_limited` (500 pushes per device per day, 60 per minute); `401` for a bad
-  server key; `5xx` → retry with backoff.
+  server key; `403 server_id_claimed` (the `server` id belongs to another server key: a configuration error of the
+  installation, not retryable); `5xx` → retry with backoff.
 - The relay stores only `sha256(relay_token) → {platform, push_token, bundle_id, created_at, counters}` (Workers KV,
-  expires after 180 days without use). No notification text, no server addresses beyond the opaque server id.
+  expires after 180 days without use). No notification text, no server addresses beyond the opaque server id. A server id is owned by the first server key that
+  names it (`sid:<server id>` → key id), so one installation cannot make the phone attribute its pushes to another's id.
 
 ## 9. Strings the app may reuse
 

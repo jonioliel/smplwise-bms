@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 REGS: dict[str, dict] = {}  # sha256(relay_token) -> registration
@@ -63,7 +62,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/v1/register":
             if body.get("platform") not in ("ios", "android") or not body.get("push_token"):
                 return self._json(400, {"code": "invalid_registration"})
-            token = "rt_" + secrets.token_urlsafe(32)[:43]
+            # idempotent per push token like the real relay: the same push token always gets the same relay token
+            token = "rt_" + hashlib.sha256(f"{body['platform']}:{body['push_token']}".encode()).hexdigest()[:43]
             REGS[hashlib.sha256(token.encode()).hexdigest()] = {"platform": body["platform"], "push_token": str(body["push_token"])[-8:], "bundle_id": body.get("bundle_id")}
             return self._json(200, {"relay_token": token})
         if self.path == "/v1/push":

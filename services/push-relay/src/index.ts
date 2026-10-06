@@ -8,7 +8,7 @@
  * phone is a fixed generic title / body plus those ids.
  *
  * Routes:
- *   POST   /v1/register    (app)    {platform, push_token, app_version, bundle_id} -> {relay_token}; idempotent per push token
+ *   POST   /v1/register    (app)    {platform, push_token, app_version, bundle_id} -> {relay_token}; idempotent per push token (needs RELAY_TOKEN_SECRET, else 503)
  *   DELETE /v1/register    (app)    {relay_token} -> 204
  *   POST   /v1/push        (server) Authorization: Bearer <server key>; {relay_token, category, notification_id, priority, server, collapse?}
  *   GET    /v1/health               {ok, apns, fcm}
@@ -19,7 +19,7 @@
  */
 import { sendApns, type ApnsConfig } from './apns';
 import { parseServiceAccount, sendFcm, type FcmConfig } from './fcm';
-import { derivedRelayToken, newRelayToken, sha256Hex, timingSafeEqual } from './crypto';
+import { derivedRelayToken, sha256Hex, timingSafeEqual } from './crypto';
 
 const MAX_BODY = 2048;
 const CATEGORIES = new Set(['safety', 'alerts', 'doors', 'device_faults', 'automations', 'system', 'security']);
@@ -101,7 +101,6 @@ const FCM_TOKEN = /^[A-Za-z0-9_\-:.]{100,400}$/;
 const RELAY_TOKEN = /^rt_[A-Za-z0-9_\-]{43}$/;
 
 async function handleRegister(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  if (await overLimit(env, 'reg', clientKey(request), LIMITS.registerPerHour, 3600, ctx)) return error(429, 'rate_limited');
   const body = await readJson(request);
   if (!body) return error(400, 'bad_request');
   const platform = body.platform;
@@ -110,29 +109,24 @@ async function handleRegister(request: Request, env: Env, ctx: ExecutionContext)
   const allowed = (env.ALLOWED_BUNDLE_IDS ?? DEFAULT_BUNDLES.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
   if ((platform !== 'ios' && platform !== 'android') || !bundle || !allowed.includes(bundle)) return error(400, 'invalid_registration');
   if (platform === 'ios' ? !APNS_TOKEN.test(pushToken) : !FCM_TOKEN.test(pushToken)) return error(400, 'invalid_push_token');
-  const reg: Registration = { platform, push_token: pushToken, bundle_id: bundle, created_at: new Date().toISOString() };
-  // Contract: idempotent per push token (the same relay token comes back). The relay stores only the HASH of a relay token, so
-  // a stable token must be derivable: HMAC(RELAY_TOKEN_SECRET, platform:push_token). Without that secret every call issues a
-  // fresh token and retires the previous one (the app re-sends the new token to each Arx server).
-  if (env.RELAY_TOKEN_SECRET && env.RELAY_TOKEN_SECRET.length >= 16) {
-    const relayToken = await derivedRelayToken(env.RELAY_TOKEN_SECRET, `${platform}:${pushToken}`);
-    const hash = await sha256Hex(relayToken);
-    const existing = await env.RELAY_KV.get<Registration>(`reg:${hash}`, 'json');
-    if (existing) {
-      const age = (Date.now() - Date.parse(existing.last_push_at ?? existing.created_at)) / 1000;
-      if (age > REFRESH_AFTER_S) ctx.waitUntil(env.RELAY_KV.put(`reg:${hash}`, JSON.stringify({ ...existing, bundle_id: bundle }), { expirationTtl: TOKEN_TTL_S }));
-    } else {
-      await env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S });
-    }
+  // Contract section 8: register is idempotent per push token (the same relay token comes back, however often the app repeats the call).
+  // The relay stores only the HASH of a relay token, so a stable token must be derivable: HMAC(RELAY_TOKEN_SECRET, platform:push_token).
+  // Without that secret the relay cannot honour the contract, so it refuses to register (a rotating token would silently retire the
+  // registration at every Arx server) instead of falling back.
+  if (!env.RELAY_TOKEN_SECRET || env.RELAY_TOKEN_SECRET.length < 16) return error(503, 'relay_unconfigured');
+  const relayToken = await derivedRelayToken(env.RELAY_TOKEN_SECRET, `${platform}:${pushToken}`);
+  const hash = await sha256Hex(relayToken);
+  const existing = await env.RELAY_KV.get<Registration>(`reg:${hash}`, 'json');
+  if (existing) {
+    // A repeat is free: it neither counts against the per-address limit (an office behind one NAT re-registers on every launch)
+    // nor rewrites KV, except to refresh the TTL at most once a day.
+    const age = (Date.now() - Date.parse(existing.last_push_at ?? existing.created_at)) / 1000;
+    if (age > REFRESH_AFTER_S) ctx.waitUntil(env.RELAY_KV.put(`reg:${hash}`, JSON.stringify({ ...existing, bundle_id: bundle }), { expirationTtl: TOKEN_TTL_S }));
     return json({ relay_token: relayToken });
   }
-  const byToken = `tok:${await sha256Hex(`${platform}:${pushToken}`)}`;
-  const previous = await env.RELAY_KV.get(byToken);
-  const relayToken = newRelayToken();
-  const hash = await sha256Hex(relayToken);
+  if (await overLimit(env, 'reg', clientKey(request), LIMITS.registerPerHour, 3600, ctx)) return error(429, 'rate_limited');
+  const reg: Registration = { platform, push_token: pushToken, bundle_id: bundle, created_at: new Date().toISOString() };
   await env.RELAY_KV.put(`reg:${hash}`, JSON.stringify(reg), { expirationTtl: TOKEN_TTL_S });
-  await env.RELAY_KV.put(byToken, hash, { expirationTtl: TOKEN_TTL_S });
-  if (previous && previous !== hash) ctx.waitUntil(env.RELAY_KV.delete(`reg:${previous}`));
   return json({ relay_token: relayToken });
 }
 
@@ -144,7 +138,6 @@ async function handleUnregister(request: Request, env: Env): Promise<Response> {
   const reg = await env.RELAY_KV.get<Registration>(`reg:${hash}`, 'json');
   if (reg) {
     await env.RELAY_KV.delete(`reg:${hash}`);
-    await env.RELAY_KV.delete(`tok:${await sha256Hex(`${reg.platform}:${reg.push_token}`)}`);
   }
   return new Response(null, { status: 204 });
 }
@@ -170,6 +163,13 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
   if ((await overLimit(env, 'dev-m', hash, LIMITS.pushPerMinute, 60, ctx)) || (await overLimit(env, 'dev-d', hash, LIMITS.pushPerDay, 86400, ctx))) return error(429, 'rate_limited');
   // the payload's `server` is the installation's own opaque id (contract 0.1: the app finds its origin by it); the key's id is the fallback
   const claimed = typeof body.server === 'string' && /^[A-Za-z0-9_\-]{1,64}$/.test(body.server) ? body.server : server.slice(0, 64);
+  // A server id belongs to the first server key that names it: another key naming the same id is refused, so one customer's installation
+  // cannot make the phone attribute its pushes to another customer's stored server (contract 0.1).
+  if (claimed !== server.slice(0, 64)) {
+    const owner = await env.RELAY_KV.get(`sid:${claimed}`);
+    if (owner === null) await env.RELAY_KV.put(`sid:${claimed}`, server);
+    else if (owner !== server) return error(403, 'server_id_claimed');
+  }
   const message = { notificationId, category, priority, server: claimed, collapse } as const;
   let result: { status: number; reason?: string; retryAfter?: number };
   try {
@@ -194,7 +194,6 @@ async function handlePush(request: Request, env: Env, ctx: ExecutionContext): Pr
   }
   if (result.status === 410) {
     ctx.waitUntil(env.RELAY_KV.delete(`reg:${hash}`));
-    ctx.waitUntil(env.RELAY_KV.delete(`tok:${await sha256Hex(`${reg.platform}:${reg.push_token}`)}`));
     return error(410, 'push_token_gone');
   }
   if (result.status === 429 || result.status >= 500) return error(503, 'upstream_busy', result.retryAfter ? { retry_after_s: result.retryAfter } : {});

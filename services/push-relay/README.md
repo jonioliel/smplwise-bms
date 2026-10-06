@@ -38,22 +38,23 @@ Run the checks: `make test-push-relay` (or `powershell -File scripts/test_push_r
 5. **Server keys**: one key per Arx installation, `<server id>:<secret>` pairs, comma separated. Generate a secret per
    customer (`openssl rand -base64 32`), then `npx wrangler secret put SERVER_KEYS` with e.g.
    `efrat:<secret1>,office2:<secret2>`. The id before the colon is only a label of the key (the push payload carries the
-   installation's own `server_id` that the Arx server sends in the body); keep it short and stable. Use hex secrets
+   installation's own `server_id` that the Arx server sends in the body; the first key that names a `server_id` owns it, and
+   another key naming it is refused with `403 server_id_claimed`); keep it short and stable. Use hex secrets
    (`openssl rand -hex 32`): no commas or colons. Give each installation its own secret: in the add-on options `push_relay_url = https://<worker>.workers.dev`
    (or the custom domain) and `push_relay_key = <its secret>`. Rotating a key = replace the pair and update that one
    add-on.
 6. **Stable relay tokens** (contract: register is idempotent per push token): `npx wrangler secret put RELAY_TOKEN_SECRET`
    with 32+ random characters. The relay token is then `HMAC-SHA256(secret, platform:push_token)`, so the same phone gets
-   the same token back and only a hash is stored. Without it every register issues a fresh token and retires the old one
-   (works, but a re-register invalidates tokens the app already gave to its servers). Rotating this secret re-issues every
-   token (all phones re-register on the next launch).
+   the same token back and only a hash is stored. **Required**: without it `POST /v1/register` answers `503
+   relay_unconfigured` (a rotating token would silently retire the registration at every Arx server). Rotating this secret
+   re-issues every token (all phones re-register on the next launch).
 7. **Deploy**: `npm run deploy`. Check `https://<worker>/v1/health` → `{"ok":true,"apns":true,"fcm":false,"stable_tokens":true,"server_keys":1}`.
    Optional custom domain (e.g. `push.smplwise.com`): Workers → the Worker → Settings → Domains.
 
 ## 2. Operations
 
 - `npm run tail` streams the Worker's logs (no tokens are ever logged).
-- Limits (per `src/index.ts`): registrations 60 / h per address; pushes 60 / min and 500 / day per device, 6 000 / h per
+- Limits (per `src/index.ts`): new registrations 60 / h per address (a repeat of a known push token is free); pushes 60 / min and 500 / day per device, 6 000 / h per
   server; a server that keeps naming unknown relay tokens is slowed down (200 / h). A relay token answered `404` / `410`
   is dropped by the Arx server at once (its device re-registers on the next app launch).
 - The app registers on every launch (idempotent per push token); a token nobody pushed to for 180 days expires.

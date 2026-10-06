@@ -1008,3 +1008,17 @@ def test_the_built_ui_contains_no_secrets():
         text = f.read_text(encoding="utf-8", errors="replace")
         assert not jwt.search(text), f"a JWT-shaped token in {f.name}"
         assert "sk-" + "proj-" not in text and "Bearer ey" not in text, f.name
+
+
+def test_csrf_refusal_is_machine_readable_with_a_stable_code_and_reason(arx_admin):
+    """Contract v2: the apps send an Origin header; when it is missing or wrong the body says exactly what is wanted."""
+    arx = arx_admin
+    r = _rotate_signing_key(arx.client, Origin="")  # no usable Origin (the test client sends one by default), no Sec-Fetch-Site
+    assert r.status_code == 403
+    body = r.json()
+    assert body["code"] == "csrf_refused" and body["retryable"] is False
+    assert body["details"]["reason"] == "missing_origin" and body["details"]["required"]["header"] == "Origin"
+    assert _rotate_signing_key(arx.client, Origin="https://evil.example.com").json()["details"]["reason"] == "origin_mismatch"
+    assert _rotate_signing_key(arx.client, Origin="null").json()["details"]["reason"] == "origin_mismatch"
+    assert _rotate_signing_key(arx.client, **{"Sec-Fetch-Site": "cross-site"}).json()["details"]["reason"] == "cross_site"
+    assert _rotate_signing_key(arx.client, Origin="http://testserver").status_code != 403  # the documented form passes the rule

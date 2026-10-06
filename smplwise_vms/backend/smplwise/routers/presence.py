@@ -186,7 +186,7 @@ def register_device(body: RegisterIn, request: Request, response: Response, call
               details={"platform": device["platform"], "created": created, "app_version": device["app_version"]})
         sid = mobile_push.server_id(conn)
     response.status_code = 201 if created else 200
-    return {"device_id": device["device_id"], "device_token": token, "name": device["name"], "registered_at": device["registered_at"], "created": created, "server_id": sid}
+    return {"device_id": device["device_id"], "device_token": token, "name": device["name"], "registered_at": device["registered_at"], "created": created, "server_id": sid, "relay_url": mobile_push.relay_url()}
 
 
 @router.get("/presence/devices/me")
