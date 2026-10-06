@@ -53,8 +53,18 @@ async function collectDiagnostics(page: Page) {
     .evaluate(() => {
       const attrs = (el: Element | null | undefined) =>
         el ? Object.fromEntries(Array.from(el.attributes).map((x) => [x.name, x.value.slice(0, 120)])) : null;
-      const panel = document.querySelector('devices-building devices-tiles-panel');
-      const drawer = panel?.querySelector('sw-drawer') ?? panel?.shadowRoot?.querySelector('sw-drawer') ?? null;
+      // the panel sits inside shadow roots: search through them
+      const deep = (root: ParentNode, sel: string): Element | null => {
+        const hit = root.querySelector(sel);
+        if (hit) return hit;
+        for (const el of Array.from(root.querySelectorAll('*'))) {
+          const inner = el.shadowRoot ? deep(el.shadowRoot, sel) : null;
+          if (inner) return inner;
+        }
+        return null;
+      };
+      const panel = deep(document, 'devices-tiles-panel');
+      const drawer = panel ? deep(panel.shadowRoot ?? panel, 'sw-drawer') : null;
       const w = window as unknown as { __swDiag?: unknown[] };
       return {
         url: location.href,
