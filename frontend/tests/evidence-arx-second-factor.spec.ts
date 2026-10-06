@@ -72,6 +72,7 @@ test('enrol, sign in with the code, no replay, administrator reset', async ({ br
   await expect(first.page.locator('sw-app')).toBeVisible();
   await first.page.locator('sw-app [data-profile-menu]').click();
   const menu = first.page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
+  await expect(menu).toBeVisible();
   await menu.locator('[data-menu-account]').click();
   await menu.locator('[data-my-second-factor] summary').click();
   const section = menu.locator('[data-my-second-factor] sw-second-factor');
