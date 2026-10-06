@@ -89,6 +89,7 @@ class PtzIn(BaseModel):
 class RevertIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: bool = False
+    supervised: bool = False   # F2b: the first undo of a new kind is a first write of that kind
 
 
 # ---------------------------------------------------------------------------------------------- class policy
@@ -100,7 +101,8 @@ def get_policy(recorder_id: str, request: Request, principal: Principal = Depend
     _may_see(conn, principal)
     pol = svc.policy(conn, recorder_id)
     return {"recorder_id": recorder_id, "classes": [{"class": c, "enabled": pol[c], "per_action": c in svc.PER_ACTION, "permission": svc.PERMISSION[c],
-                                                   "available": c != "ptz" or svc.PTZ_RELEASED} for c in svc.CLASSES],
+                                                   "available": c != "ptz" or svc.PTZ_RELEASED,
+                                                   "confirm_actions": ["delete"] if c in ("exports", "cases") else []} for c in svc.CLASSES],
             "ptz_released": svc.PTZ_RELEASED}
 
 
@@ -236,4 +238,4 @@ def list_changes(recorder_id: str, request: Request, limit: int = Query(50, ge=1
 def revert_change(recorder_id: str, change_id: str, body: RevertIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Undo one logged change (same class, permission and confirmation rules as making it; 409 `frigate_change_stale` when Frigate moved since)."""
     a = _adapter(conn, request, recorder_id)
-    return {"recorder_id": recorder_id, **svc.revert(conn, principal, a, change_id, confirm=body.confirm, request_id=_rq(request))}
+    return {"recorder_id": recorder_id, **svc.revert(conn, principal, a, change_id, confirm=body.confirm, request_id=_rq(request), supervised=body.supervised)}

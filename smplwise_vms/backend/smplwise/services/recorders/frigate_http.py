@@ -36,6 +36,8 @@ VENDOR = "frigate"
 CAM = r"[A-Za-z0-9_.-]{1,64}"
 ID = r"[0-9]{9,11}(?:\.[0-9]+)?-[A-Za-z0-9]{4,10}"
 NUM = r"[0-9]{1,11}(?:\.[0-9]+)?"
+OBJ = r"[A-Za-z0-9_.-]{1,80}"      # F2b: an export id (`<camera>_<6 chars>` in Frigate) or a case id
+LABEL = r"[A-Za-z0-9_-]{1,40}"     # F2b: the label of a manual event
 # The F1 allow-list. Anchored full-path matches; query strings are validated separately (`_check_query`).
 GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     r"/api/version",
@@ -67,11 +69,12 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
 ))
 # F2: reads that exist only to support a write class (a camera's PTZ facts). Not on GET_ALLOWED: the F1 read paths are unchanged, and
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
-CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),)
+CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
+                                                    re.compile(r"/api/exports"), re.compile(r"/api/cases"))  # F2b: read-back of the export / case write classes
 
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
 # permission (frigate_control_svc.PERMISSION). A path that is not here is refused locally before a byte is sent, exactly like a GET.
-# Never listed, on purpose: /api/config/set, /api/config/save, /api/restart, deletes of events / reviews / exports / recordings,
+# Never listed, on purpose: /api/config/set, /api/config/save, /api/restart, deletes of events / reviews / recordings (export and case deletes: F2b, own classes),
 # /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
 ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
 RECORD_FEATURES = ("enabled", "recordings", "snapshots")
@@ -81,7 +84,14 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
     "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
     "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
     "events": (("POST", re.compile(rf"/api/events/{ID}/retain")), ("DELETE", re.compile(rf"/api/events/{ID}/retain")),
-               ("POST", re.compile(rf"/api/events/{ID}/sub_label"))),
+               ("POST", re.compile(rf"/api/events/{ID}/sub_label")),
+               # F2b: manual events (create on ONE camera with a label, end by id). UNVERIFIED wire shapes.
+               ("POST", re.compile(rf"/api/events/{CAM}/{LABEL}/create")), ("PUT", re.compile(rf"/api/events/{ID}/end"))),
+    # F2b: Frigate-native exports and cases. Deletes exist here ONLY for ids the service layer proves Arx created itself; Frigate's
+    # export of a camera time range is one camera, one bounded range. UNVERIFIED wire shapes.
+    "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
+                ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
+    "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
 }
 WRITE_BODY_MAX = 20_000
 WRITE_REPLY_MAX = 200_000

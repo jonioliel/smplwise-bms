@@ -29,10 +29,12 @@ from .access import require_camera
 from .recorders import frigate_control as fc
 from .recorders.frigate import FrigateAdapter
 
-CLASSES = ("analytics", "record", "profile", "review", "events", "ptz")
+CLASSES = ("analytics", "record", "profile", "review", "events", "ptz", "exports", "cases")
 PERMISSION = {"analytics": "analytics.control", "record": "analytics.record_control", "profile": "analytics.profile",
-              "review": "analytics.review", "events": "analytics.events", "ptz": "camera.ptz"}
+              "review": "analytics.review", "events": "analytics.events", "ptz": "camera.ptz", "exports": "analytics.exports", "cases": "analytics.cases"}
 PER_ACTION = frozenset({"record", "profile", "ptz"})
+# F2b: `exports` and `cases` confirm per action only where it destroys something (delete, and an undo that deletes); see needs_confirm in _gate
+
 CONTROL_PERMISSIONS = frozenset(p for c, p in PERMISSION.items() if c != "review")  # who may SEE the control screens (the reviewed mirror is not management)
 ALARM_STATES = ("disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass", "pending", "arming", "triggered")
 PTZ_RELEASED = False              # code flag: the owner has not released PTZ (2026-10-06); tests set it to prove the plumbing
@@ -75,8 +77,10 @@ def set_policy(conn: sqlite3.Connection, principal: Principal, recorder_id: str,
     return after
 
 
-def _gate(conn: sqlite3.Connection, principal: Principal, recorder_id: str, cls: str, camera_id: str | None, *, confirm: bool, request_id: str | None, what: str) -> None:
-    """Steps 1-3 of the model. Raises 403 (permission), 409 `frigate_write_class_off`, 409 `confirmation_required`."""
+def _gate(conn: sqlite3.Connection, principal: Principal, recorder_id: str, cls: str, camera_id: str | None, *, confirm: bool, request_id: str | None, what: str,
+          needs_confirm: bool | None = None) -> None:
+    """Steps 1-3 of the model. Raises 403 (permission), 409 `frigate_write_class_off`, 409 `confirmation_required`. `needs_confirm` overrides
+    the class default (PER_ACTION) for one action (F2b: a delete asks, a rename does not)."""
     perm = PERMISSION[cls]
     if camera_id is not None:
         require_camera(conn, principal, camera_id, perm)
@@ -86,7 +90,7 @@ def _gate(conn: sqlite3.Connection, principal: Principal, recorder_id: str, cls:
         audit(conn, actor=principal, action=f"frigate.control.{cls}", decision="denied", resource_type="recorder", resource_id=recorder_id, reason="class_off",
               request_id=request_id, details={"what": what, "camera_id": camera_id})
         raise ApiError(409, "frigate_write_class_off", "סוג הפעולה הזה כבוי עבור המקליט. מנהל המערכת יכול להפעיל אותו בהגדרות.", details={"class": cls})
-    if cls in PER_ACTION and not confirm:
+    if (cls in PER_ACTION if needs_confirm is None else needs_confirm) and not confirm:
         raise ApiError(409, "confirmation_required", "פעולה זו דורשת אישור מפורש.", details={"class": cls})
 
 
@@ -150,6 +154,13 @@ def _read_back(ctl: fc.FrigateControl, camera_key: str, feature: str, value: boo
 def set_profile(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, profile: str | None, *, confirm: bool, request_id: str | None) -> dict[str, Any]:
     rid = adapter.recorder_id
     _gate(conn, principal, rid, "profile", None, confirm=confirm, request_id=request_id, what=profile or "none")
+    return apply_profile(conn, principal, adapter, profile, request_id=request_id)
+
+
+def apply_profile(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, profile: str | None, *, request_id: str | None, auto: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Steps 4-5 of the model for the profile slot (read, ONE write, read back, change-log row). The gates were passed by the caller: a
+    person's confirmation (`set_profile`) or the recorder's auto-apply consent (`frigate_auto_profile`; `auto` names the alarm change)."""
+    rid = adapter.recorder_id
     ctl = fc.FrigateControl(adapter)
     state = ctl.active_profile()
     if profile is not None and state["names"] and profile not in state["names"]:
@@ -166,7 +177,8 @@ def set_profile(conn: sqlite3.Connection, principal: Principal, adapter: Frigate
         verified = now == profile
     except ApiError:
         verified = False
-    cid = _log(conn, principal, before={"profile": state["active"]}, after={"profile": profile}, state_hash=None, status="applied" if verified else "unverified", **base)
+    why = {"auto": auto} if auto else {}
+    cid = _log(conn, principal, before={"profile": state["active"], **why}, after={"profile": profile}, state_hash=None, status="applied" if verified else "unverified", **base)
     return {"changed": True, "active": profile, "verified": verified, "change_id": cid, "note": "frigate_clears_runtime_toggles"}
 
 
@@ -343,7 +355,7 @@ def change_view(r: sqlite3.Row) -> dict[str, Any]:
             "actor": r["actor_name"], "at": r["created_at"]}
 
 
-def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, change_id: str, *, confirm: bool, request_id: str | None) -> dict[str, Any]:
+def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapter, change_id: str, *, confirm: bool, request_id: str | None, supervised: bool = False) -> dict[str, Any]:
     """Undo one change from the log: the same class gates apply, and the state must still be what the change left."""
     rid = adapter.recorder_id
     row = conn.execute("SELECT * FROM frigate_changes WHERE id = ? AND recorder_id = ?", (change_id, rid)).fetchone()
@@ -352,7 +364,13 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
     cls, kind = row["class"], row["kind"]
     if not row["reversible"] or row["status"] not in ("applied", "unverified"):
         raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.", details={"status": row["status"]})
-    _gate(conn, principal, rid, cls, row["camera_id"], confirm=confirm, request_id=request_id, what=f"revert:{kind}")
+    from . import frigate_native_svc as native
+
+    native_kind = kind in native.INVERSE_KIND
+    _gate(conn, principal, rid, cls, row["camera_id"], confirm=confirm, request_id=request_id, what=f"revert:{kind}",
+          needs_confirm=(kind in native.UNDO_CONFIRMS) if native_kind else None)
+    if native_kind:
+        native.check_supervised(conn, principal, rid, native.INVERSE_KIND[kind], supervised, request_id)
     before, after = json.loads(row["before_json"] or "null"), json.loads(row["after_json"] or "null")
     ctl = fc.FrigateControl(adapter)
     base = dict(recorder_id=rid, camera_id=row["camera_id"], camera_key=row["camera_key"], cls=cls, kind=kind, target=row["target"], reverts_id=change_id, request_id=request_id)
@@ -386,14 +404,18 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
                 raise stale()
             ctl.set_sub_label(row["target"], before["sub_label"])
             verified = ctl.event(row["target"])["sub_label"] == before["sub_label"]
+        elif native_kind:
+            verified = native.revert_kind(conn, adapter, row, before, after)
         else:
             raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.")
     except ApiError as exc:
-        if exc.code in ("frigate_change_stale", "frigate_change_not_reversible"):
+        if exc.code in ("frigate_change_stale", "frigate_change_not_reversible", "frigate_object_not_arx"):
             raise
         raise _failed(conn, principal, exc, before=after, after=before, state_hash=None, **base) from None
     new_id_ = _log(conn, principal, before=after, after=before, state_hash=None, status="applied" if verified else "unverified", reversible=False, **base)
     conn.execute("UPDATE frigate_changes SET status = 'reverted' WHERE id = ?", (change_id,))
+    if native_kind:
+        native.mark_first_write(conn, principal, rid, native.INVERSE_KIND[kind])
     return {"reverted": True, "change_id": new_id_, "reverts": change_id, "verified": verified}
 
 

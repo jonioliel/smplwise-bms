@@ -88,6 +88,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "analytics.record_control": "Frigate: הפעלה וכיבוי של הקלטה, צילומי תמונה והמצלמה עצמה",
     "analytics.profile": "Frigate: החלפת פרופיל פעיל",
     "analytics.events": "Frigate: שמירת אירוע מעבר לשמירה הרגילה ותיקון תווית",
+    "analytics.exports": "Frigate: ייצוא קטע מצלמה בתוך Frigate (יצירה, שינוי שם, מחיקה של ייצוא שנוצר כאן)",
+    "analytics.cases": "Frigate: תיקי תיעוד ב־Frigate (יצירה, שינוי שם, מחיקה של תיק שנוצר כאן)",
     "door.unlock": "פתיחת דלת",
     # CR-010 (אבטחה › אזעקה): the intrusion alarm section. alarm.view reads the panels and their zones (viewer and above,
     # not kiosk); alarm.arm arms a panel (operator and above - arming raises protection); alarm.disarm (T079, sensitive)

@@ -125,6 +125,15 @@ class FakeFrigate:
         self.profiles = ["home", "away"]
         self.active_profile: str | None = None
         self.event_state: dict[str, dict[str, Any]] = {}
+        # F2b: exports, cases and manual events. `export_reply_id` / `case_reply_id` False = the create answer carries no id (Arx must find it
+        # by name in the list); `seq` numbers the generated ids.
+        self.exports: list[dict[str, Any]] = [{"id": "cam_front_foreign", "camera": "cam_front", "name": "made in Frigate", "date": T0 - 5000.0, "video_path": "/media/frigate/exports/foreign.mp4",
+                                              "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case_id": None}]
+        self.cases: list[dict[str, Any]] = [{"id": "case_foreign", "name": "made in Frigate", "description": "", "created_at": T0 - 4000.0, "updated_at": T0 - 4000.0}]
+        self.export_reply_id = True
+        self.case_reply_id = True
+        self.event_reply_id = True
+        self.seq = 0
 
     # ------------------------------------------------------------------------------------------ documents
 
@@ -232,6 +241,78 @@ class FakeFrigate:
                 return httpx.Response(405)
             self.writes.append((m, path, body))
             return self._json({"success": True})
+        return self._write_f2b(request, path, body)
+
+    def _write_f2b(self, request: httpx.Request, path: str, body: Any) -> httpx.Response:
+        """F2b write routes (exports, cases, manual events) as the adapter calls them (shapes NOT verified against a live instance)."""
+        import re
+
+        m = request.method
+        mm = re.fullmatch(r"/api/export/([^/]+)/start/([0-9.]+)/end/([0-9.]+)", path)
+        if m == "POST" and mm:
+            cam, a, b = mm.groups()
+            if cam not in self.cameras or float(b) <= float(a) or not (body or {}).get("name"):
+                return httpx.Response(400, json={"message": "bad export"})
+            self.seq += 1
+            eid = f"{cam}_{self.seq:06d}"
+            self.exports.append({"id": eid, "camera": cam, "name": body["name"], "date": float(a), "video_path": f"/media/frigate/exports/{eid}.mp4", "thumb_path": f"/media/frigate/exports/{eid}.jpg",
+                                 "in_progress": False, "export_case_id": None})
+            self.writes.append((m, path, body))
+            return self._json({"success": True, "message": "Starting export of recording.", **({"export_id": eid} if self.export_reply_id else {})})
+        mm = re.fullmatch(r"/api/export/([^/]+)/rename", path)
+        if m == "PATCH" and mm:
+            for x in self.exports:
+                if x["id"] == mm.group(1):
+                    x["name"] = (body or {}).get("name") or x["name"]
+                    self.writes.append((m, path, body))
+                    return self._json({"success": True})
+            return httpx.Response(404, json={"message": "Export not found"})
+        mm = re.fullmatch(r"/api/export/([^/]+)", path)
+        if m == "DELETE" and mm:
+            n = len(self.exports)
+            self.exports = [x for x in self.exports if x["id"] != mm.group(1)]
+            if len(self.exports) == n:
+                return httpx.Response(404, json={"message": "Export not found"})
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
+        if m == "POST" and path == "/api/cases":
+            if not (body or {}).get("name"):
+                return httpx.Response(400, json={"message": "bad case"})
+            self.seq += 1
+            case = {"id": f"case_{self.seq:06d}", "name": body["name"], "description": body.get("description") or "", "created_at": T0, "updated_at": T0}
+            self.cases.append(case)
+            self.writes.append((m, path, body))
+            return self._json(case if self.case_reply_id else {"success": True})
+        mm = re.fullmatch(r"/api/cases/([^/]+)", path)
+        if mm and m in ("PATCH", "DELETE"):
+            for c in self.cases:
+                if c["id"] == mm.group(1):
+                    if m == "PATCH":
+                        c["name"] = (body or {}).get("name") or c["name"]
+                    else:
+                        self.cases.remove(c)
+                    self.writes.append((m, path, body))
+                    return self._json({"success": True})
+            return httpx.Response(404, json={"message": "Case not found"})
+        mm = re.fullmatch(r"/api/events/([^/]+)/([A-Za-z0-9_-]+)/create", path)
+        if m == "POST" and mm:
+            cam, label = mm.groups()
+            if cam not in self.cameras:
+                return httpx.Response(404, json={"message": "camera"})
+            self.seq += 1
+            eid = f"{1791228000 + self.seq}.000001-man{self.seq:03d}"
+            dur = (body or {}).get("duration")
+            self.event_state[eid] = {"retain": False, "sub_label": (body or {}).get("sub_label"), "camera": cam, "label": label, "start_time": T0, "end_time": (T0 + dur) if dur else None}
+            self.writes.append((m, path, body))
+            return self._json({"success": True, "message": "Successfully created manual event.", **({"event_id": eid} if self.event_reply_id else {})})
+        mm = re.fullmatch(r"/api/events/([^/]+)/end", path)
+        if m == "PUT" and mm:
+            st = self.event_state.get(mm.group(1))
+            if st is None:
+                return httpx.Response(404, json={"message": "Event not found"})
+            st["end_time"] = (body or {}).get("end_time") or T0
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
         return httpx.Response(405)
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
@@ -284,6 +365,10 @@ class FakeFrigate:
         if path == "/api/review/activity/motion":
             a, b = float(q["after"]), float(q["before"])
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
+        if path == "/api/exports":
+            return self._json([dict(x) for x in self.exports])
+        if path == "/api/cases":
+            return self._json([dict(x) for x in self.cases])
         if path == "/api/profiles":
             return self._json(list(self.profiles))
         if path == "/api/profile/active":
@@ -294,7 +379,8 @@ class FakeFrigate:
             if eid not in known and eid not in self.event_state:
                 return httpx.Response(404, json={"message": "Event not found"})
             st = self.event_state.setdefault(eid, {"retain": False, "sub_label": None})
-            return self._json({"id": eid, "camera": "cam_front", "label": "person", "sub_label": st["sub_label"], "retain_indefinitely": st["retain"]})
+            return self._json({"id": eid, "camera": st.get("camera", "cam_front"), "label": st.get("label", "person"), "sub_label": st["sub_label"], "retain_indefinitely": st["retain"],
+                               "start_time": st.get("start_time", T0 - 100), "end_time": st.get("end_time", T0 - 90)})
         parts0 = path.strip("/").split("/")
         if len(parts0) == 4 and parts0[0] == "api" and parts0[2:] == ["ptz", "info"]:
             return self._json({"name": parts0[1], "presets": ["door", "gate"]} if parts0[1] == "cam_front" else {})

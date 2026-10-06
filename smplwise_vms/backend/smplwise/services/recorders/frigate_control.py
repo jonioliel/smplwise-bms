@@ -22,7 +22,7 @@ from typing import Any
 
 from ...errors import ApiError
 from .frigate import CAMERA_KEY, FrigateAdapter
-from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, ID, q
+from .frigate_http import ANALYTICS_FEATURES, RECORD_FEATURES, ID, LABEL, OBJ, q
 
 # feature -> where its switch lives in a camera's section of the effective config
 FEATURE_PATHS: dict[str, tuple[str, ...]] = {
@@ -43,6 +43,12 @@ FEATURE_CLASS = {**{f: "analytics" for f in ANALYTICS_FEATURES}, **{f: "record" 
 PROFILE_NAME = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 EVENT_ID = re.compile(rf"^{ID}$")
 SUB_LABEL_MAX = 60
+OBJECT_ID = re.compile(rf"^{OBJ}$")
+LABEL_NAME = re.compile(rf"^{LABEL}$")
+NAME_MAX = 80
+EXPORT_MAX_S = 7200.0          # one export covers at most two hours of ONE camera
+EVENT_MAX_S = 600              # a manual event with a duration lasts at most ten minutes; an open one must be ended by hand
+LIST_MAX = 300
 
 # PTZ: single steps only. There is no patrol, no loop, no autotrack start: a command is one message and one physical step.
 PTZ_STEPS = ("MOVE_UP", "MOVE_DOWN", "MOVE_LEFT", "MOVE_RIGHT", "ZOOM_IN", "ZOOM_OUT", "STOP")
@@ -134,6 +140,43 @@ class FrigateControl:
             raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
         return {"id": event_id, "retain": bool(doc.get("retain_indefinitely")), "sub_label": doc.get("sub_label") if isinstance(doc.get("sub_label"), str) else None}
 
+    def event_detail(self, event_id: str) -> dict[str, Any]:
+        """One tracked object / manual event as a small, fixed document (read-back of a manual create / end)."""
+        if not EVENT_ID.fullmatch(event_id or ""):
+            raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
+        doc = self.http.get_json(f"/api/events/{q(event_id)}")
+        if not isinstance(doc, dict):
+            raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "event"})
+        end = doc.get("end_time")
+        return {"id": event_id, "camera": doc.get("camera") if isinstance(doc.get("camera"), str) else None, "label": doc.get("label") if isinstance(doc.get("label"), str) else None,
+                "start_time": doc.get("start_time") if isinstance(doc.get("start_time"), (int, float)) else None,
+                "end_time": end if isinstance(end, (int, float)) and not isinstance(end, bool) else None}
+
+    def list_exports(self) -> list[dict[str, Any]]:
+        """Frigate exports as small fixed rows: file paths and thumbnails never leave the adapter (they name Frigate's disk)."""
+        doc = self.http.get_json("/api/exports", control=True)
+        if not isinstance(doc, list):
+            raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "exports"})
+        out = []
+        for x in doc[:LIST_MAX]:
+            if isinstance(x, dict) and isinstance(x.get("id"), str) and OBJECT_ID.fullmatch(x["id"]):
+                out.append({"id": x["id"], "camera": x.get("camera") if isinstance(x.get("camera"), str) else None, "name": (x.get("name") or "")[:NAME_MAX] if isinstance(x.get("name"), str) else "",
+                            "date": x.get("date") if isinstance(x.get("date"), (int, float)) else None, "in_progress": bool(x.get("in_progress")),
+                            "case_id": x.get("export_case_id") if isinstance(x.get("export_case_id"), str) else None})
+        return out
+
+    def list_cases(self) -> list[dict[str, Any]]:
+        doc = self.http.get_json("/api/cases", control=True)
+        if not isinstance(doc, list):
+            raise ApiError(503, "source_invalid", "תשובת Frigate אינה מסמך תקין.", details={"op": "cases"})
+        out = []
+        for x in doc[:LIST_MAX]:
+            if isinstance(x, dict) and isinstance(x.get("id"), str) and OBJECT_ID.fullmatch(x["id"]):
+                out.append({"id": x["id"], "name": (x.get("name") or "")[:NAME_MAX] if isinstance(x.get("name"), str) else "",
+                            "description": (x.get("description") or "")[:200] if isinstance(x.get("description"), str) else "",
+                            "created_at": x.get("created_at") if isinstance(x.get("created_at"), (int, float)) else None})
+        return out
+
     def ptz_info(self, camera: str) -> dict[str, Any]:
         FrigateAdapter._camera(camera)
         try:
@@ -186,6 +229,86 @@ class FrigateControl:
         if len(label) > SUB_LABEL_MAX or any(ord(ch) < 32 for ch in label):
             raise ApiError(422, "frigate_sub_label_invalid", "התווית אינה תקינה.", details={"max": SUB_LABEL_MAX})
         self.http.write("events", "POST", f"/api/events/{q(event_id)}/sub_label", {"subLabel": label or None})
+
+    # ------------------------------------------------------------------------------------------ F2b writes (wire shapes NOT verified)
+
+    @staticmethod
+    def _name(value: str | None) -> str:
+        v = (value or "").strip()
+        if not v or len(v) > NAME_MAX or any(ord(ch) < 32 for ch in v):
+            raise ApiError(422, "frigate_name_invalid", "השם אינו תקין.", details={"max": NAME_MAX})
+        return v
+
+    @staticmethod
+    def _object(value: str | None) -> str:
+        if not OBJECT_ID.fullmatch(value or ""):
+            raise ApiError(422, "frigate_object_invalid", "מזהה לא תקין.")
+        return value or ""
+
+    def create_export(self, camera: str, start: float, end: float, name: str) -> str:
+        """`POST /api/export/{cam}/start/{start}/end/{end}` with `{"name", "playback": "realtime"}`; the new export's id is read from the
+        answer (`export_id`). Returns "" when the answer carries no id (the caller then finds it by name in the list)."""
+        FrigateAdapter._camera(camera)
+        if not (end > start and end - start <= EXPORT_MAX_S and start > 0):
+            raise ApiError(422, "frigate_export_range_invalid", "טווח הייצוא אינו תקין.", details={"max_s": int(EXPORT_MAX_S)})
+        reply = self.http.write("exports", "POST", f"/api/export/{camera}/start/{start:.3f}/end/{end:.3f}", {"name": self._name(name), "playback": "realtime"})
+        try:
+            doc = reply.json()
+        except ApiError:
+            return ""
+        eid = doc.get("export_id") if isinstance(doc, dict) else None
+        return eid if isinstance(eid, str) and OBJECT_ID.fullmatch(eid) else ""
+
+    def rename_export(self, export_id: str, name: str) -> None:
+        self.http.write("exports", "PATCH", f"/api/export/{q(self._object(export_id))}/rename", {"name": self._name(name)})
+
+    def delete_export(self, export_id: str) -> None:
+        self.http.write("exports", "DELETE", f"/api/export/{q(self._object(export_id))}")
+
+    def create_case(self, name: str, description: str | None) -> str:
+        """`POST /api/cases` with `{"name", "description"}`; the case id is read from the answer (`id`)."""
+        desc = (description or "").strip()
+        if len(desc) > 200 or any(ord(ch) < 32 for ch in desc):
+            raise ApiError(422, "frigate_name_invalid", "התיאור אינו תקין.", details={"max": 200})
+        reply = self.http.write("cases", "POST", "/api/cases", {"name": self._name(name), "description": desc})
+        try:
+            doc = reply.json()
+        except ApiError:
+            return ""
+        cid = doc.get("id") if isinstance(doc, dict) else None
+        return cid if isinstance(cid, str) and OBJECT_ID.fullmatch(cid) else ""
+
+    def rename_case(self, case_id: str, name: str) -> None:
+        self.http.write("cases", "PATCH", f"/api/cases/{q(self._object(case_id))}", {"name": self._name(name)})
+
+    def delete_case(self, case_id: str) -> None:
+        self.http.write("cases", "DELETE", f"/api/cases/{q(self._object(case_id))}")
+
+    def create_event(self, camera: str, label: str, *, duration_s: int | None, sub_label: str | None) -> str:
+        """`POST /api/events/{cam}/{label}/create` with `{"sub_label", "duration", "include_recording": true, "score": 0, "draw": {}}`; returns
+        the new event id (`event_id` in the answer) or "" when the answer carries none. `duration_s=None` leaves the event open until it is ended."""
+        FrigateAdapter._camera(camera)
+        if not LABEL_NAME.fullmatch(label or ""):
+            raise ApiError(422, "frigate_label_invalid", "התווית אינה תקינה.")
+        if duration_s is not None and not 1 <= duration_s <= EVENT_MAX_S:
+            raise ApiError(422, "frigate_event_duration_invalid", "משך האירוע אינו תקין.", details={"max_s": EVENT_MAX_S})
+        sub = (sub_label or "").strip() or None
+        if sub is not None and (len(sub) > SUB_LABEL_MAX or any(ord(ch) < 32 for ch in sub)):
+            raise ApiError(422, "frigate_sub_label_invalid", "התווית אינה תקינה.", details={"max": SUB_LABEL_MAX})
+        reply = self.http.write("events", "POST", f"/api/events/{camera}/{label}/create",
+                                {"sub_label": sub, "duration": duration_s, "include_recording": True, "score": 0, "draw": {}})
+        try:
+            doc = reply.json()
+        except ApiError:
+            return ""
+        eid = doc.get("event_id") if isinstance(doc, dict) else None
+        return eid if isinstance(eid, str) and EVENT_ID.fullmatch(eid) else ""
+
+    def end_event(self, event_id: str, end_time: float) -> None:
+        """`PUT /api/events/{id}/end` with `{"end_time": <epoch seconds>}`."""
+        if not EVENT_ID.fullmatch(event_id or ""):
+            raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
+        self.http.write("events", "PUT", f"/api/events/{q(event_id)}/end", {"end_time": round(float(end_time), 3)})
 
     def ptz(self, camera: str, command: str) -> None:
         """W4: ONE PTZ message over `/ws`. The caller (service) has already checked the release flag, the class, the permission and the
