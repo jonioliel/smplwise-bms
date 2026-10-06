@@ -372,9 +372,10 @@ export function refreshNow(): Promise<boolean> {
         await exchange(fresh);
       } catch (e) {
         if (e instanceof ArxAuthError && e.code === 'second_factor_required') {
-          // K11: the Arx session is gone (expired cookie) and this user has a second factor: keep the HA sign-in, ask for the code
+          // K11: the Arx session is gone (expired cookie) and this user has a second factor: keep the HA sign-in, ask for the code.
+          // The fresh tokens have not passed the Arx factor: they wait in memory only (security review 2.2.0, I3); the stored
+          // entry is the one this browser already had verified and stays as it was.
           pendingFactor = fresh;
-          saveTokens(fresh);
           onSignedOut?.('expired');
           return false;
         }

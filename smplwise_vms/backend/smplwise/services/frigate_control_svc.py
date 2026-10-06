@@ -363,6 +363,14 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
     ctl = fc.FrigateControl(adapter)
     base = dict(recorder_id=rid, camera_id=row["camera_id"], camera_key=row["camera_key"], cls=cls, kind=kind, target=row["target"], reverts_id=change_id, request_id=request_id)
 
+    # single-shot: claim the row (compare-and-set on its status) before anything is written to Frigate; the loser of a race gets 409 and writes nothing
+    claimed = conn.execute("UPDATE frigate_changes SET status = 'reverted' WHERE id = ? AND recorder_id = ? AND status IN ('applied', 'unverified')", (change_id, rid))
+    if claimed.rowcount != 1:
+        raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.", details={"status": "reverted"})
+
+    def release_claim() -> None:
+        conn.execute("UPDATE frigate_changes SET status = ? WHERE id = ? AND status = 'reverted'", (row["status"], change_id))
+
     def stale() -> ApiError:
         return ApiError(409, "frigate_change_stale", "המצב ב־Frigate השתנה מאז השינוי. קראו את המצב ונסו שוב.", details={"kind": kind})
 
@@ -396,10 +404,11 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
             raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.")
     except ApiError as exc:
         if exc.code in ("frigate_change_stale", "frigate_change_not_reversible"):
+            release_claim()
             raise
+        release_claim()
         raise _failed(conn, principal, exc, before=after, after=before, state_hash=None, **base) from None
     new_id_ = _log(conn, principal, before=after, after=before, state_hash=None, status="applied" if verified else "unverified", reversible=False, **base)
-    conn.execute("UPDATE frigate_changes SET status = 'reverted' WHERE id = ?", (change_id,))
     return {"reverted": True, "change_id": new_id_, "reverts": change_id, "verified": verified}
 
 
