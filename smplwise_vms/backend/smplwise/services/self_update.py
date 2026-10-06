@@ -90,6 +90,7 @@ OPTION_TYPES: dict[str, str] = {
     "wiskey_password": "str?", "openai_api_key": "str?", "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?",
     "log_level": "log_level",
     "push_relay_url": "str?", "push_relay_key": "str?",  # CR-027: the SmplWise push relay (config.py reads them into the environment)
+    "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)
     "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)
 }
 OPTION_STR_MAX = 1024
