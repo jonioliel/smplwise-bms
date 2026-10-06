@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { newMock } from './nvr-cameras-write-mock';
+import { settlePage } from './pixel-settle';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
 
 // CR-020 phase D pixel baselines: the bulk encoding change's two new screens - the target settings form and the preview - in the four skins
@@ -31,7 +32,7 @@ async function toSettings(page: Page, skin: string) {
   await page.locator(`${DLG} sw-dropdown[data-nvr-enc-dd="codec-target"] [role="option"][data-id="H.264"]`).click();
   await page.locator(`${DLG} [data-nvr-enc-input="gop"]`).fill('25');
   await page.locator(`${DLG} [data-nvr-enc-input="gop"]`).blur();
-  await page.waitForTimeout(500);
+  await settlePage(page);
 }
 
 test.describe('pixel: the bulk encoding change', () => {
@@ -53,7 +54,7 @@ test.describe('pixel: the bulk encoding change', () => {
       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
-      await page.waitForTimeout(400);
+      await settlePage(page);
       const previewName = `enc-${skin}-preview-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
       if (noBaseline(info, previewName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${previewName}: no baseline on ${process.platform}` });
       else await expect(page).toHaveScreenshot(previewName, { maxDiffPixels: 40, animations: 'disabled' });

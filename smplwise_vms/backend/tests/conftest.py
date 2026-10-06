@@ -24,6 +24,21 @@ from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--sw-repeat", type=int, default=1, help="run every selected test N times (flaky-test verification; combine with a CPU burner)")
+
+
+@pytest.fixture(autouse=True)
+def _sw_repeat_index(request: pytest.FixtureRequest) -> None:
+    return None
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    n = metafunc.config.getoption("--sw-repeat")
+    if n > 1 and "_sw_repeat_index" in metafunc.fixturenames:
+        metafunc.parametrize("_sw_repeat_index", range(n), ids=lambda i: f"rep{i}")
+
+
 def sw_time_factor() -> float:
     """Multiplier for the generous (default) side of a wall-clock performance bound in a test.
 

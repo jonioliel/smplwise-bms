@@ -50,6 +50,9 @@ test.describe('pure helpers', () => {
   test('the HTTP adapter calls the contract routes', async () => {
     const seen: { url: string; method: string; body: unknown }[] = [];
     const orig = globalThis.fetch;
+    // a stub document left on globalThis would make lit-html (first imported later in this worker by another spec) bind to it
+    // and fail with "createTreeWalker is not a function": restore the previous value in the finally
+    const origDoc = (globalThis as { document?: unknown }).document;
     (globalThis as { document?: unknown }).document = { baseURI: 'http://h/app/' };
     globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
       seen.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null });
@@ -64,6 +67,8 @@ test.describe('pure helpers', () => {
       await httpPlayers.testMaConnection();
     } finally {
       globalThis.fetch = orig;
+      if (origDoc === undefined) delete (globalThis as { document?: unknown }).document;
+      else (globalThis as { document?: unknown }).document = origDoc;
     }
     expect(seen.map((s) => `${s.method} ${new URL(s.url).pathname}${new URL(s.url).search}`)).toEqual([
       'GET /app/api/v1/multimedia/devices/mp-a/queue',
@@ -202,6 +207,9 @@ test.describe('the new queue actions (play now, move to top, several rows, two c
   test('the HTTP adapter posts the several-rows body as `items`', async () => {
     const seen: unknown[] = [];
     const orig = globalThis.fetch;
+    // a stub document left on globalThis would make lit-html (first imported later in this worker by another spec) bind to it
+    // and fail with "createTreeWalker is not a function": restore the previous value in the finally
+    const origDoc = (globalThis as { document?: unknown }).document;
     (globalThis as { document?: unknown }).document = { baseURI: 'http://h/app/' };
     globalThis.fetch = (async (_u: string | URL, init?: RequestInit) => {
       seen.push(init?.body ? JSON.parse(String(init.body)) : null);
@@ -211,6 +219,8 @@ test.describe('the new queue actions (play now, move to top, several rows, two c
       await httpPlayers.queueEdit('mp-a', { op: 'delete_many', items: ['a'.repeat(24), 'b'.repeat(24)], ...req(30) });
     } finally {
       globalThis.fetch = orig;
+      if (origDoc === undefined) delete (globalThis as { document?: unknown }).document;
+      else (globalThis as { document?: unknown }).document = origDoc;
     }
     expect(seen[0]).toMatchObject({ op: 'delete_many', items: ['a'.repeat(24), 'b'.repeat(24)] });
   });

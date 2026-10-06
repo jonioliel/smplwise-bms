@@ -63,10 +63,13 @@ test.describe('media-screens client (mock adapter)', () => {
   test('the artwork path the server sends is resolved against the page, an absolute URL is left alone', () => {
     const base = 'http://127.0.0.1:4401/ingress/abc/';
     (globalThis as { document?: unknown }).document = { baseURI: base };
-    expect(artworkUrl('api/v1/multimedia/devices/md-x/artwork?v=3')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork?v=3`);
-    expect(artworkUrl('/api/v1/multimedia/devices/md-x/artwork')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork`);
-    expect(artworkUrl('https://img.example/a.png')).toBe('https://img.example/a.png');
-    delete (globalThis as { document?: unknown }).document;
+    try {
+      expect(artworkUrl('api/v1/multimedia/devices/md-x/artwork?v=3')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork?v=3`);
+      expect(artworkUrl('/api/v1/multimedia/devices/md-x/artwork')).toBe(`${base}api/v1/multimedia/devices/md-x/artwork`);
+      expect(artworkUrl('https://img.example/a.png')).toBe('https://img.example/a.png');
+    } finally {
+      delete (globalThis as { document?: unknown }).document; // a failing expect must not leave the stub on this worker either
+    }
   });
 
   test('the curation read keeps hidden items and default names; the ordinary read and a save leave hidden ones out, never un-hiding them', async () => {
