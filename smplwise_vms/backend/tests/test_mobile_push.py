@@ -43,6 +43,9 @@ def relay(monkeypatch):
     monkeypatch.setenv("SW_PUSH_RELAY_KEY", "srvkey-test-0001")
     monkeypatch.setattr(svc, "TRANSPORT", httpx.MockTransport(fake.handler))
     monkeypatch.setattr(svc, "BACKOFF_S", (0.0, 0.0, 0.0))
+    # message_for() compares expires_at (built from the pinned notification clock) with presence.now_utc; follow the same seam,
+    # otherwise the 24 h message expiry depends on the wall clock and the test fails once the real date passes the pinned one
+    monkeypatch.setattr(svc, "now_utc", lambda: notify.now_utc())
     svc.reset_limits()
     presence.reset_limits()
     yield fake
