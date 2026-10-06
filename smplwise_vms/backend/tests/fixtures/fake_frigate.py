@@ -57,7 +57,12 @@ def camera_config(key: str, *, enabled: bool = True, w: int = 1920, h: int = 108
         "record": {"enabled": record},
         "snapshots": {"enabled": snapshots},
         "audio": {"enabled": False},
-        "onvif": {"host": "192.0.2.11" if onvif else "", "user": PLANTED_TOKEN_USER if onvif else None, "password": PLANTED_PASSWORD if onvif else None},
+        "motion": {"enabled": True, "improve_contrast": True},
+        "review": {"alerts": {"enabled": True}, "detections": {"enabled": True}},
+        "notifications": {"enabled": False},
+        "birdseye": {"enabled": True},
+        "onvif": {"host": "192.0.2.11" if onvif else "", "user": PLANTED_TOKEN_USER if onvif else None, "password": PLANTED_PASSWORD if onvif else None,
+                  "autotracking": {"enabled": False}},
         "objects": {"track": ["person", "car"] if key == "cam_front" else ["person"]},
         "zones": {"porch": {"coordinates": "0.1,0.1,0.5,0.5"}} if key == "cam_front" else {},
     }
@@ -110,6 +115,16 @@ class FakeFrigate:
         self.logins = 0
         self.date_header: str | None = "Mon, 05 Oct 2026 18:00:03 GMT"
         self.stats_fps = {"cam_front": 5.0, "cam_yard": 4.9, "cam_garage": 0.0}
+        # F2 (control): the write side. `writes` lists every accepted write as (method, path, body); `write_role_ok` False = the account
+        # is a viewer (403 on every write); `reflect_runtime` False = a toggle is acknowledged but the effective config does not show it;
+        # `write_status` forces that status on the next write only.
+        self.writes: list[tuple[str, str, Any]] = []
+        self.write_role_ok = True
+        self.reflect_runtime = True
+        self.write_status: int | None = None
+        self.profiles = ["home", "away"]
+        self.active_profile: str | None = None
+        self.event_state: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------------------------------ documents
 
@@ -152,6 +167,73 @@ class FakeFrigate:
         with self.lock:
             return self._handle(request)
 
+    FEATURE_PATHS = {"detect": ("detect", "enabled"), "motion": ("motion", "enabled"), "audio": ("audio", "enabled"), "review_alerts": ("review", "alerts", "enabled"),
+                     "review_detections": ("review", "detections", "enabled"), "notifications": ("notifications", "enabled"), "improve_contrast": ("motion", "improve_contrast"),
+                     "birdseye": ("birdseye", "enabled"), "ptz_autotracker": ("onvif", "autotracking", "enabled"), "enabled": ("enabled",), "recordings": ("record", "enabled"),
+                     "snapshots": ("snapshots", "enabled")}
+
+    def _write(self, request: httpx.Request, path: str) -> httpx.Response:
+        """The F2 write routes of Frigate 0.18 as the adapter calls them (shapes NOT verified against a live instance)."""
+        import re
+
+        m = request.method
+        if self.write_status is not None:
+            st, self.write_status = self.write_status, None
+            return httpx.Response(st, json={"message": "forced"})
+        if not self.write_role_ok:
+            return httpx.Response(403, json={"message": "Access denied for viewer"})
+        try:
+            body = json.loads(request.content) if request.content else None
+        except ValueError:
+            return httpx.Response(400, json={"message": "bad body"})
+        mm = re.fullmatch(r"/api/camera/([^/]+)/set/([a-z_]+)", path)
+        if m == "PUT" and mm:
+            cam, feat = mm.groups()
+            val = (body or {}).get("value")
+            if feat == "profile" and cam == "*":
+                if val != "none" and val not in self.profiles:
+                    return httpx.Response(400, json={"message": "unknown profile"})
+                self.active_profile = None if val == "none" else val
+                self.writes.append((m, path, body))
+                return self._json({"success": True})
+            if cam not in self.cameras or feat not in self.FEATURE_PATHS or val not in ("ON", "OFF"):
+                return httpx.Response(400, json={"message": "bad feature"})
+            if self.reflect_runtime:
+                node = self.cameras[cam]
+                keys = self.FEATURE_PATHS[feat]
+                for k in keys[:-1]:
+                    node = node.setdefault(k, {})
+                node[keys[-1]] = val == "ON"
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
+        if m == "POST" and path == "/api/reviews/viewed":
+            ids = (body or {}).get("ids") or []
+            for r in self.reviews:
+                if r["id"] in ids:
+                    r["has_been_reviewed"] = True
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
+        mm = re.fullmatch(r"/api/review/([^/]+)/viewed", path)
+        if m == "DELETE" and mm:
+            for r in self.reviews:
+                if r["id"] == mm.group(1):
+                    r["has_been_reviewed"] = False
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
+        mm = re.fullmatch(r"/api/events/([^/]+)/(retain|sub_label)", path)
+        if mm:
+            eid, what = mm.groups()
+            st = self.event_state.setdefault(eid, {"retain": False, "sub_label": None})
+            if what == "retain" and m in ("POST", "DELETE"):
+                st["retain"] = m == "POST"
+            elif what == "sub_label" and m == "POST":
+                st["sub_label"] = (body or {}).get("subLabel")
+            else:
+                return httpx.Response(405)
+            self.writes.append((m, path, body))
+            return self._json({"success": True})
+        return httpx.Response(405)
+
     def _handle(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         q = dict(request.url.params)
@@ -169,8 +251,6 @@ class FakeFrigate:
             token = f"jwt-fake-{self.issued}"
             self.tokens.add(token)
             return httpx.Response(200, json={}, headers={"set-cookie": f"frigate_token={token}; Path=/; HttpOnly; SameSite=Lax"})
-        if request.method != "GET":
-            return httpx.Response(405)
         token = None
         for part in request.headers.get("cookie", "").split(";"):
             k, _, v = part.strip().partition("=")
@@ -179,6 +259,8 @@ class FakeFrigate:
         if token not in self.tokens:
             return httpx.Response(401, json={"message": "Unauthorized"})
         self.authed_requests += 1
+        if request.method != "GET":
+            return self._write(request, path)
         if self.expire_after is not None and self.authed_requests > self.expire_after:
             self.tokens.discard(token)
             self.expire_after = None
@@ -202,6 +284,20 @@ class FakeFrigate:
         if path == "/api/review/activity/motion":
             a, b = float(q["after"]), float(q["before"])
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
+        if path == "/api/profiles":
+            return self._json(list(self.profiles))
+        if path == "/api/profile/active":
+            return self._json(self.active_profile)
+        if path.startswith("/api/events/") and path.count("/") == 3:
+            eid = path.rsplit("/", 1)[1]
+            known = {d for r in self.reviews for d in r["data"]["detections"]}
+            if eid not in known and eid not in self.event_state:
+                return httpx.Response(404, json={"message": "Event not found"})
+            st = self.event_state.setdefault(eid, {"retain": False, "sub_label": None})
+            return self._json({"id": eid, "camera": "cam_front", "label": "person", "sub_label": st["sub_label"], "retain_indefinitely": st["retain"]})
+        parts0 = path.strip("/").split("/")
+        if len(parts0) == 4 and parts0[0] == "api" and parts0[2:] == ["ptz", "info"]:
+            return self._json({"name": parts0[1], "presets": ["door", "gate"]} if parts0[1] == "cam_front" else {})
         if path == "/api/review/summary":
             return self._json({"last24Hours": {"reviewed_alert": 0, "reviewed_detection": 0, "total_alert": 2, "total_detection": 1}})
         if path == "/api/review":
@@ -245,6 +341,30 @@ class FakeFrigate:
             if name.startswith("seg-"):
                 return httpx.Response(200, content=SEG, headers={"content-type": "video/iso.segment"})
         return httpx.Response(404, json={"message": "not found"})
+
+
+class FakeWsConnect:
+    """A stand-in for `websockets.sync.client.connect` that records what is sent (PTZ messages). `fail` makes the connection raise."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.sent: list[dict[str, Any]] = []
+        self.fail = False
+
+    def __call__(self, url: str, **kwargs: Any) -> "FakeWsConnect":
+        if self.fail:
+            raise OSError("ws down")
+        self.calls.append(url)
+        return self
+
+    def __enter__(self) -> "FakeWsConnect":
+        return self
+
+    def __exit__(self, *a: Any) -> None:
+        return None
+
+    def send(self, msg: str) -> None:
+        self.sent.append(json.loads(msg))
 
 
 def settings_for(base: Any, **extra: Any) -> Any:

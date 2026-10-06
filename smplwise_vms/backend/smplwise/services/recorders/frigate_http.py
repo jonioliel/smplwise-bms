@@ -4,7 +4,8 @@ Frigate 0.18 in one paragraph: the authenticated port (8971, TLS with a self-sig
 `POST /api/login {"user","password"}` and answers a JWT cookie `frigate_token` (24 h). Everything else this phase uses is a
 GET under `/api/...`, `/vod/...` or `/clips/...`. A viewer account is enough; the adapter never creates one.
 
-F1 is READ-ONLY toward Frigate. The traffic this module may send is exactly: one login POST per session and GETs whose path
+F1 is READ-ONLY toward Frigate; F2 adds `FrigateHttp.write` with its own, separate allow-list (`WRITE_ALLOWED`, one class per unit of
+approval) and never widens `GET_ALLOWED` into a write. The read paths below stay read-only. The traffic this module may send is exactly: one login POST per session and GETs whose path
 matches `GET_ALLOWED`. Every other path is refused locally before a byte is sent (`frigate_path_not_allowed`), as Provision's
 `READ_COMMANDS`. Two routes the study measured as dangerous are not on the list: `/api/events/summary` (14 MB unfiltered) and
 the clip / export family (a GET that makes the server cut a clip: design only until the owner approves a test).
@@ -45,6 +46,9 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     r"/api/labels",
     r"/api/sub_labels",
     r"/api/profile",
+    r"/api/profiles",                                # F2: read before / after a profile switch
+    r"/api/profile/active",
+    rf"/api/{CAM}/ptz/info",
     r"/api/events",                                  # always with a window and a limit (see WINDOWED)
     rf"/api/events/{ID}",
     rf"/api/events/{ID}/thumbnail\.jpg",
@@ -62,6 +66,24 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/index\.m3u8",
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/(?:init-v\d+\.mp4|seg-\d+-v\d+\.m4s)",
 ))
+# F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
+# permission (frigate_control_svc.PERMISSION). A path that is not here is refused locally before a byte is sent, exactly like a GET.
+# Never listed, on purpose: /api/config/set, /api/config/save, /api/restart, deletes of events / reviews / exports / recordings,
+# /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
+ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
+RECORD_FEATURES = ("enabled", "recordings", "snapshots")
+WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
+    "analytics": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(ANALYTICS_FEATURES)})")),),
+    "record": (("PUT", re.compile(rf"/api/camera/{CAM}/set/(?:{'|'.join(RECORD_FEATURES)})")),),
+    "profile": (("PUT", re.compile(r"/api/camera/\*/set/profile")),),
+    "review": (("POST", re.compile(r"/api/reviews/viewed")), ("DELETE", re.compile(rf"/api/review/{ID}/viewed"))),
+    "events": (("POST", re.compile(rf"/api/events/{ID}/retain")), ("DELETE", re.compile(rf"/api/events/{ID}/retain")),
+               ("POST", re.compile(rf"/api/events/{ID}/sub_label"))),
+}
+WRITE_BODY_MAX = 20_000
+WRITE_REPLY_MAX = 200_000
+WRITE_TIMEOUT_S = 8.0
+
 # Routes that must carry a time window / a limit: an unbounded call returns megabytes (live finding) and loads Frigate's CPU.
 WINDOWED = {"/api/events": ("limit",), "/api/review": ("limit",), f"/api/review/activity/motion": ("after", "before")}
 QUERY_KEYS = frozenset({"after", "before", "limit", "severity", "reviewed", "cameras", "labels", "zones", "h", "timezone", "camera",
@@ -177,6 +199,10 @@ def _check_query(path: str, params: dict[str, Any] | None) -> None:
 
 def allowed(path: str) -> bool:
     return any(p.fullmatch(path) for p in GET_ALLOWED)
+
+
+def write_allowed(klass: str, method: str, path: str) -> bool:
+    return any(m == method and p.fullmatch(path) for m, p in WRITE_ALLOWED.get(klass, ()))
 
 
 # ---------------------------------------------------------------------------------------------- the client
@@ -362,6 +388,53 @@ class FrigateHttp:
                 if pisr.PIN_MISMATCH in str(exc):
                     raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": _op(path)}) from exc
                 raise unavailable(_op(path), exc) from exc
+
+    # ------------------------------------------------------------------------------------------ one write (F2)
+
+    def write(self, klass: str, method: str, path: str, body: Any = None) -> Reply:
+        """ONE write to Frigate: `method path` must be on the allow-list of `klass` (WRITE_ALLOWED) or nothing is sent. 401 -> one fresh
+        login and one retry of the SAME request (a refused request never reached Frigate's handler, so this cannot repeat an effect);
+        any other failure is NOT retried here or by a caller (a lost answer is reported as an unknown outcome, never repeated). A 403 is
+        `frigate_write_forbidden` (the account is not allowed to write). Raises ApiError for everything but a 2xx."""
+        if not write_allowed(klass, method, path):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשת כתיבה ל־Frigate אינה מותרת.", details={"op": "write", "reason": "not_allowed"})
+        payload = json.dumps(body).encode("utf-8") if body is not None else None
+        if payload is not None and len(payload) > WRITE_BODY_MAX:
+            raise ApiError(422, "frigate_body_too_large", "גוף הבקשה גדול מדי.", details={"op": "write"})
+        for attempt in (0, 1):
+            token = self.login()
+            reply = self._send_write(method, path, payload, token)
+            if reply.status == 401 and attempt == 0:
+                self.forget_token()
+                continue
+            break
+        if reply.status == 401:
+            self.forget_token()
+        if reply.status in (401, 403):
+            raise ApiError(409, "frigate_write_forbidden", "חשבון Frigate אינו מורשה לבצע שינויים.", details={"op": _op(path), "status": reply.status})
+        if not 200 <= reply.status < 300:
+            raise map_status(_op(path), reply.status)
+        return reply
+
+    def _send_write(self, method: str, path: str, payload: bytes | None, token: str) -> Reply:
+        nvr.check_deadline(path)
+        headers = {"Cookie": f"frigate_token={token}"}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        with self._client(timeout=WRITE_TIMEOUT_S) as c:
+            try:
+                with c.stream(method, path, content=payload, headers=headers, timeout=nvr.bounded_timeout(c.timeout)) as r:
+                    data = nvr.read_capped(r, WRITE_REPLY_MAX, _op(path)) if 200 <= r.status_code < 300 else b""
+                    return Reply(r.status_code, {k.lower(): v for k, v in r.headers.items()}, data)
+            except httpx.HTTPError as exc:
+                if nvr.past_deadline():
+                    raise nvr.deadline_error(_op(path)) from exc
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": _op(path)}) from exc
+                raise ApiError(503, "frigate_write_unknown", "לא התקבלה תשובה מ־Frigate; מצב השינוי אינו ידוע. בדקו את המצב לפני ניסיון נוסף.",
+                               details={"op": _op(path), "error": type(exc).__name__}) from exc
 
     # ------------------------------------------------------------------------------------------ conveniences
 

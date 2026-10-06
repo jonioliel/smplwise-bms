@@ -14,7 +14,8 @@ Authorization (every media asset is authorised, per request):
 Credentials and Frigate's address never reach the browser: images and segments are fetched server-side and streamed through Arx.
 
 Severity layers of a review item: `alert` and `detection` (Frigate's own); `motion` is activity density (`/activity`), not an
-item. Per-user `reviewed` is Arx's: Frigate's own flag is never written."""
+item. Per-user `reviewed` is Arx's; Frigate's own flag is written only by the F2 mirror (class `review`, off by default, see
+`routers/frigate_control.py` and `services/frigate_control_svc.mirror_reviewed`)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -315,9 +316,9 @@ class ReviewedIn(BaseModel):
 
 @router.post("/frigate/{recorder_id}/reviews/reviewed")
 def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """Mark review items reviewed (or not) for the CALLER, in bulk. Arx's state only: nothing is written to Frigate. Every item must
+    """Mark review items reviewed (or not) for the CALLER, in bulk. Arx's state first; Frigate is written only when the `review` write class is on and the caller holds analytics.review (the `mirror` answer says what happened). Every item must
     be visible to the caller (events.read on its camera); the first one that is not fails the whole request."""
-    _adapter(conn, request, recorder_id)
+    a = _adapter(conn, request, recorder_id)
     ids = list(dict.fromkeys(body.ids))
     for rid in ids:
         _review_row(conn, principal, recorder_id, rid)
@@ -327,7 +328,12 @@ def mark_reviewed(recorder_id: str, body: ReviewedIn, request: Request, principa
             conn.execute("INSERT OR IGNORE INTO frigate_review_state(user_id, recorder_id, review_id, reviewed_at) VALUES (?,?,?,?)", (principal.user_id, recorder_id, rid, now))
         else:
             conn.execute("DELETE FROM frigate_review_state WHERE user_id = ? AND recorder_id = ? AND review_id = ?", (principal.user_id, recorder_id, rid))
-    return {"recorder_id": recorder_id, "reviewed": body.reviewed, "count": len(ids)}
+    from ..services import frigate_control_svc as control
+
+    # F2: the optional mirror toward Frigate (class `review`, permission analytics.review; off by default). Arx's state above is the truth:
+    # a mirror that fails is reported here and never undoes it.
+    mirror = control.mirror_reviewed(conn, principal, a, ids, body.reviewed, request_id=getattr(request.state, "correlation_id", None))
+    return {"recorder_id": recorder_id, "reviewed": body.reviewed, "count": len(ids), "mirror": mirror}
 
 
 @router.get("/frigate/{recorder_id}/activity")

@@ -78,6 +78,15 @@ PERMISSION_LABELS: dict[str, str] = {
     "ha.entity.control": "שליטה בישויות HA",
     "audio.talk": "דיבור דו־כיווני",
     "camera.ptz": "שליטת PTZ",
+    # NN5 F2 (Frigate control, docs/changes/CR-029-FRIGATE-PROVIDER.md): the only permissions that write to a Frigate recorder. Every one is checked on the
+    # camera it changes (profile: installation) AND needs its write class switched on for the recorder (system.configure, off by default). analytics.review
+    # (operator and above, not sensitive) mirrors "reviewed" to Frigate; the other four are sensitive and held by site_admin and system_admin only.
+    # camera.ptz (existing, held by no built-in role) is the PTZ step permission; the PTZ class is also behind a code flag that is OFF.
+    "analytics.review": "Frigate: סימון פריטי סקירה כנסקרו גם ב־Frigate",
+    "analytics.control": "Frigate: מתגי ניתוח של מצלמה (זיהוי, תנועה, שמע, התראות)",
+    "analytics.record_control": "Frigate: הפעלה וכיבוי של הקלטה, צילומי תמונה והמצלמה עצמה",
+    "analytics.profile": "Frigate: החלפת פרופיל פעיל",
+    "analytics.events": "Frigate: שמירת אירוע מעבר לשמירה הרגילה ותיקון תווית",
     "door.unlock": "פתיחת דלת",
     # CR-010 (אבטחה › אזעקה): the intrusion alarm section. alarm.view reads the panels and their zones (viewer and above,
     # not kiosk); alarm.arm arms a panel (operator and above - arming raises protection); alarm.disarm (T079, sensitive)

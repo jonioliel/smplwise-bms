@@ -314,6 +314,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(recorder_health_router.router, prefix=api, tags=["nvr"])  # CR-026: recorder health cards and thresholds
     app.include_router(frigate_router.router, prefix=api, tags=["frigate"])  # NN5 F1: the Frigate provider API (read-only toward Frigate)
+    from .routers import frigate_control as frigate_control_router
+
+    app.include_router(frigate_control_router.router, prefix=api, tags=["frigate"])  # NN5 F2: the only routes that write to Frigate (every write class is off until switched on)
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
