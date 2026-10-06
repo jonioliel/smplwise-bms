@@ -22,6 +22,8 @@ export interface RecorderHealthCard {
   channels: (Section & { total?: number; connected?: number; disconnected?: { channel: number; name: string }[] }) | null;
   clock: (Section & { drift_s?: number }) | null;
   certificate: (Section & { days_left?: number | null }) | null;
+  /** NN5-F1B: what the vendor reads beyond the common sections (a Frigate recorder: detectors, per-camera fps, hours left, policy). */
+  vendor_details?: Record<string, unknown> | null;
 }
 
 export interface RecorderHealthList {

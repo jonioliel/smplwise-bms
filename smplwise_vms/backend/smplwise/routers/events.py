@@ -104,7 +104,7 @@ def list_events(
     building_id: str | None = None,
     floor_id: str | None = None,
     zone_id: str | None = None,
-    source: str | None = Query(None, pattern="^(alertstream|recording|system|ha)$"),
+    source: str | None = Query(None, pattern="^(alertstream|recording|system|ha|frigate)$"),
     severity: str | None = Query(None, pattern="^(info|alert|critical)$"),
     q: str | None = Query(None, max_length=200),
     recorder_id: str | None = Query(None, max_length=40),
@@ -668,6 +668,17 @@ def thumbnail(event_id: str, request: Request, principal: Principal = Depends(cu
     else:
         require(conn, principal, "events.read", INSTALLATION)
     settings = settings_of(request)
+    if ev.get("source") == "frigate":  # NN5 F1: a Frigate event's picture is the review thumbnail, fetched through Arx
+        from ..services.recorders import frigate_io
+
+        d = ev.get("details") or {}
+        a = frigate_io.adapter_for(conn, settings, ev.get("recorder_id") or d.get("recorder_id") or "")
+        if not d.get("review_id") or not d.get("camera_key"):
+            raise ApiError(404, "thumbnail_unavailable", "לאירוע הזה אין תמונה.")
+        data, ctype = a.review_thumbnail(str(d["camera_key"]), str(d["review_id"]))
+        from fastapi.responses import Response as _Response
+
+        return _Response(data, media_type=ctype, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
     if not thumbnails.eligible(ev):
         raise ApiError(404, "thumbnail_unavailable", "לאירוע הזה אין הקלטה לתמונה.")
     st = thumbnails.status_for(settings, event_id)

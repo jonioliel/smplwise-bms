@@ -571,6 +571,11 @@ class AlertStreamListener:
         s = self.settings
         from .recorders import vendor_io
 
+        if (s.nvr_vendor or "") == "frigate":  # NN5 F1: a Frigate recorder listens on /ws and polls /api/review instead of the ISAPI stream
+            from .recorders.frigate_events import run_loop as frigate_loop
+
+            frigate_loop(self)
+            return
         if vendor_io.handles(s):  # CR-025: a Provision-ISR recorder polls / receives pushes instead of the ISAPI stream
             from .recorders.provision_events import run_loop
 

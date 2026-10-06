@@ -40,6 +40,7 @@
         "media.browse",
         "media.queue",
         "media.cast",
+        "analytics.review",
         "energy.view",
         "generator.view",
         "presence.report"
@@ -112,6 +113,11 @@
         "media.browse",
         "media.queue",
         "media.cast",
+        "analytics.review",
+        "analytics.control",
+        "analytics.record_control",
+        "analytics.profile",
+        "analytics.events",
         "energy.view",
         "energy.bills",
         "energy.manage",
@@ -177,6 +183,11 @@
         "media.browse",
         "media.queue",
         "media.cast",
+        "analytics.review",
+        "analytics.control",
+        "analytics.record_control",
+        "analytics.profile",
+        "analytics.events",
         "energy.view",
         "energy.bills",
         "energy.manage",
@@ -209,7 +220,11 @@
     "script.manage",
     "automation.code_view",
     "nvr.config.write",
-    "energy.bills"
+    "energy.bills",
+    "analytics.control",
+    "analytics.record_control",
+    "analytics.profile",
+    "analytics.events"
   ],
   "evaluation": "Evaluate each action+scope binding together. Default deny. Apply explicit denies, actor status, scope membership, revision and HA permission intersection. No HA account mutations."
 }

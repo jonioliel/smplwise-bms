@@ -35,6 +35,9 @@ class RecorderCapabilities:
     playback: Literal["rtsp", "hls", "none"]
     events: Literal["push", "poll", "none"]
     health_detail: bool = False  # CR-026: the adapter implements `read_health` (disks, recording, channels, clock, certificate)
+    # NN5: abilities DISCOVERED from the device (never guessed from a version): "review_items", "object_events", "snapshots", ...
+    # Empty for Hikvision and Provision-ISR, so their declarations are unchanged.
+    features: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -128,6 +131,9 @@ class HealthReading:
     disk_alarms: tuple[str, ...] = ()  # active device-level disk alarm kinds (the device's own names)
     certificate: dict[str, object] | None = None
     errors: dict[str, str] = field(default_factory=dict)
+    # NN5: vendor-specific rows a vendor adds beyond the common ones (Frigate: detector inference, skipped fps, per-camera fps,
+    # hours of recording left). Plain JSON values; no address, credential or stream URL.
+    details: dict[str, object] | None = None
 
 
 class HealthReader(Protocol):

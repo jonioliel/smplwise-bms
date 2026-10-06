@@ -160,6 +160,10 @@ export interface Camera {
   recorder_name?: string | null;
   /** CR-024: false while the camera's recorder is disabled (the camera stays listed, not offered for live). */
   recorder_enabled?: boolean;
+  /** NN5-F1B: `still` = the camera has no live stream (a Frigate recorder in F1): its tile shows a refreshing snapshot. Absent = a stream. */
+  live_kind?: 'stream' | 'still';
+  /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5). */
+  still_refresh_s?: number;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */

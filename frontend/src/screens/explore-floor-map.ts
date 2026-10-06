@@ -2432,7 +2432,7 @@ export class ExploreFloorMap extends LitElement {
     const cam = a.camera;
     const st = cameraState(a);
     const scene = SCENES[((cam?.channel ?? 1) - 1) % SCENES.length];
-    const canLive = st === 'live' && !!cam && cam.can_view_live !== false;
+    const canLive = st === 'live' && !!cam && cam.can_view_live !== false && cam.live_kind !== 'still'; // NN5-F1B: a Frigate camera without a restream is a refreshing still
     const recorderOff = cam?.recorder_enabled === false; // CR-024: its recorder is disabled - no picture at all
     const zone = this.zoneOf(a);
     const where = zone ? `${floorName} / ${zone}` : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
@@ -2441,7 +2441,7 @@ export class ExploreFloorMap extends LitElement {
         ? html`<div class="off" data-recorder-off><div><sw-icon name="offline" size=${22}></sw-icon><div>ה־NVR של המצלמה מושבת</div></div></div>`
         : st === 'offline'
         ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
-        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, Date.now()) : ''} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
+        : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, cam.live_kind === 'still' ? undefined : Date.now()) : ''} .stillRefresh=${cam?.live_kind === 'still' && st === 'live' ? cam.still_refresh_s ?? 10 : 0} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
       <dl class="meta">
         <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>

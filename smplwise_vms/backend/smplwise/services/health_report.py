@@ -90,8 +90,13 @@ def _probe_nvr(settings: Settings) -> dict[str, Any]:
     t0 = time.time()
     from .recorders import vendor_io
 
-    if vendor_io.handles(settings):  # CR-025: a Provision-ISR recorder answers through its adapter
-        h = vendor_io.adapter(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1").health()
+    if vendor_io.handles(settings) or (settings.nvr_vendor or "") == "frigate":  # CR-025: a Provision-ISR / NN5: Frigate recorder answers through its adapter
+        if (settings.nvr_vendor or "") == "frigate":
+            from .recorders.frigate import FrigateAdapter
+
+            h = FrigateAdapter(getattr(settings, "nvr_recorder_id", None) or "nvr-1", settings).health()
+        else:
+            h = vendor_io.adapter(settings, getattr(settings, "nvr_recorder_id", None) or "nvr-1").health()
         if not h.online:
             return {"status": "error", "detail": f"אין תשובה מה־NVR ({h.error}).", "configured": True, "error": h.error}
         return {"status": "ok", "detail": f"מחובר · {h.model or 'דגם לא ידוע'} · קושחה {h.firmware or '?'}", "configured": True, "model": h.model, "firmware": h.firmware,

@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import './frigate-summary';
+import './frigate-control-settings';
 import './sw-badge';
 import './sw-button';
 import './sw-card';
@@ -151,6 +153,7 @@ export class NvrRecordersCard extends LitElement {
         ? html`<div class="conn" data-recorder-connection-form>
             <nvr-connection-form context="settings" recorder-id=${r.id}
               @nvr-connection-saved=${() => this.changed('נשמר')} @nvr-connection-removed=${() => { this.open = ''; this.changed('ה־NVR הוסר'); }}></nvr-connection-form>
+            ${r.vendor === 'frigate' && st === 'online' ? html`<frigate-summary recorder-id=${r.id} data-recorder-frigate-summary></frigate-summary><frigate-control-settings recorder-id=${r.id} data-recorder-frigate-control></frigate-control-settings>` : nothing}
           </div>`
         : nothing}
     </li>`;
@@ -186,6 +189,7 @@ export class NvrRecordersCard extends LitElement {
       const connected = !!only && only.connection?.vendor && only.connection.vendor !== 'none' && only.connection.state !== 'not_chosen';
       return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection>
         <nvr-connection-form context="settings" recorder-id=${only?.id ?? 'nvr-1'} @nvr-connection-saved=${() => void this.load()} @nvr-connection-removed=${() => void this.load()}></nvr-connection-form>
+        ${only?.vendor === 'frigate' && only.status.state === 'online' ? html`<frigate-summary recorder-id=${only.id} data-recorder-frigate-summary></frigate-summary><frigate-control-settings recorder-id=${only.id} data-recorder-frigate-control></frigate-control-settings>` : nothing}
         ${connected ? html`<div class="actions add-one"><sw-button size=${this.btn} icon="plus" data-recorder-add @click=${() => { this.adding = true; this.msg = null; }}>הוסף NVR</sw-button></div>` : nothing}
         ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-recorder-msg>${this.msg.text}</div>` : nothing}
         ${this.adding ? this.addDialog() : nothing}

@@ -62,7 +62,7 @@ const SCREENS: { mode: string; items: Entry[] }[] = [
       { sc: 'SC12', name: 'הקלטות / ציר זמן', route: '#/investigate/playback', phase: 'PILOT', board: '1:07 · 2:16' },
       { sc: 'SC13', name: 'מרכז שליטה / ניגון מסונכרן', route: '#/investigate/playback/sync', phase: 'BETA', board: '2:14' },
       { sc: 'SC11', name: 'מפה היסטורית', route: '#/investigate/floors/f0/history', phase: 'PILOT', board: 'new' },
-      { sc: 'SC15', name: 'תור Review', route: '#/investigate/reviews', phase: 'BETA', board: 'legacy' },
+      { sc: 'SC15', name: 'סקירה', route: '#/investigate/reviews', phase: 'BETA', board: 'legacy' },
       { sc: 'SC16', name: 'תיקים', route: '#/investigate/cases', phase: 'BETA', board: '2:10' },
       { sc: 'SC17', name: 'סקירת אירוע / תיק', route: '#/investigate/cases/case-1', phase: 'BETA', board: '2:10' },
       { sc: 'SC18', name: 'ייצוא והורדות', route: '#/investigate/exports', phase: 'BETA', board: '2:10' },

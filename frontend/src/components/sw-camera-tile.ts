@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import './sw-badge';
 import './sw-scene';
@@ -8,6 +8,8 @@ import type { StateKind } from './sw-badge';
 import type { SceneKind } from './sw-scene';
 import type { CameraEncoding } from '../api/types';
 import { encodeGop, playerPlan } from '../api/video-policy';
+import { stillDue, stillIntervalMs, withBust } from '../api/frigate';
+import { he } from '../i18n/he';
 
 export type { SceneKind } from './sw-scene';
 
@@ -45,6 +47,61 @@ export class SwCameraTile extends LitElement {
   /** The profile is the installation's default, not the viewer's choice: the player may fall back to the other profile
    * when this one proves undecodable (sw-live-player `autoProfile`, LAN / Ingress only). */
   @property({ type: Boolean }) autoProfile = false;
+  /** NN5-F1B: seconds between refreshes of a camera that has no live stream (a Frigate recorder in F1): the tile re-reads its `poster`
+   * itself, never faster than 5 s, never while the tab is hidden or the tile is out of view, and says so ("תמונה מתעדכנת"). 0 = off. */
+  @property({ type: Number }) stillRefresh = 0;
+  @state() private stillBust = 0;
+  private stillAt = 0;
+  private stillInView = true;
+  private stillTimer = 0;
+  private stillObs: IntersectionObserver | null = null;
+
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('visibilitychange', this.stillTick);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('visibilitychange', this.stillTick);
+    this.stopStill();
+  }
+
+  protected willUpdate(changed: Map<string, unknown>) {
+    if (changed.has('stillRefresh')) {
+      this.stopStill();
+      if (this.stillRefresh > 0) this.startStill();
+    }
+  }
+
+  private startStill() {
+    this.stillAt = Date.now();
+    this.stillBust = this.stillAt;
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.stillObs = new IntersectionObserver((es) => {
+        this.stillInView = es.some((e) => e.isIntersecting);
+        this.stillTick();
+      });
+      this.stillObs.observe(this);
+    }
+    this.stillTimer = window.setInterval(this.stillTick, 1000);
+  }
+
+  private stopStill() {
+    window.clearInterval(this.stillTimer);
+    this.stillTimer = 0;
+    this.stillObs?.disconnect();
+    this.stillObs = null;
+  }
+
+  private stillTick = () => {
+    if (this.stillRefresh <= 0) return;
+    const now = Date.now();
+    if (stillDue({ hidden: document.hidden, inView: this.stillInView, lastAt: this.stillAt, now, intervalMs: stillIntervalMs(this.stillRefresh) })) {
+      this.stillAt = now;
+      this.stillBust = now;
+    }
+  };
 
   static styles = css`
     :host {
@@ -213,10 +270,10 @@ export class SwCameraTile extends LitElement {
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
-          ? html`<img class="poster" src=${this.poster} alt="" loading="lazy" />`
+          ? html`<img class="poster" src=${this.stillRefresh > 0 ? withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label>${this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? 'refreshing' : nothing}>${this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       ${this.stamp ? html`<span class="stamp">${this.stamp}</span>` : this.meta && !this.compact ? html`<span class="meta">${this.meta}</span>` : nothing}

@@ -486,6 +486,10 @@ def _targets(db: Database, settings: Settings, only: str | None = None) -> list[
                 continue
             if hasattr(adapter, "health_zone"):
                 adapter.health_zone = _zone_of(conn, rid)
+            if hasattr(adapter, "channel_map"):  # NN5: Frigate's synthetic channel numbers are the cameras table's
+                from .recorders import frigate_io
+
+                adapter.channel_map = frigate_io.channel_map(conn, rid)
             out.append((rid, (meta[0] if meta else None) or rid, getattr(adapter, "vendor", ""), adapter))
     return out
 
@@ -694,4 +698,5 @@ def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[i
     status = "error" if "error" in states else "warn" if "warn" in states else "unknown" if api["state"] == "unknown" else "ok"
     return {"id": st.recorder_id, "name": name or st.name or st.recorder_id, "vendor": st.vendor, "status": status, "checked_at": _iso(st.checked_at),
             "detail_supported": st.detail_supported, "model": st.model, "firmware": st.firmware,
-            "api": api, "disks": disks, "recording": recording, "channels": channels, "clock": clock, "certificate": cert}
+            "api": api, "disks": disks, "recording": recording, "channels": channels, "clock": clock, "certificate": cert,
+            "vendor_details": (r.details if r is not None and getattr(r, "details", None) else None)}

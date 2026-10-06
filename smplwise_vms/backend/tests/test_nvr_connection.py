@@ -697,7 +697,7 @@ def test_a_vendor_without_an_adapter_is_refused_not_served_by_another(settings):
     from smplwise.errors import ApiError
 
     with pytest.raises(ApiError) as exc:
-        registry.constructor_for(dataclasses.replace(settings, nvr_vendor="frigate"))
+        registry.constructor_for(dataclasses.replace(settings, nvr_vendor="dahua"))  # NN5: Frigate has an adapter now; Dahua does not
     assert exc.value.code == "vendor_not_supported"
     assert registry.constructor_for(settings) is registry.VENDORS["hikvision"]
     assert not registry.selectable("frigate") and registry.selectable("none") and registry.selectable("hikvision")
