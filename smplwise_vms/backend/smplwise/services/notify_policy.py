@@ -91,6 +91,8 @@ SOURCES: tuple[Source, ...] = (
     # ---- security
     _s("security.new_signin", "כניסה חדשה / גישה מרחוק", "security", "alert", "כניסה חדשה לחשבון", "כניסה ממכשיר חדש. אם זה לא אתה - נתק את הכניסה.", window_s=3600, who="initiator", subject="session", resolves=False),
     _s("security.lockout", "נעילת קוד", "security", "alert", "נעילת קוד", "הוזנו קודים שגויים ונשארה נעילה זמנית.", window_s=3600, subject="session", resolves=False),
+    # TFA2: an administrator reset the account's second factor - the account's own user is told (never who, never a secret)
+    _s("security.second_factor_reset", "איפוס אימות דו־שלבי", "security", "alert", "האימות הדו־שלבי של החשבון אופס", "מנהל המערכת אפס את האימות הדו־שלבי של החשבון שלך. אם לא ביקשת זאת - פנה למנהל המערכת. אפשר להפעיל אותו מחדש ב״החשבון שלי״.", window_s=3600, who="initiator", subject="session", resolves=False),
     # ---- alerts (rules, and the NVR smart events that only rules turn into notifications)
     _s("rule.alert", "התראות מחוקים", "alerts", "alert", "{name}", "{message}", window_s=300, subject="camera", resolve_text="טופל", resolves=False),
     _s("camera.motion", "תנועה (רק דרך חוקים)", "alerts", "info", "תנועה", "{name}.", window_s=300, push=False, enabled=False, subject="camera", resolves=False),

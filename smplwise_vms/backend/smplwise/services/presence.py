@@ -528,6 +528,19 @@ def unregister(conn: sqlite3.Connection, device: sqlite3.Row) -> None:
     conn.execute("DELETE FROM mobile_push_messages WHERE device_id = ?", (device["id"],))
 
 
+def revoke_tokens(conn: sqlite3.Connection, user_id: str) -> int:
+    """TFA2: invalidate the device tokens (`arxd_...`) of a user whose second factor was just enabled or reset, so a token issued before
+    the change cannot outlive it. Only the CREDENTIAL ends: the device rows, their event log, notice acknowledgement and push
+    registration stay, so the contract holds - the app's next call answers 401 `device_token_invalid`, it shows the registration screen
+    and `POST presence/devices` (a session, which owes the factor) rotates the token of the same install (same `install_id`, section 1).
+    Returns the number of tokens ended."""
+    n = 0
+    for r in conn.execute("SELECT id FROM mobile_devices WHERE user_id = ? AND revoked_at IS NULL AND token_hash NOT LIKE 'revoked:%'", (user_id,)).fetchall():
+        conn.execute("UPDATE mobile_devices SET token_hash = ?, token_rotated_at = ? WHERE id = ?", ("revoked:" + new_id(), now_iso(), r["id"]))
+        n += 1
+    return n
+
+
 def out(conn: sqlite3.Connection, device_id: str, *, with_user: bool = False) -> dict[str, Any]:
     return _device_out(get_device(conn, device_id), with_user=with_user, conn=conn)
 

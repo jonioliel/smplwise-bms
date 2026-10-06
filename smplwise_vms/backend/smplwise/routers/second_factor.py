@@ -5,6 +5,8 @@
 `POST   auth/second-factor/confirm {code}`      the first code from the authenticator app activates the factor
 `POST   auth/second-factor/disable {code}`      the caller removes their own factor; needs a current code
 `GET    auth/second-factor/users`               system.configure: who has an active factor + the policy
+`GET    auth/second-factor/overrides`            system.configure: the per-user / per-role policy overrides (TFA2)
+`PUT    auth/second-factor/overrides/{kind}/{id} {policy}`  system.configure: kind user|role, policy inherit|optional|required - audited
 `DELETE auth/second-factor/users/{user_id}`     system.configure: reset (remove) ANOTHER user's factor from any channel - audited;
                                                 an administrator who has a factor sends their own current code
                                                 (X-Arx-Second-Factor or {code}); the target's remote sign-ins end
@@ -24,8 +26,9 @@ from pydantic import BaseModel, Field
 from ..audit import audit
 from ..auth import current_principal, get_conn, settings_of
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, require
+from ..rbac import INSTALLATION, Principal, all_roles, require
 from ..services import ha_user_auth as hua
+from ..services import notify_sources, presence
 from ..services import second_factor as sf
 
 router = APIRouter()
@@ -91,7 +94,9 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
     # remote sign-in of the user ends now (the caller's own current one stays)
     ended = hua.revoke_user_sign_ins(conn, principal.user_id, actor=principal, reason="second_factor_enrolled", keep=hua.session_of(request),
                                      request_id=getattr(request.state, "correlation_id", None))
-    _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended)
+    # TFA2: a phone device token issued before the factor existed ends too; the app re-registers through a session (which owes the code)
+    tokens = presence.revoke_tokens(conn, principal.user_id)
+    _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id, other_sign_ins_ended=ended, device_tokens_revoked=tokens)
     return sf.status(conn, principal.user_id)
 
 
@@ -114,6 +119,49 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
 def list_users(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     return {"policy": sf.policy(conn), "users": [{"user_id": uid, **info} for uid, info in sorted(sf.enrolled_users(conn).items())]}
+
+
+@router.get("/auth/second-factor/overrides")
+def list_overrides(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    require(conn, principal, "system.configure", INSTALLATION)
+    return {"policy": sf.policy(conn), **sf.overrides(conn)}
+
+
+class OverrideBody(BaseModel):
+    policy: str = Field(max_length=16)
+
+
+@router.put("/auth/second-factor/overrides/{kind}/{subject_id}")
+def set_override(kind: str, subject_id: str, body: OverrideBody, request: Request, principal: Principal = Depends(current_principal),
+                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """TFA2 (owner decision 2026-10-06: optional, never forced; he decides later who must use it): `required` / `optional` for ONE user or
+    ONE role on top of the global policy, or `inherit` to drop the override. The user's own override beats their roles', which beat the
+    global one; any role `required` wins over a role `optional`. `required` ends the other remote sign-ins of the affected users who
+    have no factor, so a session that began before the rule cannot roll on without it; the local channel stays the break-glass path.
+    The change is audited (before / after / how many users were affected); nothing secret is involved."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    if kind not in sf.OVERRIDE_KINDS:
+        raise ApiError(404, "not_found", "סוג היעד אינו מוכר.")
+    if body.policy not in sf.OVERRIDE_VALUES:
+        raise ApiError(422, "invalid_policy", "המדיניות צריכה להיות inherit, optional או required.", details={"allowed": list(sf.OVERRIDE_VALUES)})
+    if len(subject_id) > 200:
+        raise ApiError(404, "not_found", "היעד לא נמצא.")
+    if kind == "user" and conn.execute("SELECT 1 FROM users WHERE id = ?", (subject_id,)).fetchone() is None:
+        raise ApiError(404, "user_unknown", "המשתמש לא נמצא בספריית המערכת.")
+    if kind == "role" and subject_id not in all_roles(conn):
+        raise ApiError(404, "not_found", "התפקיד לא נמצא.")
+    _limit(principal)
+    before = sf.set_override(conn, kind, subject_id, body.policy, principal.user_id)
+    affected = [subject_id] if kind == "user" else sf.users_of_role(conn, subject_id)
+    ended = 0
+    if body.policy == "required":
+        for uid in affected:
+            if uid != principal.user_id and not sf.is_enrolled(conn, uid):
+                ended += hua.revoke_user_sign_ins(conn, uid, actor=principal, reason="second_factor_required", request_id=getattr(request.state, "correlation_id", None))
+    audit(conn, actor=principal, action="auth.second_factor.policy_override", decision="allowed", resource_type=kind, resource_id=subject_id,
+          request_id=getattr(request.state, "correlation_id", None),
+          details={"method": "totp", "before": before or "inherit", "after": body.policy, "users_affected": len(affected), "sign_ins_ended": ended})
+    return {"kind": kind, "subject_id": subject_id, "policy": body.policy, **sf.overrides(conn)}
 
 
 class ResetBody(BaseModel):
@@ -146,7 +194,12 @@ def admin_reset(user_id: str, request: Request, body: ResetBody | None = None, p
             audit(conn, actor=principal, action="auth.second_factor.reset", decision="denied", resource_type="user", resource_id=user_id,
                   reason=f"step_up_{exc.code}", request_id=getattr(request.state, "correlation_id", None), details={"method": "totp"})
             raise _fail(exc) from None
+    was_active = sf.is_enrolled(conn, user_id)
     removed = sf.remove(conn, user_id)
     ended = hua.revoke_user_sign_ins(conn, user_id, actor=principal, reason="second_factor_reset", request_id=getattr(request.state, "correlation_id", None))
-    _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended)
+    tokens = presence.revoke_tokens(conn, user_id)  # TFA2: the phone app's device tokens end with the factor (it re-registers through a session)
+    if was_active:
+        notify_sources.second_factor_reset(conn, user_id)  # TFA2: the user hears of it in their inbox - no actor, no secret
+    _audit(conn, request, principal, "auth.second_factor.reset", user_id, removed=removed, step_up=sf.is_enrolled(conn, principal.user_id), sign_ins_ended=ended,
+           device_tokens_revoked=tokens, user_notified=was_active)
     return {"user_id": user_id, "removed": removed}

@@ -955,10 +955,9 @@ SECOND_FACTOR_HEADER = "x-arx-second-factor"
 
 
 def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
-    """What a NEW remote sign-in must still show: `code` (the user enrolled a TOTP), `enroll` (security.second_factor_policy
-    = admins and an administrator has none), else `none`. The rotation of the caller's own live session (same user, cookie)
+    """What a NEW remote sign-in must still show: `code` (the user enrolled a TOTP), `enroll` (the policy requires one - the
+    user's own override, their roles' or `security.second_factor_policy = admins` for an administrator - and they have none), else `none`. The rotation of the caller's own live session (same user, cookie)
     is not a new sign-in: the factor was shown when that session began."""
-    from ..rbac import permissions_anywhere
     from . import second_factor as sf
 
     old = STORE.get(replaces) if replaces else None
@@ -966,7 +965,8 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
         return "none"
     if sf.is_enrolled(conn, principal.user_id):
         return "code"
-    if sf.policy(conn) == "admins" and set(permissions_anywhere(conn, principal)) & ADMIN_PERMISSIONS:
+    # TFA2: the per-user / per-role override on top of the global policy; `required` and no factor = the enrolment-required answer
+    if sf.effective_policy(conn, principal, ADMIN_PERMISSIONS)[0] == "required":
         return "enroll"
     return "none"
 

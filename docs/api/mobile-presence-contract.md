@@ -74,6 +74,13 @@ user and does not store it), so a push is always attributable to exactly one sto
 >   unchanged. Users without a factor see no change.
 > - Turning the factor on, or an administrator's reset of it, ends the user's other remote sign-ins
 >   (`401 remote_session_revoked`; sign in to HA again).
+> - **Device tokens (TFA2):** when the factor is enabled for the user, or an administrator resets it, the user's device tokens
+>   (`arxd_...`) stop working at once: the next device-token call answers `401 device_token_invalid`. Only the credential ends - the
+>   device row (name, notice acknowledgement, event log, push registration) stays. The app handles it like any `401
+>   device_token_invalid`: show the registration screen and `POST presence/devices` with a session (which owes the code); the same
+>   `install_id` rotates the token of the SAME device (`200`, `created: false`).
+> - **Per-user / per-role policy (TFA2):** an administrator may mark a user or a role `required`. A user owing the factor with none
+>   gets `403 second_factor_enrollment_required` on a new sign-in (cookie or bearer); enrol on the local channel, then sign in with the code.
 > - Compatibility switch: `security.second_factor_bearer` = `enforce` (default) | `off` (the previous behaviour; every
 >   sign-in that skipped an owed check is audited with `second_factor_skipped`).
 

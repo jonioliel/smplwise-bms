@@ -665,3 +665,11 @@ def code_lockout(conn: sqlite3.Connection, user_id: str) -> None:
     Never the code, never the panel."""
     notify.emit_full(conn, notify.Signal("security.lockout", "session", user_id, dedupe_key=f"security.lockout:session:{user_id}", params={"name": "קוד אזעקה", "place": "אזעקה"}, initiator_user_id=user_id,
                                          origin={"kind": "alarm_code"}))
+
+
+@safe
+def second_factor_reset(conn: sqlite3.Connection, user_id: str) -> None:
+    """An administrator reset this user's second factor (routers/second_factor.admin_reset, inside its transaction): the ACCOUNT'S OWN user gets
+    `security.second_factor_reset` in the inbox (and the channels of its policy). No actor, no secret, no code in it."""
+    notify.emit_full(conn, notify.Signal("security.second_factor_reset", "session", user_id, dedupe_key=f"security.second_factor_reset:session:{user_id}:{notify.new_id()}",
+                                         initiator_user_id=user_id, link="#/system/notifications", origin={"kind": "second_factor"}))

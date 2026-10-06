@@ -46,7 +46,6 @@ def test_provisioning_uri_is_a_standard_otpauth_link():
 
 @pytest.fixture()
 def arx(settings, tmp_path, monkeypatch):
-    sf.FAILURES.clear()
     import types
 
     frozen = (int(time.time() // sf.PERIOD_S)) * sf.PERIOD_S + 15  # the middle of a 30 s step: no boundary can fall inside a test
@@ -59,7 +58,6 @@ def arx(settings, tmp_path, monkeypatch):
     bind_raw(a, "dev-joni", "system_admin")  # the local developer identity administers the installation
     yield a
     hua.reset_for_tests()
-    sf.FAILURES.clear()
 
 
 def secret_of(arx: Arx, user_id: str) -> bytes:
@@ -175,7 +173,8 @@ def test_five_wrong_codes_lock_the_user_out(arx):
     assert codes[:4] == [401] * 4 and codes[4] == 429
     locked = fresh_login(arx, arx.viewer, code_now(arx, "u-viewer"))
     assert locked.status_code == 429 and locked.json()["code"] == "second_factor_locked" and locked.json()["retryable"] is True
-    sf.FAILURES._locked["u-viewer"] = 0.0  # the lockout ends
+    with arx.db.connection() as conn:
+        conn.execute("UPDATE auth_totp_failures SET locked_until = 0 WHERE user_id = 'u-viewer'")  # the lockout ends
     assert fresh_login(arx, arx.viewer, code_now(arx, "u-viewer")).status_code == 200
 
 

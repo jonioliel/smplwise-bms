@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import qrcode from 'qrcode-generator';
 import './sw-button';
 import { describeError } from '../api/client';
-import { confirmEnrolment, disableSecondFactor, factorUsers, resetFactor, secondFactorStatus, startEnrolment, type Enrolment, type SecondFactorStatus } from '../api/second-factor';
+import { confirmEnrolment, disableSecondFactor, factorOverrides, factorUsers, resetFactor, secondFactorStatus, setFactorOverride, startEnrolment, type Enrolment, type FactorOverride, type FactorOverrides, type SecondFactorStatus } from '../api/second-factor';
 import { t } from '../i18n/he';
 
 /** The otpauth link as an inline SVG QR code (one path, no data: URL, so the strict remote CSP is untouched). */
@@ -94,7 +94,18 @@ const SHARED = css`
     text-align: center;
     direction: ltr;
   }
-  input:focus-visible {
+  select {
+    min-block-size: 36px;
+    padding: 4px 10px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: var(--sw-r-sm);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+  }
+  input:focus-visible,
+  select:focus-visible {
     outline: 2px solid var(--sw-focus);
     outline-offset: 1px;
   }
@@ -313,9 +324,75 @@ export class SwSecondFactorUser extends LitElement {
   }
 }
 
+/** TFA2: the per-user / per-role policy override (inherit / optional / required) on top of the global policy. One select; the
+ * overrides are read once and shared by every instance on the screen (the role cards), refreshed from each save's answer.
+ * Unreadable (no permission, old server) -> renders nothing. */
+let overridesCache: Promise<FactorOverrides> | null = null;
+
+@customElement('sw-second-factor-policy')
+export class SwSecondFactorPolicy extends LitElement {
+  @property() kind: 'user' | 'role' = 'user';
+  @property() subjectId = '';
+  @state() private value: FactorOverride | undefined = undefined;
+  @state() private busy = false;
+  @state() private error = '';
+
+  static styles = SHARED;
+
+  protected willUpdate(changed: Map<string, unknown>) {
+    if (changed.has('subjectId') || changed.has('kind')) {
+      this.value = undefined;
+      void this.load();
+    }
+  }
+
+  private async load() {
+    const kind = this.kind;
+    const id = this.subjectId;
+    try {
+      overridesCache ??= factorOverrides();
+      const o = await overridesCache;
+      if (kind === this.kind && id === this.subjectId) this.value = o[kind][id] ?? 'inherit';
+    } catch {
+      overridesCache = null;
+      this.value = undefined;
+    }
+  }
+
+  private async change(e: Event) {
+    const sel = e.target as HTMLSelectElement; // captured now: an event's target is cleared once it left the shadow tree
+    const next = sel.value as FactorOverride;
+    const before = this.value;
+    this.busy = true;
+    this.error = '';
+    try {
+      const r = await setFactorOverride(this.kind, this.subjectId, next);
+      overridesCache = Promise.resolve(r);
+      this.value = next;
+    } catch (err) {
+      this.error = describeError(err);
+      this.value = before;
+      sel.value = before ?? 'inherit';
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  render() {
+    if (this.value === undefined) return nothing;
+    return html`<div class="row" data-sf-policy-row>
+        <select data-sf-policy-select aria-label=${t('secondFactor.overrideLabel')} ?disabled=${this.busy} @change=${(e: Event) => void this.change(e)}>
+          ${(['inherit', 'optional', 'required'] as const).map((v) => html`<option value=${v} ?selected=${this.value === v}>${t(v === 'inherit' ? 'secondFactor.overrideInherit' : v === 'optional' ? 'secondFactor.overrideOptional' : 'secondFactor.overrideRequired')}</option>`)}
+        </select>
+      </div>
+      ${this.error ? html`<div class="err" role="alert" data-sf-policy-error>${this.error}</div>` : nothing}`;
+  }
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'sw-second-factor': SwSecondFactor;
     'sw-second-factor-user': SwSecondFactorUser;
+    'sw-second-factor-policy': SwSecondFactorPolicy;
   }
 }

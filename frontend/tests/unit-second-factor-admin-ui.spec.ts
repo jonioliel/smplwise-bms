@@ -16,6 +16,7 @@ interface Mock {
   calls: { method: string; path: string; body: unknown }[];
   enrolled: Set<string>;
   settings: Record<string, unknown>;
+  overrides: { user: Record<string, string>; role: Record<string, string> };
 }
 
 const user = (id: string, name: string, username: string, isSelf = false) => ({
@@ -24,7 +25,7 @@ const user = (id: string, name: string, username: string, isSelf = false) => ({
 });
 
 async function setup(page: Page): Promise<Mock> {
-  const st: Mock = { calls: [], enrolled: new Set(['u-dana']), settings: { 'ui.design': 'a', 'security.second_factor_policy': 'optional', 'remote.policy': 'flag' } };
+  const st: Mock = { calls: [], overrides: { user: {}, role: {} }, enrolled: new Set(['u-dana']), settings: { 'ui.design': 'a', 'security.second_factor_policy': 'optional', 'remote.policy': 'flag' } };
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.routeWebSocket(/\/me\/ws/, () => undefined);
   await page.routeWebSocket(/\/ha\/ws/, () => undefined);
@@ -51,6 +52,17 @@ async function setup(page: Page): Promise<Mock> {
     if (p === 'auth/sessions') return json(route, { scope: 'all', can_manage: true, channel: 'local', sessions: [] });
     if (p === 'auth/second-factor/users' && method === 'GET') {
       return json(route, { policy: st.settings['security.second_factor_policy'], users: [...st.enrolled].map((id) => ({ user_id: id, enabled_at: '2026-10-05T09:00:00Z', last_used_at: null })) });
+    }
+    if (p === 'auth/second-factor/overrides' && method === 'GET') return json(route, { policy: st.settings['security.second_factor_policy'], ...st.overrides });
+    const ov = p.match(/^auth\/second-factor\/overrides\/(user|role)\/(.+)$/);
+    if (ov && method === 'PUT') {
+      const kind = ov[1] as 'user' | 'role';
+      const id = decodeURIComponent(ov[2]);
+      const body = req.postDataJSON() as { policy: string };
+      st.calls.push({ method, path: p, body });
+      if (body.policy === 'inherit') delete st.overrides[kind][id];
+      else st.overrides[kind][id] = body.policy;
+      return json(route, { kind, subject_id: id, policy: body.policy, ...st.overrides });
     }
     const del = p.match(/^auth\/second-factor\/users\/(.+)$/);
     if (del && method === 'DELETE') {
@@ -148,4 +160,67 @@ test('remote-access settings: the policy select offers optional and admins, show
   await page.waitForSelector('sw-app system-diagnostics');
   await expect(page.locator('system-diagnostics [data-second-factor-policy-row] select')).toHaveValue('admins');
   expect(errors).toEqual([]);
+});
+
+test('user drawer: the policy override select offers inherit / optional / required and saves the right user', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const mock = await setup(page);
+  mock.overrides.user['u-ron'] = 'required';
+  const drawer = await openUser(page, 'דנה כהן');
+  const select = drawer.locator('[data-second-factor-policy-user] select[data-sf-policy-select]');
+  await expect(select.locator('option')).toHaveCount(3);
+  await expect(select).toHaveValue('inherit');
+  await select.selectOption('required');
+  await expect(select).toHaveValue('required');
+  expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
+  expect(mock.overrides.user['u-dana']).toBe('required');
+  // another user shows their own stored value, not the previous user's
+  await page.getByRole('button', { name: 'סגור' }).click();
+  await page.locator('sw-app system-access sw-table tbody tr', { hasText: 'רון לוי' }).first().click();
+  await expect(page.locator('sw-app system-access sw-drawer [data-second-factor-policy-user] select')).toHaveValue('required');
+  await page.locator('sw-app system-access sw-drawer [data-second-factor-policy-user] select').selectOption('inherit');
+  await expect.poll(() => mock.overrides.user['u-ron']).toBeUndefined();
+  expect(errors).toEqual([]);
+});
+
+test('user drawer: a refused override shows the error and keeps the old value', async ({ page }) => {
+  const mock = await setup(page);
+  await page.route('**/api/v1/auth/second-factor/overrides/**', (route) => (route.request().method() === 'PUT' ? json(route, { code: 'forbidden', user_message: 'אין הרשאה לשנות מדיניות.', retryable: false, correlation_id: 'mock', details: {} }, 403) : route.fallback()));
+  const drawer = await openUser(page, 'דנה כהן');
+  const select = drawer.locator('[data-second-factor-policy-user] select');
+  await select.selectOption('required');
+  await expect(drawer.locator('[data-sf-policy-error]')).toContainText('אין הרשאה');
+  await expect(select).toHaveValue('inherit');
+  expect(mock.overrides.user).toEqual({});
+});
+
+test('roles screen: every role card has the policy override select', async ({ page }) => {
+  const mock = await setup(page);
+  const role = (id: string, name: string, custom: boolean) => ({ id, name, description: '', permissions: ['video.live'], sensitive_missing: [], custom, system_role: false, delegable: false, delegation_block: null, revision: 1 });
+  await page.route('**/api/v1/access/roles', (route) => json(route, { roles: [role('viewer', 'צופה', false), role('custom-1', 'שומר', true)], labels: { 'video.live': 'וידאו חי' }, sensitive: [], can_manage_roles: true, delegable_roles: [] }));
+  mock.overrides.role['custom-1'] = 'required';
+  await page.goto('/?design=a#/system/access');
+  await page.waitForSelector('sw-app system-access');
+  const screen = page.locator('sw-app system-access');
+  await screen.locator('sw-tabs').getByText('תפקידים').click();
+  const viewer = screen.locator('[data-role-card="viewer"] select[data-sf-policy-select]');
+  const custom = screen.locator('[data-role-card="custom-1"] select[data-sf-policy-select]');
+  await expect(viewer).toHaveValue('inherit');
+  await expect(custom).toHaveValue('required');
+  await viewer.selectOption('optional');
+  await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT').length).toBe(1);
+  expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/role/viewer', body: { policy: 'optional' } }]);
+});
+
+test('remote-access settings: the note says the factor does not protect the infrastructure login, without naming Home Assistant', async ({ page }) => {
+  await setup(page);
+  await page.goto('/?design=a#/system/diagnostics?tab=remote');
+  await page.waitForSelector('sw-app system-diagnostics');
+  const note = page.locator('system-diagnostics [data-second-factor-infra-note]');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('תשתית המערכת');
+  const text = (await note.textContent()) ?? '';
+  expect(text).not.toMatch(/Home Assistant|\bHA\b|הום אסיסטנט/);
+  expect(text.length).toBeLessThan(120);
 });
