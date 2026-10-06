@@ -1,13 +1,13 @@
 # Project status — generated view
 
-Generated: 2026-10-06T13:13:22.003304+00:00
+Generated: 2026-10-06T14:36:24.162839+00:00
 
-Tasks: 115 | Requirements: 228 | Tests: 228 | Screens: 32
+Tasks: 118 | Requirements: 231 | Tests: 235 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 101
+- BACKLOG: 104
 - BLOCKED: 2
 - DONE: 2
 - IN_PROGRESS: 6
@@ -18,7 +18,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 36
+- V1: 39
 - V2: 14
 - V3: 2
 
@@ -144,3 +144,6 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T113](tasks/T113.md) | V1 | BACKLOG | מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF | — |
 | [T114](tasks/T114.md) | V1 | BACKLOG | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
 | [T115](tasks/T115.md) | V1 | BACKLOG | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
+| [T116](tasks/T116.md) | V1 | BACKLOG | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
+| [T117](tasks/T117.md) | V1 | BACKLOG | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
+| [T118](tasks/T118.md) | V1 | BACKLOG | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
