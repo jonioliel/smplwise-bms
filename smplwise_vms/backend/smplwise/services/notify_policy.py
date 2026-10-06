@@ -22,7 +22,7 @@ SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security")
 RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator")  # generator: the routing saved on the generator screen (services/generator_alerts.py)
-CHANNELS_V1 = ("inbox", "webpush", "email", "app")  # app = the SmplWise Arx phone app through the push relay (CR-027)
+CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py)
 CHANNELS_RESERVED = ("ha_mobile", "whatsapp")
 SUBJECT_KINDS = ("camera", "entity", "area", "alarm_panel", "door", "schedule", "automation", "bulk_job", "system", "session", "generator")
 SEVERITY_LABEL_HE = {"info": "מידע", "alert": "התראה", "critical": "קריטי"}
@@ -163,7 +163,7 @@ def _clip(text: str, n: int) -> str:
 def default_row(s: Source) -> dict[str, Any]:
     return {
         "source": s.key, "enabled": s.enabled, "severity": s.severity, "category": s.category, "after_s": s.after_s, "dedupe_window_s": s.window_s,
-        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": False, "ha_mobile": False, "whatsapp": False},
+        "resolve_notice": s.resolve_notice, "recipients": {"rule": s.who}, "channels": {"inbox": True, "webpush": s.push, "email": s.email, "app": False, "announce": False, "ha_mobile": False, "whatsapp": False},
     }
 
 
@@ -198,7 +198,7 @@ def row_to_policy(r: sqlite3.Row) -> dict[str, Any]:
     return {
         "source": r["source"], "enabled": bool(r["enabled"]), "severity": r["severity"], "category": r["category"], "after_s": r["after_s"],
         "dedupe_window_s": r["dedupe_window_s"], "resolve_notice": bool(r["resolve_notice"]), "recipients": rec,
-        "channels": {"inbox": True, "webpush": bool(channels.get("webpush")), "email": bool(channels.get("email")), "app": bool(channels.get("app")), "ha_mobile": False, "whatsapp": False},
+        "channels": {"inbox": True, "webpush": bool(channels.get("webpush")), "email": bool(channels.get("email")), "app": bool(channels.get("app")), "announce": bool(channels.get("announce")), "ha_mobile": False, "whatsapp": False},
         "revision": r["revision"],
     }
 
@@ -306,12 +306,12 @@ def validate_update(source: str, body: dict[str, Any]) -> dict[str, Any]:
             out["recipients_json"] = json.dumps(rec)
     if "channels" in body:
         ch = body["channels"] or {}
-        if not isinstance(ch, dict) or any(k in ch and not isinstance(ch[k], bool) for k in ("inbox", "webpush", "email", "ha_mobile", "whatsapp", "app")):
+        if not isinstance(ch, dict) or any(k in ch and not isinstance(ch[k], bool) for k in ("inbox", "webpush", "email", "ha_mobile", "whatsapp", "app", "announce")):
             raise PolicyInvalid("validation", "ערוצים: ערכי כן/לא בלבד.", {"field": "channels"})
         for reserved in CHANNELS_RESERVED:
             if ch.get(reserved):
                 raise PolicyInvalid("channel_reserved", "הערוץ הזה עדיין לא זמין.", {"channel": reserved})
         if ch.get("inbox") is False:
             raise PolicyInvalid("validation", "מרכז ההתראות פעיל תמיד.", {"field": "channels.inbox"})
-        out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "ha_mobile": False, "whatsapp": False})
+        out["channels_json"] = json.dumps({"inbox": True, "webpush": bool(ch.get("webpush")), "email": bool(ch.get("email")), "app": bool(ch.get("app")), "announce": bool(ch.get("announce")), "ha_mobile": False, "whatsapp": False})
     return out

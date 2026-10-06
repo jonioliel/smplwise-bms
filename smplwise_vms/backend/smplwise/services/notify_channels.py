@@ -348,7 +348,7 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             users = [r[0] for r in conn.execute("SELECT user_id FROM notification_recipients WHERE notification_id = ? ORDER BY added_at, user_id", (nid,)).fetchall()]
         d = Dispatch(nid, mode, n, policy, st, tz, now, nsettings.in_quiet_hours(st["quiet"], now, tz), list(dict.fromkeys(users)), item)
         d._conn = conn
-        for name in ("webpush", "email", "app"):  # the v1 channels, in the order they are shown; the reserved ones (ha_mobile, whatsapp) are never planned
+        for name in ("webpush", "email", "app", "announce"):  # the v1 channels, in the order they are shown; the reserved ones (ha_mobile, whatsapp) are never planned
             if not policy["channels"].get(name):
                 continue
             ch = CHANNELS.get(name)

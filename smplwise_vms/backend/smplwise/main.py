@@ -362,6 +362,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import announcements as announcements_svc
 
     app.include_router(announcements_router.router, prefix=api, tags=["multimedia"])  # MU2: הכרזות קוליות - speak, setup, test, history
+    from .services import announce_channel  # noqa: F401  (registers the `announce` notification channel)
+
     announcements_svc.attach(app.state.db, settings)  # a rule's announce action writes its log through this
 
     @app.on_event("startup")
