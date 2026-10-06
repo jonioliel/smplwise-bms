@@ -372,7 +372,9 @@ export class SwDrawer extends LitElement {
    * cancel event): keep `open` and the `close` event in step. */
   private onNativeClose = (e: Event) => {
     // only the <dialog>'s own close - a nested confirmation's composed `close` bubbles through here too
-    if (e.target === e.currentTarget && this.open) this.close();
+    // `close` is queued as a task after dialog.close(): when the panel was closed and re-opened before it ran (a deep link replaced by another
+    // one), the event is stale - the dialog is open again - and must not close the new panel. A real browser close leaves the dialog closed.
+    if (e.target === e.currentTarget && this.open && !this.dialog?.open) this.close();
   };
 
   /** A press on the dimmed backdrop (outside the panel's box) closes it. */
