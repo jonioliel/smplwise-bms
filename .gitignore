@@ -36,3 +36,6 @@ private/
 
 # Per-machine launch configuration for the desktop app
 .claude/launch.json
+
+# M074 visual-diff artifacts
+frontend/visual-out/
