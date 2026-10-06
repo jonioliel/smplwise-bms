@@ -70,6 +70,8 @@ test('enrol, sign in with the code, no replay, administrator reset', async ({ br
   first.page.on('pageerror', (e) => errors.push(e.message));
   await credentials(first.page, 'dana', 'pw-dana');
   await expect(first.page.locator('sw-app')).toBeVisible();
+  await first.page.reload(); // let the shell settle (a late permission refresh closes an open menu)
+  await expect(first.page.locator('sw-app')).toBeVisible();
   await first.page.locator('sw-app [data-profile-menu]').click();
   const menu = first.page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
   await expect(menu).toBeVisible();
