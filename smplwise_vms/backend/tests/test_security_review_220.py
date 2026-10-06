@@ -569,3 +569,62 @@ def test_l8_the_app_download_route_is_rate_limited(arx):
     assert codes[:30] == [200] * 30 and codes[30:] == [429, 429]
     other = TestClient(arx.app, headers={**ORIGIN, "CF-Connecting-IP": "198.51.100.41"})
     assert other.get("/arx/api/v1/auth/app-download").status_code == 200  # per address
+
+
+# ---------------------------------------------------------------------------------------------- informational follow-ups (I2)
+
+def test_i2_a_change_is_reverted_once_the_loser_of_a_race_gets_409_and_writes_nothing(settings, monkeypatch):
+    import threading
+
+    import test_frigate_control as tfc
+    from fake_frigate import FakeFrigate
+    from fastapi.testclient import TestClient as TC
+    from smplwise.main import create_app
+    from smplwise.services import frigate_control_svc as svc
+    from smplwise.services.recorders import frigate as fr
+    from fake_frigate import settings_for
+    import time
+
+    fake = FakeFrigate()
+    monkeypatch.setattr(fr, "TRANSPORT", fake.transport())
+    s = settings_for(settings)
+    app = create_app(s)
+    with TC(app) as c:
+        w = tfc.World(c, app, fake, s)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline and len(w.cams()) < 3:
+            time.sleep(0.1)
+        w.policy(analytics=True)
+        cid = w.toggle("cam_front", "detect", False).json()["change_id"]
+        before = len(w.fake.writes)
+
+        # (a) the compare-and-set itself: the row was claimed between the router's read and the write
+        real_gate = svc._gate
+        def claim_then_gate(conn, *a, **kw):
+            conn.execute("UPDATE frigate_changes SET status = 'reverted' WHERE id = ?", (cid,))
+            return real_gate(conn, *a, **kw)
+        monkeypatch.setattr(svc, "_gate", claim_then_gate)
+        r = w.call("POST", f"{tfc.BASE}/changes/{cid}/revert", json={})
+        assert r.status_code == 409 and r.json()["code"] == "frigate_change_not_reversible"
+        assert len(w.fake.writes) == before, "the loser wrote nothing to Frigate"
+        monkeypatch.setattr(svc, "_gate", real_gate)
+        with app.state.db.connection(mode="write") as conn:
+            conn.execute("UPDATE frigate_changes SET status = 'applied' WHERE id = ?", (cid,))
+
+        # (b) two clients at once: exactly one wins and Frigate is written once
+        results: list[int] = []
+        barrier = threading.Barrier(2)
+        def go():
+            barrier.wait()
+            results.append(w.call("POST", f"{tfc.BASE}/changes/{cid}/revert", json={}).status_code)
+        threads = [threading.Thread(target=go) for _ in range(2)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        assert sorted(results) == [200, 409]
+        assert len([x for x in w.fake.writes if x[1].endswith("/detect")]) == 2, "the original change plus exactly one undo"
+
+        # (c) a refused (stale) undo gives the claim back: the change stays undoable once Frigate matches again
+        c2 = w.toggle("cam_front", "motion", False).json()["change_id"]
+        w.fake.cameras["cam_front"]["motion"]["enabled"] = True
+        assert w.call("POST", f"{tfc.BASE}/changes/{c2}/revert", json={}).json()["code"] == "frigate_change_stale"
+        assert {x["id"]: x["status"] for x in w.changes()}[c2] in ("applied", "unverified")
