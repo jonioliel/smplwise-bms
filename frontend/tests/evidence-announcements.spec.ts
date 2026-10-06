@@ -23,7 +23,7 @@ async function setup(page: Page, perms: string[] = [...PERMS.admin, 'media.annou
     history: [] as Record<string, unknown>[],
   };
   const answer = () => ({ config: { ...state.config }, speakers: state.speakers.map((s) => ({ ...s, allowed: state.config.devices.includes(s.key) })), engines: ['tts.demo_engine'], history: state.history });
-  await page.route('**/api/v1/announcements/**', async (route) => {
+  await page.route(/\/api\/v1\/announcements(\/|\?|$)/, async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\/announcements\/?/, '');
     const body = req.postData() ? (JSON.parse(req.postData() as string) as Record<string, unknown>) : null;
