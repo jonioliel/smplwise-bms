@@ -542,6 +542,17 @@ class FrigateAdapter:
         reply = self.http.get(f"/vod/{camera}/start/{start:.0f}/end/{end:.0f}/{name}", max_bytes=SEGMENT_MAX_BYTES, timeout=20.0)
         return reply.body, reply.headers.get("content-type", "video/mp4")
 
+    def open_clip(self, camera: str, start: float, end: float):
+        """F2b, UNVERIFIED wire shape: the server-cut clip of ONE camera and window, as a stream (see `FrigateHttp.open_clip`)."""
+        self._camera(camera)
+        return self.http.open_clip(f"/api/{camera}/start/{start:.3f}/end/{end:.3f}/clip.mp4")
+
+    def open_event_clip(self, event_id: str):
+        """F2b, UNVERIFIED wire shape: the clip of one tracked object, as a stream."""
+        from .frigate_http import q
+
+        return self.http.open_clip(f"/api/events/{q(event_id)}/clip.mp4")
+
 
 # ---------------------------------------------------------------------------------------------- registration
 

@@ -545,6 +545,17 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
                     log.exception("schedule state hook failed for %s", new.get("entity_id"))
             device_activity.record_change(conn, data.get("old_state"), new)  # DEVHIST S1: who changed an electrical device (same transaction, no extra HA call; never raises)
             notify_sensors.on_state(conn, data.get("old_state"), new, STATE.connected)  # inside this transaction, in its own savepoint; never raises
+            if str(new.get("entity_id") or "").startswith("alarm_control_panel."):
+                from . import frigate_auto_profile  # NN5 F2b: an alarm-state change may queue a Frigate profile suggestion / switch (database only; the recorder's loop acts)
+
+                conn.execute("SAVEPOINT frigate_auto")
+                try:
+                    frigate_auto_profile.note_alarm_change(conn, data.get("old_state"), new)
+                    conn.execute("RELEASE frigate_auto")
+                except Exception:  # noqa: BLE001 - never lose the state update itself
+                    conn.execute("ROLLBACK TO frigate_auto")
+                    conn.execute("RELEASE frigate_auto")
+                    log.exception("frigate auto-profile hook failed for %s", new.get("entity_id"))
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
                 try:

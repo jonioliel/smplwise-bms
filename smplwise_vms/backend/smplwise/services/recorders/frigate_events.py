@@ -48,6 +48,7 @@ OPEN_REFRESH_MAX = 20         # open items older than the overlap, re-read by id
 WS_HEALTHY_POLL_S = 60.0
 WS_DOWN_POLL_S_DEFAULT = 10.0
 POLL_MIN_S = 5.0              # study risk R4: never poll faster than 5 s
+AUTO_TICK_S = 2.0               # F2b: how often the loop looks for a queued alarm-change profile row
 OFFLINE_AFTER_S = 60.0        # Frigate's own docs: the dead-camera flap needs debouncing
 PERSON = {"person"}
 VEHICLE = {"car", "truck", "bus", "motorcycle", "bicycle", "boat", "license_plate"}
@@ -471,6 +472,7 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
     feed.start()
     tracker = OfflineTracker()
     last_poll = 0.0
+    last_auto = 0.0
     hint = False
     backoff = 5.0
     rounds = 0
@@ -500,6 +502,15 @@ def run_loop(listener: "AlertStreamListener", *, adapter: "FrigateAdapter | None
                 _apply_frames(listener, reviews, transitions, now)
             except Exception:  # noqa: BLE001 - one bad frame batch must not stop the loop; the poll repairs it
                 log.exception("frigate frame handling failed (%s)", listener.recorder_id)
+        # 1b) NN5 F2b: an alarm-state change queued a profile suggestion / switch for this recorder (one cheap read every few seconds)
+        if listener.db is not None and now - last_auto >= AUTO_TICK_S:
+            last_auto = now
+            try:
+                from ..frigate_auto_profile import tick as auto_profile_tick
+
+                auto_profile_tick(listener.db, ad, now)
+            except Exception:  # noqa: BLE001 - a failed automatic switch is final for its row and never stops the reader
+                log.exception("frigate auto-profile pass failed (%s)", listener.recorder_id)
         # 2) the poll: always on (backfill + gap detector); faster while the WebSocket is not connected
         interval = WS_HEALTHY_POLL_S if st.ws_state == "connected" else down_interval
         if hint:

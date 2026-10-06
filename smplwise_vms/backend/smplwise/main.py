@@ -335,6 +335,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import frigate_control as frigate_control_router
 
     app.include_router(frigate_control_router.router, prefix=api, tags=["frigate"])  # NN5 F2: the only routes that write to Frigate (every write class is off until switched on)
+    from .routers import frigate_f2b as frigate_f2b_router
+
+    app.include_router(frigate_f2b_router.router, prefix=api, tags=["frigate"])  # NN5 F2b: auto profile on alarm change, native exports / cases, manual events (classes off by default)
     app.include_router(nvr_write.router, prefix=api, tags=["nvr"])
     app.include_router(nvr_settings_router.router, prefix=api, tags=["nvr"])  # CR-020 S1: read-only camera video settings
     from .routers import energy_meters as energy_meters_router
