@@ -540,7 +540,7 @@ export async function reviewDetail(item: ReviewItem): Promise<ReviewDetail> {
   return { ...item, ...itemOf(w), camera_name: item.camera_name, detections: w.detections, sub_labels: w.sub_labels, tracked: [] };
 }
 
-/** The caller's reviewed state, per recorder (needs events.read on each item); Arx only, nothing is written to Frigate. */
+/** The caller's reviewed state, per recorder (needs events.read on each item). Arx's state first; the server mirrors it to Frigate only when that write class is on (F2), and a failed mirror never fails the mark. */
 export async function markReviewed(items: readonly { id: string; recorder_id: string }[], reviewed: boolean): Promise<void> {
   const by = new Map<string, string[]>();
   for (const i of items) by.set(i.recorder_id, [...(by.get(i.recorder_id) ?? []), i.id]);

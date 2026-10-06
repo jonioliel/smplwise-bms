@@ -3,6 +3,7 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-camera-tile';
 import '../components/sw-badge';
+import '../components/frigate-camera-control';
 import '../components/sw-button';
 import '../components/sw-card';
 import '../components/sw-icon';
@@ -1039,6 +1040,7 @@ export class LiveCamera extends LitElement {
         ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
       </div>
       ${this.renderCast(cam)}
+      <frigate-camera-control camera-id=${cam.id} recorder-id=${cam.recorder_id} data-live-frigate-control></frigate-camera-control>
       ${this.renderSettingsAccordion(cam, stream)}
     `;
   }

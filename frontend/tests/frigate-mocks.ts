@@ -34,13 +34,46 @@ export interface FrigateMock {
   stills: { id: string; at: number }[];
   /** `still_refresh_s` the cameras list carries for the Frigate cameras (the tile holds a 5 s floor); 0 = not sent */
   stillRefreshS: number;
+  /** NN5-F2: the control routes (routers/frigate_control.py) */
+  ctl: FrigateControlMock;
+}
+
+export interface FrigateControlMock {
+  /** which write classes the administrator switched on */
+  classes: Record<string, boolean>;
+  /** the camera's switches as Frigate shows them */
+  switches: Record<string, boolean>;
+  profiles: string[];
+  active: string | null;
+  rules: Record<string, string>;
+  changes: Record<string, unknown>[];
+  /** every write the screens sent: "PUT frigate/nvr-2/cameras/fg-front/control/detect {...}" */
+  writes: string[];
+  /** the next switch write fails with this 409 code */
+  failWith: string | null;
+}
+
+const SWITCHES = ['detect', 'motion', 'audio', 'review_alerts', 'review_detections', 'notifications', 'improve_contrast', 'birdseye', 'ptz_autotracker', 'enabled', 'recordings', 'snapshots'];
+const SWITCH_GROUP = (f: string) => (['enabled', 'recordings', 'snapshots'].includes(f) ? 'record' : 'analytics');
+export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateControlMock {
+  return {
+    classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false },
+    switches: Object.fromEntries(SWITCHES.map((f) => [f, !['audio', 'notifications', 'ptz_autotracker', 'snapshots'].includes(f)])),
+    profiles: ['home', 'away'], active: 'home', rules: { armed_away: 'away' },
+    changes: [
+      { id: 'ch1', recorder_id: 'nvr-2', camera_id: 'fg-front', camera_key: 'cam_front', class: 'analytics', kind: 'feature', target: 'detect', before: { value: true }, after: { value: false }, status: 'applied', error: null, reversible: true, reverts_id: null, actor: 'יוני', at: '2026-10-06T07:30:00Z' },
+      { id: 'ch2', recorder_id: 'nvr-2', camera_id: 'fg-front', camera_key: 'cam_front', class: 'record', kind: 'feature', target: 'recordings', before: { value: true }, after: { value: false }, status: 'applied', error: null, reversible: true, reverts_id: null, actor: 'דנה', at: '2026-10-06T07:00:00Z' },
+      { id: 'ch3', recorder_id: 'nvr-2', camera_id: null, camera_key: '*', class: 'profile', kind: 'profile', target: 'active', before: { profile: null }, after: { profile: 'home' }, status: 'reverted', error: null, reversible: false, reverts_id: null, actor: 'יוני', at: '2026-10-05T20:00:00Z' },
+    ],
+    writes: [], failWith: null, ...over,
+  };
 }
 
 export function newFrigateMock(over: Partial<FrigateMock> = {}): FrigateMock {
   return {
     perms: ADMIN, reviews: 'ok', delayMs: 0, markFails: false, pageLimit: 0, recorders: 'two', items: REVIEW_ITEMS.map((i) => ({ ...i })), hits: [], marks: [],
     test: { status: 200, body: { ok: true, code: 'ok', model: 'Frigate', firmware: '0.18.0-fake', channels: 4, transport: { scheme: 'https', insecure: false }, warnings: [] } },
-    stills: [], stillRefreshS: 0, ...over,
+    stills: [], stillRefreshS: 0, ctl: newControlMock(), ...over,
   };
 }
 
@@ -162,6 +195,75 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
     if (p === 'recorder-health/settings') return json({ values: { interval_s: 60, latency_ms: 1500, recording_gap_min: 30, clock_drift_s: 60, disk_fill_days: 0, cert_days: 30, recover_s: 120, continuous_recorders: [], camera_recording: {} }, ranges: {}, cameras: [] });
     if (p === 'setup/state' || p.startsWith('setup/check/')) return json({ version: 'test', mode: 'full', checked_at: '2026-10-06T08:00:00Z', steps: [], done: 0, total: 0, ready: false, next: null, thresholds: { drift_ok_s: 2, drift_fail_s: 30 }, check_every_s: 5, live_ttl_s: 600 });
 
+    // NN5-F2: the control routes (routers/frigate_control.py)
+    if (p === 'frigate/nvr-2/control/policy') {
+      if (method === 'PUT') {
+        const b = req.postDataJSON() as { classes: Record<string, boolean> };
+        m.ctl.writes.push(`PUT ${p} ${JSON.stringify(b)}`);
+        if (m.ctl.failWith) {
+          const code = m.ctl.failWith;
+          m.ctl.failWith = null;
+          return json(ENVELOPE(code, 'לא ניתן לשנות את ההגדרה'), 409);
+        }
+        Object.assign(m.ctl.classes, b.classes);
+        return json({ recorder_id: 'nvr-2', policy: m.ctl.classes });
+      }
+      const per = ['record', 'profile', 'ptz'];
+      return json({ recorder_id: 'nvr-2', ptz_released: false, classes: ['analytics', 'record', 'profile', 'review', 'events', 'ptz'].map((c) => ({ class: c, enabled: !!m.ctl.classes[c], per_action: per.includes(c), permission: `x.${c}`, available: c !== 'ptz' })) });
+    }
+    const ctlCam = /^frigate\/nvr-2\/cameras\/([^/]+)\/control(?:\/([a-z_]+))?$/.exec(p);
+    if (ctlCam) {
+      const [, camId, feature] = ctlCam;
+      const may = (perm: string) => m.perms.includes(perm);
+      if (!feature) {
+        return json({ recorder_id: 'nvr-2', camera_id: camId, features: SWITCHES.map((f) => ({ feature: f, class: SWITCH_GROUP(f), value: m.ctl.switches[f] })),
+          writable: { analytics: !!m.ctl.classes.analytics && may('analytics.control'), record: !!m.ctl.classes.record && may('analytics.record_control'), ptz: false } });
+      }
+      const b = req.postDataJSON() as { value: boolean; confirm: boolean };
+      m.ctl.writes.push(`PUT ${p} ${JSON.stringify(b)}`);
+      if (m.ctl.failWith) {
+        const code = m.ctl.failWith;
+        m.ctl.failWith = null;
+        return json(ENVELOPE(code, 'המקליט דחה את השינוי'), 409);
+      }
+      if (SWITCH_GROUP(feature) === 'record' && !b.confirm) return json(ENVELOPE('confirmation_required', 'פעולה זו דורשת אישור מפורש.'), 409);
+      m.ctl.switches[feature] = b.value;
+      return json({ recorder_id: 'nvr-2', camera_id: camId, changed: true, verified: true, feature, value: b.value, change_id: 'chx' });
+    }
+    if (p === 'frigate/nvr-2/profiles') {
+      return json({ recorder_id: 'nvr-2', names: m.ctl.profiles, active: m.ctl.active, rules: m.ctl.rules, alarm_states: ['disarmed', 'armed_home', 'armed_away', 'armed_night', 'triggered'],
+        can_switch: !!m.ctl.classes.profile && m.perms.includes('analytics.profile') });
+    }
+    if (p === 'frigate/nvr-2/profile' && method === 'PUT') {
+      const b = req.postDataJSON() as { profile: string | null; confirm: boolean };
+      m.ctl.writes.push(`PUT ${p} ${JSON.stringify(b)}`);
+      if (!b.confirm) return json(ENVELOPE('confirmation_required', 'פעולה זו דורשת אישור מפורש.'), 409);
+      m.ctl.active = b.profile;
+      return json({ recorder_id: 'nvr-2', changed: true, active: b.profile, verified: true, change_id: 'chp' });
+    }
+    if (p === 'frigate/nvr-2/profile-rules' && method === 'PUT') {
+      const b = req.postDataJSON() as { rules: Record<string, string | null> };
+      m.ctl.writes.push(`PUT ${p} ${JSON.stringify(b)}`);
+      for (const [k, v] of Object.entries(b.rules)) {
+        if (v) m.ctl.rules[k] = v;
+        else delete m.ctl.rules[k];
+      }
+      return json({ recorder_id: 'nvr-2', rules: m.ctl.rules });
+    }
+    if (p.startsWith('frigate/nvr-2/changes')) {
+      const rev = /^frigate\/nvr-2\/changes\/([^/]+)\/revert$/.exec(p);
+      if (rev && method === 'POST') {
+        const b = req.postDataJSON() as { confirm: boolean };
+        const ch = m.ctl.changes.find((c) => c.id === rev[1]);
+        m.ctl.writes.push(`POST ${p} ${JSON.stringify(b)}`);
+        if (!ch) return json(ENVELOPE('not_found', 'השינוי לא נמצא ביומן.'), 404);
+        if ((ch.class === 'record' || ch.class === 'profile') && !b.confirm) return json(ENVELOPE('confirmation_required', 'פעולה זו דורשת אישור מפורש.'), 409);
+        ch.status = 'reverted';
+        ch.reversible = false;
+        return json({ recorder_id: 'nvr-2', reverted: true, verified: true, change_id: 'chr', reverts: rev[1] });
+      }
+      return json({ recorder_id: 'nvr-2', changes: m.ctl.changes });
+    }
     // the Frigate provider (routers/frigate.py)
     if (p === 'frigate/recorders') {
       if (m.reviews === 'missing') return json(ENVELOPE('not_found', 'לא נמצא'), 404);

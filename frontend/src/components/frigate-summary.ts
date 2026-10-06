@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import { FEATURE_CORE, FEATURE_ORDER, featureLabel, recorderCapabilities, summaryRows, type FrigateCapabilities } from '../api/frigate';
+import { anyWriteOn, getPolicy } from '../api/frigate-control';
 import { he } from '../i18n/he';
 
 /**
@@ -16,10 +17,22 @@ export class FrigateSummary extends LitElement {
   @property({ attribute: 'recorder-id' }) recorderId = '';
   @state() private loaded: FrigateCapabilities | null = null;
   @state() private failed = false;
+  /** F2: some write class is on for this recorder, so "read only" would be untrue (the policy is read best-effort; no permission = unchanged text) */
+  @state() private writesOn = false;
+  private onPolicy = (e: Event) => {
+    this.writesOn = (e as CustomEvent<{ anyOn: boolean }>).detail.anyOn;
+  };
 
   connectedCallback() {
     super.connectedCallback();
     if (this.recorderId && !this.caps) void this.load();
+    document.addEventListener('frigate-control-policy', this.onPolicy);
+    if (this.recorderId && !this.caps) void getPolicy(this.recorderId).then((p) => (this.writesOn = anyWriteOn(p))).catch(() => undefined);
+  }
+
+  disconnectedCallback() {
+    document.removeEventListener('frigate-control-policy', this.onPolicy);
+    super.disconnectedCallback();
   }
 
   private async load() {
@@ -124,7 +137,7 @@ export class FrigateSummary extends LitElement {
           })}
         </ul>
       </div>` : html`<div class="note" data-frigate-more-after-save><sw-icon name="info" size="14"></sw-icon><span>${s.moreAfterSave}</span></div>`}
-      <div class="note" data-frigate-readonly><sw-icon name="info" size="14"></sw-icon><span>${s.readOnly}${c.restream ? '' : ` ${s.stillOnly}`}</span></div>
+      <div class="note" data-frigate-readonly><sw-icon name="info" size="14"></sw-icon><span>${this.writesOn ? he.frigate.control.settings.summaryWrites : s.readOnly}${c.restream ? '' : ` ${s.stillOnly}`}</span></div>
     </div>`;
   }
 }
