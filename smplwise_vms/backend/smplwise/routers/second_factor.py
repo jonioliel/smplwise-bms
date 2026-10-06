@@ -48,6 +48,14 @@ def _audit(conn: sqlite3.Connection, request: Request, principal: Principal, act
           request_id=getattr(request.state, "correlation_id", None), details={"method": "totp", **details})
 
 
+def _audit_failed(conn: sqlite3.Connection, request: Request, principal: Principal, step: str, exc: sf.SecondFactorError) -> None:
+    """A refused code on enrol-confirm / disable: the same row type as a failed sign-in (`auth.second_factor.failed`, denied, the
+    reason, the method) plus the step; the code itself is never written. An ApiError commits, so the row survives the 400 / 429."""
+    audit(conn, actor=principal, action="auth.second_factor.failed", decision="denied", resource_type="user", resource_id=principal.user_id,
+          reason={"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(exc.code, "second_factor_invalid"),
+          request_id=getattr(request.state, "correlation_id", None), details={"method": "totp", "step": step})
+
+
 def _fail(exc: sf.SecondFactorError) -> ApiError:
     return ApiError(429 if exc.code == "locked" else 400 if exc.code == "invalid" else 409, f"second_factor_{exc.code}", exc.message, retryable=exc.code == "locked")
 
@@ -73,6 +81,7 @@ def confirm(body: CodeBody, request: Request, principal: Principal = Depends(cur
     try:
         sf.confirm(conn, settings_of(request), principal.user_id, body.code)
     except sf.SecondFactorError as exc:
+        _audit_failed(conn, request, principal, "enroll_confirm", exc)
         raise _fail(exc) from None
     _audit(conn, request, principal, "auth.second_factor.enrolled", principal.user_id)
     return sf.status(conn, principal.user_id)
@@ -86,6 +95,7 @@ def disable(body: CodeBody, request: Request, principal: Principal = Depends(cur
     try:
         sf.verify(conn, settings_of(request), principal.user_id, body.code)
     except sf.SecondFactorError as exc:
+        _audit_failed(conn, request, principal, "disable", exc)
         raise _fail(exc) from None
     sf.remove(conn, principal.user_id)
     _audit(conn, request, principal, "auth.second_factor.removed", principal.user_id, by="self")

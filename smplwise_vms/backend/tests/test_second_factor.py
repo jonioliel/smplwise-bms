@@ -267,3 +267,38 @@ def test_action_routes_are_rate_limited(arx):
     assert fresh_login(arx, arx.viewer).status_code == 200
     codes = [arx.client.post("/arx/api/v1/auth/second-factor/enroll").status_code for _ in range(22)]
     assert codes[:20] == [200] * 20 and 429 in codes[20:]
+
+
+def test_wrong_codes_on_confirm_and_disable_are_audited_like_sign_in_failures(arx, caplog):
+    """Gap from 2.2.0: the enrol-confirm and disable routes write `auth.second_factor.failed` (denied, reason, method, step); never the code."""
+    caplog.set_level(logging.DEBUG)
+
+    def failed_rows(a):
+        with a.db.connection(mode="read") as conn:
+            return [dict(r) for r in conn.execute("SELECT * FROM audit_log WHERE action = 'auth.second_factor.failed' ORDER BY rowid").fetchall()]
+
+    assert fresh_login(arx, arx.viewer).status_code == 200
+    body = arx.client.post("/arx/api/v1/auth/second-factor/enroll").json()
+    r = arx.client.post("/arx/api/v1/auth/second-factor/confirm", json={"code": "111111"})
+    assert r.status_code == 400 and r.json()["code"] == "second_factor_invalid"
+    rows = failed_rows(arx)
+    assert len(rows) == 1 and rows[0]["decision"] == "denied" and rows[0]["reason"] == "second_factor_invalid"
+    assert rows[0]["actor_user_id"] == "u-viewer" and rows[0]["resource_id"] == "u-viewer"
+    d = json.loads(rows[0]["details_json"])
+    assert d["method"] == "totp" and d["step"] == "enroll_confirm" and d["channel"] == "remote"
+    good = code_now(arx, "u-viewer")
+    assert arx.client.post("/arx/api/v1/auth/second-factor/confirm", json={"code": good}).status_code == 200
+    bump_step(arx, "u-viewer")
+    r = arx.client.post("/arx/api/v1/auth/second-factor/disable", json={"code": "222222"})
+    assert r.status_code == 400
+    rows = failed_rows(arx)
+    assert len(rows) == 2 and json.loads(rows[-1]["details_json"])["step"] == "disable" and rows[-1]["decision"] == "denied"
+    # a lock-out on these routes is recorded with its own reason
+    for _ in range(4):
+        arx.client.post("/arx/api/v1/auth/second-factor/disable", json={"code": "333333"})
+    assert failed_rows(arx)[-1]["reason"] == "second_factor_locked"
+    # a success is not a failure row, and no code or secret reaches the audit table or the logs
+    with arx.db.connection(mode="read") as conn:
+        dump = json.dumps([dict(r) for r in conn.execute("SELECT * FROM audit_log").fetchall()], ensure_ascii=False)
+    for needle in (body["secret"], "111111", "222222", "333333", good):
+        assert needle not in dump and needle not in caplog.text
