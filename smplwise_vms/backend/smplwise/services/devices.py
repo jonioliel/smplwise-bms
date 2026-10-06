@@ -17,6 +17,7 @@ import sqlite3
 from typing import Any, Callable
 
 from . import ha_sync, home_screen, plan_area_links
+from .device_activity import ACTIVITY_DOMAINS, SECURITY_PERMISSIONS, activity_kind
 
 ControlChecker = Callable[[str], bool]
 
@@ -377,6 +378,12 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
         "active": is_active(e["domain"], e.get("state")),
         "icon": e.get("icon"),
         "last_changed": e.get("last_changed"),
+        # DEVHIST: the long press / "פעילות" menu item exists for the electrical domains only (the same table that decides the controls);
+        # the caller's own devices.activity grant is checked by GET /devices/{id}/activity
+        "activity": e["domain"] in ACTIVITY_DOMAINS,
+        "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind")),
+        # a lock / alarm panel's activity is behind the permission that operates it (door.unlock / alarm.arm), not just the one that shows it
+        **({"activity_permissions": list(SECURITY_PERMISSIONS[e["domain"]])} if e["domain"] in SECURITY_PERMISSIONS else {}),
         # seam: the alarm screen's own devices (another branch adds the column / predicate); absent = not managed
         **({"alarm_managed": bool(e.get("alarm_managed"))} if "alarm_managed" in e else {}),
     }
@@ -461,11 +468,24 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
     return row
 
 
+def _outlet_power(entities: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """outlet entity id -> {entity_id, value, unit} of the power sensor registered on the same device (among `entities`)."""
+    by_device: dict[str, dict[str, Any]] = {}
+    for e in entities:
+        if e["domain"] == "sensor" and e.get("device_class") == "power" and e.get("device_id") and e["device_id"] not in by_device:
+            by_device[e["device_id"]] = {"entity_id": e["entity_id"], "value": _num(e.get("state")), "unit": e.get("unit") or "W"}
+    return {e["entity_id"]: by_device[e["device_id"]] for e in entities if e["domain"] == "switch" and e.get("device_class") == "outlet" and e.get("device_id") in by_device}
+
+
 def build_cards(entities: list[dict[str, Any]], control_of: ControlChecker) -> dict[str, Any]:
     cards: dict[str, Any] = {cid: {"id": cid, "label": CARD_LABELS[cid], "entities": []} for cid in CARD_IDS}
     counts = empty_counts()
+    power = _outlet_power(entities)
     for e in entities:
-        cards[e["card"]]["entities"].append(card_row(e, control_of(e["entity_id"])))
+        row = card_row(e, control_of(e["entity_id"]))
+        if row.get("activity_kind") == "outlet":
+            row["power"] = power.get(e["entity_id"])  # only a power sensor of the SAME device; None = show no power
+        cards[e["card"]]["entities"].append(row)
         count_into(counts, e)
     for c in cards.values():
         c["count"] = len(c["entities"])

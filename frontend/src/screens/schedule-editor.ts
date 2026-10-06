@@ -164,6 +164,8 @@ export class ScheduleEditor extends LitElement {
   /** A new schedule: the template of the create flow (`?template=`) and the holiday preset laid over it (`?preset=`). */
   @property() template = '';
   @property() preset = '';
+  /** CR-032: a device to start a new schedule with (the activity popup's "תזמון חדש להתקן"); the route's `entity` parameter does the same. */
+  @property() entity = '';
   /** Today's sunrise / sunset in minutes, when the caller knows them (else the demo / fallback values, marked as estimates). */
   @property({ attribute: false }) sun: SunTimes | null = null;
 
@@ -983,7 +985,8 @@ export class ScheduleEditor extends LitElement {
     this.baseRevision = '';
     this.meta = meta;
     this.lockedUids = {};
-    this.chosen = [];
+    const wanted = this.entity || params.get('entity') || '';
+    this.chosen = wanted && meta.has(wanted) ? [wanted] : [];
     const slots = td.slots.map(withUid);
     this.draft = { ...td, slots: sorted(slots, this.sunNow).slots };
     this.baseline = this.currentDraft();

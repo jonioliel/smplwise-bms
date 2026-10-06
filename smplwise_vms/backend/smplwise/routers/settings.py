@@ -269,6 +269,7 @@ DEFAULTS: dict[str, str] = {
     "schedules.snap_minutes": "15",
     "schedules.default_repeat": "repeat",
     "schedules.runs_retention_days": "90",
+    "device_activity.retention_days": "90",  # DEVHIST S1: the long-press popup's activity rows are pruned after this many days (owner-recommended 90)
     "schedules.shabbat_sensor": "",
     # 2026-10-04 (schedules: more actions; owner decision the same day, option ג): may a NEW schedule disarm an alarm panel directly? ALLOWED by
     # default (with the disarm grant, schedule.sensitive and the explicit confirmation in the editor); a system administrator may restrict it
@@ -296,7 +297,7 @@ ALLOW_DISARM_WORD = "אפשר נטרול"
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.max_live_sessions", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", *automation_settings.INT_KEYS)
 
 
 def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -619,6 +620,7 @@ class SettingsPatch(BaseModel):
     schedules_snap_minutes: str | None = Field(default=None, pattern="^(5|15|30)$", alias="schedules.snap_minutes")
     schedules_default_repeat: str | None = Field(default=None, pattern="^(repeat|pause|single)$", alias="schedules.default_repeat")
     schedules_runs_retention_days: int | None = Field(default=None, ge=7, le=365, alias="schedules.runs_retention_days")
+    device_activity_retention_days: int | None = Field(default=None, ge=7, le=365, alias="device_activity.retention_days")
     schedules_shabbat_sensor: str | None = Field(default=None, pattern=r"^(|binary_sensor\.[a-z0-9_]{1,100})$", alias="schedules.shabbat_sensor")
     schedules_shabbat_sensor_force: bool | None = Field(default=None, alias="schedules.shabbat_sensor_force")  # an explicit override; never stored
     schedules_allow_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="schedules.allow_disarm")
