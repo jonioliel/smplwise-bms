@@ -3,15 +3,23 @@ Authenticator, Microsoft Authenticator, 1Password and the like work (Arx ships n
 
 - A user enrols and removes the factor in their own settings; nobody is forced (`security.second_factor_policy`
   defaults to `optional`; `admins` additionally refuses a remote sign-in of an administrator who has none).
-- Where it applies: the REMOTE sign-in (`POST auth/session` creating a new browser session). The local Ingress channel is
-  gated by Home Assistant's own login and stays the break-glass path; the rotation of an existing session and the bearer
-  path are unchanged in this slice.
+- Where it applies: every NEW remote sign-in - `POST auth/session` creating a new browser session, and (security review
+  2.2.0 H1) the first request or WebSocket of a new HA sign-in on the bearer path (`Authorization: Bearer <HA token>`
+  without the Arx cookie; the code in `X-Arx-Second-Factor`, see services/ha_user_auth._bearer_session). The local
+  Ingress channel is gated by Home Assistant's own login and stays the break-glass path; the rotation of an existing
+  session and the next access token of a bearer sign-in that already showed the code need no new code.
+  `security.second_factor_bearer = off` restores the old bearer behaviour (owner choice; audited per sign-in).
+- What it does NOT protect: Home Assistant itself. An HA access token is a full HA credential on the same origin; only
+  HA's own MFA protects HA.
+- Turning the factor on, and an administrator's reset, end the user's other remote sign-ins (review M4).
 - The secret is 20 random bytes, stored only as AES-256-GCM ciphertext (services/alarm_codes.py: the key file under
   `<data>/keys/`, never in a project backup) bound to the user id as associated data. Nothing here logs, audits or raises
   with a code, a secret or the key in it.
 - A code is 6 digits, SHA-1, 30 s steps, one step of clock drift either way; a step already accepted is refused (replay).
 - Wrong codes: 5 in 5 minutes lock the user out of code entry for 10 minutes (in memory, per process).
 - Recovery: an administrator (system.configure) resets another user's factor from any channel; every reset is audited.
+  Not their own (that is `disable`, with a code), and an administrator who has a factor shows their own current code
+  (review M1).
 """
 from __future__ import annotations
 

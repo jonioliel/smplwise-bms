@@ -7,11 +7,18 @@
 - POST /plan-versions/{id}/package/preview   the dry run of an import: checks, versions, diff, missing entities.
 - POST /plan-versions/{id}/package/import    the import itself, into the version's draft; the person confirms the
                                               hash the preview showed (`expect_hash`) and the draft revision it saw.
-Both import routes take the package as a multipart file (body limit in body_limit.LIMITS)."""
+Both import routes take the package as a multipart file (body limit in body_limit.LIMITS).
+
+Security review 2.2.0: the exports carry only the anchors the caller may see (M2); a package signed by another
+installation's key or by a retired key of ours needs `accept_foreign=true` on the preview as well as on the import, and
+that is checked before the package's files are parsed (M3 / L7); one preview / import at a time per person, rate-limited,
+every refusal audited (M3)."""
 from __future__ import annotations
 
+import contextlib
 import sqlite3
-from typing import Any, Literal
+import threading
+from typing import Any, Iterator, Literal
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
@@ -45,8 +52,11 @@ def export_dxf(version_id: str, draft: bool = False, level: str | None = None, l
     """The structure as DXF R2018: walls, openings, rooms, devices, objects, connectors and labels on their own layers."""
     v, doc = _export_doc(conn, principal, version_id, draft)
     floor = get_floor(conn, v["floor_id"])
+    # review M2: the anchors (and the anchor positions bound objects follow) the caller may see - the anchors list's rules
+    visible = pkg_svc.anchor_visibility(conn, principal, v["floor_id"])
+    positions = {k: p for k, p in store.anchor_positions(conn, v["floor_id"]).items() if visible(*k.split(":", 1))}
     data = dxf_export.render_dxf(doc, _export_zones(conn, principal, v), v["width_px"], v["height_px"], level=level, layers=_layers(layers),
-                                 anchors=pkg_svc.anchor_records(conn, v["floor_id"]), anchor_positions=store.anchor_positions(conn, v["floor_id"]),
+                                 anchors=pkg_svc.anchor_records(conn, v["floor_id"], principal), anchor_positions=positions,
                                  items=plan_catalog.item_index(conn),
                                  meta={"SW_PLAN_VERSION": v["id"], "SW_FLOOR": floor["name"] or "", "SW_STAGE": "draft" if draft else "published",
                                        "SW_DOC_HASH": store.doc_hash(doc)})
@@ -88,11 +98,60 @@ def _can_manage_catalog(conn: sqlite3.Connection, principal: Principal) -> bool:
     return authorize(conn, principal, "catalog.manage", INSTALLATION).allowed or "catalog.manage" in permissions_anywhere(conn, principal)
 
 
-def _read_package(file: UploadFile, settings: Any) -> pkg_svc.Package:
+def _read_package(file: UploadFile, settings: Any, accept_foreign: bool, local_iid: str | None) -> pkg_svc.Package:
     try:
-        return pkg_svc.read(file.file, signing.load_keyring(settings))
+        return pkg_svc.read(file.file, signing.load_keyring(settings), accept_foreign=accept_foreign, local_iid=local_iid)
     except pkg_svc.PackageError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
+    except (RecursionError, MemoryError) as exc:  # review M3: whatever slipped past the bounds is a refusal, never a 500
+        raise ApiError(422, "package_malformed", "קובץ בחבילה אינו JSON תקין.", details={"error": type(exc).__name__})
+
+
+# review M3: one preview / import in flight per person (and a few installation-wide), and a per-person rate
+PACKAGE_RATE: list[tuple[float, int]] = [(60.0, 10), (3600.0, 120)]
+MAX_IN_FLIGHT = 2
+BUSY_HE = "בדיקה או ייבוא של חבילה כבר רצים. המתן לסיומם ונסה שוב."
+RATE_HE = "יותר מדי בדיקות וייבואים של חבילות. נסה שוב בעוד כמה דקות."
+
+
+class _Gate:
+    def __init__(self) -> None:
+        from ..services.ha_user_auth import RateLimiter
+
+        self.lock = threading.Lock()
+        self.busy: set[str] = set()
+        self.rate = RateLimiter()
+
+
+def _gate_of(request: Request) -> _Gate:
+    state = request.app.state
+    gate = getattr(state, "plan_package_gate", None)
+    if gate is None:
+        with _GATE_LOCK:
+            gate = getattr(state, "plan_package_gate", None)
+            if gate is None:
+                gate = _Gate()
+                state.plan_package_gate = gate
+    return gate
+
+
+_GATE_LOCK = threading.Lock()
+
+
+@contextlib.contextmanager
+def _one_at_a_time(request: Request, principal: Principal) -> Iterator[None]:
+    gate = _gate_of(request)
+    if not gate.rate.hit(f"pkg:{principal.user_id}", PACKAGE_RATE):
+        raise ApiError(429, "rate_limited", RATE_HE, retryable=True)
+    with gate.lock:
+        if principal.user_id in gate.busy or len(gate.busy) >= MAX_IN_FLIGHT:
+            raise ApiError(429, "package_busy", BUSY_HE, retryable=True)
+        gate.busy.add(principal.user_id)
+    try:
+        yield
+    finally:
+        with gate.lock:
+            gate.busy.discard(principal.user_id)
 
 
 def _refused(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row, request: Request, exc: ApiError, stage: str) -> None:
@@ -106,20 +165,27 @@ def _plan(conn: sqlite3.Connection, v: sqlite3.Row, package: pkg_svc.Package, mo
         return pkg_svc.plan(conn, v, package, mode, can_manage_catalog=can_manage)
     except pkg_svc.PackageError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
+    except (RecursionError, MemoryError) as exc:  # review M3
+        raise ApiError(422, "package_too_complex", "קובץ בחבילה מורכב מדי לעיבוד.", details={"error": type(exc).__name__})
 
 
 @router.post("/plan-versions/{version_id}/package/preview")
-def preview_import(version_id: str, request: Request, mode: Literal["replace", "merge"] = Query("replace"), file: UploadFile = File(...),
-                   principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """The dry run of a package import: signature, versions, the diff against the draft and the missing entities."""
+def preview_import(version_id: str, request: Request, mode: Literal["replace", "merge"] = Query("replace"), accept_foreign: bool = False,
+                   file: UploadFile = File(...), principal: Principal = Depends(current_principal_ro),
+                   conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The dry run of a package import: signature, versions, the diff against the draft and the missing entities. A
+    package that needs the person's trust (another installation's key, a retired key of ours) is refused with 409
+    `package_foreign` and its origin until the preview is asked again with `accept_foreign=true`."""
     v = _editable(conn, principal, version_id)
+    local_iid = bundle_svc.installation_id(conn)
     try:
-        package = _read_package(file, settings_of(request))
+        with _one_at_a_time(request, principal):
+            package = _read_package(file, settings_of(request), accept_foreign, local_iid)
+            out = _plan(conn, v, package, mode, _can_manage_catalog(conn, principal))
     except ApiError as exc:
         _refused(conn, principal, v, request, exc, "preview")
         raise
-    out = _plan(conn, v, package, mode, _can_manage_catalog(conn, principal))
-    return {"origin": pkg_svc.origin(package, bundle_svc.installation_id(conn)), **pkg_svc.public(out)}
+    return {"origin": pkg_svc.origin(package, local_iid), **pkg_svc.public(out)}
 
 
 @router.post("/plan-versions/{version_id}/package/import")
@@ -128,17 +194,19 @@ def import_package(version_id: str, request: Request, mode: Literal["replace", "
                    file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Import a package into the version's draft (never published): replace or merge, as the preview showed it."""
     v = _editable(conn, principal, version_id)
+    local_iid = bundle_svc.installation_id(conn)
+    can_manage = _can_manage_catalog(conn, principal)
     try:
-        package = _read_package(file, settings_of(request))
+        with _one_at_a_time(request, principal):
+            package = _read_package(file, settings_of(request), accept_foreign, local_iid)
+            origin = pkg_svc.origin(package, local_iid)
+            why = pkg_svc.needs_trust(package.signature)
+            if why and not accept_foreign:  # read() already refused it; kept as the last word
+                raise ApiError(409, "package_foreign", pkg_svc.FOREIGN_HE, details={"kid": origin["kid"], "reason": why})
+            out = _plan(conn, v, package, mode, can_manage)
     except ApiError as exc:
         _refused(conn, principal, v, request, exc, "import")
         raise
-    local_iid = bundle_svc.installation_id(conn)
-    origin = pkg_svc.origin(package, local_iid)
-    if origin["trust"] != "installation" and not accept_foreign:
-        raise ApiError(409, "package_foreign", "החבילה חתומה במפתח של מערכת אחרת; אשר את המקור כדי לייבא.", details={"kid": origin["kid"]})
-    can_manage = _can_manage_catalog(conn, principal)
-    out = _plan(conn, v, package, mode, can_manage)
     if out["base_revision"] != base_revision:
         raise conflict("stale_revision", "טיוטת המבנה השתנתה בינתיים; הרץ שוב את הבדיקה.", current_revision=out["base_revision"], sent_revision=base_revision)
     if out["result_hash"] != expect_hash:

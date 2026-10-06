@@ -7,7 +7,8 @@ The smallest useful slice:
 - the TARGET is never free: only approved speaker / player / receiver / group devices the administrator ticked (`announce.devices`)
   can be spoken to; a room means the allowed devices whose anchor sits in that area; nothing is allowed by default and the feature is
   OFF by default.
-- the TEXT is one line, at most MAX_TEXT characters, no control characters, never a template: what is typed is what is spoken.
+- the TEXT is one line, at most MAX_TEXT characters, no control characters, no markup (tag-like runs and angle brackets are
+  removed, so an SSML-detecting engine never sees SSML), never a template: what is typed is what is spoken.
 - the RATE LIMIT is the table itself: `announce.max_per_minute` attempts a minute for the installation (default 6) and one per
   COOLDOWN_S seconds for the same room / device; a limited attempt is logged as `limited` and answers 429.
 - every attempt (spoken, failed, limited, refused) is one `announcements` row AND one audit row (`media.announce`).
@@ -27,7 +28,7 @@ from ..audit import audit
 from ..config import Settings
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
-from ..rbac import Principal
+from ..rbac import INSTALLATION, Principal, authorize
 from . import media_model as mm
 from . import media_store as store
 from .timeutil import iso_utc
@@ -44,6 +45,9 @@ DEFAULTS = {K_ENABLED: "false", K_ENGINE: "", K_LANG: "he", K_DEVICES: "[]", K_M
 ENGINE_RE = re.compile(r"^tts\.[a-z0-9_]{1,80}$")
 LANG_RE = re.compile(r"^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})?$")
 CONTROL = re.compile("[\\x00-\\x1f\\x7f\\u2028\\u2029]")
+# security review 2.2.0 L2: SSML-detecting engines would interpret markup (<break> chains past the limits, <audio src=...>);
+# a tag-like run is removed and a lone angle bracket becomes a space - the engine only ever gets plain text
+MARKUP = re.compile(r"<[^<>]{0,400}>")
 
 # a stable message per code in both languages; `message` is Hebrew (the product language), `details.message_en` the English one
 MESSAGES: dict[str, dict[str, str]] = {
@@ -190,7 +194,7 @@ def clean_text(text: Any) -> str:
     # checked BEFORE the whitespace fold (str.split() would swallow the separator controls and U+2028); a newline and a tab are plain spaces
     if CONTROL.search(text.translate({10: " ", 9: " "})):
         raise err(422, "text_invalid")
-    t = " ".join(text.split())
+    t = " ".join(MARKUP.sub(" ", text).replace("<", " ").replace(">", " ").split())
     if not t or len(t) > MAX_TEXT:
         raise err(422, "text_invalid")
     return t
@@ -278,13 +282,34 @@ def prune(conn: sqlite3.Connection, days: int = 90) -> int:
     return conn.execute("DELETE FROM announcements WHERE at < ?", (iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)),)).rowcount
 
 
+def rule_author(conn: sqlite3.Connection, rule_id: str) -> Principal | None:
+    """The person whose authority a rule's announce action runs under: whoever last saved the rule (routers/rules.py checks
+    media.announce on every save that carries the action)."""
+    r = conn.execute("SELECT updated_by, updated_by_username, created_by, created_by_username FROM rules WHERE id = ?", (rule_id,)).fetchone()
+    if r is None:
+        return None
+    uid, uname = (r["updated_by"], r["updated_by_username"]) if r["updated_by"] else (r["created_by"], r["created_by_username"])
+    if not uid:
+        return None
+    return Principal(user_id=uid, username=uname or "", display_name=uname or "", source="internal")
+
+
 def run_for_rule(rule_id: str, scope: str, ref: str, text: str) -> str:
     """A rule's announce action, after the ingest commit: its own short connection, never raises. Returns a short status (`sent`, or the code)."""
     if not _DB:
         return "unavailable"
     try:
         with _DB[0].connection(label="announce.rule") as conn:
-            announce(conn, _SETTINGS[0], None, None, source="rule", scope=scope, ref=ref, text=text, rule_id=rule_id)
+            author = rule_author(conn, rule_id)
+            if author is None or not authorize(conn, author, "media.announce", INSTALLATION).allowed:
+                # security review 2.2.0 L1: the person who last saved the rule must STILL hold media.announce - a demoted or
+                # deactivated author's rule stays silent (recorded and audited, nothing spoken)
+                now = dt.datetime.now(dt.timezone.utc)
+                t = text if isinstance(text, str) else ""
+                _record(conn, author, "rule", rule_id, scope, ref, [], t[:MAX_TEXT], "refused", "not_permitted", now)
+                _audit(conn, author, None, "rule", scope, ref, [], "refused", "not_permitted", rule_id, len(t))
+                return "not_permitted"
+            announce(conn, _SETTINGS[0], author, None, source="rule", scope=scope, ref=ref, text=text, rule_id=rule_id)
         return "sent"
     except ApiError as exc:
         return exc.code

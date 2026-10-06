@@ -233,6 +233,9 @@ export class SwSecondFactorUser extends LitElement {
   @state() private armed = false;
   @state() private error = '';
   @state() private message = '';
+  /** The administrator's OWN factor is on: the reset needs their current code (security review 2.2.0 M1). */
+  @state() private stepUp = false;
+  @state() private ownCode = '';
 
   static styles = SHARED;
 
@@ -240,6 +243,7 @@ export class SwSecondFactorUser extends LitElement {
     if (changed.has('userId')) {
       this.since = undefined;
       this.armed = false;
+      this.ownCode = '';
       this.message = '';
       void this.load();
     }
@@ -259,13 +263,26 @@ export class SwSecondFactorUser extends LitElement {
     }
   }
 
+  private async arm() {
+    this.armed = true;
+    this.error = '';
+    this.ownCode = '';
+    try {
+      this.stepUp = (await secondFactorStatus()).enabled;
+    } catch {
+      this.stepUp = false;
+    }
+  }
+
   private async reset() {
+    if (this.stepUp && !/^\d{6}$/.test(this.ownCode)) return;
     this.busy = true;
     this.error = '';
     try {
-      await resetFactor(this.userId);
+      await resetFactor(this.userId, this.stepUp ? this.ownCode : undefined);
       this.since = null;
       this.armed = false;
+      this.ownCode = '';
       this.message = t('secondFactor.adminResetDone');
     } catch (err) {
       this.error = describeError(err);
@@ -280,11 +297,18 @@ export class SwSecondFactorUser extends LitElement {
     return html`<div class="row" data-sf-admin>
         <span class="state" data-sf-admin-state>${t('secondFactor.on')}${this.since ? html` <small>${t('secondFactor.since')} ${when(this.since)}</small>` : nothing}</span>
         ${this.armed
-          ? html`<span><sw-button size="sm" variant="danger" data-sf-admin-confirm ?disabled=${this.busy} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>
+          ? html`<span><sw-button size="sm" variant="danger" data-sf-admin-confirm ?disabled=${this.busy || (this.stepUp && !/^\d{6}$/.test(this.ownCode))} @click=${() => void this.reset()}>${t('secondFactor.adminReset')}</sw-button>
               <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.armed = false)}>${t('secondFactor.cancel')}</sw-button></span>`
-          : html`<sw-button size="sm" variant="secondary" data-sf-admin-reset @click=${() => (this.armed = true)}>${t('secondFactor.adminReset')}</sw-button>`}
+          : html`<sw-button size="sm" variant="secondary" data-sf-admin-reset @click=${() => void this.arm()}>${t('secondFactor.adminReset')}</sw-button>`}
       </div>
       ${this.armed ? html`<div class="lbl">${t('secondFactor.adminResetConfirm')}</div>` : nothing}
+      ${this.armed && this.stepUp
+        ? html`<form @submit=${(e: Event) => { e.preventDefault(); void this.reset(); }}>
+            <input data-sf-admin-code inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label=${t('secondFactor.adminStepUp')}
+              placeholder="000000" .value=${this.ownCode} @input=${(e: Event) => (this.ownCode = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 6))} />
+          </form>
+          <div class="lbl">${t('secondFactor.adminStepUp')}</div>`
+        : nothing}
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}`;
   }
 }

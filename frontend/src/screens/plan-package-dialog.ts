@@ -6,7 +6,7 @@
  * person's explicit trust. Pure render function: the editor owns the state.
  */
 import { css, html, nothing, type TemplateResult } from 'lit';
-import type { PackageMode, PackagePreview } from '../api/geometry';
+import type { PackageMode, PackageOrigin, PackagePreview } from '../api/geometry';
 import { pkgCollection, pkgLang, pkgT } from '../i18n/plan-package';
 
 export interface PackageImportState {
@@ -17,6 +17,8 @@ export interface PackageImportState {
   busy: 'check' | 'import' | null;
   error: string;
   acceptForeign: boolean;
+  /** The origin of a package the server will not check until the person trusts it (409 package_foreign on the preview). */
+  foreign?: PackageOrigin | null;
 }
 
 export interface PackageImportActions {
@@ -76,14 +78,23 @@ function renderMissing(p: PackagePreview, lang: 'he' | 'en'): TemplateResult | t
 export function renderPackageImportDialog(s: PackageImportState, a: PackageImportActions): TemplateResult {
   const lang = pkgLang();
   const p = s.preview;
-  const foreign = !!p && p.origin.trust !== 'installation';
+  const foreign = !!p && (p.origin.trust !== 'installation' || !!p.origin.retired_key);
   const canImport = !!p && !s.busy && (!foreign || s.acceptForeign);
+  const gate = !p && s.foreign ? s.foreign : null;
   return html`<sw-dialog open wide heading=${pkgT('title', lang)} subheading=${s.file.name} data-pkg-dialog ?locked=${s.busy === 'import'} @close=${() => a.cancel()}>
     <div class="modes" role="group" aria-label=${pkgT('mode', lang)}>
       ${(['replace', 'merge'] as PackageMode[]).map((m) => html`<button class=${s.mode === m ? 'on' : ''} aria-pressed=${s.mode === m} data-pkg-mode=${m} ?disabled=${!!s.busy} @click=${() => a.setMode(m)}>${pkgT(m, lang)}</button>`)}
     </div>
     ${s.busy === 'check' ? html`<div class="note" data-pkg-checking>${pkgT('checking', lang)}</div>` : nothing}
     ${s.error ? html`<div class="err" data-pkg-error>${s.error}</div>` : nothing}
+    ${gate
+      ? html`<div class="pkg-sec" data-pkg-origin data-pkg-gate>
+            <div class="pkg-h">${pkgT('source', lang)}</div>
+            <div class="pkg-line"><bdi>${gate.floor_name ?? ''}</bdi> · ${pkgT(gate.stage === 'draft' ? 'draft' : 'published', lang)} · <bdi>${dateOf(gate.generated_at, lang)}</bdi></div>
+            <div class="pkg-line warn" data-pkg-trust=${gate.trust}>${pkgT('signedForeign', lang)}</div>
+          </div>
+          <label class="pkg-trust"><input type="checkbox" data-pkg-accept-foreign .checked=${s.acceptForeign} ?disabled=${!!s.busy} @change=${(e: Event) => a.setAcceptForeign((e.target as HTMLInputElement).checked)} /> ${pkgT('trustForeign', lang)}</label>`
+      : nothing}
     ${p
       ? html`<div class="pkg-sec" data-pkg-origin>
             <div class="pkg-h">${pkgT('source', lang)}</div>

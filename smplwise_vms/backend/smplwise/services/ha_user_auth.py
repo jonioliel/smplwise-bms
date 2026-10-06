@@ -69,6 +69,7 @@ ACTIVE_WINDOW_S = 120.0
 LOOP_TICK_S = 5.0
 BEARER_CACHE_S = 60.0
 MAX_SESSIONS_PER_USER = 20
+MAX_FACTOR_SIGN_INS = 10000  # SessionStore._factor_ok: bounded (the oldest tenth goes first)
 ADMIN_PERMISSIONS = frozenset({"system.configure", "rbac.assign", "identity.directory.read"})
 
 # rate limits: (window seconds, max hits); per client address and per user
@@ -308,6 +309,9 @@ class RemoteSession:
     token_key: str = ""  # token_hash of a bearer session's token (the lookup key of the bearer path)
     client_id: str = ""  # the Arx OAuth client id this sign-in was made from: `<origin><remote_path>/` (review M1)
     continued: bool = False  # the session continues an existing chain (a rotation, a native client's next token)
+    # security review 2.2.0 H1: False only for a bearer session made while security.second_factor_bearer = off skipped a
+    # check the user owed (a code or the admins policy); such a session never vouches for a later sign-in of its HA sign-in
+    factor_checked: bool = True
     # review M3: one re-check against HA at a time per session, and none before this time after HA was unreachable
     recheck_after: float = 0.0
     recheck_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
@@ -333,12 +337,39 @@ class SessionStore:
         # review M2: the revoked sign-ins (iss hashes) in memory - filled at the START of a revoke, before its sessions are
         # dropped, and loaded from remote_revoked_chains at start-up; consulted under the lock by create()
         self._revoked_iss: set[str] = set()
+        # security review 2.2.0 H1: the HA sign-ins (iss hashes) whose bearer client showed the second factor -> user id.
+        # A later access token of the same sign-in continues it without a new code (also after its earlier bearer
+        # sessions expired with their tokens). Memory only: a restart asks again. Cleared by drop_user / a revoke.
+        self._factor_ok: dict[str, str] = {}
+
+    def mark_factor_verified(self, iss_hash_value: str, user_id: str) -> None:
+        if not iss_hash_value:
+            return
+        with self._lock:
+            if len(self._factor_ok) >= MAX_FACTOR_SIGN_INS:
+                for k in list(self._factor_ok)[: MAX_FACTOR_SIGN_INS // 10]:
+                    self._factor_ok.pop(k, None)
+            self._factor_ok[iss_hash_value] = user_id
+
+    def sign_in_verified(self, iss_hash_value: str, user_id: str) -> bool:
+        """Did this HA sign-in already pass the remote sign-in checks of `user_id` in this process: a bearer client of it
+        showed the second factor, or a live session (cookie or bearer) of the same user belongs to it?"""
+        if not iss_hash_value:
+            return False
+        now = time.time()
+        with self._lock:
+            if self._factor_ok.get(iss_hash_value) == user_id:
+                return True
+            return any(s.iss_hash == iss_hash_value and s.principal.user_id == user_id and s.token_exp > now and s.factor_checked
+                       for s in self._sessions.values())
 
     def revoke_sign_ins(self, hashes: set[str], sessions: list[RemoteSession]) -> list[RemoteSession]:
         """Mark these sign-ins revoked and drop, in the same critical section, the given sessions and every session of
         those sign-ins - including one an exchange created after the caller listed them."""
         with self._lock:
             self._revoked_iss.update(h for h in hashes if h)
+            for h in hashes:
+                self._factor_ok.pop(h, None)
             sids = {s.sid for s in sessions} | {sid for sid, s in self._sessions.items() if s.iss_hash and s.iss_hash in self._revoked_iss}
             return [x for x in (self._drop_locked(sid) for sid in sids) if x is not None]
 
@@ -458,6 +489,8 @@ class SessionStore:
         """Every remote session of the user, cookie and bearer alike (their WebSockets close on the next pass)."""
         with self._lock:
             sids = [sid for sid, s in self._sessions.items() if s.principal.user_id == user_id]
+            for h in [h for h, uid in self._factor_ok.items() if uid == user_id]:
+                self._factor_ok.pop(h, None)
             return [s for s in (self._drop_locked(sid) for sid in sids) if s is not None]
 
     def sessions_of(self, public_ids: set[str] | None = None, user_id: str | None = None) -> list[RemoteSession]:
@@ -532,6 +565,7 @@ class SessionStore:
             self._by_token.clear()
             self._to_close.clear()
             self._revoked_iss.clear()
+            self._factor_ok.clear()
 
 
 STORE = SessionStore()
@@ -937,34 +971,49 @@ def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
     return "none"
 
 
-async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
+BEARER_FACTOR_KEY = "security.second_factor_bearer"
+BEARER_FACTOR_MODES = ("enforce", "off")
+
+
+def bearer_factor_enforced(conn) -> bool:
+    """security review 2.2.0 H1: `security.second_factor_bearer` = enforce (default) applies the second factor and the
+    `admins` policy to a NEW sign-in on the bearer path too (HTTP and WebSocket); `off` is the pre-2.2.1 behaviour, for an
+    installation whose phone app does not send X-Arx-Second-Factor yet (an owner decision, audited on every such sign-in)."""
+    from ..db import get_setting
+
+    try:
+        return (get_setting(conn, BEARER_FACTOR_KEY, "enforce") or "enforce") != "off"
+    except Exception:  # noqa: BLE001 - fail closed
+        return True
+
+
+def _check_second_factor_sync(db: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
     """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
     `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
-    Failures are audited (the method and the reason only, never the code)."""
-    from starlette.concurrency import run_in_threadpool
-
+    Failures are audited (the method and the reason only, never the code). Blocking (the database)."""
     from . import second_factor as sf
 
     code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
     if not code:
         raise ApiError(401, "second_factor_required", sf.REQUIRED_HE)
-
-    def check() -> sf.SecondFactorError | None:
-        with app_state.db.connection(label="auth/session second factor") as conn:
-            try:
-                sf.verify(conn, settings, principal.user_id, code)
-            except sf.SecondFactorError as exc:
-                return exc
-        return None
-
-    err = await run_in_threadpool(check)
+    err: sf.SecondFactorError | None = None
+    with db.connection(label="auth/session second factor") as conn:
+        try:
+            sf.verify(conn, settings, principal.user_id, code)
+        except sf.SecondFactorError as exc:
+            err = exc
     if err is None:
         return
     reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
     status = 429 if err.code == "locked" else 401
-    await run_in_threadpool(lambda: _audit_refusal(app_state.db, actor=principal, reason=reason, meta={**meta, "method": "totp"},
-                                                    action="auth.second_factor.failed", subject=principal.user_id))
+    _audit_refusal(db, actor=principal, reason=reason, meta={**meta, "method": "totp"}, action="auth.second_factor.failed", subject=principal.user_id)
     raise ApiError(status, reason, err.message, retryable=err.code == "locked")
+
+
+async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
+    from starlette.concurrency import run_in_threadpool
+
+    await run_in_threadpool(_check_second_factor_sync, app_state.db, settings, conn_like, principal, meta)
 
 
 # ---------------------------------------------------------------- the exchange (POST / DELETE auth/session)
@@ -1101,6 +1150,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         raise ApiError(503, "ha_unavailable", HA_UNAVAILABLE_HE, retryable=True)
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
+    factor, enforced = "none", True
     with db.connection(mode="read", label="remote bearer") as conn:
         principal = dataclasses.replace(build_principal(conn, ha_user), via="bearer")
         if chain_revoked(conn, token):
@@ -1108,6 +1158,11 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         else:
             refusal = policy_refusal(conn, principal, ha_user)
             basis = None if refusal else remote_basis(conn, principal.user_id)
+        # security review 2.2.0 H1: a NEW sign-in on the bearer path owes the second factor (and the `admins` policy) like
+        # the cookie exchange; the next access token of a sign-in that already passed it (same HA refresh token) does not
+        if refusal is None and s is None and not STORE.sign_in_verified(iss_hash(token), principal.user_id):
+            factor = second_factor_need(conn, principal, None)
+            enforced = bearer_factor_enforced(conn)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
@@ -1116,14 +1171,28 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         s.last_validated = time.time()
         s.ha_user = ha_user
         return s
+    factor_meta: dict[str, Any] = {}
+    if factor != "none" and not enforced:
+        factor_meta = {"second_factor_skipped": factor}  # security.second_factor_bearer = off (the owner's choice)
+    elif factor == "enroll":
+        from . import second_factor as sf
+
+        raise rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
+    elif factor == "code":
+        _check_second_factor_sync(db, settings, request, principal, meta)
+        factor_meta = {"second_factor": "totp"}
     try:
         s = STORE.create(principal, ha_user, token, exp, ip, via="bearer", meta=meta, client_id=arx_client_id(settings, request))
     except ChainRevoked:  # review M2: revoked while this request was validating the token
         _remember_rejected(token)
         raise rejected("remote_session_revoked", unauthenticated("remote_session_revoked", REVOKED_HE), principal)
+    if factor_meta.get("second_factor_skipped"):
+        s.factor_checked = False
+    elif factor == "code":
+        STORE.mark_factor_verified(s.iss_hash, principal.user_id)
     if not s.continued:  # a new sign-in of a bearer client (not its next access token)
         _record_sign_in(db, principal, meta)
-        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis})
+        _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
     return s
 
 
@@ -1447,6 +1516,39 @@ async def revoke_sessions(app_state: Any, settings: Settings, sessions: list[Rem
             if pending:
                 log.warning("sign out everywhere: %d HA deletion(s) did not finish in %.0f s; the Arx revocation stands", len(pending), HA_DELETE_TIMEOUT_S)
     return {"sessions_ended": len(sign_ins), "ha_sign_ins_ended": at_ha}
+
+
+def revoke_user_sign_ins(conn: Any, user_id: str, *, actor: Principal, reason: str, keep: RemoteSession | None = None,
+                         request_id: str | None = None) -> int:
+    """Security review 2.2.0 M4: end every remote sign-in of `user_id` except the HA sign-in of `keep` (the caller's own
+    current session) - synchronously, on the caller's request connection: the sign-ins are marked revoked in memory and
+    their sessions dropped at once (their WebSockets close on the background pass's next tick), recorded in
+    remote_revoked_chains (the same HA sign-in cannot come back, also after a restart), their tokens negatively cached and
+    one audit row written. A sign-in without an `iss` (no chain to record) is only dropped. Returns the sign-ins ended."""
+    from ..audit import audit
+    from ..db import now_iso
+
+    keep_iss = keep.iss_hash if keep is not None else ""
+    keep_sid = keep.sid if keep is not None else ""
+    victims = [s for s in STORE.sessions_of(user_id=user_id) if s.sid != keep_sid and not (keep_iss and s.iss_hash == keep_iss)]
+    if not victims:
+        return 0
+    dropped = STORE.revoke_sign_ins({s.iss_hash for s in victims if s.iss_hash}, victims)
+    dropped = [s for s in dropped if s.sid != keep_sid]
+    for s in dropped:
+        _remember_rejected(s.token)
+    sign_ins = {s.sign_in() for s in dropped}
+    now = now_iso()
+    try:
+        for h in {s.iss_hash for s in dropped if s.iss_hash}:
+            conn.execute("INSERT OR IGNORE INTO remote_revoked_chains(iss_hash, user_id, revoked_at, revoked_by, reason) VALUES (?, ?, ?, ?, ?)",
+                         (h, user_id, now, actor.user_id, reason))
+    except Exception:  # noqa: BLE001 - before migration 0035: the in-memory revocation stands
+        log.warning("could not record the revoked remote sign-ins", exc_info=True)
+    audit(conn, actor=actor, action="auth.remote_session.revoked", decision="allowed", resource_type="user", resource_id=user_id, reason=reason,
+          request_id=request_id, details={"sessions": len(sign_ins), "ids": sorted(public_id(c) for c in sign_ins)[:20],
+                                          "channel": "remote" if actor.source == "remote" else "local", "ended_via": sorted({s.via for s in dropped})})
+    return len(sign_ins)
 
 
 def _days_ago(days: int) -> str:

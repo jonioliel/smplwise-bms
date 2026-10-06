@@ -25,4 +25,9 @@ export const startEnrolment = () => post<Enrolment>('auth/second-factor/enroll')
 export const confirmEnrolment = (code: string) => post<SecondFactorStatus>('auth/second-factor/confirm', { code });
 export const disableSecondFactor = (code: string) => post<SecondFactorStatus>('auth/second-factor/disable', { code });
 export const factorUsers = () => get<FactorUsers>('auth/second-factor/users');
-export const resetFactor = (userId: string) => api<{ user_id: string; removed: boolean }>(`auth/second-factor/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+/** An administrator who has a factor sends their own current code (security review 2.2.0 M1); never their own user id (that is `disable`). */
+export const resetFactor = (userId: string, ownCode?: string) =>
+  api<{ user_id: string; removed: boolean }>(`auth/second-factor/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
+  });

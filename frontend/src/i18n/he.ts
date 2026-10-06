@@ -559,6 +559,7 @@ export const he = {
     adminReset: 'איפוס',
     adminResetDone: 'האימות הדו־שלבי אופס',
     adminResetConfirm: 'לאפס את האימות הדו־שלבי של המשתמש?',
+    adminStepUp: 'הקוד הנוכחי מאפליקציית האימות שלך',
     policyLabel: 'אימות דו־שלבי מאפליקציה',
     policyOptional: 'רשות',
     policyAdmins: 'חובה למנהלים',

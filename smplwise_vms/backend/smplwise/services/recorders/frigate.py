@@ -36,7 +36,7 @@ DEFAULT_PORT = 8971
 HEALTH_TIMEOUT_S = 4.0
 CONFIG_TTL_S = 60.0
 CERT_TTL_S = 6 * 3600.0
-CAMERA_KEY = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+CAMERA_KEY = re.compile(r"^(?!\.{1,2}$)[A-Za-z0-9_.-]{1,64}$")  # security review 2.2.0 L6: never "." / ".." (httpx folds dot segments)
 
 _CONFIG: dict[str, tuple[float, dict[str, Any]]] = {}      # device_key -> (expires at, discovery document)
 _CERTS: dict[str, tuple[float, dict[str, Any]]] = {}

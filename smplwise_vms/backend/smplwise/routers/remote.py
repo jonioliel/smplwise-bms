@@ -36,6 +36,7 @@ from ..remote_channel import channel_of, is_remote
 from ..services import app_download, ha_user_auth as hua
 
 router = APIRouter()
+APP_DOWNLOAD_LIMITS: list[tuple[float, int]] = [(60.0, 30), (3600.0, 300)]
 
 
 def _remote_only(request: Request) -> None:
@@ -57,6 +58,9 @@ def app_download_offer(request: Request) -> JSONResponse:
     """Public (no identity), remote channel only: the Android app download offer of the sign-in page. Only url / version /
     sha256 of the address an administrator saved; `{"android": null}` when none is configured."""
     _remote_only(request)
+    # security review 2.2.0 L8: a public route - a modest per-address limit, like the other anonymous ones
+    if not hua.LIMITER.hit(f"appdl:{hua.client_ip(request)}", APP_DOWNLOAD_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     with request.app.state.db.connection(mode="read", label="auth/app-download") as conn:
         body = app_download.public_offer(conn)
     return JSONResponse(body, headers={"Cache-Control": "no-store"})

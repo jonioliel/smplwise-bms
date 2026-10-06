@@ -29,7 +29,7 @@ import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
 import { packageDialogStyles, renderPackageImportDialog, type PackageImportState } from './plan-package-dialog';
 import { pkgT } from '../i18n/plan-package';
-import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importPlanPackage, previewPlanPackage, type PackageMode, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importPlanPackage, previewPlanPackage, type PackageMode, type PackageOrigin, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
 import { getPlanAreas, type PlanArea } from '../api/plan-links';
 import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
 import { isDefaultCorners, type Corners } from '../map/floor-image';
@@ -4307,7 +4307,7 @@ export class ExplorePlanEditor extends LitElement {
       this.error = this.studio.error;
       return;
     }
-    this.pkgImport = { file, mode: 'replace', preview: null, busy: null, error: '', acceptForeign: false };
+    this.pkgImport = { file, mode: 'replace', preview: null, busy: null, error: '', acceptForeign: false, foreign: null };
     await this.previewPackage('replace');
   }
 
@@ -4318,11 +4318,25 @@ export class ExplorePlanEditor extends LitElement {
     if (!s || !versionId || s.busy) return;
     this.pkgImport = { ...s, mode, busy: 'check', error: '', preview: s.mode === mode ? s.preview : null };
     try {
-      const preview = await previewPlanPackage(versionId, s.file, mode);
+      const preview = await previewPlanPackage(versionId, s.file, mode, s.acceptForeign);
       if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, preview, busy: null };
     } catch (err) {
-      if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, preview: null, busy: null, error: describeError(err) };
+      // security review 2.2.0: a package of another system is not checked until the person trusts it
+      const origin = err instanceof ApiError && err.code === 'package_foreign' ? ((err.body.details as { origin?: PackageOrigin } | undefined)?.origin ?? null) : null;
+      if (this.pkgImport?.file === s.file) {
+        this.pkgImport = origin
+          ? { ...this.pkgImport, preview: null, busy: null, error: '', foreign: origin, acceptForeign: false }
+          : { ...this.pkgImport, preview: null, busy: null, error: describeError(err) };
+      }
     }
+  }
+
+  /** The trust box: on a package the preview refused as foreign it re-runs the preview with the person's trust. */
+  private setPackageTrust(on: boolean) {
+    const s = this.pkgImport;
+    if (!s) return;
+    this.pkgImport = { ...s, acceptForeign: on };
+    if (on && !s.preview && s.foreign) void this.previewPackage(s.mode);
   }
 
   private async confirmPackageImport() {
@@ -5146,7 +5160,7 @@ export class ExplorePlanEditor extends LitElement {
         ${this.shortcutsOpen ? renderShortcutsDialog(() => (this.shortcutsOpen = false)) : nothing}
         ${this.pkgImport ? renderPackageImportDialog(this.pkgImport, {
           setMode: (m) => void this.previewPackage(m),
-          setAcceptForeign: (on) => (this.pkgImport = this.pkgImport && { ...this.pkgImport, acceptForeign: on }),
+          setAcceptForeign: (on) => this.setPackageTrust(on),
           confirm: () => void this.confirmPackageImport(),
           cancel: () => { if (this.pkgImport?.busy !== 'import') this.pkgImport = null; },
         }) : nothing}

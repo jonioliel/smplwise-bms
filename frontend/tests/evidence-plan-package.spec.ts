@@ -41,12 +41,12 @@ function preview(over: Record<string, unknown> = {}) {
 
 type Calls = { preview: string[]; import: string[] };
 
-async function mount(page: Page, answer: (mode: string, route: Route) => Promise<void> | void, calls: Calls, lang = 'he') {
+async function mount(page: Page, answer: (mode: string, route: Route, url: URL) => Promise<void> | void, calls: Calls, lang = 'he') {
   await page.route('**/api/v1/plan-versions/*/package/**', async (route) => {
     const u = new URL(route.request().url());
     if (u.pathname.endsWith('/package/preview')) {
       calls.preview.push(u.search);
-      return answer(u.searchParams.get('mode') ?? '', route);
+      return answer(u.searchParams.get('mode') ?? '', route, u);
     }
     calls.import.push(u.search);
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ geometry: { revision: 8 }, result_hash: 'd'.repeat(64) }) });
@@ -104,19 +104,29 @@ test.describe('fixture: the import dialog', () => {
     expect(calls.import).toEqual([`?mode=merge&base_revision=7&expect_hash=${'9'.repeat(64)}`]);
   });
 
-  test('another system: import waits for the trust box; a refusal is shown', async ({ page }, info) => {
+  test('another system: the dry run and the import wait for the trust box; a refusal is shown', async ({ page }, info) => {
     const calls: Calls = { preview: [], import: [] };
     let refuse = false;
-    await mount(page, (_mode, route) => (refuse
+    const foreignOrigin = { ...preview().origin, trust: 'embedded_key_only', same_installation: false };
+    await mount(page, (_mode, route, u) => (refuse
       ? json(route, { code: 'package_tampered', user_message: 'תוכן החבילה אינו תואם את הרשימה החתומה.', retryable: false, correlation_id: '', details: {} }, 422)
-      : json(route, preview({ origin: { ...preview().origin, trust: 'embedded_key_only', same_installation: false }, warnings: ['other_drawing'], same_drawing: false }))), calls);
+      // security review 2.2.0: the server checks a foreign package only after the person trusted it
+      : u.searchParams.get('accept_foreign') !== 'true'
+        ? json(route, { code: 'package_foreign', user_message: 'החבילה חתומה במפתח של מערכת אחרת; אשר את המקור כדי לייבא.', retryable: false, correlation_id: '',
+            details: { reason: 'foreign_key', kid: 'k9', origin: foreignOrigin } }, 409)
+        : json(route, preview({ origin: foreignOrigin, warnings: ['other_drawing'], same_drawing: false }))), calls);
     await pick(page);
     const dlg = page.locator('pkg-harness sw-dialog[data-pkg-dialog]');
-    await expect(dlg.locator('[data-pkg-trust="embedded_key_only"]')).toHaveText('חתומה במערכת אחרת');
-    await expect(dlg.locator('[data-pkg-other-drawing]')).toBeVisible();
+    await expect(dlg.locator('[data-pkg-gate] [data-pkg-trust="embedded_key_only"]')).toHaveText('חתומה במערכת אחרת');
+    await expect(dlg.locator('[data-pkg-diff]')).toHaveCount(0);
+    await expect(dlg.locator('[data-pkg-error]')).toHaveCount(0);
     const confirm = dlg.locator('[data-pkg-confirm] button');
     await expect(confirm).toBeDisabled();
+    await page.screenshot({ path: path.join(OUT, `dialog-foreign-gate-${info.project.name}.png`) });
     await dlg.locator('[data-pkg-accept-foreign]').check();
+    await expect(dlg.locator('[data-pkg-other-drawing]')).toBeVisible();
+    await expect(dlg.locator('[data-pkg-accept-foreign]')).toBeChecked();
+    expect(calls.preview).toEqual(['?mode=replace', '?mode=replace&accept_foreign=true']);
     await expect(confirm).toBeEnabled();
     await noOverflow(page);
     await page.screenshot({ path: path.join(OUT, `dialog-foreign-${info.project.name}.png`) });

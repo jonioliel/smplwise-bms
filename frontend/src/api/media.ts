@@ -175,6 +175,8 @@ export interface ProductSettings {
   'remote.require_mfa_admin'?: 'true' | 'false';
   /** K11 (owner 2026-10-06): the TOTP second factor is optional (default); 'admins' refuses a remote sign-in of an administrator without one. */
   'security.second_factor_policy'?: 'optional' | 'admins';
+  /** Security review 2.2.0 H1: 'enforce' (default) asks a new bearer sign-in (the phone app's own calls) for the factor too; 'off' = the pre-2.2.1 bearer path. */
+  'security.second_factor_bearer'?: 'enforce' | 'off';
   /** CR-008 P2: live streams one remote sign-in may hold open at once (default 16); the next one is refused (429). */
   'remote.max_live_streams'?: number;
   /** The stream the camera wall plays on the remote channel (default 'sub'; LAN / Ingress use media.wall_profile). */
