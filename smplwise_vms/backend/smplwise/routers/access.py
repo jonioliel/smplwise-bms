@@ -161,6 +161,9 @@ PERMISSION_LABELS: dict[str, str] = {
     # media screen within scope (the screen's anchor placement, like media.control) - with video.live on the camera, and only to a screen the
     # administrator allowed (system.configure, per screen, off by default). Stopping anyone's cast on a screen is also media.bulk there.
     "media.cast": "שידור וידאו של מצלמה למסכים",
+    # MU2 (הכרזות קוליות): media.announce (site_admin, system_admin; SENSITIVE, a custom role names it explicitly) speaks a typed text through the speakers the administrator
+    # allowed for announcements, by room or by device, and lets a rule carry an announce action. Installation scope; the setup and the test button are system.configure.
+    "media.announce": "הכרזה קולית ברמקולים",
     "nvr.config.write": "כתיבה להגדרות ה־NVR",
     "nvr.config.events": "NVR: הפעלת התראות (Notify Surveillance Center) ולוחות זימון",
     "nvr.config.detection": "NVR: עריכת אזורי זיהוי תנועה ורגישות",

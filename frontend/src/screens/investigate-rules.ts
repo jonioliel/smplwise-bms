@@ -5,6 +5,7 @@ import '../components/sw-dialog';
 import '../components/sw-chip';
 import '../components/sw-state-panel';
 import { can, isApi } from '../api/session';
+import { announceAreas, type AnnounceArea } from '../api/announcements';
 import { ApiError, describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { listCameras } from '../api/maps';
@@ -65,6 +66,7 @@ export class InvestigateRules extends LitElement {
   @state() private cams: Camera[] = [];
   @state() private zones: SpatialZone[] = [];
   @state() private confirmDelete: Rule | null = null;
+  @state() private speakAreas: AnnounceArea[] = []; // MU2: the rooms a rule may announce in (media.announce holders only)
   private tz = 'Asia/Jerusalem';
 
   connectedCallback() {
@@ -132,6 +134,7 @@ export class InvestigateRules extends LitElement {
   }
 
   private openEditor(r?: Rule) {
+    if (isApi() && can('media.announce')) void announceAreas().then((a) => (this.speakAreas = a.areas)).catch(() => undefined);
     this.dry = null;
     this.zones = [];
     if (r) {
@@ -224,7 +227,12 @@ export class InvestigateRules extends LitElement {
       <div class="two">
         <sw-field label="פעולה"><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>
           <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>התראה במערכת</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>התראה דרך תשתית המערכת (notify)</option>
+          ${can('media.announce') || b.actions[0]?.kind === 'announce' ? html`<option value="announce" ?selected=${b.actions[0]?.kind === 'announce'}>הכרזה קולית</option>` : nothing}
         </select></sw-field>
+        ${b.actions[0]?.kind === 'announce'
+          ? html`<sw-field label="חדר להכרזה"><select data-rule-announce-room @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], scope: 'area', ref: (ev.target as HTMLSelectElement).value }]))}>
+              <option value="" ?selected=${!b.actions[0]?.ref}>—</option>${this.speakAreas.map((a) => html`<option value=${a.area_id} ?selected=${b.actions[0]?.ref === a.area_id}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}</select></sw-field>`
+          : nothing}
         ${b.actions[0]?.kind === 'ha_notify'
           ? html`<sw-field label="שירות notify בתשתית המערכת (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
           : nothing}

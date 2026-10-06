@@ -9,6 +9,8 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import './system-multimedia-players';
 import './system-cast'; // CR-028: שידור למסכים + המסכים שלי לשידור
+import './system-announcements'; // MU2: הכרזות קוליות
+import { announceText } from '../i18n/announce';
 import '../components/sw-tabs';
 import { ApiError, describeError, patch } from '../api/client';
 import { can, isApi, session } from '../api/session';
@@ -65,7 +67,7 @@ export class SystemMultimedia extends LitElement {
   @state() private editing = new Set<string>();
   @state() private view: ListView = { ...DEFAULT_VIEW };
   /** CR-028: the page's views - the screens and players as before, the casting administration, and "המסכים שלי לשידור" (`?tab=cast|mine`). */
-  @state() private tab: 'main' | 'cast' | 'mine' = 'main';
+  @state() private tab: 'main' | 'cast' | 'mine' | 'announce' = 'main';
   private noteTimer = 0;
 
   static styles = [mediaAdminListCss, css`
@@ -514,23 +516,24 @@ export class SystemMultimedia extends LitElement {
 
   private readTab() {
     const q = (window.location.hash.split('?')[1] ?? '').split('&').find((x) => x.startsWith('tab='))?.slice(4);
-    this.tab = q === 'cast' || q === 'mine' ? q : 'main';
+    this.tab = q === 'cast' || q === 'mine' || q === 'announce' ? q : 'main';
   }
 
   private setTab(id: string) {
-    const next = id === 'cast' || id === 'mine' ? id : 'main';
+    const next = id === 'cast' || id === 'mine' || id === 'announce' ? id : 'main';
     this.tab = next;
     replaceRoute('/system/multimedia', next === 'main' ? undefined : new URLSearchParams({ tab: next }));
   }
 
   /** CR-028: the page's views. The casting tabs do not wait for (or depend on) the screens list: they load their own data. */
   private tabsRow(): TemplateResult {
-    return html`<sw-tabs variant="underline" data-mm-tabs .items=${[{ id: 'main', label: 'מסכים ונגנים' }, { id: 'cast', label: 'שידור למסכים' }, { id: 'mine', label: 'המסכים שלי לשידור' }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>`;
+    return html`<sw-tabs variant="underline" data-mm-tabs .items=${[{ id: 'main', label: 'מסכים ונגנים' }, { id: 'cast', label: 'שידור למסכים' }, { id: 'mine', label: 'המסכים שלי לשידור' }, { id: 'announce', label: announceText().tab }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>`;
   }
 
   render() {
     if (this.phase === 'forbidden') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
     if (this.tab === 'cast') return html`<sw-page heading="מולטימדיה" subheading="שידור מצלמות למסכים">${this.tabsRow()}<system-cast></system-cast></sw-page>`;
+    if (this.tab === 'announce') return html`<sw-page heading="מולטימדיה" subheading=${announceText().sub}>${this.tabsRow()}<system-announcements></system-announcements></sw-page>`;
     if (this.tab === 'mine') return html`<sw-page heading="מולטימדיה" subheading="המסכים שאפשר לשדר אליהם">${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
     if (this.phase === 'loading') return html`<sw-page heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.phase === 'error') return html`<sw-page heading="מולטימדיה">${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
