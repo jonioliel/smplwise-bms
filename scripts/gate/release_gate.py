@@ -521,9 +521,11 @@ def settle(cat, rows, rc, to, fe, logd, base_url, retry_env, label):
     for proj, lst in byproj.items():
         args = sorted({file_arg(r["file"]) if (r["file"], proj) in whole else file_arg(r["file"], r["line"]) for r in lst})
         rows2, rc2, to2 = run_pw(fe, None, [proj], base_url, logd, f"{label}_retry_{proj}", env=retry_env, workers=1, line_args=args, timeout=min(1500, left()))
-        res2 = {(r2["file"], r2["line"]): r2 for r2 in (rows2 or [])}
+        # keyed by title too: parametrized tests (one test() in a loop: four skins, three screens) share file:line, and a
+        # (file, line) key let the last sibling's result (usually a pass) stand for all of them - a real failure became "flaky"
+        res2 = {(r2["file"], r2["line"], r2["title"]): r2 for r2 in (rows2 or [])}
         for r in lst:
-            r2 = res2.get((r["file"], r["line"]))
+            r2 = res2.get((r["file"], r["line"], r["title"]))
             good = r2 is not None and r2["status"] in ("expected", "flaky")
             if r in pend:
                 if good:
