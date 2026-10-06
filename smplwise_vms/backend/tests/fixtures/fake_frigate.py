@@ -318,9 +318,9 @@ class FakeFrigate:
                     return self._json(r)
             return httpx.Response(404, json={"message": "Review item not found"})
         pc = path.strip("/").split("/")
-        if pc[-1] == "clip.mp4" and pc[0] == "api" and (len(pc) == 6 or (len(pc) == 4 and pc[1] == "events")):
+        if pc[-1] == "clip.mp4" and pc[0] == "api" and (len(pc) == 7 or (len(pc) == 4 and pc[1] == "events")):
             self.clip_gets.append(path)
-            if len(pc) == 6 and pc[1] not in self.cameras:
+            if len(pc) == 7 and pc[1] not in self.cameras:
                 return httpx.Response(404)
             if self.clip_status != 200:
                 return httpx.Response(self.clip_status)
