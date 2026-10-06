@@ -85,7 +85,7 @@ def app_download_file(request: Request) -> Response:
     inm = request.headers.get("if-none-match", "")
     if bundled.etag in [t.strip() for t in inm.split(",")] or inm.strip() == "*":
         return Response(status_code=304, headers=headers)
-    return FileResponse(bundled.path, media_type=app_download.MIME, headers=headers, method=request.method)
+    return FileResponse(bundled.path, media_type=app_download.MIME, headers=headers)
 
 
 @router.post("/auth/session")
