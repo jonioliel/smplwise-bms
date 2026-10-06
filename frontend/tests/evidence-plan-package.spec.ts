@@ -1,0 +1,235 @@
+import { test, expect, type APIRequestContext, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Plan Studio 5 (T088, ST5): DXF export, the signed plan package and its re-import.
+//
+// Fixture part (no backend; vite dev server): tests/harness/plan-package-harness.ts mounts the import dialog with the real
+// render code, styles and API helpers; page.route answers the preview / import routes. Checks: the dry run is shown
+// (source, trust, per-collection changes, missing entities, warnings), the mode switch re-runs the dry run, a package of
+// another system cannot be imported until trusted, a refusal is shown, the import sends the revision and the result hash
+// the preview showed, RTL, no horizontal overflow, the English strings when the document is English.
+//   npx vite --port 4870 & SW_BASE_URL=http://127.0.0.1:4870/ npx playwright test tests/evidence-plan-package.spec.ts --project=desktop --project=mobile
+//
+// Live part (SW_LIVE=1, a running backend): builds its own site / building / floor with a published structure, opens the
+// editor's structure tool, downloads the DXF and the package from the export row, changes the draft, imports the package
+// through the dialog (replace) and checks the draft is back on the exported hash; removes its data at the end.
+// Screenshots: docs/design/evidence/plan-package/.
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const OUT = path.resolve(HERE, '..', '..', 'docs', 'design', 'evidence', 'plan-package');
+const ED = 'explore-plan-editor';
+const PLAN = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 'fixtures', 'plan_detect', 'apartment.png');
+
+test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
+
+const noOverflow = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+function preview(over: Record<string, unknown> = {}) {
+  return {
+    origin: { floor_name: 'קומה 2', plan_version_id: 'v-src', stage: 'published', generated_at: '2026-10-06T08:00:00Z', generated_by: 'dana', app_version: '2.1.1',
+      installation_id: 'inst-a', same_installation: true, trust: 'installation', kid: 'k1', retired_key: false, doc_hash: 'a'.repeat(64), geometry_hash: 'b'.repeat(64), package_sha256: 'c'.repeat(64) },
+    mode: 'replace', result_hash: 'd'.repeat(64), result_geometry_hash: 'e'.repeat(64), base_revision: 7, current_hash: 'f'.repeat(64),
+    diff: { collections: { walls: { added: ['w9'], removed: ['w1', 'w2'], changed: [] }, objects: { added: [], removed: [], changed: ['o1'] } }, total: 4, calibration_changed: false, same: false },
+    counts: { walls: 3 }, current_counts: { walls: 4 }, same_drawing: true, same_version: true, issues: [], issue_count: 0,
+    entities: { anchors_missing: [{ resource_type: 'camera', resource_id: 'cam-9', name: 'מצלמת חניה' }], anchors_unplaced: [], switches_missing: [], items_missing: [], items_added: ['bench.wood'], items_differ: [], rooms_missing: ['חדר ישיבות'] },
+    warnings: [],
+    ...over,
+  };
+}
+
+type Calls = { preview: string[]; import: string[] };
+
+async function mount(page: Page, answer: (mode: string, route: Route) => Promise<void> | void, calls: Calls, lang = 'he') {
+  await page.route('**/api/v1/plan-versions/*/package/**', async (route) => {
+    const u = new URL(route.request().url());
+    if (u.pathname.endsWith('/package/preview')) {
+      calls.preview.push(u.search);
+      return answer(u.searchParams.get('mode') ?? '', route);
+    }
+    calls.import.push(u.search);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ geometry: { revision: 8 }, result_hash: 'd'.repeat(64) }) });
+  });
+  await page.goto('/');
+  await page.waitForSelector('sw-app');
+  const ok = await page.evaluate(async (l) => {
+    try {
+      await import('/tests/harness/plan-package-harness.ts' as string);
+    } catch {
+      return false;
+    }
+    document.documentElement.lang = l;
+    document.body.innerHTML = '<pkg-harness dir="rtl" style="display:block;padding:16px"></pkg-harness>';
+    return true;
+  }, lang);
+  test.skip(!ok, 'the harness is served by the vite dev server only (not by vite preview)');
+}
+
+async function pick(page: Page) {
+  await page.locator('pkg-harness [data-import-package]').setInputFiles({ name: 'plan-v1.swplan.zip', mimeType: 'application/zip', buffer: Buffer.from('PK\x03\x04fake') });
+}
+
+const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+test.describe('fixture: the import dialog', () => {
+  test.skip(process.env.SW_LIVE === '1', 'the fixture part runs without a backend');
+
+  test('dry run shown, mode switch, import with the previewed revision and hash', async ({ page }, info) => {
+    const calls: Calls = { preview: [], import: [] };
+    await mount(page, (mode, route) => json(route, preview(mode === 'merge'
+      ? { mode: 'merge', result_hash: '9'.repeat(64), diff: { collections: { walls: { added: ['w9'], removed: [], changed: [] } }, total: 1, calibration_changed: false, same: false } }
+      : {})), calls);
+    await pick(page);
+    const dlg = page.locator('pkg-harness sw-dialog[data-pkg-dialog]');
+    await expect(dlg).toHaveAttribute('open', '');
+    await expect(dlg.locator('[data-pkg-trust="installation"]')).toHaveText('חתומה במערכת הזו');
+    await expect(dlg.locator('[data-pkg-coll="walls"]')).toContainText('קירות');
+    await expect(dlg.locator('[data-pkg-coll="walls"]')).toContainText('נוספו 1 · הוסרו 2');
+    await expect(dlg.locator('[data-pkg-coll="objects"]')).toContainText('השתנו 1');
+    await expect(dlg.locator('[data-pkg-missing-kind="cameras"]')).toContainText('מצלמת חניה');
+    await expect(dlg.locator('[data-pkg-missing-kind="rooms"]')).toContainText('חדר ישיבות');
+    await expect(dlg.locator('[data-pkg-items-added]')).toContainText('bench.wood');
+    await expect(dlg.locator('[data-pkg-mode="replace"]')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.locator('pkg-harness').evaluate((e) => getComputedStyle(e).direction)).toBe('rtl');
+    await noOverflow(page);
+    await page.screenshot({ path: path.join(OUT, `dialog-replace-${info.project.name}.png`) });
+    await dlg.locator('[data-pkg-mode="merge"]').click();
+    await expect(dlg.locator('[data-pkg-mode="merge"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(dlg.locator('[data-pkg-coll="walls"]')).toHaveText(/נוספו 1$/);
+    expect(calls.preview).toEqual(['?mode=replace', '?mode=merge']);
+    await dlg.locator('[data-pkg-confirm] button').click();
+    await expect(page.locator('pkg-harness [data-harness-imported="1"]')).toHaveCount(1);
+    await expect(page.locator('pkg-harness sw-dialog[data-pkg-dialog]')).toHaveCount(0);
+    expect(calls.import).toEqual([`?mode=merge&base_revision=7&expect_hash=${'9'.repeat(64)}`]);
+  });
+
+  test('another system: import waits for the trust box; a refusal is shown', async ({ page }, info) => {
+    const calls: Calls = { preview: [], import: [] };
+    let refuse = false;
+    await mount(page, (_mode, route) => (refuse
+      ? json(route, { code: 'package_tampered', user_message: 'תוכן החבילה אינו תואם את הרשימה החתומה.', retryable: false, correlation_id: '', details: {} }, 422)
+      : json(route, preview({ origin: { ...preview().origin, trust: 'embedded_key_only', same_installation: false }, warnings: ['other_drawing'], same_drawing: false }))), calls);
+    await pick(page);
+    const dlg = page.locator('pkg-harness sw-dialog[data-pkg-dialog]');
+    await expect(dlg.locator('[data-pkg-trust="embedded_key_only"]')).toHaveText('חתומה במערכת אחרת');
+    await expect(dlg.locator('[data-pkg-other-drawing]')).toBeVisible();
+    const confirm = dlg.locator('[data-pkg-confirm] button');
+    await expect(confirm).toBeDisabled();
+    await dlg.locator('[data-pkg-accept-foreign]').check();
+    await expect(confirm).toBeEnabled();
+    await noOverflow(page);
+    await page.screenshot({ path: path.join(OUT, `dialog-foreign-${info.project.name}.png`) });
+    await confirm.click();
+    expect(calls.import[0]).toContain('accept_foreign=true');
+    // a refused package: the message, no import button
+    refuse = true;
+    await pick(page);
+    const again = page.locator('pkg-harness sw-dialog[data-pkg-dialog]');
+    await expect(again.locator('[data-pkg-error]')).toHaveText('תוכן החבילה אינו תואם את הרשימה החתומה.');
+    await expect(again.locator('[data-pkg-confirm] button')).toBeDisabled();
+    await page.screenshot({ path: path.join(OUT, `dialog-refused-${info.project.name}.png`) });
+  });
+
+  test('English strings follow the document language', async ({ page }) => {
+    const calls: Calls = { preview: [], import: [] };
+    await mount(page, (_m, route) => json(route, preview({ diff: { collections: {}, total: 0, calibration_changed: false, same: true }, entities: { anchors_missing: [], anchors_unplaced: [], switches_missing: [], items_missing: [], items_added: [], items_differ: [], rooms_missing: [] } })), calls, 'en');
+    await expect(page.locator('pkg-harness [data-harness-exports]')).toContainText('Import package');
+    await pick(page);
+    const dlg = page.locator('pkg-harness sw-dialog[data-pkg-dialog]');
+    await expect(dlg).toHaveAttribute('heading', 'Import plan package');
+    await expect(dlg.locator('[data-pkg-nochange]')).toHaveText('No changes');
+    await expect(dlg.locator('[data-pkg-missing]')).toHaveCount(0);
+    await expect(dlg.locator('[data-pkg-confirm]')).toHaveText('Import to draft');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------- live
+
+const ids = { site: '', building: '', floor: '', version: '' };
+let api: APIRequestContext;
+const WALL = (id: string, polyline: number[][]) => ({ id, level_id: 'L0', polyline, thickness_m: 0.2, height_m: null, base_z_m: 0, kind: 'interior', confidence: 1, source: 'manual', locked: false, external_ids: {} });
+const DOOR = (id: string, wallId: string) => ({ id, wall_id: wallId, t: 0.5, kind: 'door', width_m: 0.9, height_m: 2.1, sill_m: 0, swing: 'right', hinge: 'start', anchor_ref: null, confidence: 1, source: 'manual', external_ids: {} });
+type Draft = { geometry: { revision: number; doc_hash: string }; doc: Record<string, unknown> & { walls: { id: string }[] } };
+const draft = async () => (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry?draft=true`)).json()) as Draft;
+
+test.describe.serial('live: export and re-import from the editor', () => {
+  test.skip(process.env.SW_LIVE !== '1', 'set SW_LIVE=1 with the backend running');
+
+  test.beforeAll(async ({ playwright }) => {
+    api = await playwright.request.newContext({ baseURL: process.env.SW_BASE_URL || 'http://127.0.0.1:4173/' });
+    const stamp = new Date().toISOString().slice(0, 19);
+    ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת חבילה ${stamp}`, address: '' } })).json()).id;
+    ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'מבנה בדיקה' } })).json()).id;
+    ids.floor = (await (await api.post(`api/v1/buildings/${ids.building}/floors`, { data: { name: 'קומת חבילה', level: 0 } })).json()).id;
+    const asset = await (await api.post(`api/v1/floors/${ids.floor}/plan-assets`, { multipart: { file: { name: 'apartment.png', mimeType: 'image/png', buffer: fs.readFileSync(PLAN) } } })).json();
+    ids.version = (await (await api.post(`api/v1/floors/${ids.floor}/plan-versions`, { data: { asset_id: asset.id } })).json()).id;
+    expect((await api.post(`api/v1/plan-versions/${ids.version}/publish`)).status()).toBe(200);
+    const g = await draft();
+    const doc = { ...g.doc, walls: [WALL('pw1', [[0.2, 0.3], [0.7, 0.3]]), WALL('pw2', [[0.2, 0.3], [0.2, 0.8]])], openings: [DOOR('pd1', 'pw1')],
+      labels: [{ id: 'pl1', text: 'לובי', position: [0.45, 0.55], level_id: 'L0', size: 14 }] };
+    expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc, base_revision: g.geometry.revision } })).status()).toBe(200);
+    expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
+  });
+
+  test.afterAll(async () => {
+    if (!api) return;
+    const failures: string[] = [];
+    const step = async (what: string, run: () => Promise<number>, ok: number) => {
+      try {
+        const status = await run();
+        if (status !== ok) failures.push(`${what}: ${status}`);
+      } catch (err) {
+        failures.push(`${what}: ${String(err)}`);
+      }
+    };
+    try {
+      if (ids.floor) await step('floor', async () => (await api.delete(`api/v1/floors/${ids.floor}?force=true`)).status(), 204);
+      if (ids.building) await step('building', async () => (await api.delete(`api/v1/buildings/${ids.building}`)).status(), 204);
+      if (ids.site) await step('site', async () => (await api.delete(`api/v1/sites/${ids.site}`)).status(), 204);
+    } finally {
+      await api.dispose();
+    }
+    expect(failures, 'test data removed').toEqual([]);
+  });
+
+  test('DXF and package from the export row; the package brings the draft back', async ({ page }, info) => {
+    // the structure tool's export row is a desktop editor panel (wall drawing is desktop-only); the phone is covered by the fixture part
+    test.skip(info.project.name !== 'desktop', 'desktop editor only');
+    test.setTimeout(120_000);
+    const published = (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json()).geometry.doc_hash as string;
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ED} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    const dxf = page.locator(`${ED} [data-export-dxf]`);
+    await expect(dxf).toHaveText('DXF');
+    const dxfRes = await api.get(new URL(String(await dxf.getAttribute('href'))).pathname.replace(/^\//, ''));
+    expect(dxfRes.status()).toBe(200);
+    const dxfText = await dxfRes.text();
+    expect(dxfText).toContain('SW_WALLS');
+    expect(dxfText).toContain('לובי');
+    await noOverflow(page);
+    await page.locator(`${ED} [data-export-package]`).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(OUT, `editor-exports-${info.project.name}.png`) });
+    const [download] = await Promise.all([page.waitForEvent('download'), page.locator(`${ED} [data-export-package]`).click()]);
+    expect(download.suggestedFilename()).toMatch(/\.swplan\.zip$/);
+    const file = info.outputPath('plan.swplan.zip');
+    await download.saveAs(file);
+    expect(fs.readFileSync(file).subarray(0, 2).toString('latin1')).toBe('PK');
+    // the draft drifts (a wall removed, through the API), then the package brings it back
+    const g = await draft();
+    expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: { ...g.doc, walls: g.doc.walls.filter((w) => w.id !== 'pw2') }, base_revision: g.geometry.revision } })).status()).toBe(200);
+    await page.locator(`${ED} [data-tool="layers"]`).click();
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    await page.locator(`${ED} [data-import-package]`).setInputFiles(file);
+    const dlg = page.locator(`${ED} sw-dialog[data-pkg-dialog]`);
+    await expect(dlg.locator('[data-pkg-trust="installation"]')).toBeVisible({ timeout: 20000 });
+    await expect(dlg.locator('[data-pkg-coll="walls"]')).toContainText('נוספו 1');
+    await noOverflow(page);
+    await page.screenshot({ path: path.join(OUT, `editor-import-${info.project.name}.png`) });
+    await dlg.locator('[data-pkg-confirm] button').click();
+    await expect(page.locator(`${ED} sw-dialog[data-pkg-dialog]`)).toHaveCount(0, { timeout: 20000 });
+    await expect.poll(async () => (await draft()).geometry.doc_hash, { timeout: 10000 }).toBe(published);
+    await expect(page.locator(`${ED} sw-plan-canvas [data-wall="pw2"]`).first()).toBeAttached();
+  });
+});

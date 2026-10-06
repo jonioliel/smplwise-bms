@@ -3,7 +3,7 @@
  * reference), the historical map by the version's publish timeline; the editor works on the draft through the studio
  * controller.
  */
-import { get, patch, post, put, resourceUrl } from './client';
+import { ApiError, apiUrl, get, patch, post, put, resourceUrl, upload, type ApiErrorBody } from './client';
 import type { GeomConnector, GeometryDoc, GeomObject, GeomOpening, GeomWall, Pt } from '../map/geometry';
 import type { LinkTargetFloor } from '../map/connector-targets';
 import type { MapBundle } from './maps';
@@ -188,13 +188,105 @@ export const copyGeometryFrom = (versionId: string, fromVersionId: string) =>
   post<GeometryResponse>(`plan-versions/${versionId}/geometry/copy-from`, { from_version_id: fromVersionId });
 export const calibrate = (versionId: string, pairs: { a: Pt; b: Pt; metres: number }[]) =>
   patch<CalibrationResult>(`plan-versions/${versionId}/calibration`, { pairs });
-export function exportUrl(versionId: string, fmt: 'svg' | 'png', opts: { draft?: boolean; layers?: string[] } = {}): string {
+export function exportUrl(versionId: string, fmt: 'svg' | 'png' | 'dxf', opts: { draft?: boolean; layers?: string[] } = {}): string {
   const q = new URLSearchParams();
   if (opts.draft) q.set('draft', 'true');
   if (opts.layers?.length) q.set('layers', opts.layers.join(','));
   const qs = q.toString();
   return resourceUrl(`api/v1/plan-versions/${versionId}/export.${fmt}${qs ? `?${qs}` : ''}`);
 }
+// ---- Plan Studio 5 (T088): the signed plan package ----
+
+export type PackageMode = 'replace' | 'merge';
+export interface PackageEntityRef {
+  resource_type: 'camera' | 'ha_entity';
+  resource_id: string;
+  name: string | null;
+}
+export interface PackageEntities {
+  anchors_missing: PackageEntityRef[];
+  anchors_unplaced: PackageEntityRef[];
+  switches_missing: string[];
+  items_missing: string[];
+  items_added: string[];
+  items_differ: string[];
+  rooms_missing: string[];
+}
+export interface PackageOrigin {
+  floor_name: string | null;
+  plan_version_id: string | null;
+  stage: string | null;
+  generated_at: string | null;
+  generated_by: string | null;
+  app_version: string | null;
+  installation_id: string | null;
+  same_installation: boolean;
+  /** installation = signed by a key of this system; embedded_key_only = valid, but another system's key. */
+  trust: 'installation' | 'embedded_key_only';
+  kid: string | null;
+  retired_key: boolean | null;
+  doc_hash: string | null;
+  geometry_hash: string | null;
+  package_sha256: string;
+}
+export interface PackagePreview {
+  origin: PackageOrigin;
+  mode: PackageMode;
+  result_hash: string;
+  result_geometry_hash: string;
+  base_revision: number;
+  current_hash: string;
+  diff: GeometryDiff;
+  counts: Record<string, number>;
+  current_counts: Record<string, number>;
+  same_drawing: boolean;
+  same_version: boolean;
+  issues: GeometryIssue[];
+  issue_count: number;
+  entities: PackageEntities;
+  warnings: string[];
+}
+export interface PackageImportResult {
+  geometry: GeometryRow;
+  origin: PackageOrigin;
+  result_hash: string;
+  result_geometry_hash: string;
+  diff: GeometryDiff;
+  entities: PackageEntities;
+  warnings: string[];
+}
+const packageForm = (file: File | Blob) => {
+  const form = new FormData();
+  form.set('file', file, file instanceof File && file.name ? file.name : 'plan.swplan.zip');
+  return form;
+};
+/** The signed package of the draft (or the published structure) as a file to save; map.edit. */
+export async function exportPlanPackage(versionId: string, draft: boolean): Promise<{ blob: Blob; name: string }> {
+  const res = await fetch(apiUrl(`plan-versions/${versionId}/package`), {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft }),
+  });
+  if (!res.ok) {
+    let body: ApiErrorBody;
+    try {
+      body = (await res.json()) as ApiErrorBody;
+    } catch {
+      body = { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} };
+    }
+    throw new ApiError(res.status, body);
+  }
+  const cd = res.headers.get('content-disposition') ?? '';
+  const name = /filename="([^"]+)"/.exec(cd)?.[1] ?? `plan-${versionId}.swplan.zip`;
+  return { blob: await res.blob(), name };
+}
+/** The dry run of an import: nothing is written. */
+export const previewPlanPackage = (versionId: string, file: File | Blob, mode: PackageMode) =>
+  upload<PackagePreview>(`plan-versions/${versionId}/package/preview?mode=${mode}`, packageForm(file));
+/** The import itself, into the draft: the revision and the result hash the preview showed. */
+export const importPlanPackage = (versionId: string, file: File | Blob, preview: PackagePreview, acceptForeign: boolean) =>
+  upload<PackageImportResult>(
+    `plan-versions/${versionId}/package/import?mode=${preview.mode}&base_revision=${preview.base_revision}&expect_hash=${preview.result_hash}${acceptForeign ? '&accept_foreign=true' : ''}`,
+    packageForm(file),
+  );
 /** Stairs / an elevator to another floor: the same connector id lands on the other floor's draft (T085). */
 /** Link a connector to another floor (T085): `levelTo` is the level it reaches THERE (absent = that floor's default).
  * placement: the new twin sits at the same plan coordinates (aligned), at the other plan's centre (centred - it waits to
