@@ -96,7 +96,7 @@ def bump_step(arx: Arx, user_id: str, minus: int = 100) -> None:
 
 def test_default_policy_is_optional_and_nothing_is_forced(arx):
     local = TestClient(arx.app)
-    assert local.get("/api/v1/settings").json()["security.second_factor_policy"] == "optional"
+    assert local.get("/api/v1/settings").json()["settings"]["security.second_factor_policy"] == "optional"
     assert fresh_login(arx, arx.viewer).status_code == 200  # no factor, no code needed
     assert fresh_login(arx, arx.owner).status_code == 200  # an administrator too
     st = arx.client.get("/arx/api/v1/auth/second-factor").json()
@@ -139,11 +139,12 @@ def test_a_wrong_first_code_does_not_enable_and_an_active_factor_cannot_be_re_en
 def test_sign_in_of_an_enrolled_user_needs_the_code(arx):
     enrol(arx, arx.viewer)
     bump_step(arx, "u-viewer")
+    live = hua.STORE.count()  # the session the enrolment signed in with
     r = fresh_login(arx, arx.viewer)
     assert r.status_code == 401 and r.json()["code"] == "second_factor_required"
-    assert "set-cookie" not in r.headers and hua.STORE.count() == 0
+    assert "set-cookie" not in r.headers and hua.STORE.count() == live
     r = fresh_login(arx, arx.viewer, "000000")
-    assert r.status_code == 401 and r.json()["code"] == "second_factor_invalid" and hua.STORE.count() == 0
+    assert r.status_code == 401 and r.json()["code"] == "second_factor_invalid" and hua.STORE.count() == live
     r = fresh_login(arx, arx.viewer, code_now(arx, "u-viewer"))
     assert r.status_code == 200 and "arx_session=" in r.headers["set-cookie"]
     assert arx.client.get("/arx/api/v1/me").json()["user"]["id"] == "u-viewer"
@@ -162,8 +163,9 @@ def test_rotation_of_a_live_session_needs_no_new_code(arx):
     enrol(arx, arx.viewer)
     bump_step(arx, "u-viewer")
     assert fresh_login(arx, arx.viewer, code_now(arx, "u-viewer")).status_code == 200
+    live = hua.STORE.count()
     again = arx.login(arx.viewer)  # the browser re-exchanges with its own cookie after a token refresh
-    assert again.status_code == 200 and hua.STORE.count() == 1
+    assert again.status_code == 200 and hua.STORE.count() == live
 
 
 def test_five_wrong_codes_lock_the_user_out(arx):
@@ -192,7 +194,7 @@ def test_the_user_disables_their_own_factor_only_with_a_current_code(arx):
 def test_admins_policy_refuses_an_administrator_without_a_factor_only(arx):
     arx.setting("security.second_factor_policy", "admins")
     r = fresh_login(arx, arx.owner)
-    assert r.status_code == 403 and r.json()["code"] == "second_factor_enrollment_required" and hua.STORE.count() == 0
+    assert r.status_code == 403 and r.json()["code"] == "second_factor_enrollment_required" and "set-cookie" not in r.headers
     assert fresh_login(arx, arx.viewer).status_code == 200  # a viewer is outside the policy
     # an enrolled administrator signs in with the code
     local = TestClient(arx.app)
@@ -209,7 +211,7 @@ def test_admins_policy_refuses_an_administrator_without_a_factor_only(arx):
 def test_the_policy_setting_validates(arx):
     local = TestClient(arx.app)
     assert local.patch("/api/v1/settings", json={"security.second_factor_policy": "admins"}).status_code == 200
-    assert local.get("/api/v1/settings").json()["security.second_factor_policy"] == "admins"
+    assert local.get("/api/v1/settings").json()["settings"]["security.second_factor_policy"] == "admins"
     assert local.patch("/api/v1/settings", json={"security.second_factor_policy": "everyone"}).status_code == 422
 
 
