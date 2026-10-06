@@ -49,6 +49,10 @@ if mode == "rc1_no_failure":  # exit 1 although every reported test passed
     write(report([spec(1), spec(2)])); sys.exit(1)
 if mode == "rc_weird":
     write(report([spec(1)])); sys.exit(7)
+if mode == "param_fail":      # a test() in a loop: two siblings share file:line, the first fails every time, the last passes
+    a, b = spec(7, "unexpected"), spec(7)
+    a["title"], b["title"] = "classic is pixel-stable", "bubble is pixel-stable"
+    write(report([a, b])); sys.exit(1)
 sys.exit(99)
 '''
 npx = BIN / "npx"
@@ -130,6 +134,10 @@ v, c, ids = pw_case("rc1_no_failure")
 check("playwright: rc=1 with no failed test reported FAILS", v == "fail" and any("exit code" in i for i in ids), (v, c, ids))
 v, c, ids = pw_case("rc_weird")
 check("playwright: an exit code other than 0/1 FAILS", v == "fail", (v, c, ids))
+
+v, c, ids = pw_case("param_fail")
+check("playwright: a failing parametrized sibling (same file:line) is not 'flaky' because the last sibling passed alone",
+      v == "fail" and c.get("flaky", 0) == 0 and c.get("fail") == 1, (v, c, ids))
 
 # ---- pytest shards
 v, why = pytest_case("ok")
