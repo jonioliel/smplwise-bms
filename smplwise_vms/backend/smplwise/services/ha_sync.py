@@ -520,7 +520,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     fired: list[dict[str, Any]] = []
     # a pure mirror update commits without fsync; one that may record a correlation event (and rule alerts) - rows HA
     # never sends again - is fsynced (db.py, durability classes)
-    from . import notify_sensors  # CR-018: leak / smoke / gas / CO, the alarm, a doorbell ring - and every condition that just ended
+    from . import device_activity, notify_sensors  # CR-018: leak / smoke / gas / CO, the alarm, a doorbell ring - and every condition that just ended
 
     durable = may_record(data.get("old_state"), new) or notify_sensors.may_notify(data.get("old_state"), new)  # a notification row is a fact HA never sends again
 
@@ -529,6 +529,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
         with db.connection(durable=durable) as conn:
             row = upsert_state(conn, new)
             if str(new.get("entity_id") or "").startswith(AUTOMATION_PREFIXES):
+                device_activity.note_source(conn, new)  # DEVHIST: the item whose run caused device changes (never raises)
                 from . import automations as automations_svc  # CR-017: an automation / script / scene state feeds the item cache, the runs and the clients
 
                 try:
@@ -542,6 +543,7 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
                     schedules_svc.MIRROR.on_entity_state(conn, row, data.get("old_state"))
                 except Exception:  # noqa: BLE001 - never lose the state update itself
                     log.exception("schedule state hook failed for %s", new.get("entity_id"))
+            device_activity.record_change(conn, data.get("old_state"), new)  # DEVHIST S1: who changed an electrical device (same transaction, no extra HA call; never raises)
             notify_sensors.on_state(conn, data.get("old_state"), new, STATE.connected)  # inside this transaction, in its own savepoint; never raises
             transition = record_transition(conn, data.get("old_state"), new)
             if transition:
@@ -562,6 +564,18 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
 
         schedules_svc.MIRROR.flush()  # CR-014: after the commit - deferred item fetches (a no-op while the debounce timer runs them)
     return row
+
+
+def _note_connect_gap(db: Database) -> None:
+    """DEVHIST: the activity log was not fed between the last state the mirror had seen and this connection."""
+    from . import device_activity
+
+    try:
+        with db.connection(mode="read") as conn:
+            last = conn.execute("SELECT MAX(state_seen_at) FROM ha_entities").fetchone()[0]
+    except Exception:  # noqa: BLE001
+        last = None
+    device_activity.note_connect(db, last)
 
 
 def count_entities(conn: sqlite3.Connection) -> int:
@@ -779,6 +793,7 @@ class HaSync:
             await self._refresh_and_notify(call, "connect", notify=False)
             states = await call("get_states")
             seen = now_iso()
+            await loop.run_in_executor(None, _note_connect_gap, db)  # DEVHIST: before the snapshot overwrites "the last state seen"
             await loop.run_in_executor(None, store_states, db, states.get("result") or [], seen)
             STATE.last_snapshot_at = seen
             sub = await call("subscribe_events", event_type="state_changed")

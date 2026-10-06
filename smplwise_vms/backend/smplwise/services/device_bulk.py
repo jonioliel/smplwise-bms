@@ -50,7 +50,7 @@ from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
 from ..rbac import Principal
 from . import devices as dsvc
-from . import ha_actions, ha_bridge, ha_client, ha_scope
+from . import device_activity, ha_actions, ha_bridge, ha_client, ha_scope
 from .timeutil import iso_utc
 
 log = logging.getLogger(__name__)
@@ -799,18 +799,23 @@ def _call(settings: Settings, secret: str, principal: Principal, t: dict[str, An
             log.exception("device bulk: bridge call for %s failed", t["entity_id"])
             return t, "failed", "internal_error"
         status, error = ha_actions.bridge_status(result)
+        t["_context_id"] = result.get("context_id") if isinstance(result, dict) else None  # DEVHIST: HA's context of this call -> activity attribution
         return t, status, error
     finally:
         RUNNER.slots.release()
 
 
-def _flush(db: Database, rows: list[tuple[str, str | None, str]]) -> None:
+def _flush(db: Database, rows: list[tuple]) -> None:
     if not rows:
         return
     with db.write_aside() as w:
         now = now_iso()
-        for status, error, aid in rows:
+        for status, error, aid, *rest in rows:
             w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now, aid))
+            if rest and rest[0]:
+                a = w.execute("SELECT principal_user_id, principal_username FROM ha_actions WHERE id = ?", (aid,)).fetchone()
+                if a:
+                    device_activity.note_context(w, aid, {"context_id": rest[0]}, a["principal_user_id"], a["principal_username"])  # DEVHIST
     rows.clear()
 
 
@@ -835,7 +840,7 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
     applied as "leave, then join, then volumes"): the batches are sent IN ORDER, each one settled (confirmed, or its window passed) before the next starts;
     without it every target is one batch, as before."""
     try:
-        buffer: list[tuple[str, str | None, str]] = []
+        buffer: list[tuple] = []
         answers: queue.Queue = queue.Queue()
         last = time.monotonic()
 
@@ -847,7 +852,7 @@ def run(db: Database, settings: Settings, principal: Principal, bulk_id: str, ta
                 except queue.Empty:
                     break
                 block = False
-                buffer.append((status, error, t["id"]))
+                buffer.append((status, error, t["id"], t.get("_context_id")))
             if buffer and (len(buffer) >= FLUSH_EVERY or time.monotonic() - last > FLUSH_S):
                 _flush(db, buffer)
                 last = time.monotonic()

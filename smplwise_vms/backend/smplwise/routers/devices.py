@@ -35,6 +35,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import Database, commit_now, get_setting, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
+from ..services import device_activity
 from ..services import device_bulk as bulk
 from ..services import devices as svc
 from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
@@ -147,6 +148,42 @@ def entity_rows(
         row["area_id"], row["area_name"] = e.get("area_id"), e.get("area_name")
         rows.append(row)
     return {"entities": rows}
+
+
+@router.get("/devices/{entity_id}/activity")
+def device_activity_feed(
+    entity_id: str,
+    since: str | None = Query(None, max_length=40), until: str | None = Query(None, max_length=40),
+    actor: Literal["person", "automation", "script", "scene", "schedule", "device", "system", "unknown"] | None = None,
+    kind: Literal["power", "value", "availability"] | None = None,
+    limit: int = Query(50, ge=1, le=200), cursor: str | None = Query(None, max_length=200),
+    principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
+) -> dict[str, Any]:
+    """DEVHIST (CR-032): the activity of one device - who turned it on or off, who changed its temperature or position, newest first. Owner decision
+    2026-10-05: NO new permission - whoever may see the device (`devices.read` at its placement) may see its activity, names of people included.
+    A lock or alarm panel needs the permission that operates it (door.unlock / alarm.arm; alarm.view too for a panel). Only the domains of
+    services/device_activity.ACTIVITY_DOMAINS: any other entity is 404. Read-only; never calls Home Assistant."""
+    placed, _scoped = ha_scope.scoped_rows(conn, principal, READ, [{"entity_id": entity_id}])  # devices.read at the entity's placement (audited 403 when held nowhere)
+    row = conn.execute("SELECT entity_id, name, domain, device_class FROM ha_entities WHERE entity_id = ? AND removed_at IS NULL", (entity_id,)).fetchone()
+    if not placed or row is None or row["domain"] not in device_activity.ACTIVITY_DOMAINS:
+        raise ApiError(404, "not_found", "ההתקן לא נמצא.")
+    perms = device_activity.SECURITY_PERMISSIONS.get(row["domain"])
+    if perms and not any(ha_scope.entity_allowed(conn, principal, entity_id, p) for p in perms):  # a lock / alarm panel: a permission that operates it
+        raise ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה.")
+    if row["domain"] == "alarm_control_panel":
+        # the alarm's own rows also need alarm.view at the entity's scope (as _visible_entities)
+        if not ha_scope.entity_allowed(conn, principal, entity_id, "alarm.view"):
+            raise ApiError(403, "forbidden", "אין הרשאה לצפות בפעילות ההתקן הזה.")
+    try:
+        out = device_activity.list_activity(conn, entity_id, since=since, until=until, actor=actor, kind=kind, limit=limit, cursor=cursor, connected=ha_sync.STATE.connected)
+    except ValueError as exc:
+        raise ApiError(422, "validation", "פרמטר לא תקין: " + ("cursor" if str(exc) == "cursor" else "since / until חייבים להיות UTC (Z).")) from exc
+    ck = None
+    if row["domain"] == "climate":
+        ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()[0] or "{}"))
+    out["entity"] = {"entity_id": entity_id, "name": row["name"] or entity_id, "domain": row["domain"], "activity_kind": device_activity.activity_kind(row["domain"], row["device_class"], ck),
+                     "virtual": row["domain"] in device_activity.VIRTUAL_DOMAINS, "power": device_activity.linked_power(conn, entity_id)}
+    return out
 
 
 @router.get("/devices/entity-pool")

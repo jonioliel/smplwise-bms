@@ -16,6 +16,8 @@ import { subscribeHa, type HaEntity } from '../api/ha';
 import { ALARM_HE, getDeviceItems, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { activityTag, ActivityPress } from '../components/device-activity-press';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import { DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
 import { runCommand, type CommandPhase } from '../api/device-commands';
 
@@ -210,6 +212,7 @@ export class DevicesTilesPanel extends LitElement {
   /** Lock-all (owner 2026-09-29): the locks to lock, the dialog's step and each lock's outcome. Never unlock-all. */
   @state() private lockAll: { rows: DeviceItem[]; step: 'confirm' | 'running' | 'done'; out: Record<string, CommandPhase> } | null = null;
   private ctl = new DeviceControls(this, () => this.changed());
+  readonly press = new ActivityPress(this);
   private stop: (() => void) | null = null;
   private timer = 0;
   private loading = false;
@@ -802,7 +805,7 @@ export class DevicesTilesPanel extends LitElement {
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
     const dimmable = this.kind === 'lights' && r.color_mode !== 'onoff' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
     return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPending(r.entity_id) })}
-      data-entity=${r.entity_id} data-state=${st} ?data-can-control=${controllable}>
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, stateText))} data-state=${st} ?data-can-control=${controllable}>
       <sw-icon .name=${icon} size=${16}></sw-icon>
       <div class="txt">
         <div class="nm" title=${r.name}>${bidi(r.name)}</div>

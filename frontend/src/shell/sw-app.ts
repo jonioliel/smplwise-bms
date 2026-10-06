@@ -80,6 +80,7 @@ import '../screens/system-storage';
 import '../screens/system-update';
 import '../pwa/notifications-settings';
 import '../screens/system-notifications'; // CR-018: הגדרות › התראות (the administrator's eight sections; everyone else keeps the device registration)
+import '../components/device-activity'; // CR-032: the device activity popup (long press on an electrical device)
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
 import '../screens/screens-index';
 import '../screens/styleguide-screen';
@@ -2371,7 +2372,7 @@ export class SwApp extends LitElement {
           this.menuTrigger?.focus({ preventScroll: true });
         }}></sw-nav-order>
       ${this.gated ? nothing : html`<notify-center .open=${this.centerOpen} .focusId=${this.centerFocus} .confirmDoor=${this.centerConfirm}
-        @close=${() => this.closeCenter()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)}></notify-center>`}`;
+        @close=${() => this.closeCenter()} @navigate=${(e: CustomEvent<{ href: string }>) => this.navigateFromOverlay(e.detail.href)}></notify-center>`}${this.gated ? nothing : html`<device-activity></device-activity>`}`;
   }
 
   private renderA() {
