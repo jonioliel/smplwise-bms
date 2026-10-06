@@ -189,7 +189,7 @@ export class SwSecondFactor extends LitElement {
     return html`<form @submit=${this.submit} data-sf-form>
       <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" aria-label=${t('secondFactor.codeLabel')} data-sf-code .value=${this.code}
         @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} ?disabled=${this.busy} />
-      <sw-button type="submit" size="sm" variant="primary" data-sf-confirm ?disabled=${this.busy || !/^\d{6}$/.test(this.code.replace(/\s+/g, ''))}>${t('secondFactor.confirm')}</sw-button>
+      <sw-button size="sm" variant="primary" data-sf-confirm @click=${(e: Event) => this.submit(e)} ?disabled=${this.busy || !/^\d{6}$/.test(this.code.replace(/\s+/g, ''))}>${t('secondFactor.confirm')}</sw-button>
       <sw-button size="sm" variant="ghost" data-sf-cancel ?disabled=${this.busy} @click=${() => this.cancel()}>${t('secondFactor.cancel')}</sw-button>
     </form>`;
   }
