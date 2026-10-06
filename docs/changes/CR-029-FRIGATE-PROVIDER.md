@@ -20,7 +20,7 @@ AGENTS.md still holds: no required Frigate; continuous recording stays on the pr
 ## 2. Feature flag and provider selection
 
 - The provider is selected by the recorder's vendor (`recorders.vendor = 'frigate'`, from the connection). Every route answers only for such a recorder (another id: 404).
-- The catalogue (`GET /nvr/vendors`) keeps Frigate "coming soon" (`planned`, not selectable) until the environment variable `SW_FRIGATE=1` is set (CR-022 D1: after the live validation checklist passes). A recorder that already has vendor `frigate` is served either way.
+- The catalogue (`GET /nvr/vendors`) keeps Frigate "coming soon" (`planned`, not selectable) until the add-on option `frigate_enabled` is on (`run.sh` exports it as `SW_FRIGATE=1`; the variable still works outside the add-on) (CR-022 D1: after the live validation checklist passes). A recorder that already has vendor `frigate` is served either way.
 - `SW_FRIGATE_EVENTS=0` switches the event loop off (tests use it, like `SW_RECORDER_HEALTH`).
 
 ## 3. Migration

@@ -42,6 +42,9 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      the SmplWise Arx phone app (`services/push-relay/README.md`). The key is this installation's credential at the relay:
      kept only in the add-on options, never in the database, a backup, a log or an error. Empty = the "אפליקציה" channel
      in הגדרות › התראות plans nothing (`channel_unavailable`).
+   - `frigate_enabled` (default `false`, CR-029) — makes the **Frigate** recorder type selectable in the recorder type list
+     (otherwise it shows "coming soon"; a recorder that already has the Frigate type is served either way). Off by default;
+     takes effect after an add-on restart. Frigate write classes stay OFF per recorder until an administrator switches them on.
    - `cast_relay` (default `false`, CR-028) — "שדר למסך": the cast relay from which a Google Cast TV fetches one camera's
      video (HLS) on the local network, with a short-lived token per cast and nothing else (no recorder address, no
      credential, no go2rtc URL). Off by default; to use it, turn the option on, map a host port to **18092/tcp** in the

@@ -62,6 +62,8 @@ options:
   # CR-028: "send to screen" - the cast relay listener (container port 18092; map a host port in Network too). Off by default.
   cast_relay: false
   # one database writer at a time, in arrival order (the round-10 lock storm fix); turn off only if support asks
+  # NN5/CR-029: makes the Frigate recorder type selectable in Settings (otherwise listed "coming soon"). Off by default; run.sh maps it to SW_FRIGATE.
+  frigate_enabled: false
   db_write_gate: true
   log_level: info
 schema:
@@ -82,5 +84,6 @@ schema:
   push_relay_url: str?
   push_relay_key: password?
   cast_relay: bool?
+  frigate_enabled: bool?
   db_write_gate: bool?
   log_level: list(debug|info|warning|error)
