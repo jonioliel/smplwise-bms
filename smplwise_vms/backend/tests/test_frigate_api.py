@@ -4,6 +4,7 @@ authorised segments, the design-only export, the catalogue / connection test, re
 a Frigate recorder, and the secrets sweep over every body. Fake Frigate only (`fixtures/fake_frigate.py`)."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import sys
 import threading
@@ -23,7 +24,7 @@ from smplwise.services.recorders import frigate_io
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
-from conftest import as_user, bind  # noqa: E402
+from conftest import as_user, bind, datetime_shim  # noqa: E402
 from fake_frigate import HOST, PASSWORD, PLANTED_PASSWORD, PLANTED_TOKEN_USER, T0, USER, WEBP, FakeFrigate, settings_for  # noqa: E402
 
 BASE = "/api/v1/frigate/nvr-1"
@@ -76,6 +77,16 @@ def world(settings, monkeypatch):
     # the poll cursor lives in a module-level dict: every consumer of this fixture (test_frigate_join imports it without this module's
     # autouse `_clean`) starts from, and leaves, an empty one - a leaked cursor moves the first poll's window past the oldest review
     fe.STATES.clear()
+    # the fake Frigate's reviews sit at a fixed instant (T0): the routers that window by "now" (the event list's default last 24 h,
+    # the review summary's last N days, the "open" and playlist edges) read a clock pinned one minute after T0 that runs forward
+    # with the test, so the results do not depend on the day the suite runs
+    from smplwise.routers import events as events_router
+    from smplwise.routers import frigate as frigate_router
+
+    t_start = time.monotonic()
+    pinned = lambda: dt.datetime.fromtimestamp(T0 + 60 + (time.monotonic() - t_start), dt.timezone.utc)  # noqa: E731
+    monkeypatch.setattr(events_router, "dt", datetime_shim(pinned))
+    monkeypatch.setattr(frigate_router, "dt", datetime_shim(pinned))
     fake = FakeFrigate()
     monkeypatch.setattr(fr, "TRANSPORT", fake.transport())
     s = settings_for(settings)

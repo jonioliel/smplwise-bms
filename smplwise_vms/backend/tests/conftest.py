@@ -127,6 +127,22 @@ def daytime_clock(monkeypatch):
     return day_now
 
 
+def datetime_shim(now_fn) -> _types.SimpleNamespace:
+    """A stand-in for a module's `datetime as dt` whose `dt.datetime.now(tz)` reads `now_fn()` (an aware UTC datetime); every
+    other name of the datetime module is the real one. Patch it over one module (`monkeypatch.setattr(mod, "dt", datetime_shim(f))`)
+    to pin the wall clock a router or service reads, with no change to production code (the seam `daytime_clock` uses too)."""
+
+    class _Datetime(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            at = now_fn()
+            return at.astimezone(tz) if tz is not None else at.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+
+    shim = _types.SimpleNamespace(**{k: v for k, v in vars(_dt).items() if not k.startswith("__")})
+    shim.datetime = _Datetime
+    return shim
+
+
 @pytest.fixture(autouse=True)
 def _clear_stream_options_cache():
     """CR-020 S2: the Hikvision adapter caches capability discovery per process; every test starts without it (the fake
