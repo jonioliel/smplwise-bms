@@ -38,6 +38,8 @@ class Settings:
     # CR-006 phase 2 (AI-rendered floor skins): the OpenAI API key - an add-on option like the NVR password, server-side
     # only, never stored in the database, never in logs, audit rows or error payloads (services/skins/provider.redact).
     openai_api_key: str | None = field(default=None, repr=False)
+    # the read-only folder of the release APK shipped inside the image (services/app_download.py); None = nothing bundled
+    downloads_dir: Path | None = None
     max_upload_bytes: int = 40 * 1024 * 1024
     max_pdf_pages: int = 20
     max_render_px: int = 3000
@@ -148,6 +150,9 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     www_raw = os.environ.get("SW_WWW_DIR") or ("/app/www" if in_addon else None)
     www_dir = Path(www_raw) if www_raw else None
 
+    downloads_raw = os.environ.get("SW_DOWNLOADS_DIR") or ("/app/downloads" if in_addon else None)
+    downloads_dir = Path(downloads_raw) if downloads_raw else None
+
     # Supervisor Ingress proxies from a fixed address; anything else is refused unless dev mode is on.
     proxies = tuple(p.strip() for p in (os.environ.get("SW_TRUSTED_PROXIES") or "172.30.32.2").split(",") if p.strip())
     dev_user = None if in_addon else (os.environ.get("SW_DEV_USER") or None)
@@ -155,6 +160,7 @@ def load_settings(options_file: str | os.PathLike | None = None) -> Settings:
     return Settings(
         data_dir=data_dir,
         www_dir=www_dir,
+        downloads_dir=downloads_dir,
         in_addon=in_addon,
         trusted_proxies=proxies,
         dev_user=dev_user,

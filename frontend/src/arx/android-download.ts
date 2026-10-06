@@ -12,7 +12,14 @@ export interface AndroidOffer {
   readonly url: string;
   readonly version: string;
   readonly sha256: string;
+  /** The file's size in bytes when the add-on itself hosts the APK (bundled in its image), else 0. */
+  readonly size: number;
+  /** True when the link points at the add-on's own public route (the APK ships inside the add-on image). */
+  readonly bundled: boolean;
 }
+
+/** The only relative address accepted: the add-on's own public download route (resolved against the Arx page). */
+export const BUNDLED_PATH = 'api/v1/auth/app-download/file';
 
 /** Pure: does this user agent belong to an Android phone or tablet? */
 export function isAndroidUserAgent(ua: string | null | undefined): boolean {
@@ -26,26 +33,35 @@ export function isAndroidUserAgent(ua: string | null | undefined): boolean {
 const SHA = /^[0-9a-f]{64}$/;
 const VERSION = /^[A-Za-z0-9][A-Za-z0-9._+\- ]{0,31}$/;
 
-/** Pure: the server's answer as an offer, or null (anything that is not a plain https address offers nothing). */
+/** Pure: the server's answer as an offer, or null (anything that is neither a plain https address nor the add-on's own download route offers nothing). */
 export function parseOffer(body: unknown): AndroidOffer | null {
   const a = (body as { android?: unknown } | null | undefined)?.android as Record<string, unknown> | null | undefined;
   if (!a || typeof a !== 'object' || typeof a.url !== 'string') return null;
+  const bundled = a.bundled === true && a.url === BUNDLED_PATH;
   let u: URL;
   try {
-    u = new URL(a.url);
+    u = new URL(a.url, bundled ? (typeof document === 'undefined' ? 'https://arx.invalid/' : document.baseURI) : undefined);
   } catch {
     return null;
   }
-  if (u.protocol !== 'https:' || !u.hostname || u.username || u.password) return null;
+  if (!u.hostname || u.username || u.password) return null;
+  if (!bundled && u.protocol !== 'https:') return null;
+  if (bundled && !u.pathname.endsWith('/' + BUNDLED_PATH)) return null;
   const version = typeof a.version === 'string' && VERSION.test(a.version) ? a.version : '';
   const sha256 = typeof a.sha256 === 'string' && SHA.test(a.sha256) ? a.sha256 : '';
-  return { url: u.href, version, sha256 };
+  const size = bundled && typeof a.size === 'number' && Number.isInteger(a.size) && a.size > 0 && a.size <= 2 ** 31 ? a.size : 0;
+  return { url: u.href, version, sha256, size, bundled };
 }
 
 const TEXT = {
   he: { link: 'הורדת אפליקציית Android', version: 'גרסה', sha: 'SHA-256 לאימות' },
   en: { link: 'Download the Android app', version: 'Version', sha: 'SHA-256 to verify' },
 } as const;
+
+/** Pure: a file size as megabytes with one decimal ("12.3 MB"), '' for an unknown size. */
+export function formatSize(bytes: number): string {
+  return bytes > 0 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : '';
+}
 
 /** Pure: the offer's strings in Hebrew (the default) or English (a browser that asks for English). */
 export function offerText(lang: string | null | undefined): { readonly link: string; readonly version: string; readonly sha: string } {
