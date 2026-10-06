@@ -94,6 +94,49 @@ def test_push_registration_validation_mutes_and_unregister(w, relay):
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action IN ('notify.app.register', 'notify.app.unregister') AND decision = 'allowed'").fetchone()[0] == 2
 
 
+def test_server_id_is_returned_everywhere_and_matches_the_relay_payload(w, relay):
+    """The app maps a push's `server` to the origin it registered at: the same opaque id comes back from the registration,
+    the config (device token and session), the push routes, and is what the relay payload carries; it holds no address."""
+    r = w.c.post(f"{API}/presence/devices", json={"name": "הנייד שלי", "platform": "ios", "install_id": "ops2-install-0000-0000", "app_version": "1.0.0"}, headers=as_user("ops2"))
+    assert r.status_code == 201
+    sid = r.json()["server_id"]
+    assert sid.startswith("srv_") and len(sid) <= 64 and "." not in sid and "/" not in sid
+    tok = bearer(r.json()["device_token"])
+    did = r.json()["device_id"]
+    assert w.c.get(f"{API}/presence/config", headers=tok).json()["server_id"] == sid
+    assert w.c.get(f"{API}/presence/config", headers=as_user("ops2")).json()["server_id"] == sid
+    r = w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123", "app_version": "1.0.0"}, headers=tok)
+    assert r.json()["server_id"] == sid
+    assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": []}, headers=tok).json()["server_id"] == sid
+    # re-registering the same install keeps the id (it is the installation's, not the device's)
+    assert w.c.post(f"{API}/presence/devices", json={"name": "הנייד שלי", "platform": "ios", "install_id": "ops2-install-0000-0000"}, headers=as_user("ops2")).json()["server_id"] == sid
+    w.set_policy("camera.offline", channels={"webpush": False, "email": False, "app": True})
+    w.emit("camera.offline", "camera", w.cam, params={"name": "לובי"})
+    w.flush()
+    assert [c["server"] for c in relay.calls] == [sid]
+
+
+def test_relay_url_is_returned_with_server_id_and_never_the_key(w, relay, monkeypatch):
+    did, tok = register(w, "ops2")
+    cfg = w.c.get(f"{API}/presence/config", headers=tok).json()
+    assert cfg["relay_url"] == "https://relay.test"
+    r = w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": []}, headers=tok).json()
+    assert r["relay_url"] == "https://relay.test"
+    assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123"}, headers=tok).json()["relay_url"] == "https://relay.test"
+    assert "srvkey-test-0001" not in json.dumps([cfg, r])
+    monkeypatch.delenv("SW_PUSH_RELAY_URL")
+    assert w.c.get(f"{API}/presence/config", headers=tok).json()["relay_url"] is None
+
+
+def test_server_id_created_by_the_config_route_when_no_push_ever_ran(w, relay):
+    r = w.c.post(f"{API}/presence/devices", json={"name": "הנייד שלי", "platform": "ios", "install_id": "ops2-install-0000-0000"}, headers=as_user("ops2"))
+    tok = bearer(r.json()["device_token"])
+    with w.db.connection() as conn:
+        conn.execute("DELETE FROM settings WHERE key = 'push.server_id'")
+    first = w.c.get(f"{API}/presence/config", headers=tok).json()["server_id"]
+    assert first.startswith("srv_") and w.c.get(f"{API}/presence/config", headers=tok).json()["server_id"] == first
+
+
 # ---------------------------------------------------------------- the channel
 
 def test_app_channel_sends_a_generic_payload_and_the_device_fetches_the_text(w, relay):
