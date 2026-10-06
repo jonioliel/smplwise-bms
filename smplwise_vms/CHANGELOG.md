@@ -1,5 +1,20 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.1.1 (pilot) — Device activity popup: long press on an electrical device shows who did what and when, and its schedules (CR-032)
+**After installing:** one database migration runs on start, `0063_device_activity` (a new activity table; nothing existing is rewritten). The bridge stays 0.7.0. Reload the installed web app once. History starts from zero when you install (the popup says since when it is tracked). 629 API routes (628 + 1: `GET /devices/{entity_id}/activity`).
+- **עברית:** אחרי ההתקנה: מיגרציה אחת רצה בהפעלה, `0063_device_activity` (טבלת פעילות חדשה; שום דבר קיים לא נכתב מחדש). רכיב החיבור נשאר 0.7.0. טוענים מחדש את אפליקציית הרשת פעם אחת. ההיסטוריה מתחילה מאפס בהתקנה (החלונית מציינת מאז מתי עוקבים). 629 נתיבי API (628 + 1: `GET /devices/{entity_id}/activity`).
+
+### Device activity popup (CR-032, DEVHIST) - חלונית פעילות להתקן
+Documents: `docs/changes/CR-032-DEVICE-ACTIVITY.md`.
+- **English - what was added:** a **long press** on an electrical device tile (also the context menu item "activity" and Alt+Enter on a focused tile) opens a popup with the device's **activity feed** (before / after values, who or what did it: a person, Arx, an automation or script, the device itself, the system; day groups, filters by period, actor and event type, load more) and its **schedules** tab. The system records the changes it sees from Home Assistant for lights, switches, climate, covers, locks, alarm panels, valves and similar devices, with coalescing of dimmer drags and runs, a write-rate guard that records a coverage gap instead of dropping silently, and retention pruning. A setting **Settings › Multimedia › activity history retention (days)** controls how long rows are kept (default 90, 7 to 365).
+- **English - permissions:** whoever sees a device sees its activity. A **lock** needs `door.unlock` or device control (`ha.entity.control`, operator and above); an **alarm panel** needs `alarm.arm` (plus `alarm.view`). Security devices without that permission show no activity.
+- **English - bugs fixed:** none (new capability).
+- **English - how to enable:** nothing to switch on; long press (or the menu item) on a device tile. History fills from the install onward.
+- **עברית - מה נוסף:** **לחיצה ארוכה** על אריח של התקן חשמלי (וגם פריט התפריט "פעילות" ו־Alt+Enter על אריח ממוקד) פותחת חלונית עם **יומן הפעילות** של ההתקן (ערך לפני / אחרי, מי או מה עשה זאת: אדם, Arx, אוטומציה או סקריפט, ההתקן עצמו, המערכת; קבוצות לפי יום, סינון לפי תקופה, גורם וסוג אירוע, טען עוד) ולשונית **תזמונים**. המערכת מתעדת את השינויים שהיא רואה מ־Home Assistant בתאורה, מתגים, מיזוג, תריסים, מנעולים, לוחות אזעקה, ברזים והתקנים דומים, עם איחוד גרירות עמעם וריצות, הגנת קצב כתיבה שרושמת פער כיסוי במקום להפיל בשקט, וניקוי לפי תקופת שמירה. הגדרה **הגדרות › מולטימדיה › שמירת היסטוריית פעילות (ימים)** קובעת כמה זמן נשמרות שורות (ברירת מחדל 90, בין 7 ל־365).
+- **עברית - הרשאות:** מי שרואה התקן רואה את הפעילות שלו. **מנעול** דורש `door.unlock` או שליטה בהתקנים (`ha.entity.control`, מפעיל ומעלה); **לוח אזעקה** דורש `alarm.arm` (ובנוסף `alarm.view`). התקני אבטחה בלי ההרשאה לא מציגים פעילות.
+- **עברית - באגים שתוקנו:** אין (יכולת חדשה).
+- **עברית - איך מפעילים:** אין מה להפעיל; לחיצה ארוכה (או פריט התפריט) על אריח התקן. ההיסטוריה מתמלאת מרגע ההתקנה.
+
 ## 2.1.0 (pilot) — Map markers cluster on large sites; the camera search dial applies to camera pickers only; the phone app learns the server id and the relay address; load, memory and exposure evidence for Home Assistant sync and the live relay (tests and documents)
 **After installing:** no database migration, no bridge change (the bridge stays 0.7.0). Reload the installed web app once. The only server change is additive: two more fields in the phone-app responses (`server_id`, `relay_url`; the relay key is never returned).
 - **עברית:** אחרי ההתקנה: בלי מיגרציה ובלי שינוי ברכיב החיבור (נשאר 0.7.0). טוענים מחדש את אפליקציית הרשת פעם אחת. השינוי היחיד בשרת הוא תוספת בלבד: שני שדות נוספים בתשובות לאפליקציית הטלפון (`server_id`, `relay_url`; מפתח הממסר לא מוחזר לעולם).
