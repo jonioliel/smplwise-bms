@@ -181,3 +181,77 @@ test.describe('settings: management of the writes', () => {
     expect(writes(m, 'changes/ch2/revert')[0]).toContain('{"confirm":true}');
   });
 });
+
+test.describe('operator: the review detail (retain and sub-label)', () => {
+  const EVENT_PERMS = [...CONTROL_PERMS, 'analytics.events'];
+  const reviewStart = async (page: Page, perms: string[], eventsOn: boolean, ctl: Partial<FrigateControlMock> = {}) => {
+    const m = newFrigateMock({ perms, ctl: newControlMock({ classes: { analytics: false, record: false, profile: false, review: false, events: eventsOn, ptz: false }, ...ctl }) });
+    await installFrigate(page, m);
+    await openApp(page, '/investigate/reviews');
+    const card = page.locator('investigate-reviews frigate-review-card').nth(1); // rv-2: person + dog
+    await card.locator('[data-review-open]').click();
+    await expect(page.locator('investigate-reviews [data-review-detail]')).toBeVisible();
+    return m;
+  };
+  const ROW = (id: string) => `investigate-reviews frigate-event-control [data-event-control="${id}"]`;
+
+  test('a person who may change events sees one row per tracked object: retain is one tap, the sub-label saves on its button', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const m = await reviewStart(page, EVENT_PERMS, true);
+    const sec = page.locator('investigate-reviews [data-review-events]');
+    await expect(sec.locator('frigate-event-control[ready]')).toHaveCount(2);
+    const first = page.locator(ROW('rv-2-d0'));
+    await expect(first).toBeVisible();
+    await expect(first.locator('.lead')).toHaveText('אדם');
+    await expect(page.locator(ROW('rv-2-d1')).locator('.lead')).toHaveText('כלב');
+    const text = await sec.innerText();
+    expect(text).not.toMatch(/Home Assistant|Ingress|HA/);
+    await noOverflow(page);
+    await shot(page, 'review-event-controls');
+
+    await first.locator('[data-event-retain]').click();
+    await expect.poll(() => writes(m, '/events/rv-2-d0/retain').length).toBe(1);
+    expect(writes(m, '/events/rv-2-d0/retain')[0]).toContain('{"retain":true}');
+    await expect(first.locator('[data-event-msg]')).toContainText('נשמר');
+    await expect(first.locator('[data-event-retain]')).toHaveAttribute('checked', '');
+
+    const save = first.locator('[data-event-sub-label-save]');
+    await expect(save).toBeDisabled();
+    await first.locator('[data-event-sub-label]').fill('דנה');
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect.poll(() => writes(m, '/events/rv-2-d0/sub-label').length).toBe(1);
+    expect(writes(m, '/events/rv-2-d0/sub-label')[0]).toContain('{"sub_label":"דנה"}');
+    await expect(save).toBeDisabled(); // nothing left to save
+    expect(m.ctl.events['rv-2-d0']).toEqual({ retain: true, sub_label: 'דנה' });
+    expect(writes(m, '/events/rv-2-d1')).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a refused change shows the server sentence, puts the switch back and keeps the controls', async ({ page }) => {
+    const m = await reviewStart(page, EVENT_PERMS, true);
+    m.ctl.failWith = 'frigate_write_forbidden';
+    const row = page.locator(ROW('rv-2-d0'));
+    await row.locator('[data-event-retain]').click();
+    await expect(row.locator('[data-event-msg]')).toContainText('המקליט דחה את השינוי');
+    await expect(row.locator('[data-event-retain]')).not.toHaveAttribute('checked', '');
+    expect(m.ctl.events['rv-2-d0'].retain).toBe(false);
+  });
+
+  test('nothing is drawn without the permission or while the events class is off (and no event is read without the permission)', async ({ page }) => {
+    const off = await reviewStart(page, EVENT_PERMS, false);
+    await expect(page.locator('investigate-reviews [data-review-detail]')).toBeVisible();
+    await expect.poll(() => off.hits.filter((h) => h.includes('/events/')).length).toBeGreaterThan(0);
+    await expect(page.locator('investigate-reviews frigate-event-control[ready]')).toHaveCount(0);
+    await expect(page.locator('investigate-reviews [data-review-events]')).toBeHidden();
+    expect(off.ctl.writes).toEqual([]);
+  });
+
+  test('without analytics.events the review detail never asks about events', async ({ page }) => {
+    const m = await reviewStart(page, CONTROL_PERMS, true);
+    await expect(page.locator('investigate-reviews [data-review-detail]')).toBeVisible();
+    await expect(page.locator('investigate-reviews [data-review-events]')).toHaveCount(0);
+    expect(m.hits.filter((h) => h.includes('/events/'))).toEqual([]);
+  });
+});

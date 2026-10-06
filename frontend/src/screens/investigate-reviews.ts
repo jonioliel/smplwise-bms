@@ -10,7 +10,7 @@ import '../components/frigate-review-card';
 import '../components/frigate-review-detail';
 import './investigate-events';
 import { ApiError, describeError } from '../api/client';
-import { isApi } from '../api/session';
+import { canAnywhere, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { listCameras } from '../api/maps';
 import { navigate } from '../router';
@@ -436,7 +436,7 @@ export class InvestigateReviews extends LitElement {
     return html`<sw-drawer open heading=${d.item.camera_name} subheading=${LAYER_TEXT[d.item.layer].one} data-review-drawer @close=${() => this.closeDrawer()}>
       ${d.loading || !d.detail
         ? html`<sw-state-panel state="loading" compact></sw-state-panel>`
-        : html`<frigate-review-detail .detail=${d.detail} .tz=${this.tz} .canReview=${this.canReview} @review-play=${() => this.play()} @review-toggle=${() => void this.mark([d.item.id], !d.item.reviewed)}></frigate-review-detail>`}
+        : html`<frigate-review-detail .detail=${d.detail} .tz=${this.tz} .canReview=${this.canReview} .canEvents=${!this.demo && canAnywhere('analytics.events')} @review-play=${() => this.play()} @review-toggle=${() => void this.mark([d.item.id], !d.item.reviewed)}></frigate-review-detail>`}
       <span slot="footer" class="demo">${r.shortcutsText}</span>
     </sw-drawer>`;
   }

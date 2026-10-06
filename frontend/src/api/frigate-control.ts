@@ -5,7 +5,8 @@
  *   PUT  frigate/{rid}/cameras/{cid}/control/{feature} {value, confirm}
  *   GET  frigate/{rid}/profiles                            names, active, the alarm-state mapping, can_switch
  *   PUT  frigate/{rid}/profile {profile, confirm}          PUT frigate/{rid}/profile-rules {rules}
- *   POST frigate/{rid}/events/{id}/retain {retain}
+ *   GET  frigate/{rid}/events/{id}/control                 {writable, retain, sub_label} (retain / sub_label only when writable)
+ *   POST frigate/{rid}/events/{id}/retain {retain}      POST frigate/{rid}/events/{id}/sub-label {sub_label}
  *   GET  frigate/{rid}/changes                             the change log;  POST frigate/{rid}/changes/{id}/revert {confirm}
  * Recording switches and the profile need `confirm: true` on every call (the server refuses with `confirmation_required` otherwise); the
  * screens ask first. Everything else is pure helpers so the unit tests pin the wording and the grouping. */
@@ -83,7 +84,17 @@ export const setSwitch = (rid: string, cameraId: string, feature: string, value:
 export const getProfiles = (rid: string) => get<ProfilesView>(`${base(rid)}/profiles`);
 export const setProfile = (rid: string, profile: string | null, confirm: boolean) => put<{ changed: boolean; active: string | null; verified: boolean }>(`${base(rid)}/profile`, { profile, confirm });
 export const putProfileRules = (rid: string, rules: Record<string, string | null>) => put<{ rules: Record<string, string> }>(`${base(rid)}/profile-rules`, { rules });
-export const retainEvent = (rid: string, eventId: string, retain: boolean) => post<{ changed: boolean }>(`${base(rid)}/events/${encodeURIComponent(eventId)}/retain`, { retain });
+export const retainEvent = (rid: string, eventId: string, retain: boolean) => post<{ changed: boolean; verified: boolean }>(`${base(rid)}/events/${encodeURIComponent(eventId)}/retain`, { retain });
+export interface EventControl {
+  recorder_id: string;
+  event_id: string;
+  /** may THIS caller change the event now: permission on its camera AND the events class switched on */
+  writable: boolean;
+  retain?: boolean;
+  sub_label?: string | null;
+}
+export const getEventControl = (rid: string, eventId: string) => get<EventControl>(`${base(rid)}/events/${encodeURIComponent(eventId)}/control`);
+export const setSubLabel = (rid: string, eventId: string, subLabel: string | null) => post<{ changed: boolean; sub_label: string | null; verified: boolean }>(`${base(rid)}/events/${encodeURIComponent(eventId)}/sub-label`, { sub_label: subLabel });
 export const getChanges = (rid: string, limit = 30) => get<{ recorder_id: string; changes: ChangeRow[] }>(`${base(rid)}/changes?limit=${limit}`);
 export const revertChange = (rid: string, id: string, confirm: boolean) => post<{ reverted: boolean; verified: boolean }>(`${base(rid)}/changes/${encodeURIComponent(id)}/revert`, { confirm });
 

@@ -235,15 +235,16 @@ def test_announcements_off_means_a_rule_speaks_nothing(world):
 
 
 def test_rule_manager_without_media_announce_is_refused_for_an_announce_action(world):
-    """Gap from 2.2.0: the user HOLDS rules.manage (so the plain rule routes work) but NOT media.announce -> 403 on create and on update."""
+    """Gap from 2.2.0: the user HOLDS rules.manage (site administrator) but media.announce is denied to them -> 403 on create and on update."""
     app, c, fake, keys, settings = world
     enable(c, keys)
-    role = c.post("/api/v1/access/roles", json={"name": "מנהל חוקים בלבד", "permissions": ["rules.manage"], "sensitive": []})
-    if role.status_code != 201:  # rules.manage may have to be declared sensitive
-        role = c.post("/api/v1/access/roles", json={"name": "מנהל חוקים בלבד", "permissions": [], "sensitive": ["rules.manage"]})
+    # rules.manage is a built-in (system) permission, so a custom role cannot hold it alone: the realistic way to hold it WITHOUT
+    # media.announce is a site administrator whom an administrator denied the (sensitive) announce permission by a deny binding.
+    role = c.post("/api/v1/access/roles", json={"name": "הכרזות בלבד", "permissions": [], "sensitive": ["media.announce"]})
     assert role.status_code == 201, role.text
-    rid = role.json()["id"]
-    bind(c, settings, "rita", rid, "installation", "*")
+    bind(c, settings, "rita", "site_admin", "installation", "*")
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-rita", "role_id": role.json()["id"], "scope_type": "installation", "scope_id": "*", "effect": "deny"})
+    assert r.status_code == 201, r.text
     H = as_user("rita")
     plain = {"name": "חוק רגיל", "trigger": {"types": ["door"], "sources": ["system"]}, "scope": {}, "cooldown_s": 0, "actions": [{"kind": "notify"}]}
     ok = c.post("/api/v1/rules", json=plain, headers=H)

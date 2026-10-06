@@ -190,6 +190,20 @@ def profile_suggestion(recorder_id: str, request: Request, alarm_state: str = Qu
 
 # ---------------------------------------------------------------------------------------------- event actions
 
+@router.get("/frigate/{recorder_id}/events/{event_id}/control")
+def event_control(recorder_id: str, event_id: str, request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """What the review screen needs to draw the event controls: whether THIS caller may change the event now (permission on its camera
+    AND the `events` class switched on) and, only then, the event's current retain flag and sub-label as Frigate shows them. A read:
+    nothing is written to Frigate; a caller who may not change anything gets `writable: false` and no Frigate call is made."""
+    a = _adapter(conn, request, recorder_id)
+    scope = svc._event_scope(conn, principal, recorder_id, event_id)
+    perm = svc.PERMISSION["events"]
+    allowed = camera_allowed(conn, principal, scope["camera_id"], perm) if scope["camera_id"] else authorize(conn, principal, perm, INSTALLATION).allowed
+    if not (allowed and svc.policy(conn, recorder_id)["events"]):
+        return {"recorder_id": recorder_id, "event_id": event_id, "writable": False}
+    return {"recorder_id": recorder_id, "event_id": event_id, "writable": True, **{k: v for k, v in fc.FrigateControl(a).event(event_id).items() if k != "id"}}
+
+
 @router.post("/frigate/{recorder_id}/events/{event_id}/retain")
 def event_retain(recorder_id: str, event_id: str, body: RetainIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Keep (or stop keeping) the footage of a tracked object past the normal retention. The event must belong to a review item the caller can see."""
