@@ -565,7 +565,7 @@ def test_clip_size_cap_and_upstream_errors(world, monkeypatch):
     monkeypatch.setattr(fh, "CLIP_MAX_BYTES", 100)
     r = world.c.get(_clip_url(cid))
     assert r.status_code == 503 and r.json()["code"] == "source_too_large"
-    monkeypatch.undo()
+    monkeypatch.setattr(fh, "CLIP_MAX_BYTES", 150_000_000)
     for status, code in ((404, "not_found"), (500, "source_unavailable"), (403, "source_forbidden")):
         world.fake.clip_status = status
         r = world.c.get(_clip_url(cid))
