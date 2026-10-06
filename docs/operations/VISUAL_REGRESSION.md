@@ -49,3 +49,12 @@ the feedback was given on, and the commit that answered it. `python scripts/proj
 - CI job for the fixture suites (GitHub Actions on `main`), with the PNG diff posted as an artifact.
 - A state matrix per screen (loading / empty / error / forbidden / stale / partial) for screens beyond the floor map.
 - Perceptual diff thresholds instead of byte comparison once CI exists.
+
+## Visual-diff matrix (M074) - usage
+1. Matrix: `frontend/tests/visual/matrix.json` (screens x states x light/dark x desktop/tablet/mobile); baselines are per OS in `frontend/tests/visual-matrix.spec.ts-snapshots/` (`-linux` is the reference, generated on the runner).
+2. Local: `cd frontend && npm run build && npm run visual -- run --touched` (or `--screens a,b`, `--all`); `plan` prints the selection only. Artifacts: `frontend/visual-out/<time>/{summary.md,index.html,images/}` (expected | actual | diff).
+3. Runner: `python private/runner/run_smart.py visual <branch> --touched` (or `~/run_remote.sh visual <branch> ...` on the runner); it holds `~/.smplwise-tests.lock` shared, and copies the report to `private-evidence/visual-out/<branch>-<sha>/` (gitignored).
+4. Release gate (optional, off by default): `release_gate.sh <branch> --visual` adds a warning section for touched screens vs `origin/main` (`--visual-base <ref>`); `--visual-block` makes differences fail the gate.
+5. Intended change: `node scripts/visual.mjs accept --screens <ids>` on the runner (linux baselines only), review the images, commit them with the code.
+6. Per screen in matrix.json: `threshold` / `maxDiffPixelRatio` override the tolerance; `mask: ["css selector", ...]` paints animated or live regions (top-level `mask` applies to all). Changing a mask requires re-accepting that screen's baselines.
+7. Exit code 1 = differences; a missing baseline is "no baseline" (never a pass). `npm run visual:test` covers the driver logic without a browser.

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 // tests/visual-matrix.spec.ts-snapshots/. Run it through `node scripts/visual.mjs` (selection, report, deliberate accept).
 // Demo mode (no backend); `?skin=` / `?scheme=` are the session override. Baselines are per OS (win32 / linux): a missing
 // baseline is skipped with an annotation (the design-foundation rule) and listed as "no baseline" in the report.
+// Per screen, matrix.json may set `threshold` / `maxDiffPixelRatio` (tolerance override) and `mask` (CSS selectors of animated or live
+// regions, painted over in both baseline and actual; a top-level `mask` applies to every screen; open shadow DOM is pierced).
 // Env: SW_VISUAL_ONLY=a,b screens to run | SW_VISUAL_SCHEMES=light | SW_VISUAL_THRESHOLD / SW_VISUAL_RATIO override the matrix.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const M = JSON.parse(fs.readFileSync(path.join(HERE, 'visual', 'matrix.json'), 'utf8')) as {
@@ -16,7 +18,8 @@ const M = JSON.parse(fs.readFileSync(path.join(HERE, 'visual', 'matrix.json'), '
   schemes: string[];
   skin: string;
   fixedTime: string;
-  screens: { id: string; hash: string; states: string[]; threshold?: number; maxDiffPixelRatio?: number }[];
+  mask?: string[];
+  screens: { id: string; hash: string; states: string[]; threshold?: number; maxDiffPixelRatio?: number; mask?: string[] }[];
 };
 const only = (process.env.SW_VISUAL_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
 const schemesEnv = (process.env.SW_VISUAL_SCHEMES || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -84,6 +87,8 @@ test.describe('visual matrix', () => {
           await applyState(page, state);
           await expect(page).toHaveScreenshot(name, {
             animations: 'disabled',
+            mask: [...(M.mask ?? []), ...(s.mask ?? [])].map((sel) => page.locator(sel)),
+            maskColor: '#ff00ff',
             threshold: Number(process.env.SW_VISUAL_THRESHOLD ?? s.threshold ?? M.threshold),
             maxDiffPixelRatio: Number(process.env.SW_VISUAL_RATIO ?? s.maxDiffPixelRatio ?? M.maxDiffPixelRatio),
           });

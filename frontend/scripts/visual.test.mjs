@@ -71,3 +71,13 @@ test('report: pass, diff (with images), no-baseline', () => {
   assert.equal(fs.readdirSync(path.join(tmp, 'out', 'images')).length, 3);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+test('matrix: per-screen tolerance and mask overrides are well formed', () => {
+  const okSel = (a) => a === undefined || (Array.isArray(a) && a.every((x) => typeof x === 'string' && x.trim()));
+  assert.ok(okSel(matrix.mask));
+  for (const s of matrix.screens) {
+    assert.ok(okSel(s.mask), `${s.id}: mask must be a list of non-empty CSS selectors`);
+    if (s.threshold !== undefined) assert.ok(s.threshold >= 0 && s.threshold <= 1, `${s.id}: threshold 0..1`);
+    if (s.maxDiffPixelRatio !== undefined) assert.ok(s.maxDiffPixelRatio >= 0 && s.maxDiffPixelRatio <= 1, `${s.id}: maxDiffPixelRatio 0..1`);
+  }
+});

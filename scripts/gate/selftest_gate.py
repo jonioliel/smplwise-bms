@@ -194,6 +194,20 @@ check("balance: the two heaviest files never share a chunk", not any("heavy1.spe
 check("balance: the longest chunk is the heaviest single file plus at most the light ones", max(loads) <= 1200 + 60 + 60, loads)
 g._COSTS = None
 
+# ---- M074 visual step: differences are a warning section, the verdict stays green (warn mode); block mode counts them
+reset()
+c = g.summarize_visual([{"screen": "sites", "state": "ready", "scheme": "dark", "project": "desktop", "status": "diff"},
+                        {"screen": "sites", "state": "ready", "scheme": "light", "project": "desktop", "status": "pass"},
+                        {"screen": "map-floor", "state": "ready", "scheme": "light", "project": "mobile", "status": "no-baseline"}])
+check("visual: summarize_visual counts pass/diff/no-baseline", (c["pass"], c["diff"], c["nobase"], len(c["diffs"])) == (1, 1, 1, 1), c)
+g.COUNTS["preview"] = {"pass": 5, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
+g.BR, g.TAG, g.VISUAL = "selftest", "selftest", "warn"
+g.VISUAL_INFO.update(mode="warn", base="origin/main", counts={k: v for k, v in c.items() if k != "diffs"}, diffs=c["diffs"], report="x/summary.md")
+fin, bp = g.write_reports("abc1234", g.compute_verdict([]), {})
+md = Path(str(bp) + ".md").read_text()
+check("visual: warn mode lists the difference in the report and does not fail the verdict", "sites / ready / dark / desktop" in md and "## פסק דין: **עבר**" in md, md[:500])
+g.VISUAL, g.VISUAL_INFO = "", {}
+
 print()
 print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)

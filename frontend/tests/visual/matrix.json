@@ -1,7 +1,8 @@
 {
-  "comment": "M074 visual-diff matrix. Screens x states x scheme; the viewport comes from the Playwright project (desktop 1440, tablet 1024, mobile 390). `sources` are repo-relative path prefixes: the touched-only mode runs a screen when a changed file starts with one of them. `shared` prefixes touch every screen.",
+  "comment": "M074 visual-diff matrix. Optional per screen: `threshold` / `maxDiffPixelRatio` override the defaults; `mask` is a list of CSS selectors painted over before comparing (animated/live regions); a top-level `mask` applies to every screen. Changing a mask changes the baseline images of that screen: re-accept it on the runner. Screens x states x scheme; the viewport comes from the Playwright project (desktop 1440, tablet 1024, mobile 390). `sources` are repo-relative path prefixes: the touched-only mode runs a screen when a changed file starts with one of them. `shared` prefixes touch every screen.",
   "threshold": 0.2,
   "maxDiffPixelRatio": 0.002,
+  "mask": [],
   "schemes": ["light", "dark"],
   "skin": "classic",
   "fixedTime": "2026-10-01T13:00:00Z",
