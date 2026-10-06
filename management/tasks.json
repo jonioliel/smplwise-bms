@@ -2963,7 +2963,8 @@
       "2026-09-29 (0.1.127, merge 3a1f845 of pilot/T054-wiskey-embed-v1): WisKey embed API v1 adopted (WisKey 2.0.0-rc.19 handoff in docs/integrations/wiskey/embed-api-v1/). TS connector (frontend/src/wiskey/embed-connector.ts): listener before src, origin+source checks, v1-only ready, validated catalogue, navigate only for known ids after ready, confirmed location only from wiskey:location, 3 s in-flight expiry, 12 s discovery re-armed every 3 s for ~2 min, dispose. Screen: embed=1&tab&tool URL from the origin, tabs/tools from the catalogue in both nav designs + phone, wiskey_tab/wiskey_tool mirror via replaceState (no echo loop, verified), history entry only on confirmation, remount = fresh handshake, legacy adapter only without the marker, SMPLWISE-owned screens always in the row, Companion unchanged + deep links. Tests: unit 14, embed/phone specs 22 passed (22 viewport skips), new fake panel with 7 modes; tsc/build clean. Opus review vs the contract (channel security clean; 2 blockers + 3 medium fixed) + scoped re-review (1 medium fixed, verified by the coordinator). Owner lab checks in LAB_CHECKLIST_2026-09-29_HE.md §2.",
       "2026-09-29 (0.1.132, merge of pilot/T054-capture-lane-race 4c3f559): capture-lane race fixed - slot released before the result was recorded so a cancel could read 'lost'; on_result step before release, audits/cleanup after; regression test fails on old code; 179 intercom tests; Opus review APPROVED. Plus intercom timing tests hardened (SW_PERF pattern).",
       "2026-09-29 (0.1.135, merge of pilot/T054-embed-frame-css a710862): owner report of a dark edge around the embedded WisKey panel - stage/iframe/overlay used --sw-bg and the iframe had its own min height; now --sw-surface, display:block, outline none, min height on the stage only; embed spec asserts frame box == stage box, zero border, surface colour (desktop 16 + mobile). rc.25 confirmed in the owner's screenshot: single toolbar.",
-      "2026-09-29 (0.1.139, merge of pilot/T054-embed-followups 9cf9f97): owner report '4 cameras not 12' root-caused in WisKey's own source (cards per page from frame height in fixed steps, choice in memory only) - new desktop 'הגדל/צמצם' embed mode (8 per page at 900 px, 12 at 1080p) + follow-up request doc for the WisKey devs; experimental Companion-app embed behind access.phone_embed (default off): proxy of the app's auth bridge into the same-origin frame, tokens forwarded only to our frame, bus not relayed, wrappers removed on detach, fallback to 0.1.123 behaviour; not tested on a real device. Tests: connector 14, specs 72 across viewports, relay x3; two Opus security reviews (3 medium fixed)."
+      "2026-09-29 (0.1.139, merge of pilot/T054-embed-followups 9cf9f97): owner report '4 cameras not 12' root-caused in WisKey's own source (cards per page from frame height in fixed steps, choice in memory only) - new desktop 'הגדל/צמצם' embed mode (8 per page at 900 px, 12 at 1080p) + follow-up request doc for the WisKey devs; experimental Companion-app embed behind access.phone_embed (default off): proxy of the app's auth bridge into the same-origin frame, tokens forwarded only to our frame, bus not relayed, wrappers removed on detach, fallback to 0.1.123 behaviour; not tested on a real device. Tests: connector 14, specs 72 across viewports, relay x3; two Opus security reviews (3 medium fixed).",
+      "2026-10-06 (TASKS-SYNC-3, registry update): tooling for the WisKey gate only, NOT product evidence: task GT3, branch pilot/GT3-podman (head 5be92cfd, NOT merged, not in 2.2.0): rootless Podman 4.9.3 installed on the Linux test machine (no sysctl change, no reboot; the socket and auto-update units disabled), an idempotent setup script with install / smoke / status modes, a no-network smoke test (a container runs with --network=none, has no non-loopback interface, a public connect fails, podman reports rootless) and notes with the undo steps, all under the gitignored private/runner area (force-added in that commit; review before merging). Purpose: run WisKey images with --network=none in the gate. No WisKey image has been run in it yet. This does not change this card's acceptance status."
     ],
     "owner": null,
     "commit": null,
@@ -3190,7 +3191,8 @@
     ],
     "evidence": [
       "2026-10-04 (K58, CR-024 docs/changes/CR-024-MULTI-NVR.md): multi-NVR built on branch pilot/multi-nvr (code head 10799616), not released, migration 0055_multi_recorder. Recorders as entities (/recorders API, per-recorder connection in recorder_connections, per-recorder settings via recorder_scope.settings_for, discovery / stream sync / alert stream per recorder, removal keeps history and hides the cameras, ids never reused), every NVR route on the camera's recorder or ?recorder_id= (default nvr-1), recorder filters in the camera table, wall and event log, batches and sync groups never mix recorders. Fixture evidence only (two fake recorders): backend tests/test_multi_nvr.py; Playwright evidence-multi-nvr.spec.ts (mocked, desktop/tablet/mobile), evidence-multi-nvr-live.spec.ts (fixture backend multi_nvr_backend.py), layout-multi-nvr.spec.ts (4 skins x light/dark x 320..1440). Real two-recorder lab: NOT_RUN (no real device touched). Status stays BACKLOG in this registry because its dependencies T013/T019/T055 are not marked DONE here (project_status rule); acceptance AT115/AT116 need the lab.",
-      "2026-10-05 (TASKS-SYNC, housekeeping): partial - CR-024 multi-NVR is in the repository and shipped: code head 10799616 (pilot/multi-nvr), migration 0055_multi_recorder, released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Several recorders in one system (CR-024)'; docs/changes/CR-024-MULTI-NVR.md). Tests in the repository: test_multi_nvr.py, test_multi_nvr_identity.py, test_multi_nvr_live.py (fake recorders). Not proven: two real recorders (AT115/AT116 NOT_RUN); cross-recorder synced playback is experimental and off by default. Evidence is not acceptance; status stays BACKLOG because dependencies T013/T019/T055 are not DONE."
+      "2026-10-05 (TASKS-SYNC, housekeeping): partial - CR-024 multi-NVR is in the repository and shipped: code head 10799616 (pilot/multi-nvr), migration 0055_multi_recorder, released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Several recorders in one system (CR-024)'; docs/changes/CR-024-MULTI-NVR.md). Tests in the repository: test_multi_nvr.py, test_multi_nvr_identity.py, test_multi_nvr_live.py (fake recorders). Not proven: two real recorders (AT115/AT116 NOT_RUN); cross-recorder synced playback is experimental and off by default. Evidence is not acceptance; status stays BACKLOG because dependencies T013/T019/T055 are not DONE.",
+      "2026-10-06 (TASKS-SYNC-3, registry update): no new evidence. Multi-NVR (CR-024) is built and in main since 0.1.163 and is part of every later release including 2.2.0, where recorder types now also include Provision-ISR and Frigate (T105, T116). Still only fake recorders: the real two-recorder lab test is NOT_RUN (AT115/AT116); nothing was touched on a real device. Status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -4072,7 +4074,8 @@
       "Build screenshots matching design reference"
     ],
     "evidence": [
-      "pre-evidence (2026-09-16, 0.1.29): docs/operations/VISUAL_REGRESSION.md - the two fixture suites (129 checks, demo data, backend stopped) as the per-commit gate with PNGs under docs/evidence/T007, the live evidence specs as non-gating evidence under private-evidence, the intentional-change approval flow (git diff of PNGs, commit with the screen ids), masking rules for video / frames / clocks, feedback linking convention (screen id + requirement + version + commit on the task card), privacy-first UX metrics plan (time to camera / time to recording, numbers only, opt-in). Open: CI job with PNG diff artifacts, per-screen state matrix, perceptual thresholds"
+      "pre-evidence (2026-09-16, 0.1.29): docs/operations/VISUAL_REGRESSION.md - the two fixture suites (129 checks, demo data, backend stopped) as the per-commit gate with PNGs under docs/evidence/T007, the live evidence specs as non-gating evidence under private-evidence, the intentional-change approval flow (git diff of PNGs, commit with the screen ids), masking rules for video / frames / clocks, feedback linking convention (screen id + requirement + version + commit on the task card), privacy-first UX metrics plan (time to camera / time to recording, numbers only, opt-in). Open: CI job with PNG diff artifacts, per-screen state matrix, perceptual thresholds",
+      "2026-10-06 (TASKS-SYNC-3, registry update): partial, NOT merged and in no release - the visual regression harness exists on two branches. pilot/M074-visual-diff (head 52bfc096): Linux baselines for the visual matrix, 72 images (12 cases x desktop / tablet / mobile) generated on the Linux test machine. pilot/M074-gate (head 7a2dfd5b): the matrix on the runner and in the release gate, optional per-screen / top-level mask selectors in frontend/tests/visual/matrix.json, a tolerance override per screen (unit-tested in frontend/scripts/visual.test.mjs), scripts/gate/release_gate.py/.sh options --visual (warning section, never fails), --visual-block and --visual-base, a selftest case, docs/operations/VISUAL_REGRESSION.md (7-line usage). The failure path was exercised once locally (a deliberate padding change produced a diff report, then discarded). Runner-side tooling lives in the gitignored private/runner area and is not in the commits. Not done: the harness is not part of a released gate (the 2.2.0 integration notes list pilot/M074-* as not included); no recorded per-screen state matrix for every screen of the acceptance; no UX metrics (time to camera / time to recording); feedback linking is a convention only. Evidence is not acceptance; AT147/AT148 NOT_RUN; status stays BACKLOG. AT236 registers the matrix entry."
     ],
     "owner": null,
     "commit": null,
@@ -4879,7 +4882,8 @@
       "Documentation, known limits and rollback notes"
     ],
     "evidence": [
-      "2026-10-06 (branch pilot/ST5-dxf-package @ 617fb6f4, not released): ST5 - DXF export (GET plan-versions/{id}/export.dxf, R2018, fixed SW_* layers for walls/openings/rooms/devices/objects/connectors/labels, metres when calibrated else unitless px, item ids in XDATA, Hebrew MTEXT cleaned of control/bidi marks), signed plan package (POST plan-versions/{id}/package: plan.json, rooms, anchors, custom items, plan picture, source <= 16 MiB, Hebrew report, manifest with SHA-256 per file, Ed25519 signature with the installation key T067, public half only) and re-import (POST .../package/preview dry run and .../package/import: hostile-zip checks reused from the bundle import, signature + package/document version checks, full validation, replace or merge with diff, missing cameras/entities/rooms/switches/custom items reported, writes the draft only, previewed revision + result hash required, a foreign key needs explicit trust; audited geometry.package.export / geometry.package.import). Editor export row: DXF, package, import package + dialog; he/en strings. No migration. Tests on the runner: backend test_plan_dxf_export 7 + test_plan_package 19 + neighbours = 137 passed; full suite 5650 passed, 4 skipped, 1 failed (test_mobile_push app-channel test, fails identically on main a58f1ccf - pre-existing, unrelated); tsc ok; evidence-plan-package.spec.ts fixture part 6/6 (desktop + mobile, twice); live part 1/1 desktop against a throwaway local backend (export, drift, import back to the exported hash). Round trip: export then import into the same version restores the same doc_hash and geometry hash (test_round_trip_restores_the_same_hash). Not verified: Hebrew ordering in a commercial CAD program. Docs: docs/changes/ST5-PLAN-PACKAGE-DXF.md."
+      "2026-10-06 (branch pilot/ST5-dxf-package @ 617fb6f4, not released): ST5 - DXF export (GET plan-versions/{id}/export.dxf, R2018, fixed SW_* layers for walls/openings/rooms/devices/objects/connectors/labels, metres when calibrated else unitless px, item ids in XDATA, Hebrew MTEXT cleaned of control/bidi marks), signed plan package (POST plan-versions/{id}/package: plan.json, rooms, anchors, custom items, plan picture, source <= 16 MiB, Hebrew report, manifest with SHA-256 per file, Ed25519 signature with the installation key T067, public half only) and re-import (POST .../package/preview dry run and .../package/import: hostile-zip checks reused from the bundle import, signature + package/document version checks, full validation, replace or merge with diff, missing cameras/entities/rooms/switches/custom items reported, writes the draft only, previewed revision + result hash required, a foreign key needs explicit trust; audited geometry.package.export / geometry.package.import). Editor export row: DXF, package, import package + dialog; he/en strings. No migration. Tests on the runner: backend test_plan_dxf_export 7 + test_plan_package 19 + neighbours = 137 passed; full suite 5650 passed, 4 skipped, 1 failed (test_mobile_push app-channel test, fails identically on main a58f1ccf - pre-existing, unrelated); tsc ok; evidence-plan-package.spec.ts fixture part 6/6 (desktop + mobile, twice); live part 1/1 desktop against a throwaway local backend (export, drift, import back to the exported hash). Round trip: export then import into the same version restores the same doc_hash and geometry hash (test_round_trip_restores_the_same_hash). Not verified: Hebrew ordering in a commercial CAD program. Docs: docs/changes/ST5-PLAN-PACKAGE-DXF.md.",
+      "2026-10-06 (TASKS-SYNC-3, registry update): partial - ST5 is released in 2.2.0 (merge 2fd448a4 of pilot/ST5-dxf-package, head 26ac8fd9, no migration; CHANGELOG section 'Plan Studio 5'). Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_plan_dxf_export.py, test_plan_package.py (round trip restores the same document hash and geometry hash), test_plan_dxf_map.py; Playwright frontend/tests/evidence-dxf.spec.ts and evidence-plan-package.spec.ts (fixture part plus one live part on a throwaway local backend). Not proven: Hebrew text ordering and layer behaviour in a commercial CAD program; use on the owner's real plans; the acceptance's SVG/PNG print export is not part of ST5 and is not evidenced here. Evidence is not acceptance; AT175/AT176 stay NOT_RUN; status stays BACKLOG (dependencies T084/T085 are not DONE here)."
     ],
     "owner": null,
     "commit": null,
@@ -5244,7 +5248,8 @@
     ],
     "evidence": [
       "2026-09-30: design record CR-011 written (branch pilot/design-2fa-push): HA login flow enforces enabled MFA modules for the homeassistant provider (auth/__init__.py async_finish_flow), tokens carry no MFA claim, auth/refresh_tokens exposes type/client_id/auth_provider_type/created_at; gap found - the remote exchange and bearer path accept long-lived tokens that bypass MFA; recommendation phase 1 A-policy + E step-up with an Android Keystore key (≈8-9 d), phase 2 passkeys, phase 3 push approval. Owner decisions Q1-Q11 open.",
-      "2026-09-30 (0.1.145): design record CR-011 and its Hebrew mirror merged (pilot/design-2fa-push) and shipped with the release documents; no code. Open: the owner's answers to the 11 questions; known gap - remote sign-in accepts long-lived tokens that skip MFA (CR-011 2.2 / 4A)."
+      "2026-09-30 (0.1.145): design record CR-011 and its Hebrew mirror merged (pilot/design-2fa-push) and shipped with the release documents; no code. Open: the owner's answers to the 11 questions; known gap - remote sign-in accepts long-lived tokens that skip MFA (CR-011 2.2 / 4A).",
+      "2026-10-06 (TASKS-SYNC-3, registry update): partial - only Arx's own optional TOTP second factor (CR-011 option B, branch pilot/K11-totp, head 4c43bf8a, merge 357ac74f) is released, in 2.2.0, migration 0065_second_factor_totp: RFC 6238 enrolment with QR in the user's account menu, a code asked after the password on a NEW remote sign-in, replay refusal, lockout after 5 wrong codes in 5 minutes (10 minutes), the secret stored encrypted (AES-256-GCM, key outside the project backup), audited administrator reset (system.configure), setting security.second_factor_policy optional (default) | admins; the local channel is not affected. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_second_factor.py; Playwright frontend/tests/evidence-second-factor.spec.ts and evidence-arx-second-factor.spec.ts (mocked backend / fixture). NOT DONE (none of it is in 2.2.0): the remote.mfa_policy off|admins|sensitive|all policy with the HA refresh-token check (acceptance 1; the 'admins' policy above is a simpler Arx-side rule, and the known gap that long-lived tokens skip MFA on the remote path is not recorded as closed); step-up for sensitive actions with server challenges and proofs (acceptance 2); the Android Keystore biometric device key; passkeys / WebAuthn including the assetlinks route (acceptance 3); push approval with number matching; the alarm-PIN fallback. Not proven: a sign-in from a real phone with a real authenticator app on the owner's installation. Evidence is not acceptance; AT193-AT195 NOT_RUN; status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5294,7 +5299,8 @@
     "evidence": [
       "2026-09-30: design record CR-012 written (branch pilot/design-2fa-push): WebView has no Web Push; FCM high priority is Android's way to wake a dozing app and must end in a visible notification; FCM is not end-to-end encrypted, so a content-less wake + fetch from the customer's Arx server; recommendation A through a central SmplWise relay (≈7-9 d) with UnifiedPush as the fallback (≈3-4 d, push.py already speaks Web Push); foreground-socket option documented with Android 14/15 limits. Owner decisions Q1-Q8 open.",
       "2026-09-30 (0.1.145): design record CR-012 and its Hebrew mirror merged (pilot/design-2fa-push) and shipped with the release documents; no code. Open: the owner's answers to the 8 questions.",
-      "2026-10-05 (TASKS-SYNC, housekeeping): partial - the server half of the phone push exists: CR-027 phase 2 'push to the phone app through the SmplWise relay' (commit 748d2b2f: the notification core's 'app' channel, device push routes, the relay Worker under services/push-relay with fake_relay.py; options push_relay_url / push_relay_key; migration 0057), released in 2.0.2, everything off by default; tests test_mobile_push.py (fake relay). Tracked by T103 (CR-027). Not built here: the CR-012 UnifiedPush fallback (no UnifiedPush code in the backend), the Android app side (built separately), the relay run against real FCM / APNs. Evidence is not acceptance; AT196-AT198 NOT_RUN; status stays BACKLOG."
+      "2026-10-05 (TASKS-SYNC, housekeeping): partial - the server half of the phone push exists: CR-027 phase 2 'push to the phone app through the SmplWise relay' (commit 748d2b2f: the notification core's 'app' channel, device push routes, the relay Worker under services/push-relay with fake_relay.py; options push_relay_url / push_relay_key; migration 0057), released in 2.0.2, everything off by default; tests test_mobile_push.py (fake relay). Tracked by T103 (CR-027). Not built here: the CR-012 UnifiedPush fallback (no UnifiedPush code in the backend), the Android app side (built separately), the relay run against real FCM / APNs. Evidence is not acceptance; AT196-AT198 NOT_RUN; status stays BACKLOG.",
+      "2026-10-06 (TASKS-SYNC-3, registry update): partial - the Android app side of the CR-027 push work was imported on branch pilot/android-v4-import (head 6b8751cc, NOT merged; Codex mobile package, app version 2.1.0 / versionCode 4, debug build against a contract mock only): FCM data service plus a WorkManager fetch of the notice from the saved server, relay registration and relay-token-only registration with the server, per-server category choices, private lock-screen content. Reported by the import commit: JVM unit tests 69/69, mock tests 11/11, assembleDebug OK. NOT run: lint, instrumented tests, any physical-device behaviour, real FCM delivery, token rotation or Doze (BLOCKED: no Firebase project or configuration supplied yet), production push-to-origin mapping (BLOCKED: the final contract does not bind the relay payload's server to the saved origin). Not built: UnifiedPush; release signing; Play distribution. The server side stays as recorded above (T103). An internal review of the mobile import was done (kept private, not copied here). Evidence is not acceptance; AT196-AT198 NOT_RUN; status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5547,7 +5553,8 @@
     ],
     "evidence": [
       "2026-10-01: architecture proposed on branch pilot/CR018-notifications-arch (repository inventory and public web research only; no device, HA, WisKey or lab contact; nothing implemented or run). Awaiting the owner's answers.",
-      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-018 (notification centre) is in the repository and shipped: release 0.1.151 (release commit 4293badf; smplwise_vms/CHANGELOG.md section 0.1.151), migrations 0045_notifications / 0046_notify_settings / 0047_notify_policies (renumbered at commit 03897e09), docs/changes/CR-018-NOTIFICATIONS.md; later extended by the recorder-health sources (CR-026) and the phone-app channel (CR-027, commit 748d2b2f). Tests in the repository: smplwise_vms/backend/tests/test_notify_core.py, test_notify_channels.py, test_notify_sources.py, test_notify_email.py, test_notify_payload_golden.py; Playwright frontend/tests/evidence-notifications.spec.ts, unit-notifications.spec.ts. Not proven: delivery to real phones or mail on the owner's installation. Evidence is not acceptance; status stays BACKLOG."
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-018 (notification centre) is in the repository and shipped: release 0.1.151 (release commit 4293badf; smplwise_vms/CHANGELOG.md section 0.1.151), migrations 0045_notifications / 0046_notify_settings / 0047_notify_policies (renumbered at commit 03897e09), docs/changes/CR-018-NOTIFICATIONS.md; later extended by the recorder-health sources (CR-026) and the phone-app channel (CR-027, commit 748d2b2f). Tests in the repository: smplwise_vms/backend/tests/test_notify_core.py, test_notify_channels.py, test_notify_sources.py, test_notify_email.py, test_notify_payload_golden.py; Playwright frontend/tests/evidence-notifications.spec.ts, unit-notifications.spec.ts. Not proven: delivery to real phones or mail on the owner's installation. Evidence is not acceptance; status stays BACKLOG.",
+      "2026-10-06 (TASKS-SYNC-3, registry update): no change in scope. The phone-app channel of the notification core is released (2.0.2) and the Android app that consumes it exists only as the unmerged import branch pilot/android-v4-import (head 6b8751cc, debug build, mock-tested; see T096 and T103). Delivery to a real phone remains NOT_RUN. Status stays BACKLOG."
     ],
     "owner": null,
     "commit": null,
@@ -5645,7 +5652,8 @@
       "Shipped in 2.0.2 (integ/202; smplwise_vms/CHANGELOG.md section 2.0.2) from branch pilot/mobile-presence-push-server @ 13053407, everything off by default; migration 0057.",
       "Backend tests in the repository: tests/test_presence.py, tests/test_mobile_push.py (fake relay), migration lists in test_migrations.py / test_media_api.py / test_media_players_api.py / test_notify_core.py end 55, 56, 57; frontend: evidence-presence-settings.spec.ts, unit-notifications.spec.ts (app channel). Run in the 2.0.2 release gate on the Linux test machine (gate file named in docs/release/2.0.2-INTEGRATION-NOTES.md).",
       "Not done: the relay Worker was not run against APNs / FCM (owner keys needed); nothing tried on the owner's installation; the app itself is built separately (Codex). AT217 stays NOT_RUN as a recorded acceptance until a run against a commit is written here.",
-      "2026-10-05: card registered at integration (2.0.2) by the integration lead."
+      "2026-10-05: card registered at integration (2.0.2) by the integration lead.",
+      "2026-10-06 (TASKS-SYNC-3, registry update): partial - the app side exists as an unmerged import: branch pilot/android-v4-import (head 6b8751cc) holds the Android v4 shell (presence sensors: location fixes and geofences, battery, activity, steps, altitude, hashed network name, filtered beacons; contract client with encrypted tokens, notice acknowledgement and the required-sensors gate; FCM relay client; a contract mock server and its tests). Debug build against the mock; JVM unit tests 69/69, mock tests 11/11, assembleDebug OK (as reported by the import commit). NOT run: instrumented tests, lint, any physical phone, real FCM / relay delivery (no Firebase project yet), real sensors under Doze / OEM power management. Open contract gaps recorded by the importer: the production payload has no server-to-origin binding, quiet hours are not in the contract, the /me identity field shape needs confirmation. The iOS shell is not part of this evidence. Internal review done (kept private). The server side was released with 2.0.2; 2.2.0 changes nothing here except a test-only fix (the app-message expiry clock pinned to the notification clock, merge d932517c). AT217 stays NOT_RUN; AT235 registers the app-side entry."
     ],
     "owner": null,
     "commit": null,
@@ -6148,6 +6156,128 @@
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CMP1 shipped in 2.0.2 (merge 21e3d465 of pilot/compare-dropdown into integ/202; release commit bf522a1b) and CMP2 in 2.0.3 (merge 05979c84 of pilot/compare-polish into integ/203; release commit 567a7a78); smplwise_vms/CHANGELOG.md sections 2.0.2 / 2.0.3.",
       "Tests in the repository: Playwright frontend/tests/compare-dropdown.spec.ts, layout-compare-dropdown.spec.ts, sync-dropdown.spec.ts, layout-sync-dropdown.spec.ts, unit-multi-select.spec.ts, evidence-sync.spec.ts.",
       "Not proven by the repository: use on the owner's installation with two real recorders (cross-recorder synced playback stays experimental). AT229 stays NOT_RUN as a recorded acceptance."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T116",
+    "title": "מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": true,
+    "acceptance": [
+      "Frigate recorder provider: F1 read-only (import, review, coverage, playback, stills, health, alert notifications) and F2 guarded control, off by default; the first supervised write per class on a real Frigate verified with the owner present."
+    ],
+    "requirement_ids": [
+      "R230"
+    ],
+    "test_ids": [
+      "AT230"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "large",
+      "escalation": "Device access stays read-only by default; any write to a recorder, speaker or device needs the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "docs/changes/CR-029-FRIGATE-PROVIDER.md",
+      "Backend: frigate adapter / http allow-list / events / playback / control, migrations 0064_frigate_provider and 0066_frigate_control, analytics.* permissions",
+      "Frontend: review screen, control drawer, Settings > Frigate recorder"
+    ],
+    "evidence": [
+      "2026-10-06 (TASKS-SYNC-3, housekeeping): card registered retroactively. partial - F1 and F2 are released in 2.2.0 (merge b9eda94c of pilot/NN5-F2, head 66ad54c4, which carries pilot/NN5-F1-join; CHANGELOG section 2.2.0), migrations 0064 and 0066, new permissions analytics.review / control / record_control / profile / events. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_frigate_adapter.py, test_frigate_api.py, test_frigate_events.py, test_frigate_playback.py, test_frigate_control.py, test_frigate_join.py (the last was flaky once under the 3-shard load, passed alone); Playwright frontend/tests/unit-frigate.spec.ts, unit-frigate-control.spec.ts, evidence-frigate-review.spec.ts, evidence-frigate-settings.spec.ts, evidence-frigate-control.spec.ts (fixture / mocked).",
+      "A read-only live check of the adapter against the owner's own Frigate instance (2026-10-05, login plus GETs only, nothing written) is recorded in CR-029; no address or capture is copied here. It does not cover a viewer-role account, clip export or the reviews / events WebSocket payloads (NOT VERIFIED).",
+      "Not proven / NOT_RUN: every write class was tested only against an in-process fake Frigate; the first supervised write of each class on a real Frigate (owner present) is still to do; PTZ is held back by PTZ_RELEASED = False (no pad in the UI); the Frigate type is gated by the environment variable SW_FRIGATE=1 (no add-on option yet); camera_links and the per-user reviewed state are not in the backup archive. AT230 stays NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T117",
+    "title": "הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן",
+    "epic": "MEDIA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": true,
+    "acceptance": [
+      "Voice announcements through allowed speakers with rate limits, history and audit, off by default; a real speaker test on the owner's installation with the owner present."
+    ],
+    "requirement_ids": [
+      "R231"
+    ],
+    "test_ids": [
+      "AT231"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Device access stays read-only by default; any write to a recorder, speaker or device needs the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Backend: announcements service and router, migration 0067_announcements, permission media.announce",
+      "Frontend: Settings > Multimedia > Voice announcements, the rule action"
+    ],
+    "evidence": [
+      "2026-10-06 (TASKS-SYNC-3, housekeeping): card registered retroactively. partial - released in 2.2.0 (merge 1da0dfba of pilot/MU2-announcements, head 9778cb46; CHANGELOG section 'Voice announcements'), migration 0067. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_announcements.py (media layer faked); Playwright frontend/tests/evidence-announcements.spec.ts (mocked backend).",
+      "Not proven / NOT_RUN: a spoken announcement on a real speaker through the owner's text-to-speech engine; the per-speaker test button on real players; behaviour on installations without a text-to-speech engine. AT231 stays NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "T118",
+    "title": "הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל)",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Android download offer on the remote sign-in page: https-only link with optional version and SHA-256, shown only to Android visitors outside the app, off until configured; a link to a signed release APK only after a signed release build exists."
+    ],
+    "requirement_ids": [
+      "R232"
+    ],
+    "test_ids": [
+      "AT232"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "escalation": "Device access stays read-only by default; any write to a recorder, speaker or device needs the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Backend: public read-only download route and the three app.android_* options",
+      "Frontend: sign-in offer, Settings > Remote access > Android app download"
+    ],
+    "evidence": [
+      "2026-10-06 (TASKS-SYNC-3, housekeeping): card registered retroactively. partial - released in 2.2.0 (merge d096cd05 of pilot/android-download, head 9a125b9c; CHANGELOG section 'Android app download offer'); no migration. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_app_download.py; Playwright frontend/tests/unit-android-download.spec.ts and evidence-android-download.spec.ts (mocked).",
+      "Not proven / NOT_RUN: the offer seen from a real Android phone outside the app on the real remote address; no signed release APK exists (the Android build is a debug build, so no link may be published yet). AT232 stays NOT_RUN."
     ],
     "owner": null,
     "commit": null,
