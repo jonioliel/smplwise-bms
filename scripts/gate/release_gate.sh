@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Release gate for SmplWise Arx: the whole tier-L check on the test machine, one command, one verdict.
-#   release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"]
+#   release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual-block|--no-visual]
 #     (default tier L; the branch must be pushed: the machine sees origin only)
 #     S  tsc + build + the unit-* specs + release_check
 #     M  S + the whole backend suite + every Playwright spec on the dist preview (no dev-server / fixture / pixel groups)
@@ -26,6 +26,9 @@
 #      previous accepted release) and below 70 percent (GATE_DROP_THRESHOLD) it is a FAIL unless --allow-count-drop "<reason>" is given
 #   8. outputs: ~/smplwise-results/gate_<branch>_<sha>.{json,md} (Hebrew verdict header; per-category counts + baseline + ratio) and
 #      gate_status.json (dashboard hook, updated at every phase); logs in gate_<branch>_<sha>.logs/
+#   9. M074 visual matrix, ON by default in every tier as a warning section (never fails the gate); --visual-block makes failures count,
+#      --no-visual switches it off;
+#      --visual-base <ref> (default origin/main) selects the touched screens; diff images/summary.md/index.html in the gate's .logs/visual/
 # After a GREEN gate of a release, refresh scripts/gate/gate_baselines.json from "baseline_candidate" in that gate's .json.
 # One gate at a time (flock; it also holds the nightly lock, so cron's nightly/watcher skip meanwhile); total timeout 90 min
 # (GATE_TOTAL_SECS to change). Never kills by name: only process groups this script started. Free ports only.
@@ -33,7 +36,7 @@
 # see scripts/gate/INSTALL_ON_RUNNER.md. The self-test is scripts/gate/selftest_gate.py.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-case "${1:-}" in -h|--help|"") sed -n 2,33p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,36p "$0"; exit 0;; esac
 DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 [ -f "$DIR/release_gate.py" ] || { echo "release_gate.py must sit next to release_gate.sh ($DIR)"; exit 2; }
 mkdir -p "$HOME/smplwise-results" "$HOME/work"

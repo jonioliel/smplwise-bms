@@ -1,0 +1,31 @@
+{
+  "comment": "M074 visual-diff matrix. Optional per screen: `threshold` / `maxDiffPixelRatio` override the defaults; `mask` is a list of CSS selectors painted over before comparing (animated/live regions); a top-level `mask` applies to every screen. Changing a mask changes the baseline images of that screen: re-accept it on the runner. Screens x states x scheme; the viewport comes from the Playwright project (desktop 1440, tablet 1024, mobile 390). `sources` are repo-relative path prefixes: the touched-only mode runs a screen when a changed file starts with one of them. `shared` prefixes touch every screen.",
+  "threshold": 0.2,
+  "maxDiffPixelRatio": 0.002,
+  "mask": [],
+  "schemes": ["light", "dark"],
+  "skin": "classic",
+  "fixedTime": "2026-10-01T13:00:00Z",
+  "shared": [
+    "frontend/src/styles/", "frontend/src/design/", "frontend/src/components/", "frontend/src/shell/",
+    "frontend/src/i18n/", "frontend/index.html", "frontend/vite.config", "frontend/tests/visual/", "frontend/playwright.config"
+  ],
+  "screens": [
+    { "id": "devices-home", "hash": "/devices", "sources": ["frontend/src/screens/home-", "frontend/src/screens/devices-layout", "frontend/src/screens/devices-area"], "states": ["ready", "dialog"] },
+    { "id": "devices-building", "hash": "/devices/building", "sources": ["frontend/src/screens/devices-building", "frontend/src/screens/devices-tiles"], "states": ["ready"] },
+    { "id": "devices-schedules", "hash": "/devices/schedules", "sources": ["frontend/src/screens/devices-schedules"], "states": ["ready"] },
+    { "id": "map-floor", "hash": "/explore/floors/f0", "sources": ["frontend/src/screens/explore-floor-map", "frontend/src/map/"], "states": ["ready"] },
+    { "id": "sites", "hash": "/explore/sites", "sources": ["frontend/src/screens/explore-sites", "frontend/src/screens/explore-floors"], "states": ["ready"] },
+    { "id": "live-wall", "hash": "/live/wall", "sources": ["frontend/src/wall/", "frontend/src/screens/live-"], "states": ["ready"] },
+    { "id": "settings-diagnostics", "hash": "/system/diagnostics", "sources": ["frontend/src/screens/system-diagnostics"], "states": ["ready"] },
+    { "id": "settings-notifications", "hash": "/system/notifications", "sources": ["frontend/src/screens/system-notifications"], "states": ["ready"] },
+    { "id": "security-alarm", "hash": "/security/alarm", "sources": ["frontend/src/screens/security-"], "states": ["ready"] },
+    { "id": "multimedia-screens", "hash": "/multimedia/screens", "sources": ["frontend/src/screens/multimedia-"], "states": ["ready"] },
+    { "id": "state-panels", "hash": "/devices", "sources": ["frontend/src/components/sw-state-panel"], "states": ["panels"] }
+  ],
+  "stateKinds": {
+    "ready": "the screen as loaded in demo mode (no backend), clock fixed, performance:full",
+    "dialog": "a representative sw-dialog (heading, field, footer buttons) opened over the screen",
+    "panels": "every sw-state-panel state (loading, empty, error, forbidden, stale, partial) in a fixed grid over the screen"
+  }
+}

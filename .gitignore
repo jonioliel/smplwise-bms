@@ -44,3 +44,6 @@ smplwise_vms/downloads/*
 *.aab
 *.jks
 *.keystore
+
+# M074 visual-diff artifacts
+frontend/visual-out/

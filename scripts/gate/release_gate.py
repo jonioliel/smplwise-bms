@@ -8,6 +8,10 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     (backend_finish());
   * each category's passed count is compared with gate_baselines.json (the previous accepted release); below GATE_DROP_THRESHOLD
     (default 0.70) of the baseline is a FAIL unless the run started with --allow-count-drop "<reason>" (check_baselines());
+  * M074 visual step, ON BY DEFAULT in every tier as a WARNING (differences are a report section, the verdict is unchanged);
+    --visual-block makes differences fail the gate, --no-visual (or GATE_VISUAL=off) switches the step off, --visual-base <ref>
+    (default origin/main) selects the touched screens: runs `visual.mjs run --touched` on the dist preview against the committed
+    linux baselines; the matrix spec then leaves the pixel group;
   * the final report lists every category with its counts, its baseline and the ratio.
 """
 import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
@@ -16,6 +20,15 @@ from pathlib import Path
 HB_STOP = threading.Event()
 
 BR, TIER = "", "L"        # set by main_cli()
+def visual_from_env(v):
+    """GATE_VISUAL: unset/'warn' -> warn (the default), 'block' -> block, 'off'/'none' -> step disabled."""
+    v = (v or "").strip().lower()
+    return "" if v in ("off", "none") else (v if v in ("warn", "block") else "warn")
+
+
+VISUAL = visual_from_env(os.environ.get("GATE_VISUAL"))  # "warn" (default, --visual), "block" (--visual-block) or "" (--no-visual): the M074 visual-diff matrix step
+VISUAL_BASE = os.environ.get("GATE_VISUAL_BASE", "origin/main")   # --touched is computed against this ref (the previous release)
+VISUAL_INFO = {}          # filled by run_visual(); written to the report as a warning section
 ALLOW_DROP = ""           # --allow-count-drop "<reason>": waives the baseline check; the waiver is written into the report
 DROP_THRESHOLD = float(os.environ.get("GATE_DROP_THRESHOLD", "0.70"))
 BASELINE_NAME = "gate_baselines.json"
@@ -391,7 +404,7 @@ def classify(fe, tier):
             projs = (flags[:1] or ["desktop"]) if one else ALL_PROJECTS
         if fixtures and f.name not in FIXTURE_SPECS:
             out["fixture_other"][f.name] = fixtures[0]
-        if "toHaveScreenshot(" in text:
+        if "toHaveScreenshot(" in text and not (VISUAL and f.name == "visual-matrix.spec.ts"):  # the visual step owns that spec
             out["pixel"].append(f.name)
         out[kind][f.name] = {"projects": projs, "workers1": workers1, "one": one}
     return out
@@ -645,6 +658,45 @@ def start_vite(fe, mode, port, logd, api_port):
     return p, ok
 
 
+def summarize_visual(rows):
+    """rows = visual.mjs results.json. Returns {pass, diff, error, nobase, diffs:[label,...]}."""
+    c = {"pass": 0, "diff": 0, "error": 0, "nobase": 0, "diffs": []}
+    for r in rows:
+        st = r.get("status")
+        if st == "pass":
+            c["pass"] += 1
+        elif st == "no-baseline":
+            c["nobase"] += 1
+        else:
+            c["error" if st == "error" else "diff"] += 1
+            c["diffs"].append(f"{r.get('screen')} / {r.get('state')} / {r.get('scheme')} / {r.get('project')}")
+    return c
+
+
+def run_visual(wt, fe, base_url, logd):
+    """Optional M074 step: the visual matrix for the screens this branch touches (vs VISUAL_BASE) against the committed linux baselines.
+    Warn mode (default) never changes the verdict: differences are a report section only. Block mode counts them as failures."""
+    out = logd / "visual"
+    rc, to = run(["node", "scripts/visual.mjs", "run", "--touched", "--base", VISUAL_BASE, "--out", str(out)], fe, logd / "visual.log",
+                 env={"SW_BASE_URL": base_url}, timeout=min(1500, left()))
+    rj = out / "results.json"
+    if not rj.exists():
+        txt = (logd / "visual.log").read_text(errors="replace") if (logd / "visual.log").exists() else ""
+        if "no screen is touched" in txt:
+            VISUAL_INFO.update(mode=VISUAL, touched=0, summary="no screen touched by this change")
+            return
+        VISUAL_INFO.update(mode=VISUAL, error=f"visual.mjs produced no results (rc={rc}, timeout={to}); see visual.log")
+        if VISUAL == "block":
+            count("visual", "fail"); item("visual", "visual matrix", "FAIL", VISUAL_INFO["error"])
+        return
+    c = summarize_visual(json.loads(rj.read_text()))
+    VISUAL_INFO.update(mode=VISUAL, base=VISUAL_BASE, counts={k: v for k, v in c.items() if k != "diffs"}, diffs=c["diffs"], report=str(out / "summary.md"), html=str(out / "index.html"))
+    if VISUAL == "block":
+        count("visual", "pass", c["pass"]); count("visual", "skipped", c["nobase"])
+        for d in c["diffs"]:
+            count("visual", "fail"); item("visual", d, "FAIL", "pixel difference vs baseline (see visual/index.html)")
+
+
 def load_baseline(wt=None):
     """gate_baselines.json of the branch under test (scripts/gate/), else the copy next to this script. Returns (dict, source)."""
     cands = ([Path(wt) / "scripts" / "gate" / BASELINE_NAME] if wt else []) + [HERE / BASELINE_NAME]
@@ -719,6 +771,17 @@ def write_reports(sha, verdict, extra):
         lst = [i for i in ITEMS if i["status"].startswith(st)]
         md += ["", f"## {title}: {len(lst)}", ""]
         md += [f"- [{i['category']}] {i['id']}" + (f" - {i['reason']}" if i["reason"] else "") for i in lst] or ["- (אין)"]
+    if VISUAL_INFO:
+        v = VISUAL_INFO
+        md += ["", f"## ויזואלי (M074, מצב {v.get('mode')}{' - לא חוסם' if v.get('mode') == 'warn' else ''})", ""]
+        if v.get("error"):
+            md += [f"> אזהרה: {v['error']}"]
+        elif "counts" in v:
+            c = v["counts"]
+            md += [f"- עבר {c['pass']} | שונה {c['diff']} | שגיאה {c['error']} | בלי baseline {c['nobase']} | מול {v.get('base')}", f"- דוח: {v.get('report')} (index.html לצידו)"]
+            md += [f"> אזהרה: הבדל ויזואלי: {d}" for d in v.get("diffs", [])]
+        else:
+            md += [f"- {v.get('summary')}"]
     if "release_check_output" in extra:
         md += ["", "## release_check", "", "```", extra["release_check_output"][-4000:], "```"]
     if "classification" in extra:
@@ -840,6 +903,16 @@ def main():
                     if vp:
                         reap(vp)
                     reap(fx)
+            if VISUAL:
+                with Phase("visual-matrix", "M074 visual matrix (--touched)"):
+                    port = free_port()
+                    vp, ok = start_vite(fe, "preview", port, logd, dead)
+                    if not ok:
+                        VISUAL_INFO.update(mode=VISUAL, error="vite preview did not start for the visual step")
+                    else:
+                        status("running", f"visual matrix ({VISUAL})")
+                        run_visual(wt, fe, f"http://127.0.0.1:{port}/", logd)
+                    reap(vp)
             if cls["dev"]:
                 with Phase("playwright-dev", "Playwright on the Vite dev server"):
                     port = free_port()
@@ -877,6 +950,8 @@ def main():
         parts.append("count-drop check WAIVED")
     dur = int(time.time() - T0)
     summary = f"{'PASS' if verdict == 'pass' else 'FAIL'} in {dur // 60}m: " + "; ".join(parts)
+    if VISUAL_INFO.get("diffs") and VISUAL != "block":
+        summary += f" | WARNING (non-blocking): {len(VISUAL_INFO['diffs'])} visual difference(s), see the report's visual section"
     if TIMEDEP:
         summary += f" | WARNING: {len(TIMEDEP)} time-of-day (quiet hours) tests not really verified, re-run in daytime"
     if hard_fail:
@@ -895,7 +970,7 @@ def on_term(sig, frm):
 
 
 def main_cli(argv):
-    global BR, TIER, TAG, ALLOW_DROP
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE
     args = list(argv)
     while args:
         a = args.pop(0)
@@ -906,13 +981,21 @@ def main_cli(argv):
             if not ALLOW_DROP:
                 print('--allow-count-drop needs a reason, e.g. --allow-count-drop "removed the legacy specs on purpose"')
                 return 2
+        elif a == "--visual":
+            VISUAL = "warn"
+        elif a == "--no-visual":
+            VISUAL = ""
+        elif a == "--visual-block":
+            VISUAL = "block"
+        elif a == "--visual-base":
+            VISUAL_BASE = args.pop(0) if args else VISUAL_BASE
         elif a in ("-h", "--help"):
             print(__doc__)
             return 0
         else:
             BR = a
     if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"]')
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]')
         return 2
     if TIER not in ("S", "M", "L"):
         print("tier must be S, M or L")
