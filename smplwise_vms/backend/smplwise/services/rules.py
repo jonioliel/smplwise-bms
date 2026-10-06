@@ -19,7 +19,7 @@ from .timeutil import iso_utc, parse_utc, zone
 
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-ACTION_KINDS = ("notify", "ha_notify")  # webhooks / device commands are not actions in the pilot (loop and blast-radius control)
+ACTION_KINDS = ("notify", "ha_notify", "announce")  # MU2: announce = a typed text spoken in a room / on a speaker (services/announcements); webhooks / device commands are not actions in the pilot (loop and blast-radius control)
 
 
 def deliver_ha_notify(service: str, message: str, title: str) -> str:
@@ -174,8 +174,9 @@ def evaluate_event(conn: sqlite3.Connection, ev: dict[str, Any], tz_name: str | 
         # CR-008 P3: what the Web Push path needs to pick recipients by scope and preference (popped at delivery)
         push = {"camera_id": target_cam, "entity_id": target_ent, "event_type": ev.get("type"), "source": ev.get("source"), "severity": ev.get("severity"),
                 "availability": details.get("availability"), "occurred_at": ev.get("occurred_at"), "place": details.get("name") if target_ent else None}
+        announce = [(rule["id"], a.get("scope") or "area", a.get("ref") or "", a.get("message") or message) for a in rule["actions"] if a.get("kind") == "announce" and a.get("ref")]
         fired.append({"id": aid, "rule_id": rule["id"], "rule_name": rule["name"], "event_id": ev["id"], "message": message, "reasons": m["reasons"], "ha_notify": {},
-                      "_pending": pending, "_push": push})
+                      "announce": [], "_pending": pending, "_announce": announce, "_push": push})
     if deliver:
         deliver_pending(fired)
     return fired
@@ -222,6 +223,11 @@ def deliver_pending(fired: list[dict[str, Any]]) -> None:
     for item in fired:
         for service, message, title in item.pop("_pending", None) or ():
             item["ha_notify"][service] = HA_NOTIFY(service, message, title)
+    for item in fired:
+        for rule_id, scope, ref, text in item.pop("_announce", None) or ():
+            from . import announcements  # MU2: the rule's own limit is its cooldown; the installation's per-minute limit still applies
+
+            item["announce"].append({"scope": scope, "ref": ref, "status": announcements.run_for_rule(rule_id, scope, ref, text)})
     for item in fired:
         item.pop("_push", None)  # kept on the item for the legacy push planner; the notification pipeline (services/notify) already has the alert
     try:

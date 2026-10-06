@@ -50,8 +50,10 @@ class Window(BaseModel):
 
 
 class Action(BaseModel):
-    kind: str = Field(pattern="^(notify|ha_notify)$")
+    kind: str = Field(pattern="^(notify|ha_notify|announce)$")
     message: str = Field(default="", max_length=300)
+    scope: str | None = Field(default=None, pattern="^(area|device)$")  # announce: speak in a room or on one speaker (MU2)
+    ref: str | None = Field(default=None, max_length=64)  # announce: the area id or the device key
     service: str | None = Field(default=None, max_length=80, pattern=r"^[a-z0-9_]+$")  # ha_notify: the notify.<service> in Home Assistant
 
 
@@ -87,6 +89,16 @@ class DryRunIn(BaseModel):
     hours: int = Field(default=24, ge=1, le=svc.DRY_RUN_MAX_HOURS)
 
 
+def _check_announce(conn: sqlite3.Connection, principal: Principal, body: "RuleIn") -> None:
+    """MU2: a rule that speaks needs `media.announce` (sensitive) and names a room or a speaker and a text."""
+    acts = [a for a in body.actions if a.kind == "announce"]
+    if not acts:
+        return
+    require(conn, principal, "media.announce", INSTALLATION)
+    if body.owner != "local" or any(not a.scope or not a.ref or not a.message.strip() for a in acts):
+        raise ApiError(422, "validation", "הכרזה בחוק דורשת מקום (אזור או רמקול) והודעה.", details={"fields": ["actions"]})
+
+
 def _get(conn: sqlite3.Connection, rule_id: str) -> sqlite3.Row:
     r = conn.execute("SELECT * FROM rules WHERE id = ?", (rule_id,)).fetchone()
     if not r:
@@ -115,6 +127,7 @@ def create_rule(body: RuleIn, request: Request, principal: Principal = Depends(c
     require(conn, principal, "rules.manage", INSTALLATION)
     if any(a.kind == "ha_notify" for a in body.actions):
         require(conn, principal, "rules.ha_notify", INSTALLATION)  # sensitive: a rule that pushes through Home Assistant
+    _check_announce(conn, principal, body)
     if body.owner == "ha" and not body.ha_automation_id:
         raise ApiError(422, "validation", "חוק בבעלות תשתית המערכת חייב לציין את מזהה האוטומציה בתשתית המערכת.")
     cols = body.columns()
@@ -207,6 +220,7 @@ def update_rule(rule_id: str, body: RulePatch, request: Request, principal: Prin
     require(conn, principal, "rules.manage", INSTALLATION)
     if any(a.kind == "ha_notify" for a in body.actions):
         require(conn, principal, "rules.ha_notify", INSTALLATION)  # sensitive: a rule that pushes through Home Assistant
+    _check_announce(conn, principal, body)
     r = _get(conn, rule_id)
     if body.revision != r["revision"]:
         raise conflict("stale_revision", "החוק השתנה בינתיים; טען מחדש.", current_revision=r["revision"], sent_revision=body.revision)

@@ -72,6 +72,13 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         media_store.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("media janitor failed", exc_info=True)
+    try:  # MU2: announcement log rows older than 90 days
+        from .services import announcements as announcements_svc
+
+        with db.connection(label="announce.prune") as conn:
+            announcements_svc.prune(conn)
+    except Exception:  # noqa: BLE001
+        log.warning("announcements janitor failed", exc_info=True)
     try:  # CR-023 P2: automatic electricity bills at the end of each period (throttled to every 5 minutes; idempotent)
         from .services import energy_billing
 
@@ -342,6 +349,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import cast_sessions as cast_svc
 
     cast_svc.attach(app.state.db, settings)  # the relay's callbacks and the live tokens of open casts (an add-on restart keeps them)
+    from .routers import announcements as announcements_router
+    from .services import announcements as announcements_svc
+
+    app.include_router(announcements_router.router, prefix=api, tags=["multimedia"])  # MU2: הכרזות קוליות - speak, setup, test, history
+    announcements_svc.attach(app.state.db, settings)  # a rule's announce action writes its log through this
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
