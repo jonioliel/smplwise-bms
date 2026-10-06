@@ -132,7 +132,7 @@ class FakeFrigate:
         self.cases: list[dict[str, Any]] = [{"id": "case_foreign", "name": "made in Frigate", "description": "", "created_at": T0 - 4000.0, "updated_at": T0 - 4000.0}]
         self.export_reply_id = True
         # F2b clip read: `clip` is the body served for any clip.mp4 GET; `clip_status` / `clip_ctype` force an answer; `clip_hits` lists the clip GETs
-        self.clip = b"   ftypmp42" + b"fake-clip-bytes-" * 64
+        self.clip = b"\x00\x00\x00ftypmp42" + b"fake-clip-bytes-" * 64
         self.clip_status = 200
         self.clip_ctype = "video/mp4"
         self.clip_hits: list[str] = []
