@@ -1,3 +1,5 @@
+import '../components/sw-second-factor';
+import { t } from '../i18n/he';
 import './system-alarm'; // CR-010: the user's alarm code policy in the user drawer
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -788,6 +790,7 @@ export class SystemAccess extends LitElement {
                             <sw-button size="sm" variant="ghost" @click=${() => (this.remoteOff = null)}>ביטול</sw-button>
                           </div>`
                         : nothing}</dd>`}
+                    ${!dir.delegated && can('system.configure') ? html`<dt>${t('secondFactor.adminLabel')}</dt><dd data-second-factor-user><sw-second-factor-user .userId=${u.id}></sw-second-factor-user></dd>` : nothing}
                     ${!dir.delegated && can('system.configure') ? html`<dt>אזעקה</dt><dd data-alarm-user-policy><system-alarm-user .userId=${u.id} ?canEdit=${!this.busy}></system-alarm-user></dd>` : nothing}
                   </dl>
                   <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>

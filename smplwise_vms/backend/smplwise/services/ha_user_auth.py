@@ -639,14 +639,14 @@ class RefusalAudits:
 
 
 REFUSAL_AUDITS = RefusalAudits()
-THROTTLED_REASONS = ("rate_limited_ip", "rate_limited_user")
+THROTTLED_REASONS = ("rate_limited_ip", "rate_limited_user", "second_factor_locked")
 
 
 def _throttle_key(reason: str, meta: dict[str, Any], subject: str | None) -> str:
     """One row per reason and per WHO it concerns: a per-user limit is keyed by the user (many users behind one address
     each get their row, and one address walking through several users' tokens does not hide behind a single row); an
     address limit by the address."""
-    if reason == "rate_limited_user" and subject:
+    if reason in ("rate_limited_user", "second_factor_locked") and subject:
         return f"{reason}|user:{subject}"
     return f"{reason}|{meta.get('client_ip', '')}"
 
@@ -915,6 +915,58 @@ def _audit(db, *, actor: Principal | None, action: str, decision: str, reason: s
         log.exception("could not write the %s audit row", action)
 
 
+# ---------------------------------------------------------------- the optional second factor (K11, services/second_factor.py)
+
+SECOND_FACTOR_HEADER = "x-arx-second-factor"
+
+
+def second_factor_need(conn, principal: Principal, replaces: str | None) -> str:
+    """What a NEW remote sign-in must still show: `code` (the user enrolled a TOTP), `enroll` (security.second_factor_policy
+    = admins and an administrator has none), else `none`. The rotation of the caller's own live session (same user, cookie)
+    is not a new sign-in: the factor was shown when that session began."""
+    from ..rbac import permissions_anywhere
+    from . import second_factor as sf
+
+    old = STORE.get(replaces) if replaces else None
+    if old is not None and old.principal.user_id == principal.user_id and old.via == "cookie":
+        return "none"
+    if sf.is_enrolled(conn, principal.user_id):
+        return "code"
+    if sf.policy(conn) == "admins" and set(permissions_anywhere(conn, principal)) & ADMIN_PERMISSIONS:
+        return "enroll"
+    return "none"
+
+
+async def _check_second_factor(app_state: Any, settings: Settings, conn_like: Any, principal: Principal, meta: dict[str, Any]) -> None:
+    """The code of a new sign-in of an enrolled user, from the `X-Arx-Second-Factor` header: absent -> 401
+    `second_factor_required` (the page asks for it and retries); wrong -> 401 `second_factor_invalid`; locked out -> 429.
+    Failures are audited (the method and the reason only, never the code)."""
+    from starlette.concurrency import run_in_threadpool
+
+    from . import second_factor as sf
+
+    code = (conn_like.headers.get(SECOND_FACTOR_HEADER) or "").strip()
+    if not code:
+        raise ApiError(401, "second_factor_required", sf.REQUIRED_HE)
+
+    def check() -> sf.SecondFactorError | None:
+        with app_state.db.connection(label="auth/session second factor") as conn:
+            try:
+                sf.verify(conn, settings, principal.user_id, code)
+            except sf.SecondFactorError as exc:
+                return exc
+        return None
+
+    err = await run_in_threadpool(check)
+    if err is None:
+        return
+    reason = {"locked": "second_factor_locked", "unreadable": "second_factor_unreadable"}.get(err.code, "second_factor_invalid")
+    status = 429 if err.code == "locked" else 401
+    await run_in_threadpool(lambda: _audit_refusal(app_state.db, actor=principal, reason=reason, meta={**meta, "method": "totp"},
+                                                    action="auth.second_factor.failed", subject=principal.user_id))
+    raise ApiError(status, reason, err.message, retryable=err.code == "locked")
+
+
 # ---------------------------------------------------------------- the exchange (POST / DELETE auth/session)
 
 async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: str) -> tuple[RemoteSession, int]:
@@ -945,21 +997,31 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
     if not LIMITER.hit(f"user:{ha_user.id}", USER_LIMITS):
         raise await rejected("rate_limited_user", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True), subject=ha_user.id)
 
-    def decide() -> tuple[Principal, ApiError | None, str | None]:
+    replaces = session_id_of(settings, conn_like)
+
+    def decide() -> tuple[Principal, ApiError | None, str | None, str]:
         with db.connection(mode="read", label="auth/session") as conn:
             principal = dataclasses.replace(build_principal(conn, ha_user), via="cookie")
             if chain_revoked(conn, token):
-                return principal, unauthenticated("remote_session_revoked", REVOKED_HE), None
+                return principal, unauthenticated("remote_session_revoked", REVOKED_HE), None, "none"
             refusal = policy_refusal(conn, principal, ha_user)
-            return principal, refusal, None if refusal else remote_basis(conn, principal.user_id)
+            if refusal:
+                return principal, refusal, None, "none"
+            return principal, None, remote_basis(conn, principal.user_id), second_factor_need(conn, principal, replaces)
 
-    principal, refusal, basis = await run_in_threadpool(decide)
+    principal, refusal, basis, factor = await run_in_threadpool(decide)
     if refusal is not None:
         if refusal.code == "remote_session_revoked":
             _remember_rejected(token)
         raise await rejected(refusal.code, refusal, principal)
+    if factor == "enroll":
+        from . import second_factor as sf
+
+        raise await rejected("second_factor_enrollment_required", ApiError(403, "second_factor_enrollment_required", sf.ENROLL_REQUIRED_HE), principal)
+    if factor == "code":
+        await _check_second_factor(app_state, settings, conn_like, principal, meta)
     try:
-        session = STORE.create(principal, ha_user, token, exp, ip, replaces=session_id_of(settings, conn_like), meta=meta,
+        session = STORE.create(principal, ha_user, token, exp, ip, replaces=replaces, meta=meta,
                                client_id=arx_client_id(settings, conn_like))
     except ChainRevoked:  # review M2: a revoke of this sign-in landed while the token was being validated
         _remember_rejected(token)

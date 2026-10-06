@@ -1,3 +1,4 @@
+import { t } from '../i18n/he';
 import { LitElement, html, css, nothing } from 'lit';
 import './plan-area-links-admin';
 import { customElement, state } from 'lit/decorators.js';
@@ -1004,7 +1005,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
+    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'security.second_factor_policy', 'remote.max_live_streams', 'remote.wall_profile'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -1031,6 +1032,8 @@ export class SystemDiagnostics extends LitElement {
           : nothing}
         <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
           ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
+        <div class="row" data-second-factor-policy-row><span class="lbl">${t('secondFactor.policyLabel')}</span>
+          ${sel('security.second_factor_policy', 'optional', [['optional', t('secondFactor.policyOptional')], ['admins', t('secondFactor.policyAdmins')]])}</div>
       </sw-card>
       ${api
         ? html`<sw-card heading="כניסות פעילות מרחוק" subheading=${this.canEdit ? 'כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.' : 'הכניסות הפעילות שלך מרחוק.'} data-card="remote.sessions" data-remote-sessions-card>

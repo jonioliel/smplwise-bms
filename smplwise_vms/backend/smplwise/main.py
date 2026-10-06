@@ -340,6 +340,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(nvr_batch_router.router, prefix=api, tags=["nvr"])  # CR-020 S2C: multi-camera stream batches (background runner)
     from .routers import remote as remote_router
 
+    from .routers import second_factor as second_factor_router
+
+    app.include_router(second_factor_router.router, prefix=api, tags=["remote"])  # K11: the optional TOTP second factor (own enrolment, admin reset)
     app.include_router(remote_router.router, prefix=api, tags=["remote"])  # CR-008: auth/session, the remote-access flag
     from .routers import cast as cast_router
 
