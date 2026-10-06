@@ -1,0 +1,729 @@
+﻿[run_smart] linux-pixel pilot/flaky-fixes -> שרת הריצה (אובונטו) (workers=2): בדיקות פיקסל של לינוקס רצות רק בשרת הריצה (עומס 9.9, זיכרון פנוי 13.7GB)
+== spec pilot/flaky-fixes @ 25ce3e07 in /home/sw/work/pilot-flaky-fixes
+
+Running 60 tests using 2 workers
+
+[1/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[2/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+  1) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      425 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-classic-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-classic-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-classic-settings-1440 (image/png) ───────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-classic-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat1/enc-classic-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat1/enc-classic-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat1/error-context.md
+
+
+  2) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      425 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-classic-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-classic-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-classic-settings-1440 (image/png) ───────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-classic-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop/enc-classic-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop/enc-classic-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop/error-context.md
+
+
+[3/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[4/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+  3) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      535 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-domus-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-domus-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-domus-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-domus-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat1/enc-domus-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat1/enc-domus-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat1/error-context.md
+
+
+  4) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      535 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-domus-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-domus-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-domus-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-domus-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop/enc-domus-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop/enc-domus-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop/error-context.md
+
+
+[5/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[6/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+  5) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      713 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-tesla-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-tesla-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-tesla-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-tesla-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop/enc-tesla-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop/enc-tesla-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop/error-context.md
+
+
+  6) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      713 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-tesla-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-tesla-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-tesla-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-tesla-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat1/enc-tesla-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat1/enc-tesla-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat1/error-context.md
+
+
+[7/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[8/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[9/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[10/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+  7) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      425 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-classic-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-classic-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-classic-settings-1440 (image/png) ───────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-classic-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat2/enc-classic-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat2/enc-classic-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat2/error-context.md
+
+
+  8) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      425 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-classic-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-classic-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-classic-settings-1440 (image/png) ───────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-classic-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat3/enc-classic-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat3/enc-classic-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat3/error-context.md
+
+
+[11/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[12/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+  9) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      535 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-domus-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-domus-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-domus-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-domus-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat3/enc-domus-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat3/enc-domus-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat3/error-context.md
+
+
+  10) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      535 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-domus-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-domus-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-domus-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-domus-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat2/enc-domus-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat2/enc-domus-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat2/error-context.md
+
+
+[13/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[14/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+  11) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      713 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-tesla-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-tesla-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-tesla-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-tesla-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat3/enc-tesla-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat3/enc-tesla-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat3/error-context.md
+
+
+  12) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      713 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-tesla-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-tesla-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-tesla-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-tesla-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat2/enc-tesla-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat2/enc-tesla-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat2/error-context.md
+
+
+[15/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[16/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[17/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[18/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[19/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[20/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[21/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[22/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[23/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[24/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[25/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[26/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[27/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[28/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[29/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[30/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[31/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[32/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[33/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+  13) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      425 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-classic-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-classic-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 425 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-classic-settings-1440 (image/png) ───────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-classic-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat4/enc-classic-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat4/enc-classic-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-9f420-stable-settings-and-preview-desktop-repeat4/error-context.md
+
+
+[34/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[35/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[36/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[37/60] [tablet] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[38/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[39/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[40/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+  14) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      535 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-domus-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-domus-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 535 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-domus-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-domus-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat4/enc-domus-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat4/enc-domus-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-93af9-stable-settings-and-preview-desktop-repeat4/error-context.md
+
+
+[41/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[42/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+  15) [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+
+    Error: expect(page).toHaveScreenshot(expected) failed
+
+      713 pixels (ratio 0.01 of all image pixels) are different.
+
+      Snapshot: enc-tesla-settings-1440.png
+
+    Call log:
+      - Expect "toHaveScreenshot(enc-tesla-settings-1440.png)" with timeout 5000ms
+        - verifying given screenshot expectation
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+      - waiting 100ms before taking screenshot
+      - taking page screenshot
+        - disabled all CSS animations
+      - waiting for fonts to load...
+      - fonts loaded
+      - captured a stable screenshot
+      - 713 pixels (ratio 0.01 of all image pixels) are different.
+
+
+      52 |       const settingsName = `enc-${skin}-settings-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+      53 |       if (noBaseline(info, settingsName)) test.info().annotations.push({ type: 'skipped-pixel', description: `${settingsName}: no baseline on ${process.platform}` });
+    > 54 |       else await expect(page).toHaveScreenshot(settingsName, { maxDiffPixels: 40, animations: 'disabled' });
+         |                               ^
+      55 |       await page.locator(`${DLG} [data-nvr-enc-preview]`).click();
+      56 |       await expect(page.locator(DLG)).toHaveAttribute('data-phase', 'preview');
+      57 |       await settlePage(page);
+        at /home/sw/work/pilot-flaky-fixes/frontend/tests/pixel-nvr-encoding-batch.spec.ts:54:31
+
+    attachment #1: enc-tesla-settings-1440 (image/png) ─────────────────────────────────────────────
+    Expected: tests/pixel-nvr-encoding-batch.spec.ts-snapshots/enc-tesla-settings-1440-desktop-linux.png
+    Received: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat4/enc-tesla-settings-1440-actual.png
+    Diff:     test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat4/enc-tesla-settings-1440-diff.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/pixel-nvr-encoding-batch-p-32d42-stable-settings-and-preview-desktop-repeat4/error-context.md
+
+
+[43/60] [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[44/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[45/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[46/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[47/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[48/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[49/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[50/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[51/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[52/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[53/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[54/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview
+[55/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[56/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview
+[57/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[58/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview
+[59/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+[60/60] [mobile] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › bubble is pixel-stable: settings and preview
+  15 failed
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › classic is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › domus is pixel-stable: settings and preview 
+    [desktop] › tests/pixel-nvr-encoding-batch.spec.ts:43:5 › pixel: the bulk encoding change › tesla is pixel-stable: settings and preview 
+  20 skipped
+  25 passed (2.1m)
+רץ על שרת הריצה (אובונטו) כי בדיקות פיקסל של לינוקס רצות רק בשרת הריצה (עומס 9.9, זיכרון פנוי 13.7GB)

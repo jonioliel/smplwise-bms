@@ -1,0 +1,247 @@
+[run_smart] preview pilot/flaky-fixes -> שרת הריצה (אובונטו) (workers=2): העבודה נתמכת רק בשרת הריצה (עומס 18.4, זיכרון פנוי 13.7GB)
+== preview pilot/flaky-fixes @ 25ce3e07 in /home/sw/work/pilot-flaky-fixes
+
+Running 120 tests using 2 workers
+
+[1/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[2/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[3/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[4/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[5/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:14:58 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:14:59 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[6/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[7/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[8/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[9/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[10/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[11/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[12/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[13/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:03 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:15:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[14/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[15/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[16/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[17/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[18/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[19/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[20/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[21/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:08 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:15:09 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[22/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[23/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[24/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[25/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[26/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[27/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[28/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[29/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:13 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:15:14 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[30/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[31/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[32/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[33/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[34/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[35/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[36/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[37/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:15:18 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:15:19 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[38/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[39/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[40/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[41/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[42/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[43/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[44/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[WebServer] 7:15:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[45/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:15:24 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[46/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[47/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[48/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[49/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[50/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[51/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[52/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[53/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:28 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:15:29 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[54/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[55/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[56/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[57/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[58/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[59/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[60/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[61/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:33 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:15:34 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[62/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[63/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[64/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[65/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[66/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[67/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[68/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[WebServer] 7:15:38 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[69/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:15:39 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[70/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[71/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[72/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[73/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[74/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[75/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[76/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[WebServer] 7:15:43 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[77/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:44 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[78/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[79/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[80/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[81/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[82/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[83/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[84/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+
+[WebServer] 7:15:48 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[85/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:15:49 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[86/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[87/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[88/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[89/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[90/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[91/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[92/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[93/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:15:53 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:15:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[94/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[95/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[96/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[97/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[98/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[99/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[100/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+
+[WebServer] 7:15:58 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[101/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:15:59 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[102/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[103/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[104/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[105/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[106/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[107/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[108/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[109/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:16:03 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:16:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[110/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[111/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[112/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+[113/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[114/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[115/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[116/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+
+[WebServer] 7:16:08 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[117/120] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:16:09 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[118/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:10:1 › deep links resolve under the base the worker is registered for
+[119/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:17:1 › anything but an in-app hash route opens the app base
+[120/120] [mobile] › tests/unit-pwa-deeplink.spec.ts:24:1 › channel and scope helpers
+  120 passed (1.3m)
+רץ על שרת הריצה (אובונטו) כי העבודה נתמכת רק בשרת הריצה (עומס 18.4, זיכרון פנוי 13.7GB)

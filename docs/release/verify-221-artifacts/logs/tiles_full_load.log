@@ -1,0 +1,862 @@
+﻿[run_smart] preview pilot/flaky-fixes -> שרת הריצה (אובונטו) (workers=2): העבודה נתמכת רק בשרת הריצה (עומס 17.1, זיכרון פנוי 13.7GB)
+== preview pilot/flaky-fixes @ 25ce3e07 in /home/sw/work/pilot-flaky-fixes
+
+Running 195 tests using 2 workers
+
+[1/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[2/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:17:21 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:21 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[3/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+[4/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:17:25 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:17:25 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[5/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[6/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:17:31 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:17:31 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[7/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[8/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:17:34 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:17:34 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[9/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+[10/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:17:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[11/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[12/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[13/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[14/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[15/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[16/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:17:41 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:41 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[17/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[18/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:17:43 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:17:44 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[19/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+[20/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+[WebServer] 7:17:46 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:47 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[21/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[22/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:17:49 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:50 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[23/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+[24/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:17:53 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:17:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[25/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:17:56 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[26/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:17:57 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[27/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[28/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:18:00 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:18:01 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[29/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:18:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[30/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+[WebServer] 7:18:05 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[31/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:18:10 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[32/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:18:11 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[33/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:18:13 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[34/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:18:14 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[35/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:18:15 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[36/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:18:16 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[37/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[38/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[39/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[40/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[41/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+
+[WebServer] 7:18:19 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[42/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:18:20 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[43/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:18:22 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[44/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[WebServer] 7:18:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[45/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:18:25 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[46/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:18:27 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[47/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:18:28 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[48/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:18:29 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[49/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:18:32 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[50/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:18:33 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[51/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:18:35 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[52/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:18:36 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[53/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:18:39 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[54/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:18:40 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[55/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:18:43 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[56/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:18:45 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[57/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:18:49 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[58/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:18:51 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[59/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:18:53 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[60/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[61/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:18:55 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 7:18:55 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[62/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:18:57 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[63/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[64/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[65/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:19:00 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[66/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[67/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[68/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+
+[WebServer] 7:19:02 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[69/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:19:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[70/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:19:06 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[71/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:19:07 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[72/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:19:09 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[73/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:19:10 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[74/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:19:12 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[75/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:19:14 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[76/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+[WebServer] 7:19:16 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[77/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:19:18 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[78/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:19:20 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[79/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:19:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[80/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:19:24 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[81/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:19:28 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[82/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+[WebServer] 7:19:29 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[83/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:19:34 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[84/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:19:36 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[85/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:19:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[86/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[87/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+[WebServer] 7:19:40 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 7:19:40 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[88/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+[WebServer] 7:19:42 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[89/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[90/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[91/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:19:44 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[92/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[93/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[94/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+
+[WebServer] 7:19:46 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[95/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[WebServer] 7:19:48 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[96/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:19:50 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[97/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+[WebServer] 7:19:51 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[98/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:19:53 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[99/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[WebServer] 7:19:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[100/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:19:56 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[101/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:19:58 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[102/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:20:00 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[103/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:20:02 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[104/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:20:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[105/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:20:06 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[106/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:20:08 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[107/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+[WebServer] 7:20:11 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[108/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:20:13 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[109/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:20:17 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[110/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:20:19 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[111/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:20:20 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[112/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[113/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:20:22 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:20:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[114/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+[WebServer] 7:20:25 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[115/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[116/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[117/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+
+[WebServer] 7:20:27 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[118/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[119/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[120/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:20:29 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[121/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:20:30 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[122/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[WebServer] 7:20:32 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[123/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:20:34 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[124/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:20:36 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[125/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[WebServer] 7:20:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[126/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:20:39 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[127/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:20:41 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[128/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:20:43 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[129/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:20:45 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[130/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:20:46 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[131/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:20:49 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[132/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:20:51 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[133/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:20:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[134/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+[WebServer] 7:20:56 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[135/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:21:00 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[136/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:21:02 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[137/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[WebServer] 7:21:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[138/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[WebServer] 7:21:06 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[139/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:21:07 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[140/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:21:08 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[141/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[142/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[143/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[144/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[145/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[146/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+
+[WebServer] 7:21:12 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:21:13 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[147/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[148/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:21:16 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:21:17 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[149/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+[150/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:21:20 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:21:20 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[151/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[152/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[WebServer] 7:21:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 7:21:24 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[153/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:21:27 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[154/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+[WebServer] 7:21:29 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[155/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:21:31 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[156/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+[WebServer] 7:21:33 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[157/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:21:35 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[158/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+
+[WebServer] 7:21:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[159/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:21:40 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[160/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:21:43 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[161/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[WebServer] 7:21:47 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[162/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+[163/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:21:50 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:21:51 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[164/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+[165/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:21:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 7:21:54 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[166/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:21:56 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[167/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[168/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[169/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[170/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+
+[WebServer] 7:21:59 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[171/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[172/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+[WebServer] 7:22:01 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[173/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:22:03 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[174/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+
+[WebServer] 7:22:04 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[175/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:22:07 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[176/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+[WebServer] 7:22:08 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[177/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:22:10 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[178/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+[WebServer] 7:22:11 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[179/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:22:14 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[180/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:22:16 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[181/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:22:18 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[182/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:22:19 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[183/195] [mobile] › tests/unit-devices-tiles.spec.ts:50:3 › overview tiles (demo data) › a tile is a button that opens the panel with its items; filter, search, read-only reason; Escape closes and focus returns
+[WebServer] 7:22:23 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[184/195] [mobile] › tests/unit-devices-tiles.spec.ts:96:3 › overview tiles (demo data) › focus is trapped in the panel (Tab and Shift+Tab wrap) and the page behind is inert
+
+[WebServer] 7:22:27 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[185/195] [mobile] › tests/unit-devices-tiles.spec.ts:116:3 › overview tiles (demo data) › deep link: #/devices/building?domain=covers&floor=first&filter=active opens the panel on that floor
+
+[WebServer] 7:22:32 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[186/195] [mobile] › tests/unit-devices-tiles.spec.ts:134:3 › overview tiles (demo data) › a floor chip (tiles view) opens the panel for that floor
+
+[WebServer] 7:22:35 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[187/195] [mobile] › tests/unit-devices-tiles.spec.ts:146:3 › overview tiles (demo data) › compact tiles: a rectangle 44-80 px tall, two columns at 390 px, the icon at the end of the text (the left in Hebrew); cards above 600 px with auto; an override wins
+
+[WebServer] 7:22:37 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[188/195] [mobile] › tests/unit-devices-tiles.spec.ts:194:3 › overview tiles (demo data) › desktop: the home screen's summary tiles are small rectangles by default (auto), tall cards only on an explicit choice; the Live tiles link to their screens
+[189/195] [mobile] › tests/unit-devices-tiles.spec.ts:219:3 › overview tiles (demo data) › the building tree: names take the row, counts line up in one column; no needless scrolling at 1920x1080
+[190/195] [mobile] › tests/unit-devices-tiles.spec.ts:248:3 › overview tiles (demo data) › no horizontal overflow with the panel open (desktop + phone)
+
+[WebServer] 7:22:42 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[191/195] [mobile] › tests/unit-devices-tiles.spec.ts:275:3 › owner answers 2026-09-29 (demo data) › floor cards carry the domain chips (icon + count, words in the tooltip); a chip opens the panel for that floor
+[WebServer] 7:22:45 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[192/195] [mobile] › tests/unit-devices-tiles.spec.ts:289:3 › owner answers 2026-09-29 (demo data) › the Live cameras tile opens the FULL camera list with the offline cameras first, marked "מנותקת"
+
+[WebServer] 7:22:48 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[193/195] [mobile] › tests/unit-devices-tiles.spec.ts:301:3 › review fixes (demo data) › M1: Back closes the panel (its own history entry) and stays on the building screen; a filter adds no entry
+
+[WebServer] 7:22:51 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[194/195] [mobile] › tests/unit-devices-tiles.spec.ts:323:3 › review fixes (demo data) › M2 / M3 / M6: the page behind does not scroll while the panel is open; a drag ending outside never closes it; no empty footer bar
+
+[WebServer] 7:22:55 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[195/195] [mobile] › tests/unit-devices-tiles.spec.ts:344:3 › review fixes (demo data) › M6: on a phone the Live events tile keeps its value and label together - the badge rides the corner
+
+[WebServer] 7:22:58 PM [vite] http proxy error: /api/v1/me
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+  30 skipped
+  165 passed (5.7m)
+רץ על שרת הריצה (אובונטו) כי העבודה נתמכת רק בשרת הריצה (עומס 17.1, זיכרון פנוי 13.7GB)

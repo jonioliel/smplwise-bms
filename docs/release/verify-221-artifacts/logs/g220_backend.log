@@ -1,0 +1,12 @@
+﻿[run_smart] backend pilot/gaps-220 -> שרת הריצה (אובונטו) (workers=2): בררת מחדל, שרת הריצה (אובונטו) פנוי (עומס 0.1, זיכרון פנוי 14.3GB)
+== backend pilot/gaps-220 @ d1bdd7ee in /home/sw/work/pilot-gaps-220
+........................................................................ [ 60%]
+................................................                         [100%]
+=============================== warnings summary ===============================
+../../../../smplwisebms/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/sw/smplwisebms/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+120 passed, 1 warning in 175.54s (0:02:55)
+רץ על שרת הריצה (אובונטו) כי בררת מחדל, שרת הריצה (אובונטו) פנוי (עומס 0.1, זיכרון פנוי 14.3GB)
