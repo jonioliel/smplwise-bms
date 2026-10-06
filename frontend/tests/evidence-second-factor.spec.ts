@@ -89,11 +89,11 @@ test('own factor: off by default, enrol with a QR code and a first code, then di
   expect(box && box.width >= 150 && Math.abs(box.width - box.height) < 1).toBe(true);
   await shot(page, 'k11-enrol');
   if (process.env.SW_SHOTS) {
-    // guide image: a taller window so the QR code, the typed key and the code field are all in view (the fixture key is made up)
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    // guide image: the account panel only, scrolled so the QR code, the typed key and the code field are all in view (the fixture key is made up)
     await section.locator('[data-sf-code]').fill('123456');
-    await shot(page, 'k11-enrol-guide');
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await section.locator('[data-sf-code]').scrollIntoViewIfNeeded();
+    fs.mkdirSync(OUT, { recursive: true });
+    await page.locator('sw-app sw-user-menu [data-profile-menu-panel]').screenshot({ path: path.join(OUT, 'k11-enrol-guide-panel.png') });
     await section.locator('[data-sf-code]').fill('');
   }
 
