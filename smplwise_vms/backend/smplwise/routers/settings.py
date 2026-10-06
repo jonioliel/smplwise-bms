@@ -238,6 +238,7 @@ DEFAULTS: dict[str, str] = {
     "remote.idle_lock_minutes": "720",  # the idle lock of rolling_90d_idle_lock
     "remote.default_profile": "main",  # main | sub: the stream a remote viewer gets first, over WebRTC (D7)
     "remote.mse_fallback": "true",  # MSE through the tunnel only as an announced last resort; false = never (D7)
+    "security.second_factor_policy": "optional",  # K11 (owner 2026-10-06): the TOTP second factor is optional; "admins" refuses a remote sign-in of an administrator who has none
     "remote.require_mfa_admin": "false",  # D8 (owner 2026-09-29: MFA optional): true refuses admin-permission users without HA MFA remotely
     # CR-008 P2 (hardening): live streams one remote sign-in (a browser / a bearer client) may hold open at once - the
     # next start answers 429; the installation-wide media.max_live_sessions still applies on top
@@ -607,6 +608,7 @@ class SettingsPatch(BaseModel):
     remote_default_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.default_profile")
     remote_wall_profile: str | None = Field(default=None, pattern="^(main|sub)$", alias="remote.wall_profile")
     remote_mse_fallback: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.mse_fallback")
+    security_second_factor_policy: str | None = Field(default=None, pattern="^(optional|admins)$", alias="security.second_factor_policy")
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
