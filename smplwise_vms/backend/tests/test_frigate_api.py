@@ -73,6 +73,9 @@ class World:
 def world(settings, monkeypatch):
     from smplwise.main import create_app
 
+    # the poll cursor lives in a module-level dict: every consumer of this fixture (test_frigate_join imports it without this module's
+    # autouse `_clean`) starts from, and leaves, an empty one - a leaked cursor moves the first poll's window past the oldest review
+    fe.STATES.clear()
     fake = FakeFrigate()
     monkeypatch.setattr(fr, "TRANSPORT", fake.transport())
     s = settings_for(settings)
@@ -84,6 +87,7 @@ def world(settings, monkeypatch):
             time.sleep(0.05)
         assert len(w.cams()) == 3, "start-up discovery imported the cameras"
         yield w
+        fe.STATES.clear()
         for body in w.bodies:
             for leak in LEAKS:
                 assert leak not in body, f"{leak!r} leaked into an API body"
