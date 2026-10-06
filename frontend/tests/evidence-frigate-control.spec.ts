@@ -169,6 +169,10 @@ test.describe('settings: management of the writes', () => {
     await expect(box.locator('[data-change="ch3"] [data-change-undo]')).toHaveCount(0);
     await noOverflow(page);
     await shot(page, 'settings-log');
+    if (process.env.SW_SHOTS) {
+      fs.mkdirSync(OUT, { recursive: true });
+      await box.screenshot({ path: path.join(OUT, `settings-control-card-${test.info().project.name}.png`) });
+    }
     await box.locator('[data-change="ch1"] [data-change-undo]').click();
     await expect.poll(() => writes(m, 'changes/ch1/revert').length).toBe(1);
     expect(writes(m, 'changes/ch1/revert')[0]).toContain('{"confirm":false}');

@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Owner request 2026-10-06: the Arx sign-in page offers the Android app only to an Android device, and only when the public
 // answer carries an https address. The page is mounted directly (the dev server runs the demo shell, not the remote channel)
@@ -47,6 +50,11 @@ test.describe('Android device', () => {
     await expect(login.locator('[data-arx-android-sha] code')).toHaveText(SHA);
     expect(hits).toHaveLength(1);
     await page.screenshot({ path: test.info().outputPath('login-android-offer.png') });
+    if (process.env.SW_SHOTS) {
+      const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/android-download');
+      fs.mkdirSync(dir, { recursive: true });
+      await page.screenshot({ path: path.join(dir, `login-android-offer-${test.info().project.name}.png`) });
+    }
   });
 
   test('bundled in the add-on: the link is the local route, with version, size and hash', async ({ page }) => {

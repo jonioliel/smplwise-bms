@@ -1489,5 +1489,275 @@
     "evidence_from": [
       "docs/evidence/tabs-dropdown/home-areas-dropdown-open-390-light.png"
     ]
+  },
+  {
+    "id": "frigate-review",
+    "name_he": "סקירה (מקליט Frigate)",
+    "section": "investigate",
+    "route": "#/investigate/reviews",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f1b/review-ready-desktop.png"
+    ]
+  },
+  {
+    "id": "frigate-review-drawer",
+    "name_he": "סקירה - מגירת פריט",
+    "section": "investigate",
+    "route": "#/investigate/reviews",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f1b/review-drawer-desktop.png"
+    ]
+  },
+  {
+    "id": "frigate-settings",
+    "name_he": "מקליט Frigate ברשימת המקליטים",
+    "section": "settings",
+    "route": "#/settings/connections",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f1b/settings-frigate-saved-desktop.png"
+    ]
+  },
+  {
+    "id": "frigate-health",
+    "name_he": "בריאות מקליטים",
+    "section": "settings",
+    "route": "#/settings/health",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f1b/health-frigate-desktop.png"
+    ]
+  },
+  {
+    "id": "plan-export-row",
+    "name_he": "עורך תוכנית - שורת הייצוא",
+    "section": "plan-studio",
+    "route": "#/explore/plan-editor",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-21-plan-studio_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/plan-package/editor-exports-desktop.png"
+    ]
+  },
+  {
+    "id": "plan-package-import",
+    "name_he": "ייבוא חבילת תוכנית",
+    "section": "plan-studio",
+    "route": "#/explore/plan-editor",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-21-plan-studio_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/plan-package/dialog-replace-desktop.png"
+    ]
+  },
+  {
+    "id": "cast-picker",
+    "name_he": "שידור למסך - בורר מסכים",
+    "section": "cameras",
+    "route": "#/live",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-028/cast1-ui/picker-open-1440.png"
+    ]
+  },
+  {
+    "id": "cast-live",
+    "name_he": "שידור למסך - מצלמה בלייב",
+    "section": "cameras",
+    "route": "#/live",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/CR-028/cast1-ui/live-casting-1440.png"
+    ]
+  },
+  {
+    "id": "generator-live",
+    "name_he": "גנרטור - מצב חי",
+    "section": "infra",
+    "route": "#/infra/generator",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-44-generator_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/generator/live-full-run-desktop-light.png"
+    ]
+  },
+  {
+    "id": "wall-settings",
+    "name_he": "מסכי קיר - עריכת מסך",
+    "section": "settings",
+    "route": "#/settings/wall",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-45-wall-mode_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/evidence/CR-030-WDX/wdx-settings-drawer.png"
+    ]
+  },
+  {
+    "id": "device-activity",
+    "name_he": "חלונית פעילות להתקן",
+    "section": "devices",
+    "route": "#/devices",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-40-devices_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/device-activity/feed-classic-1440-light.png"
+    ]
+  },
+  {
+    "id": "announcements-settings",
+    "name_he": "הגדרות › מולטימדיה › הכרזות קוליות",
+    "section": "multimedia",
+    "route": "#/system/multimedia?tab=announce",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/mu2/announce-desktop.png"
+    ]
+  },
+  {
+    "id": "login-android-offer",
+    "name_he": "מסך כניסה במכשיר Android: הצעת הורדת האפליקציה",
+    "section": "settings",
+    "route": "(מסך הכניסה מרחוק)",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "viewer"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/android-download/login-android-offer-desktop.png"
+    ]
+  },
+  {
+    "id": "second-factor-enrol",
+    "name_he": "החשבון שלי: הפעלת אימות דו-שלבי (QR ושדה קוד)",
+    "section": "settings",
+    "route": "(תפריט משתמש › החשבון שלי)",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "viewer"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/K11/k11-enrol-guide-panel.png"
+    ]
+  },
+  {
+    "id": "frigate-control-settings",
+    "name_he": "שינויים ב-Frigate: סוגי פעולה, מיפוי אזעקה ויומן",
+    "section": "settings",
+    "route": "#/system/setup",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f2/settings-control-card-desktop.png"
+    ]
   }
 ]
