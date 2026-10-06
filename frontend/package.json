@@ -10,7 +10,9 @@
     "build:addon": "tsc --noEmit && vite build --outDir ../smplwise_vms/www --emptyOutDir",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit",
-    "shots": "playwright test -c playwright.config.ts"
+    "shots": "playwright test -c playwright.config.ts",
+    "visual": "node scripts/visual.mjs",
+    "visual:test": "node --test scripts/visual.test.mjs"
   },
   "dependencies": {
     "lit": "^3.3.3",
