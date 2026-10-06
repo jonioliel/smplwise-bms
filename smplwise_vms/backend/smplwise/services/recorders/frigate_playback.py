@@ -24,6 +24,7 @@ DENSITY_BUCKET_S = 60
 PLAYLIST_MAX_WINDOW_S = 6 * 3600   # one VOD playlist covers at most this
 EXPORT_PLAN_MAX_WINDOW_S = 3600    # a clip the design allows (the Arx export store has its own size limits)
 EXPORT_PLAN_MAX_BYTES = 2_000_000_000
+EVENT_ID = re.compile(r"^[0-9]{9,11}(?:\.[0-9]+)?-[A-Za-z0-9]{4,10}$")
 ASSET_NAME = re.compile(r"^(init-v\d+\.mp4|seg-\d+-v\d+\.m4s)$")
 MAP_URI = re.compile(r'(#EXT-X-MAP:.*?URI=")([^"]*)(")')
 

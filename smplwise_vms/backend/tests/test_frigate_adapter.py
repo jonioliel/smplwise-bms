@@ -105,7 +105,7 @@ def test_missing_credentials_are_source_not_configured(settings, fake):
 @pytest.mark.parametrize("path", [
     "/api/events/summary",                      # 14 MB unfiltered
     "/api/config/set", "/api/config/raw_paths", "/api/exports", "/api/export/cam_front/start/1/end/2",
-    "/api/cam_front/start/1/end/2/clip.mp4",   # the clip cut is design only
+    "/api/cam_front/start/1/end/2/clip.mp4?x=1", "/api/cam_front/start/1/end/2/clip.mp4/x", "/api/events/1791227000.100000-aaa111/clip.mp4/..", "/api/cam_front/start/a/end/2/clip.mp4",
     "/api/users", "/api/restart", "/api/cam_front/ptz/info", "/ws", "/api/../etc/passwd", "/api/stats/history", "/vod/cam_front/start/1/end/2/../../x.m3u8",
     "/api/cam_front/recordings/1/snapshot.jpg/../../x", "/",
 ])
@@ -410,3 +410,21 @@ def test_clock_drift_from_the_date_header(settings, fake, monkeypatch):
     fake.date_header = "Mon, 05 Oct 2026 18:00:03 GMT"
     drift = adapter(settings, fake).version()[2]
     assert drift is not None and -3600 * 10 < drift < 3600 * 10
+
+
+def test_clip_paths_are_on_the_get_allow_list_only_for_the_two_exact_shapes():
+    for ok in ("/api/cam_front/start/1791227000/end/1791227030/clip.mp4", "/api/events/1791227000.100000-aaa111/clip.mp4"):
+        assert fh.allowed(ok)
+    for bad in ("/api/export/cam_front/start/1/end/2", "/api/cam_front/start/1/end/2/clip.mp4/", "/api/events/1791227000.100000-aaa111/clip.mp4.x",
+                "/api/../cam_front/start/1/end/2/clip.mp4", "/vod/cam_front/clip.mp4"):
+        assert not fh.allowed(bad), bad
+    assert not any(fh.write_allowed(k, "GET", "/api/cam_front/start/1/end/2/clip.mp4") for k in fh.WRITE_ALLOWED)
+
+
+def test_open_stream_refuses_other_paths_before_any_byte(settings, fake):
+    a = adapter(settings, fake)
+    for path in ("/api/users", "/api/export/cam_front/start/1/end/2", "/api/cam_front/ptz/info"):
+        with pytest.raises(ApiError) as e:
+            a.http.open_stream(path)
+        assert e.value.code == "frigate_path_not_allowed"
+    assert fake.hits == []

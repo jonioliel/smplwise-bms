@@ -529,3 +529,102 @@ def test_health_report_probe_handles_frigate(world):
 
     out = health_report._probe_nvr(world.s)
     assert out["status"] == "ok" and out["model"] == "Frigate" and "0.18" in out["firmware"]
+
+
+# ---------------------------------------------------------------------------------------------- clips (H2: read-only, streamed)
+
+def _clip_url(cid, start=None, end=None):
+    return f"{BASE}/cameras/{cid}/clip?start={int(start or T0 - 300)}&end={int(end or T0 - 270)}"
+
+
+def test_clip_streams_through_arx_with_type_and_no_frigate_detail(world):
+    from fake_frigate import CLIP
+
+    cid = world.cams()["cam_front"]
+    r = world.c.get(_clip_url(cid))
+    assert r.status_code == 200 and r.content == CLIP and r.headers["content-type"] == "video/mp4"
+    assert r.headers["content-length"] == str(len(CLIP)) and "no-store" in r.headers["cache-control"] and r.headers["x-content-type-options"] == "nosniff"
+    blob = json.dumps(dict(r.headers))
+    for leak in LEAKS:
+        assert leak not in blob
+    assert world.fake.clip_gets == [f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4"]
+    assert world.fake.non_get == ["POST /api/login"], "only reads"
+
+
+def test_clip_content_type_is_passed_through_only_for_video(world):
+    cid = world.cams()["cam_front"]
+    world.fake.clip_type = "video/x-matroska"
+    assert world.c.get(_clip_url(cid)).headers["content-type"] == "video/x-matroska"
+    world.fake.clip_type = "text/html"
+    r = world.c.get(_clip_url(cid))
+    assert r.status_code == 503 and r.json()["code"] == "source_invalid"
+
+
+def test_clip_size_cap_and_upstream_errors(world, monkeypatch):
+    cid = world.cams()["cam_front"]
+    monkeypatch.setattr(fh, "CLIP_MAX_BYTES", 100)
+    r = world.c.get(_clip_url(cid))
+    assert r.status_code == 503 and r.json()["code"] == "source_too_large"
+    monkeypatch.undo()
+    for status, code in ((404, "not_found"), (500, "source_unavailable"), (403, "source_forbidden")):
+        world.fake.clip_status = status
+        r = world.c.get(_clip_url(cid))
+        assert r.status_code >= 400 and r.json()["code"] == code, status
+    world.fake.clip_status = 200
+    assert world.c.get(_clip_url(cid)).status_code == 200
+
+
+def test_clip_is_cut_short_at_the_cap_when_the_length_is_unknown(world):
+    from smplwise.services.recorders import frigate_http as fhttp
+
+    fake = world.fake
+    fake.clip_body = b"x" * 1000
+    a = fr.FrigateAdapter("nvr-1", world.s, transport=fake.transport())
+    st = a.http.open_stream(f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4", max_bytes=1000)
+    assert b"".join(st.chunks()) == b"x" * 1000
+    st = a.http.open_stream(f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4", max_bytes=10)
+    st.content_length = None
+    assert b"".join(st.chunks()) == b"", "the cap applies to what is actually read, whatever the header said"
+    assert fhttp.CLIP_MAX_BYTES == 150_000_000
+
+
+def test_clip_needs_video_playback_on_that_camera_and_reads_nothing_otherwise(world):
+    cams = world.cams()
+    bind(world.c, world.s, "lena", "operator", "camera", cams["cam_yard"])
+    assert world.c.get(_clip_url(cams["cam_front"]), headers=as_user("lena")).status_code == 403
+    bind(world.c, world.s, "viewer2", "viewer", "installation", "*")
+    assert world.c.get(_clip_url(cams["cam_front"]), headers=as_user("viewer2")).status_code == 403
+    assert world.fake.clip_gets == []
+
+
+def test_clip_window_rules(world):
+    cid = world.cams()["cam_front"]
+    assert world.c.get(_clip_url(cid, T0, T0 - 5)).status_code == 422
+    assert world.c.get(_clip_url(cid, T0 - 100000, T0)).status_code == 422
+    assert world.c.get(f"{BASE}/cameras/{cid}/clip?start=x&end=y").status_code == 422
+    assert world.fake.clip_gets == []
+
+
+def test_event_clip_is_checked_against_the_events_own_camera(world):
+    cams = world.cams()
+    eid = world.fake.reviews[0]["data"]["detections"][0]
+    ok = world.c.get(f"{BASE}/cameras/{cams['cam_front']}/events/{eid}/clip")
+    assert ok.status_code == 200 and ok.headers["content-type"] == "video/mp4"
+    other = world.c.get(f"{BASE}/cameras/{cams['cam_yard']}/events/{eid}/clip")
+    assert other.status_code == 404 and len(world.fake.clip_gets) == 1, "the event belongs to cam_front: no clip bytes were requested for cam_yard"
+    for bad in ("..%2f..%2fx", "abc", "1791227000.100000-aaa111%2Fclip.mp4"):
+        assert world.c.get(f"{BASE}/cameras/{cams['cam_front']}/events/{bad}/clip").status_code in (404, 422), bad
+
+
+def test_clips_in_flight_are_limited_per_recorder(world):
+    from smplwise.routers import frigate as router
+
+    cid = world.cams()["cam_front"]
+    sem = threading.BoundedSemaphore(1)
+    sem.acquire()
+    router._CLIP_SEMS["nvr-1"] = sem
+    r = world.c.get(_clip_url(cid))
+    assert r.status_code == 429 and r.json()["code"] == "frigate_busy" and world.fake.clip_gets == []
+    router._CLIP_SEMS.pop("nvr-1")
+    assert world.c.get(_clip_url(cid)).status_code == 200
+    assert router._clip_sem("nvr-1").acquire(blocking=False), "the slot was released after the stream ended"

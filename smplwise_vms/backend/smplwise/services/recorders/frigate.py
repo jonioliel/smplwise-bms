@@ -542,6 +542,22 @@ class FrigateAdapter:
         reply = self.http.get(f"/vod/{camera}/start/{start:.0f}/end/{end:.0f}/{name}", max_bytes=SEGMENT_MAX_BYTES, timeout=20.0)
         return reply.body, reply.headers.get("content-type", "video/mp4")
 
+    # ------------------------------------------------------------------------------------------ clips (read-only, streamed)
+
+    def clip_window(self, camera: str, start: float, end: float):
+        """The clip of one camera window as an open `ClipStream` (the caller closes it). Frigate cuts the clip; Arx stores nothing."""
+        self._camera(camera)
+        return self.http.open_stream(f"/api/{camera}/start/{start:.0f}/end/{end:.0f}/clip.mp4")
+
+    def event_camera(self, event_id: str) -> str | None:
+        """The camera key an event belongs to (so its clip is authorised on THAT camera), None when Frigate does not say."""
+        data = self.http.get_json(f"/api/events/{q(event_id)}")
+        cam = data.get("camera") if isinstance(data, dict) else None
+        return cam if isinstance(cam, str) and CAMERA_KEY.fullmatch(cam) else None
+
+    def clip_event(self, event_id: str):
+        return self.http.open_stream(f"/api/events/{q(event_id)}/clip.mp4")
+
 
 # ---------------------------------------------------------------------------------------------- registration
 

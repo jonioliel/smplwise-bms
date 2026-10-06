@@ -8,7 +8,8 @@ F1 is READ-ONLY toward Frigate; F2 adds `FrigateHttp.write` with its own, separa
 approval) and never widens `GET_ALLOWED` into a write. The read paths below stay read-only. The traffic this module may send is exactly: one login POST per session and GETs whose path
 matches `GET_ALLOWED`. Every other path is refused locally before a byte is sent (`frigate_path_not_allowed`), as Provision's
 `READ_COMMANDS`. Two routes the study measured as dangerous are not on the list: `/api/events/summary` (14 MB unfiltered) and
-the clip / export family (a GET that makes the server cut a clip: design only until the owner approves a test).
+the export family (`/api/export...`, a write). The `clip.mp4` GETs are read-only and on the list since finding H2 of the
+supervised verification; they are fetched only through `open_stream` (streamed, size and time capped).
 
 Rules kept from the other adapters (ADP section 1): device I/O only (no SQLite, no audit, no permission decisions),
 synchronous and bounded (the `nvr.deadline` contract applies), errors are `ApiError` with the shared codes, and no address,
@@ -64,6 +65,9 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     rf"/clips/review/thumb-{CAM}-{ID}\.webp",
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/index\.m3u8",
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/(?:init-v\d+\.mp4|seg-\d+-v\d+\.m4s)",
+    # The clip family, GET only, read through `FrigateHttp.open_stream` (a streamed, size- and time-capped read; `get` would buffer):
+    rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4",   # the clip of a camera window
+    rf"/api/events/{ID}/clip\.mp4",                    # the clip of one event
 ))
 # F2: reads that exist only to support a write class (a camera's PTZ facts). Not on GET_ALLOWED: the F1 read paths are unchanged, and
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
@@ -99,6 +103,10 @@ IMAGE_MAX_BYTES = 6_000_000
 PLAYLIST_MAX_BYTES = 1_000_000
 SEGMENT_MAX_BYTES = 24_000_000
 READ_TIMEOUT_S = 8.0
+CLIP_MAX_BYTES = 150_000_000    # a clip over this is refused (source_too_large), never silently truncated at the start
+CLIP_READ_TIMEOUT_S = 20.0      # per network read while streaming; Frigate may need a while to cut the clip before the first byte
+CLIP_TOTAL_S = 300.0            # wall-clock cap of one clip transfer
+CLIP_TYPE = re.compile(r"^(?:video/[A-Za-z0-9.+-]{1,40}|application/octet-stream)$")
 LOGIN_TIMEOUT_S = 8.0
 REFUSED_BACKOFF_S = 300.0     # after Frigate refuses the credentials no further login for this long (Frigate rate-limits logins)
 TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews before that (and on any 401)
@@ -117,6 +125,41 @@ def clear_cache() -> None:
     with _LOCK:
         _TOKENS.clear()
         _REFUSED.clear()
+
+
+class ClipStream:
+    """An open, validated, streamed 200 answer. `content_type` / `content_length` are Frigate's (the only headers ever forwarded);
+    `chunks()` yields the body with the size and wall-clock caps enforced; `close()` releases the connection. Built by
+    `FrigateHttp.open_stream` only."""
+
+    def __init__(self, client: httpx.Client, cm: Any, response: httpx.Response, max_bytes: int, total_s: float) -> None:
+        self._client, self._cm, self._r, self._max = client, cm, response, max_bytes
+        self._deadline = _monotonic() + total_s
+        self.content_type = response.headers.get("content-type", "video/mp4").split(";")[0].strip().lower()
+        declared = response.headers.get("content-length")
+        self.content_length = int(declared) if declared and declared.isdigit() else None
+        self._closed = False
+
+    def chunks(self):
+        sent = 0
+        try:
+            for chunk in self._r.iter_bytes(64 * 1024):
+                sent += len(chunk)
+                if sent > self._max or _monotonic() > self._deadline:
+                    break  # the answer has started: the connection is cut and the client sees a short body
+                yield chunk
+        except httpx.HTTPError:
+            return
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            try:
+                self._cm.__exit__(None, None, None)
+            finally:
+                self._client.close()
 
 
 @dataclass(frozen=True)
@@ -376,6 +419,50 @@ class FrigateHttp:
         if reply.status != 200:
             raise map_status(_op(path), reply.status, optional)
         return reply
+
+    def open_stream(self, path: str, *, max_bytes: int = CLIP_MAX_BYTES, total_s: float = CLIP_TOTAL_S, timeout: float = CLIP_READ_TIMEOUT_S) -> ClipStream:
+        """GET one allow-listed path as a stream (the clip family). Status, declared size and content type are checked BEFORE the first
+        byte goes on: a non-200 or an oversized / non-video answer raises an ApiError and nothing stays open. 401 -> one fresh login, one retry."""
+        if not allowed(path):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
+        op = _op(path)
+        for attempt in (0, 1):
+            token = self.login()
+            nvr.check_deadline(path)
+            client = self._client(timeout=timeout)
+            cm = client.stream("GET", path, headers={"Cookie": f"frigate_token={token}"})
+            try:
+                r = cm.__enter__()
+            except httpx.HTTPError as exc:
+                client.close()
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": op}) from exc
+                raise unavailable(op, exc) from exc
+            if r.status_code == 401 and attempt == 0:
+                cm.__exit__(None, None, None)
+                client.close()
+                self.forget_token()
+                continue
+            try:
+                if r.status_code != 200:
+                    if r.status_code == 401:
+                        with _LOCK:
+                            _REFUSED[self.device_key] = _monotonic() + REFUSED_BACKOFF_S
+                        self.forget_token()
+                    raise map_status(op, r.status_code)
+                stream = ClipStream(client, cm, r, max_bytes, total_s)
+                if not CLIP_TYPE.fullmatch(stream.content_type):
+                    raise ApiError(503, "source_invalid", "Frigate לא החזיר וידאו.", details={"op": op})
+                if stream.content_length is not None and stream.content_length > max_bytes:
+                    raise ApiError(503, "source_too_large", "הקליפ של Frigate גדול מהמותר.", details={"op": op})
+                return stream
+            except BaseException:
+                cm.__exit__(None, None, None)
+                client.close()
+                raise
+        raise map_status(op, 401)
 
     def _send(self, path: str, params: dict[str, Any] | None, token: str, max_bytes: int, timeout: float) -> Reply:
         nvr.check_deadline(path)

@@ -25,6 +25,7 @@ import threading
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -464,6 +465,71 @@ def playback_asset(recorder_id: str, camera_id: str, start: int, end: int, name:
     finally:
         sem.release()
     return Response(data, media_type="video/mp4", headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+
+CLIP_INFLIGHT = 2
+_CLIP_SEMS: dict[str, threading.BoundedSemaphore] = {}
+
+
+def _clip_sem(rid: str) -> threading.BoundedSemaphore:
+    with _ASSET_LOCK:
+        return _CLIP_SEMS.setdefault(rid, threading.BoundedSemaphore(CLIP_INFLIGHT))
+
+
+def _clip_response(stream: Any, sem: threading.BoundedSemaphore) -> Response:
+    def body():
+        try:
+            yield from stream.chunks()
+        finally:
+            stream.close()
+            sem.release()
+
+    headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": 'inline; filename="clip.mp4"'}
+    if stream.content_length is not None:
+        headers["Content-Length"] = str(stream.content_length)
+    return StreamingResponse(body(), media_type=stream.content_type, headers=headers)
+
+
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/clip")
+def camera_clip(recorder_id: str, camera_id: str, request: Request, start: str = Query(...), end: str = Query(...), principal: Principal = Depends(current_principal_ro),
+                conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """The clip of a camera window, streamed through Arx from Frigate's `clip.mp4` (read-only GET). `video.playback` on the camera, the
+    export window limit, 150 MB and 5 minutes at most, two clips in flight per recorder (429). No Frigate address or secret in any answer."""
+    cam = _camera_row(conn, principal, recorder_id, camera_id, "video.playback")
+    s, e = _epoch(start), _epoch(end)
+    now = dt.datetime.now(dt.timezone.utc).timestamp()
+    fp.validate_window(s, e, fp.EXPORT_PLAN_MAX_WINDOW_S, now)
+    a = _adapter(conn, request, recorder_id)
+    sem = _clip_sem(recorder_id)
+    if not sem.acquire(blocking=False):
+        raise ApiError(429, "frigate_busy", "יותר מדי קליפים נקראים במקביל.", retryable=True, details={"max": CLIP_INFLIGHT})
+    try:
+        stream = a.clip_window(cam["source_ref"], s, e)
+    except BaseException:
+        sem.release()
+        raise
+    return _clip_response(stream, sem)
+
+
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/events/{event_id}/clip")
+def event_clip(recorder_id: str, camera_id: str, event_id: str, request: Request, principal: Principal = Depends(current_principal_ro),
+               conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """The clip of one Frigate event on this camera (the event's own camera is checked against it before any clip byte is read)."""
+    cam = _camera_row(conn, principal, recorder_id, camera_id, "video.playback")
+    if not fp.EVENT_ID.fullmatch(event_id):
+        raise ApiError(404, "not_found", "האירוע לא נמצא.")
+    a = _adapter(conn, request, recorder_id)
+    sem = _clip_sem(recorder_id)
+    if not sem.acquire(blocking=False):
+        raise ApiError(429, "frigate_busy", "יותר מדי קליפים נקראים במקביל.", retryable=True, details={"max": CLIP_INFLIGHT})
+    try:
+        if a.event_camera(event_id) != cam["source_ref"]:
+            raise ApiError(404, "not_found", "האירוע לא נמצא במצלמה הזו.")
+        stream = a.clip_event(event_id)
+    except BaseException:
+        sem.release()
+        raise
+    return _clip_response(stream, sem)
 
 
 @router.get("/frigate/{recorder_id}/cameras/{camera_id}/export-plan")
