@@ -156,6 +156,8 @@ def test_required_for_one_user_without_a_factor_gets_the_enrolment_response(arx)
 def test_the_users_own_override_beats_the_role_and_the_global_policy(arx):
     arx.setting("security.second_factor_policy", "admins")
     assert fresh_login(arx, arx.owner).json()["code"] == "second_factor_enrollment_required"
+    with arx.db.connection() as conn:  # the refused sign-in left no directory row
+        conn.execute("INSERT OR IGNORE INTO users(id, username, display_name, source, active, first_seen_at, last_seen_at) VALUES ('u-owner', 'joni', 'יוני', 'remote', 1, 'x', 'x')")
     assert put(arx, "user", "u-owner", "optional").status_code == 200  # this administrator is exempt from the global rule
     assert fresh_login(arx, arx.owner).status_code == 200
     # a role override of `required` does not reach a user whose own override says optional

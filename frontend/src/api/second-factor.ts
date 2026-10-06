@@ -1,5 +1,5 @@
 /** K11: the optional TOTP second factor (routes/second_factor.py). The secret is shown once, at enrolment, and never again. */
-import { api, get, post } from './client';
+import { api, get, post, put } from './client';
 
 export interface SecondFactorStatus {
   enabled: boolean;
@@ -31,3 +31,14 @@ export const resetFactor = (userId: string, ownCode?: string) =>
     method: 'DELETE',
     ...(ownCode ? { headers: { 'X-Arx-Second-Factor': ownCode } } : {}),
   });
+
+/** TFA2: per-user and per-role override on top of the global policy (inherit = no stored row). system.configure. */
+export type FactorOverride = 'inherit' | 'optional' | 'required';
+export interface FactorOverrides {
+  policy: 'optional' | 'admins';
+  user: Record<string, 'optional' | 'required'>;
+  role: Record<string, 'optional' | 'required'>;
+}
+export const factorOverrides = () => get<FactorOverrides>('auth/second-factor/overrides');
+export const setFactorOverride = (kind: 'user' | 'role', subjectId: string, policy: FactorOverride) =>
+  put<FactorOverrides & { kind: string; subject_id: string }>(`auth/second-factor/overrides/${kind}/${encodeURIComponent(subjectId)}`, { policy });
