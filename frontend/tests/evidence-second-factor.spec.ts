@@ -16,7 +16,7 @@ const KEY = 'JBSWY3DPEHPK3PXP';
 const URI = `otpauth://totp/SmplWise%20Arx%3Adana?secret=${KEY}&issuer=SmplWise%20Arx&algorithm=SHA1&digits=6&period=30`;
 
 interface Mock {
-  calls: { method: string; path: string; body: unknown }[];
+  calls: { method: string; path: string; body: unknown; stepUp?: string }[];
   enabled: boolean;
 }
 
@@ -37,7 +37,7 @@ async function setup(page: Page): Promise<Mock> {
     if (p === 'auth/sessions') return json(route, { scope: 'own', can_manage: false, channel: 'local', sessions: [] });
     if (p.startsWith('auth/second-factor')) {
       const body = method === 'GET' ? null : (req.postDataJSON() as { code?: string } | null);
-      st.calls.push({ method, path: p, body });
+      st.calls.push({ method, path: p, body, stepUp: req.headers()['x-arx-second-factor'] });
       const status = () => ({ enabled: st.enabled, enabled_at: st.enabled ? '2026-10-06T09:00:00Z' : null, last_used_at: null, policy: 'optional' });
       if (p === 'auth/second-factor' && method === 'GET') return json(route, status());
       if (p === 'auth/second-factor/enroll') return json(route, { secret: KEY, otpauth_uri: URI, issuer: 'SmplWise Arx' });
@@ -45,6 +45,14 @@ async function setup(page: Page): Promise<Mock> {
         if (body?.code !== '123456') return json(route, { code: 'second_factor_invalid', user_message: 'קוד האימות אינו נכון. בדוק את הקוד באפליקציית האימות ונסה שוב.', retryable: false, correlation_id: 'mock', details: {} }, 400);
         st.enabled = true;
         return json(route, status());
+      }
+      if (p === 'auth/second-factor/users' && method === 'GET') return json(route, { policy: 'optional', users: [{ user_id: 'u-viewer', enabled_at: '2026-10-05T09:00:00Z', last_used_at: null }] });
+      if (p === 'auth/second-factor/users/u-viewer' && method === 'DELETE') {
+        // security review 2.2.0 M1: an administrator who has a factor shows their own current code
+        const code = req.headers()['x-arx-second-factor'];
+        if (st.enabled && !code) return json(route, { code: 'second_factor_step_up_required', user_message: 'נדרש קוד', retryable: false, correlation_id: 'mock', details: {} }, 403);
+        if (st.enabled && code !== '222333') return json(route, { code: 'second_factor_invalid', user_message: 'קוד האימות אינו נכון. בדוק את הקוד באפליקציית האימות ונסה שוב.', retryable: false, correlation_id: 'mock', details: {} }, 400);
+        return json(route, { user_id: 'u-viewer', removed: true });
       }
       if (p === 'auth/second-factor/disable') {
         if (body?.code !== '654321') return json(route, { code: 'second_factor_invalid', user_message: 'קוד האימות אינו נכון. בדוק את הקוד באפליקציית האימות ונסה שוב.', retryable: false, correlation_id: 'mock', details: {} }, 400);
@@ -137,4 +145,38 @@ test('the QR code is a real symbol: square, a valid QR version, many modules', a
   });
   expect((info.size - 6 - 17) % 4).toBe(0);
   expect(info.modules).toBeGreaterThan(200);
+});
+
+test('administrator reset: an administrator who has a factor types their own current code (security review 2.2.0 M1)', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const mock = await setup(page);
+  mock.enabled = true; // the administrator's own factor is on
+  await page.goto('/?design=a#/live/cameras');
+  await page.waitForSelector('sw-app');
+  await page.evaluate(() => {
+    const el = document.createElement('sw-second-factor-user') as HTMLElement & { userId: string };
+    el.userId = 'u-viewer';
+    el.setAttribute('data-test-reset', '');
+    el.style.cssText = 'display:block;position:fixed;inset-block-start:80px;inset-inline-start:16px;inline-size:340px;background:var(--sw-surface);padding:12px;z-index:9999';
+    document.body.appendChild(el);
+  });
+  const box = page.locator('[data-test-reset]');
+  await expect(box.locator('[data-sf-admin-state]')).toContainText('פעיל');
+  await box.locator('[data-sf-admin-reset]').click();
+  const code = box.locator('[data-sf-admin-code]');
+  await expect(code).toBeVisible();
+  await expect(box.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
+  await code.fill('111');
+  await expect(box.locator('[data-sf-admin-confirm]')).toHaveAttribute('disabled', '');
+  await code.fill('999999');
+  await box.locator('[data-sf-admin-confirm]').click();
+  await expect(box.locator('.err')).toContainText('קוד האימות אינו נכון');
+  await code.fill('222333');
+  await shot(page, 'k11-admin-reset-step-up');
+  await box.locator('[data-sf-admin-confirm]').click();
+  await expect(box.locator('[data-sf-message]')).toHaveText('האימות הדו־שלבי אופס');
+  const deletes = mock.calls.filter((c) => c.method === 'DELETE');
+  expect(deletes.map((c) => c.stepUp)).toEqual(['999999', '222333']);
+  expect(errors).toEqual([]);
 });
