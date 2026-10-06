@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settlePage } from './pixel-settle';
 
 // Design foundation (owner 2026-10-01): one shared structure, skins = tokens + a bounded rule set, light / dark for the whole shell.
 //   1. `classic` (the default, today's look) is pixel-stable: toHaveScreenshot against the baselines captured from the build
@@ -38,8 +39,7 @@ async function open(page: Page, hash: string, query = '') {
   // inside the screenshot window (it turns the whole page's LCD text antialiasing to greyscale while it is mounted)
   await page.goto(`/?design=a&look=performance:full${query}#${hash}`);
   await page.waitForSelector('sw-app');
-  await page.waitForTimeout(900);
-  await page.evaluate(() => document.fonts.ready);
+  await settlePage(page); // not a fixed sleep: on a busy runner the map's late fixture answers / buttons missed the old 900 ms window
 }
 
 /** A representative dialog: heading, a field, the footer buttons (what every confirmation looks like). */
@@ -55,7 +55,7 @@ async function openDialog(page: Page) {
     document.body.appendChild(d);
     d.open = true;
   });
-  await page.waitForTimeout(400);
+  await settlePage(page);
 }
 
 const view = (info: { project: { name: string } }) => (info.project.name === 'mobile' ? '390' : '1440');
