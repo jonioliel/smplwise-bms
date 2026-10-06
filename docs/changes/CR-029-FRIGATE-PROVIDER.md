@@ -102,3 +102,28 @@ Elsewhere: Frigate events appear in `GET /events` (`source=frigate`, `recorder_i
 ## 9. Rollback
 
 Run the previous version: migration 0064 is additive and ignored by it; the vendor stays "coming soon"; set the recorder's vendor back (or remove the recorder) to stop all Frigate traffic. Frigate itself is never changed, so there is nothing to roll back there.
+
+## 10. F2 - control and actions (branch pilot/NN5-F2, migration 0066)
+
+Owner decisions 2026-10-06 applied: one Frigate account with admin rights is allowed, but every READ path stays read-only (`GET_ALLOWED` is unchanged; the writes have their own allow-list `frigate_http.WRITE_ALLOWED`, one entry set per write class); writes only through explicit permission classes; "reviewed" is kept in Arx per user AND mirrored to Frigate; PTZ is not released now, the plumbing is built behind a flag.
+
+**Model of a write** (`services/frigate_control_svc.py`): permission on the camera (or installation for a recorder-wide class) -> the class is switched on for that recorder (`frigate_write_policy`, default OFF for every class, switched by `system.configure`) -> a per-action confirmation for the classes `record`, `profile`, `ptz` -> read the state, ONE write, read it back -> a row in `frigate_changes` (before, after, state hash, inverse) and an audit row. Nothing is retried or queued; a lost answer is `frigate_write_unknown`, never repeated. Undo (`POST /frigate/{rid}/changes/{id}/revert`) re-checks that Frigate is still in the state the change left (409 `frigate_change_stale` otherwise) and applies the same class gates.
+
+| Class | Permission | What | Per-action confirm |
+|---|---|---|---|
+| `analytics` | `analytics.control` | detect, motion, audio, review alerts / detections, notifications, improve contrast, birdseye, PTZ autotracker - ONE camera, never `*` | no |
+| `record` | `analytics.record_control` | camera enabled, recordings, snapshots (footage is not kept while off) | yes |
+| `profile` | `analytics.profile` | the active profile (the only `*` call) + the alarm-state -> profile MAPPING (system.configure; a mapping, nothing is switched by it) | yes |
+| `review` | `analytics.review` | mirror of "reviewed" to Frigate (an un-mark reaches Frigate only when no other Arx user still holds it) | no |
+| `events` | `analytics.events` | retain flag, sub-label correction (no delete) | no |
+| `ptz` | `camera.ptz` (existing, held by no built-in role) | one step / zoom / stop / saved position over `/ws`, a 30 s lease per camera, no patrol | yes |
+
+`analytics.review` is held by operator and above; the other four new permissions are sensitive and held by site_admin and system_admin. PTZ is additionally behind the code flag `frigate_control_svc.PTZ_RELEASED = False`: the class cannot be switched on (409 `frigate_ptz_not_released`) and a step answers 409 `frigate_ptz_disabled` before anything else happens.
+
+**Never offered:** `/api/config/set`, `/api/config/save`, restart, deletes of events / reviews / exports / recordings, users, faces and plates, go2rtc stream edits, an "all cameras" switch, Frigate-native exports and cases (an F2 item of the study, not built here).
+
+**UI:** operator camera drawer on the live camera page (only for a Frigate camera and only when the caller may change something now; no hints); Settings > the Frigate recorder: write classes, alarm mapping, change log with undo. The connection summary no longer says "read only" once a class is on.
+
+**NOT VERIFIED:** every wire shape of a write (`PUT /api/camera/{cam}/set/{feature}` with `{"value": "ON"|"OFF"}`, `PUT /api/camera/*/set/profile`, `POST /api/reviews/viewed`, `DELETE /api/review/{id}/viewed`, `POST|DELETE /api/events/{id}/retain`, `POST /api/events/{id}/sub_label` with `{"subLabel": ...}`, the PTZ message `{"topic": "<cam>/ptz", "payload": ...}`) and whether the effective `/api/config` reflects a runtime toggle (if not, the change is logged `unverified`, not failed). Tests use only the in-process fake. The first supervised write of each class on the owner's instance is still to do.
+**Not built:** automatic switching of a profile on an alarm change (the mapping and `profile-suggestion` exist; applying is a confirmed `PUT .../profile`), Frigate-native exports / cases, manual event create / end, a retain / sub-label button on the review detail screen, a PTZ pad (no UI while PTZ is unreleased), backup of the new tables.
+**Rollback:** run the previous version (0066 is additive); with every class off (the default) nothing is ever written to Frigate.
