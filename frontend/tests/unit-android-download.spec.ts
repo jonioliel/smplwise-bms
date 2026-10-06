@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { isAndroidUserAgent, loadAndroidOffer, offerText, parseOffer } from '../src/arx/android-download';
+import { BUNDLED_PATH, formatSize, isAndroidUserAgent, loadAndroidOffer, offerText, parseOffer } from '../src/arx/android-download';
 
 // Owner request 2026-10-06: the sign-in page's "download the Android app" offer. The user-agent decision over a table of real
-// strings, the parsing of the public answer and the "no request off Android" rule. Node only.
+// strings, the parsing of the public answer (an https address, or the add-on's own bundled APK route) and the "no request off Android"
+// rule. Node only.
 
 const ANDROID = [
   ['Pixel 7, Chrome', 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'],
@@ -41,12 +42,29 @@ test('not Android: null / undefined / a non-string', () => {
 const SHA = 'ab'.repeat(32);
 
 test('parseOffer keeps only a plain https address plus a valid version and hash', () => {
-  expect(parseOffer({ android: { url: 'https://example.com/arx.apk', version: '0.9.1', sha256: SHA } })).toEqual({ url: 'https://example.com/arx.apk', version: '0.9.1', sha256: SHA });
-  expect(parseOffer({ android: { url: 'https://example.com/arx.apk', version: '<b>', sha256: 'nothex' } })).toEqual({ url: 'https://example.com/arx.apk', version: '', sha256: '' });
+  expect(parseOffer({ android: { url: 'https://example.com/arx.apk', version: '0.9.1', sha256: SHA } })).toEqual({ url: 'https://example.com/arx.apk', version: '0.9.1', sha256: SHA, size: 0, bundled: false });
+  expect(parseOffer({ android: { url: 'https://example.com/arx.apk', version: '<b>', sha256: 'nothex' } })).toEqual({ url: 'https://example.com/arx.apk', version: '', sha256: '', size: 0, bundled: false });
   for (const bad of [null, undefined, {}, { android: null }, { android: {} }, { android: { url: 5 } }, { android: { url: 'http://example.com/a.apk' } },
     { android: { url: 'javascript:alert(1)' } }, { android: { url: 'https://u:p@example.com/a.apk' } }, { android: { url: 'not a url' } }, 'x']) {
     expect(parseOffer(bad), JSON.stringify(bad)).toBeNull();
   }
+});
+
+test('parseOffer accepts the add-on's own bundled route (relative, with its size) and nothing else relative', () => {
+  // Node has no document: the relative route resolves against a placeholder origin; in the page it resolves against document.baseURI
+  const b = parseOffer({ android: { url: BUNDLED_PATH, bundled: true, version: '1.0.0', sha256: SHA, size: 12_345_678 } });
+  expect(b).not.toBeNull();
+  expect(b!.bundled).toBe(true);
+  expect(b!.url.endsWith('/' + BUNDLED_PATH)).toBe(true);
+  expect([b!.version, b!.sha256, b!.size]).toEqual(['1.0.0', SHA, 12_345_678]);
+  expect(parseOffer({ android: { url: BUNDLED_PATH, bundled: true, size: -1 } })!.size).toBe(0);
+  expect(parseOffer({ android: { url: BUNDLED_PATH, bundled: true, size: 2 ** 40 } })!.size).toBe(0);
+  expect(parseOffer({ android: { url: 'https://example.com/arx.apk', size: 99 } })!.size).toBe(0);
+  for (const bad of [{ url: BUNDLED_PATH }, { url: 'api/v1/other', bundled: true }, { url: '../' + BUNDLED_PATH, bundled: true }, { url: '/etc/passwd', bundled: true }]) {
+    expect(parseOffer({ android: bad }), JSON.stringify(bad)).toBeNull();
+  }
+  expect(formatSize(12_345_678)).toBe('11.8 MB');
+  expect(formatSize(0)).toBe('');
 });
 
 test('offerText: Hebrew by default, English for an English browser', () => {
@@ -67,7 +85,7 @@ test('loadAndroidOffer makes no request off Android or inside the app, and answe
   expect(await loadAndroidOffer(NOT_ANDROID[5][1], false, ok)).toBeNull();
   expect(await loadAndroidOffer(android, true, ok)).toBeNull();
   expect(calls).toBe(0);
-  expect(await loadAndroidOffer(android, false, ok)).toEqual({ url: 'https://example.com/arx.apk', version: '', sha256: '' });
+  expect(await loadAndroidOffer(android, false, ok)).toEqual({ url: 'https://example.com/arx.apk', version: '', sha256: '', size: 0, bundled: false });
   expect(calls).toBe(1);
   expect(await loadAndroidOffer(android, false, (async () => ({ ok: false }) as Response) as typeof fetch)).toBeNull();
   expect(await loadAndroidOffer(android, false, (async () => { throw new Error('offline'); }) as typeof fetch)).toBeNull();
