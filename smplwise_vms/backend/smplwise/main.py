@@ -121,6 +121,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         presence_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("presence janitor failed", exc_info=True)
+    try:  # TFA2: expired second-factor lockout rows
+        from .services import second_factor as second_factor_svc
+
+        second_factor_svc.janitor(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("second factor janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop

@@ -16,7 +16,8 @@ Authenticator, Microsoft Authenticator, 1Password and the like work (Arx ships n
   `<data>/keys/`, never in a project backup) bound to the user id as associated data. Nothing here logs, audits or raises
   with a code, a secret or the key in it.
 - A code is 6 digits, SHA-1, 30 s steps, one step of clock drift either way; a step already accepted is refused (replay).
-- Wrong codes: 5 in 5 minutes lock the user out of code entry for 10 minutes (in memory, per process).
+- Wrong codes: 5 in 5 minutes lock the user out of code entry for 10 minutes (persisted in auth_totp_failures, so a restart does
+  not reset it; expired rows are pruned by the janitor).
 - Recovery: an administrator (system.configure) resets another user's factor from any channel; every reset is audited.
   Not their own (that is `disable`, with a code), and an administrator who has a factor shows their own current code
   (review M1).
@@ -24,9 +25,9 @@ Authenticator, Microsoft Authenticator, 1Password and the like work (Arx ships n
 from __future__ import annotations
 
 import base64
-import collections
 import hashlib
 import hmac
+import json
 import secrets
 import sqlite3
 import struct
@@ -55,7 +56,7 @@ LOCK_S = 600.0
 INVALID_HE = "קוד האימות אינו נכון. בדוק את הקוד באפליקציית האימות ונסה שוב."
 LOCKED_HE = "יותר מדי קודים שגויים. נסה שוב בעוד כמה דקות."
 REQUIRED_HE = "נדרש קוד אימות מאפליקציית האימות."
-ENROLL_REQUIRED_HE = "מנהל המערכת דורש אימות דו־שלבי למשתמשי ניהול. הפעל אותו ב״החשבון שלי״ בכניסה מקומית, ואז היכנס מרחוק."
+ENROLL_REQUIRED_HE = "מנהל המערכת דורש אימות דו־שלבי לחשבון הזה. הפעל אותו ב״החשבון שלי״ בכניסה מקומית, ואז היכנס מרחוק."
 
 
 # ---------------------------------------------------------------- RFC 4226 / 6238
@@ -96,47 +97,90 @@ def provisioning_uri(secret: bytes, account: str) -> str:
 # ---------------------------------------------------------------- wrong-code lockout
 
 class _Failures:
+    """The wrong-code lockout, kept in `auth_totp_failures` (migration 0069, review item L4) so a restart does not reset it. It runs on
+    the caller's connection: a wrong code is counted inside the request's transaction, which commits when the request answers 4xx
+    (ApiError) or when the sign-in check catches the refusal. Before the migration (an older schema) it falls back to memory."""
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._fails: dict[str, collections.deque] = {}
-        self._locked: dict[str, float] = {}
+        self._mem: dict[str, tuple[list[float], float | None]] = {}
 
-    def locked(self, user_id: str) -> bool:
-        with self._lock:
-            until = self._locked.get(user_id)
-            if until is None:
-                return False
-            if until <= time.time():
-                self._locked.pop(user_id, None)
-                self._fails.pop(user_id, None)
-                return False
-            return True
+    @staticmethod
+    def _now() -> float:
+        return time.time()
 
-    def fail(self, user_id: str) -> bool:
+    def _get(self, conn: sqlite3.Connection, user_id: str) -> tuple[list[float], float | None]:
+        try:
+            r = conn.execute("SELECT attempts_json, locked_until FROM auth_totp_failures WHERE user_id = ?", (user_id,)).fetchone()
+        except sqlite3.OperationalError:
+            with self._lock:
+                return self._mem.get(user_id, ([], None))
+        if r is None:
+            return [], None
+        try:
+            attempts = [float(x) for x in json.loads(r["attempts_json"] or "[]")]
+        except (ValueError, TypeError):
+            attempts = []
+        return attempts, r["locked_until"]
+
+    def _put(self, conn: sqlite3.Connection, user_id: str, attempts: list[float], locked_until: float | None) -> None:
+        try:
+            conn.execute(
+                "INSERT INTO auth_totp_failures(user_id, attempts_json, locked_until, updated_at) VALUES (?,?,?,?) "
+                "ON CONFLICT(user_id) DO UPDATE SET attempts_json = excluded.attempts_json, locked_until = excluded.locked_until, updated_at = excluded.updated_at",
+                (user_id, json.dumps(attempts), locked_until, self._now()))
+        except sqlite3.OperationalError:
+            with self._lock:
+                self._mem[user_id] = (attempts, locked_until)
+
+    def locked(self, conn: sqlite3.Connection, user_id: str) -> bool:
+        attempts, until = self._get(conn, user_id)
+        return until is not None and until > self._now()
+
+    def fail(self, conn: sqlite3.Connection, user_id: str) -> bool:
         """Record a wrong code; True when this one locked the user out."""
-        now = time.time()
-        with self._lock:
-            q = self._fails.setdefault(user_id, collections.deque())
-            while q and now - q[0] > FAIL_WINDOW_S:
-                q.popleft()
-            q.append(now)
-            if len(q) >= FAIL_MAX:
-                self._locked[user_id] = now + LOCK_S
-                q.clear()
-                return True
-            return False
+        now = self._now()
+        attempts, _ = self._get(conn, user_id)
+        attempts = [t for t in attempts if now - t <= FAIL_WINDOW_S] + [now]
+        if len(attempts) >= FAIL_MAX:
+            self._put(conn, user_id, [], now + LOCK_S)
+            return True
+        self._put(conn, user_id, attempts, None)
+        return False
 
-    def clear(self, user_id: str | None = None) -> None:
+    def clear(self, conn: sqlite3.Connection, user_id: str) -> None:
+        try:
+            conn.execute("DELETE FROM auth_totp_failures WHERE user_id = ?", (user_id,))
+        except sqlite3.OperationalError:
+            pass
         with self._lock:
-            if user_id is None:
-                self._fails.clear()
-                self._locked.clear()
-            else:
-                self._fails.pop(user_id, None)
-                self._locked.pop(user_id, None)
+            self._mem.pop(user_id, None)
+
+    def prune(self, conn: sqlite3.Connection) -> int:
+        """Rows that can no longer matter: no lockout running and the newest wrong code older than the window, or a lockout that ended."""
+        now = self._now()
+        try:
+            return conn.execute(
+                "DELETE FROM auth_totp_failures WHERE (locked_until IS NULL OR locked_until <= ?) AND updated_at < ?", (now, now - FAIL_WINDOW_S)).rowcount
+        except sqlite3.OperationalError:
+            return 0
 
 
 FAILURES = _Failures()
+
+
+def janitor(db: Any) -> int:
+    """main.janitor_tick: expired lockout rows. A read first, so a quiet installation takes the write lock never."""
+    now = time.time()
+    with db.connection(mode="read", label="second_factor.janitor_read") as conn:
+        try:
+            due = conn.execute("SELECT 1 FROM auth_totp_failures WHERE (locked_until IS NULL OR locked_until <= ?) AND updated_at < ? LIMIT 1", (now, now - FAIL_WINDOW_S)).fetchone()
+        except sqlite3.OperationalError:
+            return 0
+    if due is None:
+        return 0
+    with db.connection(label="second_factor.janitor") as conn:
+        return FAILURES.prune(conn)
 
 
 class SecondFactorError(Exception):
@@ -204,12 +248,12 @@ def verify(conn: sqlite3.Connection, settings: Settings, user_id: str, code: Any
     """Check a code against the user's ACTIVE factor (`pending=True`: the not-yet-confirmed secret, for the enrolment's
     first code). Raises SecondFactorError (`locked` | `invalid` | `unreadable`); on success the step is marked used. Wrong
     codes count towards the lockout."""
-    if FAILURES.locked(user_id):
+    if FAILURES.locked(conn, user_id):
         raise SecondFactorError("locked", LOCKED_HE)
     r = _row(conn, user_id)
 
     def wrong() -> SecondFactorError:
-        return SecondFactorError("locked", LOCKED_HE) if FAILURES.fail(user_id) else SecondFactorError("invalid", INVALID_HE)
+        return SecondFactorError("locked", LOCKED_HE) if FAILURES.fail(conn, user_id) else SecondFactorError("invalid", INVALID_HE)
 
     if r is None or bool(r["enabled"]) == pending:
         raise wrong()
@@ -219,7 +263,7 @@ def verify(conn: sqlite3.Connection, settings: Settings, user_id: str, code: Any
     # the conditional update is the replay guard even across two concurrent requests
     if conn.execute("UPDATE auth_totp SET last_step = ?, last_used_at = ? WHERE user_id = ? AND last_step < ?", (step, now_iso(), user_id, step)).rowcount != 1:
         raise wrong()
-    FAILURES.clear(user_id)
+    FAILURES.clear(conn, user_id)
 
 
 def confirm(conn: sqlite3.Connection, settings: Settings, user_id: str, code: Any) -> None:
@@ -228,7 +272,7 @@ def confirm(conn: sqlite3.Connection, settings: Settings, user_id: str, code: An
 
 
 def remove(conn: sqlite3.Connection, user_id: str) -> bool:
-    FAILURES.clear(user_id)
+    FAILURES.clear(conn, user_id)
     return conn.execute("DELETE FROM auth_totp WHERE user_id = ?", (user_id,)).rowcount > 0
 
 
@@ -237,3 +281,74 @@ def policy(conn: sqlite3.Connection) -> str:
 
     v = get_setting(conn, POLICY_KEY, DEFAULT_POLICY) or DEFAULT_POLICY
     return v if v in POLICIES else DEFAULT_POLICY
+
+
+# ---------------------------------------------------------------- per-user and per-role policy override (TFA2)
+
+OVERRIDE_VALUES = ("inherit", "optional", "required")
+OVERRIDE_KINDS = ("user", "role")
+
+
+def overrides(conn: sqlite3.Connection) -> dict[str, dict[str, str]]:
+    """Every stored override: {"user": {user_id: policy}, "role": {role_id: policy}} (a subject with no row inherits)."""
+    out: dict[str, dict[str, str]] = {"user": {}, "role": {}}
+    try:
+        for r in conn.execute("SELECT subject_kind, subject_id, policy FROM auth_totp_policy").fetchall():
+            out[r["subject_kind"]][r["subject_id"]] = r["policy"]
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
+def set_override(conn: sqlite3.Connection, kind: str, subject_id: str, value: str, actor_id: str | None) -> str | None:
+    """Store `optional` / `required`, or drop the row for `inherit`. Returns the previous value (None = inherit)."""
+    before = conn.execute("SELECT policy FROM auth_totp_policy WHERE subject_kind = ? AND subject_id = ?", (kind, subject_id)).fetchone()
+    if value == "inherit":
+        conn.execute("DELETE FROM auth_totp_policy WHERE subject_kind = ? AND subject_id = ?", (kind, subject_id))
+    else:
+        conn.execute(
+            "INSERT INTO auth_totp_policy(subject_kind, subject_id, policy, updated_at, updated_by) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(subject_kind, subject_id) DO UPDATE SET policy = excluded.policy, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
+            (kind, subject_id, value, now_iso(), actor_id))
+    return before["policy"] if before else None
+
+
+def _role_ids(conn: sqlite3.Connection, principal: Any) -> list[str]:
+    from ..rbac import _active_bindings
+
+    return sorted({b["role_id"] for b in _active_bindings(conn, principal) if b["effect"] == "allow"})
+
+
+def users_of_role(conn: sqlite3.Connection, role_id: str) -> list[str]:
+    """Users holding the role through an active allow binding, directly or through a group."""
+    now = now_iso()
+    rows = conn.execute(
+        """SELECT subject_kind, subject_id FROM bindings WHERE role_id = ? AND effect = 'allow' AND revoked_at IS NULL
+           AND (expires_at IS NULL OR expires_at > ?)""", (role_id, now)).fetchall()
+    users: set[str] = set()
+    for r in rows:
+        if r["subject_kind"] == "user":
+            users.add(r["subject_id"])
+        else:
+            users.update(m[0] for m in conn.execute("SELECT user_id FROM group_members WHERE group_id = ?", (r["subject_id"],)).fetchall())
+    return sorted(users)
+
+
+def effective_policy(conn: sqlite3.Connection, principal: Any, admin_permissions: frozenset[str]) -> tuple[str, str]:
+    """What the policy says for this user: ("required" | "optional", source) with source `user` | `role` | `global`.
+    Precedence: the user's own override, then the roles (ANY role `required` wins; otherwise any role `optional`), then the global
+    `security.second_factor_policy` (`admins` = required for holders of an administrative permission)."""
+    from ..rbac import permissions_anywhere
+
+    ov = overrides(conn)
+    own = ov["user"].get(principal.user_id)
+    if own in ("optional", "required"):
+        return own, "user"
+    role_values = [ov["role"][r] for r in _role_ids(conn, principal) if r in ov["role"]]
+    if "required" in role_values:
+        return "required", "role"
+    if "optional" in role_values:
+        return "optional", "role"
+    if policy(conn) == "admins" and set(permissions_anywhere(conn, principal)) & admin_permissions:
+        return "required", "global"
+    return "optional", "global"
