@@ -50,7 +50,7 @@ test('parseOffer keeps only a plain https address plus a valid version and hash'
   }
 });
 
-test('parseOffer accepts the add-on's own bundled route (relative, with its size) and nothing else relative', () => {
+test('parseOffer accepts the add-on own bundled route (relative, with its size) and nothing else relative', () => {
   // Node has no document: the relative route resolves against a placeholder origin; in the page it resolves against document.baseURI
   const b = parseOffer({ android: { url: BUNDLED_PATH, bundled: true, version: '1.0.0', sha256: SHA, size: 12_345_678 } });
   expect(b).not.toBeNull();
