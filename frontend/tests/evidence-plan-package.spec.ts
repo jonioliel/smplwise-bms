@@ -121,6 +121,8 @@ test.describe('fixture: the import dialog', () => {
     await noOverflow(page);
     await page.screenshot({ path: path.join(OUT, `dialog-foreign-${info.project.name}.png`) });
     await confirm.click();
+    await expect(page.locator('pkg-harness [data-harness-imported="1"]')).toHaveCount(1);
+    await expect(page.locator('pkg-harness sw-dialog[data-pkg-dialog]')).toHaveCount(0);
     expect(calls.import[0]).toContain('accept_foreign=true');
     // a refused package: the message, no import button
     refuse = true;
