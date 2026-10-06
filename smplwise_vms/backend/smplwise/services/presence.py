@@ -148,13 +148,18 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 # ---------------------------------------------------------------- rate limits (in memory, per process)
 
+def _now() -> float:
+    """The limiters' clock (a seam: tests freeze it so a slow machine cannot refill a token or age a failure out mid-test)."""
+    return time.monotonic()
+
+
 class _Bucket:
     def __init__(self, burst: int, per_min: float) -> None:
         self.burst, self.rate = float(burst), per_min / 60.0
-        self.tokens, self.at = float(burst), time.monotonic()
+        self.tokens, self.at = float(burst), _now()
 
     def take(self) -> bool:
-        now = time.monotonic()
+        now = _now()
         self.tokens = min(self.burst, self.tokens + (now - self.at) * self.rate)
         self.at = now
         if self.tokens >= 1.0:
@@ -186,14 +191,14 @@ class _Failures:
         self.hits: dict[str, list[float]] = {}
 
     def blocked(self, who: str) -> bool:
-        now = time.monotonic()
+        now = _now()
         with _LOCK:
             self.hits[who] = [t for t in self.hits.get(who, []) if now - t < 60.0]
             return len(self.hits[who]) >= self.burst
 
     def fail(self, who: str) -> None:
         with _LOCK:
-            self.hits.setdefault(who, []).append(time.monotonic())
+            self.hits.setdefault(who, []).append(_now())
             if len(self.hits) > 2000:
                 self.hits.clear()
 

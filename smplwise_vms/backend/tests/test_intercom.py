@@ -3593,12 +3593,16 @@ def test_card_capture_timeout_expiry_and_abandonment(feed, fast_capture, monkeyp
     msg = sent(fakes, "cards/capture_cancel")[-1]
     assert msg["session_id"] == sid3
     wait_for(lambda: intercom_capture.CAPTURES._sessions[sid3].state == "cancelled", bound)
-    rows = [r for r in capture_rows(s) if r["action"] == "intercom.card_capture.cancel"]
-    assert rows[-1]["details"]["trigger"] == "abandoned" and rows[-1]["details"]["outcome"] == "ok" and rows[-1]["actor_username"] == "sam"
+    # the state flips inside the cancel's result callback, the audit row is written after the action returns: wait for the row itself
+    abandoned = lambda: [r for r in capture_rows(s) if r["action"] == "intercom.card_capture.cancel" and (r["details"] or {}).get("trigger") == "abandoned"]  # noqa: E731
+    wait_for(lambda: bool(abandoned()), bound)
+    [row] = abandoned()
+    assert row["details"]["outcome"] == "ok" and row["actor_username"] == "sam"
     view = intercom_capture.CAPTURES.view(intercom_capture.CAPTURES._sessions[sid3])
     assert (view["state"], view["reason"]) == ("cancelled", "abandoned"), "the dialog can say why: it stopped asking"
-    outcomes = [r["details"]["outcome"] for r in capture_rows(s) if r["action"] == "intercom.card_capture.result"]
-    assert outcomes == ["timeout", "expired"]
+    outcomes = lambda: [r["details"]["outcome"] for r in capture_rows(s) if r["action"] == "intercom.card_capture.result"]  # noqa: E731
+    wait_for(lambda: len(outcomes()) >= 2, bound)  # the expired row is written by the poller after the state flips, like the cancel row
+    assert outcomes() == ["timeout", "expired"]
 
 
 # refused vs unknown per capture command (intercom_client.PRE_CAPTURE, verified against WisKey's enrollment.py)

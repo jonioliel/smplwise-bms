@@ -273,7 +273,9 @@ def test_cross_user_access_is_refused_like_a_missing_device_and_audited(world):
     assert c.get(f"{API}/presence/config", headers=ta).status_code == 401
 
 
-def test_token_guessing_is_throttled_and_oversized_bodies_are_refused(world):
+def test_token_guessing_is_throttled_and_oversized_bodies_are_refused(world, monkeypatch):
+    # the limiters refill / age out on a monotonic clock: freeze it, or a slow machine (61 posts taking > 1 s earns a token back) flips the 429
+    monkeypatch.setattr(svc, "_now", lambda: 1000.0)
     app, c, _ = world
     _, a = register(c, "dana")
     did = a["device_id"]
