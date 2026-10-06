@@ -1013,7 +1013,7 @@ def test_the_built_ui_contains_no_secrets():
 def test_csrf_refusal_is_machine_readable_with_a_stable_code_and_reason(arx_admin):
     """Contract v2: the apps send an Origin header; when it is missing or wrong the body says exactly what is wanted."""
     arx = arx_admin
-    r = _rotate_signing_key(arx.client)  # neither Origin nor Sec-Fetch-Site
+    r = _rotate_signing_key(arx.client, Origin="")  # no usable Origin (the test client sends one by default), no Sec-Fetch-Site
     assert r.status_code == 403
     body = r.json()
     assert body["code"] == "csrf_refused" and body["retryable"] is False
