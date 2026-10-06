@@ -103,6 +103,7 @@ export class SystemAnnouncements extends LitElement {
     try {
       this.data = await announcePutConfig(patch);
       if (can('media.announce')) this.areas = (await announceAreas()).areas;
+      if (!this.areas.some((x) => x.area_id === this.room)) this.room = this.areas[0]?.area_id ?? '';
       this.note(announceText().saved);
     } catch (err) {
       const msg = describeError(err);
