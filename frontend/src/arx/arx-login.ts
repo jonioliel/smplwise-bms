@@ -3,6 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn, haErrorText, hasPendingSecondFactor, startFlow, submitStep, type LoginFlow } from './auth';
 import { t } from '../i18n/he';
 import { inAndroidApp, switchServer } from './android-app';
+import { loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
 
 const REASON_TEXT: Record<string, string> = {
   idle: 'ננעלת לאחר חוסר פעילות. יש להיכנס שוב.',
@@ -26,6 +27,8 @@ export class ArxLogin extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private mfaName = '';
+  /** The Android download offer (only on an Android device, only when an administrator configured an address). */
+  @state() private offer: AndroidOffer | null = null;
   @query('#username') private usernameEl?: HTMLInputElement;
   @query('#password') private passwordEl?: HTMLInputElement;
   @query('#code') private codeEl?: HTMLInputElement;
@@ -200,6 +203,33 @@ export class ArxLogin extends LitElement {
       background: none;
       text-decoration: underline;
     }
+    .app-download {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      margin-block-start: -8px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+    .app-download a {
+      color: var(--sw-accent-text, var(--sw-accent));
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      min-block-size: 32px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .app-download details summary {
+      cursor: pointer;
+    }
+    .app-download code {
+      direction: ltr;
+      display: block;
+      word-break: break-all;
+      font-family: var(--sw-font-mono, ui-monospace, monospace);
+      user-select: all;
+    }
     .app-servers {
       display: flex;
       justify-content: center;
@@ -209,6 +239,7 @@ export class ArxLogin extends LitElement {
 
   firstUpdated() {
     this.usernameEl?.focus();
+    void loadAndroidOffer(navigator.userAgent, inAndroidApp()).then((o) => (this.offer = o));
   }
 
   private async onCredentials(e: Event) {
@@ -304,6 +335,17 @@ export class ArxLogin extends LitElement {
     if (clearError) this.error = '';
   }
 
+  private renderOffer() {
+    const o = this.offer;
+    if (!o) return nothing;
+    const t = offerText(navigator.language);
+    return html`<div class="app-download" data-arx-android-download-box>
+      <a href=${o.url} rel="noopener noreferrer" download data-arx-android-download>${t.link}</a>
+      ${o.version ? html`<span data-arx-android-version>${t.version} <bdi>${o.version}</bdi></span>` : nothing}
+      ${o.sha256 ? html`<details data-arx-android-sha><summary>${t.sha}</summary><code>${o.sha256}</code></details>` : nothing}
+    </div>`;
+  }
+
   render() {
     const base = import.meta.env.BASE_URL;
     const notice = this.notice ? REASON_TEXT[this.notice] ?? this.notice : '';
@@ -337,6 +379,7 @@ export class ArxLogin extends LitElement {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
         <span>הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.</span>
       </div>
+      ${this.renderOffer()}
       ${inAndroidApp()
         ? html`<div class="app-servers"><button type="button" class="link" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</button></div>`
         : nothing}

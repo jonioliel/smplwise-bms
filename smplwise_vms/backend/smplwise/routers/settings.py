@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -289,6 +289,8 @@ DEFAULTS: dict[str, str] = {
     # CR-017 (אוטומציות · סצנות · סקריפטים, docs/architecture/AUTOMATIONS_API.md 3.1 row 23): every option of the feature, one settings tab. The JSON-valued
     # keys are read back as objects / lists (services/automation_settings.py validates them). The bridge's delegation switch is NOT here: it is read-only state.
     **automation_settings.DEFAULTS,
+    # 2026-10-06 (owner): the Android app download offer on the sign-in page; empty address = nothing is offered (services/app_download.py)
+    **app_download.DEFAULTS,
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
@@ -612,6 +614,9 @@ class SettingsPatch(BaseModel):
     remote_require_mfa_admin: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.require_mfa_admin")
     remote_max_live_streams: int | None = Field(default=None, ge=1, le=128, alias="remote.max_live_streams")
     remote_csp_enforce: str | None = Field(default=None, pattern="^(true|false)$", alias="remote.csp_enforce")
+    app_android_url: str | None = Field(default=None, max_length=app_download.MAX_URL, alias="app.android_url")  # https only, checked in app_download.normalize
+    app_android_version: str | None = Field(default=None, max_length=32, alias="app.android_version")
+    app_android_sha256: str | None = Field(default=None, max_length=64, alias="app.android_sha256")
     alarm_remote_control: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_control")
     alarm_remote_disarm: str | None = Field(default=None, pattern="^(true|false)$", alias="alarm.remote_disarm")
     alarm_code_mode: str | None = Field(default=None, pattern="^(personal_pin|panel_code)$", alias="alarm.code_mode")
@@ -761,6 +766,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["multimedia.remote_default"] = media_layout.normalise_remote_config(changes["multimedia.remote_default"])
         except ValueError as exc:
             raise ApiError(422, "validation", "הגדרת השלט: ערך לא תקין.", details={"multimedia.remote_default": str(exc)})
+    app_download.normalize(changes)
     disarm_confirm = changes.pop("schedules.allow_disarm_confirm", None)
     disarm_change = None
     if "schedules.allow_disarm" in changes:
