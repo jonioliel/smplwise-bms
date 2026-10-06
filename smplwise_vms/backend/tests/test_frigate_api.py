@@ -574,18 +574,19 @@ def test_clip_size_cap_and_upstream_errors(world, monkeypatch):
     assert world.c.get(_clip_url(cid)).status_code == 200
 
 
-def test_clip_is_cut_short_at_the_cap_when_the_length_is_unknown(world):
-    from smplwise.services.recorders import frigate_http as fhttp
-
+def test_clip_without_a_length_is_cut_at_the_cap_and_a_declared_oversize_is_refused(world):
     fake = world.fake
-    fake.clip_body = b"x" * 1000
+    path = f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4"
     a = fr.FrigateAdapter("nvr-1", world.s, transport=fake.transport())
-    st = a.http.open_stream(f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4", max_bytes=1000)
-    assert b"".join(st.chunks()) == b"x" * 1000
-    st = a.http.open_stream(f"/api/cam_front/start/{int(T0 - 300)}/end/{int(T0 - 270)}/clip.mp4", max_bytes=10)
-    st.content_length = None
-    assert b"".join(st.chunks()) == b"", "the cap applies to what is actually read, whatever the header said"
-    assert fhttp.CLIP_MAX_BYTES == 150_000_000
+    fake.clip_body, fake.clip_chunked = b"x" * 5000, True
+    st = a.http.open_stream(path, max_bytes=100_000)
+    assert st.content_length is None and len(b"".join(st.chunks())) == 5000
+    st = a.http.open_stream(path, max_bytes=2500)
+    assert len(b"".join(st.chunks())) <= 2500, "the cap applies to what is actually read"
+    fake.clip_chunked = False
+    with pytest.raises(Exception) as e:
+        a.http.open_stream(path, max_bytes=100)
+    assert getattr(e.value, "code", "") == "source_too_large"
 
 
 def test_clip_needs_video_playback_on_that_camera_and_reads_nothing_otherwise(world):

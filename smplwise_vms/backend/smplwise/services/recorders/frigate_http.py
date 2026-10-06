@@ -420,12 +420,15 @@ class FrigateHttp:
             raise map_status(_op(path), reply.status, optional)
         return reply
 
-    def open_stream(self, path: str, *, max_bytes: int = CLIP_MAX_BYTES, total_s: float = CLIP_TOTAL_S, timeout: float = CLIP_READ_TIMEOUT_S) -> ClipStream:
+    def open_stream(self, path: str, *, max_bytes: int | None = None, total_s: float | None = None, timeout: float | None = None) -> ClipStream:
         """GET one allow-listed path as a stream (the clip family). Status, declared size and content type are checked BEFORE the first
         byte goes on: a non-200 or an oversized / non-video answer raises an ApiError and nothing stays open. 401 -> one fresh login, one retry."""
         if not allowed(path):
             raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
         op = _op(path)
+        max_bytes = CLIP_MAX_BYTES if max_bytes is None else max_bytes
+        total_s = CLIP_TOTAL_S if total_s is None else total_s
+        timeout = CLIP_READ_TIMEOUT_S if timeout is None else timeout
         for attempt in (0, 1):
             token = self.login()
             nvr.check_deadline(path)

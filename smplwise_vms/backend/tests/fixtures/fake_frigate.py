@@ -130,6 +130,7 @@ class FakeFrigate:
         self.clip_body = CLIP
         self.clip_type = "video/mp4"
         self.clip_gets: list[str] = []
+        self.clip_chunked = False   # answer without a Content-Length (a streamed body)
 
     # ------------------------------------------------------------------------------------------ documents
 
@@ -324,7 +325,8 @@ class FakeFrigate:
                 return httpx.Response(404)
             if self.clip_status != 200:
                 return httpx.Response(self.clip_status)
-            return httpx.Response(200, content=self.clip_body, headers={"content-type": self.clip_type})
+            body = iter([self.clip_body[i:i + 1000] for i in range(0, len(self.clip_body), 1000)]) if self.clip_chunked else self.clip_body
+            return httpx.Response(200, content=body, headers={"content-type": self.clip_type})
         if path == "/api/events":
             return self._json(self.events)
         if path.startswith("/api/events/") and path.endswith("/thumbnail.jpg"):
