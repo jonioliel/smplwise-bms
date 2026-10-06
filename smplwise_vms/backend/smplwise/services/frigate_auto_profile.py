@@ -77,9 +77,9 @@ def set_setting(conn: sqlite3.Connection, principal: Principal, recorder_id: str
     new_mode = mode if mode is not None else before["mode"]
     new_consent = before["auto_apply_consent"] if consent is None else bool(consent)
     if new_mode == "apply" and not new_consent:
-        raise ApiError(422, "frigate_auto_consent_required", "החלפה אוטומטית דורשת הסכמה מפורשת של מנהל המערכת.", details={"mode": "apply"})
-    if not new_consent and new_mode == "apply":
-        new_mode = "suggest"
+        if mode == "apply":   # asked for explicitly without the consent
+            raise ApiError(422, "frigate_auto_consent_required", "החלפה אוטומטית דורשת הסכמה מפורשת של מנהל המערכת.", details={"mode": "apply"})
+        new_mode = "suggest"  # the consent was withdrawn while the mode was apply
     uid = getattr(principal, "user_id", None)
     now = now_iso()
     consent_by, consent_at = (before["consent_by"], before["consent_at"]) if new_consent == before["auto_apply_consent"] else ((uid, now) if new_consent else (None, None))

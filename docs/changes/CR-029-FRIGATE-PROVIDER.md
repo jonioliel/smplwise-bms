@@ -120,10 +120,48 @@ Owner decisions 2026-10-06 applied: one Frigate account with admin rights is all
 
 `analytics.review` is held by operator and above; the other four new permissions are sensitive and held by site_admin and system_admin. PTZ is additionally behind the code flag `frigate_control_svc.PTZ_RELEASED = False`: the class cannot be switched on (409 `frigate_ptz_not_released`) and a step answers 409 `frigate_ptz_disabled` before anything else happens.
 
-**Never offered:** `/api/config/set`, `/api/config/save`, restart, deletes of events / reviews / exports / recordings, users, faces and plates, go2rtc stream edits, an "all cameras" switch, Frigate-native exports and cases (an F2 item of the study, not built here).
+**Never offered:** `/api/config/set`, `/api/config/save`, restart, deletes of events / reviews / recordings (export and case deletes exist only for objects Arx created, section 11), users, faces and plates, go2rtc stream edits, an "all cameras" switch.
 
 **UI:** operator camera drawer on the live camera page (only for a Frigate camera and only when the caller may change something now; no hints); Settings > the Frigate recorder: write classes, alarm mapping, change log with undo. The connection summary no longer says "read only" once a class is on.
 
 **NOT VERIFIED:** every wire shape of a write (`PUT /api/camera/{cam}/set/{feature}` with `{"value": "ON"|"OFF"}`, `PUT /api/camera/*/set/profile`, `POST /api/reviews/viewed`, `DELETE /api/review/{id}/viewed`, `POST|DELETE /api/events/{id}/retain`, `POST /api/events/{id}/sub_label` with `{"subLabel": ...}`, the PTZ message `{"topic": "<cam>/ptz", "payload": ...}`) and whether the effective `/api/config` reflects a runtime toggle (if not, the change is logged `unverified`, not failed). Tests use only the in-process fake. The first supervised write of each class on the owner's instance is still to do.
 **Not built:** automatic switching of a profile on an alarm change (the mapping and `profile-suggestion` exist; applying is a confirmed `PUT .../profile`), Frigate-native exports / cases, manual event create / end, a retain / sub-label button on the review detail screen, a PTZ pad (no UI while PTZ is unreleased), backup of the new tables.
 **Rollback:** run the previous version (0066 is additive); with every class off (the default) nothing is ever written to Frigate.
+
+## 11. F2b - the F2 leftovers, server side (branch pilot/NN5-F2b, migration 0068)
+
+Server only: clean APIs for the later operator screens, no UI. Every new write class is OFF by default, every new write call has an UNVERIFIED wire shape, and all of it is tested only against the in-process fake Frigate (`backend/tests/fixtures/fake_frigate.py`, extended with exports, cases and manual events). Nothing was run against the owner's Frigate or any device.
+
+**Read allow-list untouched.** `GET_ALLOWED` has no new entry. The two read-backs (`GET /api/exports`, `GET /api/cases`) are on `CONTROL_GET_ALLOWED`, reachable only with `control=True`, which the control adapter alone passes; the new writes are in `WRITE_ALLOWED` under their own classes. A test asserts that every new path (read and write) is refused by `FrigateHttp.get` and that cross-class use is refused locally (`frigate_path_not_allowed`).
+
+**First supervised write flag.** The task text referred to an existing flag; none existed in code, so it is now `frigate_first_write` (migration 0068). The first write of each new kind toward a recorder (`export_create`, `export_rename`, `export_delete`, `case_create`, `case_rename`, `case_delete`, `event_create`, `event_end`, `profile_auto`) is refused with 409 `frigate_first_write_unsupervised` unless the request carries `supervised: true` from a holder of `system.configure`; the row is stored only after Frigate accepted that write (a failed first write does not count). `GET /frigate/{rid}/control/first-writes` shows which kinds are done. An undo counts as a write of its inverse kind. The existing F2 classes are not retro-gated.
+
+### 11.1 Automatic profile on an alarm-state change
+
+Per recorder `frigate_profile_auto_setting`: `mode` = `off` (default) | `suggest` | `apply`, and a separate `auto_apply_consent` flag (who and when stored). `PUT /frigate/{rid}/profile-auto/setting` (system.configure): `apply` without the consent is 422 `frigate_auto_consent_required`; withdrawing the consent drops `apply` to `suggest`; `off` dismisses everything open.
+
+Flow: `ha_sync.handle_state_event` calls `frigate_auto_profile.note_alarm_change` (own savepoint, database only) for an `alarm_control_panel.*` state change into a known alarm state. For each recorder whose mode is not `off`, older open rows are superseded and, when `frigate_profile_rules` maps the new state, one `pending` row is queued in `frigate_profile_auto`. The recorder's own event loop (`frigate_events.run_loop`, every 2 s) processes its pending rows (`frigate_auto_profile.tick`): `suggest` -> status `suggested`; `apply` -> the switch is made only when the `profile` class is on, the consent is given AND the supervised first write of kind `profile_auto` exists, else the row stays `suggested` with the reason (`class_off`, `no_consent`, `first_write_unsupervised`) and a denied audit row. The switch uses the same `apply_profile` as the manual path (read, ONE write, read back, `frigate_changes` row with the alarm change in `before.auto`, actor `arx-auto`, audit row), so it is undone with the existing `POST .../changes/{id}/revert`. A failed or unanswered write is final for its row (`failed`, never retried); a row older than 10 minutes becomes `expired`; an already-active profile is `skipped`; a profile mapped to `none` switches the profile off.
+
+API: `GET /frigate/{rid}/profile-auto` (setting, recent rows, modes), `PUT .../profile-auto/setting`, `POST .../profile-auto/{id}/apply` (`confirm: true`; with `supervised: true` from a system administrator it is also the supervised first write that unlocks `apply` mode), `POST .../profile-auto/{id}/dismiss`.
+
+### 11.2 Frigate-native exports and cases (classes `exports`, `cases`)
+
+Permissions `analytics.exports` and `analytics.cases` (sensitive; site_admin and system_admin, added to `roles.json` and the role-catalog contract); exports also need `video.export` on the camera. Both classes are off by default (`PUT /control/policy`). A per-action confirmation is asked only where something is destroyed: `delete` and an undo that deletes (`confirm_actions` in the policy view).
+
+| Route | Wire call (UNVERIFIED) |
+|---|---|
+| `GET /frigate/{rid}/exports`, `GET .../cases` | `GET /api/exports`, `GET /api/cases` (fixed small rows; Frigate file paths and thumbnails are dropped; exports filtered to the cameras the caller may export) |
+| `POST .../exports` `{camera_id, start, end, name}` | `POST /api/export/{cam}/start/{s}/end/{e}` body `{"name","playback":"realtime"}`; ONE camera, at most 2 h, not in the future; id from `export_id` or found by name |
+| `PATCH .../exports/{id}` / `POST .../exports/{id}/delete` | `PATCH /api/export/{id}/rename` `{"name"}` / `DELETE /api/export/{id}` |
+| `POST .../cases` `{name, description}` | `POST /api/cases`; id from the answer or found by name |
+| `PATCH .../cases/{id}` / `POST .../cases/{id}/delete` | `PATCH /api/cases/{id}` `{"name"}` / `DELETE /api/cases/{id}` |
+
+Ownership rule: rename and delete work only on exports and cases Arx created itself (`frigate_native_objects`); anything else is 409 `frigate_object_not_arx`, so the export and case entries on the write allow-list are not a general delete and Frigate's own exports and cases are never touched. Each write is read back (list), logged in `frigate_changes` (`export_*` / `case_*`) and audited. Undo: a create is undone by deleting it (confirm), a rename by renaming back; both check that the state is still what the change left (409 `frigate_change_stale`).
+
+### 11.3 Manual events (class `events`, permission `analytics.events`)
+
+`POST /frigate/{rid}/cameras/{camera_id}/events/manual` `{label, duration_s (1..600, or null = stays open), sub_label}` -> `POST /api/events/{cam}/{label}/create` body `{"sub_label","duration","include_recording":true,"score":0,"draw":{}}`, id from `event_id`, read back through `GET /api/events/{id}`. `POST /frigate/{rid}/events/{id}/end` -> `PUT /api/events/{id}/end` body `{"end_time": <epoch>}`; only events Arx created (their `event_create` change rows) can be ended, others are 409 `frigate_object_not_arx`. The undo of a create ends the event. The camera must be enabled and in the caller's scope.
+
+**NOT VERIFIED (F2b):** every wire shape in 11.2 and 11.3 and the id fields in the answers (`export_id`, `id`, `event_id`); whether Frigate export ids match `[A-Za-z0-9_.-]{1,80}`; whether `GET /api/events/{id}` shows a manual event's `end_time`. Each shape sits in one place in `services/recorders/frigate_control.py`. The first supervised write of each kind on the owner's instance is still to do.
+**Not built (F2b):** all operator screens (a design agent builds them), assigning an export to a case, a PTZ pad, backup of the new tables. The `triggered` alarm state can be mapped to a profile like any other, but no real-hardware trial exists.
+**Rollback:** run the previous version (0068 only adds tables and rebuilds `frigate_write_policy` with the same rows and two more allowed class names); with every class off and the auto mode `off` (the defaults) nothing is written to Frigate.
