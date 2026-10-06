@@ -1,5 +1,16 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PERMS, installCastMock } from './cast-mocks';
+
+// SW_SHOTS=1 writes the guide screenshot to docs/design/evidence/mu2 (invented names, no real host).
+const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/mu2');
+async function shot(page: Page, name: string) {
+  if (!process.env.SW_SHOTS) return;
+  fs.mkdirSync(OUT, { recursive: true });
+  await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`) });
+}
 
 // MU2 (voice announcements): the Settings tab against a mocked wire contract (invented names, nothing is sent to a device): the switch, the engine,
 // the allowed-speaker list with a test button per row, "announce now", the history, the Hebrew / English strings, and the rule editor's announce action.
@@ -62,6 +73,7 @@ test.describe('settings: voice announcements', () => {
     await test1.click();
     await expect.poll(() => m.calls.some((c) => c.path === 'test' && c.body?.ref === 'sp-1' && c.body?.scope === 'device')).toBe(true);
     await expect(tab(page).locator('[data-announce-history] tr')).toHaveCount(1);
+    await shot(page, 'announce');
     expect(errors).toEqual([]);
   });
 
