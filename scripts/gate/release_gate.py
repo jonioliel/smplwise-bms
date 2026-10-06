@@ -34,7 +34,15 @@ TAG = ""
 PW_WORKERS = os.environ.get("GATE_PW_WORKERS", "3")
 # specs that need a fake backend and are part of the gate's routine; any other spec that needs a fixture self-skips in the
 # preview run and is listed under "fixture needed but not in the gate routine"
+# One source with scripts/fixture_job.py (the runner's `fixture` job): frontend/tests/fixtures/fixture_specs.json, the specs with
+# "gate": true. When the JSON is not next to the script (the gate copy in ~/ on the runner) the built-in default is used; both give
+# the same set, a test (test_fixture_job.py) pins that.
 FIXTURE_SPECS = {"evidence-camera-card.spec.ts"}
+try:
+    _fx = json.loads((HERE.parent.parent / "frontend" / "tests" / "fixtures" / "fixture_specs.json").read_text(encoding="utf-8"))["groups"]
+    FIXTURE_SPECS = {n for g in _fx.values() for n, s in g["specs"].items() if s.get("gate")} or FIXTURE_SPECS
+except (OSError, ValueError, KeyError):
+    pass
 STATUS = RES / "gate_status.json"
 STARTED = time.strftime("%Y-%m-%dT%H:%M:%S%z")
 GROUPS = []          # process groups started here (only these are ever killed)

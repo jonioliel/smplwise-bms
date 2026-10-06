@@ -1,0 +1,30 @@
+{
+  "_comment": "Single source for the Playwright specs that need a live fixture backend. Read by scripts/gate/release_gate.py (only specs with gate=true: FIXTURE_SPECS) and by scripts/fixture_job.py (the `fixture` job of private/runner/run_smart.py). Do not change a gate flag without noting it in docs/operations/RUNNER_FIXTURE_JOB.md.",
+  "groups": {
+    "devices": {
+      "script": "frontend/tests/fixtures/devices_fake_ha.py",
+      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1"},
+      "specs": {
+        "evidence-camera-card.spec.ts": {"gate": true},
+        "evidence-plan-package.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]}
+      }
+    },
+    "devices_floor": {
+      "script": "frontend/tests/fixtures/devices_fake_ha.py",
+      "seed": "frontend/tests/fixtures/seed_floor_plan.py",
+      "pw_env": {"SW_LIVE": "1", "SW_DEVICES_FIXTURE": "1"},
+      "specs": {
+        "evidence-custom-roles.spec.ts": {"gate": false, "projects": ["desktop"]}
+      }
+    },
+    "arx": {
+      "script": "frontend/tests/fixtures/arx_fake_ha.py",
+      "pw_env": {"SW_LIVE": "1", "SW_ARX_FIXTURE": "1"},
+      "extra_ports": 2,
+      "specs": {
+        "evidence-arx-second-factor.spec.ts": {"gate": false, "projects": ["desktop"]},
+        "evidence-arx-sessions.spec.ts": {"gate": false, "projects": ["desktop"]}
+      }
+    }
+  }
+}
