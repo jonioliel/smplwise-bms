@@ -1,5 +1,5 @@
 """Seed for the `devices_floor` fixture group (scripts/fixture_job.py): a site / building / floor with a published plan and
-two camera channels, through the backend's own routes, so specs written against the developer backend (evidence-custom-roles)
+two camera channels (the first one anchored on the plan), through the backend's own routes, so specs written against the developer backend (evidence-custom-roles)
 find a floor with a plan and a camera. Stdlib only. Usage: seed_floor_plan.py <api_port> [control_port]."""
 from __future__ import annotations
 
@@ -44,6 +44,8 @@ def main(argv: list[str]) -> int:
     call(f"{base}/plan-versions/{version}/publish", {})
     cams = call(f"http://127.0.0.1:{control}/seed-cameras", {"model": "DS-7616NXI-K2/D", "cameras": [
         {"channel": 1, "alias": "מצלמה 1", "status": "online"}, {"channel": 2, "alias": "מצלמה 2", "status": "online"}]})
+    # the first camera goes on the plan: a floor-scoped binding can only watch a camera anchored inside its floor
+    call(f"{base}/floors/{floor}/anchors", {"resource_type": "camera", "resource_id": cams["cameras"]["1"], "x": 0.4, "y": 0.4, "rotation_degrees": 90, "field_of_view_degrees": 70})
     print(f"seed_floor_plan: floor {floor} with a published plan, cameras {sorted(cams.get('cameras', {}))}", flush=True)
     return 0
 
