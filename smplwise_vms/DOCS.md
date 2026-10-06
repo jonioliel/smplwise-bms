@@ -16,7 +16,7 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      the audit log. Leave everything else empty for now if you only want to try the maps.
    - `nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password` — **deprecated (CR-022)**: the
      NVR is now chosen and connected inside Arx (הגדרות › חיבורים, or the setup wizard's NVR step: choose the
-     NVR type - Hikvision, or "ללא NVR"; Provision-ISR and Frigate are listed as coming soon - then address, ports,
+     NVR type - Hikvision, or "ללא NVR"; Provision-ISR is listed as coming soon, and Frigate until the option `frigate_enabled` is on - then address, ports,
      user and password, test, save, restart). On the first start after the upgrade, values already present here
      are imported once into Arx and then ignored; the options themselves are never changed, so a downgrade keeps
      working. The keys stay for at least two releases. Prefer a dedicated non-admin NVR account; the connection
@@ -52,6 +52,8 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
      address `http://<the HA host's LAN IP>:<the host port>`, press "בדוק", switch casting on and allow each screen. Needs
      bridge **0.7.0** (one platform restart). Only `smplwise_*` streams are ever relayed. See
      `docs/changes/CR-028-CAST-TO-SCREENS.md` section 12.
+   - `log_level` (default `info`; `debug`, `info`, `warning`, `error`) — the add-on log verbosity; `debug` adds request-level
+     detail and never prints secrets.
    - `db_write_gate` (default `true`) — database writes wait in one queue, in arrival order, instead of retrying on
      their own (the fix for the "database is locked" storm of test round 10). Leave it on; turn it off only when
      support asks, to compare. `/health` → `db.write_lock` shows `write_gate`, the queue (`gate`) and the waits.
@@ -158,6 +160,9 @@ Design note: `docs/operations/NVR_LESS_MODE.md`.
   backup, not a reader of the whole `/data` folder: the Home Assistant add-on backup below contains the database and
   the key together - the same exposure class as the add-on options, which the Supervisor also keeps in clear. If the
   key file is lost, the NVR shows as "not configured" and the password must be entered again.
+  Frigate recorders: the write-class approvals, change log, profile mapping and per-user reviewed state are in the backup
+  (since 2.2.1); review items and sync state are re-read from Frigate, and a restore never writes to Frigate. The
+  second-factor secrets, the signing keys and the push-relay key are not part of an Arx backup.
 - Rollback after a bad upgrade: install the previous version from Home Assistant, then restore the
   "לפני עדכון" backup with "החלפה".
 
@@ -850,6 +855,94 @@ Supervisor network.
 - **Pen-test checklist.** `docs/operations/ARX_REMOTE_PENTEST_HE.md`: the attack paths the two security reviews listed
   as untested on a real deployment, each with the exact request and the expected result.
 
+## Frigate recorders (CR-029)
+
+Besides Hikvision, Arx can connect to a **Frigate** recorder (version 0.18 or newer). Everything here is off until you switch it on.
+
+- **Enabling.** Add-on option `frigate_enabled: true`, save, restart the add-on; then add the recorder in הגדרות › חיבורים.
+  Without the option the Frigate type is listed as "coming soon" and nothing changes.
+- **Read views (always read-only).** Camera import, the review screen (alert / detection / motion layers, per-user "reviewed",
+  the tracked-object timeline; permission `analytics.review`, operator and above), recording coverage and playback,
+  refreshing still tiles, health rows, and notifications from alerts only. Reads go through a closed allow-list of Frigate
+  routes.
+- **Write classes (off per recorder).** Six classes, each with its own switch per recorder and its own permission, held by
+  system and site administrators: one-camera analytics switches (`analytics.control`), recording / snapshots / camera on-off
+  (`analytics.record_control`), profile and alarm-to-profile mapping (`analytics.profile`), the reviewed mirror and the event
+  retain flag / sub-label (`analytics.events`), and PTZ. Every write is read - write once - read back; it lands in a change log
+  with undo, recording / profile / PTZ ask for confirmation per action, and there are no retries or queues. PTZ is held back by a
+  code flag in this build and cannot be switched on.
+- **First supervised write.** The writes were tested only against an in-process fake. The first write of each class on a real
+  Frigate has not happened yet; do it deliberately, on one camera, with someone watching, before relying on a class.
+- **Backup.** The write-class approvals, the change log, the profile mapping and the per-user reviewed state are in the Arx
+  backup; the review items and sync state are re-read from Frigate. A restore never touches Frigate.
+
+## Optional second factor (TOTP)
+
+An optional second factor for **new remote sign-ins** (the `/arx` channel), using standard 6-digit codes from an authenticator app.
+
+- **Off by default and optional.** Nothing changes for a user until they enrol (user menu › my account › second factor). The
+  policy is under הגדרות › גישה מרחוק: `optional` (default) or `admins`, which refuses a remote sign-in of an administrator who
+  has no factor - enrol every administrator before switching it.
+- **What it protects.** A new remote sign-in of an enrolled user needs the password and a current code; a code is accepted once;
+  five wrong codes lock the sign-in for a while; the secret is stored encrypted; enabling the factor ends the user's other remote
+  sign-ins. Token-based clients (a client that signs in with a Home Assistant access token) are held to the same rule over HTTP
+  and the live WebSocket connection since 2.2.1 (setting `security.second_factor_bearer`, default `enforce`; `off` restores the
+  2.2.0 behaviour and audits each skipped check). 2.2.0 did not apply the factor on that path.
+- **What it does not cover.** The local panel (Ingress) channel; a sign-in that is already open; step-up confirmation of
+  individual sensitive actions (a later slice). There are no recovery codes: a user who lost the app is reset by an
+  administrator (הגדרות › users › the user; audited; an administrator cannot reset their own factor). It was tested with a
+  test system and software code generation, not with a physical authenticator app scanning the QR code.
+
+## Voice announcements
+
+Speak a typed line (up to 200 characters, markup stripped) through allowed speakers, chosen by room or by speaker, using the
+platform's text-to-speech. Set up in הגדרות › מולטימדיה › voice announcements, or used as a rule action.
+
+- **Off by default.** Until an administrator picks the engine, ticks the allowed speakers, tests one and switches it on, nothing
+  can be spoken. Permission `media.announce` (site and system administrators). A rule re-checks the permission of whoever saved
+  it on every run.
+- **Limits.** A per-minute cap for the installation (default 6) and a short cooldown per room and per speaker; every attempt,
+  including refused ones, is in the history and the audit log.
+- **Tested** with fakes only; no real speaker has been spoken to.
+
+## Plan DXF export and signed plan package
+
+The plan editor's export row offers: **DXF** (R2018, `SW_*` layers, metres when the plan is calibrated), a **signed package**
+(Ed25519 signature over a SHA-256 manifest, with the original plan file when it is at most 16 MB) and **package import**.
+
+- Import shows a dry-run preview first, then replaces or merges, and only ever creates a **draft**. A package signed by another
+  installation (or by a retired key) needs an explicit trust confirmation already at the preview. Hostile archives are rejected
+  (size, shape and depth limits; one import at a time per user and a per-user rate).
+- Both exports carry only the anchors the caller may see.
+- DXF export has not been checked for Hebrew text ordering in commercial CAD programs. Nothing to switch on.
+
+## Phone app push and the relay (CR-027)
+
+The SmplWise Arx phone apps register with this installation (`presence/devices`) and receive push notifications through the
+SmplWise **push relay** (`services/push-relay/`, a small Cloudflare Worker run by SmplWise); the contract is
+`docs/api/mobile-presence-contract.md` (v2).
+
+- **Options.** `push_relay_url` and `push_relay_key` (see Installation). Empty = the "אפליקציה" channel plans nothing.
+- **What travels.** The relay sees an opaque token, a category and a notification id, never the text: the app fetches the text
+  from this installation with its own device token. Registration returns this installation's `server_id` and a `relay_url` (so
+  one app can serve several installations and the relay can move without an app update). Registration at the relay is
+  idempotent per phone, one relay token is one phone, a `server_id` belongs to the first server key that claims it, and a
+  critical category is never muted. Cross-site refusals carry a machine-readable reason.
+- **Limits.** The relay Worker is written and tested locally but is **not deployed**, and has never run against real APNs / FCM:
+  until the owner deploys it with its own secrets, no push reaches a phone. The apps adopt contract v2 in their next build.
+
+## Android app download and the bundled APK
+
+The remote sign-in page can offer one quiet download link (with version and SHA-256), only on Android devices outside the app.
+
+- **Bundled APK.** A signed APK can be bundled in the add-on image (`/app/downloads`, served from `auth/app-download/file`,
+  rate-limited per client address). It is staged at release time by `scripts/stage_apk.py` (`docs/release/RELEASE_PACKAGE_V1.md`)
+  and never committed to git. **The 2.2.1 image carries no APK**, so nothing is offered from the image.
+- **External address.** An administrator can instead set an https address (הגדרות › גישה מרחוק › Android app download); it
+  always wins over the bundled file. Empty and no staged APK = no link at all.
+- **Limit.** The current Android build is a **debug build** and is not for distribution. Do not publish a link until a signed
+  release build exists.
+
 ## Security boundaries checked by tests
 
 - Permissions are evaluated per resource on the server: a camera is reachable only through a floor the user may
@@ -862,7 +955,7 @@ Supervisor network.
 
 ## Limits in this build
 
-- Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG/DXF are rejected.
+- Uploads: PDF/PNG/JPG up to 40 MB, PDF up to 20 pages; SVG and DWG are rejected (DXF is accepted through the DXF card, see below).
 - PDF rasterization runs in a separate process (pdftoppm) with a 30 s limit.
 - Evidence bundles are signed: manifest.sig.json holds an Ed25519 signature over manifest.json by the
   installation's active key (public key and key id embedded). Verify in the case page or offline with
@@ -900,6 +993,11 @@ Supervisor network.
 - Home Assistant actions: only the allow-listed services above, no arguments yet (brightness, position);
   entity widgets are generic (state, unit, last change); scripts/scenes run but report "unknown" if HA
   keeps no state to observe.
+- Not yet verified (2.2.1): the first supervised write of each Frigate write class on a real Frigate, a Frigate viewer-role
+  account, Frigate clip export and HLS time anchors; PTZ (Frigate) stays disabled in the code; the push relay is not deployed
+  and has never run against real APNs / FCM; the bundled Android APK is not staged (the current Android build is a debug
+  build until a signed release exists); the second factor and announcements were tested with fakes (no physical authenticator
+  app, no real speaker); DXF Hebrew ordering in commercial CAD programs is unchecked.
 - Live video needs a browser with H.264 support (Chrome, Edge, Safari, Firefox on desktop); Playwright's
   bundled Chromium has none, so the evidence suites run with `SW_CHROME=1`.
 
