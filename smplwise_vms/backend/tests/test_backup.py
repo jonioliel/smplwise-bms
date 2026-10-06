@@ -288,3 +288,61 @@ def test_cr019_switch_protection_is_in_the_backup_and_an_older_archive_never_emp
     with app2.state.db.connection() as conn:
         assert {r[0]: r[1] for r in conn.execute("SELECT entity_id, source FROM device_bulk_protected")} == {"switch.pool_pump": "auto"}
         assert {r[0]: r[1] for r in conn.execute("SELECT entity_id, verdict FROM device_switch_classified")} == {"switch.pool_pump": "protected", "switch.hall": "admin_cleared"}
+
+
+def test_frigate_write_class_tables_are_in_the_backup_and_an_older_archive_keeps_history_but_never_a_class(settings, tmp_path):
+    """2.2.0 gap (CR-029 F2): the class policy, the change log, the alarm -> profile mapping and the reviewed state with its mirror columns are
+    project tables. A replace restore of an archive that has them brings them back; one written before them keeps the change log and the
+    reviewed state (history) but leaves every write class OFF (never a class that happened to be on). frigate_reviews / frigate_sync_state
+    (re-polled) and camera_links stay out."""
+    assert set(svc.FRIGATE_TABLES) <= set(svc.PROJECT_TABLES)
+    assert {"frigate_reviews", "frigate_sync_state", "camera_links"}.isdisjoint(svc.PROJECT_TABLES)
+    assert {"frigate_changes", "frigate_review_state"} <= svc.KEEP_WHEN_ABSENT and "frigate_write_policy" not in svc.KEEP_WHEN_ABSENT
+    app = create_app(settings)
+    c = TestClient(app)
+    _seed(c)
+    with app.state.db.connection() as conn:
+        conn.executemany("INSERT INTO frigate_write_policy(recorder_id, class, enabled, changed_by, changed_at) VALUES ('nvr-2', ?, ?, 'dev-joni', '2026-10-06T08:00:00Z')", [("analytics", 1), ("events", 1), ("record", 0)])
+        conn.execute("INSERT INTO frigate_changes(id, recorder_id, camera_id, camera_key, class, kind, target, before_json, after_json, state_hash, status, reversible, actor_id, actor_name, created_at) "
+                     "VALUES ('ch-1', 'nvr-2', NULL, 'cam_front', 'analytics', 'feature', 'detect', '{\"value\": true}', '{\"value\": false}', 'h1', 'applied', 1, 'dev-joni', 'joni', '2026-10-06T08:01:00Z')")
+        conn.execute("INSERT INTO frigate_profile_rules(recorder_id, alarm_state, profile, changed_by, changed_at) VALUES ('nvr-2', 'armed_away', 'away', 'dev-joni', '2026-10-06T08:02:00Z')")
+        conn.executemany("INSERT INTO frigate_review_state(user_id, recorder_id, review_id, reviewed_at, mirrored_at, mirror_error) VALUES ('u1', 'nvr-2', ?, '2026-10-06T08:03:00Z', ?, ?)",
+                         [("1791000000-aaaaaa", "2026-10-06T08:03:01Z", None), ("1791000001-bbbbbb", None, "frigate_write_class_off")])
+        conn.execute("INSERT INTO frigate_reviews(recorder_id, review_id, source_ref, severity, start_ts, last_seen_at, created_at) VALUES ('nvr-2', 'x', 'cam_front', 'alert', 1.0, '2026-10-06T08:00:00Z', '2026-10-06T08:00:00Z')")
+    e = c.post("/api/v1/backups", json={}).json()
+    assert e["tables"]["frigate_write_policy"] == 3 and e["tables"]["frigate_changes"] == 1 and e["tables"]["frigate_profile_rules"] == 1 and e["tables"]["frigate_review_state"] == 2
+    raw = c.get(f"/api/v1/backups/{e['name']}/download").content
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+        assert "data/frigate_reviews.json" not in z.namelist() and "data/frigate_sync_state.json" not in z.namelist()
+        assert b"password" not in z.read("data/frigate_changes.json").lower()
+
+    # a fresh installation restores all of it, columns included
+    app2 = create_app(replace(settings, data_dir=tmp_path / "data2"))
+    c2 = TestClient(app2)
+    up = c2.post("/api/v1/backups/upload", files={"file": ("new.zip", raw, "application/zip")})
+    res = c2.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert res.json()["tables"]["frigate_write_policy"] == 3 and res.json()["kept_current"] == []
+    with app2.state.db.connection() as conn:
+        assert {r["class"]: r["enabled"] for r in conn.execute("SELECT class, enabled FROM frigate_write_policy WHERE recorder_id = 'nvr-2'")} == {"analytics": 1, "events": 1, "record": 0}
+        ch = dict(conn.execute("SELECT * FROM frigate_changes WHERE id = 'ch-1'").fetchone())
+        assert ch["target"] == "detect" and ch["before_json"] == '{"value": true}' and ch["state_hash"] == "h1" and ch["status"] == "applied" and ch["actor_name"] == "joni"
+        assert [tuple(r) for r in conn.execute("SELECT alarm_state, profile FROM frigate_profile_rules")] == [("armed_away", "away")]
+        assert {r["review_id"]: (r["mirrored_at"], r["mirror_error"]) for r in conn.execute("SELECT * FROM frigate_review_state")} == {
+            "1791000000-aaaaaa": ("2026-10-06T08:03:01Z", None), "1791000001-bbbbbb": (None, "frigate_write_class_off")}
+        assert conn.execute("SELECT COUNT(*) FROM frigate_reviews").fetchone()[0] == 0, "re-polled history is not restored from the archive"
+
+    # an archive written before the Frigate tables: history is kept, no class stays on
+    old = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(raw)) as zin, zipfile.ZipFile(old, "w") as zout:
+        for n in zin.namelist():
+            if n not in {f"data/{t}.json" for t in svc.FRIGATE_TABLES}:
+                zout.writestr(n, zin.read(n))
+    up = c2.post("/api/v1/backups/upload", files={"file": ("old.zip", old.getvalue(), "application/zip")})
+    res = c2.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    assert {"frigate_changes", "frigate_review_state"} <= set(res.json()["kept_current"]) and "frigate_write_policy" not in res.json()["kept_current"]
+    with app2.state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM frigate_write_policy").fetchone()[0] == 0, "every class is OFF again"
+        assert conn.execute("SELECT COUNT(*) FROM frigate_profile_rules").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM frigate_changes").fetchone()[0] == 1 and conn.execute("SELECT COUNT(*) FROM frigate_review_state").fetchone()[0] == 2

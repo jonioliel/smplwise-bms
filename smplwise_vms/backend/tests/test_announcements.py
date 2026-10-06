@@ -232,3 +232,32 @@ def test_announcements_off_means_a_rule_speaks_nothing(world):
         fired = rules_svc.evaluate_event(conn, ev, "Asia/Jerusalem", deliver=False)
     rules_svc.deliver_pending(fired)
     assert fired[0]["announce"][0]["status"] == "feature_disabled" and fake.calls == []
+
+
+def test_rule_manager_without_media_announce_is_refused_for_an_announce_action(world):
+    """Gap from 2.2.0: the user HOLDS rules.manage (site administrator) but media.announce is denied to them -> 403 on create and on update."""
+    app, c, fake, keys, settings = world
+    enable(c, keys)
+    # rules.manage is a built-in (system) permission, so a custom role cannot hold it alone: the realistic way to hold it WITHOUT
+    # media.announce is a site administrator whom an administrator denied the (sensitive) announce permission by a deny binding.
+    role = c.post("/api/v1/access/roles", json={"name": "הכרזות בלבד", "permissions": [], "sensitive": ["media.announce"]})
+    assert role.status_code == 201, role.text
+    bind(c, settings, "rita", "site_admin", "installation", "*")
+    r = c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-rita", "role_id": role.json()["id"], "scope_type": "installation", "scope_id": "*", "effect": "deny"})
+    assert r.status_code == 201, r.text
+    H = as_user("rita")
+    plain = {"name": "חוק רגיל", "trigger": {"types": ["door"], "sources": ["system"]}, "scope": {}, "cooldown_s": 0, "actions": [{"kind": "notify"}]}
+    ok = c.post("/api/v1/rules", json=plain, headers=H)
+    assert ok.status_code == 201, "precondition: the user really holds rules.manage: " + ok.text
+    speaking = {**plain, "name": "חוק מכריז", "actions": [{"kind": "announce", "scope": "area", "ref": "living", "message": "הדלת פתוחה"}]}
+    r = c.post("/api/v1/rules", json=speaking, headers=H)
+    assert r.status_code == 403, r.text
+    # update path: turning an existing plain rule into a speaking one is refused too, and the stored rule is unchanged
+    rule = ok.json()
+    r = c.patch(f"/api/v1/rules/{rule['id']}", json={**speaking, "revision": rule["revision"]}, headers=H)
+    assert r.status_code == 403, r.text
+    assert c.get(f"/api/v1/rules/{rule['id']}", headers=H).json()["actions"] == rule["actions"]
+    assert [x for x in c.get("/api/v1/rules", headers=H).json().get("rules", []) if x["name"] == "חוק מכריז"] == []
+    assert fake.calls == []
+    # the administrator (who holds media.announce) can save the same body
+    assert c.post("/api/v1/rules", json=speaking).status_code == 201

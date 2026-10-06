@@ -136,6 +136,8 @@ interface WireReview {
   zones: string[];
   sub_labels?: string[];
   detections?: number;
+  /** the tracked-object ids of the item (the detail route only); the event controls act on these */
+  detection_ids?: string[];
   reviewed: boolean | null;
   /** an absolute server path (`/api/v1/frigate/{rid}/reviews/{id}/thumbnail`), never a Frigate URL */
   thumbnail: string;
@@ -362,6 +364,8 @@ export interface TrackedObject {
 export interface ReviewDetail extends ReviewItem {
   /** how many tracked objects the review bundles */
   detections?: number;
+  /** tracked-object (event) ids, in the order of `objects` when the counts match */
+  detection_ids?: string[];
   sub_labels?: string[];
   tracked: TrackedObject[];
 }
@@ -537,7 +541,7 @@ export async function listReviews(f: ReviewFilters, cursor: string | null = null
 export async function reviewDetail(item: ReviewItem): Promise<ReviewDetail> {
   if (item.layer === 'motion') return { ...item, tracked: [] };
   const w = await get<WireReview>(`frigate/${encodeURIComponent(item.recorder_id)}/reviews/${encodeURIComponent(item.id)}`);
-  return { ...item, ...itemOf(w), camera_name: item.camera_name, detections: w.detections, sub_labels: w.sub_labels, tracked: [] };
+  return { ...item, ...itemOf(w), camera_name: item.camera_name, detections: w.detections, detection_ids: w.detection_ids, sub_labels: w.sub_labels, tracked: [] };
 }
 
 /** The caller's reviewed state, per recorder (needs events.read on each item). Arx's state first; the server mirrors it to Frigate only when that write class is on (F2), and a failed mirror never fails the mark. */

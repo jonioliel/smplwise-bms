@@ -296,6 +296,9 @@ export const he = {
       suggested: 'מומלץ למצב האזעקה',
       retain: 'שמור הקלטה',
       retained: 'ההקלטה תישמר',
+      subLabel: 'תווית',
+      subLabelSave: 'שמור תווית',
+      eventObject: 'אובייקט',
       settings: {
         title: 'שינויים ב־Frigate',
         intro: 'כל סוג פעולה כבוי עד שמפעילים אותו כאן. כל שינוי נרשם ביומן וניתן לביטול.',

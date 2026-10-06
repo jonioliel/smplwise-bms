@@ -51,6 +51,8 @@ export interface FrigateControlMock {
   writes: string[];
   /** the next switch write fails with this 409 code */
   failWith: string | null;
+  /** the tracked objects' retain flag and sub-label as Frigate shows them (an id not listed = off / none) */
+  events: Record<string, { retain: boolean; sub_label: string | null }>;
 }
 
 const SWITCHES = ['detect', 'motion', 'audio', 'review_alerts', 'review_detections', 'notifications', 'improve_contrast', 'birdseye', 'ptz_autotracker', 'enabled', 'recordings', 'snapshots'];
@@ -65,7 +67,7 @@ export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateC
       { id: 'ch2', recorder_id: 'nvr-2', camera_id: 'fg-front', camera_key: 'cam_front', class: 'record', kind: 'feature', target: 'recordings', before: { value: true }, after: { value: false }, status: 'applied', error: null, reversible: true, reverts_id: null, actor: 'דנה', at: '2026-10-06T07:00:00Z' },
       { id: 'ch3', recorder_id: 'nvr-2', camera_id: null, camera_key: '*', class: 'profile', kind: 'profile', target: 'active', before: { profile: null }, after: { profile: 'home' }, status: 'reverted', error: null, reversible: false, reverts_id: null, actor: 'יוני', at: '2026-10-05T20:00:00Z' },
     ],
-    writes: [], failWith: null, ...over,
+    writes: [], failWith: null, events: {}, ...over,
   };
 }
 
@@ -249,6 +251,25 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
         else delete m.ctl.rules[k];
       }
       return json({ recorder_id: 'nvr-2', rules: m.ctl.rules });
+    }
+    const evCtl = /^frigate\/nvr-2\/events\/([^/]+)\/(control|retain|sub-label)$/.exec(p);
+    if (evCtl) {
+      const [, evId, what] = evCtl;
+      const st = (m.ctl.events[evId] ??= { retain: false, sub_label: null });
+      if (what === 'control') {
+        const writable = !!m.ctl.classes.events && m.perms.includes('analytics.events');
+        return json(writable ? { recorder_id: 'nvr-2', event_id: evId, writable, retain: st.retain, sub_label: st.sub_label } : { recorder_id: 'nvr-2', event_id: evId, writable });
+      }
+      const b = req.postDataJSON() as { retain?: boolean; sub_label?: string | null };
+      m.ctl.writes.push(`POST ${p} ${JSON.stringify(b)}`);
+      if (m.ctl.failWith) {
+        const code = m.ctl.failWith;
+        m.ctl.failWith = null;
+        return json(ENVELOPE(code, 'המקליט דחה את השינוי'), 409);
+      }
+      if (what === 'retain') st.retain = !!b.retain;
+      else st.sub_label = (b.sub_label ?? '').trim() || null;
+      return json({ recorder_id: 'nvr-2', changed: true, event_id: evId, verified: true, change_id: 'che', ...(what === 'retain' ? { retain: st.retain } : { sub_label: st.sub_label }) });
     }
     if (p.startsWith('frigate/nvr-2/changes')) {
       const rev = /^frigate\/nvr-2\/changes\/([^/]+)\/revert$/.exec(p);

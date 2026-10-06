@@ -3,9 +3,11 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import './sw-button';
 import './sw-state-panel';
+import './frigate-event-control';
 import { LAYER_TEXT, cardTime, objectLabel, playbackState, spanRows, spanText, timelineText, type ReviewDetail } from '../api/frigate';
 import { he } from '../i18n/he';
 
+const MAX_EVENT_ROWS = 6;
 const hms = (iso: string, tz: string) => new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
 
 /**
@@ -17,6 +19,8 @@ const hms = (iso: string, tz: string) => new Intl.DateTimeFormat('he-IL', { time
 export class FrigateReviewDetail extends LitElement {
   @property({ attribute: false }) detail: ReviewDetail | null = null;
   @property({ type: Boolean }) canReview = true;
+  /** the caller holds analytics.events somewhere: the retain / sub-label rows are tried (each one hides itself unless the server says it may change that event now) */
+  @property({ type: Boolean }) canEvents = false;
   @property() tz = 'Asia/Jerusalem';
 
   static styles = css`
@@ -110,6 +114,15 @@ export class FrigateReviewDetail extends LitElement {
       gap: var(--sw-s-2);
       align-items: center;
     }
+    .events {
+      display: grid;
+      gap: var(--sw-s-2);
+      border-block-start: 1px solid var(--sw-border);
+      padding-block-start: var(--sw-s-3);
+    }
+    .events:not(:has([ready])) {
+      display: none;
+    }
     .why {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
@@ -125,6 +138,16 @@ export class FrigateReviewDetail extends LitElement {
 
   private fire(name: 'review-play' | 'review-toggle') {
     this.dispatchEvent(new CustomEvent(name, { detail: { id: this.detail?.id }, bubbles: true, composed: true }));
+  }
+
+  /** One row per tracked object (capped), only for a caller who may act on events. The names follow `objects` when the counts match. */
+  private eventControls(d: ReviewDetail) {
+    const ids = (d.detection_ids ?? []).slice(0, MAX_EVENT_ROWS);
+    if (!this.canEvents || !d.recorder_id || !ids.length || d.layer === 'motion') return nothing;
+    const named = d.objects.length === (d.detection_ids ?? []).length;
+    return html`<section class="events" data-review-events>
+      ${ids.map((id, i) => html`<frigate-event-control recorder-id=${d.recorder_id} event-id=${id} label=${named ? objectLabel(d.objects[i]) : `${he.frigate.control.eventObject} ${i + 1}`}></frigate-event-control>`)}
+    </section>`;
   }
 
   render() {
@@ -156,6 +179,7 @@ export class FrigateReviewDetail extends LitElement {
             </div>`)
           : html`<ol data-review-activity>${spanRows(d).map((row) => html`<li data-timeline-row=${row.kind}><time datetime=${row.at}>${hms(row.at, this.tz)}</time><span>${timelineText(row.kind)}</span></li>`)}</ol>`}
       </section>
+      ${this.eventControls(d)}
       <div class="actions">
         <sw-button variant="primary" icon="history" data-review-play ?disabled=${!pb.available} @click=${() => pb.available && this.fire('review-play')}>${r.openRecording}</sw-button>
         ${this.canReview ? html`<sw-button icon="check" data-review-detail-toggle @click=${() => this.fire('review-toggle')}>${d.reviewed ? r.markUnreviewed : r.markReviewed}</sw-button>` : nothing}

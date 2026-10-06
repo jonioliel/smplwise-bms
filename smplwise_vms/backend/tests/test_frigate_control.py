@@ -401,6 +401,33 @@ def test_event_actions_only_reach_events_of_visible_review_items(world):
     assert world.fake.writes == []
 
 
+def test_event_control_read_shows_the_state_only_to_a_caller_who_may_change_it(world):
+    """The review screen's read (F2 gap): writable false and NO Frigate call while the class is off or the camera is not the caller's."""
+    ev = _event_id(world)
+    URL = f"{BASE}/events/{ev}/control"
+    before = len(world.fake.hits)
+    off = world.call("GET", URL).json()
+    assert off["writable"] is False and "retain" not in off and len(world.fake.hits) == before, "class off: nothing is read from Frigate"
+    world.policy(events=True)
+    on = world.call("GET", URL).json()
+    assert on["writable"] is True and on["retain"] is False and on["sub_label"] is None
+    world.call("POST", f"{BASE}/events/{ev}/retain", json={"retain": True})
+    world.call("POST", f"{BASE}/events/{ev}/sub-label", json={"sub_label": "Dana"})
+    again = world.call("GET", URL).json()
+    assert again["retain"] is True and again["sub_label"] == "Dana"
+    cams = world.cams()
+    bind(world.c, world.s, "tal", "site_admin", "camera", cams["cam_yard"])
+    assert world.call("GET", URL, headers=as_user("tal")).status_code == 403, "the event belongs to cam_front"
+    bind(world.c, world.s, "vera", "viewer", "installation", "*")
+    assert world.call("GET", URL, headers=as_user("vera")).status_code == 403, "a viewer cannot read events at all"
+    bind(world.c, world.s, "oren", "operator", "installation", "*")
+    hits = len(world.fake.hits)
+    ro = world.call("GET", URL, headers=as_user("oren"))
+    assert ro.status_code == 200 and ro.json()["writable"] is False and "retain" not in ro.json() and len(world.fake.hits) == hits, "an operator reads events but holds no analytics.events: no Frigate call"
+    assert world.call("GET", f"{BASE}/events/1791227001.000000-zzzzzz/control").status_code == 404
+    assert [w for w in world.fake.writes if w[1].endswith("/control")] == []
+
+
 # ---------------------------------------------------------------------------------------------- PTZ plumbing behind its flag
 
 def test_ptz_is_disabled_by_the_flag_whatever_the_policy_and_permission(world, monkeypatch):
