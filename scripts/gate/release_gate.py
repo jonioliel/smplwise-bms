@@ -8,8 +8,10 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     (backend_finish());
   * each category's passed count is compared with gate_baselines.json (the previous accepted release); below GATE_DROP_THRESHOLD
     (default 0.70) of the baseline is a FAIL unless the run started with --allow-count-drop "<reason>" (check_baselines());
-  * optional M074 visual step (--visual = warn only, --visual-block = failing; --visual-base <ref>, default origin/main): runs
-    `visual.mjs run --touched` on the dist preview against the committed linux baselines; the matrix spec then leaves the pixel group;
+  * M074 visual step, ON BY DEFAULT in every tier as a WARNING (differences are a report section, the verdict is unchanged);
+    --visual-block makes differences fail the gate, --no-visual (or GATE_VISUAL=off) switches the step off, --visual-base <ref>
+    (default origin/main) selects the touched screens: runs `visual.mjs run --touched` on the dist preview against the committed
+    linux baselines; the matrix spec then leaves the pixel group;
   * the final report lists every category with its counts, its baseline and the ratio.
 """
 import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
@@ -18,7 +20,13 @@ from pathlib import Path
 HB_STOP = threading.Event()
 
 BR, TIER = "", "L"        # set by main_cli()
-VISUAL = os.environ.get("GATE_VISUAL", "")  # "", "warn" (--visual) or "block" (--visual-block): the M074 visual-diff matrix step
+def visual_from_env(v):
+    """GATE_VISUAL: unset/'warn' -> warn (the default), 'block' -> block, 'off'/'none' -> step disabled."""
+    v = (v or "").strip().lower()
+    return "" if v in ("off", "none") else (v if v in ("warn", "block") else "warn")
+
+
+VISUAL = visual_from_env(os.environ.get("GATE_VISUAL"))  # "warn" (default, --visual), "block" (--visual-block) or "" (--no-visual): the M074 visual-diff matrix step
 VISUAL_BASE = os.environ.get("GATE_VISUAL_BASE", "origin/main")   # --touched is computed against this ref (the previous release)
 VISUAL_INFO = {}          # filled by run_visual(); written to the report as a warning section
 ALLOW_DROP = ""           # --allow-count-drop "<reason>": waives the baseline check; the waiver is written into the report
@@ -885,7 +893,7 @@ def main():
                     if vp:
                         reap(vp)
                     reap(fx)
-            if VISUAL and TIER in ("M", "L"):
+            if VISUAL:
                 with Phase("visual-matrix", "M074 visual matrix (--touched)"):
                     port = free_port()
                     vp, ok = start_vite(fe, "preview", port, logd, dead)
@@ -965,6 +973,8 @@ def main_cli(argv):
                 return 2
         elif a == "--visual":
             VISUAL = "warn"
+        elif a == "--no-visual":
+            VISUAL = ""
         elif a == "--visual-block":
             VISUAL = "block"
         elif a == "--visual-base":
@@ -975,7 +985,7 @@ def main_cli(argv):
         else:
             BR = a
     if not BR:
-        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block] [--visual-base <ref>]')
+        print('usage: release_gate.sh <branch> [--tier S|M|L] [--allow-count-drop "<reason>"] [--visual | --visual-block | --no-visual] [--visual-base <ref>]')
         return 2
     if TIER not in ("S", "M", "L"):
         print("tier must be S, M or L")

@@ -207,6 +207,7 @@ fin, bp = g.write_reports("abc1234", g.compute_verdict([]), {})
 md = Path(str(bp) + ".md").read_text()
 check("visual: warn mode lists the difference in the report and does not fail the verdict", "sites / ready / dark / desktop" in md and "## פסק דין: **עבר**" in md, md[:500])
 g.VISUAL, g.VISUAL_INFO = "", {}
+check("visual: warn by default, block / off from GATE_VISUAL", (g.visual_from_env(None), g.visual_from_env("block"), g.visual_from_env("off")) == ("warn", "block", ""), "")
 
 print()
 print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
