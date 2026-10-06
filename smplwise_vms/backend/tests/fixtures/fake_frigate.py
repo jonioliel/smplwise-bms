@@ -131,6 +131,11 @@ class FakeFrigate:
                                               "thumb_path": "/media/frigate/exports/foreign.jpg", "in_progress": False, "export_case_id": None}]
         self.cases: list[dict[str, Any]] = [{"id": "case_foreign", "name": "made in Frigate", "description": "", "created_at": T0 - 4000.0, "updated_at": T0 - 4000.0}]
         self.export_reply_id = True
+        # F2b clip read: `clip` is the body served for any clip.mp4 GET; `clip_status` / `clip_ctype` force an answer; `clip_hits` lists the clip GETs
+        self.clip = b"   ftypmp42" + b"fake-clip-bytes-" * 64
+        self.clip_status = 200
+        self.clip_ctype = "video/mp4"
+        self.clip_hits: list[str] = []
         self.case_reply_id = True
         self.event_reply_id = True
         self.seq = 0
@@ -365,6 +370,11 @@ class FakeFrigate:
         if path == "/api/review/activity/motion":
             a, b = float(q["after"]), float(q["before"])
             return self._json([{"start_time": T0 - 600 + 30 * i, "motion": 10.5 + i, "camera": "cam_front,cam_yard"} for i in range(10) if a <= T0 - 600 + 30 * i <= b])
+        if path.endswith("/clip.mp4") and (path.startswith("/api/events/") or "/start/" in path):
+            self.clip_hits.append(path)
+            if self.clip_status != 200:
+                return httpx.Response(self.clip_status, json={"message": "no clip"})
+            return httpx.Response(200, content=self.clip, headers={"content-type": self.clip_ctype, "content-length": str(len(self.clip))})
         if path == "/api/exports":
             return self._json([dict(x) for x in self.exports])
         if path == "/api/cases":

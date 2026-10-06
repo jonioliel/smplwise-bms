@@ -93,6 +93,13 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
                 ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
     "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
 }
+# F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
+# which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the
+# server (`/api/{camera}/start/{s}/end/{e}/clip.mp4`, `/api/events/{id}/clip.mp4`); nothing has been read from a real instance yet.
+CLIP_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/start/{NUM}/end/{NUM}/clip\.mp4"), re.compile(rf"/api/events/{ID}/clip\.mp4"))
+CLIP_MAX_BYTES = 400_000_000
+CLIP_TIMEOUT_S = 30.0           # per network read; the total is bounded by CLIP_TOTAL_S
+CLIP_TOTAL_S = 300.0
 WRITE_BODY_MAX = 20_000
 WRITE_REPLY_MAX = 200_000
 WRITE_TIMEOUT_S = 8.0
@@ -218,11 +225,40 @@ def control_read_allowed(path: str) -> bool:
     return any(p.fullmatch(path) for p in CONTROL_GET_ALLOWED)
 
 
+def clip_allowed(path: str) -> bool:
+    return any(p.fullmatch(path) for p in CLIP_ALLOWED)
+
+
 def write_allowed(klass: str, method: str, path: str) -> bool:
     return any(m == method and p.fullmatch(path) for m, p in WRITE_ALLOWED.get(klass, ()))
 
 
 # ---------------------------------------------------------------------------------------------- the client
+
+class ClipStream:
+    """An open clip answer: `content_type`, the declared `length` (or None) and `chunks()`, a one-shot generator that enforces the byte cap and
+    the total time and always closes the connection (also when the consumer stops early)."""
+
+    def __init__(self, stack: Any, response: httpx.Response, content_type: str, length: int | None, max_bytes: int) -> None:
+        self._stack, self._r, self.content_type, self.length, self._max = stack, response, content_type, length, max_bytes
+
+    def close(self) -> None:
+        self._stack.close()
+
+    def chunks(self):
+        sent = 0
+        deadline = time.monotonic() + CLIP_TOTAL_S
+        try:
+            for piece in self._r.iter_bytes():
+                sent += len(piece)
+                if sent > self._max or time.monotonic() > deadline:
+                    break   # the answer is already on its way to the client: stop here, the cut-short body tells it
+                yield piece
+        except httpx.HTTPError:
+            return
+        finally:
+            self.close()
+
 
 class FrigateHttp:
     """One recorder's HTTP access. Constructed from that recorder's effective settings (`recorder_scope.settings_for`):
@@ -405,6 +441,54 @@ class FrigateHttp:
                 if pisr.PIN_MISMATCH in str(exc):
                     raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": _op(path)}) from exc
                 raise unavailable(_op(path), exc) from exc
+
+    # ------------------------------------------------------------------------------------------ one clip read (F2b)
+
+    def open_clip(self, path: str, *, max_bytes: int | None = None) -> "ClipStream":
+        """ONE streamed GET of a clip (`CLIP_ALLOWED` only). 401 -> one fresh login and one retry; any other non-200 is mapped like a read.
+        The returned stream yields the body in pieces, refuses to pass `max_bytes` (a declared length over the cap is refused before the first
+        byte) and the total time `CLIP_TOTAL_S`; only a `video/*` or octet-stream content type is passed on. The caller must close it."""
+        if not clip_allowed(path):
+            raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "clip", "reason": "not_allowed"})
+        max_bytes = CLIP_MAX_BYTES if max_bytes is None else max_bytes
+        from contextlib import ExitStack
+
+        for attempt in (0, 1):
+            token = self.login()
+            stack = ExitStack()
+            try:
+                c = stack.enter_context(self._client(timeout=CLIP_TIMEOUT_S))
+                r = stack.enter_context(c.stream("GET", path, headers={"Cookie": f"frigate_token={token}"}, timeout=CLIP_TIMEOUT_S))
+                if r.status_code == 401 and attempt == 0:
+                    stack.close()
+                    self.forget_token()
+                    continue
+                if r.status_code != 200:
+                    status = r.status_code
+                    stack.close()
+                    if status == 401:
+                        self.forget_token()
+                    raise map_status("clip", status)
+                declared = r.headers.get("content-length")
+                if declared and declared.isdigit() and int(declared) > max_bytes:
+                    stack.close()
+                    raise ApiError(503, "source_too_large", "הקליפ גדול מהמותר.", details={"op": "clip"})
+                ctype = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+                if not (ctype.startswith("video/") or ctype == "application/octet-stream"):
+                    stack.close()
+                    raise ApiError(503, "source_invalid", "תשובת Frigate אינה קליפ וידאו.", details={"op": "clip"})
+                return ClipStream(stack, r, ctype, int(declared) if declared and declared.isdigit() else None, max_bytes)
+            except httpx.HTTPError as exc:
+                stack.close()
+                from . import provision_isr as pisr
+
+                if pisr.PIN_MISMATCH in str(exc):
+                    raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": "clip"}) from exc
+                raise unavailable("clip", exc) from exc
+            except BaseException:
+                stack.close()
+                raise
+        raise map_status("clip", 401)
 
     # ------------------------------------------------------------------------------------------ one write (F2)
 

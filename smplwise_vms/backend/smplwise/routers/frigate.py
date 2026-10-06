@@ -25,6 +25,7 @@ import threading
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
@@ -464,6 +465,81 @@ def playback_asset(recorder_id: str, camera_id: str, start: int, end: int, name:
     finally:
         sem.release()
     return Response(data, media_type="video/mp4", headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+
+def _clip_response(conn: sqlite3.Connection, principal: Principal, a: FrigateAdapter, recorder_id: str, what: str, supervised: bool, request: Request, opener: Any,
+                   camera_id: str | None) -> StreamingResponse:
+    """The shared tail of the two clip routes: the first-supervised-read gate, the in-flight limit, ONE streamed GET, the audit row. The
+    clip is passed through as it arrives (content type from Frigate, only video types); no Frigate address, key or path appears in it."""
+    from starlette.background import BackgroundTask
+
+    from ..db import database_of
+    from ..services import frigate_native_svc as native
+
+    native.check_supervised(conn, principal, recorder_id, "clip_read", supervised, getattr(request.state, "correlation_id", None))
+    sem = _sem(recorder_id)
+    if not sem.acquire(blocking=False):
+        raise ApiError(429, "frigate_busy", "יותר מדי קטעי וידאו נקראים במקביל.", retryable=True, details={"max": ASSET_INFLIGHT})
+    try:
+        stream = opener()
+    except BaseException:
+        sem.release()
+        raise
+    state = {"released": False}
+
+    def cleanup() -> None:
+        stream.close()
+        if not state["released"]:
+            state["released"] = True
+            sem.release()
+
+    def body():
+        try:
+            yield from stream.chunks()
+        finally:
+            cleanup()
+
+    db = database_of(conn)
+    if db is not None and not native.supervised_ok(conn, recorder_id, "clip_read"):
+        with db.write_aside() as w:   # Frigate accepted the first read: the supervised flag is stored (a read connection cannot write)
+            native.mark_first_write(w, principal, recorder_id, "clip_read")
+    audit(conn, actor=principal, action="frigate.clip.read", decision="allowed", resource_type="camera" if camera_id else "recorder", resource_id=camera_id or recorder_id,
+          request_id=getattr(request.state, "correlation_id", None), details={"what": what})
+    return StreamingResponse(body(), media_type=stream.content_type, background=BackgroundTask(cleanup),
+                             headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": 'inline; filename="clip.mp4"'})
+
+
+@router.get("/frigate/{recorder_id}/cameras/{camera_id}/clip.mp4")
+def camera_clip(recorder_id: str, camera_id: str, request: Request, start: str = Query(...), end: str = Query(...), supervised: bool = Query(False),
+                principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> StreamingResponse:
+    """F2b: the clip Frigate cuts for ONE camera and window (at most an hour), streamed through Arx. Read-only (GET); permission
+    `video.playback` on the camera. UNVERIFIED wire shape: until a system administrator has passed `supervised=true` once the route answers
+    409 `frigate_first_write_unsupervised`, so the first real read is a supervised one."""
+    cam = _camera_row(conn, principal, recorder_id, camera_id, "video.playback")
+    a = _adapter(conn, request, recorder_id)
+    now = dt.datetime.now(dt.timezone.utc).timestamp()
+    s, e = _epoch(start), _epoch(end)
+    fp.validate_window(s, e, fp.EXPORT_PLAN_MAX_WINDOW_S, now)
+    return _clip_response(conn, principal, a, recorder_id, "range", supervised, request, lambda: a.open_clip(cam["source_ref"], s, e), camera_id)
+
+
+@router.get("/frigate/{recorder_id}/events/{event_id}/clip.mp4")
+def event_clip(recorder_id: str, event_id: str, request: Request, supervised: bool = Query(False), principal: Principal = Depends(current_principal_ro),
+               conn: sqlite3.Connection = Depends(get_read_conn)) -> StreamingResponse:
+    """F2b: the clip of one tracked object that belongs to a review item the caller can see; `video.playback` on its camera. Same
+    first-supervised-read gate as the range clip."""
+    from ..services import frigate_control_svc as control
+    from ..services.recorders import frigate_control as fc
+
+    a = _adapter(conn, request, recorder_id)
+    if not fc.EVENT_ID.fullmatch(event_id):
+        raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
+    scope = control._event_scope(conn, principal, recorder_id, event_id)
+    if scope["camera_id"]:
+        require_camera(conn, principal, scope["camera_id"], "video.playback")
+    else:
+        require(conn, principal, "video.playback", INSTALLATION)
+    return _clip_response(conn, principal, a, recorder_id, "event", supervised, request, lambda: a.open_event_clip(event_id), scope["camera_id"])
 
 
 @router.get("/frigate/{recorder_id}/cameras/{camera_id}/export-plan")

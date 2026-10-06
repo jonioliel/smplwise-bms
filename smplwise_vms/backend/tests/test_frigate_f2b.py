@@ -440,3 +440,75 @@ def test_the_new_tables_exist_and_the_policy_table_kept_its_rows_shape(world):
     world.policy(exports=True, cases=True, analytics=True)
     with world.app.state.db.connection(mode="read") as conn:
         assert {c: v for c, v in svc.policy(conn, "nvr-1").items() if v} == {"analytics": True, "exports": True, "cases": True}
+
+
+# ---------------------------------------------------------------------------------------------- the clip read (GET only, first read supervised)
+
+def _clip_url(w: World, cam="cam_front", **q):
+    params = {"start": T0 - 600, "end": T0 - 300, **q}
+    return f"{BASE}/cameras/{w.cams()[cam]}/clip.mp4?" + "&".join(f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in params.items())
+
+
+def test_the_clip_is_a_gated_streamed_get_whose_first_read_is_supervised(world):
+    r = world.call("GET", _clip_url(world))
+    assert r.status_code == 409 and r.json()["code"] == "frigate_first_write_unsupervised" and world.fake.clip_hits == []
+    bind(world.c, world.s, "tal", "site_admin", "installation", "*")
+    assert world.call("GET", _clip_url(world, supervised=True), headers=as_user("tal")).status_code == 403, "supervision needs system.configure"
+    assert world.fake.clip_hits == []
+    ok = world.c.get(_clip_url(world, supervised=True))
+    assert ok.status_code == 200 and ok.content == world.fake.clip and ok.headers["content-type"] == "video/mp4"
+    assert ok.headers["cache-control"] == "private, no-store" and ok.headers["x-content-type-options"] == "nosniff"
+    blob = " ".join(f"{k}: {v}" for k, v in ok.headers.items())
+    for leak in ("frigate.test", "8971", "frigate_token", "192.0.2", "/api/cam_front"):
+        assert leak not in blob, leak
+    assert world.fake.clip_hits == [f"/api/cam_front/start/{T0 - 600:.3f}/end/{T0 - 300:.3f}/clip.mp4"]
+    assert world.fake.non_get == ["POST /api/login"], "a clip is one GET after the login, nothing else"
+    again = world.c.get(_clip_url(world))
+    assert again.status_code == 200 and again.content == world.fake.clip, "after the first supervised read the flag is no longer asked"
+    assert world.call("GET", f"{BASE}/control/first-writes").json()["done"]["clip_read"] is True
+    assert world.audit("frigate.clip.read")[-1]["decision"] == "allowed"
+
+
+def test_the_clip_needs_playback_on_the_camera_a_sane_window_and_a_video_answer(world, monkeypatch):
+    cams = world.cams()
+    bind(world.c, world.s, "tal", "system_admin", "camera", cams["cam_front"])
+    h = as_user("tal")
+    assert world.call("GET", _clip_url(world, "cam_yard", supervised=True), headers=h).status_code == 403
+    assert world.call("GET", _clip_url(world, end=T0 - 700, supervised=True)).status_code == 422
+    assert world.call("GET", _clip_url(world, end=T0 + 4000, start=T0 - 600, supervised=True)).status_code == 422
+    assert world.fake.clip_hits == []
+    world.fake.clip_ctype = "text/html"
+    assert world.call("GET", _clip_url(world, supervised=True)).json()["code"] == "source_invalid"
+    world.fake.clip_ctype = "application/octet-stream"
+    assert world.c.get(_clip_url(world, supervised=True)).status_code == 200
+    world.fake.clip_status = 404
+    assert world.call("GET", _clip_url(world)).status_code == 404
+    world.fake.clip_status = 500
+    assert world.call("GET", _clip_url(world)).json()["code"] == "source_unavailable"
+    world.fake.clip_status = 200
+    monkeypatch.setattr(fh, "CLIP_MAX_BYTES", 100)
+    assert world.call("GET", _clip_url(world)).json()["code"] == "source_too_large"
+
+
+def test_an_event_clip_follows_the_review_scope_and_the_same_gate(world):
+    world.poll()
+    ev = world.fake.reviews[2]["data"]["detections"][0]
+    url = f"{BASE}/events/{ev}/clip.mp4"
+    assert world.call("GET", url).json()["code"] == "frigate_first_write_unsupervised"
+    ok = world.c.get(url + "?supervised=true")
+    assert ok.status_code == 200 and ok.content == world.fake.clip and world.fake.clip_hits == [f"/api/events/{ev}/clip.mp4"]
+    assert world.call("GET", f"{BASE}/events/1791227999.000000-nosuch1/clip.mp4").status_code == 404
+    assert world.call("GET", f"{BASE}/events/not-an-id/clip.mp4").status_code == 422
+
+
+def test_the_clip_paths_are_not_on_the_read_allow_list_and_nothing_else_opens_a_clip(world):
+    http = fh.FrigateHttp("nvr-1", world.s, transport=world.fake.transport())
+    path = "/api/cam_front/start/1791227400.000/end/1791227700.000/clip.mp4"
+    assert not fh.allowed(path) and not fh.control_read_allowed(path) and fh.clip_allowed(path) and fh.clip_allowed("/api/events/1791227999.000000-abcd12/clip.mp4")
+    with pytest.raises(fh.ApiError):
+        http.get(path)
+    for bad in ("/api/cam_front/start/1/end/2/clip.mp4/x", "/api/cam_front/start/1/end/2/index.m3u8", "/api/events/not-an-id/clip.mp4", "/api/config", "/vod/cam_front/start/1/end/2/index.m3u8"):
+        with pytest.raises(fh.ApiError) as e:
+            http.open_clip(bad)
+        assert e.value.code == "frigate_path_not_allowed", bad
+    assert world.fake.clip_hits == []
