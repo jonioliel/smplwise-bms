@@ -88,6 +88,12 @@ def register(conn: sqlite3.Connection, device: dict[str, Any] | sqlite3.Row, pla
     if not isinstance(relay_token, str) or not RELAY_TOKEN_RE.match(relay_token):
         raise ApiError(400, "invalid_relay_token", "אסימון הממסר אינו תקין.", details={"field": "relay_token"})
     now = now_iso()
+    # One relay token is one phone. When the same phone registers it for another device row of this server (another user signed in on
+    # it, or a re-registered device), the older rows stop receiving: a push would otherwise reach a phone that fetches text with another
+    # device's token. Repeating the call for the same device changes nothing but the heartbeat (idempotent), and a rotated token
+    # simply replaces the stored one.
+    conn.execute("UPDATE mobile_devices SET push_relay_token = NULL, push_platform = NULL, push_failures = 0, push_last_error = NULL WHERE push_relay_token = ? AND id != ?",
+                 (relay_token, device["id"]))
     conn.execute(
         "UPDATE mobile_devices SET push_platform = ?, push_relay_token = ?, push_app_version = ?, push_registered_at = COALESCE(push_registered_at, ?), push_failures = 0, push_last_error = NULL, last_seen_at = ? WHERE id = ?",
         (platform, relay_token, (str(app_version or "")[:80] or None), now, now, device["id"]),

@@ -128,8 +128,17 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/recorders",)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/multimedia/cast/config", "/api/v1/multimedia/cast/origin", "/api/v1/multimedia/cast/screens",
                                          "/api/v1/multimedia/cast/test")
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
-CSRF_BODY = json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.",
-                        "retryable": False, "correlation_id": "", "details": {}}, ensure_ascii=False).encode("utf-8")
+# What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
+# accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.
+CSRF_REQUIRED = {"header": "Origin", "value": "<scheme>://<host[:port]> of this server, no path", "alternative": "Sec-Fetch-Site: same-origin"}
+
+
+def csrf_body(reason: str = "missing_origin") -> bytes:
+    return json.dumps({"code": "csrf_refused", "user_message": "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.", "retryable": False, "correlation_id": "",
+                       "details": {"reason": reason, "required": CSRF_REQUIRED}}, ensure_ascii=False).encode("utf-8")
+
+
+CSRF_BODY = csrf_body()
 
 
 def _header(headers: list[tuple[bytes, bytes]], name: bytes) -> str | None:
@@ -146,6 +155,18 @@ def _session_cookie(headers: list[tuple[bytes, bytes]]) -> str | None:
         if name in SESSION_COOKIES and value:
             return value
     return None
+
+
+def csrf_reason(scope: dict, headers: list[tuple[bytes, bytes]]) -> str | None:
+    """None when the request passes the cross-site rule (`csrf_ok`), else why it does not: `missing_origin` (neither `Origin` nor
+    `Sec-Fetch-Site`), `cross_site` (`Sec-Fetch-Site` is not same-origin), `origin_mismatch` (an `Origin` that is not this request's
+    scheme + host, `null`, or with a path)."""
+    site = _header(headers, b"sec-fetch-site")
+    if site is not None:
+        return None if site == "same-origin" else "cross_site"
+    if not _header(headers, b"origin"):
+        return "missing_origin"
+    return None if csrf_ok(scope, headers) else "origin_mismatch"
 
 
 def csrf_ok(scope: dict, headers: list[tuple[bytes, bytes]]) -> bool:
@@ -266,11 +287,12 @@ class RemoteChannel:
             sid = _session_cookie(headers)
             # a bearer-only request (no cookie) is exempt, and so is the CSP report sink (browsers post violation reports
             # without fetch metadata we could rely on; it changes nothing but bounded counters)
-            if sid is not None and rest != REPORT_PATH and not csrf_ok(scope, headers):
+            reason = csrf_reason(scope, headers) if sid is not None and rest != REPORT_PATH else None
+            if reason is not None:
                 from starlette.concurrency import run_in_threadpool
 
                 await run_in_threadpool(_audit_csrf, scope, headers, sid)
-                await _plain(send, 403, CSRF_BODY)
+                await _plain(send, 403, csrf_body(reason))
                 return
         child = dict(scope)
         child["root_path"] = (scope.get("root_path") or "") + prefix

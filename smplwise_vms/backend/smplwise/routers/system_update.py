@@ -28,7 +28,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..remote_channel import csrf_ok, is_remote
+from ..remote_channel import CSRF_REQUIRED, csrf_reason, is_remote
 from ..services import self_update as svc
 from ..services import update_runs
 
@@ -147,8 +147,9 @@ def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:
     Same origin is the rule of `remote_channel.csrf_ok` (security review 2026-10-04): `Sec-Fetch-Site: same-origin` when the header is
     present; without it, an `Origin` equal to this request's scheme and host; neither header -> refused (an old browser, a proxy that
     strips headers or a non-browser client never passes silently)."""
-    if not csrf_ok(request.scope, request.scope.get("headers") or []):
-        raise ApiError(403, "cross_site_refused", "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.")
+    reason = csrf_reason(request.scope, request.scope.get("headers") or [])
+    if reason is not None:
+        raise ApiError(403, "cross_site_refused", "הבקשה נדחתה: היא לא הגיעה מדף של SmplWise Arx.", details={"reason": reason, "required": CSRF_REQUIRED})
     if not _is_json(request.headers.get("content-type")):
         raise ApiError(415, "unsupported_media_type", "הבקשה חייבת להישלח כ־JSON (Content-Type: application/json).")
     try:

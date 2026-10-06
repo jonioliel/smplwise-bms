@@ -287,3 +287,49 @@ def test_unregistering_the_device_drops_push_and_its_messages(w, relay):
         assert row[0] is None and row[1]
     # the message of a revoked device is unreachable (its token died with it)
     assert w.c.get(f"{API}/notifications/app/{mid}", headers=tok).status_code == 401
+
+
+# ---------------------------------------------------------------- contract v2: idempotent registration, relay_url on the registration
+
+def test_registration_response_carries_server_id_and_relay_url(w, relay, monkeypatch):
+    body = {"name": "הנייד שלי", "platform": "ios", "install_id": "ops2-install-0000-0000", "app_version": "1.0.0"}
+    r = w.c.post(f"{API}/presence/devices", json=body, headers=as_user("ops2"))
+    assert r.status_code == 201 and r.json()["relay_url"] == "https://relay.test" and r.json()["server_id"].startswith("srv_")
+    assert "srvkey-test-0001" not in r.text
+    monkeypatch.delenv("SW_PUSH_RELAY_URL")
+    assert w.c.post(f"{API}/presence/devices", json=body, headers=as_user("ops2")).json()["relay_url"] is None
+
+
+def test_push_registration_is_idempotent_and_a_rotated_token_replaces_the_old_one(w, relay):
+    did, tok = register(w, "ops2")
+    assert w.c.patch(f"{API}/notifications/devices/{did}", json={"muted": ["automations"]}, headers=tok).status_code == 200
+    with w.db.connection(mode="read") as conn:
+        first = conn.execute("SELECT push_registered_at FROM mobile_devices WHERE id = ?", (did,)).fetchone()[0]
+    for _ in range(3):  # the app repeats the call on every launch / retry: same device + same token = same registration
+        r = w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_0123456789abcdef0123", "app_version": "1.0.1"}, headers=tok)
+        assert r.status_code == 200 and r.json()["push"]["registered"] is True and r.json()["push"]["muted"] == ["automations"]
+    with w.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT push_relay_token, push_registered_at FROM mobile_devices WHERE id = ?", (did,)).fetchall()
+        assert len(rows) == 1 and rows[0][0] == "rt_0123456789abcdef0123" and rows[0][1] == first
+    # token rotation: the new relay token replaces the old one on the same row (never two live tokens for one device)
+    r = w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_fedcba9876543210fedc"}, headers=tok)
+    assert r.status_code == 200
+    with w.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT push_relay_token FROM mobile_devices WHERE id = ?", (did,)).fetchone()[0] == "rt_fedcba9876543210fedc"
+    w.set_policy("camera.offline", channels={"webpush": False, "email": False, "app": True})
+    w.emit("camera.offline", "camera", w.cam, params={"name": "לובי"})
+    w.flush()
+    assert [c["relay_token"] for c in relay.calls] == ["rt_fedcba9876543210fedc"]
+
+
+def test_one_relay_token_is_one_phone_another_device_row_on_this_server_loses_it(w, relay):
+    """The same phone signs in as another user: the first user's device row must stop receiving pushes that the phone would fetch
+    with the second device's token."""
+    did1, tok1 = register(w, "ops2", relay_token="rt_0123456789abcdef0123")
+    did2, tok2 = register(w, "vera", relay_token="rt_0123456789abcdef0123")
+    mine = w.c.get(f"{API}/presence/devices/me", headers=as_user("ops2")).json()["devices"]
+    assert mine[0]["device_id"] == did1 and mine[0]["push"]["registered"] is False
+    assert w.c.get(f"{API}/presence/devices/me", headers=as_user("vera")).json()["devices"][0]["push"]["registered"] is True
+    # and the first device can register again with a token of its own without touching the second
+    assert w.c.post(f"{API}/notifications/devices", json={"platform": "ios", "relay_token": "rt_aaaaaaaaaaaaaaaaaaaa"}, headers=tok1).json()["push"]["registered"] is True
+    assert w.c.get(f"{API}/presence/devices/me", headers=as_user("vera")).json()["devices"][0]["push"]["registered"] is True
