@@ -14,6 +14,7 @@ from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
 from ..services import health_report as health_report_svc
+from ..services import process_stats
 from .storage import local_state
 
 router = APIRouter()
@@ -68,13 +69,19 @@ def _recorders_view(settings: Any) -> list[dict[str, Any]]:
 
 @router.get("/health")
 def health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes."""
     settings = settings_of(request)
+    diagnostics = authorize(conn, principal, "system.configure", INSTALLATION).allowed
+    stats = process_stats.snapshot(settings.db_path) if diagnostics else {}
     return {
         "status": "ok",
         "version": __version__,
         # NVR-less mode: `mode` ha_only and nvr.state not_configured - neutral, never a failure of the add-on
         **describe_mode(settings),
-        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal)},
+        "db": {"ok": conn.execute("SELECT 1").fetchone()[0] == 1, "permission_revision": permission_revision(conn), "write_lock": _write_lock_view(conn, principal),
+               **(stats.get("db") or {})},
+        # soak measurement (diagnostics only): coarse counters, no paths or names
+        **({"process": stats["process"]} if diagnostics else {}),
         "data_dir_writable": os.access(settings.data_dir, os.W_OK),
         "nvr_configured": bool(settings.nvr_host and settings.nvr_user),  # the placeholder host (no user) is not configured
         "go2rtc_configured": bool(settings.go2rtc_url),
@@ -91,7 +98,7 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         "backpressure": local_state(settings, conn),
         "identity_source": principal.source,
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
-        **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if authorize(conn, principal, "system.configure", INSTALLATION).allowed else {}),
+        **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if diagnostics else {}),
         # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
         "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
         "installation": installation_block(resolve_capabilities(settings)),
