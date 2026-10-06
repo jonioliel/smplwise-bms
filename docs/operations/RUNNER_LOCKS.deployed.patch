@@ -1,0 +1,259 @@
+--- a/nightly_tests.sh (bak-20261006-lockhyg)
++++ b/nightly_tests.sh
+@@ -9,8 +9,37 @@
+ BO=0; FO=0; ND=0; ARGS=()
+ for a in "$@"; do case "$a" in --backend-only) BO=1;; --frontend-only) FO=1;; --no-dev) ND=1;; *) ARGS+=("$a");; esac; done
+ set -- "${ARGS[@]+"${ARGS[@]}"}"
+-exec 9>"$HOME/.smplwise-tests.lock"; flock -n 9 || { echo "another test run is in progress"; exit 3; }
+ DIR="$HOME/smplwisebms"; RESULTS="$HOME/smplwise-results"; mkdir -p "$RESULTS"
++# Lock wait (2026-10-06): used to be `flock -n || exit 3`, so the 02:00 run silently did not happen on 4-6 Oct whenever
++# an agent/watcher run held the (shared) lock. Now it WAITS, bounded (SW_NIGHTLY_LOCK_WAIT seconds, default 3 h; 0 = the old
++# immediate exit 3 for on-demand callers). While waiting it keeps ~/.nightly-pending fresh so the push watcher starts no new
++# runs (the watcher's shared lock would otherwise starve this exclusive request), and it yields to a pending release gate
++# (~/.gate-pending younger than 4 h). On give-up it leaves a dashboard-readable note (<date>_nightly-SKIPPED.md, newest 20*.md)
++# and nightly_status.json instead of exiting without a trace.
++LOCK_WAIT="${SW_NIGHTLY_LOCK_WAIT:-10800}"; WAIT0=$(date +%s)
++exec 9>"$HOME/.smplwise-tests.lock"
++nightly_skip() { # $1 = reason
++  local note="$RESULTS/$(date +%F)_nightly-SKIPPED.md"
++  { echo "# Nightly SKIPPED: lock busy ($(date '+%F %H:%M'))"; echo "- reason: $1"; echo "- waited: $(( $(date +%s) - WAIT0 )) s of $LOCK_WAIT s for ~/.smplwise-tests.lock"; echo "- holder: $(fuser -v "$HOME/.smplwise-tests.lock" 2>&1 | tr -s ' ' | tail -n +2 | head -5 | tr '
++' ';')"; } > "$note"
++  printf '{"state":"skipped","reason":"lock busy","time":"%s","epoch":%s,"waited_s":%s}
++' "$(date -Is)" "$(date +%s)" "$(( $(date +%s) - WAIT0 ))" > "$RESULTS/nightly_status.json"
++  rm -f "$HOME/.nightly-pending"; echo "$1"; exit 3
++}
++if [ "$LOCK_WAIT" -le 0 ]; then flock -n 9 || nightly_skip "another test run is in progress"; else
++  touch "$HOME/.nightly-pending"; LASTLOG=0; trap 'rm -f "$HOME/.nightly-pending"' EXIT
++  while :; do
++    GATE=0; [ -n "$(find "$HOME/.gate-pending" -mmin -240 2>/dev/null)" ] && GATE=1
++    SLICE=$(( LOCK_WAIT - ($(date +%s) - WAIT0) )); [ "$SLICE" -gt 30 ] && SLICE=30; [ "$SLICE" -lt 1 ] && SLICE=1
++    if [ "$GATE" -eq 0 ] && flock -w "$SLICE" 9; then break; fi
++    [ "$GATE" -eq 1 ] && sleep "$SLICE"
++    touch "$HOME/.nightly-pending"; NOW=$(date +%s)
++    if [ $((NOW-LASTLOG)) -ge 600 ]; then echo "$(date -Is) waiting for the tests lock ($((NOW-WAIT0)) s, gate pending=$GATE)"; LASTLOG=$NOW; fi
++    [ $((NOW-WAIT0)) -ge "$LOCK_WAIT" ] && nightly_skip "skipped: lock busy after ${LOCK_WAIT}s (a gate or a test run kept ~/.smplwise-tests.lock)"
++  done
++  trap - EXIT; rm -f "$HOME/.nightly-pending"; echo "$(date -Is) got the tests lock after $(( $(date +%s) - WAIT0 )) s"
++fi
++rm -f "$RESULTS/nightly_status.json"
+ cd "$DIR"; git fetch --all --prune >/dev/null 2>&1
+ if [ "$#" -gt 0 ]; then BRANCHES=("$@"); else
+   # default: the release line (g0/intake) plus the MOST RECENTLY UPDATED integ/* branch (older integ branches are history)
+--- a/watcher/push_watch.py (bak-20261006-lockhyg)
++++ b/watcher/push_watch.py
+@@ -4,7 +4,15 @@
+ touched by the change (via ~/run_remote.sh, own worktree). Writes ~/smplwise-results/watch/<branch>__<sha8>.json
+ and keeps ~/smplwise-results/push_status.json compatible with the dashboard. No secrets are read or written.
+ Env: SW_RESULTS (default ~/smplwise-results), SW_BASE (default ~/smplwisebms), SW_RUNNER (default ~/run_remote.sh),
+-     SW_DRY=1 -> only print what would be tested."""
++     SW_DRY=1 -> only print what would be tested, SW_LOCKDIR (default ~; lock + pending-flag files, for dry runs),
++     SW_DEBOUNCE_S (240), SW_BUDGET_S (2700: wall time of one pass), SW_MAX_BRANCHES (3), SW_MAX_REMOTE (4).
++Lock hygiene (2026-10-06): the pass holds the SHARED tests lock, so it must never outlive its welcome.
++  * no pass starts while ~/.gate-pending or ~/.nightly-pending exists (younger than 6 h / 4 h);
++  * while running it re-checks both flags before every branch and every step; when one appears it finishes the step in
++    flight (never kills it), skips the rest, does NOT mark the unfinished branch as tested and releases the lock;
++  * a branch runs only after its tip was unchanged for SW_DEBOUNCE_S (burst of pushes = one run, newest sha);
++  * a pass is capped at SW_BUDGET_S and SW_MAX_BRANCHES branches, and is skipped while SW_MAX_REMOTE run_remote.sh
++    jobs (agents) are already running."""
+ import fcntl
+ import json
+ import os
+@@ -24,6 +32,40 @@
+ STATE = OUT / "state.json"
+ STATUS = RES / "push_status.json"
+ CAP_S = 25 * 60
++LOCKDIR = Path(os.environ.get("SW_LOCKDIR", HOME))
++DEBOUNCE = OUT / "debounce.json"
++DEBOUNCE_S = int(os.environ.get("SW_DEBOUNCE_S", "240"))
++BUDGET_S = int(os.environ.get("SW_BUDGET_S", str(45 * 60)))
++MAX_BRANCHES = int(os.environ.get("SW_MAX_BRANCHES", "3"))
++MAX_REMOTE = int(os.environ.get("SW_MAX_REMOTE", "4"))
++
++
++class Yield(Exception):
++    """A gate/nightly is waiting for the exclusive lock: stop starting work."""
++
++
++def _mtime(p):
++    try:
++        return p.stat().st_mtime
++    except OSError:
++        return None
++
++
++def waiting_flag():
++    """Name of the pending flag that is active now, else None."""
++    now = time.time()
++    if wl.flag_active(_mtime(LOCKDIR / ".gate-pending"), now, 6 * 3600):
++        return ".gate-pending"
++    if wl.flag_active(_mtime(LOCKDIR / ".nightly-pending"), now, 4 * 3600):
++        return ".nightly-pending"
++    if wl.flag_active(_mtime(OUT / "GATE_WAITING"), now, 3 * 3600):
++        return "GATE_WAITING"
++    return None
++
++
++def running_remote():
++    rc, o = sh(["ps", "-eo", "pid,etimes,args"], timeout=20)
++    return len(wl.parse_remote_ps(o)) if rc == 0 else 0
+ 
+ 
+ def sh(args, cwd=None, timeout=120):
+@@ -67,11 +109,13 @@
+     return o.splitlines() if rc == 0 else []
+ 
+ 
+-def process(branch, sha, old):
++def process(branch, sha, old, pass_deadline=None):
+     t0 = time.time()
+-    deadline = t0 + CAP_S
++    deadline = min(t0 + CAP_S, pass_deadline) if pass_deadline else t0 + CAP_S
+     files = changed(old, sha)
+     steps, fails, notes = [], [], []
++    if waiting_flag():
++        raise Yield(waiting_flag())
+     s0 = time.time()
+     rc, out, to = timed([RUNNER, "tsc", branch], deadline)
+     ok = rc == 0 and "tsc ok" in out
+@@ -87,6 +131,8 @@
+         except Exception:
+             imports[t] = []
+     bmap = wl.map_backend(files, all_tests, imports)
++    if waiting_flag():  # the tsc step is done; do not start the (long) backend step while a gate/nightly waits
++        raise Yield(waiting_flag())
+     if bmap:
+         s0 = time.time()
+         rc, out, to = timed([RUNNER, "backend", branch] + ["tests/" + t for t, _ in bmap], deadline)
+@@ -110,22 +156,24 @@
+ 
+ def main():
+     OUT.mkdir(parents=True, exist_ok=True)
+-    lock = open(HOME / ".smplwise-watch.lock", "w")
++    lock = open(LOCKDIR / ".smplwise-watch.lock", "w")
+     try:
+         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+     except OSError:
+         print("watcher already running")
+         return
+-    flag = OUT / "GATE_WAITING"  # a release gate is waiting for the tests lock: yield (flag expires after 3 h)
+-    try:
+-        if flag.exists() and time.time() - flag.stat().st_mtime < 3 * 3600:
+-            print("release gate waiting, skip")
+-            return
+-    except OSError:
+-        pass
++    t_pass = time.time()
++    why = waiting_flag()  # a release gate / the nightly is waiting for the exclusive tests lock: yield, start nothing
++    if why:
++        print(time.strftime("%F %T"), "pending flag", why, "- skip")
++        return
++    n_remote = running_remote()
++    if n_remote >= MAX_REMOTE:
++        print(time.strftime("%F %T"), f"{n_remote} run_remote.sh jobs already running - skip")
++        return
+     try:  # do not compete with a nightly / manual run
+-        tl = open(HOME / ".smplwise-tests.lock", "w")
+-        fcntl.flock(tl, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        tl = open(LOCKDIR / ".smplwise-tests.lock", "w")
++        fcntl.flock(tl, fcntl.LOCK_SH | fcntl.LOCK_NB)  # shared: agents runs and the watcher go in parallel; only the gate is exclusive
+     except OSError:
+         print("test run in progress, skip")
+         return
+@@ -137,17 +185,28 @@
+                 "refs/remotes/origin/pilot/", "refs/remotes/origin/integ/")
+     refs = [(a, b, int(c)) for a, b, c in (l.split() for l in o.splitlines() if l.strip())]
+     state = load(STATE)
+-    todo, seen = wl.select_work(refs, state, time.time())
++    todo, seen = wl.select_work(refs, state, time.time(), limit=10**6)  # one entry per branch = its newest tip
++    ready, deb = wl.debounce(todo, load(DEBOUNCE), time.time(), DEBOUNCE_S)
++    ready = ready[:MAX_BRANCHES]
+     if os.environ.get("SW_DRY"):
+-        print(json.dumps({"test": todo, "mark_seen": len(seen)}))
++        print(json.dumps({"test": ready, "debouncing": [b for b, _ in todo if (b, _) not in ready],
++                          "mark_seen": len(seen)}))
+         return
++    save(DEBOUNCE, deb)
+     state.update(seen)
+     save(STATE, state)
+-    for branch, sha in todo:
++    pass_deadline = t_pass + BUDGET_S
++    for branch, sha in ready:
++        if time.time() > pass_deadline - 120:
++            print(time.strftime("%F %T"), "pass budget used up, the rest waits for the next pass")
++            break
+         old = state.get(branch)
+         try:
+-            r = process(branch, sha, old)
++            r = process(branch, sha, old, pass_deadline)
+             print(time.strftime("%F %T"), branch, sha[:8], r["state"])
++        except Yield as y:
++            print(time.strftime("%F %T"), branch, sha[:8], f"yielded to {y} (not marked tested)")
++            break
+         except Exception as ex:
+             print(time.strftime("%F %T"), branch, "watcher error", type(ex).__name__)
+         state[branch] = sha
+--- a/watcher/watchlib.py (bak-20261006-lockhyg)
++++ b/watcher/watchlib.py
+@@ -195,3 +195,26 @@
+             continue
+     rows.sort(key=lambda r: r["age_s"])
+     return rows[:limit]
++
++
++def debounce(todo, deb, now, quiet_s):
++    """Coalesce pushes per branch. todo: [(branch, sha)] (one entry per branch: its newest tip). deb: {branch:
++    {"sha", "first"}} remembered between passes. A branch runs only after its tip has been unchanged for quiet_s
++    seconds (first sighting of a new sha starts the clock), so a burst of pushes yields ONE run, for the newest sha.
++    Returns (ready [(branch, sha)], new_deb). Branches no longer in todo are dropped from deb."""
++    ready, new = [], {}
++    for b, sha in todo:
++        e = deb.get(b)
++        if not e or e.get("sha") != sha:
++            new[b] = {"sha": sha, "first": int(now)}
++            continue
++        new[b] = e
++        if now - int(e.get("first", now)) >= quiet_s:
++            ready.append((b, sha))
++    return ready, new
++
++
++def flag_active(mtime, now, max_age_s):
++    """A pending-flag file (gate / nightly waiting for the exclusive lock) counts only while it is younger than
++    max_age_s, so a stale file left by a crashed waiter cannot block the watcher forever. mtime None = no file."""
++    return mtime is not None and now - mtime < max_age_s
+--- a/watcher/tests/test_watchlib.py (bak-20261006-lockhyg)
++++ b/watcher/tests/test_watchlib.py
+@@ -129,5 +129,33 @@
+                          [("backend", "pilot/x", 45), ("tsc", "integ/0153", 600)])
+ 
+ 
++class Hygiene(unittest.TestCase):
++    def test_debounce_waits_for_a_quiet_tip(self):
++        ready, deb = wl.debounce([("pilot/a", "s1")], {}, 1000, 240)
++        self.assertEqual(ready, [])
++        self.assertEqual(deb["pilot/a"], {"sha": "s1", "first": 1000})
++        ready, deb = wl.debounce([("pilot/a", "s1")], deb, 1100, 240)
++        self.assertEqual(ready, [])
++        ready, deb = wl.debounce([("pilot/a", "s1")], deb, 1240, 240)
++        self.assertEqual(ready, [("pilot/a", "s1")])
++
++    def test_debounce_new_push_restarts_the_clock(self):
++        deb = {"pilot/a": {"sha": "s1", "first": 1000}}
++        ready, deb = wl.debounce([("pilot/a", "s2")], deb, 1300, 240)
++        self.assertEqual(ready, [])
++        self.assertEqual(deb["pilot/a"], {"sha": "s2", "first": 1300})
++
++    def test_debounce_drops_finished_branches(self):
++        deb = {"pilot/a": {"sha": "s1", "first": 1000}, "pilot/b": {"sha": "t", "first": 1}}
++        ready, deb = wl.debounce([("pilot/a", "s1")], deb, 2000, 240)
++        self.assertEqual(ready, [("pilot/a", "s1")])
++        self.assertNotIn("pilot/b", deb)
++
++    def test_flag_active(self):
++        self.assertFalse(wl.flag_active(None, 1000, 60))
++        self.assertTrue(wl.flag_active(990, 1000, 60))
++        self.assertFalse(wl.flag_active(900, 1000, 60))
++
++
+ if __name__ == "__main__":
+     unittest.main()

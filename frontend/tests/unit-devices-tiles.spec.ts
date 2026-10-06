@@ -11,7 +11,88 @@ async function shot(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 }
 
+// Failure diagnostics only (no assertion depends on them): the 2.2.0 gate saw this spec fail once on [mobile] and leave
+// nothing behind. open() arms a recorder per page; the afterEach below attaches (and prints) it for a failed test only.
+const DIAG = new WeakMap<Page, { console: string[]; errors: string[] }>();
+
+async function armDiagnostics(page: Page) {
+  const d: { console: string[]; errors: string[] } = { console: [], errors: [] };
+  DIAG.set(page, d);
+  page.on('console', (m) => {
+    if (d.console.length < 200) d.console.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+  });
+  page.on('pageerror', (e) => {
+    if (d.errors.length < 50) d.errors.push(String(e.message ?? e).slice(0, 300));
+  });
+  await page.addInitScript(() => {
+    const w = window as unknown as { __swDiag?: { t: number; ev: string; detail?: string }[] };
+    if (w.__swDiag) return;
+    const log: { t: number; ev: string; detail?: string }[] = (w.__swDiag = []);
+    const note = (ev: string, detail?: string) => {
+      if (log.length < 400) log.push({ t: Math.round(performance.now()), ev, detail });
+    };
+    for (const ev of ['panel-changed', 'panel-close', 'panel-filter', 'panel-navigate', 'close', 'open']) {
+      document.addEventListener(
+        ev,
+        (e) => {
+          const tag = (e.composedPath()[0] as Element | undefined)?.tagName?.toLowerCase();
+          note(ev, `${tag ?? '?'} ${JSON.stringify((e as CustomEvent).detail ?? null).slice(0, 120)}`);
+        },
+        true,
+      );
+    }
+    window.addEventListener('hashchange', () => note('hashchange', location.hash));
+    window.addEventListener('popstate', () => note('popstate', location.hash));
+    note('armed', location.hash);
+  });
+}
+
+async function collectDiagnostics(page: Page) {
+  const d = DIAG.get(page);
+  const state = await page
+    .evaluate(() => {
+      const attrs = (el: Element | null | undefined) =>
+        el ? Object.fromEntries(Array.from(el.attributes).map((x) => [x.name, x.value.slice(0, 120)])) : null;
+      // the panel sits inside shadow roots: search through them
+      const deep = (root: ParentNode, sel: string): Element | null => {
+        const hit = root.querySelector(sel);
+        if (hit) return hit;
+        for (const el of Array.from(root.querySelectorAll('*'))) {
+          const inner = el.shadowRoot ? deep(el.shadowRoot, sel) : null;
+          if (inner) return inner;
+        }
+        return null;
+      };
+      const panel = deep(document, 'devices-tiles-panel');
+      const drawer = panel ? deep(panel.shadowRoot ?? panel, 'sw-drawer') : null;
+      const w = window as unknown as { __swDiag?: unknown[] };
+      return {
+        url: location.href,
+        hash: location.hash,
+        historyLength: history.length,
+        panelAttributes: attrs(panel),
+        drawerAttributes: attrs(drawer),
+        events: w.__swDiag ?? [],
+      };
+    })
+    .catch((e) => ({ evaluateFailed: String(e).slice(0, 200) }));
+  return { ...state, console: d?.console ?? [], pageErrors: d?.errors ?? [] };
+}
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  try {
+    const diag = await collectDiagnostics(page);
+    const json = JSON.stringify(diag, null, 2);
+    await testInfo.attach('tiles-panel-diagnostics.json', { body: json, contentType: 'application/json' });
+    console.log(`TILES-DIAG [${testInfo.project.name}] ${testInfo.title.slice(0, 60)}: ${JSON.stringify(diag).slice(0, 4000)}`);
+  } catch {
+    /* diagnostics must never change the verdict */
+  }
+});
+
 async function open(page: Page, hash: string, tileOverride: 'auto' | 'cards' | 'compact' | null = null) {
+  await armDiagnostics(page);
   await page.addInitScript((o) => {
     try {
       localStorage.setItem('sw.devices.layout', 'cards');
