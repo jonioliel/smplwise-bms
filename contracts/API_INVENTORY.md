@@ -483,7 +483,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | nvr | POST | `/api/v1/recorders/{recorder_id}/connection/test` | A read-only test of a candidate connection for this recorder (CR-022 section 6.3 rules); one audit row, no other write. |
 | nvr | GET | `/api/v1/recorders/{recorder_id}/health` | A live, read-only check of one recorder (one deviceInfo GET, at most 4 s). Model, firmware and the outcome code only. |
 | nvr | POST | `/api/v1/system/restart` | Restart Arx to apply a connection change (D3: never automatic). The call is made after the answer is sent - the |
-| ops | GET | `/api/v1/health` |  |
+| ops | GET | `/api/v1/health` | The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes. |
 | ops | GET | `/api/v1/health/report` | One status per subsystem (T033). Device probes are network calls, so they run outside the request's |
 | ops | GET | `/api/v1/health/summary` | What the top bar shows every signed-in user: cached states only, no device probes, no details that a |
 | ops | POST | `/api/v1/setup/check/{step}` | Run one step's check now (the device steps probe the NVR / Home Assistant / go2rtc with read-only calls; the |

@@ -18,8 +18,7 @@ or stored; no host or address lives in the repository):
   SOAK_ADDON_TOKEN            optional bearer token for the add-on API
   SOAK_VERIFY_TLS=0           optional, disable TLS verification (lab self-signed certificates)
 
-Restart detection (no uptime is exposed today, see README): add-on uptime reset when /health ever gains a
-`process.uptime_s`; otherwise a version change, a state returning to `started` from another state, or a
+Restart detection (see README): add-on uptime reset when /health exposes `process.uptime_s` (system.configure token only); otherwise a version change, a state returning to `started` from another state, or a
 monotonic counter going backwards (write-lock holds, ingest-queue accepted).
 """
 from __future__ import annotations

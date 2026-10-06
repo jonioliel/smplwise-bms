@@ -49,9 +49,11 @@ py -3.12 scripts/soak/analyze_soak.py soak.csv --out summary.md
 בדיקת הנתיבים `/health`, `/health/report`, `/storage/local` ב-`smplwise_vms/backend` מראה שאין שם: RSS של התהליך, threads, file descriptors,
 uptime, וגודל קובץ DB או WAL. הזיכרון וה-CPU נלקחים מה-supervisor. עמודות `threads`, `open_fds`, `uptime_s`, `db_bytes`, `wal_bytes` נשארות ריקות והצ'קליסט מסמן "לא נמדד".
 
-הצעה (לא ממומשת, דורשת משימה נפרדת): להוסיף ל-`GET /health` בלוק קריאה-בלבד, ללא מזהים או נתיבים:
-`process: {uptime_s, threads, open_fds, rss_mb}` (מ-`time`, `threading.active_count()`, `/proc/self/fd`, `resource`) ובתוך `db`: `{size_bytes, wal_bytes}` (`os.stat` על הקובץ ועל `-wal`).
-הכלי כבר קורא את השדות האלה אם יופיעו, בלי שינוי קוד.
+ממומש (`pilot/health-process-stats`): `GET /api/v1/health` מחזיר בלוק קריאה-בלבד, ללא מזהים או נתיבים:
+`process: {uptime_s, threads, open_fds, rss_mb}` ובתוך `db`: `{size_bytes, wal_bytes}` (גודל קובץ ה-DB הראשי וה-`-wal`, בבתים).
+הערכים נקראים מ-stdlib בלבד (`/proc/self` בלינוקס; ב-Windows הערכים שאינם זמינים הם `null`), נשמרים במטמון 5 שניות כך שדגימה תכופה אינה מעמיסה, ואינם יכולים להכשיל את התשובה (כל שגיאה = `null`).
+חשיפה: הבלוקים מוחזרים רק למי שמחזיק את ההרשאה `system.configure` (כמו `push` ו-`remote` באותו route); משתמש אחר מקבל את `/health` ללא `process` וללא הגדלים. לכן טוקן ה-sampler חייב להיות של מחזיק הרשאה זו.
+הכלי כבר קורא את `threads`, `open_fds`, `uptime_s`, `db_bytes`, `wal_bytes` בלי שינוי קוד. `rss_mb` עדיין אינו עמודה (הזיכרון נדגם מה-Supervisor כ-`addon_mem_mib`); הוספת עמודה היא שינוי נפרד.
 
 ## מגבלות
 
