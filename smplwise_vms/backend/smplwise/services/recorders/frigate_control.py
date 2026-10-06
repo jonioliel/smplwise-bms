@@ -137,7 +137,7 @@ class FrigateControl:
     def ptz_info(self, camera: str) -> dict[str, Any]:
         FrigateAdapter._camera(camera)
         try:
-            doc = self.http.get_json(f"/api/{camera}/ptz/info", optional=True)
+            doc = self.http.get_json(f"/api/{camera}/ptz/info", optional=True, control=True)
         except ApiError as exc:
             if exc.code in ("frigate_route_missing", "not_found"):
                 return {"available": False, "presets": []}

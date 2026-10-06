@@ -123,6 +123,9 @@ def test_the_write_allow_list_is_separate_from_the_read_allow_list(world):
             http.write(klass, method, path, {"value": "ON"})
         assert e.value.code == "frigate_path_not_allowed", (klass, method, path)
     assert not fh.allowed("/api/camera/cam_front/set/detect"), "a write path is not a readable path"
+    assert not fh.allowed("/api/cam_front/ptz/info") and fh.control_read_allowed("/api/cam_front/ptz/info"), "PTZ facts are readable only through the control path"
+    with pytest.raises(fh.ApiError):
+        http.get("/api/cam_front/ptz/info")
     with pytest.raises(fh.ApiError):
         http.get("/api/camera/cam_front/set/detect")
     assert world.fake.writes == [] and not [h for h in world.fake.hits if h.startswith("PUT ")]
@@ -273,7 +276,8 @@ def test_a_recorder_that_is_not_frigate_is_a_404_for_every_control_route(world):
 
 def test_a_profile_switch_is_per_action_logged_and_undone(world):
     r = world.call("GET", f"{BASE}/profiles").json()
-    assert r["names"] == ["away", "home"] and r["active"] is None and r["can_switch"] is False
+    assert r.get("names") == ["away", "home"], r
+    assert r["active"] is None and r["can_switch"] is False
     world.policy(profile=True)
     assert world.call("PUT", f"{BASE}/profile", json={"profile": "away"}).json()["code"] == "confirmation_required"
     assert world.call("PUT", f"{BASE}/profile", json={"profile": "ghost", "confirm": True}).json()["code"] == "frigate_profile_unknown"

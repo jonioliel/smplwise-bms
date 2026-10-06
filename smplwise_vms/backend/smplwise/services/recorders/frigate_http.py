@@ -48,7 +48,6 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     r"/api/profile",
     r"/api/profiles",                                # F2: read before / after a profile switch
     r"/api/profile/active",
-    rf"/api/{CAM}/ptz/info",
     r"/api/events",                                  # always with a window and a limit (see WINDOWED)
     rf"/api/events/{ID}",
     rf"/api/events/{ID}/thumbnail\.jpg",
@@ -66,6 +65,10 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/index\.m3u8",
     rf"/vod/{CAM}/start/{NUM}/end/{NUM}/(?:init-v\d+\.mp4|seg-\d+-v\d+\.m4s)",
 ))
+# F2: reads that exist only to support a write class (a camera's PTZ facts). Not on GET_ALLOWED: the F1 read paths are unchanged, and
+# these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
+CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),)
+
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
 # permission (frigate_control_svc.PERMISSION). A path that is not here is refused locally before a byte is sent, exactly like a GET.
 # Never listed, on purpose: /api/config/set, /api/config/save, /api/restart, deletes of events / reviews / exports / recordings,
@@ -199,6 +202,10 @@ def _check_query(path: str, params: dict[str, Any] | None) -> None:
 
 def allowed(path: str) -> bool:
     return any(p.fullmatch(path) for p in GET_ALLOWED)
+
+
+def control_read_allowed(path: str) -> bool:
+    return any(p.fullmatch(path) for p in CONTROL_GET_ALLOWED)
 
 
 def write_allowed(klass: str, method: str, path: str) -> bool:
@@ -349,10 +356,10 @@ class FrigateHttp:
     # ------------------------------------------------------------------------------------------ one GET
 
     def get(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False,
-            timeout: float = READ_TIMEOUT_S) -> Reply:
+            timeout: float = READ_TIMEOUT_S, control: bool = False) -> Reply:
         """GET one allow-listed path. 401 -> one fresh login and one retry; a second 401 is `source_forbidden`. Raises ApiError for
         everything but a 200."""
-        if not allowed(path):
+        if not (allowed(path) or (control and control_read_allowed(path))):
             raise ApiError(409, "frigate_path_not_allowed", "בקשה אל Frigate אינה מותרת בשלב הזה.", details={"op": "get", "reason": "not_allowed"})
         _check_query(path, params)
         for attempt in (0, 1):
@@ -438,8 +445,8 @@ class FrigateHttp:
 
     # ------------------------------------------------------------------------------------------ conveniences
 
-    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False) -> Any:
-        return self.get(path, params, max_bytes=max_bytes, optional=optional).json()
+    def get_json(self, path: str, params: dict[str, Any] | None = None, *, max_bytes: int = JSON_MAX_BYTES, optional: bool = False, control: bool = False) -> Any:
+        return self.get(path, params, max_bytes=max_bytes, optional=optional, control=control).json()
 
     def websocket_url(self) -> str:
         return ("wss" if self.scheme == "https" else "ws") + self.base_url()[len(self.scheme):] + "/ws"
