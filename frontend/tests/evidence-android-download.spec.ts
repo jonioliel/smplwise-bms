@@ -24,7 +24,8 @@ async function mountLogin(page: Page, answer: unknown, opts: { inApp?: boolean }
   }
   await page.goto('./');
   await page.evaluate(async () => {
-    await import('/src/arx/arx-login.ts');
+    const src = '/src/arx/arx-login.ts';
+    await import(/* @vite-ignore */ src);
     document.body.appendChild(document.createElement('arx-login'));
   });
   const login = page.locator('arx-login');

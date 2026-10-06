@@ -48,7 +48,7 @@ const TEXT = {
 } as const;
 
 /** Pure: the offer's strings in Hebrew (the default) or English (a browser that asks for English). */
-export function offerText(lang: string | null | undefined): (typeof TEXT)['he'] {
+export function offerText(lang: string | null | undefined): { readonly link: string; readonly version: string; readonly sha: string } {
   return /^en\b/i.test(lang ?? '') ? TEXT.en : TEXT.he;
 }
 
