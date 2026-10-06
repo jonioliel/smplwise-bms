@@ -228,7 +228,10 @@ def list_changes(recorder_id: str, request: Request, limit: int = Query(50, ge=1
     """What Arx changed on this Frigate, newest first, with the state before and after. Camera rows only for cameras the caller may see."""
     _adapter(conn, request, recorder_id)
     _may_see(conn, principal)
-    rows = svc.changes(conn, recorder_id, limit=limit, camera_ok=lambda cid: camera_allowed(conn, principal, cid, "video.live"))
+    # security review 2.2.0 L9: the installation-wide rows (profile switches: no camera) only for the recorder
+    # administrator or a holder of the profile permission - not for anyone with some control permission somewhere
+    installation_ok = any(authorize(conn, principal, p, INSTALLATION).allowed for p in (PERMISSION, svc.PERMISSION["profile"]))
+    rows = svc.changes(conn, recorder_id, limit=limit, camera_ok=lambda cid: camera_allowed(conn, principal, cid, "video.live"), installation_ok=installation_ok)
     return {"recorder_id": recorder_id, "changes": rows}
 
 

@@ -403,10 +403,13 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
     return {"reverted": True, "change_id": new_id_, "reverts": change_id, "verified": verified}
 
 
-def changes(conn: sqlite3.Connection, recorder_id: str, *, limit: int = 100, camera_ok=None) -> list[dict[str, Any]]:
+def changes(conn: sqlite3.Connection, recorder_id: str, *, limit: int = 100, camera_ok=None, installation_ok: bool = True) -> list[dict[str, Any]]:
+    """installation_ok=False (security review 2.2.0 L9): the rows without a camera (profile switches) are left out."""
     out = []
     for r in conn.execute("SELECT * FROM frigate_changes WHERE recorder_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?", (recorder_id, max(1, min(limit, 500)))).fetchall():
         if r["camera_id"] and camera_ok is not None and not camera_ok(r["camera_id"]):
+            continue
+        if not r["camera_id"] and not installation_ok:
             continue
         out.append(change_view(r))
     return out

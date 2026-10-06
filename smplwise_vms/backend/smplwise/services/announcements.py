@@ -10,7 +10,7 @@ The smallest useful slice:
 - the TEXT is one line, at most MAX_TEXT characters, no control characters, no markup (tag-like runs and angle brackets are
   removed, so an SSML-detecting engine never sees SSML), never a template: what is typed is what is spoken.
 - the RATE LIMIT is the table itself: `announce.max_per_minute` attempts a minute for the installation (default 6) and one per
-  COOLDOWN_S seconds for the same room / device; a limited attempt is logged as `limited` and answers 429.
+  COOLDOWN_S seconds for the same room / device (and for any speaker it reaches, however it is addressed); a limited attempt is logged as `limited` and answers 429.
 - every attempt (spoken, failed, limited, refused) is one `announcements` row AND one audit row (`media.announce`).
 - the speak call is `SPEAK`; tests replace it with a fake, so no test ever reaches a real device. A rule's announce action is
   collected by services/rules.py and run after the ingest commit through `run_for_rule`; a rule never raises into ingestion.
@@ -202,13 +202,26 @@ def clean_text(text: Any) -> str:
 
 # ------------------------------------------------------------------------------------------------ the announcement
 
-def _limited(conn: sqlite3.Connection, scope: str, ref: str, per_min: int, now: dt.datetime) -> str | None:
+def _limited(conn: sqlite3.Connection, scope: str, ref: str, per_min: int, now: dt.datetime, keys: list[str] | None = None) -> str | None:
     n = conn.execute("SELECT COUNT(*) FROM announcements WHERE at >= ? AND status IN ('pending', 'sent', 'failed')", (iso_utc(now - dt.timedelta(seconds=60)),)).fetchone()[0]
     if n >= per_min:
         return "per_minute"
+    since = iso_utc(now - dt.timedelta(seconds=COOLDOWN_S))
     recent = conn.execute("SELECT 1 FROM announcements WHERE at >= ? AND scope = ? AND scope_ref = ? AND status IN ('pending', 'sent', 'failed') LIMIT 1",
-                          (iso_utc(now - dt.timedelta(seconds=COOLDOWN_S)), scope, ref)).fetchone()
-    return "cooldown" if recent else None
+                          (since, scope, ref)).fetchone()
+    if recent:
+        return "cooldown"
+    # security review 2.2.0 L3: the cooldown is per SPEAKER too - the same device addressed alternately as `device:<key>` and
+    # `area:<area>` must not double its rate
+    if keys:
+        want = set(keys)
+        for (targets,) in conn.execute("SELECT targets_json FROM announcements WHERE at >= ? AND status IN ('pending', 'sent', 'failed')", (since,)).fetchall():
+            try:
+                if want & set(json.loads(targets or "[]")):
+                    return "cooldown"
+            except (ValueError, TypeError):
+                continue
+    return None
 
 
 def _record(conn: sqlite3.Connection, principal: Principal | None, source: str, rule_id: str | None, scope: str, ref: str, keys: list[str], text: str, status: str, error: str | None, now: dt.datetime) -> str:
@@ -247,7 +260,7 @@ def announce(conn: sqlite3.Connection, settings: Settings, principal: Principal 
         _audit(conn, principal, request_id, source, scope, ref, [], "refused", code, rule_id, len(t))
         raise err(409 if code == "not_configured" else 404, code)
     keys = [k for k, _e in pairs]
-    why = _limited(conn, scope, ref, cfg["max_per_minute"], now)
+    why = _limited(conn, scope, ref, cfg["max_per_minute"], now, keys)
     if why:
         _record(conn, principal, source, rule_id, scope, ref, keys, t, "limited", why, now)
         _audit(conn, principal, request_id, source, scope, ref, keys, "limited", why, rule_id, len(t))

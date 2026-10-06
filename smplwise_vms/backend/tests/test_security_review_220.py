@@ -10,6 +10,7 @@ the in-process fake HA core (test_remote_access.Arx), announcements against a fa
       on the preview before any parsing.
 - M4  enabling or resetting the factor ends the user's other remote sign-ins.
 - L1  an announce rule re-checks media.announce of its author when it runs; L2 no markup reaches the speech engine;
+  L3 the announcement cooldown holds per speaker (L9 is in test_frigate_control);
   L5 the Frigate event id is checked before the LIKE lookup; L6 no dot segment passes the Frigate allow-list;
   L7 a retired signing key needs the trust confirmation; L8 the public app-download route is rate-limited.
 """
@@ -490,6 +491,26 @@ def test_l1_an_announce_rule_stays_silent_once_its_author_lost_media_announce(se
         hist = conn.execute("SELECT status, error FROM announcements ORDER BY rowid DESC LIMIT 1").fetchone()
     assert row["decision"] == "denied" and row["reason"] == "not_permitted" and row["actor_user_id"] == "dev-maya"
     assert (hist["status"], hist["error"]) == ("refused", "not_permitted")
+
+
+def test_l3_the_cooldown_holds_per_speaker_however_it_is_addressed(settings, monkeypatch):
+    import media_seed_audio as aseed
+
+    from smplwise.main import create_app
+    from smplwise.services import announcements as ann
+    from test_announcements import API, Speaker, enable
+
+    fake = Speaker()
+    monkeypatch.setattr(ann, "SPEAK", fake)
+    c = TestClient(create_app(settings))
+    aseed.install(c, "ma")
+    aseed.approve_players(c)
+    keys = {n: aseed.key_with(c, e) for n, e in {"a": "media_player.wiim_a", "b": "media_player.wiim_b"}.items()}
+    enable(c, keys, devices=("a",))  # speaker a is the only allowed one in area "living"
+    assert c.post(API, json={"scope": "area", "ref": "living", "text": "1"}).status_code == 200
+    again = c.post(API, json={"scope": "device", "ref": keys["a"], "text": "2"})
+    assert again.status_code == 429 and again.json()["details"]["limit"] == "cooldown", "the same speaker by another address"
+    assert len(fake.calls) == 1
 
 
 @pytest.mark.parametrize("raw,expected", [
