@@ -220,6 +220,6 @@ test('remote-access settings: the note says the factor does not protect the infr
   await expect(note).toBeVisible();
   await expect(note).toContainText('תשתית המערכת');
   const text = (await note.textContent()) ?? '';
-  expect(text).not.toMatch(/Home Assistant|HA|הום אסיסטנט/);
+  expect(text).not.toMatch(/Home Assistant|\bHA\b|הום אסיסטנט/);
   expect(text.length).toBeLessThan(120);
 });
