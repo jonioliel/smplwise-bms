@@ -54,6 +54,8 @@ class Action(BaseModel):
     message: str = Field(default="", max_length=300)
     scope: str | None = Field(default=None, pattern="^(area|device)$")  # announce: speak in a room or on one speaker (MU2)
     ref: str | None = Field(default=None, max_length=64)  # announce: the area id or the device key
+    volume: int | float | None = None  # announce (ANN2): percent, clamped by the service
+    critical: bool = False  # announce (ANN2): exempt from the announcement quiet hours
     service: str | None = Field(default=None, max_length=80, pattern=r"^[a-z0-9_]+$")  # ha_notify: the notify.<service> in Home Assistant
 
 

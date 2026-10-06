@@ -26,7 +26,11 @@ async function setup(page: Page, perms: string[] = [...PERMS.admin, 'media.annou
   await installCastMock(page, { perms });
   const m: Mock = { calls: [] };
   const state = {
-    config: { enabled: false, engine: '', language: 'he', devices: [] as string[], max_per_minute: 6, max_text: 200, cooldown_s: 5 },
+    config: { enabled: false, engine: '', language: 'he', devices: [] as string[], max_per_minute: 6, max_text: 200, cooldown_s: 5,
+      volume: null as number | null, pause_music: false,
+      quiet: { enabled: false, from: '22:00', to: '07:00', days: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], mode: 'suppress', night_volume: null as number | null },
+      notify: { enabled: false, scope: 'area', ref: '', categories: [] as string[], min_severity: 'alert' },
+    },
     speakers: [
       { key: 'sp-1', name: 'רמקול סלון', kind: 'speaker', floor_name: 'קומת קרקע', area_id: 'living', area_name: 'סלון', allowed: false },
       { key: 'sp-2', name: 'רמקול מטבח', kind: 'speaker', floor_name: 'קומת קרקע', area_id: 'kitchen', area_name: 'מטבח', allowed: false },
@@ -41,7 +45,10 @@ async function setup(page: Page, perms: string[] = [...PERMS.admin, 'media.annou
     m.calls.push({ method: req.method(), path: p, body });
     if (p === 'config' && req.method() === 'GET') return json(route, answer());
     if (p === 'config' && req.method() === 'PUT') {
-      Object.assign(state.config, body);
+      const { quiet, notify, ...flat } = (body ?? {}) as Record<string, Record<string, unknown>>;
+      Object.assign(state.config, flat);
+      Object.assign(state.config.quiet, quiet ?? {});
+      Object.assign(state.config.notify, notify ?? {});
       return json(route, { changed: Object.keys(body ?? {}), ...answer() });
     }
     if (p === 'areas') return json(route, { enabled: state.config.enabled, max_text: 200, areas: state.config.enabled ? [{ area_id: 'living', name: 'סלון', floor_name: 'קומת קרקע', devices: [{ key: 'sp-1', name: 'רמקול סלון' }] }] : [] });
@@ -92,6 +99,31 @@ test.describe('settings: voice announcements', () => {
     await expect(send).not.toHaveAttribute('disabled', '');
     await send.click();
     await expect.poll(() => m.calls.filter((c) => c.method === 'POST' && c.path === '' && c.body?.text === 'ארוחת ערב מוכנה' && c.body?.scope === 'area' && c.body?.ref === 'living').length).toBe(1);
+  });
+
+  test('volume, pause-music, quiet hours and notification routing are saved at once and nothing is on by default', async ({ page }) => {
+    const m = await setup(page);
+    await page.goto('/?design=a#/system/multimedia?tab=announce');
+    await expect(tab(page).locator('[data-announce]')).toBeVisible();
+    await expect(tab(page).locator('[data-announce-pause] input, [data-announce-pause]').first()).toBeVisible();
+    await expect(tab(page).locator('[data-announce-volume]')).toHaveValue('');
+    await tab(page).locator('[data-announce-volume]').fill('40');
+    await tab(page).locator('[data-announce-volume]').dispatchEvent('change');
+    await expect.poll(() => m.calls.some((c) => c.method === 'PUT' && c.body?.volume === 40)).toBe(true);
+    await tab(page).locator('[data-announce-pause]').click();
+    await expect.poll(() => m.calls.some((c) => c.method === 'PUT' && c.body?.pause_music === true)).toBe(true);
+    await tab(page).locator('[data-announce-quiet-enabled]').click();
+    await expect.poll(() => m.calls.some((c) => c.method === 'PUT' && (c.body?.quiet as { enabled?: boolean } | undefined)?.enabled === true)).toBe(true);
+    await tab(page).locator('[data-announce-quiet-mode]').selectOption('lower');
+    await expect(tab(page).locator('[data-announce-night-volume]')).toBeVisible();
+    await tab(page).locator('[data-announce-night-volume]').fill('20');
+    await tab(page).locator('[data-announce-night-volume]').dispatchEvent('change');
+    await expect.poll(() => m.calls.some((c) => (c.body?.quiet as { night_volume?: number } | undefined)?.night_volume === 20)).toBe(true);
+    await tab(page).locator('[data-announce-routing-category="doors"]').check();
+    await expect.poll(() => m.calls.some((c) => JSON.stringify((c.body?.notify as { categories?: string[] } | undefined)?.categories) === '["doors"]')).toBe(true);
+    await tab(page).locator('[data-announce-routing-severity]').selectOption('critical');
+    await expect.poll(() => m.calls.some((c) => (c.body?.notify as { min_severity?: string } | undefined)?.min_severity === 'critical')).toBe(true);
+    await shot(page, 'announce-extras');
   });
 
   test('English strings when the document language is English; without system.configure there is no screen', async ({ page }) => {

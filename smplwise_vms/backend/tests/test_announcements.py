@@ -56,7 +56,9 @@ def audit_rows(app, action="media.announce"):
 
 def test_off_by_default_and_nothing_spoken(world):
     app, c, fake, keys, _s = world
-    assert c.get(f"{API}/config").json()["config"] == {"enabled": False, "engine": "", "language": "he", "devices": [], "max_per_minute": 6, "max_text": 200, "cooldown_s": 5}
+    assert c.get(f"{API}/config").json()["config"] == {"enabled": False, "engine": "", "language": "he", "devices": [], "max_per_minute": 6, "max_text": 200, "cooldown_s": 5,
+        "volume": None, "pause_music": False, "quiet": {"enabled": False, "from": "22:00", "to": "07:00", "days": ["sun", "mon", "tue", "wed", "thu", "fri", "sat"], "mode": "suppress", "night_volume": None},
+        "notify": {"enabled": False, "scope": "area", "ref": "", "categories": [], "min_severity": "alert"}}
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "שלום"})
     assert r.status_code == 404 and r.json()["code"] == "feature_disabled"
     assert fake.calls == []

@@ -165,7 +165,7 @@ export interface NotifyPolicy {
   /** `initiator` = the bulk starter / the account's owner. */
   recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users'; user_ids?: string[] };
   /** inbox is fixed on; ha_mobile / whatsapp are fixed false in v1 (reserved). */
-  channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; ha_mobile: false; whatsapp: false };
+  channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: false };
   revision: number;
 }
 
