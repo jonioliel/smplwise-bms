@@ -4878,7 +4878,9 @@
       "Acceptance evidence tied to commit and environment",
       "Documentation, known limits and rollback notes"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-10-06 (branch pilot/ST5-dxf-package @ 617fb6f4, not released): ST5 - DXF export (GET plan-versions/{id}/export.dxf, R2018, fixed SW_* layers for walls/openings/rooms/devices/objects/connectors/labels, metres when calibrated else unitless px, item ids in XDATA, Hebrew MTEXT cleaned of control/bidi marks), signed plan package (POST plan-versions/{id}/package: plan.json, rooms, anchors, custom items, plan picture, source <= 16 MiB, Hebrew report, manifest with SHA-256 per file, Ed25519 signature with the installation key T067, public half only) and re-import (POST .../package/preview dry run and .../package/import: hostile-zip checks reused from the bundle import, signature + package/document version checks, full validation, replace or merge with diff, missing cameras/entities/rooms/switches/custom items reported, writes the draft only, previewed revision + result hash required, a foreign key needs explicit trust; audited geometry.package.export / geometry.package.import). Editor export row: DXF, package, import package + dialog; he/en strings. No migration. Tests on the runner: backend test_plan_dxf_export 7 + test_plan_package 19 + neighbours = 137 passed; full suite 5650 passed, 4 skipped, 1 failed (test_mobile_push app-channel test, fails identically on main a58f1ccf - pre-existing, unrelated); tsc ok; evidence-plan-package.spec.ts fixture part 6/6 (desktop + mobile, twice); live part 1/1 desktop against a throwaway local backend (export, drift, import back to the exported hash). Round trip: export then import into the same version restores the same doc_hash and geometry hash (test_round_trip_restores_the_same_hash). Not verified: Hebrew ordering in a commercial CAD program. Docs: docs/changes/ST5-PLAN-PACKAGE-DXF.md."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
