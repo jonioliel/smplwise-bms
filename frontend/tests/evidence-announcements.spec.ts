@@ -53,12 +53,12 @@ test.describe('settings: voice announcements', () => {
     await page.goto('/?design=a#/system/multimedia?tab=announce');
     await expect(tab(page).locator('[data-announce]')).toBeVisible();
     const test1 = tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-test]');
-    await expect(test1).toBeDisabled();
+    await expect(test1).toHaveAttribute('disabled', '');
     await tab(page).locator('[data-announce-engine]').fill('tts.demo_engine');
     await tab(page).locator('[data-announce-engine]').dispatchEvent('change');
     await tab(page).locator('[data-announce-enabled]').click();
     await tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-allow]').check();
-    await expect(test1).toBeEnabled();
+    await expect(test1).not.toHaveAttribute('disabled', '');
     await test1.click();
     await expect.poll(() => m.calls.some((c) => c.path === 'test' && c.body?.ref === 'sp-1' && c.body?.scope === 'device')).toBe(true);
     await expect(tab(page).locator('[data-announce-history] tr')).toHaveCount(1);
@@ -73,17 +73,21 @@ test.describe('settings: voice announcements', () => {
     await tab(page).locator('[data-announce-enabled]').click();
     await tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-allow]').check();
     const send = tab(page).locator('[data-announce-send]');
-    await expect(send).toBeDisabled();
+    await expect(send).toHaveAttribute('disabled', '');
     await tab(page).locator('[data-announce-text]').fill('ארוחת ערב מוכנה');
-    await expect(send).toBeEnabled();
+    await expect(send).not.toHaveAttribute('disabled', '');
     await send.click();
     await expect.poll(() => m.calls.filter((c) => c.method === 'POST' && c.path === '' && c.body?.text === 'ארוחת ערב מוכנה' && c.body?.scope === 'area' && c.body?.ref === 'living').length).toBe(1);
   });
 
   test('English strings when the document language is English; without system.configure there is no screen', async ({ page }) => {
     await setup(page);
-    await page.addInitScript(() => document.documentElement.setAttribute('lang', 'en'));
     await page.goto('/?design=a#/system/multimedia?tab=announce');
+    await expect(tab(page).locator('[data-announce]')).toContainText('מנוע דיבור');
+    await page.evaluate(() => {
+      document.documentElement.setAttribute('lang', 'en');
+      (document.querySelector('sw-app')?.shadowRoot?.querySelector('system-multimedia')?.shadowRoot?.querySelector('system-announcements') as (HTMLElement & { requestUpdate(): void }) | null)?.requestUpdate();
+    });
     await expect(tab(page).locator('[data-announce]')).toContainText('Speech engine');
     const p2 = await page.context().newPage();
     await setup(p2, PERMS.operator);
