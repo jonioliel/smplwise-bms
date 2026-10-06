@@ -1,3 +1,13 @@
+# Android v4 sensors and push update
+
+The existing own-WebView shell is extended for all eight selectable sensors, device registration, the server notice, required-sensors gate and FCM relay/fetch flow. Package `com.smplwise.arx.app`, version 2.1.0 / code 4. Existing navigation, lock and file-transfer policies are preserved.
+
+Read [ANDROID_V4_STATUS.md](ANDROID_V4_STATUS.md) for the current implementation and measured limits, [OWNER_SETUP_HE.md](OWNER_SETUP_HE.md) for Firebase/relay/signing setup, and [evidence/v4/RESULTS.md](evidence/v4/RESULTS.md) for verification. The sections below describe the imported 2.0.2 shell; their historical “no Firebase / no notifications” statements no longer describe v4.
+
+Mock build: `sh gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug -ParxPushRelayUrl=http://127.0.0.1:8099`. JDK 17 and Android SDK 36/build-tools 35.0.0 are required. The relay override is debug-only loopback; production must use an approved HTTPS URL. Use `adb reverse tcp:8099 tcp:8099` to reach the fixture from an emulator/USB development phone. Instrumentation additionally runs with `connectedDebugAndroidTest` and requires the fixture to be running.
+
+Fixture: `python3 tools/mock_arx_server.py --port 8099 --enabled --allowed location activity steps altitude battery network beacon app_state`. Tests: `cd tools && python3 -m unittest -v test_mock_arx_server`. The fixture binds only to 127.0.0.1. Its web page has synthetic sign-in buttons; no real credentials are accepted. No production server/relay is contacted by these checks.
+
 # SmplWise Arx for Android - own-WebView shell
 
 An Android app for SmplWise Arx remote access (CR-008 §9) that renders the site in **its own WebView**: no browser, no

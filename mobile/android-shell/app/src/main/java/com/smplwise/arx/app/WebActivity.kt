@@ -91,6 +91,8 @@ class WebActivity : LockedActivity() {
     private lateinit var errorView: View
 
     private val dev = BuildConfig.ALLOW_DEV_HTTP
+    private var presence: PresenceUi? = null
+    private val webBlocked: Boolean get() = locked || presence?.blocksSite == true
     private var bridge = false
     private var pageInsets = false
     private var webViewOutdated = false
@@ -257,9 +259,26 @@ class WebActivity : LockedActivity() {
 
     /** The page-facing interface, injected only into frames of the server's origin (see the class comment). */
     private fun installBridge() {
+        val server = ServerStore(this).findByUrl(serverUrl) ?: return
+        presence = PresenceUi(this, root, server, webHolder, {
+            // Clear only this origin's web storage and cookies; then reload the sign-in screen.
+            webView.evaluateJavascript("localStorage.removeItem('arx.auth.v1'); sessionStorage.removeItem('arx.auth.v1');", null)
+            android.webkit.WebStorage.getInstance().deleteOrigin(serverOrigin)
+            val cm = CookieManager.getInstance()
+            cm.getCookie(serverUrl)?.split(';')?.forEach { item ->
+                val name = item.substringBefore('=').trim()
+                if (name.isNotEmpty()) cm.setCookie(serverUrl, "$name=; Max-Age=0; Path=$serverPath")
+            }
+            cm.flush(); webView.loadUrl(serverUrl)
+        }, { if (!rendererGone) webView.reload() }, blockingChanged = { blocked ->
+            if (!rendererGone) {
+                if (blocked) { pendingPermission?.deny(); pendingPermission = null; if (customView != null) chrome.onHideCustomView() }
+                webView.evaluateJavascript(BridgeScript.lock(blocked || locked, mediaToken), null)
+            }
+        })
         val rules = setOf(serverOrigin)
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
-        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { view, message, sourceOrigin, isMainFrame, _ ->
+        WebViewCompat.addWebMessageListener(webView, BridgePolicy.NATIVE_OBJECT, rules) { view, message, sourceOrigin, isMainFrame, reply ->
             // origin, main frame, and the page shown must be one of the server's Arx pages (not the platform UI at /)
             if (!BridgePolicy.accept(serverUrl, serverOrigin, sourceOrigin.toString(), isMainFrame, view.url, dev)) return@addWebMessageListener
             val raw = message.data ?: return@addWebMessageListener
@@ -271,7 +290,16 @@ class WebActivity : LockedActivity() {
                 } catch (e: JSONException) {
                     return@execute
                 }
-                runOnUiThread { if (!isDestroyed) onBridgeMessage(msg) }
+                if (msg.optString("type") !in setOf("blob", "blobError") && raw.toByteArray().size > 65536) return@execute
+                runOnUiThread {
+                    if (isDestroyed || locked || !BridgePolicy.accept(serverUrl, serverOrigin, sourceOrigin.toString(), isMainFrame, view.url, dev)) return@runOnUiThread
+                    if (msg.optString("type") == "deviceStatus") {
+                        val r = PresenceRuntime.get(this).record(server)
+                        val status = JSONObject().put("registered", r.optString("device_token").isNotEmpty()).put("name", r.optString("name"))
+                            .put("location_auth", SensorPermissions.locationAuth(this)).put("precise", SensorPermissions.fine(this)).put("last_event_at", r.optString("last_event_at"))
+                        reply.postMessage(JSONObject().put("request_id", msg.optString("request_id")).put("status", status).toString())
+                    } else onBridgeMessage(msg)
+                }
             }
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -283,8 +311,13 @@ class WebActivity : LockedActivity() {
     private fun onBridgeMessage(msg: JSONObject) {
         if (locked) return
         val type = msg.optString("type")
+        if (presence?.blocksSite == true && type !in setOf("signedIn", "signedOut")) return
         if (type !in BridgePolicy.MESSAGE_TYPES) return
         when (type) {
+            "signedIn" -> presence?.signedIn()
+            "signedOut" -> presence?.pageSignedOut()
+            "openSensorSettings" -> if (NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)) presence?.openSettings()
+            "openLocationSettings" -> if (NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)) presence?.appSettings()
             "switchServer" -> if (NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt)) openServers()
             "blob" -> onBlob(msg)
             "blobError" -> if (msg.optString("url") == pendingBlobUrl) {
@@ -308,7 +341,7 @@ class WebActivity : LockedActivity() {
                 }
                 NavPolicy.Decision.APP_LINK -> {
                     // only on a tap: a page must not be able to stack server lists by itself (re-review, item 3)
-                    if (!locked && (request.hasGesture() || NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt))) {
+                    if (!webBlocked && (request.hasGesture() || NavPolicy.userActivated(SystemClock.elapsedRealtime(), lastTouchAt))) {
                         handleAppLink(url)
                     }
                     true
@@ -342,7 +375,7 @@ class WebActivity : LockedActivity() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
-            if (locked) view.evaluateJavascript(BridgeScript.lock(true, mediaToken), null) // a page that loaded behind the lock
+            if (webBlocked) view.evaluateJavascript(BridgeScript.lock(true, mediaToken), null) // a page that loaded behind the lock
             progress.visibility = View.GONE
             CookieManager.getInstance().flush()
             readPageColors()
@@ -415,7 +448,7 @@ class WebActivity : LockedActivity() {
 
         override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
             if (!isUserGesture) return false
-            if (locked) return false
+            if (webBlocked) return false
             // The new window never shows: a throwaway WebView learns the URL, then NavPolicy decides where it goes.
             // Every probe is tracked and destroyed after it answered, after 2 s at the latest, on window.close() and
             // with this screen (security review L1).
@@ -498,7 +531,7 @@ class WebActivity : LockedActivity() {
             runOnUiThread {
                 val grant = PermissionPolicy.grantable(serverOrigin, request.origin?.toString(), request.resources)
                 when {
-                    locked || grant.isEmpty() -> request.deny() // never while the app is locked (security review L5)
+                    webBlocked || grant.isEmpty() -> request.deny() // never while the app is locked (security review L5)
                     ContextCompat.checkSelfPermission(this@WebActivity, Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED -> request.grant(grant.toTypedArray())
                     else -> {
@@ -520,22 +553,22 @@ class WebActivity : LockedActivity() {
          * cover), otherwise shown as the app's own dialog titled with the server's name (security re-review, item 1).
          */
         override fun onJsAlert(view: WebView, url: String, message: String, result: JsResult): Boolean {
-            if (locked) result.cancel() else jsDialog(message, null, result, confirm = false)
+            if (webBlocked) result.cancel() else jsDialog(message, null, result, confirm = false)
             return true
         }
 
         override fun onJsConfirm(view: WebView, url: String, message: String, result: JsResult): Boolean {
-            if (locked) result.cancel() else jsDialog(message, null, result, confirm = true)
+            if (webBlocked) result.cancel() else jsDialog(message, null, result, confirm = true)
             return true
         }
 
         override fun onJsPrompt(view: WebView, url: String, message: String, defaultValue: String?, result: JsPromptResult): Boolean {
-            if (locked) result.cancel() else jsDialog(message, defaultValue.orEmpty(), result, confirm = true)
+            if (webBlocked) result.cancel() else jsDialog(message, defaultValue.orEmpty(), result, confirm = true)
             return true
         }
 
         override fun onJsBeforeUnload(view: WebView, url: String, message: String, result: JsResult): Boolean {
-            if (locked) result.cancel() else jsDialog(message, null, result, confirm = true)
+            if (webBlocked) result.cancel() else jsDialog(message, null, result, confirm = true)
             return true
         }
 
@@ -544,7 +577,7 @@ class WebActivity : LockedActivity() {
         }
 
         override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
-            if (locked) {
+            if (webBlocked) {
                 callback.onReceiveValue(null)
                 return true
             }
@@ -617,7 +650,7 @@ class WebActivity : LockedActivity() {
      */
     private fun openExternal(uri: Uri, hasGesture: Boolean) {
         val now = SystemClock.elapsedRealtime()
-        if (locked || !NavPolicy.allowExternal(hasGesture, now, lastExternalAt)) return
+        if (webBlocked || !NavPolicy.allowExternal(hasGesture, now, lastExternalAt)) return
         lastExternalAt = now
         try {
             startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -661,7 +694,7 @@ class WebActivity : LockedActivity() {
         }
         val s = gestureStart ?: return
         gestureStart = null
-        if (!locked && ServersGesture.isTrigger(store.serversGesture, s[0], midY, s[1], midX, s[2], spread, v.height.toFloat(),
+        if (!webBlocked && ServersGesture.isTrigger(store.serversGesture, s[0], midY, s[1], midX, s[2], spread, v.height.toFloat(),
                 e.eventTime - s[3].toLong(), resources.displayMetrics.density)) openServers()
     }
 
@@ -697,7 +730,7 @@ class WebActivity : LockedActivity() {
      * (security review M2). The user picks where to save it first ("save as"); then the file streams there.
      */
     private fun askWhereToSave(url: String, userAgent: String?, contentDisposition: String?, mimetype: String?) {
-        if (locked) return
+        if (webBlocked) return
         val mime = mimetype?.substringBefore(';')?.trim()?.takeIf { it.isNotEmpty() } ?: "application/octet-stream"
         val name = FileTypes.safeName(URLUtil.guessFileName(url, contentDisposition, mimetype), "arx-download")
         if (DownloadPolicy.refused(name, mime)) {
@@ -843,6 +876,7 @@ class WebActivity : LockedActivity() {
      */
     private fun setupInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            presence?.updateInsets(insets)
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             webHolder.updateLayoutParams<ViewGroup.MarginLayoutParams> {
@@ -962,13 +996,15 @@ class WebActivity : LockedActivity() {
             webView.onPause()
         } else {
             webView.onResume()
-            webView.evaluateJavascript(BridgeScript.lock(false, mediaToken), null)
+            webView.evaluateJavascript(BridgeScript.lock(presence?.blocksSite == true, mediaToken), null)
+            presence?.resume()
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (::webView.isInitialized && !rendererGone && !locked) webView.onResume()
+        if (::webView.isInitialized && !rendererGone && !webBlocked) webView.onResume()
+        presence?.resume()
     }
 
     override fun onPause() {
@@ -985,6 +1021,7 @@ class WebActivity : LockedActivity() {
     }
 
     override fun onDestroy() {
+        presence?.destroy()
         instances.remove(this)
         probes.toList().forEach { destroyProbe(it) }
         io.shutdown()

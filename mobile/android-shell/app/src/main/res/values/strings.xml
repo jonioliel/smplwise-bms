@@ -113,4 +113,30 @@
     <string name="error_scope">השרת הפנה את האפליקציה לאתר אחר, שאינו חלק משרת זה. הכתובת לא נפתחה באפליקציה.</string>
     <string name="error_other_title">לא ניתן לפתוח את השרת</string>
     <string name="error_other">משהו השתבש בטעינה. נסו שוב.</string>
+
+    <string name="device_title">רישום המכשיר</string>
+    <string name="device_intro">תנו שם למכשיר הזה, כדי שנדע לזהות אותו במערכת.</string>
+    <string name="device_name_placeholder">הנייד של יוסי</string>
+    <string name="device_name_error">השם צריך להכיל בין 2 ל־40 תווים.</string>
+    <string name="device_continue">המשך</string>
+    <string name="notice_title">הודעה לעובדים</string>
+    <string name="notice_ack">קראתי והבנתי</string>
+    <string name="sensor_title">נתונים שהמכשיר משתף</string>
+    <string name="sensor_select_all">בחר הכל</string>
+    <string name="sensor_clear_all">בטל הכל</string>
+    <string name="sensor_location">מיקום</string>
+    <string name="sensor_activity">פעילות (הליכה, נסיעה)</string>
+    <string name="sensor_steps">צעדים</string>
+    <string name="sensor_altitude">שינוי גובה (קומה)</string>
+    <string name="sensor_battery">סוללה</string>
+    <string name="sensor_network">רשת ו-Wi-Fi</string>
+    <string name="sensor_beacon">קרבה לנקודות בבניין</string>
+    <string name="sensor_app_state">פעילות האפליקציה</string>
+    <string name="sensor_not_allowed">לא מאושר בשרת</string>
+    <string name="sensor_needs_permission">דורש הרשאה</string>
+    <string name="required_title">נדרש שיתוף נתונים</string>
+    <string name="required_body">הארגון דורש שיתוף %1$s כדי להשתמש במערכת.</string>
+    <string name="required_enable">הפעלה</string>
+    <string name="required_open_settings">פתח הגדרות</string>
+    <string name="required_signout">התנתקות</string>
 </resources>

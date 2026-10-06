@@ -157,6 +157,19 @@ object BridgeScript {
       platform: 'android',
       shell: 'webview',
       version: $versionJson,
+      capabilities: Object.freeze(['device-registration', 'location', 'sensors', 'push']),
+      signedIn: function (user) { send({ type: 'signedIn' }); },
+      signedOut: function () { send({ type: 'signedOut' }); },
+      deviceStatus: function () { return new Promise(function(resolve) {
+        var id = String(Date.now()) + Math.random();
+        var port = window.ArxAppNative;
+        function receive(e) { try { var d = JSON.parse(e.data); if(d.request_id === id) { port.removeEventListener('message', receive); resolve(d.status); } } catch(e) {} }
+        port.addEventListener('message', receive);
+        send({ type: 'deviceStatus', request_id: id });
+        setTimeout(function(){ port.removeEventListener('message', receive); resolve({registered:false}); },6000);
+      }); },
+      openLocationSettings: function () { send({ type: 'openLocationSettings' }); },
+      openSensorSettings: function () { send({ type: 'openSensorSettings' }); },
       switchServer: function () { send({ type: 'switchServer' }); }
     })
   });

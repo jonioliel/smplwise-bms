@@ -232,9 +232,11 @@ class ServersActivity : LockedActivity() {
             if (index > 0) menu.add(0, 3, 2, R.string.action_move_up)
             if (index < count - 1) menu.add(0, 4, 3, R.string.action_move_down)
             menu.add(0, 5, 4, R.string.action_delete)
+            menu.add(0, 6, 5, R.string.sensor_title)
             setOnMenuItemClickListener {
                 if (locked) return@setOnMenuItemClickListener true
                 when (it.itemId) {
+                    6 -> startActivity(Intent(this@ServersActivity, PresenceSettingsActivity::class.java).putExtra("server_id", server.id))
                     1 -> open(server.url, server.url)
                     2 -> whenUnlocked { showServerDialog(server, null) }
                     3 -> { store.move(server.id, -1); render() }

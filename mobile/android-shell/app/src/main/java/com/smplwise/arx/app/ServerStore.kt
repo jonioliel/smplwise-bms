@@ -17,7 +17,7 @@ data class Server(val id: String, val name: String, val url: String) {
  * (cookies and localStorage per origin), exactly as it would in a browser - never in these preferences.
  * (From the Trusted Web Activity branch's ServerStore, plus the app-lock settings.)
  */
-class ServerStore(context: Context) {
+class ServerStore(private val context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun servers(): List<Server> {
@@ -49,7 +49,11 @@ class ServerStore(context: Context) {
 
     fun update(server: Server) = save(servers().map { if (it.id == server.id) server else it })
 
-    fun delete(id: String) = save(servers().filterNot { it.id == id })
+    fun delete(id: String) {
+        PresenceRuntime.get(context).store.forget(id)
+        save(servers().filterNot { it.id == id })
+        SensorCoordinator.get(context).refresh()
+    }
 
     fun move(id: String, delta: Int) {
         val list = servers().toMutableList()

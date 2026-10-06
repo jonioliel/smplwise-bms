@@ -23,3 +23,17 @@ output-metadata.json
 *.pfx
 *.pem
 keystore.properties
+
+# Firebase / credentials / fixture caches
+google-services.json
+*service-account*.json
+*.p8
+*.mobileprovision
+.env*
+__pycache__/
+
+*firebase-adminsdk*.json
+*service_account*.json
+credentials*.json
+secrets/
+*.key

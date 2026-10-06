@@ -26,6 +26,8 @@ class ArxApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         AppLock.register(this)
+        SensorCoordinator.get(this).start()
+        PushCoordinator.get(this).initialize()
     }
 }
 
@@ -149,7 +151,7 @@ abstract class LockedActivity : AppCompatActivity() {
     private var lockedBack: OnBackPressedCallback? = null
 
     /** True while the lock cover is up. */
-    protected val locked: Boolean get() = cover != null
+    val locked: Boolean get() = cover != null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -117,7 +117,7 @@ object BridgePolicy {
     const val NATIVE_OBJECT = "ArxAppNative"
 
     /** The kinds of message the page may send; anything else is ignored. */
-    val MESSAGE_TYPES = setOf("switchServer", "blob", "blobError")
+    val MESSAGE_TYPES = setOf("switchServer", "blob", "blobError", "signedIn", "signedOut", "deviceStatus", "openLocationSettings", "openSensorSettings")
 
     /** `https://Host:443/` → `https://host`; null when it is not an http(s) origin. */
     fun canonicalOrigin(origin: String?): String? {

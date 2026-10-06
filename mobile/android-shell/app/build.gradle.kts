@@ -6,6 +6,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Owner configuration is local and ignored. A mock build needs no Firebase project.
+if (file("google-services.json").isFile) apply(plugin = "com.google.gms.google-services")
+
 // ---- optional build-time settings (gradle.properties, or -ParxHost=... on the command line) ------------------------
 val hostRe = Regex("^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
 val arxHost: String = (findProperty("arxHost") as String? ?: "").trim().lowercase()
@@ -49,11 +52,13 @@ android {
         applicationId = "com.smplwise.arx.app"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = arxVersionCode
         versionName = arxVersionName
 
         buildConfigField("String", "DEFAULT_SERVER_URL", javaString(defaultServerUrl))
         buildConfigField("String", "DEFAULT_SERVER_NAME", javaString(arxServerName))
+        buildConfigField("String", "PUSH_RELAY_URL", javaString(findProperty("arxPushRelayUrl") as String? ?: ""))
     }
 
     signingConfigs {
@@ -103,14 +108,23 @@ kotlin {
 }
 
 dependencies {
-    // No Google Play services and no Firebase (owner decision 2026-09-29): AndroidX and Material Components only.
+    // v4 parity: location/activity APIs, process lifecycle, bounded background retries and FCM.
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.android.material:material:1.12.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 if (!canSignRelease) {
