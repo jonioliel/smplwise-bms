@@ -187,8 +187,11 @@ def resolve(conn: sqlite3.Connection, scope: str, ref: str) -> list[tuple[str, s
 def clean_text(text: Any) -> str:
     if not isinstance(text, str):
         raise err(422, "text_invalid")
+    # checked BEFORE the whitespace fold (str.split() would swallow the separator controls and U+2028); a newline and a tab are plain spaces
+    if CONTROL.search(text.translate({10: " ", 9: " "})):
+        raise err(422, "text_invalid")
     t = " ".join(text.split())
-    if not t or len(t) > MAX_TEXT or CONTROL.search(t):
+    if not t or len(t) > MAX_TEXT:
         raise err(422, "text_invalid")
     return t
 

@@ -20,8 +20,11 @@ export interface RuleWindow {
   to: string | null;
 }
 export interface RuleAction {
-  kind: 'notify' | 'ha_notify';
+  kind: 'notify' | 'ha_notify' | 'announce';
   message: string;
+  /** announce (MU2): speak the message in a room (`area`, ref = the area id) or on one speaker (`device`, ref = its key). */
+  scope?: 'area' | 'device' | null;
+  ref?: string | null;
   /** ha_notify: the notify.<service> in Home Assistant (e.g. mobile_app_phone). */
   service?: string | null;
 }

@@ -58,7 +58,7 @@ def test_off_by_default_and_nothing_spoken(world):
     app, c, fake, keys, _s = world
     assert c.get(f"{API}/config").json()["config"] == {"enabled": False, "engine": "", "language": "he", "devices": [], "max_per_minute": 6, "max_text": 200, "cooldown_s": 5}
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "שלום"})
-    assert r.status_code == 404 and r.json()["error"]["code"] == "feature_disabled"
+    assert r.status_code == 404 and r.json()["code"] == "feature_disabled"
     assert fake.calls == []
     row = audit_rows(app)[-1]
     assert row["decision"] == "denied" and row["reason"] == "feature_disabled"
@@ -104,8 +104,8 @@ def test_device_announcement_and_not_allowed_target(world):
     assert fake.calls[-1][1] and len(fake.calls) == 1
     for ref in (keys["garden"], keys["denon"], "no-such-key"):
         r = c.post(API, json={"scope": "device", "ref": ref, "text": "x"})
-        assert r.status_code == 404 and r.json()["error"]["code"] == "no_targets", ref
-    assert c.post(API, json={"scope": "area", "ref": "terrace", "text": "x"}).json()["error"]["code"] == "no_targets"
+        assert r.status_code == 404 and r.json()["code"] == "no_targets", ref
+    assert c.post(API, json={"scope": "area", "ref": "terrace", "text": "x"}).json()["code"] == "no_targets"
     assert len(fake.calls) == 1, "nothing was spoken for a speaker that is not allowed"
 
 
@@ -113,7 +113,7 @@ def test_not_configured_when_no_engine(world):
     _app, c, fake, keys, _s = world
     c.put(f"{API}/config", json={"enabled": True, "devices": [keys["a"]]})
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "x"})
-    assert r.status_code == 409 and r.json()["error"]["code"] == "not_configured" and fake.calls == []
+    assert r.status_code == 409 and r.json()["code"] == "not_configured" and fake.calls == []
 
 
 @pytest.mark.parametrize("text", ["", "   ", "x" * 201, "a\x07b", "a b"])
@@ -123,7 +123,7 @@ def test_text_rules(world, text):
     r = c.post(API, json={"scope": "area", "ref": "living", "text": text})
     assert r.status_code == 422 and fake.calls == []
     if text:
-        assert r.json()["error"]["code"] == "text_invalid" and r.json()["error"]["details"]["message_en"]
+        assert r.json()["code"] == "text_invalid" and r.json()["details"]["message_en"]
 
 
 def test_rate_limits(world):
@@ -131,10 +131,10 @@ def test_rate_limits(world):
     enable(c, keys, max_per_minute=2)
     assert c.post(API, json={"scope": "area", "ref": "living", "text": "1"}).status_code == 200
     again = c.post(API, json={"scope": "area", "ref": "living", "text": "1b"})
-    assert again.status_code == 429 and again.json()["error"]["details"]["limit"] == "cooldown", "the same room twice within seconds"
+    assert again.status_code == 429 and again.json()["details"]["limit"] == "cooldown", "the same room twice within seconds"
     assert c.post(API, json={"scope": "area", "ref": "kitchen", "text": "2"}).status_code == 200
     third = c.post(API, json={"scope": "device", "ref": keys["a"], "text": "3"})
-    assert third.status_code == 429 and third.json()["error"]["details"]["limit"] == "per_minute"
+    assert third.status_code == 429 and third.json()["details"]["limit"] == "per_minute"
     assert len(fake.calls) == 2
     statuses = [h["status"] for h in c.get(f"{API}/history").json()["history"]]
     assert statuses.count("limited") == 2 and statuses.count("sent") == 2
@@ -146,7 +146,7 @@ def test_speak_failure_is_reported_and_logged(world):
     enable(c, keys)
     fake.error = ApiError(503, "ha_unavailable", "x")
     r = c.post(API, json={"scope": "area", "ref": "living", "text": "x"})
-    assert r.status_code == 502 and r.json()["error"]["code"] == "speak_failed" and r.json()["error"]["retryable"] is True
+    assert r.status_code == 502 and r.json()["code"] == "speak_failed" and r.json()["retryable"] is True
     h = c.get(f"{API}/history").json()["history"][0]
     assert h["status"] == "failed" and h["error"] == "ha_unavailable"
 
