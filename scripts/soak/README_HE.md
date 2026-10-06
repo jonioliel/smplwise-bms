@@ -33,8 +33,8 @@ py -3.12 scripts/soak/analyze_soak.py soak.csv --out summary.md
 ## מה נדגם (בקשה אחת לכל endpoint בכל דגימה)
 
 - add-on: `/healthz`, `/health`, `/health/summary`: latency, קוד HTTP, מוני נעילת כתיבה, תור ingest, backpressure, דיסק פנוי, מספר מצלמות, דגלי נגישות.
-- supervisor (דרך HA): סטטיסטיקות add-on (זיכרון, CPU), מידע add-on (מצב, גרסה), סטטיסטיקות הליבה.
-- לוג ה-add-on: ספירת ERROR / WARNING / Traceback / startup כל 5 דגימות (חלון 2000 שורות אחרונות, לא מצטבר).
+- supervisor (דרך HA WebSocket, הודעות `supervisor/api`, חיבור קצר אחד בכל דגימה, אותו סדר כמו בכלי הישן): סטטיסטיקות add-on (זיכרון, CPU), מידע add-on (מצב, גרסה), סטטיסטיקות הליבה. נתיב ה-REST של הפרוקסי מחזיר 401 עם טוקן ארוך-טווח ולכן אינו בשימוש לקריאות האלה. אם החבילה `websockets` מותקנת היא משמשת, אחרת לקוח stdlib מינימלי (ללא תלות חיצונית). כשל מתועד בעמודה `error` כ-`sup_stats:ws_auth_failed`, `ws_http_401`, `ws_timeout`, `ws_closed`, `ws_unavailable:bad_url` וכו', והדגימה ממשיכה.
+- לוג ה-add-on (נשאר ב-REST, `/api/hassio/addons/<slug>/logs`): ספירת ERROR / WARNING / Traceback / startup כל 5 דגימות (חלון 2000 שורות אחרונות, לא מצטבר).
 - דגלי NVR / go2rtc / HA הם התצוגה המאוחסנת של ה-add-on עצמו (`/health`). הכלי לא פונה ל-NVR או ל-go2rtc ולא נוגע בהתקנים.
 
 ## חוסן
@@ -61,4 +61,6 @@ uptime, וגודל קובץ DB או WAL. הזיכרון וה-CPU נלקחים מ
 
 ## בדיקות
 
-`smplwise_vms/backend/tests/test_soak_sampler.py` (תגובות HTTP מדומות, בלי רשת). הרצה בשרת: `private/runner/run_smart.py backend <branch> tests/test_soak_sampler.py`.
+`smplwise_vms/backend/tests/test_soak_sampler.py` (תגובות HTTP מדומות ושרת WebSocket מקומי מדומה בתוך התהליך, בלי רשת חיצונית). הרצה בשרת: `private/runner/run_smart.py backend <branch> tests/test_soak_sampler.py`.
+
+כותרת ה-CSV לא השתנתה, ולכן אפשר להמשיך לתוך קובץ קיים.
