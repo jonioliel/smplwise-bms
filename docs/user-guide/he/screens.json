@@ -1687,5 +1687,77 @@
     "evidence_from": [
       "docs/design/evidence/device-activity/feed-classic-1440-light.png"
     ]
+  },
+  {
+    "id": "announcements-settings",
+    "name_he": "הגדרות › מולטימדיה › הכרזות קוליות",
+    "section": "multimedia",
+    "route": "#/system/multimedia?tab=announce",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/mu2/announce-desktop.png"
+    ]
+  },
+  {
+    "id": "login-android-offer",
+    "name_he": "מסך כניסה במכשיר Android: הצעת הורדת האפליקציה",
+    "section": "settings",
+    "route": "(מסך הכניסה מרחוק)",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "viewer"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/android-download/login-android-offer-desktop.png"
+    ]
+  },
+  {
+    "id": "second-factor-enrol",
+    "name_he": "החשבון שלי: הפעלת אימות דו-שלבי (QR ושדה קוד)",
+    "section": "settings",
+    "route": "(תפריט משתמש › החשבון שלי)",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "viewer"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/K11/k11-enrol-guide-panel.png"
+    ]
+  },
+  {
+    "id": "frigate-control-settings",
+    "name_he": "שינויים ב-Frigate: סוגי פעולה, מיפוי אזעקה ויומן",
+    "section": "settings",
+    "route": "#/system/setup",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f2/settings-control-card-desktop.png"
+    ]
   }
 ]
