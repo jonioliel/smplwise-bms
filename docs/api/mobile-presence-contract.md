@@ -35,6 +35,31 @@ this shape; the mock never points at the lab.
   "the only server". If the same origin later answers with a different `server_id` (a restored or replaced
   installation), the stored registration is stale: re-register.
 
+### 0.2 PROPOSED AMENDMENT - pending owner approval (security review 2.2.0, H1); not normative until approved
+
+> **Status: proposed, not approved.** The normative text of this contract is unchanged. This paragraph describes the
+> server behaviour of branch `pilot/sec-220` so the app teams can prepare; it becomes part of the contract only after
+> the owner approves it.
+>
+> - **What changes on the server:** a request or WebSocket handshake that authenticates with an HA access token
+>   (`Authorization: Bearer <HA access token>`, no Arx cookie) and starts a **new** sign-in - an HA refresh token this
+>   server has not yet accepted for that user since it started - now owes the same checks as the web sign-in:
+>   - user enrolled in the TOTP second factor → the request must carry `X-Arx-Second-Factor: <6-digit code>`;
+>     missing → `401 second_factor_required`; wrong → `401 second_factor_invalid`; five wrong in five minutes →
+>     `429 second_factor_locked` (`retryable: true`); a code already used (same 30 s step) is refused as invalid;
+>   - `security.second_factor_policy = admins` and an administrator without a factor → `403 second_factor_enrollment_required`.
+> - **What the app sends:** the header only on the FIRST call of a new HA sign-in (after the user logged in to HA, or after
+>   `401 second_factor_required`). Later access tokens of the same HA refresh token, and later calls, need no code; a
+>   header sent anyway is ignored on a continued sign-in. Send that first call alone (not several in parallel with the
+>   same code - the second would be a replay). After a server restart the next call may answer
+>   `401 second_factor_required` again: ask the user for a fresh code and retry once.
+> - The web view's own sign-in (`POST auth/session`, the cookie) is unchanged; device-token routes (`arxd_…`) are
+>   unchanged. Users without a factor see no change.
+> - Turning the factor on, or an administrator's reset of it, ends the user's other remote sign-ins
+>   (`401 remote_session_revoked`; sign in to HA again).
+> - Compatibility switch: `security.second_factor_bearer` = `enforce` (default) | `off` (the previous behaviour; every
+>   sign-in that skipped an owed check is audited with `second_factor_skipped`).
+
 ## 1. Register the device — `POST presence/devices` (session)
 
 Permission `presence.report` at any scope (every default role but kiosk). Rate: 10 per hour per user. Ten live devices

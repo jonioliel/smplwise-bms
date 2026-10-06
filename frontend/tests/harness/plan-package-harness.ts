@@ -9,8 +9,8 @@ import { customElement, state } from 'lit/decorators.js';
 import '../../src/components/sw-dialog';
 import '../../src/components/sw-button';
 import '../../src/components/sw-card';
-import { describeError } from '../../src/api/client';
-import { importPlanPackage, previewPlanPackage, type PackageMode } from '../../src/api/geometry';
+import { ApiError, describeError } from '../../src/api/client';
+import { importPlanPackage, previewPlanPackage, type PackageMode, type PackageOrigin } from '../../src/api/geometry';
 import { packageDialogStyles, renderPackageImportDialog, type PackageImportState } from '../../src/screens/plan-package-dialog';
 import { studioPanelStyles } from '../../src/screens/plan-studio-panel';
 import { pkgT } from '../../src/i18n/plan-package';
@@ -23,7 +23,7 @@ export class PkgHarness extends LitElement {
   versionId = 'v1';
 
   async start(file: File) {
-    this.s = { file, mode: 'replace', preview: null, busy: null, error: '', acceptForeign: false };
+    this.s = { file, mode: 'replace', preview: null, busy: null, error: '', acceptForeign: false, foreign: null };
     await this.preview('replace');
   }
 
@@ -32,11 +32,21 @@ export class PkgHarness extends LitElement {
     if (!s || s.busy) return;
     this.s = { ...s, mode, busy: 'check', error: '', preview: s.mode === mode ? s.preview : null };
     try {
-      const preview = await previewPlanPackage(this.versionId, s.file, mode);
+      const preview = await previewPlanPackage(this.versionId, s.file, mode, s.acceptForeign);
       this.s = { ...this.s!, preview, busy: null };
     } catch (err) {
-      this.s = { ...this.s!, preview: null, busy: null, error: describeError(err) };
+      const origin = err instanceof ApiError && err.code === 'package_foreign' ? ((err.body.details as { origin?: PackageOrigin } | undefined)?.origin ?? null) : null;
+      this.s = origin
+        ? { ...this.s!, preview: null, busy: null, error: '', foreign: origin, acceptForeign: false }
+        : { ...this.s!, preview: null, busy: null, error: describeError(err) };
     }
+  }
+
+  trust(on: boolean) {
+    const s = this.s;
+    if (!s) return;
+    this.s = { ...s, acceptForeign: on };
+    if (on && !s.preview && s.foreign) void this.preview(s.mode);
   }
 
   async confirm() {
@@ -61,7 +71,7 @@ export class PkgHarness extends LitElement {
       ${this.s
         ? renderPackageImportDialog(this.s, {
             setMode: (m) => void this.preview(m),
-            setAcceptForeign: (on) => (this.s = this.s && { ...this.s, acceptForeign: on }),
+            setAcceptForeign: (on) => this.trust(on),
             confirm: () => void this.confirm(),
             cancel: () => { if (this.s?.busy !== 'import') this.s = null; },
           })

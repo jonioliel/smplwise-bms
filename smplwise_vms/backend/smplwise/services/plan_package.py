@@ -30,7 +30,7 @@ import sqlite3
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, Callable
 
 from .. import __version__
 from ..config import Settings
@@ -45,8 +45,16 @@ SUPPORTED_SCHEMAS = {SCHEMA}
 CATALOG_FORMAT = "smplwise-catalog-1"
 MAX_PACKAGE_BYTES = 48 * 1024 * 1024
 MAX_SOURCE_BYTES = 16 * 1024 * 1024  # the original plan file travels only when it is at most this big
-MAX_JSON_BYTES = 16 * 1024 * 1024
-LIMITS = zipsafe.Limits(max_entries=16, max_uncompressed=128 * 1024 * 1024, max_manifest=4 * 1024 * 1024, max_ratio=200, ratio_floor=1024 * 1024)
+# Security review 2.2.0 M3: per-file bounds that match real documents (a plan at every pg.LIMITS bound is a few MB; the
+# companions far less) and a shape bound checked on the raw bytes BEFORE json.loads - parsed JSON can be ~25x its size
+# (`[{},{},...]`), and deep nesting raises RecursionError - so one package can never cost more than a few tens of MB.
+JSON_LIMITS = {"plan.json": 8 * 1024 * 1024, "rooms.json": 2 * 1024 * 1024, "anchors.json": 2 * 1024 * 1024, "catalog.json": 1024 * 1024}
+MAX_JSON_BYTES = max(JSON_LIMITS.values())
+MAX_JSON_CONTAINERS = 400_000  # objects + arrays in one file (a full plan has ~150k)
+MAX_JSON_VALUES = 2_000_000  # separators (`,` and `:`) in one file: bounds the scalars too
+MAX_JSON_DEPTH = 64  # a plan nests about 6 deep
+MAX_MANIFEST_BYTES = 256 * 1024  # a manifest lists at most 16 files
+LIMITS = zipsafe.Limits(max_entries=16, max_uncompressed=128 * 1024 * 1024, max_manifest=MAX_MANIFEST_BYTES, max_ratio=200, ratio_floor=1024 * 1024)
 CONTROL_NAMES = ("manifest.json", "MANIFEST.sha256", signing.SIG_NAME)
 DATA_NAMES = ("plan.json", "rooms.json", "anchors.json", "catalog.json", "report.html")
 ASSET_RE = re.compile(r"^assets/(background|source)\.[a-z0-9]{1,8}$")
@@ -91,13 +99,35 @@ def room_record(z: dict[str, Any]) -> dict[str, Any]:
     return {k: z.get(k) for k in ("id", "name", "kind", "polygon", "color", "level_id", "ceiling_height_m", "tags", "label_pos", "searchable")}
 
 
-def anchor_records(conn: sqlite3.Connection, floor_id: str) -> list[dict[str, Any]]:
-    """The floor's live anchors with a display name: the anchor's label, else the camera's alias / NVR name or the
-    entity's name, else the resource id."""
+def anchor_visibility(conn: sqlite3.Connection, principal: Any, floor_id: str) -> Callable[[str, str], bool]:
+    """Security review 2.2.0 M2: which of the floor's live anchors this caller may see - the rules of the anchors list and
+    the floor bundle (T055 / CR-024): a camera denied by the caller's camera scope (map.read) is not shown, the cameras of
+    a removed recorder are not on the current map, and a camera-only reader (no binding on the floor) sees no entities."""
+    from ..routers.anchors import removed_recorder_cameras
+    from .access import camera_scope, floor_reach
+
+    scope = camera_scope(conn, principal, "map.read")
+    gone = removed_recorder_cameras(conn)
+    camera_only = floor_reach(conn, principal, floor_id) != "floor"
+
+    def visible(resource_type: str, resource_id: str) -> bool:
+        if resource_type == "camera":
+            return scope.allows(resource_id) and resource_id not in gone
+        return not camera_only
+
+    return visible
+
+
+def anchor_records(conn: sqlite3.Connection, floor_id: str, principal: Any) -> list[dict[str, Any]]:
+    """The floor's live anchors THIS CALLER may see (anchor_visibility) with a display name: the anchor's label, else the
+    camera's alias / NVR name or the entity's name, else the resource id."""
     out: list[dict[str, Any]] = []
+    visible = anchor_visibility(conn, principal, floor_id)
     rows = conn.execute("SELECT resource_type, resource_id, x, y, rotation_degrees, field_of_view_degrees, layer_id, label FROM map_anchors "
                         "WHERE floor_id = ? AND effective_to IS NULL ORDER BY resource_type, resource_id", (floor_id,)).fetchall()
     for r in rows:
+        if not visible(r["resource_type"], r["resource_id"]):
+            continue
         name = r["label"]
         if not name and r["resource_type"] == "camera":
             c = conn.execute("SELECT alias, name_source FROM cameras WHERE id = ?", (r["resource_id"],)).fetchone()
@@ -133,7 +163,7 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
     buf = io.BytesIO()
     plan_bytes = pg.canonical_json(doc).encode("utf-8")
     rooms = [room_record(z) for z in sorted(zones, key=lambda z: str(z.get("id")))]
-    anchors = anchor_records(conn, version["floor_id"])
+    anchors = anchor_records(conn, version["floor_id"], actor)  # review M2: only the anchors the exporting person may see
     customs = used_custom_items(conn, doc)
     asset = conn.execute("SELECT * FROM plan_assets WHERE id = ?", (version["asset_id"],)).fetchone()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
@@ -216,14 +246,57 @@ class Package:
     warnings: list[str] = field(default_factory=list)
 
 
+_JSON_STRING = re.compile(rb'"[^"\\]*(?:\\.[^"\\]*)*"', re.S)
+_JSON_BRACKET = re.compile(rb"[\[\]{}]")
+
+
+def json_shape_problem(raw: bytes, *, max_containers: int = MAX_JSON_CONTAINERS, max_values: int = MAX_JSON_VALUES,
+                       max_depth: int = MAX_JSON_DEPTH) -> str | None:
+    """Why this JSON text is too costly to parse, judged on the bytes (strings blanked first, so brackets and separators
+    inside them do not count): too many objects / arrays, too many values, or nested too deep. None = fine."""
+    bare = _JSON_STRING.sub(b'""', raw)
+    if bare.count(b"{") + bare.count(b"[") > max_containers:
+        return "too_many_containers"
+    if bare.count(b",") + bare.count(b":") > max_values:
+        return "too_many_values"
+    depth = 0
+    for m in _JSON_BRACKET.finditer(bare):
+        if m.group() in (b"{", b"["):
+            depth += 1
+            if depth > max_depth:
+                return "too_deep"
+        else:
+            depth -= 1
+    return None
+
+
+def _parse_json(raw: bytes, name: str) -> Any:
+    problem = json_shape_problem(raw)
+    if problem:
+        raise PackageError(422, "package_too_complex", "קובץ בחבילה מורכב מדי לעיבוד.", {"path": name, "reason": problem})
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, RecursionError, MemoryError) as exc:  # review M3: never a 500
+        raise PackageError(422, "package_malformed", "קובץ בחבילה אינו JSON תקין.", {"path": name, "error": type(exc).__name__})
+
+
 def _json(z: zipfile.ZipFile, name: str, limit: int) -> Any:
     info = z.getinfo(name)
     if info.file_size > limit:
-        raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": name})
+        raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": name, "max_bytes": limit})
     try:
-        return json.loads(z.read(name).decode("utf-8"))
-    except (UnicodeDecodeError, ValueError, zipfile.BadZipFile, EOFError) as exc:
+        raw = z.read(name)
+    except (zipfile.BadZipFile, EOFError, OSError, ValueError) as exc:
         raise PackageError(422, "package_malformed", "קובץ בחבילה אינו JSON תקין.", {"path": name, "error": type(exc).__name__})
+    if len(raw) > limit:
+        raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": name, "max_bytes": limit})
+    return _parse_json(raw, name)
+
+
+def _member(raw: Any, key: str, name: str) -> Any:
+    if not isinstance(raw, dict):
+        raise PackageError(422, "package_malformed", "קובץ נלווה בחבילה פגום.", {"path": name})
+    return raw.get(key, [])
 
 
 def _version_tuple(v: Any) -> tuple[int, ...]:
@@ -233,8 +306,21 @@ def _version_tuple(v: Any) -> tuple[int, ...]:
         return ()
 
 
-def read(fp: IO[bytes], keyring: dict[str, Any] | None) -> Package:
-    """Open, check and parse an uploaded package. Raises PackageError for anything refused."""
+def needs_trust(sig: dict[str, Any]) -> str | None:
+    """Security review 2.2.0 L7: why importing a package signed this way needs the person's explicit confirmation - a key
+    that is not this installation's (`foreign_key`) or one of ours that was retired, e.g. after a suspected leak
+    (`retired_key`). None = signed by a current key of this installation."""
+    if sig.get("trust") != "installation":
+        return "foreign_key"
+    if sig.get("retired"):
+        return "retired_key"
+    return None
+
+
+def read(fp: IO[bytes], keyring: dict[str, Any] | None, *, accept_foreign: bool | None = None, local_iid: str | None = None) -> Package:
+    """Open, check and parse an uploaded package. Raises PackageError for anything refused. `accept_foreign=False`
+    (review M3): a package that needs_trust() is refused (409 `package_foreign`, with the origin to show) right after its
+    signature is checked - BEFORE its files are hashed and its JSON parsed; None = no trust gate here."""
     fp.seek(0, io.SEEK_END)
     size = fp.tell()
     if size > MAX_PACKAGE_BYTES:
@@ -266,10 +352,7 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None) -> Package:
         if z.getinfo("manifest.json").file_size > LIMITS.max_manifest:
             raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": "manifest.json"})
         mbytes = z.read("manifest.json")
-        try:
-            manifest = json.loads(mbytes.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError):
-            raise PackageError(422, "package_malformed", "קובץ בחבילה אינו JSON תקין.", {"path": "manifest.json"})
+        manifest = _parse_json(mbytes, "manifest.json")
         if not isinstance(manifest, dict) or manifest.get("schema") not in SUPPORTED_SCHEMAS:
             raise PackageError(422, "package_unsupported", "גרסת החבילה אינה נתמכת.", {"schema": zipsafe._s(manifest.get("schema") if isinstance(manifest, dict) else None), "supported": sorted(SUPPORTED_SCHEMAS)})
         # the signature: required, valid over the manifest bytes
@@ -281,6 +364,10 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None) -> Package:
         sig = signing.verify_signature(sig_raw, mbytes, keyring)
         if not sig["valid"]:
             raise PackageError(422, "package_signature_invalid", "החתימה על החבילה אינה תקפה.", {"reason": sig["reason"]})
+        why = needs_trust(sig)
+        if why and accept_foreign is False:
+            raise PackageError(409, "package_foreign", RETIRED_HE if why == "retired_key" else FOREIGN_HE,
+                               {"reason": why, "kid": sig.get("kid"), "origin": origin_of(manifest, sig, package_sha, local_iid)})
         # every file: listed, present, same size and hash; nothing unlisted
         listed = manifest.get("files")
         if not isinstance(listed, list):
@@ -308,10 +395,10 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None) -> Package:
                 problems.append({"path": n, "reason": "unlisted"})
         if problems:
             raise PackageError(422, "package_tampered", "תוכן החבילה אינו תואם את הרשימה החתומה.", {"files": problems[:20]})
-        doc = _json(z, "plan.json", MAX_JSON_BYTES)
-        rooms = _json(z, "rooms.json", MAX_JSON_BYTES).get("rooms", []) if "rooms.json" in names else []
-        anchors = _json(z, "anchors.json", MAX_JSON_BYTES).get("anchors", []) if "anchors.json" in names else []
-        cat_raw = _json(z, "catalog.json", MAX_JSON_BYTES) if "catalog.json" in names else {"format": CATALOG_FORMAT, "items": []}
+        doc = _json(z, "plan.json", JSON_LIMITS["plan.json"])
+        rooms = _member(_json(z, "rooms.json", JSON_LIMITS["rooms.json"]), "rooms", "rooms.json") if "rooms.json" in names else []
+        anchors = _member(_json(z, "anchors.json", JSON_LIMITS["anchors.json"]), "anchors", "anchors.json") if "anchors.json" in names else []
+        cat_raw = _json(z, "catalog.json", JSON_LIMITS["catalog.json"]) if "catalog.json" in names else {"format": CATALOG_FORMAT, "items": []}
     if not isinstance(doc, dict):
         raise PackageError(422, "package_malformed", "המבנה בחבילה פגום.", {"path": "plan.json"})
     if doc.get("schema_version") != pg.SCHEMA_VERSION:
@@ -330,9 +417,16 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None) -> Package:
     return Package(manifest=manifest, signature=sig, doc=doc, rooms=rooms, anchors=anchors, custom_items=items, package_sha256=package_sha, warnings=warnings)
 
 
+FOREIGN_HE = "החבילה חתומה במפתח של מערכת אחרת; אשר את המקור כדי לייבא."
+RETIRED_HE = "החבילה חתומה במפתח של המערכת הזו שהוצא משימוש; אשר את המקור כדי לייבא."
+
+
 def origin(pkg: Package, local_iid: str | None) -> dict[str, Any]:
     """What the import screen shows about where the package came from (text cleaned: it is shown and audited)."""
-    m = pkg.manifest
+    return origin_of(pkg.manifest, pkg.signature, pkg.package_sha256, local_iid)
+
+
+def origin_of(m: dict[str, Any], signature: dict[str, Any], package_sha256: str, local_iid: str | None) -> dict[str, Any]:
     plan = m.get("plan") if isinstance(m.get("plan"), dict) else {}
     inst = m.get("installation") if isinstance(m.get("installation"), dict) else {}
     iid = zipsafe._s(inst.get("id"), 64)
@@ -340,8 +434,8 @@ def origin(pkg: Package, local_iid: str | None) -> dict[str, Any]:
     return {"floor_name": zipsafe._s(plan.get("floor_name")), "plan_version_id": zipsafe._s(plan.get("plan_version_id"), 64), "stage": zipsafe._s(plan.get("stage"), 16),
             "generated_at": zipsafe._ts(m.get("generated_at")), "generated_by": zipsafe._s(m.get("generated_by"), 120), "app_version": zipsafe._s(m.get("app_version"), 40),
             "installation_id": iid, "same_installation": bool(iid and local_iid and iid == local_iid),
-            "trust": pkg.signature["trust"], "kid": pkg.signature.get("kid"), "retired_key": pkg.signature.get("retired"),
-            "doc_hash": zipsafe._s(doc.get("doc_hash"), 64), "geometry_hash": zipsafe._s(doc.get("geometry_hash"), 64), "package_sha256": pkg.package_sha256}
+            "trust": signature["trust"], "kid": signature.get("kid"), "retired_key": signature.get("retired"),
+            "doc_hash": zipsafe._s(doc.get("doc_hash"), 64), "geometry_hash": zipsafe._s(doc.get("geometry_hash"), 64), "package_sha256": package_sha256}
 
 
 # ---------------------------------------------------------------- the import plan

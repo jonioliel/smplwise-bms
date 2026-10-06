@@ -279,8 +279,10 @@ export async function exportPlanPackage(versionId: string, draft: boolean): Prom
   return { blob: await res.blob(), name };
 }
 /** The dry run of an import: nothing is written. */
-export const previewPlanPackage = (versionId: string, file: File | Blob, mode: PackageMode) =>
-  upload<PackagePreview>(`plan-versions/${versionId}/package/preview?mode=${mode}`, packageForm(file));
+/** A package signed by another system (or by a retired key of this one) answers 409 `package_foreign` with
+ * `details.origin` until the person trusts it and the preview is asked again with `acceptForeign` (security review 2.2.0). */
+export const previewPlanPackage = (versionId: string, file: File | Blob, mode: PackageMode, acceptForeign = false) =>
+  upload<PackagePreview>(`plan-versions/${versionId}/package/preview?mode=${mode}${acceptForeign ? '&accept_foreign=true' : ''}`, packageForm(file));
 /** The import itself, into the draft: the revision and the result hash the preview showed. */
 export const importPlanPackage = (versionId: string, file: File | Blob, preview: PackagePreview, acceptForeign: boolean) =>
   upload<PackageImportResult>(

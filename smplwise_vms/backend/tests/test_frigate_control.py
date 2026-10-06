@@ -267,6 +267,22 @@ def test_control_is_limited_to_the_cameras_of_the_binding(world):
     assert mine.status_code == 200 and {c["camera_key"] for c in mine.json()["changes"]} == {"cam_front"}
 
 
+def test_installation_wide_change_rows_need_the_profile_or_recorder_permission(world):
+    """Security review 2.2.0 L9: a control permission on one camera shows that camera's rows, not the profile switches."""
+    cams = world.cams()
+    bind(world.c, world.s, "tal", "site_admin", "camera", cams["cam_front"])
+    world.policy(analytics=True, profile=True)
+    assert world.toggle("cam_front", "detect", False).status_code == 200
+    assert world.call("PUT", f"{BASE}/profile", json={"profile": "away", "confirm": True}).status_code == 200
+    admin = world.call("GET", f"{BASE}/changes").json()["changes"]
+    assert any(c["camera_id"] is None and c["kind"] == "profile" for c in admin), "the administrator sees the profile switch"
+    mine = world.call("GET", f"{BASE}/changes", headers=as_user("tal"))
+    assert mine.status_code == 200
+    rows = mine.json()["changes"]
+    assert rows and all(c["camera_id"] for c in rows), "no installation-wide row for a camera-scoped user"
+    assert {c["camera_key"] for c in rows} == {"cam_front"}
+
+
 def test_a_recorder_that_is_not_frigate_is_a_404_for_every_control_route(world):
     r = world.call("PUT", "/api/v1/frigate/nope/control/policy", json={"classes": {"analytics": True}})
     assert r.status_code == 404

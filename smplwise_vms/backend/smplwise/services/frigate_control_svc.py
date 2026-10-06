@@ -203,8 +203,14 @@ def set_rules(conn: sqlite3.Connection, principal: Principal, recorder_id: str, 
 # ---------------------------------------------------------------------------------------------- event actions
 
 def _event_scope(conn: sqlite3.Connection, principal: Principal, recorder_id: str, event_id: str) -> sqlite3.Row:
-    """The stored review item that holds this tracked-object id: an event the caller cannot reach through a review is a 404."""
-    row = conn.execute("SELECT review_id, camera_id, source_ref FROM frigate_reviews WHERE recorder_id = ? AND detections_json LIKE ?", (recorder_id, f'%"{event_id}"%')).fetchone()
+    """The stored review item that holds this tracked-object id: an event the caller cannot reach through a review is a 404.
+    Security review 2.2.0 L5: the id is validated BEFORE the lookup (the same 422 as the adapter's) and the LIKE pattern is
+    escaped, so `%` / `_` in a URL can never match another camera's review row."""
+    if not isinstance(event_id, str) or not fc.EVENT_ID.fullmatch(event_id):
+        raise ApiError(422, "frigate_event_invalid", "מזהה אירוע לא תקין.")
+    needle = event_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    row = conn.execute("SELECT review_id, camera_id, source_ref FROM frigate_reviews WHERE recorder_id = ? AND detections_json LIKE ? ESCAPE '\\'",
+                       (recorder_id, f'%"{needle}"%')).fetchone()
     if row is None:
         raise ApiError(404, "not_found", "האירוע לא נמצא.")
     if row["camera_id"]:
@@ -397,10 +403,13 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
     return {"reverted": True, "change_id": new_id_, "reverts": change_id, "verified": verified}
 
 
-def changes(conn: sqlite3.Connection, recorder_id: str, *, limit: int = 100, camera_ok=None) -> list[dict[str, Any]]:
+def changes(conn: sqlite3.Connection, recorder_id: str, *, limit: int = 100, camera_ok=None, installation_ok: bool = True) -> list[dict[str, Any]]:
+    """installation_ok=False (security review 2.2.0 L9): the rows without a camera (profile switches) are left out."""
     out = []
     for r in conn.execute("SELECT * FROM frigate_changes WHERE recorder_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?", (recorder_id, max(1, min(limit, 500)))).fetchall():
         if r["camera_id"] and camera_ok is not None and not camera_ok(r["camera_id"]):
+            continue
+        if not r["camera_id"] and not installation_ok:
             continue
         out.append(change_view(r))
     return out

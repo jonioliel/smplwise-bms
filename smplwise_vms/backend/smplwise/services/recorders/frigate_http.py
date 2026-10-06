@@ -200,16 +200,22 @@ def _check_query(path: str, params: dict[str, Any] | None) -> None:
             raise ApiError(409, "frigate_path_not_allowed", "מגבלת הבקשה אינה תקינה.", details={"op": "query", "reason": "limit"}) from exc
 
 
+def _dot_segment(path: str) -> bool:
+    """Security review 2.2.0 L6: httpx normalises `.` / `..` segments AFTER the allow-list matched (`/api/cam/../set/x`
+    reaches `/api/set/x`), so a path holding one is never allowed, whatever pattern it would match."""
+    return any(seg in (".", "..") for seg in path.split("/"))
+
+
 def allowed(path: str) -> bool:
-    return any(p.fullmatch(path) for p in GET_ALLOWED)
+    return not _dot_segment(path) and any(p.fullmatch(path) for p in GET_ALLOWED)
 
 
 def control_read_allowed(path: str) -> bool:
-    return any(p.fullmatch(path) for p in CONTROL_GET_ALLOWED)
+    return not _dot_segment(path) and any(p.fullmatch(path) for p in CONTROL_GET_ALLOWED)
 
 
 def write_allowed(klass: str, method: str, path: str) -> bool:
-    return any(m == method and p.fullmatch(path) for m, p in WRITE_ALLOWED.get(klass, ()))
+    return not _dot_segment(path) and any(m == method and p.fullmatch(path) for m, p in WRITE_ALLOWED.get(klass, ()))
 
 
 # ---------------------------------------------------------------------------------------------- the client

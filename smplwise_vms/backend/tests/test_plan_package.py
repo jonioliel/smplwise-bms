@@ -90,8 +90,9 @@ def repack(data: bytes, sign_with, *, files=None, manifest=None, doc=None) -> by
     return _zip(f)
 
 
-def _preview(c: TestClient, vid: str, data: bytes, mode: str = "replace", headers: dict | None = None):
-    return c.post(f"/api/v1/plan-versions/{vid}/package/preview?mode={mode}", files={"file": ("p.swplan.zip", data, "application/zip")}, headers=headers or {})
+def _preview(c: TestClient, vid: str, data: bytes, mode: str = "replace", headers: dict | None = None, accept_foreign: bool = False):
+    q = f"mode={mode}" + ("&accept_foreign=true" if accept_foreign else "")
+    return c.post(f"/api/v1/plan-versions/{vid}/package/preview?{q}", files={"file": ("p.swplan.zip", data, "application/zip")}, headers=headers or {})
 
 
 def _import(c: TestClient, vid: str, data: bytes, plan: dict, mode: str = "replace", accept_foreign: bool = False, headers: dict | None = None):
@@ -265,7 +266,12 @@ def test_a_package_of_another_installation_needs_a_confirmation(world, settings,
     c, ids, vid = world
     other = dataclasses.replace(settings, data_dir=tmp_path / "other")
     foreign = repack(_export(c, vid).content, other, manifest=lambda m: m["installation"].__setitem__("id", "another-site"))
+    # security review 2.2.0 M3: the dry run too waits for the trust - refused before the files are parsed, with the origin
     p = _preview(c, vid, foreign)
+    assert p.status_code == 409 and p.json()["code"] == "package_foreign"
+    d = p.json()["details"]
+    assert d["reason"] == "foreign_key" and d["origin"]["trust"] == "embedded_key_only" and d["origin"]["installation_id"] == "another-site"
+    p = _preview(c, vid, foreign, accept_foreign=True)
     assert p.status_code == 200
     plan = p.json()
     assert plan["origin"]["trust"] == "embedded_key_only" and plan["origin"]["same_installation"] is False
