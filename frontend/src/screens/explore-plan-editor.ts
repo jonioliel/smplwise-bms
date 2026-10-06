@@ -27,7 +27,9 @@ import { OTHER_FLOOR, findGeomItem, geomIds, geomItemPoint, overhangZone, shared
 import { bidi } from '../i18n/bidi';
 import '../components/sw-share-members';
 import { proposeDoor } from '../api/geometry';
-import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportUrl, geometryDiff, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
+import { packageDialogStyles, renderPackageImportDialog, type PackageImportState } from './plan-package-dialog';
+import { pkgT } from '../i18n/plan-package';
+import { acceptDetection, calibrate, calibrateEstimate, copyGeometryFrom, deleteTwin, detectStructure, exportPlanPackage, exportUrl, geometryDiff, importPlanPackage, previewPlanPackage, type PackageMode, getLinkTargets, linkConnector, listGeometryVersions, publishGeometry, rollbackGeometry, type DetectResult, type DetectTarget, type GeometryDiffResponse, type GeometryVersionRow } from '../api/geometry';
 import { getPlanAreas, type PlanArea } from '../api/plan-links';
 import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
 import { isDefaultCorners, type Corners } from '../map/floor-image';
@@ -177,6 +179,8 @@ export class ExplorePlanEditor extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private info = '';
+  /** T088: the plan package import dialog (dry run, then import into the draft). */
+  @state() private pkgImport: PackageImportState | null = null;
   @state() private stylizing = false;
   @state() private stylized: StylizeResult | null = null;
   @state() private stylizeOpts: { strength: Strength; keepLines: boolean; roomFill: RoomFill } = { strength: 'medium', keepLines: false, roomFill: 'white' };
@@ -840,7 +844,7 @@ export class ExplorePlanEditor extends LitElement {
         order: 2;
       }
     }
-  `, studioPanelStyles];
+  `, studioPanelStyles, packageDialogStyles];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1430,6 +1434,7 @@ export class ExplorePlanEditor extends LitElement {
     if (e.key === 'Escape') {
       if (this.shortcutsOpen) { this.shortcutsOpen = false; return; }
       if (this.doorGhost || this.doorAsking) { this.dropDoorGhost(); return; } // the proposal first; a second Esc clears the selection
+      if (this.pkgImport) { if (this.pkgImport.busy !== 'import') this.pkgImport = null; return; }
       if (this.arrayDialog || this.groupDelete || this.customDialog) { this.arrayDialog = null; this.groupDelete = null; this.customDialog = null; return; }
       if (this.connStart) { this.connStart = null; return; }
       if (this.tool === 'circuits' && this.circuitPlacing) { this.circuitPlacing = null; return; } // first Esc: the armed lamp type
@@ -1465,7 +1470,7 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     if (typing) return; // a field keeps its own keys: Ctrl+A there selects its text, Delete edits it
-    if (this.arrayDialog || this.groupDelete || this.customDialog || this.shortcutsOpen) return; // an open dialog owns the keys: no Delete or nudge behind it
+    if (this.arrayDialog || this.groupDelete || this.customDialog || this.shortcutsOpen || this.pkgImport) return; // an open dialog owns the keys: no Delete or nudge behind it
     // the hand tool: a drag pans and nothing else, so no tool shortcut fires behind it either - Esc above is the only
     // key it answers, exactly like the panel and drawing shortcuts it is standing in for
     if (this.panMode) return;
@@ -4267,6 +4272,76 @@ export class ExplorePlanEditor extends LitElement {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // ---- Plan Studio 5 (T088): the signed plan package ----
+
+  /** Save the signed package of the draft: pending edits are saved first, so the package is what the editor shows. */
+  private async exportPackage() {
+    const b = this.bundle;
+    if (!b?.planVersionId || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      if (!(await this.studio.flush())) {
+        this.error = this.studio.error;
+        return;
+      }
+      const { blob, name } = await exportPlanPackage(b.planVersionId, true);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      this.info = pkgT('saved');
+      setTimeout(() => (this.info = ''), 3000);
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async startPackageImport(file: File) {
+    if (!this.bundle?.planVersionId) return;
+    if (!(await this.studio.flush())) {
+      this.error = this.studio.error;
+      return;
+    }
+    this.pkgImport = { file, mode: 'replace', preview: null, busy: null, error: '', acceptForeign: false };
+    await this.previewPackage('replace');
+  }
+
+  /** The dry run in a mode: nothing is written; the dialog shows its answer. */
+  private async previewPackage(mode: PackageMode) {
+    const s = this.pkgImport;
+    const versionId = this.bundle?.planVersionId;
+    if (!s || !versionId || s.busy) return;
+    this.pkgImport = { ...s, mode, busy: 'check', error: '', preview: s.mode === mode ? s.preview : null };
+    try {
+      const preview = await previewPlanPackage(versionId, s.file, mode);
+      if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, preview, busy: null };
+    } catch (err) {
+      if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, preview: null, busy: null, error: describeError(err) };
+    }
+  }
+
+  private async confirmPackageImport() {
+    const s = this.pkgImport;
+    const b = this.bundle;
+    if (!s?.preview || !b?.planVersionId || s.busy) return;
+    this.pkgImport = { ...s, busy: 'import', error: '' };
+    try {
+      await importPlanPackage(b.planVersionId, s.file, s.preview, s.acceptForeign);
+      this.pkgImport = null;
+      if (await this.loadStudio(b, true)) {
+        this.info = pkgT('imported');
+        setTimeout(() => (this.info = ''), 4000);
+      }
+    } catch (err) {
+      if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, busy: null, error: describeError(err) };
+    }
+  }
+
   private renderStructurePanel(b: MapBundle, compact = false) {
     const doc = this.studio.doc;
     const versionId = b.planVersionId;
@@ -4279,7 +4354,7 @@ export class ExplorePlanEditor extends LitElement {
         doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: compact ? 'select' : this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
         compact,
         conflict: this.studio.hasConflict,
-        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), busy: this.busy,
+        issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), exportDxf: exportUrl(versionId, 'dxf', { draft: true }), busy: this.busy,
         showEstimates: this.showEstimates,
         levels: doc.levels,
       },
@@ -4310,6 +4385,8 @@ export class ExplorePlanEditor extends LitElement {
         focus: (id) => this.focusGeom(id),
         copyFrom: (id) => void this.copyStructure(id),
         exportJson: () => this.exportJson(),
+        exportPackage: () => void this.exportPackage(),
+        importPackage: (file) => void this.startPackageImport(file),
         reload: () => void this.loadStudio(b, true),
         calibrate: () => this.pickTool('calibrate'),
         retry: async () => {
@@ -5067,6 +5144,12 @@ export class ExplorePlanEditor extends LitElement {
         ${this.customDialog && this.library ? renderCustomItemDialog(this.customDialog, this.library, (patch) => (this.customDialog = { ...this.customDialog!, ...patch }), () => void this.createCustom(), () => (this.customDialog = null)) : nothing}
         ${this.levelDialog ? renderLevelDialog(this.levelDialog, { change: (patch) => (this.levelDialog = { ...this.levelDialog!, ...patch }), submit: () => this.submitLevel(), cancel: () => (this.levelDialog = null), remove: () => this.deleteLevel() }) : nothing}
         ${this.shortcutsOpen ? renderShortcutsDialog(() => (this.shortcutsOpen = false)) : nothing}
+        ${this.pkgImport ? renderPackageImportDialog(this.pkgImport, {
+          setMode: (m) => void this.previewPackage(m),
+          setAcceptForeign: (on) => (this.pkgImport = this.pkgImport && { ...this.pkgImport, acceptForeign: on }),
+          confirm: () => void this.confirmPackageImport(),
+          cancel: () => { if (this.pkgImport?.busy !== 'import') this.pkgImport = null; },
+        }) : nothing}
         ${this.renderShareDialog()}
       </sw-page>
     `;

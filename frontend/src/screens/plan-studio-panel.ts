@@ -14,6 +14,7 @@ import { searchItems } from '../api/plan-catalog';
 import type { SaveState } from '../map/studio-controller';
 import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
+import { pkgT } from '../i18n/plan-package';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
@@ -115,6 +116,7 @@ export interface StudioView {
   copyCandidates: CopyCandidate[];
   exportSvg: string;
   exportPng: string;
+  exportDxf: string;
   busy: boolean;
   /** Setting `plan.estimates`: show estimated metres ("≈") before calibration, or hide them. */
   showEstimates: boolean;
@@ -133,6 +135,9 @@ export interface StudioActions {
   focus(id: string): void;
   copyFrom(versionId: string): void;
   exportJson(): void;
+  /** T088: save the signed plan package of the draft; pick a package to import (a dry run first). */
+  exportPackage(): void;
+  importPackage(file: File): void;
   reload(): void;
   calibrate(): void;
   retry(): void;
@@ -173,7 +178,11 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
     <div class="exports" role="group" aria-label="ייצוא המבנה">
       <a class="btnlink" data-export-svg href=${v.exportSvg} download>SVG</a>
       <a class="btnlink" data-export-png href=${v.exportPng} download>PNG</a>
+      <a class="btnlink" data-export-dxf href=${v.exportDxf} download>${pkgT('dxf')}</a>
       <button class="btnlink" data-export-json @click=${() => a.exportJson()}>JSON</button>
+      <button class="btnlink" data-export-package ?disabled=${v.busy} @click=${() => a.exportPackage()}>${pkgT('exportPackage')}</button>
+      <label class="btnlink" data-import-package-label>${pkgT('importPackage')}<input type="file" accept=".zip,application/zip" data-import-package hidden ?disabled=${v.busy}
+        @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) a.importPackage(f); (e.target as HTMLInputElement).value = ''; }} /></label>
       <span class="note">ייצוא הטיוטה כפי שהיא</span>
     </div>
     ${v.saveState === 'error'

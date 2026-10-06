@@ -93,16 +93,17 @@ def _replace_draft(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str
     return get_row(conn, d["id"])
 
 
-def _prepare(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any]) -> dict[str, Any]:
+def _prepare(conn: sqlite3.Connection, version: sqlite3.Row, doc: dict[str, Any], items: dict[str, Any] | None = None) -> dict[str, Any]:
     """What every document goes through on its way into the table and out to the editor: the rebase on its version
     (ids, size, calibration), the normalization (circuit power, the connectors derived from objects that connect
     levels), dropping the read-only `far` of cross-floor connectors (attach_far computes it on every read, review M4)
     and the refresh of bound bodies from the floor's live anchors (design 2a, rule 1). What a shared room attached on
-    read (CR-009: items marked `shared`, `shared_spaces`) never reaches a stored document or its hash."""
+    read (CR-009: items marked `shared`, `shared_spaces`) never reaches a stored document or its hash. `items`: the library
+    index to normalise with (the plan-package dry run passes the index with the custom items the import would add)."""
     from . import shared_spaces
 
     doc = shared_spaces.strip(pg.rebase(doc, version, _asset(conn, version)))
-    doc = strip_far(pg.normalize(doc, plan_catalog.item_index(conn)))
+    doc = strip_far(pg.normalize(doc, plan_catalog.item_index(conn) if items is None else items))
     return pg.apply_anchor_positions(doc, anchor_positions(conn, version["floor_id"]))
 
 

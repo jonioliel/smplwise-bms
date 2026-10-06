@@ -22,7 +22,7 @@ from .db import Database
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
-from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_catalog, plan_geometry, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, wall as wall_router, zones
+from .routers import access, access_control, access_groups, alarm, anchors, automations, backup, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, plan_area_links as plan_area_links_router, plan_catalog, plan_geometry, plan_package as plan_package_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -274,6 +274,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalog.router, prefix=api, tags=["catalog"])
     app.include_router(plans.router, prefix=api, tags=["plans"])
     app.include_router(plan_geometry.router, prefix=api, tags=["plans"])
+    app.include_router(plan_package_router.router, prefix=api, tags=["plans"])
     app.include_router(plan_catalog.router, prefix=api, tags=["catalog"])
     app.include_router(anchors.router, prefix=api, tags=["anchors"])
     app.include_router(cameras.router, prefix=api, tags=["cameras"])

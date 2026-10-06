@@ -22,7 +22,7 @@ The limits (LIMITS below; docs/changes/CR-008-ARX-REMOTE-APP.md §9 has the tabl
 - every route: 1 MiB (JSON bodies of the API are far below it);
 - the upload routes: their own cap + 64 KiB of multipart framing - plan files (`max_upload_bytes`), site / building
   images (catalog.IMAGE_MAX_BYTES), the skins control image (skins store CONTROL_MAX_BYTES), the backup upload (backup
-  MAX_UPLOAD); evidence bundles (verify / import): the ceiling of the `cases.import_max_mb` setting - those two routes
+  MAX_UPLOAD), the plan package preview / import (plan_package.MAX_PACKAGE_BYTES); evidence bundles (verify / import): the ceiling of the `cases.import_max_mb` setting - those two routes
   stream the body themselves after authorising the caller and stop at the configured value while it streams;
 - large JSON documents: the Plan Studio geometry document and a detection acceptance 16 MiB, a catalog import 8 MiB;
 - the CSP report sink 16 KiB (its own streaming bound, routers/remote.CSP_BODY_MAX).
@@ -112,6 +112,12 @@ def _csp_report(_s: Settings) -> int:
     return remote.CSP_BODY_MAX
 
 
+def _plan_package(_s: Settings) -> int:
+    from .services import plan_package
+
+    return plan_package.MAX_PACKAGE_BYTES + MULTIPART_SLACK
+
+
 def _const(n: int) -> Callable[[Settings], int]:
     return lambda _s: n
 
@@ -127,6 +133,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/plan-versions/{_ID}/geometry"), _const(LARGE_JSON_MAX), "geometry_document"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/detect/accept"), _const(LARGE_JSON_MAX), "detection_accept"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/plan-versions/{_ID}/package/(preview|import)"), _plan_package, "plan_package"),
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
 ]
