@@ -403,7 +403,11 @@ def test_event_control_read_shows_the_state_only_to_a_caller_who_may_change_it(w
     bind(world.c, world.s, "tal", "site_admin", "camera", cams["cam_yard"])
     assert world.call("GET", URL, headers=as_user("tal")).status_code == 403, "the event belongs to cam_front"
     bind(world.c, world.s, "vera", "viewer", "installation", "*")
-    assert world.call("GET", URL, headers=as_user("vera")).status_code == 200 and world.call("GET", URL, headers=as_user("vera")).json()["writable"] is False
+    assert world.call("GET", URL, headers=as_user("vera")).status_code == 403, "a viewer cannot read events at all"
+    bind(world.c, world.s, "oren", "operator", "installation", "*")
+    hits = len(world.fake.hits)
+    ro = world.call("GET", URL, headers=as_user("oren"))
+    assert ro.status_code == 200 and ro.json()["writable"] is False and "retain" not in ro.json() and len(world.fake.hits) == hits, "an operator reads events but holds no analytics.events: no Frigate call"
     assert world.call("GET", f"{BASE}/events/1791227001.000000-zzzzzz/control").status_code == 404
     assert [w for w in world.fake.writes if w[1].endswith("/control")] == []
 
