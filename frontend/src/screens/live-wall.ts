@@ -716,7 +716,8 @@ export class LiveWall extends LitElement {
     const remoteCap = remoteVideo() ? Number(this.settings?.['remote.max_live_streams'] ?? 16) : null;
     const cap = effectiveLiveCap(this.settings?.['media.max_live_sessions'] ?? 16, remoteCap);
     const streamable = (c: Camera) => c.status !== 'offline' && c.can_view_live !== false;
-    this.liveOrder = shown.filter(streamable).map((c) => c.id);
+    const isStill = (c: Camera) => c.live_kind === 'still'; // NN5-F1B: a refreshing snapshot, never a stream, never counted in the live budget
+    this.liveOrder = shown.filter((c) => streamable(c) && !isStill(c)).map((c) => c.id);
     this.liveCap = cap;
     const profile = this.wallProfile();
     const transport: Transport = effectiveTransport(this.settings);
@@ -728,7 +729,7 @@ export class LiveWall extends LitElement {
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
         ${repeat(shown, (c) => c.id, (c) => {
-          const isLive = streamable(c) && this.liveSet.has(c.id);
+          const isLive = streamable(c) && !isStill(c) && this.liveSet.has(c.id);
           const span = Math.min(spanOf(c), gridCols);
           // A span-N tile is N columns wide at ONE row's height (see bestFit()): its box is exactly as tall as a
           // plain tile. With the fitted tile width known, the ratio includes the N-1 gaps it also covers, so the
@@ -745,12 +746,13 @@ export class LiveWall extends LitElement {
             data-cam=${c.id}
             ?live=${isLive}
             ?snapshotOnly=${streamable(c) && !isLive}
+            .stillRefresh=${isStill(c) && streamable(c) ? c.still_refresh_s ?? 10 : 0}
             cameraId=${c.id}
             profile=${profile}
             ?autoProfile=${this.stream === 'auto'}
             transport=${transport}
             .encoding=${c.encoding ?? null}
-            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, streamable(c) && !isLive && this.inView.has(c.id) ? this.snapBust : this.posterBust)}
+            poster=${c.status === 'offline' ? '' : snapshotUrl(c.id, isStill(c) ? undefined : streamable(c) && !isLive && this.inView.has(c.id) ? this.snapBust : this.posterBust)}
             ?compact=${n >= 9}
             @player-status=${(e: Event) => this.onPlayerStatus(e)}
             fit=${span > 1 ? 'fill' : 'contain'}

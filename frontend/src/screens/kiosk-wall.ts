@@ -428,7 +428,7 @@ export class KioskWall extends LitElement {
       ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת Arx<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
-          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && i < cap && i < this.started} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
+          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
           : demo.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}
       </div>
       <div class="stats">

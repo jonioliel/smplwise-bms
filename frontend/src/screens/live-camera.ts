@@ -1015,7 +1015,9 @@ export class LiveCamera extends LitElement {
     const plan = playerPlan(this.profile, cam.encoding, this.transport);
     return html`
       <div class="video ${canView ? '' : 'off'}">
-        ${canView
+        ${canView && cam.live_kind === 'still'
+          ? html`<sw-camera-tile data-live-still name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.still_refresh_s ?? 10} noDemo></sw-camera-tile>`
+          : canView
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>

@@ -570,7 +570,7 @@ export const SECTION_TABS: Record<SecuritySection, TabItem[]> = {
     { id: 'playback', label: 'הקלטות', href: '#/investigate/playback' },
     { id: 'sync', label: 'ניגון מסונכרן', href: '#/investigate/playback/sync' },
     { id: 'history', label: 'מפה היסטורית', href: '#/investigate/floors/f0/history' },
-    { id: 'reviews', label: 'Review', href: '#/investigate/reviews' },
+    { id: 'reviews', label: 'סקירה', href: '#/investigate/reviews' },
     { id: 'search', label: 'חיפוש', href: '#/investigate/search' },
     { id: 'cases', label: 'תיקים', href: '#/investigate/cases' },
     { id: 'rules', label: 'חוקים והתראות', href: '#/investigate/rules' },
@@ -828,7 +828,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   '#/investigate/playback': ['video.playback'],
   '#/investigate/playback/sync': ['video.playback'],
   '#/investigate/floors/f0/history': ['video.playback'],
-  '#/investigate/reviews': ['events.read'],
+  '#/investigate/reviews': ['events.read', 'analytics.read'], // NN5-F1B: the Frigate review screen's own permission opens it too
   '#/investigate/search': ['events.read'],
   '#/investigate/cases': ['cases.manage'],
   '#/investigate/rules': ['rules.manage'],

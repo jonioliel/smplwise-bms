@@ -185,7 +185,7 @@ export class LiveOverview extends LitElement {
         </div>
         ${favorites.length
           ? html`<div class="fav" data-overview-favorites>
-              ${favorites.map((cam) => html`<sw-camera-tile name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} noDemo @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`)}
+              ${favorites.map((cam) => html`<sw-camera-tile name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.live_kind === 'still' ? cam.still_refresh_s ?? 10 : 0} noDemo @click=${() => navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`)}
             </div>`
           : nothing}
         <div class="row2">
