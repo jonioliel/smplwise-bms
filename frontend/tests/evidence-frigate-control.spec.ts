@@ -217,13 +217,13 @@ test.describe('operator: the review detail (retain and sub-label)', () => {
     await expect(first.locator('[data-event-retain]')).toHaveAttribute('checked', '');
 
     const save = first.locator('[data-event-sub-label-save]');
-    await expect(save).toBeDisabled();
+    await expect(save).toHaveAttribute('disabled', '');
     await first.locator('[data-event-sub-label]').fill('דנה');
-    await expect(save).toBeEnabled();
+    await expect(save).not.toHaveAttribute('disabled', '');
     await save.click();
     await expect.poll(() => writes(m, '/events/rv-2-d0/sub-label').length).toBe(1);
     expect(writes(m, '/events/rv-2-d0/sub-label')[0]).toContain('{"sub_label":"דנה"}');
-    await expect(save).toBeDisabled(); // nothing left to save
+    await expect(save).toHaveAttribute('disabled', ''); // nothing left to save
     expect(m.ctl.events['rv-2-d0']).toEqual({ retain: true, sub_label: 'דנה' });
     expect(writes(m, '/events/rv-2-d1')).toHaveLength(0);
     expect(errors).toEqual([]);

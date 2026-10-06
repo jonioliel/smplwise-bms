@@ -135,10 +135,10 @@ test('remote-access settings: the policy select offers optional and admins, show
   await expect(select).toHaveValue('optional');
   await expect(select).toBeEnabled();
   const save = page.locator('system-diagnostics [data-save-remote]');
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute('disabled', '');
 
   await select.selectOption('admins');
-  await expect(save).toBeEnabled();
+  await expect(save).not.toHaveAttribute('disabled', '');
   await save.click();
   await expect(page.locator('system-diagnostics .foot .ok')).toBeVisible();
   expect(mock.calls.filter((c) => c.method === 'PATCH')).toEqual([{ method: 'PATCH', path: 'settings', body: { 'security.second_factor_policy': 'admins' } }]);
