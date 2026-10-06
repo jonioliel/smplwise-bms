@@ -3,8 +3,10 @@
 
 Every --interval seconds (default 60) it makes ONE GET per endpoint:
   add-on     : /healthz, /health, /health/summary   (latency, status, counters, reachability flags)
-  supervisor (through the HA REST proxy): add-on stats, add-on info, core stats   (RSS/CPU, state, version)
-  supervisor logs (every --logs-every samples): error / warning / traceback / startup counts of the log tail
+  supervisor (HA WebSocket API, supervisor/api, one short-lived connection per sample): add-on stats, add-on info,
+             core stats   (RSS/CPU, state, version). The REST proxy answers 401 for these with a long-lived token.
+  supervisor logs (every --logs-every samples, REST /api/hassio/addons/<slug>/logs): error / warning / traceback /
+             startup counts of the log tail
 and appends one CSV row. It never writes to any system and never talks to the NVR or go2rtc directly; the NVR /
 go2rtc / Home Assistant reachability flags are the add-on's own cached view (/health), so no device is touched.
 
@@ -23,15 +25,20 @@ monotonic counter going backwards (write-lock holds, ingest-queue accepted).
 from __future__ import annotations
 
 import argparse
+import asyncio
+import base64
 import csv
 import io
 import json
 import os
 import signal
+import socket
 import ssl
+import struct
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -42,6 +49,8 @@ REPO = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_FILE = REPO / "secrets" / "lab.env"
 DEFAULT_OUT = REPO / "private-evidence" / "soak-lab" / "soak_v2.csv"
 HTTP_TIMEOUT_S = 10.0
+WS_TIMEOUT_S = 10.0  # connect, handshake and every single answer
+WS_TOTAL_S = 30.0  # the whole short-lived connection
 LOG_LINES = 2000
 GAP_FACTOR = 2.5  # a wall-clock distance above GAP_FACTOR x interval is a gap (network loss, sleep, a stalled host)
 
@@ -167,6 +176,240 @@ def make_fetcher(cfg: Config) -> Fetcher:
     return fetch
 
 
+# ----------------------------------------------------------------------------------------------- WebSocket (supervisor/api)
+
+@dataclass
+class SupResult:
+    ok: bool
+    data: dict[str, Any] = field(default_factory=dict)
+    error: str = ""
+
+
+# One call: the supervisor endpoints to GET, in order (add-on stats, add-on info, core stats) -> one SupResult each.
+SupFetcher = Callable[[list[str]], list[SupResult]]
+
+
+class _WsError(Exception):
+    pass
+
+
+def ws_url(ha_url: str) -> str:
+    u = urllib.parse.urlsplit(ha_url)
+    if u.scheme not in ("http", "https") or not u.netloc:
+        raise ValueError("ws_unavailable:bad_url")
+    return f"{'wss' if u.scheme == 'https' else 'ws'}://{u.netloc}{u.path.rstrip('/')}/api/websocket"
+
+
+def _ssl_ctx(verify: bool) -> ssl.SSLContext:
+    ctx = ssl.create_default_context()
+    if not verify:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def _fail_all(endpoints: list[str], err: str) -> list[SupResult]:
+    return [SupResult(False, error=err) for _ in endpoints]
+
+
+def _err_name(e: BaseException) -> str:
+    if isinstance(e, _WsError):
+        return str(e)
+    if isinstance(e, (asyncio.TimeoutError, TimeoutError, socket.timeout)):
+        return "ws_timeout"
+    return f"ws_{type(e).__name__}"
+
+
+def _result_of(msg: Any, ident: int) -> SupResult:
+    """One supervisor/api answer; HA puts the supervisor payload in `result`."""
+    if not isinstance(msg, dict) or msg.get("id") != ident or msg.get("type") != "result":
+        return SupResult(False, error="ws_bad_reply")
+    if not msg.get("success"):
+        code = _dig(msg, "error", "code")
+        return SupResult(False, error=f"ws_result:{code}" if code else "ws_result_failed")
+    res = msg.get("result")
+    return SupResult(True, res if isinstance(res, dict) else {})
+
+
+def _auth_check(first: Any, ans_fn: Callable[[], Any], send_auth: Callable[[], None]) -> None:
+    if not isinstance(first, dict) or first.get("type") != "auth_required":
+        raise _WsError("ws_bad_handshake")
+    send_auth()
+    ans = ans_fn()
+    kind = ans.get("type") if isinstance(ans, dict) else None
+    if kind == "auth_invalid":
+        raise _WsError("ws_auth_failed")
+    if kind != "auth_ok":
+        raise _WsError("ws_bad_handshake")
+
+
+def _exchange(endpoints: list[str], token: str, recv: Callable[[], Any], send: Callable[[str], None]) -> list[SupResult]:
+    """Auth handshake, then one supervisor/api command per endpoint; a failure fails that endpoint and the rest."""
+    _auth_check(recv(), recv, lambda: send(json.dumps({"type": "auth", "access_token": token})))
+    out: list[SupResult] = []
+    for i, ep in enumerate(endpoints, 2):
+        try:
+            send(json.dumps({"id": i, "type": "supervisor/api", "endpoint": ep, "method": "get"}))
+            out.append(_result_of(recv(), i))
+        except Exception as e:  # noqa: BLE001 - dropped / slow mid-way
+            return out + _fail_all(endpoints[len(out):], _err_name(e))
+    return out
+
+
+def ws_fetch_stdlib(cfg: Config, endpoints: list[str]) -> list[SupResult]:
+    """Minimal RFC 6455 client (text frames, client masking, ping/close handling) for when `websockets` is not importable."""
+    try:
+        url = urllib.parse.urlsplit(ws_url(cfg.ha_url))
+    except ValueError as e:
+        return _fail_all(endpoints, str(e))
+    secure = url.scheme == "wss"
+    deadline = time.monotonic() + WS_TOTAL_S
+    sock: Any = None
+    try:
+        sock = socket.create_connection((url.hostname, url.port or (443 if secure else 80)), timeout=WS_TIMEOUT_S)
+        if secure:
+            sock = _ssl_ctx(cfg.verify_tls).wrap_socket(sock, server_hostname=url.hostname)
+        sock.settimeout(WS_TIMEOUT_S)
+        key = base64.b64encode(os.urandom(16)).decode()
+        sock.sendall((f"GET {url.path} HTTP/1.1\r\nHost: {url.netloc}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                      f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise _WsError("ws_closed")
+            buf += chunk
+            if len(buf) > 65536:
+                raise _WsError("ws_bad_handshake")
+        head, _, rest = buf.partition(b"\r\n\r\n")
+        status = head.split(b"\r\n", 1)[0].split()
+        if len(status) < 2 or status[1] != b"101":
+            raise _WsError(f"ws_http_{status[1].decode('ascii', 'replace') if len(status) > 1 else 'bad'}")
+        pending = bytearray(rest)
+
+        def need(n: int) -> bytes:
+            while len(pending) < n:
+                if time.monotonic() > deadline:
+                    raise _WsError("ws_timeout")
+                chunk = sock.recv(65536)
+                if not chunk:
+                    raise _WsError("ws_closed")
+                pending.extend(chunk)
+            data = bytes(pending[:n])
+            del pending[:n]
+            return data
+
+        def frame(opcode: int, payload: bytes) -> bytes:
+            mask = os.urandom(4)
+            n = len(payload)
+            if n < 126:
+                hdr = bytes([0x80 | opcode, 0x80 | n])
+            elif n < 65536:
+                hdr = bytes([0x80 | opcode, 0x80 | 126]) + struct.pack(">H", n)
+            else:
+                hdr = bytes([0x80 | opcode, 0x80 | 127]) + struct.pack(">Q", n)
+            return hdr + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
+
+        def send(text: str) -> None:
+            sock.sendall(frame(0x1, text.encode("utf-8")))
+
+        def recv() -> Any:
+            message = b""
+            while True:
+                b0, b1 = need(2)
+                n = b1 & 0x7F
+                if n == 126:
+                    n = struct.unpack(">H", need(2))[0]
+                elif n == 127:
+                    n = struct.unpack(">Q", need(8))[0]
+                if n > 16 * 1024 * 1024:
+                    raise _WsError("ws_too_big")
+                data = need(n)  # a server frame is never masked
+                op = b0 & 0x0F
+                if op == 0x8:
+                    raise _WsError("ws_closed")
+                if op == 0x9:
+                    sock.sendall(frame(0xA, data[:125]))
+                    continue
+                if op == 0xA:
+                    continue
+                message += data
+                if b0 & 0x80:
+                    try:
+                        return json.loads(message.decode("utf-8", "replace"))
+                    except ValueError:
+                        raise _WsError("ws_bad_reply") from None
+
+        return _exchange(endpoints, cfg.ha_token, recv, send)
+    except _WsError as e:
+        return _fail_all(endpoints, str(e))
+    except Exception as e:  # noqa: BLE001 - network loss must never stop the soak
+        return _fail_all(endpoints, _err_name(e))
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def ws_fetch_websockets(cfg: Config, endpoints: list[str]) -> list[SupResult]:
+    """Same exchange through the `websockets` package (asyncio); a fresh connection per call."""
+    import websockets  # imported lazily: the sampler stays stdlib-only when it is absent
+
+    try:
+        url = ws_url(cfg.ha_url)
+    except ValueError as e:
+        return _fail_all(endpoints, str(e))
+
+    async def go() -> list[SupResult]:
+        kw: dict[str, Any] = {"max_size": None, "open_timeout": WS_TIMEOUT_S, "close_timeout": 2}
+        if url.startswith("wss://"):
+            kw["ssl"] = _ssl_ctx(cfg.verify_tls)
+        async with websockets.connect(url, **kw) as ws:
+            async def rcv() -> Any:
+                try:
+                    return json.loads(await asyncio.wait_for(ws.recv(), WS_TIMEOUT_S))
+                except ValueError:
+                    raise _WsError("ws_bad_reply") from None
+
+            try:
+                first = await rcv()
+                if not isinstance(first, dict) or first.get("type") != "auth_required":
+                    raise _WsError("ws_bad_handshake")
+                await ws.send(json.dumps({"type": "auth", "access_token": cfg.ha_token}))
+                ans = await rcv()
+                kind = ans.get("type") if isinstance(ans, dict) else None
+                if kind == "auth_invalid":
+                    raise _WsError("ws_auth_failed")
+                if kind != "auth_ok":
+                    raise _WsError("ws_bad_handshake")
+            except Exception as e:  # noqa: BLE001
+                return _fail_all(endpoints, _err_name(e))
+            out: list[SupResult] = []
+            for i, ep in enumerate(endpoints, 2):
+                try:
+                    await ws.send(json.dumps({"id": i, "type": "supervisor/api", "endpoint": ep, "method": "get"}))
+                    out.append(_result_of(await rcv(), i))
+                except Exception as e:  # noqa: BLE001 - dropped or slow mid-way: this and the rest fail
+                    return out + _fail_all(endpoints[len(out):], _err_name(e))
+            return out
+
+    try:
+        return asyncio.run(asyncio.wait_for(go(), WS_TOTAL_S))
+    except Exception as e:  # noqa: BLE001
+        return _fail_all(endpoints, _err_name(e))
+
+
+def make_supervisor(cfg: Config) -> SupFetcher:
+    try:
+        import websockets  # noqa: F401
+        impl = ws_fetch_websockets
+    except ImportError:
+        impl = ws_fetch_stdlib  # minimal stdlib client; no extra package needed
+    return lambda endpoints: impl(cfg, endpoints)
+
+
 def _json(f: Fetched) -> dict[str, Any]:
     if f.status != 200 or not f.body:
         return {}
@@ -232,8 +475,8 @@ def _count_logs(text: str) -> dict[str, int]:
     }
 
 
-def sample_once(cfg: Config, fetch: Fetcher, st: State, now: float) -> list[dict[str, Any]]:
-    """One sample: exactly one GET per endpoint. Returns the rows to append (a gap row first when the wall clock jumped)."""
+def sample_once(cfg: Config, fetch: Fetcher, st: State, now: float, sup: SupFetcher | None = None) -> list[dict[str, Any]]:
+    """One sample: exactly one request per endpoint (the three supervisor reads share one short WebSocket connection). Returns the rows to append (a gap row first when the wall clock jumped)."""
     rows: list[dict[str, Any]] = []
     if st.last_wall is not None and now - st.last_wall > GAP_FACTOR * cfg.interval_s:
         st.seq += 1
@@ -245,13 +488,12 @@ def sample_once(cfg: Config, fetch: Fetcher, st: State, now: float) -> list[dict
     sup_h = {"Authorization": f"Bearer {cfg.ha_token}", "Accept": "application/json"}
     base = f"{cfg.ha_url}/api/hassio"
 
-    stats_f = fetch(f"{base}/addons/{cfg.slug}/stats", sup_h)
-    info_f = fetch(f"{base}/addons/{cfg.slug}/info", sup_h)
-    core_f = fetch(f"{base}/core/stats", sup_h)
-    for name, f in (("stats", stats_f), ("info", info_f), ("core", core_f)):
-        if f.status != 200:
-            errors.append(f"sup_{name}:{f.error or f.status}")
-    stats, info, core = _json(stats_f), _json(info_f), _json(core_f)
+    sup = sup or make_supervisor(cfg)
+    got = (list(sup([f"/addons/{cfg.slug}/stats", f"/addons/{cfg.slug}/info", "/core/stats"])) + [SupResult(False, error="ws_missing")] * 3)[:3]
+    for name, r in zip(("stats", "info", "core"), got):
+        if not r.ok:
+            errors.append(f"sup_{name}:{r.error or 'failed'}")
+    stats, info, core = (r.data if r.ok else {} for r in got)
     mem = stats.get("memory_usage")
     row.update({
         "state": info.get("state"), "version": info.get("version"),
@@ -391,7 +633,7 @@ def append_rows(path: Path, rows: list[dict[str, Any]]) -> None:
 
 # ----------------------------------------------------------------------------------------------- loop
 
-def run(cfg: Config, fetch: Fetcher, *, clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
+def run(cfg: Config, fetch: Fetcher, *, sup: SupFetcher | None = None, clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
         max_samples: int | None = None, stop: Callable[[], bool] = lambda: False) -> int:
     st = State()
     start = clock()
@@ -403,7 +645,7 @@ def run(cfg: Config, fetch: Fetcher, *, clock: Callable[[], float] = time.time, 
         now = clock()
         if end is not None and now >= end:
             break
-        append_rows(cfg.out, sample_once(cfg, fetch, st, now))
+        append_rows(cfg.out, sample_once(cfg, fetch, st, now, sup))
         n += 1
         if max_samples is not None and n >= max_samples:
             break
@@ -437,7 +679,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {k}: {'set' if v else 'not set'}")
         dur = f"{cfg.duration_h:g}h" if cfg.duration_h else "until interrupted"
         print(f"  interval={cfg.interval_s:g}s duration={dur} logs_every={cfg.logs_every} tls_verify={cfg.verify_tls}")
-        print(f"  requests per sample: {3 + (3 if cfg.addon_url else 0)} (+1 log read every {cfg.logs_every} samples)")
+        print(f"  requests per sample: 1 websocket (3 supervisor reads) + {3 if cfg.addon_url else 0} http (+1 log read every {cfg.logs_every} samples)")
         print(f"  output file: {cfg.out.name}")
         for p in problems:
             print(f"  PROBLEM: {p}")
@@ -455,7 +697,7 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _sig)
     try:
-        n = run(cfg, make_fetcher(cfg), stop=lambda: stop_flag["v"])
+        n = run(cfg, make_fetcher(cfg), sup=make_supervisor(cfg), stop=lambda: stop_flag["v"])
     except ConfigError as e:
         print(str(e), file=sys.stderr)
         return 2
