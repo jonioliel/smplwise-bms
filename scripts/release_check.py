@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import filecmp
+import hashlib
 import json
 import re
 import subprocess
@@ -93,6 +94,30 @@ def run_checks(root: Path) -> dict[str, Any]:
     www = addon / "www"
     built = (www / "index.html").exists() and any((www / "assets").glob("index-*.js")) if (www / "assets").exists() else False
     check("built UI present in the add-on (www)", built, str(www))
+
+    # the bundled release APK (owner decision 2026-10-06): optional; when staged it must be valid, and no APK or signing key may be tracked
+    dl = addon / "downloads"
+    apk, side = dl / "SmplWiseArx.apk", dl / "SmplWiseArx.apk.json"
+    if apk.exists() or side.exists():
+        ok, detail = False, "APK and sidecar must both exist and be readable (run scripts/stage_apk.py)"
+        try:
+            meta = json.loads(side.read_text(encoding="utf-8"))
+            digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+            ok = (meta.get("applicationId") == "com.smplwise.arx.app" and bool(meta.get("version"))
+                  and meta.get("sha256", digest) == digest and 0 < apk.stat().st_size <= 200 * 1024 * 1024)
+            detail = f"version {meta.get('version')}, sha256 {digest[:12]}..., {apk.stat().st_size} bytes" if ok else "sidecar/file mismatch (run scripts/stage_apk.py)"
+        except (OSError, ValueError, AttributeError):
+            pass
+        check("bundled APK staged and valid", ok, detail)
+    else:
+        check("bundled APK staged and valid", True, "none staged: the login offer stays off unless an administrator saves a download address")
+    try:
+        tracked = subprocess.run(["git", "-C", str(root), "ls-files", "*.apk", "*.aab", "*.jks", "*.keystore", "smplwise_vms/downloads"],
+                                 capture_output=True, text=True, timeout=20).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        tracked = []
+    bad = [t for t in tracked if not t.endswith("downloads/README.txt")]
+    check("no APK or signing key tracked in git", not bad, ", ".join(bad) if bad else "none")
 
     pkg = root / "docs" / "release" / "RELEASE_PACKAGE_V1.md"
     check("release package document present", pkg.exists(), str(pkg))

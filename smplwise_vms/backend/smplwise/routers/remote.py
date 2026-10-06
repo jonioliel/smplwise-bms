@@ -2,6 +2,7 @@
 
 `GET  auth/remote-config`  remote channel only, no identity: how the sign-in page keeps its tokens (remote.session).
 `GET  auth/app-download`   remote channel only, no identity: the Android download offer (url / version / sha256), null when not configured.
+`GET  auth/app-download/file` remote channel only, no identity: the signed APK bundled in the image (GET / HEAD, ETag, ranges, rate limited).
 `POST auth/session`        remote channel only: `Authorization: Bearer <HA access token>` → the Arx session cookie
                            (`__Secure-arx_session`, Path=<remote_path>/, HttpOnly, Secure, SameSite=Strict).
 `DELETE auth/session`      remote channel only: sign out (the session is dropped, the cookie cleared).
@@ -23,7 +24,7 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -62,8 +63,33 @@ def app_download_offer(request: Request) -> JSONResponse:
     if not hua.LIMITER.hit(f"appdl:{hua.client_ip(request)}", APP_DOWNLOAD_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     with request.app.state.db.connection(mode="read", label="auth/app-download") as conn:
-        body = app_download.public_offer(conn)
+        body = app_download.public_offer(conn, settings_of(request).downloads_dir)
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
+FILE_LIMITS: list[tuple[float, int]] = [(60.0, 6), (3600.0, 30)]  # per client address; the APK is tens of MB
+
+
+@router.api_route("/auth/app-download/file", methods=["GET", "HEAD"])
+def app_download_file(request: Request) -> Response:
+    """Public (no identity), remote channel only: the signed release APK bundled in the add-on image. The path is fixed (no
+    caller input reaches the file system); 404 when no valid bundled file exists."""
+    _remote_only(request)
+    if not hua.LIMITER.hit(f"apk:{hua.client_ip(request)}", FILE_LIMITS):
+        raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
+    bundled = app_download.load_bundled(settings_of(request).downloads_dir)
+    if bundled is None:
+        raise ApiError(404, "not_found", "Not found")
+    headers = {
+        "ETag": bundled.etag,
+        "Cache-Control": "public, max-age=300, must-revalidate",
+        "Content-Disposition": f'attachment; filename="{bundled.filename}"',
+        "X-Content-Type-Options": "nosniff",
+    }
+    inm = request.headers.get("if-none-match", "")
+    if bundled.etag in [t.strip() for t in inm.split(",")] or inm.strip() == "*":
+        return Response(status_code=304, headers=headers)
+    return FileResponse(bundled.path, media_type=app_download.MIME, headers=headers)
 
 
 @router.post("/auth/session")

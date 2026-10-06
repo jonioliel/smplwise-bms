@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn, haErrorText, hasPendingSecondFactor, startFlow, submitStep, type LoginFlow } from './auth';
 import { t } from '../i18n/he';
 import { inAndroidApp, switchServer } from './android-app';
-import { loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
+import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
 
 const REASON_TEXT: Record<string, string> = {
   idle: 'ננעלת לאחר חוסר פעילות. יש להיכנס שוב.',
@@ -341,7 +341,7 @@ export class ArxLogin extends LitElement {
     const t = offerText(navigator.language);
     return html`<div class="app-download" data-arx-android-download-box>
       <a href=${o.url} rel="noopener noreferrer" download data-arx-android-download>${t.link}</a>
-      ${o.version ? html`<span data-arx-android-version>${t.version} <bdi>${o.version}</bdi></span>` : nothing}
+      ${o.version ? html`<span data-arx-android-version>${t.version} <bdi>${o.version}</bdi>${o.size ? html` <bdi data-arx-android-size>(${formatSize(o.size)})</bdi>` : nothing}</span>` : nothing}
       ${o.sha256 ? html`<details data-arx-android-sha><summary>${t.sha}</summary><code>${o.sha256}</code></details>` : nothing}
     </div>`;
   }

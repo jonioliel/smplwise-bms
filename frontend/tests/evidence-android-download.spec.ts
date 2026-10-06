@@ -49,6 +49,22 @@ test.describe('Android device', () => {
     await page.screenshot({ path: test.info().outputPath('login-android-offer.png') });
   });
 
+  test('bundled in the add-on: the link is the local route, with version, size and hash', async ({ page }) => {
+    const { login } = await mountLogin(page, { android: { url: 'api/v1/auth/app-download/file', version: '1.4.2', sha256: SHA, size: 12902400, bundled: true } });
+    const link = login.locator('[data-arx-android-download]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', /\/api\/v1\/auth\/app-download\/file$/);
+    await expect(login.locator('[data-arx-android-version]')).toContainText('1.4.2');
+    await expect(login.locator('[data-arx-android-size]')).toContainText('12.3 MB');
+    await expect(login.locator('[data-arx-android-sha] code')).toHaveText(SHA);
+    await expect(login.locator('[data-arx-android-sha]')).not.toHaveAttribute('open', /.*/); // collapsed
+  });
+
+  test('bundled flag with any other relative address is refused', async ({ page }) => {
+    const { login } = await mountLogin(page, { android: { url: '../evil.apk', version: '1', sha256: SHA, bundled: true } });
+    await expect(login.locator('[data-arx-android-download-box]')).toHaveCount(0);
+  });
+
   test('not configured: nothing is shown', async ({ page }) => {
     const { login } = await mountLogin(page, { android: null });
     await expect(login.locator('[data-arx-android-download-box]')).toHaveCount(0);

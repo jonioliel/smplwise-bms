@@ -17,10 +17,16 @@ COPY backend/smplwise /app/smplwise
 COPY www /app/www
 # The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
 COPY integration /app/integration
+# The signed release APK (owner decision 2026-10-06) ships inside the image: scripts/stage_apk.py places SmplWiseArx.apk and
+# SmplWiseArx.apk.json in downloads/ of the build context before a release. downloads/ always exists (a tracked README), so
+# this COPY works with or without an APK - when none was staged the add-on offers nothing at the login screen.
+COPY downloads/ /app/downloads/
+RUN chmod -R a-w /app/downloads
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
 ENV SW_WWW_DIR=/app/www \
+    SW_DOWNLOADS_DIR=/app/downloads \
     SW_DATA_DIR=/data \
     SW_HOST=0.0.0.0 \
     SW_PORT=8099 \

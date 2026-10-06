@@ -117,3 +117,13 @@ may not run.
 
 No target date replaces the gates above: the package is signed only when every listed item is either evidenced or
 explicitly excluded.
+
+## Bundled Android APK (owner decision 2026-10-06)
+
+The signed release APK ships INSIDE the add-on image; a person at the login screen downloads it directly from their own system.
+
+1. Build and sign the APK outside git (keystore and signing keys never enter the repository; `*.apk`, `*.jks`, `*.keystore` and `smplwise_vms/downloads/*` are gitignored).
+2. Stage it into the build context: `python scripts/stage_apk.py <signed.apk> --version <app version>`. It verifies the zip, the manifest application id (`com.smplwise.arx.app`), the signature (and `apksigner verify` + not-debug when `apksigner` is on PATH), writes `smplwise_vms/downloads/SmplWiseArx.apk` and the sidecar `SmplWiseArx.apk.json` (version, applicationId, sha256).
+3. `python scripts/release_check.py` reports "bundled APK staged and valid" and "no APK or signing key tracked in git".
+4. The Dockerfile copies `downloads/` to `/app/downloads` (read-only, `SW_DOWNLOADS_DIR`). With no APK staged the COPY is a no-op for the files and the login screen offers nothing (unless an administrator saved an external https address, which always wins over the bundled file).
+5. Served from the public remote-channel route `auth/app-download/file` (GET/HEAD, ETag, ranges, 6/min and 30/h per client address); the SHA-256 and size are computed by the add-on, the version comes from the sidecar. After the release, remove the staged files with `python scripts/stage_apk.py --clear`.

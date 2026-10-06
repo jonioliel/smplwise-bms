@@ -36,3 +36,11 @@ private/
 
 # Per-machine launch configuration for the desktop app
 .claude/launch.json
+
+# The release APK ships inside the add-on image but is never committed (scripts/stage_apk.py places it); no signing material either
+smplwise_vms/downloads/*
+!smplwise_vms/downloads/README.txt
+*.apk
+*.aab
+*.jks
+*.keystore
