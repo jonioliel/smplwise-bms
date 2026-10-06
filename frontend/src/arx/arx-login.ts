@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { ArxAuthError, completeSignIn, haErrorText, startFlow, submitStep, type LoginFlow } from './auth';
+import { ArxAuthError, abandonSecondFactor, completeSecondFactor, completeSignIn, haErrorText, hasPendingSecondFactor, startFlow, submitStep, type LoginFlow } from './auth';
+import { t } from '../i18n/he';
 import { inAndroidApp, switchServer } from './android-app';
 
 const REASON_TEXT: Record<string, string> = {
@@ -21,7 +22,7 @@ export class ArxLogin extends LitElement {
   /** A message to show before anything is typed (the last sign-out's reason, or why the server refused the session). */
   @property() notice = '';
   @property() noticeKind: 'info' | 'error' = 'info';
-  @state() private step: 'credentials' | 'mfa' = 'credentials';
+  @state() private step: 'credentials' | 'mfa' | 'factor' = hasPendingSecondFactor() ? 'factor' : 'credentials';
   @state() private busy = false;
   @state() private error = '';
   @state() private mfaName = '';
@@ -231,12 +232,31 @@ export class ArxLogin extends LitElement {
       this.error = 'יש להזין את קוד האימות.';
       return;
     }
+    if (this.step === 'factor') {
+      await this.run(async () => {
+        await completeSecondFactor(code);
+        this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
+      });
+      return;
+    }
     await this.run(async () => this.handle(await submitStep(this.flow!, { code })));
   }
 
   private async handle(step: Awaited<ReturnType<typeof submitStep>>) {
     if (step.kind === 'done') {
-      await completeSignIn(this.flow!, step.code);
+      try {
+        await completeSignIn(this.flow!, step.code);
+      } catch (err) {
+        if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
+          // K11: HA accepted the sign-in; the optional second factor of this user is the next step
+          this.step = 'factor';
+          this.error = '';
+          await this.updateComplete;
+          this.codeEl?.focus();
+          return;
+        }
+        throw err;
+      }
       this.dispatchEvent(new CustomEvent('arx-signed-in', { bubbles: true, composed: true }));
       return;
     }
@@ -270,7 +290,7 @@ export class ArxLogin extends LitElement {
       await fn();
     } catch (err) {
       this.error = err instanceof ArxAuthError ? err.message : 'שגיאה לא צפויה. נסה שוב.';
-      if (!(err instanceof ArxAuthError) || !['network', 'ha_unavailable'].includes(err.code)) this.restart(false);
+      if (!(err instanceof ArxAuthError) || !['network', 'ha_unavailable', 'second_factor_invalid'].includes(err.code)) this.restart(false);
     } finally {
       this.busy = false;
     }
@@ -278,6 +298,7 @@ export class ArxLogin extends LitElement {
 
   /** A new flow from the credentials step (HA's flows are single-use after an abort, a finish or a refusal). */
   private restart(clearError = true) {
+    if (this.step === 'factor' || hasPendingSecondFactor()) void abandonSecondFactor();
     this.flow = null;
     this.step = 'credentials';
     if (clearError) this.error = '';
@@ -292,8 +313,10 @@ export class ArxLogin extends LitElement {
         <span class="name"><b>SmplWise <span>Arx</span></b><small>גישה מרחוק מאובטחת</small></span>
       </div>
       <div>
-        <h1 id="arx-title">${this.step === 'mfa' ? 'אימות דו־שלבי' : 'כניסה'}</h1>
-        <p class="sub">${this.step === 'mfa'
+        <h1 id="arx-title">${this.step === 'credentials' ? 'כניסה' : 'אימות דו־שלבי'}</h1>
+        <p class="sub">${this.step === 'factor'
+          ? t('secondFactor.loginPrompt')
+          : this.step === 'mfa'
           ? html`הזן את הקוד מ${this.mfaName ? html`<bdi>${this.mfaName}</bdi>` : 'אפליקציית האימות'} שמוגדרת בחשבון שלך.`
           : 'היכנס עם שם המשתמש והסיסמה שלך.'}</p>
       </div>

@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
+import '../components/sw-second-factor';
+import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-home-personal';
 import { can, canAnywhere } from '../api/session';
@@ -66,6 +68,8 @@ export class SwUserMenu extends LitElement {
   @state() private wiskeyOpen = false;
   /** The personal home screen section (screen.personalize) loads only while it is open. */
   @state() private homeOpen = false;
+  /** K11: the optional second factor section loads only while it is open. */
+  @state() private factorOpen = false;
 
   static styles = css`
     :host {
@@ -431,6 +435,7 @@ export class SwUserMenu extends LitElement {
       this.sessionsOpen = false;
       this.wiskeyOpen = false;
       this.homeOpen = false;
+      this.factorOpen = false;
     }
   }
 
@@ -447,13 +452,13 @@ export class SwUserMenu extends LitElement {
     const wiskey = this.api && !this.gated && !WISKEY_HIDDEN && can('access.read');
     // home redesign: the personal home screen - only for a holder of screen.personalize (the server checks it again)
     const home = this.api && !this.gated && canAnywhere('screen.personalize');
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, android, wiskey, home };
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, wiskey, home };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.android || acc.wiskey || acc.home;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.wiskey || acc.home;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -537,6 +542,12 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-sessions @toggle=${(e: Event) => (this.sessionsOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="users" size=${18}></sw-icon></span><span class="txt">הכניסות שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.sessionsOpen ? html`<sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.factor
+          ? html`<li><details data-my-second-factor @toggle=${(e: Event) => (this.factorOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.factorOpen ? html`<sw-second-factor></sw-second-factor>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.android

@@ -281,16 +281,54 @@ export interface ExchangeResult {
   session_expires_in: number;
 }
 
-async function exchange(t: ArxTokens): Promise<ExchangeResult> {
+async function exchange(t: ArxTokens, secondFactor?: string): Promise<ExchangeResult> {
   let res: Response;
+  const headers: Record<string, string> = { Authorization: `Bearer ${t.access_token}` };
+  if (secondFactor) headers['X-Arx-Second-Factor'] = secondFactor;
   try {
-    res = await fetch('api/v1/auth/session', { method: 'POST', headers: { Authorization: `Bearer ${t.access_token}` }, credentials: 'same-origin', cache: 'no-store' });
+    res = await fetch('api/v1/auth/session', { method: 'POST', headers, credentials: 'same-origin', cache: 'no-store' });
   } catch {
     throw new ArxAuthError('network', 'אין חיבור לשרת.');
   }
   const data = (await res.json().catch(() => null)) as { code?: string; user_message?: string } & Partial<ExchangeResult> | null;
   if (!res.ok) throw new ArxAuthError(data?.code ?? `http_${res.status}`, data?.user_message || 'השרת דחה את הכניסה.', res.status);
   return data as ExchangeResult;
+}
+
+/** K11: a sign-in that HA accepted and Arx holds back until the user types the code of their authenticator app (the
+ * optional second factor). The tokens wait here, in memory; abandoning the step revokes them. */
+let pendingFactor: ArxTokens | null = null;
+export const hasPendingSecondFactor = () => pendingFactor !== null;
+
+export async function abandonSecondFactor(): Promise<void> {
+  const t = pendingFactor;
+  pendingFactor = null;
+  if (t) {
+    clearTokens();
+    await revoke(t.refresh_token);
+  }
+}
+
+/** The second step of a sign-in: the 6-digit code. A wrong code keeps the step open; a lockout or any other refusal ends it. */
+export async function completeSecondFactor(code: string): Promise<ExchangeResult> {
+  const t = pendingFactor;
+  if (!t) throw new ArxAuthError('second_factor_required', 'ההתחברות פגה. יש להיכנס מחדש.');
+  try {
+    const r = await exchange(t, code.replace(/\s+/g, ''));
+    pendingFactor = null;
+    t.user_id = r.user.id;
+    saveTokens(t);
+    seedHassTokens(t);
+    markActivity();
+    return r;
+  } catch (err) {
+    if (!(err instanceof ArxAuthError) || !['second_factor_invalid', 'network', 'ha_unavailable'].includes(err.code)) {
+      pendingFactor = null;
+      clearTokens();
+      await revoke(t.refresh_token);
+    }
+    throw err;
+  }
 }
 
 /** Sign-in finished at HA (an authorization code): tokens, the HA seed, the Arx session. */
@@ -306,6 +344,10 @@ export async function completeSignIn(flow: LoginFlow, code: string): Promise<Exc
     markActivity();
     return r;
   } catch (err) {
+    if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
+      pendingFactor = t; // K11: HA's part is done; the code of the authenticator app is the second step
+      throw err;
+    }
     // refused by Arx (no remote access, inactive, MFA required): do not leave a valid HA sign-in behind
     await revoke(t.refresh_token);
     throw err;
@@ -326,7 +368,18 @@ export function refreshNow(): Promise<boolean> {
     try {
       const fresh = tokensFrom(await tokenRequest({ grant_type: 'refresh_token', refresh_token: t.refresh_token }), t.refresh_token);
       fresh.user_id = t.user_id;
-      await exchange(fresh);
+      try {
+        await exchange(fresh);
+      } catch (e) {
+        if (e instanceof ArxAuthError && e.code === 'second_factor_required') {
+          // K11: the Arx session is gone (expired cookie) and this user has a second factor: keep the HA sign-in, ask for the code
+          pendingFactor = fresh;
+          saveTokens(fresh);
+          onSignedOut?.('expired');
+          return false;
+        }
+        throw e;
+      }
       saveTokens(fresh);
       seedHassTokens(fresh, true);
       schedule();
@@ -392,6 +445,10 @@ export async function resume(): Promise<boolean> {
   } catch (err) {
     if (err instanceof ArxAuthError && err.status === 403) {
       await logout('logout'); // no remote access (any more): the stored sign-in is revoked
+      throw err;
+    }
+    if (err instanceof ArxAuthError && err.code === 'second_factor_required') {
+      pendingFactor = t;
       throw err;
     }
     if (err instanceof ArxAuthError && err.status === 401) return refreshNow();
