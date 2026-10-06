@@ -1,6 +1,7 @@
 """CR-008 SmplWise Arx: the remote channel's session endpoints and the per-user remote-access flag.
 
 `GET  auth/remote-config`  remote channel only, no identity: how the sign-in page keeps its tokens (remote.session).
+`GET  auth/app-download`   remote channel only, no identity: the Android download offer (url / version / sha256), null when not configured.
 `POST auth/session`        remote channel only: `Authorization: Bearer <HA access token>` → the Arx session cookie
                            (`__Secure-arx_session`, Path=<remote_path>/, HttpOnly, Secure, SameSite=Strict).
 `DELETE auth/session`      remote channel only: sign out (the session is dropped, the cookie cleared).
@@ -32,7 +33,7 @@ from ..db import now_iso
 from ..errors import ApiError, unauthenticated
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import channel_of, is_remote
-from ..services import ha_user_auth as hua
+from ..services import app_download, ha_user_auth as hua
 
 router = APIRouter()
 
@@ -49,6 +50,16 @@ def remote_config(request: Request) -> dict[str, Any]:
     with request.app.state.db.connection(mode="read", label="auth/remote-config") as conn:
         rs = hua.remote_settings(conn)
     return {"path": settings.remote_path + "/", "session": rs["remote.session"], "idle_lock_minutes": rs["remote.idle_lock_minutes"]}
+
+
+@router.get("/auth/app-download")
+def app_download_offer(request: Request) -> JSONResponse:
+    """Public (no identity), remote channel only: the Android app download offer of the sign-in page. Only url / version /
+    sha256 of the address an administrator saved; `{"android": null}` when none is configured."""
+    _remote_only(request)
+    with request.app.state.db.connection(mode="read", label="auth/app-download") as conn:
+        body = app_download.public_offer(conn)
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
 
 @router.post("/auth/session")

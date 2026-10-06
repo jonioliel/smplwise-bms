@@ -530,6 +530,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | recordings | GET | `/api/v1/cameras/{camera_id}/frame` | JPEG frame from the camera's recording at `at` (UTC); 404 when the recording has no picture there. |
 | recordings | GET | `/api/v1/cameras/{camera_id}/recordings` |  |
 | remote | PUT | `/api/v1/access/users/{user_id}/remote-access` |  |
+| remote | GET | `/api/v1/auth/app-download` | Public (no identity), remote channel only: the Android app download offer of the sign-in page. Only url / version / |
 | remote | GET | `/api/v1/auth/remote-config` |  |
 | remote | DELETE | `/api/v1/auth/session` |  |
 | remote | POST | `/api/v1/auth/session` |  |

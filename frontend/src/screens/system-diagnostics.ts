@@ -1004,7 +1004,7 @@ export class SystemDiagnostics extends LitElement {
   private renderRemote() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile'] as const;
+    const keys = ['remote.policy', 'remote.admins_default', 'remote.session', 'remote.idle_lock_minutes', 'remote.default_profile', 'remote.mse_fallback', 'remote.require_mfa_admin', 'remote.max_live_streams', 'remote.wall_profile', 'app.android_url', 'app.android_version', 'app.android_sha256'] as const;
     const dirty = keys.some((k) => k in this.draft);
     const v = <K extends (typeof keys)[number]>(k: K, d: string) => String(this.value(k) ?? d);
     const sel = (key: (typeof keys)[number], d: string, options: [string, string][]) => html`<sw-field class="ctl"><select data-set-remote=${key} ?disabled=${ro} @change=${(e: Event) => this.set(key, (e.target as HTMLSelectElement).value as never)}>
@@ -1031,6 +1031,14 @@ export class SystemDiagnostics extends LitElement {
           : nothing}
         <div class="row"><span class="lbl">אימות דו־שלבי למנהלים<span class="muted">כשמופעל: משתמש עם הרשאות ניהול נכנס מרחוק רק אם הפעיל MFA בפרופיל ה־Home Assistant שלו</span></span>
           ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
+      </sw-card>
+      <sw-card heading="הורדת אפליקציית Android" subheading="מוצגת במסך הכניסה רק למי שנכנס ממכשיר Android, ורק כשהוגדרה כתובת. ריק = לא מוצגת." data-card="remote.android-download" data-android-download-settings>
+        <div class="row"><span class="lbl">כתובת הורדה<span class="muted">https בלבד</span></span>
+          <sw-field class="ctl"><input type="url" inputmode="url" maxlength="2000" placeholder="https://" data-ltr data-set-remote="app.android_url" .value=${v('app.android_url', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_url', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
+        <div class="row"><span class="lbl">תווית גרסה<span class="muted">לא חובה</span></span>
+          <sw-field class="ctl"><input type="text" maxlength="32" data-ltr data-set-remote="app.android_version" .value=${v('app.android_version', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_version', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
+        <div class="row"><span class="lbl">SHA-256<span class="muted">לא חובה · מוצג לאימות הקובץ</span></span>
+          <sw-field class="ctl"><input type="text" maxlength="64" spellcheck="false" data-ltr data-set-remote="app.android_sha256" .value=${v('app.android_sha256', '')} ?disabled=${ro} @change=${(e: Event) => this.set('app.android_sha256', (e.target as HTMLInputElement).value.trim() as never)} /></sw-field></div>
       </sw-card>
       ${api
         ? html`<sw-card heading="כניסות פעילות מרחוק" subheading=${this.canEdit ? 'כל הכניסות הפעילות של כל המשתמשים: דפדפן או אפליקציה, מאיפה (מדינה או כתובת מוסתרת), מתי. ניתוק סוגר מיד את חיבורי הווידאו והעדכונים שלה, והכניסה הזו לא תוכל לחזור בלי כניסה מחדש.' : 'הכניסות הפעילות שלך מרחוק.'} data-card="remote.sessions" data-remote-sessions-card>

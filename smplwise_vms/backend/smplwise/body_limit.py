@@ -132,7 +132,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
 ]
 
 # the remote channel's paths that need no sign-in (routers/remote.py, the static /.well-known files)
-REMOTE_PUBLIC = re.compile(r"/api/v1/auth/(session|remote-config)|/\.well-known/.*")
+REMOTE_PUBLIC = re.compile(r"/api/v1/auth/(session|remote-config|app-download)|/\.well-known/.*")
 
 
 def route_limit(method: str, path: str, settings: Settings) -> tuple[int, str]:

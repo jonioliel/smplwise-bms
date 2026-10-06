@@ -179,6 +179,10 @@ export interface ProductSettings {
   'remote.wall_profile'?: 'main' | 'sub';
   /** CR-008 P2: 'true' enforces the stricter CSP on the remote channel (default 'false': report-only). */
   'remote.csp_enforce'?: 'true' | 'false';
+  /** 2026-10-06: the Android app download offer of the sign-in page (https address, optional version label and SHA-256); '' = not offered. */
+  'app.android_url'?: string;
+  'app.android_version'?: string;
+  'app.android_sha256'?: string;
 }
 
 /** `nvr_channels`: the recorder's channel capacity when known; `warnings`: advisory only, never blocks a save. */
