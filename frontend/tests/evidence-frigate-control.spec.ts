@@ -57,8 +57,8 @@ test.describe('operator: the camera drawer', () => {
     await expect(box).toBeVisible();
     await box.locator('[data-fcc-switch="recordings"]').click();
     const dlg = page.locator('[data-fcc-confirm]');
-    await expect(dlg).toBeVisible();
-    await expect(dlg).toContainText('לכבות את ההקלטה?');
+    await expect(dlg.locator('[data-fcc-ok]')).toBeVisible();
+    await expect(dlg).toHaveAttribute('heading', 'לכבות את ההקלטה?');
     await expect(dlg).toContainText('לא יישמרו קטעים');
     await shot(page, 'drawer-confirm');
     await dlg.locator('[data-fcc-cancel]').click();
@@ -88,7 +88,7 @@ test.describe('operator: the camera drawer', () => {
     const box = page.locator(DRAWER);
     await expect(box.locator('[data-fcc-profile] select')).toHaveValue('home');
     await box.locator('[data-fcc-profile] select').selectOption('away');
-    await expect(page.locator('[data-fcc-confirm]')).toContainText('פרופיל: away');
+    await expect(page.locator('[data-fcc-confirm]')).toHaveAttribute('heading', 'פרופיל: away');
     await page.locator('[data-fcc-confirm] [data-fcc-ok]').click();
     await expect.poll(() => writes(m, 'frigate/nvr-2/profile ').length).toBe(1);
     expect(writes(m, 'frigate/nvr-2/profile ')[0]).toContain('{"profile":"away","confirm":true}');
@@ -174,7 +174,7 @@ test.describe('settings: management of the writes', () => {
     expect(writes(m, 'changes/ch1/revert')[0]).toContain('{"confirm":false}');
     await expect(box.locator('[data-change="ch1"] [data-change-status="reverted"]')).toBeVisible();
     await box.locator('[data-change="ch2"] [data-change-undo]').click();
-    await expect(page.locator('[data-fcs-confirm]')).toBeVisible();
+    await expect(page.locator('[data-fcs-confirm] [data-fcs-ok]')).toBeVisible();
     expect(writes(m, 'changes/ch2/revert')).toHaveLength(0);
     await page.locator('[data-fcs-confirm] [data-fcs-ok]').click();
     await expect.poll(() => writes(m, 'changes/ch2/revert').length).toBe(1);
