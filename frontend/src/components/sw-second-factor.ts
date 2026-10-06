@@ -360,7 +360,8 @@ export class SwSecondFactorPolicy extends LitElement {
   }
 
   private async change(e: Event) {
-    const next = (e.target as HTMLSelectElement).value as FactorOverride;
+    const sel = e.target as HTMLSelectElement; // captured now: an event's target is cleared once it left the shadow tree
+    const next = sel.value as FactorOverride;
     const before = this.value;
     this.busy = true;
     this.error = '';
@@ -371,7 +372,7 @@ export class SwSecondFactorPolicy extends LitElement {
     } catch (err) {
       this.error = describeError(err);
       this.value = before;
-      (e.target as HTMLSelectElement).value = before ?? 'inherit';
+      sel.value = before ?? 'inherit';
     } finally {
       this.busy = false;
     }

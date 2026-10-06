@@ -180,7 +180,7 @@ test('user drawer: the policy override select offers inherit / optional / requir
   await page.locator('sw-app system-access sw-table tbody tr', { hasText: 'רון לוי' }).first().click();
   await expect(page.locator('sw-app system-access sw-drawer [data-second-factor-policy-user] select')).toHaveValue('required');
   await page.locator('sw-app system-access sw-drawer [data-second-factor-policy-user] select').selectOption('inherit');
-  expect(mock.overrides.user['u-ron']).toBeUndefined();
+  await expect.poll(() => mock.overrides.user['u-ron']).toBeUndefined();
   expect(errors).toEqual([]);
 });
 
@@ -209,6 +209,7 @@ test('roles screen: every role card has the policy override select', async ({ pa
   await expect(viewer).toHaveValue('inherit');
   await expect(custom).toHaveValue('required');
   await viewer.selectOption('optional');
+  await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT').length).toBe(1);
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/role/viewer', body: { policy: 'optional' } }]);
 });
 
