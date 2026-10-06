@@ -75,6 +75,14 @@ test('enrol, sign in with the code, no replay, administrator reset', async ({ br
   await first.page.locator('sw-app [data-profile-menu]').click();
   const menu = first.page.locator('sw-app sw-user-menu [data-profile-menu-panel]');
   await expect(menu).toBeVisible();
+  await first.page.waitForTimeout(1500);
+  console.log('DEBUG', JSON.stringify(await first.page.evaluate(() => {
+    const um = document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-user-menu') as HTMLElement | null;
+    const btn = um?.shadowRoot?.querySelector('[data-menu-account]') as HTMLElement | null;
+    const r = btn?.getBoundingClientRect();
+    const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+    return { open: um?.hasAttribute('open'), rect: r && [r.x, r.y, r.width, r.height], hit: hit?.tagName, vp: [innerWidth, innerHeight] };
+  })));
   await menu.locator('[data-menu-account]').click();
   await menu.locator('[data-my-second-factor] summary').click();
   const section = menu.locator('[data-my-second-factor] sw-second-factor');
