@@ -287,7 +287,7 @@ class FakeFrigate:
         if path == "/api/profiles":
             return self._json(list(self.profiles))
         if path == "/api/profile/active":
-            return self._json(self.active_profile)
+            return httpx.Response(200, content=json.dumps(self.active_profile), headers={"content-type": "application/json"})
         if path.startswith("/api/events/") and path.count("/") == 3:
             eid = path.rsplit("/", 1)[1]
             known = {d for r in self.reviews for d in r["data"]["detections"]}
