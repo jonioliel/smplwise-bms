@@ -196,9 +196,20 @@ test.describe.serial('live: export and re-import from the editor', () => {
   });
 
   test('DXF and package from the export row; the package brings the draft back', async ({ page }, info) => {
-    // the structure tool's export row is a desktop editor panel (wall drawing is desktop-only); the phone is covered by the fixture part
-    test.skip(info.project.name !== 'desktop', 'desktop editor only');
     test.setTimeout(120_000);
+    if (info.project.name === 'mobile') {
+      // Why the walls never showed on the phone (2.2.0 gap, root cause): this is the owner's mobile option hide_structure (default ON,
+      // decision 2026-09-30, shell/phone.ts): at phone width the plan editor route is replaced by the desktop-only notice, so the canvas
+      // (and its walls, and the export row) is never mounted. Not a product bug; the old test expected walls on a screen the phone is not
+      // offered. The phone is covered by the fixture part (the dialog) and here by the guard itself.
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
+      await expect(page.locator('sw-app [data-desktop-only="structure"]')).toContainText('עריכת מבנה וקומות זמינה במחשב בלבד', { timeout: 20000 });
+      await expect(page.locator('sw-app sw-plan-canvas')).toHaveCount(0);
+      await noOverflow(page);
+      return;
+    }
+    // the structure tool's export row is a desktop editor panel (wall drawing is desktop-only); the tablet shares the desktop layout
+    test.skip(info.project.name !== 'desktop', 'desktop editor only');
     const published = (await (await api.get(`api/v1/plan-versions/${ids.version}/geometry`)).json()).geometry.doc_hash as string;
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
     await expect(page.locator(`${ED} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });

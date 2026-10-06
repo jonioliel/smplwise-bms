@@ -67,8 +67,12 @@ below are the agent's and are open to the owner's review.
 - Right-to-left ordering of Hebrew in commercial CAD programs was not verified (only ezdxf and our own DXF reader).
 - DXF does not carry the plan picture; levels are not split into separate layers (use `?level=`).
 - Importing a package does not create floors, plan versions or assets; it targets an existing editable version.
-- The phone editor does not show the export row (live spec runs desktop only; the dialog is covered on mobile by the
-  fixture part).
+- The phone editor does not show the export row, and no plan canvas at all: at phone width the owner's mobile option
+  `hide_structure` (default ON, decision 2026-09-30, `shell/phone.ts`, `routeGuardKind`) replaces `#/explore/floors/<id>/edit` with
+  the notice "עריכת מבנה וקומות זמינה במחשב בלבד". This is why the plan walls "never showed" in the mobile run of the live editor
+  test: the canvas was never mounted (by design, not a product bug; the old test expected walls on a screen the phone is not
+  offered). The live spec now asserts the guard on the mobile project (no `sw-plan-canvas`, no overflow) instead of skipping it; the
+  dialog on mobile is covered by the fixture part. The live part still needs a running backend (SW_LIVE=1).
 
 ## Rollback
 Revert the branch commit: new routes and files only; `geometry_store._prepare` gained an optional `items` argument

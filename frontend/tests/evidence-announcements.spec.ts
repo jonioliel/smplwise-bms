@@ -1,9 +1,19 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PERMS, installCastMock } from './cast-mocks';
 
 // MU2 (voice announcements): the Settings tab against a mocked wire contract (invented names, nothing is sent to a device): the switch, the engine,
 // the allowed-speaker list with a test button per row, "announce now", the history, the Hebrew / English strings, and the rule editor's announce action.
 //   SW_BASE_URL=http://127.0.0.1:5262/ npx playwright test tests/evidence-announcements.spec.ts --workers=1
+// SW_SHOTS=1 writes evidence screenshots (the Settings tab off, then set up with a tested speaker and history) to docs/design/evidence/mu2.
+const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/mu2');
+async function shot(page: Page, name: string) {
+  if (!process.env.SW_SHOTS) return;
+  fs.mkdirSync(OUT, { recursive: true });
+  await page.screenshot({ path: path.join(OUT, `${name}-${test.info().project.name}.png`) });
+}
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
 interface Mock {
@@ -54,6 +64,7 @@ test.describe('settings: voice announcements', () => {
     await expect(tab(page).locator('[data-announce]')).toBeVisible();
     const test1 = tab(page).locator('[data-announce-speaker="sp-1"] [data-announce-test]');
     await expect(test1).toHaveAttribute('disabled', '');
+    await shot(page, 'announce-off');
     await tab(page).locator('[data-announce-engine]').fill('tts.demo_engine');
     await tab(page).locator('[data-announce-engine]').dispatchEvent('change');
     await tab(page).locator('[data-announce-enabled]').click();
@@ -62,6 +73,7 @@ test.describe('settings: voice announcements', () => {
     await test1.click();
     await expect.poll(() => m.calls.some((c) => c.path === 'test' && c.body?.ref === 'sp-1' && c.body?.scope === 'device')).toBe(true);
     await expect(tab(page).locator('[data-announce-history] tr')).toHaveCount(1);
+    await shot(page, 'announce-on');
     expect(errors).toEqual([]);
   });
 
