@@ -4,8 +4,11 @@
  * (contracts/fixtures/plan_geometry pins both) - and the pure maths of the editor tools: snapping, the nearest wall,
  * distances and areas in metres. No DOM and no Lit, so it runs in node (tests/unit-geometry.spec.ts).
  */
+import { glazingPrimitive, type Glazing, type GlazingPrim } from './glass-wall';
+
 export type Pt = [number, number];
-export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low';
+/** 'glass' = a window wall (glass curtain wall, document 2.1; map/glass-wall.ts). */
+export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low' | 'glass';
 export type OpeningKind = 'door' | 'window' | 'passage';
 export type Swing = 'left' | 'right' | 'double' | 'sliding' | 'none';
 export type Hinge = 'start' | 'end';
@@ -44,6 +47,8 @@ export interface GeomWall {
   /** Detector 1.3 (T087): a detected wall drawn as two thin lines with white between (hollow_v1); every detected wall
    * carries it, the editor does not draw it differently yet. Absent on hand-drawn and older walls. */
   hollow?: boolean;
+  /** A window wall's glazing (kind 'glass', document 2.1; map/glass-wall.ts). Absent = the defaults. */
+  glazing?: Glazing;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
@@ -199,7 +204,8 @@ export interface Calibration {
   reason: string | null;
 }
 export interface GeometryDoc {
-  schema_version: '2.0';
+  /** '2.1' when the document has a window wall (map/glass-wall.ts withDocVersion); else '2.0'. */
+  schema_version: '2.0' | '2.1';
   plan_version_id: string;
   floor_id: string;
   source: { sha256: string; file_name: string; mime: string; page: number };
@@ -224,14 +230,16 @@ export interface GeometryDoc {
   shared_spaces?: import('./shared-space').SharedSpaceEntry[];
 }
 
-export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number }
+/** `glass`: a part of a window wall (only then present, so every other wall's primitive is unchanged). */
+export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number; glass?: true }
+export type { GlazingPrim };
 export interface DoorPrim { kind: 'door'; id: string; gap: [Pt, Pt]; leaves: [Pt, Pt][]; arcs: { from: Pt; to: Pt; r: number; sweep: 0 | 1 }[] }
 export interface WindowPrim { kind: 'window'; id: string; gap: [Pt, Pt]; lines: [Pt, Pt][] }
 export interface PassagePrim { kind: 'passage'; id: string; gap: [Pt, Pt] }
 export interface LabelPrim { kind: 'label'; id: string; x: number; y: number; text: string; size: number }
 export interface ConnectorPrim { kind: 'connector'; id: string; ckind: ConnectorKind; points: Pt[]; width: number; arrow: { from: Pt; to: Pt }; label: string; lx: number; ly: number; level_from: string; level_to: string | null }
 export interface ObjectPrim { kind: 'object'; id: string; item_id: string; shape: ObjectShape; icon: string; color: string; level_id: string; cx: number; cy: number; w: number; h: number; rotation: number; corners: Pt[]; label: string | null; circuit_id: string | null; anchor: string | null; steps: [Pt, Pt][] }
-export type Primitive = WallPrim | DoorPrim | WindowPrim | PassagePrim | LabelPrim | ConnectorPrim | ObjectPrim;
+export type Primitive = WallPrim | GlazingPrim | DoorPrim | WindowPrim | PassagePrim | LabelPrim | ConnectorPrim | ObjectPrim;
 
 /** The 24 symbol ids of the library (plan-symbols.ts draws them; the export draws the same ids). */
 export const SYMBOL_IDS = ['box', 'cylinder', 'chair', 'table', 'sofa', 'bed', 'cabinet', 'lamp', 'panel', 'socket', 'extinguisher', 'smoke', 'exit', 'aed', 'medical', 'goal', 'mat', 'stairs', 'elevator', 'doorstation', 'tree', 'sanitary', 'office', 'parking'] as const;
@@ -384,15 +392,17 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
       cursor = Math.max(cursor, b);
     }
     if (cursor < total) keep.push([cursor, total]);
+    const glass = w.kind === 'glass';
     let part = 0;
     for (const [s0, s1] of keep) {
       if (s1 - s0 <= 0.01) continue;
       const seg = subPolyline(pts, cum, s0, s1);
       if (s0 <= 0) seg[0] = extend(seg[0], seg[1], wpx / 2);
       if (s1 >= total) seg[seg.length - 1] = extend(seg[seg.length - 1], seg[seg.length - 2], wpx / 2);
-      prims.push({ kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
+      prims.push(glass ? { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), glass: true } : { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
       part += 1;
     }
+    if (glass) prims.push(glazingPrimitive(w, pts, cum, wpx, pxPerM, cuts, rp, r2));
   }
   for (const o of [...doc.openings].sort(byId)) {
     const g = geo.get(o.wall_id);

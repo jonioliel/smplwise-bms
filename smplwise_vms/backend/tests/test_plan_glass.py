@@ -328,3 +328,14 @@ def test_dxf_export_route_carries_the_glazing(world):
     assert r.status_code == 200, r.text
     back = _read(r.content)
     assert "SW_GLAZING" in {lay.dxf.name for lay in back.layers} and "mullion" in _xkinds(back, "SW_GLAZING")
+
+
+def test_the_shared_glass_golden_is_what_the_renderer_draws():
+    """contracts/fixtures/plan_geometry/sample-v2-glass.json and its primitives: the map's buildPrimitives is checked
+    against the same file (frontend/tests/unit-glass-wall.spec.ts)."""
+    import pathlib
+    fix = pathlib.Path(__file__).resolve().parents[3] / "contracts" / "fixtures" / "plan_geometry"
+    doc = json.loads((fix / "sample-v2-glass.json").read_text(encoding="utf-8"))
+    assert pg.validate(doc) == [] and doc["schema_version"] == "2.1" == pg.document_version(doc)
+    golden = json.loads((fix / "sample-v2-glass.primitives.json").read_text(encoding="utf-8"))
+    assert render.structure_primitives(doc, 1000, 800) == golden["all"]
