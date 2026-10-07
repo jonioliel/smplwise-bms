@@ -126,7 +126,9 @@ test.describe('settings: voice announcements', () => {
     await shot(page, 'announce-extras');
     if (process.env.SW_SHOTS) { // the whole tab (volume, pause, quiet hours, notification routing) as one image for the guide
       fs.mkdirSync(OUT, { recursive: true });
-      await tab(page).screenshot({ path: path.join(OUT, `announce-extras-tab-${test.info().project.name}.png`) });
+      await page.setViewportSize({ width: 1280, height: 1700 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: path.join(OUT, `announce-extras-tab-${test.info().project.name}.png`) });
     }
   });
 

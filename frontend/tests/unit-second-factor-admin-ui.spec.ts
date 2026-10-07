@@ -184,7 +184,7 @@ test('user drawer: the policy override select offers inherit / optional / requir
   await expect(select).toHaveValue('inherit');
   await select.selectOption('required');
   await expect(select).toHaveValue('required');
-  await guideShot(drawer.locator('[data-second-factor-policy-user]'), 'tfa2-user-policy'); // SW_SHOTS only
+  await guideShot(drawer, 'tfa2-user-policy'); // SW_SHOTS only
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
   expect(mock.overrides.user['u-dana']).toBe('required');
   // another user shows their own stored value, not the previous user's
