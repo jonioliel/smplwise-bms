@@ -11,6 +11,7 @@
  */
 import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
+import { glassVerticals, glazingOf, panelStateId, type GlazingPrim } from './glass-wall';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
 import { anchor3d } from './anchor-3d';
 import type { MeshPart } from '../api/plan-catalog';
@@ -612,15 +613,104 @@ class Builder {
     if (o.kind === 'window') this.box(`open:${o.id}#sill`, 'marker', ud, [cx, y0 - MARKER_T_M / 2, cz], [len + MARKER_T_M, MARKER_T_M, depth], yaw, 'danger', levelId);
   }
 
+  /** One part of a window wall (document 2.1): per straight run a sill in the structure colour from the wall's base up to
+   * the glazing, a pane of glass (the map-glass token: the glass material, translucent by the glazing's opacity, no
+   * shadow) up to the glazing's top, a head over it up to the wall's height, a rail at the pane's bottom and top, and a
+   * post at both ends of the part (a free end, or the jamb beside a door cut into the wall). The mullions between the
+   * panels come from the glazing primitive (glazing()). Parts "wall:<id>#<part>[.<run>]:<piece>". */
+  private glassWall(p: WallPrim, w: GeomWall): void {
+    const lv = this.level(w.level_id);
+    const h = this.wallHeight(w, lv);
+    const base = lv.elevation_m + (w.base_z_m || 0);
+    const t = this.m(p.width);
+    const g = glazingOf(w);
+    const { sill, top } = glassVerticals(g, h);
+    const rail = Math.min(Math.max(g.mullion_m, 0.02), Math.max(0.01, (top - sill) / 4));
+    const ud = { id: w.id, kind: 'wall' };
+    const frame = 'map-structure';
+    const last = p.points.length - 1;
+    for (let i = 1; i <= last; i++) {
+      let [ax, az] = [this.m(p.points[i - 1][0]), this.m(p.points[i - 1][1])];
+      let [bx, bz] = [this.m(p.points[i][0]), this.m(p.points[i][1])];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 1e-4) continue;
+      const [ux, uz] = [(bx - ax) / len, (bz - az) / len];
+      if (i > 1) [ax, az] = [ax - (ux * t) / 2, az - (uz * t) / 2];
+      if (i < last) [bx, bz] = [bx + (ux * t) / 2, bz + (uz * t) / 2];
+      const run = Math.hypot(bx - ax, bz - az);
+      const yaw = -deg(Math.atan2(uz, ux));
+      const [cx, cz] = [(ax + bx) / 2, (az + bz) / 2];
+      const key = `wall:${w.id}#${p.part}${i > 1 ? `.${i - 1}` : ''}`;
+      if (sill > 0.01) this.box(`${key}:sill`, 'sill', ud, [cx, base + sill / 2, cz], [run, sill, t], yaw, frame, lv.id);
+      if (top - sill > 0.01) {
+        this.box(`${key}:glass`, 'window', ud, [cx, base + (sill + top) / 2, cz], [run, top - sill, GLASS_THICKNESS_M], yaw, 'map-glass', lv.id, r4(g.opacity), 0, false);
+        this.box(`${key}:rail0`, 'sill', ud, [cx, base + sill + rail / 2, cz], [run, rail, t], yaw, frame, lv.id);
+        this.box(`${key}:rail1`, 'head', ud, [cx, base + top - rail / 2, cz], [run, rail, t], yaw, frame, lv.id);
+      }
+      if (h - top > 0.01) this.box(`${key}:head`, 'head', ud, [cx, base + (top + h) / 2, cz], [run, h - top, t], yaw, frame, lv.id);
+    }
+    // the posts at the part's two ends, a wall thickness long so a free end's cap is solid
+    const ends: [Pt, Pt][] = [[p.points[0], p.points[1]], [p.points[last], p.points[last - 1]]];
+    ends.forEach(([e, n], k) => {
+      const [ex, ez, nx, nz] = [this.m(e[0]), this.m(e[1]), this.m(n[0]), this.m(n[1])];
+      const len = Math.hypot(nx - ex, nz - ez);
+      if (len < 1e-4) return;
+      const [ux, uz] = [(nx - ex) / len, (nz - ez) / len];
+      const along = Math.min(t, len);
+      this.box(`wall:${w.id}#${p.part}:post${k}`, 'wall', ud, [ex + (ux * along) / 2, base + h / 2, ez + (uz * along) / 2], [along, h, t], -deg(Math.atan2(uz, ux)), frame, lv.id);
+    });
+  }
+
+  /** The mullions of a window wall: a post per tick of the glazing primitive from the sill to the glazing's top, as wide
+   * as the mullion and as deep as the wall; and the red frame of an operable panel the state layer reports open. */
+  private glazing(p: GlazingPrim, w: GeomWall): void {
+    const lv = this.level(w.level_id);
+    const h = this.wallHeight(w, lv);
+    const base = lv.elevation_m + (w.base_z_m || 0);
+    const g = glazingOf(w);
+    const { sill, top } = glassVerticals(g, h);
+    const t = this.m(p.width);
+    const ud = { id: w.id, kind: 'wall' };
+    if (top - sill > 0.01) {
+      p.mullions.forEach(([a, b], i) => {
+        const [ax, az, bx, bz] = [this.m(a[0]), this.m(a[1]), this.m(b[0]), this.m(b[1])];
+        const across = Math.hypot(bx - ax, bz - az);
+        if (across < 1e-6) return;
+        // the tick runs across the wall: the wall runs at a right angle to it
+        const yaw = -deg(Math.atan2(-(bx - ax) / across, (bz - az) / across));
+        this.box(`glazing:${w.id}#m${i}`, 'wall', ud, [(ax + bx) / 2, base + (sill + top) / 2, (az + bz) / 2], [Math.max(0.02, g.mullion_m), top - sill, t], yaw, 'map-structure', lv.id);
+      });
+    }
+    const open = new Set(this.input.roomStates?.openOpenings ?? []);
+    for (const q of p.panels) {
+      if (!q.operation || !open.has(panelStateId(w.id, q.index))) continue;
+      const g0: [number, number] = [this.m(q.a[0]), this.m(q.a[1])];
+      const g1: [number, number] = [this.m(q.b[0]), this.m(q.b[1])];
+      const len = Math.hypot(g1[0] - g0[0], g1[1] - g0[1]);
+      if (len < 1e-4) continue;
+      const pseudo = { id: panelStateId(w.id, q.index), kind: 'window', sill_m: sill, height_m: Math.max(0.05, top - sill) } as GeomOpening;
+      this.openingMarker(pseudo, g0, g1, len, -deg(Math.atan2(g1[1] - g0[1], g1[0] - g0[0])), t, base, lv.id, { id: w.id, kind: 'wall' });
+    }
+  }
+
   structure(prims: Primitive[]): void {
     if (!this.layers.structure) return;
     const { doc } = this.input;
     const walls = new Map(doc.walls.map((w) => [w.id, w]));
     const openings = new Map(doc.openings.map((o) => [o.id, o]));
     for (const p of prims) {
+      if (p.kind === 'glazing') {
+        const w = walls.get(p.id);
+        if (w) this.glazing(p, w);
+        continue;
+      }
       if (p.kind !== 'wall') continue;
       const w = walls.get(p.id);
       if (!w) continue;
+      if (p.glass) {
+        this.glassWall(p, w);
+        continue;
+      }
       const lv = this.level(w.level_id);
       const h = this.wallHeight(w, lv);
       const base = lv.elevation_m + (w.base_z_m || 0);

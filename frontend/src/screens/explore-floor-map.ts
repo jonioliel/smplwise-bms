@@ -34,6 +34,7 @@ import '../components/sw-toggle';
 import { ACTION_ERROR_LABEL, ACTION_STATUS_LABEL, awaitAction, domainLabel, entityMarkerKind, entityTone, fmtTime, runAction, stateLabel, subscribeHa, type HaActionArgSpec, type HaActionRecord, type HaActionSpec, type HaEntity } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import { buildPrimitives, circuitToken, type AnchorPosition, type CatalogLookup, type GeometryDoc } from '../map/geometry';
+import { panelStateId } from '../map/glass-wall';
 import { defaultLevelId } from '../map/studio-ops';
 import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, temperatureText, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
 import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
@@ -1525,6 +1526,16 @@ export class ExploreFloorMap extends LitElement {
         const w = o ? walls.get(o.wall_id) : undefined;
         if (!o || !w) continue;
         openings.push({ id: o.id, kind: p.kind, x: (p.gap[0][0] + p.gap[1][0]) / 2 / b.width, y: (p.gap[0][1] + p.gap[1][1]) / 2 / b.height, level_id: w.level_id, entity_id: o.anchor_ref?.resource_type === 'ha_entity' ? o.anchor_ref.resource_id : null });
+      } else if (p.kind === 'glazing') {
+        // a window wall's panels that open (document 2.1): each is an opening of the state layer under its own id, bound
+        // to its entity when it has one; a fixed panel is glass, not an opening
+        const w = walls.get(p.id);
+        if (!w) continue;
+        for (const q of p.panels) {
+          if (!q.operation) continue;
+          openings.push({ id: panelStateId(p.id, q.index), kind: 'window', x: (q.a[0] + q.b[0]) / 2 / b.width, y: (q.a[1] + q.b[1]) / 2 / b.height, level_id: w.level_id,
+            entity_id: q.anchor?.startsWith('ha_entity:') ? q.anchor.slice('ha_entity:'.length) : null });
+        }
       } else if (p.kind === 'object' && (p.color === 'light' || p.circuit_id !== null)) {
         lamps.push({ x: p.cx / b.width, y: p.cy / b.height, level_id: p.level_id, circuit: p.circuit_id, entity: p.anchor?.startsWith('ha_entity:') ? p.anchor.slice('ha_entity:'.length) : null });
       }

@@ -15,6 +15,8 @@ import type { SaveState } from '../map/studio-controller';
 import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 import { pkgT } from '../i18n/plan-package';
+import { glassT, operationLabel, tintLabel } from '../i18n/plan-glass';
+import { AUTO_MAX_M, AUTO_MIN_M, GLAZED_HEIGHT_RANGE, MULLION_RANGE, OPERATIONS, PANEL_WIDTH_RANGE, SILL_RANGE, TINTS, applyAutoDivide, glazingOf, panelCount, patchGlazing, patchOperable, toGlassPatch, toSolidPatch, toggleOperable, type Glazing, type GlassTint, type PanelOperation } from '../map/glass-wall';
 
 export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label';
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
@@ -46,7 +48,18 @@ export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?:
   { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
 ];
 
-const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך' };
+const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך', glass: 'קיר חלונות' };
+/** The kind's name in the kind choice; the window wall's follows the page language (i18n/plan-glass). */
+const kindLabel = (k: WallKind): string => (k === 'glass' ? glassT('kind') : WALL_KIND_LABEL[k]);
+/** The solid kind a window wall converts back to with one click. */
+const SOLID_FALLBACK: Exclude<WallKind, 'glass'> = 'exterior';
+/** The patch a kind choice makes: to glass and back through glass-wall's conversions (the glazing and the frame depth
+ * follow); between solid kinds only the kind. */
+export function kindPatch(w: GeomWall, k: WallKind): Partial<GeomWall> {
+  if (k === w.kind) return {};
+  if (k === 'glass') return toGlassPatch(w);
+  return w.kind === 'glass' ? toSolidPatch(k) : { kind: k };
+}
 const OPENING_KIND_LABEL: Record<OpeningKind, string> = { door: 'דלת', window: 'חלון', passage: 'מעבר' };
 const SWING_LABEL: Record<Swing, string> = { right: 'לצד ימין של הקיר', left: 'לצד שמאל של הקיר', double: 'כנף כפולה', sliding: 'הזזה', none: 'ללא כנף' };
 const HINGE_LABEL: Record<Hinge, string> = { start: 'בצד תחילת הקיר', end: 'בצד סוף הקיר' };
@@ -123,6 +136,10 @@ export interface StudioView {
   levels: GeomLevel[];
   /** The select tool (0.1.87): the selected item's inspector only - no drawing modes, lists, copy or exports. */
   compact?: boolean;
+  /** A phone: a window wall's glazing is shown, edited on a desktop (as arrays and wall drawing). */
+  phone?: boolean;
+  /** The entities an operable glass panel can be bound to (the floor's entity anchors that report open / closed). */
+  entityChoices?: { id: string; name: string }[];
 }
 
 export interface StudioActions {
@@ -143,6 +160,8 @@ export interface StudioActions {
   calibrate(): void;
   retry(): void;
   setLevel(id: string, levelId: string): void;
+  /** A short message in the editor's info line (a bulk layout that found nothing to do). */
+  say?(text: string): void;
 }
 
 const numberOf = (e: Event): number => parseFloat((e.target as HTMLInputElement).value);
@@ -200,7 +219,7 @@ function renderWallDefaults(d: WallDefaults, a: StudioActions) {
     <sw-field label="עובי קיר (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr data-wall-thickness .value=${String(d.thickness_m)}
       @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.setWallDefaults({ ...d, thickness_m: x }); }} /></sw-field>
     <sw-field label="סוג קיר"><select aria-label="סוג קיר" data-wall-kind @change=${(e: Event) => a.setWallDefaults({ ...d, kind: (e.target as HTMLSelectElement).value as WallKind })}>
-      ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${WALL_KIND_LABEL[k]}</option>`)}
+      ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${kindLabel(k)}</option>`)}
     </select></sw-field>
   </div>`;
 }
@@ -228,16 +247,17 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const len = lengthPx(w.polyline, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   return html`<div class="sel" data-selected-wall=${w.id}>
-    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
+    <div class="selhead"><strong>${w.kind === 'glass' ? kindLabel(w.kind) : `קיר ${WALL_KIND_LABEL[w.kind]}`}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
     ${renderSourceBadge(w)}
     ${w.external_ids?.origin === 'door_tool' ? html`<div class="note" data-wall-door-tool>קטע קיר שנוסף עם דלת בכלי "סמן דלת": בדוק את עוביו ואת החיבור לקירות הסמוכים.</div>` : nothing}
     <div class="two">
       <sw-field label="עובי (מ׳)"><input type="number" min="0.01" max="3" step="0.01" data-ltr .value=${String(w.thickness_m)}
         @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) a.patchWall(w.id, { thickness_m: x }); }} /></sw-field>
-      <sw-field label="סוג"><select aria-label="סוג קיר" @change=${(e: Event) => a.patchWall(w.id, { kind: (e.target as HTMLSelectElement).value as WallKind })}>
-        ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${w.kind === k}>${WALL_KIND_LABEL[k]}</option>`)}
+      <sw-field label="סוג"><select aria-label="סוג קיר" data-selected-wall-kind ?disabled=${!!v.phone && w.kind === 'glass'} @change=${(e: Event) => a.patchWall(w.id, kindPatch(w, (e.target as HTMLSelectElement).value as WallKind))}>
+        ${(Object.keys(WALL_KIND_LABEL) as WallKind[]).map((k) => html`<option value=${k} ?selected=${w.kind === k} ?disabled=${!!v.phone && k === 'glass' && w.kind !== 'glass'}>${kindLabel(k)}</option>`)}
       </select></sw-field>
     </div>
+    ${w.kind === 'glass' ? renderGlazing(w, v, a, len) : nothing}
     <sw-field label="גובה (מ׳, ריק = עד התקרה)"><input type="number" min="0.1" max="50" step="0.1" data-ltr .value=${w.height_m === null ? '' : String(w.height_m)}
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
@@ -245,7 +265,86 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     ${v.mode === 'select' && v.sel?.vertex !== undefined
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
+    <div class="btns">${w.kind === 'glass'
+        ? html`<sw-button size="sm" variant="ghost" data-wall-to-solid ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, SOLID_FALLBACK))}>${glassT('toSolid')}</sw-button>`
+        : html`<sw-button size="sm" variant="ghost" data-wall-to-glass ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, 'glass'))}>${glassT('toGlass')}</sw-button>`}</div>
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
+  </div>`;
+}
+
+/** The bulk layout's range (the inputs beside "חלוקה שווה"): panel state that is not part of the document, kept for the
+ * session like the editor's other tool settings. */
+const glazingUi: { range: [number, number] } = { range: [AUTO_MIN_M, AUTO_MAX_M] };
+
+/** The glazing of a selected window wall (management, the studio panel only): the panel layout (nominal width or a
+ * fixed count, bulk equal division within min / max), the mullion, sill and glazed height, the tint, and the panels that
+ * open with their operation and bound entity. Each change is one patchWall - one undo step. On a phone it is shown, not
+ * edited. */
+function renderGlazing(w: GeomWall, v: StudioView, a: StudioActions, lengthM: number) {
+  const g = glazingOf(w);
+  const n = panelCount(lengthM, g);
+  const ro = !!v.phone;
+  const set = (patch: Partial<Glazing>) => a.patchWall(w.id, { glazing: patchGlazing(w, patch, lengthM) });
+  const num = (e: Event, [lo, hi]: readonly [number, number], apply: (x: number) => void) => {
+    const x = numberOf(e);
+    if (Number.isFinite(x) && x >= lo && x <= hi) apply(x);
+  };
+  const optional = (e: Event, range: readonly [number, number], apply: (x: number | null) => void) => {
+    if (!(e.target as HTMLInputElement).value.trim()) apply(null);
+    else num(e, range, apply);
+  };
+  const operable = new Set(g.operable.map((o) => o.panel));
+  const choices = (current: string | null) => {
+    const list = v.entityChoices ?? [];
+    return current && !list.some((c) => c.id === current) ? [...list, { id: current, name: current }] : list;
+  };
+  const auto = () => {
+    const [lo, hi] = glazingUi.range;
+    const next = applyAutoDivide(w, lengthM, Math.min(lo, hi), Math.max(lo, hi));
+    if (next) a.patchWall(w.id, { glazing: next });
+    else a.say?.(glassT('autoNone')); // nothing fits: the document is unchanged, a short message says so
+  };
+  return html`<div class="glazing" data-glazing-inspector=${w.id} data-glazing-panels=${n}>
+    <div class="selhead"><strong>${glassT('glazing')}</strong><span class="muted" data-glazing-summary>${n} ${glassT('panels')} · ${(lengthM / n).toFixed(2)} מ׳</span></div>
+    <div class="two">
+      <sw-field label=${glassT('panelWidth')}><input type="number" data-ltr data-glazing-width min=${PANEL_WIDTH_RANGE[0]} max=${PANEL_WIDTH_RANGE[1]} step="0.05" ?disabled=${ro} .value=${String(g.panel_width_m)}
+        @change=${(e: Event) => num(e, PANEL_WIDTH_RANGE, (x) => set({ panel_width_m: x, panel_count: null }))} /></sw-field>
+      <sw-field label=${glassT('panelCount')}><input type="number" data-ltr data-glazing-count min="1" max="200" step="1" ?disabled=${ro} placeholder=${glassT('panelCountAuto')} .value=${g.panel_count === null ? '' : String(g.panel_count)}
+        @change=${(e: Event) => optional(e, [1, 200], (x) => set({ panel_count: x === null ? null : Math.round(x) }))} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label=${glassT('autoMin')}><input type="number" data-ltr data-glazing-auto-min min="0.2" max="6" step="0.05" ?disabled=${ro} .value=${String(glazingUi.range[0])}
+        @change=${(e: Event) => num(e, PANEL_WIDTH_RANGE, (x) => (glazingUi.range = [x, glazingUi.range[1]]))} /></sw-field>
+      <sw-field label=${glassT('autoMax')}><input type="number" data-ltr data-glazing-auto-max min="0.2" max="6" step="0.05" ?disabled=${ro} .value=${String(glazingUi.range[1])}
+        @change=${(e: Event) => num(e, PANEL_WIDTH_RANGE, (x) => (glazingUi.range = [glazingUi.range[0], x]))} /></sw-field>
+    </div>
+    <div class="btns"><sw-button size="sm" data-glazing-auto ?disabled=${ro} title=${ro ? glassT('desktopOnly') : nothing} @click=${auto}>${glassT('autoDivide')}</sw-button></div>
+    <div class="two">
+      <sw-field label=${glassT('mullion')}><input type="number" data-ltr data-glazing-mullion min=${MULLION_RANGE[0]} max=${MULLION_RANGE[1]} step="0.01" ?disabled=${ro} .value=${String(g.mullion_m)}
+        @change=${(e: Event) => num(e, MULLION_RANGE, (x) => set({ mullion_m: x }))} /></sw-field>
+      <sw-field label=${glassT('sill')}><input type="number" data-ltr data-glazing-sill min=${SILL_RANGE[0]} max=${SILL_RANGE[1]} step="0.05" ?disabled=${ro} .value=${String(g.sill_m)}
+        @change=${(e: Event) => num(e, SILL_RANGE, (x) => set({ sill_m: x }))} /></sw-field>
+    </div>
+    <div class="two">
+      <sw-field label=${glassT('glazedHeight')}><input type="number" data-ltr data-glazing-height min=${GLAZED_HEIGHT_RANGE[0]} max=${GLAZED_HEIGHT_RANGE[1]} step="0.05" ?disabled=${ro} placeholder=${glassT('glazedHeightAuto')} .value=${g.glazed_height_m === null ? '' : String(g.glazed_height_m)}
+        @change=${(e: Event) => optional(e, GLAZED_HEIGHT_RANGE, (x) => set({ glazed_height_m: x }))} /></sw-field>
+      <sw-field label=${glassT('tint')}><select data-glazing-tint ?disabled=${ro} @change=${(e: Event) => set({ tint: (e.target as HTMLSelectElement).value as GlassTint })}>
+        ${TINTS.map((t) => html`<option value=${t} ?selected=${g.tint === t}>${tintLabel(t)}</option>`)}</select></sw-field>
+    </div>
+    <sw-field label=${glassT('operable')}><div class="panelchips" role="group" aria-label=${glassT('operable')} data-glazing-chips>
+      ${Array.from({ length: n }, (_, i) => html`<button type="button" class=${operable.has(i) ? 'on' : ''} data-glazing-panel=${i} aria-pressed=${operable.has(i) ? 'true' : 'false'} ?disabled=${ro}
+        aria-label=${`${glassT('panel')} ${i + 1}`} @click=${() => a.patchWall(w.id, { glazing: toggleOperable(g, i) })}>${i + 1}</button>`)}
+    </div></sw-field>
+    ${g.operable.map((o) => html`<div class="two" data-operable-row=${o.panel}>
+      <sw-field label=${`${glassT('panel')} ${o.panel + 1} · ${glassT('operation')}`}><select data-operable-operation ?disabled=${ro}
+        @change=${(e: Event) => a.patchWall(w.id, { glazing: patchOperable(g, o.panel, { operation: (e.target as HTMLSelectElement).value as PanelOperation }) })}>
+        ${OPERATIONS.map((op) => html`<option value=${op} ?selected=${o.operation === op}>${operationLabel(op)}</option>`)}</select></sw-field>
+      <sw-field label=${glassT('entity')}><select data-operable-entity ?disabled=${ro}
+        @change=${(e: Event) => { const id = (e.target as HTMLSelectElement).value; a.patchWall(w.id, { glazing: patchOperable(g, o.panel, { anchor_ref: id ? { resource_type: 'ha_entity', resource_id: id } : null }) }); }}>
+        <option value="" ?selected=${!o.anchor_ref}>${glassT('noEntity')}</option>
+        ${choices(o.anchor_ref?.resource_id ?? null).map((c) => html`<option value=${c.id} ?selected=${o.anchor_ref?.resource_id === c.id}>${c.name}</option>`)}
+      </select></sw-field>
+    </div>`)}
   </div>`;
 }
 
@@ -1525,6 +1624,40 @@ export const studioPanelStyles = css`
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+  /* A window wall's glazing: its own block under the wall fields; the panels that open are toggled as numbered chips. */
+  .glazing {
+    display: grid;
+    gap: 8px;
+    border-block-start: 1px dashed var(--sw-border);
+    padding-block-start: 8px;
+  }
+  .panelchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .panelchips button {
+    min-width: 28px;
+    min-height: 28px;
+    border: 1px solid var(--sw-border);
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    border-radius: var(--sw-r-sm, 6px);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .panelchips button.on {
+    background: var(--sw-accent);
+    border-color: var(--sw-accent);
+    color: #fff;
+  }
+  .panelchips button:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+  .panelchips button:focus-visible,
   .modes button:focus-visible,
   .btnlink:focus-visible,
   .issue:focus-visible {

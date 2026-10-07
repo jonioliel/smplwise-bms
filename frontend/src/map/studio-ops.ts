@@ -2,6 +2,7 @@
  * a stack of documents and nothing is ever mutated in place. */
 import { DEFAULT_LEVEL_ID, MAX_STAIR_STEPS, OPENING_DEFAULTS, STAIR_GOING_M, isClosedOutline, objectCorners, pointAt, rotated, stairPath, type ConnectorKind, type StairShape, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
+import { GLAZING_DEFAULTS, withDocVersion } from './glass-wall';
 
 export interface WallDefaults {
   thickness_m: number;
@@ -58,7 +59,9 @@ export function addWall(doc: GeometryDoc, points: Pt[], defaults: WallDefaults):
   const id = newId();
   const wall: GeomWall = { id, level_id: defaultLevelId(doc), polyline: points.map(clampPt), thickness_m: defaults.thickness_m, height_m: null, base_z_m: 0,
     kind: defaults.kind, confidence: 1, source: 'manual', locked: false, external_ids: {} };
-  return { doc: { ...doc, walls: [...doc.walls, wall] }, id };
+  if (defaults.kind === 'glass') wall.glazing = { ...GLAZING_DEFAULTS, operable: [] }; // a window wall drawn like any wall
+  // withDocVersion: a window wall makes the document 2.1 (the server stamps the same on save)
+  return { doc: withDocVersion({ ...doc, walls: [...doc.walls, wall] }), id };
 }
 
 export function addOpening(doc: GeometryDoc, wallId: string, t: number, kind: OpeningKind): { doc: GeometryDoc; id: string } {
@@ -68,7 +71,13 @@ export function addOpening(doc: GeometryDoc, wallId: string, t: number, kind: Op
 }
 
 export function patchWall(doc: GeometryDoc, id: string, patch: Partial<GeomWall>): GeometryDoc {
-  return { ...doc, walls: doc.walls.map((w) => (w.id === id ? { ...w, ...patch, id: w.id } : w)) };
+  const walls = doc.walls.map((w) => {
+    if (w.id !== id) return w;
+    const next: GeomWall = { ...w, ...patch, id: w.id };
+    if ('glazing' in patch && patch.glazing === undefined) delete next.glazing; // a window wall converted back: no glazing key at all
+    return next;
+  });
+  return withDocVersion({ ...doc, walls });
 }
 
 export function patchOpening(doc: GeometryDoc, id: string, patch: Partial<GeomOpening>): GeometryDoc {
@@ -159,7 +168,7 @@ export function removeCorner(doc: GeometryDoc, id: string, index: number): { doc
 /** A wall takes its openings with it; an object leaves its group and its circuit and takes the connector derived from it;
  * a group leaves its members in place, unlinked; a connector and a circuit simply go. */
 export function removeItem(doc: GeometryDoc, id: string): GeometryDoc {
-  if (doc.walls.some((w) => w.id === id)) return { ...doc, walls: doc.walls.filter((w) => w.id !== id), openings: doc.openings.filter((o) => o.wall_id !== id) };
+  if (doc.walls.some((w) => w.id === id)) return withDocVersion({ ...doc, walls: doc.walls.filter((w) => w.id !== id), openings: doc.openings.filter((o) => o.wall_id !== id) });
   if (doc.objects.some((o) => o.id === id)) {
     return {
       ...doc,
