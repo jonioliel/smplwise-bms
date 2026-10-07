@@ -10,7 +10,8 @@ Format choices:
 - Axes: x to the right, y up (CAD convention); the plan's pixel y points down, so y is mirrored about the plan height.
   The origin is the plan's bottom-left corner.
 - Layers (fixed names, fixed colours): SW_WALLS, SW_OPENINGS, SW_ROOMS, SW_DEVICES, SW_OBJECTS, SW_CONNECTORS,
-  SW_LABELS. Every entity carries the id of the item it was drawn from as XDATA of the application SMPLWISE, so a CAD
+  SW_LABELS, and SW_GLAZING (window walls, document 2.1) only on a plan that has a glass wall.
+  Every entity carries the id of the item it was drawn from as XDATA of the application SMPLWISE, so a CAD
   user (or a later import) can tell the items apart.
 - Text: MTEXT in the style SW_TEXT (Arial, which has Hebrew glyphs). Text is cleaned first: control characters and the
   bidi embedding / override marks are removed, MTEXT's own control characters (backslash, braces) are escaped and a
