@@ -7,7 +7,7 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
-import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, wallLengthPx, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
@@ -15,14 +15,18 @@ import type { SaveState } from '../map/studio-controller';
 import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag, openingRange, withTag, withoutTag, type AlignMode, type WallDefaults } from '../map/studio-ops';
 import { symbolOf } from '../map/plan-symbols';
 import { pkgT } from '../i18n/plan-package';
+import { curveT } from '../i18n/plan-curves';
+import { cornerRoundable, maxCornerRadiusM, minRadiusM, segmentRadiusM } from '../map/curve-ops';
 
-export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label';
+export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label' | 'curve' | 'arc';
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
 export interface GeomSel {
   id: string;
   kind: GeomKind;
   /** A selected corner of the selected wall (select mode): the arrow keys move it. */
   vertex?: number;
+  /** Curve mode: the selected segment of the selected wall (its radius is set in the panel). */
+  segment?: number;
 }
 
 /** The second help line of the opening modes: an existing opening is taken, not doubled (owner report on 0.1.82). */
@@ -43,6 +47,8 @@ export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?:
   { id: 'markdoor', label: 'סמן דלת', hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP },
   { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
   { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.', drag: OPENING_DRAG_HINT },
+  { id: 'curve', label: curveT('modeCurve'), hint: curveT('hintCurve'), tip: curveT('tipCurve') },
+  { id: 'arc', label: curveT('modeArc'), hint: curveT('hintArc') },
   { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
 ];
 
@@ -143,6 +149,9 @@ export interface StudioActions {
   calibrate(): void;
   retry(): void;
   setLevel(id: string, levelId: string): void;
+  /** Curve mode: a segment's radius in metres (null = straight), a corner rounded with a radius in metres. */
+  setSegmentRadius?(id: string, seg: number, radiusM: number | null): void;
+  roundCorner?(id: string, index: number, radiusM: number): void;
 }
 
 const numberOf = (e: Event): number => parseFloat((e.target as HTMLInputElement).value);
@@ -166,7 +175,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
   }
   return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
     <div class="modes" role="group" aria-label="כלי ציור">
-      ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-keyshortcuts=${m.id === 'markdoor' ? 'D' : nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
+      ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-keyshortcuts=${m.id === 'markdoor' ? 'D' : m.id === 'curve' ? 'C' : nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
     </div>
     <div class="note">${mode.hint}</div>
     ${mode.drag ? html`<div class="note" data-studio-drag-hint>${mode.drag}</div>` : nothing}
@@ -225,7 +234,7 @@ function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: n
 }
 
 function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
-  const len = lengthPx(w.polyline, v.W, v.H) * scale;
+  const len = wallLengthPx(w, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   return html`<div class="sel" data-selected-wall=${w.id}>
     <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
@@ -242,6 +251,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
       @change=${(e: Event) => { const raw = (e.target as HTMLInputElement).value.trim(); const x = parseFloat(raw); if (!raw) a.patchWall(w.id, { height_m: null }); else if (x > 0 && x <= 50) a.patchWall(w.id, { height_m: x }); }} /></sw-field>
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
     ${renderItemTags(w.tags, (tags) => a.patchWall(w.id, { tags }))}
+    ${v.mode === 'curve' ? renderCurve(w, v, a, scale) : nothing}
     ${v.mode === 'select' && v.sel?.vertex !== undefined
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
@@ -249,12 +259,44 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   </div>`;
 }
 
+/** Curve mode (owner request 2026-10-08): the selected segment's radius (metres; empty = straight) with a straighten
+ * button, or the selected corner's rounding radius. Management of the studio only: nothing reaches the operator maps. */
+function renderCurve(w: GeomWall, v: StudioView, a: StudioActions, scale: number) {
+  const seg = v.sel?.id === w.id ? v.sel.segment : undefined;
+  const corner = v.sel?.id === w.id ? v.sel.vertex : undefined;
+  if (seg !== undefined && seg < w.polyline.length - 1) {
+    const r = segmentRadiusM(w, seg, v.W, v.H, scale);
+    const min = minRadiusM(w, seg, v.W, v.H, scale);
+    const set = (e: Event) => {
+      const raw = (e.target as HTMLInputElement).value.trim();
+      const x = parseFloat(raw);
+      if (!raw) a.setSegmentRadius?.(w.id, seg, null);
+      else if (x > 0) a.setSegmentRadius?.(w.id, seg, x);
+    };
+    return html`<div class="two" data-curve-segment=${seg}>
+      <sw-field label=${`${curveT('segment')} ${seg + 1} · ${curveT('radius')}`}><input type="number" min=${min.toFixed(2)} step="0.05" data-ltr data-segment-radius
+        placeholder=${curveT('straight')} .value=${r === null ? '' : r.toFixed(2)} @change=${set} /></sw-field>
+      <div class="btns"><sw-button size="sm" variant="ghost" data-segment-straighten ?disabled=${r === null} @click=${() => a.setSegmentRadius?.(w.id, seg, null)}>${curveT('straighten')}</sw-button></div>
+    </div>`;
+  }
+  if (corner !== undefined && cornerRoundable(w, corner, v.W, v.H)) {
+    const max = maxCornerRadiusM(w, corner, v.W, v.H, scale);
+    let typed = Math.min(0.5, max);
+    return html`<div class="two" data-curve-corner=${corner}>
+      <sw-field label=${`${curveT('roundCorner')} ${corner + 1} · ${curveT('radius')}`}><input type="number" min="0.01" max=${max.toFixed(2)} step="0.05" data-ltr data-corner-radius
+        .value=${typed.toFixed(2)} @change=${(e: Event) => { typed = parseFloat((e.target as HTMLInputElement).value); }} /></sw-field>
+      <div class="btns"><sw-button size="sm" data-corner-apply @click=${(e: Event) => { const inp = (e.currentTarget as HTMLElement).closest('[data-curve-corner]')?.querySelector('input'); const x = parseFloat(inp?.value ?? String(typed)); if (x > 0) a.roundCorner?.(w.id, corner, x); }}>${curveT('apply')}</sw-button></div>
+    </div>`;
+  }
+  return nothing;
+}
+
 /** Where the opening sits on its wall, typed exactly: metres from the wall's start to the opening's centre on a calibrated
  * plan, a percentage of the wall before calibration. Kept inside the wall (the validator's opening_outside_wall). The
  * value follows every move - a drag (the panel is given the drag's preview), the arrow keys, undo. */
 function renderPlacement(o: GeomOpening, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
   const w = v.doc.walls.find((x) => x.id === o.wall_id);
-  const lengthM = w ? lengthPx(w.polyline, v.W, v.H) * scale : 0;
+  const lengthM = w ? wallLengthPx(w, v.W, v.H) * scale : 0;
   if (!(lengthM > 0)) return nothing;
   const [lo, hi] = openingRange(o.width_m, lengthM);
   // metres: two decimals; the percentage: one
@@ -850,6 +892,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: 'ציור קיר (מבנה)', desc: 'Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה' },
       { keys: 'D', desc: 'סמן דלת (כלי המבנה): לחיצה על סמל דלת מציעה אותה; Enter מאשר, Esc מבטל את ההצעה' },
+      { keys: 'C', desc: curveT('tipCurve') },
       { keys: 'ציור אזור', desc: 'לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל' },
       { keys: 'מפלסים ומחברים', desc: 'Esc מבטל את נקודת ההתחלה שנבחרה למחבר' },
       { keys: 'מדידה / כיול', desc: 'Esc מנקה את הנקודות שנבחרו עד כה' },

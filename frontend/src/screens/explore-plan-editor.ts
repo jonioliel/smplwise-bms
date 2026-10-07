@@ -40,6 +40,9 @@ import { productSettings } from '../api/prefs';
 import { cap } from '../api/session';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
+import { addArcWall, bendSegment, roundCorner, setSegmentRadius, straightenSegment } from '../map/curve-ops';
+import { bulgeThrough, sample as sampleArc } from '../map/wall-path';
+import { curveT } from '../i18n/plan-curves';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
   GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel, addStair, confirmPlacement, moveConnector, rotateConnector, STAIR_ALIASES } from '../map/studio-ops';
@@ -215,6 +218,8 @@ export class ExplorePlanEditor extends LitElement {
   private studio = new StudioController(this);
   private studioVersion: string | null = null;
   @state() private studioMode: StudioMode = 'wall';
+  /** The arc wall being drawn (curved walls, 2026-10-08): its start and end points; the third click is on the arc. */
+  @state() private arcDraft: Pt[] | null = null;
   /** The "סמן דלת" tool (T087): the door proposed for the last click, shown as a ghost until accepted or cancelled. */
   @state() private doorGhost: DoorGhost | null = null;
   @state() private doorAsking = false;
@@ -1449,6 +1454,9 @@ export class ExplorePlanEditor extends LitElement {
       else if (this.wallDraft) {
         this.wallDraft = null;
         this.hover = null;
+      } else if (this.arcDraft) {
+        this.arcDraft = null;
+        this.hover = null;
       } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
       else if (this.tool === 'calibrate' && this.calib.a) this.calib = { ...EMPTY_CALIB };
       else if (this.drawing) this.drawing = null;
@@ -1479,6 +1487,17 @@ export class ExplorePlanEditor extends LitElement {
     if (e.code === 'KeyD' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && this.bundle?.permissions.structure && this.studio.doc && !this.phone.matches && !this.detectBusy) {
       e.preventDefault();
       this.startMarkDoor();
+      return;
+    }
+    // C: the structure tool's curve mode (the physical key, so the Hebrew layout works too); desktop structure editors
+    if (e.code === 'KeyC' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && this.bundle?.permissions.structure && this.studio.doc && !this.phone.matches && !this.detectBusy) {
+      e.preventDefault();
+      if (this.wallDraft && this.wallDraft.length >= 2) this.finishWall();
+      if (this.tool !== 'structure') this.pickTool('structure');
+      this.studioMode = 'curve';
+      this.wallDraft = null;
+      this.arcDraft = null;
+      this.hover = null;
       return;
     }
     if ((this.studioOn || this.selectGeomOn) && this.handleStudioKey(e)) return;
@@ -1896,7 +1915,7 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitPlacing = null; // an armed lamp type never survives a tool switch
     this.circuitNew = null;
     if (tool === 'connectors') void this.loadLinkTargets();
-    if (tool === 'structure' && this.phone.matches && this.studioMode === 'wall') this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
+    if (tool === 'structure' && this.phone.matches && (this.studioMode === 'wall' || this.studioMode === 'curve' || this.studioMode === 'arc')) this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     this.multi = []; // a multi-selection belongs to the select tool only (T085)
     if (!this.zoneSaving) this.zonePreview = null; // zones still being saved keep showing where they go until they answer
@@ -2582,7 +2601,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'connectors') return !!this.connMode;
     // a click on a lamp toggles it (members mode); with a lamp type armed, a click places a new lamp into the circuit
     if (this.tool === 'circuits') return !!this.circuitPlacing && !!this.circuitSel;
-    return this.tool !== 'structure' || this.studioMode !== 'select';
+    return this.tool !== 'structure' || (this.studioMode !== 'select' && this.studioMode !== 'curve');
   }
 
   /** What the pointer can grab in the structure (owner report on 0.1.82: a door just placed could not be slid along its
@@ -2598,14 +2617,14 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'connectors') return this.connMode ? 'none' : 'objects';
     if (this.tool === 'circuits') return this.circuitPlacing ? 'none' : 'objects';
     if (this.tool !== 'structure') return 'none';
-    if (this.studioMode === 'select') return 'all';
-    return this.wallDraft ? 'none' : 'items';
+    if (this.studioMode === 'select' || this.studioMode === 'curve') return 'all';
+    return this.wallDraft || this.arcDraft ? 'none' : 'items';
   }
 
   /** Where a selected wall shows its corner handles, moves as a whole and a selected corner takes the keys: the
    * structure tool's select mode and the select tool (0.1.87). */
   private get geomSelectMode(): boolean {
-    return (this.tool === 'structure' && this.studioMode === 'select') || this.tool === 'select';
+    return (this.tool === 'structure' && (this.studioMode === 'select' || this.studioMode === 'curve')) || this.tool === 'select';
   }
 
   /** A structure item is selected in the select tool: Delete, the arrows and Ctrl+Z / Ctrl+Y act on the structure. */
@@ -2717,6 +2736,7 @@ export class ExplorePlanEditor extends LitElement {
     else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
     else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
+    else if (this.studioMode === 'arc') this.hover = (this.arcDraft?.length ?? 0) >= 2 ? p : this.snap(p, this.arcDraft?.at(-1) ?? null, shift);
     else if (this.studioMode === 'label') this.hover = p;
     else if (this.studioMode === 'markdoor') this.hover = null;
     else {
@@ -2788,6 +2808,11 @@ export class ExplorePlanEditor extends LitElement {
       this.lastDrawClick = p;
       return;
     }
+    if (mode === 'arc') {
+      this.arcClick(doc, p, shift);
+      return;
+    }
+    if (mode === 'curve') return;
     if (mode === 'label') {
       const r = addLabel(doc, p, 'תווית');
       const level = this.placeOpts(doc).levelId;
@@ -2970,9 +2995,41 @@ export class ExplorePlanEditor extends LitElement {
     this.geomSel = { id: r.id, kind: 'wall' };
   }
 
+  /** The arc wall mode (curved walls, 2026-10-08): the first two clicks are its start and end (snapped like a wall's
+   * points), the third is a point on the arc - the new wall, one undo step, on the level being edited. */
+  private arcClick(doc: GeometryDoc, p: Pt, shift: boolean) {
+    const b = this.bundle;
+    if (!b) return;
+    const d = this.arcDraft ?? [];
+    if (d.length < 2) {
+      const q = this.snap(p, d.at(-1) ?? null, shift);
+      if (d.length === 1 && Math.hypot((q[0] - d[0][0]) * b.width, (q[1] - d[0][1]) * b.height) < 2) return; // the end on the start: no wall
+      this.arcDraft = [...d, q];
+      return;
+    }
+    const r = addArcWall(doc, d[0], d[1], p, this.wallDefaults, b.width, b.height);
+    const level = this.placeOpts(doc).levelId;
+    this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level }));
+    this.lastEdit = 'structure';
+    this.arcDraft = null;
+    this.hover = null;
+    this.geomSel = { id: r.id, kind: 'wall' };
+  }
+
+  /** What the canvas draws dashed while an arc wall is drawn: the line to the cursor, then the arc through it. */
+  private arcPreview(b: MapBundle): Pt[] {
+    const d = this.arcDraft;
+    const h = this.hover;
+    if (this.tool !== 'structure' || this.studioMode !== 'arc' || !d?.length || !h) return [];
+    if (d.length === 1) return [d[0], h];
+    const px = (p: Pt): [number, number] => [p[0] * b.width, p[1] * b.height];
+    const bulge = bulgeThrough(px(d[0]), px(h), px(d[1]));
+    return sampleArc([px(d[0]), px(d[1])], [bulge], 1).map((q): Pt => [q[0] / b.width, q[1] / b.height]);
+  }
+
   /** `add`: Shift was held (T085) - in the select tool a wall or an object then goes into or out of the selection instead
    * of replacing it; anywhere else, and for every other kind, Shift changes nothing. */
-  private onGeomSelect(id: string, kind: GeomKind, vertex?: number, add = false) {
+  private onGeomSelect(id: string, kind: GeomKind, vertex?: number, add = false, segment?: number) {
     if (add && this.multiOn && vertex === undefined && (kind === 'wall' || kind === 'object')) {
       this.toggleSelection({ id, kind });
       return;
@@ -2997,7 +3054,7 @@ export class ExplorePlanEditor extends LitElement {
     if (kind === 'connector' && this.tool !== 'connectors' && this.tool !== 'select') this.pickTool('connectors');
     if (kind === 'connector' && this.tool === 'select') void this.loadLinkTargets();
     this.zoneVertexSel = null;
-    this.geomSel = vertex === undefined ? { id, kind } : { id, kind, vertex };
+    this.geomSel = segment !== undefined ? { id, kind, segment } : vertex === undefined ? { id, kind } : { id, kind, vertex };
     this.multi = []; // a plain click (or a drag of an item outside the multi-selection) selects that one item alone
     this.selectedId = null;
     this.selectedZoneId = null;
@@ -3514,6 +3571,9 @@ export class ExplorePlanEditor extends LitElement {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
       return { doc: translateWall(doc, w.id, ...this.wallDelta(doc, w, d)), sel: { id: w.id, kind: 'wall' } };
+    }
+    if (d.kind === 'segment') { // curve mode: the segment bends into the arc through the pointer (one undo step on the drop)
+      return { doc: bendSegment(doc, d.id, d.index, [d.x, d.y], b.width, b.height), sel: { id: d.id, kind: 'wall', segment: d.index } };
     }
     if (d.kind === 'vertex') {
       const w = doc.walls.find((v) => v.id === d.id);
@@ -4375,7 +4435,7 @@ export class ExplorePlanEditor extends LitElement {
       },
       {
         setMode: (m) => {
-          if (m === 'wall' && this.phone.matches) {
+          if ((m === 'wall' || m === 'curve' || m === 'arc') && this.phone.matches) {
             this.info = 'ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים';
             setTimeout(() => (this.info = ''), 4000);
             return;
@@ -4383,9 +4443,10 @@ export class ExplorePlanEditor extends LitElement {
           this.studioMode = m;
           this.dropDoorGhost();
           this.wallDraft = null;
+          this.arcDraft = null;
           this.hover = null;
           // corner handles live in select mode only: elsewhere the wall itself stays selected
-          if (m !== 'select' && this.geomSel?.vertex !== undefined) this.geomSel = { id: this.geomSel.id, kind: this.geomSel.kind };
+          if (m !== 'select' && m !== 'curve' && (this.geomSel?.vertex !== undefined || this.geomSel?.segment !== undefined)) this.geomSel = { id: this.geomSel.id, kind: this.geomSel.kind };
         },
         setWallDefaults: (d) => {
           this.wallDefaults = d;
@@ -4410,6 +4471,21 @@ export class ExplorePlanEditor extends LitElement {
         setLevel: (id, lv) => {
           this.edit((d) => (d.walls.some((w) => w.id === id) ? patchWall(d, id, { level_id: lv }) : patchLabel(d, id, { level_id: lv })));
           this.followLevel(id, lv);
+        },
+        setSegmentRadius: (id, seg, radiusM) => {
+          const scale = effectiveScale(doc).scale;
+          if (radiusM === null) return this.edit((d) => straightenSegment(d, id, seg, b.width, b.height));
+          const cur = this.studio.doc;
+          const next = cur ? setSegmentRadius(cur, id, seg, radiusM, scale, b.width, b.height) : null;
+          if (next) this.edit(() => next);
+          else this.flash(curveT('radiusTooSmall'));
+        },
+        roundCorner: (id, index, radiusM) => {
+          const cur = this.studio.doc;
+          const next = cur ? roundCorner(cur, id, index, radiusM, effectiveScale(cur).scale, b.width, b.height) : null;
+          if (!next) return this.flash(curveT('cornerCannot'));
+          this.edit(() => next);
+          this.geomSel = { id, kind: 'wall' };
         },
       },
     );
@@ -5107,6 +5183,7 @@ export class ExplorePlanEditor extends LitElement {
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : this.multiShown.map((i) => i.id)} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
+                  .curveHandles=${this.tool === 'structure' && this.studioMode === 'curve'} .selectedSegment=${this.geomSel?.segment ?? null} .arcPreview=${this.arcPreview(b)}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .ghost=${this.doorGhost && this.studio.doc ? ghostDoc(this.studio.doc, this.doorGhost, this.wallDefaults) : null} .ghostNote=${this.doorGhost?.note ?? ''} .ghostWarn=${!!this.doorGhost && (this.doorGhost.found === 'default' || !!this.doorGhost.warning)}
                   .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : []} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
@@ -5116,7 +5193,7 @@ export class ExplorePlanEditor extends LitElement {
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn} .panMode=${this.panMode}
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
-                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add)}
+                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean; segment?: number }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add, e.detail.segment)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
                   @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; this.guideCache = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
@@ -5140,6 +5217,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
+                ${this.arcDraft ? html`<div class="placing-hint" data-arc-hint><span>${curveT(this.arcDraft.length < 2 ? 'arcEnd' : 'arcThrough')} · Esc</span></div>` : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
