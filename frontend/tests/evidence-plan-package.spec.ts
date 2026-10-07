@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext, type Page, type Route } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Page, type Route, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +29,11 @@ const PLAN = path.resolve(HERE, '..', '..', 'smplwise_vms', 'backend', 'tests', 
 test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
 
 const noOverflow = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+/** The evidence screenshot, also kept in the test's output folder (the runner restores docs/ after a job). */
+const shot = async (page: Page, info: TestInfo, name: string) => {
+  await page.screenshot({ path: path.join(OUT, name) });
+  fs.copyFileSync(path.join(OUT, name), info.outputPath(name));
+};
 
 function preview(over: Record<string, unknown> = {}) {
   return {
@@ -235,7 +240,9 @@ test.describe.serial('live: export and re-import from the editor', () => {
       await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
       await expect(page.locator('sw-app [data-desktop-only="structure"]')).toContainText('עריכת מבנה וקומות זמינה במחשב בלבד', { timeout: 20000 });
       await expect(page.locator('sw-app sw-plan-canvas')).toHaveCount(0);
+      await expect(page.locator('sw-app [data-export-dxf], sw-app [data-export-dxf-package], sw-app [data-import-package]')).toHaveCount(0);
       await noOverflow(page);
+      await shot(page, info, 'editor-guard-mobile.png');
       return;
     }
     // the structure tool's export row is a desktop editor panel (wall drawing is desktop-only); the tablet shares the desktop layout
@@ -257,7 +264,7 @@ test.describe.serial('live: export and re-import from the editor', () => {
     await noOverflow(page);
     await page.locator(`${ED} [data-export-package]`).scrollIntoViewIfNeeded();
     await expect(page.locator(`${ED} [data-export-dxf-package]`)).toHaveText('DXF + תמונה');
-    await page.screenshot({ path: path.join(OUT, `editor-exports-${info.project.name}.png`) });
+    await shot(page, info, `editor-exports-${info.project.name}.png`);
     const [download] = await Promise.all([page.waitForEvent('download'), page.locator(`${ED} [data-export-package]`).click()]);
     expect(download.suggestedFilename()).toMatch(/\.swplan\.zip$/);
     const plain = info.outputPath('plan.swplan.zip');
@@ -285,7 +292,7 @@ test.describe.serial('live: export and re-import from the editor', () => {
     await expect(dlg.locator('[data-pkg-coll="walls"]')).toContainText('נוספו 2');
     await expect(dlg.locator('[data-pkg-coll="connectors"]')).toContainText('נוספו 1');
     await noOverflow(page);
-    await page.screenshot({ path: path.join(OUT, `editor-import-${info.project.name}.png`) });
+    await shot(page, info, `editor-import-${info.project.name}.png`);
     await dlg.locator('[data-pkg-confirm] button').click();
     await expect(page.locator(`${ED} sw-dialog[data-pkg-dialog]`)).toHaveCount(0, { timeout: 20000 });
     await expect.poll(async () => (await draft()).geometry.doc_hash, { timeout: 10000 }).toBe(published);
