@@ -33,7 +33,7 @@ import { DevicesLayoutController, shownEntities, TILE_COLS, titleOf, type Measur
 import { CARD_TYPES, isCardType, type AreaEntity } from './devices-layout-cards';
 import { activityTag, ActivityPress } from '../components/device-activity-press';
 import { ifDefined } from 'lit/directives/if-defined.js';
-import { deg, DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
+import { deg, DeviceControls, deviceControlStyles, EQUIPMENT_DOMAINS, rowLabel } from './devices-controls';
 import { SkinController, hueOf } from '../design/skin';
 import { bubbleAreaStyles, renderBubblePill, renderBubbleSensorTile, renderBubbleSep, renderBubbleSheetBody, sectionIcon } from './devices-area-bubble';
 import { mapHrefForArea } from '../api/plan-links';
@@ -1446,7 +1446,7 @@ export class DevicesArea extends LitElement {
 
   private renderTile(raw: DeviceRow, card: CardId) {
     if (this.skin.bubble) return renderBubblePill(this.bubbleHost, raw, card);
-    const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'lighting' || card === 'switches');
+    const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'lighting' || card === 'switches') && !EQUIPMENT_DOMAINS.has(raw.domain);
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
     const icon: IconName = card === 'lighting' ? 'light' : card === 'switches' ? 'bolt' : 'sensor';

@@ -1,4 +1,6 @@
-// Hebrew UI strings. Keys are stable English identifiers so an English catalogue can be added later.
+// Hebrew UI strings. Keys are stable English identifiers; i18n/en.ts carries the English of the sections that have one (CARD1 onward).
+import { en } from './en';
+
 export const he = {
   app: {
     name: 'SmplWise Arx',
@@ -542,6 +544,62 @@ export const he = {
     schedBack: 'חזרה לפעילות',
     schedMore: 'מוסיף התקנים נוספים',
   },
+  /** CARD1 (2026-10-07): the equipment cards of the activity window - water heater, tap / valve, robot vacuum. Operator copy: short, no hints. */
+  deviceCard: {
+    loading: 'טוענים את מצב ההתקן',
+    readOnly: 'צפייה בלבד',
+    stateUnknown: 'לא ידוע',
+    since: 'מאז {t}',
+    // water heater
+    heaterOn: 'דלוק',
+    heaterOff: 'כבוי',
+    heaterTurnOn: 'הדלקה',
+    heaterTurnOff: 'כיבוי',
+    heaterTarget: 'יעד {n}°',
+    heaterCurrent: 'מים {n}°',
+    boost: 'הפעלה לזמן קצוב',
+    boostFor: '{n} דק׳',
+    autoOffAt: 'כיבוי אוטומטי · {t}',
+    autoOffCancel: 'ביטול הכיבוי האוטומטי',
+    autoOffLabel: 'כיבוי אוטומטי',
+    autoOffScheduleName: 'כיבוי אוטומטי · {name}',
+    autoOffFailed: 'הכיבוי האוטומטי לא נקבע',
+    // tap / valve
+    valveOpen: 'פתוח',
+    valveClosed: 'סגור',
+    valveOpening: 'נפתח…',
+    valveClosing: 'נסגר…',
+    valvePosition: '{n}% פתוח',
+    valveDoOpen: 'פתיחה',
+    valveDoClose: 'סגירה',
+    holdToOpen: 'לחיצה ארוכה לפתיחה',
+    holdHint: 'החזיקו',
+    armedConfirm: 'לאשר?',
+    autoClose: 'סגירה אוטומטית',
+    autoCloseAt: 'סגירה אוטומטית · {t}',
+    autoCloseCancel: 'ביטול הסגירה האוטומטית',
+    autoCloseScheduleName: 'סגירה אוטומטית · {name}',
+    // robot vacuum
+    vacStart: 'התחלה',
+    vacPause: 'השהיה',
+    vacDock: 'חזרה לעגינה',
+    vacBattery: 'סוללה {n}%',
+    vacFan: 'שאיבה {v}',
+    vacLastClean: 'ניקוי אחרון {t}',
+    vacLastCleanNone: 'אין ניקוי מתועד',
+    vacDocked: 'בעגינה',
+    vacCleaning: 'מנקה',
+    vacPaused: 'מושהה',
+    vacReturning: 'חוזר לעגינה',
+    vacIdle: 'ממתין',
+    vacError: 'תקלה',
+    fanQuiet: 'שקטה',
+    fanStandard: 'רגילה',
+    fanMedium: 'בינונית',
+    fanHigh: 'גבוהה',
+    fanTurbo: 'טורבו',
+    fanMax: 'מקסימום',
+  },
   secondFactor: {
     title: 'אימות דו־שלבי',
     loginPrompt: 'הזן את הקוד בן 6 הספרות מאפליקציית האימות.',
@@ -577,7 +635,28 @@ export const he = {
 type Path<T> = T extends object ? { [K in keyof T]: `${K & string}.${Path<T[K]>}` | (T[K] extends string ? K & string : never) }[keyof T] : never;
 export type I18nKey = Path<typeof he>;
 
+/** A catalogue of the same shape as `he`, section by section, with any part left out (it falls back to the Hebrew). */
+export type PartialCatalogue<T = typeof he> = { [K in keyof T]?: T[K] extends string ? string : PartialCatalogue<T[K]> };
+
+function lookup(dict: unknown, key: string): string | undefined {
+  const value = key.split('.').reduce<unknown>((acc, part) => (acc as Record<string, unknown> | undefined)?.[part], dict);
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** CARD1: `<html lang="en">` picks the English catalogue (i18n/en.ts) where it has the key; everything else stays Hebrew. */
+export function uiLang(): 'he' | 'en' {
+  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+}
+
 export function t(key: I18nKey): string {
-  const value = key.split('.').reduce<unknown>((acc, part) => (acc as Record<string, unknown> | undefined)?.[part], he);
-  return typeof value === 'string' ? value : key;
+  if (uiLang() === 'en') {
+    const v = lookup(en, key);
+    if (v !== undefined) return v;
+  }
+  return lookup(he, key) ?? key;
+}
+
+/** `t` with `{name}` placeholders filled in. */
+export function tf(key: I18nKey, vars: Record<string, string | number>): string {
+  return t(key).replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }

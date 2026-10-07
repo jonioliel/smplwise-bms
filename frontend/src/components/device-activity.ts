@@ -8,12 +8,15 @@ import './sw-toggle';
 import './sw-dropdown';
 import './sw-state-panel';
 import '../screens/schedule-editor';
-import { t } from '../i18n/he';
-import { bidi } from '../i18n/bidi';
+import { t, tf } from '../i18n/he';
+import { bidi, ltrNum } from '../i18n/bidi';
 import type { IconName } from './sw-icon';
 import type { DropdownChange } from './sw-dropdown';
 import { ActivityError, getDeviceActivity, type ActivityItem, type ActivityPage } from '../api/device-activity';
-import { daysLabel, listSchedules, nextRunLabel, setScheduleEnabled, type Schedule } from '../api/schedules';
+import { createSchedule, daysLabel, deleteSchedule, listSchedules, nextRunLabel, setScheduleEnabled, whenLabel, type Schedule } from '../api/schedules';
+import { getEntityRows, type EntityRow } from '../api/devices';
+import { runCommand } from '../api/device-commands';
+import { DeviceControls, deviceControlStyles } from '../screens/devices-controls';
 import { ApiError } from '../api/client';
 import { can } from '../api/session';
 import { OPEN_EVENT, type ActivityOpen, type ActivityTarget } from './device-activity-press';
@@ -21,10 +24,16 @@ import {
   ACTOR_FILTERS, DEFAULT_FILTERS, EVENT_FILTERS, KIND_ICON, PERIODS, PERIOD_LABEL, actorView, clockOf, describeEvent, footnote, gapText, groupByDay,
   isFiltered, queryOf, trackedSince, type Filters, type Period,
 } from './device-activity-logic';
+import {
+  AUTO_CLOSE_MINUTES, BOOST_MINUTES, HOLD_MS, VACUUM_ACTIONS, autoOffDraft, cardKindOf, domainOf, fanSpeedKey, findAutoOff, isMovingState, isOnState, lastCleaningAt,
+  powerActions, stateKey, type CardAction, type CardKind,
+} from './device-card-logic';
 
 type Tab = 'activity' | 'schedules';
 type FeedStatus = 'loading' | 'ready' | 'forbidden' | 'unavailable';
 type SchedStatus = 'loading' | 'ready' | 'forbidden' | 'unavailable';
+/** CARD1: the equipment card's own row - loading, the server's row, or none (no API / not visible: state from the tile only, no controls). */
+type RowStatus = 'idle' | 'loading' | 'ready' | 'missing';
 
 /**
  * CR-032 device activity: the compact popup of an electrical device (opened by a long press, the context menu item or Alt+Enter - see
@@ -33,6 +42,12 @@ type SchedStatus = 'loading' | 'ready' | 'forbidden' | 'unavailable';
  * states loading / empty / no permission / unavailable / partial and the "tracked since" note. Schedules: the device's schedules
  * (GET /schedules?entity=), enable switch, edit through the EXISTING schedule editor in a sheet, and "add a schedule for this device".
  * Everything the user may not do is the server's decision (`can`, `read_only`); the popup only shows it.
+ *
+ * CARD1 (2026-10-07): for a water heater, a tap / valve and a robot vacuum (the server's `activity_kind`) an equipment card sits between
+ * the head and the tabs: the state at a glance (the device's own row, GET /devices/entities?ids=), one to three quick actions through
+ * the SAME action envelope the area tiles use (api/device-commands.ts, shared DeviceControls - optimistic, confirmed by the reported
+ * state, rolled back on timeout), a time-boxed run whose auto-off is a one-off schedule of the EXISTING scheduler (device-card-logic.ts),
+ * and a hold-to-confirm for the one action that lets water flow. Controls render only with the server's `can_control`.
  */
 @customElement('device-activity')
 export class DeviceActivity extends LitElement {
@@ -50,10 +65,20 @@ export class DeviceActivity extends LitElement {
   @state() private schedStatus: SchedStatus = 'loading';
   @state() private editing: { id: string } | null = null;
   @state() private busy = new Set<string>();
+  // CARD1: the equipment card
+  @state() private row: EntityRow | null = null;
+  @state() private rowStatus: RowStatus = 'idle';
+  @state() private holding = false;
+  @state() private timerBusy = false;
+  @state() private timerNote = '';
 
   private opener: HTMLElement | null = null;
   private token = 0;
   private schedToken = 0;
+  private rowToken = 0;
+  private holdTimer: number | undefined;
+  /** The same command envelope as the area tiles (optimistic, confirmed, rolled back); a settled command refetches the row. */
+  private ctl = new DeviceControls(this, () => void this.loadRow());
 
   connectedCallback() {
     super.connectedCallback();
@@ -86,8 +111,13 @@ export class DeviceActivity extends LitElement {
     this.page = null;
     this.editing = null;
     this.open = true;
+    this.row = null;
+    this.rowStatus = 'idle';
+    this.timerNote = '';
+    this.cancelHold();
     void this.loadFeed();
     void this.loadSched();
+    if (this.target && cardKindOf(this.target.kind)) void this.loadRow();
   }
 
   private closePopup() {
@@ -95,6 +125,8 @@ export class DeviceActivity extends LitElement {
     this.editing = null;
     this.token++;
     this.schedToken++;
+    this.rowToken++;
+    this.cancelHold();
     const back = this.opener;
     this.opener = null;
     if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
@@ -135,6 +167,25 @@ export class DeviceActivity extends LitElement {
     } catch (e) {
       if (mine !== this.schedToken) return;
       this.schedStatus = e instanceof ApiError && e.status === 403 ? 'forbidden' : 'unavailable';
+    }
+  }
+
+  /** CARD1: the device's own card row (state, can_control, battery ...). No API session / not visible: the card shows the tile's state only. */
+  private async loadRow() {
+    const target = this.target;
+    if (!target || !cardKindOf(target.kind)) return;
+    const mine = ++this.rowToken;
+    if (this.rowStatus !== 'ready') this.rowStatus = 'loading';
+    try {
+      const r = await getEntityRows([target.id]);
+      if (mine !== this.rowToken) return;
+      const row = r.entities.find((e) => e.entity_id === target.id) ?? null;
+      this.row = row;
+      this.rowStatus = row ? 'ready' : 'missing';
+    } catch {
+      if (mine !== this.rowToken) return;
+      this.row = null;
+      this.rowStatus = 'missing';
     }
   }
 
@@ -201,12 +252,16 @@ export class DeviceActivity extends LitElement {
   }
 
   private renderPopup(tg: ActivityTarget) {
-    const on = !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state);
+    const card = cardKindOf(tg.kind);
+    const on = card ? isOnState(card, this.row?.state ?? null) || (!this.row && !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state)) : !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state);
     return html`<sw-sheet ?open=${this.open && !this.editing} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:380px" @close=${() => this.closePopup()}>
       <div slot="head" class="ph ${on ? '' : 'off'}">
         <span class="ic"><sw-icon name=${KIND_ICON[tg.kind] as IconName} size=${18}></sw-icon></span>
-        <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${this.area ? html`${bidi(this.area)} · ` : nothing}<span data-activity-state>${tg.state}</span>${this.powerText()}</div></div>
+        <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${card
+          ? html`${this.area ? bidi(this.area) : nothing}`
+          : html`${this.area ? html`${bidi(this.area)} · ` : nothing}<span data-activity-state>${tg.state}</span>${this.powerText()}`}</div></div>
       </div>
+      ${card ? this.renderCard(card, tg) : nothing}
       <div class="segt" role="tablist" aria-label=${t('deviceActivity.tabs')}>
         ${(['activity', 'schedules'] as Tab[]).map(
           (id) => html`<button type="button" role="tab" id=${`da-tab-${id}`} aria-selected=${String(this.tab === id)} aria-controls="da-panel" tabindex=${this.tab === id ? 0 : -1}
@@ -229,6 +284,193 @@ export class DeviceActivity extends LitElement {
     this.tab = this.tab === 'activity' ? 'schedules' : 'activity';
     requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`#da-tab-${this.tab}`)?.focus());
   };
+
+  // ---------------------------------------------------------------------------------------------- CARD1: the equipment card
+
+  /** The state the card shows: the server's row (live through the refetch), else the tile's own text. */
+  private cardState(card: CardKind, tg: ActivityTarget): { state: string | null; text: string } {
+    const row = this.row;
+    if (row) {
+      const live = this.ctl.live<string>(row.entity_id, card === 'vacuum' ? 'vacuum' : 'power');
+      const st = live ?? row.state;
+      return { state: st, text: t(stateKey(card, st)) };
+    }
+    return { state: null, text: tg.state || t('deviceCard.stateUnknown') };
+  }
+
+  private renderCard(card: CardKind, tg: ActivityTarget) {
+    const row = this.row;
+    const loading = this.rowStatus === 'loading' && !row;
+    const canControl = !!row && row.can_control && row.available && row.state !== 'unavailable';
+    const { state, text } = this.cardState(card, tg);
+    const on = isOnState(card, state);
+    return html`<section class="card ${on ? 'on' : ''}" data-device-card=${card} data-card-state=${state ?? ''} ?data-can-control=${canControl} aria-label=${text}>
+      ${loading
+        ? html`<div class="skels tight" data-card-loading role="status" aria-label=${t('deviceCard.loading')}><div class="sk"><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div></div>`
+        : html`<div class="st">
+              <span class="big" data-card-big>${text}</span>
+              <span class="meta" data-card-meta>${this.renderMeta(card, row, tg)}</span>
+            </div>
+            ${canControl ? this.renderActions(card, row!, state) : nothing}
+            ${row ? this.ctl.renderCmdStatus(row.entity_id) : nothing}
+            ${this.timerNote ? html`<div class="rollback-note" data-timer-note role="status">${this.timerNote}</div>` : nothing}`}
+    </section>`;
+  }
+
+  /** The second line: power / since for a heater, position for a tap, battery · suction · last cleaning for a vacuum. */
+  private renderMeta(card: CardKind, row: EntityRow | null, tg: ActivityTarget) {
+    const parts: unknown[] = [];
+    if (card === 'water_heater') {
+      const p = this.page?.entity?.power ?? row?.power;
+      if (p && p.value !== null && p.value !== undefined) parts.push(html`<bdi data-card-power>${Math.round(p.value).toLocaleString('en')} ${p.unit}</bdi>`);
+      if (row?.current_temperature !== null && row?.current_temperature !== undefined) parts.push(tf('deviceCard.heaterCurrent', { n: ltrNum(row.current_temperature) }));
+      if (row?.target_temperature !== null && row?.target_temperature !== undefined) parts.push(tf('deviceCard.heaterTarget', { n: ltrNum(row.target_temperature) }));
+      if (row?.last_changed) parts.push(html`<span data-card-since>${tf('deviceCard.since', { t: whenLabel(row.last_changed) })}</span>`);
+    } else if (card === 'valve') {
+      if (row?.position !== null && row?.position !== undefined && row.position > 0 && row.position < 100 && !isMovingState(row.state)) parts.push(tf('deviceCard.valvePosition', { n: ltrNum(row.position) }));
+      if (row?.last_changed) parts.push(html`<span data-card-since>${tf('deviceCard.since', { t: whenLabel(row.last_changed) })}</span>`);
+    } else {
+      if (row?.battery_level !== null && row?.battery_level !== undefined) parts.push(html`<span class="bat ${row.battery_level <= 20 ? 'low' : ''}" data-card-battery><sw-icon name="storage" size=${12}></sw-icon>${tf('deviceCard.vacBattery', { n: ltrNum(row.battery_level) })}</span>`);
+      const fk = fanSpeedKey(row?.fan_speed);
+      if (row?.fan_speed) parts.push(tf('deviceCard.vacFan', { v: fk ? t(fk) : row.fan_speed }));
+      const last = lastCleaningAt(this.feed);
+      if (this.feedStatus === 'ready') parts.push(html`<span data-card-last-clean>${last ? tf('deviceCard.vacLastClean', { t: whenLabel(last) }) : t('deviceCard.vacLastCleanNone')}</span>`);
+    }
+    void tg;
+    return parts.length ? parts.map((p, i) => html`${i ? ' · ' : ''}${p}`) : nothing;
+  }
+
+  private renderActions(card: CardKind, row: EntityRow, state: string | null) {
+    if (card === 'vacuum') return this.renderVacuumActions(row, state);
+    const pa = powerActions(card, row.entity_id);
+    if (!pa) return nothing;
+    const on = isOnState(card, state);
+    const pending = this.ctl.rowPending(row.entity_id);
+    const autoOff = findAutoOff(this.sched, row.entity_id, pa.schedulableOff);
+    const minutes = card === 'water_heater' ? BOOST_MINUTES : AUTO_CLOSE_MINUTES;
+    // the time-boxed run: a heater offers it off (turn on + auto-off) and on (auto-off only); a tap only while open (auto-close) - opening
+    // water stays behind the hold, never behind a chip
+    const timers = can('schedule.manage') && pa.schedulableOff && !autoOff && (card === 'water_heater' || on);
+    const timersLabel = card === 'valve' ? 'deviceCard.autoClose' : on ? 'deviceCard.autoOffLabel' : 'deviceCard.boost';
+    return html`<div class="acts" data-card-actions>
+        ${on
+          ? html`<sw-button size="lg" icon="power" data-card-off ?disabled=${pending} @click=${() => this.send(row, pa.off, 'power')}>${t(pa.off.label)}</sw-button>`
+          : pa.on.confirm
+            ? this.renderHold(row, pa.on)
+            : html`<sw-button size="lg" variant="primary" icon="power" data-card-on ?disabled=${pending} @click=${() => this.send(row, pa.on, 'power')}>${t(pa.on.label)}</sw-button>`}
+        ${timers
+          ? html`<span class="chips" role="group" aria-label=${t(timersLabel)} data-card-timers data-card-timers-mode=${on ? 'off-only' : 'boost'}>
+              <span class="cl">${t(timersLabel)}</span>
+              ${minutes.map((m) => html`<button type="button" class="chip" data-card-timer=${m} ?disabled=${pending || this.timerBusy} @click=${() => void this.startTimed(card, row, pa, m)}>${tf('deviceCard.boostFor', { n: ltrNum(m) })}</button>`)}
+            </span>`
+          : nothing}
+      </div>
+      ${autoOff
+        ? html`<div class="auto" data-card-auto-off>
+            <sw-icon name="clock" size=${14}></sw-icon>
+            <span>${tf(card === 'water_heater' ? 'deviceCard.autoOffAt' : 'deviceCard.autoCloseAt', { t: whenLabel(autoOff.next_run!.at) })}</span>
+            ${autoOff.can.delete
+              ? html`<sw-button iconOnly size="sm" variant="ghost" icon="close" label=${t(card === 'water_heater' ? 'deviceCard.autoOffCancel' : 'deviceCard.autoCloseCancel')} data-card-auto-off-cancel ?disabled=${this.timerBusy} @click=${() => void this.cancelTimed(autoOff)}></sw-button>`
+              : nothing}
+          </div>`
+        : nothing}`;
+  }
+
+  private renderVacuumActions(row: EntityRow, state: string | null) {
+    const pending = this.ctl.rowPending(row.entity_id);
+    const cleaning = state === 'cleaning';
+    const away = state === 'cleaning' || state === 'paused' || state === 'returning' || state === 'idle' || state === 'error';
+    return html`<div class="acts" data-card-actions>
+      ${cleaning
+        ? html`<sw-button size="lg" icon="pause" data-card-vac-pause ?disabled=${pending} @click=${() => this.send(row, VACUUM_ACTIONS.pause, 'vacuum')}>${t('deviceCard.vacPause')}</sw-button>`
+        : html`<sw-button size="lg" variant="primary" icon="play" data-card-vac-start ?disabled=${pending} @click=${() => this.send(row, VACUUM_ACTIONS.start, 'vacuum')}>${t('deviceCard.vacStart')}</sw-button>`}
+      ${away ? html`<sw-button size="lg" icon="home" data-card-vac-dock ?disabled=${pending || state === 'returning'} @click=${() => this.send(row, VACUUM_ACTIONS.dock, 'vacuum')}>${t('deviceCard.vacDock')}</sw-button>` : nothing}
+    </div>`;
+  }
+
+  /** The hold-to-confirm button of the action that lets water flow: a HOLD_MS press fills it and sends with the grant; a release before cancels.
+   * Keyboard: Enter / Space arm it ("לאשר?"), a second press within the window confirms (the shared arm-then-confirm rule). */
+  private renderHold(row: EntityRow, act: CardAction) {
+    const key = `${row.entity_id}:power`;
+    const armed = this.ctl.isArmed(key);
+    const pending = this.ctl.rowPending(row.entity_id);
+    const fire = () => this.send(row, act, 'power');
+    return html`<button type="button" class="hbtn ${this.holding ? 'holding' : ''} ${armed ? 'armed' : ''}" data-card-hold ?disabled=${pending} aria-label=${t('deviceCard.holdToOpen')}
+        style=${`--hold:${HOLD_MS}ms`}
+        @pointerdown=${(e: PointerEvent) => this.startHold(e, fire)} @pointerup=${this.cancelHold} @pointerleave=${this.cancelHold} @pointercancel=${this.cancelHold}
+        @contextmenu=${(e: Event) => e.preventDefault()}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.ctl.tapArmed(key, fire); } }}
+        @click=${(e: Event) => e.preventDefault()}>
+      <i class="prog" aria-hidden="true"></i>
+      <span class="lb"><sw-icon name="power" size=${15}></sw-icon>${armed ? t('deviceCard.armedConfirm') : this.holding ? t('deviceCard.holdHint') : t(act.label)}</span>
+    </button>`;
+  }
+
+  private startHold(e: PointerEvent, fire: () => void) {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    this.cancelHold();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* no capture */
+    }
+    this.holding = true;
+    this.holdTimer = window.setTimeout(() => {
+      this.holdTimer = undefined;
+      this.holding = false;
+      try {
+        navigator.vibrate?.(10);
+      } catch {
+        /* no haptics */
+      }
+      fire();
+    }, HOLD_MS);
+  }
+
+  private cancelHold = () => {
+    if (this.holdTimer !== undefined) window.clearTimeout(this.holdTimer);
+    this.holdTimer = undefined;
+    if (this.holding) this.holding = false;
+  };
+
+  /** One allow-listed action through the shared envelope; an "attention" action carries the confirmation grant the hold just gave. */
+  private send(row: EntityRow, act: CardAction, control: 'power' | 'vacuum') {
+    const key = `${row.entity_id}:${control}`;
+    if (this.ctl.commands[key]?.phase === 'pending') return;
+    void runCommand(key, domainOf(row.entity_id), row.entity_id, act.action, {}, act.expect, (s) => this.ctl.setCmd(key, s), { confirmed: act.confirm, label: t(act.label) });
+  }
+
+  /** The time-boxed run: turn it on now, and ask the scheduler for a one-off "off" `minutes` from now (the schedule shows in the tab too). */
+  private async startTimed(card: CardKind, row: EntityRow, pa: NonNullable<ReturnType<typeof powerActions>>, minutes: number) {
+    if (!pa.schedulableOff || this.timerBusy) return;
+    this.timerBusy = true;
+    this.timerNote = '';
+    try {
+      const name = tf(card === 'water_heater' ? 'deviceCard.autoOffScheduleName' : 'deviceCard.autoCloseScheduleName', { name: row.name });
+      const draft = autoOffDraft(row.entity_id, pa.schedulableOff, name, new Date(), minutes);
+      const r = await createSchedule(draft);
+      if ('status' in r && r.status === 'unknown') this.timerNote = t('deviceCard.autoOffFailed');
+      else if (!isOnState(card, this.cardState(card, this.target!).state)) this.send(row, pa.on, 'power'); // only after the auto-off exists: never an unbounded run by accident
+      await this.loadSched();
+    } catch {
+      this.timerNote = t('deviceCard.autoOffFailed');
+    } finally {
+      this.timerBusy = false;
+    }
+  }
+
+  private async cancelTimed(s: Schedule) {
+    if (this.timerBusy) return;
+    this.timerBusy = true;
+    try {
+      await deleteSchedule(s.id, s.revision);
+    } catch {
+      /* the list below tells the truth */
+    } finally {
+      this.timerBusy = false;
+      await this.loadSched();
+    }
+  }
 
   // ---------------------------------------------------------------------------------------------- activity tab
 
@@ -317,8 +559,45 @@ export class DeviceActivity extends LitElement {
     </sw-sheet>`;
   }
 
-  static styles = css`
+  static styles = [deviceControlStyles, css`
     :host { display: contents; }
+
+    /* CARD1: the equipment card between the head and the tabs */
+    .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h, 14px); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
+    .card.on { background: var(--sw-accent-soft); border-color: transparent; }
+    .card .st { display: flex; align-items: baseline; gap: var(--sw-s-2); flex-wrap: wrap; min-inline-size: 0; }
+    .card .big { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
+    .card.on .big { color: var(--sw-accent-text); }
+    .card .meta { color: var(--sw-text-2); font-size: var(--sw-fs-sm); display: inline-flex; flex-wrap: wrap; gap: 0 var(--sw-s-1); align-items: center; }
+    .card .bat { display: inline-flex; align-items: center; gap: 3px; }
+    .card .bat.low { color: var(--sw-danger-text); }
+    .card .acts { display: flex; align-items: center; gap: var(--sw-s-2); flex-wrap: wrap; }
+    .card .acts sw-button { --sw-touch-desktop: 36px; }
+    .chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .chips .cl { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
+    .chip {
+      min-block-size: 30px; padding: 0 10px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text);
+      font: inherit; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); cursor: pointer; font-variant-numeric: tabular-nums;
+    }
+    .chip:hover { background: var(--sw-surface-3); }
+    .chip:disabled { opacity: .45; cursor: not-allowed; }
+    .chip:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .auto { display: flex; align-items: center; gap: var(--sw-s-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); min-block-size: 28px; }
+    .auto span { flex: 1; min-inline-size: 0; }
+    /* the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
+    .hbtn {
+      position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; padding-inline: 16px;
+      border-radius: 8px; border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
+      cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    }
+    .hbtn .lb { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; }
+    .hbtn .prog { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: 0; background: rgba(255, 255, 255, .35); }
+    .hbtn.holding .prog { inline-size: 100%; transition: inline-size var(--hold, 1100ms) linear; }
+    .hbtn.armed { background: var(--sw-warning-soft); border-color: var(--sw-warning); color: var(--sw-warning-text); }
+    .hbtn:disabled { opacity: .45; cursor: not-allowed; }
+    .hbtn:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .hbtn.holding .prog { transition: none; inline-size: 100%; opacity: .5; } }
+    .skels.tight { padding: 0; }
     .scrim { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); }
     .menu {
       position: fixed; z-index: calc(var(--sw-z-modal) + 2); min-inline-size: 176px; padding: var(--sw-s-1);
@@ -378,7 +657,7 @@ export class DeviceActivity extends LitElement {
     .nm { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); } .nx { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .tag { display: inline-flex; align-items: center; gap: 3px; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-regular); color: var(--sw-text-2); background: var(--sw-surface-3); border-radius: var(--sw-r-pill); padding: 1px 7px; }
     .addrow { display: flex; padding-block: var(--sw-s-3) var(--sw-s-1); }
-  `;
+  `];
 }
 
 declare global {

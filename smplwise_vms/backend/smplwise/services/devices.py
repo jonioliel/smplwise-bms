@@ -113,6 +113,10 @@ def card_of(domain: str, device_class: str | None) -> str | None:
         return "lighting"
     if domain in ("switch", "input_boolean"):
         return "switches"
+    if domain in ("vacuum", "valve", "water_heater"):
+        # CARD1 (2026-10-07): equipment with a card in the activity window - listed with the switches (read-only tiles; the
+        # window holds the controls). Not counted as switches: the overview tile's panel (ITEM_KINDS) lists real switches only.
+        return "switches"
     if domain in ("climate", "fan", "humidifier"):
         return "climate"
     if domain == "cover":
@@ -180,6 +184,12 @@ def is_active(domain: str, state: str | None) -> bool:
         return state not in MEDIA_OFF_STATES
     if domain == "lock":
         return state == "locked"
+    if domain == "valve":
+        return state in ("open", "opening")
+    if domain == "vacuum":
+        return state in ("cleaning", "returning")
+    if domain == "water_heater":
+        return state not in OFF_STATES  # an operation mode (eco, electric, heat_pump ...) is "on"
     return False
 
 
@@ -381,7 +391,7 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
         # DEVHIST: the long press / "פעילות" menu item exists for the electrical domains only (the same table that decides the controls);
         # the caller's own devices.activity grant is checked by GET /devices/{id}/activity
         "activity": e["domain"] in ACTIVITY_DOMAINS,
-        "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind")),
+        "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind"), e.get("name") or e.get("original_name")),
         # a lock / alarm panel's activity is behind the permission that operates it (door.unlock / alarm.arm), not just the one that shows it
         **({"activity_permissions": list(SECURITY_PERMISSIONS[e["domain"]])} if e["domain"] in SECURITY_PERMISSIONS else {}),
         # seam: the alarm screen's own devices (another branch adds the column / predicate); absent = not managed
@@ -397,6 +407,19 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
     if card == "lighting":
         row["brightness_pct"] = _pct(a.get("brightness"), 100 / 255) if row["state"] == "on" else None
         row["color_mode"] = a.get("color_mode") if isinstance(a.get("color_mode"), str) else None
+    elif card == "switches" and e["domain"] in ("vacuum", "valve", "water_heater"):
+        # CARD1: what the equipment card shows at a glance - picked by name, never the whole attribute bag
+        if e["domain"] == "vacuum":
+            row["battery_level"] = _pct(a.get("battery_level"))
+            row["fan_speed"] = a.get("fan_speed") if isinstance(a.get("fan_speed"), str) else None
+            row["status"] = a.get("status") if isinstance(a.get("status"), str) else None
+        elif e["domain"] == "valve":
+            row["position"] = _pct(a.get("current_position"))
+            row["moving"] = row["state"] in ("opening", "closing")
+        else:
+            row["current_temperature"] = _num(a.get("current_temperature"))
+            row["target_temperature"] = _num(a.get("temperature"))
+            row["unit"] = e.get("unit") or "°C"
     elif card in ("climate", "heating"):
         if e["domain"] == "climate":
             row["climate_kind"] = e.get("climate_kind") or climate_kind_auto(a)

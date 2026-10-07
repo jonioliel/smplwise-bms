@@ -224,6 +224,9 @@ ALLOWED_SERVICES = {
     # grouping layer that all report GROUPING now, a transfer between two Music Assistant players, no announcement, no account or alarm service.
     ("media_player", "media_seek"), ("media_player", "shuffle_set"), ("media_player", "repeat_set"), ("media_player", "select_sound_mode"),
     ("media_player", "join"), ("media_player", "unjoin"), ("music_assistant", "play_media"), ("music_assistant", "transfer_queue"),
+    # CARD1 (2026-10-07, the equipment cards of the activity window): a robot vacuum's pause, a valve's open / close, a water heater's on / off.
+    # Home Assistant still decides per user; the add-on validates the (argument-less) calls and asks for a confirmation grant on valve.open_valve.
+    ("vacuum", "pause"), ("valve", "open_valve"), ("valve", "close_valve"), ("water_heater", "turn_on"), ("water_heater", "turn_off"),
 }
 
 # 0.2.6 (CR-010): Home Assistant's own translation keys for a refused alarm code (alarm_control_panel and the

@@ -11,7 +11,7 @@ import { fmtTime } from '../api/ha';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { activityTag } from '../components/device-activity-press';
 import { ifDefined } from 'lit/directives/if-defined.js';
-import { deg, rowLabel, type DeviceControls } from './devices-controls';
+import { deg, EQUIPMENT_DOMAINS, rowLabel, type DeviceControls } from './devices-controls';
 import { hueOf } from '../design/skin';
 import { navigate } from '../router';
 
@@ -495,6 +495,11 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
   const open = () => h.openSheet(r, card);
   const common = { 'data-entity': r.entity_id };
   void common;
+  if (card === 'switches' && EQUIPMENT_DOMAINS.has(r.domain)) {
+    // CARD1: a vacuum / valve / water heater pill is read-only here - the long press opens its card with the controls
+    return html`<sw-pill variant="plain" icon="bolt" .label=${bidi(r.name)} .state=${stateOf(h, r, rowLabel(r))} ?on=${r.active && !unavailable} .hue=${hue} ?unavailable=${unavailable} readonly
+      data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active && !unavailable)} data-equipment=${r.domain} title=${r.entity_id} @activate=${open} @icon-click=${open}>${h.assignButton(r)}</sw-pill>`;
+  }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const dimmable = r.domain === 'light' && r.brightness_pct !== null && r.brightness_pct !== undefined;
@@ -623,6 +628,10 @@ export function renderBubbleSheetBody(h: BubbleAreaHost, r: DeviceRow, card: Car
   const ctl = h.ctl;
   const unavailable = unavailableOf(r);
   const can = r.can_control && !unavailable;
+  if (card === 'switches' && EQUIPMENT_DOMAINS.has(r.domain)) {
+    // CARD1: state only - the activity window's equipment card holds the controls (long press on the pill)
+    return html`${status(h, r)}${facts(r, [{ k: 'מצב', v: rowLabel(r) }])}`;
+  }
   if (card === 'lighting' || card === 'switches') {
     const on = (ctl.live<boolean>(r.entity_id, 'power') ?? r.active) && !unavailable;
     const dimmable = r.domain === 'light' && r.brightness_pct !== null && r.brightness_pct !== undefined;
