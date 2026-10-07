@@ -83,8 +83,8 @@ test.describe('review: the restyled screen', () => {
     await expect(cards(page).first()).toHaveAttribute('variant', 'row');
     await expect(cards(page).first().locator('.cell.cam b')).toHaveText('כניסה ראשית');
     await expect(cards(page).first().locator('[data-obj="person"]')).toHaveText('אדם');
-    if (test.info().project.name === 'desktop') await expect(tbl.locator('.h')).toBeVisible();
-    else await expect(tbl.locator('.h')).toBeHidden(); // a narrow table folds: no header, two text lines per row
+    if (test.info().project.name === 'mobile') await expect(tbl.locator('.h')).toBeHidden(); // under 900 px the table folds: no header, two text lines per row
+    else await expect(tbl.locator('.h')).toBeVisible();
     await noOverflow(page);
     await shot(page, 'review-table', 'light');
     // a row marks and selects like a card
@@ -344,6 +344,8 @@ test.describe('settings: the Frigate management card', () => {
     await expect(dlg.locator('[data-supervised-box="export_create"]')).toBeVisible();
     await expect(dlg.locator('[data-fx-create-ok]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-supervised-box="export_create"] input').check();
+    await expect(dlg.locator('[data-supervised-box="export_create"] input')).toBeChecked();
+    await expect(dlg.locator('[data-fx-create-ok]')).not.toHaveAttribute('disabled', '');
     await dlg.locator('[data-fx-create-ok]').click();
     await expect.poll(() => writes(m, 'POST frigate/nvr-2/exports').length).toBe(1);
     expect(writes(m, 'POST frigate/nvr-2/exports')[0]).toContain('"supervised":true');
