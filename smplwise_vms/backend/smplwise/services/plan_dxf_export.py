@@ -220,9 +220,12 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height
                     connectors.setdefault(p["id"], p)  # never filtered by level: drawn per level below
                 else:
                     _draw(msp, frame, p, shown, to, lid)
+        # a connector to another floor: its level_to names a level THERE, not one of this plan's
+        cross = {c.get("id") for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("floor_ids")}
         for cid in sorted(connectors):
             p = connectors[cid]
-            touching = [x for x in (p.get("level_from"), p.get("level_to")) if x in suffixes and x in drawn]
+            ends = (p.get("level_from"),) if cid in cross else (p.get("level_from"), p.get("level_to"))
+            touching = [x for x in ends if x in suffixes and x in drawn]
             if not touching:  # ?level= names another level: on its own level's layer, as the SVG draws every connector
                 touching = [p.get("level_from") if p.get("level_from") in suffixes else default]
             for lid in dict.fromkeys(touching):

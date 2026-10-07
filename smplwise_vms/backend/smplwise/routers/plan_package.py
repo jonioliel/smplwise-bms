@@ -3,7 +3,8 @@
 - GET  /plan-versions/{id}/export.dxf        the structure as DXF (fixed layers, metres when calibrated); read like the
                                               SVG export: the published structure with map.read, drafts with map.edit.
 - POST /plan-versions/{id}/package           the signed package of the draft or the published structure (map.edit:
-                                              it carries the floor's anchors and is signed with the installation key).
+                                              it carries the floor's anchors and is signed with the installation key);
+                                              body {draft, dxf}: dxf=true adds assets/plan.dxf beside the plan picture (PLN2).
 - POST /plan-versions/{id}/package/preview   the dry run of an import: checks, versions, diff, missing entities.
 - POST /plan-versions/{id}/package/import    the import itself, into the version's draft; the person confirms the
                                               hash the preview showed (`expect_hash`) and the draft revision it saw.
@@ -31,8 +32,6 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import bundle as bundle_svc
 from ..services import geometry_store as store
-from ..services import plan_catalog
-from ..services import plan_dxf_export as dxf_export
 from ..services import plan_package as pkg_svc
 from ..services import signing
 from .catalog import get_floor
@@ -52,19 +51,15 @@ def export_dxf(version_id: str, draft: bool = False, level: str | None = None, l
     """The structure as DXF R2018: walls, openings, rooms, devices, objects, connectors and labels on their own layers."""
     v, doc = _export_doc(conn, principal, version_id, draft)
     floor = get_floor(conn, v["floor_id"])
-    # review M2: the anchors (and the anchor positions bound objects follow) the caller may see - the anchors list's rules
-    visible = pkg_svc.anchor_visibility(conn, principal, v["floor_id"])
-    positions = {k: p for k, p in store.anchor_positions(conn, v["floor_id"]).items() if visible(*k.split(":", 1))}
-    data = dxf_export.render_dxf(doc, _export_zones(conn, principal, v), v["width_px"], v["height_px"], level=level, layers=_layers(layers),
-                                 anchors=pkg_svc.anchor_records(conn, v["floor_id"], principal), anchor_positions=positions,
-                                 items=plan_catalog.item_index(conn),
-                                 meta={"SW_PLAN_VERSION": v["id"], "SW_FLOOR": floor["name"] or "", "SW_STAGE": "draft" if draft else "published",
-                                       "SW_DOC_HASH": store.doc_hash(doc)})
+    # review M2: the anchors (and the anchor positions bound objects follow) the caller may see - the anchors list's rules.
+    # PLN2: a plan with more than one level draws a layer family per level (services/plan_dxf_export.py).
+    data = pkg_svc.dxf_bytes(conn, v, floor, doc, "draft" if draft else "published", _export_zones(conn, principal, v), principal, level=level, layers=_layers(layers))
     return Response(content=data, media_type="image/vnd.dxf", headers={"Content-Disposition": f'attachment; filename="plan-{v["id"]}.dxf"', **NO_CACHE})
 
 
 class PackageIn(BaseModel):
     draft: bool = False
+    dxf: bool = False  # PLN2: also assets/plan.dxf with the plan picture beside it (an importer before PLN2 refuses it)
 
 
 @router.post("/plan-versions/{version_id}/package", response_model=None)
@@ -85,11 +80,13 @@ def export_package(version_id: str, request: Request, body: PackageIn | None = N
     settings = settings_of(request)
     floor = get_floor(conn, v["floor_id"])
     iid = bundle_svc.installation_id(conn, create=True)
-    data, manifest = pkg_svc.build(settings, conn, v, floor, doc, "draft" if draft else "published", floor_zones(conn, v["floor_id"]), principal, iid, revision)
+    data, manifest = pkg_svc.build(settings, conn, v, floor, doc, "draft" if draft else "published", floor_zones(conn, v["floor_id"]), principal, iid, revision,
+                                   include_dxf=bool(body and body.dxf))
     sha = pkg_svc._sha(data)
     audit(conn, actor=principal, action="geometry.package.export", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "stage": "draft" if draft else "published", "doc_hash": manifest["document"]["doc_hash"], "package_sha256": sha,
-                   "bytes": len(data), "kid": manifest["signature_info"]["kid"], "files": len(manifest["files"])})
+                   "bytes": len(data), "kid": manifest["signature_info"]["kid"], "files": len(manifest["files"]),
+                   "dxf": bool((manifest.get("dxf") or {}).get("included"))})
     name = f"plan-{v['id']}-{manifest['generated_at'].replace('-', '').replace(':', '')}.swplan.zip"
     return Response(content=data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"', "X-Package-Sha256": sha, **NO_CACHE})
 
