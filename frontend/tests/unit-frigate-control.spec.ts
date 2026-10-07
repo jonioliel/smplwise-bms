@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 import {
-  SWITCH_ORDER, alarmText, anyWriteOn, changeLine, confirmCopy, featureText, groupSwitches, needsConfirm, visibleClasses,
+  SWITCH_ORDER, alarmText, anyWriteOn, changeLine, confirmCopy, exportRangeError, featureText, groupSwitches, isFirstWriteRefusal, needsConfirm,
+  openManualEvents, typedMatches, visibleClasses,
   type CameraControl, type ChangeRow, type ControlPolicy,
 } from '../src/api/frigate-control';
+import { ApiError } from '../src/api/client';
 import { he } from '../src/i18n/he';
 
 // NN5-F2: the pure logic of the Frigate control screens - which switches are drawn and in which order, what needs a confirmation, the
@@ -61,6 +63,53 @@ test('the settings list the write classes in a fixed order and offer PTZ only on
   expect(anyWriteOn(null)).toBe(false);
   expect(anyWriteOn(policy(false))).toBe(false);
   expect(anyWriteOn(policy(false, ['review']))).toBe(true);
+});
+
+// ---- FRGD: the F2b helpers ----
+
+test('the F2b write classes join the list in a fixed place, before PTZ', () => {
+  const p: ControlPolicy = {
+    recorder_id: 'nvr-2', ptz_released: false,
+    classes: (['cases', 'exports', 'ptz', 'events', 'review', 'profile', 'record', 'analytics'] as const).map((c) => ({ class: c, enabled: false, per_action: false, permission: `p.${c}`, available: c !== 'ptz', confirm_actions: c === 'exports' || c === 'cases' ? ['delete'] : [] })),
+  };
+  expect(visibleClasses(p).map((c) => c.class)).toEqual(['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases']);
+});
+
+test('a change-log line of an F2b kind names the kind and the object', () => {
+  expect(changeLine(change({ kind: 'export_create', class: 'exports', target: 'exp-1', after: { name: 'כניסה 06.10', id: 'exp-1' } }))).toBe(`${he.frigate.control.settings.kinds.export_create}: כניסה 06.10`);
+  expect(changeLine(change({ kind: 'export_delete', class: 'exports', target: 'exp-1', before: { name: 'ישן' }, after: null }))).toBe(`${he.frigate.control.settings.kinds.export_delete}: ישן`);
+  expect(changeLine(change({ kind: 'event_create', class: 'events', target: 'ev-9', after: { label: 'בדיקה' } }))).toBe(`${he.frigate.control.settings.kinds.event_create}: בדיקה`);
+  expect(changeLine(change({ kind: 'case_rename', class: 'cases', target: 'c1', after: { name: 'חדש' } }))).toBe(`${he.frigate.control.settings.kinds.case_rename}: חדש`);
+});
+
+test('the open manual events are the reversible event_create rows without an end row', () => {
+  const rows: ChangeRow[] = [
+    change({ id: 'a', kind: 'event_create', class: 'events', target: 'ev-1', after: { label: 'בדיקה', sub_label: 'טכנאי' }, reversible: true }),
+    change({ id: 'b', kind: 'event_create', class: 'events', target: 'ev-2', after: { label: 'ישן' }, reversible: false }), // ended: the undo is gone
+    change({ id: 'c', kind: 'event_create', class: 'events', target: 'ev-3', after: { label: 'נגמר' }, reversible: true }),
+    change({ id: 'd', kind: 'event_end', class: 'events', target: 'ev-3', after: { end_time: 1 }, reversible: false }),
+    change({ id: 'e', kind: 'event_create', class: 'events', target: 'ev-4', after: { label: 'נכשל' }, status: 'failed', reversible: true }),
+  ];
+  expect(openManualEvents(rows).map((o) => [o.id, o.label, o.sub_label])).toEqual([['ev-1', 'בדיקה', 'טכנאי']]);
+});
+
+test('an export range is at most two hours, ordered, and never in the future', () => {
+  const now = 1_800_000_000;
+  expect(exportRangeError(null, now)).toBe('missing');
+  expect(exportRangeError(now - 10, now - 20, now)).toBe('order');
+  expect(exportRangeError(now - 7201 - 100, now - 100, now)).toBe('long');
+  expect(exportRangeError(now, now + 120, now)).toBe('future');
+  expect(exportRangeError(now - 3600, now - 1, now)).toBeNull();
+  expect(exportRangeError(now - 60, now + 30, now)).toBeNull(); // one minute of slack
+});
+
+test('a typed confirmation matches the name exactly (trimmed) and never an empty string; the first-write refusal is told by its code', () => {
+  expect(typedMatches(' כניסה ', 'כניסה')).toBe(true);
+  expect(typedMatches('כניס', 'כניסה')).toBe(false);
+  expect(typedMatches('  ', '  ')).toBe(false);
+  expect(isFirstWriteRefusal(new ApiError(409, { code: 'frigate_first_write_unsupervised', user_message: '', retryable: false, correlation_id: '', details: {} }))).toBe(true);
+  expect(isFirstWriteRefusal(new ApiError(409, { code: 'frigate_object_not_arx', user_message: '', retryable: false, correlation_id: '', details: {} }))).toBe(false);
+  expect(isFirstWriteRefusal(new Error('x'))).toBe(false);
 });
 
 test('alarm states have Hebrew names and an unknown one is shown as it is', () => {

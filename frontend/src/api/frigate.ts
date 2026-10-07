@@ -182,6 +182,8 @@ export async function frigateRecorders(): Promise<WireRecorder[]> {
 
 const statusOf = (rid: string) => memoised(`status:${rid}`, () => get<WireStatus>(`frigate/${encodeURIComponent(rid)}/status`));
 const camerasOf = (rid: string) => memoised(`cameras:${rid}`, () => get<{ cameras: WireCamera[] }>(`frigate/${encodeURIComponent(rid)}/cameras`).then((r) => r.cameras));
+/** Arx's cameras of a Frigate recorder (the admin forms pick one): memoised like the other small answers. */
+export const frigateCameras = (rid: string): Promise<WireCamera[]> => camerasOf(rid);
 
 /** What a saved recorder offers, from `status` and its camera list (the settings card). */
 export async function recorderCapabilities(rid: string): Promise<FrigateCapabilities> {
