@@ -124,6 +124,12 @@ test.describe('settings: voice announcements', () => {
     await tab(page).locator('[data-announce-routing-severity]').selectOption('critical');
     await expect.poll(() => m.calls.some((c) => (c.body?.notify as { min_severity?: string } | undefined)?.min_severity === 'critical')).toBe(true);
     await shot(page, 'announce-extras');
+    if (process.env.SW_SHOTS) { // the whole tab (volume, pause, quiet hours, notification routing) as one image for the guide
+      fs.mkdirSync(OUT, { recursive: true });
+      await page.setViewportSize({ width: 1280, height: 1700 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: path.join(OUT, `announce-extras-tab-${test.info().project.name}.png`) });
+    }
   });
 
   test('English strings when the document language is English; without system.configure there is no screen', async ({ page }) => {

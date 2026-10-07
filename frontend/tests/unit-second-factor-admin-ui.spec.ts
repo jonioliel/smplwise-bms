@@ -1,4 +1,7 @@
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // K11 gap closure (2.2.0 follow-up): the two administrator surfaces of the optional second factor, against a MOCKED wire
 // contract of smplwise/routers/second_factor.py and settings (invented users, no secrets):
@@ -7,6 +10,14 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 //   2. settings > remote access: the policy select (optional / admins) saves security.second_factor_policy through PATCH settings.
 // The end-to-end sign-in with the real backend is evidence-arx-second-factor.spec.ts (fixture backend).
 //   SW_BASE_URL=http://127.0.0.1:5262/ npx playwright test tests/unit-second-factor-admin-ui.spec.ts --workers=1
+
+// SW_SHOTS=1 also writes element screenshots for the Hebrew user guide to docs/design/evidence/tfa2 (nothing otherwise).
+const SHOTS_OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tfa2');
+async function guideShot(loc: Locator | Page, name: string) {
+  if (!process.env.SW_SHOTS) return;
+  fs.mkdirSync(SHOTS_OUT, { recursive: true });
+  await loc.screenshot({ path: path.join(SHOTS_OUT, `${name}-${test.info().project.name}.png`) });
+}
 
 const PERMS = ['video.live', 'map.read', 'entity.state.read', 'access.read', 'devices.read', 'alarm.view', 'events.read', 'system.configure', 'rbac.assign'];
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -173,6 +184,7 @@ test('user drawer: the policy override select offers inherit / optional / requir
   await expect(select).toHaveValue('inherit');
   await select.selectOption('required');
   await expect(select).toHaveValue('required');
+  await guideShot(page, 'tfa2-user-policy'); // SW_SHOTS only
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
   expect(mock.overrides.user['u-dana']).toBe('required');
   // another user shows their own stored value, not the previous user's
@@ -208,6 +220,7 @@ test('roles screen: every role card has the policy override select', async ({ pa
   const custom = screen.locator('[data-role-card="custom-1"] select[data-sf-policy-select]');
   await expect(viewer).toHaveValue('inherit');
   await expect(custom).toHaveValue('required');
+  await guideShot(screen.locator('[data-role-card="custom-1"]'), 'tfa2-role-policy'); // SW_SHOTS only
   await viewer.selectOption('optional');
   await expect.poll(() => mock.calls.filter((c) => c.method === 'PUT').length).toBe(1);
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/role/viewer', body: { policy: 'optional' } }]);

@@ -1759,5 +1759,77 @@
     "evidence_from": [
       "docs/design/evidence/nn5-f2/settings-control-card-desktop.png"
     ]
+  },
+  {
+    "id": "announcements-extras",
+    "name_he": "הגדרות › מולטימדיה › הכרזות קוליות: עוצמה, השהיית מוזיקה, שעות שקט והכרזה מהתראות",
+    "section": "multimedia",
+    "route": "#/system/multimedia?tab=announce",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-42-multimedia_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/mu2/announce-extras-tab-desktop.png"
+    ]
+  },
+  {
+    "id": "second-factor-user-policy",
+    "name_he": "מגירת משתמש: מדיניות אימות דו־שלבי בכניסה מרחוק",
+    "section": "settings",
+    "route": "#/system/access",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/tfa2/tfa2-user-policy-desktop.png"
+    ]
+  },
+  {
+    "id": "second-factor-role-policy",
+    "name_he": "כרטיס תפקיד: מדיניות אימות דו־שלבי",
+    "section": "settings",
+    "route": "#/system/access (לשונית תפקידים)",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "system_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-82-second-factor_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/tfa2/tfa2-role-policy-desktop.png"
+    ]
+  },
+  {
+    "id": "frigate-review-event-controls",
+    "name_he": "מגירת סקירה של Frigate: שמור הקלטה ותווית לאובייקט",
+    "section": "security",
+    "route": "#/investigate/reviews",
+    "viewports": [
+      "desktop"
+    ],
+    "roles": [
+      "site_admin"
+    ],
+    "setup": [],
+    "caption_he": "צילום מהדגמה (ראיות הפיתוח, נתוני דמה). פרטים ב-33-frigate_HE.md.",
+    "source": "evidence",
+    "evidence_from": [
+      "docs/design/evidence/nn5-f2/review-event-controls-desktop.png"
+    ]
   }
 ]
