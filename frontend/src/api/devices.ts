@@ -186,6 +186,9 @@ export interface DeviceRow {
   value?: number | null;
   on?: boolean | null;
   battery_level?: number | null;
+  // CARD1: a robot vacuum listed with the switches (its card in the activity window shows these; the tile is read-only)
+  fan_speed?: string | null;
+  status?: string | null;
   /** CR-007 slice 4: the sensors card's own grouping (device class, or "other"). Display only. */
   group?: string;
 }
