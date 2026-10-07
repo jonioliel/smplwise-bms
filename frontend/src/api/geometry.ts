@@ -260,10 +260,11 @@ const packageForm = (file: File | Blob) => {
   form.set('file', file, file instanceof File && file.name ? file.name : 'plan.swplan.zip');
   return form;
 };
-/** The signed package of the draft (or the published structure) as a file to save; map.edit. */
-export async function exportPlanPackage(versionId: string, draft: boolean): Promise<{ blob: Blob; name: string }> {
+/** The signed package of the draft (or the published structure) as a file to save; map.edit. `dxf` (PLN2): the package
+ * also carries assets/plan.dxf beside the plan picture its IMAGE names (an importer before PLN2 refuses that file). */
+export async function exportPlanPackage(versionId: string, draft: boolean, opts: { dxf?: boolean } = {}): Promise<{ blob: Blob; name: string }> {
   const res = await fetch(apiUrl(`plan-versions/${versionId}/package`), {
-    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft }),
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.dxf ? { draft, dxf: true } : { draft }),
   });
   if (!res.ok) {
     let body: ApiErrorBody;
