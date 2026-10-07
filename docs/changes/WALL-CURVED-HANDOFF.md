@@ -37,7 +37,7 @@ validator (bulges length mismatch). Shared helper: `services/wall_path.py` + `fr
 | 3 Phone guard | DONE (curve/arc refused on phone like wall drawing; C ignored) |
 | 4 Backend unit tests | DONE: `tests/test_wall_curves.py` (23) |
 | 4 Frontend unit tests | DONE: `tests/unit-wall-path.spec.ts` (8, golden parity with backend) |
-| 4 Playwright editor specs desktop + phone | WRITTEN (`tests/evidence-curved-walls.spec.ts`, added to `frontend/tests/fixtures/fixture_specs.json` devices group, not gated); first runner run was in progress at pause - result NOT confirmed |
+| 4 Playwright editor specs desktop + phone | Desktop: 4/4 PASS on the runner fixture job (bend + undo/redo, radius/straighten, corner rounding, arc mode + SVG export). Phone: 1 FAIL in the spec's own setup (see below) |
 | 4 Evidence screenshots looked at | NOT DONE (the spec writes them to `private-evidence/curved-walls/` on the machine that runs it; nobody has looked yet) |
 
 ## What ran
@@ -47,12 +47,19 @@ validator (bulges length mismatch). Shared helper: `services/wall_path.py` + `fr
   shared spaces, packages>` -> **296 passed** @ a86e5852. `run_smart.py tsc pilot/WALL-curved` -> **tsc ok**.
 - Workstation Playwright (no server, scratch config): unit-wall-path + unit-geometry(-2) + unit-scene-builder +
   unit-door-tool + unit-studio-ops(-2) + unit-shared-space + unit-coverage -> **108 passed**.
-- Live editor spec `evidence-curved-walls` via `run_smart.py fixture`: started, still building at the pause; outcome
-  unknown -> treat as NOT_RUN until re-run. No known failing tests.
+- Live editor spec `evidence-curved-walls` via `run_smart.py fixture` @ a86e5852: **4 passed** (desktop), **1 failed**
+  (mobile), 5 skipped (each test runs on one project only).
+
+## Known failing test
+
+`[mobile] evidence-curved-walls.spec.ts:196 phone: the curve tools stay away`: the wait for `sw-plan-canvas [data-wall]`
+right after opening the editor times out on the phone (the phone editor does not draw the structure until a tool is
+picked, or draws it elsewhere). This is the spec's setup, not the guard: fix the spec to open the structure tool first
+(or wait for the canvas), then assert the guard. The guard code itself is in `setMode` / the C key handler.
 
 ## Next steps (in order)
 
-1. Re-run the live spec and fix what it finds:
+1. Fix the phone spec setup (above), then re-run the live spec:
    `%LOCALAPPDATA%\Programs\Python\Python312\python.exe private\runner\run_smart.py fixture pilot/WALL-curved evidence-curved-walls`
    (desktop + mobile). Likely spots: the corner `[data-wall-vertex="2"]` click, `data-segment-radius` value format,
    the SVG export URL `export.svg?draft=true`.
