@@ -129,13 +129,14 @@ test.describe('settings: management of the writes', () => {
   }
 
   test('every class is listed, off until switched on; switching one on sends exactly that class; PTZ is not offered', async ({ page }) => {
-    const m = await start(page, '/system/setup', {}, { classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false } });
+    const m = await start(page, '/system/setup', {}, { classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false } });
     const box = await openCard(page, m);
-    await expect(box.locator('[data-fcs-class]')).toHaveCount(5);
+    await expect(box.locator('[data-fcs-class]')).toHaveCount(7); // FRGD: + exports and cases (F2b)
     await expect(box.locator('[data-fcs-class="ptz"]')).toHaveCount(0);
-    for (const c of ['analytics', 'record', 'profile', 'review', 'events']) await expect(box.locator(`[data-fcs-toggle="${c}"]`)).not.toHaveAttribute('checked', '');
+    for (const c of ['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases']) await expect(box.locator(`[data-fcs-toggle="${c}"]`)).not.toHaveAttribute('checked', '');
     await expect(box.locator('[data-fcs-class="record"]')).toContainText('דורש אישור בכל פעולה');
     await expect(box.locator('[data-fcs-class="analytics"]')).not.toContainText('דורש אישור בכל פעולה');
+    await expect(box.locator('[data-fcs-class="exports"]')).toContainText('דורש אישור במחיקה');
     await box.locator('[data-fcs-toggle="analytics"]').click();
     await expect.poll(() => writes(m, 'control/policy').length).toBe(1);
     expect(writes(m, 'control/policy')[0]).toContain('{"classes":{"analytics":true}}');
@@ -158,11 +159,14 @@ test.describe('settings: management of the writes', () => {
   test('the alarm mapping stores a profile per state (a mapping only) and the log undoes a change, asking first for recording and profile', async ({ page }) => {
     const m = await start(page, '/system/setup');
     const box = await openCard(page, m);
+    // FRGD: the card has tabs - the mapping sits under "פרופילים", the log under "יומן שינויים"
+    await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'פרופילים' }).click();
     await expect(box.locator('[data-fcs-rule="armed_away"]')).toHaveValue('away');
     await box.locator('[data-fcs-rule="disarmed"]').selectOption('home');
     await expect.poll(() => writes(m, 'profile-rules').length).toBe(1);
     expect(writes(m, 'profile-rules')[0]).toContain('{"rules":{"disarmed":"home"}}');
     expect(writes(m, 'frigate/nvr-2/profile ')).toHaveLength(0); // nothing was switched
+    await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'יומן שינויים' }).click();
     await expect(box.locator('[data-change]')).toHaveCount(3);
     await expect(box.locator('[data-change="ch1"]')).toContainText('זיהוי אובייקטים: כבוי');
     await expect(box.locator('[data-change="ch3"] [data-change-status="reverted"]')).toBeVisible();
