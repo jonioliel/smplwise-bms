@@ -6520,17 +6520,329 @@
     "kind": "integration/e2e",
     "preconditions": [
       "Build tied to a recorded commit",
-      "Branches pilot/M074-visual-diff (52bfc096) and pilot/M074-gate (7a2dfd5b), not merged; Linux baselines generated on the runner"
+      "Merged in release 2.3.0 (pilot/M074-visual-diff harness through pilot/M074-gate, head ddf70ce2); Linux baselines generated on the runner"
     ],
     "procedure": [
       "Run the visual matrix spec on the runner (visual job) and the gate with --visual; a deliberate change must produce a diff report; baselines regenerated only on an approved intentional change."
     ],
     "expected": "Visual matrix: 12 cases x desktop / tablet / mobile (72 Linux baselines), per-screen masks and tolerance overrides, the gate's --visual / --visual-block / --visual-base options (warning section by default), documented approval flow. Time-to-camera / time-to-recording metrics are not part of this entry.",
+    "status": "PASS",
+    "commit": "560b246f",
+    "environment": "Linux test machine, release gate tier L, integ/230 @ 560b246f (2.3.0), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.3.0-INTEGRATION-NOTES.md (gate run 1: visual step warning-only, 72 pass / 0 differ / 0 error)"
+    ],
+    "executed_at": "2026-10-06T23:30:00Z",
+    "notes": "Registered 2026-10-06 by TASKS-SYNC-3; updated 2026-10-07 by TASKS-SYNC-4: merged and run in the 2.3.0 gate as a warning-only step; the failure path was exercised once locally and by selftest. The step does not block a release."
+  },
+  {
+    "id": "AT237",
+    "requirement_ids": [
+      "R193",
+      "R175",
+      "R176"
+    ],
+    "task_ids": [
+      "T095",
+      "T088"
+    ],
+    "title": "Security review of 2.2.0 - fixes (2.2.1)",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_security_review_220.py (29 test functions): second factor on the bearer path over HTTP and WebSocket, enforce / off with audited skips, sessions ended on enable and reset, no self-reset, administrator confirms a reset with their own code; DXF and signed plan package carry only visible anchors; package import limits, one in flight, rate, foreign / retired-key trust at the preview; announcement rules re-check the saver, markup stripped, per-speaker cooldown; Frigate id / camera key validation and administrator-only change-log rows; app-download route rate limit.",
+      "A real token-based client and a real second-factor user on the owner's installation (owner present)."
+    ],
+    "expected": "The findings of the internal 2.2.0 review are closed in 2.2.1 as listed in the 2.2.1 release notes; this entry records the fixes, not a clean external review.",
     "status": "NOT_RUN",
     "commit": null,
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-06 by TASKS-SYNC-3; NOT_RUN until recorded against a commit. Harness exists on branches only; no gated release has used it."
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Automated suites passed in the 2.2.1 and 2.3.0 tier L gates (fixtures only); NOT_RUN for a real token-based client and for any external review. No review content is reproduced here."
+  },
+  {
+    "id": "AT238",
+    "requirement_ids": [
+      "R193"
+    ],
+    "task_ids": [
+      "T095"
+    ],
+    "title": "Second factor - TFA2 follow-ups and pending-token hardening",
+    "kind": "integration/e2e/security",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_second_factor_followups.py (11); Playwright unit-arx-pending-tokens.spec.ts (3) and unit-second-factor-admin-ui.spec.ts (7), mocked backend.",
+      "Lab (owner): override and lockout on the owner's installation with a real authenticator app."
+    ],
+    "expected": "Second factor follow-ups (2.3.0, migration 0069): the lockout survives a restart, the reset notice reaches the inbox with no actor and no secret, overrides resolve user then roles then the global policy, the phone app's device tokens are revoked on enable / reset, the browser keeps unverified refreshed tokens in memory only while the factor is pending; every override starts as inherit.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Fixture / mocked evidence only; the 2.3.0 gate passed these suites. NOT_RUN for a real device and authenticator."
+  },
+  {
+    "id": "AT239",
+    "requirement_ids": [
+      "R231"
+    ],
+    "task_ids": [
+      "T117"
+    ],
+    "title": "Voice announcements - ANN2 extras",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_announce_extras.py (30 test functions, media layer faked); a real speaker only with the owner present."
+    ],
+    "expected": "Announcement extras (2.3.0, migration 0070): per-announcement volume clamped and restored, pause / resume of music, quiet hours suppress or lower with critical always spoken, rule actions with volume and a critical flag, the announce notification channel by category and minimum severity; all off by default.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Faked media layer; passed in the 2.3.0 gate. NOT_RUN on a real speaker."
+  },
+  {
+    "id": "AT240",
+    "requirement_ids": [
+      "R230"
+    ],
+    "task_ids": [
+      "T116"
+    ],
+    "title": "Frigate F2b - automatic profile, exports, cases, manual events, clip.mp4",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_frigate_f2b.py (27 test functions) against the in-process fake Frigate.",
+      "First supervised write / read of each new kind on a real Frigate (owner present; runbook docs/operations/FRIGATE_SUPERVISED_VERIFICATION_HE.md)."
+    ],
+    "expected": "Frigate F2b server side (2.3.0, migration 0068): automatic profile (off / suggest / apply with consent and a supervised first write), exports and cases write classes for Arx-created objects only, manual events, a read-only streamed clip.mp4, the frigate_first_write gate (409 until a system administrator passes supervised=true once); all off by default; no operator screen yet.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Fake Frigate only; passed in the 2.3.0 gate. NOT_RUN on a real Frigate."
+  },
+  {
+    "id": "AT241",
+    "requirement_ids": [
+      "R230"
+    ],
+    "task_ids": [
+      "T116"
+    ],
+    "title": "Add-on option frigate_enabled",
+    "kind": "unit/contract",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_frigate_addon_option.py (3 test functions)."
+    ],
+    "expected": "Add-on option frigate_enabled (2.2.1, default false) makes the Frigate recorder type selectable; with it off, behaviour is unchanged; Frigate write classes stay off per recorder.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Configuration test only, not a Frigate check; no installation test on the owner's add-on, so NOT_RUN."
+  },
+  {
+    "id": "AT242",
+    "requirement_ids": [
+      "R135"
+    ],
+    "task_ids": [
+      "T068"
+    ],
+    "title": "/health process and database counters",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_health_process_stats.py (6 test functions)."
+    ],
+    "expected": "GET /api/v1/health returns process (uptime, threads, open files, RSS) and db (file and WAL size) only to a system.configure holder; everyone else receives the previous answer.",
+    "status": "PASS",
+    "commit": "560b246f",
+    "environment": "Linux test machine, release gate tier L, integ/230 @ 560b246f (2.3.0), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.3.0-INTEGRATION-NOTES.md (gate run 1, PASS)"
+    ],
+    "executed_at": "2026-10-06T23:30:00Z",
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Automated, fixture-only; the counters are not a soak result."
+  },
+  {
+    "id": "AT243",
+    "requirement_ids": [
+      "R135",
+      "R136"
+    ],
+    "task_ids": [
+      "T068"
+    ],
+    "title": "Soak sampler v2 and analyzer - 14 hour run",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_soak_sampler.py (25 test functions) for the sampler and analyzer; a 14 hour run of the read-only sampler on the Linux test machine, then the Hebrew analyzer on the finished sample file."
+    ],
+    "expected": "A read-only soak sample (process, database, supervisor statistics over the HA WebSocket) analyzed for growth and leaks over 14 hours.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Tooling released in 2.2.1 / 2.3.0 and its unit tests passed in the gates. The 14 hour run started 2026-10-06 23:26 and is IN PROGRESS: no analysis, no numbers; stays NOT_RUN until the analyzer output is recorded against a commit."
+  },
+  {
+    "id": "AT244",
+    "requirement_ids": [
+      "R147"
+    ],
+    "task_ids": [
+      "T074"
+    ],
+    "title": "Runner fixture job",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_fixture_job.py (8 test functions); the gate reads fixture_specs.json."
+    ],
+    "expected": "scripts/fixture_job.py runs the live-fixture browser specs under the shared lock without changing what the gate runs; lock hygiene documented (docs/operations/RUNNER_LOCKS.md).",
+    "status": "PASS",
+    "commit": "560b246f",
+    "environment": "Linux test machine, release gate tier L, integ/230 @ 560b246f (2.3.0), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.3.0-INTEGRATION-NOTES.md (gate run 1, fixture 15 passed)"
+    ],
+    "executed_at": "2026-10-06T23:30:00Z",
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Automated; runner tooling, not a product feature."
+  },
+  {
+    "id": "AT245",
+    "requirement_ids": [
+      "R230",
+      "R231",
+      "R232"
+    ],
+    "task_ids": [
+      "T116"
+    ],
+    "title": "Every add-on option documented in English and Hebrew (DOC3)",
+    "kind": "unit/contract",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_docs_config_consistency.py (4 test functions)."
+    ],
+    "expected": "Every add-on option in config.yaml is documented in smplwise_vms/DOCS.md and DOCS_HE.md.",
+    "status": "PASS",
+    "commit": "560b246f",
+    "environment": "Linux test machine, release gate tier L, integ/230 @ 560b246f (2.3.0), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.3.0-INTEGRATION-NOTES.md (gate run 1)"
+    ],
+    "executed_at": "2026-10-06T23:30:00Z",
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Automated consistency check, no device involved."
+  },
+  {
+    "id": "AT246",
+    "requirement_ids": [
+      "R147",
+      "R148"
+    ],
+    "task_ids": [
+      "T074"
+    ],
+    "title": "Release gate - retry matched per test title, visual check as warning",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "scripts/gate/selftest_gate.py (30 OK incl. the sibling-retry case and three visual cases); the tier L gate runs of 2.2.1 and 2.3.0."
+    ],
+    "expected": "A failed test re-run alone is matched per test title, so a passing sibling in a loop cannot hide a failure as flaky; the visual matrix runs in every tier as a warning section that never changes the verdict (--visual-block counts it, --no-visual disables it).",
+    "status": "PASS",
+    "commit": "560b246f",
+    "environment": "Linux test machine, release gate tier L, integ/230 @ 560b246f (2.3.0), backend + preview + dev + pixel + fixture suites; fixtures only",
+    "evidence": [
+      "docs/release/2.2.1-INTEGRATION-NOTES.md",
+      "docs/release/2.3.0-INTEGRATION-NOTES.md (visual 72 pass / 0 differ)"
+    ],
+    "executed_at": "2026-10-06T23:30:00Z",
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. The step is warning-only, so this PASS does not mean visual regressions block a release. Time-to-camera metrics are not covered."
+  },
+  {
+    "id": "AT247",
+    "requirement_ids": [
+      "R196",
+      "R217"
+    ],
+    "task_ids": [
+      "T096",
+      "T103"
+    ],
+    "title": "Mobile apps contract v2 (CR-027)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_mobile_push.py with the relay fake; contract docs/api/mobile-presence-contract.md.",
+      "Real phones with the v2 builds, the relay Worker deployed with RELAY_TOKEN_SECRET and a real FCM / APNs delivery (owner step)."
+    ],
+    "expected": "Registration returns server_id and relay_url; relay registration is idempotent; a server id belongs to the first server key that claims it; one relay token per phone; cross-site refusals have a machine-readable reason.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. Server side against the relay fake only. Devices, real push and the deployed relay are NOT_RUN / BLOCKED."
+  },
+  {
+    "id": "AT248",
+    "requirement_ids": [
+      "R232"
+    ],
+    "task_ids": [
+      "T118"
+    ],
+    "title": "Signed APK bundled in the add-on",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Backend test_app_download.py; Playwright unit-android-download; a real Android phone (owner present) after a signed APK is staged with scripts/stage_apk.py."
+    ],
+    "expected": "The sign-in page offers a bundled signed APK (route auth/app-download/file with version, size and SHA-256) only when one is staged; an administrator's external https address wins; the route is rate-limited per address.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-07 by TASKS-SYNC-4. No signed APK exists and none is staged in 2.2.1 / 2.3.0; fixture file only. NOT_RUN on a phone."
   }
 ]
