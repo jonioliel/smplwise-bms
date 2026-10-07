@@ -59,8 +59,8 @@ test.describe('review: the restyled screen', () => {
     await shot(page, 'review-cards', 'light');
     // the keys live behind one help button
     await page.locator(`${SCREEN} [data-review-keys]`).click();
-    await expect(page.locator(`${SCREEN} [data-review-keys-dialog]`)).toBeVisible();
-    await expect(page.locator(`${SCREEN} [data-review-keys-dialog] kbd`).first()).toBeVisible();
+    await expect(page.locator(`${SCREEN} [data-review-keys-dialog] kbd`).first()).toBeVisible(); // the sw-dialog host has no box of its own
+    await expect(page.locator(`${SCREEN} [data-review-keys-dialog] dd`)).toHaveCount(6);
     await shot(page, 'review-keys');
     await page.keyboard.press('Escape');
     await expect(page.locator(`${SCREEN} [data-review-keys-dialog]`)).toHaveCount(0);

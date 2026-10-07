@@ -174,3 +174,51 @@ First supervised read: the same flag as 11 (`frigate_first_write`, kind `clip_re
 **NOT VERIFIED (F2b):** every wire shape in 11.2, 11.3 and 11.4 and the id fields in the answers (`export_id`, `id`, `event_id`); whether Frigate export ids match `[A-Za-z0-9_.-]{1,80}`; whether `GET /api/events/{id}` shows a manual event's `end_time`. Each shape sits in one place in `services/recorders/frigate_control.py`. The first supervised write of each kind on the owner's instance is still to do.
 **Not built (F2b):** all operator screens (a design agent builds them), assigning an export to a case, a PTZ pad, backup of the new tables. The `triggered` alarm state can be mapped to a profile like any other, but no real-hardware trial exists.
 **Rollback:** run the previous version (0068 only adds tables and rebuilds `frigate_write_policy` with the same rows and two more allowed class names); with every class off and the auto mode `off` (the defaults) nothing is written to Frigate.
+
+## 12. FRGD - the Frigate user interface, polished and completed (branch pilot/FRGD-frigate-ui, no migration, no server change)
+
+Owner approval 2026-10-07 (a design task). Frontend only: the server APIs of sections 6, 10 and 11 are used as they are; no new route, field
+or table. Everything below was proven against the MOCKED backend of `frontend/tests/frigate-mocks.ts` (now with the F2b routes) - nothing
+was run against a real Frigate or the owner's recorder.
+
+**Review screen (`screens/investigate-reviews.ts`, `components/frigate-review-card.ts`, `frigate-review-detail.ts`).** Restyled to the
+product's visual language (tokens only; light + dark; the four skins; RTL with the still never mirrored; desktop / tablet / phone): the still
+carries camera, time and duration in a bottom overlay, the layer chip and the per-user state; objects as chips, zones and plan location below.
+Two views, the person's choice remembered in `localStorage` (`sw.reviews.view`): cards, and a table (tick, still, camera, time, duration,
+objects, zones, location, state, actions) that folds to two-line rows under 900 px. Clean operator screen (owner rule): the subtitle paragraph
+and the shortcuts line are gone (the keys live behind one help button and a dialog); offline / partial coverage / motion cap are short chips.
+The drawer: a hero still, a two-column fact grid, the timeline, the retain / sub-label rows (unchanged) and the action row - "פתח הקלטה"
+(unchanged, still unavailable until the anchors are proven), "סמן כנסקר", and **"ייצוא הקטע"**, drawn only when the caller holds
+`analytics.exports` AND `video.export` somewhere AND the recorder's `exports` class is on (`GET control/policy`, read once per recorder, only
+for such a caller). The export dialog takes the item's range (an open item: start + 60 s), a name, and - for the first export of a recorder
+by a `system.configure` holder - the supervision box that sends `supervised: true`; a 409 `frigate_first_write_unsupervised` is shown as
+the supervision sentence.
+
+**Settings > the Frigate recorder (`components/frigate-control-settings.ts` + five panels).** One tabbed card ("שינויים ב־Frigate"):
+- *סוגי פעולה*: the write classes incl. `exports` and `cases` (per-action / confirm-on-delete / permission id); toggles only for `system.configure`.
+- *פרופילים*: the alarm-state mapping (unchanged) and `frigate-auto-profile`: mode (off / suggest / apply - `apply` disabled without the
+  consent, as the server would refuse), the consent toggle (who / when), ONE status line that says what an alarm change does now or why
+  `apply` is not applying (class off / no consent / no supervised first write), the open suggestions (apply with a confirmation and, for
+  the first automatic switch, the supervision box; dismiss) and the recent rows with status and reason.
+- *ייצואים* / *תיקים*: a table (folds on a narrow card) of Frigate's objects with origin (Arx / Frigate); create (export: one camera, a
+  `datetime-local` range checked against the 2 h / future rules before the call; case: name + description), rename inline, delete with a
+  typed-name confirmation sending `confirm: true` - rename and delete offered only for `arx_created` rows, exactly the server's rule; the
+  class-off state is a chip and locks the actions; the list itself is still read.
+- *אירועים ידניים*: create (camera, label, duration 1..600 s or open-ended, sub-label) and the open events Arx created (derived from the
+  change log's reversible `event_create` rows, since the server lists none) with "סיים".
+- *יומן שינויים*: the log with undo; the F2b kinds have their own lines; an undo whose inverse kind still needs its supervised first write
+  asks with the supervision box (and is refused in words for a non-administrator).
+- *פיקוח*: the ten supervised kinds with done / pending, and the supervised clip read: camera + a window of at most one hour, opened in a
+  new tab as the clip Arx streams (`GET .../clip.mp4?start&end[&supervised=true]`, `video.playback`).
+Each tab and action is gated by the permission the API enforces (`system.configure`, `analytics.exports|cases|events|profile`, `video.export`,
+`video.playback`), read from `/me` (`canAnywhere`); the server stays the authority.
+
+**i18n.** New Hebrew strings in `i18n/he.ts` (`frigate.control.settings.*`, `frigate.review.*`); an English column with the same shape in
+`i18n/frigate-en.ts`, picked by the document language (`i18n/frigate-text.ts`, the announce.ts precedent). The pure helpers keep reading `he`.
+
+**Evidence.** `frontend/tests/evidence-frigate-ui.spec.ts` (three projects; light and dark; the layout guard over cards and table in four
+skins), `evidence-frigate-control.spec.ts` follows the tabs, `unit-frigate-control.spec.ts` pins the new helpers. Screenshots:
+`docs/design/evidence/frgd/`.
+
+**Not built (needs a server step first - a config schema API - and was not in scope):** the zone editor and schema-driven Frigate
+configuration; assigning an export to a case (no route); a PTZ pad (PTZ unreleased). **Not verified:** anything against a real Frigate.
