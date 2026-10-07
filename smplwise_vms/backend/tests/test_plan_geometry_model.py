@@ -139,14 +139,14 @@ def test_two_point_scale_mean_and_residual():
 
 def test_schema_file_matches_the_validator():
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    assert schema["properties"]["schema_version"] == {"const": pg.SCHEMA_VERSION}
+    assert schema["properties"]["schema_version"]["enum"] == list(pg.SCHEMA_VERSIONS)  # 2.1 = window walls
     defs = schema["$defs"]
     assert set(defs["wall"]["properties"]["kind"]["enum"]) == set(pg.WALL_KINDS)
     assert set(defs["opening"]["properties"]["kind"]["enum"]) == set(pg.OPENING_KINDS)
     assert set(defs["opening"]["properties"]["swing"]["enum"]) == set(pg.SWINGS)
     assert set(defs["calibration"]["properties"]["status"]["enum"]) == set(pg.CAL_STATUSES)
     assert set(schema["required"]) >= {"schema_version", "source", "dimensions", "transform", *pg.COLLECTIONS, "uncertainty"}
-    assert copy.deepcopy(_doc())["schema_version"] == schema["properties"]["schema_version"]["const"]
+    assert copy.deepcopy(_doc())["schema_version"] == pg.SCHEMA_VERSION == schema["properties"]["schema_version"]["enum"][0]
 
 
 def test_malformed_field_values_are_structural_not_crashes():

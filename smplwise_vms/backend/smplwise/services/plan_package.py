@@ -465,8 +465,8 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None, *, accept_foreign: bool 
         cat_raw = _json(z, "catalog.json", JSON_LIMITS["catalog.json"]) if "catalog.json" in names else {"format": CATALOG_FORMAT, "items": []}
     if not isinstance(doc, dict):
         raise PackageError(422, "package_malformed", "המבנה בחבילה פגום.", {"path": "plan.json"})
-    if doc.get("schema_version") != pg.SCHEMA_VERSION:
-        raise PackageError(422, "package_doc_version", "גרסת המבנה בחבילה אינה נתמכת.", {"schema_version": zipsafe._s(doc.get("schema_version")), "supported": pg.SCHEMA_VERSION})
+    if doc.get("schema_version") not in pg.SCHEMA_VERSIONS:  # 2.1 = window walls; a server older than 2.1 refuses it here
+        raise PackageError(422, "package_doc_version", "גרסת המבנה בחבילה אינה נתמכת.", {"schema_version": zipsafe._s(doc.get("schema_version")), "supported": pg.SCHEMA_VERSIONS[-1]})
     mdoc = manifest.get("document") if isinstance(manifest.get("document"), dict) else {}
     if mdoc.get("doc_hash") != store.doc_hash(doc):
         raise PackageError(422, "package_tampered", "תוכן החבילה אינו תואם את הרשימה החתומה.", {"files": [{"path": "plan.json", "reason": "doc_hash"}]})
