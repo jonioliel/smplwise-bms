@@ -304,7 +304,7 @@ function renderGlazing(w: GeomWall, v: StudioView, a: StudioActions, lengthM: nu
     if (next) a.patchWall(w.id, { glazing: next });
     else a.say?.(glassT('autoNone')); // nothing fits: the document is unchanged, a short message says so
   };
-  return html`<div class="glazing" data-glazing=${w.id} data-glazing-panels=${n}>
+  return html`<div class="glazing" data-glazing-inspector=${w.id} data-glazing-panels=${n}>
     <div class="selhead"><strong>${glassT('glazing')}</strong><span class="muted" data-glazing-summary>${n} ${glassT('panels')} · ${(lengthM / n).toFixed(2)} מ׳</span></div>
     <div class="two">
       <sw-field label=${glassT('panelWidth')}><input type="number" data-ltr data-glazing-width min=${PANEL_WIDTH_RANGE[0]} max=${PANEL_WIDTH_RANGE[1]} step="0.05" ?disabled=${ro} .value=${String(g.panel_width_m)}

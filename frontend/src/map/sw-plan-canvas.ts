@@ -2154,7 +2154,7 @@ export class SwPlanCanvas extends LitElement {
         // and the glass centre line - a double line that reads apart from a solid wall in every skin and theme
         const { band } = glassBand(p.width);
         const pts = ptsAttr(p.points);
-        return svg`<g class="wall-g glasswall ${cls}" data-wall=${p.id} data-wall-kind="glass">
+        return svg`<g class="wall-g glasswall ${cls}" data-wall=${p.id} data-wall-glass>
           <polyline class="wall gframe" points=${pts} stroke-width=${p.width} />
           <polyline class="gpane" points=${pts} stroke-width=${band} />
           <polyline class="gline" points=${pts} stroke-width=${Math.min(band * 0.5, 1.2 * inv)} />
