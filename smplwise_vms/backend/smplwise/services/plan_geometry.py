@@ -15,8 +15,14 @@ from typing import Any, Mapping
 from ..db import new_id
 from .plan_schema import canonical_json as canonical_json
 from . import plan_catalog
+from . import wall_path
 
 SCHEMA_VERSION = "2.0"
+# Curved walls (owner request 2026-10-08) are a minor, additive bump: a wall may carry `bulges` (wall_path). A document
+# with at least one curved wall is stamped "2.1" (rebase / doc_version); every other document stays "2.0", byte for
+# byte, so an older Arx keeps reading everything it could read before and refuses (never misreads) a curved one.
+SCHEMA_VERSION_CURVED = "2.1"
+SUPPORTED_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_CURVED)
 TOKENS_VERSION = "map-1"
 DEFAULT_LEVEL_ID = "L0"
 DEFAULT_LEVEL_NAME = "מפלס ראשי"
@@ -178,8 +184,18 @@ def rebase(doc: Mapping[str, Any], version: Mapping[str, Any], asset: Mapping[st
     move the document to another version or fake a calibration."""
     out = dict(doc)
     out.update(version_block(version, asset))
-    out["schema_version"] = SCHEMA_VERSION
+    out["schema_version"] = doc_version(out)
     return out
+
+
+def has_curves(doc: Mapping[str, Any]) -> bool:
+    walls = doc.get("walls") if isinstance(doc, Mapping) else None
+    return isinstance(walls, list) and any(isinstance(w, dict) and wall_path.is_curved(w) for w in walls)
+
+
+def doc_version(doc: Mapping[str, Any]) -> str:
+    """The schema version a document is stored under: 2.1 when a wall is curved, else 2.0."""
+    return SCHEMA_VERSION_CURVED if has_curves(doc) else SCHEMA_VERSION
 
 
 def is_empty(doc: Mapping[str, Any]) -> bool:
@@ -194,6 +210,11 @@ def counts(doc: Mapping[str, Any]) -> dict[str, int]:
 
 def polyline_length_px(points: list[Any], width: float, height: float) -> float:
     return sum(math.hypot((b[0] - a[0]) * width, (b[1] - a[1]) * height) for a, b in zip(points, points[1:]))
+
+
+def wall_length_px(wall: Mapping[str, Any], width: float, height: float) -> float:
+    """A wall's length along its path, arcs included (wall_path); the polyline length for a straight wall."""
+    return wall_path.wall_length_px(wall, width, height)
 
 
 def effective_scale(doc: Mapping[str, Any]) -> tuple[float, bool]:
@@ -232,8 +253,8 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
     if not isinstance(doc, dict):
         _issue(issues, "type", "המסמך חייב להיות אובייקט JSON.", structural=True)
         return issues
-    if doc.get("schema_version") != SCHEMA_VERSION:
-        _issue(issues, "schema_version", f"schema_version חייב להיות {SCHEMA_VERSION}.", path="schema_version", structural=True)
+    if doc.get("schema_version") not in SUPPORTED_VERSIONS:
+        _issue(issues, "schema_version", f"schema_version חייב להיות {SCHEMA_VERSION} או {SCHEMA_VERSION_CURVED}.", path="schema_version", structural=True)
     dims = doc.get("dimensions")
     if not isinstance(dims, dict) or not all(isinstance(dims.get(k), int) and not isinstance(dims.get(k), bool) and 1 <= dims.get(k) <= 100000 for k in ("width_px", "height_px")):
         _issue(issues, "dimensions", "dimensions.width_px ו־height_px חייבים להיות מספרים שלמים בין 1 ל־100000.", path="dimensions", structural=True)
@@ -378,6 +399,8 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         req("level_id", isinstance(item.get("level_id"), str))
         pl = item.get("polyline")
         req("polyline", isinstance(pl, list) and all(_finite_point(p) for p in pl))
+        # curved walls (2.1): one bulge per segment - a list of the wrong length cannot be read against its polyline
+        opt("bulges", lambda v: isinstance(v, list) and all(_num(b) for b in v) and isinstance(pl, list) and len(v) == max(0, len(pl) - 1))
         req("thickness_m", _num(item.get("thickness_m")))
         opt("height_m", _num)
         opt("base_z_m", _num)
@@ -521,8 +544,14 @@ def _check_walls(walls: list[dict[str, Any]], levels: set[str], width: int, heig
         if not isinstance(pl, list) or len(pl) < 2 or not all(_pt(p) for p in pl):
             _issue(issues, "bounds", "קיר צריך לפחות שתי נקודות בתוך התוכנית.", item=wid, path="walls")
             continue
-        if polyline_length_px(pl, width, height) < 1:
+        if wall_length_px(w, width, height) < 1:
             _issue(issues, "too_short", "הקיר קצר מדי (אורך אפס).", item=wid, path="walls")
+        bulges = w.get("bulges")
+        if bulges is not None:
+            if any(abs(b) > wall_path.MAX_BULGE for b in bulges):
+                _issue(issues, "bulge", f"קשת קיר גדולה מדי (bulge עד {wall_path.MAX_BULGE:g}).", item=wid, path="walls")
+            elif not all(-1e-6 <= c <= 1 + 1e-6 for p in wall_path.sampled_wall(w, width, height) for c in p):
+                _issue(issues, "bounds", "קשת הקיר יוצאת מגבולות התוכנית.", item=wid, path="walls")
         if w.get("level_id") not in levels:
             _issue(issues, "unknown_level", "הקיר שייך למפלס שלא קיים.", item=wid, path="walls")
         if not (_num(w.get("thickness_m")) and 0 < w["thickness_m"] <= 3):
@@ -568,7 +597,7 @@ def _check_openings(doc: dict[str, Any], walls: dict[str, dict[str, Any]], width
         if not (_num(width_m) and 0 < width_m <= 10):
             _issue(issues, "width", "רוחב פתח בין 0 ל־10 מ׳.", item=oid, path="openings")
             continue
-        length_m = polyline_length_px(wall["polyline"], width, height) * scale
+        length_m = wall_length_px(wall, width, height) * scale
         centre = t * length_m
         if centre - width_m / 2 < -0.01 or centre + width_m / 2 > length_m + 0.01:
             _issue(issues, "opening_outside_wall", "הפתח חורג מאורך הקיר.", item=oid, path="openings")
@@ -786,6 +815,8 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
       short stays: whether it and its openings still fit is prune_unfit's call, in the target's pixels and metres.
     - A polyline of three or more points keeps the per-point rule: dropped when every point is outside, else the
       points outside are clamped to the edge and its openings keep t (a recorded follow-up).
+    - A curved wall (bulges) keeps its arcs when its whole sampled path stays inside the new crop (a crop is a
+      similarity in pixels); otherwise it is flattened to that sampled path, loses its bulges and takes the rule above.
     - A label outside is dropped.
     A note says so when a point was clamped, another how many items were dropped (R-T7-2, reviews of 80249d1 and
     c6c35fc). A malformed polyline or position (wrong type, missing) is left exactly as it is rather than crashing the
@@ -809,13 +840,28 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     out = copy.deepcopy(dict(doc))
     dropped = 0
     clamped = False
+    flattened = False
     gone_walls: set[str] = set()
     cuts: dict[str, tuple[float, float]] = {}
+    dims = out.get("dimensions") if isinstance(out.get("dimensions"), dict) else {}
+    ow, oh = dims.get("width_px"), dims.get("height_px")
+    can_sample = _num(ow) and ow > 0 and _num(oh) and oh > 0
     if isinstance(out.get("walls"), list):
         walls = []
         for w in out["walls"]:
             line = w.get("polyline") if isinstance(w, dict) else None
             wid = w.get("id") if isinstance(w, dict) else None
+            if can_sample and isinstance(line, list) and len(line) >= 2 and all(_finite_point(p) for p in line) and wall_path.is_curved(w):
+                # a curved wall: a crop is a similarity in pixels, so the bulges hold while the whole arc stays inside;
+                # an arc the new crop cuts is flattened to its sampled path and takes the per-point rule below
+                sampled = wall_path.sampled_wall(w, ow, oh)
+                if all(inside(move(p)) for p in sampled):
+                    w["polyline"] = [move(p) for p in line]
+                    walls.append(w)
+                    continue
+                flattened = True
+                w.pop("bulges", None)
+                line = w["polyline"] = [[round(p[0], 6), round(p[1], 6)] for p in sampled]
             if isinstance(line, list) and len(line) == 2 and all(_finite_point(p) for p in line):
                 a, b = move(line[0]), move(line[1])
                 span = _clip_unit(a, b)
@@ -876,6 +922,8 @@ def transform_crop(doc: Mapping[str, Any], old_crop: Mapping[str, Any] | None, n
     notes = list(unc.get("notes", []))
     if clamped:
         notes.append("המבנה הועבר מגרסה עם חיתוך אחר; נקודות שמחוץ לחיתוך הוצמדו לשוליים.")
+    if flattened:
+        notes.append("קיר מעוגל שהחיתוך החדש חוצה הומר לקו שבור.")
     if dropped:
         notes.append(_dropped_note(dropped))
     unc["notes"] = notes
@@ -910,7 +958,7 @@ def prune_unfit(doc: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
         for w in out["walls"]:
             line = w.get("polyline") if isinstance(w, dict) else None
             if isinstance(w, dict) and isinstance(w.get("id"), str) and isinstance(line, list) and len(line) >= 2 and all(_pt(p) for p in line):
-                px = polyline_length_px(line, width, height)
+                px = wall_length_px(w, width, height)
                 if px < 1:
                     dropped += 1
                     gone.add(w["id"])
@@ -976,6 +1024,11 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
                 cleaned, problem = check_tags(it["tags"])
                 if problem is None:
                     it["tags"] = cleaned
+    # curved walls: a wall whose bulges are all zero is straight - stored without the field, so straightening every
+    # arc of a document brings it back to 2.0 byte for byte; a malformed list is left for validate() to report
+    for it in out.get("walls") if isinstance(out.get("walls"), list) else []:
+        if isinstance(it, dict) and isinstance(it.get("bulges"), list) and all(_num(b) and b == 0 for b in it["bulges"]):
+            del it["bulges"]
     objects = out.get("objects")
     if not isinstance(objects, list):
         return out
@@ -1063,7 +1116,7 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
 CANDIDATE_PREFIXES = ("auto-", "imp-")
 CANDIDATE_SOURCES = ("auto", "imported")
 EDITABLE_FIELDS = {
-    "walls": ("polyline", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked", "tags"),
+    "walls": ("polyline", "bulges", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked", "tags"),
     "openings": ("t", "kind", "width_m", "height_m", "sill_m", "swing", "hinge", "wall_id", "anchor_ref"),
     # the object schema of _check_objects (the brief's pose / name / catalog_id / flip do not exist in it)
     "objects": ("position", "rotation_deg", "size", "z_m", "label", "item_id", "level_id", "params", "anchor_ref", "locked", "tags"),
@@ -1109,6 +1162,10 @@ def merge_candidates(doc: Mapping[str, Any], candidates: Mapping[str, Any], acce
             for key in EDITABLE_FIELDS[coll]:
                 if key in patch:
                     item[key] = patch[key]
+            # a curved candidate whose corners an edit replaced (another count) without new bulges is taken straight
+            if coll == "walls" and "polyline" in patch and "bulges" not in patch and isinstance(item.get("bulges"), list) \
+                    and isinstance(item.get("polyline"), list) and len(item["bulges"]) != max(0, len(item["polyline"]) - 1):
+                del item["bulges"]
     bad_hosts = [i for i, (coll, item) in chosen.items() if coll == "openings" and not isinstance(item.get("wall_id"), str)]
     if bad_hosts:  # a list or a dict here would be unhashable below (review of ac60773)
         raise CandidateError("candidate_shape", "לפתח חייב להיות מזהה קיר מסוג טקסט.", bad_hosts)

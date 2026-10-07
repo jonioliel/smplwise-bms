@@ -9,6 +9,8 @@ Format choices:
   nothing is invented. The custom header variables SW_UNITS / SW_SCALE_STATUS say which.
 - Axes: x to the right, y up (CAD convention); the plan's pixel y points down, so y is mirrored about the plan height.
   The origin is the plan's bottom-left corner.
+- Curved walls (schema 2.1): each part is an LWPOLYLINE with per-vertex bulges (a true arc in CAD, not chords), the
+  document's bulge negated by the y mirror; layers and XDATA are those of a straight wall.
 - Layers (fixed names, fixed colours): SW_WALLS, SW_OPENINGS, SW_ROOMS, SW_DEVICES, SW_OBJECTS, SW_CONNECTORS,
   SW_LABELS. Every entity carries the id of the item it was drawn from as XDATA of the application SMPLWISE, so a CAD
   user (or a later import) can tell the items apart.
@@ -279,7 +281,12 @@ def _draw(msp: Any, frame: _Frame, p: dict[str, Any], shown: set[str], to: Calla
     """One primitive on its family's layer (`to` maps the fixed family name to the layer of this level)."""
     kind = p["kind"]
     if kind == "wall" and "SW_WALLS" in shown:
-        pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
+        arc = p.get("arc")
+        if arc:  # a curved wall part: its exact corners with bulges (true arcs in CAD); y is mirrored, so the turn flips
+            pts = [(*frame.p(q), -float(b) + 0.0) for q, b in zip(arc["points"], [*arc["bulges"], 0.0])]
+            pl = msp.add_lwpolyline(pts, format="xyb", dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
+        else:
+            pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
         _tag(pl, p["id"], "wall", lv)
     elif kind in ("door", "window", "passage") and "SW_OPENINGS" in shown:
         layer = to("SW_OPENINGS")
