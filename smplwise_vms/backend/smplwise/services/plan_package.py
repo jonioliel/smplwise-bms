@@ -56,7 +56,13 @@ MAX_JSON_DEPTH = 64  # a plan nests about 6 deep
 MAX_MANIFEST_BYTES = 256 * 1024  # a manifest lists at most 16 files
 LIMITS = zipsafe.Limits(max_entries=16, max_uncompressed=128 * 1024 * 1024, max_manifest=MAX_MANIFEST_BYTES, max_ratio=200, ratio_floor=1024 * 1024)
 CONTROL_NAMES = ("manifest.json", "MANIFEST.sha256", signing.SIG_NAME)
-DATA_NAMES = ("plan.json", "rooms.json", "anchors.json", "catalog.json", "report.html")
+# PLN2: the optional DXF of the structure, beside the plan picture its IMAGE entity names (assets/background.*), so the
+# unpacked assets/ folder opens in CAD with the picture underneath. Only when the exporter asks for it (an older
+# importer refuses a file it does not know); on import it is hashed against the signed manifest like every file and
+# never parsed. A DXF bigger than MAX_DXF_BYTES is left out (manifest: skipped too_large), and refused on import.
+DXF_NAME = "assets/plan.dxf"
+MAX_DXF_BYTES = 24 * 1024 * 1024
+DATA_NAMES = ("plan.json", "rooms.json", "anchors.json", "catalog.json", "report.html", DXF_NAME)
 ASSET_RE = re.compile(r"^assets/(background|source)\.[a-z0-9]{1,8}$")
 GEOMETRY_KEYS = (*pg.COLLECTIONS, "floor_height_m")
 MODES = ("replace", "merge")
@@ -140,6 +146,37 @@ def anchor_records(conn: sqlite3.Connection, floor_id: str, principal: Any) -> l
     return out
 
 
+def visible_anchor_positions(conn: sqlite3.Connection, principal: Any, floor_id: str) -> dict[str, Any]:
+    """The live anchor positions bound objects follow - only those of the anchors this caller may see (review M2)."""
+    visible = anchor_visibility(conn, principal, floor_id)
+    return {k: p for k, p in store.anchor_positions(conn, floor_id).items() if visible(*k.split(":", 1))}
+
+
+def dxf_bytes(conn: sqlite3.Connection, version: sqlite3.Row, floor: sqlite3.Row | None, doc: dict[str, Any], stage: str, zones: list[dict[str, Any]],
+              principal: Any, *, anchors: list[dict[str, Any]] | None = None, level: str | None = None, layers: Any = None,
+              background: dict[str, Any] | None = None) -> bytes:
+    """The DXF of `doc` as the export route and the package draw it: the caller's visible anchors only (review M2)."""
+    from . import plan_dxf_export as dxf_export
+
+    return dxf_export.render_dxf(doc, zones, version["width_px"], version["height_px"], level=level, layers=layers,
+                                 anchors=anchor_records(conn, version["floor_id"], principal) if anchors is None else anchors,
+                                 anchor_positions=visible_anchor_positions(conn, principal, version["floor_id"]), items=plan_catalog.item_index(conn),
+                                 meta={"SW_PLAN_VERSION": version["id"], "SW_FLOOR": (floor["name"] if floor is not None else "") or "", "SW_STAGE": stage,
+                                       "SW_DOC_HASH": store.doc_hash(doc)}, background=background)
+
+
+def _picture_size(path: Path, fallback: tuple[int, int]) -> tuple[int, int]:
+    """The plan picture's pixel size (read from its header only), else the version's size."""
+    try:
+        from PIL import Image
+
+        with Image.open(path) as im:
+            w, h = im.size
+        return (int(w), int(h)) if w > 0 and h > 0 else fallback
+    except Exception:  # noqa: BLE001 - a picture PIL cannot read still gets a frame of the plan's size
+        return fallback
+
+
 def _custom_record(r: sqlite3.Row) -> dict[str, Any]:
     return {"id": r["id"], "based_on": r["based_on"], "names": json.loads(r["names_json"]), "category": r["category"], "tags": json.loads(r["tags_json"] or "[]"),
             "role": r["role"], "shape": r["shape"], "size": json.loads(r["size_json"]), "z_m": r["z_m"], "params": json.loads(r["params_json"] or "{}"),
@@ -157,8 +194,9 @@ def used_custom_items(conn: sqlite3.Connection, doc: dict[str, Any]) -> list[dic
 
 
 def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, floor: sqlite3.Row, doc: dict[str, Any], stage: str, zones: list[dict[str, Any]],
-          actor: Any, installation: str | None, revision: int | None = None) -> tuple[bytes, dict[str, Any]]:
-    """The signed package of `doc` (the stored document of `version`, draft or published). Returns (zip bytes, manifest)."""
+          actor: Any, installation: str | None, revision: int | None = None, *, include_dxf: bool = False) -> tuple[bytes, dict[str, Any]]:
+    """The signed package of `doc` (the stored document of `version`, draft or published). Returns (zip bytes, manifest).
+    `include_dxf` (PLN2): also assets/plan.dxf, whose IMAGE entity names the picture beside it (DXF_NAME)."""
     files: list[dict[str, Any]] = []
     buf = io.BytesIO()
     plan_bytes = pg.canonical_json(doc).encode("utf-8")
@@ -177,8 +215,20 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
         add("anchors.json", json.dumps({"anchors": anchors}, ensure_ascii=False, sort_keys=True, indent=1).encode("utf-8"), "anchors")
         add("catalog.json", json.dumps({"format": CATALOG_FORMAT, "items": customs}, ensure_ascii=False, sort_keys=True, indent=1).encode("utf-8"), "custom_items")
         picture = settings.data_dir / version["image_path"] if version["image_path"] else None
+        background = None
         if picture is not None and picture.is_file():
-            add(f"assets/background.{_ext(picture.name, 'png')}", picture.read_bytes(), "background")
+            bname = f"background.{_ext(picture.name, 'png')}"
+            add(f"assets/{bname}", picture.read_bytes(), "background")
+            bw, bh = _picture_size(picture, (int(version["width_px"] or 0), int(version["height_px"] or 0)))
+            background = {"file_name": bname, "width_px": bw, "height_px": bh}
+        dxf_info = None
+        if include_dxf:
+            dxf_data = dxf_bytes(conn, version, floor, doc, stage, zones, actor, anchors=anchors, background=background)
+            if len(dxf_data) <= MAX_DXF_BYTES:
+                add(DXF_NAME, dxf_data, "dxf")
+                dxf_info = {"path": DXF_NAME, "background": f"assets/{background['file_name']}" if background else None, "included": True, "skipped": None}
+            else:
+                dxf_info = {"path": None, "background": None, "included": False, "skipped": "too_large"}
         source_skipped = None
         if asset is not None:
             src = settings.data_dir / asset["storage_path"]
@@ -200,6 +250,8 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
             "entities": {"rooms": len(rooms), "anchors": len(anchors), "custom_items": [c["id"] for c in customs]},
             "files": files, "signature": signing.SIG_NAME,
         }
+        if dxf_info is not None:
+            manifest["dxf"] = dxf_info
         add("report.html", _report(manifest, rooms, anchors, customs).encode("utf-8"), "report")
         manifest["files"] = files
         mbytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
@@ -209,6 +261,15 @@ def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, fl
         z.writestr(signing.SIG_NAME, json.dumps(sig, ensure_ascii=False, indent=2).encode("utf-8"))
     manifest["signature_info"] = {"alg": sig["alg"], "kid": sig["kid"]}
     return buf.getvalue(), manifest
+
+
+def _dxf_note(info: dict[str, Any] | None) -> str:
+    if not info:
+        return ""
+    if not info.get("included"):
+        return "<h2>שרטוט DXF</h2><p>השרטוט גדול מדי ולא נכלל בחבילה.</p>"
+    pic = f' עם תמונת התוכנית <span dir="ltr">{html.escape(info["background"])}</span> לצדו' if info.get("background") else ""
+    return f'<h2>שרטוט DXF</h2><p><span dir="ltr">{html.escape(info["path"])}</span>{pic}.</p>'
 
 
 def _report(manifest: dict[str, Any], rooms: list[dict[str, Any]], anchors: list[dict[str, Any]], customs: list[dict[str, Any]]) -> str:
@@ -228,6 +289,7 @@ def _report(manifest: dict[str, Any], rooms: list[dict[str, Any]], anchors: list
 <h2>חדרים ({len(rooms)})</h2><ul>{room_rows}</ul>
 <h2>מצלמות וישויות ({len(anchors)})</h2><ul>{anchor_rows}</ul>
 <h2>פריטים מותאמים ({len(customs)})</h2><ul>{custom_rows}</ul>
+{_dxf_note(manifest.get("dxf"))}
 <h2>שלמות</h2><p>כל קובץ בחבילה מגובב ב־manifest.json, וה־manifest חתום (manifest.sig.json). החתימה מוכיחה שהחבילה לא שונתה מאז הייצוא.</p>
 </body></html>"""
 
@@ -351,6 +413,8 @@ def read(fp: IO[bytes], keyring: dict[str, Any] | None, *, accept_foreign: bool 
             raise PackageError(422, "package_incomplete", "החבילה חסרה: אין בה manifest או מבנה.")
         if z.getinfo("manifest.json").file_size > LIMITS.max_manifest:
             raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": "manifest.json"})
+        if DXF_NAME in names and z.getinfo(DXF_NAME).file_size > MAX_DXF_BYTES:  # PLN2: hashed only, never parsed - still bounded
+            raise PackageError(422, "package_file_too_large", "קובץ בחבילה גדול מהמותר.", {"path": DXF_NAME, "max_bytes": MAX_DXF_BYTES})
         mbytes = z.read("manifest.json")
         manifest = _parse_json(mbytes, "manifest.json")
         if not isinstance(manifest, dict) or manifest.get("schema") not in SUPPORTED_SCHEMAS:

@@ -17,14 +17,27 @@ Format choices:
   line break becomes \\P. Text is stored in logical (Unicode) order; how a CAD program orders right-to-left runs is its
   own matter and was not verified in a commercial CAD product.
 
-The PNG keeps its role for pictures; the DXF carries no plan picture (a CAD user attaches the source file as an
-underlay)."""
+Levels (PLN2): a plan with ONE level keeps the fixed layer names above, unchanged. A plan with more than one level draws
+each level into its own layer family - the fixed name plus "-" and the level's suffix (its id made layer-safe, e.g.
+SW_WALLS-L0, SW_WALLS-L1; LV<n> when the id has nothing usable or two ids clash) - so a CAD user switches a level on or
+off by its layers (a wildcard like *-L1 selects one level). The suffix rule depends only on the plan's level count,
+never on ?level=, so the names are the same whether one level or all are exported. Each level layer's description
+names the level, and the custom header variables SW_LEVEL_<suffix> carry "name | elevation m". Connectors join levels:
+a connector is drawn on the connector layer of each of its two levels on this floor (once per level; the level id is
+the third XDATA value of every entity of a level layer), a connector to another floor on its own level's layer. Rooms
+of a level the plan does not have go with the default level. Devices (camera and entity anchors belong to the floor,
+not to a level) stay on SW_DEVICES.
+
+The plan picture (PLN2): a bare DXF carries none - a CAD user attaches the source file as an underlay. When the caller
+passes `background` (the signed package does, beside the picture it ships), an IMAGE entity on the layer SW_BACKGROUND
+references the picture by its bare file name (the drawing's own folder), stretched over the plan's extent and drawn
+first so the structure sits on top. DXF cannot embed raster data: the picture stays a separate file."""
 from __future__ import annotations
 
 import io
 import math
 import re
-from typing import Any
+from typing import Any, Callable
 
 import ezdxf
 from ezdxf import units
@@ -45,6 +58,11 @@ LAYERS: dict[str, tuple[int, str, str]] = {
     "SW_CONNECTORS": (9, "Continuous", "stairs, ramps, elevators"),
     "SW_LABELS": (7, "Continuous", "labels"),
 }
+BACKGROUND_LAYER = ("SW_BACKGROUND", 7, "plan picture")
+# the families a level splits into (devices belong to the floor, not to a level)
+LEVEL_FAMILIES = ("SW_WALLS", "SW_OPENINGS", "SW_ROOMS", "SW_OBJECTS", "SW_CONNECTORS", "SW_LABELS")
+_LAYER_UNSAFE = re.compile(r"[^A-Za-z0-9_]+")
+MAX_SUFFIX = 24
 # the export's layer switch (?layers=) uses the SVG names; DXF has a layer per family
 FAMILY_LAYERS = {"structure": ("SW_WALLS", "SW_OPENINGS"), "objects": ("SW_OBJECTS",), "labels": ("SW_LABELS",), "connectors": ("SW_CONNECTORS",)}
 DEVICE_RADIUS_M = 0.15
@@ -82,21 +100,21 @@ class _Frame:
         return round(float(px) * self.k, 6)
 
 
-def _tag(e: Any, item_id: str, kind: str) -> None:
-    e.set_xdata(APP_ID, [(1000, str(item_id)[:64]), (1000, kind)])
+def _tag(e: Any, item_id: str, kind: str, level: str | None = None) -> None:
+    e.set_xdata(APP_ID, [(1000, str(item_id)[:64]), (1000, kind), *([(1000, str(level)[:64])] if level is not None else [])])
 
 
 def _angle(c: tuple[float, float], p: tuple[float, float]) -> float:
     return math.degrees(math.atan2(p[1] - c[1], p[0] - c[0])) % 360.0
 
 
-def _text(msp: Any, text: str, at: tuple[float, float], height: float, layer: str, item_id: str, kind: str) -> None:
+def _text(msp: Any, text: str, at: tuple[float, float], height: float, layer: str, item_id: str, kind: str, level: str | None = None) -> None:
     body = clean_text(text)
     if not body:
         return
     m = msp.add_mtext(body, dxfattribs={"layer": layer, "style": TEXT_STYLE, "char_height": max(height, 1e-4), "insert": at,
                                         "attachment_point": 5})  # middle centre, like the SVG's text-anchor middle
-    _tag(m, item_id, kind)
+    _tag(m, item_id, kind, level)
 
 
 def _rooms(zones: list[dict[str, Any]], level: str | None) -> list[dict[str, Any]]:
@@ -104,12 +122,50 @@ def _rooms(zones: list[dict[str, Any]], level: str | None) -> list[dict[str, Any
             if (level is None or (z.get("level_id") or DEFAULT_LEVEL_ID) == level) and isinstance(z.get("polygon"), list) and len(z["polygon"]) >= 3]
 
 
+def _levels(doc: dict[str, Any]) -> list[dict[str, Any]]:
+    """The document's levels in a stable order: by elevation, then id."""
+    out = [lv for lv in doc.get("levels") or [] if isinstance(lv, dict) and isinstance(lv.get("id"), str) and lv["id"]]
+
+    def elevation(lv: dict[str, Any]) -> float:
+        el = lv.get("elevation_m")
+        return float(el) if isinstance(el, (int, float)) and not isinstance(el, bool) else 0.0
+
+    return sorted(out, key=lambda lv: (elevation(lv), lv["id"]))
+
+
+def level_suffixes(doc: dict[str, Any]) -> dict[str, str]:
+    """level id -> layer suffix (in elevation order), or {} when the plan has at most one level: the fixed layer names
+    stay as they are. The suffix is the id upper-cased with every run of characters other than letters, digits and "_"
+    turned into "_" (DXF layer names refuse < > / \\ " : ; ? * | = and the backtick), at most MAX_SUFFIX characters; an id
+    with nothing usable, or one whose suffix an earlier level already took, gets LV<n> (n = its place in that order)."""
+    levels = _levels(doc)
+    if len(levels) <= 1:
+        return {}
+    out: dict[str, str] = {}
+    used: set[str] = set()
+    for n, lv in enumerate(levels):
+        suffix = _LAYER_UNSAFE.sub("_", lv["id"]).strip("_").upper()[:MAX_SUFFIX]
+        if not suffix or suffix in used:
+            suffix = f"LV{n}"
+            while suffix in used:
+                suffix += "_"
+        used.add(suffix)
+        out[lv["id"]] = suffix
+    return out
+
+
+def layer_name(base: str, suffix: str | None) -> str:
+    return f"{base}-{suffix}" if suffix else base
+
+
 def build(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height: float, *, level: str | None = None, layers: Any = None,
           anchors: list[dict[str, Any]] | None = None, anchor_positions: dict[str, Any] | None = None, items: dict[str, Any] | None = None,
-          meta: dict[str, str] | None = None) -> ezdxf.document.Drawing:
+          meta: dict[str, str] | None = None, background: dict[str, Any] | None = None) -> ezdxf.document.Drawing:
     """The drawing as an ezdxf document. `layers` is the SVG export's subset (structure / objects / labels /
     connectors; None = all); rooms and devices are always drawn. `anchors`: the floor's live anchors, each with
-    resource_type, resource_id, x, y (0..1), rotation_degrees and a display `name`."""
+    resource_type, resource_id, x, y (0..1), rotation_degrees and a display `name`. `level`: only that level (None = all).
+    `background`: {"file_name", "width_px", "height_px"} of the plan picture shipped beside the drawing (module
+    docstring); None = no picture."""
     families = set(render.LAYERS) if layers is None else {str(x) for x in layers}
     shown = {"SW_ROOMS", "SW_DEVICES"} | {name for fam in families for name in FAMILY_LAYERS.get(fam, ())}
     frame = _Frame(doc, height)
@@ -119,70 +175,61 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height
     dxf.header["$LUNITS"] = 2
     dxf.appids.add(APP_ID)
     dxf.styles.add(TEXT_STYLE, font="arial.ttf")
+    suffixes = level_suffixes(doc)
+    by_id = {lv["id"]: lv for lv in _levels(doc)}
     for name, (color, linetype, desc) in LAYERS.items():
-        lay = dxf.layers.add(name, color=color, linetype=linetype)
-        lay.description = desc
+        if suffixes and name in LEVEL_FAMILIES:
+            for lid, suffix in suffixes.items():
+                lay = dxf.layers.add(layer_name(name, suffix), color=color, linetype=linetype)
+                lay.description = clean_text(f"{desc} · {by_id[lid].get('name') or lid}", 200)
+        else:
+            lay = dxf.layers.add(name, color=color, linetype=linetype)
+            lay.description = desc
     custom = {"SW_UNITS": "m" if frame.metric else "px", "SW_SCALE_STATUS": frame.status, "SW_PLAN_WIDTH": f"{frame.d(width):g}", "SW_PLAN_HEIGHT": f"{frame.d(height):g}"}
+    for lid, suffix in suffixes.items():
+        el = by_id[lid].get("elevation_m")
+        custom[f"SW_LEVEL_{suffix}"] = f"{by_id[lid].get('name') or lid} | {float(el) if isinstance(el, (int, float)) else 0.0:g} m"
     for k, v in {**custom, **(meta or {})}.items():
         dxf.header.custom_vars.append(k, clean_text(v, 200))
     msp = dxf.modelspace()
     prepared = render._prepared(doc, anchor_positions)
-    prims = render.structure_primitives(prepared, width, height, level, items)
 
-    if "SW_ROOMS" in shown:
-        for z in _rooms(zones, level):
-            pts = [frame.p((float(p["x"]) * width, float(p["y"]) * height)) for p in z["polygon"]]
-            pl = msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "SW_ROOMS"})
-            _tag(pl, z["id"], "room")
-            cx = sum(p[0] for p in pts) / len(pts)
-            cy = sum(p[1] for p in pts) / len(pts)
-            _text(msp, z.get("name") or "", (round(cx, 6), round(cy, 6)), frame.d(DEFAULT_TEXT_PX), "SW_ROOMS", z["id"], "room_name")
+    if background is not None:
+        _background(dxf, msp, frame, background, width, height)
 
-    for p in prims:
-        kind = p["kind"]
-        if kind == "wall" and "SW_WALLS" in shown:
-            pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": "SW_WALLS", "const_width": frame.d(p["width"])})
-            _tag(pl, p["id"], "wall")
-        elif kind in ("door", "window", "passage") and "SW_OPENINGS" in shown:
-            if kind == "door":
-                for a, b in p["leaves"]:
-                    _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": "SW_OPENINGS"}), p["id"], "door_leaf")
-                for (a, _b), arc in zip(p["leaves"], p["arcs"]):
-                    c, f, t = frame.p(a), frame.p(arc["from"]), frame.p(arc["to"])
-                    s, e = _angle(c, f), _angle(c, t)
-                    if (e - s) % 360.0 > 180.0:  # ARC runs counter-clockwise: draw the short way round
-                        s, e = e, s
-                    _tag(msp.add_arc(c, frame.d(arc["r"]), s, e, dxfattribs={"layer": "SW_OPENINGS"}), p["id"], "door_swing")
-            elif kind == "window":
-                for a, b in p["lines"]:
-                    _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": "SW_OPENINGS"}), p["id"], "window")
-            else:
-                a, b = p["gap"]
-                _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": "SW_OPENINGS", "linetype": "DASHED"}), p["id"], "passage")
-        elif kind == "label" and "SW_LABELS" in shown:
-            _text(msp, p["text"], frame.p((p["x"], p["y"])), frame.d(p["size"]), "SW_LABELS", p["id"], "label")
-        elif kind == "connector" and "SW_CONNECTORS" in shown:
-            pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": "SW_CONNECTORS", "const_width": frame.d(p["width"])})
-            _tag(pl, p["id"], f"connector:{p['ckind']}")
-            _tag(msp.add_line(frame.p(p["arrow"]["from"]), frame.p(p["arrow"]["to"]), dxfattribs={"layer": "SW_CONNECTORS"}), p["id"], "connector_arrow")
-            if "SW_LABELS" in shown:
-                _text(msp, p["label"], frame.p((p["lx"], p["ly"])), frame.d(DEFAULT_TEXT_PX), "SW_CONNECTORS", p["id"], "connector_label")
-        elif kind == "object" and "SW_OBJECTS" in shown:
-            if p["shape"] == "cylinder":
-                c = frame.p((p["cx"], p["cy"]))
-                rx, ry = frame.d(p["w"] / 2), frame.d(p["h"] / 2)
-                theta = -math.radians(p["rotation"])  # clockwise on screen = counter-clockwise turned upside down
-                major = (rx * math.cos(theta), rx * math.sin(theta)) if rx >= ry else (-ry * math.sin(theta), ry * math.cos(theta))
-                ratio = (min(rx, ry) / max(rx, ry)) if max(rx, ry) > 0 else 1.0
-                el = msp.add_ellipse(c, major_axis=(round(major[0], 6), round(major[1], 6)), ratio=max(min(ratio, 1.0), 1e-6), dxfattribs={"layer": "SW_OBJECTS"})
-                _tag(el, p["id"], f"object:{p['item_id']}")
-            else:
-                pl = msp.add_lwpolyline([frame.p(q) for q in p["corners"]], close=True, dxfattribs={"layer": "SW_OBJECTS"})
-                _tag(pl, p["id"], f"object:{p['item_id']}")
-            for a, b in p["steps"]:
-                _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": "SW_OBJECTS"}), p["id"], "object_step")
-            if p["label"] and "SW_LABELS" in shown:
-                _text(msp, p["label"], frame.p((p["cx"], p["cy"] + p["h"] / 2 + 12)), frame.d(OBJECT_TEXT_PX), "SW_OBJECTS", p["id"], "object_label")
+    if not suffixes:  # one level (or none): exactly the drawing of 2.2.0, fixed layer names
+        if "SW_ROOMS" in shown:
+            _draw_rooms(msp, frame, _rooms(zones, level), width, height, "SW_ROOMS", None)
+        for p in render.structure_primitives(prepared, width, height, level, items):
+            _draw(msp, frame, p, shown, lambda base: base, None)
+    else:
+        default = next((lv["id"] for lv in by_id.values() if lv.get("is_default") is True and lv["id"] in suffixes), next(iter(suffixes)))
+
+        def room_level(z: dict[str, Any]) -> str:
+            lid = z.get("level_id") or DEFAULT_LEVEL_ID
+            return lid if lid in suffixes else default
+
+        drawn = [lid for lid in suffixes if level is None or lid == level]
+        connectors: dict[str, dict[str, Any]] = {}
+        for lid in drawn:
+            to: Callable[[str], str] = lambda base, s=suffixes[lid]: layer_name(base, s)  # noqa: E731
+            if "SW_ROOMS" in shown:
+                _draw_rooms(msp, frame, [z for z in _rooms(zones, None) if room_level(z) == lid], width, height, to("SW_ROOMS"), lid)
+            for p in render.structure_primitives(prepared, width, height, lid, items):
+                if p["kind"] == "connector":
+                    connectors.setdefault(p["id"], p)  # never filtered by level: drawn per level below
+                else:
+                    _draw(msp, frame, p, shown, to, lid)
+        # a connector to another floor: its level_to names a level THERE, not one of this plan's
+        cross = {c.get("id") for c in doc.get("connectors") or [] if isinstance(c, dict) and c.get("floor_ids")}
+        for cid in sorted(connectors):
+            p = connectors[cid]
+            ends = (p.get("level_from"),) if cid in cross else (p.get("level_from"), p.get("level_to"))
+            touching = [x for x in ends if x in suffixes and x in drawn]
+            if not touching:  # ?level= names another level: on its own level's layer, as the SVG draws every connector
+                touching = [p.get("level_from") if p.get("level_from") in suffixes else default]
+            for lid in dict.fromkeys(touching):
+                _draw(msp, frame, p, shown, lambda base, s=suffixes[lid]: layer_name(base, s), lid)
 
     for a in sorted(anchors or [], key=lambda a: (str(a.get("resource_type")), str(a.get("resource_id")))):
         rid = f"{a.get('resource_type')}:{a.get('resource_id')}"
@@ -196,6 +243,87 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height
             _tag(msp.add_line(c, tip, dxfattribs={"layer": "SW_DEVICES"}), rid, "camera_heading")
         _text(msp, a.get("name") or a.get("resource_id") or "", (c[0], round(c[1] - 2.5 * r, 6)), frame.d(OBJECT_TEXT_PX), "SW_DEVICES", rid, "device_label")
     return dxf
+
+
+_BARE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+
+def _background(dxf: Any, msp: Any, frame: _Frame, background: dict[str, Any], width: float, height: float) -> None:
+    """The IMAGE entity of the plan picture: a bare file name only (no folder, nothing that climbs out), its real pixel
+    size, stretched over the plan's extent from the origin (the plan's bottom-left corner)."""
+    name = str(background.get("file_name") or "")
+    try:
+        bw, bh = int(background.get("width_px") or 0), int(background.get("height_px") or 0)
+    except (TypeError, ValueError):
+        return
+    if not _BARE_NAME.match(name) or name.startswith(".") or bw <= 0 or bh <= 0:
+        return
+    layer, color, desc = BACKGROUND_LAYER
+    dxf.layers.add(layer, color=color).description = desc
+    image_def = dxf.add_image_def(filename=name, size_in_pixel=(bw, bh))
+    img = msp.add_image(image_def, insert=(0.0, 0.0), size_in_units=(frame.d(width), frame.d(height)), dxfattribs={"layer": layer})
+    _tag(img, "background", "background")
+
+
+def _draw_rooms(msp: Any, frame: _Frame, zones: list[dict[str, Any]], width: float, height: float, layer: str, lv: str | None) -> None:
+    for z in zones:
+        pts = [frame.p((float(p["x"]) * width, float(p["y"]) * height)) for p in z["polygon"]]
+        pl = msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": layer})
+        _tag(pl, z["id"], "room", lv)
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        _text(msp, z.get("name") or "", (round(cx, 6), round(cy, 6)), frame.d(DEFAULT_TEXT_PX), layer, z["id"], "room_name", lv)
+
+
+def _draw(msp: Any, frame: _Frame, p: dict[str, Any], shown: set[str], to: Callable[[str], str], lv: str | None) -> None:
+    """One primitive on its family's layer (`to` maps the fixed family name to the layer of this level)."""
+    kind = p["kind"]
+    if kind == "wall" and "SW_WALLS" in shown:
+        pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
+        _tag(pl, p["id"], "wall", lv)
+    elif kind in ("door", "window", "passage") and "SW_OPENINGS" in shown:
+        layer = to("SW_OPENINGS")
+        if kind == "door":
+            for a, b in p["leaves"]:
+                _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": layer}), p["id"], "door_leaf", lv)
+            for (a, _b), arc in zip(p["leaves"], p["arcs"]):
+                c, f, t = frame.p(a), frame.p(arc["from"]), frame.p(arc["to"])
+                s, e = _angle(c, f), _angle(c, t)
+                if (e - s) % 360.0 > 180.0:  # ARC runs counter-clockwise: draw the short way round
+                    s, e = e, s
+                _tag(msp.add_arc(c, frame.d(arc["r"]), s, e, dxfattribs={"layer": layer}), p["id"], "door_swing", lv)
+        elif kind == "window":
+            for a, b in p["lines"]:
+                _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": layer}), p["id"], "window", lv)
+        else:
+            a, b = p["gap"]
+            _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": layer, "linetype": "DASHED"}), p["id"], "passage", lv)
+    elif kind == "label" and "SW_LABELS" in shown:
+        _text(msp, p["text"], frame.p((p["x"], p["y"])), frame.d(p["size"]), to("SW_LABELS"), p["id"], "label", lv)
+    elif kind == "connector" and "SW_CONNECTORS" in shown:
+        layer = to("SW_CONNECTORS")
+        pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": layer, "const_width": frame.d(p["width"])})
+        _tag(pl, p["id"], f"connector:{p['ckind']}", lv)
+        _tag(msp.add_line(frame.p(p["arrow"]["from"]), frame.p(p["arrow"]["to"]), dxfattribs={"layer": layer}), p["id"], "connector_arrow", lv)
+        if "SW_LABELS" in shown:
+            _text(msp, p["label"], frame.p((p["lx"], p["ly"])), frame.d(DEFAULT_TEXT_PX), layer, p["id"], "connector_label", lv)
+    elif kind == "object" and "SW_OBJECTS" in shown:
+        layer = to("SW_OBJECTS")
+        if p["shape"] == "cylinder":
+            c = frame.p((p["cx"], p["cy"]))
+            rx, ry = frame.d(p["w"] / 2), frame.d(p["h"] / 2)
+            theta = -math.radians(p["rotation"])  # clockwise on screen = counter-clockwise turned upside down
+            major = (rx * math.cos(theta), rx * math.sin(theta)) if rx >= ry else (-ry * math.sin(theta), ry * math.cos(theta))
+            ratio = (min(rx, ry) / max(rx, ry)) if max(rx, ry) > 0 else 1.0
+            el = msp.add_ellipse(c, major_axis=(round(major[0], 6), round(major[1], 6)), ratio=max(min(ratio, 1.0), 1e-6), dxfattribs={"layer": layer})
+            _tag(el, p["id"], f"object:{p['item_id']}", lv)
+        else:
+            pl = msp.add_lwpolyline([frame.p(q) for q in p["corners"]], close=True, dxfattribs={"layer": layer})
+            _tag(pl, p["id"], f"object:{p['item_id']}", lv)
+        for a, b in p["steps"]:
+            _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": layer}), p["id"], "object_step", lv)
+        if p["label"] and "SW_LABELS" in shown:
+            _text(msp, p["label"], frame.p((p["cx"], p["cy"] + p["h"] / 2 + 12)), frame.d(OBJECT_TEXT_PX), layer, p["id"], "object_label", lv)
 
 
 def to_bytes(dxf: ezdxf.document.Drawing) -> bytes:

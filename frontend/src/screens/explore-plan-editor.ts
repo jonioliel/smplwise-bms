@@ -4274,8 +4274,9 @@ export class ExplorePlanEditor extends LitElement {
 
   // ---- Plan Studio 5 (T088): the signed plan package ----
 
-  /** Save the signed package of the draft: pending edits are saved first, so the package is what the editor shows. */
-  private async exportPackage() {
+  /** Save the signed package of the draft: pending edits are saved first, so the package is what the editor shows.
+   * `withDxf` (PLN2): the package also carries the DXF and the plan picture it references. */
+  private async exportPackage(withDxf = false) {
     const b = this.bundle;
     if (!b?.planVersionId || this.busy) return;
     this.busy = true;
@@ -4285,7 +4286,7 @@ export class ExplorePlanEditor extends LitElement {
         this.error = this.studio.error;
         return;
       }
-      const { blob, name } = await exportPlanPackage(b.planVersionId, true);
+      const { blob, name } = await exportPlanPackage(b.planVersionId, true, { dxf: withDxf });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -4399,7 +4400,7 @@ export class ExplorePlanEditor extends LitElement {
         focus: (id) => this.focusGeom(id),
         copyFrom: (id) => void this.copyStructure(id),
         exportJson: () => this.exportJson(),
-        exportPackage: () => void this.exportPackage(),
+        exportPackage: (withDxf) => void this.exportPackage(withDxf === true),
         importPackage: (file) => void this.startPackageImport(file),
         reload: () => void this.loadStudio(b, true),
         calibrate: () => this.pickTool('calibrate'),

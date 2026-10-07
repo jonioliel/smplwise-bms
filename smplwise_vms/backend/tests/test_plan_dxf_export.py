@@ -7,6 +7,7 @@ import copy
 import io
 import json
 import pathlib
+import re
 
 import ezdxf
 import pytest
@@ -33,7 +34,9 @@ def _read(data: bytes) -> ezdxf.document.Drawing:
 
 
 def _on(doc, layer: str, kind: str | None = None) -> list:
-    return [e for e in doc.modelspace() if e.dxf.layer == layer and (kind is None or e.dxftype() == kind)]
+    """The entities of a layer FAMILY: the fixed name, or its per-level layers (SW_WALLS-L0, ...) when the plan has more
+    than one level."""
+    return [e for e in doc.modelspace() if (e.dxf.layer == layer or e.dxf.layer.startswith(layer + "-")) and (kind is None or e.dxftype() == kind)]
 
 
 def _xid(e) -> str:
@@ -47,7 +50,8 @@ def test_the_written_file_reads_back_with_the_same_entities():
     auditor = back.audit()
     assert not auditor.has_errors, [str(e) for e in auditor.errors]
     assert back.dxfversion == "AC1032"
-    assert {name for name in dx.LAYERS} <= {lay.dxf.name for lay in back.layers}
+    expected = {"SW_DEVICES"} | {f"{n}-{lv}" for n in dx.LEVEL_FAMILIES for lv in ("L0", "L1")}
+    assert expected <= {lay.dxf.name for lay in back.layers}, "two levels: a layer family per level"
     prims = render.structure_primitives(doc, 1000, 800)
     walls = [p for p in prims if p["kind"] == "wall"]
     got = _on(back, "SW_WALLS", "LWPOLYLINE")
@@ -67,7 +71,8 @@ def test_the_written_file_reads_back_with_the_same_entities():
     shapes = [e for e in _on(back, "SW_OBJECTS") if e.dxftype() in ("LWPOLYLINE", "ELLIPSE")]
     assert sorted(_xid(e) for e in shapes) == sorted(p["id"] for p in objects)
     connectors = [p for p in prims if p["kind"] == "connector"]
-    assert len(_on(back, "SW_CONNECTORS", "LWPOLYLINE")) == len(connectors)
+    per_level = sum(len({c["level_from"], c["level_to"]}) for c in connectors)
+    assert len(_on(back, "SW_CONNECTORS", "LWPOLYLINE")) == per_level and per_level > len(connectors) > 0
     rooms = _on(back, "SW_ROOMS", "LWPOLYLINE")
     assert len(rooms) == 1 and rooms[0].closed and _xid(rooms[0]) == "z1"
     assert len(_on(back, "SW_DEVICES", "CIRCLE")) == 2
@@ -101,7 +106,7 @@ def test_units_axes_and_header():
         p.write_bytes(dx.render_dxf(doc, ZONES, 1000, 800))
         info = plan_dxf.inspect(p)
     assert info.units == "m"
-    assert {"SW_WALLS", "SW_OPENINGS", "SW_ROOMS"} <= {l["name"] for l in info.layers if l["drawable"]}
+    assert {"SW_WALLS-L0", "SW_WALLS-L1", "SW_OPENINGS-L0", "SW_ROOMS-L0"} <= {l["name"] for l in info.layers if l["drawable"]}
     assert info.extent is not None and 0 <= info.extent["minx"] and info.extent["maxx"] <= 10.5
 
 
@@ -173,3 +178,126 @@ def test_route_serves_the_published_structure_and_guards_drafts(settings):
     assert c.get(f"/api/v1/plan-versions/{vid}/export.dxf", headers=as_user("dana")).status_code == 200
     assert c.get(f"/api/v1/plan-versions/{vid}/export.dxf?draft=true", headers=as_user("dana")).status_code == 403
     assert c.get(f"/api/v1/plan-versions/{vid}/export.dxf", headers=as_user("stranger")).status_code == 403
+
+
+# ---------------------------------------------------------------- PLN2: a layer family per level, the plan picture
+
+def _single_level() -> dict:
+    doc = _sample()
+    doc["levels"] = [lv for lv in doc["levels"] if lv["id"] == "L0"]
+    for coll in ("walls", "labels", "objects"):
+        doc[coll] = [x for x in doc[coll] if x.get("level_id") == "L0"]
+    keep = {w["id"] for w in doc["walls"]}
+    doc["openings"] = [o for o in doc["openings"] if o["wall_id"] in keep]
+    doc["connectors"] = []
+    return doc
+
+
+def _xdata(e) -> list[str]:
+    return [t.value for t in e.get_xdata(dx.APP_ID)]
+
+
+def test_a_single_level_plan_keeps_the_fixed_layer_names():
+    doc = _single_level()
+    back = _read(dx.render_dxf(doc, ZONES, 1000, 800, anchors=ANCHORS))
+    names = {lay.dxf.name for lay in back.layers}
+    assert set(dx.LAYERS) <= names and not any("-" in n for n in names if n.startswith("SW_")), names
+    assert {e.dxf.layer for e in back.modelspace()} <= set(dx.LAYERS)
+    assert _on(back, "SW_WALLS") and all(e.dxf.layer == "SW_WALLS" for e in _on(back, "SW_WALLS"))
+    assert not any(k.startswith("SW_LEVEL_") for k, _ in back.header.custom_vars)
+    assert all(len(_xdata(e)) == 2 for e in back.modelspace()), "no level value in XDATA"
+    assert dx.level_suffixes(doc) == {}
+
+
+def test_each_level_draws_into_its_own_layer_family():
+    doc = _sample()
+    back = _read(dx.render_dxf(doc, ZONES, 1000, 800, anchors=ANCHORS))
+    assert not back.audit().has_errors
+    for lv in ("L0", "L1"):
+        wall_ids = {w["id"] for w in doc["walls"] if w["level_id"] == lv}
+        assert wall_ids and {_xid(e) for e in back.modelspace() if e.dxf.layer == f"SW_WALLS-{lv}"} == wall_ids
+        assert all(_xdata(e)[2] == lv for e in back.modelspace() if e.dxf.layer.endswith(f"-{lv}")), "the level id is the third XDATA value"
+    # objects and labels by their level
+    for coll, fam in (("objects", "SW_OBJECTS"), ("labels", "SW_LABELS")):
+        for item in doc[coll]:
+            layers = {e.dxf.layer for e in back.modelspace() if _xid(e) == item["id"] and e.dxftype() in ("LWPOLYLINE", "ELLIPSE", "MTEXT") and e.dxf.layer.startswith(fam)}
+            assert layers == {f"{fam}-{item['level_id']}"}, (item["id"], layers)
+    # openings follow their wall's level
+    wall_level = {w["id"]: w["level_id"] for w in doc["walls"]}
+    for o in doc["openings"]:
+        assert {e.dxf.layer for e in back.modelspace() if _xid(e) == o["id"]} == {f"SW_OPENINGS-{wall_level[o['wall_id']]}"}
+    # a connector between L0 and L1 is on both levels' connector layers; devices stay on the floor's layer
+    c1 = [e for e in back.modelspace() if _xid(e) == "c1" and e.dxftype() == "LWPOLYLINE"]
+    assert sorted(e.dxf.layer for e in c1) == ["SW_CONNECTORS-L0", "SW_CONNECTORS-L1"]
+    assert {e.dxf.layer for e in back.modelspace() if _xid(e).startswith(("camera:", "ha_entity:"))} == {"SW_DEVICES"}
+    # a room without a level goes with the default level
+    assert {e.dxf.layer for e in back.modelspace() if _xid(e) == "z1"} == {"SW_ROOMS-L0"}
+    # the level names travel in the layer descriptions and the header (Hebrew as text)
+    custom = dict(back.header.custom_vars)
+    for lv in doc["levels"]:
+        assert custom[f"SW_LEVEL_{lv['id']}"] == f"{lv['name']} | {lv['elevation_m']:g} m"
+        assert lv["name"] in back.layers.get(f"SW_WALLS-{lv['id']}").description
+
+
+def test_the_level_filter_keeps_the_level_layer_names():
+    doc = _sample()
+    only = _read(dx.render_dxf(doc, ZONES, 1000, 800, level="L1"))
+    drawn = {e.dxf.layer for e in only.modelspace()}
+    assert "SW_WALLS-L1" in drawn and not any(n.endswith("-L0") for n in drawn), drawn
+    assert {_xid(e) for e in only.modelspace() if e.dxf.layer == "SW_WALLS-L1"} == {"wd"}
+    # the connectors that reach L1 are on L1's layer only (their other end is not exported)
+    assert {e.dxf.layer for e in only.modelspace() if _xid(e) == "c1"} == {"SW_CONNECTORS-L1"}
+
+
+@pytest.mark.parametrize("ids,expected", [
+    (["L0", "L1"], {"L0": "L0", "L1": "L1"}),
+    (["ground floor", "gallery/2"], {"ground floor": "GROUND_FLOOR", "gallery/2": "GALLERY_2"}),
+    (["קרקע", "a*b"], {"קרקע": "LV0", "a*b": "A_B"}),
+    (["a-b", "a_b"], {"a-b": "A_B", "a_b": "LV1"}),
+    (["x" * 64, "y"], {"x" * 64: "X" * dx.MAX_SUFFIX, "y": "Y"}),
+])
+def test_level_suffixes_are_layer_safe_and_unique(ids, expected):
+    doc = {"levels": [{"id": i, "name": i, "elevation_m": n * 3.0, "ceiling_height_m": 3.0, "is_default": n == 0} for n, i in enumerate(ids)]}
+    got = dx.level_suffixes(doc)
+    assert got == expected
+    assert len(set(got.values())) == len(got)
+    assert all(re.fullmatch(r"[A-Z0-9_]{1,%d}" % dx.MAX_SUFFIX, s) for s in got.values())
+
+
+def test_hostile_level_ids_and_names_still_write_a_valid_file():
+    doc = _sample()
+    bad = 'L<1>/"*'
+    doc["levels"][1] = {**doc["levels"][1], "id": bad, "name": "גלריה {\\x}\u202e\x07"}
+    for coll in ("walls", "labels", "objects"):
+        for x in doc[coll]:
+            if x.get("level_id") == "L1":
+                x["level_id"] = bad
+    for c in doc["connectors"]:
+        c["level_to"] = bad
+    back = _read(dx.render_dxf(doc, ZONES, 1000, 800))
+    assert not back.audit().has_errors
+    names = {lay.dxf.name for lay in back.layers}
+    assert "SW_WALLS-L_1" in names and not any(ch in n for n in names for ch in '<>/"*\\')
+    desc = back.layers.get("SW_WALLS-L_1").description
+    assert "\u202e" not in desc and "\x07" not in desc
+
+
+def test_the_plan_picture_is_an_image_entity_beside_the_drawing():
+    doc = _sample()  # calibrated, 0.01 m per pixel
+    back = _read(dx.render_dxf(doc, [], 1000, 800, background={"file_name": "background.png", "width_px": 1000, "height_px": 800}))
+    assert not back.audit().has_errors
+    images = [e for e in back.modelspace() if e.dxftype() == "IMAGE"]
+    assert len(images) == 1
+    img = images[0]
+    assert img.dxf.layer == "SW_BACKGROUND" and list(back.modelspace())[0] is img, "drawn first: the structure sits on top"
+    assert img.image_def.dxf.filename == "background.png", "a bare file name: the picture sits in the drawing's own folder"
+    assert tuple(img.dxf.image_size)[:2] == (1000, 800)
+    corners = img.boundary_path_wcs()
+    xs, ys = [p.x for p in corners], [p.y for p in corners]
+    assert min(xs) == pytest.approx(0, abs=1e-6) and max(xs) == pytest.approx(10) and min(ys) == pytest.approx(0, abs=1e-6) and max(ys) == pytest.approx(8)
+    # no background, or a name that is not a bare file name, or no size: no IMAGE and no layer
+    for bad in (None, {"file_name": "../x.png", "width_px": 10, "height_px": 10}, {"file_name": "a/b.png", "width_px": 10, "height_px": 10},
+                {"file_name": "C:\\x.png", "width_px": 10, "height_px": 10}, {"file_name": ".hidden", "width_px": 10, "height_px": 10},
+                {"file_name": "b.png", "width_px": 0, "height_px": 10}, {"file_name": "b.png", "width_px": "x", "height_px": 10}):
+        plain = _read(dx.render_dxf(doc, [], 1000, 800, background=bad))
+        assert not [e for e in plain.modelspace() if e.dxftype() == "IMAGE"] and "SW_BACKGROUND" not in {lay.dxf.name for lay in plain.layers}, bad

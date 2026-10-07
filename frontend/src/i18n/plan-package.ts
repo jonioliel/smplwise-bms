@@ -4,6 +4,7 @@
  */
 const he = {
   dxf: 'DXF',
+  dxfPicture: 'DXF + תמונה',
   exportPackage: 'חבילה',
   importPackage: 'ייבוא חבילה',
   title: 'ייבוא חבילת תוכנית',
@@ -53,6 +54,7 @@ type Key = keyof typeof he;
 
 const en: Record<Key, string> = {
   dxf: 'DXF',
+  dxfPicture: 'DXF + picture',
   exportPackage: 'Package',
   importPackage: 'Import package',
   title: 'Import plan package',

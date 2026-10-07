@@ -64,7 +64,7 @@ export class PkgHarness extends LitElement {
 
   render() {
     return html`<div class="exports" data-harness-exports>
-        <span class="btnlink">${pkgT('dxf')}</span><span class="btnlink">${pkgT('exportPackage')}</span>
+        <span class="btnlink">${pkgT('dxf')}</span><span class="btnlink">${pkgT('dxfPicture')}</span><span class="btnlink">${pkgT('exportPackage')}</span>
         <label class="btnlink">${pkgT('importPackage')}<input type="file" data-import-package hidden @change=${(e: Event) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void this.start(f); (e.target as HTMLInputElement).value = ''; }} /></label>
       </div>
       <div data-harness-imported=${this.imported}></div>

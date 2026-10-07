@@ -135,8 +135,9 @@ export interface StudioActions {
   focus(id: string): void;
   copyFrom(versionId: string): void;
   exportJson(): void;
-  /** T088: save the signed plan package of the draft; pick a package to import (a dry run first). */
-  exportPackage(): void;
+  /** T088: save the signed plan package of the draft; pick a package to import (a dry run first). `withDxf` (PLN2): the
+   * package also carries the DXF with the plan picture beside it. */
+  exportPackage(withDxf?: boolean): void;
   importPackage(file: File): void;
   reload(): void;
   calibrate(): void;
@@ -179,6 +180,7 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
       <a class="btnlink" data-export-svg href=${v.exportSvg} download>SVG</a>
       <a class="btnlink" data-export-png href=${v.exportPng} download>PNG</a>
       <a class="btnlink" data-export-dxf href=${v.exportDxf} download>${pkgT('dxf')}</a>
+      <button class="btnlink" data-export-dxf-package ?disabled=${v.busy} @click=${() => a.exportPackage(true)}>${pkgT('dxfPicture')}</button>
       <button class="btnlink" data-export-json @click=${() => a.exportJson()}>JSON</button>
       <button class="btnlink" data-export-package ?disabled=${v.busy} @click=${() => a.exportPackage()}>${pkgT('exportPackage')}</button>
       <label class="btnlink" data-import-package-label>${pkgT('importPackage')}<input type="file" accept=".zip,application/zip" data-import-package hidden ?disabled=${v.busy}
