@@ -4,6 +4,9 @@
  * (contracts/fixtures/plan_geometry pins both) - and the pure maths of the editor tools: snapping, the nearest wall,
  * distances and areas in metres. No DOM and no Lit, so it runs in node (tests/unit-geometry.spec.ts).
  */
+import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, sample, subPath, wallLengthPx, wallPx } from './wall-path';
+
+export { isCurved, sampledWall, wallLengthPx } from './wall-path';
 export type Pt = [number, number];
 export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low';
 export type OpeningKind = 'door' | 'window' | 'passage';
@@ -31,6 +34,8 @@ export interface GeomWall {
   id: string;
   level_id: string;
   polyline: Pt[];
+  /** Curved walls (schema 2.1): one DXF-style bulge per polyline segment (wall-path.ts). Absent = straight. */
+  bulges?: number[];
   thickness_m: number;
   height_m: number | null;
   base_z_m: number;
@@ -199,7 +204,8 @@ export interface Calibration {
   reason: string | null;
 }
 export interface GeometryDoc {
-  schema_version: '2.0';
+  /** 2.1 when a wall carries bulges (curved walls); the server stamps it on every save. */
+  schema_version: '2.0' | '2.1';
   plan_version_id: string;
   floor_id: string;
   source: { sha256: string; file_name: string; mime: string; page: number };
@@ -224,7 +230,9 @@ export interface GeometryDoc {
   shared_spaces?: import('./shared-space').SharedSpaceEntry[];
 }
 
-export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number }
+/** `points` is what every map draws (a curved wall's sampled path); `arc`, only on a curved wall, is the exact part -
+ * corners and bulges - the DXF export writes. */
+export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number; arc?: { points: Pt[]; bulges: number[] } }
 export interface DoorPrim { kind: 'door'; id: string; gap: [Pt, Pt]; leaves: [Pt, Pt][]; arcs: { from: Pt; to: Pt; r: number; sweep: 0 | 1 }[] }
 export interface WindowPrim { kind: 'window'; id: string; gap: [Pt, Pt]; lines: [Pt, Pt][] }
 export interface PassagePrim { kind: 'passage'; id: string; gap: [Pt, Pt] }
@@ -348,6 +356,61 @@ function door(g0: Pt, g1: Pt, d: Pt, o: GeomOpening, w: number): Pick<DoorPrim, 
   return { leaves: [[rp(hinge), rp(tip)]], arcs: [{ from: rp(tip), to: rp(other), r: r2(w), sweep: sweep(hinge, tip, other) }] };
 }
 
+const rb6 = (v: number): number => Math.round(v * 1e6) / 1e6 || 0;
+
+function keepSpans(total: number, openings: readonly GeomOpening[], pxPerM: number): [number, number][] {
+  const cuts = openings.map((o): [number, number] => {
+    const c = (o.t || 0) * total;
+    const half = ((o.width_m || 0) * pxPerM) / 2;
+    return [Math.max(0, c - half), Math.min(total, c + half)];
+  });
+  cuts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const keep: [number, number][] = [];
+  let cursor = 0;
+  for (const [a, b] of cuts) {
+    if (a > cursor) keep.push([cursor, a]);
+    cursor = Math.max(cursor, b);
+  }
+  if (cursor < total) keep.push([cursor, total]);
+  return keep;
+}
+
+/** A wall with arcs - the mirror of the backend's _curved_wall: cut by its openings along its exact length, each kept
+ * part drawn as its sampled path plus the exact part (`arc`); free ends grow by half the thickness along the tangent. */
+function curvedWall(w: GeomWall, width: number, height: number, pxPerM: number, openings: readonly GeomOpening[], prims: Primitive[],
+  geo: Map<string, { pts: Pt[]; cum: number[]; wpx: number }>, arcs: Map<string, { pts: Pt[]; bulges: number[]; cum: number[] }>): void {
+  const { pts, bulges } = wallPx(w, width, height);
+  const cum = pathCumulative(pts, bulges);
+  const total = cum[cum.length - 1];
+  if (total <= 1e-6) return;
+  const wpx = Math.max(1, (w.thickness_m || DEFAULT_WALL_THICKNESS_M) * pxPerM);
+  const sampled = sample(pts, bulges) as Pt[];
+  geo.set(w.id, { pts: sampled, cum: cumulative(sampled), wpx });
+  arcs.set(w.id, { pts, bulges, cum });
+  let part = 0;
+  for (const [s0, s1] of keepSpans(total, openings, pxPerM)) {
+    if (s1 - s0 <= 0.01) continue;
+    let { pts: exact, bulges: eb } = subPath(pts, bulges, s0, s1, cum);
+    let seg = sample(exact, eb) as Pt[];
+    if (s0 <= 0) {
+      const t0 = pointAtS(exact, eb, 0).d;
+      const start = add(exact[0], t0, -wpx / 2);
+      seg = [start, ...seg];
+      exact = [start, ...exact];
+      eb = [0, ...eb];
+    }
+    if (s1 >= total) {
+      const t1 = pointAtS(exact, eb, pathLength(exact, eb)).d;
+      const end = add(exact[exact.length - 1], t1, wpx / 2);
+      seg = [...seg, end];
+      exact = [...exact, end];
+      eb = [...eb, 0];
+    }
+    prims.push({ kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), arc: { points: (exact as Pt[]).map(rp), bulges: eb.map(rb6) } });
+    part += 1;
+  }
+}
+
 /** Walls cut by their openings (free ends grown by half the thickness), door leaves and arcs, window glass,
  * passages and labels, in plan pixels - the mirror of the backend's structure_primitives. */
 export function buildPrimitives(doc: GeometryDoc, width: number, height: number, level: string | null = null, catalog?: CatalogLookup): Primitive[] {
@@ -361,10 +424,15 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
   }
   const prims: Primitive[] = [];
   const geo = new Map<string, { pts: Pt[]; cum: number[]; wpx: number }>();
+  const arcs = new Map<string, { pts: Pt[]; bulges: number[]; cum: number[] }>(); // curved walls: exact corners, bulges, lengths
   // Draft documents can carry duplicate wall ids (duplicate_id is not structural); the backend's export
   // collapses them by id, keeping the last occurrence, and draws one wall - mirror that here.
   for (const w of [...new Map(doc.walls.map((x) => [x.id, x])).values()].sort(byId)) {
     if (level !== null && w.level_id !== level && !w.shared) continue; // CR-009: a shared room shows on every level filter
+    if (isCurved(w)) {
+      curvedWall(w, width, height, pxPerM, byWall.get(w.id) ?? [], prims, geo, arcs);
+      continue;
+    }
     const pts: Pt[] = w.polyline.map((p) => [p[0] * width, p[1] * height]);
     const cum = cumulative(pts);
     const total = cum[cum.length - 1];
@@ -397,7 +465,8 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
   for (const o of [...doc.openings].sort(byId)) {
     const g = geo.get(o.wall_id);
     if (!g) continue;
-    const { p: c, d } = pointAt(g.pts, g.cum, (o.t || 0) * g.cum[g.cum.length - 1]);
+    const ar = arcs.get(o.wall_id); // on a curved wall: the centre by arc length, the gap along the tangent there
+    const { p: c, d } = ar ? pointAtS(ar.pts, ar.bulges, (o.t || 0) * ar.cum[ar.cum.length - 1], ar.cum) : pointAt(g.pts, g.cum, (o.t || 0) * g.cum[g.cum.length - 1]);
     const w = (o.width_m || 0) * pxPerM;
     const g0 = add(c, d, -w / 2);
     const g1 = add(c, d, w / 2);
@@ -457,6 +526,20 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
 
 // ---------------------------------------------------------------- editor maths
 
+/** A wall's length in metres along its path (arcs included). */
+export function wallLengthM(wall: Pick<GeomWall, 'polyline' | 'bulges'>, W: number, H: number, scale: number): number {
+  return wallLengthPx(wall, W, H) * scale;
+}
+
+/** The unit tangent of a wall at relative position t, in plan pixels (y down), pointing towards the wall's end. */
+export function wallTangentAt(wall: Pick<GeomWall, 'polyline' | 'bulges'>, t: number, W: number, H: number): Pt {
+  const { pts, bulges } = wallPx(wall, W, H);
+  if (pts.length < 2) return [1, 0];
+  return pointAtS(pts, bulges, Math.min(1, Math.max(0, t)) * pathLength(pts, bulges)).d;
+}
+
+export { bulgesOf };
+
 export function lengthPx(pts: Pt[], W: number, H: number): number {
   let s = 0;
   for (let i = 1; i < pts.length; i++) s += Math.hypot((pts[i][0] - pts[i - 1][0]) * W, (pts[i][1] - pts[i - 1][1]) * H);
@@ -487,6 +570,14 @@ export function nearestWall(p: Pt, walls: GeomWall[], W: number, H: number, maxP
   let best: { wall: GeomWall; t: number; distPx: number } | null = null;
   for (const w of walls) {
     if (onlyId && w.id !== onlyId) continue;
+    if (isCurved(w)) { // a curved wall: the nearest point of its sampled path, t by its exact length
+      const { pts: cp, bulges } = wallPx(w, W, H);
+      const total = pathLength(cp, bulges);
+      if (total <= 1e-6) continue;
+      const hit = project(cp, bulges, q);
+      if (hit.dist <= maxPx && (!best || hit.dist < best.distPx)) best = { wall: w, t: hit.s / total, distPx: hit.dist };
+      continue;
+    }
     const pts: Pt[] = w.polyline.map((v) => [v[0] * W, v[1] * H]);
     const cum = cumulative(pts);
     const total = cum[cum.length - 1];
@@ -531,6 +622,11 @@ export function snapPoint(p: Pt, prev: Pt | null, walls: GeomWall[], W: number, 
 
 /** The point at relative position t (0..1 of the length) along a wall, in normalized plan space. */
 export function pointOnWall(wall: GeomWall, t: number, W: number, H: number): Pt {
+  if (isCurved(wall)) {
+    const { pts: cp, bulges } = wallPx(wall, W, H);
+    const { p } = pointAtS(cp, bulges, Math.min(1, Math.max(0, t)) * pathLength(cp, bulges));
+    return [p[0] / W, p[1] / H];
+  }
   const pts: Pt[] = wall.polyline.map((v) => [v[0] * W, v[1] * H]);
   const cum = cumulative(pts);
   const { p } = pointAt(pts, cum, Math.min(1, Math.max(0, t)) * cum[cum.length - 1]);

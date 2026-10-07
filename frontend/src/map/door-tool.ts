@@ -3,7 +3,7 @@
  * person's adjustments (width, hinge flip, swing flip) and the accepted door - an ordinary opening (and, when no drawn
  * wall carries it, the short wall piece it came with), added to the draft as one undo step. */
 import type { DoorProposal } from '../api/geometry';
-import { OPENING_DEFAULTS, effectiveScale, pointOnWall, type GeometryDoc, type GeomOpening, type GeomWall, type Hinge, type Pt, type Swing } from './geometry';
+import { OPENING_DEFAULTS, effectiveScale, pointOnWall, wallLengthPx, type GeometryDoc, type GeomOpening, type GeomWall, type Hinge, type Pt, type Swing } from './geometry';
 import { addOpening, addWall, defaultLevelId, openingRange, patchOpening, patchWall, wallDirectionAt, type WallDefaults } from './studio-ops';
 
 export const GHOST_WALL_ID = 'ghost-wall';
@@ -34,10 +34,8 @@ export interface DoorGhost {
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 
-function lengthM(wall: Pick<GeomWall, 'polyline'>, doc: GeometryDoc, W: number, H: number): number {
-  let px = 0;
-  for (let i = 1; i < wall.polyline.length; i++) px += Math.hypot((wall.polyline[i][0] - wall.polyline[i - 1][0]) * W, (wall.polyline[i][1] - wall.polyline[i - 1][1]) * H);
-  return px * effectiveScale(doc).scale;
+function lengthM(wall: Pick<GeomWall, 'polyline' | 'bulges'>, doc: GeometryDoc, W: number, H: number): number {
+  return wallLengthPx(wall, W, H) * effectiveScale(doc).scale; // along the path: a curved wall's arc length
 }
 
 /** The ghost from the server's proposal: metres from its version pixels at the document's effective scale (as the

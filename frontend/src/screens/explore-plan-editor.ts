@@ -39,7 +39,7 @@ import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connecto
 import { productSettings } from '../api/prefs';
 import { cap } from '../api/session';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
-import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, lengthPx, MAX_STAIR_STEPS, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
+import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
   GRID_DEFAULT_M, GRID_STEPS_M, GUIDE_SNAP_PX, alignObjects, distributeObjects, gridDelta, gridStepPx, objectBox, snapObjectPosition, snapToGrid, guideTargets, type AlignMode, type Guide, type GuideTargets, anchorOnLevel, addStair, confirmPlacement, moveConnector, rotateConnector, STAIR_ALIASES } from '../map/studio-ops';
@@ -3456,7 +3456,7 @@ export class ExplorePlanEditor extends LitElement {
   /** A wall's length in metres (estimated before calibration), in the bundle's plan pixels - as the validator measures it. */
   private wallLengthM(w: GeomWall, doc: GeometryDoc): number {
     const b = this.bundle;
-    return b ? lengthPx(w.polyline, b.width, b.height) * effectiveScale(doc).scale : 0;
+    return b ? wallLengthPx(w, b.width, b.height) * effectiveScale(doc).scale : 0;
   }
 
   /** Where a structure drag puts its item: the document after the drop and what is selected then. A corner snaps to the
@@ -3647,7 +3647,7 @@ export class ExplorePlanEditor extends LitElement {
     if (sel.kind === 'opening') {
       const o = doc.openings.find((x) => x.id === sel.id);
       const w = o && doc.walls.find((x) => x.id === o.wall_id);
-      const lengthPxW = w ? lengthPx(w.polyline, b.width, b.height) : 0;
+      const lengthPxW = w ? wallLengthPx(w, b.width, b.height) : 0;
       if (!o || !w || !(lengthPxW > 0)) return false;
       const [dx, dy] = wallDirectionAt(w, o.t, b.width, b.height); // towards the wall's end, y down
       const across = Math.abs(dx) >= Math.abs(dy); // the wall runs across the screen rather than up it
@@ -4648,7 +4648,7 @@ export class ExplorePlanEditor extends LitElement {
         ${row ? html`<sw-button size="sm" variant="ghost" icon="trash" data-floor-image-delete=${variant} ?disabled=${this.imageBusy} @click=${() => void this.removeImage(variant)}>הסר</sw-button>` : nothing}
       </span>
     </div>`;
-    const walls = this.studio.doc?.walls.flatMap((w) => w.polyline.slice(1).map((p, i) => [[w.polyline[i][0], w.polyline[i][1]], [p[0], p[1]]] as [[number, number], [number, number]])) ?? [];
+    const walls = this.studio.doc?.walls.map((w) => sampledWall(w, b.width, b.height)).flatMap((pl) => pl.slice(1).map((p, i) => [[pl[i][0], pl[i][1]], [p[0], p[1]]] as [[number, number], [number, number]])) ?? [];
     return html`<sw-card heading="תמונת הקומה" subheading="תמונה של הקומה מכל מקור (הדמיה, תוכנית צבעונית, צילום מודל); ממוקמת פעם אחת ומוצגת במפה מתחת למצבי החדרים" data-floor-images>
       ${slot('off', off, 'תמונה בסיסית', 'PNG או JPEG עד 12 MB; מוצגת תמיד')}
       ${slot('on', on, 'תמונה עם תאורה', 'אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה')}
