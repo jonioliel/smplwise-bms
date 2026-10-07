@@ -747,7 +747,7 @@ export class InvestigateReviews extends LitElement {
     const d = this.drawer;
     if (!d) return nothing;
     const canExport = this.mayExport && this.exportOn.has(d.item.recorder_id);
-    return html`<sw-drawer open heading=${d.item.camera_name} subheading=${LAYER_TEXT[d.item.layer].one} data-review-drawer @close=${() => this.closeDrawer()}>
+    return html`<sw-drawer modal open heading=${d.item.camera_name} subheading=${LAYER_TEXT[d.item.layer].one} data-review-drawer @close=${() => this.closeDrawer()}>
       ${d.loading || !d.detail
         ? html`<sw-state-panel state="loading" compact></sw-state-panel>`
         : html`<frigate-review-detail .detail=${d.detail} .tz=${this.tz} .canReview=${this.canReview} .canEvents=${!this.demo && canAnywhere('analytics.events')} .canExport=${canExport}
