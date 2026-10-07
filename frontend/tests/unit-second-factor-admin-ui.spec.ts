@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 // SW_SHOTS=1 also writes element screenshots for the Hebrew user guide to docs/design/evidence/tfa2 (nothing otherwise).
 const SHOTS_OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/tfa2');
-async function guideShot(loc: Locator, name: string) {
+async function guideShot(loc: Locator | Page, name: string) {
   if (!process.env.SW_SHOTS) return;
   fs.mkdirSync(SHOTS_OUT, { recursive: true });
   await loc.screenshot({ path: path.join(SHOTS_OUT, `${name}-${test.info().project.name}.png`) });
@@ -184,7 +184,7 @@ test('user drawer: the policy override select offers inherit / optional / requir
   await expect(select).toHaveValue('inherit');
   await select.selectOption('required');
   await expect(select).toHaveValue('required');
-  await guideShot(drawer, 'tfa2-user-policy'); // SW_SHOTS only
+  await guideShot(page, 'tfa2-user-policy'); // SW_SHOTS only
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/user/u-dana', body: { policy: 'required' } }]);
   expect(mock.overrides.user['u-dana']).toBe('required');
   // another user shows their own stored value, not the previous user's
