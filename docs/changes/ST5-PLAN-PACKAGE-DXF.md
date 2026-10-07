@@ -87,7 +87,7 @@ Revert the branch commit: new routes and files only; `geometry_store._prepare` g
 
 # PLN2 — levels in the DXF, the plan picture, multi-level round trip
 
-Branch `pilot/PLN2-plan-dxf` (from `main` 383a03d9 = 2.3.0; not merged, not released). No migration, no version bump.
+Branch `pilot/PLN2-plan-dxf` (from `main` 383a03d9 = 2.3.0; released in 2.3.1 via `integ/231`). No migration.
 
 ## DXF layers per level
 - A plan with **one** level: the fixed layer names, byte-for-byte the same drawing as before.
