@@ -65,7 +65,7 @@ below are the agent's and are open to the owner's review.
 
 ## Known limits
 - Right-to-left ordering of Hebrew in commercial CAD programs was not verified (only ezdxf and our own DXF reader).
-- DXF does not carry the plan picture; levels are not split into separate layers (use `?level=`).
+- ~~DXF does not carry the plan picture; levels are not split into separate layers~~ - addressed by PLN2 (below).
 - Importing a package does not create floors, plan versions or assets; it targets an existing editable version.
 - The phone editor does not show the export row, and no plan canvas at all: at phone width the owner's mobile option
   `hide_structure` (default ON, decision 2026-09-30, `shell/phone.ts`, `routeGuardKind`) replaces `#/explore/floors/<id>/edit` with
@@ -82,3 +82,60 @@ Revert the branch commit: new routes and files only; `geometry_store._prepare` g
 - Backend: `tests/test_plan_dxf_export.py` (7), `tests/test_plan_package.py` (19).
 - Playwright: `frontend/tests/evidence-plan-package.spec.ts` — fixture part (harness `tests/harness/plan-package-harness.ts`,
   vite dev server) and live part (`SW_LIVE=1`). Screenshots in `docs/design/evidence/plan-package/`.
+
+---
+
+# PLN2 — levels in the DXF, the plan picture, multi-level round trip
+
+Branch `pilot/PLN2-plan-dxf` (from `main` 383a03d9 = 2.3.0; not merged, not released). No migration, no version bump.
+
+## DXF layers per level
+- A plan with **one** level: the fixed layer names, byte-for-byte the same drawing as before.
+- A plan with **more than one** level: each level gets its own layer family, `<fixed name>-<suffix>` (`SW_WALLS-L0`,
+  `SW_OPENINGS-L1`, `SW_ROOMS-…`, `SW_OBJECTS-…`, `SW_CONNECTORS-…`, `SW_LABELS-…`). The suffix is the level id upper-cased,
+  `[A-Z0-9_]` only, at most 24 characters; an empty or clashing result becomes `LV<n>` (n = place in elevation order). The rule
+  depends on the level count only, never on `?level=`, so names are stable across exports. CAD: switch a level with a layer
+  filter / wildcard `*-L1`.
+- Openings follow their wall; rooms of an unknown level go with the default level; a connector between two levels of this
+  floor is drawn on both levels' connector layers, a connector to another floor on its own level's layer only; devices stay on
+  `SW_DEVICES` (anchors are per floor). On level layers the level id is the third XDATA value. Layer descriptions and the header
+  variables `SW_LEVEL_<suffix>` = `name | elevation m` carry the level names (Hebrew as UTF-8 text, cleaned like all text).
+- Units, the y mirror and the Hebrew handling are unchanged.
+
+## The plan picture
+- ezdxf writes `IMAGE` + `IMAGEDEF` robustly (audit clean, read back), but a DXF **cannot embed raster data**: the picture
+  is always an external file. So the bare `export.dxf` still carries no picture.
+- The signed package can carry `assets/plan.dxf` (request body `{"draft": …, "dxf": true}`; UI button "DXF + תמונה" /
+  "DXF + picture" in the studio export row). Its `IMAGE` (layer `SW_BACKGROUND`, drawn first) names `background.<ext>` by bare
+  file name - the picture already shipped in `assets/`, i.e. the same folder - with its real pixel size, stretched over the plan.
+  Unzip the package and open `assets/plan.dxf`.
+- Default stays without the DXF: an importer of 2.2.x/2.3.0 refuses unknown file names, so the plain "Package" button keeps
+  producing packages older installations can import.
+- Import: `assets/plan.dxf` is listed and hashed against the signed manifest, never parsed, bounded at 24 MiB on the declared
+  size (422 `package_file_too_large`, audited); on export a DXF over the bound is left out (`manifest.dxf.skipped = too_large`).
+  All 2.2.1 limits and trust checks are unchanged. The package DXF draws only the anchors the exporting person may see (M2).
+- **Limit:** opening the drawing with the picture was verified with ezdxf only, not in AutoCAD / BricsCAD / QCAD; a CAD
+  program that does not search the drawing's folder for a bare image name needs the image path re-pointed once.
+
+## Round trip with levels and connectors
+`tests/test_plan_package_pln2.py`: three levels, door / window / labels / objects per level, an L-shaped stair model, an
+elevator, a tribune-derived connector and stairs linked to another floor. Replace import restores the document hash, the
+geometry hash and a per-level hash; merge restores the package items and keeps a local one (merge appends re-added items, so
+the collection order - and the document hash - can differ from the export; the per-level comparison is by id); an import into
+another version of the floor keeps the geometry hash. Import never writes the other floor's twin.
+
+## Editor end to end
+The live part of `evidence-plan-package.spec.ts` builds a two-level plan with stairs, checks the per-level layers in the DXF,
+downloads both packages from the editor, drifts the draft on both levels and imports the DXF package back through the dialog.
+Phone: the structure editor is intentionally not offered (`hide_structure`, decision 2026-09-30); the mobile project asserts
+the desktop-only notice, no canvas and no export / import control (`editor-guard-mobile.png`). Run on the runner:
+`run_smart.py fixture pilot/PLN2-plan-dxf evidence-plan-package --project=desktop` (and `--project=mobile`).
+
+## Observed, not changed (pre-existing)
+A structure object bound to an anchor stores `anchor_ref.resource_id` and sits on the anchor's position in the stored document
+(`plan.json`, the geometry read). The M2 filter removes hidden cameras from the anchors, the report and the DXF devices, but a
+bound body in `plan.json` still names a camera the exporter's scope denies. Needs an owner decision (the stored document is
+what the hashes cover).
+
+## Rollback
+Revert the PLN2 commits; packages made with `dxf: true` then become unimportable (unknown file), plain packages unaffected.
