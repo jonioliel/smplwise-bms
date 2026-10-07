@@ -473,6 +473,10 @@ export class FrigateReviewCard extends LitElement {
       :host([variant='row']) .fold {
         display: contents;
       }
+      /* the duration has its own column on a wide table */
+      :host([variant='row']) .fold-only {
+        display: none;
+      }
     }
   `;
 
@@ -495,8 +499,8 @@ export class FrigateReviewCard extends LitElement {
       ${overlay ? html`<span class="shade"></span>` : nothing}
       ${overlay ? html`<span class="layer" data-layer=${it.layer}><i></i>${lt}</span>` : nothing}
       ${overlay && it.layer !== 'motion' ? html`<span class="state" data-review-state=${it.reviewed ? 'reviewed' : 'new'}>${it.reviewed ? html`<sw-icon name="check" size="12"></sw-icon><span>${r.reviewed}</span>` : html`<i></i><span>${r.unreviewed}</span>`}</span>` : nothing}
-      ${dur ? html`<span class="dur">${dur}</span>` : nothing}
-      ${overlay ? html`<span class="over"><span class="cam" title=${it.camera_name}>${it.camera_name}</span><time datetime=${it.start}>${cardTime(it.start, this.tz)}</time></span>` : nothing}
+      ${dur && !overlay ? html`<span class="dur">${dur}</span>` : nothing}
+      ${overlay ? html`<span class="over"><span class="cam" title=${it.camera_name}>${it.camera_name}</span><time datetime=${it.start}>${cardTime(it.start, this.tz)}${dur ? ` · ${dur}` : ''}</time></span>` : nothing}
     </button>`;
   }
 
@@ -539,7 +543,7 @@ export class FrigateReviewCard extends LitElement {
       ${this.still(it, dur, false)}
       <div class="fold">
         <div class="cell cam in-fold" role="cell"><b class="cam" title=${it.camera_name}>${it.camera_name}</b>${where ? html`<small data-review-where>${where}</small>` : nothing}</div>
-        <div class="cell in-fold" role="cell"><time datetime=${it.start}>${cardTime(it.start, this.tz)}</time>${dur ? html`<span class="muted"> · ${dur}</span>` : nothing}</div>
+        <div class="cell in-fold" role="cell"><time datetime=${it.start}>${cardTime(it.start, this.tz)}</time>${dur ? html`<span class="muted fold-only"> · ${dur}</span>` : nothing}</div>
         <div class="cell muted" role="cell">${dur ?? '—'}</div>
         <div class="cell in-fold" role="cell">${it.objects.length ? html`<ul class="objs" aria-label=${r.objects}>${it.objects.map((o) => html`<li class="obj" data-obj=${o}>${objectLabel(o)}</li>`)}</ul>` : html`<span class="muted">—</span>`}</div>
         <div class="cell muted zones" role="cell">${it.zones.length ? it.zones.join(' · ') : r.noZones}</div>

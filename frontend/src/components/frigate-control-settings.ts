@@ -317,7 +317,7 @@ export class FrigateControlSettings extends LitElement {
     const admin = can('system.configure');
     const tz = '';
     return html`<div class="box" data-frigate-control-settings>
-      <div class="head"><h4>${t.title}</h4>${pol.classes.some((c) => c.enabled) ? html`<span class="chip accent" data-fcs-any-on>${pol.classes.filter((c) => c.enabled).length} · ${t.tabs.classes}</span>` : html`<span class="chip" data-fcs-all-off>${fx().summary.readOnly}</span>`}</div>
+      <div class="head"><h4>${t.title}</h4>${pol.classes.some((c) => c.enabled) ? html`<span class="chip accent" data-fcs-any-on>${pol.classes.filter((c) => c.enabled).length} ${t.classesOn}</span>` : html`<span class="chip" data-fcs-all-off>${fx().summary.readOnly}</span>`}</div>
       <sw-tabs variant="underline-compact" data-fcs-tabs .items=${tabs.map((id) => ({ id, label: t.tabs[id] }))} .active=${tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as Tab)}></sw-tabs>
       ${tab === 'classes' ? this.classesTab(pol) : nothing}
       ${tab === 'profiles' ? this.profilesTab() : nothing}

@@ -68,6 +68,7 @@ export const frigateEn: FrigateText = {
         supervision: 'Supervision',
       },
       confirmDelete: 'Confirmation on delete',
+      classesOn: 'action classes on',
       classOff: 'Action class is off',
       noPermission: 'No permission',
       firstPending: 'First write not done yet',

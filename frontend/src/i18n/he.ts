@@ -324,6 +324,7 @@ export const he = {
           supervision: 'פיקוח',
         },
         confirmDelete: 'דורש אישור במחיקה',
+        classesOn: 'סוגי פעולה פעילים',
         classOff: 'סוג הפעולה כבוי',
         noPermission: 'אין הרשאה',
         firstPending: 'כתיבה ראשונה טרם בוצעה',
