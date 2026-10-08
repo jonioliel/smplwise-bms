@@ -27,7 +27,12 @@ in Hebrew. If this agent is stopped, continue from "Next step" below. Push after
 - 7bbc44db backend: test_ha2610_compat (scan part), test_automations_access - 17 passed.
 - 395b54db tsc ok; evidence-ha2610-compat.spec.ts 6 passed (first version, scheme variants).
 - a70f2f8a spec: evidence-ha2610-compat + evidence-automations-list + unit-automations - 114 passed.
-- Final full re-run at the branch head: see "Final verification" below.
+- Final verification @ 5483b723 (runner header checked): backend test_ha2610_compat, test_username_normalisation, test_access,
+  test_fake_ha_config, test_automations_api, test_automations_writes, test_automations_access, test_nvr_connection,
+  test_cr022_security_review, test_upstream_watch, test_devices, test_release_check - 318 passed; tsc ok; spec evidence-ha2610-compat +
+  unit-automations - 66 passed. Not run: the full backend suite and the full Playwright matrix (left to the release gate).
+- Note: two earlier runs (b6ho2yfhn) silently ran at a70f2f8a because untracked PNGs of my own spec blocked the runner checkout;
+  cleaned, and the head re-run above supersedes them.
 
 ## Not done / open
 
@@ -51,6 +56,5 @@ not change the gate environment until you agree.
 
 ## Next step
 
-Final verification at the branch head (backend: the touched suites; spec: evidence-ha2610-compat + unit-automations; tsc), then the
-closing report. Expected conflicts on merge: `frontend/src/api/automations.ts` (error-code union, adapter), `contracts/API_INVENTORY.md`
+Work complete for this branch except the open items above. Next: review, then the releasing account merges and runs the gate. Expected conflicts on merge: `frontend/src/api/automations.ts` (error-code union, adapter), `contracts/API_INVENTORY.md`
 (regenerate), `management/upstream_watch.json` (the main checkout has uncommitted edits), `docs/user-guide/he/GUIDE_ALL_HE.html` (rebuild).
