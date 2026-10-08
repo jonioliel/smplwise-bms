@@ -191,9 +191,19 @@ def problem_error(errors: list[dict[str, str]]) -> ApiError:
     return ApiError(422, "validation", f"ערך לא תקין — {first['path']}: {first['message']}", details={"errors": errors})
 
 
-def bridge_error(resp: dict[str, Any]) -> ApiError:
+# A manual run (an automation's "run now", a script) that Home Assistant refuses with Unauthorized: since HA 2026.10 a step such as
+# mqtt.publish / mqtt.dump / synology_dsm.reboot|shutdown needs an HA administrator (core#182045, #182050), so the honest message
+# names that instead of "no control of the device" (docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 5). The detail keeps
+# the bridge's own code.
+RUN_OPS = frozenset({"trigger", "run_script"})
+RUN_UNAUTHORIZED = ("requires_ha_admin", "ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת.")
+
+
+def bridge_error(resp: dict[str, Any], op: str | None = None) -> ApiError:
     code = str(resp.get("error") or "error")
     code = re.sub(r"[^A-Za-z0-9_.\-]", "", code)[:60] or "error"
+    if code == "unauthorized" and op in RUN_OPS:
+        return ApiError(403, RUN_UNAUTHORIZED[0], RUN_UNAUTHORIZED[1], details={"error": code})
     mapped = BRIDGE_ERRORS.get(code)
     if mapped is not None:
         err = mapped({"path": resp.get("path")})
@@ -245,7 +255,7 @@ def bridge_call(w: W, op: str, op_id: str, *, kind: str | None = None, item_id: 
     finally:
         signed = None  # noqa: F841
     if not isinstance(resp, dict) or not resp.get("ok"):
-        err = bridge_error(resp if isinstance(resp, dict) else {"error": "bad_answer"})
+        err = bridge_error(resp if isinstance(resp, dict) else {"error": "bad_answer"}, op)
         store_finish(w.conn, op_id, "failed", error=err.details.get("error") or err.code)
         raise err
     return resp

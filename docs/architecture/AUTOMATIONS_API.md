@@ -240,6 +240,7 @@ present. Runs of items the caller cannot see are never returned.
 | 403 | `locked_block_changed` | חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד. |
 | 403 | `delegation_off` | שמירה עבור משתמש זה אינה מופעלת. פנו למנהל המערכת. |
 | 403 | `not_ha_admin` | שמירת תוכן זה דורשת מנהל של תשתית המערכת. |
+| 403 | `requires_ha_admin` | ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת. (a manual run - `trigger` / `run_script` - that the bridge answers `unauthorized`; HA 2026.10 makes `mqtt.publish` / `mqtt.dump` / `synology_dsm.reboot|shutdown` administrator-only; `details.error` = `unauthorized`) |
 | 404 | `item_not_found` | הפריט לא נמצא. |
 | 404 | `trash_not_found` | הפריט אינו בסל המחזור (ייתכן שפג תוקפו). |
 | 409 | `item_changed` | הפריט שונה במקום אחר. טענו את הגרסה העדכנית והחליטו מה לשמור. |

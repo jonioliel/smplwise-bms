@@ -87,3 +87,32 @@ def test_compat_endpoint_is_admin_only_read_only_and_lists_the_findings(autos_ap
     assert fake.rest_calls == calls_before and len(fake.calls) == events_before, "the scan never calls Home Assistant"
 
     assert c.get(f"{API}/automations/compat", headers=OMER).status_code == 403, "administrators only"
+
+
+# ---------------------------------------------------------------- plan row 5: a manual run refused as Unauthorized
+
+def test_bridge_error_names_the_administrator_rule_for_a_manual_run_only():
+    from smplwise.services import automation_ops as ops
+
+    for op in ("trigger", "run_script"):
+        err = ops.bridge_error({"ok": False, "error": "unauthorized"}, op)
+        assert (err.status, err.code, err.details) == (403, "requires_ha_admin", {"error": "unauthorized"}), op
+        assert "מנהל" in err.user_message
+    for op in ("enable", "disable", "upsert", "apply_scene", None):
+        err = ops.bridge_error({"ok": False, "error": "unauthorized"}, op)
+        assert err.code == "entity_not_controllable", "other refusals keep their meaning"
+    assert ops.bridge_error({"ok": False, "error": "stale"}, "trigger").code == "item_changed"
+
+
+def test_a_run_refused_by_ha_reaches_the_client_as_requires_ha_admin(autos_app):
+    from automations_fixture import item_by_name, rid
+
+    app, s, c, fake, tr = autos_app
+    it = item_by_name(c, "מזגן סלון בבוקר")
+    tr.fail_next["answer"] = {"ok": False, "request_id": "x", "error": "unauthorized"}
+    r = c.post(f"{API}/automations/automation/{it['id']}/run", json={"client_request_id": rid(), "confirm": True})
+    assert r.status_code == 403, r.text
+    body = r.json()
+    assert body["code"] == "requires_ha_admin" and body["details"] == {"error": "unauthorized"} and "מנהל" in body["user_message"]
+    r = c.post(f"{API}/automations/automation/{it['id']}/run", json={"client_request_id": rid(), "confirm": True})
+    assert r.status_code == 202, "the refused run gave its interval slot back"

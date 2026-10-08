@@ -800,8 +800,11 @@ test.describe('automations client: error mapping and settings', () => {
   const api = (status: number, code: string, details: Record<string, unknown> = {}, msg = 'שרת') => new ApiError(status, { code, user_message: msg, retryable: false, correlation_id: 'c', details });
 
   test('every code of §3.3 has its Hebrew line, with the placeholders filled from the details', () => {
-    expect(Object.keys(AUTOMATION_ERROR_LABEL)).toHaveLength(26);
+    expect(Object.keys(AUTOMATION_ERROR_LABEL)).toHaveLength(27);
     expect(automationErrorText(api(403, 'forbidden'))).toBe('אין הרשאה לפעולה זו בהיקף המבוקש.');
+    // HA 2026.10 (plan row 5): a manual run that HA refuses as Unauthorized (a step such as mqtt.publish needs an administrator)
+    expect(automationErrorText(api(403, 'requires_ha_admin', { error: 'unauthorized' }))).toBe('ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת.');
+    expect(mapAutomationError(api(403, 'requires_ha_admin')).kind).toBe('forbidden');
     expect(automationErrorText(api(403, 'entity_not_controllable', { name: 'תאורת סלון' }))).toBe('אין לך הרשאת שליטה ב־תאורת סלון.');
     expect(automationErrorText(api(403, 'grant_required', { name: 'אזעקה', action: 'נטרול' }))).toBe('אין לך הרשאה לנטרול ב־אזעקה.');
     expect(automationErrorText(api(422, 'validation', { errors: [{ path: 'alias', code: 'alias_required', message: 'תנו שם' }] }))).toBe('ערך לא תקין — alias: תנו שם');

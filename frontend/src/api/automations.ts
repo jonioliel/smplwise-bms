@@ -310,7 +310,7 @@ export function automationSettingsPatch(from: AutomationSettings, to: Automation
 // ------------------------------------------------------------------------------------------------ errors (§3.3)
 
 export type AutomationErrorCode =
-  | 'forbidden' | 'entity_not_controllable' | 'grant_required' | 'code_view_required' | 'locked_block_changed' | 'delegation_off' | 'not_ha_admin'
+  | 'forbidden' | 'entity_not_controllable' | 'grant_required' | 'code_view_required' | 'locked_block_changed' | 'delegation_off' | 'not_ha_admin' | 'requires_ha_admin'
   | 'item_not_found' | 'trash_not_found' | 'item_changed' | 'confirmation_required' | 'feature_disabled' | 'validation' | 'ha_validation'
   | 'action_not_allowed' | 'code_not_allowed' | 'not_editable' | 'masked_values' | 'rate_limited' | 'run_too_soon' | 'config_refused'
   | 'config_api_unavailable' | 'ha_unavailable' | 'bridge_not_paired' | 'bridge_too_old' | 'config_timeout';
@@ -324,6 +324,7 @@ export const AUTOMATION_ERROR_LABEL: Record<AutomationErrorCode, string> = {
   locked_block_changed: 'חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד.',
   delegation_off: 'שמירה עבור משתמש זה אינה מופעלת. פנו למנהל המערכת.',
   not_ha_admin: 'שמירת תוכן זה דורשת מנהל של תשתית המערכת.',
+  requires_ha_admin: 'ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת.',
   item_not_found: 'הפריט לא נמצא.',
   trash_not_found: 'הפריט אינו בסל המחזור (ייתכן שפג תוקפו).',
   item_changed: 'הפריט שונה במקום אחר. טענו את הגרסה העדכנית והחליטו מה לשמור.',
@@ -360,7 +361,7 @@ export interface AutomationFailure {
 }
 
 const KIND_OF: Record<string, FailureKind> = {
-  forbidden: 'forbidden', entity_not_controllable: 'forbidden', grant_required: 'forbidden', delegation_off: 'forbidden', not_ha_admin: 'forbidden',
+  forbidden: 'forbidden', entity_not_controllable: 'forbidden', grant_required: 'forbidden', delegation_off: 'forbidden', not_ha_admin: 'forbidden', requires_ha_admin: 'forbidden',
   code_view_required: 'locked', locked_block_changed: 'locked', masked_values: 'locked', not_editable: 'locked', code_not_allowed: 'validation',
   item_not_found: 'not_found', trash_not_found: 'not_found', item_changed: 'conflict', confirmation_required: 'confirm', feature_disabled: 'unavailable',
   validation: 'validation', ha_validation: 'validation', action_not_allowed: 'validation', rate_limited: 'rate', run_too_soon: 'rate',
