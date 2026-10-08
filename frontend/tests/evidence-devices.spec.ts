@@ -629,7 +629,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   const record = (id: string, entity_id: string, action_id: string, status: string, confirmation: 'state' | 'attribute' | 'none' = 'state') =>
     JSON.stringify({ id, entity_id, action_id, status, error: null, requested_at: new Date().toISOString(), confirmed_at: status === 'confirmed' ? new Date().toISOString() : null, confirmation });
 
-  test('a toggle shows a visible "awaiting confirmation" line, keeps the reported state as the fact, then confirms (action route mocked)', async ({ page, request }) => {
+  test('a toggle flips the tile at once, shows the "awaiting confirmation" line only while a slow device stays unconfirmed, then confirms (action route mocked)', async ({ page, request }) => {
     await seed(request);
     await open(page, '/devices/areas/cr007_lobby', 'a');
     const screen = page.locator('devices-area');
@@ -639,13 +639,16 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await page.route('**/api/v1/ha/entities/*/actions', (r) => r.fulfill({ status: 202, contentType: 'application/json', body: record('cr007-toggle-1', 'light.cr007_lobby_2', 'light.turn_on', 'pending') }));
     await page.route('**/api/v1/ha/actions/*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: record('cr007-toggle-1', 'light.cr007_lobby_2', 'light.turn_on', confirmed ? 'confirmed' : 'pending') }));
     await tile.locator('sw-toggle[data-control="power"]').click();
-    // pending: a visible line (not only dimming); the toggle shows the target, the row's text and class stay the fact
+    // LAT1 (owner 2026-10-08): the tile follows the tap at once - toggle, colour and state word show the target; what Home
+    // Assistant last reported stays in data-reported. This mocked device does not confirm quickly, so after PENDING_VISIBLE_MS
+    // (700 ms) the honest "awaiting confirmation" line appears
+    await expect(tile.locator('sw-toggle[data-control="power"]')).toHaveAttribute('checked', '');
+    await expect(tile).toHaveAttribute('data-active', 'true');
+    await expect(tile).toHaveAttribute('data-reported', 'false');
+    await expect(tile.locator('.s')).toHaveText('דולק');
     const status = tile.locator('[data-cmd-status]');
     await expect(status).toHaveAttribute('data-cmd-status', 'pending');
     await expect(status).toContainText('ממתין לאישור');
-    await expect(tile.locator('sw-toggle[data-control="power"]')).toHaveAttribute('checked', '');
-    await expect(tile).toHaveAttribute('data-active', 'false');
-    await expect(tile.locator('.s')).toHaveText('כבוי');
     // Home Assistant's own state changes (a real /ha/dev/states write + /ha/ws push) and the next poll answers confirmed
     confirmed = true;
     await setState(request, 'light.cr007_lobby_2', 'on', { friendly_name: 'ספוט לובי', brightness: 255 });
@@ -672,7 +675,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     await expect(tile.locator('.rollback-note')).toHaveCount(0);
     await expect(tile.locator('.rollback-note')).toBeVisible({ timeout: 7000 });
     await expect(tile.locator('[data-cmd-status="pending"]')).toHaveCount(0);
-    await expect(tile).toHaveClass(/\boff\b/); // the last reported state - the target was never claimed as fact
+    await expect(tile).toHaveClass(/\boff\b/); // rolled back to the last reported state
+    await expect(tile).toHaveAttribute('data-active', 'false');
     await expect(tile.locator('sw-toggle[data-control="power"]')).not.toHaveAttribute('checked', '');
     await page.unroute('**/api/v1/ha/entities/*/actions');
     await page.unroute('**/api/v1/ha/actions/*');
