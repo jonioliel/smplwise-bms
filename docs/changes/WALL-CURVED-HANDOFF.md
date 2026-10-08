@@ -37,8 +37,12 @@ helper: `services/wall_path.py` + `frontend/src/map/wall-path.ts`.
 ## Tests
 
 See the WALLC2 report for the exact commands and SHAs. Backend: `tests/test_wall_curves.py` (25) plus the plan suites;
-frontend: `tests/unit-wall-path.spec.ts` (11) plus the plan unit specs; live: `evidence-curved-walls` (fixture job,
-desktop + mobile). Screenshots of the live spec go to `private-evidence/curved-walls/` (not committed).
+frontend: `tests/unit-wall-path.spec.ts` (12) plus the plan unit specs; live: `evidence-curved-walls` (fixture job,
+desktop + mobile): 6 passed @ 57e2d0cc. Screenshots of the live spec go to `private-evidence/curved-walls/` (not
+committed) and were reviewed: the 3D cutaway used to drop chords at the BACK of a round room off the scene centre
+(fixed: curved runs carry a `pivot`); a refused radius lingered in the field and showed in the green info colour
+(fixed). Known cosmetic: the shadow under the free end of a curved wall shows small steps (shadow-map resolution on
+the sampled chords), not changed.
 
 ## Merge notes (for the merge to main)
 
