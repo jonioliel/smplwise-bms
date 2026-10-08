@@ -62,14 +62,16 @@ export interface FrigateControlMock {
   cases: Record<string, unknown>[];
   /** GET clip.mp4 requests, as "camera start end supervised" */
   clips: string[];
+  /** FRGS: zones (relative polygons) and curated settings per camera id, as Frigate's effective config shows them */
+  config: { zones: Record<string, Record<string, unknown>[]>; settings: Record<string, Record<string, unknown>> };
 }
 
 const SWITCHES = ['detect', 'motion', 'audio', 'review_alerts', 'review_detections', 'notifications', 'improve_contrast', 'birdseye', 'ptz_autotracker', 'enabled', 'recordings', 'snapshots'];
 const SWITCH_GROUP = (f: string) => (['enabled', 'recordings', 'snapshots'].includes(f) ? 'record' : 'analytics');
-export const F2B_KINDS = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read'];
+export const F2B_KINDS = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
 export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateControlMock {
   return {
-    classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false },
+    classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false, config: false },
     switches: Object.fromEntries(SWITCHES.map((f) => [f, !['audio', 'notifications', 'ptz_autotracker', 'snapshots'].includes(f)])),
     profiles: ['home', 'away'], active: 'home', rules: { armed_away: 'away' },
     changes: [
@@ -89,6 +91,16 @@ export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateC
       { id: 'case-fr-1', name: 'frigate-case', description: '', created_at: 1791100000, arx_created: false },
     ],
     clips: [],
+    config: {
+      zones: {
+        'fg-front': [
+          { name: 'porch', points: [[0.08, 0.55], [0.42, 0.5], [0.46, 0.92], [0.06, 0.95]], editable: true, objects: ['person'], inertia: null, loitering_time: null },
+          { name: 'driveway', points: [[0.55, 0.45], [0.95, 0.4], [0.98, 0.96], [0.5, 0.97]], editable: true, objects: ['car', 'person'], inertia: 3, loitering_time: 10 },
+          { name: 'old_line', points: null, editable: false, objects: [], inertia: null, loitering_time: null },
+        ],
+      },
+      settings: {},
+    },
     ...over,
   };
 }
@@ -232,13 +244,17 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
         Object.assign(m.ctl.classes, b.classes);
         return json({ recorder_id: 'nvr-2', policy: m.ctl.classes });
       }
-      const per = ['record', 'profile', 'ptz'];
-      const PERM: Record<string, string> = { analytics: 'analytics.control', record: 'analytics.record_control', profile: 'analytics.profile', review: 'analytics.review', events: 'analytics.events', ptz: 'camera.ptz', exports: 'analytics.exports', cases: 'analytics.cases' };
-      return json({ recorder_id: 'nvr-2', ptz_released: false, classes: ['analytics', 'record', 'profile', 'review', 'events', 'ptz', 'exports', 'cases'].map((c) => ({ class: c, enabled: !!m.ctl.classes[c], per_action: per.includes(c), permission: PERM[c], available: c !== 'ptz', confirm_actions: c === 'exports' || c === 'cases' ? ['delete'] : [] })) });
+      const per = ['record', 'profile', 'ptz', 'config'];
+      const PERM: Record<string, string> = { analytics: 'analytics.control', record: 'analytics.record_control', profile: 'analytics.profile', review: 'analytics.review', events: 'analytics.events', ptz: 'camera.ptz', exports: 'analytics.exports', cases: 'analytics.cases', config: 'system.configure' };
+      return json({ recorder_id: 'nvr-2', ptz_released: false, classes: ['analytics', 'record', 'profile', 'review', 'events', 'ptz', 'exports', 'cases', 'config'].map((c) => ({ class: c, enabled: !!m.ctl.classes[c], per_action: per.includes(c), permission: PERM[c], available: c !== 'ptz', confirm_actions: c === 'exports' || c === 'cases' ? ['delete'] : [], persists: c === 'config' })) });
     }
     // FRGD / F2b (routers/frigate_f2b.py): the first supervised write, the automatic profile, exports, cases, manual events, the clip
     const f2b = f2bRoute(m, p, method, req.postDataJSON.bind(req), url);
     if (f2b) return json(f2b.body, f2b.status);
+    // FRGS (routers/frigate_config.py): the config schema, one camera's zones and settings, the config writes
+    const cfg = configRoute(m, p, method, req.postDataJSON.bind(req));
+    if (cfg) return json(cfg.body, cfg.status);
+    if (/^frigate\/nvr-2\/cameras\/[^/]+\/snapshot$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG });
     if (f2b === null) return route.fulfill({ status: 200, contentType: 'video/mp4', body: Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]) });
     const ctlCam = /^frigate\/nvr-2\/cameras\/([^/]+)\/control(?:\/([a-z_]+))?$/.exec(p);
     if (ctlCam) {
@@ -546,4 +562,85 @@ export async function openApp(page: Page, hash: string, query = ''): Promise<voi
   await page.goto('about:blank');
   await page.goto(`/?design=a${query}#${hash}`);
   await page.waitForSelector('sw-app');
+}
+
+/** FRGS: the config schema as routers/frigate_config.py serves it (the server's rules are test_frigate_config.py; this proves the screens). */
+export const CONFIG_SCHEMA = {
+  recorder_id: 'nvr-2', version: 'arx-frigate-0.18/1', sections: ['detect', 'motion', 'objects', 'snapshots', 'record', 'review'], persists: true, frigate_check: null,
+  settings: [
+    { key: 'detect.fps', section: 'detect', type: 'int', min: 1, max: 30, default: 5, unit: 'fps' },
+    { key: 'motion.threshold', section: 'motion', type: 'int', min: 1, max: 255, default: 30 },
+    { key: 'motion.contour_area', section: 'motion', type: 'int', min: 1, max: 1000, default: 10 },
+    { key: 'motion.lightning_threshold', section: 'motion', type: 'number', min: 0.3, max: 1, step: 0.05, default: 0.8 },
+    { key: 'objects.track', section: 'objects', type: 'labels', default: ['person'] },
+    { key: 'snapshots.retain.default', section: 'snapshots', type: 'int', min: 0, max: 365, default: 10, unit: 'days' },
+    { key: 'record.alerts.retain.days', section: 'record', type: 'int', min: 0, max: 365, default: 10, unit: 'days' },
+    { key: 'record.detections.retain.days', section: 'record', type: 'int', min: 0, max: 365, default: 10, unit: 'days' },
+    { key: 'review.alerts.labels', section: 'review', type: 'labels', default: ['person', 'car'] },
+  ],
+  zone: {
+    fields: [{ key: 'points', type: 'polygon', min_points: 3, max_points: 40 }, { key: 'objects', type: 'labels', default: [] }, { key: 'inertia', type: 'int', min: 1, max: 10, default: 3 },
+      { key: 'loitering_time', type: 'int', min: 0, max: 3600, default: 0, unit: 's' }],
+    name_pattern: '^[a-z0-9_]{1,40}$', max_zones: 24,
+  },
+  labels: ['person', 'car', 'bicycle', 'motorcycle', 'bus', 'truck', 'dog', 'cat', 'bird', 'horse', 'package', 'face', 'license_plate'],
+};
+
+/** FRGS routes: `{ status, body }` for one of them, `undefined` otherwise. Same gates as the server: system.configure, class on, confirm, first write supervised. */
+function configRoute(m: FrigateMock, p: string, method: string, bodyOf: () => unknown): { status: number; body: unknown } | undefined {
+  const ok = (body: unknown) => ({ status: 200, body });
+  const err = (status: number, code: string, msg: string) => ({ status, body: ENVELOPE(code, msg) });
+  const c = m.ctl;
+  const admin = m.perms.includes('system.configure');
+  if (p === 'frigate/nvr-2/config/schema') return ok(CONFIG_SCHEMA);
+  const r = /^frigate\/nvr-2\/cameras\/([^/]+)\/config(?:\/(zones|settings)\/([^/]+)(\/delete)?)?$/.exec(p);
+  if (!r) return undefined;
+  const [, cam, what, name, del] = r;
+  const zones = (c.config.zones[cam] ??= []);
+  const settings = (c.config.settings[cam] ??= { 'detect.fps': 5, 'objects.track': ['car', 'person'] });
+  if (!what) {
+    if (method !== 'GET') return undefined;
+    return ok({
+      recorder_id: 'nvr-2', camera_id: cam, camera_key: keyOf(cam), frame: { width: 1920, height: 1080 }, zones,
+      settings: Object.fromEntries(CONFIG_SCHEMA.settings.map((s) => [s.key, settings[s.key] ?? null])),
+      writable: !!c.classes.config && admin, first_write_done: { config_zone: !!c.firstWrites.config_zone, config_settings: !!c.firstWrites.config_settings }, can_supervise: admin,
+    });
+  }
+  const b = (bodyOf() ?? {}) as Record<string, unknown>;
+  c.writes.push(`${method} ${p} ${JSON.stringify(b)}`);
+  if (!admin) return err(403, 'forbidden', 'אין הרשאה');
+  if (!c.classes.config) return err(409, 'frigate_write_class_off', 'סוג הפעולה הזה כבוי עבור המקליט.');
+  if (!b.confirm) return err(409, 'confirmation_required', 'פעולה זו דורשת אישור מפורש.');
+  const kind = what === 'zones' ? 'config_zone' : 'config_settings';
+  if (!c.firstWrites[kind]) {
+    if (!b.supervised) return err(409, 'frigate_first_write_unsupervised', 'זו הכתיבה הראשונה מסוג זה אל Frigate. מנהל מערכת צריך לבצע אותה בפיקוח ולאשר זאת במפורש.');
+    c.firstWrites[kind] = true;
+  }
+  if (c.failWith) {
+    const code = c.failWith;
+    c.failWith = null;
+    return err(409, code, 'המקליט דחה את השינוי');
+  }
+  const log = (target: string, before: unknown, after: unknown) => {
+    const id = `chg-${c.changes.length + 1}`;
+    c.changes.unshift({ id, recorder_id: 'nvr-2', camera_id: cam, camera_key: keyOf(cam), class: 'config', kind, target, before, after, status: 'applied', error: null, reversible: true, reverts_id: null, actor: 'יוני', at: new Date().toISOString() });
+    return id;
+  };
+  if (what === 'zones') {
+    const i = zones.findIndex((z) => z.name === name);
+    if (del) {
+      if (i < 0) return err(404, 'not_found', 'האזור לא נמצא.');
+      const [old] = zones.splice(i, 1);
+      return ok({ deleted: true, verified: true, change_id: log(name, old, null) });
+    }
+    const zone = { name, points: b.points, editable: true, objects: b.objects ?? [], inertia: b.inertia ?? null, loitering_time: b.loitering_time ?? null };
+    const before = i >= 0 ? zones[i] : null;
+    if (i >= 0) zones[i] = zone;
+    else zones.push(zone);
+    return ok({ changed: true, verified: true, zone, change_id: log(name, before, zone) });
+  }
+  const values = (b.values ?? {}) as Record<string, unknown>;
+  const before = Object.fromEntries(Object.keys(values).map((k) => [k, settings[k] ?? null]));
+  Object.assign(settings, values);
+  return ok({ changed: true, verified: true, settings: values, change_id: log(name, before, values) });
 }
