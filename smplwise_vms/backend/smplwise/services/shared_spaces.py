@@ -866,7 +866,8 @@ def _where(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[li
 
 def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, dict[str, list[dict[str, Any]]]], echoed: dict[str, dict[str, Any]],
                deleted: set[str] | None = None, *, can_write: Callable[[str], bool] | None = None,
-               can_control: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
+               can_control: Callable[[str], bool] | None = None,
+               fix: Callable[[str, dict[str, Any] | None, dict[str, Any]], dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The shared items a client of `floor_id` (the other floor) sent, planned as writes to each home floor's editor
     draft: what changed, was added (a namespaced new id) or deleted (listed in `deleted`) against the current attach.
     Security review B2 / M1:
@@ -881,7 +882,9 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
     - a principal explicitly denied on the home floor writes nothing (403 shared_denied, no revision in the answer);
     - an item left out is never deleted: deletions are only the ids listed.
     A home floor whose echo is missing is not touched; a home draft that moved since the client read it raises 409 when
-    anything differs. Writes NOTHING - every refusal comes before the first write; commit_edits() writes the plan."""
+    anything differs. Writes NOTHING - every refusal comes before the first write; commit_edits() writes the plan.
+    `fix(coll, current item or None, sent item)` (PLNS): the sent item with the anchor references its writer was not
+    shown given back from the current one (services/plan_anchor_scope.py); it may raise to refuse the edit."""
     from . import geometry_store as store
 
     deleted = deleted or set()
@@ -917,6 +920,8 @@ def plan_edits(conn: sqlite3.Connection, floor_id: str, sent_shared: dict[str, d
         changed: dict[str, list[tuple[dict[str, Any] | None, dict[str, Any] | None, Share]]] = {c: [] for c in SHARED_COLLECTIONS}
         for coll in SHARED_COLLECTIONS:
             got = {i["id"]: i for i in sent.get(coll, []) if isinstance(i.get("id"), str)}
+            if fix is not None:
+                got = {iid: fix(coll, view[coll].get(iid), it) for iid, it in got.items()}
             for iid, it in got.items():
                 cur = view[coll].get(iid)
                 if cur is not None:
