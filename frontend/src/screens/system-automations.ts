@@ -13,8 +13,8 @@ import { isApi } from '../api/session';
 import { applyAutomationsHidden } from '../shell/nav';
 import { autoApi, autoNow, autoReady } from '../api/automations-demo';
 import {
-  AUTOMATION_SETTINGS_DEFAULT, AUTOMATION_SETTING_RANGES, REVIEW_LABEL, automationErrorText, mapAutomationError,
-  type AutomationSettings, type AutomationTemplate, type AutomationsStatus, type ReviewRow, type TrashRow,
+  AUTOMATION_SETTINGS_DEFAULT, AUTOMATION_SETTING_RANGES, COMPAT_LABEL, REVIEW_LABEL, automationErrorText, mapAutomationError,
+  type AutomationSettings, type AutomationTemplate, type AutomationsStatus, type CompatScan, type ReviewRow, type TrashRow,
 } from '../api/automations';
 import { CODE_VIEW_ROLES, ROLE_ROWS, delegationLabel, moveTemplate, templateRows, toggleCodeRole, toggleHidden, whenText, type TplRef } from './automations-logic';
 import { SkinController } from '../design/skin';
@@ -56,6 +56,7 @@ export class SystemAutomations extends LitElement {
   @state() private templates: TplRef[] = [];
   @state() private notify: Array<{ action: string; name: string }> = [];
   @state() private review: ReviewRow[] = [];
+  @state() private compat: CompatScan | null = null;
   @state() private trash: TrashRow[] = [];
   @state() private error = '';
   @state() private note = '';
@@ -346,13 +347,15 @@ export class SystemAutomations extends LitElement {
       const status = await api.status();
       this.status = status;
       if (!status.can.configure) { this.phase = 'forbidden'; return; }
-      const [settings, templates, review, trash, catalog] = await Promise.all([
+      const [settings, templates, review, trash, catalog, compat] = await Promise.all([
         api.settings(),
         api.templates().catch(() => ({ templates: [] as AutomationTemplate[] })),
         api.review().catch(() => [] as ReviewRow[]),
         api.trash().catch(() => [] as TrashRow[]),
         api.catalog().catch(() => null),
+        api.compat().catch(() => null),
       ]);
+      this.compat = compat;
       this.saved = settings;
       this.draft = clone(settings);
       const seen = templates.templates.map((t) => ({ id: t.id, name: t.name, suggest_schedule: t.suggest_schedule }));
@@ -538,6 +541,24 @@ export class SystemAutomations extends LitElement {
     </sw-card>`;
   }
 
+  /** HA 2026.10 compatibility (read-only scan of the mirror, `GET /automations/compat`): shown only when something was found. */
+  private compatCard(): TemplateResult | typeof nothing {
+    const scan = this.compat;
+    if (!scan || !scan.items.length) return nothing;
+    const href = (kind: string, id: string) => `#/devices/automations/${kind === 'automation' ? '' : `${kind === 'script' ? 'scripts' : 'scenes'}/`}${encodeURIComponent(id)}`;
+    return html`<sw-card heading="תאימות לתשתית המערכת 2026.10" data-card="compat">
+      <div class="muted" data-compat-summary>${scan.items.length === 1 ? 'פריט אחד דורש תיקון לפני השדרוג.' : `${scan.items.length} פריטים דורשים תיקון לפני השדרוג.`} הבדיקה קוראת בלבד.</div>
+      ${scan.items.map((i) => html`<div class="rev" data-compat=${`${i.kind}:${i.id}`}>
+        ${[...new Set(i.issues.map((x) => x.code))].map((code) => html`<span class="tag warn" data-compat-code=${code}>${COMPAT_LABEL[code]}</span>`)}
+        <a href=${href(i.kind, i.id)}>${i.name}</a>
+        <span class="muted">${i.issues.some((x) => x.code === 'admin_only_service')
+          ? html`הפעלה ידנית תיכשל למי שאינו מנהל (<bdi>${i.issues.find((x) => x.service)?.service ?? ''}</bdi>)`
+          : 'ייכשל בבדיקת התצורה ולא יפעל'}</span>
+      </div>`)}
+      ${scan.truncated ? html`<div class="muted">מוצגים הפריטים הראשונים בלבד.</div>` : nothing}
+    </sw-card>`;
+  }
+
   render() {
     if (this.phase === 'loading') return html`<sw-page heading="הגדרות › אוטומציות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     if (this.phase === 'error') return html`<sw-page heading="הגדרות › אוטומציות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
@@ -545,7 +566,7 @@ export class SystemAutomations extends LitElement {
     return html`<sw-page heading="הגדרות › אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
       <div class="cols">
         <div class="col">${this.who()}${this.codeView()}${this.retention()}${this.display()}${this.platform()}</div>
-        <div class="col">${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}</div>
+        <div class="col">${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="bar" data-settings-bar>

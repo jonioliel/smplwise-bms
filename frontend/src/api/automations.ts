@@ -216,6 +216,17 @@ export const REVIEW_LABEL: Record<ReviewIssue, string> = {
   sensitive_external: 'פעולה רגישה שונתה מחוץ למערכת', storm: 'רצה בתדירות חריגה', invalid: 'שגיאה בהגדרה', missing_entity: 'מכשיר חסר',
   owner_lost_rights: 'ליוצר אין עוד הרשאה', masked_values: 'ערכים חסויים', delegated_write: 'נשמרה בהאצלה', not_loaded: 'לא נטענה',
 };
+/** HA 2026.10 compatibility scan (§3.1 row 24, `GET /automations/compat`, `system.configure`): read-only over the mirror. */
+export type CompatCode = 'state_for_attribute' | 'state_for_list' | 'state_for_input_helper' | 'admin_only_service';
+export interface CompatIssue { code: CompatCode; path: string; service?: string }
+export interface CompatItem { kind: ItemKind; id: string; entity_id: string | null; name: string; source: string; issues: CompatIssue[] }
+export interface CompatScan { scanned: number; mirror_seen_at: string | null; counts: Record<CompatCode, number>; items: CompatItem[]; truncated: boolean }
+export const COMPAT_LABEL: Record<CompatCode, string> = {
+  state_for_attribute: '"במשך" עם מאפיין',
+  state_for_list: '"במשך" עם כמה מצבים',
+  state_for_input_helper: '"במשך" עם מצב מעזר קלט',
+  admin_only_service: 'הפעלה ידנית למנהל בלבד',
+};
 /** What a create / replace / code-save answers (§3.2): 200/201 `{item, op_id}`, 202 `{status: "not_loaded"}`. */
 export type WriteResult = { item: ItemDetail; op_id: string; status?: undefined } | { status: 'not_loaded'; op_id: string; item?: ItemDetail };
 export interface WriteBody { confirm?: boolean; client_request_id: string }
@@ -432,6 +443,7 @@ export interface AutomationsAdapter {
   purgeTrash(trashId: string): Promise<{ ok: true }>;
   setMeta(kind: ItemKind, id: string, patch: MetaPatch): Promise<Item>;
   review(): Promise<ReviewRow[]>;
+  compat(): Promise<CompatScan>;
   settings(): Promise<AutomationSettings>;
   saveSettings(next: AutomationSettings, from?: AutomationSettings): Promise<AutomationSettings>;
 }
@@ -484,6 +496,7 @@ export const httpAutomations: AutomationsAdapter = {
   purgeTrash: (tid) => post(`automations/trash/${enc(tid)}/purge`, {}),
   setMeta: (kind, id, p) => put(`${base(kind, id)}/meta`, p),
   review: async () => rows<ReviewRow>(await get<unknown>('automations/review'), 'items', 'review'),
+  compat: () => get('automations/compat'),
   settings: async () => automationSettingsOf((await get<{ settings: Record<string, unknown> }>('settings')).settings),
   saveSettings: async (next, from) => {
     const body = automationSettingsPatch(from ?? (await httpAutomations.settings()), next);
