@@ -174,3 +174,23 @@
   - הערות HAOS 18.0 נקראו חלקית.
   - לא נמצא מקור לגרסת Python המינימלית של 2026.10. הגשר לא מושפע, כי הוא רץ בפייתון של HA.
   - גרסת ה-HA של המעבדה לא נקראה בזמן אמת. היא לקוחה מהמסמכים (2026.9.4).
+
+## 9. מצב היישום (ענף `pilot/HA2610-impl`, 2026-10-08)
+
+| שורה בתוכנית (סעיף 4) | מצב | איפה |
+|---|---|---|
+| 1. כלל "במשך" | בוצע (478dc675) | `automation_model.py` |
+| 2. בדיקות נרמול שמות משתמש | בוצע | `test_username_normalisation.py` |
+| 3. סינון יומן הביקורת במנורמל | בוצע | `routers/access.py` (`list_audit`) |
+| 4. סריקה לקריאה בלבד + כרטיס למנהל | בוצע | `services/ha_compat.py`, `GET /automations/compat`, `system-automations.ts`, `test_ha2610_compat.py`, `evidence-ha2610-compat.spec.ts` |
+| 5. הודעת "דורש מנהל" בהפעלה ידנית | בוצע, בלי שינוי בגשר | `automation_ops.bridge_error` (403 `requires_ha_admin`) |
+| 6. פרופילי גרסה ב-fake | בוצע. הנוסח המדויק של שגיאת "במשך" ב-HA לא אומת, רק המבנה | `tests/fake_ha_config.py` |
+| 7. פורט 80 רק למארח ה-HA | בוצע (תשובה 3א) | `connection_probe.ha_host_port_field` |
+| 8. אימות במעבדה | לא בוצע: צד הבעלים | סעיף 5 |
+| 9. סביבת השער של WisKey | לא נגעתי. נכתבה הודעת תיאום | `docs/changes/HA2610-IMPL-STATUS.md` |
+| 10. רשם upstream watch | חלקי: מילות מפתח בלבד | `management/upstream_watch.json` |
+| 11. `temperature_unit` | בוצע | `services/devices.py` |
+
+ממצא 12 (סעיף 2): מארח ה-HA מזוהה לפי כתובת הליבה בהגדרות ולפי `X-Forwarded-Host` שהדפדפן של המתקין הגיע ממנו (בשם או בכתובת).
+השמות האלה רק מוסיפים חסימות. כשהגישה היא דרך כתובת חיצונית (למשל Nabu Casa), כתובת ה-LAN של המארח לא ידועה מתוך התוסף, ולכן
+פורט 80 שלה לא נחסם. זה אותו גבול שכבר מתועד ב-`connection_probe.py`.
