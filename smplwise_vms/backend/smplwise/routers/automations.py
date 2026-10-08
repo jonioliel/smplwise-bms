@@ -319,8 +319,10 @@ def review(request: Request, principal: Principal = Depends(_auto_gate), conn: s
 
 @router.get("/automations/compat")
 def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """HA 2026.10 compatibility scan (docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4): read-only over the mirror,
-    never a call to Home Assistant. The settings screen's administrator (`system.configure`, installation scope) only."""
+    """HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure).
+
+    docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4: never a call to Home Assistant, never a write. The settings
+    screen's administrator (`system.configure`, installation scope) only."""
     require(conn, principal, "system.configure", INSTALLATION)
     return ha_compat.scan(conn)
 
