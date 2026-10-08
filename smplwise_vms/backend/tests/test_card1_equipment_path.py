@@ -108,6 +108,11 @@ def test_card_action_end_to_end_with_a_current_bridge(paired, monkeypatch, actio
     # a duplicate click (same client_request_id) never sends twice
     again = c.post(f"/api/v1/ha/entities/{entity_id}/actions", json=_body(action_id, "go", confirmation_grant="confirmed" if needs_grant else None))
     assert again.json()["id"] == a["id"] and len(calls) == 1
+    if ha_bridge.ACTIONS[action_id]["expect"] is None:
+        # water_heater.turn_on lands in an operation mode, not "on": nothing observable to wait for, so the record is honestly "sent" (confirmation none)
+        rec = c.get(f"/api/v1/ha/actions/{a['id']}").json()
+        assert rec["status"] == "confirmed" and rec["confirmation"] == "none"
+        return
     # not confirmed on the bridge's acceptance alone; confirmed once HA reports the new state after the request
     assert c.get(f"/api/v1/ha/actions/{a['id']}").json()["status"] == "pending"
     _report(app, entity_id, reported)
@@ -154,9 +159,8 @@ def test_permission_decides_before_anything_reaches_the_bridge(paired, monkeypat
         assert r.status_code == 403, (action_id, r.text)
     assert c.post("/api/v1/ha/entities/switch.sign/actions", json=_body("switch.turn_on", "d-switch"), headers=as_user("dc")).status_code == 202
     assert [p["domain"] for p in calls] == ["switch"], "the refused calls never reached the bridge"
-    # ha.entity.control is the permission that covers every allow-listed domain
-    role2 = c.post("/api/v1/access/roles", json={"name": "שליטה בישויות", "permissions": ["ha.entity.control"]}).json()["id"]
-    bind(c, s, "ent", role2, "installation", "*")
+    # ha.entity.control (the operator role holds it) is the permission that covers every allow-listed domain
+    bind(c, s, "ent", "operator", "installation", "*")  # the operator role holds ha.entity.control
     r = c.post("/api/v1/ha/entities/vacuum.robo/actions", json=_body("vacuum.pause", "e-1"), headers=as_user("ent"))
     assert r.status_code == 202 and r.json()["status"] == "pending" and calls[-1]["service"] == "pause"
 
