@@ -235,8 +235,7 @@ export class DeviceControls implements ReactiveController {
   shownRow<T extends { entity_id: string; active: boolean; state: string | null; domain: string; brightness_pct?: number | null }>(r: T): T {
     const target = this.live<boolean>(r.entity_id, 'power');
     if (target === undefined || target === r.active || r.state === 'unavailable') return r;
-    const state = target ? 'on' : r.domain === 'media_player' ? 'off' : 'off';
-    return { ...r, active: target, state, brightness_pct: target ? (r.brightness_pct ?? null) : null };
+    return { ...r, active: target, state: target ? 'on' : 'off', brightness_pct: target ? (r.brightness_pct ?? null) : null };
   }
 
   /** The value a control shows: the target while its command is pending (or just confirmed, until the refetch lands),
@@ -303,7 +302,6 @@ export class DeviceControls implements ReactiveController {
   }
 
   renderPowerToggle(r: DeviceRow) {
-    const key = `${r.entity_id}:power`;
     const checked = this.shownActive(r);
     const change = (ev: Event) => {
       ev.stopPropagation();
