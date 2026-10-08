@@ -35,7 +35,7 @@ const ago = (min: number) => new Date(Date.parse(DH_NOW) - min * 60_000).toISOSt
 export const DH_FLAGS: Record<string, string> = {
   'light.living_main': 'light', 'light.living_spots': 'light', 'light.living_strip': 'light', 'light.living_read': 'light', 'light.living_plain': 'light',
   // CARD1: the server names a boiler / tap wired through a switch from its display name; a valve.* / vacuum.* entity by its domain
-  'switch.boiler': 'water_heater', 'switch.irrigation': 'valve', 'valve.garden': 'valve', 'vacuum.robo': 'vacuum',
+  'switch.boiler': 'water_heater', 'water_heater.tank': 'water_heater', 'switch.irrigation': 'valve', 'valve.garden': 'valve', 'vacuum.robo': 'vacuum',
   'cover.living_big': 'cover', 'cover.living_balcony': 'cover',
   'climate.living_ac': 'climate', 'climate.dining_ac': 'climate', 'climate.floor_heat': 'heater', 'fan.living_fan': 'fan',
 };
@@ -46,14 +46,17 @@ export const DH_EQUIPMENT: Record<string, unknown>[] = [
   row('vacuum.robo', 'שואב רובוטי', 'docked', { battery_level: 81, fan_speed: 'quiet', status: 'Charging', active: false, last_changed: '2026-10-05T11:20:00Z' }),
 ];
 
+/** VER1: a native water_heater.* entity (not a relay-wired boiler); listed only when a spec passes it as `extra`, so the other specs' counts stay put. */
+export const DH_WATER_HEATER: Record<string, unknown> = row('water_heater.tank', 'דוד חשמלי', 'eco', { target_temperature: 55, active: true, last_changed: '2026-10-05T05:00:00Z' });
+
 export interface DhRowOverrides {
   /** Per entity: fields laid over the area row (a state, can_control: false ...). */
   [entityId: string]: Record<string, unknown>;
 }
 
-function flagged(over: DhRowOverrides = {}) {
+function flagged(over: DhRowOverrides = {}, extra: Record<string, unknown>[] = []) {
   const d = areaDetail('living') as unknown as { cards: Record<string, { entities: Record<string, unknown>[]; count: number }> };
-  d.cards.switches.entities.push(...DH_EQUIPMENT.map((e) => ({ ...e })));
+  d.cards.switches.entities.push(...DH_EQUIPMENT.map((e) => ({ ...e })), ...extra.map((e) => ({ ...e })));
   d.cards.switches.count = d.cards.switches.entities.length;
   for (const c of Object.values(d.cards)) {
     for (const e of c.entities) {
@@ -65,8 +68,8 @@ function flagged(over: DhRowOverrides = {}) {
 }
 
 /** GET /devices/entities?ids= : the card rows by id (the same rows the area answers, plus their card and area). */
-function entityRows(ids: string[], over: DhRowOverrides) {
-  const d = flagged(over);
+function entityRows(ids: string[], over: DhRowOverrides, extra: Record<string, unknown>[] = []) {
+  const d = flagged(over, extra);
   const out: Record<string, unknown>[] = [];
   for (const [card, c] of Object.entries(d.cards)) for (const e of c.entities) if (ids.includes(e.entity_id as string)) out.push({ ...e, card, area_id: 'living', area_name: 'סלון' });
   return { entities: out };
@@ -125,7 +128,7 @@ function schedule(id: string, name: string, over: Row = {}): Row {
 const FORBIDDEN = { code: 'forbidden', user_message: 'אין הרשאה', retryable: false, correlation_id: '', details: {} };
 const UNAVAILABLE = { code: 'unavailable', user_message: 'לא זמין', retryable: true, correlation_id: '', details: {} };
 
-export async function installDevhistMock(page: Page, opts: { perms?: string[]; feed?: FeedMode; sched?: SchedMode; rows?: DhRowOverrides } = {}): Promise<DevhistState> {
+export async function installDevhistMock(page: Page, opts: { perms?: string[]; feed?: FeedMode; sched?: SchedMode; rows?: DhRowOverrides; extra?: Record<string, unknown>[] } = {}): Promise<DevhistState> {
   const perms = [...(opts.perms ?? AREA_PERMS), 'schedule.view', 'schedule.manage'];
   const bubble = await installBubbleMock(page, { perms });
   const st: DevhistState = { bubble, feedMode: opts.feed ?? 'ok', schedMode: opts.sched ?? 'ok', feedCalls: [], toggles: [], actions: bubble.actions, rows: opts.rows ?? {}, created: [], deleted: [] };
@@ -134,8 +137,8 @@ export async function installDevhistMock(page: Page, opts: { perms?: string[]; f
     const req = route.request();
     const url = new URL(req.url());
     const p = url.pathname.replace(/^.*\/api\/v1\//, '');
-    if (p === 'devices/areas/living') return json(route, flagged(st.rows));
-    if (p === 'devices/entities') return json(route, entityRows((url.searchParams.get('ids') ?? '').split(',').filter(Boolean), st.rows));
+    if (p === 'devices/areas/living') return json(route, flagged(st.rows, opts.extra));
+    if (p === 'devices/entities') return json(route, entityRows((url.searchParams.get('ids') ?? '').split(',').filter(Boolean), st.rows, opts.extra));
     const feed = /^devices\/([^/]+)\/activity$/.exec(p);
     if (feed) {
       st.feedCalls.push({ entity: decodeURIComponent(feed[1]), query: url.search });
