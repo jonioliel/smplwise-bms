@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 // HA 2026.10 compatibility (docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4): the administrator-only card on
 // Settings > Automations (`#/system/automations`) that lists what the read-only scan found. Demo mode (no backend: the mock store
-// answers; `compat: true` in localStorage `sw.demo.automations` stages two automations and one script), RTL, 1440 / 390, light / dark.
+// answers; `compat: true` in localStorage `sw.demo.automations` stages two automations and one script), RTL, 1440 / 390 (the settings screens keep the installation's theme; the demo's `scheme` control is for the device screens).
 // The card is absent when nothing is found (the default demo) and the screen is forbidden to a non-administrator.
 //   SW_BASE_URL=http://127.0.0.1:4711/ npx playwright test tests/evidence-ha2610-compat.spec.ts --project=desktop --workers=1
 // Screenshots: docs/design/evidence/HA2610/.
@@ -29,10 +29,9 @@ test.describe('HA 2026.10 compatibility card', () => {
   test.beforeAll(() => fs.mkdirSync(EVIDENCE, { recursive: true }));
 
   for (const size of ['1440', '390'] as const) {
-    for (const scheme of ['light', 'dark'] as const) {
-      test(`findings ${size} ${scheme}`, async ({ page }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await open(page, size, { compat: true, scheme });
+    {
+      test(`findings ${size}`, async ({ page }) => {
+        await open(page, size, { compat: true });
         const card = page.locator('[data-card="compat"]');
         await expect(card).toBeVisible();
         await expect(card.locator('[data-compat]')).toHaveCount(3);
@@ -45,7 +44,7 @@ test.describe('HA 2026.10 compatibility card', () => {
         await expect(script.locator('a')).toHaveAttribute('href', '#/devices/automations/scripts/arm_alarm_mqtt');
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
         await card.scrollIntoViewIfNeeded();
-        await page.screenshot({ path: path.join(EVIDENCE, `compat-${size}-${scheme}.png`), fullPage: false });
+        await page.screenshot({ path: path.join(EVIDENCE, `compat-${size}.png`), fullPage: false });
       });
     }
   }

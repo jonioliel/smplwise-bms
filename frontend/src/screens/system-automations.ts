@@ -286,6 +286,13 @@ export class SystemAutomations extends LitElement {
     .rev:last-child {
       border-block-end: 0;
     }
+    .rev.cmp {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+    .rev.cmp > .muted {
+      flex: 1 1 100%;
+    }
     .rev a {
       color: var(--sw-accent-text);
       text-decoration: none;
@@ -548,7 +555,7 @@ export class SystemAutomations extends LitElement {
     const href = (kind: string, id: string) => `#/devices/automations/${kind === 'automation' ? '' : `${kind === 'script' ? 'scripts' : 'scenes'}/`}${encodeURIComponent(id)}`;
     return html`<sw-card heading="תאימות לתשתית המערכת 2026.10" data-card="compat">
       <div class="muted" data-compat-summary>${scan.items.length === 1 ? 'פריט אחד דורש תיקון לפני השדרוג.' : `${scan.items.length} פריטים דורשים תיקון לפני השדרוג.`} הבדיקה קוראת בלבד.</div>
-      ${scan.items.map((i) => html`<div class="rev" data-compat=${`${i.kind}:${i.id}`}>
+      ${scan.items.map((i) => html`<div class="rev cmp" data-compat=${`${i.kind}:${i.id}`}>
         ${[...new Set(i.issues.map((x) => x.code))].map((code) => html`<span class="tag warn" data-compat-code=${code}>${COMPAT_LABEL[code]}</span>`)}
         <a href=${href(i.kind, i.id)}>${i.name}</a>
         <span class="muted">${i.issues.some((x) => x.code === 'admin_only_service')
