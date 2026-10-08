@@ -1,11 +1,23 @@
 /**
- * Strings of the window wall (glass curtain wall) in the Plan Studio panel, Hebrew and English. The language follows
- * the document's `lang` (Hebrew unless it starts with "en"), as i18n/plan-package.ts.
+ * Strings of the glass wall (glass curtain wall, kind "glass") in the Plan Studio panel, Hebrew and English. The language
+ * follows the document's `lang` (Hebrew unless it starts with "en"), as i18n/plan-package.ts.
+ *
+ * WALLP (owner request 2026-10-08): the kind is called "קיר זכוכית" everywhere (it was "קיר חלונות", which the owner did
+ * not find); "קיר מסך" (curtain wall) is its alias in the drawing chip's tooltip and accessible name.
  */
 import type { GlassTint, PanelOperation } from '../map/glass-wall';
 
 const he = {
-  kind: 'קיר חלונות',
+  kind: 'קיר זכוכית',
+  alias: 'קיר מסך',
+  tool: 'קיר זכוכית',
+  toolTip: 'קיר זכוכית / קיר מסך (G): מציירים קיר שכולו זיגוג, ישר או מעוגל',
+  toolHint: 'לחץ נקודה אחר נקודה כמו בקיר רגיל: נוצר קיר זכוכית עם לוחות ומליונים. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, Esc מבטל.',
+  toolHintCurved: 'לחץ נקודות לאורך הקשת: נוצר קיר זכוכית מעוגל דרכן. לחיצה כפולה, Enter או "סיום" בונים, Esc מבטל.',
+  shape: 'צורה',
+  shapeStraight: 'ישר',
+  shapeCurved: 'מעוגל',
+  frameDepth: 'עומק מסגרת (מ׳)',
   glazing: 'זיגוג',
   panels: 'לוחות',
   panelWidth: 'רוחב לוח (מ׳)',
@@ -25,7 +37,7 @@ const he = {
   entity: 'ישות',
   noEntity: 'ללא',
   panel: 'לוח',
-  toGlass: 'המר לקיר חלונות',
+  toGlass: 'המר לקיר זכוכית',
   toSolid: 'המר לקיר רגיל',
   desktopOnly: 'בדסקטופ בלבד',
   tint_clear: 'שקוף',
@@ -42,7 +54,16 @@ const he = {
 type Key = keyof typeof he;
 
 const en: Record<Key, string> = {
-  kind: 'Window wall',
+  kind: 'Glass wall',
+  alias: 'curtain wall',
+  tool: 'Glass wall',
+  toolTip: 'Glass wall / curtain wall (G): draw a wall that is all glazing, straight or curved',
+  toolHint: 'Click point after point as for a wall: a glass wall with panels and mullions is drawn. Enter or a second click on the last point finishes, Esc cancels.',
+  toolHintCurved: 'Click points along the curve: a curved glass wall is built through them. Double-click, Enter or "Finish" builds it, Esc cancels.',
+  shape: 'Shape',
+  shapeStraight: 'Straight',
+  shapeCurved: 'Curved',
+  frameDepth: 'Frame depth (m)',
   glazing: 'Glazing',
   panels: 'panels',
   panelWidth: 'Panel width (m)',
@@ -62,7 +83,7 @@ const en: Record<Key, string> = {
   entity: 'Entity',
   noEntity: 'none',
   panel: 'Panel',
-  toGlass: 'Convert to window wall',
+  toGlass: 'Convert to glass wall',
   toSolid: 'Convert to solid wall',
   desktopOnly: 'Desktop only',
   tint_clear: 'Clear',

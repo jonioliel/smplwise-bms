@@ -154,7 +154,7 @@ def check_wall(wall: dict[str, Any], length_m: float, issue: Callable[..., None]
     raw = wall.get("glazing")
     if not is_glass(wall):
         if raw is not None:
-            issue("glazing_ignored", "הגדרות הזיגוג נשמרות אבל לא חלות: הקיר אינו קיר חלונות.", severity="warning")
+            issue("glazing_ignored", "הגדרות הזיגוג נשמרות אבל לא חלות: הקיר אינו קיר זכוכית.", severity="warning")
         return
     if raw is None:
         return

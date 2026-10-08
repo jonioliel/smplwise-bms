@@ -1,0 +1,307 @@
+{
+  "schema_version": "2.1",
+  "plan_version_id": "sample-curve-points",
+  "floor_id": "sample-floor",
+  "source": {
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "file_name": "sample.pdf",
+    "mime": "application/pdf",
+    "page": 1
+  },
+  "dimensions": {
+    "width_px": 1000,
+    "height_px": 800,
+    "scale_m_per_px": 0.01,
+    "calibration": {
+      "status": "measured",
+      "method": "two_point",
+      "pairs": [
+        {
+          "a": [
+            0.1,
+            0.1
+          ],
+          "b": [
+            0.9,
+            0.1
+          ],
+          "metres": 8
+        }
+      ],
+      "residual_pct": 0,
+      "reason": null
+    }
+  },
+  "transform": {
+    "rotation": 0,
+    "crop": null
+  },
+  "levels": [
+    {
+      "id": "L0",
+      "name": "מפלס ראשי",
+      "elevation_m": 0,
+      "ceiling_height_m": 3,
+      "is_default": true,
+      "external_ids": {}
+    }
+  ],
+  "uncertainty": {
+    "overall": 0.2,
+    "notes": []
+  },
+  "meta": {
+    "generator": "fixture",
+    "tokens_version": "map-1",
+    "detector_version": null
+  },
+  "walls": [
+    {
+      "id": "cp-open",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.1,
+          0.55
+        ],
+        [
+          0.22,
+          0.45
+        ],
+        [
+          0.28216,
+          0.47338
+        ],
+        [
+          0.34,
+          0.52
+        ],
+        [
+          0.39754,
+          0.58233
+        ],
+        [
+          0.46,
+          0.62
+        ],
+        [
+          0.58,
+          0.5
+        ]
+      ],
+      "thickness_m": 0.15,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "interior",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {
+        "curve_through": "0,1,3,5,6"
+      },
+      "bulges": [
+        0.274765,
+        0.173711,
+        -0.031831,
+        0.102845,
+        -0.239269,
+        -0.339495
+      ]
+    },
+    {
+      "id": "cp-ring",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.7,
+          0.2
+        ],
+        [
+          0.79587,
+          0.16366
+        ],
+        [
+          0.88,
+          0.24
+        ],
+        [
+          0.89568,
+          0.33547
+        ],
+        [
+          0.86,
+          0.42
+        ],
+        [
+          0.76952,
+          0.44873
+        ],
+        [
+          0.69,
+          0.38
+        ],
+        [
+          0.66968,
+          0.28682
+        ],
+        [
+          0.7,
+          0.2
+        ]
+      ],
+      "thickness_m": 0.2,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "exterior",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {
+        "curve_through": "0,2,4,6"
+      },
+      "bulges": [
+        0.254516,
+        0.215154,
+        0.15961,
+        0.187764,
+        0.236955,
+        0.196597,
+        0.157004,
+        0.185234
+      ]
+    },
+    {
+      "id": "cp-glass",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.15,
+          0.15
+        ],
+        [
+          0.3,
+          0.08
+        ],
+        [
+          0.45,
+          0.15
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {
+        "curve_through": "0,1,2"
+      },
+      "glazing": {
+        "panel_width_m": 1.2,
+        "panel_count": null,
+        "mullion_m": 0.06,
+        "sill_m": 0,
+        "glazed_height_m": null,
+        "tint": "clear",
+        "opacity": 0.35,
+        "operable": []
+      },
+      "bulges": [
+        0.18058,
+        0.18058
+      ]
+    },
+    {
+      "id": "cp-glass-wave",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.15,
+          0.85
+        ],
+        [
+          0.3,
+          0.75
+        ],
+        [
+          0.37503,
+          0.79843
+        ],
+        [
+          0.45,
+          0.85
+        ],
+        [
+          0.6,
+          0.78
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {
+        "curve_through": "0,1,3,4"
+      },
+      "glazing": {
+        "panel_width_m": 1.2,
+        "panel_count": null,
+        "mullion_m": 0.06,
+        "sill_m": 0,
+        "glazed_height_m": null,
+        "tint": "clear",
+        "opacity": 0.35,
+        "operable": []
+      },
+      "bulges": [
+        0.25,
+        0.24295,
+        -0.22901,
+        -0.207987
+      ]
+    }
+  ],
+  "openings": [
+    {
+      "id": "op-door",
+      "wall_id": "cp-open",
+      "t": 0.3,
+      "kind": "door",
+      "width_m": 0.9,
+      "height_m": 2.1,
+      "sill_m": 0,
+      "swing": "right",
+      "hinge": "start",
+      "anchor_ref": null,
+      "confidence": 1,
+      "source": "manual",
+      "external_ids": {}
+    },
+    {
+      "id": "op-window",
+      "wall_id": "cp-open",
+      "t": 0.75,
+      "kind": "window",
+      "width_m": 1.2,
+      "height_m": 1.2,
+      "sill_m": 0.9,
+      "swing": "none",
+      "hinge": "start",
+      "anchor_ref": null,
+      "confidence": 1,
+      "source": "manual",
+      "external_ids": {}
+    }
+  ],
+  "rooms": [],
+  "objects": [],
+  "circuits": [],
+  "connectors": [],
+  "labels": [],
+  "groups": [],
+  "uncertain_regions": []
+}

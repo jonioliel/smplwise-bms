@@ -16,11 +16,15 @@ import { TAG_MAX_COUNT, TAG_MAX_LEN, cornerRemovable, kindDefaults, normalizeTag
 import { symbolOf } from '../map/plan-symbols';
 import { pkgT } from '../i18n/plan-package';
 import { curveT } from '../i18n/plan-curves';
-import { cornerRoundable, maxCornerRadiusM, minRadiusM, segmentRadiusM } from '../map/curve-ops';
+import { cornerRoundable, curvePointAt, curvePoints, maxCornerRadiusM, minRadiusM, segmentRadiusM } from '../map/curve-ops';
 import { glassT, operationLabel, tintLabel } from '../i18n/plan-glass';
-import { AUTO_MAX_M, AUTO_MIN_M, GLAZED_HEIGHT_RANGE, MULLION_RANGE, OPERATIONS, PANEL_WIDTH_RANGE, SILL_RANGE, TINTS, applyAutoDivide, glazingOf, panelCount, patchGlazing, patchOperable, toGlassPatch, toSolidPatch, toggleOperable, type Glazing, type GlassTint, type PanelOperation } from '../map/glass-wall';
+import { AUTO_MAX_M, AUTO_MIN_M, GLASS_THICKNESS_M, GLAZING_DEFAULTS, GLAZED_HEIGHT_RANGE, MULLION_RANGE, OPERATIONS, PANEL_WIDTH_RANGE, SILL_RANGE, TINTS, applyAutoDivide, glazingOf, panelCount, patchGlazing, patchOperable, toGlassPatch, toSolidPatch, toggleOperable, type Glazing, type GlassTint, type PanelOperation } from '../map/glass-wall';
 
-export type StudioMode = 'select' | 'wall' | 'door' | 'markdoor' | 'window' | 'passage' | 'label' | 'curve' | 'arc';
+/** The structure tool's modes. 'curved' draws a wall through points (curve-fit.ts), 'glass' a glass wall (straight or
+ * through points, GlassDraw.curved); 'curve' bends segments of an existing wall (no chip: the wall inspector and C). */
+export type StudioMode = 'select' | 'wall' | 'curved' | 'glass' | 'door' | 'markdoor' | 'window' | 'passage' | 'label' | 'curve';
+/** The modes that draw a new wall (desktop only). */
+export const DRAW_MODES: readonly StudioMode[] = ['wall', 'curved', 'glass'];
 export type GeomKind = 'wall' | 'opening' | 'label' | 'object' | 'connector' | 'group';
 export interface GeomSel {
   id: string;
@@ -42,20 +46,34 @@ export const SELECT_HINT = 'לחץ על קיר, פתח, תווית או עצם �
 export const MARK_DOOR_HINT = 'לחץ על סמל דלת בתוכנית (או על הקיר במקום הדלת): תוצג הצעה מקווקוות - רוחב, ציר וכיוון פתיחה לפי הסמל. Enter או לחיצה על ההצעה מאשרים, לחיצה על סמל הבא מאשרת ומציעה את הבאה, Esc מבטל.';
 export const MARK_DOOR_TIP = 'סמן דלת (D): לחיצה על סמל דלת בשרטוט מציעה את הדלת לפי הסמל';
 
-export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string; tip?: string }[] = [
+/** The chips of the structure tool (WALLP, owner request 2026-10-08): the three wall tools first - straight, curved
+ * through points, glass - then the openings and the label. The bend mode has no chip (`chip: false`): it is reached from
+ * the selected wall's inspector or the C key, and shows a "done" button while it is on. `aria` is the chip's accessible
+ * name when it says more than the label (the glass wall is also found as "קיר מסך"). */
+export const STUDIO_MODES: { id: StudioMode; label: string; hint: string; drag?: string; tip?: string; key?: string; aria?: string; chip?: false }[] = [
   { id: 'select', label: 'בחירה', hint: SELECT_HINT },
   { id: 'wall', label: 'קיר', hint: 'לחץ נקודה אחר נקודה. Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים, לחיצה על הנקודה הראשונה סוגרת מתאר, Shift מבטל הצמדה לזוויות, Backspace מוחק נקודה.' },
+  { id: 'curved', label: curveT('modeCurved'), hint: curveT('hintCurved'), tip: curveT('tipCurved'), key: 'R' },
+  { id: 'glass', label: glassT('tool'), hint: glassT('toolHint'), tip: glassT('toolTip'), key: 'G', aria: `${glassT('tool')} (${glassT('alias')})` },
   { id: 'door', label: 'דלת', hint: 'לחץ על קיר כדי להציב דלת. כיוון הפתיחה והציר נקבעים כאן בפאנל.', drag: OPENING_DRAG_HINT },
-  { id: 'markdoor', label: 'סמן דלת', hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP },
+  { id: 'markdoor', label: 'סמן דלת', hint: MARK_DOOR_HINT, tip: MARK_DOOR_TIP, key: 'D' },
   { id: 'window', label: 'חלון', hint: 'לחץ על קיר כדי להציב חלון.', drag: OPENING_DRAG_HINT },
   { id: 'passage', label: 'מעבר', hint: 'פתח בלי דלת בקיר.', drag: OPENING_DRAG_HINT },
-  { id: 'curve', label: curveT('modeCurve'), hint: curveT('hintCurve'), tip: curveT('tipCurve') },
-  { id: 'arc', label: curveT('modeArc'), hint: curveT('hintArc') },
   { id: 'label', label: 'תווית', hint: 'לחץ במקום התווית ואז הקלד את הטקסט כאן בפאנל.', drag: 'גרירת תווית קיימת מזיזה אותה; חצים להזזה עדינה (Shift = צעד גדול)' },
+  { id: 'curve', label: curveT('modeCurve'), hint: curveT('hintCurve'), tip: curveT('tipCurve'), key: 'C', chip: false },
 ];
 
-const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך', glass: 'קיר חלונות' };
-/** The kind's name in the kind choice; the window wall's follows the page language (i18n/plan-glass). */
+/** The glass wall tool's drawing settings (kept for the session like the wall defaults): straight or through points,
+ * the frame depth and the nominal panel width; the rest of the glazing takes its defaults (GLAZING_DEFAULTS). */
+export interface GlassDraw {
+  curved: boolean;
+  thickness_m: number;
+  panel_width_m: number;
+}
+export const GLASS_DRAW_DEFAULTS: GlassDraw = { curved: false, thickness_m: GLASS_THICKNESS_M, panel_width_m: GLAZING_DEFAULTS.panel_width_m };
+
+const WALL_KIND_LABEL: Record<WallKind, string> = { exterior: 'חיצוני', interior: 'פנימי', partition: 'מחיצה', railing: 'מעקה', low: 'קיר נמוך', glass: 'קיר זכוכית' };
+/** The kind's name in the kind choice; the glass wall's follows the page language (i18n/plan-glass). */
 const kindLabel = (k: WallKind): string => (k === 'glass' ? glassT('kind') : WALL_KIND_LABEL[k]);
 /** The solid kind a window wall converts back to with one click. */
 const SOLID_FALLBACK: Exclude<WallKind, 'glass'> = 'exterior';
@@ -126,6 +144,8 @@ export interface StudioView {
   H: number;
   mode: StudioMode;
   wallDefaults: WallDefaults;
+  /** The glass wall tool's settings. */
+  glassDraw?: GlassDraw;
   sel: GeomSel | null;
   saveState: SaveState;
   saveError: string;
@@ -151,6 +171,10 @@ export interface StudioView {
 export interface StudioActions {
   setMode(mode: StudioMode): void;
   setWallDefaults(d: WallDefaults): void;
+  setGlassDraw?(d: GlassDraw): void;
+  /** A wall drawn through points: a new point on its curve, the selected point removed (k = its clicked-point index). */
+  addCurvePoint?(id: string): void;
+  removeCurvePoint?(id: string, k: number): void;
   patchWall(id: string, patch: Partial<GeomWall>): void;
   patchOpening(id: string, patch: Partial<GeomOpening>): void;
   patchLabel(id: string, patch: Partial<GeomLabel>): void;
@@ -194,11 +218,13 @@ export function renderStudioPanel(v: StudioView, a: StudioActions): TemplateResu
   }
   return html`<sw-card heading="מבנה" subheading=${SAVE_LABEL[v.saveState]} data-studio-panel data-studio-save=${v.saveState}>
     <div class="modes" role="group" aria-label="כלי ציור">
-      ${STUDIO_MODES.map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-keyshortcuts=${m.id === 'markdoor' ? 'D' : m.id === 'curve' ? 'C' : nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
+      ${STUDIO_MODES.filter((m) => m.chip !== false).map((m) => html`<button class=${m.id === v.mode ? 'on' : ''} data-studio-mode=${m.id} aria-pressed=${m.id === v.mode} title=${m.tip ?? nothing} aria-label=${m.aria ?? nothing} aria-keyshortcuts=${m.key ?? nothing} @click=${() => a.setMode(m.id)}>${m.label}</button>`)}
     </div>
-    <div class="note">${mode.hint}</div>
+    <div class="note">${v.mode === 'glass' && v.glassDraw?.curved ? glassT('toolHintCurved') : mode.hint}</div>
     ${mode.drag ? html`<div class="note" data-studio-drag-hint>${mode.drag}</div>` : nothing}
-    ${v.mode === 'wall' ? renderWallDefaults(v.wallDefaults, a) : nothing}
+    ${v.mode === 'curve' ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-bend-done @click=${() => a.setMode('select')}>${curveT('bendDone')}</sw-button></div>` : nothing}
+    ${v.mode === 'wall' || v.mode === 'curved' ? renderWallDefaults(v.wallDefaults, a) : nothing}
+    ${v.mode === 'glass' ? renderGlassDraw(v.glassDraw ?? GLASS_DRAW_DEFAULTS, a) : nothing}
     <div class="row"><span class="lbl">קנה מידה<span class="muted" data-studio-scale>${v.doc.dimensions.calibration?.status === 'estimated' ? `≈ ${fmtScale(scale)} (הערכה, לא מדוד)` : estimated ? (v.showEstimates ? 'לא מכויל: מידות משוערות (≈)' : 'לא מכויל: מידות מוסתרות עד הכיול') : fmtScale(scale)}</span></span><sw-button size="sm" icon="scale" data-studio-calibrate @click=${() => a.calibrate()}>${estimated ? 'כיול' : 'כיול מחדש'}</sw-button></div>
     <div class="note" data-studio-counts>${countLabel(v.doc.walls.length, 'קיר אחד', 'קירות')} · ${countLabel(v.doc.openings.length, 'פתח אחד', 'פתחים')} · ${countLabel(v.doc.labels.length, 'תווית אחת', 'תוויות')}${autoCount(v.doc) ? html` · <span data-studio-auto-count>${autoCount(v.doc)} אוטומטיים / מיובאים</span>` : nothing}</div>
     ${v.sel ? renderSelection(v, v.sel, a, scale, estimated) : nothing}
@@ -233,6 +259,21 @@ function renderWallDefaults(d: WallDefaults, a: StudioActions) {
   </div>`;
 }
 
+/** The glass wall tool's settings: straight or curved (through points), the frame depth and the panel width. */
+function renderGlassDraw(g: GlassDraw, a: StudioActions) {
+  const set = (patch: Partial<GlassDraw>) => a.setGlassDraw?.({ ...g, ...patch });
+  return html`<div class="modes" role="group" aria-label=${glassT('shape')} data-glass-shape>
+      <button class=${g.curved ? '' : 'on'} data-glass-shape-straight aria-pressed=${!g.curved} @click=${() => set({ curved: false })}>${glassT('shapeStraight')}</button>
+      <button class=${g.curved ? 'on' : ''} data-glass-shape-curved aria-pressed=${g.curved} @click=${() => set({ curved: true })}>${glassT('shapeCurved')}</button>
+    </div>
+    <div class="two">
+      <sw-field label=${glassT('panelWidth')}><input type="number" data-ltr data-glass-draw-width min=${PANEL_WIDTH_RANGE[0]} max=${PANEL_WIDTH_RANGE[1]} step="0.05" .value=${String(g.panel_width_m)}
+        @change=${(e: Event) => { const x = numberOf(e); if (x >= PANEL_WIDTH_RANGE[0] && x <= PANEL_WIDTH_RANGE[1]) set({ panel_width_m: x }); }} /></sw-field>
+      <sw-field label=${glassT('frameDepth')}><input type="number" data-ltr data-glass-draw-depth min="0.01" max="3" step="0.01" .value=${String(g.thickness_m)}
+        @change=${(e: Event) => { const x = numberOf(e); if (x > 0 && x <= 3) set({ thickness_m: x }); }} /></sw-field>
+    </div>`;
+}
+
 /** The level an item sits on (only shown when the floor has more than one). */
 function levelSelect(levels: GeomLevel[], current: string, onPick: (levelId: string) => void) {
   if (levels.length < 2) return nothing;
@@ -256,6 +297,7 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
   const len = wallLengthPx(w, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
   const area = wallOutlineAreaM2(w, v.W, v.H, scale); // a closed outline (round rooms included): the floor area it encloses
+  const points = curvePoints(w); // a wall drawn through points: its clicked points are its handles
   return html`<div class="sel" data-selected-wall=${w.id}>
     <div class="selhead"><strong>${w.kind === 'glass' ? kindLabel(w.kind) : `קיר ${WALL_KIND_LABEL[w.kind]}`}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}${area !== null ? html` · ${curveT('area')} <span data-wall-area>${fmtArea(area, estimated, v.showEstimates)}</span>` : nothing}</span></div>
     ${renderSourceBadge(w)}
@@ -273,13 +315,30 @@ function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number,
     ${levelSelect(v.levels, w.level_id, (lv) => a.setLevel(w.id, lv))}
     ${renderItemTags(w.tags, (tags) => a.patchWall(w.id, { tags }))}
     ${v.mode === 'curve' ? renderCurve(w, v, a, scale) : nothing}
-    ${v.mode === 'select' && v.sel?.vertex !== undefined
+    ${points ? renderCurvePoints(w, points.length, v, a) : nothing}
+    ${v.mode === 'select' && v.sel?.vertex !== undefined && !points
       ? html`<div class="note" data-selected-vertex=${v.sel.vertex}>פינה ${v.sel.vertex + 1} נבחרה: החצים מזיזים אותה (Shift = צעד גדול); ${cornerRemovable(w.polyline) ? 'Delete מוחק את הפינה.' : 'Delete מוחק את כל הקיר, כי בלי הפינה לא נשאר קיר.'}</div>`
       : nothing}
+    ${!v.phone && !v.compact && v.mode === 'select' ? html`<div class="btns"><sw-button size="sm" variant="ghost" data-wall-bend title=${curveT('tipCurve')} @click=${() => a.setMode('curve')}>${curveT('bendOpen')}</sw-button></div>` : nothing}
     <div class="btns">${w.kind === 'glass'
         ? html`<sw-button size="sm" variant="ghost" data-wall-to-solid ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, SOLID_FALLBACK))}>${glassT('toSolid')}</sw-button>`
         : html`<sw-button size="sm" variant="ghost" data-wall-to-glass ?disabled=${!!v.phone} title=${v.phone ? glassT('desktopOnly') : nothing} @click=${() => a.patchWall(w.id, kindPatch(w, 'glass'))}>${glassT('toGlass')}</sw-button>`}</div>
     <div class="btns"><sw-button size="sm" variant="ghost" icon="trash" data-geom-delete @click=${() => a.remove(w.id)}>מחק קיר</sw-button><span class="note">הפתחים שבקיר נמחקים איתו</span></div>
+  </div>`;
+}
+
+/** A wall drawn through points (WALLP): how many points it has, a new point (on the longest span of the curve) and the
+ * selected point removed; dragging a point on the plan re-fits the curve. Desktop only, like all wall drawing. */
+function renderCurvePoints(w: GeomWall, count: number, v: StudioView, a: StudioActions) {
+  const k = v.sel?.id === w.id && v.sel.vertex !== undefined ? curvePointAt(w, v.sel.vertex) : -1;
+  return html`<div class="curvepts" data-curve-points=${count}>
+    <div class="note">${curveT('pointsWall')} · ${count} ${curveT('points')}${k >= 0 ? html` · <span data-curve-point-selected=${k}>${curveT('pointHandle')} ${k + 1}</span>` : nothing}</div>
+    ${v.phone
+      ? nothing
+      : html`<div class="btns"><sw-button size="sm" variant="ghost" data-curve-add @click=${() => a.addCurvePoint?.(w.id)}>${curveT('addPoint')}</sw-button>${k >= 0
+          ? html`<sw-button size="sm" variant="ghost" data-curve-remove @click=${() => a.removeCurvePoint?.(w.id, k)}>${curveT('removePoint')}</sw-button>`
+          : nothing}</div>
+        <div class="note">${curveT('pointsNote')}</div>`}
   </div>`;
 }
 
@@ -995,6 +1054,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: 'ציור קיר (מבנה)', desc: 'Enter מסיים את הקיר; Backspace/Delete מוחק את הנקודה האחרונה' },
       { keys: 'D', desc: 'סמן דלת (כלי המבנה): לחיצה על סמל דלת מציעה אותה; Enter מאשר, Esc מבטל את ההצעה' },
+      { keys: 'R', desc: curveT('tipCurved') },
+      { keys: 'G', desc: glassT('toolTip') },
       { keys: 'C', desc: curveT('tipCurve') },
       { keys: 'ציור אזור', desc: 'לחיצה מוסיפה פינה; Enter מסיים משלוש פינות; Esc מבטל' },
       { keys: 'מפלסים ומחברים', desc: 'Esc מבטל את נקודת ההתחלה שנבחרה למחבר' },

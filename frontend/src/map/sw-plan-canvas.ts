@@ -11,7 +11,7 @@ import { symbolOf } from './plan-symbols';
 import { segmentMid } from './curve-ops';
 import { curveT } from '../i18n/plan-curves';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
-import { levelOrDefault, translatePolygon } from './studio-ops';
+import { curveThrough, levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
 import { tribuneEntrances } from './shared-space';
 import { affineAttr, affineFromCorners, type Corners } from './floor-image';
@@ -164,7 +164,7 @@ const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, Anchor
  * instead of jumping - and the Shift / Alt keys held now. A zone (`zone`) is dragged this way only as a member of a
  * multi-selection (`multiDrag`); a single selected zone keeps its own body drag and `zone-edit`. */
 export interface GeomDragDetail {
-  kind: 'vertex' | 'segment' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'connector' | 'zone';
+  kind: 'vertex' | 'curve-point' | 'segment' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'connector' | 'zone';
   id: string;
   /** A wall corner, a stretch edge (0 front, 1 right, 2 back, 3 left) or a connector corner. */
   index: number;
@@ -308,8 +308,14 @@ export class SwPlanCanvas extends LitElement {
    * segment). selectedSegment is drawn filled. */
   @property({ type: Boolean }) curveHandles = false;
   @property({ attribute: false }) selectedSegment: number | null = null;
-  /** The arc wall being drawn (normalized, sampled), dashed like the wall draft. */
+  /** The curved wall being drawn through points (WALLP): the smooth curve through the clicked points and the cursor
+   * (normalized, sampled), dashed like the wall draft. */
   @property({ attribute: false }) arcPreview: Pt[] = [];
+  /** The clicked points of the curved wall being drawn (dots; the first one larger once a click on it closes the ring). */
+  @property({ attribute: false }) curveDraft: Pt[] = [];
+  /** A selected wall drawn through points shows its clicked points as handles (kind 'curve-point', index = the polyline
+   * corner): in the select mode instead of its corner handles, and in the curved drawing modes while nothing is drawn. */
+  @property({ type: Boolean }) curvePointHandles = false;
   /** Wall mode: the editor's corner snap radius in screen pixels. A press that close to a wall corner belongs to the
    * drawing tool even on an opening or a label (the corner snap wins over the item); 0 = off. */
   @property({ type: Number }) cornerSnapPx = 0;
@@ -2317,7 +2323,7 @@ export class SwPlanCanvas extends LitElement {
     const objectKind = kind.startsWith('object') || kind.startsWith('connector');
     if (this.panActive) return; // Space + drag (or the hand tool) pans, over an item too: the press goes on to the viewport
     if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'segment' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
-    if (kind !== 'vertex' && kind !== 'segment' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
+    if (kind !== 'vertex' && kind !== 'segment' && kind !== 'curve-point' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
     this.releaseFieldFocus();
@@ -2354,7 +2360,7 @@ export class SwPlanCanvas extends LitElement {
       if (moved) emit('geom-drag', detail(last));
       else if (kind === 'zone') emit('zone-select', { id, add });
       else if (kind === 'segment') emit('geom-select', { id, kind: 'wall', segment: index, add });
-      else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind.startsWith('connector') ? 'connector' : kind, add });
+      else emit('geom-select', kind === 'vertex' || kind === 'curve-point' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind.startsWith('connector') ? 'connector' : kind, add });
     };
     const cancel = () => {
       end();
@@ -2392,6 +2398,9 @@ export class SwPlanCanvas extends LitElement {
     for (const p of prims) if (p.kind === 'wall') wallPx.set(p.id, Math.max(wallPx.get(p.id) ?? 0, p.width));
     const hostOf = new Map(doc.openings.map((o) => [o.id, o.wall_id]));
     const selWall = mode === 'all' ? doc.walls.find((w) => w.id === this.selectedGeomId) : undefined;
+    // a wall drawn through points: its clicked points are its handles (WALLP), never its fit's junction corners
+    const pointsWall = this.curvePointHandles && (mode === 'all' || mode === 'items') ? doc.walls.find((w) => w.id === this.selectedGeomId) : undefined;
+    const through = pointsWall ? curveThrough(pointsWall) : null;
     const wallHitPx = this.coarse ? WALL_HIT_TOUCH_PX : 12; // a finger needs a wider band than a mouse (0.1.87)
     const drag = this.geomDragAt;
     const objectsOn = mode === 'all' || mode === 'objects';
@@ -2419,7 +2428,9 @@ export class SwPlanCanvas extends LitElement {
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart('opening', p.id, 0, e))} @click=${(e: MouseEvent) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'opening', e) : this.itemClick(e))} />`)}
       ${labels.map((p) => svg`<circle class="hit" data-hit-label=${p.id} cx=${p.x} cy=${p.y} r=${Math.max(p.size, 10 * inv)}
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart('label', p.id, 0, e))} @click=${(e: MouseEvent) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'label', e) : this.itemClick(e))} />`)}
-      ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
+      ${pointsWall && through ? through.map((i, k) => { const v = pointsWall.polyline[i]; return svg`<circle class="gvtx gpt ${i === this.selectedVertex ? 'on' : ''}" data-curve-point=${k} data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${(this.coarse ? 9 : 6.5) * inv} stroke-width=${1.8 * inv}
+          role="slider" aria-label=${`${curveT('pointHandle')} ${k + 1}`} @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('curve-point', pointsWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`; }) : nothing}
+      ${selWall && !(through && pointsWall?.id === selWall.id) ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
       ${selWall && this.curveHandles ? selWall.polyline.slice(1).map((_v, i) => {
         const m = segmentMid(selWall, i, W, H);
@@ -2671,13 +2682,15 @@ export class SwPlanCanvas extends LitElement {
     const pts = this.wallDraft;
     const h = this.hoverPoint;
     const arc = this.arcPreview;
-    if (!pts.length && !h && !arc.length) return nothing;
+    const cpts = this.curveDraft;
+    if (!pts.length && !h && !arc.length && !cpts.length) return nothing;
     const inv = 1 / this.scale;
     const W = this.planWidth;
     const H = this.planHeight;
     const line = [...pts, ...(h && pts.length ? [h] : [])].map((p) => `${p[0] * W},${p[1] * H}`).join(' ');
     return svg`<g class="wdraft" pointer-events="none">
-      ${arc.length ? svg`<polyline data-arc-preview points=${arc.map((p) => `${p[0] * W},${p[1] * H}`).join(' ')} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
+      ${arc.length ? svg`<polyline data-arc-preview data-curve-preview points=${arc.map((p) => `${p[0] * W},${p[1] * H}`).join(' ')} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
+      ${cpts.map((p, i) => svg`<circle data-curve-draft-point=${i} cx=${p[0] * W} cy=${p[1] * H} r=${(i === 0 && cpts.length >= 3 ? 6 : 4) * inv} stroke-width=${1.5 * inv} />`)}
       ${pts.length ? svg`<polyline points=${line} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
       ${pts.map((p) => svg`<circle cx=${p[0] * W} cy=${p[1] * H} r=${3.5 * inv} stroke-width=${1.5 * inv} />`)}
       ${h ? svg`<circle class="snap" data-hover-point cx=${h[0] * W} cy=${h[1] * H} r=${4.5 * inv} stroke-width=${1.5 * inv} />` : nothing}

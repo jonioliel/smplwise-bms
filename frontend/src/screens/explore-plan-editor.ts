@@ -40,8 +40,10 @@ import { productSettings } from '../api/prefs';
 import { cap } from '../api/session';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
-import { addArcWall, bendSegment, roundCorner, setSegmentRadius, straightenSegment } from '../map/curve-ops';
-import { bulgeThrough, sample as sampleArc } from '../map/wall-path';
+import { addCurveWall, bendSegment, curvePointAt, curvePreview, insertCurvePoint, moveCurvePoint, removeCurvePoint, roundCorner, setSegmentRadius, straightenSegment } from '../map/curve-ops';
+import { curveThrough } from '../map/studio-ops';
+import { DRAW_MODES, GLASS_DRAW_DEFAULTS, type GlassDraw } from './plan-studio-panel';
+import { glassT } from '../i18n/plan-glass';
 import { curveT } from '../i18n/plan-curves';
 import { StudioController } from '../map/studio-controller';
 import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCircuitLamp, addConnector, addLabel, addLevel, addObject, addOpening, addWall, arrayDefaults, circuitPower, defaultLevelId, duplicateBeside, duplicateObject, initialLevel, kindDefaults, levelUsage, moveConnectorVertex, moveGroup, moveObject, moveVertex, newId, nudgeT, openingRange, patchCircuit, patchConnector, patchLabel, patchLevel, patchObject, patchOpening, patchWall, removeCorner, removeGroup, removeItem, removeLevel, rotationTo, stretchedSize, toggleCircuitMember, translateWall, visibleUnderLevel, wallDirectionAt, duplicateSelection, itemsInRect, moveSelection, removeItems, selectableItems, selectionDelta, toggleItem, translatePolygon, TAG_MAX_COUNT, circuitEligible, itemsWithTag, joinCircuit, setLevelOf, tagCounts, tagItems, withTag, withoutTag, type MultiItem, type WallDefaults,
@@ -218,8 +220,12 @@ export class ExplorePlanEditor extends LitElement {
   private studio = new StudioController(this);
   private studioVersion: string | null = null;
   @state() private studioMode: StudioMode = 'wall';
-  /** The arc wall being drawn (curved walls, 2026-10-08): its start and end points; the third click is on the arc. */
-  @state() private arcDraft: Pt[] | null = null;
+  /** The curved wall being drawn through points (WALLP, owner request 2026-10-08): the points clicked so far, and the
+   * points taken back with Ctrl+Z / Backspace while drawing (Ctrl+Y puts them back, a new click drops them). */
+  @state() private curveDraft: Pt[] | null = null;
+  private curveRedo: Pt[] = [];
+  /** The glass wall tool's settings (straight or through points, frame depth, panel width), kept for the session. */
+  @state() private glassDraw: GlassDraw = { ...GLASS_DRAW_DEFAULTS };
   /** The "סמן דלת" tool (T087): the door proposed for the last click, shown as a ghost until accepted or cancelled. */
   @state() private doorGhost: DoorGhost | null = null;
   @state() private doorAsking = false;
@@ -1454,8 +1460,9 @@ export class ExplorePlanEditor extends LitElement {
       else if (this.wallDraft) {
         this.wallDraft = null;
         this.hover = null;
-      } else if (this.arcDraft) {
-        this.arcDraft = null;
+      } else if (this.curveDraft) {
+        this.curveDraft = null;
+        this.curveRedo = [];
         this.hover = null;
       } else if (this.tool === 'measure' && this.measurePts.length) this.measurePts = [];
       else if (this.tool === 'calibrate' && this.calib.a) this.calib = { ...EMPTY_CALIB };
@@ -1490,13 +1497,17 @@ export class ExplorePlanEditor extends LitElement {
       return;
     }
     // C: the structure tool's curve mode (the physical key, so the Hebrew layout works too); desktop structure editors
-    if (e.code === 'KeyC' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && this.bundle?.permissions.structure && this.studio.doc && !this.phone.matches && !this.detectBusy) {
+    // R: the curved wall through points; G: the glass wall (WALLP). The physical keys, so the Hebrew layout works too
+    const modeKey: Record<string, StudioMode> = { KeyC: 'curve', KeyR: 'curved', KeyG: 'glass' };
+    if (modeKey[e.code] && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && this.bundle?.permissions.structure && this.studio.doc && !this.phone.matches && !this.detectBusy) {
       e.preventDefault();
-      if (this.wallDraft && this.wallDraft.length >= 2) this.finishWall();
+      if (this.wallDraft && this.wallDraft.length >= 2) this.finishWall(); // a wall being drawn is kept
+      if (this.curveDraft && this.curveDraft.length >= 2) this.finishCurve(false);
       if (this.tool !== 'structure') this.pickTool('structure');
-      this.studioMode = 'curve';
+      this.studioMode = modeKey[e.code];
       this.wallDraft = null;
-      this.arcDraft = null;
+      this.curveDraft = null;
+      this.curveRedo = [];
       this.hover = null;
       return;
     }
@@ -1905,6 +1916,8 @@ export class ExplorePlanEditor extends LitElement {
     this.tool = tool;
     this.placing = null;
     this.wallDraft = null;
+    this.curveDraft = null;
+    this.curveRedo = [];
     this.hover = null;
     this.geomPreview = null;
     this.placingItem = null;
@@ -1915,7 +1928,7 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitPlacing = null; // an armed lamp type never survives a tool switch
     this.circuitNew = null;
     if (tool === 'connectors') void this.loadLinkTargets();
-    if (tool === 'structure' && this.phone.matches && (this.studioMode === 'wall' || this.studioMode === 'curve' || this.studioMode === 'arc')) this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
+    if (tool === 'structure' && this.phone.matches && (DRAW_MODES.includes(this.studioMode) || this.studioMode === 'curve')) this.studioMode = 'select'; // wall drawing is desktop only: a phone opens the tool in select mode
     if (tool !== 'structure') this.geomSel = null;
     this.multi = []; // a multi-selection belongs to the select tool only (T085)
     if (!this.zoneSaving) this.zonePreview = null; // zones still being saved keep showing where they go until they answer
@@ -2618,7 +2631,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.tool === 'circuits') return this.circuitPlacing ? 'none' : 'objects';
     if (this.tool !== 'structure') return 'none';
     if (this.studioMode === 'select' || this.studioMode === 'curve') return 'all';
-    return this.wallDraft || this.arcDraft ? 'none' : 'items';
+    return this.wallDraft || this.curveDraft ? 'none' : 'items';
   }
 
   /** Where a selected wall shows its corner handles, moves as a whole and a selected corner takes the keys: the
@@ -2735,8 +2748,8 @@ export class ExplorePlanEditor extends LitElement {
     else if (this.tool === 'connectors') this.hover = this.snap(p, null, true);
     else if (this.tool === 'calibrate') this.hover = this.snap(p, null, true);
     else if (this.tool === 'measure') this.hover = this.snap(p, this.measurePts.at(-1) ?? null, shift);
-    else if (this.studioMode === 'wall') this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
-    else if (this.studioMode === 'arc') this.hover = (this.arcDraft?.length ?? 0) >= 2 ? p : this.snap(p, this.arcDraft?.at(-1) ?? null, shift);
+    else if (this.straightDrawing) this.hover = this.snapDraw(p, this.wallDraft ?? [], shift);
+    else if (this.curveDrawing) this.hover = this.snapCurve(p, this.curveDraft ?? [], shift);
     else if (this.studioMode === 'label') this.hover = p;
     else if (this.studioMode === 'markdoor') this.hover = null;
     else {
@@ -2788,7 +2801,11 @@ export class ExplorePlanEditor extends LitElement {
     }
     const mode = this.studioMode;
     const zoom = this.canvas?.zoom ?? 1;
-    if (mode === 'wall') {
+    if (this.curveDrawing) {
+      this.curveClick(p, shift);
+      return;
+    }
+    if (this.straightDrawing) {
       const d = this.wallDraft ?? [];
       const q = this.snapDraw(p, d, shift);
       // Tested on the raw click: the angle snap can move a click on a drawn point far from it. The raw position of the
@@ -2808,11 +2825,7 @@ export class ExplorePlanEditor extends LitElement {
       this.lastDrawClick = p;
       return;
     }
-    if (mode === 'arc') {
-      this.arcClick(doc, p, shift);
-      return;
-    }
-    if (mode === 'curve') return;
+    if (mode === 'curve' || mode === 'wall' || mode === 'curved' || mode === 'glass') return; // the bend mode; a drawing mode is handled above
     if (mode === 'label') {
       const r = addLabel(doc, p, 'תווית');
       const level = this.placeOpts(doc).levelId;
@@ -2996,43 +3009,164 @@ export class ExplorePlanEditor extends LitElement {
     this.hover = null;
     const doc = this.studio.doc;
     if (!doc || !d || d.length < 2) return;
-    const r = addWall(doc, d, this.wallDefaults);
+    const r = addWall(doc, d, this.drawDefaults);
+    this.commitNewWall(doc, r);
+  }
+
+  /** A wall a drawing tool made: on the level being edited, with the glass tool's panel width, one undo step, selected. */
+  private commitNewWall(doc: GeometryDoc, r: { doc: GeometryDoc; id: string }) {
     const level = this.placeOpts(doc).levelId;
-    this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level }));
+    let next = level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level });
+    if (this.studioMode === 'glass') {
+      const w = next.walls.find((x) => x.id === r.id);
+      if (w?.glazing && w.glazing.panel_width_m !== this.glassDraw.panel_width_m) next = patchWall(next, r.id, { glazing: { ...w.glazing, panel_width_m: this.glassDraw.panel_width_m } });
+    }
+    this.studio.commit(next);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.id, kind: 'wall' };
   }
 
-  /** The arc wall mode (curved walls, 2026-10-08): the first two clicks are its start and end (snapped like a wall's
-   * points), the third is a point on the arc - the new wall, one undo step, on the level being edited. */
-  private arcClick(doc: GeometryDoc, p: Pt, shift: boolean) {
+  /** The defaults a new wall is drawn with: the glass tool draws a glass wall (its frame depth), the others the wall
+   * defaults of the panel. */
+  private get drawDefaults(): WallDefaults {
+    return this.studioMode === 'glass' ? { kind: 'glass', thickness_m: this.glassDraw.thickness_m } : this.wallDefaults;
+  }
+
+  /** The structure tool draws a straight wall: the wall tool, or the glass tool set to straight. */
+  private get straightDrawing(): boolean {
+    return this.tool === 'structure' && (this.studioMode === 'wall' || (this.studioMode === 'glass' && !this.glassDraw.curved));
+  }
+
+  /** The structure tool draws a wall through points: the curved wall tool, or the glass tool set to curved. */
+  private get curveDrawing(): boolean {
+    return this.tool === 'structure' && (this.studioMode === 'curved' || (this.studioMode === 'glass' && this.glassDraw.curved));
+  }
+
+  /** A point of the curved wall being drawn: from three points on, the draft's own first point wins (a click there
+   * closes the ring - a round room); else a wall corner or a curved wall's body within the snap radius; else the grid when
+   * it is on. No angle step: the points lie on a curve. Shift: no snapping at all. */
+  private snapCurve(p: Pt, draft: Pt[], free: boolean): Pt {
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    if (!b || !doc) return p;
+    const zoom = this.canvas?.zoom ?? 1;
+    const first = draft.length >= 3 ? draft[0] : null;
+    if (first && Math.hypot((p[0] - first[0]) * b.width, (p[1] - first[1]) * b.height) * zoom <= CORNER_SNAP_PX) return first;
+    if (free) return p;
+    const q = snapPoint(p, null, this.shownWalls(doc), b.width, b.height, { tolPx: CORNER_SNAP_PX / zoom, free: true });
+    return q === p ? this.gridPoint(p) : q;
+  }
+
+  /** A click of the curved wall tool (WALLP): adds a point on the curve; a second click on the last point (a double
+   * click) builds the wall; a click on the first point (three points or more) builds a closed ring. A point that falls
+   * on the previous one is not added twice. */
+  private curveClick(p: Pt, shift: boolean) {
     const b = this.bundle;
     if (!b) return;
-    const d = this.arcDraft ?? [];
-    if (d.length < 2) {
-      const q = this.snap(p, d.at(-1) ?? null, shift);
-      if (d.length === 1 && Math.hypot((q[0] - d[0][0]) * b.width, (q[1] - d[0][1]) * b.height) < 2) return; // the end on the start: no wall
-      this.arcDraft = [...d, q];
+    const d = this.curveDraft ?? [];
+    const zoom = this.canvas?.zoom ?? 1;
+    const q = this.snapCurve(p, d, shift);
+    const near = (a: Pt | null | undefined) => !!a && Math.hypot((a[0] - p[0]) * b.width, (a[1] - p[1]) * b.height) * zoom < 8;
+    if (d.length && (near(d[d.length - 1]) || near(this.lastDrawClick))) {
+      this.finishCurve(false);
       return;
     }
-    const r = addArcWall(doc, d[0], d[1], p, this.wallDefaults, b.width, b.height);
-    const level = this.placeOpts(doc).levelId;
-    this.studio.commit(level === defaultLevelId(doc) ? r.doc : patchWall(r.doc, r.id, { level_id: level }));
-    this.lastEdit = 'structure';
-    this.arcDraft = null;
-    this.hover = null;
-    this.geomSel = { id: r.id, kind: 'wall' };
+    if (d.length >= 3 && q === d[0]) {
+      this.finishCurve(true);
+      return;
+    }
+    this.curveDraft = [...d, q];
+    this.curveRedo = [];
+    this.lastDrawClick = p;
   }
 
-  /** What the canvas draws dashed while an arc wall is drawn: the line to the cursor, then the arc through it. */
-  private arcPreview(b: MapBundle): Pt[] {
-    const d = this.arcDraft;
+  /** Build the wall through the drawn points (one undo step, on the level being edited, selected): open, or closed back
+   * to the first point. Fewer than two distinct points build nothing. */
+  private finishCurve(closed: boolean) {
+    const d = this.curveDraft;
+    const b = this.bundle;
+    const doc = this.studio.doc;
+    this.curveDraft = null;
+    this.curveRedo = [];
+    this.hover = null;
+    this.lastDrawClick = null;
+    if (!d || !b || !doc) return;
+    const r = d.length >= 2 ? addCurveWall(doc, d, closed, this.drawDefaults, b.width, b.height) : null;
+    if (!r) return;
+    this.commitNewWall(doc, r);
+  }
+
+  /** The point taken back while drawing (Backspace, Ctrl+Z) and put back (Ctrl+Y). */
+  private curveUndoPoint() {
+    const d = this.curveDraft;
+    if (!d?.length) return;
+    this.curveRedo = [...this.curveRedo, d[d.length - 1]];
+    this.curveDraft = d.length > 1 ? d.slice(0, -1) : null;
+    this.lastDrawClick = null;
+    if (!this.curveDraft) this.hover = null;
+  }
+
+  private curveRedoPoint() {
+    const p = this.curveRedo[this.curveRedo.length - 1];
+    if (!p) return;
+    this.curveRedo = this.curveRedo.slice(0, -1);
+    this.curveDraft = [...(this.curveDraft ?? []), p];
+  }
+
+  /** The curve the drawing shows: through the points and the cursor (closed when the cursor is on the first point). */
+  private curveLive(b: MapBundle): { path: Pt[]; lengthM: number; minRadiusM: number; count: number } | null {
+    const d = this.curveDraft;
+    const doc = this.studio.doc;
+    if (!this.curveDrawing || !d?.length || !doc) return null;
     const h = this.hover;
-    if (this.tool !== 'structure' || this.studioMode !== 'arc' || !d?.length || !h) return [];
-    if (d.length === 1) return [d[0], h];
-    const px = (p: Pt): [number, number] => [p[0] * b.width, p[1] * b.height];
-    const bulge = bulgeThrough(px(d[0]), px(h), px(d[1]));
-    return sampleArc([px(d[0]), px(d[1])], [bulge], 1).map((q): Pt => [q[0] / b.width, q[1] / b.height]);
+    const closing = !!h && d.length >= 3 && h === d[0];
+    const pts = h && !closing ? [...d, h] : d;
+    const live = curvePreview(pts, closing, b.width, b.height, effectiveScale(doc).scale);
+    return { ...live, count: d.length };
+  }
+
+  /** The hint over the canvas while a curved wall is drawn: the points, the live length and tightest radius, finish /
+   * take back a point (buttons for a touch screen), Esc. */
+  private renderCurveHint(b: MapBundle) {
+    const live = this.curveLive(b);
+    const doc = this.studio.doc;
+    if (!live || !doc) return nothing;
+    const { estimated } = effectiveScale(doc);
+    const radius = Number.isFinite(live.minRadiusM) ? fmtMetres(live.minRadiusM, estimated, this.showEstimates) : curveT('straightLine');
+    const title = this.studioMode === 'glass' ? glassT('tool') : curveT('draft');
+    return html`<div class="placing-hint bindbar" data-curve-hint=${live.count}><span>${title}: ${live.count} ${curveT('points')} · ${curveT('length')} <b data-curve-length>${fmtMetres(live.lengthM, estimated, this.showEstimates)}</b> · ${curveT('minRadius')} <b data-curve-radius>${radius}</b>${live.count >= 3 ? html` · ${curveT('closeHint')}` : nothing}
+      <button data-curve-finish ?disabled=${live.count < 2} @click=${() => this.finishCurve(false)}>${curveT('finish')} (Enter)</button><button data-curve-undo @click=${() => this.curveUndoPoint()}>${curveT('undoPoint')}</button><button data-curve-cancel @click=${() => { this.curveDraft = null; this.curveRedo = []; this.hover = null; }}>Esc</button></span></div>`;
+  }
+
+  /** A clicked point of a wall drawn through points moved to p: snapped like a drawing point (other walls' corners and
+   * curved bodies, the grid), the curve re-fitted; the selection follows the point (its corner index may change). */
+  private movedCurvePoint(doc: GeometryDoc, w: GeomWall, k: number, p: Pt, free: boolean): { doc: GeometryDoc; vertex: number } | null {
+    const b = this.bundle;
+    if (!b || k < 0) return null;
+    const zoom = this.canvas?.zoom ?? 1;
+    let q = p;
+    if (!free) {
+      const s1 = snapPoint(p, null, this.shownWalls(doc).filter((x) => x.id !== w.id), b.width, b.height, { tolPx: CORNER_SNAP_PX / zoom, free: true });
+      q = s1 === p ? this.gridPoint(p) : s1;
+    }
+    const next = moveCurvePoint(doc, w.id, k, q, b.width, b.height);
+    const nw = next.walls.find((x) => x.id === w.id);
+    const idx = nw ? curveThrough(nw) : null;
+    return { doc: next, vertex: idx?.[Math.min(k, idx.length - 1)] ?? 0 };
+  }
+
+  /** A selection from the canvas. In a curved drawing mode a tap on a point handle of the selected wall drawn through
+   * points starts a new curve there (to continue from its end); everywhere else it selects as before. */
+  private onCanvasSelect(d: { id: string; kind: GeomKind; vertex?: number; add?: boolean; segment?: number }) {
+    const w = d.kind === 'wall' && d.vertex !== undefined && this.curveDrawing && !this.curveDraft ? this.studio.doc?.walls.find((x) => x.id === d.id) : undefined;
+    if (w && d.vertex !== undefined && curvePointAt(w, d.vertex) >= 0) {
+      const p = w.polyline[d.vertex];
+      this.curveDraft = [[p[0], p[1]]];
+      this.curveRedo = [];
+      this.lastDrawClick = null;
+      return;
+    }
+    this.onGeomSelect(d.id, d.kind, d.vertex, !!d.add, d.segment);
   }
 
   /** `add`: Shift was held (T085) - in the select tool a wall or an object then goes into or out of the selection instead
@@ -3583,6 +3717,11 @@ export class ExplorePlanEditor extends LitElement {
     if (d.kind === 'segment') { // curve mode: the segment bends into the arc through the pointer (one undo step on the drop)
       return { doc: bendSegment(doc, d.id, d.index, [d.x, d.y], b.width, b.height), sel: { id: d.id, kind: 'wall', segment: d.index } };
     }
+    if (d.kind === 'curve-point' || (d.kind === 'vertex' && doc.walls.some((v) => v.id === d.id && curvePointAt(v, d.index) >= 0))) {
+      const w = doc.walls.find((v) => v.id === d.id);
+      const r = w ? this.movedCurvePoint(doc, w, curvePointAt(w, d.index), [d.x, d.y], d.ctrl) : null;
+      return r ? { doc: r.doc, sel: { id: d.id, kind: 'wall', vertex: r.vertex } } : null;
+    }
     if (d.kind === 'vertex') {
       const w = doc.walls.find((v) => v.id === d.id);
       if (!w) return null;
@@ -3749,8 +3888,15 @@ export class ExplorePlanEditor extends LitElement {
           if (!w.polyline[i]) return false;
           const q: Pt = [w.polyline[i][0] + dx, w.polyline[i][1] + dy];
           const last = w.polyline.length - 1;
-          next = isClosedOutline(w.polyline) && i === 0 ? moveVertex(moveVertex(doc, w.id, 0, q), w.id, last, q) : moveVertex(doc, w.id, i, q);
-          key = `${w.id}:${i}`;
+          const k = curvePointAt(w, i);
+          if (k >= 0) {
+            // a clicked point of a wall drawn through points: the curve re-fits (WALLP); the selection follows the point
+            const r = this.movedCurvePoint(doc, w, k, q, true);
+            if (!r) return false;
+            next = r.doc;
+            this.geomSel = { id: w.id, kind: 'wall', vertex: r.vertex };
+          } else next = isClosedOutline(w.polyline) && i === 0 ? moveVertex(moveVertex(doc, w.id, 0, q), w.id, last, q) : moveVertex(doc, w.id, i, q);
+          key = `${w.id}:${k >= 0 ? `p${k}` : i}`;
         }
       }
     }
@@ -3788,6 +3934,22 @@ export class ExplorePlanEditor extends LitElement {
       this.finishWall();
       return true;
     }
+    if (e.key === 'Enter' && this.curveDraft) {
+      e.preventDefault();
+      this.finishCurve(false);
+      return true;
+    }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && this.curveDraft) {
+      e.preventDefault(); // while drawing, both take back the last point
+      this.curveUndoPoint();
+      return true;
+    }
+    if ((e.ctrlKey || e.metaKey) && this.curveDraft && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
+      e.preventDefault(); // undo / redo per point while the curve is drawn (the document is not touched yet)
+      if (e.key.toLowerCase() === 'y' || e.shiftKey) this.curveRedoPoint();
+      else this.curveUndoPoint();
+      return true;
+    }
     if ((e.key === 'Backspace' || e.key === 'Delete') && this.wallDraft) {
       e.preventDefault(); // while drawing, both remove the last point (never the item selected before)
       this.wallDraft = this.wallDraft.length > 1 ? this.wallDraft.slice(0, -1) : null;
@@ -3817,6 +3979,17 @@ export class ExplorePlanEditor extends LitElement {
       }
       if (derivedConn && derivedConn.floor_ids.length) {
         this.removeConnector(id); // "למחוק גם בקומה השנייה?"
+        return true;
+      }
+      const pw = kind === 'wall' && vertex !== undefined ? this.studio.doc?.walls.find((w) => w.id === id) : undefined;
+      const pk = pw && vertex !== undefined ? curvePointAt(pw, vertex) : -1;
+      if (pw && pk >= 0 && this.bundle) {
+        // a clicked point of a wall drawn through points goes alone; the curve re-fits through the others (WALLP)
+        const b = this.bundle;
+        const doc = this.studio.doc;
+        const r = doc ? removeCurvePoint(doc, id, pk, b.width, b.height) : null;
+        if (r) this.edit(() => r.doc);
+        this.geomSel = r && !r.wallRemoved ? { id, kind } : null;
         return true;
       }
       if (kind === 'wall' && vertex !== undefined && this.geomSelectMode) {
@@ -4434,7 +4607,7 @@ export class ExplorePlanEditor extends LitElement {
     return renderStudioPanel(
       {
         // during a drag the panel shows where the item is going (the opening's distance field follows the pointer)
-        doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: compact ? 'select' : this.studioMode, wallDefaults: this.wallDefaults, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
+        doc: this.geomPreview ?? doc, W: b.width, H: b.height, mode: compact ? 'select' : this.studioMode, wallDefaults: this.wallDefaults, glassDraw: this.glassDraw, sel: this.geomSel, saveState: this.studio.saveState, saveError: this.studio.error,
         compact,
         conflict: this.studio.hasConflict,
         issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), exportDxf: exportUrl(versionId, 'dxf', { draft: true }), busy: this.busy,
@@ -4449,7 +4622,7 @@ export class ExplorePlanEditor extends LitElement {
       },
       {
         setMode: (m) => {
-          if ((m === 'wall' || m === 'curve' || m === 'arc') && this.phone.matches) {
+          if ((DRAW_MODES.includes(m) || m === 'curve') && this.phone.matches) {
             this.info = 'ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים';
             setTimeout(() => (this.info = ''), 4000);
             return;
@@ -4457,13 +4630,39 @@ export class ExplorePlanEditor extends LitElement {
           this.studioMode = m;
           this.dropDoorGhost();
           this.wallDraft = null;
-          this.arcDraft = null;
+          this.curveDraft = null;
+          this.curveRedo = [];
           this.hover = null;
           // corner handles live in select mode only: elsewhere the wall itself stays selected
           if (m !== 'select' && m !== 'curve' && (this.geomSel?.vertex !== undefined || this.geomSel?.segment !== undefined)) this.geomSel = { id: this.geomSel.id, kind: this.geomSel.kind };
         },
         setWallDefaults: (d) => {
           this.wallDefaults = d;
+        },
+        setGlassDraw: (g) => {
+          if (g.curved !== this.glassDraw.curved) {
+            this.wallDraft = null; // the shape changes how the next clicks are read: a started wall is dropped
+            this.curveDraft = null;
+            this.curveRedo = [];
+            this.hover = null;
+          }
+          this.glassDraw = g;
+        },
+        addCurvePoint: (id) => {
+          const doc = this.studio.doc;
+          const r = doc ? insertCurvePoint(doc, id, b.width, b.height) : null;
+          if (!r) return;
+          this.edit(() => r.doc);
+          const w = this.studio.doc?.walls.find((x) => x.id === id);
+          const idx = w ? curveThrough(w) : null;
+          this.geomSel = { id, kind: 'wall', ...(idx ? { vertex: idx[r.k] } : {}) };
+        },
+        removeCurvePoint: (id, k) => {
+          const doc = this.studio.doc;
+          const r = doc ? removeCurvePoint(doc, id, k, b.width, b.height) : null;
+          if (!r) return;
+          this.edit(() => r.doc);
+          this.geomSel = r.wallRemoved ? null : { id, kind: 'wall' };
         },
         patchWall: (id, patch) => this.edit((d) => patchWall(d, id, patch)),
         patchOpening: (id, patch) => this.edit((d) => patchOpening(d, id, patch)),
@@ -5200,8 +5399,9 @@ export class ExplorePlanEditor extends LitElement {
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.markers} .selectedId=${this.selectedId}
                   .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
                   .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : this.multiShown.map((i) => i.id)} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
-                  .cornerSnapPx=${this.tool === 'structure' && this.studioMode === 'wall' ? CORNER_SNAP_PX : 0}
-                  .curveHandles=${this.tool === 'structure' && this.studioMode === 'curve'} .selectedSegment=${this.geomSel?.segment ?? null} .arcPreview=${this.arcPreview(b)}
+                  .cornerSnapPx=${this.straightDrawing || this.curveDrawing ? CORNER_SNAP_PX : 0}
+                  .curveHandles=${this.tool === 'structure' && this.studioMode === 'curve'} .selectedSegment=${this.geomSel?.segment ?? null} .arcPreview=${this.curveLive(b)?.path ?? []}
+                  .curveDraft=${this.curveDraft ?? []} .curvePointHandles=${(this.geomSelectMode && this.studioMode !== 'curve') || this.tool === 'select' || (this.curveDrawing && !this.curveDraft)}
                   .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .ghost=${this.doorGhost && this.studio.doc ? ghostDoc(this.studio.doc, this.doorGhost, this.wallDefaults) : null} .ghostNote=${this.doorGhost?.note ?? ''} .ghostWarn=${!!this.doorGhost && (this.doorGhost.found === 'default' || !!this.doorGhost.warning)}
                   .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : []} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
@@ -5211,7 +5411,7 @@ export class ExplorePlanEditor extends LitElement {
                   @plan-hover=${(e: CustomEvent<{ x: number; y: number; shift: boolean; item?: boolean }>) => this.onPlanHover(e.detail.x, e.detail.y, e.detail.shift, !!e.detail.item)}
                   .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn} .panMode=${this.panMode}
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
-                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean; segment?: number }>) => this.onGeomSelect(e.detail.id, e.detail.kind, e.detail.vertex, !!e.detail.add, e.detail.segment)}
+                  @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean; segment?: number }>) => this.onCanvasSelect(e.detail)}
                   @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
                   @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; this.guideCache = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
                   @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
@@ -5235,7 +5435,7 @@ export class ExplorePlanEditor extends LitElement {
                 ${this.bindOffer ? html`<div class="placing-hint bindbar" data-bind-offer><span>העצם ליד ${this.anchorName(this.bindOffer.anchor)} — להפוך אותו לגוף של הישות?
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
-                ${this.arcDraft ? html`<div class="placing-hint" data-arc-hint><span>${curveT(this.arcDraft.length < 2 ? 'arcEnd' : 'arcThrough')} · Esc</span></div>` : nothing}
+                ${this.curveDraft ? this.renderCurveHint(b) : nothing}
                 ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
