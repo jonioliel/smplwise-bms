@@ -35,7 +35,7 @@ async function start(page: Page, ctl: Partial<FrigateControlMock> = {}, over: Pa
   return { m, box, panel };
 }
 
-async function confirm(page: Page, panel: ReturnType<Page['locator']>, supervise: boolean) {
+async function confirm(panel: ReturnType<Page['locator']>, supervise: boolean) {
   const dlg = panel.locator('[data-fcp-confirm]');
   await expect(dlg.locator('[data-fcp-ok]')).toBeVisible();
   if (supervise) {
@@ -80,7 +80,7 @@ test.describe('settings: zones and camera settings', () => {
     await panel.locator('[data-fcp-zone-objects] [data-label="car"]').click();
     await shot(page, 'config-zone-new');
     await panel.locator('[data-fcp-save]').click();
-    await confirm(page, panel, true);
+    await confirm(panel, true);
     const w = writes(m, 'config/zones/gate');
     expect(w).toHaveLength(1);
     const b = bodyOf(w[0]);
@@ -113,7 +113,7 @@ test.describe('settings: zones and camera settings', () => {
     await page.keyboard.press('ArrowDown');
     await expect(panel.locator('[data-zone-handle]')).toHaveCount(4);
     await panel.locator('[data-fcp-save]').click();
-    await confirm(page, panel, false);
+    await confirm(panel, false);
     const b = bodyOf(writes(m, 'config/zones/driveway')[0]);
     expect(b.supervised).toBeUndefined();
     expect(b.points[0][0]).toBeCloseTo(0.6, 1);
@@ -123,7 +123,7 @@ test.describe('settings: zones and camera settings', () => {
     await panel.locator('[data-zone="porch"]').click();
     await panel.locator('[data-fcp-delete]').click();
     await expect(panel.locator('[data-fcp-confirm="delete"]')).toBeVisible();
-    await confirm(page, panel, false);
+    await confirm(panel, false);
     expect(writes(m, 'config/zones/porch/delete')).toHaveLength(1);
     await expect(panel.locator('[data-zone="porch"]')).toHaveCount(0);
   });
@@ -142,14 +142,14 @@ test.describe('settings: zones and camera settings', () => {
     await thr.fill('45');
     await shot(page, 'config-settings');
     await motion.locator('[data-fcp-save-section]').click();
-    await confirm(page, panel, true);
+    await confirm(panel, true);
     const b = bodyOf(writes(m, 'config/settings/motion')[0]);
     expect(b.values).toEqual({ 'motion.threshold': 45 });
     // back to the default (the first settings write is done: no supervision box now)
     await expect(thr).toHaveValue('45');
     await motion.locator('[data-fcp-field="motion.threshold"] [data-fcp-default]').click();
     await motion.locator('[data-fcp-save-section]').click();
-    await confirm(page, panel, false);
+    await confirm(panel, false);
     expect(bodyOf(writes(m, 'config/settings/motion')[1]).values).toEqual({ 'motion.threshold': null });
     // a value equal to the default of an unset key is no change: nothing to save
     const det = panel.locator('[data-fcp-section="detect"]');
@@ -159,7 +159,7 @@ test.describe('settings: zones and camera settings', () => {
     const obj = panel.locator('[data-fcp-section="objects"]');
     await obj.locator('[data-label="dog"]').click();
     await obj.locator('[data-fcp-save-section]').click();
-    await confirm(page, panel, false);
+    await confirm(panel, false);
     expect(bodyOf(writes(m, 'config/settings/objects')[0]).values).toEqual({ 'objects.track': ['car', 'dog', 'person'] });
     // the change log names the section
     await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'יומן שינויים' }).click();

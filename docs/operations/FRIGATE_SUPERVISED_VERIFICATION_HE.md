@@ -177,3 +177,19 @@
    - `clip.mp4` (אם בוצע), והרשאות viewer על `/api/config`, `/api/openapi.json`, `/ws`.
    - **נשארים NOT VERIFIED**: PTZ, `recordings`/`enabled`, שאר מתגי האנליטיקה, `EXT-X-PROGRAM-DATE-TIME` ב־HLS, מטענים של פריימי `reviews`/`events` ב־WebSocket.
 5. **החלטות המשך לבעלים**: אופציית תוסף ל־`SW_FRIGATE` (H1), `clip.mp4` ב־allow-list (H2), אילו מחלקות להשאיר דלוקות, ומתי PTZ.
+
+---
+
+## 8. תוספת FRGS: מחלקת `config` (אזורים והגדרות מצלמה)
+
+קוד: `services/recorders/frigate_config.py` (הצורה בפונקציה `_set` בלבד), `services/frigate_config_svc.py`, `routers/frigate_config.py`; CR-029 סעיף 13.
+כלל: הכתיבה נשמרת בקובץ ההגדרות של Frigate (שורדת הפעלה מחדש), לכן כל צעד מוחזר מיד דרך היומן.
+
+| # | צעד | נתיב Arx | נתיב Frigate (לא מאומת) | בדיקה | החזרה |
+|---|---|---|---|---|---|
+| C0 | השוואת סכמה (קריאה) | `GET .../config/schema?verify=true` | `GET /api/config/schema.json` | `frigate_check.missing` ריק | - |
+| C1 | אזור מבחן חדש במצלמת המבחן (שם `arx_test`, משולש קטן) | `PUT .../cameras/{id}/config/zones/arx_test` עם `confirm` ו־`supervised` | `PUT /api/config/set` (`update_topic: config/cameras/<cam>/zones`) | `verified`, האזור מופיע ב־UI של Frigate | revert מהיומן (מוחק את האזור) |
+| C2 | הגדרה אחת (`motion.contour_area` +1) | `PUT .../config/settings/motion` | אותו נתיב | `verified`; האם נדרשה הפעלה מחדש | revert מהיומן (מסיר את המפתח) |
+
+עצירה: 4xx מ־`/api/config/set`, הודעה שנדרשת הפעלה מחדש, או `verified:false` ב־C1 - רושמים, מחזירים ידנית, לא מנסים צורה אחרת.
+עד הסבב: המחלקה `config` כבויה, וכל כתיבה ראשונה נדחית בלי `supervised: true`.

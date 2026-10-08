@@ -222,3 +222,54 @@ skins), `evidence-frigate-control.spec.ts` follows the tabs, `unit-frigate-contr
 
 **Not built (needs a server step first - a config schema API - and was not in scope):** the zone editor and schema-driven Frigate
 configuration; assigning an export to a case (no route); a PTZ pad (PTZ unreleased). **Not verified:** anything against a real Frigate.
+
+**Update (FRGS, section 13):** the zone editor and the schema-driven settings are now built on the new config schema API.
+
+## 13. FRGS - config schema API, zones and camera settings (branch pilot/FRGS-config-schema, migration 0072)
+
+Owner task 2026-10-08: build the server step FRGD lacked, then the UI on it. Everything is tested against the in-process fake Frigate
+(`backend/tests/fixtures/fake_frigate.py`, now with `PUT /api/config/set` and `GET /api/config/schema.json`) and the mocked UI backend
+(`frontend/tests/frigate-mocks.ts`). Nothing was sent to the owner's Frigate or any device.
+
+**Contradiction recorded, not silently resolved.** Section 10 ("Never offered: `/api/config/set`, ...") is changed by this task for ONE
+purpose: the class `config` may send `PUT /api/config/set` (never `/api/config/save`, never a restart). The owner's supervised session
+decides whether it stays; until then the class is OFF and the first write of each kind is refused without `supervised: true`.
+
+**Schema (what Arx knows).** `services/recorders/frigate_config.py` holds a hand-written, allow-listed subset of Frigate 0.18's camera
+section: zones (`coordinates` as relative points 0..1, `objects`, `inertia` 1..10, `loitering_time` 0..3600; name `[a-z0-9_]{1,40}`, at most
+24 zones per camera, 3..40 points, a real area) and nine settings in six sections (`detect.fps`, `motion.threshold`, `motion.contour_area`,
+`motion.lightning_threshold`, `objects.track`, `snapshots.retain.default`, `record.alerts.retain.days`, `record.detections.retain.days`,
+`review.alerts.labels`) with types, ranges and documented defaults. Nothing outside it can be written.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /frigate/{rid}/config/schema[?verify=true]` | control-screen read gate; `verify` needs system.configure | the schema; `verify` also reads the instance's `/api/config/schema.json` (a control read, `CONTROL_GET_ALLOWED`) and lists our fields it does not know (`frigate_check`) - compared, never trusted |
+| `GET /frigate/{rid}/cameras/{cid}/config` | `video.live` on the camera + the read gate | zones (relative; a zone in detect pixels is converted; a shape Arx cannot read is listed read-only), the curated settings, `writable`, `first_write_done`, `can_supervise`; read from the existing `GET /api/config`, reduced to these fields (no inputs, credentials, ONVIF) |
+| `PUT .../cameras/{cid}/config/zones/{name}` | system.configure on the camera | create / replace one zone |
+| `POST .../cameras/{cid}/config/zones/{name}/delete` | same | remove one zone |
+| `PUT .../cameras/{cid}/config/settings/{section}` | same | changed keys of ONE section (`null` = back to Frigate's default) |
+
+**Model of a write** (`services/frigate_config_svc.py`, the F2/F2b model): permission -> class `config` on (`frigate_write_policy`; migration
+0072 only rebuilds the table to admit the class name, rows copied) -> `confirm: true` on every action (`PER_ACTION`; the change persists in
+Frigate's configuration file, `persists: true` in the policy view) -> the first write of each kind (`config_zone`, `config_settings`) needs
+`supervised: true` from a system administrator (`frigate_first_write`) -> read the effective config, ONE write, read back -> `frigate_changes`
+row (before / after, `applied` | `unverified` | `failed`) + audit row `frigate.control.config` -> undo through `POST .../changes/{id}/revert`
+(confirm; 409 `frigate_change_stale` when Frigate no longer shows what the change left). An unset key and its documented default are the same
+state, so writing a default is not a change and an undo of a first-time setting removes the key again.
+
+**Wire shape (UNVERIFIED, one place: `FrigateConfig._set`).** `PUT /api/config/set` body `{"requires_restart": 0, "update_topic":
+"config/cameras/<cam>/<section>", "config_data": {"cameras": {"<cam>": {"<section>": {...}}}}}`; `""` removes a key (zone delete, back to
+default). Not verified: the body shape, whether Frigate applies a zone / setting without a restart for each topic, whether the effective
+`/api/config` shows it at once (if not the change is `unverified`, not failed), and the coordinate format Frigate keeps after a write.
+
+**UI.** Settings > the Frigate recorder > "שינויים ב־Frigate" > tab "אזורים והגדרות" (`components/frigate-config-panel.ts`,
+`components/frigate-zone-editor.ts`): camera picker; the still (`GET .../snapshot`) with the zones over it; tap to add a point, drag a
+handle (mouse / touch / pen), arrow keys and Delete on a focused handle; the stage is LTR and never mirrored in RTL; name, objects, inertia,
+loitering; settings drawn from the schema, one save per section, "back to default" per field; every save asks (the supervision box on the
+first write of each kind); class off = one chip and no actions. Hebrew in `he.ts`, English in `frigate-en.ts`. Evidence:
+`frontend/tests/evidence-frigate-config.spec.ts`, `unit-frigate-config.spec.ts`; screenshots `docs/design/evidence/frgs/` (when produced).
+
+**Not built (FRGS):** motion masks and object masks (0.18 changed their shape; not in the schema), any global (non-camera) section,
+restart / `config/save`, editing a zone Frigate keeps in a shape Arx does not parse (listed read-only), inserting a point between two points
+(points are appended; drag to reshape), the Frigate schema check in the UI (API only). **Not verified:** anything against a real Frigate.
+**Rollback:** run the previous version (0072 keeps every row; the old code ignores a `config` row); with the class off (default) nothing is written.
