@@ -8,6 +8,7 @@
         "evidence-camera-card.spec.ts": {"gate": true},
         "evidence-plan-package.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-curved-walls.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-curve-points.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]}
       }

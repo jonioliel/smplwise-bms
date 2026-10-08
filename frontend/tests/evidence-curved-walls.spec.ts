@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 // Curved walls (owner request 2026-10-08) in the plan editor's structure tool, against a running backend: C opens the
 // curve mode, dragging the middle of a segment bends it (one undo step; its door stays on it), the panel sets a
-// segment's radius and straightens it, a corner is rounded with a radius, the arc mode draws an arc wall from three
-// clicks, the exports carry the arcs, and a phone keeps the curve tools away. The spec builds its own site / building /
+// segment's radius and straightens it, a corner is rounded with a radius, the curved wall tool (WALLP: points on the
+// curve) draws an arc wall from three clicks, the exports carry the arcs, and a phone keeps the curve tools away. The spec builds its own site / building /
 // floor and removes them. Runs only with SW_LIVE=1. Screenshots for review go to private-evidence (not committed).
 const BASE = process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
 const ED = 'explore-plan-editor';
@@ -93,7 +93,7 @@ test.describe.serial('plan editor: curved walls', () => {
     await seed();
     await openStructure(page);
     await page.keyboard.press('c');
-    await expect(page.locator(`${ED} [data-studio-mode="curve"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(`${ED} [data-bend-done]`)).toHaveCount(1); // WALLP: the bend mode has no chip; its "done" button shows
     // pick the wall away from its door, then its segment handle appears in the middle
     const pick = await at(page, [0.52, 0.35]);
     await page.mouse.click(pick.x, pick.y);
@@ -123,7 +123,7 @@ test.describe.serial('plan editor: curved walls', () => {
     test.skip(info.project.name !== 'desktop', 'desktop drawing');
     await seed();
     await openStructure(page);
-    await page.locator(`${ED} [data-studio-mode="curve"]`).click();
+    await page.keyboard.press('c'); // WALLP: the bend mode has no chip (C, or the wall inspector's button)
     const pick = await at(page, [0.52, 0.35]);
     await page.mouse.click(pick.x, pick.y);
     await page.locator(`${ED} sw-plan-canvas [data-wall-segment="0"]`).click();
@@ -154,7 +154,7 @@ test.describe.serial('plan editor: curved walls', () => {
     test.skip(info.project.name !== 'desktop', 'desktop drawing');
     await seed();
     await openStructure(page);
-    await page.locator(`${ED} [data-studio-mode="curve"]`).click();
+    await page.keyboard.press('c'); // WALLP: the bend mode has no chip (C, or the wall inspector's button)
     const pick = await at(page, [0.3, 0.85]);
     await page.mouse.click(pick.x, pick.y);
     await page.locator(`${ED} sw-plan-canvas [data-wall-vertex="2"]`).click();
@@ -171,31 +171,33 @@ test.describe.serial('plan editor: curved walls', () => {
     await page.screenshot({ path: path.join(OUT, 'corner-rounded.png') });
   });
 
-  test('the arc mode draws an arc wall from start, end and a point on it; Esc cancels a started one', async ({ page }, info) => {
+  test('the curved wall tool draws an arc wall through start, a point on it and its end; Esc cancels a started one', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop drawing');
     await seed();
     await openStructure(page);
-    await page.locator(`${ED} [data-studio-mode="arc"]`).click();
-    for (const p of [[0.6, 0.8], [0.85, 0.8]] as P[]) {
+    await page.locator(`${ED} [data-studio-mode="curved"]`).click(); // WALLP: the points tool replaces the three-click arc mode
+    for (const p of [[0.6, 0.8], [0.725, 0.62]] as P[]) {
       const s = await at(page, p);
       await page.mouse.click(s.x, s.y);
     }
-    await expect(page.locator(`${ED} [data-arc-hint]`)).toHaveCount(1);
-    const through = await at(page, [0.725, 0.62]);
-    await page.mouse.move(through.x, through.y, { steps: 4 });
+    await expect(page.locator(`${ED} [data-curve-hint]`)).toHaveCount(1);
+    const end = await at(page, [0.85, 0.8]);
+    await page.mouse.move(end.x, end.y, { steps: 4 });
     await expect(page.locator(`${ED} sw-plan-canvas [data-arc-preview]`)).toHaveCount(1);
     await page.screenshot({ path: path.join(OUT, 'arc-mode-preview.png') });
-    await page.mouse.click(through.x, through.y);
+    await page.mouse.click(end.x, end.y);
+    await page.keyboard.press('Enter');
     await saved(page);
     const d = await draft();
     const arc = d.doc.walls.find((w) => !['cw1', 'cw2'].includes(w.id))!;
-    expect(arc.polyline.length).toBe(2);
-    expect(Math.abs(arc.bulges![0])).toBeGreaterThan(0.5);
-    // a started arc and Esc: nothing added
+    expect(arc.polyline.length).toBe(3); // three points on one circle: one arc, the middle point kept as its handle
+    expect(Math.abs(arc.bulges![0])).toBeGreaterThan(0.2);
+    expect(arc.bulges![0]).toBeCloseTo(arc.bulges![1], 2);
+    // a started curve and Esc: nothing added
     const s = await at(page, [0.62, 0.2]);
     await page.mouse.click(s.x, s.y);
     await page.keyboard.press('Escape');
-    await expect(page.locator(`${ED} [data-arc-hint]`)).toHaveCount(0);
+    await expect(page.locator(`${ED} [data-curve-hint]`)).toHaveCount(0);
     expect((await draft()).doc.walls.length).toBe(3);
     // the exports carry the arcs: the SVG draws the sampled path, the DXF writes bulges
     const svg = await (await api.get(`api/v1/plan-versions/${ids.version}/export.svg?draft=true`)).text();
@@ -239,7 +241,7 @@ test.describe.serial('plan editor: curved walls', () => {
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
     await expect(page.locator('sw-app [data-desktop-only="structure"]')).toBeVisible({ timeout: 20000 });
     await expect(page.locator(`sw-app ${ED}`)).toHaveCount(0);
-    await expect(page.locator('[data-studio-mode="curve"], [data-studio-mode="arc"], sw-plan-canvas [data-wall-segment]')).toHaveCount(0);
+    await expect(page.locator('[data-studio-mode="curved"], [data-studio-mode="glass"], [data-bend-done], sw-plan-canvas [data-wall-segment]')).toHaveCount(0);
     await page.keyboard.press('c');
     await expect(page.locator('sw-plan-canvas [data-wall-segment]')).toHaveCount(0);
     await page.screenshot({ path: path.join(OUT, 'phone-guard.png') });
