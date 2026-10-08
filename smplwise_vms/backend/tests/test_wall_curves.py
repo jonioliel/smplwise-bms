@@ -359,6 +359,37 @@ def test_importer_pairs_concentric_arcs_and_reads_circles():
     assert len(arc["bulges"]) == 1 and arc["bulges"][0] == pytest.approx(-math.tan(math.radians(120) / 4), abs=1e-6)
 
 
+def test_curved_window_wall_glazes_along_the_arc():
+    """Curved walls meet window walls (both document 2.1): a round room made of glass is 2.1, validates, draws glass parts
+    with their arcs, divides its glazing over the exact arc length with every panel end on the arc, and the DXF writes
+    the glass wall and pane as bulged polylines on SW_GLAZING."""
+    from smplwise.services import plan_glass
+
+    doc = _curved()
+    w = _wall(doc, "cb-round")
+    w.update({"kind": "glass", "thickness_m": 0.12})
+    assert pg.document_version(doc) == "2.1" and pg.doc_version is pg.document_version
+    assert [i for i in pg.validate(doc) if i["structural"]] == []
+    prims = render.structure_primitives(doc, 1000, 800)
+    parts = [p for p in prims if p["kind"] == "wall" and p["id"] == "cb-round"]
+    assert parts and all(p.get("glass") and p.get("arc") for p in parts)
+    glz = next(p for p in prims if p["kind"] == "glazing" and p["id"] == "cb-round")
+    pts, bulges = wp.wall_px(w, 1000, 800)
+    length_m = wp.path_length(pts, bulges) * 0.01
+    assert len(glz["panels"]) == plan_glass.panel_count(length_m, plan_glass.glazing_of(w))
+    for q in glz["panels"]:
+        for e in (q["a"], q["b"]):
+            assert wp.project(pts, bulges, (e[0], e[1]))[1] < 0.3, "a panel end off the arc"
+    src = _export_dxf(doc)
+    glass = [e for e in src.modelspace().query("LWPOLYLINE") if e.dxf.layer == "SW_GLAZING"]
+    assert len(glass) >= 2 and all(any(abs(b) > 1e-6 for *_xy, b in e.get_points("xyb")) for e in glass)
+    # a straight document with a glass wall stays as main drew it (no arc on its parts)
+    straight = _curved()
+    sw = _wall(straight, "ce-straight")
+    sw["kind"] = "glass"
+    assert all("arc" not in p for p in render.structure_primitives(straight, 1000, 800) if p["kind"] == "wall" and p["id"] == "ce-straight")
+
+
 def test_importer_hosts_doors_and_windows_on_curved_walls():
     """Map 1.3: a door swing arc, a second door swinging the other way and a window line on a curved wall (a pair of
     concentric arcs) become openings of that wall, placed by arc length; straight walls keep their own matching."""

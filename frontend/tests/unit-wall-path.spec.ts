@@ -6,6 +6,7 @@ import { arcOf, bulgeForRadius, bulgeThrough, cumulative, fillet, offsetPolyline
 import { buildPrimitives, nearestWall, pointOnWall, snapPoint, wallLengthM, wallOutlineAreaM2, type GeometryDoc, type GeomWall, type Primitive } from '../src/map/geometry';
 import { addArcWall, bendSegment, maxCornerRadiusM, roundCorner, segmentAt, segmentMid, segmentRadiusM, setSegmentRadius, straightenSegment } from '../src/map/curve-ops';
 import { removeCorner } from '../src/map/studio-ops';
+import { glazingOf, panelCount, wallLengthM as wallLengthMGlass, withDocVersion, type GlazingPrim } from '../src/map/glass-wall';
 
 // Curved walls (owner request 2026-10-08): the frontend mirror of services/wall_path.py gives the backend's golden values,
 // the map's primitives of the curved sample equal the backend renderer's, and the curve edits of the structure tool keep
@@ -125,6 +126,25 @@ test('the area a closed outline encloses: a round room, a rounded square, open w
   expect(wallOutlineAreaM2(out, W, H, 0.01)!).not.toBeCloseTo(4, 2);
   expect(wallOutlineAreaM2({ ...square, polyline: square.polyline.slice(0, 4) }, W, H, 0.01)).toBeNull();
   expect(wallOutlineAreaM2({ ...round, bulges: undefined }, W, H, 0.01)).toBeNull(); // a three-point straight "outline" is a line
+});
+
+test('a curved window wall: glass parts with their arcs, panels over the exact length on the arc, document 2.1 kept', () => {
+  const doc = curved();
+  const w = doc.walls.find((x) => x.id === 'cb-round') as GeomWall;
+  w.kind = 'glass';
+  w.thickness_m = 0.12;
+  const prims = buildPrimitives(doc, W, H);
+  const parts = prims.filter((p) => p.kind === 'wall' && p.id === 'cb-round') as (Primitive & { glass?: true; arc?: unknown })[];
+  expect(parts.length).toBeGreaterThan(0);
+  expect(parts.every((p) => p.glass === true && !!p.arc)).toBe(true);
+  const glz = prims.find((p) => p.kind === 'glazing' && p.id === 'cb-round') as GlazingPrim;
+  const { pts, bulges } = { pts: w.polyline.map((p): P => [p[0] * W, p[1] * H]), bulges: w.bulges! };
+  expect(glz.panels.length).toBe(panelCount(pathLength(pts, bulges) * 0.01, glazingOf(w)));
+  for (const q of glz.panels) for (const e of [q.a, q.b]) expect(project(pts, bulges, e as P).dist).toBeLessThan(0.3);
+  // withDocVersion keeps 2.1 for a curved document without glass (it used to reset a non-glass 2.1 to 2.0)
+  const plain = curved();
+  expect(withDocVersion(plain).schema_version).toBe('2.1');
+  expect(wallLengthMGlass(w, W, H, 0.01)).toBeCloseTo(pathLength(pts, bulges) * 0.01, 6);
 });
 
 test('bend, radius and straighten: one segment, openings stay on the wall', () => {
