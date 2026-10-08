@@ -1,6 +1,6 @@
 # CR-021 S3/S4 - running status (branch `pilot/CR021-s3-apply`, from `origin/main` 31fe5d7c)
 
-Kept current after every step so another session can continue. Newest first in "Log".
+Kept current after every step so another session can continue.
 
 ## Key finding (2026-10-08): the task premise was stale
 
@@ -18,26 +18,28 @@ on `main` and released since 0.1.159** (merge `5e4370bf` "Merge origin/pilot/CR0
 Therefore: **no rebase, no new migration (0073 NOT used), no second copy of S1/S2/S3.** `pilot/CR021-s12-rebased` (60452c02) is an
 ancestor of main; a backup copy was pushed anyway as `origin/pilot/CR021-s12-rebased-backup`.
 
-What is genuinely left is slice **S4** (CR-021 section 10 / 13.6) plus the documents the card asked for.
-
 ## Done / not done
 
 | Item | State | Notes |
 |---|---|---|
 | Backup branch `pilot/CR021-s12-rebased-backup` on origin | DONE | |
 | S1/S2/S3 on main | ALREADY DONE (0.1.159) | see table above |
-| `[platform-restart]` marker -> "restart required" reason (S4) | IN PROGRESS | `services/release_notes.py`; reads the add-on's own bundled CHANGELOG entry of the running version at start |
-| Release-notes feed for the NEWER version on the Updates page (S4) | NOT DONE - needs decision | only the Supervisor has the newer CHANGELOG (`GET /addons/self/changelog` / store), which (a) is an unverified lab assumption and (b) conflicts with the S3 security rule "no upstream text echoed or stored". Needs an owner + security decision |
-| Feature OFF by default behind an admin switch | NOT DONE - owner question | the feature already ships ON for `system.update` holders since 0.1.159 with owner approval (D1, S3 answer 2). Turning it off now would silently remove a working function after an upgrade |
-| `docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md` | TODO | |
-| User guide page (Hebrew) | TODO | `docs/user-guide/he/83-updates_HE.md` |
-| `docs/release/NEXT-DRAFT.md` bilingual draft | TODO | |
-| Owner release gate 13.4 (branch protection, lab session 13.5) | OWNER | agents never change repository settings |
+| `[platform-restart]` marker -> "restart required" reason (S4) | DONE | `services/release_notes.py`, `Dockerfile` copies CHANGELOG, `main.py` start hook (off in tests: `SW_RELEASE_MARKER=0`), `tests/test_release_notes_marker.py` |
+| Downgrade guard (security, S4) | DONE | `self_update.is_newer` in `parse_info`; `tests/test_self_update_s4_downgrade.py`; test NEWER -> 99.0.0, fixture spec 0.1.157 -> 99.0.0 (both were BELOW the running 2.4.2, i.e. the suites exercised a downgrade) |
+| `docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md` | DONE | threat model, role `manager`, O9 branch protection, review checklist |
+| User guide page | DONE | `docs/user-guide/he/83-updates_HE.md`, index row, `GUIDE_ALL_HE.html` rebuilt |
+| `docs/release/NEXT-DRAFT.md` bilingual draft | DONE | |
+| CR-021 doc section 14 (S4) | DONE | |
+| Release-notes text of the NEWER version on the Updates page | NOT DONE - needs decision | only the Supervisor has it; conflicts with "no upstream text echoed or stored"; unverified lab assumption |
+| Feature OFF by default behind an admin switch | NOT DONE - owner question | ships ON for `system.update` holders since 0.1.159 by owner approval (D1, S3 answer 2); turning it off would silently remove a working function after an upgrade |
+| New Playwright evidence PNGs | NOT DONE - not needed | 19 states x 3 widths exist in `docs/design/evidence/cr021-s3/`; "rolled back" is guidance only (no restore button, owner answer 10) and is covered by the guidance screens |
+| Owner release gate 13.4 (branch protection O9, lab session 13.5) | OWNER | agents never change repository settings |
+
+## Tests
+
+See the final report / commit log for the runner results of the latest SHA.
 
 ## Next step
 
-Finish `release_notes.py` + test, push, run `python private/runner/run_smart.py backend pilot/CR021-s3-apply` on the touched tests.
-
-## Log
-
-- 2026-10-08: worktree `C:\cloude\wt-CR021` created from origin/main 31fe5d7c; premise check above.
+Release engineer: merge `pilot/CR021-s3-apply` into the next integration branch; tier S/M (backend CR-021 tests + the update fixture
+spec). Owner: confirm GitHub 2FA + protection of `main` / `v*` tags; answer the two open questions above.
