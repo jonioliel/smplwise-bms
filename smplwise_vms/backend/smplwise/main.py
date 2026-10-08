@@ -127,6 +127,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         second_factor_svc.janitor(db)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("second factor janitor failed", exc_info=True)
+    try:  # SEC3 (review L4): the sign-in rate counters and expired block-counter rows
+        from .services import ha_user_auth as hua_svc
+
+        hua_svc.flush_limiter(db)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("rate limiter flush failed", exc_info=True)
+    try:
+        from .services import alarm_codes as alarm_codes_svc
+
+        alarm_codes_svc.janitor(db)
+    except Exception:  # noqa: BLE001
+        log.warning("alarm code counter janitor failed", exc_info=True)
     from .services import storage
 
     if not is_ha_only(settings):  # NVR-less mode: no NVR storage report to keep warm, no NVR recording to stop
@@ -377,6 +389,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("startup")
     async def _start_janitor() -> None:
+        try:  # SEC3 (review L4): the sign-in rate counters of the previous process
+            from .services import ha_user_auth as hua_svc
+
+            hua_svc.restore_limiter(app.state.db)
+        except Exception:  # noqa: BLE001 - a failed restore is the old behaviour (empty counters)
+            log.warning("rate limiter restore failed", exc_info=True)
         # Sessions never survive a restart: remove our leftover playback streams, then expire idle
         # sessions every 30 s. Only `smplwise_pb_*` names are ever deleted.
         from starlette.concurrency import run_in_threadpool
@@ -517,6 +535,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             task = getattr(app.state, name, None)
             if task:
                 task.cancel()
+        try:  # SEC3 (review L4): the last sign-in counters reach the database before the process ends
+            from .services import ha_user_auth as hua_svc
+
+            hua_svc.flush_limiter(app.state.db)
+        except Exception:  # noqa: BLE001
+            log.warning("rate limiter final flush failed", exc_info=True)
         from .services import events_ingest
         from .services import exports as ex
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import sqlite3
@@ -265,14 +266,18 @@ def code_plan(*, action: str, panel: dict[str, Any], user_policy: dict[str, Any]
 
 class Lockout:
     """5 wrong codes in 5 minutes per key (a user, or a panel - see routers/alarm._code_gate) lock that key for 10 minutes.
-    The failure window is kept in memory; a lock in force is also written to `alarm_lockouts` (wall-clock expiry) when a
-    connection is given, so a restart does not lift it (review L8)."""
+    Both survive a restart (reviews L8 and L4): a lock in force is written to `alarm_lockouts` (wall-clock expiry), and the
+    failure window itself to `block_counters` (scope `alarm_code`, migration 0071), each when a connection is given. A key's
+    stored window is read once per process, on its first wrong code; every later one is the in-memory path."""
+
+    SCOPE = "alarm_code"
 
     def __init__(self, limit: int = 5, window_s: float = 300.0, lock_s: float = 600.0) -> None:
         self.limit, self.window_s, self.lock_s = limit, window_s, lock_s
         self._lock = threading.Lock()
         self._fails: dict[str, list[float]] = {}
         self._until: dict[str, float] = {}  # wall clock (time.time)
+        self._loaded: set[str] = set()  # keys whose stored window was read into _fails
 
     def _stored(self, conn: sqlite3.Connection | None, keys: list[str]) -> dict[str, float]:
         if conn is None or not keys:
@@ -282,6 +287,37 @@ class Lockout:
         except sqlite3.OperationalError:
             return {}
         return {r[0]: float(r[1]) for r in rows}
+
+    def _load(self, conn: sqlite3.Connection | None, key: str, now: float) -> None:
+        """Merge the stored window of `key` into memory, once. Caller holds the lock."""
+        if conn is None or key in self._loaded:
+            return
+        self._loaded.add(key)
+        try:
+            r = conn.execute("SELECT hits_json FROM block_counters WHERE scope = ? AND key = ? AND expires_at > ?", (self.SCOPE, key, now)).fetchone()
+        except sqlite3.OperationalError:
+            return
+        if r is None:
+            return
+        try:
+            stored = [float(x) for x in json.loads(r[0] or "[]")]
+        except (ValueError, TypeError):
+            return
+        self._fails[key] = sorted({*self._fails.get(key, []), *stored})
+
+    def _persist(self, conn: sqlite3.Connection | None, key: str, hits: list[float]) -> None:
+        if conn is None:
+            return
+        try:
+            if hits:
+                conn.execute(
+                    "INSERT INTO block_counters(scope, key, hits_json, expires_at) VALUES (?,?,?,?) "
+                    "ON CONFLICT(scope, key) DO UPDATE SET hits_json = excluded.hits_json, expires_at = excluded.expires_at",
+                    (self.SCOPE, key, json.dumps(hits), max(hits) + self.window_s))
+            else:
+                conn.execute("DELETE FROM block_counters WHERE scope = ? AND key = ?", (self.SCOPE, key))
+        except sqlite3.OperationalError:
+            pass
 
     def locked_for(self, keys: list[str], conn: sqlite3.Connection | None = None, now: float | None = None) -> float:
         now = time.time() if now is None else now
@@ -296,12 +332,14 @@ class Lockout:
         newly: dict[str, float] = {}
         with self._lock:
             for k in keys:
+                self._load(conn, k, now)
                 recent = [t for t in self._fails.get(k, []) if now - t < self.window_s] + [now]
                 self._fails[k] = recent
                 if len(recent) >= self.limit:
                     self._until[k] = now + self.lock_s
                     self._fails[k] = []
                     newly[k] = self._until[k]
+                self._persist(conn, k, self._fails[k])
         if conn is not None and newly:
             try:
                 for k, u in newly.items():
@@ -315,8 +353,10 @@ class Lockout:
         confirmed), with the lock it may have set."""
         with self._lock:
             for k in keys:
+                self._load(conn, k, ts)
                 if ts in self._fails.get(k, []):
                     self._fails[k].remove(ts)
+                    self._persist(conn, k, self._fails[k])
                 if abs(self._until.get(k, 0.0) - (ts + self.lock_s)) < 1e-6:
                     self._until.pop(k, None)
                     if conn is not None:
@@ -325,13 +365,33 @@ class Lockout:
                         except sqlite3.OperationalError:
                             pass
 
-    def succeed(self, user_key: str) -> None:
+    def succeed(self, user_key: str, conn: sqlite3.Connection | None = None) -> None:
         with self._lock:
             self._fails.pop(user_key, None)
+            if conn is not None:
+                self._loaded.add(user_key)
+                self._persist(conn, user_key, [])
 
     def reset(self) -> None:
+        """Forget the memory (tests: a restart); the stored rows stay."""
         with self._lock:
             self._fails.clear()
             self._until.clear()
+            self._loaded.clear()
+
+
+def janitor(db: Any) -> int:
+    """main.janitor_tick: counter rows past their window. A read first, so a quiet installation never takes the write lock."""
+    now = time.time()
+    with db.connection(mode="read", label="alarm_codes.janitor_read") as conn:
+        try:
+            due = conn.execute("SELECT 1 FROM block_counters WHERE scope = ? AND expires_at <= ? LIMIT 1", (Lockout.SCOPE, now)).fetchone()
+        except sqlite3.OperationalError:
+            return 0
+    if due is None:
+        return 0
+    with db.connection(label="alarm_codes.janitor") as conn:
+        return conn.execute("DELETE FROM block_counters WHERE scope = ? AND expires_at <= ?", (Lockout.SCOPE, now)).rowcount
+
 
 LOCKOUT = Lockout()

@@ -35,6 +35,7 @@ import hashlib
 import json
 import logging
 import secrets
+import sqlite3
 import ssl
 import threading
 import time
@@ -599,13 +600,21 @@ def was_rejected(token: str) -> bool:
 # ---------------------------------------------------------------- rate limits
 
 class RateLimiter:
-    def __init__(self) -> None:
+    """Sliding-window hit counter per key. Review L4 (SEC3): the counters are written behind to `block_counters` (scope `signin`)
+    by `flush` (the janitor, every 30 s, and the shutdown) and read back by `restore` at start, so a restart does not hand an
+    attacker a fresh budget. The hot path stays in memory: `hit` never touches the database."""
+
+    SCOPE = "signin"
+
+    def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self._lock = threading.Lock()
         self._hits: dict[str, collections.deque] = {}
+        self._dirty: set[str] = set()
+        self._clock = clock
 
     def hit(self, key: str, limits: list[tuple[float, int]]) -> bool:
         """Record one attempt; False when any window is already full (the attempt is then not counted)."""
-        now = time.time()
+        now = self._clock()
         longest = max(w for w, _ in limits)
         with self._lock:
             q = self._hits.setdefault(key, collections.deque())
@@ -615,14 +624,80 @@ class RateLimiter:
                 if sum(1 for t in q if now - t <= window) >= cap:
                     return False
             q.append(now)
+            self._dirty.add(key)
             if len(self._hits) > 20000:
                 for k in [k for k, v in self._hits.items() if not v or now - v[-1] > longest]:
                     self._hits.pop(k, None)
+                    self._dirty.discard(k)
             return True
 
     def clear(self) -> None:
         with self._lock:
             self._hits.clear()
+            self._dirty.clear()
+
+    def flush(self, conn: sqlite3.Connection) -> int:
+        """Write the keys that changed since the last flush; returns the number written. The row lives until the longest window
+        after the newest hit (WINDOW_MAX); an emptied key deletes its row."""
+        with self._lock:
+            batch = {k: list(self._hits.get(k, ())) for k in self._dirty}
+            self._dirty.clear()
+        if not batch:
+            return 0
+        horizon = max(w for w, _ in IP_LIMITS + USER_LIMITS)
+        try:
+            for k, hits in batch.items():
+                if hits:
+                    conn.execute(
+                        "INSERT INTO block_counters(scope, key, hits_json, expires_at) VALUES (?,?,?,?) "
+                        "ON CONFLICT(scope, key) DO UPDATE SET hits_json = excluded.hits_json, expires_at = excluded.expires_at",
+                        (self.SCOPE, k, json.dumps(hits), hits[-1] + horizon))
+                else:
+                    conn.execute("DELETE FROM block_counters WHERE scope = ? AND key = ?", (self.SCOPE, k))
+        except sqlite3.OperationalError:  # an older schema: memory only, as before
+            return 0
+        return len(batch)
+
+    def restore(self, conn: sqlite3.Connection) -> int:
+        """Load the counters a previous process left (rows not yet expired); returns the number of keys. Called once at start."""
+        now = self._clock()
+        try:
+            rows = conn.execute("SELECT key, hits_json FROM block_counters WHERE scope = ? AND expires_at > ?", (self.SCOPE, now)).fetchall()
+        except sqlite3.OperationalError:
+            return 0
+        n = 0
+        with self._lock:
+            for r in rows:
+                try:
+                    stored = sorted(float(x) for x in json.loads(r["hits_json"] or "[]") if float(x) <= now)
+                except (ValueError, TypeError):
+                    continue
+                if not stored:
+                    continue
+                q = self._hits.setdefault(r["key"], collections.deque())
+                merged = sorted([*q, *stored])
+                q.clear()
+                q.extend(merged)
+                n += 1
+        return n
+
+
+def flush_limiter(db: Any) -> int:
+    """main.janitor_tick and the shutdown: write the changed counters, then drop rows that expired. No write lock when nothing changed."""
+    if not LIMITER._dirty:  # noqa: SLF001 - a racy peek is fine; a miss is flushed by the next tick
+        return 0
+    with db.connection(label="rate_limiter.flush") as conn:
+        n = LIMITER.flush(conn)
+        try:
+            conn.execute("DELETE FROM block_counters WHERE expires_at <= ?", (LIMITER._clock(),))  # noqa: SLF001
+        except sqlite3.OperationalError:
+            pass
+        return n
+
+
+def restore_limiter(db: Any) -> int:
+    with db.connection(mode="read", label="rate_limiter.restore") as conn:
+        return LIMITER.restore(conn)
 
 
 LIMITER = RateLimiter()
