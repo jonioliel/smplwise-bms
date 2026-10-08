@@ -278,6 +278,7 @@ class Lockout:
         self._fails: dict[str, list[float]] = {}
         self._until: dict[str, float] = {}  # wall clock (time.time)
         self._loaded: set[str] = set()  # keys whose stored window was read into _fails
+        self._ignore_stored = False  # reset(): a wipe, so windows stored before it no longer count
 
     def _stored(self, conn: sqlite3.Connection | None, keys: list[str]) -> dict[str, float]:
         if conn is None or not keys:
@@ -293,6 +294,8 @@ class Lockout:
         if conn is None or key in self._loaded:
             return
         self._loaded.add(key)
+        if self._ignore_stored:
+            return
         try:
             r = conn.execute("SELECT hits_json FROM block_counters WHERE scope = ? AND key = ? AND expires_at > ?", (self.SCOPE, key, now)).fetchone()
         except sqlite3.OperationalError:
@@ -373,11 +376,12 @@ class Lockout:
                 self._persist(conn, user_key, [])
 
     def reset(self) -> None:
-        """Forget the memory (tests: a restart); the stored rows stay."""
+        """Wipe the counters (tests): windows stored before this call are ignored from now on. A restart is a new Lockout()."""
         with self._lock:
             self._fails.clear()
             self._until.clear()
             self._loaded.clear()
+            self._ignore_stored = True
 
 
 def janitor(db: Any) -> int:
