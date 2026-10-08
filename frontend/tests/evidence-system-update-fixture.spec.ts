@@ -88,10 +88,10 @@ test('the real state: the running version, a check against the fake store, the a
   await expect(root(page).locator('[data-update-status="current"]')).toBeVisible({ timeout: 20_000 });
   await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
   await expect(card(page).locator('[data-restart-platform]')).toBeVisible();
-  await control('/fixture/set', { latest: '0.1.157', store_stale: false });
+  await control('/fixture/set', { latest: '99.0.0', store_stale: false });
   await root(page).locator('[data-update-check]').click();
   await expect(root(page).locator('[data-update-status="available"]')).toBeVisible({ timeout: 20_000 });
-  await expect(root(page).locator('[data-update-latest]')).toHaveText('0.1.157');
+  await expect(root(page).locator('[data-update-latest]')).toHaveText('99.0.0');
   await expect(root(page).locator('[data-update-apply]')).toBeVisible();
   await control('/fixture/set', { latest: String(info.version) });
 });
@@ -130,7 +130,7 @@ test('platform restart with an invalid configuration: no restart, the failure is
 
 test('the update, end to end: backup, job, the new process, the health check, the page reloads and shows the result', async ({ page }) => {
   const info = await control('/fixture/log');
-  await control('/fixture/set', { latest: '0.1.157', installed: String(info.version), update_job: true, job_done: false, job_backup_done: false, store_stale: false });
+  await control('/fixture/set', { latest: '99.0.0', installed: String(info.version), update_job: true, job_done: false, job_backup_done: false, store_stale: false });
   await openPage(page);
   await root(page).locator('[data-update-check]').click();
   await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 20_000 });
@@ -145,13 +145,13 @@ test('the update, end to end: backup, job, the new process, the health check, th
   await expect(run(page).locator('[data-run-step="restart"]')).toHaveAttribute('data-run-step-state', 'current', { timeout: 20_000 });
   let loads = 0;
   page.on('load', () => (loads += 1));
-  const started = await control('/fixture/new-process', { version: '0.1.157' });
+  const started = await control('/fixture/new-process', { version: '99.0.0' });
   expect(started.outcome).toBe('verifying');
   await expect.poll(() => loads, { timeout: 60_000 }).toBe(1); // the page loads the new bundle once
   await expect(run(page).locator('[data-run-state="succeeded"]')).toBeVisible({ timeout: 30_000 });
-  await expect(run(page).locator('[data-run-outcome]')).toContainText('המערכת עודכנה לגרסה 0.1.157');
+  await expect(run(page).locator('[data-run-outcome]')).toContainText('המערכת עודכנה לגרסה 99.0.0');
   await run(page).locator('[data-run-continue]').click();
-  await expect(root(page).locator('[data-update-installed]')).toHaveText('0.1.157');
+  await expect(root(page).locator('[data-update-installed]')).toHaveText('99.0.0');
   await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
   const log = (await control('/fixture/log')).log as [string, string][];
   expect(log.filter(([m, p]) => m === 'POST' && /^\/store\/addons\/[^/]+\/update$/.test(p)).length).toBe(1);

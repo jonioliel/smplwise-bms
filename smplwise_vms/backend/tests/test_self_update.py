@@ -20,7 +20,7 @@ from smplwise.routers.access import PERMISSION_LABELS, SYSTEM_PERMISSIONS  # noq
 from smplwise.services import notify_sources, self_update  # noqa: E402
 
 API = "/api/v1/system/update"
-NEWER = "0.1.999"
+NEWER = "99.0.0"  # above any real release: the downgrade guard (S4) offers only a strictly higher version
 
 
 @pytest.fixture()

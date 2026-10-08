@@ -257,7 +257,22 @@ def parse_info(data: dict[str, Any]) -> Info | None:
         return None
     if not VERSION_RE.fullmatch(installed):
         installed = __version__
-    return Info(installed, latest, bool(data.get("update_available")) and latest != installed)
+    return Info(installed, latest, bool(data.get("update_available")) and is_newer(latest, installed))
+
+
+RELEASE_RE = re.compile(r"(\d{1,6}(?:\.\d{1,6}){0,5})")
+
+
+def is_newer(latest: str, installed: str) -> bool:
+    """CR-021 S4 downgrade guard: only a STRICTLY higher release (the leading dotted numbers, compared as numbers) counts as an
+    update, whatever the infrastructure's own flag says. A store that offers an older or equal version (a rolled-back or tampered
+    repository) is never offered or installed. Fail closed: a version without a leading number is not newer."""
+    a, b = RELEASE_RE.match(latest or ""), RELEASE_RE.match(installed or "")
+    if a is None or b is None:
+        return False
+    x, y = [int(p) for p in a.group(1).split(".")], [int(p) for p in b.group(1).split(".")]
+    n = max(len(x), len(y))
+    return x + [0] * (n - len(x)) > y + [0] * (n - len(y))
 
 
 # ---------------------------------------------------------------- the check
