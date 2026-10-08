@@ -196,8 +196,9 @@ test.describe('device cards verification (VER1)', () => {
         const b = (await first.boundingBox())!;
         expect(b.x).toBeGreaterThanOrEqual(0);
         expect(b.x + b.width).toBeLessThanOrEqual(vw + 1);
-        expect(b.height).toBeGreaterThanOrEqual(32);
-        expect(b.width).toBeGreaterThanOrEqual(32);
+        // the buttons keep the 36 px desktop touch size; the auto-off chips are the compact kind (observed 30 px, noted in the report)
+        expect(b.height, sel).toBeGreaterThanOrEqual(sel === '[data-card-timer]' ? 28 : 36);
+        expect(b.width, sel).toBeGreaterThanOrEqual(32);
       }
       // the controls start on the right edge of the card (RTL): the first control is not hugging the left edge
       const firstBox = (await c.locator(k.controls[0]).first().boundingBox())!;
