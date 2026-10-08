@@ -39,6 +39,15 @@ AUTOMATION_KEYS = {"id", "alias", "description", "triggers", "trigger", "conditi
 SCRIPT_KEYS = {"alias", "description", "icon", "mode", "max", "max_exceeded", "fields", "sequence", "variables", "trace", "note", "metadata"}
 SCENE_KEYS = {"id", "name", "icon", "entities", "metadata"}
 CONFIG_PATH = re.compile(r"^/api/config/(automation|script|scene)/config/([^/]+)$")
+# HA 2026.10 (core#174083, homeassistant/helpers/config_validation.py): a state condition with `for` refuses an attribute, a list of
+# states other than a one-item list, and a state that names an input helper. This is HA's own pattern for the last one.
+INPUT_HELPER_STATE = re.compile(r"^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$")
+
+
+def version_tuple(text: str) -> tuple[int, int]:
+    """"2026.10.1" -> (2026, 10); anything unreadable counts as the newest profile."""
+    m = re.match(r"^(\d{4})\.(\d{1,2})", str(text or ""))
+    return (int(m.group(1)), int(m.group(2))) if m else (9999, 0)
 
 
 class FakeInvalid(Exception):
@@ -63,7 +72,7 @@ class FakeHaConfig:
     def __init__(self, installed: bool = True, config_api: bool = True, include_loaded: bool = True, now: Callable[[], dt.datetime] | None = None,
                  ha_version: str = "2026.9.4", reload_drops_dynamic_scenes: bool = True) -> None:
         self.installed, self.config_api, self.include_loaded = installed, config_api, include_loaded
-        self.ha_version = ha_version
+        self.ha_version = ha_version  # also the validation profile: 2026.9 (probatio wording), 2026.10 (+ the `for` rule of core#174083)
         self.reload_drops_dynamic_scenes = reload_drops_dynamic_scenes
         self._clock = now
         self._t = dt.datetime(2026, 10, 1, 15, 46, 0, tzinfo=UTC)
@@ -87,6 +96,10 @@ class FakeHaConfig:
         self.hold_script_runs = False  # True: a started script stays `current: 1` until `finish_script_runs()`
         self.floors = dict(seed.FLOORS)
         self.areas = dict(seed.AREAS)
+
+    @property
+    def version(self) -> tuple[int, int]:
+        return version_tuple(self.ha_version)
 
     # ------------------------------------------------------------------ clock and small helpers
 
@@ -297,6 +310,10 @@ class FakeHaConfig:
         keys = AUTOMATION_KEYS if kind == "automation" else SCRIPT_KEYS if kind == "script" else SCENE_KEYS
         for k in body:
             if k not in keys:
+                # HA validates with probatio since 2026.9 (`f"{message} at '{path}'"`, "not a valid option" for an undeclared key - the
+                # same wording fake_ha_core.py records for the login flow); voluptuous said "extra keys not allowed @ data[...]" before
+                if self.version >= (2026, 9):
+                    raise FakeInvalid(f"not a valid option at '{k}'")
                 raise FakeInvalid(f"extra keys not allowed @ data['{k}']")
         if kind == "scene":
             if not isinstance(body.get("name"), str) or not body["name"]:
@@ -337,8 +354,22 @@ class FakeHaConfig:
             return
         if not isinstance(c, dict) or c.get("condition") not in CONDITION_TYPES and "." not in str(c.get("condition")):
             raise FakeInvalid(f"Invalid condition \"{c.get('condition') if isinstance(c, dict) else c}\" specified @ data['{path}']")
+        self._check_state_for(c, path)
         for i, k in enumerate(_as_list(c.get("conditions"))):
             self._check_condition(k, f"{path}.conditions[{i}]")
+
+    def _check_state_for(self, c: dict[str, Any], path: str) -> None:
+        """HA 2026.10 (core#174083), only on the 2026.10 profile."""
+        if self.version >= (2026, 10) and c.get("condition") == "state" and c.get("for") is not None:
+            state = c.get("state")
+            one = state[0] if isinstance(state, list) and len(state) == 1 else state
+            # the rule is core#174083's; the exact sentence is NOT verified against HA (only its probatio "<message> at '<path>'" shape)
+            if "attribute" in c:
+                raise FakeInvalid(f"'for' cannot be combined with 'attribute' at '{path}'")
+            if isinstance(state, list) and len(state) != 1:
+                raise FakeInvalid(f"'for' cannot be combined with a list of states at '{path}'")
+            if isinstance(one, str) and INPUT_HELPER_STATE.match(one):
+                raise FakeInvalid(f"'for' cannot be combined with a state from an input helper at '{path}'")
 
     def _check_steps(self, steps: Any, path: str) -> None:
         for i, s in enumerate(_as_list(steps)):
@@ -349,6 +380,8 @@ class FakeHaConfig:
                 raise FakeInvalid(f"expected a dictionary @ data['{p}']")
             if not any(k in s for k in STEP_KEYS):
                 raise FakeInvalid(f"Unable to determine action @ data['{p}']")
+            if "condition" in s:  # a condition step: only the 2026.10 `for` rule (its type check stays as before)
+                self._check_state_for(s, p)
             for k in ("action", "service"):
                 if k in s and (not isinstance(s[k], str) or ("." not in s[k] and "{{" not in s[k])):
                     raise FakeInvalid(f"Service {s[k]} does not match format <domain>.<name> @ data['{p}']")
