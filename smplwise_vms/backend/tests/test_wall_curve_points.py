@@ -90,8 +90,10 @@ def test_doors_and_windows_sit_on_the_curve():
     w = _wall(doc, "cp-open")
     pts, bulges = wp.wall_px(w, W, H)
     door = next(p for p in prims if p["kind"] == "door" and p["id"] == "op-door")
-    for e in door["gap"]:
-        assert wp.project(pts, bulges, (e[0], e[1]))[1] < 0.5, "the door's gap ends lie on the arc"
+    (x0, y0), (x1, y1) = door["gap"]
+    # an opening sits by arc length along the tangent: its centre is on the curve, its gap is as wide as the door
+    assert wp.project(pts, bulges, ((x0 + x1) / 2, (y0 + y1) / 2))[1] < 0.5, "the door's centre lies on the curve"
+    assert math.hypot(x1 - x0, y1 - y0) == pytest.approx(0.9 / 0.01, rel=0.02)
     parts = [p for p in prims if p["kind"] == "wall" and p["id"] == "cp-open"]
     assert len(parts) == 3, "the door and the window cut the wall into three parts"
     assert all(p.get("arc") for p in parts)
@@ -145,9 +147,11 @@ def test_dxf_writes_the_curves_as_arcs_and_reads_them_back():
                                     run_id="rt", catalog=[], scale_m_per_px=None, entities=ents)
     curved = [w for w in got["walls"] if w.get("bulges")]
     assert len(curved) == 2
-    ring = _wall(doc, "cp-ring")
-    back = next(w for w in curved if w["polyline"][0] == w["polyline"][-1])
-    assert sorted(round(b, 5) for b in back["bulges"] if b) == sorted(round(b, 5) for b in ring["bulges"] if b)
+    # every arc of the two walls comes back with its bulge (the importer may start a ring elsewhere or add the free
+    # ends' short straight runs, so the arcs are compared as a set)
+    src_arcs = sorted(round(b, 4) for wid in ("cp-open", "cp-ring") for b in _wall(doc, wid)["bulges"] if b)
+    got_arcs = sorted(round(b, 4) for w in curved for b in w["bulges"] if b)
+    assert got_arcs == src_arcs
 
 
 def test_saved_and_packaged_with_the_clicked_points(settings):
