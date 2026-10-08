@@ -364,7 +364,7 @@ def gate_code(conn: sqlite3.Connection, principal: Principal, plan: dict[str, st
                 notify_sources.code_lockout(conn, uid)
             audit_wrong(locked)
             raise ApiError(403, "wrong_code", "קוד שגוי.", details={"locked_s": int(locked)} if locked else {})
-        codes.LOCKOUT.succeed(keys[0])
+        codes.LOCKOUT.succeed(keys[0], conn)
     if plan["send"] == "typed":
         if not svc.valid_code(typed, panel.get("code_format")):
             raise refuse(ApiError(422, "wrong_code", "קוד שגוי."))
@@ -638,7 +638,7 @@ def _verify_current_pin(act: "_Act", conn: sqlite3.Connection, user_id: str, cur
     if not isinstance(current, str) or not codes.verify_pin(current, codes.pin_hash_of(conn, user_id)):
         codes.LOCKOUT.fail(key, conn)
         raise act.refuse(ApiError(403, "wrong_code", "הקוד הנוכחי שגוי."))
-    codes.LOCKOUT.succeed(key[0])
+    codes.LOCKOUT.succeed(key[0], conn)
 
 
 @router.put("/alarm/me/pin")
@@ -676,7 +676,7 @@ def set_my_pin(request: Request, principal: Principal = Depends(_alarm_actor_ro)
         if match is None:
             codes.LOCKOUT.fail(keys, conn)
             raise act.refuse(ApiError(403, "wrong_code", "קוד הלוח שגוי. אפשר גם לפנות למנהל המערכת לקבלת קוד אישי."))
-        codes.LOCKOUT.succeed(keys[0])
+        codes.LOCKOUT.succeed(keys[0], conn)
         how = "first_by_panel_code"
     pol = codes.set_pin(conn, principal.user_id, pin, principal.username)
     act.audit("allowed", None, pin=how)
