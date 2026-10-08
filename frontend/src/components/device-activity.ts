@@ -344,8 +344,8 @@ export class DeviceActivity extends LitElement {
     if (card === 'vacuum') return this.renderVacuumActions(row, state);
     const pa = powerActions(card, row.entity_id);
     if (!pa) return nothing;
-    const on = isOnState(card, state);
-    const pending = this.ctl.rowPending(row.entity_id);
+    const on = isOnState(card, this.ctl.live<string>(row.entity_id, 'power') ?? state); // LAT1: the buttons follow the tap at once
+    const pending = this.ctl.rowPendingVisible(row.entity_id);
     const autoOff = findAutoOff(this.sched, row.entity_id, pa.schedulableOff);
     const minutes = card === 'water_heater' ? BOOST_MINUTES : AUTO_CLOSE_MINUTES;
     // the time-boxed run: a heater offers it off (turn on + auto-off) and on (auto-off only); a tap only while open (auto-close) - opening
@@ -377,7 +377,7 @@ export class DeviceActivity extends LitElement {
   }
 
   private renderVacuumActions(row: EntityRow, state: string | null) {
-    const pending = this.ctl.rowPending(row.entity_id);
+    const pending = this.ctl.rowPendingVisible(row.entity_id);
     const cleaning = state === 'cleaning';
     const away = state === 'cleaning' || state === 'paused' || state === 'returning' || state === 'idle' || state === 'error';
     return html`<div class="acts" data-card-actions>
@@ -393,7 +393,7 @@ export class DeviceActivity extends LitElement {
   private renderHold(row: EntityRow, act: CardAction) {
     const key = `${row.entity_id}:power`;
     const armed = this.ctl.isArmed(key);
-    const pending = this.ctl.rowPending(row.entity_id);
+    const pending = this.ctl.rowPendingVisible(row.entity_id);
     const fire = () => this.send(row, act, 'power');
     return html`<button type="button" class="hbtn ${this.holding ? 'holding' : ''} ${armed ? 'armed' : ''}" data-card-hold ?disabled=${pending} aria-label=${t('deviceCard.holdToOpen')}
         style=${`--hold:${HOLD_MS}ms`}
@@ -437,7 +437,7 @@ export class DeviceActivity extends LitElement {
   private send(row: EntityRow, act: CardAction, control: 'power' | 'vacuum') {
     const key = `${row.entity_id}:${control}`;
     if (this.ctl.commands[key]?.phase === 'pending') return;
-    void runCommand(key, domainOf(row.entity_id), row.entity_id, act.action, {}, act.expect, (s) => this.ctl.setCmd(key, s), { confirmed: act.confirm, label: t(act.label) });
+    void runCommand(key, domainOf(row.entity_id), row.entity_id, act.action, {}, act.expect, (s) => this.ctl.setCmd(key, s), { confirmed: act.confirm, label: t(act.label), reached: (e) => e.state === act.expect });
   }
 
   /** The time-boxed run: turn it on now, and ask the scheduler for a one-off "off" `minutes` from now (the schedule shows in the tab too). */

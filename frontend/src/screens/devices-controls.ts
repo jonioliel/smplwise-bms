@@ -3,7 +3,7 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import { ALARM_HE, climateRange, HVAC_HE, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
-import { debouncedCommand, runCommand, supersede, type CommandState } from '../api/device-commands';
+import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
 
 /**
@@ -179,7 +179,9 @@ export class DeviceControls implements ReactiveController {
     host.addController(this);
   }
 
-  hostConnected() {}
+  hostConnected() {
+    warmCommandChannel(); // LAT1: the push a toggle confirms on is already flowing at the first tap
+  }
 
   private changed() {
     this.host.requestUpdate();
@@ -188,6 +190,8 @@ export class DeviceControls implements ReactiveController {
   setCmd = (key: string, s: CommandState<unknown>) => {
     this.commands = { ...this.commands, [key]: s };
     this.changed();
+    // LAT1: a command still pending at PENDING_VISIBLE_MS is shown as such (the line, the dimmed row) - one more render then
+    if (s.phase === 'pending') window.setTimeout(() => this.commands[key] === s && this.changed(), Math.max(0, (s.since ?? Date.now()) + PENDING_VISIBLE_MS - Date.now()) + 10);
     if (s.phase !== 'pending') this.onSettle?.();
     if (s.phase === 'confirmed' || s.phase === 'sent') window.setTimeout(() => this.clearCmd(key, s), 2500);
     else if (s.phase === 'rolled_back') window.setTimeout(() => this.clearCmd(key, s), 4000);
@@ -214,6 +218,27 @@ export class DeviceControls implements ReactiveController {
     return this.entityCommands(entityId).some((v) => v.phase === 'pending');
   }
 
+  /** LAT1: pending long enough to SHOW it (a slow device): the dimmed row, the "awaiting confirmation" line. An instant
+   * switch confirms before PENDING_VISIBLE_MS and never flashes them. rowPending stays the guard of the controls. */
+  rowPendingVisible(entityId: string): boolean {
+    return this.entityCommands(entityId).some((v) => pendingVisible(v));
+  }
+
+  /** LAT1: whether the row shows "on" - the target of its power command while that is pending or just confirmed (the
+   * tile's colour and state word follow the tap at once; a rollback restores what Home Assistant reported). */
+  shownActive(r: Pick<DeviceRow, 'entity_id' | 'active'>): boolean {
+    return this.live<boolean>(r.entity_id, 'power') ?? r.active;
+  }
+
+  /** LAT1: the row as the screen shows it - with the target of its power command while that is pending or just confirmed
+   * (state word, colour, `active`), the reported row otherwise. A rollback restores the reported row by itself. */
+  shownRow<T extends { entity_id: string; active: boolean; state: string | null; domain: string; brightness_pct?: number | null }>(r: T): T {
+    const target = this.live<boolean>(r.entity_id, 'power');
+    if (target === undefined || target === r.active || r.state === 'unavailable') return r;
+    const state = target ? 'on' : r.domain === 'media_player' ? 'off' : 'off';
+    return { ...r, active: target, state, brightness_pct: target ? (r.brightness_pct ?? null) : null };
+  }
+
   /** The value a control shows: the target while its command is pending (or just confirmed, until the refetch lands),
    * otherwise the real one. Only controls read this - the row's own text always shows what HA last reported. */
   live<T>(entityId: string, control: string): T | undefined {
@@ -226,7 +251,7 @@ export class DeviceControls implements ReactiveController {
   renderCmdStatus(entityId: string) {
     const all = this.entityCommands(entityId);
     const pick = (p: CommandState<unknown>['phase']) => all.find((c) => c.phase === p);
-    const pending = pick('pending');
+    const pending = all.find((c) => pendingVisible(c));
     if (pending) return html`<div class="cmd-status pending" data-cmd-status="pending" role="status"><span class="dot"></span>ממתין לאישור${pending.label ? ` · ${pending.label}` : ''}</div>`;
     const rolled = pick('rolled_back');
     if (rolled) return html`<div class="rollback-note" data-rollback data-cmd-status="rolled_back" role="status">${rolled.label ? `${rolled.label}: ` : ''}${rolled.note}</div>`;
@@ -279,16 +304,13 @@ export class DeviceControls implements ReactiveController {
 
   renderPowerToggle(r: DeviceRow) {
     const key = `${r.entity_id}:power`;
-    const pending = this.commands[key]?.phase === 'pending';
-    const domain = ['light', 'input_boolean', 'media_player', 'fan'].includes(r.domain) ? r.domain : 'switch';
-    const checked = this.live<boolean>(r.entity_id, 'power') ?? r.active;
+    const checked = this.shownActive(r);
     const change = (ev: Event) => {
       ev.stopPropagation();
-      if (pending) return;
-      const next = !checked;
-      void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי' });
+      // LAT1: never disabled while pending - a second tap is a new command that supersedes the first (last value wins)
+      this.power(r, (ev as CustomEvent<{ checked: boolean }>).detail?.checked ?? !checked);
     };
-    return html`<sw-toggle data-control="power" .checked=${checked} ?disabled=${pending} label=${bidi(r.name)} labelHidden @click=${(e: Event) => e.stopPropagation()} @change=${change}></sw-toggle>`;
+    return html`<sw-toggle data-control="power" .checked=${checked} ?data-pending=${this.rowPendingVisible(r.entity_id)} label=${bidi(r.name)} labelHidden @click=${(e: Event) => e.stopPropagation()} @change=${change}></sw-toggle>`;
   }
 
   renderBrightnessSlider(r: DeviceRow) {
@@ -578,7 +600,7 @@ export class DeviceControls implements ReactiveController {
   /** A short status for a pill's state line: pending / rolled back (with the reason); null when nothing is in flight. */
   pillStatus(entityId: string): { text: string; tone: 'pending' | 'bad' | 'ok' } | null {
     const all = this.entityCommands(entityId);
-    const pending = all.find((c) => c.phase === 'pending');
+    const pending = all.find((c) => pendingVisible(c));
     if (pending) return { text: `ממתין לאישור${pending.label ? ` · ${pending.label}` : ''}`, tone: 'pending' };
     const rolled = all.find((c) => c.phase === 'rolled_back');
     if (rolled) return { text: rolled.note ?? 'לא בוצע', tone: 'bad' };
@@ -589,9 +611,11 @@ export class DeviceControls implements ReactiveController {
 
   power(r: DeviceRow, next: boolean) {
     const key = `${r.entity_id}:power`;
-    if (this.commands[key]?.phase === 'pending') return;
+    const cur = this.commands[key];
+    if (cur?.phase === 'pending' && cur.optimistic === next) return; // the same target already on its way: one command per intent
     const domain = ['light', 'input_boolean', 'media_player', 'fan'].includes(r.domain) ? r.domain : 'switch';
-    void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי' });
+    // LAT1: confirmed by the entity's own push the moment it shows the new state (api/device-commands.ts)
+    void runCommand(key, r.domain, r.entity_id, `${domain}.${next ? 'turn_on' : 'turn_off'}`, {}, next, (s) => this.setCmd(key, s), { label: next ? 'הדלקה' : 'כיבוי', reached: powerReached(r.domain, next) });
   }
 
   /** A light's brightness in percent (1..100 turns it on; 0 turns it off). */

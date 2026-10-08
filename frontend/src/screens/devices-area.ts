@@ -1447,7 +1447,9 @@ export class DevicesArea extends LitElement {
   private renderTile(raw: DeviceRow, card: CardId) {
     if (this.skin.bubble) return renderBubblePill(this.bubbleHost, raw, card);
     const controllable = raw.can_control && raw.available && raw.state !== 'unavailable' && (card === 'lighting' || card === 'switches') && !EQUIPMENT_DOMAINS.has(raw.domain);
-    const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
+    // LAT1 (owner 2026-10-08): the tile follows the tap at once - its colour and state word show the power target while the
+    // command is pending or just confirmed; `data-reported` keeps what Home Assistant last reported, a rollback restores it
+    const r = controllable ? this.ctl.shownRow(raw) : raw;
     const unavailable = !r.available || r.state === 'unavailable';
     const icon: IconName = card === 'lighting' ? 'light' : card === 'switches' ? 'bolt' : 'sensor';
     const value =
@@ -1459,7 +1461,7 @@ export class DevicesArea extends LitElement {
           : rowLabel(r)
         : rowLabel(r);
     const on = r.active && !unavailable;
-    return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.ctl.rowPending(r.entity_id) })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} ?data-can-control=${controllable} title=${r.entity_id}>
+    return html`<div class=${classMap({ tile: true, on, off: !on && !unavailable, unavailable, pending: controllable && this.ctl.rowPendingVisible(r.entity_id) })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(on)} data-reported=${String(raw.active && !unavailable)} ?data-can-control=${controllable} title=${r.entity_id}>
       <div class="t"><sw-icon .name=${icon} size=${15}></sw-icon><span>${bidi(r.name)}</span>${controllable ? this.ctl.renderPowerToggle(r) : nothing}</div>
       <div class="s">${unavailable ? 'לא זמין' : value}</div>
       ${card === 'sensors' && r.last_changed ? html`<div class="lc" data-last-changed>${fmtTime(r.last_changed)}</div>` : nothing}
@@ -1593,7 +1595,7 @@ export class DevicesArea extends LitElement {
     const r = raw; // the row's text is always what HA last reported; only the controls show a pending target
     const unavailable = !r.available || r.state === 'unavailable';
     const on = r.active && !unavailable;
-    const pendingCls = controllable && this.ctl.rowPending(r.entity_id);
+    const pendingCls = controllable && this.ctl.rowPendingVisible(r.entity_id);
     if (card === 'climate' || card === 'heating') {
       const isClimate = r.domain === 'climate';
       return html`<div class=${classMap({ row: true, on, unavailable, pending: pendingCls })} data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, rowLabel(r)))} data-active=${String(r.active)} ?data-can-control=${controllable} title=${r.entity_id}>

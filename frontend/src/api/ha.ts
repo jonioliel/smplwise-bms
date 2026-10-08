@@ -182,16 +182,75 @@ export function runAction(entityId: string, actionId: string, args: Record<strin
   return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
 }
 
-/** Poll a pending action until Home Assistant confirms (or the add-on gives up after ~20 s). */
-export async function awaitAction(id: string, onUpdate: (a: HaActionRecord) => void, signal?: { stopped: boolean }): Promise<HaActionRecord> {
+/** Poll a pending action until Home Assistant confirms (or the add-on gives up after ~20 s). LAT1: the next poll does not
+ * wait out the interval when the entity's own state push arrives first - the add-on stores the state before it pushes it,
+ * so the poll that the push wakes reads the confirmation (before LAT1 a map card stayed busy for up to 1.5 s more). */
+export async function awaitAction(id: string, onUpdate: (a: HaActionRecord) => void, signal?: { stopped: boolean }, entityId?: string): Promise<HaActionRecord> {
+  const since = performance.now();
   let a = await getAction(id);
   onUpdate(a);
   for (let i = 0; i < 16 && a.status === 'pending' && !signal?.stopped; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
+    if (entityId) await waitEntityPush(entityId, 1500, since);
+    else await new Promise((r) => setTimeout(r, 1500));
     a = await getAction(id);
     onUpdate(a);
   }
   return a;
+}
+
+// ---------------------------------------------------------------- LAT1: entity pushes for command confirmation
+// Every open /ha/ws socket of any screen also feeds these listeners, so a command learns of its entity's new state the
+// moment the push lands - no polling interval in between, and no extra socket while a screen already has one open.
+
+type EntityPushListener = (e: HaEntity, at: number) => void;
+const entityPushListeners = new Set<EntityPushListener>();
+/** performance.now() of the last push per entity (a push that landed before a waiter started is not missed). */
+const lastEntityPush = new Map<string, number>();
+let liveSockets = 0;
+
+/** Listen to every entity_state_changed push any open socket receives; returns a stop function. */
+export function onEntityPush(fn: EntityPushListener): () => void {
+  entityPushListeners.add(fn);
+  return () => entityPushListeners.delete(fn);
+}
+
+/** True while at least one push socket is connected. */
+export function haPushLive(): boolean {
+  return liveSockets > 0;
+}
+
+function notePush(e: HaEntity): void {
+  const at = performance.now();
+  lastEntityPush.set(e.entity_id, at);
+  for (const fn of Array.from(entityPushListeners)) {
+    try {
+      fn(e, at);
+    } catch {
+      /* a listener's own failure never stops the others */
+    }
+  }
+}
+
+/** Resolves when a push for `entityId` arrives (or already arrived after `since`), or after `ms` - whichever is first. */
+export function waitEntityPush(entityId: string, ms: number, since = performance.now()): Promise<void> {
+  if ((lastEntityPush.get(entityId) ?? -1) >= since) {
+    lastEntityPush.delete(entityId); // consumed: the next wait waits for a newer push
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    let stop: () => void = () => undefined;
+    const timer = window.setTimeout(() => {
+      stop();
+      resolve();
+    }, ms);
+    stop = onEntityPush((e) => {
+      if (e.entity_id !== entityId) return;
+      window.clearTimeout(timer);
+      stop();
+      lastEntityPush.delete(entityId);
+      resolve();
+    });
+  });
 }
 
 /** Why an action ended denied or failed, in words (the code stays in the record for the audit). */
@@ -382,14 +441,23 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
     } catch {
       return;
     }
+    let counted = false;
     ws.onopen = () => {
       delay = 2000;
+      if (!counted) {
+        counted = true;
+        liveSockets++;
+      }
       onSocket?.(true);
     };
     ws.onmessage = (m) => {
       try {
         const env = JSON.parse(m.data as string) as { type: string; payload: Record<string, unknown> };
-        if (env.type === 'entity_state_changed') onMessage({ type: 'entity_state_changed', entity: env.payload.entity as HaEntity });
+        if (env.type === 'entity_state_changed') {
+          // the command listeners first (LAT1): a toggle confirms in the same tick the push lands, before the screen's own refetch
+          notePush(env.payload.entity as HaEntity);
+          onMessage({ type: 'entity_state_changed', entity: env.payload.entity as HaEntity });
+        }
         else if (env.type === 'ha_sync_state') onMessage({ type: 'ha_sync_state', connected: Boolean(env.payload.connected) });
         else if (env.type === 'heartbeat') onMessage({ type: 'heartbeat', sync: env.payload.sync as HaSyncState });
         else if (env.type === 'structure_changed')
@@ -405,6 +473,10 @@ export function subscribeHa(onMessage: (m: HaPush) => void, onSocket?: (connecte
       }
     };
     ws.onclose = (ev) => {
+      if (counted) {
+        counted = false;
+        liveSockets = Math.max(0, liveSockets - 1);
+      }
       onSocket?.(false);
       if (!stopped && ev.code !== 4403 && ev.code !== 4401) {
         window.setTimeout(open, delay);

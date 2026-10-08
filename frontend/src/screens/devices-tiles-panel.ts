@@ -19,6 +19,7 @@ import { bidi, ltrNum } from '../i18n/bidi';
 import { activityTag, ActivityPress } from '../components/device-activity-press';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { DeviceControls, deviceControlStyles, rowLabel } from './devices-controls';
+import { activeOf } from '../api/device-commands';
 import { runCommand, type CommandPhase } from '../api/device-commands';
 
 /** Which rows a segment shows: `active` = the tile's counted state (lit, on, open, running, playing, locked, armed). */
@@ -144,15 +145,8 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** The domain's own "on" - the same rules as the server's (services/devices.py is_active). */
-export function activeOf(domain: string, s: string | null): boolean {
-  if (['light', 'switch', 'input_boolean', 'fan', 'humidifier'].includes(domain)) return s === 'on';
-  if (domain === 'cover') return s === 'open' || s === 'opening';
-  if (domain === 'climate') return !['off', 'unavailable', 'unknown', '', null].includes(s);
-  if (domain === 'media_player') return !['off', 'standby', 'unavailable', 'unknown', '', null].includes(s);
-  if (domain === 'lock') return s === 'locked';
-  return false;
-}
+// The domain's own "on" lives in api/device-commands.ts since LAT1 (a power command confirms from the pushed state with it)
+export { activeOf };
 
 /** A listed row brought up to a pushed entity (review M4): the reported state and the attributes the panel shows. */
 export function patchRow(r: DeviceItem, e: HaEntity): DeviceItem {
@@ -794,7 +788,9 @@ export class DevicesTilesPanel extends LitElement {
     </sw-dialog>`;
   }
 
-  private renderRow(r: DeviceItem) {
+  private renderRow(reported: DeviceItem) {
+    // LAT1: a light / switch row follows the tap at once (the power target while pending or just confirmed); a rollback restores the report
+    const r = this.kind === 'lights' || this.kind === 'switches' ? this.ctl.shownRow(reported) : reported;
     const st = rowState(r);
     const reason = readOnlyReason(r, this.kind, !isApi());
     const controllable = !reason;
@@ -804,7 +800,7 @@ export class DevicesTilesPanel extends LitElement {
     const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
     const dimmable = this.kind === 'lights' && r.color_mode !== 'onoff' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
-    return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPending(r.entity_id) })}
+    return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPendingVisible(r.entity_id) })}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, stateText))} data-state=${st} ?data-can-control=${controllable}>
       <sw-icon .name=${icon} size=${16}></sw-icon>
       <div class="txt">
