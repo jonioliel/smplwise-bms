@@ -122,7 +122,7 @@ test.describe('settings: zones and camera settings', () => {
     // delete
     await panel.locator('[data-zone="porch"]').click();
     await panel.locator('[data-fcp-delete]').click();
-    await expect(panel.locator('[data-fcp-confirm="delete"]')).toBeVisible();
+    await expect(panel.locator('[data-fcp-confirm="delete"]')).toHaveCount(1); // the sw-dialog host has no box of its own
     await confirm(panel, false);
     expect(writes(m, 'config/zones/porch/delete')).toHaveLength(1);
     await expect(panel.locator('[data-zone="porch"]')).toHaveCount(0);
