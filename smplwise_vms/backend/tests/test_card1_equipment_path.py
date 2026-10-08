@@ -22,16 +22,19 @@ from smplwise.services import ha_bridge, ha_client, ha_sync
 CARD1_PAIRS = {("vacuum", "pause"), ("valve", "open_valve"), ("valve", "close_valve"), ("water_heater", "turn_on"), ("water_heater", "turn_off")}
 
 
-def _st(entity_id: str, state: str, **attrs):
-    now = dt.datetime.now(dt.timezone.utc).isoformat()
+OLD = "2026-10-05T07:00:00+00:00"  # the seeded states predate every request: a state confirms an action only when it arrives after it
+
+
+def _st(entity_id: str, state: str, when: str | None = None, **attrs):
+    now = when or dt.datetime.now(dt.timezone.utc).isoformat()
     return {"entity_id": entity_id, "state": state, "attributes": {"friendly_name": entity_id, **attrs}, "last_changed": now, "last_updated": now}
 
 
 STATES = [
-    _st("valve.garden", "closed", current_position=0),
-    _st("vacuum.robo", "cleaning", fan_speed="quiet"),
-    _st("water_heater.boiler", "off", temperature=55),
-    _st("switch.sign", "off"),
+    _st("valve.garden", "closed", OLD, current_position=0),
+    _st("vacuum.robo", "cleaning", OLD, fan_speed="quiet"),
+    _st("water_heater.boiler", "off", OLD, temperature=55),
+    _st("switch.sign", "off", OLD),
 ]
 # (action id, entity, state HA reports once the command worked, needs the confirmation grant)
 CASES = [
