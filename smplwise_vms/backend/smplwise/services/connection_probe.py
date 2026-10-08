@@ -86,6 +86,12 @@ SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
 # the platform's own services, refused on ANY host (review F9): HA core 8123, go2rtc 1984 / 8554 / 8555, the observer 4357,
 # Arx's own port 8099. None of them is an NVR's HTTP port.
 REFUSED_PORTS = frozenset({8123, 1984, 8554, 8555, 4357, 8099})
+# Supervisor 2026.08 and later may place HA core on port 80 (docs/operations/HA_2026_10_COMPATIBILITY_HE.md, finding 12). An
+# NVR legitimately answers on 80, so 80 is refused ONLY when the target is the HA host itself: one of the names the platform
+# is reached by (the core URL of the settings, the host the operator's browser used, `X-Forwarded-Host`) or an address they
+# resolve to. These names can only ADD refusals, never allow anything. The platform's internal names and addresses, and this
+# host itself, stay refused on every port as before.
+HA_HOST_PORTS = frozenset({80})
 OUTCOMES = ("ok", "source_unavailable", "source_forbidden", "source_error", "timeout", "host_refused", "tls_pin_mismatch", "auth_scheme_unsupported",
             "tls_pin_required", "auth_downgrade_refused", "nvr_not_supported")
 
@@ -170,6 +176,53 @@ def valid_port(port: Any) -> bool:
 
 def port_refused(port: Any) -> bool:
     return port in REFUSED_PORTS
+
+
+def _bare_host(value: Any) -> str | None:
+    """The host part of a URL or of a `host[:port]` header value, lower case, without a trailing dot; None when empty."""
+    text = str(value or "").strip().split(",")[0].strip()
+    if not text:
+        return None
+    if "://" in text:
+        text = text.split("://", 1)[1]
+    text = text.split("/", 1)[0].rsplit("@", 1)[-1]
+    if text.startswith("["):
+        text = text[1:].split("]", 1)[0]
+    elif text.count(":") == 1:
+        text = text.split(":", 1)[0]
+    text = text.lower().rstrip(".")
+    return text or None
+
+
+def ha_host_names(settings: Settings, forwarded_host: str | None = None) -> set[str]:
+    """The names the HA host is known by here (finding 12): the host of the core URL of the settings and the host the
+    operator's browser reached the platform at (`X-Forwarded-Host` of the Ingress proxy). Used only to refuse port 80."""
+    out = {h for h in (_bare_host(settings.ha_url), _bare_host(forwarded_host)) if h}
+    return out
+
+
+def ha_host_port_field(host: str, target: str | None, ports: dict[str, Any], ha_names: set[str]) -> str | None:
+    """The field (`http_port` / `rtsp_port`) whose port is refused because the target is the HA host, else None. The typed
+    host is compared by name, and the checked target address with what each HA name resolves to (inside the test's budget;
+    a name that does not resolve adds nothing)."""
+    fields = [name for name, port in ports.items() if port in HA_HOST_PORTS]
+    if not fields or not ha_names:
+        return None
+    h = host.strip().lower().rstrip(".")
+    if h in ha_names:
+        return fields[0]
+    if target is None:
+        return None
+    want = source_policy.address_of(target)
+    for name in ha_names:
+        literal = source_policy.address_of(name)
+        try:
+            candidates = [literal] if literal is not None else [source_policy.address_of(t) for t in RESOLVE(name)]
+        except Exception:  # noqa: BLE001 - an unanswered name adds no refusal
+            candidates = []
+        if want is not None and any(a is not None and a == want for a in candidates):
+            return fields[0]
+    return None
 
 
 def embedded_ipv4(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
@@ -541,14 +594,19 @@ def probe(cand: Settings) -> dict[str, Any]:
     return out[0] if out else {"ok": False, "code": "source_error"}
 
 
-def check_and_probe(host: str, settings: Settings, build: Callable[[str], Settings]) -> dict[str, Any]:
+def check_and_probe(host: str, settings: Settings, build: Callable[[str], Settings], *, ports: dict[str, Any] | None = None,
+                    ha_names: set[str] | None = None) -> dict[str, Any]:
     """The whole connection test inside ONE budget of DEADLINE_S (third review): the source policy with its name resolution
     (this host's own name and the typed name, each at most 2 s and never past the budget), then the probe with what is left.
-    Raises 422 `host_refused` like `connect_target`. `build(target)` makes the candidate for the checked address. Worst case
-    for the caller: DEADLINE_S plus the probe's 0.5 s grace and 1 s to close its sockets."""
+    Raises 422 `host_refused` like `connect_target`, and 422 `port_refused` when a port of HA_HOST_PORTS points at the HA host
+    (`ports` field -> port, `ha_names` from ha_host_names). `build(target)` makes the candidate for the checked address. Worst
+    case for the caller: DEADLINE_S plus the probe's 0.5 s grace and 1 s to close its sockets."""
     token = _BUDGET_END.set(time.monotonic() + DEADLINE_S)
     try:
         target = connect_target(host, settings)
+        field = ha_host_port_field(host, target, ports or {}, ha_names or set())
+        if field is not None:
+            raise ApiError(422, "port_refused", "הפורט שמור לשירותי המערכת ואינו מותר לחיבור NVR.", details={"field": field})
         if target is None:
             return {"ok": False, "code": "timeout" if _budget_left(DEADLINE_S) <= 0 else "source_unavailable"}
         return probe(build(target))

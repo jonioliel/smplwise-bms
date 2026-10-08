@@ -339,7 +339,9 @@ def _run_probe(request: Request, conn: sqlite3.Connection, settings: Settings, f
     with unlocked(conn):
         return connection_probe.check_and_probe(fields["host"], settings, lambda target: connection_probe.candidate(
             settings, vendor=fields["vendor"], target=target, http_port=fields["http_port"], rtsp_port=fields["rtsp_port"],
-            username=fields["username"], password=password, extra=fields.get("extra")))
+            username=fields["username"], password=password, extra=fields.get("extra")),
+            ports={"http_port": fields.get("http_port"), "rtsp_port": fields.get("rtsp_port")},
+            ha_names=connection_probe.ha_host_names(settings, request.headers.get("x-forwarded-host")))
 
 
 def _revision_now(conn: sqlite3.Connection, rid: str = PRIMARY) -> int:
@@ -399,8 +401,8 @@ def do_test(request: Request, principal: Principal, raw: bytes, conn: sqlite3.Co
     try:
         result = _run_probe(request, conn, settings, fields, password)
     except ApiError as exc:
-        if exc.code == "host_refused":
-            _deny(request, conn, principal, "nvr.connection.test", "host_refused", fields["vendor"], rid)
+        if exc.code in ("host_refused", "port_refused"):
+            _deny(request, conn, principal, "nvr.connection.test", exc.code, fields["vendor"], rid)
         raise
     audit(conn, actor=principal, action="nvr.connection.test", decision="allowed", resource_type="nvr", resource_id=_res(rid), request_id=_rid(request),
           details={"vendor": fields["vendor"], "outcome": result["code"]})
@@ -449,8 +451,8 @@ def do_save(request: Request, principal: Principal, body: "SaveIn", conn: sqlite
     try:
         result = _run_probe(request, conn, settings, fields, password)  # 422 host_refused propagates: never saved, even untested
     except ApiError as exc:
-        if exc.code == "host_refused":  # review F7: audited like the test's refusal (no host in the row)
-            _deny(request, conn, principal, "nvr.connection.update", "host_refused", fields["vendor"], rid)
+        if exc.code in ("host_refused", "port_refused"):  # review F7: audited like the test's refusal (no host in the row)
+            _deny(request, conn, principal, "nvr.connection.update", exc.code, fields["vendor"], rid)
         raise
     # review F10: the probe ran with the write lock released - re-check the revision (and the vendor rule) under the lock now
     _require_revision(body.if_revision, conn, rid)
