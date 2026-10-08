@@ -116,3 +116,15 @@ def test_a_run_refused_by_ha_reaches_the_client_as_requires_ha_admin(autos_app):
     assert body["code"] == "requires_ha_admin" and body["details"] == {"error": "unauthorized"} and "מנהל" in body["user_message"]
     r = c.post(f"{API}/automations/automation/{it['id']}/run", json={"client_request_id": rid(), "confirm": True})
     assert r.status_code == 202, "the refused run gave its interval slot back"
+
+# ---------------------------------------------------------------- plan row 11: climate / water_heater `temperature_unit` (HA 2026.11)
+
+def test_temperature_unit_comes_from_the_entity_attribute_when_present():
+    from smplwise.services import devices
+
+    base = {"entity_id": "climate.lobby", "name": "לובי", "state": "cool", "available": True}
+    f = devices._climate_summary({**base, "attributes": {"current_temperature": 75, "temperature": 72, "temperature_unit": "°F"}})
+    assert (f["unit"], f["current_temperature"], f["target_temperature"]) == ("°F", 75, 72), "the value is shown as reported, never converted"
+    assert devices._climate_summary({**base, "attributes": {"current_temperature": 24}})["unit"] == "°C", "no attribute: as before"
+    assert devices._climate_summary({**base, "unit": "°F", "attributes": {}})["unit"] == "°F"
+    assert devices.temperature_unit({}, {"temperature_unit": "<b>x</b>"}) == "°C", "an unknown unit text is not passed through"
