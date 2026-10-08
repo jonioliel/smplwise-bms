@@ -134,7 +134,7 @@ def test_old_schema_falls_back_to_memory():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     lo = codes.Lockout(limit=2)
-    assert lo.fail(["k"], conn, now=1.0) == 0 and lo.fail(["k"], conn, now=2.0) == 0 or True
+    assert lo.fail(["k"], conn, now=1.0) == 0 and lo.fail(["k"], conn, now=2.0) > 0
     lim = hua.RateLimiter(clock=Clock())
     lim.hit("k", LIMITS)
     assert lim.flush(conn) == 0 and lim.restore(conn) == 0
