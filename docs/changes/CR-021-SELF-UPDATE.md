@@ -420,3 +420,10 @@ Behaviour:
 
 New lab assumptions: A16 - the Supervisor names the add-on update job `addon_manager_update` and keeps it in `GET /jobs/info` while it
 runs; A17 - a local build fits in 90 minutes on the slowest supported device.
+
+## 14. Slice S4 (2026-10-08, branch `pilot/CR021-s3-apply`)
+
+- Built: the `[platform-restart]` marker (D8) is read from the running version's own section of `smplwise_vms/CHANGELOG.md` (now copied into the image) at start; `services/release_notes.py` adds the `release` reason once per version (settings row `platform_restart.release_noted`). Local file only.
+- Built: downgrade guard `self_update.is_newer` used by `parse_info`: only a strictly higher release is available or applied, whatever the infrastructure's `update_available` says. The test suites had exercised a downgrade (NEWER 0.1.999 / fixture 0.1.157 below the running 2.4.2); they now use 99.0.0.
+- Docs: `docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md`, `docs/user-guide/he/83-updates_HE.md`, `docs/release/NEXT-DRAFT.md`.
+- Not built: the NEWER version's release-notes text on the Updates page (needs the infrastructure's changelog read, conflicts with 'no upstream text'; owner + security decision); an admin switch that turns the feature off (open owner question); the lab session 13.5 (owner).
