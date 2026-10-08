@@ -10,10 +10,10 @@
  *   GET  frigate/{rid}/changes                             the change log;  POST frigate/{rid}/changes/{id}/revert {confirm}
  * Recording switches and the profile need `confirm: true` on every call (the server refuses with `confirmation_required` otherwise); the
  * screens ask first. Everything else is pure helpers so the unit tests pin the wording and the grouping. */
-import { get, post, put } from './client';
+import { apiUrl, get, patch, post, put } from './client';
 import { he } from '../i18n/he';
 
-export type WriteClass = 'analytics' | 'record' | 'profile' | 'review' | 'events' | 'ptz';
+export type WriteClass = 'analytics' | 'record' | 'profile' | 'review' | 'events' | 'ptz' | 'exports' | 'cases';
 export type SwitchGroup = 'analytics' | 'record';
 
 export interface PolicyClass {
@@ -23,6 +23,8 @@ export interface PolicyClass {
   permission: string;
   /** false = the code does not offer it yet (PTZ until it is released) */
   available: boolean;
+  /** F2b: the actions of the class that ask for a confirmation (exports / cases: `delete`); absent on an F2 server */
+  confirm_actions?: string[];
 }
 export interface ControlPolicy {
   recorder_id: string;
@@ -96,7 +98,143 @@ export interface EventControl {
 export const getEventControl = (rid: string, eventId: string) => get<EventControl>(`${base(rid)}/events/${encodeURIComponent(eventId)}/control`);
 export const setSubLabel = (rid: string, eventId: string, subLabel: string | null) => post<{ changed: boolean; sub_label: string | null; verified: boolean }>(`${base(rid)}/events/${encodeURIComponent(eventId)}/sub-label`, { sub_label: subLabel });
 export const getChanges = (rid: string, limit = 30) => get<{ recorder_id: string; changes: ChangeRow[] }>(`${base(rid)}/changes?limit=${limit}`);
-export const revertChange = (rid: string, id: string, confirm: boolean) => post<{ reverted: boolean; verified: boolean }>(`${base(rid)}/changes/${encodeURIComponent(id)}/revert`, { confirm });
+/** `supervised` (F2b): the first undo of a new kind is a first write of that kind; a system administrator says they are watching it. */
+export const revertChange = (rid: string, id: string, confirm: boolean, supervised = false) =>
+  post<{ reverted: boolean; verified: boolean }>(`${base(rid)}/changes/${encodeURIComponent(id)}/revert`, supervised ? { confirm, supervised } : { confirm });
+
+// ---- F2b (routers/frigate_f2b.py, CR-029 section 11): the first supervised write, the automatic profile, exports, cases, manual events, the clip ----
+
+/** The kinds whose first write toward a recorder must be supervised once (`frigate_first_write`). */
+export type SupervisedKind = 'export_create' | 'export_rename' | 'export_delete' | 'case_create' | 'case_rename' | 'case_delete' | 'event_create' | 'event_end' | 'profile_auto' | 'clip_read';
+export const SUPERVISED_KINDS: SupervisedKind[] = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read'];
+
+export interface FirstWrites {
+  recorder_id: string;
+  /** which kinds already had their supervised first write */
+  done: Partial<Record<SupervisedKind, boolean>>;
+  /** the caller holds system.configure: may send `supervised: true` */
+  can_supervise: boolean;
+}
+export const getFirstWrites = (rid: string) => get<FirstWrites>(`${base(rid)}/control/first-writes`);
+
+/** The server refuses the first write of a kind without `supervised: true` from a system administrator. */
+export const FIRST_WRITE_CODE = 'frigate_first_write_unsupervised';
+export const isFirstWriteRefusal = (e: unknown): boolean => !!e && typeof e === 'object' && (e as { body?: { code?: string } }).body?.code === FIRST_WRITE_CODE;
+
+export type AutoMode = 'off' | 'suggest' | 'apply';
+export const AUTO_MODES: AutoMode[] = ['off', 'suggest', 'apply'];
+export interface AutoSetting {
+  recorder_id: string;
+  mode: AutoMode;
+  auto_apply_consent: boolean;
+  consent_by: string | null;
+  consent_at: string | null;
+  profile_class_on: boolean;
+  first_write_done: boolean;
+  /** the four conditions hold: an alarm change will switch the profile by itself */
+  will_apply: boolean;
+}
+export type AutoStatus = 'pending' | 'suggested' | 'applied' | 'unverified' | 'skipped' | 'failed' | 'expired' | 'dismissed' | 'superseded';
+export interface AutoItem {
+  id: string;
+  alarm_state: string;
+  /** the mapped profile; `none` switches the profile off */
+  profile: string;
+  mode: AutoMode;
+  status: AutoStatus;
+  /** why an `apply` mode did not switch: class_off | no_consent | first_write_unsupervised | already_active | by_user | mode_off ... */
+  reason: string | null;
+  change_id: string | null;
+  at: string;
+  processed_at: string | null;
+}
+export interface AutoView {
+  recorder_id: string;
+  setting: AutoSetting;
+  items: AutoItem[];
+  modes: AutoMode[];
+}
+export const getProfileAuto = (rid: string) => get<AutoView>(`${base(rid)}/profile-auto`);
+export const putProfileAuto = (rid: string, body: { mode?: AutoMode; auto_apply_consent?: boolean }) => put<{ recorder_id: string; setting: AutoSetting }>(`${base(rid)}/profile-auto/setting`, body);
+export const applyAutoSuggestion = (rid: string, id: string, supervised: boolean) =>
+  post<{ id: string; status: AutoStatus; changed: boolean; verified: boolean }>(`${base(rid)}/profile-auto/${encodeURIComponent(id)}/apply`, { confirm: true, supervised });
+export const dismissAutoSuggestion = (rid: string, id: string) => post<{ id: string; status: 'dismissed' }>(`${base(rid)}/profile-auto/${encodeURIComponent(id)}/dismiss`, undefined);
+
+/** One of Frigate's exports as Arx shows it (file paths and thumbnails never leave the server). */
+export interface FrigateExport {
+  id: string;
+  /** Frigate's camera name */
+  camera: string | null;
+  /** Arx's camera id (the list is filtered to the cameras the caller may export) */
+  camera_id: string;
+  name: string;
+  /** epoch seconds of the export, when Frigate reports it */
+  date: number | null;
+  in_progress: boolean;
+  case_id: string | null;
+  /** Arx created it: rename and delete are offered (anything else is refused by the server) */
+  arx_created: boolean;
+}
+export interface FrigateCase {
+  id: string;
+  name: string;
+  description: string;
+  created_at: number | null;
+  arx_created: boolean;
+}
+export const getExports = (rid: string) => get<{ recorder_id: string; exports: FrigateExport[]; enabled: boolean }>(`${base(rid)}/exports`);
+export const createExport = (rid: string, body: { camera_id: string; start: number; end: number; name: string; supervised?: boolean }) =>
+  post<{ created: boolean; export_id: string | null; verified: boolean; change_id: string | null }>(`${base(rid)}/exports`, body);
+export const renameExport = (rid: string, id: string, name: string, supervised = false) =>
+  patch<{ changed: boolean; export_id: string; name: string; verified: boolean }>(`${base(rid)}/exports/${encodeURIComponent(id)}`, supervised ? { name, supervised } : { name });
+export const deleteExport = (rid: string, id: string, supervised = false) =>
+  post<{ deleted: boolean; export_id: string; verified: boolean }>(`${base(rid)}/exports/${encodeURIComponent(id)}/delete`, { confirm: true, ...(supervised ? { supervised } : {}) });
+export const getCases = (rid: string) => get<{ recorder_id: string; cases: FrigateCase[]; enabled: boolean }>(`${base(rid)}/cases`);
+export const createCase = (rid: string, body: { name: string; description?: string | null; supervised?: boolean }) =>
+  post<{ created: boolean; case_id: string | null; verified: boolean; change_id: string | null }>(`${base(rid)}/cases`, body);
+export const renameCase = (rid: string, id: string, name: string, supervised = false) =>
+  patch<{ changed: boolean; case_id: string; name: string; verified: boolean }>(`${base(rid)}/cases/${encodeURIComponent(id)}`, supervised ? { name, supervised } : { name });
+export const deleteCase = (rid: string, id: string, supervised = false) =>
+  post<{ deleted: boolean; case_id: string; verified: boolean }>(`${base(rid)}/cases/${encodeURIComponent(id)}/delete`, { confirm: true, ...(supervised ? { supervised } : {}) });
+
+/** A manual event: a label; a duration of 1..600 s, or null = open until it is ended. */
+export const createManualEvent = (rid: string, cameraId: string, body: { label: string; duration_s: number | null; sub_label?: string | null; supervised?: boolean }) =>
+  post<{ created: boolean; event_id: string | null; open: boolean; verified: boolean; change_id: string | null }>(`${base(rid)}/cameras/${encodeURIComponent(cameraId)}/events/manual`, body);
+export const endManualEvent = (rid: string, eventId: string, supervised = false) =>
+  post<{ ended: boolean; event_id: string; verified: boolean }>(`${base(rid)}/events/${encodeURIComponent(eventId)}/end`, supervised ? { supervised } : {});
+
+/** The longest manual event (seconds) and the longest clip window / export range the server accepts. */
+export const EVENT_MAX_S = 600;
+export const CLIP_MAX_S = 3600;
+export const EXPORT_MAX_S = 7200;
+
+/** The address of the clip Arx streams for a camera window (GET only, `video.playback`; `supervised` for the first read of a recorder). */
+export const clipUrl = (rid: string, cameraId: string, start: number, end: number, supervised = false): string =>
+  apiUrl(`${base(rid)}/cameras/${encodeURIComponent(cameraId)}/clip.mp4?start=${start}&end=${end}${supervised ? '&supervised=true' : ''}`);
+export const eventClipUrl = (rid: string, eventId: string, supervised = false): string => apiUrl(`${base(rid)}/events/${encodeURIComponent(eventId)}/clip.mp4${supervised ? '?supervised=true' : ''}`);
+
+/** The open manual events Arx created, read from the change log: an `event_create` row that is still reversible (the undo ends it). */
+export function openManualEvents(changes: readonly ChangeRow[]): { id: string; camera_id: string | null; label: string; sub_label: string | null; at: string; actor: string | null; status: ChangeRow['status'] }[] {
+  const ended = new Set(changes.filter((c) => c.kind === 'event_end' && c.status !== 'failed').map((c) => c.target));
+  return changes
+    .filter((c) => c.kind === 'event_create' && c.reversible && (c.status === 'applied' || c.status === 'unverified') && !ended.has(c.target))
+    .map((c) => {
+      const a = (c.after ?? {}) as { label?: string; sub_label?: string | null };
+      return { id: c.target, camera_id: c.camera_id, label: a.label ?? c.target, sub_label: a.sub_label ?? null, at: c.at, actor: c.actor, status: c.status };
+    });
+}
+
+/** The time range of an export form: seconds, both present, start before end, at most EXPORT_MAX_S, not in the future (one minute of slack). */
+export function exportRangeError(start: number | null, end: number | null, nowS: number = Date.now() / 1000): 'missing' | 'order' | 'long' | 'future' | null {
+  if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end)) return 'missing';
+  if (end <= start) return 'order';
+  if (end - start > EXPORT_MAX_S) return 'long';
+  if (end > nowS + 60) return 'future';
+  return null;
+}
+
+/** A typed confirmation matches when the person typed the object's name (trimmed, case kept). */
+export const typedMatches = (typed: string, name: string): boolean => typed.trim() !== '' && typed.trim() === name.trim();
 
 /** The recorders whose vendor is Frigate (ids only), read once per page load: the camera drawer asks it to know whether a camera is one of them. */
 let frigateIds: Promise<Set<string>> | null = null;
@@ -141,6 +279,14 @@ export function changeLine(c: ChangeRow): string {
   if (c.kind === 'profile') return `${t.profile}: ${(c.after as { profile?: string | null } | null)?.profile || t.noProfile}`;
   if (c.kind === 'event_retain') return `${t.retain}: ${(c.after as { retain?: boolean } | null)?.retain ? he.frigate.summary.on : he.frigate.summary.off}`;
   if (c.kind === 'event_sub_label') return `${(c.after as { sub_label?: string | null } | null)?.sub_label ?? ''}`;
+  // F2b kinds: "ייצוא נוצר: <name>" / "תיק שונה: <name>" / "אירוע ידני: <label>"
+  const k = t.settings.kinds as Record<string, string>;
+  if (k[c.kind]) {
+    const after = (c.after ?? {}) as { name?: string; label?: string };
+    const before = (c.before ?? {}) as { name?: string };
+    const name = after.name ?? after.label ?? before.name ?? c.target;
+    return `${k[c.kind]}: ${name}`;
+  }
   return c.target;
 }
 
@@ -148,7 +294,7 @@ export const alarmText = (s: string): string => (he.frigate.control.alarm as Rec
 
 /** Classes in the order the settings list them; PTZ only when the code releases it. */
 export function visibleClasses(p: ControlPolicy): PolicyClass[] {
-  const order: WriteClass[] = ['analytics', 'record', 'profile', 'review', 'events', 'ptz'];
+  const order: WriteClass[] = ['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases', 'ptz'];
   return order.map((k) => p.classes.find((c) => c.class === k)).filter((c): c is PolicyClass => !!c && (c.class !== 'ptz' || c.available));
 }
 

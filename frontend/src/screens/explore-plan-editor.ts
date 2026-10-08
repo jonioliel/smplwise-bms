@@ -4432,6 +4432,12 @@ export class ExplorePlanEditor extends LitElement {
         issues: this.studio.issues, copyCandidates: this.studio.copyCandidates, exportSvg: exportUrl(versionId, 'svg', { draft: true }), exportPng: exportUrl(versionId, 'png', { draft: true }), exportDxf: exportUrl(versionId, 'dxf', { draft: true }), busy: this.busy,
         showEstimates: this.showEstimates,
         levels: doc.levels,
+        phone: this.phone.matches,
+        // an operable glass panel binds to an entity placed on this floor that reports open / closed, as a door does
+        entityChoices: this.anchors
+          .filter((x) => x.resource_type === 'ha_entity' && /^(binary_sensor|cover|lock)\./.test(x.resource_id))
+          .map((x) => ({ id: x.resource_id, name: x.label || x.entity?.name || x.resource_id }))
+          .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
       },
       {
         setMode: (m) => {
@@ -4486,6 +4492,10 @@ export class ExplorePlanEditor extends LitElement {
           if (!next) return this.flash(curveT('cornerCannot'));
           this.edit(() => next);
           this.geomSel = { id, kind: 'wall' };
+        },
+        say: (text) => {
+          this.info = text;
+          setTimeout(() => (this.info === text ? (this.info = '') : undefined), 4000);
         },
       },
     );

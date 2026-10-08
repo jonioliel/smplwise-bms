@@ -1,0 +1,258 @@
+{
+  "plan_version_id": "sample-glass",
+  "floor_id": "sample-floor",
+  "source": {
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "file_name": "sample.pdf",
+    "mime": "application/pdf",
+    "page": 1
+  },
+  "dimensions": {
+    "width_px": 1000,
+    "height_px": 800,
+    "scale_m_per_px": 0.01,
+    "calibration": {
+      "status": "measured",
+      "method": "two_point",
+      "pairs": [
+        {
+          "a": [
+            0.1,
+            0.1
+          ],
+          "b": [
+            0.9,
+            0.1
+          ],
+          "metres": 8.0
+        }
+      ],
+      "residual_pct": 0.0,
+      "reason": null
+    }
+  },
+  "transform": {
+    "rotation": 0,
+    "crop": null
+  },
+  "uncertainty": {
+    "overall": 0.2,
+    "notes": []
+  },
+  "meta": {
+    "generator": "fixture",
+    "tokens_version": "map-1",
+    "detector_version": null
+  },
+  "schema_version": "2.1",
+  "levels": [
+    {
+      "id": "L0",
+      "name": "קרקע",
+      "elevation_m": 0.0,
+      "ceiling_height_m": 3.2,
+      "is_default": true,
+      "external_ids": {}
+    }
+  ],
+  "walls": [
+    {
+      "id": "g-facade",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.9,
+          0.1
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {},
+      "glazing": {
+        "panel_width_m": 1.2,
+        "panel_count": null,
+        "mullion_m": 0.06,
+        "sill_m": 0.4,
+        "glazed_height_m": null,
+        "tint": "clear",
+        "opacity": 0.35,
+        "operable": [
+          {
+            "panel": 1,
+            "operation": "casement_left",
+            "anchor_ref": {
+              "resource_type": "ha_entity",
+              "resource_id": "binary_sensor.facade_2"
+            }
+          },
+          {
+            "panel": 5,
+            "operation": "tilt",
+            "anchor_ref": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "g-corner",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.1,
+          0.3
+        ],
+        [
+          0.45,
+          0.3
+        ],
+        [
+          0.45,
+          0.7
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {},
+      "glazing": {
+        "panel_width_m": 1.2,
+        "panel_count": 5,
+        "mullion_m": 0.06,
+        "sill_m": 0.0,
+        "glazed_height_m": 2.4,
+        "tint": "tinted",
+        "opacity": 0.35,
+        "operable": []
+      }
+    },
+    {
+      "id": "g-box",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.6,
+          0.4
+        ],
+        [
+          0.8,
+          0.4
+        ],
+        [
+          0.8,
+          0.6
+        ],
+        [
+          0.6,
+          0.6
+        ],
+        [
+          0.6,
+          0.4
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {}
+    },
+    {
+      "id": "g-bend",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.55,
+          0.8
+        ],
+        [
+          0.7,
+          0.8
+        ],
+        [
+          0.85,
+          0.82
+        ]
+      ],
+      "thickness_m": 0.12,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "glass",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {},
+      "glazing": {
+        "panel_width_m": 1.0,
+        "panel_count": null,
+        "mullion_m": 0.06,
+        "sill_m": 0.4,
+        "glazed_height_m": null,
+        "tint": "clear",
+        "opacity": 0.35,
+        "operable": []
+      }
+    },
+    {
+      "id": "w-solid",
+      "level_id": "L0",
+      "polyline": [
+        [
+          0.1,
+          0.9
+        ],
+        [
+          0.4,
+          0.9
+        ]
+      ],
+      "thickness_m": 0.2,
+      "height_m": null,
+      "base_z_m": 0,
+      "kind": "exterior",
+      "confidence": 1,
+      "source": "manual",
+      "locked": false,
+      "external_ids": {}
+    }
+  ],
+  "openings": [
+    {
+      "id": "o-door",
+      "wall_id": "g-facade",
+      "t": 0.5,
+      "kind": "door",
+      "width_m": 1.0,
+      "height_m": 2.1,
+      "sill_m": 0,
+      "swing": "double",
+      "hinge": "start",
+      "anchor_ref": null,
+      "confidence": 1,
+      "source": "manual",
+      "external_ids": {}
+    }
+  ],
+  "rooms": [],
+  "objects": [],
+  "circuits": [],
+  "connectors": [],
+  "labels": [],
+  "groups": [],
+  "uncertain_regions": []
+}

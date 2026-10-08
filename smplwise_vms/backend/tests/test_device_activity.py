@@ -505,6 +505,50 @@ def test_card_rows_carry_the_activity_flag_and_the_twelve_kinds(app_s):
                                                        ("fan", None, None), ("water_heater", None, None), ("valve", None, None), ("vacuum", None, None), ("lock", None, None))} == set(ACTIVITY_KINDS)
 
 
+def test_card1_equipment_rows_and_the_named_switch_kinds(app_s):
+    """CARD1 (2026-10-07): a vacuum, a valve and a water_heater entity are listed with the switches (read-only tiles, the card holds the
+    controls) with the few attributes the card shows; a switch NAMED as a boiler / tap is kinded by the server, never by the client."""
+    app, _ = app_s
+    from smplwise.services import devices as svc
+    from smplwise.services import ha_bridge
+    from smplwise.services.device_activity import activity_kind, switch_equipment
+
+    with app.state.db.connection(mode="read") as conn:
+        by = {e["entity_id"]: e for e in svc.load_entities(conn)}
+    assert by["vacuum.robo"]["card"] == by["valve.garden"]["card"] == by["water_heater.boiler"]["card"] == "switches"
+    robo, garden, boiler = (svc.card_row(by[e], True) for e in ("vacuum.robo", "valve.garden", "water_heater.boiler"))
+    assert robo["activity_kind"] == "vacuum" and robo["fan_speed"] == "quiet" and robo["battery_level"] is None and robo["active"] is False
+    assert garden["activity_kind"] == "valve" and garden["position"] == 0 and garden["moving"] is False and garden["active"] is False
+    assert boiler["activity_kind"] == "water_heater" and boiler["target_temperature"] == 55 and boiler["active"] is True  # eco = an operation mode = on
+    assert svc.is_active("vacuum", "cleaning") and svc.is_active("valve", "opening") and not svc.is_active("water_heater", "off")
+    # not counted as switches: the overview tile's panel lists real switches only
+    counts = svc.empty_counts()
+    for e in ("vacuum.robo", "valve.garden", "water_heater.boiler"):
+        svc.count_into(counts, by[e])
+    assert counts["entities"] == 3 and counts["switches"] == 0
+    # the server names the equipment behind a plain switch from its display name (Hebrew or English); anything else stays a switch
+    assert switch_equipment("דוד שמש") == "water_heater" and switch_equipment("Boiler relay") == "water_heater" and switch_equipment("Water heater") == "water_heater"
+    assert switch_equipment("ברז גינה") == "valve" and switch_equipment("השקיה") == "valve" and switch_equipment("Irrigation") == "valve"
+    assert switch_equipment("Sign") is None and switch_equipment(None) is None and switch_equipment("מאוורר") is None
+    assert activity_kind("switch", None, None, "דוד שמש") == "water_heater" and activity_kind("switch", "outlet", None, "דוד שמש") == "outlet"
+    assert activity_kind("switch", None, None, "Sign") == "switch"
+    # the smallest service mappings the cards need (the bridge's allow-list carries the same pairs - the drift tests hold it)
+    spec, data = ha_bridge.validate_action("vacuum.pause", "vacuum.robo", {})
+    assert spec["expect"] == "paused" and not spec["sensitive"] and data == {"entity_id": "vacuum.robo"}
+    spec, _ = ha_bridge.validate_action("valve.open_valve", "valve.garden", {})
+    assert spec["sensitive"] and spec["risk"] == "attention" and spec["expect"] == "open"
+    spec, _ = ha_bridge.validate_action("valve.close_valve", "valve.garden", {})
+    assert not spec["sensitive"] and spec["expect"] == "closed"
+    spec, _ = ha_bridge.validate_action("water_heater.turn_on", "water_heater.boiler", {})
+    assert spec["expect"] is None  # lands in an operation mode: honestly "sent"
+    assert ha_bridge.validate_action("water_heater.turn_off", "water_heater.boiler", {})[0]["expect"] == "off"
+    with pytest.raises(Exception) as exc:
+        ha_bridge.validate_action("valve.open_valve", "switch.sign", {})  # a switch-wired tap keeps switch.turn_on / turn_off
+    assert getattr(exc.value, "code", "") == "action_domain_mismatch"
+    with pytest.raises(Exception):
+        ha_bridge.validate_action("vacuum.pause", "vacuum.robo", {"fan_speed": "max"})  # no arguments are accepted
+
+
 def test_schedules_of_a_device_come_from_the_existing_filter():
     """No new route: GET /schedules?entity=<id> already filters by the action entity (tests/test_schedules_api.py owns its behaviour);
     this only pins that the filter exists, so the popup's schedules tab keeps working."""

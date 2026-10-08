@@ -112,7 +112,7 @@ test.describe('device activity popup', () => {
     expect(flagged).toContain('climate.living_ac');
     for (const id of ['sensor.living_temp', 'media_player.living_tv', 'cover.garage', 'lock.front', 'alarm_control_panel.home', 'humidifier.living_hum']) expect(flagged, id).not.toContain(id);
     const kinds = await area(page).locator('[data-activity]').evaluateAll((els) => els.map((e) => JSON.parse((e as HTMLElement).getAttribute('data-activity')!).kind));
-    expect(new Set(kinds)).toEqual(new Set(['light', 'switch', 'valve', 'cover', 'climate', 'heater', 'fan']));
+    expect(new Set(kinds)).toEqual(new Set(['light', 'water_heater', 'valve', 'vacuum', 'cover', 'climate', 'heater', 'fan']));
   });
 
   test('a 500 ms hold opens the popup and the click after it does not toggle; taps and short holds are untouched', async ({ page }, info) => {

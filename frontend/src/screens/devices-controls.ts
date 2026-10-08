@@ -24,6 +24,12 @@ const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan
  * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
 export const ARM_MS = 4000;
 
+/** A robot vacuum's states in words (the same words the activity feed uses, device-activity-logic.ts STATE_HE). */
+export const VACUUM_HE: Record<string, string> = { docked: 'בעגינה', cleaning: 'מנקה', paused: 'מושהה', returning: 'חוזר לעגינה', idle: 'ממתין', error: 'תקלה', unavailable: 'לא זמין', unknown: 'לא ידוע' };
+
+/** CARD1: the domains the switches card lists read-only - their controls live in the activity window's equipment card. */
+export const EQUIPMENT_DOMAINS = new Set(['vacuum', 'valve', 'water_heater']);
+
 export function deg(n: number | null | undefined, unit = '°'): string {
   return n === null || n === undefined ? '—' : `${ltrNum(Number.isInteger(n) ? n : n.toFixed(1))}${unit}`;
 }
@@ -41,6 +47,13 @@ export function rowLabel(r: DeviceRow): string {
   if (r.domain === 'media_player') return r.state === 'playing' ? 'מנגן' : r.state === 'paused' ? 'מושהה' : r.state === 'idle' ? 'דולק · ללא תוכן' : r.state === 'on' ? 'דולק' : r.state === 'standby' ? 'המתנה' : r.state === 'off' ? 'כבוי' : (r.state ?? 'לא ידוע');
   if (r.domain === 'fan') return r.active ? (r.percentage !== null && r.percentage !== undefined ? `פועל · ${ltrNum(r.percentage)}%` : 'פועל') : 'כבוי';
   if (r.domain === 'humidifier') return r.active ? 'פועל' : 'כבוי';
+  // CARD1: the equipment listed with the switches (the activity window holds the controls)
+  if (r.domain === 'vacuum') return VACUUM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע';
+  if (r.domain === 'valve') {
+    const s = r.state === 'open' ? 'פתוח' : r.state === 'closed' ? 'סגור' : r.state === 'opening' ? 'נפתח…' : r.state === 'closing' ? 'נסגר…' : (r.state ?? 'לא ידוע');
+    return r.position !== null && r.position !== undefined && !r.moving && r.position > 0 && r.position < 100 ? `${s} · ${ltrNum(r.position)}%` : s;
+  }
+  if (r.domain === 'water_heater') return r.active ? (r.target_temperature !== null && r.target_temperature !== undefined ? `פועל · יעד ${ltrNum(r.target_temperature)}°` : 'פועל') : 'כבוי';
   return stateLabel({ domain: r.domain, state: r.state, unit: r.unit ?? null, device_class: r.device_class, attributes: {} });
 }
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape, quoteattr
 
-from . import plan_catalog, wall_path
+from . import plan_catalog, plan_glass, wall_path
 from .plan_geometry import DEFAULT_LEVEL_ID, DEFAULT_WALL_THICKNESS_M, apply_anchor_positions, effective_scale
 from .plan_symbols import symbol_markup
 
@@ -229,6 +229,7 @@ def _curved_wall(w: dict[str, Any], width: float, height: float, px_per_m: float
     sampled = wall_path.sample(pts, bulges)
     geo[w["id"]] = (sampled, _cum(sampled), wpx)
     arcs[w["id"]] = (pts, bulges, cum)
+    glass = plan_glass.is_glass(w)
     part = 0
     for s0, s1 in _keep_spans(total, openings, px_per_m):
         if s1 - s0 <= 0.01:
@@ -246,8 +247,13 @@ def _curved_wall(w: dict[str, Any], width: float, height: float, px_per_m: float
             seg = [*seg, end]
             exact, eb = [*exact, end], [*eb, 0.0]
         prims.append({"kind": "wall", "id": w["id"], "part": part, "points": [_p(q) for q in seg], "width": r2(wpx),
-                      "arc": {"points": [_p(q) for q in exact], "bulges": [round(b, 6) + 0.0 for b in eb]}})
+                      "arc": {"points": [_p(q) for q in exact], "bulges": [round(b, 6) + 0.0 for b in eb]}, **({"glass": True} if glass else {})})
         part += 1
+    if glass:  # a curved window wall: the panels divide the exact length; drawn along the sampled path (exact s per point)
+        sp, ss = wall_path.sample_with_s(pts, bulges)
+        cuts = sorted((max(0.0, float(o.get("t") or 0) * total - float(o.get("width_m") or 0) * px_per_m / 2),
+                       min(total, float(o.get("t") or 0) * total + float(o.get("width_m") or 0) * px_per_m / 2)) for o in openings)
+        prims.append(plan_glass.glazing_primitive(w, sp, ss, wpx, px_per_m, cuts, _p, r2))
 
 
 def structure_primitives(doc: dict[str, Any], width: float, height: float, level: str | None = None, items: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -291,6 +297,7 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
             cursor = max(cursor, b)
         if cursor < total:
             keep.append((cursor, total))
+        glass = plan_glass.is_glass(w)
         part = 0
         for s0, s1 in keep:
             if s1 - s0 <= 0.01:
@@ -300,8 +307,11 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
                 seg[0] = _extend(seg[0], seg[1], wpx / 2)
             if s1 >= total:
                 seg[-1] = _extend(seg[-1], seg[-2], wpx / 2)
-            prims.append({"kind": "wall", "id": wid, "part": part, "points": [_p(q) for q in seg], "width": r2(wpx)})
+            # a window wall's parts carry "glass" (only then: every other wall's primitive is unchanged)
+            prims.append({"kind": "wall", "id": wid, "part": part, "points": [_p(q) for q in seg], "width": r2(wpx), **({"glass": True} if glass else {})})
             part += 1
+        if glass:
+            prims.append(plan_glass.glazing_primitive(w, pts, cum, wpx, px_per_m, cuts, _p, r2))
     for o in sorted(doc.get("openings", []), key=lambda o: o["id"]):
         g = geo.get(o.get("wall_id"))
         if g is None:
@@ -335,7 +345,7 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
 
 # ---------------------------------------------------------------- exports (same primitives as the map)
 
-TOKENS = {"canvas": "#ffffff", "structure": "#4b5567", "opening": "#2f6bff", "glass": "#7fb2ff", "label": "#8b96a8", "room_fill": "#eef3ff", "room_line": "#c5cfdd"}
+TOKENS = {"canvas": "#ffffff", "structure": "#4b5567", "opening": "#2f6bff", "glass": "#7fb2ff", "glass_fill": "#dcebff", "label": "#8b96a8", "room_fill": "#eef3ff", "room_line": "#c5cfdd"}
 
 
 def _n(v: float) -> str:
@@ -395,6 +405,39 @@ def _svg_connector(p: dict[str, Any], labels: bool) -> list[str]:
     return out
 
 
+def glass_band(width: float) -> tuple[float, float]:
+    """A window wall drawn as a double line: (the pane band's width inside the frame lines, the frame line's width) for
+    a wall `width` px thick. The map uses the same rule (sw-plan-canvas glassBand)."""
+    line = max(0.6, min(width * 0.18, 2.0))
+    return max(width - 2 * line, width * 0.35), line
+
+
+def _svg_glazing(prims: list[dict[str, Any]]) -> list[str]:
+    """Window walls (plan_glass): per part a frame-coloured band, the pane band in the glass colour over it (the double
+    line) with the centre line of the glass, then the mullion ticks across and a dashed line beside every panel that
+    opens. A layer of its own (id="glazing"), drawn after the solid walls."""
+    out = ['<g id="glazing" fill="none" stroke-linecap="butt" stroke-linejoin="miter">']
+    for p in prims:
+        if p["kind"] == "wall":
+            band, _line = glass_band(p["width"])
+            pts = _pts(p["points"])
+            out.append(f'<g data-wall={quoteattr(p["id"])} data-wall-kind="glass">'
+                       f'<polyline points="{pts}" stroke="{TOKENS["structure"]}" stroke-width="{_n(p["width"])}"/>'
+                       f'<polyline points="{pts}" stroke="{TOKENS["glass_fill"]}" stroke-width="{_n(band)}"/>'
+                       f'<polyline points="{pts}" stroke="{TOKENS["glass"]}" stroke-width="1"/></g>')
+        else:
+            mw = max(1.0, p["mullion"])
+            out.extend(f'<line data-mullion={quoteattr(p["id"])} x1="{_n(a[0])}" y1="{_n(a[1])}" x2="{_n(b[0])}" y2="{_n(b[1])}" stroke="{TOKENS["structure"]}" stroke-width="{_n(mw)}"/>'
+                       for a, b in p["mullions"])
+            for q in p["panels"]:
+                if q["operation"]:
+                    a, b = q["a"], q["b"]
+                    out.append(f'<line data-operable={quoteattr(p["id"])} data-panel="{q["index"]}" data-operation={quoteattr(q["operation"])} x1="{_n(a[0])}" y1="{_n(a[1])}" '
+                               f'x2="{_n(b[0])}" y2="{_n(b[1])}" stroke="{TOKENS["opening"]}" stroke-width="1.5" stroke-dasharray="3 2"/>')
+    out.append("</g>")
+    return out
+
+
 def render_svg(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height: float, *, level: str | None = None, labels: bool = True, rooms: bool = True,
                layers: Any = None, anchors: dict[str, Any] | None = None, items: dict[str, Any] | None = None) -> str:
     """The structure, the connectors and the objects as SVG - the same primitives as the map. `layers` is a subset of
@@ -412,8 +455,11 @@ def render_svg(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, h
         out.append("</g>")
     if "structure" in show:
         out.append(f'<g id="walls" fill="none" stroke="{TOKENS["structure"]}" stroke-linecap="butt" stroke-linejoin="miter">')
-        out.extend(f'<polyline data-wall={quoteattr(p["id"])} points="{_pts(p["points"])}" stroke-width="{_n(p["width"])}"/>' for p in prims if p["kind"] == "wall")
+        out.extend(f'<polyline data-wall={quoteattr(p["id"])} points="{_pts(p["points"])}" stroke-width="{_n(p["width"])}"/>' for p in prims if p["kind"] == "wall" and not p.get("glass"))
         out.append("</g>")
+        glazing = [p for p in prims if p["kind"] in ("wall", "glazing") and (p["kind"] == "glazing" or p.get("glass"))]
+        if glazing:
+            out.extend(_svg_glazing(glazing))
         out.append('<g id="openings" fill="none">')
         for p in prims:
             if p["kind"] == "door":
@@ -491,6 +537,17 @@ def render_png(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, h
         for p in prims:
             if p["kind"] == "wall":
                 draw.line([tuple(q) for q in p["points"]], fill=_rgb(TOKENS["structure"]), width=max(1, int(round(p["width"]))), joint="curve")
+                if p.get("glass"):  # a window wall: the pane band inside the frame lines and the glass centre line
+                    band, _line = glass_band(p["width"])
+                    if int(round(band)) >= 1:
+                        draw.line([tuple(q) for q in p["points"]], fill=_rgb(TOKENS["glass_fill"]), width=int(round(band)), joint="curve")
+                    draw.line([tuple(q) for q in p["points"]], fill=_rgb(TOKENS["glass"]), width=1)
+            elif p["kind"] == "glazing":
+                for a, b in p["mullions"]:
+                    draw.line([tuple(a), tuple(b)], fill=_rgb(TOKENS["structure"]), width=max(1, int(round(p["mullion"]))))
+                for q in p["panels"]:
+                    if q["operation"]:
+                        draw.line([tuple(q["a"]), tuple(q["b"])], fill=_rgb(TOKENS["opening"]), width=1)
         for p in prims:
             if p["kind"] == "door":
                 arcs = p["arcs"] or [None] * len(p["leaves"])

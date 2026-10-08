@@ -53,13 +53,23 @@ export interface FrigateControlMock {
   failWith: string | null;
   /** the tracked objects' retain flag and sub-label as Frigate shows them (an id not listed = off / none) */
   events: Record<string, { retain: boolean; sub_label: string | null }>;
+  /** FRGD / F2b: which supervised first writes are done (routers/frigate_f2b.py `first-writes`) */
+  firstWrites: Record<string, boolean>;
+  /** the automatic profile setting and its rows */
+  auto: { mode: 'off' | 'suggest' | 'apply'; consent: boolean; consent_at: string | null; items: Record<string, unknown>[] };
+  /** Frigate's exports and cases as the server lists them (`arx_created` marks the ones Arx may rename / delete) */
+  exports: Record<string, unknown>[];
+  cases: Record<string, unknown>[];
+  /** GET clip.mp4 requests, as "camera start end supervised" */
+  clips: string[];
 }
 
 const SWITCHES = ['detect', 'motion', 'audio', 'review_alerts', 'review_detections', 'notifications', 'improve_contrast', 'birdseye', 'ptz_autotracker', 'enabled', 'recordings', 'snapshots'];
 const SWITCH_GROUP = (f: string) => (['enabled', 'recordings', 'snapshots'].includes(f) ? 'record' : 'analytics');
+export const F2B_KINDS = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read'];
 export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateControlMock {
   return {
-    classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false },
+    classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false },
     switches: Object.fromEntries(SWITCHES.map((f) => [f, !['audio', 'notifications', 'ptz_autotracker', 'snapshots'].includes(f)])),
     profiles: ['home', 'away'], active: 'home', rules: { armed_away: 'away' },
     changes: [
@@ -67,7 +77,19 @@ export function newControlMock(over: Partial<FrigateControlMock> = {}): FrigateC
       { id: 'ch2', recorder_id: 'nvr-2', camera_id: 'fg-front', camera_key: 'cam_front', class: 'record', kind: 'feature', target: 'recordings', before: { value: true }, after: { value: false }, status: 'applied', error: null, reversible: true, reverts_id: null, actor: 'דנה', at: '2026-10-06T07:00:00Z' },
       { id: 'ch3', recorder_id: 'nvr-2', camera_id: null, camera_key: '*', class: 'profile', kind: 'profile', target: 'active', before: { profile: null }, after: { profile: 'home' }, status: 'reverted', error: null, reversible: false, reverts_id: null, actor: 'יוני', at: '2026-10-05T20:00:00Z' },
     ],
-    writes: [], failWith: null, events: {}, ...over,
+    writes: [], failWith: null, events: {},
+    firstWrites: Object.fromEntries(F2B_KINDS.map((k) => [k, false])),
+    auto: { mode: 'off', consent: false, consent_at: null, items: [] },
+    exports: [
+      { id: 'exp-arx-1', camera: 'cam_front', camera_id: 'fg-front', name: 'כניסה 06.10 07:48', date: 1791273600, in_progress: false, case_id: null, arx_created: true },
+      { id: 'exp-fr-1', camera: 'cam_yard', camera_id: 'fg-yard', name: 'yard_export', date: 1791187200, in_progress: true, case_id: null, arx_created: false },
+    ],
+    cases: [
+      { id: 'case-arx-1', name: 'חבילה שנעלמה', description: 'שתי התראות מהכניסה', created_at: 1791273600, arx_created: true },
+      { id: 'case-fr-1', name: 'frigate-case', description: '', created_at: 1791100000, arx_created: false },
+    ],
+    clips: [],
+    ...over,
   };
 }
 
@@ -211,8 +233,13 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
         return json({ recorder_id: 'nvr-2', policy: m.ctl.classes });
       }
       const per = ['record', 'profile', 'ptz'];
-      return json({ recorder_id: 'nvr-2', ptz_released: false, classes: ['analytics', 'record', 'profile', 'review', 'events', 'ptz'].map((c) => ({ class: c, enabled: !!m.ctl.classes[c], per_action: per.includes(c), permission: `x.${c}`, available: c !== 'ptz' })) });
+      const PERM: Record<string, string> = { analytics: 'analytics.control', record: 'analytics.record_control', profile: 'analytics.profile', review: 'analytics.review', events: 'analytics.events', ptz: 'camera.ptz', exports: 'analytics.exports', cases: 'analytics.cases' };
+      return json({ recorder_id: 'nvr-2', ptz_released: false, classes: ['analytics', 'record', 'profile', 'review', 'events', 'ptz', 'exports', 'cases'].map((c) => ({ class: c, enabled: !!m.ctl.classes[c], per_action: per.includes(c), permission: PERM[c], available: c !== 'ptz', confirm_actions: c === 'exports' || c === 'cases' ? ['delete'] : [] })) });
     }
+    // FRGD / F2b (routers/frigate_f2b.py): the first supervised write, the automatic profile, exports, cases, manual events, the clip
+    const f2b = f2bRoute(m, p, method, req.postDataJSON.bind(req), url);
+    if (f2b) return json(f2b.body, f2b.status);
+    if (f2b === null) return route.fulfill({ status: 200, contentType: 'video/mp4', body: Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]) });
     const ctlCam = /^frigate\/nvr-2\/cameras\/([^/]+)\/control(?:\/([a-z_]+))?$/.exec(p);
     if (ctlCam) {
       const [, camId, feature] = ctlCam;
@@ -339,6 +366,180 @@ export async function installFrigate(page: Page, m: FrigateMock): Promise<void> 
     }
     return json(ENVELOPE('not_found', 'לא נמצא (בדיקה)'), 404);
   });
+}
+
+/** The F2b routes. Returns `{ status, body }` for a JSON answer, `null` for the clip bytes, `undefined` when the path is not one of them. */
+function f2bRoute(m: FrigateMock, p: string, method: string, bodyOf: () => unknown, url: URL): { status: number; body: unknown } | null | undefined {
+  const ok = (body: unknown) => ({ status: 200, body });
+  const err = (status: number, code: string, msg: string) => ({ status, body: ENVELOPE(code, msg) });
+  const c = m.ctl;
+  const admin = m.perms.includes('system.configure');
+  const first = (kind: string, supervised: boolean) => {
+    if (c.firstWrites[kind]) return null;
+    if (!supervised) return err(409, 'frigate_first_write_unsupervised', 'זו הכתיבה הראשונה מסוג זה אל Frigate. מנהל מערכת צריך לבצע אותה בפיקוח ולאשר זאת במפורש.');
+    if (!admin) return err(403, 'forbidden', 'אין הרשאה');
+    c.firstWrites[kind] = true;
+    return null;
+  };
+  const change = (kind: string, cls: string, target: string, after: Record<string, unknown> | null, reversible: boolean, camera_id: string | null = null) => {
+    const id = `chg-${c.changes.length + 1}`;
+    c.changes.unshift({ id, recorder_id: 'nvr-2', camera_id, camera_key: camera_id ? keyOf(camera_id) : null, class: cls, kind, target, before: null, after, status: 'applied', error: null, reversible, reverts_id: null, actor: 'יוני', at: new Date().toISOString() });
+    return id;
+  };
+  if (!p.startsWith('frigate/nvr-2/')) return undefined;
+  const rest = p.slice('frigate/nvr-2/'.length);
+  // only the F2b paths belong here: the F2 routes (policy, camera switches, profile, event retain / sub-label, changes) keep their own handlers
+  const mine = rest === 'control/first-writes' || rest.startsWith('profile-auto') || rest.startsWith('exports') || rest.startsWith('cases') || /\/events\/manual$/.test(rest) || /^events\/[^/]+\/end$/.test(rest) || /\/clip\.mp4$/.test(rest);
+  if (!mine) return undefined;
+  const b = (method === 'GET' ? {} : (bodyOf() ?? {})) as Record<string, unknown>;
+  if (method !== 'GET') m.ctl.writes.push(`${method} ${p} ${JSON.stringify(b)}`);
+  if (m.ctl.failWith && method !== 'GET') {
+    const code = m.ctl.failWith;
+    m.ctl.failWith = null;
+    return err(409, code, 'המקליט דחה את השינוי');
+  }
+
+  if (rest === 'control/first-writes') return ok({ recorder_id: 'nvr-2', done: { ...c.firstWrites }, can_supervise: admin });
+
+  // automatic profile
+  const setting = () => {
+    const consent = c.auto.consent;
+    const classOn = !!c.classes.profile;
+    const done = !!c.firstWrites.profile_auto;
+    return { recorder_id: 'nvr-2', mode: c.auto.mode, auto_apply_consent: consent, consent_by: consent ? 'u-admin' : null, consent_at: c.auto.consent_at, profile_class_on: classOn, first_write_done: done, will_apply: c.auto.mode === 'apply' && consent && classOn && done };
+  };
+  if (rest === 'profile-auto') return ok({ recorder_id: 'nvr-2', setting: setting(), items: c.auto.items, modes: ['off', 'suggest', 'apply'] });
+  if (rest === 'profile-auto/setting' && method === 'PUT') {
+    if (!admin) return err(403, 'forbidden', 'אין הרשאה');
+    const mode = (b.mode as string | undefined) ?? c.auto.mode;
+    const consent = b.auto_apply_consent === undefined ? c.auto.consent : !!b.auto_apply_consent;
+    if (mode === 'apply' && !consent && b.mode === 'apply') return err(422, 'frigate_auto_consent_required', 'החלפה אוטומטית דורשת הסכמה מפורשת של מנהל המערכת.');
+    c.auto.mode = (mode === 'apply' && !consent ? 'suggest' : mode) as typeof c.auto.mode;
+    if (consent !== c.auto.consent) c.auto.consent_at = consent ? new Date().toISOString() : null;
+    c.auto.consent = consent;
+    if (c.auto.mode === 'off') for (const it of c.auto.items) if (it.status === 'suggested' || it.status === 'pending') Object.assign(it, { status: 'dismissed', reason: 'mode_off' });
+    return ok({ recorder_id: 'nvr-2', setting: setting() });
+  }
+  const autoAct = /^profile-auto\/([^/]+)\/(apply|dismiss)$/.exec(rest);
+  if (autoAct && method === 'POST') {
+    const it = c.auto.items.find((x) => x.id === autoAct[1]);
+    if (!it) return err(404, 'not_found', 'ההצעה לא נמצאה.');
+    if (it.status !== 'suggested' && it.status !== 'pending') return err(409, 'frigate_auto_not_open', 'ההצעה כבר טופלה או הוחלפה בחדשה.');
+    if (autoAct[2] === 'dismiss') {
+      Object.assign(it, { status: 'dismissed', reason: 'by_user' });
+      return ok({ recorder_id: 'nvr-2', id: it.id, status: 'dismissed' });
+    }
+    if (!b.confirm) return err(409, 'confirmation_required', 'פעולה זו דורשת אישור מפורש.');
+    if (!c.classes.profile) return err(409, 'frigate_class_off', 'סוג הפעולה כבוי.');
+    const f = first('profile_auto', !!b.supervised);
+    if (f) return f;
+    const prof = it.profile === 'none' ? null : (it.profile as string);
+    const changed = c.active !== prof;
+    c.active = prof;
+    const chId = changed ? change('profile', 'profile', 'active', { profile: prof }, true) : null;
+    Object.assign(it, { status: changed ? 'applied' : 'skipped', change_id: chId, processed_at: new Date().toISOString() });
+    return ok({ recorder_id: 'nvr-2', id: it.id, status: it.status, changed, verified: true, active: prof, change_id: chId });
+  }
+
+  // exports
+  if (rest === 'exports' && method === 'GET') {
+    if (!admin && !m.perms.includes('analytics.exports')) return err(403, 'forbidden', 'אין הרשאה');
+    return ok({ recorder_id: 'nvr-2', exports: c.exports, enabled: !!c.classes.exports });
+  }
+  if (rest === 'exports' && method === 'POST') {
+    if (!c.classes.exports) return err(409, 'frigate_class_off', 'סוג הפעולה כבוי.');
+    const f = first('export_create', !!b.supervised);
+    if (f) return f;
+    const id = `exp-new-${c.exports.length + 1}`;
+    c.exports.unshift({ id, camera: keyOf(b.camera_id as string), camera_id: b.camera_id, name: b.name, date: b.start, in_progress: true, case_id: null, arx_created: true });
+    const ch = change('export_create', 'exports', id, { name: b.name, camera: keyOf(b.camera_id as string), start: b.start, end: b.end, id }, true, b.camera_id as string);
+    return ok({ recorder_id: 'nvr-2', camera_id: b.camera_id, created: true, export_id: id, verified: true, change_id: ch });
+  }
+  const exp = /^exports\/([^/]+)(\/delete)?$/.exec(rest);
+  if (exp && method !== 'GET') {
+    const row = c.exports.find((x) => x.id === exp[1]);
+    if (!row || !row.arx_created) return err(409, 'frigate_object_not_arx', 'Arx משנה או מוחק רק פריטים שהוא יצר בעצמו.');
+    const rowId = row.id as string;
+    if (exp[2]) {
+      if (!b.confirm) return err(409, 'confirmation_required', 'פעולה זו דורשת אישור מפורש.');
+      const f = first('export_delete', !!b.supervised);
+      if (f) return f;
+      c.exports = c.exports.filter((x) => x.id !== rowId);
+      change('export_delete', 'exports', rowId, null, false, row.camera_id as string);
+      return ok({ recorder_id: 'nvr-2', deleted: true, export_id: rowId, verified: true, change_id: 'chx' });
+    }
+    const f = first('export_rename', !!b.supervised);
+    if (f) return f;
+    row.name = b.name;
+    change('export_rename', 'exports', rowId, { name: b.name }, true, row.camera_id as string);
+    return ok({ recorder_id: 'nvr-2', changed: true, export_id: rowId, name: b.name, verified: true, change_id: 'chx' });
+  }
+
+  // cases
+  if (rest === 'cases' && method === 'GET') {
+    if (!admin && !m.perms.includes('analytics.cases')) return err(403, 'forbidden', 'אין הרשאה');
+    return ok({ recorder_id: 'nvr-2', cases: c.cases, enabled: !!c.classes.cases });
+  }
+  if (rest === 'cases' && method === 'POST') {
+    if (!c.classes.cases) return err(409, 'frigate_class_off', 'סוג הפעולה כבוי.');
+    const f = first('case_create', !!b.supervised);
+    if (f) return f;
+    const id = `case-new-${c.cases.length + 1}`;
+    c.cases.unshift({ id, name: b.name, description: (b.description as string | null) ?? '', created_at: Math.floor(Date.now() / 1000), arx_created: true });
+    const ch = change('case_create', 'cases', id, { name: b.name, description: b.description ?? null, id }, true);
+    return ok({ recorder_id: 'nvr-2', created: true, case_id: id, verified: true, change_id: ch });
+  }
+  const cs = /^cases\/([^/]+)(\/delete)?$/.exec(rest);
+  if (cs && method !== 'GET') {
+    const row = c.cases.find((x) => x.id === cs[1]);
+    if (!row || !row.arx_created) return err(409, 'frigate_object_not_arx', 'Arx משנה או מוחק רק פריטים שהוא יצר בעצמו.');
+    const rowId = row.id as string;
+    if (cs[2]) {
+      if (!b.confirm) return err(409, 'confirmation_required', 'פעולה זו דורשת אישור מפורש.');
+      const f = first('case_delete', !!b.supervised);
+      if (f) return f;
+      c.cases = c.cases.filter((x) => x.id !== rowId);
+      change('case_delete', 'cases', rowId, null, false);
+      return ok({ recorder_id: 'nvr-2', deleted: true, case_id: rowId, verified: true, change_id: 'chx' });
+    }
+    const f = first('case_rename', !!b.supervised);
+    if (f) return f;
+    row.name = b.name;
+    change('case_rename', 'cases', rowId, { name: b.name }, true);
+    return ok({ recorder_id: 'nvr-2', changed: true, case_id: rowId, name: b.name, verified: true, change_id: 'chx' });
+  }
+
+  // manual events
+  const manual = /^cameras\/([^/]+)\/events\/manual$/.exec(rest);
+  if (manual && method === 'POST') {
+    if (!c.classes.events) return err(409, 'frigate_class_off', 'סוג הפעולה כבוי.');
+    const f = first('event_create', !!b.supervised);
+    if (f) return f;
+    const id = `mev-${c.changes.length + 1}`;
+    const ch = change('event_create', 'events', id, { camera: keyOf(manual[1]), label: b.label, duration_s: b.duration_s ?? null, sub_label: b.sub_label ?? null, id }, true, manual[1]);
+    return ok({ recorder_id: 'nvr-2', camera_id: manual[1], created: true, event_id: id, open: b.duration_s === null, verified: true, change_id: ch });
+  }
+  const end = /^events\/([^/]+)\/end$/.exec(rest);
+  if (end && method === 'POST') {
+    const made = c.changes.find((x) => x.kind === 'event_create' && x.target === end[1]);
+    if (!made) return err(409, 'frigate_object_not_arx', 'Arx מסיים רק אירועים ידניים שהוא יצר בעצמו.');
+    const f = first('event_end', !!b.supervised);
+    if (f) return f;
+    made.reversible = false;
+    const ch = change('event_end', 'events', end[1], { end_time: Date.now() / 1000 }, false, made.camera_id as string | null);
+    return ok({ recorder_id: 'nvr-2', ended: true, event_id: end[1], verified: true, change_id: ch });
+  }
+
+  // the clip (GET only)
+  const clip = /^cameras\/([^/]+)\/clip\.mp4$/.exec(rest);
+  if (clip && method === 'GET') {
+    const sup = url.searchParams.get('supervised') === 'true';
+    m.ctl.clips.push(`${clip[1]} ${url.searchParams.get('start')} ${url.searchParams.get('end')} ${sup}`);
+    const f = first('clip_read', sup);
+    if (f) return f;
+    return null;
+  }
+  return undefined;
 }
 
 export async function openApp(page: Page, hash: string, query = ''): Promise<void> {

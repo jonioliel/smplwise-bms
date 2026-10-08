@@ -4,11 +4,13 @@
  * (contracts/fixtures/plan_geometry pins both) - and the pure maths of the editor tools: snapping, the nearest wall,
  * distances and areas in metres. No DOM and no Lit, so it runs in node (tests/unit-geometry.spec.ts).
  */
-import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, ringArea, sample, subPath, wallLengthPx, wallPx } from './wall-path';
+import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, ringArea, sample, sampleWithS, subPath, wallLengthPx, wallPx } from './wall-path';
+import { glazingPrimitive, type Glazing, type GlazingPrim } from './glass-wall';
 
 export { isCurved, sampledWall, wallLengthPx } from './wall-path';
 export type Pt = [number, number];
-export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low';
+/** 'glass' = a window wall (glass curtain wall, document 2.1; map/glass-wall.ts). */
+export type WallKind = 'exterior' | 'interior' | 'partition' | 'railing' | 'low' | 'glass';
 export type OpeningKind = 'door' | 'window' | 'passage';
 export type Swing = 'left' | 'right' | 'double' | 'sliding' | 'none';
 export type Hinge = 'start' | 'end';
@@ -49,6 +51,8 @@ export interface GeomWall {
   /** Detector 1.3 (T087): a detected wall drawn as two thin lines with white between (hollow_v1); every detected wall
    * carries it, the editor does not draw it differently yet. Absent on hand-drawn and older walls. */
   hollow?: boolean;
+  /** A window wall's glazing (kind 'glass', document 2.1; map/glass-wall.ts). Absent = the defaults. */
+  glazing?: Glazing;
   /** CR-009: an item of a room another floor owns, attached on read (map/shared-space.ts); never stored here. */
   shared?: import('./shared-space').SharedItemMark;
 }
@@ -204,7 +208,7 @@ export interface Calibration {
   reason: string | null;
 }
 export interface GeometryDoc {
-  /** 2.1 when a wall carries bulges (curved walls); the server stamps it on every save. */
+  /** '2.1' when a wall is curved (bulges) or the document has a window wall (map/glass-wall.ts withDocVersion); else '2.0'. The server stamps it on every save. */
   schema_version: '2.0' | '2.1';
   plan_version_id: string;
   floor_id: string;
@@ -231,15 +235,17 @@ export interface GeometryDoc {
 }
 
 /** `points` is what every map draws (a curved wall's sampled path); `arc`, only on a curved wall, is the exact part -
- * corners and bulges - the DXF export writes. */
-export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number; arc?: { points: Pt[]; bulges: number[] } }
+ * corners and bulges - the DXF export writes. `glass`: a part of a window wall (only then present, so every other
+ * wall's primitive is unchanged). */
+export interface WallPrim { kind: 'wall'; id: string; part: number; points: Pt[]; width: number; arc?: { points: Pt[]; bulges: number[] }; glass?: true }
+export type { GlazingPrim };
 export interface DoorPrim { kind: 'door'; id: string; gap: [Pt, Pt]; leaves: [Pt, Pt][]; arcs: { from: Pt; to: Pt; r: number; sweep: 0 | 1 }[] }
 export interface WindowPrim { kind: 'window'; id: string; gap: [Pt, Pt]; lines: [Pt, Pt][] }
 export interface PassagePrim { kind: 'passage'; id: string; gap: [Pt, Pt] }
 export interface LabelPrim { kind: 'label'; id: string; x: number; y: number; text: string; size: number }
 export interface ConnectorPrim { kind: 'connector'; id: string; ckind: ConnectorKind; points: Pt[]; width: number; arrow: { from: Pt; to: Pt }; label: string; lx: number; ly: number; level_from: string; level_to: string | null }
 export interface ObjectPrim { kind: 'object'; id: string; item_id: string; shape: ObjectShape; icon: string; color: string; level_id: string; cx: number; cy: number; w: number; h: number; rotation: number; corners: Pt[]; label: string | null; circuit_id: string | null; anchor: string | null; steps: [Pt, Pt][] }
-export type Primitive = WallPrim | DoorPrim | WindowPrim | PassagePrim | LabelPrim | ConnectorPrim | ObjectPrim;
+export type Primitive = WallPrim | GlazingPrim | DoorPrim | WindowPrim | PassagePrim | LabelPrim | ConnectorPrim | ObjectPrim;
 
 /** The 24 symbol ids of the library (plan-symbols.ts draws them; the export draws the same ids). */
 export const SYMBOL_IDS = ['box', 'cylinder', 'chair', 'table', 'sofa', 'bed', 'cabinet', 'lamp', 'panel', 'socket', 'extinguisher', 'smoke', 'exit', 'aed', 'medical', 'goal', 'mat', 'stairs', 'elevator', 'doorstation', 'tree', 'sanitary', 'office', 'parking'] as const;
@@ -387,6 +393,7 @@ function curvedWall(w: GeomWall, width: number, height: number, pxPerM: number, 
   const sampled = sample(pts, bulges) as Pt[];
   geo.set(w.id, { pts: sampled, cum: cumulative(sampled), wpx });
   arcs.set(w.id, { pts, bulges, cum });
+  const glass = w.kind === 'glass';
   let part = 0;
   for (const [s0, s1] of keepSpans(total, openings, pxPerM)) {
     if (s1 - s0 <= 0.01) continue;
@@ -406,8 +413,20 @@ function curvedWall(w: GeomWall, width: number, height: number, pxPerM: number, 
       exact = [...exact, end];
       eb = [...eb, 0];
     }
-    prims.push({ kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), arc: { points: (exact as Pt[]).map(rp), bulges: eb.map(rb6) } });
+    const prim: WallPrim = { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), arc: { points: (exact as Pt[]).map(rp), bulges: eb.map(rb6) } };
+    if (glass) prim.glass = true;
+    prims.push(prim);
     part += 1;
+  }
+  if (glass) { // a curved window wall: the panels divide the exact length, drawn along the sampled path (exact s per point)
+    const { pts: sp, s: ss } = sampleWithS(pts, bulges);
+    const cuts = openings.map((o): [number, number] => {
+      const c = (o.t || 0) * total;
+      const half = ((o.width_m || 0) * pxPerM) / 2;
+      return [Math.max(0, c - half), Math.min(total, c + half)];
+    });
+    cuts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    prims.push(glazingPrimitive(w, sp as Pt[], ss, wpx, pxPerM, cuts, rp, r2));
   }
 }
 
@@ -452,15 +471,17 @@ export function buildPrimitives(doc: GeometryDoc, width: number, height: number,
       cursor = Math.max(cursor, b);
     }
     if (cursor < total) keep.push([cursor, total]);
+    const glass = w.kind === 'glass';
     let part = 0;
     for (const [s0, s1] of keep) {
       if (s1 - s0 <= 0.01) continue;
       const seg = subPolyline(pts, cum, s0, s1);
       if (s0 <= 0) seg[0] = extend(seg[0], seg[1], wpx / 2);
       if (s1 >= total) seg[seg.length - 1] = extend(seg[seg.length - 1], seg[seg.length - 2], wpx / 2);
-      prims.push({ kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
+      prims.push(glass ? { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx), glass: true } : { kind: 'wall', id: w.id, part, points: seg.map(rp), width: r2(wpx) });
       part += 1;
     }
+    if (glass) prims.push(glazingPrimitive(w, pts, cum, wpx, pxPerM, cuts, rp, r2));
   }
   for (const o of [...doc.openings].sort(byId)) {
     const g = geo.get(o.wall_id);

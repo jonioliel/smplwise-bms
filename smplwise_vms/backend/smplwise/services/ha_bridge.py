@@ -179,6 +179,16 @@ ACTIONS: dict[str, dict[str, Any]] = {
     "input_boolean.turn_off": _a("input_boolean", "turn_off", "כיבוי", expect="off"),
     "vacuum.start": _a("vacuum", "start", "התחל ניקוי", expect="cleaning"),
     "vacuum.return_to_base": _a("vacuum", "return_to_base", "חזרה לעמדה", expect="returning"),
+    # CARD1 (2026-10-07, the equipment cards of the activity window): the smallest mappings the three cards need beyond the rows above -
+    # a robot vacuum's pause; a valve entity's open (water starts flowing: "attention", the UI holds-to-confirm and sends the grant) and
+    # close (the safe direction, routine); a water_heater entity's on / off (on lands in an operation mode, not "on": honestly "sent").
+    # Permission: devices.control / ha.entity.control at the entity's placement, like every row here. The bridge's ALLOWED_SERVICES
+    # carries the same five pairs; an installed bridge older than that answers service_not_allowed, which the UI shows as it is.
+    "vacuum.pause": _a("vacuum", "pause", "השהיית ניקוי", expect="paused"),
+    "valve.open_valve": _a("valve", "open_valve", "פתיחת ברז", expect="open", risk="attention"),
+    "valve.close_valve": _a("valve", "close_valve", "סגירת ברז", expect="closed"),
+    "water_heater.turn_on": _a("water_heater", "turn_on", "הדלקת דוד"),
+    "water_heater.turn_off": _a("water_heater", "turn_off", "כיבוי דוד", expect="off"),
     "siren.turn_on": _a("siren", "turn_on", "הפעלת צופר", expect="on", risk="attention"),
     "siren.turn_off": _a("siren", "turn_off", "כיבוי צופר", expect="off"),
     "alarm_control_panel.alarm_arm_home": _a("alarm_control_panel", "alarm_arm_home", "דריכה בבית", expect="armed_home", risk="attention"),

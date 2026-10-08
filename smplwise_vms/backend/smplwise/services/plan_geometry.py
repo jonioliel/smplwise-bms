@@ -15,21 +15,24 @@ from typing import Any, Mapping
 from ..db import new_id
 from .plan_schema import canonical_json as canonical_json
 from . import plan_catalog
-from . import wall_path
+from . import plan_glass, wall_path
 
 SCHEMA_VERSION = "2.0"
-# Curved walls (owner request 2026-10-08) are a minor, additive bump: a wall may carry `bulges` (wall_path). A document
-# with at least one curved wall is stamped "2.1" (rebase / doc_version); every other document stays "2.0", byte for
-# byte, so an older Arx keeps reading everything it could read before and refuses (never misreads) a curved one.
-SCHEMA_VERSION_CURVED = "2.1"
-SUPPORTED_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_CURVED)
+# Document 2.1 is one minor, additive bump shared by two features: window walls (plan_glass: a glass wall or a glazing
+# block) and curved walls (owner request 2026-10-08: a wall with `bulges`, wall_path). It is written only on a document
+# that uses one of them, so every other document stays byte-identical "2.0" and an older server keeps reading it (and
+# refuses, never misreads, a 2.1 one). Both are accepted here; rebase() stamps the right one on every save.
+SCHEMA_VERSION_21 = plan_glass.GLAZING_SCHEMA_VERSION
+SCHEMA_VERSION_CURVED = SCHEMA_VERSION_21  # the curved-walls name of the same bump
+SCHEMA_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_21)
+SUPPORTED_VERSIONS = SCHEMA_VERSIONS
 TOKENS_VERSION = "map-1"
 DEFAULT_LEVEL_ID = "L0"
 DEFAULT_LEVEL_NAME = "מפלס ראשי"
 DEFAULT_CEILING_M = 2.8
 DEFAULT_WALL_THICKNESS_M = 0.2
 ESTIMATED_WALL_FRACTION = 0.006  # uncalibrated: a 0.2 m wall is drawn 0.6 % of the plan width wide
-WALL_KINDS = ("exterior", "interior", "partition", "railing", "low")
+WALL_KINDS = ("exterior", "interior", "partition", "railing", "low", plan_glass.GLASS_KIND)
 OPENING_KINDS = ("door", "window", "passage")
 SWINGS = ("left", "right", "double", "sliding", "none")
 HINGES = ("start", "end")
@@ -184,7 +187,7 @@ def rebase(doc: Mapping[str, Any], version: Mapping[str, Any], asset: Mapping[st
     move the document to another version or fake a calibration."""
     out = dict(doc)
     out.update(version_block(version, asset))
-    out["schema_version"] = doc_version(out)
+    out["schema_version"] = document_version(out)
     return out
 
 
@@ -193,9 +196,14 @@ def has_curves(doc: Mapping[str, Any]) -> bool:
     return isinstance(walls, list) and any(isinstance(w, dict) and wall_path.is_curved(w) for w in walls)
 
 
-def doc_version(doc: Mapping[str, Any]) -> str:
-    """The schema version a document is stored under: 2.1 when a wall is curved, else 2.0."""
-    return SCHEMA_VERSION_CURVED if has_curves(doc) else SCHEMA_VERSION
+def document_version(doc: Mapping[str, Any]) -> str:
+    """The schema version a document is stored with: "2.1" when it uses window walls (a glass wall or a glazing
+    block) or curved walls (a wall with bulges), else "2.0" - the lowest version that describes it, so older readers
+    keep every document they can read."""
+    return SCHEMA_VERSION_21 if plan_glass.uses_glazing(doc) or has_curves(doc) else SCHEMA_VERSION
+
+
+doc_version = document_version  # the name the curved-walls code uses
 
 
 def is_empty(doc: Mapping[str, Any]) -> bool:
@@ -253,8 +261,8 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
     if not isinstance(doc, dict):
         _issue(issues, "type", "המסמך חייב להיות אובייקט JSON.", structural=True)
         return issues
-    if doc.get("schema_version") not in SUPPORTED_VERSIONS:
-        _issue(issues, "schema_version", f"schema_version חייב להיות {SCHEMA_VERSION} או {SCHEMA_VERSION_CURVED}.", path="schema_version", structural=True)
+    if doc.get("schema_version") not in SCHEMA_VERSIONS:
+        _issue(issues, "schema_version", f"schema_version חייב להיות {' או '.join(SCHEMA_VERSIONS)}.", path="schema_version", structural=True)
     dims = doc.get("dimensions")
     if not isinstance(dims, dict) or not all(isinstance(dims.get(k), int) and not isinstance(dims.get(k), bool) and 1 <= dims.get(k) <= 100000 for k in ("width_px", "height_px")):
         _issue(issues, "dimensions", "dimensions.width_px ו־height_px חייבים להיות מספרים שלמים בין 1 ל־100000.", path="dimensions", structural=True)
@@ -295,7 +303,7 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
                 seen[item["id"]] = coll
     _check_calibration(dims, issues)
     levels = _check_levels(doc["levels"], issues)
-    walls = _check_walls(doc["walls"], levels, width, height, issues)
+    walls = _check_walls(doc["walls"], levels, width, height, issues, effective_scale(doc)[0])
     _check_openings(doc, walls, width, height, issues)
     _check_labels(doc["labels"], levels, issues)
     _check_rooms(doc["rooms"], levels, issues)
@@ -410,6 +418,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         opt("locked", lambda v: isinstance(v, bool))
         opt("external_ids", lambda v: isinstance(v, dict))
         tags()
+        plan_glass.check_fields(item.get("glazing"), bad)
     elif coll == "openings":
         req("wall_id", isinstance(item.get("wall_id"), str))
         req("t", _num(item.get("t")))
@@ -536,7 +545,7 @@ def _check_levels(levels: list[dict[str, Any]], issues: list[dict[str, Any]]) ->
     return ids
 
 
-def _check_walls(walls: list[dict[str, Any]], levels: set[str], width: int, height: int, issues: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def _check_walls(walls: list[dict[str, Any]], levels: set[str], width: int, height: int, issues: list[dict[str, Any]], scale: float = 1.0) -> dict[str, dict[str, Any]]:
     ok: dict[str, dict[str, Any]] = {}
     for w in walls:
         wid = w["id"]
@@ -566,6 +575,13 @@ def _check_walls(walls: list[dict[str, Any]], levels: set[str], width: int, heig
             _issue(issues, "enum", "סוג קיר או מקור (source) לא מוכרים.", item=wid, path="walls")
         if not _unit(w.get("confidence")):
             _issue(issues, "confidence", "confidence בין 0 ל־1.", item=wid, path="walls")
+        if w.get("kind") == plan_glass.GLASS_KIND or w.get("glazing") is not None:
+            length_m = wall_length_px(w, width, height) * scale  # the path length: a curved window wall by its arcs
+
+            def glass_issue(code: str, message: str, severity: str = "error", wid: str = wid) -> None:
+                _issue(issues, code, message, item=wid, path="walls", severity=severity)
+
+            plan_glass.check_wall(w, length_m, glass_issue)
         ok[wid] = w
     return ok
 
@@ -1116,7 +1132,7 @@ def apply_anchor_positions(doc: Mapping[str, Any], anchors: Mapping[str, Mapping
 CANDIDATE_PREFIXES = ("auto-", "imp-")
 CANDIDATE_SOURCES = ("auto", "imported")
 EDITABLE_FIELDS = {
-    "walls": ("polyline", "bulges", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked", "tags"),
+    "walls": ("polyline", "bulges", "thickness_m", "kind", "height_m", "base_z_m", "level_id", "locked", "tags", "glazing"),
     "openings": ("t", "kind", "width_m", "height_m", "sill_m", "swing", "hinge", "wall_id", "anchor_ref"),
     # the object schema of _check_objects (the brief's pose / name / catalog_id / flip do not exist in it)
     "objects": ("position", "rotation_deg", "size", "z_m", "label", "item_id", "level_id", "params", "anchor_ref", "locked", "tags"),

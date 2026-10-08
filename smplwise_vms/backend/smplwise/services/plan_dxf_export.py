@@ -12,7 +12,8 @@ Format choices:
 - Curved walls (schema 2.1): each part is an LWPOLYLINE with per-vertex bulges (a true arc in CAD, not chords), the
   document's bulge negated by the y mirror; layers and XDATA are those of a straight wall.
 - Layers (fixed names, fixed colours): SW_WALLS, SW_OPENINGS, SW_ROOMS, SW_DEVICES, SW_OBJECTS, SW_CONNECTORS,
-  SW_LABELS. Every entity carries the id of the item it was drawn from as XDATA of the application SMPLWISE, so a CAD
+  SW_LABELS, and SW_GLAZING (window walls, document 2.1) only on a plan that has a glass wall.
+  Every entity carries the id of the item it was drawn from as XDATA of the application SMPLWISE, so a CAD
   user (or a later import) can tell the items apart.
 - Text: MTEXT in the style SW_TEXT (Arial, which has Hebrew glyphs). Text is cleaned first: control characters and the
   bidi embedding / override marks are removed, MTEXT's own control characters (backslash, braces) are escaped and a
@@ -46,6 +47,7 @@ from ezdxf import units
 
 from . import plan_geometry_render as render
 from .plan_geometry import DEFAULT_LEVEL_ID, effective_scale
+from .plan_glass import GLASS_KIND
 
 APP_ID = "SMPLWISE"
 TEXT_STYLE = "SW_TEXT"
@@ -61,12 +63,16 @@ LAYERS: dict[str, tuple[int, str, str]] = {
     "SW_LABELS": (7, "Continuous", "labels"),
 }
 BACKGROUND_LAYER = ("SW_BACKGROUND", 7, "plan picture")
+# Window walls (document 2.1, plan_glass): a layer family of their own - the frame band and the glass centre line of
+# every part, a line per mullion and per panel (XDATA kind "glass_panel:<index>[:<operation>]"). Added only to a plan
+# that has a glass wall, so every other drawing keeps exactly its layer table.
+GLAZING_LAYER = ("SW_GLAZING", 4, "Continuous", "window walls: glass, mullions, panels")
 # the families a level splits into (devices belong to the floor, not to a level)
 LEVEL_FAMILIES = ("SW_WALLS", "SW_OPENINGS", "SW_ROOMS", "SW_OBJECTS", "SW_CONNECTORS", "SW_LABELS")
 _LAYER_UNSAFE = re.compile(r"[^A-Za-z0-9_]+")
 MAX_SUFFIX = 24
 # the export's layer switch (?layers=) uses the SVG names; DXF has a layer per family
-FAMILY_LAYERS = {"structure": ("SW_WALLS", "SW_OPENINGS"), "objects": ("SW_OBJECTS",), "labels": ("SW_LABELS",), "connectors": ("SW_CONNECTORS",)}
+FAMILY_LAYERS = {"structure": ("SW_WALLS", "SW_OPENINGS", GLAZING_LAYER[0]), "objects": ("SW_OBJECTS",), "labels": ("SW_LABELS",), "connectors": ("SW_CONNECTORS",)}
 DEVICE_RADIUS_M = 0.15
 DEVICE_HEADING_M = 0.45
 DEFAULT_TEXT_PX = 12.0
@@ -179,8 +185,11 @@ def build(doc: dict[str, Any], zones: list[dict[str, Any]], width: float, height
     dxf.styles.add(TEXT_STYLE, font="arial.ttf")
     suffixes = level_suffixes(doc)
     by_id = {lv["id"]: lv for lv in _levels(doc)}
-    for name, (color, linetype, desc) in LAYERS.items():
-        if suffixes and name in LEVEL_FAMILIES:
+    layer_table = dict(LAYERS)
+    if any(isinstance(w, dict) and w.get("kind") == GLASS_KIND for w in doc.get("walls") or []):
+        layer_table[GLAZING_LAYER[0]] = GLAZING_LAYER[1:]
+    for name, (color, linetype, desc) in layer_table.items():
+        if suffixes and (name in LEVEL_FAMILIES or name == GLAZING_LAYER[0]):
             for lid, suffix in suffixes.items():
                 lay = dxf.layers.add(layer_name(name, suffix), color=color, linetype=linetype)
                 lay.description = clean_text(f"{desc} · {by_id[lid].get('name') or lid}", 200)
@@ -277,16 +286,33 @@ def _draw_rooms(msp: Any, frame: _Frame, zones: list[dict[str, Any]], width: flo
         _text(msp, z.get("name") or "", (round(cx, 6), round(cy, 6)), frame.d(DEFAULT_TEXT_PX), layer, z["id"], "room_name", lv)
 
 
+def _wall_polyline(msp: Any, frame: _Frame, p: dict[str, Any], attribs: dict[str, Any]) -> Any:
+    """A wall part as an LWPOLYLINE: a curved part (`arc`) as its exact corners with bulges (true arcs in CAD; y is
+    mirrored, so the turn flips), a straight one as its points."""
+    arc = p.get("arc")
+    if arc:
+        pts = [(*frame.p(q), -float(b) + 0.0) for q, b in zip(arc["points"], [*arc["bulges"], 0.0])]
+        return msp.add_lwpolyline(pts, format="xyb", dxfattribs=attribs)
+    return msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs=attribs)
+
+
 def _draw(msp: Any, frame: _Frame, p: dict[str, Any], shown: set[str], to: Callable[[str], str], lv: str | None) -> None:
     """One primitive on its family's layer (`to` maps the fixed family name to the layer of this level)."""
     kind = p["kind"]
-    if kind == "wall" and "SW_WALLS" in shown:
-        arc = p.get("arc")
-        if arc:  # a curved wall part: its exact corners with bulges (true arcs in CAD); y is mirrored, so the turn flips
-            pts = [(*frame.p(q), -float(b) + 0.0) for q, b in zip(arc["points"], [*arc["bulges"], 0.0])]
-            pl = msp.add_lwpolyline(pts, format="xyb", dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
-        else:
-            pl = msp.add_lwpolyline([frame.p(q) for q in p["points"]], dxfattribs={"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
+    if kind == "wall" and p.get("glass"):
+        if GLAZING_LAYER[0] in shown:
+            layer = to(GLAZING_LAYER[0])
+            _tag(_wall_polyline(msp, frame, p, {"layer": layer, "const_width": frame.d(p["width"])}), p["id"], "glass_wall", lv)
+            _tag(_wall_polyline(msp, frame, p, {"layer": layer}), p["id"], "glass_pane", lv)
+    elif kind == "glazing" and GLAZING_LAYER[0] in shown:
+        layer = to(GLAZING_LAYER[0])
+        for a, b in p["mullions"]:
+            _tag(msp.add_line(frame.p(a), frame.p(b), dxfattribs={"layer": layer}), p["id"], "mullion", lv)
+        for q in p["panels"]:
+            attribs = {"layer": layer, **({"linetype": "DASHED"} if q["operation"] else {})}
+            _tag(msp.add_line(frame.p(q["a"]), frame.p(q["b"]), dxfattribs=attribs), p["id"], f"glass_panel:{q['index']}" + (f":{q['operation']}" if q["operation"] else ""), lv)
+    elif kind == "wall" and "SW_WALLS" in shown:
+        pl = _wall_polyline(msp, frame, p, {"layer": to("SW_WALLS"), "const_width": frame.d(p["width"])})
         _tag(pl, p["id"], "wall", lv)
     elif kind in ("door", "window", "passage") and "SW_OPENINGS" in shown:
         layer = to("SW_OPENINGS")

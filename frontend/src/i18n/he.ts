@@ -1,4 +1,6 @@
-// Hebrew UI strings. Keys are stable English identifiers so an English catalogue can be added later.
+// Hebrew UI strings. Keys are stable English identifiers; i18n/en.ts carries the English of the sections that have one (CARD1 onward).
+import { en } from './en';
+
 export const he = {
   app: {
     name: 'SmplWise Arx',
@@ -308,9 +310,137 @@ export const he = {
           record: 'הקלטה, צילומי תמונה והפעלת מצלמה',
           profile: 'החלפת פרופיל',
           review: 'סימון נסקר גם ב־Frigate',
-          events: 'שמירת אירוע ותיקון תווית',
+          events: 'אירועים: שמירה, תווית, אירוע ידני',
+          exports: 'ייצוא קטעים',
+          cases: 'תיקים',
           ptz: 'שליטת PTZ',
         },
+        // FRGD: the management card's tabs (Settings only)
+        tabs: {
+          classes: 'סוגי פעולה',
+          profiles: 'פרופילים',
+          exports: 'ייצואים',
+          cases: 'תיקים',
+          events: 'אירועים ידניים',
+          log: 'יומן שינויים',
+          supervision: 'פיקוח',
+        },
+        confirmDelete: 'דורש אישור במחיקה',
+        classesOn: 'סוגי פעולה פעילים',
+        classOff: 'סוג הפעולה כבוי',
+        noPermission: 'אין הרשאה',
+        firstPending: 'כתיבה ראשונה טרם בוצעה',
+        kinds: {
+          export_create: 'ייצוא נוצר',
+          export_rename: 'שם ייצוא שונה',
+          export_delete: 'ייצוא נמחק',
+          case_create: 'תיק נוצר',
+          case_rename: 'שם תיק שונה',
+          case_delete: 'תיק נמחק',
+          event_create: 'אירוע ידני נוצר',
+          event_end: 'אירוע ידני הסתיים',
+          profile_auto: 'פרופיל אוטומטי',
+          clip_read: 'קריאת קטע וידאו',
+        },
+        supervised: {
+          label: 'מבוצע בפיקוח',
+          hint: 'כתיבה ראשונה מסוג זה אל Frigate. מנהל המערכת מאשר שהיא מבוצעת בפיקוח.',
+          need: 'כתיבה ראשונה מסוג זה דורשת אישור פיקוח של מנהל מערכת.',
+        },
+        auto: {
+          title: 'פרופיל אוטומטי לפי מצב האזעקה',
+          mode: 'מצב',
+          modes: { off: 'כבוי', suggest: 'הצעה בלבד', apply: 'הפעלה' },
+          consent: 'הסכמה להחלפה אוטומטית',
+          consentBy: 'אושר',
+          willApply: 'שינוי מצב אזעקה יחליף פרופיל אוטומטית',
+          suggestOnly: 'שינוי מצב אזעקה ייצור הצעה בלבד',
+          offText: 'שינוי מצב אזעקה אינו עושה דבר',
+          blockedClass: 'סוג הפעולה "החלפת פרופיל" כבוי',
+          blockedConsent: 'חסרה הסכמה',
+          blockedFirst: 'טרם בוצעה כתיבה ראשונה בפיקוח',
+          suggestions: 'הצעות פתוחות',
+          noSuggestions: 'אין הצעות פתוחות',
+          apply: 'החל',
+          dismiss: 'דחה',
+          recent: 'שינויי אזעקה אחרונים',
+          noRecent: 'עדיין לא נרשמו שינויי אזעקה',
+          applied: 'הפרופיל הוחלף',
+          dismissed: 'ההצעה נדחתה',
+          confirmApply: 'להחליף את הפרופיל?',
+          status: { pending: 'ממתין', suggested: 'מוצע', applied: 'הוחל', unverified: 'לא אומת', skipped: 'כבר פעיל', failed: 'נכשל', expired: 'פג', dismissed: 'נדחה', superseded: 'הוחלף בחדש' },
+          reason: { class_off: 'סוג הפעולה כבוי', no_consent: 'אין הסכמה', first_write_unsupervised: 'אין כתיבה ראשונה בפיקוח', already_active: 'כבר פעיל', by_user: 'על ידי משתמש', mode_off: 'המצב כובה' },
+          profileNone: 'ללא פרופיל',
+          arrow: 'ל־',
+        },
+        exports: {
+          create: 'ייצוא חדש',
+          name: 'שם',
+          camera: 'מצלמה',
+          from: 'מ־',
+          to: 'עד',
+          date: 'תאריך',
+          inProgress: 'בתהליך',
+          ready: 'מוכן',
+          origin: 'נוצר ב־',
+          arx: 'Arx',
+          foreign: 'Frigate',
+          rename: 'שינוי שם',
+          delete: 'מחיקה',
+          deleteTitle: 'מחיקת ייצוא',
+          deleteText: 'הקלידו את השם כדי לאשר:',
+          empty: 'אין ייצואים',
+          rangeMissing: 'יש לבחור טווח זמן',
+          rangeOrder: 'הסיום לפני ההתחלה',
+          rangeLong: 'הטווח ארוך משעתיים',
+          rangeFuture: 'הטווח בעתיד',
+          created: 'הייצוא נוצר',
+          renamed: 'השם נשמר',
+          deleted: 'הייצוא נמחק',
+          case: 'תיק',
+          chooseCamera: 'בחרו מצלמה',
+          state: 'מצב',
+        },
+        cases: {
+          create: 'תיק חדש',
+          name: 'שם',
+          description: 'תיאור',
+          created: 'התיק נוצר',
+          renamed: 'השם נשמר',
+          deleted: 'התיק נמחק',
+          deleteTitle: 'מחיקת תיק',
+          empty: 'אין תיקים',
+          createdAt: 'נוצר',
+          origin: 'נוצר ב־',
+        },
+        events: {
+          create: 'אירוע ידני חדש',
+          label: 'תווית',
+          duration: 'משך בשניות',
+          openEnded: 'פתוח עד לסיום ידני',
+          end: 'סיים',
+          ended: 'האירוע הסתיים',
+          created: 'האירוע נוצר',
+          openList: 'אירועים פתוחים שנוצרו כאן',
+          empty: 'אין אירועים פתוחים',
+          camera: 'מצלמה',
+          subLabel: 'תווית משנה',
+          durationError: 'משך בין 1 ל־600 שניות',
+          labelError: 'יש להזין תווית',
+        },
+        supervision: {
+          title: 'כתיבה ראשונה בפיקוח',
+          intro: 'כל סוג כתיבה חדש אל Frigate נחסם עד שמנהל מערכת מבצע אותו פעם אחת בפיקוח.',
+          done: 'בוצע',
+          pending: 'טרם בוצע',
+          clipTitle: 'קריאת קטע וידאו',
+          clipText: 'קריאה בלבד: חלון של עד שעה ממצלמה אחת, מועבר דרך Arx.',
+          open: 'פתח קטע',
+          clipSupervised: 'הקריאה הראשונה מבוצעת בפיקוח',
+          clipRangeError: 'חלון של עד שעה, לא בעתיד',
+        },
+        view: { label: 'תצוגה', cards: 'כרטיסים', table: 'טבלה' },
+        actions: 'פעולות',
         ptzNotReleased: 'לא משוחרר',
         rules: 'פרופיל לפי מצב האזעקה',
         rulesNone: 'ללא',
@@ -458,6 +588,28 @@ export const he = {
       time: 'זמן',
       noPermissionMark: 'אין הרשאה לסימון',
       partialCoverage: 'הקלטה על תנועה בלבד: כיסוי חלקי',
+      // FRGD: the restyled screen
+      demo: 'נתוני הדגמה',
+      view: 'תצוגה',
+      viewCards: 'כרטיסים',
+      viewTable: 'טבלה',
+      keysTitle: 'קיצורי מקלדת',
+      state: 'מצב',
+      actions: 'פעולות',
+      exportClip: 'ייצוא הקטע',
+      exportTitle: 'ייצוא קטע',
+      exportName: 'שם הייצוא',
+      exportRange: 'טווח',
+      exported: 'הייצוא נוצר',
+      exportFailed: 'הייצוא לא נוצר',
+      keyRows: {
+        move: 'מעבר בין פריטים',
+        select: 'בחירה',
+        reviewed: 'סמן כנסקר / לא נסקר',
+        open: 'פתיחה',
+        all: 'בחר הכול',
+        esc: 'סגירה / ניקוי בחירה',
+      },
       kind: {
         enter: 'נכנס למצלמה',
         zone: 'נכנס לאזור',
@@ -542,6 +694,62 @@ export const he = {
     schedBack: 'חזרה לפעילות',
     schedMore: 'מוסיף התקנים נוספים',
   },
+  /** CARD1 (2026-10-07): the equipment cards of the activity window - water heater, tap / valve, robot vacuum. Operator copy: short, no hints. */
+  deviceCard: {
+    loading: 'טוענים את מצב ההתקן',
+    readOnly: 'צפייה בלבד',
+    stateUnknown: 'לא ידוע',
+    since: 'מאז {t}',
+    // water heater
+    heaterOn: 'דלוק',
+    heaterOff: 'כבוי',
+    heaterTurnOn: 'הדלקה',
+    heaterTurnOff: 'כיבוי',
+    heaterTarget: 'יעד {n}°',
+    heaterCurrent: 'מים {n}°',
+    boost: 'הפעלה לזמן קצוב',
+    boostFor: '{n} דק׳',
+    autoOffAt: 'כיבוי אוטומטי · {t}',
+    autoOffCancel: 'ביטול הכיבוי האוטומטי',
+    autoOffLabel: 'כיבוי אוטומטי',
+    autoOffScheduleName: 'כיבוי אוטומטי · {name}',
+    autoOffFailed: 'הכיבוי האוטומטי לא נקבע',
+    // tap / valve
+    valveOpen: 'פתוח',
+    valveClosed: 'סגור',
+    valveOpening: 'נפתח…',
+    valveClosing: 'נסגר…',
+    valvePosition: '{n}% פתוח',
+    valveDoOpen: 'פתיחה',
+    valveDoClose: 'סגירה',
+    holdToOpen: 'לחיצה ארוכה לפתיחה',
+    holdHint: 'החזיקו',
+    armedConfirm: 'לאשר?',
+    autoClose: 'סגירה אוטומטית',
+    autoCloseAt: 'סגירה אוטומטית · {t}',
+    autoCloseCancel: 'ביטול הסגירה האוטומטית',
+    autoCloseScheduleName: 'סגירה אוטומטית · {name}',
+    // robot vacuum
+    vacStart: 'התחלה',
+    vacPause: 'השהיה',
+    vacDock: 'חזרה לעגינה',
+    vacBattery: 'סוללה {n}%',
+    vacFan: 'שאיבה {v}',
+    vacLastClean: 'ניקוי אחרון {t}',
+    vacLastCleanNone: 'אין ניקוי מתועד',
+    vacDocked: 'בעגינה',
+    vacCleaning: 'מנקה',
+    vacPaused: 'מושהה',
+    vacReturning: 'חוזר לעגינה',
+    vacIdle: 'ממתין',
+    vacError: 'תקלה',
+    fanQuiet: 'שקטה',
+    fanStandard: 'רגילה',
+    fanMedium: 'בינונית',
+    fanHigh: 'גבוהה',
+    fanTurbo: 'טורבו',
+    fanMax: 'מקסימום',
+  },
   secondFactor: {
     title: 'אימות דו־שלבי',
     loginPrompt: 'הזן את הקוד בן 6 הספרות מאפליקציית האימות.',
@@ -577,7 +785,28 @@ export const he = {
 type Path<T> = T extends object ? { [K in keyof T]: `${K & string}.${Path<T[K]>}` | (T[K] extends string ? K & string : never) }[keyof T] : never;
 export type I18nKey = Path<typeof he>;
 
+/** A catalogue of the same shape as `he`, section by section, with any part left out (it falls back to the Hebrew). */
+export type PartialCatalogue<T = typeof he> = { [K in keyof T]?: T[K] extends string ? string : PartialCatalogue<T[K]> };
+
+function lookup(dict: unknown, key: string): string | undefined {
+  const value = key.split('.').reduce<unknown>((acc, part) => (acc as Record<string, unknown> | undefined)?.[part], dict);
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** CARD1: `<html lang="en">` picks the English catalogue (i18n/en.ts) where it has the key; everything else stays Hebrew. */
+export function uiLang(): 'he' | 'en' {
+  return typeof document !== 'undefined' && (document.documentElement.lang || '').toLowerCase().startsWith('en') ? 'en' : 'he';
+}
+
 export function t(key: I18nKey): string {
-  const value = key.split('.').reduce<unknown>((acc, part) => (acc as Record<string, unknown> | undefined)?.[part], he);
-  return typeof value === 'string' ? value : key;
+  if (uiLang() === 'en') {
+    const v = lookup(en, key);
+    if (v !== undefined) return v;
+  }
+  return lookup(he, key) ?? key;
+}
+
+/** `t` with `{name}` placeholders filled in. */
+export function tf(key: I18nKey, vars: Record<string, string | number>): string {
+  return t(key).replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }

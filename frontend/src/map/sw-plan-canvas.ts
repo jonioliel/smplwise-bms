@@ -5,6 +5,7 @@ import { t, type I18nKey } from '../i18n/he';
 import { clusterBox, clusterMarkers, type Cluster } from './marker-cluster';
 import type { StateKind } from '../components/sw-badge';
 import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, floorHeight, isClosedOutline, objectHitCorners, objectHitOrder, stairPlan, stairRise, type StairPlan, type AnchorPosition, type CatalogLookup, type DoorPrim, type GeometryDoc, type LabelPrim, type ConnectorPrim, type ObjectPrim, type PassagePrim, type Primitive, type Pt, type WallPrim, type WindowPrim } from './geometry';
+import { glassBand, panelStateId } from './glass-wall';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState, objectCandidateLabel } from './candidates';
 import { symbolOf } from './plan-symbols';
 import { segmentMid } from './curve-ops';
@@ -799,6 +800,41 @@ export class SwPlanCanvas extends LitElement {
       stroke: var(--sw-map-structure);
       stroke-linecap: butt;
       stroke-linejoin: miter;
+    }
+    /* Window walls (document 2.1): the frame band keeps the structure colour, the pane band inside is the glass colour
+       over the canvas with a diagonal hatch (the pattern sw-glass-hatch), the centre line and the mullions on top. */
+    .structure .gpane {
+      fill: none;
+      stroke: url(#sw-glass-hatch);
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
+    }
+    .structure .gline {
+      fill: none;
+      stroke: var(--sw-map-glass);
+      stroke-linecap: butt;
+    }
+    .structure .mullion {
+      stroke: var(--sw-map-structure);
+      stroke-linecap: butt;
+    }
+    .structure .operable {
+      stroke: var(--sw-accent);
+    }
+    .glass-hatch-bg {
+      fill: color-mix(in srgb, var(--sw-map-glass) 22%, var(--sw-surface));
+    }
+    .glass-hatch-line {
+      stroke: var(--sw-map-glass);
+      stroke-width: 0.9;
+    }
+    .structure .glazing.sel .mullion,
+    .structure .glasswall.sel .gline {
+      stroke: var(--sw-accent);
+    }
+    .structure .glazing.issue .mullion,
+    .structure .glasswall.issue .gline {
+      stroke: var(--sw-danger);
     }
     .structure .leaf,
     .structure .arc {
@@ -2129,8 +2165,24 @@ export class SwPlanCanvas extends LitElement {
   private renderPrimitive(p: Primitive, inv: number, issues: Set<string>, marked: Set<string> = new Set()) {
     const cls = `${p.id === this.selectedGeomId || marked.has(p.id) ? 'sel' : ''} ${issues.has(p.id) ? 'issue' : ''}`;
     switch (p.kind) {
-      case 'wall':
-        return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+      case 'wall': {
+        if (!p.glass) return svg`<g class="wall-g ${cls}" data-wall=${p.id}><polyline class="wall" points=${ptsAttr(p.points)} stroke-width=${p.width} /></g>`;
+        // a window wall: the frame lines (the wall's band in the structure colour), the glass band hatched inside them
+        // and the glass centre line - a double line that reads apart from a solid wall in every skin and theme
+        const { band } = glassBand(p.width);
+        const pts = ptsAttr(p.points);
+        return svg`<g class="wall-g glasswall ${cls}" data-wall=${p.id} data-wall-glass>
+          <polyline class="wall gframe" points=${pts} stroke-width=${p.width} />
+          <polyline class="gpane" points=${pts} stroke-width=${band} />
+          <polyline class="gline" points=${pts} stroke-width=${Math.min(band * 0.5, 1.2 * inv)} />
+        </g>`;
+      }
+      case 'glazing':
+        return svg`<g class="glazing ${cls}" data-glazing=${p.id} data-panels=${p.panels.length}>
+          ${p.mullions.map(([a, b]) => svg`<line class="mullion" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${Math.max(p.mullion, 1.2 * inv)} />`)}
+          ${p.panels.filter((q) => q.operation).map((q) => svg`<line class="operable" data-operable=${q.index} data-operation=${q.operation ?? ''} x1=${q.a[0]} y1=${q.a[1]} x2=${q.b[0]} y2=${q.b[1]}
+            stroke-width=${1.4 * inv} stroke-dasharray=${`${3 * inv} ${2 * inv}`} />${this.renderOpenMark(panelStateId(p.id, q.index), [q.a, q.b], inv)}`)}
+        </g>`;
       case 'door':
         return svg`<g class="opening ${cls}" data-opening=${p.id} data-kind="door">
           ${p.leaves.map(([a, b]) => svg`<line class="leaf" x1=${a[0]} y1=${a[1]} x2=${b[0]} y2=${b[1]} stroke-width=${1.6 * inv} />`)}
@@ -2724,7 +2776,8 @@ export class SwPlanCanvas extends LitElement {
       <div class="viewport ${this.placing ? 'placing' : ''} ${this.boxSelect ? 'boxing' : ''} ${this.marquee ? 'marquee' : ''} ${this.panActive ? 'spacepan' : ''}" data-space-pan=${this.panActive ? 'on' : nothing} @wheel=${this.onWheel} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove}
            @pointerup=${this.onPointerUp} @pointercancel=${this.onPointerUp} @click=${this.onBackgroundClick}>
         <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="תוכנית קומה">
-          <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker></defs>
+          <defs><marker id="sw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="carrowhead" d="M0 0L10 5L0 10z" /></marker>
+            <pattern id="sw-glass-hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><rect class="glass-hatch-bg" width="4" height="4" /><line class="glass-hatch-line" x1="0" y1="0" x2="0" y2="4" /></pattern></defs>
           <g transform="translate(${this.tx} ${this.ty}) scale(${this.scale})">
             ${this.imageUrl && !this.hideImage
               ? svg`<image data-plan-image href=${this.imageUrl} x="0" y="0" width=${this.planWidth} height=${this.planHeight} preserveAspectRatio="none" />`

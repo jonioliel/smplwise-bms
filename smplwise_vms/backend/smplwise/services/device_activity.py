@@ -27,6 +27,7 @@ import collections
 import datetime as dt
 import json
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -55,12 +56,32 @@ ACTIVITY_KINDS = ("light", "switch", "outlet", "cover", "garage_door", "climate"
 GARAGE_CLASSES = frozenset({"garage", "gate"})
 
 
-def activity_kind(domain: str, device_class: str | None = None, climate_kind: str | None = None) -> str | None:
+# CARD1 (2026-10-07): a water heater or a tap wired through a plain switch (the common Israeli boiler relay, an irrigation relay) has no device
+# class of its own in Home Assistant, so the SERVER names the equipment from the entity's display name - the one decision the client never
+# makes (device-activity-press.ts). Conservative word lists, Hebrew and English; anything else stays a switch. The controls stay switch.*.
+WATER_HEATER_NAME_RE = re.compile(r"דוד|בוילר|דוד\s*שמש|boiler|water[\s_-]?heater", re.IGNORECASE)
+VALVE_NAME_RE = re.compile(r"ברז|שסתום|השקיה|ממטר|valve|irrigation|sprinkler", re.IGNORECASE)
+
+
+def switch_equipment(name: str | None) -> str | None:
+    """`water_heater` / `valve` for a switch whose name says so, else None."""
+    if not name:
+        return None
+    if WATER_HEATER_NAME_RE.search(name):
+        return "water_heater"
+    if VALVE_NAME_RE.search(name):
+        return "valve"
+    return None
+
+
+def activity_kind(domain: str, device_class: str | None = None, climate_kind: str | None = None, name: str | None = None) -> str | None:
     """The popup's device kind (twelve): None when the domain has no activity at all."""
     if domain not in ACTIVITY_DOMAINS:
         return None
     if domain == "switch":
-        return "outlet" if device_class == "outlet" else "switch"
+        if device_class == "outlet":
+            return "outlet"
+        return switch_equipment(name) or "switch"
     if domain == "input_boolean":
         return "switch"
     if domain == "cover":

@@ -86,6 +86,8 @@ ATTR_ALLOW = {
     # BV1 (2026-10-05, the home screen's agenda tile): the next event a `calendar.*` entity carries - its title, times, the all-day
     # flag and the location. Never `description` (free text of a private calendar; the tile does not show it).
     "message", "start_time", "end_time", "all_day", "location",
+    # CARD1 (2026-10-07, the robot vacuum card of the activity window): the suction level and the vendor's status word
+    "fan_speed", "status",
 }
 AUTOMATION_PREFIXES = ("automation.", "script.", "scene.")  # CR-017
 AUTOMATION_EVENTS = ("automation_reloaded", "scene_reloaded", "automation_triggered", "script_started")
