@@ -119,7 +119,13 @@
         "async_register_static_paths",
         "async_handle_stream_source",
         "ConfigFlow",
-        "hass.auth"
+        "hass.auth",
+        "state condition",
+        "normalized",
+        "administrator",
+        "allowlist",
+        "PKCE",
+        "login_flow"
       ],
       "ha_domains": [
         "hassio",
@@ -223,7 +229,10 @@
         "capabilit",
         "privilege",
         "landingpage",
-        "port 80"
+        "port 80",
+        "ingress session",
+        "websocket proxy",
+        "denied command"
       ],
       "note": "Add-on runtime: Ingress (ingress, ingress_port, panel_*), hassio_api + homeassistant_api roles, discovery of the bridge, /addons/self/options and /addons/self/restart (settings screen), CR-021 S3 (hassio_role: manager): POST /store/addons/{slug}/update, GET /jobs/info, GET /core/info, POST /core/check, POST /core/restart (the allow-list in services/self_update.py; watch for role-regex changes, the self bypass and /v2 aliases), backup: hot, watchdog, the map: homeassistant_config copy of the bridge. build.yaml is kept only for Supervisors older than 2026.04 (newer ones read the base image from the Dockerfile). HA is moving the name add-ons -> apps (the cloudflared repo is homeassistant-apps/app-cloudflared): watch for config key or API renames.",
       "last_checked": "2026-10-01",
@@ -409,7 +418,9 @@
         "hass.auth",
         "camera",
         "media_player",
-        "alarm_control_panel"
+        "alarm_control_panel",
+        "temperature_unit",
+        "native_"
       ],
       "note": "Integration-developer posts: anything about custom integrations (our bridge), WebSocket/REST/auth, camera/media_player/alarm entity platforms, frontend card API, services and translations. Generic words are off here (the blog is about integration internals); only the keywords above flag a post.",
       "last_checked": "2026-10-01",
