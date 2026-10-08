@@ -70,11 +70,12 @@ GET_ALLOWED: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in (
 # F2: reads that exist only to support a write class (a camera's PTZ facts). Not on GET_ALLOWED: the F1 read paths are unchanged, and
 # these are reachable only with `control=True`, which `recorders/frigate_control.py` alone passes.
 CONTROL_GET_ALLOWED: tuple[re.Pattern[str], ...] = (re.compile(rf"/api/{CAM}/ptz/info"),
-                                                    re.compile(r"/api/exports"), re.compile(r"/api/cases"))  # F2b: read-back of the export / case write classes
+                                                    re.compile(r"/api/exports"), re.compile(r"/api/cases"),  # F2b: read-back of the export / case write classes
+                                                    re.compile(r"/api/config/schema\.json"))  # FRGS: the instance's config schema (compared, never trusted)
 
 # F2 (CR-029): the write allow-list. Every write belongs to ONE class; a class is a unit of approval (frigate_write_policy) and of
 # permission (frigate_control_svc.PERMISSION). A path that is not here is refused locally before a byte is sent, exactly like a GET.
-# Never listed, on purpose: /api/config/set, /api/config/save, /api/restart, deletes of events / reviews / recordings (export and case deletes: F2b, own classes),
+# Never listed, on purpose: /api/config/set outside the `config` class (FRGS), /api/config/save, /api/restart, deletes of events / reviews / recordings (export and case deletes: F2b, own classes),
 # /api/users*, faces and plates, go2rtc stream edits, `*` as a camera for any feature (only the profile slot takes `*`).
 ANALYTICS_FEATURES = ("detect", "motion", "audio", "review_alerts", "review_detections", "notifications", "improve_contrast", "birdseye", "ptz_autotracker")
 RECORD_FEATURES = ("enabled", "recordings", "snapshots")
@@ -92,6 +93,10 @@ WRITE_ALLOWED: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
     "exports": (("POST", re.compile(rf"/api/export/{CAM}/start/{NUM}/end/{NUM}")), ("PATCH", re.compile(rf"/api/export/{OBJ}/rename")),
                 ("DELETE", re.compile(rf"/api/export/{OBJ}"))),
     "cases": (("POST", re.compile(r"/api/cases")), ("PATCH", re.compile(rf"/api/cases/{OBJ}")), ("DELETE", re.compile(rf"/api/cases/{OBJ}"))),
+    # FRGS (CR-029 section 13): zones and the curated camera settings. The path is generic, so what may be written is decided by the ONLY
+    # caller, `recorders/frigate_config.FrigateConfig._set` (one section of one camera, keys from its allow-listed schema). Never `/api/config/save`
+    # (a raw YAML upload), never a restart. UNVERIFIED wire shape.
+    "config": (("PUT", re.compile(r"/api/config/set")),),
 }
 # F2b: the clip read. Read-only GET, streamed, kept OFF `GET_ALLOWED` (no F1 read path can reach it) and reachable only through `open_clip`,
 # which the Arx clip routes alone call, after permission and the first-supervised-read gate. UNVERIFIED wire shape: Frigate cuts the clip on the

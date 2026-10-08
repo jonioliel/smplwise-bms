@@ -105,7 +105,7 @@ def world(settings, monkeypatch):
 def test_every_write_class_is_off_by_default_and_nothing_is_written(world):
     pol = world.call("GET", f"{BASE}/control/policy").json()
     assert {c["class"]: c["enabled"] for c in pol["classes"]} == {c: False for c in svc.CLASSES} and pol["ptz_released"] is False
-    assert {c["class"]: c["per_action"] for c in pol["classes"]} == {"analytics": False, "record": True, "profile": True, "review": False, "events": False, "ptz": True, "exports": False, "cases": False}
+    assert {c["class"]: c["per_action"] for c in pol["classes"]} == {"analytics": False, "record": True, "profile": True, "review": False, "events": False, "ptz": True, "exports": False, "cases": False, "config": True}
     r = world.toggle("cam_front", "detect", False)
     assert r.status_code == 409 and r.json()["code"] == "frigate_write_class_off"
     assert world.call("PUT", f"{BASE}/profile", json={"profile": "away", "confirm": True}).json()["code"] == "frigate_write_class_off"

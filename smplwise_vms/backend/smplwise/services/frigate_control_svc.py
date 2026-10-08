@@ -29,10 +29,11 @@ from .access import require_camera
 from .recorders import frigate_control as fc
 from .recorders.frigate import FrigateAdapter
 
-CLASSES = ("analytics", "record", "profile", "review", "events", "ptz", "exports", "cases")
+CLASSES = ("analytics", "record", "profile", "review", "events", "ptz", "exports", "cases", "config")
 PERMISSION = {"analytics": "analytics.control", "record": "analytics.record_control", "profile": "analytics.profile",
-              "review": "analytics.review", "events": "analytics.events", "ptz": "camera.ptz", "exports": "analytics.exports", "cases": "analytics.cases"}
-PER_ACTION = frozenset({"record", "profile", "ptz"})
+              "review": "analytics.review", "events": "analytics.events", "ptz": "camera.ptz", "exports": "analytics.exports", "cases": "analytics.cases",
+              "config": "system.configure"}   # FRGS: zones and camera settings, persisted in Frigate's configuration file
+PER_ACTION = frozenset({"record", "profile", "ptz", "config"})
 # F2b: `exports` and `cases` confirm per action only where it destroys something (delete, and an undo that deletes); see needs_confirm in _gate
 
 CONTROL_PERMISSIONS = frozenset(p for c, p in PERMISSION.items() if c != "review")  # who may SEE the control screens (the reviewed mirror is not management)
@@ -372,11 +373,16 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
         raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.", details={"status": row["status"]})
     from . import frigate_native_svc as native
 
+    from . import frigate_config_svc as cfgsvc
+
     native_kind = kind in native.INVERSE_KIND
+    config_kind = kind in cfgsvc.KINDS
     _gate(conn, principal, rid, cls, row["camera_id"], confirm=confirm, request_id=request_id, what=f"revert:{kind}",
           needs_confirm=(kind in native.UNDO_CONFIRMS) if native_kind else None)
     if native_kind:
         native.check_supervised(conn, principal, rid, native.INVERSE_KIND[kind], supervised, request_id)
+    if config_kind:
+        native.check_supervised(conn, principal, rid, kind, supervised, request_id)   # FRGS: an undo is a write of the same kind
     before, after = json.loads(row["before_json"] or "null"), json.loads(row["after_json"] or "null")
     ctl = fc.FrigateControl(adapter)
     base = dict(recorder_id=rid, camera_id=row["camera_id"], camera_key=row["camera_key"], cls=cls, kind=kind, target=row["target"], reverts_id=change_id, request_id=request_id)
@@ -420,6 +426,8 @@ def revert(conn: sqlite3.Connection, principal: Principal, adapter: FrigateAdapt
             verified = ctl.event(row["target"])["sub_label"] == before["sub_label"]
         elif native_kind:
             verified = native.revert_kind(conn, adapter, row, before, after)
+        elif config_kind:
+            verified = cfgsvc.revert_kind(adapter, row, before, after)
         else:
             raise ApiError(409, "frigate_change_not_reversible", "לא ניתן לבטל את השינוי הזה.")
     except ApiError as exc:
