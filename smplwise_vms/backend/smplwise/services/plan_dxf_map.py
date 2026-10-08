@@ -21,7 +21,7 @@ from typing import Any, Iterable
 
 from . import plan_catalog, plan_dxf, wall_path
 
-VERSION = "1.2"  # 1.2: curved walls (arcs, circles and bulged polylines on wall layers)
+VERSION = "1.3"  # 1.2: curved walls (arcs, circles and bulged polylines on wall layers); 1.3: openings on curved walls
 TARGETS = ("walls", "openings", "windows", "objects", "rooms", "ignore")
 TARGET_LABELS = {"walls": "קירות", "openings": "דלתות", "windows": "חלונות", "objects": "עצמים", "rooms": "חדרים", "ignore": "התעלם"}
 LAYER_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -61,6 +61,7 @@ CURVE_MIN_M = 0.3
 CONCENTRIC_M = 0.03
 CENTRELINE_WIDTH_M = (0.05, 0.6)
 MAX_PAIR_CURVES = 2000
+CURVE_TOL_M = 0.005  # sampling tolerance (metres) when an opening is projected onto a curved wall
 _WORD = re.compile(r"[a-z]+|[0-9]+|[֐-׿]+")
 _COS_PAIR = math.cos(math.radians(PAIR_ANGLE_DEG))
 _SIN_PERP = math.sin(math.radians(15.0))
@@ -986,15 +987,20 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         out_walls.append({"id": f"imp-{run_id}-w{len(out_walls) + 1:03d}", "level_id": level_id, "polyline": [pa, pb], "thickness_m": w["thickness"], "height_m": None, "base_z_m": 0,
                           "kind": "exterior" if w["paired"] and w["thickness"] >= 0.25 else "interior", "confidence": w["confidence"], "source": "imported", "locked": False, "external_ids": {}})
     # curved walls (schema 2.1) after the straight ones, so the straight walls' ids are those of a drawing without arcs.
-    # The drawing's y points up and the version's down: a turn flips, bulge -> -bulge. Openings are not hosted on them
-    # (the door and window matching below is straight-line maths): a person adds those in the editor.
+    # The drawing's y points up and the version's down: a turn flips, bulge -> -bulge. Openings are hosted on them by
+    # arc length (map 1.3): the relative position along the path is the same in metres and in the version (the plan
+    # is a similarity of the drawing), so t is measured in metres on the drawing's own corners and bulges.
     curves_outside = 0
+    curved_hosts: list[dict[str, Any]] = []
+    host_ids: dict[Any, str] = {i: out_walls[k]["id"] for i, k in wall_index.items()}
     for cw in [*({**c, "paired": True, "confidence": 0.9} for c in centrelines), *curved_walls]:
         pts_m, bulges = (cw["points"], cw["bulges"]) if "points" in cw else _arc_corners(cw)
         poly = [_clamped(tv(p)) for p in pts_m]
         if any(p is None for p in poly) or len(poly) < 2:
             curves_outside += 1
             continue
+        host_ids[("c", len(curved_hosts))] = f"imp-{run_id}-w{len(out_walls) + 1:03d}"
+        curved_hosts.append({"pts": [tuple(p) for p in pts_m], "bulges": list(bulges), "length": wall_path.path_length(pts_m, bulges)})
         out_walls.append({"id": f"imp-{run_id}-w{len(out_walls) + 1:03d}", "level_id": level_id, "polyline": poly, "bulges": [round(-b, 6) + 0.0 for b in bulges],
                           "thickness_m": cw["thickness"], "height_m": None, "base_z_m": 0, "kind": "exterior" if cw["paired"] and cw["thickness"] >= 0.25 else "interior",
                           "confidence": cw["confidence"], "source": "imported", "locked": False, "external_ids": {"dxf_handle": cw["handle"]}})
@@ -1003,7 +1009,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
     spans: dict[int, list[tuple[float, float]]] = defaultdict(list)
     dropped_openings = 0
 
-    def add_opening(kind: str, wi: int, along_c: float, length: float, width: float, swing: str, hinge: str, confidence: float, handle: str) -> None:
+    def add_opening(kind: str, wi: Any, along_c: float, length: float, width: float, swing: str, hinge: str, confidence: float, handle: str) -> None:
         nonlocal dropped_openings
         if not _fits(along_c, width, length):
             dropped_openings += 1
@@ -1013,7 +1019,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             return  # the same opening twice (a double-drawn arc, glazing over a door block)
         spans[wi].append((lo, hi))
         t = min(1.0, max(0.0, along_c / length))
-        out_openings.append({"id": f"imp-{run_id}-o{len(out_openings) + 1:03d}", "wall_id": out_walls[wall_index[wi]]["id"], "t": round(t, 5), "kind": kind, "width_m": round(width, 3),
+        out_openings.append({"id": f"imp-{run_id}-o{len(out_openings) + 1:03d}", "wall_id": host_ids[wi], "t": round(t, 5), "kind": kind, "width_m": round(width, 3),
                              "height_m": 1.2 if kind == "window" else 2.1, "sill_m": 0.9 if kind == "window" else 0, "swing": swing, "hinge": hinge, "anchor_ref": None,
                              "confidence": confidence, "source": "imported", "external_ids": {"dxf_handle": handle}})
 
@@ -1024,11 +1030,66 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         lateral = dv[0] * (vt[1] - va[1]) - dv[1] * (vt[0] - va[0])
         return "left" if lateral < 0 else "right"
 
+    # hosts: a straight wall index (as before) or ("c", k) for curved_hosts[k]; a drawing without arcs takes the
+    # straight path only, so its openings are unchanged
+    for h in curved_hosts:
+        xs, ys = zip(*wall_path.sample(h["pts"], h["bulges"], CURVE_TOL_M))
+        h["box"] = (min(xs) - NEAR_WALL_M, min(ys) - NEAR_WALL_M, max(xs) + NEAR_WALL_M, max(ys) + NEAR_WALL_M)
+
+    def on_curve(key: tuple[str, int], p: Pt) -> tuple[float, float]:
+        h = curved_hosts[key[1]]
+        s, dist, _q = wall_path.project(h["pts"], h["bulges"], p, CURVE_TOL_M)
+        return s, dist
+
+    def host_of(p: Pt) -> tuple[Any, float, float, float] | None:
+        """(host, along in metres, lateral, length): the nearest straight wall as _nearest_wall finds it, or a curved
+        wall when one is nearer (within NEAR_WALL_M of its path)."""
+        hit = _nearest_wall(p, walls, NEAR_WALL_M, host_grid)
+        best = hit if hit is not None and hit[0] in wall_index else None
+        for k, h in enumerate(curved_hosts):
+            x0, y0, x1, y1 = h["box"]
+            if not (x0 <= p[0] <= x1 and y0 <= p[1] <= y1):
+                continue
+            s, dist = on_curve(("c", k), p)
+            if dist <= NEAR_WALL_M and (best is None or dist < abs(best[2])):
+                best = (("c", k), s, dist, h["length"])
+        return best
+
+    def along_of(key: Any, p: Pt) -> float:
+        if isinstance(key, tuple):
+            return on_curve(key, p)[0]
+        w = walls[key]
+        return _along(_unit(w["a"], w["b"]), w["a"], p)
+
+    def dir_at(key: Any, s: float) -> Pt:
+        if isinstance(key, tuple):
+            h = curved_hosts[key[1]]
+            return wall_path.point_at(h["pts"], h["bulges"], s)[1]
+        return _unit(walls[key]["a"], walls[key]["b"])
+
+    def swing_at(key: Any, s: float, toward: Pt) -> str:
+        if not isinstance(key, tuple):
+            return swing_of(walls[key], toward)
+        h = curved_hosts[key[1]]
+        pt, d = wall_path.point_at(h["pts"], h["bulges"], s)
+        return swing_of({"a": pt, "b": (pt[0] + d[0], pt[1] + d[1])}, toward)  # the tangent line at s
+
+    def length_of(key: Any) -> float:
+        return curved_hosts[key[1]]["length"] if isinstance(key, tuple) else _len(walls[key]["a"], walls[key]["b"])
+
     for arc in feats["arcs"]:
-        hit = _nearest_wall(arc["c"], walls, NEAR_WALL_M, host_grid)
-        if hit is None or hit[0] not in wall_index:
+        hit = host_of(arc["c"])
+        if hit is None:
             continue
         wi, _along_h, _lat_h, length = hit
+        if isinstance(wi, tuple):  # a door on a curved wall: the hinge and the gap's other end by arc length
+            ends = [arc["p0"], arc["p1"]]
+            on_wall = min(ends, key=lambda p: on_curve(wi, p)[1])
+            tip = ends[1] if on_wall is ends[0] else ends[0]
+            hinge_along, other_along = on_curve(wi, arc["c"])[0], on_curve(wi, on_wall)[0]
+            mid_s = (hinge_along + other_along) / 2
+            add_opening("door", wi, mid_s, length, arc["r"], swing_at(wi, mid_s, tip), "start" if hinge_along < other_along else "end", 0.85, arc["handle"])
+            continue
         w = walls[wi]
         d = _unit(w["a"], w["b"])
         ends = [arc["p0"], arc["p1"]]
@@ -1046,11 +1107,10 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             if not DOOR_WIDTH_M[0] <= width <= DOOR_WIDTH_M[1]:
                 continue
             mid = ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
-            hit = _nearest_wall(mid, walls, NEAR_WALL_M, host_grid)
-            if hit is None or hit[0] not in wall_index:
+            hit = host_of(mid)
+            if hit is None:
                 continue
-            w = walls[hit[0]]
-            d = _unit(w["a"], w["b"])
+            d = dir_at(hit[0], hit[1])  # a curved wall: its tangent where the edge's middle meets it
             if abs(d[0] * _unit(p, q)[0] + d[1] * _unit(p, q)[1]) < math.cos(math.radians(10)):
                 continue
             if best is None or abs(hit[2]) < abs(best[0][2]):
@@ -1058,23 +1118,19 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         if best is None:
             continue
         (wi, _al, _lt, length), p, q = best
-        w = walls[wi]
-        d = _unit(w["a"], w["b"])
-        sp, sq = _along(d, w["a"], p), _along(d, w["a"], q)
+        sp, sq = along_of(wi, p), along_of(wi, q)
         # without an arc: the hinge is the edge end nearer the block's base point, the leaf swings toward the block body
-        sb = _along(d, w["a"], box["base"])
+        sb = along_of(wi, box["base"])
         hinge = "start" if abs(sb - min(sp, sq)) <= abs(sb - max(sp, sq)) else "end"
-        add_opening("door", wi, (sp + sq) / 2, length, abs(sq - sp), swing_of(w, ((x0 + x1) / 2, (y0 + y1) / 2)), hinge, 0.6, box["handle"])
+        add_opening("door", wi, (sp + sq) / 2, length, abs(sq - sp), swing_at(wi, (sp + sq) / 2, ((x0 + x1) / 2, (y0 + y1) / 2)), hinge, 0.6, box["handle"])
     # windows: the lines of a window layer grouped by their wall, overlapping runs merged
-    runs: dict[int, list[tuple[float, float, str]]] = defaultdict(list)
+    runs: dict[Any, list[tuple[float, float, str]]] = defaultdict(list)
     for a, b, handle in feats["glazing"]:
         mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-        hit = _nearest_wall(mid, walls, NEAR_WALL_M, host_grid)
-        if hit is None or hit[0] not in wall_index:
+        hit = host_of(mid)
+        if hit is None:
             continue
-        w = walls[hit[0]]
-        d = _unit(w["a"], w["b"])
-        p0, p1 = _along(d, w["a"], a), _along(d, w["a"], b)
+        p0, p1 = along_of(hit[0], a), along_of(hit[0], b)
         runs[hit[0]].append((min(p0, p1), max(p0, p1), handle))
     for wi, items in runs.items():
         items.sort()
@@ -1084,7 +1140,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
                 merged[-1][1] = max(merged[-1][1], hi)
             else:
                 merged.append([lo, hi, handle])
-        length = _len(walls[wi]["a"], walls[wi]["b"])
+        length = length_of(wi)
         for lo, hi, handle in merged:
             width = hi - lo
             if WINDOW_WIDTH_M[0] <= width <= WINDOW_WIDTH_M[1]:

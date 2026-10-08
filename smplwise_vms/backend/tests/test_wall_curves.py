@@ -359,6 +359,51 @@ def test_importer_pairs_concentric_arcs_and_reads_circles():
     assert len(arc["bulges"]) == 1 and arc["bulges"][0] == pytest.approx(-math.tan(math.radians(120) / 4), abs=1e-6)
 
 
+def test_importer_hosts_doors_and_windows_on_curved_walls():
+    """Map 1.3: a door swing arc, a second door swinging the other way and a window line on a curved wall (a pair of
+    concentric arcs) become openings of that wall, placed by arc length; straight walls keep their own matching."""
+    d = ezdxf.new("R2018")
+    d.units = 6
+    msp = d.modelspace()
+    c, r, sweep = (5.0, 5.0), 3.1, 120.0
+    msp.add_arc(c, 3.0, 0, sweep, dxfattribs={"layer": "A-WALL"})
+    msp.add_arc(c, 3.2, 0, sweep, dxfattribs={"layer": "A-WALL"})
+    msp.add_line((0, -2), (14, -2), dxfattribs={"layer": "A-WALL"})
+    on = lambda deg: (c[0] + r * math.cos(math.radians(deg)), c[1] + r * math.sin(math.radians(deg)))  # noqa: E731
+
+    def door(hinge_deg: float, outward: bool) -> None:
+        h = on(hinge_deg)
+        o = on(hinge_deg + math.degrees(0.9 / r))  # the gap's other end, 0.9 m further along the wall
+        out = (math.cos(math.radians(hinge_deg)), math.sin(math.radians(hinge_deg)))
+        tip_deg = math.degrees(math.atan2(out[1], out[0])) if outward else math.degrees(math.atan2(-out[1], -out[0]))
+        o_deg = math.degrees(math.atan2(o[1] - h[1], o[0] - h[0]))
+        start, end = (tip_deg, o_deg) if outward else (o_deg, tip_deg)  # counter-clockwise, the short way
+        msp.add_arc(h, 0.9, start % 360, end % 360, dxfattribs={"layer": "A-DOOR"})
+
+    door(40.0, True)
+    door(90.0, False)
+    msp.add_line(on(15.0), on(25.0), dxfattribs={"layer": "A-WIND"})
+    layers = ["A-WALL", "A-DOOR", "A-WIND"]
+    ents = plan_dxf_map.read_entities(d, layers)
+    extent = plan_dxf_map.extent_for(d, layers, ents)
+    got = plan_dxf_map.map_geometry(d, layer_map={"A-WALL": "walls", "A-DOOR": "openings", "A-WIND": "windows"}, block_map={}, units="m", extent=extent,
+                                    rotation=0, crop=None, level_id="L0", run_id="co", catalog=[], scale_m_per_px=None, entities=ents)
+    assert got["detector"]["version"] == "1.3"
+    curved = next(w for w in got["walls"] if w.get("bulges"))
+    on_curve = sorted((o for o in got["openings"] if o["wall_id"] == curved["id"]), key=lambda o: o["t"])
+    assert [o["kind"] for o in on_curve] == ["window", "door", "door"]
+    length = r * math.radians(sweep)
+    win, d1, d2 = on_curve
+    assert win["t"] == pytest.approx(r * math.radians(20.0) / length, abs=2e-3)
+    assert win["width_m"] == pytest.approx(r * math.radians(10.0), abs=5e-3)
+    assert d1["t"] == pytest.approx((r * math.radians(40.0) + 0.45) / length, abs=2e-3) and d1["width_m"] == pytest.approx(0.9, abs=1e-3)
+    assert d1["hinge"] == "start" and d2["hinge"] == "start"
+    assert d1["swing"] != d2["swing"], "one door opens outward, the other inward"
+    doc = {**_curved(), "walls": got["walls"], "openings": got["openings"]}
+    issues = pg.validate(doc)
+    assert [i for i in issues if i["structural"]] == []
+
+
 # ---------------------------------------------------------------- transforms, candidates, diff
 
 def test_recrop_keeps_an_arc_inside_and_flattens_one_it_cuts():

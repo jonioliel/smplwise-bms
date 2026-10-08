@@ -3585,7 +3585,7 @@ export class ExplorePlanEditor extends LitElement {
       // Snap targets: the other walls and this wall's own corners, except the dragged one and its neighbours.
       const corners = closed ? last : pl.length;
       const skip = closed ? [(i + corners - 1) % corners, i, (i + 1) % corners] : [i - 1, i, i + 1];
-      const own: GeomWall = { ...w, polyline: pl.slice(0, corners).filter((_, k) => !skip.includes(k)) };
+      const own: GeomWall = { ...w, polyline: pl.slice(0, corners).filter((_, k) => !skip.includes(k)), bulges: undefined }; // corners only: its own arcs move with the drag
       const targets = [...doc.walls.filter((v) => v.id !== d.id), own];
       const q = snapPoint(p, i > 0 ? pl[i - 1] : null, targets, b.width, b.height, { tolPx: CORNER_SNAP_PX / (this.canvas?.zoom ?? 1), free: true });
       return { doc: closed && i === 0 ? moveVertex(moveVertex(doc, d.id, 0, q), d.id, last, q) : moveVertex(doc, d.id, i, q), sel: { id: d.id, kind: 'wall', vertex: i } };

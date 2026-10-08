@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { arcOf, bulgeForRadius, bulgeThrough, cumulative, fillet, offsetPolyline, pathLength, pointAtS, project, ringArea, sample, segLength, subPath, type P } from '../src/map/wall-path';
-import { buildPrimitives, nearestWall, pointOnWall, wallLengthM, type GeometryDoc, type GeomWall, type Primitive } from '../src/map/geometry';
+import { buildPrimitives, nearestWall, pointOnWall, snapPoint, wallLengthM, wallOutlineAreaM2, type GeometryDoc, type GeomWall, type Primitive } from '../src/map/geometry';
 import { addArcWall, bendSegment, maxCornerRadiusM, roundCorner, segmentAt, segmentMid, segmentRadiusM, setSegmentRadius, straightenSegment } from '../src/map/curve-ops';
 import { removeCorner } from '../src/map/studio-ops';
 
@@ -97,6 +97,34 @@ test('editor maths follows the arc: nearest wall, point on wall, length', () => 
   expect(hit?.wall.id).toBe('ca-arc');
   expect(Math.abs((hit?.t ?? 0) - 0.5)).toBeLessThan(1e-3);
   expect(wallLengthM(arc, W, H, 0.01)).toBeGreaterThan(3.15); // the chord is 3 m
+});
+
+test('drawing snaps onto an arc body within the tolerance; corners still win; straight bodies keep the angle step', () => {
+  const doc = curved();
+  const arc = doc.walls.find((w) => w.id === 'ca-arc') as GeomWall;
+  const top = pointOnWall(arc, 0.5, W, H);
+  const near: [number, number] = [top[0], top[1] - 4 / H]; // 4 px off the arc's middle
+  const s = snapPoint(near, null, [arc], W, H, { tolPx: 10, free: true });
+  const hit = nearestWall(s, [arc], W, H, 1);
+  expect(hit?.distPx ?? 99).toBeLessThan(0.3);
+  expect(snapPoint([top[0], top[1] - 30 / H], null, [arc], W, H, { tolPx: 10, free: true })).toEqual([top[0], top[1] - 30 / H]); // too far
+  const c = arc.polyline[0];
+  expect(snapPoint([c[0] + 3 / W, c[1]], null, [arc], W, H, { tolPx: 10, free: true })).toEqual([c[0], c[1]]); // the corner
+  const flat: GeomWall = { ...arc, id: 'flat', bulges: undefined };
+  const q: [number, number] = [(flat.polyline[0][0] + flat.polyline[1][0]) / 2, flat.polyline[0][1] + 3 / H];
+  expect(snapPoint(q, null, [flat], W, H, { tolPx: 10, free: true })).toEqual(q); // no body snap on straight walls
+});
+
+test('the area a closed outline encloses: a round room, a rounded square, open walls have none', () => {
+  const round: GeomWall = { ...(curved().walls[0] as GeomWall), id: 'r', polyline: [[0.4, 0.5], [0.6, 0.5], [0.4, 0.5]], bulges: [1, 1] };
+  // diameter 200 px at 0.01 m/px = 2 m: pi m^2
+  expect(wallOutlineAreaM2(round, W, H, 0.01)).toBeCloseTo(Math.PI, 3);
+  const square: GeomWall = { ...round, polyline: [[0.1, 0.1], [0.3, 0.1], [0.3, 0.35], [0.1, 0.35], [0.1, 0.1]], bulges: undefined };
+  expect(wallOutlineAreaM2(square, W, H, 0.01)).toBeCloseTo(4, 6); // 200 x 200 px
+  const out = { ...square, bulges: [0, 0, 0, Math.tan(Math.PI / 8)] }; // the last side becomes a quarter-turn arc
+  expect(wallOutlineAreaM2(out, W, H, 0.01)!).not.toBeCloseTo(4, 2);
+  expect(wallOutlineAreaM2({ ...square, polyline: square.polyline.slice(0, 4) }, W, H, 0.01)).toBeNull();
+  expect(wallOutlineAreaM2({ ...round, bulges: undefined }, W, H, 0.01)).toBeNull(); // a three-point straight "outline" is a line
 });
 
 test('bend, radius and straighten: one segment, openings stay on the wall', () => {

@@ -4,7 +4,7 @@
  * (contracts/fixtures/plan_geometry pins both) - and the pure maths of the editor tools: snapping, the nearest wall,
  * distances and areas in metres. No DOM and no Lit, so it runs in node (tests/unit-geometry.spec.ts).
  */
-import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, sample, subPath, wallLengthPx, wallPx } from './wall-path';
+import { bulgesOf, cumulative as pathCumulative, isCurved, pathLength, pointAtS, project, ringArea, sample, subPath, wallLengthPx, wallPx } from './wall-path';
 
 export { isCurved, sampledWall, wallLengthPx } from './wall-path';
 export type Pt = [number, number];
@@ -595,8 +595,8 @@ export function nearestWall(p: Pt, walls: GeomWall[], W: number, H: number, maxP
   return best;
 }
 
-/** A drawing point: onto a wall vertex within tolPx; otherwise, from the previous point, to the nearest 45 degrees
- * unless `free` (Shift). */
+/** A drawing point: onto a wall vertex within tolPx, else onto a curved wall's arc within tolPx; otherwise, from the
+ * previous point, to the nearest 45 degrees unless `free` (Shift). */
 export function snapPoint(p: Pt, prev: Pt | null, walls: GeomWall[], W: number, H: number, opts: { tolPx: number; free: boolean }): Pt {
   let best: Pt | null = null;
   let bestD = opts.tolPx;
@@ -610,6 +610,21 @@ export function snapPoint(p: Pt, prev: Pt | null, walls: GeomWall[], W: number, 
     }
   }
   if (best) return [best[0], best[1]];
+  // a curved wall's body: onto the nearest point of its arc within tolPx (corners win above; straight bodies keep the
+  // angle step below, as before), so a wall can start or end on a round wall
+  let onArc: Pt | null = null;
+  bestD = opts.tolPx;
+  const q: Pt = [p[0] * W, p[1] * H];
+  for (const w of walls) {
+    if (!isCurved(w)) continue;
+    const { pts: cp, bulges } = wallPx(w, W, H);
+    const hit = project(cp, bulges, q);
+    if (hit.dist <= bestD) {
+      onArc = [clamp01(hit.p[0] / W), clamp01(hit.p[1] / H)];
+      bestD = hit.dist;
+    }
+  }
+  if (onArc) return onArc;
   if (!prev || opts.free) return p;
   const dx = (p[0] - prev[0]) * W;
   const dy = (p[1] - prev[1]) * H;
@@ -637,6 +652,17 @@ export function pointOnWall(wall: GeomWall, t: number, W: number, H: number): Pt
 export function isClosedOutline(polyline: Pt[]): boolean {
   const n = polyline.length;
   return n >= 4 && polyline[0][0] === polyline[n - 1][0] && polyline[0][1] === polyline[n - 1][1];
+}
+
+/** The floor area (m^2) a closed wall outline encloses, on its centre line: the corner polygon plus each arc's circular
+ * segment (wall-path ringArea). A round room of two half circles (three points) counts; null for an open wall. */
+export function wallOutlineAreaM2(wall: GeomWall, W: number, H: number, scale: number): number | null {
+  const pl = wall.polyline;
+  const n = pl.length;
+  const closed = n >= 3 && pl[0][0] === pl[n - 1][0] && pl[0][1] === pl[n - 1][1] && (n >= 4 || isCurved(wall));
+  if (!closed || !(scale > 0)) return null;
+  const { pts, bulges } = wallPx(wall, W, H);
+  return Math.abs(ringArea(pts, bulges)) * scale * scale;
 }
 
 // ---------------------------------------------------------------- objects and connectors (phase 2)

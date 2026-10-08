@@ -7,7 +7,7 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import type { CalibrationHint, CopyCandidate, GeometryIssue } from '../api/geometry';
 import { OUTSIDE_MAIN_HE, isOutsideMain, outsideMainSummary, type CandidateSet, type CandKind, type CandState, objectsSummary } from '../map/candidates';
 import { connectorTargets, currentTarget, isTwinCopy, otherFloorOf, type LinkTargetFloor } from '../map/connector-targets';
-import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, wallLengthPx, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
+import { COLOR_TOKENS, FLOOR_HEIGHT_RANGE, floorHeight, LANDING_RANGE, MAX_STAIR_STEPS, OBJECT_SHAPES, STAIR_WIDTH_RANGE, SYMBOL_IDS, circuitToken, connectorLabel, effectiveScale, hasStairModel, stairCaption, type StairShape, lengthPx, perimeterM, wallLengthPx, wallOutlineAreaM2, polygonAreaM2, type ConnectorKind, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomSize, type ObjectShape, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type Hinge, type OpeningKind, type Pt, type Swing, type WallKind } from '../map/geometry';
 import type { CatalogItem, CatalogLibrary, ParamSpec } from '../api/plan-catalog';
 import type { HaEntity } from '../api/ha';
 import { searchItems } from '../api/plan-catalog';
@@ -236,8 +236,9 @@ function renderSelection(v: StudioView, sel: GeomSel, a: StudioActions, scale: n
 function renderWall(w: GeomWall, v: StudioView, a: StudioActions, scale: number, estimated: boolean) {
   const len = wallLengthPx(w, v.W, v.H) * scale;
   const openings = v.doc.openings.filter((o) => o.wall_id === w.id).length;
+  const area = wallOutlineAreaM2(w, v.W, v.H, scale); // a closed outline (round rooms included): the floor area it encloses
   return html`<div class="sel" data-selected-wall=${w.id}>
-    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}</span></div>
+    <div class="selhead"><strong>קיר ${WALL_KIND_LABEL[w.kind]}</strong><span class="muted">${fmtMetres(len, estimated, v.showEstimates)} · ${countLabel(openings, 'פתח אחד', 'פתחים')}${area !== null ? html` · ${curveT('area')} <span data-wall-area>${fmtArea(area, estimated, v.showEstimates)}</span>` : nothing}</span></div>
     ${renderSourceBadge(w)}
     ${w.external_ids?.origin === 'door_tool' ? html`<div class="note" data-wall-door-tool>קטע קיר שנוסף עם דלת בכלי "סמן דלת": בדוק את עוביו ואת החיבור לקירות הסמוכים.</div>` : nothing}
     <div class="two">

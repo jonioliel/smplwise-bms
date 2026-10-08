@@ -21,6 +21,7 @@ const he = {
   arcEnd: 'קיר מעוגל: לחץ על נקודת הסיום',
   arcThrough: 'קיר מעוגל: לחץ על נקודה על הקשת',
   segmentHandle: 'אמצע קטע',
+  area: 'שטח פנימי',
 };
 type Key = keyof typeof he;
 const en: Record<Key, string> = {
@@ -42,6 +43,7 @@ const en: Record<Key, string> = {
   arcEnd: 'Arc wall: click the end point',
   arcThrough: 'Arc wall: click a point on the arc',
   segmentHandle: 'Segment middle',
+  area: 'Enclosed area',
 };
 
 export const PLAN_CURVE_STRINGS = { he, en } as const;
