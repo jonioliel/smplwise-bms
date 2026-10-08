@@ -189,6 +189,10 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     assert push < (STATE_EVENT_S * 1000 + 80) * f, _table("idle", rows)
     # one keep-alive connection is reused for the bridge calls (no new TCP + HTTP setup per toggle)
     assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
+    # the owner's own view of the hops: DevTools -> Network -> the POST -> Timing (Server-Timing), and the answer's timing_ms
+    st = rows[-1]["server_timing"]
+    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "record;dur=", "total;dur="):
+        assert hop in st, st
 
 
 def test_dispatch_does_not_wait_for_the_write_lock(lat_app):

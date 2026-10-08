@@ -3,23 +3,26 @@ live state push, and the bridge pairing/directory endpoints."""
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import datetime as dt
 import json
+import logging
 import queue
 import socket
 import sqlite3
+import threading
 import time
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, WebSocket
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, WebSocket
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
-from ..db import unlocked, Database, bump_permission_revision, get_setting, now_iso, set_setting
+from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from ..services import bridge_install, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
@@ -28,6 +31,7 @@ from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
 
 router = APIRouter()
+log = logging.getLogger("smplwise.ha")
 
 
 # ---------------------------------------------------------------- scoping
@@ -176,8 +180,45 @@ def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
 
 
 @router.post("/ha/entities/{entity_id}/actions", status_code=202)
-def run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def run_action(entity_id: str, body: ActionBody, request: Request, response: Response, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """LAT1 (2026-10-08): every check runs on the request's READ connection (no SQLite write lock is taken before the
+    command leaves), the signed call is dispatched at once over the kept bridge connection, and the durable record - the
+    pending ha_actions row - is committed IN PARALLEL with the call (two-phase as before: the row exists before the
+    answer is recorded). The answer, the HA context id and the audit row follow in one durable transaction once the
+    bridge answered. Before this the route waited for the write gate (BEGIN IMMEDIATE) and an fsync before the call:
+    a writer holding the lock for 1.5 s delayed the switch by 1.5 s (tests/test_lat1_toggle_latency.py).
+    The per-hop timing is returned in a `Server-Timing` header (browser DevTools -> Network -> the request -> Timing)."""
+    timing = ha_actions.HopTimer()
+    out = _run_action(entity_id, body, request, principal, conn, timing)
+    response.headers["Server-Timing"] = timing.header()
+    return out
+
+
+_INFLIGHT_LOCK = threading.Lock()
+_INFLIGHT: dict[tuple[str, str], threading.Event] = {}
+_DISPATCH = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="ha-dispatch")
+
+
+def _claim(key: tuple[str, str]) -> threading.Event | None:
+    """Mark one (user, client_request_id) as in flight; None when another request already carries it."""
+    with _INFLIGHT_LOCK:
+        if key in _INFLIGHT:
+            return None
+        ev = _INFLIGHT[key] = threading.Event()
+        return ev
+
+
+def _unclaim(key: tuple[str, str], ev: threading.Event) -> None:
+    with _INFLIGHT_LOCK:
+        if _INFLIGHT.get(key) is ev:
+            del _INFLIGHT[key]
+    ev.set()
+
+
+def _run_action(entity_id: str, body: ActionBody, request: Request, principal: Principal, conn: sqlite3.Connection, timing: "ha_actions.HopTimer") -> dict[str, Any]:
     settings = settings_of(request)
+    db: Database = request.app.state.db
+    rid = getattr(request.state, "correlation_id", None)
     if not ha_scope.control_allowed(conn, principal, entity_id):
         # devices.control (CR-007 slice 2) reaches this same route, but only for the everyday domains
         # (ha_scope.DEVICES_CONTROL_DOMAINS: never a lock, the alarm panel, a siren, a script, a scene or a button).
@@ -219,33 +260,75 @@ def run_action(entity_id: str, body: ActionBody, request: Request, principal: Pr
     aid, now = uuid.uuid4().hex[:12], now_iso()
     # the arguments as validated (cleaned: a stripped option, a number) - the attribute confirmation compares to these
     cleaned = {k: v for k, v in data.items() if k != "entity_id"}
-    conn.execute(
-        "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
-         ha_bridge.expectation_for(spec, e.get("attributes")), "bridge"),
-    )
+    row_args = (aid, entity_id, body.allowed_action_id, json.dumps(cleaned, ensure_ascii=False), principal.user_id, principal.username, body.client_request_id, "pending", now,
+                ha_bridge.expectation_for(spec, e.get("attributes")), "bridge")
+    insert_sql = "INSERT INTO ha_actions(id, entity_id, action_id, arguments_json, principal_user_id, principal_username, client_request_id, status, requested_at, expected_state, via) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"
     if not paired:
-        conn.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
-        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
-              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid})
+        with db.write_aside(label="ha.action not paired") as w:
+            w.execute(insert_sql, row_args)
+            w.execute("UPDATE ha_actions SET status = 'failed', error = 'bridge_not_paired', responded_at = ? WHERE id = ?", (now_iso(), aid))
+            audit(w, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="bridge_not_paired",
+                  request_id=rid, details={"action": body.allowed_action_id, "id": aid})
         raise ApiError(503, "bridge_not_paired", "פעולות אלו דורשות את הגשר מותקן ומצומד.", details={"action_id": aid})
-    payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
+    key = (principal.user_id, body.client_request_id)
+    claim = _claim(key)
+    if claim is None:
+        # the same click is already being sent by another request of this user: never a second call - wait for it, answer its record
+        with _INFLIGHT_LOCK:
+            other = _INFLIGHT.get(key)
+        if other is not None:
+            other.wait(20)
+        with db.connection(mode="read", label="ha.action duplicate") as r:
+            again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+            if again:
+                return _action_row(r, again["id"])
+        raise ApiError(409, "duplicate_in_flight", "הבקשה כבר נשלחה; רעננו.")
     try:
-        with unlocked(conn):
-            result = ha_client.call_bridge_execute(settings, payload)
-    except ApiError as exc:
-        conn.execute("UPDATE ha_actions SET status = 'failed', error = ?, responded_at = ? WHERE id = ?", (exc.code, now_iso(), aid))
-        audit(conn, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
-              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "status": "failed"})
-        raise
-    status, error = ha_actions.bridge_status(result)
-    ok = status == "pending"
-    conn.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
-    device_activity.note_context(conn, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
-    audit(conn, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
-          request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
-    out = _action_row(conn, aid)
+        payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
+        timing.mark("checks")
+        # fire first: the command leaves now; the pending record is committed while it is in flight (no lock taken before the call)
+        call = _DISPATCH.submit(timing.timed, "bridge", ha_client.call_bridge_execute, settings, payload)
+
+        def _pending() -> None:
+            with db.write_aside(label="ha.action pending") as w:
+                w.execute(insert_sql, row_args)
+
+        try:
+            with timing.hop("pending_row"):
+                retry_locked(_pending, what="ha.action pending row", attempts=3, base_s=0.25)
+        except Exception:  # noqa: BLE001 - the command already left; the final transaction below inserts the row (ON CONFLICT) - logged, never lost silently
+            log.warning("ha.action %s: the pending record waited out the busy database; recorded with the answer", aid)
+        try:
+            result = call.result()
+        except ApiError as exc:
+            def _failed() -> None:
+                with db.write_aside(label="ha.action failed") as w:
+                    w.execute(insert_sql, row_args)
+                    w.execute("UPDATE ha_actions SET status = 'failed', error = ?, responded_at = ? WHERE id = ?", (exc.code, now_iso(), aid))
+                    audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+                          request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": "failed"})
+
+            retry_locked(_failed, what="ha.action failed row", attempts=3, base_s=0.25)
+            raise
+        status, error = ha_actions.bridge_status(result)
+        ok = status == "pending"
+
+        def _answer() -> dict[str, Any]:
+            with db.write_aside(label="ha.action answer") as w:
+                w.execute(insert_sql, row_args)
+                w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (status, error, now_iso(), aid))
+                device_activity.note_context(w, aid, result, principal.user_id, principal.username)  # DEVHIST: HA's context id of the command -> the person behind the state change
+                audit(w, actor=principal, action="ha.action", decision="allowed" if ok else "denied", resource_type="ha_entity", resource_id=entity_id, reason=error,
+                      request_id=rid, details={"action": body.allowed_action_id, "id": aid, "arguments": body.arguments, "sensitive": spec["sensitive"]})
+                return _action_row(w, aid)
+
+        with timing.hop("record"):
+            out = retry_locked(_answer, what="ha.action answer", attempts=3, base_s=0.25)
+    finally:
+        _unclaim(key, claim)
+    log.info("ha.action %s %s -> %s (%s)", entity_id, body.allowed_action_id, out["status"], timing.log_line())
     out["note"] = "הבקשה התקבלה; המצב מאושר רק כשמגיע עדכון." if ok else None
+    out["timing_ms"] = timing.as_dict()
     return out
 
 

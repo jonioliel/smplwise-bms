@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import threading
 from typing import Any, AsyncIterator, Callable
 
 import httpx
@@ -159,14 +160,44 @@ def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
     return (body if isinstance(body, dict) else {}), r.headers.get("date")
 
 
+_BRIDGE_KEEPALIVE_S = 30.0  # below aiohttp's own keep-alive (75 s) behind the Supervisor proxy: we close an idle socket first
+_bridge_lock = threading.Lock()
+_bridge_session: tuple[str, httpx.Client] | None = None
+
+
+def _bridge_client(settings: Settings) -> httpx.Client:
+    """LAT1: one keep-alive HTTP client for the execute calls (a device command is the hot path - before this every toggle
+    opened a new TCP connection and HTTP session to Home Assistant). Keyed by HA's base URL; thread-safe (httpx.Client
+    pools connections per thread-safe transport). The token is sent per request, never stored on the client."""
+    global _bridge_session
+    base = _rest_base(settings)
+    with _bridge_lock:
+        if _bridge_session is None or _bridge_session[0] != base:
+            if _bridge_session is not None:
+                _bridge_session[1].close()
+            _bridge_session = (base, httpx.Client(limits=httpx.Limits(max_connections=8, max_keepalive_connections=4, keepalive_expiry=_BRIDGE_KEEPALIVE_S)))
+        return _bridge_session[1]
+
+
+def reset_bridge_session() -> None:
+    """Drop the kept connections (after a transport error, and in tests): the next call connects afresh. Never a retry."""
+    global _bridge_session
+    with _bridge_lock:
+        if _bridge_session is not None:
+            _bridge_session[1].close()
+        _bridge_session = None
+
+
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
-    """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA."""
+    """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA. Sent ONCE over the kept
+    connection (LAT1); a transport error drops the pool and is reported, never retried (a command that may have left is not
+    sent twice - AGENTS.md: never blindly retry physical commands)."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/execute?return_response", headers=_headers(settings), content=json.dumps(payload))
+        r = _bridge_client(settings).post(_rest_base(settings) + "/services/smplwise_bridge/execute?return_response", headers=_headers(settings), content=json.dumps(payload), timeout=timeout)
     except httpx.HTTPError as exc:
+        reset_bridge_session()
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
         raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן.", details={"status": r.status_code})
