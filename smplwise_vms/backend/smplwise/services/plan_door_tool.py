@@ -35,6 +35,7 @@ from PIL import Image
 
 from . import plan_detect_doors as pdd
 from . import plan_stylize as ps
+from . import wall_path
 
 DOOR_DEFAULT_M = 0.9  # the editor's default door (OPENING_DEFAULTS.door), used when nothing is found
 LEAF_M = (0.45, 1.3)  # a leaf searched when the plan is calibrated (a leaf of a double from 0.45 m, a wide single to 1.3 m)
@@ -134,7 +135,9 @@ def _canon(d: np.ndarray) -> np.ndarray:
 
 
 def _polyline_px(wall: dict[str, Any], W: int, H: int) -> np.ndarray:
-    return np.array([[float(p[0]) * W, float(p[1]) * H] for p in wall["polyline"]], dtype=np.float64)
+    """The wall's path in pixels; a curved wall's sampled path (wall_path), whose length is its arc length."""
+    pts = wall_path.sample(*wall_path.wall_px(wall, W, H)) if wall_path.is_curved(wall) else [(float(p[0]) * W, float(p[1]) * H) for p in wall["polyline"]]
+    return np.array([[x, y] for x, y in pts], dtype=np.float64)
 
 
 def _segments(walls: list[dict[str, Any]], W: int, H: int):

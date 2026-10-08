@@ -5,12 +5,13 @@
  * glazing primitive (contracts: tests/unit-glass-wall.spec.ts checks it against the backend's output).
  *
  * Panel layout works on the wall's PATH LENGTH only (panelCount, panelBounds, autoDivide take metres along the path) and
- * glazingPrimitive takes the path's points as the caller computed them. Today the path is the polyline (wallPathPx); a
- * curved wall's sampled-path helper (pilot/WALL-curved) replaces wallPathPx and nothing else changes here.
+ * glazingPrimitive takes the path's points as the caller computed them: the polyline, or a curved wall's sampled path
+ * with the exact arc length of every point (geometry.ts curvedWall; wallPathPx / wallLengthM here).
  *
  * No DOM and no Lit: runs in node.
  */
 import type { AnchorRef, GeometryDoc, GeomWall, Pt } from './geometry';
+import { isCurved, sample, wallLengthPx, wallPx } from './wall-path';
 
 export const GLASS_KIND = 'glass' as const;
 export const GLAZING_SCHEMA_VERSION = '2.1' as const;
@@ -79,9 +80,10 @@ export function usesGlazing(doc: Pick<GeometryDoc, 'walls'>): boolean {
   return doc.walls.some((w) => w.kind === GLASS_KIND || (w.glazing !== undefined && w.glazing !== null));
 }
 
-/** The document with the schema version it is stored with (the server stamps the same on every save). */
+/** The document with the schema version it is stored with (the server stamps the same on every save): 2.1 for a window
+ * wall or a curved wall (bulges; plan_geometry.document_version), else 2.0. */
 export function withDocVersion<D extends Pick<GeometryDoc, 'walls' | 'schema_version'>>(doc: D): D {
-  if (usesGlazing(doc)) return doc.schema_version === GLAZING_SCHEMA_VERSION ? doc : { ...doc, schema_version: GLAZING_SCHEMA_VERSION };
+  if (usesGlazing(doc) || doc.walls.some((w) => isCurved(w))) return doc.schema_version === GLAZING_SCHEMA_VERSION ? doc : { ...doc, schema_version: GLAZING_SCHEMA_VERSION };
   return doc.schema_version === GLAZING_SCHEMA_VERSION ? { ...doc, schema_version: BASE_SCHEMA_VERSION } : doc; // any other value is left as it is
 }
 
@@ -100,9 +102,11 @@ export function glazingOf(w: Pick<GeomWall, 'glazing'>): Glazing {
 
 // ---------------------------------------------------------------- layout (path length only)
 
-/** The wall's path in plan pixels. THE switch point for curved walls: their sampled path replaces this one function. */
-export function wallPathPx(w: Pick<GeomWall, 'polyline'>, W: number, H: number): Pt[] {
-  return w.polyline.map((p): Pt => [p[0] * W, p[1] * H]);
+/** The wall's path in plan pixels: the polyline, or a curved wall's sampled path (wall-path.ts). */
+export function wallPathPx(w: Pick<GeomWall, 'polyline' | 'bulges'>, W: number, H: number): Pt[] {
+  if (!isCurved(w)) return w.polyline.map((p): Pt => [p[0] * W, p[1] * H]);
+  const { pts, bulges } = wallPx(w, W, H);
+  return sample(pts, bulges) as Pt[];
 }
 
 export function pathLength(pts: Pt[]): number {
@@ -111,9 +115,9 @@ export function pathLength(pts: Pt[]): number {
   return s;
 }
 
-/** The wall's path length in metres. */
-export function wallLengthM(w: Pick<GeomWall, 'polyline'>, W: number, H: number, scale: number): number {
-  return pathLength(wallPathPx(w, W, H)) * scale;
+/** The wall's path length in metres (a curved wall by its exact arcs). */
+export function wallLengthM(w: Pick<GeomWall, 'polyline' | 'bulges'>, W: number, H: number, scale: number): number {
+  return (isCurved(w) ? wallLengthPx(w, W, H) : pathLength(wallPathPx(w, W, H))) * scale;
 }
 
 /** How many equal panels: the stored count, else length / nominal width rounded half-up; 1..MAX_PANELS. */

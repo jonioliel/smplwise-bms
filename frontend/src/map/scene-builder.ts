@@ -9,7 +9,7 @@
  * Ruling R-P4-T4-1: one convention for cameras - the forward is -z of the part, the description carries pitch = -tilt,
  * so applying the Euler as it stands looks DOWN by the tilt; consumers derive the view direction from the same Euler.
  */
-import { buildPrimitives, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
+import { buildPrimitives, sampledWall, DEFAULT_WALL_THICKNESS_M, effectiveScale, MAX_TRIBUNE_ROWS, floorHeight, stairPlan, stairRise, type CatalogLookup, type GeomConnector, type StairFlightPlan, type ConnectorPrim, type DoorPrim, type GeometryDoc, type GeomLevel, type GeomObject, type GeomOpening, type GeomWall, type ObjectPrim, type ObjectShape, type Pt, type Primitive, type WallPrim, type WindowPrim } from './geometry';
 import { defaultLevelId, levelOrDefault } from './studio-ops';
 import { glassVerticals, glazingOf, panelStateId, type GlazingPrim } from './glass-wall';
 import { blockingSegments, clipCoverage, isOpenState, type Seg } from './coverage';
@@ -46,6 +46,10 @@ export interface ScenePart {
    * cone's outline is the clipped coverage relative to the camera. */
   polygon?: [number, number][];
   text?: string;
+  /** The runs of a curved wall: the point [x, z] (metres) the cutaway judges their side and outward normal from - the
+   * centre of the wall's own sampled path - so a round room is cut as one room (its near half), not chord by chord
+   * against the scene's centre. Absent = the scene's centre (every straight wall, as before). */
+  pivot?: [number, number];
   userData: { id: string; kind: string };
 }
 
@@ -220,6 +224,16 @@ export function plateAround(plate: Box2, holes: readonly Box2[]): Box2[] {
 export const r4 = (v: number): number => Math.floor(v * 1e4 + 0.5) / 1e4;
 const v3 = (a: number, b: number, c: number): Vec3 => [r4(a), r4(b), r4(c)];
 const deg = (rad: number): number => (rad * 180) / Math.PI;
+
+/** How far a run of a wall part grows past its joint i with the next run (metres; `t` the wall thickness): half the thickness at a straight wall's bend (the runs overlap inside, the outer corner is filled); on a
+ * curved part's sampled arc only the mitre its turn needs (half the thickness times tan of half the turn), so the band
+ * follows the curve without spikes or a long overlap at every chord. */
+function jointGrow(p: WallPrim, i: number, t: number): number {
+  if (!p.arc) return t / 2;
+  const [a, b, c] = [p.points[i - 1], p.points[i], p.points[i + 1]];
+  const turn = Math.abs(Math.atan2((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])));
+  return Math.min(t / 2, (t / 2) * Math.tan(turn / 2));
+}
 const rad = (d: number): number => (d * Math.PI) / 180;
 const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const groupKey = (shape: PartShape, color: string, opacity: number): string => `${shape}|${color}|${opacity}`;
@@ -443,7 +457,7 @@ class Builder {
       minZ = Math.min(minZ, y * height);
       maxZ = Math.max(maxZ, y * height);
     };
-    for (const w of doc.walls) if (this.level(w.level_id).id === levelId) for (const p of w.polyline) take(p[0], p[1]);
+    for (const w of doc.walls) if (this.level(w.level_id).id === levelId) for (const p of sampledWall(w, width, height)) take(p[0], p[1]); // an arc can bulge past its corners
     for (const o of doc.objects) if (this.level(o.level_id).id === levelId) take(o.position[0], o.position[1]);
     for (const lb of doc.labels) if (this.level(lb.level_id).id === levelId) take(lb.position[0], lb.position[1]);
     for (const c of doc.connectors) if (this.level(c.level_from).id === levelId || (c.level_to && !c.floor_ids?.length && this.level(c.level_to).id === levelId)) for (const p of c.polyline) take(p[0], p[1]); // a far level is another floor's
@@ -635,8 +649,14 @@ class Builder {
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 1e-4) continue;
       const [ux, uz] = [(bx - ax) / len, (bz - az) / len];
-      if (i > 1) [ax, az] = [ax - (ux * t) / 2, az - (uz * t) / 2];
-      if (i < last) [bx, bz] = [bx + (ux * t) / 2, bz + (uz * t) / 2];
+      if (i > 1) {
+        const gr = jointGrow(p, i - 1, t);
+        [ax, az] = [ax - ux * gr, az - uz * gr];
+      }
+      if (i < last) {
+        const gr = jointGrow(p, i, t);
+        [bx, bz] = [bx + ux * gr, bz + uz * gr];
+      }
       const run = Math.hypot(bx - ax, bz - az);
       const yaw = -deg(Math.atan2(uz, ux));
       const [cx, cz] = [(ax + bx) / 2, (az + bz) / 2];
@@ -698,6 +718,19 @@ class Builder {
     const { doc } = this.input;
     const walls = new Map(doc.walls.map((w) => [w.id, w]));
     const openings = new Map(doc.openings.map((o) => [o.id, o]));
+    // a curved wall's cutaway pivot: the mean of every sampled point of all its parts (metres; a ring's centre)
+    const sums = new Map<string, [number, number, number]>();
+    for (const p of prims) {
+      if (p.kind !== 'wall' || !p.arc) continue;
+      const s = sums.get(p.id) ?? [0, 0, 0];
+      for (const q of p.points) {
+        s[0] += q[0];
+        s[1] += q[1];
+        s[2] += 1;
+      }
+      sums.set(p.id, s);
+    }
+    const pivots = new Map<string, [number, number]>([...sums].map(([id, s]) => [id, [r4(this.m(s[0] / s[2])), r4(this.m(s[1] / s[2]))]]));
     for (const p of prims) {
       if (p.kind === 'glazing') {
         const w = walls.get(p.id);
@@ -717,6 +750,10 @@ class Builder {
       const t = this.m(p.width);
       const color = wallColor(w);
       const last = p.points.length - 1;
+      // a curved wall's part is its sampled arc: each chord grows only by what its joint's turn needs (a mitre, half the
+      // thickness times tan of half the turn), so the band follows the curve without spikes; straight walls as before
+      const grow = (i: number): number => jointGrow(p as WallPrim, i, t);
+      const first = this.parts.length;
       for (let i = 1; i <= last; i++) {
         let [ax, az] = [this.m(p.points[i - 1][0]), this.m(p.points[i - 1][1])];
         let [bx, bz] = [this.m(p.points[i][0]), this.m(p.points[i][1])];
@@ -725,10 +762,20 @@ class Builder {
         // a run meeting another run of the same part at a bend grows by half the thickness there (free ends already
         // carry their cap from the primitives), so the outer corner of every bend is filled: the runs overlap inside
         const [ux, uz] = [(bx - ax) / len, (bz - az) / len];
-        if (i > 1) [ax, az] = [ax - (ux * t) / 2, az - (uz * t) / 2];
-        if (i < last) [bx, bz] = [bx + (ux * t) / 2, bz + (uz * t) / 2];
+        if (i > 1) {
+          const g = grow(i - 1);
+          [ax, az] = [ax - ux * g, az - uz * g];
+        }
+        if (i < last) {
+          const g = grow(i);
+          [bx, bz] = [bx + ux * g, bz + uz * g];
+        }
         // one box per straight segment of the cut wall part: "wall:<id>#<part>" and "wall:<id>#<part>.<segment>" for a bend
         this.box(`wall:${w.id}#${(p as WallPrim).part}${i > 1 ? `.${i - 1}` : ''}`, 'wall', { id: w.id, kind: 'wall' }, [(ax + bx) / 2, base + h / 2, (az + bz) / 2], [Math.hypot(bx - ax, bz - az), h, t], -deg(Math.atan2(uz, ux)), color, lv.id);
+      }
+      if ((p as WallPrim).arc) {
+        const pivot = pivots.get(w.id);
+        if (pivot) for (let k = first; k < this.parts.length; k++) this.parts[k].pivot = pivot;
       }
     }
     const open = new Set(this.input.roomStates?.openOpenings ?? []);

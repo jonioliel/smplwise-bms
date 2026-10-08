@@ -7,8 +7,8 @@ adds an optional `glazing` block; absent = GLAZING_DEFAULTS. Doors and windows (
 glass wall: an opening cuts the glazing as it cuts a solid wall.
 
 Panel layout works on the wall's PATH LENGTH only: panel_count() and panel_bounds() take metres along the path, and
-glazing_primitive() takes the path's points as the caller computed them. Today the path is the polyline; a curved wall
-(pilot/WALL-curved, a sampled-path helper) passes its sampled points and nothing here changes.
+glazing_primitive() takes the path's points as the caller computed them: the polyline, or a curved wall's sampled
+path with the exact arc length of every point (plan_geometry_render._curved_wall, wall_path.sample_with_s).
 
 This module has no import from plan_geometry (which imports it): it carries its own small number checks."""
 from __future__ import annotations

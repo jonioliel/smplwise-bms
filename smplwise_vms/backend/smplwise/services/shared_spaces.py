@@ -24,6 +24,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
+from . import wall_path
+
 # The membership tolerances, in metres: a wall or connector point within this of the room's outline is inside (the
 # room's own walls lie on it); a point item (object, label, anchor) within POINT_TOL_M.
 WALL_TOL_M = 0.3
@@ -388,7 +390,9 @@ def room_subset(doc: dict[str, Any], region: Any, zone_id: str | None = None) ->
         if not isinstance(wall, dict) or not isinstance(wall.get("id"), str) or not isinstance(wall.get("polyline"), list) or len(wall["polyline"]) < 2:
             continue
         try:
-            pts = [(float(p[0]) * w, float(p[1]) * h) for p in wall["polyline"]]
+            # a curved wall is clipped along its sampled path (wall_path); a clipped piece is read-only and straight
+            pts = [(x * w, y * h) for x, y in wall_path.sampled_wall(wall, w, h)] if wall_path.is_curved(wall) else \
+                [(float(p[0]) * w, float(p[1]) * h) for p in wall["polyline"]]
         except (TypeError, ValueError, IndexError):
             continue
         thick = wall.get("thickness_m") if _num(wall.get("thickness_m")) else pg.DEFAULT_WALL_THICKNESS_M
@@ -408,7 +412,9 @@ def room_subset(doc: dict[str, Any], region: Any, zone_id: str | None = None) ->
             n += 1
             pid = f"{wall['id']}#{n}"
             sub = _sub_polyline(pts, s0, s1)
-            out["walls"].append({**copy.deepcopy(wall), "id": pid, "polyline": [[_r6(x / w), _r6(y / h)] for x, y in sub], "_readonly": True, "_clip": [s0 / total, s1 / total]})
+            piece = {**copy.deepcopy(wall), "id": pid, "polyline": [[_r6(x / w), _r6(y / h)] for x, y in sub], "_readonly": True, "_clip": [s0 / total, s1 / total]}
+            piece.pop("bulges", None)
+            out["walls"].append(piece)
             for o in by_wall.get(wall["id"], []):
                 c = float(o.get("t") or 0) * total
                 if s0 <= c <= s1:
@@ -850,7 +856,8 @@ def _where(coll: str, item: dict[str, Any], doc: dict[str, Any], region: list[li
         elif coll in ("walls", "connectors"):
             thick = item.get("thickness_m") if coll == "walls" and _num(item.get("thickness_m")) else pg.DEFAULT_WALL_THICKNESS_M
             tol = max(float(thick), WALL_TOL_M) / scale
-            pts = [(float(p[0]) * w, float(p[1]) * h) for p in item.get("polyline") or []]
+            pts = [(x * w, y * h) for x, y in wall_path.sampled_wall(item, w, h)] if coll == "walls" and wall_path.is_curved(item) else \
+                [(float(p[0]) * w, float(p[1]) * h) for p in item.get("polyline") or []]
             if len(pts) < 2:
                 return None
         else:
@@ -1723,7 +1730,7 @@ def _removal(doc: dict[str, Any], polygon: list[dict[str, float]]) -> tuple[dict
     for wl in sub["walls"]:
         if wl.get("_readonly"):
             continue
-        pts = [(float(p[0]) * w, float(p[1]) * h) for p in wl["polyline"]]
+        pts = [(x * w, y * h) for x, y in wall_path.sampled_wall(wl, w, h)]
         tol = max(float(wl.get("thickness_m") or pg.DEFAULT_WALL_THICKNESS_M), WALL_TOL_M) / scale
         if _boundary(pts, poly, tol):
             kept.append(wl["id"])

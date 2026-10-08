@@ -141,6 +141,7 @@ def test_schema_file_matches_the_validator():
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     assert schema["properties"]["schema_version"]["enum"] == list(pg.SCHEMA_VERSIONS)  # 2.1 = window walls
     defs = schema["$defs"]
+    assert defs["wall"]["properties"]["bulges"]["items"]["maximum"] == pg.wall_path.MAX_BULGE
     assert set(defs["wall"]["properties"]["kind"]["enum"]) == set(pg.WALL_KINDS)
     assert set(defs["opening"]["properties"]["kind"]["enum"]) == set(pg.OPENING_KINDS)
     assert set(defs["opening"]["properties"]["swing"]["enum"]) == set(pg.SWINGS)

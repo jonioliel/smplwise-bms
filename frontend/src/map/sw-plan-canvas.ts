@@ -8,6 +8,8 @@ import { applyAnchorPositions, buildPrimitives, circuitToken, effectiveScale, fl
 import { glassBand, panelStateId } from './glass-wall';
 import { OUTSIDE_MAIN_HE, candidatesDoc, isOutsideMain, type CandidateSet, type CandState, objectCandidateLabel } from './candidates';
 import { symbolOf } from './plan-symbols';
+import { segmentMid } from './curve-ops';
+import { curveT } from '../i18n/plan-curves';
 import { CoverageCache, hasWallsOnLevel } from './coverage';
 import { levelOrDefault, translatePolygon } from './studio-ops';
 import { temperatureText, type RoomStateLayer } from './room-state';
@@ -162,7 +164,7 @@ const sameAnchors = (a: Record<string, AnchorPosition>, b: Record<string, Anchor
  * instead of jumping - and the Shift / Alt keys held now. A zone (`zone`) is dragged this way only as a member of a
  * multi-selection (`multiDrag`); a single selected zone keeps its own body drag and `zone-edit`. */
 export interface GeomDragDetail {
-  kind: 'vertex' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'connector' | 'zone';
+  kind: 'vertex' | 'segment' | 'wall' | 'opening' | 'label' | 'object' | 'object-rotate' | 'object-stretch' | 'object-duplicate' | 'connector-vertex' | 'connector' | 'zone';
   id: string;
   /** A wall corner, a stretch edge (0 front, 1 right, 2 back, 3 left) or a connector corner. */
   index: number;
@@ -301,6 +303,13 @@ export class SwPlanCanvas extends LitElement {
   @property() geomDrag: GeomDragMode = 'none';
   /** The selected corner of the selected wall (the arrow keys move it), drawn filled among the wall's corner handles. */
   @property({ attribute: false }) selectedVertex: number | null = null;
+  /** Curve mode (curved walls, 2026-10-08): the selected wall shows a handle in the middle of every segment; dragging it
+   * bends the segment (geom-drag-* with kind 'segment', index = the segment), a press selects it (geom-select with
+   * segment). selectedSegment is drawn filled. */
+  @property({ type: Boolean }) curveHandles = false;
+  @property({ attribute: false }) selectedSegment: number | null = null;
+  /** The arc wall being drawn (normalized, sampled), dashed like the wall draft. */
+  @property({ attribute: false }) arcPreview: Pt[] = [];
   /** Wall mode: the editor's corner snap radius in screen pixels. A press that close to a wall corner belongs to the
    * drawing tool even on an opening or a label (the corner snap wins over the item); 0 = off. */
   @property({ type: Number }) cornerSnapPx = 0;
@@ -1113,6 +1122,14 @@ export class SwPlanCanvas extends LitElement {
       cursor: grab;
     }
     .gvtx.on {
+      fill: var(--sw-accent);
+    }
+    .gseg {
+      fill: var(--sw-surface);
+      stroke: var(--sw-accent);
+      cursor: grab;
+    }
+    .gseg.on {
       fill: var(--sw-accent);
     }
     .gdrag {
@@ -2299,8 +2316,8 @@ export class SwPlanCanvas extends LitElement {
   private onGeomDragStart(kind: GeomDragDetail['kind'], id: string, index: number, e: PointerEvent) {
     const objectKind = kind.startsWith('object') || kind.startsWith('connector');
     if (this.panActive) return; // Space + drag (or the hand tool) pans, over an item too: the press goes on to the viewport
-    if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
-    if (kind !== 'vertex' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
+    if (e.button !== 0 || this.geomDrag === 'none' || ((kind === 'vertex' || kind === 'segment' || kind === 'wall' || kind === 'zone') && this.geomDrag !== 'all') || (objectKind && this.geomDrag === 'items') || (!objectKind && this.geomDrag === 'objects')) return;
+    if (kind !== 'vertex' && kind !== 'segment' && this.nearCorner(e.clientX, e.clientY)) return; // wall mode: the press draws from that corner
     e.stopPropagation(); // the press is the item's: no pan, and in a drawing mode no new point / opening either
     e.preventDefault();
     this.releaseFieldFocus();
@@ -2336,6 +2353,7 @@ export class SwPlanCanvas extends LitElement {
       end();
       if (moved) emit('geom-drag', detail(last));
       else if (kind === 'zone') emit('zone-select', { id, add });
+      else if (kind === 'segment') emit('geom-select', { id, kind: 'wall', segment: index, add });
       else emit('geom-select', kind === 'vertex' ? { id, kind: 'wall', vertex: index, add } : { id, kind: kind.startsWith('object') ? 'object' : kind.startsWith('connector') ? 'connector' : kind, add });
     };
     const cancel = () => {
@@ -2403,6 +2421,13 @@ export class SwPlanCanvas extends LitElement {
           @pointerdown=${(e: PointerEvent) => (this.touchLocked(p.id) ? undefined : this.onGeomDragStart('label', p.id, 0, e))} @click=${(e: MouseEvent) => (this.touchLocked(p.id) ? this.touchPick(p.id, 'label', e) : this.itemClick(e))} />`)}
       ${selWall ? (isClosedOutline(selWall.polyline) ? selWall.polyline.slice(0, -1) : selWall.polyline).map((v, i) => svg`<circle class="gvtx ${i === this.selectedVertex ? 'on' : ''}" data-wall-vertex=${i} cx=${v[0] * W} cy=${v[1] * H} r=${6 * inv} stroke-width=${1.6 * inv} aria-label=${`פינת קיר ${i + 1}`}
           @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('vertex', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`) : nothing}
+      ${selWall && this.curveHandles ? selWall.polyline.slice(1).map((_v, i) => {
+        const m = segmentMid(selWall, i, W, H);
+        const r = 5.5 * inv;
+        return svg`<rect class="gseg ${i === this.selectedSegment ? 'on' : ''}" data-wall-segment=${i} x=${m[0] * W - r} y=${m[1] * H - r} width=${2 * r} height=${2 * r}
+          transform=${`rotate(45 ${m[0] * W} ${m[1] * H})`} stroke-width=${1.6 * inv} aria-label=${`${curveT('segmentHandle')} ${i + 1}`}
+          @pointerdown=${(e: PointerEvent) => this.onGeomDragStart('segment', selWall.id, i, e)} @click=${(e: Event) => e.stopPropagation()} />`;
+      }) : nothing}
       ${drag ? svg`<circle class="gdrag" cx=${drag.x * W} cy=${drag.y * H} r=${5 * inv} stroke-width=${1.5 * inv} />` : nothing}
     </g>`;
   }
@@ -2645,12 +2670,14 @@ export class SwPlanCanvas extends LitElement {
   private renderWallDraft() {
     const pts = this.wallDraft;
     const h = this.hoverPoint;
-    if (!pts.length && !h) return nothing;
+    const arc = this.arcPreview;
+    if (!pts.length && !h && !arc.length) return nothing;
     const inv = 1 / this.scale;
     const W = this.planWidth;
     const H = this.planHeight;
     const line = [...pts, ...(h && pts.length ? [h] : [])].map((p) => `${p[0] * W},${p[1] * H}`).join(' ');
     return svg`<g class="wdraft" pointer-events="none">
+      ${arc.length ? svg`<polyline data-arc-preview points=${arc.map((p) => `${p[0] * W},${p[1] * H}`).join(' ')} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
       ${pts.length ? svg`<polyline points=${line} stroke-width=${2 * inv} stroke-dasharray=${`${6 * inv} ${4 * inv}`} />` : nothing}
       ${pts.map((p) => svg`<circle cx=${p[0] * W} cy=${p[1] * H} r=${3.5 * inv} stroke-width=${1.5 * inv} />`)}
       ${h ? svg`<circle class="snap" data-hover-point cx=${h[0] * W} cy=${h[1] * H} r=${4.5 * inv} stroke-width=${1.5 * inv} />` : nothing}

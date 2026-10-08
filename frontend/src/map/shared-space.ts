@@ -7,7 +7,7 @@
  * the claim of a new item, the deletions a save lists, the 3D volume from the two outlines.
  */
 import { bidi } from '../i18n/bidi';
-import { effectiveScale, MAX_TRIBUNE_ROWS, type GeometryDoc, type GeomObject, type Pt } from './geometry';
+import { effectiveScale, isCurved, MAX_TRIBUNE_ROWS, pointOnWall, type GeometryDoc, type GeomObject, type Pt } from './geometry';
 
 /** The marker of an attached item (never stored on this floor). A read-only item is a piece of a wall that crosses the
  * room's outline: it belongs to the rest of the home floor. */
@@ -350,7 +350,12 @@ export function tribuneEntrances(doc: GeometryDoc): TribuneEntrance[] {
     const lens = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]));
     let s = Math.max(0, Math.min(1, op.t)) * lens.reduce((a, b) => a + b, 0);
     let c: Pt = pts[0];
-    for (let i = 0; i < lens.length; i++) {
+    if (isCurved(w)) { // on a curved wall the door's centre lies on the arc
+      const q = pointOnWall(w, op.t, W, H);
+      c = [q[0] * W, q[1] * H];
+      s = Number.POSITIVE_INFINITY;
+    }
+    for (let i = 0; i < lens.length && Number.isFinite(s); i++) {
       if (s <= lens[i] || i === lens.length - 1) {
         const f = lens[i] > 0 ? Math.min(1, s / lens[i]) : 0;
         c = [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f];

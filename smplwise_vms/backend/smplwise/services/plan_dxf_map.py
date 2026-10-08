@@ -19,9 +19,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from . import plan_catalog, plan_dxf
+from . import plan_catalog, plan_dxf, wall_path
 
-VERSION = "1.1"
+VERSION = "1.3"  # 1.2: curved walls (arcs, circles and bulged polylines on wall layers); 1.3: openings on curved walls
 TARGETS = ("walls", "openings", "windows", "objects", "rooms", "ignore")
 TARGET_LABELS = {"walls": "קירות", "openings": "דלתות", "windows": "חלונות", "objects": "עצמים", "rooms": "חדרים", "ignore": "התעלם"}
 LAYER_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -55,6 +55,13 @@ MAX_EXTENT_M = 2000.0  # a floor wider than this on the mapped layers is a drawi
 GRID_CELLS_PER_SIDE = 1024
 WIDEN_COVER = 0.8  # a line beside a paired wall widens it only when it runs along this share of the wall
 DEFAULT_CEILING_M = 2.8
+# curved walls (schema 2.1): an arc on a wall layer at least this long is a wall; arcs within CONCENTRIC_M of one centre
+# pair like straight faces; a bulged polyline drawn with a constant width in this range is a centre line (Arx's own export)
+CURVE_MIN_M = 0.3
+CONCENTRIC_M = 0.03
+CENTRELINE_WIDTH_M = (0.05, 0.6)
+MAX_PAIR_CURVES = 2000
+CURVE_TOL_M = 0.005  # sampling tolerance (metres) when an opening is projected onto a curved wall
 _WORD = re.compile(r"[a-z]+|[0-9]+|[֐-׿]+")
 _COS_PAIR = math.cos(math.radians(PAIR_ANGLE_DEG))
 _SIN_PERP = math.sin(math.radians(15.0))
@@ -187,10 +194,38 @@ def _arc(e: Any) -> dict[str, Any] | None:
     """An ARC in WCS: the centre is stored in the arc's OCS (a mirrored arc has the extrusion 0,0,-1), the end points
     ezdxf gives are already WCS."""
     try:
-        c = e.ocs().to_wcs(e.dxf.center)
+        ocs = e.ocs()
+        c = ocs.to_wcs(e.dxf.center)
         p0, p1 = e.start_point, e.end_point
-        return {"cx": float(c.x), "cy": float(c.y), "r": float(e.dxf.radius), "p0": (float(p0.x), float(p0.y)), "p1": (float(p1.x), float(p1.y))}
+        # the arc's middle (curved walls need the side it runs on): half the counter-clockwise OCS sweep from the start
+        a0, a1 = float(e.dxf.start_angle), float(e.dxf.end_angle)
+        am = math.radians(a0 + ((a1 - a0) % 360.0 or 360.0) / 2)
+        oc, r = e.dxf.center, float(e.dxf.radius)
+        pm = ocs.to_wcs((oc.x + r * math.cos(am), oc.y + r * math.sin(am), oc.z))
+        return {"cx": float(c.x), "cy": float(c.y), "r": r, "p0": (float(p0.x), float(p0.y)), "p1": (float(p1.x), float(p1.y)), "pm": (float(pm.x), float(pm.y))}
     except Exception:  # noqa: BLE001 - a broken arc is simply not a door
+        return None
+
+
+def _bulged(e: Any) -> dict[str, Any] | None:
+    """An LWPOLYLINE that has arcs: its WCS corner points, one bulge per segment (a closed one repeats its first point),
+    its constant width (drawing units, 0 when none). None for a polyline of straight segments only. A polyline drawn
+    with the extrusion 0,0,-1 is mirrored, so its turns flip."""
+    try:
+        raw = [(float(x), float(y), float(b)) for x, y, b in e.get_points("xyb")]
+        if len(raw) < 2 or not any(abs(b) > 1e-9 for _x, _y, b in raw):
+            return None
+        ocs = e.ocs()
+        flip = -1.0 if float(e.dxf.extrusion[2]) < 0 else 1.0
+        elev = float(e.dxf.elevation) if e.dxf.hasattr("elevation") else 0.0
+        pts = [(float(q.x), float(q.y)) for q in (ocs.to_wcs((x, y, elev)) for x, y, _b in raw)]
+        bulges = [b * flip for _x, _y, b in raw]
+        if bool(e.closed):
+            pts.append(pts[0])
+        else:
+            bulges = bulges[:-1]
+        return {"points": pts, "bulges": bulges, "width": float(e.dxf.const_width) if e.dxf.hasattr("const_width") else 0.0}
+    except Exception:  # noqa: BLE001 - unreadable: it stays the flattened polyline every reader sees
         return None
 
 
@@ -272,6 +307,11 @@ def read_entities(src: Any, layers: list[str] | None = None) -> list[dict[str, A
                 item["segments"] = list(plan_dxf._segments(e))
                 if kind == "ARC":
                     item["arc"] = _arc(e)
+                elif kind == "LWPOLYLINE":
+                    item["bulged"] = _bulged(e)
+                elif kind == "CIRCLE":
+                    c = e.ocs().to_wcs(e.dxf.center)
+                    item["circle"] = {"cx": float(c.x), "cy": float(c.y), "r": float(e.dxf.radius)}
             if not item["segments"]:
                 continue
             out.append(item)
@@ -781,6 +821,81 @@ def _fits(along_c: float, width: float, length: float) -> bool:
     return width / 2 - 1e-3 <= along_c <= length - width / 2 + 1e-3
 
 
+# ---------------------------------------------------------------- curved walls (schema 2.1)
+
+def _curve(a: Pt, b: Pt, bulge: float, handle: str) -> dict[str, Any] | None:
+    """One arc of a wall layer in metres (y up): centre, radius, start angle and a positive (counter-clockwise) sweep."""
+    if bulge < 0:
+        a, b, bulge = b, a, -bulge
+    arc = wall_path.arc_of(a, b, bulge)
+    if arc is None:
+        return None
+    cx, cy, r, a0, sweep = arc
+    return {"c": (cx, cy), "r": r, "a0": a0, "sweep": sweep, "handle": handle}
+
+
+def _overlap(p: dict[str, Any], q: dict[str, Any]) -> tuple[float, float] | None:
+    """The angular interval (start, sweep) two arcs of one centre share; a full circle shares all of the other."""
+    full = 2 * math.pi - 1e-9
+    if p["sweep"] >= full:
+        return q["a0"], q["sweep"]
+    if q["sweep"] >= full:
+        return p["a0"], p["sweep"]
+    rel = (q["a0"] - p["a0"]) % (2 * math.pi)
+    best: tuple[float, float] | None = None
+    for off in (rel, rel - 2 * math.pi):
+        lo, hi = max(0.0, off), min(p["sweep"], off + q["sweep"])
+        if hi > lo and (best is None or hi - lo > best[1] - best[0]):
+            best = (lo, hi)
+    return None if best is None else (p["a0"] + best[0], best[1] - best[0])
+
+
+def _pair_curves(curves: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Two concentric arcs 10-40 cm apart (the double line of a curved wall, as _pair_walls pairs straight faces) become
+    one curved wall on the middle radius over the angle both cover, nearest pair first; an arc left alone is a
+    single-line wall at the default thickness when at least CURVE_MIN_M long. A drawing with more than MAX_PAIR_CURVES
+    arcs on its wall layers keeps them as single lines (no pairing, quadratic work)."""
+    cands = []
+    if len(curves) <= MAX_PAIR_CURVES:
+        for i, p in enumerate(curves):
+            for j in range(i + 1, len(curves)):
+                q = curves[j]
+                gap = abs(p["r"] - q["r"])
+                if _len(p["c"], q["c"]) > CONCENTRIC_M or not WALL_PAIR_M[0] <= gap <= WALL_PAIR_M[1]:
+                    continue
+                ov = _overlap(p, q)
+                if ov is not None and ov[1] >= 0.5 * min(p["sweep"], q["sweep"]):
+                    cands.append((gap, i, j, ov))
+    cands.sort(key=lambda c: (c[0], c[1], c[2]))
+    used: set[int] = set()
+    out: list[dict[str, Any]] = []
+    for gap, i, j, (a0, sweep) in cands:
+        if i in used or j in used:
+            continue
+        used.update((i, j))
+        p, q = curves[i], curves[j]
+        out.append({"c": ((p["c"][0] + q["c"][0]) / 2, (p["c"][1] + q["c"][1]) / 2), "r": (p["r"] + q["r"]) / 2, "a0": a0, "sweep": sweep,
+                    "thickness": round(gap, 3), "confidence": 0.9, "paired": True, "handle": p["handle"]})
+    singles = 0
+    for k, c in enumerate(curves):
+        if k not in used and c["r"] * c["sweep"] >= CURVE_MIN_M:
+            out.append({**c, "thickness": DEFAULT_THICKNESS_M, "confidence": 0.6, "paired": False})
+            singles += 1
+    return out, {"curves_paired": len(out) - singles, "curves_single": singles}
+
+
+def _arc_corners(cw: dict[str, Any]) -> tuple[list[Pt], list[float]]:
+    """A curved wall's corners (metres, y up) and DXF bulges: the arc split into equal parts of at most half a turn
+    (bulge <= 1); a full circle closes on its first point."""
+    n = max(1, math.ceil(cw["sweep"] / math.pi - 1e-9))
+    step = cw["sweep"] / n
+    (cx, cy), r = cw["c"], cw["r"]
+    pts = [(cx + r * math.cos(cw["a0"] + step * k), cy + r * math.sin(cw["a0"] + step * k)) for k in range(n + 1)]
+    if cw["sweep"] >= 2 * math.pi - 1e-9:
+        pts[-1] = pts[0]
+    return pts, [math.tan(step / 4)] * n
+
+
 # ---------------------------------------------------------------- mapping
 
 def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, str | None], units: str, extent: dict[str, float], rotation: int,
@@ -811,14 +926,40 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         return to_version(p_m[0] / mpu, p_m[1] / mpu, extent, rotation, crop)
 
     wall_segments = []
+    curves: list[dict[str, Any]] = []  # the arcs of the wall layers (curved walls), in metres
+    centrelines: list[dict[str, Any]] = []  # bulged polylines drawn with a wall's width: a wall each, as drawn
     for e in ents:
         if targets[e["layer"]] == "walls":
+            bulged, arc, circle = e.get("bulged"), e.get("arc"), e.get("circle")
+            if bulged:
+                pts_m = [m(p) for p in bulged["points"]]
+                width_m = bulged["width"] * mpu
+                if CENTRELINE_WIDTH_M[0] <= width_m <= CENTRELINE_WIDTH_M[1]:
+                    centrelines.append({"points": pts_m, "bulges": bulged["bulges"], "thickness": round(width_m, 3), "handle": e["handle"]})
+                    continue
+                for (a_m, b_m), bulge in zip(zip(pts_m, pts_m[1:]), bulged["bulges"]):
+                    if abs(bulge) > 1e-9:
+                        cv = _curve(a_m, b_m, bulge, e["handle"])
+                        if cv is not None:
+                            curves.append(cv)
+                    elif _len(a_m, b_m) >= MIN_SEGMENT_M:
+                        wall_segments.append((a_m, b_m))
+                continue
+            if arc and e["kind"] == "ARC":
+                cv = _curve(m(arc["p0"]), m(arc["p1"]), wall_path.bulge_through(m(arc["p0"]), m(arc["pm"]), m(arc["p1"])), e["handle"])
+                if cv is not None:
+                    curves.append(cv)
+                    continue
+            if circle:
+                curves.append({"c": m((circle["cx"], circle["cy"])), "r": circle["r"] * mpu, "a0": 0.0, "sweep": 2 * math.pi, "handle": e["handle"]})
+                continue
             for seg in e["segments"]:
                 for a, b in zip(seg, seg[1:]):
                     a_m, b_m = m(a), m(b)
                     if _len(a_m, b_m) >= MIN_SEGMENT_M:
                         wall_segments.append((a_m, b_m))
     walls, wall_stats = _pair_walls(wall_segments)
+    curved_walls, curve_stats = _pair_curves(curves)
     feats = _opening_features(ents, targets, mpu)
     grids = {"arcs": _Grid(max(2.0, grow)), "boxes": _Grid(max(2.0, grow)), "glazing": _Grid(max(1.0, grow))}
     for k, arc in enumerate(feats["arcs"]):
@@ -845,12 +986,30 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         host_grid.add(i, w["a"], w["b"], NEAR_WALL_M + 0.05)
         out_walls.append({"id": f"imp-{run_id}-w{len(out_walls) + 1:03d}", "level_id": level_id, "polyline": [pa, pb], "thickness_m": w["thickness"], "height_m": None, "base_z_m": 0,
                           "kind": "exterior" if w["paired"] and w["thickness"] >= 0.25 else "interior", "confidence": w["confidence"], "source": "imported", "locked": False, "external_ids": {}})
+    # curved walls (schema 2.1) after the straight ones, so the straight walls' ids are those of a drawing without arcs.
+    # The drawing's y points up and the version's down: a turn flips, bulge -> -bulge. Openings are hosted on them by
+    # arc length (map 1.3): the relative position along the path is the same in metres and in the version (the plan
+    # is a similarity of the drawing), so t is measured in metres on the drawing's own corners and bulges.
+    curves_outside = 0
+    curved_hosts: list[dict[str, Any]] = []
+    host_ids: dict[Any, str] = {i: out_walls[k]["id"] for i, k in wall_index.items()}
+    for cw in [*({**c, "paired": True, "confidence": 0.9} for c in centrelines), *curved_walls]:
+        pts_m, bulges = (cw["points"], cw["bulges"]) if "points" in cw else _arc_corners(cw)
+        poly = [_clamped(tv(p)) for p in pts_m]
+        if any(p is None for p in poly) or len(poly) < 2:
+            curves_outside += 1
+            continue
+        host_ids[("c", len(curved_hosts))] = f"imp-{run_id}-w{len(out_walls) + 1:03d}"
+        curved_hosts.append({"pts": [tuple(p) for p in pts_m], "bulges": list(bulges), "length": wall_path.path_length(pts_m, bulges)})
+        out_walls.append({"id": f"imp-{run_id}-w{len(out_walls) + 1:03d}", "level_id": level_id, "polyline": poly, "bulges": [round(-b, 6) + 0.0 for b in bulges],
+                          "thickness_m": cw["thickness"], "height_m": None, "base_z_m": 0, "kind": "exterior" if cw["paired"] and cw["thickness"] >= 0.25 else "interior",
+                          "confidence": cw["confidence"], "source": "imported", "locked": False, "external_ids": {"dxf_handle": cw["handle"]}})
 
     out_openings: list[dict[str, Any]] = []
     spans: dict[int, list[tuple[float, float]]] = defaultdict(list)
     dropped_openings = 0
 
-    def add_opening(kind: str, wi: int, along_c: float, length: float, width: float, swing: str, hinge: str, confidence: float, handle: str) -> None:
+    def add_opening(kind: str, wi: Any, along_c: float, length: float, width: float, swing: str, hinge: str, confidence: float, handle: str) -> None:
         nonlocal dropped_openings
         if not _fits(along_c, width, length):
             dropped_openings += 1
@@ -860,7 +1019,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             return  # the same opening twice (a double-drawn arc, glazing over a door block)
         spans[wi].append((lo, hi))
         t = min(1.0, max(0.0, along_c / length))
-        out_openings.append({"id": f"imp-{run_id}-o{len(out_openings) + 1:03d}", "wall_id": out_walls[wall_index[wi]]["id"], "t": round(t, 5), "kind": kind, "width_m": round(width, 3),
+        out_openings.append({"id": f"imp-{run_id}-o{len(out_openings) + 1:03d}", "wall_id": host_ids[wi], "t": round(t, 5), "kind": kind, "width_m": round(width, 3),
                              "height_m": 1.2 if kind == "window" else 2.1, "sill_m": 0.9 if kind == "window" else 0, "swing": swing, "hinge": hinge, "anchor_ref": None,
                              "confidence": confidence, "source": "imported", "external_ids": {"dxf_handle": handle}})
 
@@ -871,11 +1030,66 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         lateral = dv[0] * (vt[1] - va[1]) - dv[1] * (vt[0] - va[0])
         return "left" if lateral < 0 else "right"
 
+    # hosts: a straight wall index (as before) or ("c", k) for curved_hosts[k]; a drawing without arcs takes the
+    # straight path only, so its openings are unchanged
+    for h in curved_hosts:
+        xs, ys = zip(*wall_path.sample(h["pts"], h["bulges"], CURVE_TOL_M))
+        h["box"] = (min(xs) - NEAR_WALL_M, min(ys) - NEAR_WALL_M, max(xs) + NEAR_WALL_M, max(ys) + NEAR_WALL_M)
+
+    def on_curve(key: tuple[str, int], p: Pt) -> tuple[float, float]:
+        h = curved_hosts[key[1]]
+        s, dist, _q = wall_path.project(h["pts"], h["bulges"], p, CURVE_TOL_M)
+        return s, dist
+
+    def host_of(p: Pt) -> tuple[Any, float, float, float] | None:
+        """(host, along in metres, lateral, length): the nearest straight wall as _nearest_wall finds it, or a curved
+        wall when one is nearer (within NEAR_WALL_M of its path)."""
+        hit = _nearest_wall(p, walls, NEAR_WALL_M, host_grid)
+        best = hit if hit is not None and hit[0] in wall_index else None
+        for k, h in enumerate(curved_hosts):
+            x0, y0, x1, y1 = h["box"]
+            if not (x0 <= p[0] <= x1 and y0 <= p[1] <= y1):
+                continue
+            s, dist = on_curve(("c", k), p)
+            if dist <= NEAR_WALL_M and (best is None or dist < abs(best[2])):
+                best = (("c", k), s, dist, h["length"])
+        return best
+
+    def along_of(key: Any, p: Pt) -> float:
+        if isinstance(key, tuple):
+            return on_curve(key, p)[0]
+        w = walls[key]
+        return _along(_unit(w["a"], w["b"]), w["a"], p)
+
+    def dir_at(key: Any, s: float) -> Pt:
+        if isinstance(key, tuple):
+            h = curved_hosts[key[1]]
+            return wall_path.point_at(h["pts"], h["bulges"], s)[1]
+        return _unit(walls[key]["a"], walls[key]["b"])
+
+    def swing_at(key: Any, s: float, toward: Pt) -> str:
+        if not isinstance(key, tuple):
+            return swing_of(walls[key], toward)
+        h = curved_hosts[key[1]]
+        pt, d = wall_path.point_at(h["pts"], h["bulges"], s)
+        return swing_of({"a": pt, "b": (pt[0] + d[0], pt[1] + d[1])}, toward)  # the tangent line at s
+
+    def length_of(key: Any) -> float:
+        return curved_hosts[key[1]]["length"] if isinstance(key, tuple) else _len(walls[key]["a"], walls[key]["b"])
+
     for arc in feats["arcs"]:
-        hit = _nearest_wall(arc["c"], walls, NEAR_WALL_M, host_grid)
-        if hit is None or hit[0] not in wall_index:
+        hit = host_of(arc["c"])
+        if hit is None:
             continue
         wi, _along_h, _lat_h, length = hit
+        if isinstance(wi, tuple):  # a door on a curved wall: the hinge and the gap's other end by arc length
+            ends = [arc["p0"], arc["p1"]]
+            on_wall = min(ends, key=lambda p: on_curve(wi, p)[1])
+            tip = ends[1] if on_wall is ends[0] else ends[0]
+            hinge_along, other_along = on_curve(wi, arc["c"])[0], on_curve(wi, on_wall)[0]
+            mid_s = (hinge_along + other_along) / 2
+            add_opening("door", wi, mid_s, length, arc["r"], swing_at(wi, mid_s, tip), "start" if hinge_along < other_along else "end", 0.85, arc["handle"])
+            continue
         w = walls[wi]
         d = _unit(w["a"], w["b"])
         ends = [arc["p0"], arc["p1"]]
@@ -893,11 +1107,10 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
             if not DOOR_WIDTH_M[0] <= width <= DOOR_WIDTH_M[1]:
                 continue
             mid = ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
-            hit = _nearest_wall(mid, walls, NEAR_WALL_M, host_grid)
-            if hit is None or hit[0] not in wall_index:
+            hit = host_of(mid)
+            if hit is None:
                 continue
-            w = walls[hit[0]]
-            d = _unit(w["a"], w["b"])
+            d = dir_at(hit[0], hit[1])  # a curved wall: its tangent where the edge's middle meets it
             if abs(d[0] * _unit(p, q)[0] + d[1] * _unit(p, q)[1]) < math.cos(math.radians(10)):
                 continue
             if best is None or abs(hit[2]) < abs(best[0][2]):
@@ -905,23 +1118,19 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         if best is None:
             continue
         (wi, _al, _lt, length), p, q = best
-        w = walls[wi]
-        d = _unit(w["a"], w["b"])
-        sp, sq = _along(d, w["a"], p), _along(d, w["a"], q)
+        sp, sq = along_of(wi, p), along_of(wi, q)
         # without an arc: the hinge is the edge end nearer the block's base point, the leaf swings toward the block body
-        sb = _along(d, w["a"], box["base"])
+        sb = along_of(wi, box["base"])
         hinge = "start" if abs(sb - min(sp, sq)) <= abs(sb - max(sp, sq)) else "end"
-        add_opening("door", wi, (sp + sq) / 2, length, abs(sq - sp), swing_of(w, ((x0 + x1) / 2, (y0 + y1) / 2)), hinge, 0.6, box["handle"])
+        add_opening("door", wi, (sp + sq) / 2, length, abs(sq - sp), swing_at(wi, (sp + sq) / 2, ((x0 + x1) / 2, (y0 + y1) / 2)), hinge, 0.6, box["handle"])
     # windows: the lines of a window layer grouped by their wall, overlapping runs merged
-    runs: dict[int, list[tuple[float, float, str]]] = defaultdict(list)
+    runs: dict[Any, list[tuple[float, float, str]]] = defaultdict(list)
     for a, b, handle in feats["glazing"]:
         mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-        hit = _nearest_wall(mid, walls, NEAR_WALL_M, host_grid)
-        if hit is None or hit[0] not in wall_index:
+        hit = host_of(mid)
+        if hit is None:
             continue
-        w = walls[hit[0]]
-        d = _unit(w["a"], w["b"])
-        p0, p1 = _along(d, w["a"], a), _along(d, w["a"], b)
+        p0, p1 = along_of(hit[0], a), along_of(hit[0], b)
         runs[hit[0]].append((min(p0, p1), max(p0, p1), handle))
     for wi, items in runs.items():
         items.sort()
@@ -931,7 +1140,7 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
                 merged[-1][1] = max(merged[-1][1], hi)
             else:
                 merged.append([lo, hi, handle])
-        length = _len(walls[wi]["a"], walls[wi]["b"])
+        length = length_of(wi)
         for lo, hi, handle in merged:
             width = hi - lo
             if WINDOW_WIDTH_M[0] <= width <= WINDOW_WIDTH_M[1]:
@@ -1013,7 +1222,8 @@ def map_geometry(src: Any, *, layer_map: dict[str, str], block_map: dict[str, st
         "detector": {"name": "plan_dxf_map", "version": VERSION, "params": {"layers": len(layer_map), "blocks": len(block_map), "units": units, "rotation": rotation, "crop": crop}},
         "calibration_hint": None, "pixels": {},
         "scale": {"m_per_px": scale_m_per_px, "status": "measured"},
-        "stats": {"entities": len(ents), "wall_segments": len(wall_segments), **wall_stats, "bridged": joined, "openings_dropped": dropped_openings},
+        "stats": {"entities": len(ents), "wall_segments": len(wall_segments), **wall_stats, "bridged": joined, "openings_dropped": dropped_openings,
+                  **({"curves": len(curves), "centrelines": len(centrelines), **curve_stats, "curves_outside": curves_outside} if curves or centrelines else {})},
     }
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape, quoteattr
 
-from . import plan_catalog, plan_glass
+from . import plan_catalog, plan_glass, wall_path
 from .plan_geometry import DEFAULT_LEVEL_ID, DEFAULT_WALL_THICKNESS_M, apply_anchor_positions, effective_scale
 from .plan_symbols import symbol_markup
 
@@ -196,6 +196,66 @@ def _object_prims(doc: dict[str, Any], width: float, height: float, px_per_m: fl
     return out
 
 
+def _keep_spans(total: float, openings: list[dict[str, Any]], px_per_m: float) -> list[tuple[float, float]]:
+    cuts: list[tuple[float, float]] = []
+    for o in openings:
+        c = float(o.get("t") or 0) * total
+        half = float(o.get("width_m") or 0) * px_per_m / 2
+        cuts.append((max(0.0, c - half), min(total, c + half)))
+    cuts.sort()
+    keep: list[tuple[float, float]] = []
+    cursor = 0.0
+    for a, b in cuts:
+        if a > cursor:
+            keep.append((cursor, a))
+        cursor = max(cursor, b)
+    if cursor < total:
+        keep.append((cursor, total))
+    return keep
+
+
+def _curved_wall(w: dict[str, Any], width: float, height: float, px_per_m: float, openings: list[dict[str, Any]], prims: list[dict[str, Any]],
+                 geo: dict[str, tuple[list[Point], list[float], float]], arcs: dict[str, tuple[list[Point], list[float], list[float]]]) -> None:
+    """A wall with arcs (wall_path): cut by its openings along its exact length, every kept part drawn as its sampled
+    path (`points`, what the SVG / PNG / map / 3D draw) plus the exact part (`arc`: corners and bulges, what the DXF
+    writes as a bulged LWPOLYLINE). Free ends grow by half the thickness along the tangent, a short straight run in
+    `arc` too. Straight walls never come here, so their primitives are unchanged."""
+    pts, bulges = wall_path.wall_px(w, width, height)
+    cum = wall_path.cumulative(pts, bulges)
+    total = cum[-1]
+    if total <= 1e-6:
+        return
+    wpx = max(1.0, float(w.get("thickness_m") or DEFAULT_WALL_THICKNESS_M) * px_per_m)
+    sampled = wall_path.sample(pts, bulges)
+    geo[w["id"]] = (sampled, _cum(sampled), wpx)
+    arcs[w["id"]] = (pts, bulges, cum)
+    glass = plan_glass.is_glass(w)
+    part = 0
+    for s0, s1 in _keep_spans(total, openings, px_per_m):
+        if s1 - s0 <= 0.01:
+            continue
+        exact, eb = wall_path.sub_path(pts, bulges, s0, s1, cum)
+        seg = wall_path.sample(exact, eb)
+        if s0 <= 0:
+            _p0, t0 = wall_path.point_at(exact, eb, 0.0)
+            start = _add(exact[0], t0, -wpx / 2)
+            seg = [start, *seg]
+            exact, eb = [start, *exact], [0.0, *eb]
+        if s1 >= total:
+            _p1, t1 = wall_path.point_at(exact, eb, wall_path.path_length(exact, eb))
+            end = _add(exact[-1], t1, wpx / 2)
+            seg = [*seg, end]
+            exact, eb = [*exact, end], [*eb, 0.0]
+        prims.append({"kind": "wall", "id": w["id"], "part": part, "points": [_p(q) for q in seg], "width": r2(wpx),
+                      "arc": {"points": [_p(q) for q in exact], "bulges": [round(b, 6) + 0.0 for b in eb]}, **({"glass": True} if glass else {})})
+        part += 1
+    if glass:  # a curved window wall: the panels divide the exact length; drawn along the sampled path (exact s per point)
+        sp, ss = wall_path.sample_with_s(pts, bulges)
+        cuts = sorted((max(0.0, float(o.get("t") or 0) * total - float(o.get("width_m") or 0) * px_per_m / 2),
+                       min(total, float(o.get("t") or 0) * total + float(o.get("width_m") or 0) * px_per_m / 2)) for o in openings)
+        prims.append(plan_glass.glazing_primitive(w, sp, ss, wpx, px_per_m, cuts, _p, r2))
+
+
 def structure_primitives(doc: dict[str, Any], width: float, height: float, level: str | None = None, items: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Walls cut by their openings, door leaves and arcs, window glass, passages, labels (phase 1), then connectors
     (sorted by id, never filtered by level: they are what joins the levels) and objects (sorted by id, filtered by
@@ -208,9 +268,13 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
         by_wall.setdefault(o.get("wall_id"), []).append(o)
     prims: list[dict[str, Any]] = []
     geo: dict[str, tuple[list[Point], list[float], float]] = {}
+    arcs: dict[str, tuple[list[Point], list[float], list[float]]] = {}  # curved walls: exact corners, bulges, cumulative length
     for wid in sorted(walls):
         w = walls[wid]
         if level is not None and w.get("level_id") != level:
+            continue
+        if wall_path.is_curved(w):
+            _curved_wall(w, width, height, px_per_m, by_wall.get(wid, []), prims, geo, arcs)
             continue
         pts: list[Point] = [(float(p[0]) * width, float(p[1]) * height) for p in w["polyline"]]
         cum = _cum(pts)
@@ -253,7 +317,11 @@ def structure_primitives(doc: dict[str, Any], width: float, height: float, level
         if g is None:
             continue
         pts, cum, wpx = g
-        c, d = point_at(pts, cum, float(o.get("t") or 0) * cum[-1])
+        if o.get("wall_id") in arcs:  # on a curved wall: the centre by arc length, the gap along the tangent there
+            apts, abul, acum = arcs[o["wall_id"]]
+            c, d = wall_path.point_at(apts, abul, float(o.get("t") or 0) * acum[-1], acum)
+        else:
+            c, d = point_at(pts, cum, float(o.get("t") or 0) * cum[-1])
         w = float(o.get("width_m") or 0) * px_per_m
         g0, g1 = _add(c, d, -w / 2), _add(c, d, w / 2)
         base = {"id": o["id"], "gap": [_p(g0), _p(g1)]}

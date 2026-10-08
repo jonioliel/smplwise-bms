@@ -1,6 +1,6 @@
 /** Plan Studio (T084): pure edits of a structure document - every function returns a new document, so undo / redo is
  * a stack of documents and nothing is ever mutated in place. */
-import { DEFAULT_LEVEL_ID, MAX_STAIR_STEPS, OPENING_DEFAULTS, STAIR_GOING_M, isClosedOutline, objectCorners, pointAt, rotated, stairPath, type ConnectorKind, type StairShape, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
+import { DEFAULT_LEVEL_ID, MAX_STAIR_STEPS, OPENING_DEFAULTS, STAIR_GOING_M, isClosedOutline, isCurved, objectCorners, pointAt, rotated, stairPath, wallTangentAt, type ConnectorKind, type StairShape, type GeometryDoc, type GeomCircuit, type GeomConnector, type GeomGroup, type GeomLabel, type GeomLevel, type GeomObject, type GeomOpening, type GeomSize, type GeomWall, type OpeningKind, type Pt, type Swing, type WallKind } from './geometry';
 import type { CatalogItem } from '../api/plan-catalog';
 import { GLAZING_DEFAULTS, withDocVersion } from './glass-wall';
 
@@ -106,6 +106,7 @@ export function nudgeT(t: number, dt: number, [lo, hi]: [number, number]): numbe
 /** The unit direction of a wall at relative position t, in plan pixels (y down, so also on screen), pointing towards
  * the wall's end: the segment the position lies on, as the map draws an opening there. */
 export function wallDirectionAt(wall: GeomWall, t: number, W: number, H: number): Pt {
+  if (isCurved(wall)) return wallTangentAt(wall, t, W, H); // a curved wall: the tangent of its arc there
   const pts: Pt[] = wall.polyline.map((v) => [v[0] * W, v[1] * H]);
   if (pts.length < 2) return [1, 0];
   const cum = [0];
@@ -162,7 +163,27 @@ export function removeCorner(doc: GeometryDoc, id: string, index: number): { doc
   if (!cornerRemovable(pl)) return { doc: removeItem(doc, id), wallRemoved: true };
   const ring = (closed ? pl.slice(0, -1) : pl).filter((_, k) => k !== index);
   const polyline: Pt[] = closed ? [...ring, [ring[0][0], ring[0][1]]] : ring;
-  return { doc: { ...doc, walls: doc.walls.map((x) => (x.id === id ? { ...x, polyline } : x)) }, wallRemoved: false };
+  // a curved wall keeps one bulge per segment: the two segments that met at the corner become one straight segment
+  const bulges = w.bulges && w.bulges.length === pl.length - 1 ? removedCornerBulges(w.bulges, index, closed) : undefined;
+  return { doc: { ...doc, walls: doc.walls.map((x) => (x.id === id ? withBulges({ ...x, polyline }, bulges) : x)) }, wallRemoved: false };
+}
+
+/** The bulges after corner `index` goes: segments index-1 and index merge into one straight segment (a closed outline's
+ * corner 0 merges its closing segment and its first; the outline then starts at the next corner). */
+function removedCornerBulges(b: readonly number[], index: number, closed: boolean): number[] {
+  if (!closed) {
+    if (index === 0) return b.slice(1);
+    if (index === b.length) return b.slice(0, -1);
+    return [...b.slice(0, index - 1), 0, ...b.slice(index + 1)];
+  }
+  if (index === 0) return [...b.slice(1, -1), 0];
+  return [...b.slice(0, index - 1), 0, ...b.slice(index + 1)];
+}
+
+/** A wall with these bulges, or without the field when there are none or all are zero (a straight wall, as stored). */
+export function withBulges(w: GeomWall, bulges: readonly number[] | undefined): GeomWall {
+  const { bulges: _old, ...rest } = w;
+  return bulges && bulges.some((v) => v !== 0) ? { ...rest, bulges: [...bulges] } : rest;
 }
 
 /** A wall takes its openings with it; an object leaves its group and its circuit and takes the connector derived from it;
