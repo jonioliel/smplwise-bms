@@ -230,8 +230,8 @@ test.describe.serial('plan editor: curved walls', () => {
     // viewing: the floor map draws the sampled arcs
     await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
     const bent = page.locator('explore-floor-map sw-plan-canvas [data-structure] [data-wall="cw1"] polyline');
-    await expect(bent).toHaveCount(1, { timeout: 20000 });
-    expect(((await bent.getAttribute('points')) ?? '').trim().split(/\s+/).length).toBeGreaterThan(4);
+    await expect(bent).toHaveCount(2, { timeout: 20000 }); // the door cd1 cuts the bent wall into two parts
+    for (const part of await bent.all()) expect(((await part.getAttribute('points')) ?? '').trim().split(/\s+/).length).toBeGreaterThan(4);
     await page.screenshot({ path: path.join(OUT, 'phone-map.png') });
     // editing: the editor route is the desktop-only state (owner decision 2026-09-30), so no curve or arc tool exists
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
