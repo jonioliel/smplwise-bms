@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import socket
 import threading
 from typing import Any, AsyncIterator, Callable
 
@@ -175,7 +176,10 @@ def _bridge_client(settings: Settings) -> httpx.Client:
         if _bridge_session is None or _bridge_session[0] != base:
             if _bridge_session is not None:
                 _bridge_session[1].close()
-            _bridge_session = (base, httpx.Client(limits=httpx.Limits(max_connections=8, max_keepalive_connections=4, keepalive_expiry=_BRIDGE_KEEPALIVE_S)))
+            # TCP_NODELAY: on a kept-alive connection a small request split into header and body segments must not wait
+            # for the peer's delayed ACK (the 40 ms Nagle stall a fresh connection hides behind TCP quick-ack)
+            transport = httpx.HTTPTransport(socket_options=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)])
+            _bridge_session = (base, httpx.Client(transport=transport, limits=httpx.Limits(max_connections=8, max_keepalive_connections=4, keepalive_expiry=_BRIDGE_KEEPALIVE_S)))
         return _bridge_session[1]
 
 

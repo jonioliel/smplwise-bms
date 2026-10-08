@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import queue
+import socket
 import statistics
 import threading
 import time
@@ -74,6 +75,9 @@ class FakeHA:
 
             def setup(self) -> None:
                 super().setup()
+                # aiohttp (Home Assistant, the Supervisor proxy) sets TCP_NODELAY on its sockets; without it a kept-alive
+                # connection would add the 40 ms Nagle / delayed-ACK stall that a real HA does not have
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 fake.connections += 1
 
             def log_message(self, *_a) -> None:  # quiet
@@ -144,19 +148,43 @@ def _body(n: int, action: str) -> dict:
     return {"allowed_action_id": action, "arguments": {}, "expected_state_version": None, "confirmation_grant": None, "client_request_id": f"lat1-{n}-{time.time_ns()}", "expires_at": "2099-01-01T00:00:00Z"}
 
 
-def _toggle(c: TestClient, fake: FakeHA, sub: "queue.Queue[dict]", n: int) -> dict[str, float]:
+class PushClock:
+    """A /ha/ws subscriber that stamps every push of ENTITY the moment it is published (a reader thread, as the socket's
+    executor read in routers/ha.py ha_ws) - never when the test gets round to reading it."""
+
+    def __init__(self) -> None:
+        self.q = ha_sync.subscribe()
+        self.seen: "queue.Queue[tuple[float, str]]" = queue.Queue()
+        self.stop = False
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while not self.stop:
+            try:
+                msg = self.q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if msg.get("type") == "entity_state_changed" and msg["entity"]["entity_id"] == ENTITY:
+                self.seen.put((time.perf_counter(), msg["entity"]["state"]))
+
+    def close(self) -> None:
+        self.stop = True
+        ha_sync.unsubscribe(self.q)
+
+
+def _toggle(c: TestClient, fake: FakeHA, sub: PushClock, n: int) -> dict[str, float]:
     target = "on" if n % 2 == 0 else "off"
     t0 = time.perf_counter()
     r = c.post(f"/api/v1/ha/entities/{ENTITY}/actions", json=_body(n, f"switch.turn_{target}"))
     t_resp = time.perf_counter()
     assert r.status_code == 202, r.text
     arrived, _payload = fake.arrivals.get(timeout=20)
-    deadline = time.monotonic() + 20
     t_push = None
+    deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
-        msg = sub.get(timeout=20)
-        if msg.get("type") == "entity_state_changed" and msg["entity"]["entity_id"] == ENTITY and msg["entity"]["state"] == target:
-            t_push = time.perf_counter()
+        at, state = sub.seen.get(timeout=20)
+        if state == target and at >= t0:
+            t_push = at
             break
     assert t_push is not None, "the toggled entity's state push never reached the subscriber"
     return {"dispatch": (arrived - t0) * 1000, "response": (t_resp - t0) * 1000, "push": (t_push - t0) * 1000, "server_timing": r.headers.get("server-timing", "")}
@@ -173,13 +201,13 @@ def _table(title: str, rows: list[dict[str, float]]) -> str:
 
 
 def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
-    """Idle path with the 40/s state stream: 12 toggles, alternating on / off."""
+    """Idle path with the 40/s state stream: 20 toggles, alternating on / off."""
     app, c, fake = lat_app
-    sub = ha_sync.subscribe()
+    sub = PushClock()
     try:
-        rows = [_toggle(c, fake, sub, n) for n in range(12)]
+        rows = [_toggle(c, fake, sub, n) for n in range(20)]
     finally:
-        ha_sync.unsubscribe(sub)
+        sub.close()
     print("\n" + _table("idle + 40/s state stream", rows))
     f = sw_time_factor()
     dispatch = statistics.median(r["dispatch"] for r in rows)
