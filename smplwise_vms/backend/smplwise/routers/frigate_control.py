@@ -102,7 +102,8 @@ def get_policy(recorder_id: str, request: Request, principal: Principal = Depend
     pol = svc.policy(conn, recorder_id)
     return {"recorder_id": recorder_id, "classes": [{"class": c, "enabled": pol[c], "per_action": c in svc.PER_ACTION, "permission": svc.PERMISSION[c],
                                                    "available": c != "ptz" or svc.PTZ_RELEASED,
-                                                   "confirm_actions": ["delete"] if c in ("exports", "cases") else []} for c in svc.CLASSES],
+                                                   "confirm_actions": ["delete"] if c in ("exports", "cases") else [],
+                                                   "persists": c == "config"} for c in svc.CLASSES],
             "ptz_released": svc.PTZ_RELEASED}
 
 

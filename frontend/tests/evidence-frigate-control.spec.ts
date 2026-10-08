@@ -131,7 +131,7 @@ test.describe('settings: management of the writes', () => {
   test('every class is listed, off until switched on; switching one on sends exactly that class; PTZ is not offered', async ({ page }) => {
     const m = await start(page, '/system/setup', {}, { classes: { analytics: false, record: false, profile: false, review: false, events: false, ptz: false, exports: false, cases: false } });
     const box = await openCard(page, m);
-    await expect(box.locator('[data-fcs-class]')).toHaveCount(7); // FRGD: + exports and cases (F2b)
+    await expect(box.locator('[data-fcs-class]')).toHaveCount(8); // FRGD: + exports and cases (F2b); FRGS: + config
     await expect(box.locator('[data-fcs-class="ptz"]')).toHaveCount(0);
     for (const c of ['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases']) await expect(box.locator(`[data-fcs-toggle="${c}"]`)).not.toHaveAttribute('checked', '');
     await expect(box.locator('[data-fcs-class="record"]')).toContainText('דורש אישור בכל פעולה');

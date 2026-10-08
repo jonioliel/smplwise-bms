@@ -28,7 +28,8 @@ from . import frigate_control_svc as cs
 from .recorders import frigate_control as fc
 from .recorders.frigate import FrigateAdapter
 
-SUPERVISED_KINDS = ("export_create", "export_rename", "export_delete", "case_create", "case_rename", "case_delete", "event_create", "event_end", "profile_auto", "clip_read")
+SUPERVISED_KINDS = ("export_create", "export_rename", "export_delete", "case_create", "case_rename", "case_delete", "event_create", "event_end", "profile_auto", "clip_read",
+                   "config_zone", "config_settings")   # FRGS: zones and camera settings (config class)
 CONFIGURE = "system.configure"
 NOW = time.time   # tests replace it
 

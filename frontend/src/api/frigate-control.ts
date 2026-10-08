@@ -13,7 +13,7 @@
 import { apiUrl, get, patch, post, put } from './client';
 import { he } from '../i18n/he';
 
-export type WriteClass = 'analytics' | 'record' | 'profile' | 'review' | 'events' | 'ptz' | 'exports' | 'cases';
+export type WriteClass = 'analytics' | 'record' | 'profile' | 'review' | 'events' | 'ptz' | 'exports' | 'cases' | 'config';
 export type SwitchGroup = 'analytics' | 'record';
 
 export interface PolicyClass {
@@ -25,6 +25,8 @@ export interface PolicyClass {
   available: boolean;
   /** F2b: the actions of the class that ask for a confirmation (exports / cases: `delete`); absent on an F2 server */
   confirm_actions?: string[];
+  /** FRGS: the class writes Frigate's configuration file (survives a restart); absent on an older server */
+  persists?: boolean;
 }
 export interface ControlPolicy {
   recorder_id: string;
@@ -105,8 +107,8 @@ export const revertChange = (rid: string, id: string, confirm: boolean, supervis
 // ---- F2b (routers/frigate_f2b.py, CR-029 section 11): the first supervised write, the automatic profile, exports, cases, manual events, the clip ----
 
 /** The kinds whose first write toward a recorder must be supervised once (`frigate_first_write`). */
-export type SupervisedKind = 'export_create' | 'export_rename' | 'export_delete' | 'case_create' | 'case_rename' | 'case_delete' | 'event_create' | 'event_end' | 'profile_auto' | 'clip_read';
-export const SUPERVISED_KINDS: SupervisedKind[] = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read'];
+export type SupervisedKind = 'export_create' | 'export_rename' | 'export_delete' | 'case_create' | 'case_rename' | 'case_delete' | 'event_create' | 'event_end' | 'profile_auto' | 'clip_read' | 'config_zone' | 'config_settings';
+export const SUPERVISED_KINDS: SupervisedKind[] = ['export_create', 'export_rename', 'export_delete', 'case_create', 'case_rename', 'case_delete', 'event_create', 'event_end', 'profile_auto', 'clip_read', 'config_zone', 'config_settings'];
 
 export interface FirstWrites {
   recorder_id: string;
@@ -279,6 +281,9 @@ export function changeLine(c: ChangeRow): string {
   if (c.kind === 'profile') return `${t.profile}: ${(c.after as { profile?: string | null } | null)?.profile || t.noProfile}`;
   if (c.kind === 'event_retain') return `${t.retain}: ${(c.after as { retain?: boolean } | null)?.retain ? he.frigate.summary.on : he.frigate.summary.off}`;
   if (c.kind === 'event_sub_label') return `${(c.after as { sub_label?: string | null } | null)?.sub_label ?? ''}`;
+  // FRGS: "אזור: driveway" / "הגדרות מצלמה: תנועה"
+  if (c.kind === 'config_settings') return `${t.settings.kinds.config_settings}: ${(t.settings.config.sections as Record<string, string>)[c.target] ?? c.target}`;
+  if (c.kind === 'config_zone') return `${t.settings.kinds.config_zone}${c.after === null ? ` (${t.settings.config.removed})` : ''}: ${c.target}`;
   // F2b kinds: "ייצוא נוצר: <name>" / "תיק שונה: <name>" / "אירוע ידני: <label>"
   const k = t.settings.kinds as Record<string, string>;
   if (k[c.kind]) {
@@ -294,8 +299,131 @@ export const alarmText = (s: string): string => (he.frigate.control.alarm as Rec
 
 /** Classes in the order the settings list them; PTZ only when the code releases it. */
 export function visibleClasses(p: ControlPolicy): PolicyClass[] {
-  const order: WriteClass[] = ['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases', 'ptz'];
+  const order: WriteClass[] = ['analytics', 'record', 'profile', 'review', 'events', 'exports', 'cases', 'config', 'ptz'];
   return order.map((k) => p.classes.find((c) => c.class === k)).filter((c): c is PolicyClass => !!c && (c.class !== 'ptz' || c.available));
 }
 
 export const anyWriteOn = (p: ControlPolicy | null): boolean => !!p && p.classes.some((c) => c.enabled);
+
+// ---- FRGS (routers/frigate_config.py, CR-029 section 13): the config schema, zones and the curated camera settings ----
+
+export type ConfigFieldType = 'int' | 'number' | 'labels' | 'polygon';
+export interface ConfigField {
+  key: string;
+  type: ConfigFieldType;
+  section?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  default?: number | string[] | null;
+  unit?: string;
+  min_points?: number;
+  max_points?: number;
+}
+export interface ConfigSchema {
+  recorder_id: string;
+  version: string;
+  sections: string[];
+  settings: ConfigField[];
+  zone: { fields: ConfigField[]; name_pattern: string; max_zones: number };
+  labels: string[];
+  persists: boolean;
+  /** only with `verify=true`: our fields the instance's own schema does not know */
+  frigate_check: { checked: boolean; missing: string[] } | null;
+}
+/** A point in relative frame coordinates: x right, y down, 0..1 (never mirrored by RTL). */
+export type Pt = [number, number];
+export interface ConfigZone {
+  name: string;
+  /** null = Frigate keeps it in a shape Arx does not edit (shown read-only) */
+  points: Pt[] | null;
+  editable: boolean;
+  objects: string[];
+  inertia: number | null;
+  loitering_time: number | null;
+}
+export type SettingValue = number | string[] | null;
+export interface CameraConfigView {
+  recorder_id: string;
+  camera_id: string;
+  camera_key: string;
+  frame: { width: number | null; height: number | null };
+  zones: ConfigZone[];
+  settings: Record<string, SettingValue>;
+  /** THIS caller may change it now: system.configure on the camera AND the `config` class on */
+  writable: boolean;
+  first_write_done: { config_zone: boolean; config_settings: boolean };
+  can_supervise: boolean;
+}
+export interface ZoneBody {
+  points: Pt[];
+  objects: string[];
+  inertia: number | null;
+  loitering_time: number | null;
+}
+const camBase = (rid: string, cid: string) => `${base(rid)}/cameras/${encodeURIComponent(cid)}/config`;
+export const getConfigSchema = (rid: string) => get<ConfigSchema>(`${base(rid)}/config/schema`);
+export const getCameraConfig = (rid: string, cid: string) => get<CameraConfigView>(camBase(rid, cid));
+export const putZone = (rid: string, cid: string, name: string, body: ZoneBody, supervised = false) =>
+  put<{ changed: boolean; verified: boolean; zone: ConfigZone; change_id: string | null }>(`${camBase(rid, cid)}/zones/${encodeURIComponent(name)}`, { ...body, confirm: true, ...(supervised ? { supervised } : {}) });
+export const deleteZone = (rid: string, cid: string, name: string, supervised = false) =>
+  post<{ deleted: boolean; verified: boolean; change_id: string | null }>(`${camBase(rid, cid)}/zones/${encodeURIComponent(name)}/delete`, { confirm: true, ...(supervised ? { supervised } : {}) });
+export const putSettings = (rid: string, cid: string, section: string, values: Record<string, SettingValue>, supervised = false) =>
+  put<{ changed: boolean; verified: boolean; settings: Record<string, SettingValue>; change_id: string | null }>(`${camBase(rid, cid)}/settings/${encodeURIComponent(section)}`, { values, confirm: true, ...(supervised ? { supervised } : {}) });
+/** The Frigate still of a camera (the existing read route; `h` is clamped by the server). */
+export const frigateStillUrl = (rid: string, cid: string, h = 720): string => apiUrl(`${base(rid)}/cameras/${encodeURIComponent(cid)}/snapshot?h=${h}`);
+
+/** A zone name Frigate accepts: lower-case latin letters, digits and underscore, 1..40, and not the camera's own key. */
+export function zoneNameError(name: string, cameraKey: string, existing: readonly string[]): 'pattern' | 'camera' | 'taken' | null {
+  if (!/^[a-z0-9_]{1,40}$/.test(name)) return 'pattern';
+  if (name === cameraKey) return 'camera';
+  if (existing.includes(name)) return 'taken';
+  return null;
+}
+
+/** The area of a polygon (relative units); ~0 = a line, which the server refuses. */
+export function polygonArea(pts: readonly Pt[]): number {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % pts.length];
+    s += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(s) / 2;
+}
+
+/** The polygon the editor may save: 3..40 points inside the frame, no repeated point, a real area (the server's rules). */
+export function polygonError(pts: readonly Pt[]): 'few' | 'many' | 'outside' | 'repeat' | 'flat' | null {
+  if (pts.length < 3) return 'few';
+  if (pts.length > 40) return 'many';
+  if (pts.some(([x, y]) => !(x >= 0 && x <= 1 && y >= 0 && y <= 1))) return 'outside';
+  if (new Set(pts.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`)).size !== pts.length) return 'repeat';
+  if (polygonArea(pts) < 1e-4) return 'flat';
+  return null;
+}
+
+/** A pointer position over the stage -> a relative point (clamped, 4 decimals). The stage is LTR and never mirrored. */
+export function toRelative(clientX: number, clientY: number, rect: { left: number; top: number; width: number; height: number }): Pt {
+  const r = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 10000) / 10000;
+  return [r((clientX - rect.left) / rect.width), r((clientY - rect.top) / rect.height)];
+}
+
+/** One settings value from an input: '' = back to Frigate's default (null); not a number or out of range = 'range'. */
+export function parseSetting(field: ConfigField, raw: string): { value: SettingValue } | { error: 'range' } {
+  const v = raw.trim();
+  if (v === '') return { value: null };
+  const n = Number(v);
+  if (!Number.isFinite(n)) return { error: 'range' };
+  if (field.type === 'int' && !Number.isInteger(n)) return { error: 'range' };
+  if ((field.min != null && n < field.min) || (field.max != null && n > field.max)) return { error: 'range' };
+  return { value: n };
+}
+
+/** Do two values of one setting mean the same state? null (unset) equals the documented default (the server's rule). */
+export function sameSetting(field: ConfigField, a: SettingValue | undefined, b: SettingValue | undefined): boolean {
+  const d = (field.default ?? null) as SettingValue;
+  const x = a ?? d;
+  const y = b ?? d;
+  if (Array.isArray(x) && Array.isArray(y)) return [...x].sort().join(',') === [...y].sort().join(',');
+  return x === y;
+}

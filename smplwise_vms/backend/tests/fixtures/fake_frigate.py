@@ -139,6 +139,11 @@ class FakeFrigate:
         self.case_reply_id = True
         self.event_reply_id = True
         self.seq = 0
+        # FRGS config writes: `config_reflect` False = `PUT /api/config/set` is acknowledged but the effective config does not change;
+        # `schema_served` False = `/api/config/schema.json` answers 404; `schema_drop` names camera-schema leaves left out of it
+        self.config_reflect = True
+        self.schema_served = True
+        self.schema_drop: set[str] = set()
 
     # ------------------------------------------------------------------------------------------ documents
 
@@ -246,8 +251,42 @@ class FakeFrigate:
                 return httpx.Response(405)
             self.writes.append((m, path, body))
             return self._json({"success": True})
+        if m == "PUT" and path == "/api/config/set":
+            return self._config_set(body)
         return self._write_f2b(request, path, body)
 
+    def _config_set(self, body: Any) -> httpx.Response:
+        """FRGS: `PUT /api/config/set` with `{"requires_restart", "update_topic", "config_data"}` as the adapter sends it (shape NOT verified).
+        Only camera sections are accepted here (the adapter never sends anything else); "" removes a key, as Frigate does."""
+        data = (body or {}).get("config_data") if isinstance(body, dict) else None
+        cams = data.get("cameras") if isinstance(data, dict) else None
+        if not isinstance(cams, dict) or set(data) != {"cameras"} or any(c not in self.cameras for c in cams):
+            return httpx.Response(400, json={"success": False, "message": "bad config_data"})
+        if self.config_reflect:
+            for cam, section in cams.items():
+                _merge(self.cameras[cam], section)
+        self.writes.append(("PUT", "/api/config/set", body))
+        return self._json({"success": True, "message": "Config successfully updated, restart to apply" if body.get("requires_restart") else "Config successfully updated"})
+
+    def config_schema(self) -> dict[str, Any]:
+        """A small JSON schema in pydantic's shape ($defs + $ref) with the camera fields the adapter compares."""
+        def obj(**props: Any) -> dict[str, Any]:
+            return {"type": "object", "properties": props}
+
+        num = {"type": "number"}
+        cam = obj(detect=obj(fps=num, width=num, height=num), motion=obj(threshold=num, contour_area=num, lightning_threshold=num),
+                  objects=obj(track={"type": "array"}), snapshots=obj(retain=obj(default=num)),
+                  record=obj(alerts=obj(retain=obj(days=num)), detections=obj(retain=obj(days=num))), review=obj(alerts=obj(labels={"anyOf": [{"type": "array"}, {"type": "null"}]})),
+                  zones={"type": "object", "additionalProperties": {"$ref": "#/$defs/ZoneConfig"}})
+        zone = obj(coordinates={"type": "string"}, objects={"type": "array"}, inertia=num, loitering_time=num)
+        for leaf in self.schema_drop:
+            sec, _, key = leaf.partition(".")
+            if sec == "zones":
+                zone["properties"].pop(key, None)
+            else:
+                cam["properties"].get(sec, {}).get("properties", {}).pop(key, None)
+        return {"$defs": {"CameraConfig": cam, "ZoneConfig": zone}, "type": "object",
+                "properties": {"cameras": {"type": "object", "additionalProperties": {"$ref": "#/$defs/CameraConfig"}}}}
     def _write_f2b(self, request: httpx.Request, path: str, body: Any) -> httpx.Response:
         """F2b write routes (exports, cases, manual events) as the adapter calls them (shapes NOT verified against a live instance)."""
         import re
@@ -361,6 +400,8 @@ class FakeFrigate:
             return self._json(self.stats())
         if path == "/api/config":
             return self._json(self.config())
+        if path == "/api/config/schema.json":
+            return self._json(self.config_schema()) if self.schema_served else httpx.Response(404, json={"message": "not found"})
         if path == "/api/openapi.json":
             return self._json(self.openapi_doc()) if self.openapi else httpx.Response(404)
         if path == "/api/go2rtc/streams":
@@ -437,6 +478,19 @@ class FakeFrigate:
             if name.startswith("seg-"):
                 return httpx.Response(200, content=SEG, headers={"content-type": "video/iso.segment"})
         return httpx.Response(404, json={"message": "not found"})
+
+
+def _merge(node: dict[str, Any], patch: dict[str, Any]) -> None:
+    for k, v in patch.items():
+        if v == "":
+            node.pop(k, None)
+        elif isinstance(v, dict):
+            child = node.get(k)
+            if not isinstance(child, dict):
+                child = node[k] = {}
+            _merge(child, v)
+        else:
+            node[k] = v
 
 
 class FakeWsConnect:

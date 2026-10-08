@@ -9,6 +9,7 @@ import './frigate-exports-panel';
 import './frigate-cases-panel';
 import './frigate-manual-events';
 import './frigate-supervision';
+import './frigate-config-panel';
 import { describeError } from '../api/client';
 import { can, canAnywhere } from '../api/session';
 import { frigateCameras, type WireCamera } from '../api/frigate';
@@ -19,11 +20,12 @@ import {
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { adminStyles } from './frigate-admin-shared';
 
-type Tab = 'classes' | 'profiles' | 'exports' | 'cases' | 'events' | 'log' | 'supervision';
-const TABS: Tab[] = ['classes', 'profiles', 'exports', 'cases', 'events', 'log', 'supervision'];
+type Tab = 'classes' | 'profiles' | 'config' | 'exports' | 'cases' | 'events' | 'log' | 'supervision';
+const TABS: Tab[] = ['classes', 'profiles', 'config', 'exports', 'cases', 'events', 'log', 'supervision'];
 
 /** The inverse kind an undo of a change performs (its first supervised write): absent = the undo is not gated. */
-const UNDO_KIND: Record<string, SupervisedKind> = { export_create: 'export_delete', export_rename: 'export_rename', case_create: 'case_delete', case_rename: 'case_rename', event_create: 'event_end' };
+const UNDO_KIND: Record<string, SupervisedKind> = { export_create: 'export_delete', export_rename: 'export_rename', case_create: 'case_delete', case_rename: 'case_rename', event_create: 'event_end',
+  config_zone: 'config_zone', config_settings: 'config_settings' };
 
 /**
  * NN5-F2 / FRGD: management of the writes toward ONE Frigate recorder (Settings only), as one card with tabs: the write classes (all off until
@@ -130,7 +132,7 @@ export class FrigateControlSettings extends LitElement {
   private onUndo(c: ChangeRow) {
     const kind = UNDO_KIND[c.kind];
     const gated = !!kind && !!this.first && !this.first.done[kind];
-    if (c.class === 'record' || c.class === 'profile' || c.kind === 'export_create' || c.kind === 'case_create' || gated) this.undoing = { row: c, supervised: false, error: '' };
+    if (c.class === 'record' || c.class === 'profile' || c.class === 'config' || c.kind === 'export_create' || c.kind === 'case_create' || gated) this.undoing = { row: c, supervised: false, error: '' };
     else void this.undo(c, false);
   }
 
@@ -321,6 +323,7 @@ export class FrigateControlSettings extends LitElement {
       <sw-tabs variant="underline-compact" data-fcs-tabs .items=${tabs.map((id) => ({ id, label: t.tabs[id] }))} .active=${tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as Tab)}></sw-tabs>
       ${tab === 'classes' ? this.classesTab(pol) : nothing}
       ${tab === 'profiles' ? this.profilesTab() : nothing}
+      ${tab === 'config' ? html`<frigate-config-panel recorder-id=${this.recorderId} .cams=${this.cams} .enabled=${enabled('config')} @frigate-changed=${() => void this.afterWrite()}></frigate-config-panel>` : nothing}
       ${tab === 'exports' ? html`<frigate-exports-panel recorder-id=${this.recorderId} .first=${this.first} .cams=${this.cams} .allowed=${admin || canAnywhere('analytics.exports')} tz=${tz} @frigate-changed=${() => void this.afterWrite()}></frigate-exports-panel>` : nothing}
       ${tab === 'cases' ? html`<frigate-cases-panel recorder-id=${this.recorderId} .first=${this.first} .allowed=${admin || canAnywhere('analytics.cases')} tz=${tz} @frigate-changed=${() => void this.afterWrite()}></frigate-cases-panel>` : nothing}
       ${tab === 'events' ? html`<frigate-manual-events recorder-id=${this.recorderId} .first=${this.first} .cams=${this.cams} .changes=${this.changes} .enabled=${enabled('events')} .allowed=${admin || canAnywhere('analytics.events')} tz=${tz} @frigate-changed=${() => void this.afterWrite()}></frigate-manual-events>` : nothing}
