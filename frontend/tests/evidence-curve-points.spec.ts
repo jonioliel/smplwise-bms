@@ -70,8 +70,9 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
     ids.site = (await (await api.post('api/v1/sites', { data: { name: `בדיקת קיר דרך נקודות ${stamp}`, address: '' } })).json()).id;
     ids.building = (await (await api.post(`api/v1/sites/${ids.site}/buildings`, { data: { name: 'מבנה בדיקה' } })).json()).id;
     ids.floor = (await (await api.post(`api/v1/buildings/${ids.building}/floors`, { data: { name: 'קומת קשתות', level: 0 } })).json()).id;
-    const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
-    await page.setContent('<div style="box-sizing:border-box;width:1000px;height:600px;background:#fff;border:10px solid #333"></div>');
+    // 1000 x 800 px: the aspect of the shared fixture (the phone test seeds it), so its arcs stay tangent on this plan
+    const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    await page.setContent('<div style="box-sizing:border-box;width:1000px;height:800px;background:#fff;border:10px solid #333"></div>');
     const png = await page.screenshot();
     await page.close();
     const asset = await (await api.post(`api/v1/floors/${ids.floor}/plan-assets`, { multipart: { file: { name: 'plan.png', mimeType: 'image/png', buffer: png } } })).json();
@@ -118,6 +119,8 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
     for (const p of pts.slice(0, 3)) await clickAt(page, p);
     const hint = page.locator(`${ED} [data-curve-hint]`);
     await expect(hint).toHaveAttribute('data-curve-hint', '3');
+    const hb = (await hint.locator('span').boundingBox())!;
+    expect(hb.y + hb.height, 'the live hint is on screen').toBeLessThanOrEqual(page.viewportSize()!.height);
     // undo / redo per point while drawing (nothing reaches the document yet)
     await page.keyboard.press('Control+z');
     await expect(hint).toHaveAttribute('data-curve-hint', '2');
@@ -204,9 +207,9 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
     expect(throughOf(w).length).toBe(4);
     await expect(page.locator(`${ED} [data-wall-area]`)).toContainText('מ״ר');
     await page.locator(`${ED} [data-studio-mode="door"]`).click();
-    // the four points are a rectangle's corners, so the ring is their circle: on the 1000 x 600 px plan its centre is
-    // (675, 315) px and its radius 184 px - the bottom of the arc at 499 px = 0.832
-    await clickAt(page, [0.675, 0.83]); // on the bulging arc below the bottom span, not on its chord
+    // the four points are a rectangle's corners, so the ring is their circle: on the 1000 x 800 px plan its centre is
+    // (675, 420) px and its radius 219 px - the bottom of the arc at 639 px = 0.799
+    await clickAt(page, [0.675, 0.799]); // on the bulging arc below the bottom span, not on its chord
     await saved(page);
     const d = await draft();
     expect(d.doc.openings.filter((o) => o.wall_id === w.id).length).toBe(1);
@@ -240,10 +243,16 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
     await expect(page.locator(`${ED} [data-glazing-inspector]`)).toHaveCount(1);
     await expect(page.locator(`${ED} [data-studio-panel] .selhead strong`).first()).toHaveText('קיר זכוכית');
     await page.screenshot({ path: path.join(OUT, 'glass-tool-desktop-light.png') });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await page.waitForTimeout(300);
+    // the dark theme: the same editor with the curved glass wall selected
+    await page.goto('about:blank');
+    await page.goto(`/?design=a&scheme=dark#/explore/floors/${ids.floor}/edit`);
+    await expect(page.locator(`${ED} sw-plan-canvas`)).toHaveCount(1, { timeout: 20000 });
+    await page.locator(`${ED} [data-tool="structure"]`).click();
+    await page.locator(`${ED} [data-studio-mode="select"]`).click();
+    await clickAt(page, arc.polyline[1]);
+    await expect(page.locator(`${ED} sw-plan-canvas [data-curve-point]`)).toHaveCount(3);
+    await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(OUT, 'glass-tool-desktop-dark.png') });
-    await page.emulateMedia({ colorScheme: 'light' });
     // the DXF writes the curved glass as arcs on the glazing layer
     const dxf = await (await api.get(`api/v1/plan-versions/${ids.version}/export.dxf?draft=true`)).text();
     expect(dxf).toContain('SW_GLAZING');
@@ -277,6 +286,10 @@ test.describe.serial('plan editor: curved walls through points and the glass wal
         await page.touchscreen.tap(s.x, s.y);
       }
       await expect(page.locator(`${ED} [data-curve-hint]`)).toHaveAttribute('data-curve-hint', '3');
+      // the live hint with its finish button is on screen (it floats at the window's bottom: the map column is taller)
+      const hb = (await page.locator(`${ED} [data-curve-finish]`).boundingBox())!;
+      expect(hb.y + hb.height).toBeLessThanOrEqual(768);
+      expect(hb.y).toBeGreaterThan(0);
       await page.screenshot({ path: path.join(OUT, 'curve-draw-tablet.png') });
       await page.locator(`${ED} [data-curve-finish]`).tap();
       await saved(page);

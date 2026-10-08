@@ -487,6 +487,18 @@ export class ExplorePlanEditor extends LitElement {
       pointer-events: none;
       z-index: var(--sw-z-map-ui);
     }
+    /* WALLP: the drawing hints (a wall, a curved wall) float at the bottom of the window: the map column grows with the
+       side panel, so its own bottom edge is often below the fold (a tablet in landscape never saw the live length,
+       radius and the finish button) */
+    .placing-hint.float {
+      position: fixed;
+      inset-block-end: 16px;
+      pointer-events: none; /* only the pill takes the pointer: the strip beside it stays the map's */
+    }
+    .placing-hint.float.bindbar span {
+      pointer-events: auto;
+      max-inline-size: calc(100vw - 32px);
+    }
     .placing-hint span {
       background: var(--sw-text);
       color: #fff;
@@ -2867,6 +2879,9 @@ export class ExplorePlanEditor extends LitElement {
     } else if (draft) {
       this.flash('נקודת הקיר שהתחלת בוטלה; סמן דלת פעיל');
     }
+    if (this.curveDraft && this.curveDraft.length >= 2) this.finishCurve(false); // a curved wall being drawn is kept too
+    this.curveDraft = null;
+    this.curveRedo = [];
     if (this.tool !== 'structure') this.pickTool('structure');
     this.studioMode = 'markdoor';
     this.wallDraft = null;
@@ -3134,7 +3149,7 @@ export class ExplorePlanEditor extends LitElement {
     const { estimated } = effectiveScale(doc);
     const radius = Number.isFinite(live.minRadiusM) ? fmtMetres(live.minRadiusM, estimated, this.showEstimates) : curveT('straightLine');
     const title = this.studioMode === 'glass' ? glassT('tool') : curveT('draft');
-    return html`<div class="placing-hint bindbar" data-curve-hint=${live.count}><span>${title}: ${live.count} ${curveT('points')} · ${curveT('length')} <b data-curve-length>${fmtMetres(live.lengthM, estimated, this.showEstimates)}</b> · ${curveT('minRadius')} <b data-curve-radius>${radius}</b>${live.count >= 3 ? html` · ${curveT('closeHint')}` : nothing}
+    return html`<div class="placing-hint bindbar float" data-curve-hint=${live.count}><span>${title}: ${live.count} ${curveT('points')} · ${curveT('length')} <b data-curve-length>${fmtMetres(live.lengthM, estimated, this.showEstimates)}</b> · ${curveT('minRadius')} <b data-curve-radius>${radius}</b>${live.count >= 3 ? html` · ${curveT('closeHint')}` : nothing}
       <button data-curve-finish ?disabled=${live.count < 2} @click=${() => this.finishCurve(false)}>${curveT('finish')} (Enter)</button><button data-curve-undo @click=${() => this.curveUndoPoint()}>${curveT('undoPoint')}</button><button data-curve-cancel @click=${() => { this.curveDraft = null; this.curveRedo = []; this.hover = null; }}>Esc</button></span></div>`;
   }
 
@@ -5436,7 +5451,7 @@ export class ExplorePlanEditor extends LitElement {
                     <button data-bind-accept @click=${() => this.bindObject(this.bindOffer!.objectId, this.bindOffer!.anchor)}>הצמד לישות</button><button data-bind-dismiss @click=${() => { this.bindRefused.add(this.bindOffer!.objectId); this.bindOffer = null; }}>לא</button></span></div>` : nothing}
                 ${this.tool === 'structure' && this.studioMode === 'markdoor' && this.studio.doc ? this.renderMarkDoorHint() : nothing}
                 ${this.curveDraft ? this.renderCurveHint(b) : nothing}
-                ${this.wallDraft ? html`<div class="placing-hint"><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
+                ${this.wallDraft ? html`<div class="placing-hint float" data-wall-hint><span>ציור קיר: ${this.wallDraft.length} נקודות · Enter או לחיצה חוזרת על הנקודה האחרונה מסיימים · לחיצה על הנקודה הראשונה סוגרת מתאר · Esc לביטול</span></div>` : nothing}
                 <div class="legend"><span><i></i>מצלמות · ${cams}</span><span><i class="ent"></i>התקנים · ${ents}</span><span><i class="zone"></i>אזורים · ${this.zones.length}</span></div>
               </div>
               <div class="props">
