@@ -468,30 +468,41 @@ def test_per_block_rules_entities_values_time_trigger_ids_notify_delay_repeat_op
     assert "action_not_allowed" in one("actions", {**dev, "action": "homeassistant.restart", "entity_ids": ["light.a"]})
 
 
-def test_state_condition_with_for_never_combines_a_state_list_or_several_entities_ha_2026_10():
-    """HA 2026.10 rejects a state condition that sets `for` together with an attribute, a state list or another entity."""
+def test_state_condition_with_for_never_combines_a_state_list_or_an_input_helper_state_ha_2026_10():
+    """HA 2026.10 (core#174083) rejects a state condition that sets `for` together with an attribute, a list of states (any length but
+    one) or a state naming an input helper. Several entities with `for` stay valid (HA has no such rule)."""
     base = {"kind": "typed", "raw": None, "type": "state", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
     ok = {**base, "entity_ids": ["binary_sensor.front_door"], "state": "on"}
     many = {**base, "entity_ids": ["binary_sensor.front_door", "binary_sensor.back_door"], "state": "on"}
+    one_item = {**base, "entity_ids": ["binary_sensor.front_door"], "state": ["on"]}
     listed = {**base, "entity_ids": ["binary_sensor.front_door"], "state": ["on", "open"]}
-    assert not m.state_for_conflict(ok) and m.state_for_conflict(many) and m.state_for_conflict(listed)
-    assert not m.state_for_conflict({**many, "for": None}) and not m.state_for_conflict({**listed, "type": "numeric_state"})
+    empty = {**base, "entity_ids": ["binary_sensor.front_door"], "state": []}
+    helper = {**base, "entity_ids": ["sensor.temperature"], "state": "input_number.threshold"}
+    helper_item = {**base, "entity_ids": ["sensor.temperature"], "state": ["input_select.mode"]}
+    not_helper = {**base, "entity_ids": ["sensor.mode"], "state": "sensor.other"}  # only input_* names count, as in HA
+    for good in (ok, many, one_item, not_helper):
+        assert not m.state_for_conflict(good), good
+    for bad in (listed, empty, helper, helper_item):
+        assert m.state_for_conflict(bad), bad
+    assert not m.state_for_conflict({**listed, "for": None}) and not m.state_for_conflict({**listed, "type": "numeric_state"})
     assert m._build_condition(ok, CTX) == {"condition": "state", "entity_id": ["binary_sensor.front_door"], "state": "on", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
-    for bad in (many, listed):
+    assert m._build_condition(many, CTX)["entity_id"] == ["binary_sensor.front_door", "binary_sensor.back_door"]
+    for bad in (listed, helper):
         with pytest.raises(m.ModelError):
             m._build_condition(bad, CTX)
         d = valid_base()
         d["conditions"].append(bad)
         assert "state_for_conflict" in codes(d)
-    d = valid_base()
-    d["conditions"].append(ok)
-    assert codes(d) == []
+    for good in (ok, many):
+        d = valid_base()
+        d["conditions"].append(good)
+        assert codes(d) == []
     # the same without `for` is fine, and an attribute condition stays a locked block (the builder never emits it)
-    assert m._build_condition({**many, "for": None}, CTX)["entity_id"] == ["binary_sensor.front_door", "binary_sensor.back_door"]
+    assert m._build_condition({**listed, "for": None}, CTX)["state"] == ["on", "open"]
     attr = m.parse_condition({"condition": "state", "entity_id": "light.hall", "attribute": "brightness", "state": 5, "for": "00:05:00"}, CTX)
     assert attr["kind"] == "locked"
-    # a stored step that already carries the combination is passed through unchanged and stays saveable
-    stored = {"condition": "state", "entity_id": ["binary_sensor.front_door", "binary_sensor.back_door"], "state": "on", "for": {"hours": 0, "minutes": 5, "seconds": 0}}
+    # a stored step that already carries the combination is passed through unchanged (older cores accept it)
+    stored = {"condition": "state", "entity_id": ["binary_sensor.front_door"], "state": ["on", "open"], "for": {"hours": 0, "minutes": 5, "seconds": 0}}
     blk = m.parse_condition(stored, CTX)
     assert blk["kind"] == "typed" and m._build_condition(blk, CTX) == stored
     d = valid_base()

@@ -727,12 +727,23 @@ def _build_trigger(b: Block) -> Raw:
     return out
 
 
+# Home Assistant's own pattern for a state that names an input helper (homeassistant/helpers/config_validation.py, core#174083)
+_INPUT_ENTITY_ID = re.compile(r"^input_(?:select|text|number|boolean|datetime)\.(?!.+__)(?!_)[\da-z_]+(?<!_)$")
+
+
 def state_for_conflict(b: Mapping[str, Any]) -> bool:
-    """A typed state condition that sets `for` AND names several entities or a list of states (rejected by Home Assistant 2026.10).
-    Attributes cannot occur: the model has no attribute field (a raw condition with one stays a locked block)."""
+    """A typed state condition that Home Assistant 2026.10 (core#174083) rejects: `for` together with a list of states (other than a
+    one-item list) or with a state that names an input helper (input_select / input_text / input_number / input_boolean /
+    input_datetime). Several entities with `for` stay valid there and here. Attributes cannot occur: the model has no attribute field
+    (a raw condition with one stays a locked block)."""
     if b.get("type") != "state" or not b.get("for"):
         return False
-    return len(b.get("entity_ids") or []) != 1 or not isinstance(b.get("state"), str)
+    state = b.get("state")
+    if isinstance(state, list):
+        if len(state) != 1:
+            return True
+        state = state[0]
+    return isinstance(state, str) and bool(_INPUT_ENTITY_ID.match(state))
 
 
 def _build_condition(b: Block, ctx: ModelContext) -> Raw:
@@ -741,10 +752,10 @@ def _build_condition(b: Block, ctx: ModelContext) -> Raw:
         out: Raw = {"condition": "state", "entity_id": list(b["entity_ids"]), "state": b["state"]}
         if b.get("for"):
             out["for"] = _dur_out(b["for"])
-            # Home Assistant 2026.10 rejects `for` combined with a state list or several entities: never emit it for a new or changed
+            # Home Assistant 2026.10 rejects `for` combined with a state list or an input-helper state: never emit it for a new or changed
             # block (a stored step that already carries it is passed through exactly as it was)
             if state_for_conflict(b) and canonical_json(out) != canonical_json(b.get("raw")):
-                raise ModelError("state_for_conflict", "a state condition with `for` takes exactly one entity and one state")
+                raise ModelError("state_for_conflict", "a state condition with `for` takes one fixed state (no list, no input helper)")
         return out
     if t == "numeric_state":
         out = {"condition": "numeric_state", "entity_id": list(b["entity_ids"])}
@@ -1345,7 +1356,7 @@ def validate_draft(kind: str, draft: Mapping[str, Any], *, notify_targets: Itera
             if t == "numeric_state":
                 need(b.get("above") is None and b.get("below") is None, "value_required", "הגדירו ערך")
             if t == "state":
-                need(fresh and state_for_conflict(b), "state_for_conflict", "תנאי עם \"במשך\" תומך במכשיר אחד ובמצב אחד בלבד")
+                need(fresh and state_for_conflict(b), "state_for_conflict", "תנאי עם \"במשך\" תומך במצב קבוע אחד בלבד")
             if t == "time":
                 need((bool(b.get("after")) and not pol.TIME_RE.match(b["after"])) or (bool(b.get("before")) and not pol.TIME_RE.match(b["before"])), "time_invalid", "שעה לא תקינה")
             if t == "shabbat":
