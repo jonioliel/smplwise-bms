@@ -37,7 +37,15 @@ ancestor of main; a backup copy was pushed anyway as `origin/pilot/CR021-s12-reb
 
 ## Tests
 
-See the final report / commit log for the runner results of the latest SHA.
+Runner (Ubuntu), 2026-10-08:
+
+- Backend @ 4905d15d: `test_release_notes_marker`, `test_self_update_s4_downgrade`, `test_self_update`, `test_self_update_s3`,
+  `test_self_update_s3_fixes`, `test_nvr_connection`, `test_notify_sources` - **221 passed**.
+- Playwright @ a901c2e8: `evidence-system-update-fixture.spec.ts` (real fixture backend + fake Supervisor, `SW_UPDATE_FIXTURE_PY`,
+  `run_remote.sh preview`) - **18 passed** (desktop / tablet / mobile). Note: `run_smart.py spec` skips this spec (no
+  `SW_UPDATE_FIXTURE_PY`) and `run_smart.py fixture` refuses it (not in `fixture_specs.json`); a small ssh wrapper set the variable.
+- NOT_RUN: full backend suite, full Playwright, `tsc` (no TypeScript change), the mocked evidence specs
+  (`evidence-system-update*.spec.ts` other than the fixture one - unaffected, no UI change), release_check.
 
 ## Next step
 
