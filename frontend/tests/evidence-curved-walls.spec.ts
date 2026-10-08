@@ -41,6 +41,16 @@ async function seed() {
   const g = await draft();
   expect((await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: { ...g.doc, ...SEED }, base_revision: g.geometry.revision } })).status()).toBe(200);
 }
+/** A bent wall and a round room (a closed outline of two half circles), saved by the API and published. */
+async function seedCurved() {
+  const g = await draft();
+  const bent = { ...WALL('cw1', [[0.2, 0.35], [0.6, 0.35]]), bulges: [0.4] };
+  const round = { ...WALL('cr1', [[0.7, 0.3], [0.9, 0.3], [0.7, 0.3]]), bulges: [1, 1] };
+  const res = await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc: { ...g.doc, walls: [bent, round], openings: [DOOR('cd1', 'cw1', 0.3)] }, base_revision: g.geometry.revision } });
+  expect(res.status()).toBe(200);
+  expect((await draft()).doc.schema_version).toBe('2.1');
+  expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
+}
 async function openStructure(page: Page) {
   await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
   await expect(page.locator(`${ED} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });
@@ -193,21 +203,44 @@ test.describe.serial('plan editor: curved walls', () => {
     await page.screenshot({ path: path.join(OUT, 'arc-wall-drawn.png') });
   });
 
-  test('phone: the curve tools stay away (desktop only), the structure opens in select mode', async ({ page }, info) => {
+  test('a round room (two half circles) is drawn round on the map and in 3D', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'desktop 3D');
+    await seedCurved();
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const host = page.locator('explore-floor-map');
+    const round = host.locator('sw-plan-canvas [data-structure] [data-wall="cr1"] polyline');
+    await expect(round).toHaveCount(1, { timeout: 20000 });
+    expect(((await round.getAttribute('points')) ?? '').trim().split(/\s+/).length).toBeGreaterThan(30);
+    await page.screenshot({ path: path.join(OUT, 'round-room-map.png') });
+    const toggle = host.locator('[data-view-3d]');
+    await expect(toggle).not.toHaveAttribute('disabled', '', { timeout: 15000 });
+    await toggle.click();
+    const el = host.locator('sw-plan-3d[data-floor-3d]');
+    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+    const parts = await el.evaluate((node) => (node as unknown as { description: { parts: { id: string }[] } }).description.parts.map((p) => p.id));
+    expect(parts.filter((id) => id.startsWith('wall:cr1#')).length, 'the round wall is many short boxes').toBeGreaterThan(20);
+    expect(parts.filter((id) => id.startsWith('wall:cw1#')).length, 'the bent wall too').toBeGreaterThan(4);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(OUT, 'round-room-3d.png') });
+  });
+
+  test('phone: the curved walls are drawn on the floor map; the editor stays desktop only (no curve tools)', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile', 'the phone guard');
-    await seed();
+    await seedCurved();
+    // viewing: the floor map draws the sampled arcs
+    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+    const bent = page.locator('explore-floor-map sw-plan-canvas [data-structure] [data-wall="cw1"] polyline');
+    await expect(bent).toHaveCount(1, { timeout: 20000 });
+    expect(((await bent.getAttribute('points')) ?? '').trim().split(/\s+/).length).toBeGreaterThan(4);
+    await page.screenshot({ path: path.join(OUT, 'phone-map.png') });
+    // editing: the editor route is the desktop-only state (owner decision 2026-09-30), so no curve or arc tool exists
     await page.goto(`/?design=a#/explore/floors/${ids.floor}/edit`);
-    await expect(page.locator(`${ED} sw-plan-canvas [data-wall]`)).not.toHaveCount(0, { timeout: 20000 });
-    const tool = page.locator(`${ED} [data-tool="structure"]`);
-    if (await tool.count()) await tool.click();
-    const curve = page.locator(`${ED} [data-studio-mode="curve"]`);
-    if (await curve.count()) {
-      await curve.click();
-      await expect(curve).toHaveAttribute('aria-pressed', 'false');
-    }
+    await expect(page.locator('sw-app [data-desktop-only="structure"]')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator(`sw-app ${ED}`)).toHaveCount(0);
+    await expect(page.locator('[data-studio-mode="curve"], [data-studio-mode="arc"], sw-plan-canvas [data-wall-segment]')).toHaveCount(0);
     await page.keyboard.press('c');
-    await expect(page.locator(`${ED} sw-plan-canvas [data-wall-segment]`)).toHaveCount(0);
+    await expect(page.locator('sw-plan-canvas [data-wall-segment]')).toHaveCount(0);
     await page.screenshot({ path: path.join(OUT, 'phone-guard.png') });
-    expect(curvedOf(wallOf(await draft(), 'cw1'))).toBe(false);
+    expect(curvedOf(wallOf(await draft(), 'cw1'))).toBe(true); // nothing changed
   });
 });
