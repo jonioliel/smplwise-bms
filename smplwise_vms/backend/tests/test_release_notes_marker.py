@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from test_self_update import world  # noqa: F401 - fixture
+from test_self_update import sup, world  # noqa: F401 - fixtures
 
 from smplwise import __version__
 from smplwise.services import platform_restart, release_notes
