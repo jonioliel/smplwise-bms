@@ -2,7 +2,7 @@
 -- Frigate's `PUT /api/config/set`). The only change is the rebuild of frigate_write_policy, whose CHECK list gains one class; the rows are
 -- copied unchanged, so every class keeps its state and `config` is OFF until an administrator switches it on.
 -- Rollback = run the previous version: it never writes the new class name, and it ignores a stored `config` row (its policy() reads only
--- the classes it knows). Number 0072: 0071 is reserved for another branch.
+-- the classes it knows). Number 0071 (the next free number after 0070; pilot/SEC3-block-counter, if merged later, renumbers to 0072).
 
 CREATE TABLE frigate_write_policy_new (
   recorder_id TEXT NOT NULL,

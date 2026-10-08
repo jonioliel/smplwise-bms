@@ -225,7 +225,7 @@ configuration; assigning an export to a case (no route); a PTZ pad (PTZ unreleas
 
 **Update (FRGS, section 13):** the zone editor and the schema-driven settings are now built on the new config schema API.
 
-## 13. FRGS - config schema API, zones and camera settings (branch pilot/FRGS-config-schema, migration 0072)
+## 13. FRGS - config schema API, zones and camera settings (branch pilot/FRGS-config-schema, migration 0071)
 
 Owner task 2026-10-08: build the server step FRGD lacked, then the UI on it. Everything is tested against the in-process fake Frigate
 (`backend/tests/fixtures/fake_frigate.py`, now with `PUT /api/config/set` and `GET /api/config/schema.json`) and the mocked UI backend
@@ -250,7 +250,7 @@ section: zones (`coordinates` as relative points 0..1, `objects`, `inertia` 1..1
 | `PUT .../cameras/{cid}/config/settings/{section}` | same | changed keys of ONE section (`null` = back to Frigate's default) |
 
 **Model of a write** (`services/frigate_config_svc.py`, the F2/F2b model): permission -> class `config` on (`frigate_write_policy`; migration
-0072 only rebuilds the table to admit the class name, rows copied) -> `confirm: true` on every action (`PER_ACTION`; the change persists in
+0071 only rebuilds the table to admit the class name, rows copied) -> `confirm: true` on every action (`PER_ACTION`; the change persists in
 Frigate's configuration file, `persists: true` in the policy view) -> the first write of each kind (`config_zone`, `config_settings`) needs
 `supervised: true` from a system administrator (`frigate_first_write`) -> read the effective config, ONE write, read back -> `frigate_changes`
 row (before / after, `applied` | `unverified` | `failed`) + audit row `frigate.control.config` -> undo through `POST .../changes/{id}/revert`
@@ -272,4 +272,4 @@ first write of each kind); class off = one chip and no actions. Hebrew in `he.ts
 **Not built (FRGS):** motion masks and object masks (0.18 changed their shape; not in the schema), any global (non-camera) section,
 restart / `config/save`, editing a zone Frigate keeps in a shape Arx does not parse (listed read-only), inserting a point between two points
 (points are appended; drag to reshape), the Frigate schema check in the UI (API only). **Not verified:** anything against a real Frigate.
-**Rollback:** run the previous version (0072 keeps every row; the old code ignores a `config` row); with the class off (default) nothing is written.
+**Rollback:** run the previous version (0071 keeps every row; the old code ignores a `config` row); with the class off (default) nothing is written.
