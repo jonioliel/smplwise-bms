@@ -264,3 +264,27 @@ def test_dispatch_does_not_wait_for_the_write_lock(lat_app):
         assert conn.execute("SELECT COUNT(*) FROM ha_actions WHERE id = ?", (a["id"],)).fetchone()[0] == 1
         rows = conn.execute("SELECT decision, details_json FROM audit_log WHERE action = 'ha.action' AND resource_id = ?", (ENTITY,)).fetchall()
     assert any(json.loads(r["details_json"] or "{}").get("id") == a["id"] and r["decision"] == "allowed" for r in rows)
+
+
+def test_a_duplicate_click_is_sent_once_even_without_the_write_lock(lat_app):
+    """The idempotency the write lock used to give (the pending row inserted before the call, under BEGIN IMMEDIATE) now
+    comes from the in-flight claim plus a fresh look after it: the same client_request_id sent three times at once and
+    once more right after reaches Home Assistant ONCE, and every answer names the same record."""
+    app, c, fake = lat_app
+    body = _body(0, "switch.turn_on")
+    answers: list = []
+
+    def post() -> None:
+        answers.append(c.post(f"/api/v1/ha/entities/{ENTITY}/actions", json=body))
+
+    threads = [threading.Thread(target=post) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+    post()  # a late duplicate, after the first finished
+    assert [r.status_code for r in answers] == [202] * 4, [r.text for r in answers]
+    assert len({r.json()["id"] for r in answers}) == 1
+    fake.arrivals.get(timeout=5)
+    time.sleep(0.3)
+    assert fake.arrivals.empty(), "a duplicate click reached Home Assistant twice"

@@ -283,6 +283,13 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             if again:
                 return _action_row(r, again["id"])
         raise ApiError(409, "duplicate_in_flight", "הבקשה כבר נשלחה; רעננו.")
+    # the request's read snapshot may predate a duplicate that finished a moment ago (it held the claim until its row was
+    # committed): look again on a fresh snapshot now that this request holds the claim - a duplicate click never sends twice
+    with db.connection(mode="read", label="ha.action recheck") as r:
+        again = r.execute("SELECT id FROM ha_actions WHERE principal_user_id = ? AND client_request_id = ?", key).fetchone()
+        if again:
+            _unclaim(key, claim)
+            return _action_row(r, again["id"])
     try:
         payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
         timing.mark("checks")
