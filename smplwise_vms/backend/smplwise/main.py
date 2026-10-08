@@ -211,6 +211,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         log.exception("could not check the shared spaces schema")
     backup_svc.record_version(app.state.db)
     update_runs.on_startup(app.state.db, settings)  # CR-021 S3: settle the open update run / resume a platform restart run (never raises)
+    try:  # CR-021 S4: a release flagged `[platform-restart]` in its own notes adds the "restart required" reason once
+        from .services import release_notes
+
+        if os.environ.get("SW_RELEASE_MARKER", "1") != "0":  # tests switch the start-up read off (conftest)
+            with app.state.db.connection(label="release_notes.note_release_restart") as conn:
+                if release_notes.note_release_restart(conn):
+                    log.info("this release asks for one platform restart (reason added)")
+    except Exception:  # noqa: BLE001 - never block the start
+        log.exception("could not read the release's platform-restart marker")
     try:  # CR-018: the per-source notification policies are created from the catalogue the first time (an administrator's edit is never overwritten)
         from .services import notify_policy
 
