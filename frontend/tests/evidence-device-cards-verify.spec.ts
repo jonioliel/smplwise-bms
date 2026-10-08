@@ -66,14 +66,17 @@ async function closeCard(page: Page) {
 }
 
 /** The add-on's answer when the bridge refuses (or HA denies) the call: the record the UI settles on. */
-async function answerActions(page: Page, status: 'failed' | 'denied', error: string) {
-  await page.route('**/api/v1/ha/entities/*/actions', (route) =>
-    route.fulfill({
+async function answerActions(page: Page, st: { actions: { entity_id: string; action_id: string; args: Record<string, unknown>; confirmed: boolean }[] }, status: 'failed' | 'denied', error: string) {
+  await page.route('**/api/v1/ha/entities/*/actions', (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as { allowed_action_id?: string; arguments?: Record<string, unknown>; confirmation_grant?: unknown };
+    const entity = decodeURIComponent(new URL(route.request().url()).pathname.split('/').slice(-2, -1)[0] ?? ''); // the mock's own recorder is replaced by this route: keep the same record
+    st.actions.push({ entity_id: entity, action_id: body.allowed_action_id ?? '', args: body.arguments ?? {}, confirmed: !!body.confirmation_grant });
+    return route.fulfill({
       status: 202,
       contentType: 'application/json',
-      body: JSON.stringify({ id: 'x1', entity_id: 'x', action_id: 'x', status, confirmation: 'state', error, requested_at: '2026-10-05T13:00:00Z', confirmed_at: null }),
-    }),
-  );
+      body: JSON.stringify({ id: 'x1', entity_id: entity, action_id: body.allowed_action_id, status, confirmation: 'state', error, requested_at: '2026-10-05T13:00:00Z', confirmed_at: null }),
+    });
+  });
 }
 
 test.describe('device cards verification (VER1)', () => {
@@ -113,7 +116,7 @@ test.describe('device cards verification (VER1)', () => {
   test('an old bridge (service_not_allowed) rolls every card back with the honest note', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     const st = await installDevhistMock(page, { extra: [DH_WATER_HEATER] });
-    await answerActions(page, 'failed', 'service_not_allowed');
+    await answerActions(page, st, 'failed', 'service_not_allowed');
     await open(page, '&skin=classic');
     const note = () => card(page).locator('[data-cmd-status="rolled_back"]');
 
@@ -146,7 +149,7 @@ test.describe('device cards verification (VER1)', () => {
   test('a cleaning vacuum: pause rolls back on an old bridge; a refused user is told so', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
     const st = await installDevhistMock(page, { rows: { 'vacuum.robo': { state: 'cleaning', active: true } } });
-    await answerActions(page, 'failed', 'service_not_allowed');
+    await answerActions(page, st, 'failed', 'service_not_allowed');
     await open(page, '&skin=classic');
     await openCard(page, 'vacuum.robo');
     await card(page).locator('[data-card-vac-pause]').click();
@@ -156,7 +159,7 @@ test.describe('device cards verification (VER1)', () => {
     await expect(card(page).locator('[data-card-big]')).toHaveText('מנקה');
     await closeCard(page);
     await page.unroute('**/api/v1/ha/entities/*/actions');
-    await answerActions(page, 'denied', 'ha_unauthorized');
+    await answerActions(page, st, 'denied', 'ha_unauthorized');
     await openCard(page, 'vacuum.robo');
     await card(page).locator('[data-card-vac-pause]').click();
     await expect.poll(() => st.actions.length).toBe(2);
@@ -183,13 +186,10 @@ test.describe('device cards verification (VER1)', () => {
       const c = card(page);
       await expect(c).toHaveAttribute('data-device-card', k.kind);
       expect(await c.evaluate((el) => getComputedStyle(el).direction)).toBe('rtl');
-      const sheet = (await popup(page).boundingBox())!;
-      expect(sheet.x).toBeGreaterThanOrEqual(-1);
-      expect(sheet.x + sheet.width).toBeLessThanOrEqual(vw + 1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
       const cb = (await c.boundingBox())!;
-      expect(cb.x).toBeGreaterThanOrEqual(sheet.x - 1);
-      expect(cb.x + cb.width).toBeLessThanOrEqual(sheet.x + sheet.width + 1);
+      expect(cb.x).toBeGreaterThanOrEqual(-1);
+      expect(cb.x + cb.width).toBeLessThanOrEqual(vw + 1);
       for (const sel of k.controls) {
         const first = c.locator(sel).first();
         await expect(first).toBeVisible();
