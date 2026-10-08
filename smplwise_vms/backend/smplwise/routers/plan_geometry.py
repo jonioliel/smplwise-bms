@@ -19,6 +19,7 @@ from ..db import new_id, now_iso, rollback_and_restart, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, authorize, require
 from ..services import geometry_store as store
+from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_catalog
 from ..services import plan_detect
 from ..services import shared_spaces
@@ -84,11 +85,51 @@ def _can_attach(conn: sqlite3.Connection, principal: Principal | None):
 
 def _shown(conn: sqlite3.Connection, principal: Principal | None, floor_id: str, doc: dict[str, Any], ctx: store.FarContext, mode: str,
            at: str | None = None, circuits: bool = True) -> dict[str, Any]:
+    return _shown_r(conn, principal, floor_id, doc, ctx, mode, at, circuits)[0]
+
+
+def _shown_r(conn: sqlite3.Connection, principal: Principal | None, floor_id: str, doc: dict[str, Any], ctx: store.FarContext, mode: str,
+             at: str | None = None, circuits: bool = True) -> tuple[dict[str, Any], bool]:
     """What a reader gets of a stored document: `far` on its cross-floor connectors (T085 review M4) and the rooms other
-    floors share with it (CR-009) - both computed now, neither stored."""
+    floors share with it (CR-009) - both computed now, neither stored - and (PLNS) without the anchor references the
+    reader may not see (services/plan_anchor_scope.py). Returns (document, whether a reference was withheld)."""
     can_name = (lambda fid: floor_reach(conn, principal, fid) is not None) if principal is not None else None  # review L1: names of readable floors only
-    return shared_spaces.attach(conn, floor_id, store.attach_far(conn, floor_id, doc, ctx), mode, at, can_attach=_can_attach(conn, principal), circuits=circuits,
-                                can_name=can_name)
+    shown = shared_spaces.attach(conn, floor_id, store.attach_far(conn, floor_id, doc, ctx), mode, at, can_attach=_can_attach(conn, principal), circuits=circuits,
+                                 can_name=can_name)
+    return anchor_scope.redact(shown, anchor_scope.visibility(conn, principal, floor_id))
+
+
+def _carry_hidden(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row, incoming: dict[str, Any], stored: dict[str, Any] | None) -> dict[str, Any]:
+    """PLNS: a writer's document keeps the references they were not shown; a new one to a hidden anchor is a 422."""
+    try:
+        return anchor_scope.carry_hidden(incoming, stored, anchor_scope.visibility(conn, principal, v["floor_id"]), anchor_scope.exists_here(conn, v["floor_id"]),
+                                         strict=True)[0]
+    except anchor_scope.HiddenAnchor as exc:
+        raise ApiError(422, "anchor_hidden", "אין לך הרשאה לקשר פריט לעוגן הזה.", details={"ids": exc.items[:50]})
+
+
+def _shared_fix(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row):
+    """PLNS for the items of a room another floor shares with this one (CR-009): the item as the home floor holds it
+    (`cur`, None for a new one) gives back the references this writer was not shown; a new hidden one is a 422."""
+    visible = anchor_scope.visibility(conn, principal, v["floor_id"])
+    if visible is None:
+        return None
+    exists = anchor_scope.exists_here(conn, v["floor_id"])
+
+    def fix(coll: str, cur: dict[str, Any] | None, item: dict[str, Any]) -> dict[str, Any]:
+        dropped: list[str] = []
+        out = anchor_scope.fix_item(cur, item, coll, visible, exists, dropped)
+        if dropped:
+            raise anchor_scope.HiddenAnchor(dropped)
+        return out
+
+    return fix
+
+
+def _stored_doc(conn: sqlite3.Connection, v: sqlite3.Row) -> dict[str, Any] | None:
+    """The stored document a draft save replaces: the draft, else the published structure the editor started from."""
+    row = store.draft_row(conn, v["id"]) or store.published_row(conn, v["id"])
+    return store.load_doc(row) if row is not None else None
 
 
 def _payload(conn: sqlite3.Connection, version: sqlite3.Row, row: sqlite3.Row | None, doc: dict[str, Any], principal: Principal | None = None,
@@ -178,9 +219,12 @@ def get_geometry(version_id: str, request: Request, draft: bool = False, at: str
     # review L-d: only `far` and the shared rooms are computed before the 304 check (the ETag follows them); issues and
     # the rest only on a 200
     ctx = _far_ctx(conn, principal, published=True)
-    shown = _shown(conn, principal, v["floor_id"], doc, ctx, "at" if iso else "published", iso, circuits=reach == "floor")
+    shown, redacted = _shown_r(conn, principal, v["floor_id"], doc, ctx, "at" if iso else "published", iso, circuits=reach == "floor")
     tags = f"{_far_tag(shown)}{_shared_tag(shown)}"
-    etag = f'"{row["doc_hash"]}{tags}"' if reach == "floor" else f'"{row["doc_hash"]}{tags}-c"'
+    # PLNS: with a reference withheld the body is not the stored document - the ETag then follows what is served (a
+    # change of the reader's camera scope changes it), never the stored hash another reader's cached copy carries
+    base = f"{store.doc_hash(shown)}-r" if redacted else row["doc_hash"]
+    etag = f'"{base}{tags}"' if reach == "floor" else f'"{base}{tags}-c"'
     headers = {"ETag": etag, **NO_CACHE}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
@@ -202,6 +246,7 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
     # validated and stored as always, the shared ones are routed to the home floor's draft (map.edit here is decision 1's
     # grant: either floor edits the room). Every refusal comes before the first write (an API error still commits).
     own, shared_items, echoed, deleted = shared_spaces.split(body.doc)
+    own = _carry_hidden(conn, principal, v, own, _stored_doc(conn, v))  # PLNS: before any write
     structural = [i for i in pg.validate(own) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המסמך אינו תקין; השינוי לא נשמר.", details={"issues": structural[:50]})
@@ -222,9 +267,12 @@ def put_geometry(version_id: str, body: GeometryPut, principal: Principal = Depe
 
         # review L1: what the alarm section owns is never a circuit's switch from the other floor, whoever holds ha.entity.control
         planned = shared_spaces.plan_edits(conn, v["floor_id"], shared_items, echoed, deleted, can_write=can_write,
-                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control") and not alarm.is_managed_control(conn, eid))
+                                           can_control=lambda eid: ha_scope.entity_allowed(conn, principal, eid, "ha.entity.control") and not alarm.is_managed_control(conn, eid),
+                                           fix=_shared_fix(conn, principal, v))
     except shared_spaces.SharedEditError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
+    except anchor_scope.HiddenAnchor as exc:
+        raise ApiError(422, "anchor_hidden", "אין לך הרשאה לקשר פריט לעוגן הזה.", details={"ids": exc.items[:50]})
     synced: list[str] = []
     skipped: list[str] = []
     try:
@@ -603,6 +651,7 @@ def accept_detection(version_id: str, body: AcceptIn, request: Request, principa
         merged, counts = pg.merge_candidates(doc, body.candidates.model_dump(), body.accepted, body.edits, body.replace_auto)
     except pg.CandidateError as exc:
         raise ApiError(422, exc.code, exc.user_message, details={"ids": exc.ids})
+    merged = _carry_hidden(conn, principal, v, merged, doc)  # PLNS: a candidate edit cannot bind a hidden anchor
     structural = [i for i in pg.validate(merged) if i["structural"]]
     if structural:
         raise ApiError(422, "geometry_structure", "מבנה המועמדים אינו תקין; דבר לא נשמר.", details={"issues": structural[:50]})

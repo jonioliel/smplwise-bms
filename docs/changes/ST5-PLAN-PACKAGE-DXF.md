@@ -132,10 +132,68 @@ the desktop-only notice, no canvas and no export / import control (`editor-guard
 `run_smart.py fixture pilot/PLN2-plan-dxf evidence-plan-package --project=desktop` (and `--project=mobile`).
 
 ## Observed, not changed (pre-existing)
-A structure object bound to an anchor stores `anchor_ref.resource_id` and sits on the anchor's position in the stored document
+~~A structure object bound to an anchor stores `anchor_ref.resource_id` and sits on the anchor's position in the stored document
 (`plan.json`, the geometry read). The M2 filter removes hidden cameras from the anchors, the report and the DXF devices, but a
 bound body in `plan.json` still names a camera the exporter's scope denies. Needs an owner decision (the stored document is
-what the hashes cover).
+what the hashes cover).~~ - addressed by PLNS (below).
+
+---
+
+# PLNS — anchor references follow the reader's camera scope (owner decision D1, 2026-10-08)
+
+Branch `pilot/PLNS-camera-scope` (from `main` 5f907758 = 2.4.0). No migration. Code: `services/plan_anchor_scope.py`.
+
+## The rule
+- Where a structure document names an anchor: `objects[].anchor_ref`, `openings[].anchor_ref`,
+  `walls[].glazing.operable[].anchor_ref` (glass panels).
+- Visible = the floor bundle's rule (T055): a camera follows the reader's camera scope for `map.read` (explicit deny wins); an
+  entity is withheld from a reader who reaches the floor only through camera bindings. An installation-wide reader with no
+  deny is untouched (fast path, byte-identical answers). A camera of a removed recorder is not withheld from a reader who may
+  see it (unlike the anchors list, which drops it from the *current* map only).
+- **Read / export:** a hidden reference becomes `null`; the item stays, with its stored position and rotation (the
+  structure is the floor's; only the link is withheld). Applied in one place for the plan-geometry router (`_shown`): GET
+  geometry (draft, published, `?at=`), the PUT / copy-from / detect-accept answers, `export.svg`, `export.png`,
+  `export.dxf`; and in `plan_package.build` for the signed package (plan.json, the package DXF). The diff, versions and
+  timeline routes carry ids / counts / hashes only; the map bundle carries the row reference only; the global search
+  carries no references.
+- **Write:** the editor saves what it was served, so a `null` it sends for a reference it was not shown is given back from
+  the stored document for the same item (same id; for a glass panel, the same wall id and panel number) - PUT geometry,
+  detect-accept, shared-room edits routed to the home floor (CR-009, `shared_spaces.plan_edits(fix=)`), and the package
+  import (replace and merge). Deleting the item still deletes it. A NEW reference to a hidden anchor that exists here (an
+  anchor on the floor, a registered camera or a known entity) is refused on the editor routes (422 `anchor_hidden`,
+  details `ids` = item ids, nothing written) and dropped on the package import (warning `anchor_hidden` in preview and
+  import). Binding a body to a hidden camera would otherwise move the body onto the camera's position. A reference to
+  nothing known is left as before (the `anchor_missing` warning).
+
+## Hashes and ETags (the choice)
+- Stored documents are unchanged; there is no migration and no stored hash moves.
+- `geometry.doc_hash`, `published_hash`, the bundle's geometry ref, the timeline and the import's `result_hash` /
+  `current_hash` stay the identity of the STORED row: the editor compares them for "pending publish", the map caches the
+  document by them, and the import confirms them. They are identifiers, not checksums of the redacted body.
+- The published read's ETag: unchanged (`"<stored hash><tags>"`) when nothing is withheld; otherwise
+  `"<sha256 of the served body>-r<tags>"`, so another reader's cached copy is never confirmed with a 304 and a change of the
+  reader's scope changes the ETag.
+- The package: plan.json is the redacted document and the manifest's `doc_hash`, `geometry_hash`, the file SHA-256s and the
+  DXF's `SW_DOC_HASH` are all computed over it - the package verifies and re-imports on its own terms. A scoped editor's
+  package therefore has another `doc_hash` than the stored row; its re-import restores the hidden references from the draft.
+
+## Known limits
+- A withheld body does not follow its anchor on the reader's map or in their SVG / PNG (it has no reference); it is drawn
+  where the last save put it, which is the anchor's position at that save.
+- The import dialog does not show a text for the new `anchor_hidden` warning yet (the API returns it; UI change not made).
+- A scoped editor who moves a body whose reference they were not shown sees it snap back on save (the hidden reference is
+  kept, the store refreshes the position from the anchor).
+
+## Tests
+`tests/test_plan_anchor_scope_plns.py`: administrator / floor viewer with a camera deny / floor editor with a camera deny /
+camera-only viewer; reads (published, history, draft, ETag and 304), SVG + DXF, the package (redacted plan.json, matching
+manifest and DXF hashes; the administrator's package unchanged), save and re-import (replace, merge) by the scoped editor
+keep the stored reference, a new hidden binding refused (PUT) / dropped (import), the service rules (glass panels,
+openings, no-op without a scope).
+
+## Rollback
+Revert the PLNS commit. Nothing stored changed, so nothing needs undoing in the data; packages made by scoped editors
+remain valid packages (their plan.json simply has nulls).
 
 ## Rollback
 Revert the PLN2 commits; packages made with `dxf: true` then become unimportable (unknown file), plain packages unaffected.

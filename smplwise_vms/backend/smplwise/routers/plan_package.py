@@ -157,9 +157,9 @@ def _refused(conn: sqlite3.Connection, principal: Principal, v: sqlite3.Row, req
           details={"version_id": v["id"], "stage": stage, "code": exc.code})
 
 
-def _plan(conn: sqlite3.Connection, v: sqlite3.Row, package: pkg_svc.Package, mode: str, can_manage: bool) -> dict[str, Any]:
+def _plan(conn: sqlite3.Connection, v: sqlite3.Row, package: pkg_svc.Package, mode: str, can_manage: bool, principal: Principal) -> dict[str, Any]:
     try:
-        return pkg_svc.plan(conn, v, package, mode, can_manage_catalog=can_manage)
+        return pkg_svc.plan(conn, v, package, mode, can_manage_catalog=can_manage, principal=principal)
     except pkg_svc.PackageError as exc:
         raise ApiError(exc.status, exc.code, exc.message, details=exc.details)
     except (RecursionError, MemoryError) as exc:  # review M3
@@ -178,7 +178,7 @@ def preview_import(version_id: str, request: Request, mode: Literal["replace", "
     try:
         with _one_at_a_time(request, principal):
             package = _read_package(file, settings_of(request), accept_foreign, local_iid)
-            out = _plan(conn, v, package, mode, _can_manage_catalog(conn, principal))
+            out = _plan(conn, v, package, mode, _can_manage_catalog(conn, principal), principal)
     except ApiError as exc:
         _refused(conn, principal, v, request, exc, "preview")
         raise
@@ -200,7 +200,7 @@ def import_package(version_id: str, request: Request, mode: Literal["replace", "
             why = pkg_svc.needs_trust(package.signature)
             if why and not accept_foreign:  # read() already refused it; kept as the last word
                 raise ApiError(409, "package_foreign", pkg_svc.FOREIGN_HE, details={"kid": origin["kid"], "reason": why})
-            out = _plan(conn, v, package, mode, can_manage)
+            out = _plan(conn, v, package, mode, can_manage, principal)
     except ApiError as exc:
         _refused(conn, principal, v, request, exc, "import")
         raise

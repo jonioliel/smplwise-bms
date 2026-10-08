@@ -196,7 +196,13 @@ def used_custom_items(conn: sqlite3.Connection, doc: dict[str, Any]) -> list[dic
 def build(settings: Settings, conn: sqlite3.Connection, version: sqlite3.Row, floor: sqlite3.Row, doc: dict[str, Any], stage: str, zones: list[dict[str, Any]],
           actor: Any, installation: str | None, revision: int | None = None, *, include_dxf: bool = False) -> tuple[bytes, dict[str, Any]]:
     """The signed package of `doc` (the stored document of `version`, draft or published). Returns (zip bytes, manifest).
-    `include_dxf` (PLN2): also assets/plan.dxf, whose IMAGE entity names the picture beside it (DXF_NAME)."""
+    `include_dxf` (PLN2): also assets/plan.dxf, whose IMAGE entity names the picture beside it (DXF_NAME).
+    PLNS: plan.json is the document as the exporting person may see it - an anchor reference to a camera their scope
+    hides is null (services/plan_anchor_scope.py) - and every hash in the manifest (and the DXF's SW_DOC_HASH) is the
+    hash of that redacted document, so the package verifies and re-imports on its own terms."""
+    from . import plan_anchor_scope as anchor_scope
+
+    doc, _ = anchor_scope.redact(doc, anchor_scope.visibility(conn, actor, version["floor_id"]))
     files: list[dict[str, Any]] = []
     buf = io.BytesIO()
     plan_bytes = pg.canonical_json(doc).encode("utf-8")
@@ -536,13 +542,20 @@ def _local_item_values(r: sqlite3.Row) -> dict[str, Any]:
     return plan_catalog.custom_values(_custom_record(r))
 
 
-def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str, *, can_manage_catalog: bool) -> dict[str, Any]:
+def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str, *, can_manage_catalog: bool, principal: Any = None) -> dict[str, Any]:
     """The dry run: the document the import would store (prepared exactly as a save prepares it), the diff against the
-    current draft, the issues, and the entities the package names that this installation or floor lacks."""
+    current draft, the issues, and the entities the package names that this installation or floor lacks.
+    PLNS (`principal`): the anchor references the importing person may not see are carried over from the current draft
+    for the same items (a package they exported has them null), and a new one the package brings is dropped with the
+    warning `anchor_hidden` (services/plan_anchor_scope.py)."""
+    from . import plan_anchor_scope as anchor_scope
+
     if mode not in MODES:
         raise PackageError(422, "validation", "מצב ייבוא לא מוכר.", {"modes": list(MODES)})
     current, draft = store.working_doc(conn, version)
     incoming = pg.rebase(pkg.doc, version, store._asset(conn, version))
+    incoming, hidden_dropped = anchor_scope.carry_hidden(incoming, current, anchor_scope.visibility(conn, principal, version["floor_id"]),
+                                                         anchor_scope.exists_here(conn, version["floor_id"]), strict=False)
     drawing_ok = _same_drawing(pkg.doc, current)
     # custom items: what the document needs, what this installation has, what the package brings
     needed = sorted({str(o.get("item_id")) for o in pkg.doc.get("objects") or [] if isinstance(o, dict) and o.get("item_id")} - plan_catalog.builtin_ids())
@@ -611,7 +624,7 @@ def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str
         "issues": issues[:200], "issue_count": len(issues),
         "entities": {"anchors_missing": anchors_missing, "anchors_unplaced": anchors_unplaced, "switches_missing": switches_missing,
                      "items_missing": items_missing, "items_added": [a["id"] for a in to_add], "items_differ": items_differ, "rooms_missing": rooms_missing},
-        "warnings": list(pkg.warnings) + ([] if drawing_ok else ["other_drawing"]),
+        "warnings": list(pkg.warnings) + ([] if drawing_ok else ["other_drawing"]) + (["anchor_hidden"] if hidden_dropped else []),
         "_to_add": to_add,
     }
 
