@@ -139,6 +139,16 @@ test.describe.serial('window wall: panels linked to entities', () => {
   test('map 2D: the open mark of a linked panel follows its entity - open, closed again, after a reload', async ({ page }, info) => {
     test.setTimeout(150_000);
     const tag = info.project.name;
+    // The editor test links the panels on desktop only (it is skipped on mobile, where every project run has its own floor), so
+    // a run that finds the panels unlinked links them itself through the API and publishes - the same document the editor saves.
+    if (!(await links())[1]) {
+      const g = await draft();
+      const doc = { ...g.doc, walls: g.doc.walls.map((w) => (w.id !== 'gw-vent' ? w : { ...w, glazing: { ...w.glazing!, operable: w.glazing!.operable.map((o) => ({ ...o, anchor_ref: { resource_type: 'ha_entity', resource_id: o.panel === 1 ? SENSOR : COVER } })) } })) };
+      const put = await api.put(`api/v1/plan-versions/${ids.version}/geometry`, { data: { doc, base_revision: g.geometry.revision } });
+      expect(put.status(), await put.text()).toBe(200);
+      expect((await api.post(`api/v1/plan-versions/${ids.version}/geometry/publish`)).status()).toBe(200);
+      expect(await links()).toEqual({ 1: SENSOR, 4: COVER });
+    }
     await setStates('off', 'closed');
     let canvas = await openMap(page);
     await expect(canvas.locator('[data-open-mark]')).toHaveCount(0);
@@ -160,9 +170,9 @@ test.describe.serial('window wall: panels linked to entities', () => {
     await setStates('off', 'closed');
   });
 
-  test('map 3D: the glTF carries the open-marker parts of the open panel only', async ({ page }, info) => {
+  test('map 3D: the glTF carries a danger-coloured marker box for an open panel and none when everything is closed', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop evidence');
-    test.setTimeout(150_000);
+    test.setTimeout(180_000);
     await page.addInitScript(() => {
       const w = window as unknown as { __gltf: { name: string; text: string } | null };
       w.__gltf = null;
@@ -171,23 +181,30 @@ test.describe.serial('window wall: panels linked to entities', () => {
       URL.createObjectURL = (b: Blob | MediaSource) => { const u = origCreate(b); if (b instanceof Blob) blobs.set(u, b); return u; };
       HTMLAnchorElement.prototype.click = function () { const b = blobs.get(this.href); if (b) void b.text().then((text) => { w.__gltf = { name: this.download, text }; }); };
     });
+    // The export holds the instanced groups of the scene, not per-part nodes: the open-marker frame of a panel is thin boxes in the
+    // danger token, i.e. the group node named `box|danger|<opacity>` (scene-builder groupKey). It exists only while a panel is open.
+    const dangerNodes = async (screenshot: string | null) => {
+      await page.goto('about:blank');
+      await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
+      const host = page.locator(MAP);
+      await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+      await host.locator('[data-view-3d]').click();
+      const el = host.locator('sw-plan-3d[data-floor-3d]');
+      await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
+      await page.waitForTimeout(1500);
+      if (screenshot) await el.screenshot({ path: path.join(OUT, screenshot) });
+      await el.locator('[data-export-gltf]').click();
+      await expect.poll(() => page.evaluate(() => (window as unknown as { __gltf: unknown }).__gltf !== null), { timeout: 30000 }).toBe(true);
+      const got = await page.evaluate(() => (window as unknown as { __gltf: { name: string; text: string } }).__gltf);
+      const names = (JSON.parse(got!.text) as { nodes: { name?: string }[] }).nodes.map((n) => n.name ?? '');
+      return { names, danger: names.filter((n) => /^box\|danger\|/.test(n)) };
+    };
     await setStates('on', 'closed');
-    await page.goto('about:blank');
-    await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
-    const host = page.locator(MAP);
-    await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
-    await host.locator('[data-view-3d]').click();
-    const el = host.locator('sw-plan-3d[data-floor-3d]');
-    await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });
-    await page.waitForTimeout(1500);
-    await el.screenshot({ path: path.join(OUT, 'map-3d-sensor-open.png') });
-    await el.locator('[data-export-gltf]').click();
-    await expect.poll(() => page.evaluate(() => (window as unknown as { __gltf: unknown }).__gltf !== null), { timeout: 30000 }).toBe(true);
-    const got = await page.evaluate(() => (window as unknown as { __gltf: { name: string; text: string } }).__gltf);
-    const names = (JSON.parse(got.text) as { nodes: { name?: string }[] }).nodes.map((n) => n.name ?? '');
-    expect(names.filter((n) => n.startsWith('open:gw-vent~p1#')).length, names.join(',')).toBeGreaterThan(0);
-    expect(names.filter((n) => n.startsWith('open:gw-vent~p4#')).length, names.join(',')).toBe(0);
+    const open = await dangerNodes('map-3d-sensor-open.png');
+    expect(open.danger.length, open.names.join(',')).toBeGreaterThan(0);
     await setStates('off', 'closed');
+    const closed = await dangerNodes(null);
+    expect(closed.danger.length, closed.names.join(',')).toBe(0);
   });
 
   test('exports: plan.json, SVG and DXF carry the linked panels; the document is 2.1 because of the window wall', async ({}, info) => {
