@@ -17,7 +17,7 @@ from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
 from ..db import get_setting, now_iso, permission_revision
 from ..errors import reason_of
-from . import autosync, events_derive, events_ingest, ha_client, ha_sync, thumbnails
+from . import autosync, events_derive, events_ingest, ha_bridge, ha_client, ha_sync, media_store, thumbnails
 from . import backup as backup_svc
 from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
 
@@ -208,7 +208,9 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
     paired = bool(get_setting(conn, "bridge.secret")) and bool(get_setting(conn, "bridge.paired_at"))
     users = conn.execute("SELECT COUNT(*) FROM ha_users").fetchone()[0] if "ha_users" in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")} else 0
     dir_age = _age_s(get_setting(conn, "bridge.directory_at") or None)
-    checks.append(_check("bridge", "גשר Home Assistant (אינטגרציה)", "ok" if paired and (dir_age is None or dir_age < 15 * 60) else ("warn" if paired else "warn"), f"{'מצומד' if paired else 'לא מצומד'} · גרסת אינטגרציה {get_setting(conn, 'bridge.integration_version') or '?'} · {users} משתמשים בספרייה · ספרייה עודכנה {'לפני ' + str(int(dir_age // 60)) + ' דק׳' if dir_age is not None else 'טרם'}", paired=paired, integration_version=get_setting(conn, "bridge.integration_version"), directory_users=users, directory_age_s=dir_age))
+    bridge_v = get_setting(conn, "bridge.integration_version")
+    bridge_old = paired and bool(bridge_v) and media_store.version_tuple(bridge_v) < media_store.version_tuple(ha_bridge.BRIDGE_EQUIPMENT_REQUIRED)
+    checks.append(_check("bridge", "גשר Home Assistant (אינטגרציה)", "ok" if paired and not bridge_old and (dir_age is None or dir_age < 15 * 60) else ("warn" if paired else "warn"), f"{'מצומד' if paired else 'לא מצומד'} · גרסת אינטגרציה {get_setting(conn, 'bridge.integration_version') or '?'}{' · נדרש עדכון של רכיב החיבור (' + ha_bridge.BRIDGE_EQUIPMENT_REQUIRED + ' ומעלה) לכרטיסי ציוד' if bridge_old else ''} · {users} משתמשים בספרייה · ספרייה עודכנה {'לפני ' + str(int(dir_age // 60)) + ' דק׳' if dir_age is not None else 'טרם'}", paired=paired, integration_version=get_setting(conn, "bridge.integration_version"), bridge_required=ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, bridge_outdated=bridge_old, directory_users=users, directory_age_s=dir_age))
 
     # events
     ing = events_ingest.STATE.as_dict()

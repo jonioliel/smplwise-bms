@@ -86,6 +86,11 @@ def run_checks(root: Path) -> dict[str, Any]:
     const_v = find(r'^VERSION\s*=\s*"([^"]+)"', read(b1 / "const.py"))
     check("bridge version consistent (manifest = const)", bool(man_v) and man_v == const_v, f"manifest={man_v}, const={const_v}")
 
+    # the bridge must be at least the version the add-on needs for its newest allow-listed services (ha_bridge.BRIDGE_EQUIPMENT_REQUIRED, bridge 0.8.0)
+    req_v = find(r'^BRIDGE_EQUIPMENT_REQUIRED\s*=\s*"([^"]+)"', read(addon / "backend" / "smplwise" / "services" / "ha_bridge.py"))
+    as_t = lambda v: tuple(int(x) for x in re.findall(r"\d+", v or ""))  # noqa: E731
+    check("bridge version covers the equipment-card allow-list", bool(man_v and req_v) and as_t(man_v) >= as_t(req_v), f"bridge={man_v}, required by the add-on={req_v}")
+
     mig = sorted(p.name for p in (addon / "backend" / "smplwise" / "migrations").glob("*.sql"))
     nums = [int(n[:4]) for n in mig if n[:4].isdigit()]
     contiguous = nums == list(range(1, len(nums) + 1)) and bool(nums)
