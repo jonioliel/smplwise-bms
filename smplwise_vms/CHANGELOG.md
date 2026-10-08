@@ -1,6 +1,8 @@
 # Changelog — SmplWise Arx add-on
 
 ## 2.4.2 (pilot) — curved walls in Plan Studio, sign-in and alarm-code block counters survive a restart
+**2.4.2 contains everything of the withdrawn 2.4.1 (section below): two migrations, 0071 (SEC3 block counters) and 0072 (Frigate write class `config`); bridge 0.8.0 - update the bridge and RESTART Home Assistant.**
+**ב־2.4.2 כלול כל מה שהיה ב־2.4.1 שלא שוחררה (הסעיף שמתחת): שתי מיגרציות, 0071 (מוני חסימה) ו־0072 (מחלקת כתיבה `config` של Frigate); גשר 0.8.0 - מעדכנים את הגשר ו*מפעילים מחדש את Home Assistant*.**
 **After installing:** **one database migration, 0071** (adds the table `block_counters`; additive, the previous version ignores it; the sequence is now 0001..0072 without gaps). Plans that use a curved wall are stored as schema 2.1 and an older Arx **refuses** to import such a plan; plans without curved walls stay byte for byte as before. Reload the installed web app once. Nothing new is switched on by itself.
 - **עברית:** אחרי ההתקנה: **מיגרציה אחת, 0071** (מוסיפה את הטבלה `block_counters`; תוספתית, הגרסה הקודמת מתעלמת ממנה; הרצף עכשיו 0001..0072 בלי חורים). תוכניות עם קיר מעוקל נשמרות כסכמה 2.1, ו־Arx ישן **דוחה** ייבוא של תוכנית כזו; תוכניות בלי קירות מעוקלים נשארות זהות בייטים לפני כן. טוענים מחדש את אפליקציית הרשת פעם אחת. דבר לא מופעל מעצמו.
 
@@ -22,7 +24,7 @@
 - **English:** curved walls are verified by the backend, unit and fixture specs (`evidence-curved-walls`, desktop and phone) but not yet by the owner on a real plan; the Frigate items listed as gaps in 2.4.1 remain.
 - **עברית:** קירות מעוקלים נבדקו במפרטי backend, יחידה ופיקסצ'ר (`evidence-curved-walls`, מחשב וטלפון) אך עוד לא על ידי הבעלים על תוכנית אמיתית; פערי Frigate מ־2.4.1 נשארים.
 
-## 2.4.1 (pilot) — bridge 0.8.0, Frigate zone editor and schema-driven camera settings, plan anchor references follow the reader's camera scope
+## 2.4.1 (never released on its own - everything below is part of 2.4.2) — bridge 0.8.0, Frigate zone editor and schema-driven camera settings, plan anchor references follow the reader's camera scope
 **After installing:** **one database migration, 0072** (rebuilds the Frigate write-policy table so it admits the new write class `config`; every row is copied; the sequence is 0001..0070 and 0072, number 0071 is reserved). **The bridge is now 0.8.0: update it on the live Home Assistant and RESTART Home Assistant** (a custom integration loads only at start-up; the add-on copies the integration on start, HACS users update there). Until then the equipment-card actions of 2.4.0 (valve, vacuum pause, water heater) answer `service_not_allowed`, and System health › "bridge" shows a warning asking for the update. Reload the installed web app once. Nothing new is switched on by itself: the Frigate write class `config` is OFF by default.
 - **עברית:** אחרי ההתקנה: **מיגרציה אחת, 0072** (בונה מחדש את טבלת מדיניות הכתיבה של Frigate כך שתכיר את מחלקת הכתיבה החדשה `config`; כל השורות מועתקות; הרצף הוא 0001..0070 ו־0072, המספר 0071 שמור). **הגשר הוא עכשיו 0.8.0: מעדכנים אותו ב־Home Assistant החי ו*מפעילים מחדש את Home Assistant*** (אינטגרציה מותאמת נטענת רק בעלייה; התוסף מעתיק את האינטגרציה בעלייה, משתמשי HACS מעדכנים שם). עד אז פעולות כרטיסי הציוד של 2.4.0 (שסתום, השהיית שואב, מחמם מים) עונות `service_not_allowed`, ובריאות המערכת › "גשר" מציגה אזהרה שמבקשת עדכון. טוענים מחדש את אפליקציית הרשת פעם אחת. דבר לא מופעל מעצמו: מחלקת הכתיבה `config` של Frigate כבויה כברירת מחדל.
 
