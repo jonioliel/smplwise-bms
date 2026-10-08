@@ -46,6 +46,10 @@ export interface ScenePart {
    * cone's outline is the clipped coverage relative to the camera. */
   polygon?: [number, number][];
   text?: string;
+  /** The runs of a curved wall: the point [x, z] (metres) the cutaway judges their side and outward normal from - the
+   * centre of the wall's own sampled path - so a round room is cut as one room (its near half), not chord by chord
+   * against the scene's centre. Absent = the scene's centre (every straight wall, as before). */
+  pivot?: [number, number];
   userData: { id: string; kind: string };
 }
 
@@ -714,6 +718,19 @@ class Builder {
     const { doc } = this.input;
     const walls = new Map(doc.walls.map((w) => [w.id, w]));
     const openings = new Map(doc.openings.map((o) => [o.id, o]));
+    // a curved wall's cutaway pivot: the mean of every sampled point of all its parts (metres; a ring's centre)
+    const sums = new Map<string, [number, number, number]>();
+    for (const p of prims) {
+      if (p.kind !== 'wall' || !p.arc) continue;
+      const s = sums.get(p.id) ?? [0, 0, 0];
+      for (const q of p.points) {
+        s[0] += q[0];
+        s[1] += q[1];
+        s[2] += 1;
+      }
+      sums.set(p.id, s);
+    }
+    const pivots = new Map<string, [number, number]>([...sums].map(([id, s]) => [id, [r4(this.m(s[0] / s[2])), r4(this.m(s[1] / s[2]))]]));
     for (const p of prims) {
       if (p.kind === 'glazing') {
         const w = walls.get(p.id);
@@ -736,6 +753,7 @@ class Builder {
       // a curved wall's part is its sampled arc: each chord grows only by what its joint's turn needs (a mitre, half the
       // thickness times tan of half the turn), so the band follows the curve without spikes; straight walls as before
       const grow = (i: number): number => jointGrow(p as WallPrim, i, t);
+      const first = this.parts.length;
       for (let i = 1; i <= last; i++) {
         let [ax, az] = [this.m(p.points[i - 1][0]), this.m(p.points[i - 1][1])];
         let [bx, bz] = [this.m(p.points[i][0]), this.m(p.points[i][1])];
@@ -754,6 +772,10 @@ class Builder {
         }
         // one box per straight segment of the cut wall part: "wall:<id>#<part>" and "wall:<id>#<part>.<segment>" for a bend
         this.box(`wall:${w.id}#${(p as WallPrim).part}${i > 1 ? `.${i - 1}` : ''}`, 'wall', { id: w.id, kind: 'wall' }, [(ax + bx) / 2, base + h / 2, (az + bz) / 2], [Math.hypot(bx - ax, bz - az), h, t], -deg(Math.atan2(uz, ux)), color, lv.id);
+      }
+      if ((p as WallPrim).arc) {
+        const pivot = pivots.get(w.id);
+        if (pivot) for (let k = first; k < this.parts.length; k++) this.parts[k].pivot = pivot;
       }
     }
     const open = new Set(this.input.roomStates?.openOpenings ?? []);

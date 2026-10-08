@@ -142,6 +142,8 @@ test.describe.serial('plan editor: curved walls', () => {
     await radius.press('Enter');
     await page.waitForTimeout(400);
     expect(Math.abs(wallOf(await draft(), 'cw1').bulges![0])).toBeCloseTo(Math.tan(Math.asin(4 / 6) / 2), 3);
+    await expect(radius).toHaveValue('6.00'); // the refused value does not linger in the field
+    await expect(page.locator(`${ED} .bar .err`)).toContainText('הרדיוס קטן מחצי אורך הקטע'); // said as an error
     await page.screenshot({ path: path.join(OUT, 'curve-radius-panel.png') });
     await page.locator(`${ED} [data-segment-straighten]`).click();
     await saved(page);

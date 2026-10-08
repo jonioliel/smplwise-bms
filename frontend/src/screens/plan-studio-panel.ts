@@ -292,10 +292,13 @@ function renderCurve(w: GeomWall, v: StudioView, a: StudioActions, scale: number
     const r = segmentRadiusM(w, seg, v.W, v.H, scale);
     const min = minRadiusM(w, seg, v.W, v.H, scale);
     const set = (e: Event) => {
-      const raw = (e.target as HTMLInputElement).value.trim();
+      const input = e.target as HTMLInputElement;
+      const raw = input.value.trim();
       const x = parseFloat(raw);
       if (!raw) a.setSegmentRadius?.(w.id, seg, null);
       else if (x > 0) a.setSegmentRadius?.(w.id, seg, x);
+      // the field shows the stored radius again: a refused value does not linger (an accepted one re-renders the new one)
+      input.value = r === null ? '' : r.toFixed(2);
     };
     return html`<div class="two" data-curve-segment=${seg}>
       <sw-field label=${`${curveT('segment')} ${seg + 1} · ${curveT('radius')}`}><input type="number" min=${min.toFixed(2)} step="0.05" data-ltr data-segment-radius

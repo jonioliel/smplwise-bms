@@ -2867,6 +2867,14 @@ export class ExplorePlanEditor extends LitElement {
     }, ms);
   }
 
+  /** A short refusal in the error colour (a curve edit the geometry cannot take), cleared like flash(). */
+  private flashError(text: string, ms = 3500) {
+    this.error = text;
+    setTimeout(() => {
+      if (this.error === text) this.error = '';
+    }, ms);
+  }
+
   /** An undo / redo that took the ghost's wall away (the draft wall it stood on) takes the ghost too, and says so. */
   private dropOrphanGhost() {
     const doc = this.studio.doc;
@@ -4484,12 +4492,12 @@ export class ExplorePlanEditor extends LitElement {
           const cur = this.studio.doc;
           const next = cur ? setSegmentRadius(cur, id, seg, radiusM, scale, b.width, b.height) : null;
           if (next) this.edit(() => next);
-          else this.flash(curveT('radiusTooSmall'));
+          else this.flashError(curveT('radiusTooSmall'));
         },
         roundCorner: (id, index, radiusM) => {
           const cur = this.studio.doc;
           const next = cur ? roundCorner(cur, id, index, radiusM, effectiveScale(cur).scale, b.width, b.height) : null;
-          if (!next) return this.flash(curveT('cornerCannot'));
+          if (!next) return this.flashError(curveT('cornerCannot'));
           this.edit(() => next);
           this.geomSel = { id, kind: 'wall' };
         },

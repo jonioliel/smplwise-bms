@@ -6,6 +6,8 @@ import { arcOf, bulgeForRadius, bulgeThrough, cumulative, fillet, offsetPolyline
 import { buildPrimitives, nearestWall, pointOnWall, snapPoint, wallLengthM, wallOutlineAreaM2, type GeometryDoc, type GeomWall, type Primitive } from '../src/map/geometry';
 import { addArcWall, bendSegment, maxCornerRadiusM, roundCorner, segmentAt, segmentMid, segmentRadiusM, setSegmentRadius, straightenSegment } from '../src/map/curve-ops';
 import { removeCorner } from '../src/map/studio-ops';
+import { buildScene } from '../src/map/scene-builder';
+import { cutawayIds } from '../src/map/scene-frame';
 import { glazingOf, panelCount, wallLengthM as wallLengthMGlass, withDocVersion, type GlazingPrim } from '../src/map/glass-wall';
 
 // Curved walls (owner request 2026-10-08): the frontend mirror of services/wall_path.py gives the backend's golden values,
@@ -145,6 +147,26 @@ test('a curved window wall: glass parts with their arcs, panels over the exact l
   const plain = curved();
   expect(withDocVersion(plain).schema_version).toBe('2.1');
   expect(wallLengthMGlass(w, W, H, 0.01)).toBeCloseTo(pathLength(pts, bulges) * 0.01, 6);
+});
+
+test('3D cutaway: a round room off the scene centre loses its near half as one room, never a chord at its back', () => {
+  const doc = curved();
+  const desc = buildScene({ doc, width: W, height: H, anchors: [], entityStates: {}, circuitStates: {} });
+  const ring = desc.parts.filter((p) => p.kind === 'wall' && p.id.startsWith('wall:cb-round#'));
+  expect(ring.length).toBeGreaterThan(20);
+  const pivot = ring[0].pivot!;
+  expect(pivot).toBeTruthy();
+  expect(ring.every((p) => p.pivot && p.pivot[0] === pivot[0] && p.pivot[1] === pivot[1])).toBe(true);
+  expect(desc.parts.filter((p) => p.kind === 'wall' && p.id.startsWith('wall:ce-straight#')).every((p) => p.pivot === undefined)).toBe(true); // straight walls as before
+  for (let az = 5; az < 360; az += 10) {
+    const cut = new Set(cutawayIds(desc, az));
+    const t = [Math.cos((az * Math.PI) / 180), Math.sin((az * Math.PI) / 180)];
+    for (const p of ring) {
+      const side = (p.position[0] - pivot[0]) * t[0] + (p.position[2] - pivot[1]) * t[1];
+      if (side <= 0) expect(cut.has(p.id), `${p.id} at ${az}: the far half stays`).toBe(false);
+    }
+    expect(ring.some((p) => cut.has(p.id)), `something of the near half is cut at ${az}`).toBe(true);
+  }
 });
 
 test('bend, radius and straighten: one segment, openings stay on the wall', () => {

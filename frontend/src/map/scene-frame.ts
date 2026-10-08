@@ -160,7 +160,7 @@ export function withinFootprint(p: ScenePart, x: number, z: number, reach = 0): 
  * extent centre whose outward normal (away from the centre) faces the camera within CUTAWAY_FACING, plus the opening
  * parts sitting in such a wall. Sorted ids - the same description and azimuth give the same list (design rule 4). A
  * wall through the centre (offset ~0) is never cut, nor is anything seen from a camera preset (the caller passes no
- * azimuth then).
+ * azimuth then). The runs of a curved wall use their wall's own centre (`pivot`) instead of the extent's.
  */
 export function cutawayIds(desc: SceneDescription, azimuth: number, extent: Extent = sceneExtent(desc)): string[] {
   const cx = (extent.x0 + extent.x1) / 2;
@@ -170,8 +170,9 @@ export function cutawayIds(desc: SceneDescription, azimuth: number, extent: Exte
   const walls: ScenePart[] = [];
   for (const p of desc.parts) {
     if (!CUT_KINDS.has(p.kind) || p.shape !== 'box') continue;
-    const ox = p.position[0] - cx;
-    const oz = p.position[2] - cz;
+    // a curved wall's run is judged from its own wall's centre (pivot): a round room loses its near half as one room
+    const ox = p.position[0] - (p.pivot ? p.pivot[0] : cx);
+    const oz = p.position[2] - (p.pivot ? p.pivot[1] : cz);
     const off = Math.hypot(ox, oz);
     if (off < 1e-6) continue;
     if (ox * tx + oz * tz <= 0) continue; // the far half
