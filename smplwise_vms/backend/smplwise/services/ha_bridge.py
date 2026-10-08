@@ -84,6 +84,7 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
 # control (never implied by a role) and a confirmation. `sensitive` (bool) stays for the older clients: it is
 # True for attention and sensitive alike.
 RISK_LABEL = {"routine": "שגרתית", "attention": "דורשת אישור", "sensitive": "רגישה — הרשאה נפרדת"}
+BRIDGE_EQUIPMENT_REQUIRED = "0.8.0"  # the first bridge whose allow-list carries the CARD1 pairs (valve, vacuum.pause, water_heater)
 HVAC_MODES = ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"]
 TEMPERATURE_BOUNDS = (-30, 120)  # outer sanity bounds of a climate target (either unit); the entity's own range decides
 TEMPERATURE_DEFAULT_RANGE = (5.0, 35.0)  # for a climate entity that reports no min_temp / max_temp
@@ -183,7 +184,8 @@ ACTIONS: dict[str, dict[str, Any]] = {
     # a robot vacuum's pause; a valve entity's open (water starts flowing: "attention", the UI holds-to-confirm and sends the grant) and
     # close (the safe direction, routine); a water_heater entity's on / off (on lands in an operation mode, not "on": honestly "sent").
     # Permission: devices.control / ha.entity.control at the entity's placement, like every row here. The bridge's ALLOWED_SERVICES
-    # carries the same five pairs; an installed bridge older than that answers service_not_allowed, which the UI shows as it is.
+    # carries the same five pairs from bridge 0.8.0 (BRIDGE_EQUIPMENT_REQUIRED); an older installed bridge answers service_not_allowed, which the UI
+    # shows as it is, and the health report (bridge check) tells the administrator to update the bridge.
     "vacuum.pause": _a("vacuum", "pause", "השהיית ניקוי", expect="paused"),
     "valve.open_valve": _a("valve", "open_valve", "פתיחת ברז", expect="open", risk="attention"),
     "valve.close_valve": _a("valve", "close_valve", "סגירת ברז", expect="closed"),

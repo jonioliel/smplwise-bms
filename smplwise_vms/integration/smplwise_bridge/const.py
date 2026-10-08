@@ -1,6 +1,7 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.7.0"
+VERSION = "0.8.0"
+# 0.8.0: no new service; the allow-list gained valve.open_valve, valve.close_valve, vacuum.pause, water_heater.turn_on / turn_off (equipment cards, add-on 2.4.0).
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
