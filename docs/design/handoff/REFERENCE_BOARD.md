@@ -3,6 +3,11 @@
 Two kinds of references: **current** screenshots of the product (what exists, to be redesigned; copied into `current/`) and **external**
 references (what the owner points at). Each entry says what it shows and how much of it is still true. Nothing here is a pixel spec.
 
+> **Status 2026-10-09 (product 2.4.2):** the `current/` screenshots below were NOT re-shot; they show the 0.1.148 build (2026-09-30). Since
+> then the shell gained a dark scheme, skins (classic / domus / tesla / bubble), look dials and three tab modes, and many screens were added
+> (see `CHANGES_SINCE_0.1.148.md`). §1a lists the committed screenshot sets of the newer screens. A fresh capture of every screen with
+> demo data at 1440 / 1024 / 390 × light / dark is still to be done (NOT_RUN in the 2026-10-09 refresh, which was code-only).
+
 ## 1. Current product screenshots (`docs/design/handoff/current/`)
 
 Shell generations, so the chrome is read correctly:
@@ -69,6 +74,30 @@ Shell generations, so the chrome is read correctly:
 More screenshots (all states, three viewports) live under `docs/evidence/` (438 PNGs); the most useful sets: `UIR1-*` (UI round 1, current),
 `CR014-s3`, `CR014-s4` (schedules, every state), `CR010` (alarm, three viewports), `T025` (glass), `T087/visual` (3D levels and cameras),
 `T007/screens` (every SC screen in three viewports, design B chrome), `docs/user-guide/he/img` (live-system captures, 0.1.141, redacted).
+
+## 1a. Screenshot sets of screens added after 0.1.148 (committed under `docs/evidence/`, added 2026-10-09)
+
+These were captured by the feature work (demo or fixture data, three viewports, often light and dark). They are evidence of the build or
+of the approved mockup at the time of the feature, not a curated board; the chrome around them is whatever the build had that day.
+
+| Folder | Screen(s) | Kind |
+|---|---|---|
+| `docs/evidence/electricity-mockup/` (155) | Infrastructure › electricity meters, meter, accounts, bills, settings | approved mockup, light / dark, 1440 / 390 |
+| `docs/evidence/electricity-pdf/`, `electricity-pdf-addon-image/png/` | Electricity bill paper / PDF pages | build |
+| `docs/evidence/generator/` (135) | Infrastructure › generator: live, charts, alerts, settings | build, desktop / tablet / mobile × light / dark |
+| `docs/evidence/automations-mockup/` (58) | Automations / scenes / scripts list and editors ("קברניט") | approved mockup, light / dark |
+| `docs/evidence/notifications-mockup/` (40) | Notification centre and detail | approved mockup, light / dark |
+| `docs/evidence/media-mockup/` (57), `media-players-mockup/` (22) | Multimedia: screens, TV remote profiles, players, groups | approved mockup |
+| `docs/evidence/CR-019/` | Settings › protected switches review (approve / protect / unprotect dialogs, loading, forbidden, empty) | build, 1440 / 820 / 390 |
+| `docs/evidence/CR-020-s1/`, `CR-020-s2/`, `CR-020-encoding/` | Settings › security › cameras: NVR camera list, camera editor, batch encoding checklist | build, demo / empty / error, dark |
+| `docs/evidence/tabs-dropdown/`, `dropdown-capsule/`, `sync-dropdown/`, `compare-dropdown/`, `sync-polish/` | The three tab modes (tabs / dropdown / hybrid) and the dropdown styles at phone and desktop widths | build, light / dark |
+| `docs/evidence/investigate-map-improvements/` | Historical map and investigation map improvements (before / after) | build |
+| `docs/evidence/live-count/` | Live wall tile counts and the columns chooser | build |
+| `docs/evidence/0.1.149-area-row/` | Home area row (0.1.149) | build |
+| `docs/evidence/CR-030-WDX/`, `docs/design/mockups/wall-display/screens/` | Wall display (fixed tablets): frame, alert takeover, settings drawer, login | build + mockup |
+| `docs/design/mockups/{automations,electricity,generator,media,notifications}/index.html` | The approved HTML mockups of the new areas | mockup (static HTML) |
+| `docs/design/mockups/bubble-taste/screens/` | The Bubble skin taste board | mockup |
+| `docs/design/compare/dropdown-styles/`, `material-dials/` | Dropdown style comparison, material / depth / tint dials | comparison boards |
 
 ## 2. External references
 

@@ -2,6 +2,11 @@
 
 **תאריך:** 2026-09-30 · **גרסת מוצר:** 0.1.148 (ענף `g0/intake`) · **שפת המסמך:** עברית, מזהים טכניים באנגלית.
 
+> **Status 2026-10-09 (product 2.4.2, `main` @ `31fe5d7c`):** this brief is kept as written for the 0.1.148 round. The inventories next to it
+> (`SCREEN_INVENTORY.md`, `COMPONENT_INVENTORY.md`, `TOKEN_CONTRACT.md`) were refreshed for 2.4.2 and mark everything new since 0.1.148;
+> `CHANGES_SINCE_0.1.148.md` summarises the delta. Facts below that the refresh contradicts (one token family `tokens.css`, no dark mode, no
+> skins, "screens still to come" such as automations, notifications, media) are superseded by those files and by the code.
+
 המסמך הזה הוא הבריף. הוא נכתב כך שמעצב (או סוכן עיצוב) שלא ראה מעולם את הקוד יוכל להפיק **קובץ עיצוב שלם וניתן למימוש** שמביא את
 כל המערכת לשפה עיצובית אחת. העובדות (רשימת המסכים, הרכיבים, הטוקנים, צילומי המסך) נמצאות במסמכי האינוונטר שלצדו, באנגלית:
 

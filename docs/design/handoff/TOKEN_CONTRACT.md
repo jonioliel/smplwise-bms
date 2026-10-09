@@ -1,200 +1,361 @@
-# Token contract (designer handoff, 2026-09-30)
+# Token contract (designer handoff; refreshed 2026-10-09 for product 2.4.2)
 
-> **Status 2026-10-01 - the foundation is implemented (branch `pilot/design-foundation`).** The decisions this contract left open are
-> closed: (1) ONE table of `{name:{light,dark}}` in `frontend/src/design/tokens.ts` replaces `styles/tokens.css` (`--sw-*`, 145 names, the
-> light column = the previous look, the dark column new for the whole shell); (2) the switch is `<html data-skin data-theme>` (§1 rule 3);
-> (3) skins are token overrides + <= 50 component rules (`frontend/src/design/skins/`, guide: `docs/design/SKIN_AUTHORING_HE.md`), chosen per
-> installation (`ui.skin`, `ui.scheme`); Domus and Tesla ship, iOS is not implemented yet. Still open: the `--dv-*` family is unchanged and
-> still bridges onto `--sw-*` inside the device screens (aliasing it to the new names is per-screen work); `--sw-role-*`, `--sw-on-*`,
-> `--sw-glow-*`, the compact-tile and tree knobs of the approved package are not in the table yet (they belong to the per-screen structure work);
-> the touch size (`--sw-touch` 44) and the type scale of the skins are token values only until the screens consume them. The text below is the
-> original brief and is kept as written.
+> **Refresh 2026-10-09.** Rewritten from the code of `main` @ `31fe5d7c` (product 2.4.2). In 0.1.148 the tokens lived in
+> `frontend/src/styles/tokens.css` (122 `--sw-*` names, light only); that file is **deleted**. Today there is ONE table of
+> `{ name: { light, dark } }` in `frontend/src/design/tokens.ts` (**214** `--sw-*` names in 11 groups; **92 are NEW** since 0.1.148, none
+> was removed or renamed), four skins, a light / dark / auto scheme for the whole product, ten ready palettes plus custom palettes, the
+> look dials (`ui.look`), a performance tier and a material layer. The `--dv-*` glass knobs of the device screens (§4) and the
+> `--lv-*` / `--nav-*` knob families (§5) did not change. Section numbers 4-8 are kept from the previous edition; §0-§3 and §9-§10 are
+> new or rewritten. **The code is the source of truth**: `tokens.ts`, `skins/*.ts`, `frontend/tests/unit-design-tokens.spec.ts`.
+> Hebrew authoring guide for a new skin: `docs/design/SKIN_AUTHORING_HE.md`.
 
-What the design must come back with, as named values. The names are engineering's; the values are the designer's. The current values
-are listed so the designer knows the starting point and can decide what to keep. Everything here is read from
-`frontend/src/styles/tokens.css` (the `--sw-*` family, "v2 / SW A"), `frontend/src/styles/devices-themes.ts` and `devices-palettes.ts`
-(the `--dv-*` glass knobs, `docs/design/DEVICE_THEMES.md`), `frontend/src/styles/tile-knobs.ts` and `frontend/src/shell/nav-size.ts`.
+## 0. The token architecture today (**NEW** since 0.1.148)
 
-## 0. Summary of what is missing today (the gaps the design fills)
+| Piece | What it is | Source |
+|---|---|---|
+| The table | Every colour, radius, shadow, blur, type, spacing, z-index and motion token is declared ONCE as `{ light, dark }` (`same(v)` = one value for both, `lt(l, d)` = two). Groups: `surface`, `text`, `accent`, `state`, `canvas`, `type`, `space`, `shape`, `z`, `motion`, `bubble` (§3). The values are the **classic** skin: the light column is exactly the 0.1.148 look, the dark column is the dark set of the whole shell. | `frontend/src/design/tokens.ts` |
+| CSS generation | The table becomes custom properties: light on `:root`, dark on `:root[data-theme="dark"]` (and on the OS query when the scheme is `auto`), one block set per skin, `prefers-reduced-motion` zeroes the durations. | `design/css.ts` |
+| Runtime | `skin` = `?skin=` (page view only) > installation `ui.skin` > `classic`. `scheme` = `?scheme=` > this browser's own choice (localStorage `sw.ui.scheme`) > installation `ui.scheme` > `light`; `auto` follows the OS live. Output: `<html data-skin="…" data-theme="light|dark">`, the token `<style>`, and the skin's component rules as ONE constructable stylesheet adopted into every Lit shadow root (replacing its text re-skins every live component without a re-render). | `design/apply.ts`, `design/boot.ts` |
+| Skins | A skin = token overrides (always BOTH columns, only names that exist in `tokens.ts`) + at most **50** component rule blocks written for shadow roots (`:host(sw-card) .x { }`). Registry: `SKIN_IDS = ['classic','domus','tesla','bubble']`, `DEFAULT_SKIN = 'classic'`, `SKIN_RULE_BUDGET = 50`. A new skin = one file + one line in `skins/index.ts` + one id in the server validation of `ui.skin` (`smplwise_vms/backend/smplwise/routers/settings.py`). §9. | `design/skins/*.ts` |
+| Structure per skin | A screen that changes STRUCTURE for a skin (bubble: pill rows, sheets, the phone dock) reads the skin through `SkinController` (mirrors `data-skin` onto the host) instead of CSS alone; the rule budget keeps skins to "dress what is there". | `design/skin.ts` |
+| Palettes | Ten ready palettes (`calm-blue`, `purple-rose`, `teal-green`, `amber-sand`, `graphite`, `deep-ocean`, `forest`, `sunset`, `rose-quartz`, `high-contrast`) plus installation custom palettes (`custom-<slug>`), chosen by the look dial `palette` (`default` = the skin's own colours). A palette is data only: `paletteTokens()` maps it onto ~60 `--sw-*` colour names inline on `<html>`, **applied only in the bubble skin**, chosen by the installation admin only (a personal override is ignored); custom palettes up to 12 in `ui.palettes`; contrast below 4.5:1 is a warning with an auto-fix, not a refusal (owner 2026-10-02). | `design/palettes.json`, `design/palette.ts`, `screens/system-palette-editor.ts` |
+| Look dials | `ui.look` (installation default, every dial present) + a personal partial override (`/me/prefs` `ui.look`) + `?look=` for the page view. Dials: `density` wide / regular / compact / row · `surface` flat / glass / gradient / fill / none · `popup` sheet / centred / inline · `radius` pill / soft / square · `slider` horizontal / vertical · `transparency` % · `scale` % · `touch` 32 / 44 · `palette` · `performance` auto / full / lite · `material` none / frosted / paper / neon · `depth` 0/1/2 · `tint` 0/1/2. Output: `data-bubble-*` attributes on `<html>` (or on a preview box) and the numeric tokens `--sw-sheet-alpha`, `--sw-look-scale`, `--sw-touch-desktop`. The bubble skin draws all dials; domus takes the material layer; classic and tesla ignore the attributes. Server twin with the same lists: `services/look.py` (422 on unknown values). | `design/look.ts`, `design/performance.ts` (§7), `styles/material.ts` (§8) |
+| Contrast engine | Computes the alpha floor of translucent sheets, the lite-tier alpha and the material wash cap so every text stays ≥ 4.5:1 over the worst content behind it, per skin × scheme × palette. | `design/contrast.ts` |
+| The gate | `frontend/tests/unit-design-tokens.spec.ts` (Playwright, project `desktop`): every token has light + dark and a `--sw-` name, declared once; shell colours exist for both schemes; skins are registered, overrides carry both columns and name existing tokens, rules inside the budget; look-dial defaults and bundles; sheet alpha floor; generated CSS (light / dark / OS query / per skin / reduced motion); text contrast ≥ 4.5:1 (body, secondary, tertiary, accent text, text on accent, every state text on its soft fill); performance dial and lite contrast; material dials, layer budget and wash cap. | the spec |
 
-| Gap | Fact |
+Per-area style layers that sit on top of the table (they read `--sw-*`, they do not declare new families): `styles/bubble-chrome.ts`
+(the bubble rail, dock and tab pills), `styles/automations-glass.ts` (the automations / scenes / scripts screens), `styles/media-glass.ts`
+and `styles/media-page.ts` (the multimedia area), `styles/material.ts` (§8), `components/dd-style.ts` (dropdown styles: `ui.dd_style` auto / pill / field / underline / text / prefix / tonal / capsule, plus
+`ui.dd_size`, `ui.dd_ring`, `ui.dd_panel`, `ui.dd_phone`, `ui.dd_search`, `ui.dd_picker`, each with per-group overrides for home / area /
+multimedia / security / settings; backend `services/dd_style.py`), `shell/tabs-mode.ts` (`ui.tabs_mode` tabs / hybrid / dropdown, per group,
+every width since 0.1.157; backend `services/tabs_mode.py`), `timeline.colors` (overrides `--sw-tl-*`),
+`styles/focus-policy.ts` (one focus-ring rule). All **NEW** since 0.1.148 except `focus-policy.ts` and the device-theme files.
+
+### 0.1 Gaps of 0.1.148 and where they stand now
+
+| Gap in 0.1.148 | Now (2.4.2) |
 |---|---|
-| **No dark mode for the shell and 90 % of the screens.** | `tokens.css` sets `color-scheme: light` and has one value per token. Only the device screens in the glass style have a dark palette (`--dv-*`, switched by an attribute, never by the OS). The owner wants light AND dark from day one for the whole system. |
-| **Two token families** | The shell speaks `--sw-*`; the device glass style speaks `--dv-*` and bridges onto `--sw-*` inside its screens. The design should produce ONE semantic set that both can be mapped to (engineering will do the mapping; the designer must name each value once). |
-| **Touch target** | `--sw-touch` is 36 px; buttons are 26 / 30 / 36 px; the owner's constraint for operator controls is 44 px. The design must state the minimum target and the visual size separately. |
-| **No motion spec beyond two durations** | `--sw-t-fast` 120 ms, `--sw-t-med` 200 ms, one easing; the glass has a −2 px hover lift. Enter / exit of drawers, sheets, dialogs, tab changes, tile state changes are undesigned. |
-| **Focus ring** | One colour (`--sw-focus`); thickness / offset / radius are per component. Needs one rule. |
-| **Glass material** | Defined only for the device screens (`blur(28px) saturate(1.7)`, alpha surfaces, solid fallbacks). The direction extends it to the whole system, so every surface needs a glass value AND a solid fallback, light and dark. |
-| **Type scale** | Two scales in practice: `--sw-fs-*` (11–26 px) for the shell and `--dv-fs-*` (12.5–24 px) for device tiles; DomusUI-style big titles (2–3 rem) exist nowhere yet. |
+| No dark mode for the shell and 90 % of the screens | **Closed.** Every `--sw-*` token has a dark value; scheme light / dark / auto per installation and per browser. |
+| Two token families (`--sw-*` and `--dv-*`) | **Open.** `--dv-*` still bridges onto `--sw-*` inside the device screens (§4); aliasing is per-screen work. |
+| Touch target 36 px | **Partly.** `--sw-touch` is still 36 px in classic; `--sw-touch-desktop` (**NEW**, 44 px) is driven by the `touch` dial (32 / 44); the bubble skin sets `--sw-touch` to 44 px and sizes buttons, chips and tab rows to `--sw-touch-desktop`. The acceptance rule for a new skin is 44 px on the phone. |
+| Motion: two durations, one easing | **Partly.** Added `--sw-ease-thumb`, `--sw-ease-dialog`, `--sw-ease-out`; durations still `--sw-t-fast` 120 ms / `--sw-t-med` 200 ms. Enter / exit choreography is still undesigned. |
+| Glass only on the device screens | **Closed for the shell**: surfaces have `-solid` twins (`--sw-surface-solid`, `-2-solid`, `-3-solid`), glass blur tokens (`--sw-glass-blur*`), the performance tier (§7) and the material layer (§8). |
+| Type scale split (`--sw-fs-*` 11–26 px vs `--dv-fs-*`) | **Partly.** Added `--sw-fs-name` 13 px and `--sw-fs-state` 12 px for tiles. `--sw-fs-xs` is still **11 px** in classic. Note: the Astra brief (2026-10-08, §6 item 4) says the smallest step is 12 px; that is true for the bubble skin's tile text, not for classic's `--sw-fs-xs` - recorded here as a contradiction for the owner, the code wins. |
 
 ## 1. Naming rules (fixed by engineering)
 
-1. Tokens are CSS custom properties. Family prefixes stay: `--sw-` (product-wide), `--dv-` (device-control screens), `--lv-tile-`
-   (live overview tiles), `--nav-` (shell sizes, computed from the nav-size setting). New product-wide tokens join `--sw-`.
-2. Semantic names, never colour names: `--sw-accent`, not `--sw-blue`. A state colour always has a `-soft` companion for fills.
-3. One name, two values: **light** and **dark**. The design file exports both; engineering decides the switching mechanism
-   (attribute on the host today for `--dv-*`; a product-wide `data-scheme` is the planned shape - **UNKNOWN** until the design lands).
-4. Sizes in px (the product does not use rem); alphas as `rgba()` or an RGB triplet where the code composes the alpha (the "on" glows and
-   the card-colour roles use triplets: `255 159 10`).
-5. Logical directions only (start / end), never left / right, in every spec note.
-6. A token that only one component reads is a **knob** (`--sw-kpi-compact-*`, `--dv-tree-*`); it may be added, but the designer should
-   prefer the shared token when one fits.
+1. Tokens are CSS custom properties. Families: `--sw-` (product-wide, the table), `--dv-` (device-control glass knobs, §4), `--lv-tile-`
+   (live overview tiles), `--nav-` (shell sizes computed from the nav-size setting), `--sw-m-*` per-element material variables (§8).
+   A new product-wide token joins `--sw-` **and must be declared in `tokens.ts` first**; a skin may not invent names (the gate fails).
+2. Semantic names, never colour names: `--sw-accent`, not `--sw-blue`. A state colour has a `-soft` fill and a `-text` companion.
+   Exception by design: `--sw-hue-1 … -8` are decorative hues for icon rings of areas and devices (`hueOf(id)` in `design/skin.ts`) and
+   never carry meaning.
+3. One name, two values: **light** and **dark**, always both, also in a skin override. The switch is `<html data-theme>`; the skin is
+   `<html data-skin>`.
+4. Sizes in px (no rem); alphas as `rgba()`; RGB triplets only where the code composes an alpha (`--sw-sheet-rgb`, the `--dv-tile-on-*`
+   glows, the `--dv-role-*` roles).
+5. Logical directions only (start / end), never left / right.
+6. A token that only one component reads is a **knob**; prefer a shared token when one fits.
+7. A component that draws glass never writes a bare `backdrop-filter`: `var(--sw-perf-blur, blur(..))` and `var(--sw-perf-glass-bg, ..)` (§7).
 
 ## 2. Fixed by engineering (do not redesign; design around them)
 
 | Item | Value | Why fixed |
 |---|---|---|
 | Breakpoints | phone `≤ 767px`, tablet `768–1023px`, desktop `≥ 1024px`; tile-layout auto switches at 600 px; Playwright viewports 1440×900 / 1024×768 / 390×844 | code, tests |
-| Rail presets | s 46 px item / 18 icon / 10 label · m 52/20/10.5 · l 64/25/12 · xl 76/30/13.5; free: icon 14–40, label 0 or 9–16, item 36–96; rail width = widest label; the owner's requested default is "large"; phone bar height = item − 2, clamped 44–94 | setting with server validation |
-| Densities | `devices.density` comfortable / compact; `ui.tile_layout` auto / cards / compact; `sw-table dense` | settings |
-| Layout grid (editors) | 12 columns desktop, 4 phone, rows of 8 px, column gap `--dv-gap` | stored layouts |
-| Z-index scale | map 1 · map-ui 5 · drawer 20 · topbar 30 · modal 50 · toast 60 | code |
-| Time and geometry direction | LTR always (video, map, 3D, timeline, 24 h axis, week grid hours) | product rule |
-| Glass fallback | must exist: no `backdrop-filter` support and `prefers-reduced-transparency` switch to solid surfaces, layout unchanged | accessibility |
-| Reduced motion | durations become 0; the hover lift is off | accessibility |
-| Font loading | Heebo is bundled; system fonts are the fallback; the glass style leads with the system stack | performance |
+| Rail presets | s 46 px item / 18 icon / 10 label · m 52/20/10.5 · l 64/25/12 · xl 76/30/13.5; free: icon 14–40, label 0 or 9–16, item 36–96; rail width = widest label; phone bar height = item − 2, clamped 44–94 (`shell/nav-size.ts`, unchanged) | setting with server validation |
+| Tab presentation | `tabs` / `dropdown` / `hybrid` per width class (**NEW**, `shell/tabs-mode.ts`, `docs/architecture/TABS_CONFIG.md`); six dropdown styles (`components/dd-style.ts`) | settings |
+| Densities | `devices.density` comfortable / compact; `ui.tile_layout` auto / cards / compact; `sw-table dense`; look dial `density` wide / regular / compact / row (**NEW**) | settings |
+| Layout grid (editors) | 12 columns desktop, 4 phone, rows of 8 px | stored layouts |
+| Z-index scale | `--sw-z-map` 1 · `-map-ui` 5 · `-drawer` 20 · `-topbar` 30 · `-modal` 50 · `-toast` 60 (group `z`) | code |
+| Time and geometry direction | LTR always (video, map, 3D, timeline, 24 h axis, week grid hours, charts of electricity and generator) | product rule |
+| Glass fallback | no `backdrop-filter` support and `prefers-reduced-transparency` switch to the `-solid` surfaces, layout unchanged; lite tier (§7) | accessibility, performance |
+| Reduced motion | durations become 0 (generated by `css.ts`); hover lifts off | accessibility |
+| Font loading | Heebo bundled; system fonts are the fallback; licences required for any new font | performance, licence |
 | Live wall counts | 1 · 2 · 4 · 6 · 8 · 9 · 12 · 16 · 20 · 25 · 32 tiles; kiosk 2×2 … 6×4 | streams budget |
-| Icon set | `sw-icon` stroke set (86 names, 24 px grid, 1.8 px stroke); new icons follow it | code |
+| Icon set | `sw-icon` stroke set (24 px grid, 1.8 px stroke); new icons follow it (count: see `COMPONENT_INVENTORY.md`) | code |
+| Contrast | ≥ 4.5:1 for every text token pair, every skin × scheme × palette (the gate) | accessibility |
+| Rule budget | ≤ 50 rule blocks per skin; the material layer has its own budget (bubble, domus only) | maintainability |
 
-## 3. `--sw-*` product tokens: current (light) values, dark values to deliver
+## 3. `--sw-*` product tokens: the full table (classic values, light and dark)
 
-122 tokens. "SW A override" = the value the 50-screen handoff set on top of the base; the effective value is shown. Every colour row needs a
-**dark** value; sizes and motion may stay or change.
+Generated on 2026-10-09 from `frontend/src/design/tokens.ts` @ `31fe5d7c` (214 names). "= light" means the same value for both schemes.
+**NEW** = absent from the 0.1.148 `tokens.css`. A new skin overrides any subset of these names, always with both columns; it may not add
+names. Each skin's overrides: §9.
 
-| Token | Current effective value | Note |
-|---|---|---|
-| `--sw-bg` | `#f5f7fb` | (SW A override)
-| `--sw-surface` | `#ffffff` | (SW A override)
-| `--sw-surface-2` | `#f7f9fc` | (SW A override)
-| `--sw-surface-3` | `#eef2f8` | (SW A override)
-| `--sw-border` | `#e7ebf2` | (SW A override)
-| `--sw-border-strong` | `#e1e6ef` | (SW A override)
-| `--sw-overlay` | `rgba(17, 24, 39, 0.45)` |
-| `--sw-text` | `#22314c` | (SW A override)
-| `--sw-text-2` | `#5b6a85` | (SW A override)
-| `--sw-text-3` | `#8a97ae` | (SW A override)
-| `--sw-text-inverse` | `#ffffff` |
-| `--sw-accent` | `#2767ed` | (SW A override)
-| `--sw-accent-hover` | `#1f57d1` | (SW A override)
-| `--sw-accent-soft` | `#edf3ff` | (SW A override)
-| `--sw-accent-text` | `#2767ed` | (SW A override)
-| `--sw-focus` | `#2767ed` | (SW A override)
-| `--sw-live` | `#22c55e` |
-| `--sw-live-soft` | `#e8f8ee` |
-| `--sw-recorded` | `#2f6bff` |
-| `--sw-recorded-soft` | `#eaf0ff` |
-| `--sw-offline` | `#9aa3b5` |
-| `--sw-offline-soft` | `#f1f3f7` |
-| `--sw-stale` | `#f59e0b` |
-| `--sw-stale-soft` | `#fff4e0` |
-| `--sw-unknown` | `#b3bac7` |
-| `--sw-unknown-soft` | `#f4f6f9` |
-| `--sw-danger` | `#ef4444` |
-| `--sw-danger-soft` | `#fdecec` |
-| `--sw-warning` | `#f59e0b` |
-| `--sw-warning-soft` | `#fff4e0` |
-| `--sw-success` | `#22c55e` |
-| `--sw-success-soft` | `#e8f8ee` |
-| `--sw-forbidden` | `#dc2626` |
-| `--sw-forbidden-soft` | `#fdecec` |
-| `--sw-purple` | `#8b5cf6` |
-| `--sw-video-bg` | `#0f1729` |
-| `--sw-map-bg` | `#f7f9fc` | (SW A override)
-| `--sw-map-wall` | `#c5cfdd` | (SW A override)
-| `--sw-map-room-fill` | `#ffffff` | (SW A override)
-| `--sw-map-furniture` | `#eaeff6` | (SW A override)
-| `--sw-map-furniture-line` | `#d3dbe7` | (SW A override)
-| `--sw-map-structure` | `#56617a` | (SW A override)
-| `--sw-map-glass` | `#7fb2ff` | (SW A override)
-| `--sw-map-candidate` | `#2767ed` | (SW A override)
-| `--sw-map-label` | `#8a97ae` | (SW A override)
-| `--sw-obj-object` | `#7b8794` |
-| `--sw-obj-structure` | `#4b5567` |
-| `--sw-obj-circulation` | `#6b7f99` |
-| `--sw-obj-furniture` | `#9aa7b8` |
-| `--sw-obj-light` | `#f2b544` |
-| `--sw-obj-electrical` | `#e07a2f` |
-| `--sw-obj-safety` | `#e0443c` |
-| `--sw-obj-medical` | `#2fa7b3` |
-| `--sw-obj-sport` | `#3fa25b` |
-| `--sw-obj-sanitary` | `#5b9bd5` |
-| `--sw-obj-security` | `#7a5cc7` |
-| `--sw-obj-outdoor` | `#5c9e4f` |
-| `--sw-circuit-1` | `#2f6bff` |
-| `--sw-circuit-2` | `#f59e0b` |
-| `--sw-circuit-3` | `#22c55e` |
-| `--sw-circuit-4` | `#a855f7` |
-| `--sw-circuit-5` | `#ef4444` |
-| `--sw-circuit-6` | `#14b8a6` |
-| `--sw-map-glow` | `#ffd166` |
-| `--sw-map-sky` | `#dbe7f8` | (SW A override)
-| `--sw-map-sky-horizon` | `#f5f8fc` | (SW A override)
-| `--sw-map-wall-3d` | `#d7dde6` | (SW A override)
-| `--sw-map-lit` | `#ffc857` | (SW A override)
-| `--sw-map-presence` | `#2767ed` | (SW A override)
-| `--sw-map-temp` | `#1e3a63` | (SW A override)
-| `--sw-fov` | `rgba(39, 103, 237, 0.12)` | (SW A override)
-| `--sw-font` | `"Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif` |
-| `--sw-font-mono` | `ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace` |
-| `--sw-fs-xs` | `11px` | (SW A override)
-| `--sw-fs-sm` | `12.5px` | (SW A override)
-| `--sw-fs-md` | `14px` | (SW A override)
-| `--sw-fs-lg` | `15px` | (SW A override)
-| `--sw-fs-xl` | `17px` | (SW A override)
-| `--sw-fs-2xl` | `20px` | (SW A override)
-| `--sw-fs-3xl` | `26px` | (SW A override)
-| `--sw-lh` | `1.5` | (SW A override)
-| `--sw-fw-regular` | `400` |
-| `--sw-fw-medium` | `500` |
-| `--sw-fw-semibold` | `600` |
-| `--sw-fw-bold` | `700` |
-| `--sw-s-1` | `4px` |
-| `--sw-s-2` | `8px` |
-| `--sw-s-3` | `12px` |
-| `--sw-s-4` | `16px` |
-| `--sw-s-5` | `20px` |
-| `--sw-s-6` | `24px` |
-| `--sw-s-8` | `32px` |
-| `--sw-s-10` | `40px` |
-| `--sw-r-sm` | `8px` | (SW A override)
-| `--sw-r-md` | `12px` | (SW A override)
-| `--sw-r-lg` | `14px` | (SW A override)
-| `--sw-r-pill` | `999px` |
-| `--sw-shadow-1` | `0 1px 2px rgba(16, 24, 40, 0.04)` |
-| `--sw-shadow-2` | `0 6px 18px rgba(34, 49, 76, 0.06)` | (SW A override)
-| `--sw-shadow-3` | `0 14px 36px rgba(34, 49, 76, 0.14)` | (SW A override)
-| `--sw-rail-w` | `70px` | (SW A override)
-| `--sw-rail-w-wide` | `70px` | (SW A override)
-| `--sw-topbar-h` | `0px` | (SW A override)
-| `--sw-bottomnav-h` | `50px` | (SW A override)
-| `--sw-drawer-w` | `360px` |
-| `--sw-touch` | `36px` |
-| `--sw-content-max` | `none` | (SW A override)
-| `--sw-z-map` | `1` |
-| `--sw-z-map-ui` | `5` |
-| `--sw-z-drawer` | `20` |
-| `--sw-z-topbar` | `30` |
-| `--sw-z-modal` | `50` |
-| `--sw-z-toast` | `60` |
-| `--sw-t-fast` | `120ms` |
-| `--sw-t-med` | `200ms` |
-| `--sw-ease` | `cubic-bezier(0.2, 0, 0, 1)` |
-| `--sw-heading` | `#1e2e47` | (SW A only)
-| `--sw-nav` | `#2868ef` | (SW A only)
-| `--sw-h1` | `26px` | (SW A only)
-| `--sw-h1-weight` | `700` | (SW A only)
-| `--sw-h1-tracking` | `-0.6px` | (SW A only)
-| `--sw-page-pad` | `30px` | (SW A only)
+### Canvas and surfaces (`surface`)
 
-Groups, for the design file's "foundations" pages: surfaces (`bg`, `surface`, `surface-2`, `surface-3`, `border`, `border-strong`,
-`overlay`), text (`text`, `heading`, `text-2`, `text-3`, `text-inverse`), accent (`accent`, `accent-hover`, `accent-soft`, `accent-text`,
-`focus`, `nav`), state colours (`live`, `recorded`, `offline`, `stale`, `unknown`, `danger`, `warning`, `success`, `forbidden`, each
-with `-soft`, plus `purple`), canvas (`video-bg`, `map-*`, `fov`, `obj-*` 12 object classes, `circuit-1..6`, `map-glow`, 3D `map-sky`,
-`map-sky-horizon`, `map-wall-3d`, state layer `map-lit`, `map-presence`, `map-temp`), typography (`font`, `font-mono`, `fs-xs..3xl`,
-`lh`, `fw-*`, `h1*`), spacing (`s-1..10`, `page-pad`), radii (`r-sm/md/lg/pill`), elevation (`shadow-1..3`), layout (`rail-w*`,
-`topbar-h` = 0, `bottomnav-h`, `drawer-w`, `touch`, `content-max`), z-index, motion (`t-fast`, `t-med`, `ease`).
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-bg` | `#f5f7fb` | `#0d1220` |  |
+| `--sw-canvas` | `linear-gradient(var(--sw-bg), var(--sw-bg))` | = light | **NEW** |
+| `--sw-surface` | `#ffffff` | `#151c2c` |  |
+| `--sw-surface-2` | `#f7f9fc` | `#1a2336` |  |
+| `--sw-surface-3` | `#eef2f8` | `#222d44` |  |
+| `--sw-surface-solid` | `#ffffff` | `#151c2c` | **NEW** |
+| `--sw-surface-2-solid` | `#f7f9fc` | `#1a2336` | **NEW** |
+| `--sw-surface-3-solid` | `#eef2f8` | `#222d44` | **NEW** |
+| `--sw-border` | `#e7ebf2` | `#232e45` |  |
+| `--sw-border-strong` | `#e1e6ef` | `#2f3c58` |  |
+| `--sw-highlight` | `transparent` | = light | **NEW** |
+| `--sw-overlay` | `rgba(17, 24, 39, 0.45)` | `rgba(0, 0, 0, 0.62)` |  |
+| `--sw-video-bg` | `#0f1729` | `#05070c` |  |
 
-## 4. `--dv-*` glass knobs (device screens): current default palette, light / dark
+### Text (`text`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-text` | `#22314c` | `#e6ebf5` |  |
+| `--sw-heading` | `#1e2e47` | `#f3f6fc` |  |
+| `--sw-text-2` | `#5b6a85` | `#a9b4ca` |  |
+| `--sw-text-3` | `#8a97ae` | `#8190aa` |  |
+| `--sw-text-inverse` | `#ffffff` | = light |  |
+
+### Accent and focus (`accent`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-accent` | `#2767ed` | `#3a6ce0` |  |
+| `--sw-accent-hover` | `#1f57d1` | `#5a88f2` |  |
+| `--sw-accent-soft` | `#edf3ff` | `rgba(91, 140, 255, 0.18)` |  |
+| `--sw-accent-text` | `#2767ed` | `#8fb2ff` |  |
+| `--sw-focus` | `#2767ed` | `#7aa2ff` |  |
+| `--sw-nav` | `#2868ef` | `#3a6ce0` |  |
+
+### State colours (always paired with text or a shape) (`state`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-live` | `#22c55e` | `#3ddc84` |  |
+| `--sw-live-soft` | `#e8f8ee` | `rgba(61, 220, 132, 0.18)` |  |
+| `--sw-recorded` | `#2f6bff` | `#6ea2ff` |  |
+| `--sw-recorded-soft` | `#eaf0ff` | `rgba(110, 162, 255, 0.2)` |  |
+| `--sw-offline` | `#9aa3b5` | `#8b96a8` |  |
+| `--sw-offline-soft` | `#f1f3f7` | `rgba(139, 150, 168, 0.2)` |  |
+| `--sw-stale` | `#f59e0b` | `#f5b043` |  |
+| `--sw-stale-soft` | `#fff4e0` | `rgba(245, 176, 67, 0.2)` |  |
+| `--sw-unknown` | `#b3bac7` | `#6b7686` |  |
+| `--sw-unknown-soft` | `#f4f6f9` | `rgba(107, 118, 134, 0.22)` |  |
+| `--sw-danger` | `#ef4444` | `#ff6b62` |  |
+| `--sw-danger-soft` | `#fdecec` | `rgba(255, 107, 98, 0.2)` |  |
+| `--sw-warning` | `#f59e0b` | `#f5b043` |  |
+| `--sw-warning-soft` | `#fff4e0` | `rgba(245, 176, 67, 0.2)` |  |
+| `--sw-success` | `#22c55e` | `#3ddc84` |  |
+| `--sw-success-soft` | `#e8f8ee` | `rgba(61, 220, 132, 0.18)` |  |
+| `--sw-forbidden` | `#dc2626` | `#ff7a70` |  |
+| `--sw-forbidden-soft` | `#fdecec` | `rgba(255, 122, 112, 0.2)` |  |
+| `--sw-purple` | `#8b5cf6` | `#a78bfa` |  |
+| `--sw-live-text` | `#15803d` | `#3ddc84` | **NEW** |
+| `--sw-recorded-text` | `#1f5ae6` | `#8fb8ff` | **NEW** |
+| `--sw-offline-text` | `#6b7280` | `#b4bdcc` | **NEW** |
+| `--sw-stale-text` | `#b45309` | `#f5b043` | **NEW** |
+| `--sw-unknown-text` | `#6b7280` | `#aab5c9` | **NEW** |
+| `--sw-danger-text` | `#b91c1c` | `#ff8a82` | **NEW** |
+| `--sw-warning-text` | `#b45309` | `#f5b043` | **NEW** |
+| `--sw-success-text` | `#16a34a` | `#3ddc84` | **NEW** |
+| `--sw-forbidden-text` | `#b91c1c` | `#ff8a82` | **NEW** |
+| `--sw-toggle-on` | `#2767ed` | `#3a6ce0` | **NEW** |
+| `--sw-tl-recording` | `var(--sw-accent)` | = light | **NEW** |
+| `--sw-tl-motion` | `#ef4444` | = light | **NEW** |
+| `--sw-tl-person` | `#ea580c` | = light | **NEW** |
+| `--sw-tl-vehicle` | `#22c55e` | = light | **NEW** |
+| `--sw-tl-door` | `#8b5cf6` | = light | **NEW** |
+| `--sw-tl-line` | `#f59e0b` | = light | **NEW** |
+| `--sw-tl-offline` | `#6b7280` | = light | **NEW** |
+
+### Plan, 3D and object colours (the map neutrals) (`canvas`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-map-bg` | `#f7f9fc` | `#0f141d` |  |
+| `--sw-map-wall` | `#c5cfdd` | `#4a5568` |  |
+| `--sw-map-room-fill` | `#ffffff` | `#161c28` |  |
+| `--sw-map-furniture` | `#eaeff6` | `#1f2736` |  |
+| `--sw-map-furniture-line` | `#d3dbe7` | `#3a4457` |  |
+| `--sw-map-structure` | `#56617a` | `#9aa6bb` |  |
+| `--sw-map-glass` | `#7fb2ff` | `#6ea2ff` |  |
+| `--sw-map-candidate` | `#2767ed` | `#6ea2ff` |  |
+| `--sw-map-label` | `#8a97ae` | `#8391a8` |  |
+| `--sw-map-glow` | `#ffd166` | `#ffc857` |  |
+| `--sw-map-sky` | `#dbe7f8` | `#0b1a33` |  |
+| `--sw-map-sky-horizon` | `#f5f8fc` | `#1a2b47` |  |
+| `--sw-map-wall-3d` | `#d7dde6` | `#2b3547` |  |
+| `--sw-map-lit` | `#ffc857` | `#ffb547` |  |
+| `--sw-map-presence` | `#2767ed` | `#6ea2ff` |  |
+| `--sw-map-temp` | `#1e3a63` | `#cfe0ff` |  |
+| `--sw-fov` | `rgba(39, 103, 237, 0.12)` | `rgba(110, 162, 255, 0.16)` |  |
+| `--sw-obj-object` | `#7b8794` | `#9aa5b4` |  |
+| `--sw-obj-structure` | `#4b5567` | `#aab4c5` |  |
+| `--sw-obj-circulation` | `#6b7f99` | `#8fa4c2` |  |
+| `--sw-obj-furniture` | `#9aa7b8` | `#7f8b9c` |  |
+| `--sw-obj-light` | `#f2b544` | = light |  |
+| `--sw-obj-electrical` | `#e07a2f` | `#f08a45` |  |
+| `--sw-obj-safety` | `#e0443c` | `#ff6b62` |  |
+| `--sw-obj-medical` | `#2fa7b3` | `#4fc3ce` |  |
+| `--sw-obj-sport` | `#3fa25b` | `#5cc47a` |  |
+| `--sw-obj-sanitary` | `#5b9bd5` | `#7fb2ff` |  |
+| `--sw-obj-security` | `#7a5cc7` | `#a78bfa` |  |
+| `--sw-obj-outdoor` | `#5c9e4f` | `#7cc26e` |  |
+| `--sw-circuit-1` | `#2f6bff` | `#6ea2ff` |  |
+| `--sw-circuit-2` | `#f59e0b` | `#f5b043` |  |
+| `--sw-circuit-3` | `#22c55e` | `#3ddc84` |  |
+| `--sw-circuit-4` | `#a855f7` | `#c084fc` |  |
+| `--sw-circuit-5` | `#ef4444` | `#ff6b62` |  |
+| `--sw-circuit-6` | `#14b8a6` | `#2dd4bf` |  |
+
+### Typography (`type`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-font` | `"Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif` | = light |  |
+| `--sw-font-mono` | `ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace` | = light |  |
+| `--sw-fs-xs` | `11px` | = light |  |
+| `--sw-fs-sm` | `12.5px` | = light |  |
+| `--sw-fs-md` | `14px` | = light |  |
+| `--sw-fs-lg` | `15px` | = light |  |
+| `--sw-fs-xl` | `17px` | = light |  |
+| `--sw-fs-2xl` | `20px` | = light |  |
+| `--sw-fs-3xl` | `26px` | = light |  |
+| `--sw-lh` | `1.5` | = light |  |
+| `--sw-fw-regular` | `400` | = light |  |
+| `--sw-fw-medium` | `500` | = light |  |
+| `--sw-fw-semibold` | `600` | = light |  |
+| `--sw-fw-bold` | `700` | = light |  |
+| `--sw-h1` | `26px` | = light |  |
+| `--sw-h1-weight` | `700` | = light |  |
+| `--sw-h1-tracking` | `-0.6px` | = light |  |
+
+### Spacing and layout (`space`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-s-1` | `4px` | = light |  |
+| `--sw-s-2` | `8px` | = light |  |
+| `--sw-s-3` | `12px` | = light |  |
+| `--sw-s-4` | `16px` | = light |  |
+| `--sw-s-5` | `20px` | = light |  |
+| `--sw-s-6` | `24px` | = light |  |
+| `--sw-s-8` | `32px` | = light |  |
+| `--sw-s-10` | `40px` | = light |  |
+| `--sw-page-pad` | `30px` | = light |  |
+| `--sw-rail-w` | `70px` | = light |  |
+| `--sw-rail-w-wide` | `70px` | = light |  |
+| `--sw-topbar-h` | `0px` | = light |  |
+| `--sw-bottomnav-h` | `50px` | = light |  |
+| `--sw-drawer-w` | `360px` | = light |  |
+| `--sw-touch` | `36px` | = light |  |
+| `--sw-content-max` | `none` | = light |  |
+
+### Radii, elevation and glass (`shape`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-r-sm` | `8px` | = light |  |
+| `--sw-r-md` | `12px` | = light |  |
+| `--sw-r-lg` | `14px` | = light |  |
+| `--sw-r-xl` | `14px` | = light | **NEW** |
+| `--sw-r-pill` | `999px` | = light |  |
+| `--sw-shadow-1` | `0 1px 2px rgba(16, 24, 40, 0.04)` | `0 1px 2px rgba(0, 0, 0, 0.35)` |  |
+| `--sw-shadow-2` | `0 6px 18px rgba(34, 49, 76, 0.06)` | `0 6px 18px rgba(0, 0, 0, 0.4)` |  |
+| `--sw-shadow-3` | `0 14px 36px rgba(34, 49, 76, 0.14)` | `0 14px 36px rgba(0, 0, 0, 0.55)` |  |
+| `--sw-shadow-thumb` | `0 1px 3px rgba(0, 0, 0, 0.18)` | `0 1px 3px rgba(0, 0, 0, 0.45)` | **NEW** |
+| `--sw-glass-blur` | `none` | = light | **NEW** |
+| `--sw-glass-blur-nav` | `none` | = light | **NEW** |
+| `--sw-glass-blur-sheet` | `none` | = light | **NEW** |
+| `--sw-glass-sheen` | `linear-gradient(transparent, transparent)` | = light | **NEW** |
+
+### Z-index scale (fixed by engineering) (`z`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-z-map` | `1` | = light |  |
+| `--sw-z-map-ui` | `5` | = light |  |
+| `--sw-z-drawer` | `20` | = light |  |
+| `--sw-z-topbar` | `30` | = light |  |
+| `--sw-z-modal` | `50` | = light |  |
+| `--sw-z-toast` | `60` | = light |  |
+
+### Motion (reduced motion zeroes the durations, see css.ts) (`motion`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-t-fast` | `120ms` | = light |  |
+| `--sw-t-med` | `200ms` | = light |  |
+| `--sw-ease` | `cubic-bezier(0.2, 0, 0, 1)` | = light |  |
+| `--sw-ease-thumb` | `cubic-bezier(0.2, 0, 0, 1)` | = light | **NEW** |
+| `--sw-ease-dialog` | `cubic-bezier(0.16, 1, 0.3, 1)` | = light | **NEW** |
+| `--sw-ease-out` | `cubic-bezier(0.4, 0, 1, 1)` | = light | **NEW** |
+| `--sw-t-sheet` | `200ms` | = light | **NEW** |
+| `--sw-t-state` | `200ms` | = light | **NEW** |
+| `--sw-hover-lift` | `0px` | = light | **NEW** |
+
+### Pills, sheets and the look dials (`bubble`)
+
+| Token | Light (classic) | Dark (classic) | Since 0.1.148 |
+|---|---|---|---|
+| `--sw-sheet-rgb` | `255, 255, 255` | `21, 28, 44` | **NEW** |
+| `--sw-sheet-alpha` | `1` | = light | **NEW** |
+| `--sw-layer` | `rgba(255, 255, 255, 0.55)` | `rgba(255, 255, 255, 0.08)` | **NEW** |
+| `--sw-layer-2` | `rgba(255, 255, 255, 0.8)` | `rgba(255, 255, 255, 0.14)` | **NEW** |
+| `--sw-nav-glass` | `#ffffff` | `#151c2c` | **NEW** |
+| `--sw-backdrop-blur` | `none` | = light | **NEW** |
+| `--sw-perf-blur` | `initial` | = light | **NEW** |
+| `--sw-perf-glass-bg` | `initial` | = light | **NEW** |
+| `--sw-lite-alpha` | `0.9` | = light | **NEW** |
+| `--sw-lit` | `#ffc857` | `#ffb547` | **NEW** |
+| `--sw-lit-cool` | `#ece4c9` | `#e3e0cf` | **NEW** |
+| `--sw-lit-soft` | `rgba(255, 200, 87, 0.32)` | `rgba(255, 181, 71, 0.34)` | **NEW** |
+| `--sw-on-lit` | `#2b1a05` | = light | **NEW** |
+| `--sw-fill-edge` | `transparent` | = light | **NEW** |
+| `--sw-hue-1` | `#7b84eb` | = light | **NEW** |
+| `--sw-hue-2` | `#e8456f` | `#ef3464` | **NEW** |
+| `--sw-hue-3` | `#2fa37c` | `#34a57f` | **NEW** |
+| `--sw-hue-4` | `#1f6f94` | `#2a7ea3` | **NEW** |
+| `--sw-hue-5` | `#c4508f` | `#c4479a` | **NEW** |
+| `--sw-hue-6` | `#e07a2f` | `#e8762c` | **NEW** |
+| `--sw-hue-7` | `#5a6fd8` | `#4f68d8` | **NEW** |
+| `--sw-hue-8` | `#7a9a2f` | `#7d9b2a` | **NEW** |
+| `--sw-ring-on-hue` | `#ffffff` | = light | **NEW** |
+| `--sw-wash-start` | `40%` | = light | **NEW** |
+| `--sw-wash-end` | `24%` | = light | **NEW** |
+| `--sw-wash-lit` | `70%` | = light | **NEW** |
+| `--sw-cool` | `#2f8fb8` | `#4aa8d8` | **NEW** |
+| `--sw-heat` | `#e0662f` | `#ff7a45` | **NEW** |
+| `--sw-pill-h` | `56px` | = light | **NEW** |
+| `--sw-icon-ring` | `40px` | = light | **NEW** |
+| `--sw-sub` | `36px` | = light | **NEW** |
+| `--sw-fs-name` | `13px` | = light | **NEW** |
+| `--sw-fs-state` | `12px` | = light | **NEW** |
+| `--sw-gap` | `8px` | = light | **NEW** |
+| `--sw-gap-grid` | `14px` | = light | **NEW** |
+| `--sw-grid-min` | `280px` | = light | **NEW** |
+| `--sw-s-1h` | `6px` | = light | **NEW** |
+| `--sw-s-3h` | `14px` | = light | **NEW** |
+| `--sw-s-4h` | `18px` | = light | **NEW** |
+| `--sw-r-media` | `12px` | = light | **NEW** |
+| `--sw-tree-w` | `286px` | = light | **NEW** |
+| `--sw-sheet-w` | `560px` | = light | **NEW** |
+| `--sw-sheet-w-wide` | `760px` | = light | **NEW** |
+| `--sw-look-scale` | `1` | = light | **NEW** |
+| `--sw-touch-desktop` | `44px` | = light | **NEW** |
+| `--sw-m-depth` | `0` | = light | **NEW** |
+| `--sw-m-tint` | `0` | = light | **NEW** |
+| `--sw-m-sheen` | `0` | = light | **NEW** |
+| `--sw-m-shade` | `0` | = light | **NEW** |
+| `--sw-m-rim` | `1` | = light | **NEW** |
+| `--sw-m-lift` | `0.45` | = light | **NEW** |
+| `--sw-m-wash` | `28%` | = light | **NEW** |
+| `--sw-m-wash-cap` | `50%` | = light | **NEW** |
+| `--sw-m-blur` | `16px` | = light | **NEW** |
+| `--sw-m-glow` | `0px` | = light | **NEW** |
+| `--sw-m-glowa` | `0` | = light | **NEW** |
+| `--sw-m-grain` | `none` | = light | **NEW** |
+| `--sw-m-border` | `transparent` | = light | **NEW** |
+
+
+Removed or renamed since 0.1.148: **none** (all 122 names of the old `tokens.css` are still in the table with the same light value).
+
+## 4. `--dv-*` glass knobs (device screens): current default palette, light / dark (unchanged since 0.1.148)
 
 87 named knobs plus 21 role knobs. The light block is the default; the dark block lists only what differs (the rest inherits light); the
 phone block changes sizes only. Four palettes exist (`default` blue, `sand`, `forest`, `graphite`), each light + dark, in
@@ -275,7 +436,7 @@ phone block changes sizes only. Four palettes exist (`default` blue, `sand`, `fo
 | danger | `255 59 48` / `#c0170f` | `255 69 58` / `#ff8a80` |
 | neutral | `120 120 128` / `#3a3a3c` | `142 142 147` / `#d1d1d6` |
 
-## 5. Other knob families
+## 5. Other knob families (unchanged since 0.1.148; the NEW media / automations knob families are in §9)
 
 | Family | Names | Where |
 |---|---|---|
@@ -284,7 +445,7 @@ phone block changes sizes only. Four palettes exist (`default` blue, `sand`, `fo
 | `--nav-*` (10) | `icon`, `label`, `item-h`, `item-w`, `avatar`, `bar-h`, `p-label`, `pill-w`, `pill-h` (+ `p-icon`) | computed by `nav-size.ts`; not designed as values, but the design's rail geometry must map onto them |
 | `--sw-tab-min-h`, `--sw-drawer-modal-w`, `--sw-icon-size` | component-local | `sw-tabs`, `sw-drawer`, `sw-icon` |
 
-## 6. What the design must deliver, token by token
+## 6. What the design must deliver, token by token (0.1.148 brief; for the Astra round see §10)
 
 1. **Colour, light + dark**, for every `--sw-*` colour (§3) and every `--dv-*` colour knob (§4), or - preferred - ONE semantic palette
    with a mapping table "new name → old names" so engineering can alias both families. Contrast: body text ≥ 4.5:1 on its surface,
@@ -407,3 +568,47 @@ the preset's name only.
 - A new tile with a state tone sets `--sw-m-tone` and `--sw-m-on: 1` for the toned states only; the word and the dot stay.
 - Lists take the tone in the side stripe, tables nothing; the chrome takes the rim and the lift only.
 - No bare `backdrop-filter` (§7); the material never adds one.
+
+## 9. The skins (**NEW** since 0.1.148)
+
+Counts measured on 2026-10-09 (`'--sw-…':` keys in the file; rule blocks with the gate's `ruleCount`, `/\{[^{}]*\}/`).
+
+| Skin | Names | Overrides / rules | What it changes | Dials that apply | Default |
+|---|---|---|---|---|---|
+| `classic` | Classic / קלאסי, "המראה הנוכחי של המערכת" | 0 / 0 | Nothing: the table as is (pixel-stable, `evidence-design-foundation.spec.ts`), with the dark column | none (no look dials, no palettes, no material) | **yes** (`DEFAULT_SKIN`, server default `ui.skin=classic`) |
+| `domus` | hi-tech Domus / הייטק Domus, "זכוכית על רקע צבעוני, פינות עגולות, כותרות גדולות" | 98 / 28 | Canvas with warm and cool blooms, translucent surfaces, accent `#2a63f0` / `#6ea2ff`, H1 44 px (−1 px tracking), radii 10/16/24/28, two-layer shadows, glass blur 24 / nav 20 / sheet 32 with a sheen, hover lift −2 px, green toggle; rules: floating glass rail, glass cards / KPI / tiles / tree, pill tree rows, soft buttons, opaque floating layers | material / depth / tint (§8) | no |
+| `tesla` | Tesla clean hi-tech / הייטק נקי (Tesla), "משטחים שטוחים, קווי 1px, פינות חדות, מבטא אחד" | 99 / 33 | Flat opaque surfaces (bg `#fff` / `#000`), one cold accent, larger type (xs 12 … 3xl 30, H1 48 / 500), radii 4/6/8, pill 6, no shadows, faster motion; rules: hairline rail, outlined controls, inverted segmented control, ruled tables with uppercase headings | none | no |
+| `bubble` | Bubble, "חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה" | 84 / **49** (budget 50) | Approved from `docs/design/mockups/bubble-taste`: tinted canvas with two blooms, borderless, fs-xs 12 / sm 13, H1 24, rail 92 px, `--sw-touch` 44, radii 12/18/28/42, flat cards, blurred nav / sheet / backdrop, slower springy motion (sheet 460 ms, state 900 ms); rules: rail, phone dock, tree, cards and controls at `--sw-touch-desktop`, translucent sheets with `@supports` / reduced-transparency fallbacks, tab pair, dropdown chip / pop, security sections pill track. Screens also restructure for it (`SkinController`): home, area, multimedia, and the chrome of ~48 list / settings screens via `styles/bubble-chrome.ts` | **every** look dial, palettes, performance tier, material | no |
+
+Selection: `ui.skin` (installation, `system.configure`, הגדרות › כללי › מראה המערכת, `screens/system-design.ts` / `system-look.ts`) or
+`?skin=` for one page view. Scheme: `ui.scheme` light / dark / auto plus the browser's own choice.
+
+Device screens: the `--dv-*` glass (§4) is still selected separately by `devices.style` smplwise (default) / glass, `devices.theme`
+default / sand / forest / graphite, `devices.scheme` light / dark / auto, `devices.density` (unchanged since 0.1.148). **CHANGED in effect:**
+the multimedia and automations areas are always glass (they read `--dv-*` and `devices.scheme` whatever `devices.style` says); in the
+bubble skin `mediaBubbleKnobs` undoes that bridge and they follow the skin's tokens and `data-theme`. Their local knob families
+(`--mm-*` ≈33 in `styles/media-glass.ts` `MEDIA_KNOBS`, `--mr-*` ≈40 in `components/media-remote-css.ts`, `--au-*` 4 in
+`styles/automations-glass.ts`) are **NEW** and are knobs, not contract tokens. Other screen-local prefixes (`--nt-`, `--sc-`, `--ab-`,
+`--gen-`, `--dvb-`, `--lay-`, `--pill-`, `--wall-`, `--sev-`, `--al-`) exist; whether they are stable is **UNKNOWN** - a skin must not
+target them.
+
+Not in the table yet (planned in the 0.1.148 package, still absent): `--sw-role-*`, `--sw-on-*`, `--sw-glow-*`.
+
+## 10. What a new skin must come back with (supersedes §6 for the Astra round)
+
+The format the Astra brief asks for (`astra/ASTRA_DESIGN_BRIEF_2026-10-08_HE.md` §5-§6), restated against the code:
+
+1. `skins/<id>.ts` in the shape of `tesla.ts` / `bubble.ts`: `id`, `name`, `nameHe`, `noteHe`, `tokens` (any subset of the 214 names of §3,
+   each with `light` AND `dark`), `rules` (≤ 50 blocks, shadow-root selectors `:host(sw-x) …`, only `var(--sw-*)` - no literal colour,
+   radius, shadow or size).
+2. `tokens.json` mirror `{ name: { light, dark } }` and a contrast report: every pair the gate checks (text, text-2, text-3, accent-text,
+   heading on `surface-solid`, `surface-2-solid` and `bg`; text-inverse on accent; every state `-text` on its `-soft`) ≥ 4.5:1 in both
+   schemes. Classic has six whitelisted light failures (text-3 on surface / surface-2 / bg; offline-, unknown-, success-text on their soft
+   fills); a new skin should have none.
+3. Translucent material: the `-solid` surfaces set, glass written through `--sw-perf-blur` / `--sw-perf-glass-bg` (§7), reduced
+   transparency and no-`backdrop-filter` fallbacks.
+4. If the skin wants the look dials or the material layer, say so: today they are emitted only for `bubble` (dials) and `bubble` + `domus`
+   (material); extending them to a new skin is an engineering change (one list in `look.ts` / `styles/material.ts`).
+5. Everything structural (new layout, new component) is a tier-B proposal, not a skin rule.
+6. Acceptance: `npx playwright test tests/unit-design-tokens.spec.ts --project=desktop`, plus `evidence-design-foundation.spec.ts` with the
+   skin added to its list; then layout sweeps and visual review on every screen of `SCREEN_INVENTORY.md`.
