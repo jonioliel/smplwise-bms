@@ -217,6 +217,25 @@ check("visual: warn mode lists the difference in the report and does not fail th
 g.VISUAL, g.VISUAL_INFO = "", {}
 check("visual: warn by default, block / off from GATE_VISUAL", (g.visual_from_env(None), g.visual_from_env("block"), g.visual_from_env("off")) == ("warn", "block", ""), "")
 
+# ---- nightly partial runs: a skipped category is not "0 of N"; GATE_COSTS_DIR feeds the chunk balance
+reset()
+g.COUNTS["preview"] = {"pass": 5, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
+g.SKIPPED_CATS = {"backend"}
+w = g.check_baselines({"tiers": {"L": {"preview": 5, "backend": 3934}}}, "L")
+check("partial run: a skipped backend is left out of the baseline check (with a warning)", g.compute_verdict([]) == "pass"
+      and "backend" not in g.BASELINE_ROWS and any("backend" in x for x in w), (g.BASELINE_ROWS, w))
+g.SKIPPED_CATS = set()
+reset()
+w = g.check_baselines({"tiers": {"L": {"backend": 3934}}}, "L")
+check("partial run: without the skip flag a missing backend is still RED", g.compute_verdict([]) == "fail", g.BASELINE_ROWS)
+other = TMP / "other_results"
+(other / "gate_x_abc.logs").mkdir(parents=True)
+(other / "gate_x_abc.logs" / "pw_preview_desktop.json").write_text(json.dumps({"suites": [{"specs": [{"file": "tests/far.spec.ts",
+    "tests": [{"results": [{"duration": 7000}]}]}]}]}))
+g._COSTS, g.COSTS_DIR, g.STATE["sha"] = None, str(other), "zzz"
+check("costs: GATE_COSTS_DIR's gate logs feed the balance", g.prior_costs().get("far.spec.ts") == 7.0, g._COSTS)
+g._COSTS, g.COSTS_DIR = None, ""
+
 print()
-print("SELFTEST " + ("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
+print("SELFTEST " +("PASSED" if not FAILS else f"FAILED: {len(FAILS)} case(s): " + "; ".join(FAILS)))
 sys.exit(0 if not FAILS else 1)
