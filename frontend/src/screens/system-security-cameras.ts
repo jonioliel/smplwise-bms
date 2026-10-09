@@ -211,11 +211,11 @@ export class SystemSecurityCameras extends LitElement {
     th button:focus-visible {
       outline: 2px solid var(--sw-accent);
       outline-offset: -2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     .arrow {
       inline-size: 8px;
-      font-size: 9px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-accent-text);
     }
     tbody tr.first td {
@@ -262,8 +262,8 @@ export class SystemSecurityCameras extends LitElement {
       border-radius: 50%;
     }
     .v.ok {
-      color: var(--sw-success, #15803d);
-      background: var(--sw-success-soft, #e7f6ec);
+      color: var(--sw-success);
+      background: var(--sw-success-soft);
     }
     .v.no {
       color: var(--sw-danger);

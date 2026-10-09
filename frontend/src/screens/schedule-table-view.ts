@@ -149,7 +149,7 @@ export class ScheduleTableView extends LitElement {
     }
     .chip.lock {
       background: var(--sw-warning-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
     }
     .acts {
       display: flex;

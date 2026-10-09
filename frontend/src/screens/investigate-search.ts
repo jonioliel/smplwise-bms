@@ -135,7 +135,7 @@ export class InvestigateSearch extends LitElement {
       gap: 10px;
       align-items: center;
       padding: 8px 10px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       border: 1px solid var(--sw-line);
       cursor: pointer;
@@ -162,7 +162,7 @@ export class InvestigateSearch extends LitElement {
     .by .ref {
       inline-size: 120px;
       block-size: 90px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       flex-shrink: 0;
       position: relative;
@@ -213,7 +213,7 @@ export class InvestigateSearch extends LitElement {
     .res .pic {
       position: relative;
       aspect-ratio: 4 / 3;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       box-shadow: var(--sw-shadow-1);
     }
@@ -225,10 +225,10 @@ export class InvestigateSearch extends LitElement {
       position: absolute;
       inset-inline-end: 6px;
       inset-block-start: 6px;
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
       background: rgba(17, 24, 39, 0.5);
       color: #fff;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .res .cap {

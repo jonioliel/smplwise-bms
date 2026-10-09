@@ -132,8 +132,8 @@ export const devicesLayoutCss = [
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-2);
-      backdrop-filter: var(--sw-glass-blur, none);
-      -webkit-backdrop-filter: var(--sw-glass-blur, none);
+      backdrop-filter: var(--sw-glass-blur);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
     }
     @media (max-width: 767px) {
       /* a phone: a compact bar (the variant and the actions), the page stays visible under it */
@@ -169,14 +169,14 @@ export const devicesLayoutCss = [
       display: inline-flex;
       padding: 3px;
       gap: 2px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
       border: 1px solid var(--sw-border);
     }
     .lay-seg button {
       border: 0;
       background: transparent;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 5px 10px;
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -250,8 +250,8 @@ export const devicesLayoutCss = [
       padding: 2px 9px;
       border-radius: 999px;
       background: var(--sw-text-3);
-      color: var(--sw-surface-solid, #fff);
-      font-size: 11px;
+      color: var(--sw-surface-solid);
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 18px;
       white-space: nowrap;
@@ -272,8 +272,8 @@ export const devicesLayoutCss = [
       inline-size: 16px;
       block-size: 16px;
       box-sizing: border-box;
-      border-radius: 4px;
-      background: var(--sw-surface-solid, #fff);
+      border-radius: var(--sw-r-2xs);
+      background: var(--sw-surface-solid);
       border: 2px solid var(--sw-accent);
       cursor: nwse-resize;
       touch-action: none;
@@ -287,7 +287,7 @@ export const devicesLayoutCss = [
         block-size: 26px;
         inset-block-end: -12px;
         inset-inline-end: -12px;
-        border-radius: 8px;
+        border-radius: var(--sw-r-sm);
       }
       .lay-hd {
         line-height: 24px;
@@ -314,8 +314,8 @@ export const devicesLayoutCss = [
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-3);
-      backdrop-filter: var(--sw-glass-blur, none);
-      -webkit-backdrop-filter: var(--sw-glass-blur, none);
+      backdrop-filter: var(--sw-glass-blur);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
       color: var(--sw-text);
       font-size: var(--sw-fs-sm);
     }
@@ -369,7 +369,7 @@ export const devicesLayoutCss = [
       min-block-size: 34px;
       padding: 6px 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -393,7 +393,7 @@ export const devicesLayoutCss = [
       cursor: pointer;
       padding: 0;
       font: inherit;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
     }
     .lay-swatch[aria-pressed='true'] {
       box-shadow: 0 0 0 2px var(--sw-surface), 0 0 0 4px var(--sw-accent);
@@ -410,7 +410,7 @@ export const devicesLayoutCss = [
     .lay-panel .btn {
       min-block-size: 36px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -440,7 +440,7 @@ export const devicesLayoutCss = [
       min-block-size: 32px;
       padding: 5px 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -454,7 +454,7 @@ export const devicesLayoutCss = [
       min-block-size: 30px;
       padding-inline: 4px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -492,7 +492,7 @@ export const devicesLayoutCss = [
       margin-inline-start: 6px;
       padding: 2px 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-accent);
       font: inherit;
@@ -538,7 +538,7 @@ export const devicesLayoutCss = [
       flex: none;
       inline-size: 38px;
       block-size: 38px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
     }
@@ -674,8 +674,8 @@ export const devicesLayoutCss = [
       padding: 0 7px;
       border-radius: 999px;
       background: var(--sw-text-3);
-      color: var(--sw-surface-solid, #fff);
-      font-size: 10.5px;
+      color: var(--sw-surface-solid);
+      font-size: var(--sw-fs-2xs);
       font-weight: 700;
       line-height: 16px;
       white-space: nowrap;
@@ -698,10 +698,10 @@ export const devicesLayoutCss = [
       padding: 2px 9px;
       border: 1px solid var(--sw-accent);
       border-radius: 999px;
-      background: var(--sw-surface-solid, #fff);
+      background: var(--sw-surface-solid);
       color: var(--sw-accent-text, var(--sw-accent));
       font: inherit;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
       line-height: 18px;
       white-space: nowrap;
@@ -751,7 +751,7 @@ export const devicesLayoutCss = [
     }
     .lay-crumb button {
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;

@@ -239,7 +239,7 @@ export class DevicesTilesPanel extends LitElement {
       .seg {
         display: flex;
         border: 1px solid var(--sw-border-strong);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         overflow: hidden;
       }
       .seg button {
@@ -275,7 +275,7 @@ export class DevicesTilesPanel extends LitElement {
         gap: 6px;
         padding-inline: 10px;
         border: 1px solid var(--sw-border);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
         color: var(--sw-text-3);
       }
@@ -341,8 +341,8 @@ export class DevicesTilesPanel extends LitElement {
         box-sizing: border-box;
         border-radius: 999px;
         background: var(--sw-warning);
-        color: #1c1c1e;
-        font-size: 11px;
+        color: var(--sw-text);
+        font-size: var(--sw-fs-xs);
         font-weight: var(--sw-fw-bold);
         line-height: 18px;
         text-align: center;

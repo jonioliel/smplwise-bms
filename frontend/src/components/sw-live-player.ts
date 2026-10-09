@@ -154,7 +154,7 @@ export class SwLivePlayer extends LitElement {
       position: relative;
       inline-size: 100%;
       block-size: 100%;
-      background: #0f1729;
+      background: var(--sw-video-bg);
       overflow: hidden;
     }
     video,
@@ -164,7 +164,7 @@ export class SwLivePlayer extends LitElement {
       inline-size: 100%;
       block-size: 100%;
       object-fit: contain;
-      background: #0f1729;
+      background: var(--sw-video-bg);
     }
     img.poster {
       object-fit: cover;
@@ -191,10 +191,10 @@ export class SwLivePlayer extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       font-weight: 600;
-      color: #fff;
-      background: rgba(17, 24, 39, 0.6);
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim);
       border-radius: 999px;
       padding: 2px 8px;
       backdrop-filter: var(--sw-perf-blur, blur(6px));
@@ -203,21 +203,21 @@ export class SwLivePlayer extends LitElement {
       inline-size: 6px;
       block-size: 6px;
       border-radius: 50%;
-      background: #f59e0b;
+      background: var(--sw-warning);
     }
     .status.playing i {
-      background: #22c55e;
+      background: var(--sw-success);
     }
     .status.error i {
-      background: #ef4444;
+      background: var(--sw-danger);
     }
     .center {
       position: absolute;
       inset: 0;
       display: grid;
       place-items: center;
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 11.5px;
+      color: var(--sw-on-video-2);
+      font-size: var(--sw-fs-xs);
       text-align: center;
       padding: 12px;
       background: rgba(15, 23, 41, 0.35);
@@ -228,7 +228,7 @@ export class SwLivePlayer extends LitElement {
       gap: 6px;
     }
     .center .hint {
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       opacity: 0.75;
     }
     .spin {
@@ -257,8 +257,8 @@ export class SwLivePlayer extends LitElement {
       block-size: 26px;
       border-radius: 50%;
       border: 0;
-      background: rgba(17, 24, 39, 0.6);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       display: grid;
       place-items: center;
       cursor: pointer;
@@ -273,10 +273,10 @@ export class SwLivePlayer extends LitElement {
       inset-inline-end: 8px;
       inset-block-start: 8px;
       direction: ltr;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       font-weight: 600;
-      color: #fff;
-      background: rgba(17, 24, 39, 0.6);
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim);
       border-radius: 999px;
       padding: 2px 8px;
       backdrop-filter: var(--sw-perf-blur, blur(6px));
@@ -285,7 +285,7 @@ export class SwLivePlayer extends LitElement {
       background: rgba(180, 83, 9, 0.85);
     }
     .vbadge.trying {
-      background: rgba(17, 24, 39, 0.45);
+      background: var(--sw-video-scrim);
       font-weight: 500;
       opacity: 0.85;
     }
@@ -302,10 +302,10 @@ export class SwLivePlayer extends LitElement {
       padding: 10px 18px;
       border: 0;
       border-radius: 999px;
-      background: rgba(17, 24, 39, 0.8);
-      color: #fff;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
       font: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       cursor: pointer;
     }
@@ -313,11 +313,11 @@ export class SwLivePlayer extends LitElement {
       position: absolute;
       inset-inline: 8px;
       inset-block-start: 34px;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       line-height: 1.4;
-      color: #fff;
-      background: rgba(17, 24, 39, 0.72);
-      border-radius: 8px;
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim-strong);
+      border-radius: var(--sw-r-sm);
       padding: 4px 8px;
       text-align: start;
     }

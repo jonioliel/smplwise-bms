@@ -38,7 +38,7 @@ export class SwButton extends LitElement {
       gap: 6px;
       min-block-size: 30px;
       padding-inline: 12px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
       font: inherit;
       font-size: var(--sw-fs-sm);
@@ -58,7 +58,7 @@ export class SwButton extends LitElement {
       min-block-size: 26px;
       padding-inline: 9px;
       font-size: var(--sw-fs-xs);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       gap: 5px;
     }
     :host([size='lg']) button {

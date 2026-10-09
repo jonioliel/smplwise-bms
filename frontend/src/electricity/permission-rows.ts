@@ -50,9 +50,9 @@ export class ElecPermissionRows extends LitElement {
         place-items: center;
         inline-size: 22px;
         block-size: 22px;
-        border-radius: 6px;
+        border-radius: var(--sw-r-xs);
         border: 2px solid var(--sw-border-strong);
-        color: var(--sw-text-inverse, #fff);
+        color: var(--sw-text-inverse);
       }
       .tick.on {
         background: var(--sw-accent);

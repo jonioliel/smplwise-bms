@@ -171,7 +171,7 @@ export class SystemAccess extends LitElement {
       align-items: center;
       gap: 6px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);
       background: var(--sw-surface);
@@ -208,7 +208,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .chk.sens {
-      color: var(--sw-warning, #b45309);
+      color: var(--sw-warning);
     }
     .chips {
       display: flex;
@@ -218,7 +218,7 @@ export class SystemAccess extends LitElement {
     .impact {
       margin-block-start: 8px;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
       font-size: var(--sw-fs-sm);
     }
@@ -259,12 +259,12 @@ export class SystemAccess extends LitElement {
       place-items: center;
       inline-size: 28px;
       block-size: 28px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
     }
     .role .a {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
     .role .d {
@@ -297,8 +297,8 @@ export class SystemAccess extends LitElement {
       gap: 6px;
       margin-block-start: 6px;
       padding: 8px;
-      border-radius: var(--sw-r-sm, 6px);
-      background: var(--sw-danger-soft, #fef2f2);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-danger-soft);
       font-size: var(--sw-fs-xs);
     }
     .eff {
@@ -357,7 +357,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .err {
       color: var(--sw-danger);

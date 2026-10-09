@@ -230,7 +230,7 @@ export class SwApp extends LitElement {
       gap: 9px;
       min-block-size: 32px;
       padding: 0 10px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       text-decoration: none;
       font-weight: var(--sw-fw-medium);
@@ -263,7 +263,7 @@ export class SwApp extends LitElement {
       block-size: 30px;
       padding: 0 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
       color: var(--sw-text-3);
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
@@ -367,7 +367,7 @@ export class SwApp extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 3px;
-        font-size: 10px;
+        font-size: var(--sw-fs-2xs);
         color: var(--sw-text-3);
         text-decoration: none;
         min-block-size: var(--sw-bottomnav-h);
@@ -411,11 +411,11 @@ export class SwApp extends LitElement {
       place-items: center;
       inline-size: 36px;
       block-size: 36px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
       font-weight: 800;
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
       text-decoration: none;
       margin-block-end: 8px;
       box-shadow: 0 5px 12px rgba(39, 103, 237, 0.25);
@@ -429,7 +429,7 @@ export class SwApp extends LitElement {
       min-block-size: var(--nav-item-h, 52px);
       padding: 6px 4px;
       line-height: 1.3;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       font-size: var(--nav-label, 10.5px);
       white-space: nowrap;
       position: relative;
@@ -457,7 +457,7 @@ export class SwApp extends LitElement {
       flex-direction: column;
       align-items: center;
       gap: 4px;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
       padding: 8px 0 4px;
       text-align: center;
@@ -472,7 +472,7 @@ export class SwApp extends LitElement {
       overflow: auto;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       padding: 6px;
       z-index: var(--sw-z-drawer);
@@ -482,7 +482,7 @@ export class SwApp extends LitElement {
       align-items: center;
       gap: 10px;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       cursor: pointer;
       color: var(--sw-text);
     }
@@ -520,7 +520,7 @@ export class SwApp extends LitElement {
     }
     .search.a {
       block-size: 44px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       padding: 0 14px;
       border: 0;
       background: transparent;
@@ -530,7 +530,7 @@ export class SwApp extends LitElement {
       background: transparent;
     }
     .search.a input {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
 
     /* ---- UI round 1: no top bar. Search and the system status float in the content's corner (RTL: the top left) ---- */
@@ -632,7 +632,7 @@ export class SwApp extends LitElement {
       inline-size: min(440px, calc(100vw - 24px));
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       overflow: hidden;
     }
@@ -664,10 +664,10 @@ export class SwApp extends LitElement {
       transform: translateX(50%);
       z-index: var(--sw-z-topbar);
       padding: 10px 18px;
-      border-radius: 10px;
-      background: var(--sw-text, #0f172a);
-      color: var(--sw-surface, #fff);
-      font-size: var(--sw-fs-sm, 14px);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-text);
+      color: var(--sw-surface);
+      font-size: var(--sw-fs-sm);
       box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
       max-inline-size: calc(100vw - 32px);
     }
@@ -682,9 +682,9 @@ export class SwApp extends LitElement {
       align-items: center;
       gap: 10px;
       padding: 8px 20px;
-      background: #fef2f2;
-      color: #991b1b;
-      border-block-end: 1px solid #fecaca;
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
+      border-block-end: 1px solid var(--sw-danger-soft);
       font-size: var(--sw-fs-sm);
     }
     /* no top bar (design A): the alert sits over the content column only, not over the rail's brand mark */
@@ -700,7 +700,7 @@ export class SwApp extends LitElement {
       gap: 10px;
       margin: 12px 24px 0;
       padding: 8px 12px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       font-size: var(--sw-fs-sm);
@@ -718,7 +718,7 @@ export class SwApp extends LitElement {
       place-items: center;
       inline-size: 24px;
       block-size: 24px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .setuphint .x:focus-visible {
       outline: 2px solid var(--sw-accent);
@@ -754,7 +754,7 @@ export class SwApp extends LitElement {
       grid-template-columns: none;
     }
     :host([data-design='a']) nav.bottom a {
-      font-size: 9px;
+      font-size: var(--sw-fs-2xs);
       padding-inline: 2px;
     }
     /* CR-010 / UI round 1: the security area's sections as a segmented control at the head of the page (the row above the
@@ -765,7 +765,7 @@ export class SwApp extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     nav.sections a {
       display: inline-flex;
@@ -774,10 +774,10 @@ export class SwApp extends LitElement {
       min-block-size: 34px;
       box-sizing: border-box;
       padding: 0 14px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       text-decoration: none;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
       white-space: nowrap;
     }
@@ -800,7 +800,7 @@ export class SwApp extends LitElement {
       }
       nav.sections a {
         padding: 0 11px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
       }
     }
     @media (max-width: 1023px) {
@@ -940,7 +940,7 @@ export class SwApp extends LitElement {
     button.me:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 2px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     button.me .dot {
       position: absolute;
@@ -963,7 +963,7 @@ export class SwApp extends LitElement {
       min-inline-size: var(--nav-item-w, 56px);
       min-block-size: var(--nav-item-h, 52px);
       padding: 5px 4px 3px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       gap: 2px;
       line-height: 1.3;
       font-size: var(--nav-label, 10.5px);
@@ -992,7 +992,7 @@ export class SwApp extends LitElement {
       border-radius: var(--sw-r-pill);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       text-decoration: none;
       white-space: nowrap;
@@ -1025,7 +1025,7 @@ export class SwApp extends LitElement {
         block-size: 32px;
         box-sizing: border-box;
         border: 1px solid var(--sw-danger);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         color: var(--sw-danger);
         background: var(--sw-surface);
       }
@@ -1251,7 +1251,7 @@ export class SwApp extends LitElement {
         block-size: 32px;
         box-sizing: border-box;
         border: 1px solid var(--sw-danger);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         color: var(--sw-danger);
         background: var(--sw-surface);
       }
@@ -1283,7 +1283,7 @@ export class SwApp extends LitElement {
         position: absolute;
         inset-block: 5px;
         inset-inline: 12px 84px;
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         background: var(--sw-surface-3);
       }
       :host([data-design='a']) nav.secrow a {
@@ -1295,13 +1295,13 @@ export class SwApp extends LitElement {
         background: none;
         box-shadow: none;
         border-radius: 0;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
       }
       :host([data-design='a']) nav.secrow a .pill {
         justify-content: center;
         inline-size: 100%;
         block-size: 28px;
-        border-radius: 8px;
+        border-radius: var(--sw-r-sm);
         transition: background var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
       }
       :host([data-design='a']) nav.secrow a.on {

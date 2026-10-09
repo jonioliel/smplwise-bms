@@ -31,7 +31,7 @@ export class SwCasePicker extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
       font-size: var(--sw-fs-sm);
     }
     .note {
@@ -44,7 +44,7 @@ export class SwCasePicker extends LitElement {
       font: inherit;
       padding: 7px 9px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }

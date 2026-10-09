@@ -72,17 +72,17 @@ export const editorShared = [
       border-radius: 999px;
       background: var(--dv-neutral-soft, var(--sw-surface-3));
       color: var(--dv-text-2);
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       font-weight: 600;
       white-space: nowrap;
       flex: none;
     }
     .tag .ic {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .tag.warn {
       background: var(--dv-warning-soft);
-      color: var(--ab-amber-text, #8a4b00);
+      color: var(--ab-amber-text, var(--sw-warning-text));
     }
     .tag.bad {
       background: var(--dv-danger-soft);
@@ -102,16 +102,16 @@ export const editorShared = [
     }
     .tag.sens {
       background: var(--ab-sens-bg, var(--dv-warning-soft));
-      color: var(--ab-sens-fg, #8a4b00);
+      color: var(--ab-sens-fg, var(--sw-warning-text));
     }
     code {
       font-family: var(--sw-font-mono, ui-monospace, monospace);
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       direction: ltr;
       unicode-bidi: isolate;
       background: var(--dv-surface-3);
       padding: 1px 6px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--dv-text-2);
     }
     /* ---- buttons (pills, 44 px on a phone) ---- */
@@ -126,7 +126,7 @@ export const editorShared = [
       border: 1px solid var(--dv-border-strong);
       background: var(--dv-surface-2, var(--sw-surface));
       color: var(--dv-text);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       white-space: nowrap;
       box-shadow: var(--dv-shadow-1);
@@ -156,14 +156,14 @@ export const editorShared = [
     .btn.sm {
       min-block-size: 34px;
       padding-inline: 12px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
     }
     .btn:disabled {
       opacity: 0.45;
       cursor: not-allowed;
     }
     .btn .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     /* ---- form controls ---- */
     .frow {
@@ -191,7 +191,7 @@ export const editorShared = [
     }
     .fld > label,
     .lbl {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       font-weight: 600;
     }
@@ -202,11 +202,11 @@ export const editorShared = [
       gap: 8px;
       block-size: 40px;
       padding: 0 12px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       border: 1px solid var(--dv-border);
       background: var(--dv-surface-solid, var(--dv-surface));
       color: var(--dv-text);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       min-inline-size: 0;
       font-family: inherit;
     }
@@ -231,7 +231,7 @@ export const editorShared = [
       direction: ltr;
     }
     .inp .u {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
     }
     .inp.area {
@@ -258,7 +258,7 @@ export const editorShared = [
     }
     .selx.sm {
       block-size: 34px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
     }
     .rolechips {
       display: flex;
@@ -272,7 +272,7 @@ export const editorShared = [
       border-radius: 999px;
       border: 1px solid var(--dv-border-strong);
       background: transparent;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-text-2);
     }
@@ -297,7 +297,7 @@ export const editorShared = [
       border-radius: 999px;
       padding: 4px 14px;
       min-block-size: 30px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-text-2);
       display: inline-flex;

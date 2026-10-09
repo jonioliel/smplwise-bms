@@ -33,7 +33,7 @@ export class SwVSlider extends LitElement {
     :host {
       --fill: 0;
       --fill-c: var(--sw-lit);
-      --vs-w: max(var(--sw-touch-desktop, 44px), calc(72px * var(--sw-look-scale, 1)));
+      --vs-w: max(var(--sw-touch-desktop), calc(72px * var(--sw-look-scale)));
       display: inline-flex;
       flex-direction: column;
       align-items: center;
@@ -44,14 +44,14 @@ export class SwVSlider extends LitElement {
       overflow: hidden;
       box-sizing: border-box;
       inline-size: var(--vs-w);
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      block-size: calc(var(--sw-vslider-h, 160px) * var(--sw-look-scale, 1));
+      min-inline-size: var(--sw-touch-desktop);
+      block-size: calc(var(--sw-vslider-h, 160px) * var(--sw-look-scale));
       padding: 8px 4px;
       border-radius: var(--sw-r-lg);
       background: var(--pill-base, var(--sw-surface));
       color: var(--sw-text);
       font-family: var(--sw-font);
-      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale));
       user-select: none;
       -webkit-user-select: none;
       cursor: ns-resize;
@@ -88,8 +88,8 @@ export class SwVSlider extends LitElement {
     }
     .ring {
       flex: none;
-      inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
-      block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+      inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
+      block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
       max-inline-size: calc(100% - 4px);
       border-radius: 50%;
       display: grid;
@@ -113,7 +113,7 @@ export class SwVSlider extends LitElement {
     .v {
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
-      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
       direction: ltr;
       unicode-bidi: isolate;
     }

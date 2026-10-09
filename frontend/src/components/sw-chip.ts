@@ -23,7 +23,7 @@ export class SwChip extends LitElement {
       gap: 6px;
       min-block-size: 28px;
       padding-inline: 11px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text);

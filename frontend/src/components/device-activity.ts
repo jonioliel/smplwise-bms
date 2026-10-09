@@ -563,7 +563,7 @@ export class DeviceActivity extends LitElement {
     :host { display: contents; }
 
     /* CARD1: the equipment card between the head and the tabs */
-    .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h, 14px); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
+    .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
     .card.on { background: var(--sw-accent-soft); border-color: transparent; }
     .card .st { display: flex; align-items: baseline; gap: var(--sw-s-2); flex-wrap: wrap; min-inline-size: 0; }
     .card .big { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
@@ -587,7 +587,7 @@ export class DeviceActivity extends LitElement {
     /* the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
     .hbtn {
       position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; padding-inline: 16px;
-      border-radius: 8px; border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
+      border-radius: var(--sw-r-sm); border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
       cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
     }
     .hbtn .lb { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; }
@@ -605,7 +605,7 @@ export class DeviceActivity extends LitElement {
       display: grid; gap: 2px;
     }
     .menu button {
-      display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: var(--sw-touch-desktop, 44px); padding: 0 var(--sw-s-3);
+      display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: var(--sw-touch-desktop); padding: 0 var(--sw-s-3);
       background: transparent; border: 0; border-radius: var(--sw-r-sm); color: inherit; font: inherit; font-size: var(--sw-fs-md); cursor: pointer; text-align: start;
     }
     .menu button:hover, .menu button:focus-visible { background: var(--sw-accent-soft); color: var(--sw-accent-text); outline: none; }
@@ -648,7 +648,7 @@ export class DeviceActivity extends LitElement {
     .skels { display: grid; gap: var(--sw-s-3); padding: var(--sw-s-2) 0; }
     .sk { display: grid; grid-template-columns: auto 1fr 30px; gap: var(--sw-s-3); align-items: center; }
     .sk > span { display: grid; gap: 6px; }
-    .skel { display: block; block-size: 12px; border-radius: 6px; background: var(--sw-surface-3); animation: pulse 1.2s ease-in-out infinite; }
+    .skel { display: block; block-size: 12px; border-radius: var(--sw-r-xs); background: var(--sw-surface-3); animation: pulse 1.2s ease-in-out infinite; }
     .skel.c { inline-size: 28px; block-size: 28px; border-radius: 50%; } .skel.a { inline-size: 60%; } .skel.b { inline-size: 35%; block-size: 10px; } .skel.d { block-size: 10px; }
     @keyframes pulse { 50% { opacity: .5; } }
     @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }

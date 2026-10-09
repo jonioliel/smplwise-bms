@@ -167,8 +167,8 @@ export class SwCspReports extends LitElement {
     }
     .warn {
       padding: 8px;
-      border-radius: 6px;
-      background: var(--sw-warning-soft, #fff7e6);
+      border-radius: var(--sw-r-xs);
+      background: var(--sw-warning-soft);
       font-size: var(--sw-fs-xs);
     }
     .muted {
@@ -176,7 +176,7 @@ export class SwCspReports extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
     .err {

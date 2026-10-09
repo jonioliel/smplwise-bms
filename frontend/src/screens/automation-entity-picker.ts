@@ -38,7 +38,7 @@ export class AutomationEntityPicker extends LitElement {
         -webkit-backdrop-filter: blur(40px) saturate(1.8);
         backdrop-filter: blur(40px) saturate(1.8);
         border: 1px solid var(--dv-border);
-        border-radius: 22px;
+        border-radius: var(--sw-r-2xl);
         box-shadow: var(--dv-shadow-3);
         overflow: hidden;
       }
@@ -63,14 +63,14 @@ export class AutomationEntityPicker extends LitElement {
         background: var(--dv-surface-solid);
         color: var(--dv-text);
         font: inherit;
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
       }
       .search .ic {
         position: absolute;
         inset-inline-start: 13px;
         inset-block-start: 13px;
         color: var(--dv-text-3);
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .pb {
         flex: 1;
@@ -84,7 +84,7 @@ export class AutomationEntityPicker extends LitElement {
       }
       h5 {
         margin: 6px 6px 2px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 700;
         color: var(--dv-text-2);
         display: flex;
@@ -93,7 +93,7 @@ export class AutomationEntityPicker extends LitElement {
       }
       h5.floor {
         color: var(--dv-text);
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
       }
       .prow {
         display: flex;
@@ -101,13 +101,13 @@ export class AutomationEntityPicker extends LitElement {
         gap: 10px;
         padding: 0 10px;
         min-block-size: 46px;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         inline-size: 100%;
         border: 0;
         background: transparent;
         text-align: start;
         color: var(--dv-text);
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
       }
       .prow:hover {
         background: var(--dv-surface-3);
@@ -119,7 +119,7 @@ export class AutomationEntityPicker extends LitElement {
         block-size: 30px;
         border-radius: 50%;
         background: var(--dv-icon-ring-bg);
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
         flex: none;
       }
       .nm {
@@ -128,19 +128,19 @@ export class AutomationEntityPicker extends LitElement {
       }
       .nm small {
         display: block;
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
         color: var(--dv-text-2);
       }
       .ck {
         inline-size: 22px;
         block-size: 22px;
-        border-radius: 7px;
+        border-radius: var(--sw-r-xs);
         border: 1.5px solid var(--dv-border-strong);
         display: grid;
         place-items: center;
         color: #fff;
         flex: none;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
       }
       .prow[aria-checked='true'] .ck {
         background: var(--dv-accent);
@@ -156,7 +156,7 @@ export class AutomationEntityPicker extends LitElement {
       }
       .pf .cnt {
         flex: 1;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         color: var(--dv-text-2);
       }
       .pf .cnt em {

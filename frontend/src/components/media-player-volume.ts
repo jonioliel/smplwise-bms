@@ -102,7 +102,7 @@ export class MediaPlayerVolume extends LitElement {
         min-inline-size: 44px;
         text-align: center;
         font-weight: 700;
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
       }
       .spacer {
         flex: 1;
@@ -116,13 +116,13 @@ export class MediaPlayerVolume extends LitElement {
       }
       .psh h4 {
         margin: 0;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         font-weight: 700;
         color: var(--mr-text-2);
         letter-spacing: 0.01em;
       }
       .psh small {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         color: var(--mr-text-3);
         font-variant-numeric: tabular-nums;
       }
@@ -132,19 +132,19 @@ export class MediaPlayerVolume extends LitElement {
         margin-inline-start: auto;
         min-block-size: 28px;
         padding-inline: 6px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--mr-accent-text);
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        border-radius: 8px;
+        border-radius: var(--sw-r-sm);
       }
       .psh .lnk + .lnk {
         margin-inline-start: 0;
       }
       .psh .lnk .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         transition: transform var(--mr-motion) var(--mr-ease);
       }
       .psh .lnk[aria-expanded='true'] .ic {

@@ -250,12 +250,12 @@ export class ScheduleEditor extends LitElement {
     }
     .banner.warn {
       background: var(--sw-warning-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
       border-color: #fde3b0;
     }
     .banner.err {
       background: var(--sw-danger-soft);
-      color: #991b1b;
+      color: var(--sw-danger-text);
       border-color: #f6c7c7;
     }
     .banner.info {
@@ -264,7 +264,7 @@ export class ScheduleEditor extends LitElement {
     }
     .banner.ok {
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .banner ul {
       margin: 0;
@@ -315,7 +315,7 @@ export class ScheduleEditor extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       padding: 5px 12px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
       min-block-size: 30px;
@@ -429,7 +429,7 @@ export class ScheduleEditor extends LitElement {
     }
     .chip.sens {
       background: rgba(139, 92, 246, 0.14);
-      color: #6d28d9;
+      color: var(--sw-purple);
     }
     .chip.warn {
       background: var(--sw-danger-soft);
@@ -464,13 +464,13 @@ export class ScheduleEditor extends LitElement {
       font-size: var(--sw-fs-md);
     }
     .dayrow button small {
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
     }
     .dayrow button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .dayrow button[aria-pressed='true'] small {
       color: rgba(255, 255, 255, 0.85);
@@ -511,11 +511,11 @@ export class ScheduleEditor extends LitElement {
     }
     .status.ok {
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .status.bad {
       background: var(--sw-danger-soft);
-      color: #991b1b;
+      color: var(--sw-danger-text);
     }
     .status ul {
       margin: 0;
@@ -598,7 +598,7 @@ export class ScheduleEditor extends LitElement {
     .days button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .days button:disabled {
       opacity: 0.5;
@@ -653,7 +653,7 @@ export class ScheduleEditor extends LitElement {
     .repeat button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .dates {
       display: grid;
@@ -732,7 +732,7 @@ export class ScheduleEditor extends LitElement {
       }
       .tabs button[aria-selected='true'] {
         background: var(--sw-accent);
-        color: #fff;
+        color: var(--sw-text-inverse);
       }
       .layout[data-tab='board'] .side,
       .layout[data-tab='settings'] .boardcol {

@@ -209,7 +209,7 @@ export class SwDropdown extends LitElement {
       flex-direction: column;
       overflow: hidden;
       border: 1px solid var(--sw-dd-border-soft, var(--sw-border));
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       color: var(--sw-dd-text, var(--sw-text));
       background: var(--sw-dd-pop-bg, var(--mm-sheet-surface, color-mix(in srgb, var(--sw-surface) 86%, transparent)));
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(40px) saturate(1.8));
@@ -254,7 +254,7 @@ export class SwDropdown extends LitElement {
     }
     /* 2.0.1: the search field of a multiple list is a target like its options (44 px on touch layouts, the desktop dial above); the input fills its label */
     :host([multiple]) .search {
-      min-block-size: max(38px, var(--sw-touch-desktop, 44px));
+      min-block-size: max(38px, var(--sw-touch-desktop));
     }
     @media (max-width: 1100px), (pointer: coarse) {
       :host([multiple]) .search {
@@ -305,12 +305,12 @@ export class SwDropdown extends LitElement {
     }
     .pop.sheet::backdrop,
     .pop.centred::backdrop {
-      background: var(--sw-overlay, rgba(0, 0, 0, 0.4));
+      background: var(--sw-overlay);
     }
     /* the bottom sheet slides up (the mockups' opening; backwards fill so a swipe's own inline transform takes over after it) and the scrim fades in;
        prefers-reduced-motion: none of it */
     :host .pop.sheet {
-      animation: dd-sheet-in var(--sw-t-sheet, 280ms) var(--sw-ease-thumb, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards;
+      animation: dd-sheet-in var(--sw-t-sheet) var(--sw-ease-thumb, cubic-bezier(0.2, 0.8, 0.2, 1)) backwards;
     }
     .pop.sheet::backdrop {
       animation: dd-scrim-in 200ms ease-out backwards;
@@ -402,7 +402,7 @@ export class SwDropdown extends LitElement {
       gap: 8px;
       min-block-size: 44px;
       padding-inline: 12px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       cursor: pointer;
       user-select: none;
@@ -437,7 +437,7 @@ export class SwDropdown extends LitElement {
       block-size: 16px;
       box-sizing: border-box;
       border: 1.5px solid var(--sw-dd-border, var(--sw-border-strong));
-      border-radius: var(--sw-r-xs, 4px);
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
     }
@@ -451,7 +451,7 @@ export class SwDropdown extends LitElement {
     :host([multiple][dd-style='text']) .opt[aria-selected='true']::before {
       inline-size: 16px;
       block-size: 16px;
-      border-radius: var(--sw-r-xs, 4px);
+      border-radius: var(--sw-r-xs);
       margin-inline-end: 0;
       background: var(--sw-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
     }
@@ -481,10 +481,10 @@ export class SwDropdown extends LitElement {
       white-space: nowrap;
     }
     :host([multiple]) .chip {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
     }
     :host([tall]) .chip {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
     }
     :host([multiple]) .chip::after,
     :host([tall]) .chip::after {
@@ -526,7 +526,7 @@ export class SwDropdown extends LitElement {
       min-block-size: var(--_opt, 44px);
       padding-inline: 12px;
       border: 0;
-      border-radius: var(--sw-r-sm, 8px);
+      border-radius: var(--sw-r-sm);
       background: transparent;
       color: var(--sw-dd-accent, var(--sw-accent-text, var(--sw-accent)));
       font: inherit;
@@ -548,7 +548,7 @@ export class SwDropdown extends LitElement {
     }
     .act.done {
       background: var(--sw-accent);
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
     }
     .act.done:hover {
       background: var(--sw-accent);
@@ -572,8 +572,8 @@ export class SwDropdown extends LitElement {
 
     /* ---- 0.1.157 styles: tokens only (skins, palettes, light / dark, radius / touch / performance dials). auto has none of this. ---- */
     :host(:where(:not([dd-style='auto']))) {
-      --_h: max(28px, calc(var(--sw-touch-desktop, 44px) - 12px));
-      --_opt: var(--sw-touch-desktop, 44px);
+      --_h: max(28px, calc(var(--sw-touch-desktop) - 12px));
+      --_opt: var(--sw-touch-desktop);
     }
     :host(:where(:not([dd-style='auto']))) .chip {
       min-block-size: var(--_h);
@@ -591,8 +591,8 @@ export class SwDropdown extends LitElement {
       border-radius: var(--sw-r-lg);
       background: var(--sw-dd-pop-bg, var(--sw-perf-glass-bg, var(--sw-surface-solid)));
       box-shadow: 0 0 0 1px var(--sw-border), var(--sw-shadow-3);
-      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
-      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet, none));
+      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet));
+      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur-sheet));
     }
     :host(:where(:not([dd-style='auto']))) .opt {
       min-block-size: var(--_opt);
@@ -680,7 +680,7 @@ export class SwDropdown extends LitElement {
       background: transparent;
       box-shadow: none;
       font-size: var(--sw-fs-xl);
-      font-weight: var(--sw-fw-bold, 700);
+      font-weight: var(--sw-fw-bold);
       color: var(--sw-heading, var(--sw-text));
     }
     :host([dd-style='text']) .chip .n {
@@ -715,7 +715,7 @@ export class SwDropdown extends LitElement {
     }
     :host([dd-style='text']) .opt[aria-selected='true'] {
       color: var(--sw-heading, var(--sw-text));
-      font-weight: var(--sw-fw-bold, 700);
+      font-weight: var(--sw-fw-bold);
     }
     :host([dd-style='text']) .opt[aria-selected='true']::before {
       content: '';
@@ -789,11 +789,11 @@ export class SwDropdown extends LitElement {
     }
     :host([dd-style='tonal']) .chip[aria-expanded='true'] {
       background: var(--sw-accent);
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
     }
     :host([dd-style='tonal']) .chip[aria-expanded='true'] .chev,
     :host([dd-style='tonal']) .chip[aria-expanded='true'] .n {
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
     }
     :host([dd-style='tonal']) .opt {
       border-radius: var(--sw-r-md);
@@ -821,7 +821,7 @@ export class SwDropdown extends LitElement {
       inset-block: -2px;
     }
     :host([dd-size='sm']:not([dd-style='capsule'])) .opt {
-      min-block-size: max(40px, var(--sw-touch-desktop, 44px));
+      min-block-size: max(40px, var(--sw-touch-desktop));
       font-size: var(--sw-fs-xs);
     }
     :host([dd-size='lg']:not([dd-style='capsule'])) .opt {
@@ -888,7 +888,7 @@ export class SwDropdown extends LitElement {
     :host([dd-style='capsule']) .chip {
       position: relative;
       isolation: isolate;
-      min-block-size: max(var(--_ch), var(--sw-touch-desktop, 44px));
+      min-block-size: max(var(--_ch), var(--sw-touch-desktop));
       gap: var(--_cgap);
       padding-inline: calc(var(--_ch) * 0.36) calc(var(--_ch) * 0.3);
       border: 0;
@@ -897,7 +897,7 @@ export class SwDropdown extends LitElement {
       box-shadow: none;
       color: var(--sw-dd-text, var(--sw-text));
       font-size: var(--_cfs);
-      font-weight: var(--sw-fw-semibold, 600);
+      font-weight: var(--sw-fw-semibold);
     }
     @media (max-width: 1100px), (pointer: coarse) {
       :host([dd-style='capsule']) .chip {
@@ -981,7 +981,7 @@ export class SwDropdown extends LitElement {
       gap: calc(var(--_copt) * 0.24);
       border-radius: clamp(6px, calc(var(--sw-r-md) * 1.2), var(--_crow));
       font-size: var(--_cfs);
-      font-weight: var(--sw-fw-medium, 500);
+      font-weight: var(--sw-fw-medium);
       color: var(--sw-dd-text, var(--sw-text));
     }
     :host([dd-style='capsule']) .pop.sheet .opt,
@@ -994,7 +994,7 @@ export class SwDropdown extends LitElement {
     :host([dd-style='capsule']) .opt[aria-selected='true'] {
       background: color-mix(in srgb, var(--sw-accent) 14%, transparent);
       color: var(--sw-accent-text, var(--sw-accent));
-      font-weight: var(--sw-fw-semibold, 600);
+      font-weight: var(--sw-fw-semibold);
     }
     :host([dd-style='capsule']) .opt[aria-selected='true'][data-active] {
       background: color-mix(in srgb, var(--sw-accent) 20%, transparent);
@@ -1019,7 +1019,7 @@ export class SwDropdown extends LitElement {
       min-inline-size: 2ch;
       text-align: end;
       font-size: 0.94em;
-      font-weight: var(--sw-fw-medium, 500);
+      font-weight: var(--sw-fw-medium);
       font-variant-numeric: tabular-nums;
       color: var(--sw-text-3);
     }

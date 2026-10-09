@@ -53,7 +53,7 @@ export class SwKpi extends LitElement {
       place-items: center;
       inline-size: 30px;
       block-size: 30px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
       flex: none;
@@ -114,8 +114,8 @@ export class SwKpi extends LitElement {
       inset-inline-end: 10px;
       inset-block-start: 10px;
       background: var(--sw-danger);
-      color: #fff;
-      font-size: 9.5px;
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-2xs);
       font-weight: var(--sw-fw-semibold);
       border-radius: var(--sw-r-pill);
       padding: 1px 7px;

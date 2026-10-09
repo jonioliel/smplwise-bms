@@ -76,7 +76,7 @@ export class SystemLook extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       flex-wrap: wrap;
     }
     .seg button {
@@ -86,7 +86,7 @@ export class SystemLook extends LitElement {
       align-items: center;
       min-block-size: 36px;
       padding: 0 12px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);
@@ -130,7 +130,7 @@ export class SystemLook extends LitElement {
       box-sizing: border-box;
       min-block-size: 36px;
       padding: 0 10px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
       cursor: pointer;
@@ -225,11 +225,11 @@ export class SystemLook extends LitElement {
     .pv-sheet .t {
       font-weight: var(--sw-fw-bold);
       color: var(--sw-heading);
-      font-size: calc(var(--sw-fs-lg) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-lg) * var(--sw-look-scale));
     }
     .pv-sheet .s {
       color: var(--sw-text-2);
-      font-size: calc(var(--sw-fs-sm) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-sm) * var(--sw-look-scale));
     }
     .pv-sheet sw-pill {
       --pill-base: var(--sw-layer);
@@ -249,7 +249,7 @@ export class SystemLook extends LitElement {
       isolation: isolate;
     }
     .pv-btn {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
       padding: 0 16px;
       border: 0;
       border-radius: var(--sw-r-pill);
@@ -263,8 +263,8 @@ export class SystemLook extends LitElement {
     .sb {
       inline-size: var(--sw-sub-size, var(--sw-sub));
       block-size: var(--sw-sub-size, var(--sw-sub));
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
       border: 0;
       border-radius: 50%;
       background: var(--sw-surface-2);

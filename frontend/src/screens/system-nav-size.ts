@@ -81,7 +81,7 @@ export class SystemNavSize extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       flex-wrap: wrap;
     }
     .seg button {
@@ -93,7 +93,7 @@ export class SystemNavSize extends LitElement {
       gap: 6px;
       min-block-size: 36px;
       padding: 0 14px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);
@@ -111,7 +111,7 @@ export class SystemNavSize extends LitElement {
       outline-offset: 1px;
     }
     .seg .cur {
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       padding: 1px 6px;
       border-radius: 999px;
       background: var(--sw-accent-soft);
@@ -178,7 +178,7 @@ export class SystemNavSize extends LitElement {
       padding: 10px 7px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     .mini-rail .it {
       display: flex;
@@ -190,7 +190,7 @@ export class SystemNavSize extends LitElement {
       min-inline-size: var(--nav-item-w);
       min-block-size: var(--nav-item-h);
       padding: 6px 4px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       color: var(--sw-text-3);
       font-size: var(--nav-label);
       line-height: 1.3;
@@ -207,7 +207,7 @@ export class SystemNavSize extends LitElement {
       max-inline-size: 100%;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       overflow: hidden;
     }
     .mini-bar .it {

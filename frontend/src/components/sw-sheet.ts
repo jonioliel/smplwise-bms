@@ -176,8 +176,8 @@ export class SwSheet extends LitElement {
     /* the close button: a round target of the touch size (44 px on a phone and by default on a desktop; the look dial may say 32) */
     .x {
       flex: none;
-      inline-size: var(--sw-touch-desktop, 44px);
-      block-size: var(--sw-touch-desktop, 44px);
+      inline-size: var(--sw-touch-desktop);
+      block-size: var(--sw-touch-desktop);
       min-inline-size: 32px;
       border: 0;
       border-radius: 50%;

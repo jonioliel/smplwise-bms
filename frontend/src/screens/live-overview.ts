@@ -348,7 +348,7 @@ export class LiveOverview extends LitElement {
     .ev .none {
       inline-size: 56px;
       block-size: 36px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       flex-shrink: 0;
       overflow: hidden;
     }
@@ -411,7 +411,7 @@ export class LiveOverview extends LitElement {
       place-items: center;
       inline-size: 30px;
       block-size: 30px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-stale-soft);
       color: var(--sw-stale);
       flex-shrink: 0;

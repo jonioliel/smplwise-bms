@@ -101,7 +101,7 @@ export const BV1_STYLES = css`
     opacity: 0.55;
   }
   .t-sub {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: var(--sw-fw-semibold);
     white-space: nowrap;
     overflow: hidden;
@@ -123,7 +123,7 @@ export const BV1_STYLES = css`
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     opacity: 0.92;
   }
   .t-facts span {
@@ -145,7 +145,7 @@ export const BV1_STYLES = css`
     padding: 0 10px;
     border-radius: var(--sw-r-pill);
     background: rgba(0, 0, 0, 0.14);
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-semibold);
     white-space: nowrap;
     max-inline-size: 100%;
@@ -176,7 +176,7 @@ export const BV1_STYLES = css`
     min-inline-size: 0;
   }
   .ag-when {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-semibold);
     color: var(--sw-accent-text);
     white-space: nowrap;
@@ -189,14 +189,14 @@ export const BV1_STYLES = css`
     min-inline-size: 0;
   }
   .ag-m {
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: var(--sw-fw-semibold);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .ag-x {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     display: inline-flex;
     align-items: center;
@@ -212,11 +212,11 @@ export const BV1_STYLES = css`
     flex: none;
   }
   .ag-empty {
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--sw-text-3);
   }
   .ag-more {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     align-self: center; /* away from the tile's rounded corners */
   }
@@ -262,14 +262,14 @@ export const BV1_STYLES = css`
     background: transparent;
     color: var(--sw-text);
     font: inherit;
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     cursor: pointer;
   }
   .lb .lr {
     inline-size: var(--lgb, 52px);
     block-size: var(--lgb, 52px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop);
+    min-block-size: var(--sw-touch-desktop);
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -316,7 +316,7 @@ export const BV1_STYLES = css`
     display: none;
   }
   .l-note {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     min-block-size: 1.2em;
   }

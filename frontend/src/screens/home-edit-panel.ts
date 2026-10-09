@@ -60,7 +60,7 @@ export class HomeEditPanel extends LitElement {
       border: 1px dashed var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
-      backdrop-filter: var(--sw-glass-blur, none);
+      backdrop-filter: var(--sw-glass-blur);
     }
     .col {
       display: flex;
@@ -91,7 +91,7 @@ export class HomeEditPanel extends LitElement {
       max-inline-size: 100%;
       padding-inline: 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -110,7 +110,7 @@ export class HomeEditPanel extends LitElement {
       display: inline-flex;
       align-self: flex-start;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       flex-wrap: wrap;
     }
@@ -154,7 +154,7 @@ export class HomeEditPanel extends LitElement {
       gap: 8px;
       padding: 8px 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
     }
     .w.off {
@@ -210,7 +210,7 @@ export class HomeEditPanel extends LitElement {
       block-size: 28px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -264,7 +264,7 @@ export class HomeEditPanel extends LitElement {
       gap: 8px;
       padding: 4px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
     }
     .floor.dragging {
@@ -290,7 +290,7 @@ export class HomeEditPanel extends LitElement {
       block-size: 28px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;

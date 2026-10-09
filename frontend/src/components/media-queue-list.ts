@@ -66,7 +66,7 @@ export class MediaQueueList extends LitElement {
         gap: 10px;
         min-inline-size: 0;
         min-block-size: 32px;
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
       }
       button.tap {
         cursor: pointer;
@@ -99,7 +99,7 @@ export class MediaQueueList extends LitElement {
         margin-inline-start: 0;
       }
       .psh .lnk.danger {
-        color: var(--mr-danger, #d93025);
+        color: var(--mr-danger, var(--sw-danger-text));
       }
       .uq .row.qrow.dragging {
         position: relative;
@@ -126,12 +126,12 @@ export class MediaQueueList extends LitElement {
         place-items: center;
         inline-size: 34px;
         block-size: 34px;
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         color: var(--mr-text-2);
         cursor: pointer;
       }
       .qb .ic {
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
       }
       .qb:hover {
         background: var(--mr-surface-3);
@@ -151,7 +151,7 @@ export class MediaQueueList extends LitElement {
         pointer-events: none;
       }
       .qb.del:hover {
-        color: var(--mr-danger, #d93025);
+        color: var(--mr-danger, var(--sw-danger-text));
       }
       .ask {
         display: flex;
@@ -159,9 +159,9 @@ export class MediaQueueList extends LitElement {
         gap: 8px;
         flex-wrap: wrap;
         padding: 8px 10px;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         background: var(--mr-surface-3);
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         font-weight: 600;
       }
       .ask .sp {
@@ -173,10 +173,10 @@ export class MediaQueueList extends LitElement {
         padding: 6px 12px;
         border-radius: 999px;
         font-weight: 600;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
       }
       .ask .yes {
-        background: var(--mr-danger, #d93025);
+        background: var(--mr-danger, var(--sw-danger));
         color: #fff;
       }
       .ask.choice {
@@ -189,19 +189,19 @@ export class MediaQueueList extends LitElement {
         flex-direction: column;
         gap: 1px;
         padding: 8px 12px;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         background: var(--mr-surface);
         border: 1px solid var(--mr-border);
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         text-align: start;
       }
       .ask.choice .opt small {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 500;
         color: var(--mr-text-2);
       }
       .ask.choice .opt.danger {
-        color: var(--mr-danger, #d93025);
+        color: var(--mr-danger, var(--sw-danger-text));
       }
       .ask.choice .no {
         align-self: flex-end;
@@ -214,7 +214,7 @@ export class MediaQueueList extends LitElement {
         outline-offset: 2px;
       }
       .qnote {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--mr-text-2);
         padding: 2px 8px;
       }

@@ -164,8 +164,8 @@ export class InvestigatePlayback extends LitElement {
       aspect-ratio: 16 / 9;
       border-radius: var(--sw-r-lg);
       overflow: hidden;
-      color: #fff;
-      background: #0f1729;
+      color: var(--sw-on-video);
+      background: var(--sw-video-bg);
       box-shadow: var(--sw-shadow-2);
       /* 0.1.68: the whole page (controls + timeline) fits the window - no scrolling to reach the timeline (owner 3.5) */
       max-block-size: max(200px, calc(100dvh - 560px));
@@ -187,7 +187,7 @@ export class InvestigatePlayback extends LitElement {
       display: grid;
       gap: 6px;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      background: #0f1729;
+      background: var(--sw-video-bg);
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       box-shadow: var(--sw-shadow-2);
@@ -200,9 +200,9 @@ export class InvestigatePlayback extends LitElement {
       position: relative;
       aspect-ratio: 16 / 9;
       background: #111a2e;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       overflow: hidden;
-      color: #fff;
+      color: var(--sw-on-video);
     }
     .tile sw-live-player {
       position: absolute;
@@ -228,8 +228,8 @@ export class InvestigatePlayback extends LitElement {
       font-family: var(--sw-font-mono);
       font-weight: 400;
       direction: ltr;
-      background: rgba(17, 24, 39, 0.55);
-      border-radius: 4px;
+      background: var(--sw-video-scrim);
+      border-radius: var(--sw-r-2xs);
       padding: 0 5px;
     }
     .tile .drift.bad {
@@ -262,10 +262,10 @@ export class InvestigatePlayback extends LitElement {
       position: absolute;
       inset-inline-end: 12px;
       inset-block-start: 10px;
-      font-size: 10px;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 2px 7px;
     }
     .stamp {
@@ -298,7 +298,7 @@ export class InvestigatePlayback extends LitElement {
     }
     .tile .center {
       font-size: var(--sw-fs-xs);
-      color: rgba(255, 255, 255, 0.75);
+      color: var(--sw-on-video-2);
     }
     .bar {
       position: absolute;
@@ -316,9 +316,9 @@ export class InvestigatePlayback extends LitElement {
       gap: 2px;
       padding: 4px 8px;
       border-radius: var(--sw-r-pill);
-      background: rgba(17, 24, 39, 0.72);
+      background: var(--sw-video-scrim-strong);
       backdrop-filter: var(--sw-perf-blur, blur(8px));
-      color: #fff;
+      color: var(--sw-on-video);
       box-shadow: var(--sw-shadow-2);
     }
     .bar sw-button {
@@ -334,7 +334,7 @@ export class InvestigatePlayback extends LitElement {
       padding: 3px 9px;
       margin-inline: 2px;
       background: transparent;
-      color: #fff;
+      color: var(--sw-on-video);
       font-family: inherit;
       cursor: pointer;
     }
@@ -404,7 +404,7 @@ export class InvestigatePlayback extends LitElement {
       z-index: 4;
       border-radius: var(--sw-r-lg);
       background: rgba(15, 23, 41, 0.55);
-      color: #fff;
+      color: var(--sw-on-video);
       min-inline-size: 0;
     }
     .stall .box {
@@ -417,7 +417,7 @@ export class InvestigatePlayback extends LitElement {
       max-inline-size: calc(100% - 16px);
       box-sizing: border-box;
       border-radius: var(--sw-r-pill);
-      background: rgba(17, 24, 39, 0.78);
+      background: var(--sw-video-scrim-strong);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       text-align: center;
@@ -462,7 +462,7 @@ export class InvestigatePlayback extends LitElement {
     }
     .warn {
       font-size: var(--sw-fs-xs);
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     .err {
       font-size: var(--sw-fs-xs);

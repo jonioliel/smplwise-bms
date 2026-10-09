@@ -414,7 +414,7 @@ export const formStyles = css`
     gap: 12px;
   }
   .err {
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-danger);
     display: flex;
     gap: 6px;
@@ -437,16 +437,16 @@ export const formStyles = css`
     border-radius: 999px;
     background: var(--dv-surface-solid, var(--dv-surface));
     border: 1px solid var(--dv-border);
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
   }
   .ent .ic {
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     color: var(--dv-text-2);
   }
   .ent small {
     color: var(--dv-text-3);
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
   }
   .ent small.bad {
     color: var(--dv-danger);
@@ -463,7 +463,7 @@ export const formStyles = css`
     padding: 0;
   }
   .ent .rm .ic {
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: inherit;
   }
   .ent.add {
@@ -493,7 +493,7 @@ export const formStyles = css`
   }
   .opts summary {
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     color: var(--dv-text-2);
     display: flex;
@@ -506,7 +506,7 @@ export const formStyles = css`
     display: none;
   }
   .opts summary .ic {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
     transition: transform 200ms;
   }
   .opts[open] summary .ic {
@@ -516,23 +516,23 @@ export const formStyles = css`
     display: flex;
     gap: 8px;
     align-items: flex-start;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
     line-height: 1.5;
   }
   .codenote .ic {
     margin-block-start: 3px;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
   }
   .sensrow {
     display: flex;
     gap: 8px;
     align-items: center;
     padding: 9px 12px;
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
     background: var(--ab-sens-bg);
     color: var(--ab-sens-fg);
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     font-weight: 600;
   }
   .bsec {
@@ -542,7 +542,7 @@ export const formStyles = css`
   }
   .sub-h {
     margin: 4px 0 0;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 700;
     display: flex;
     gap: 8px;
@@ -559,7 +559,7 @@ export const formStyles = css`
     place-items: center;
     inline-size: 22px;
     block-size: 22px;
-    border-radius: 7px;
+    border-radius: var(--sw-r-xs);
     color: #fff;
     flex: none;
   }
@@ -570,7 +570,7 @@ export const formStyles = css`
     background: var(--dv-accent);
   }
   .lockcode {
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
     background: var(--dv-surface-3);
     padding: 8px 10px;
     font: 12px/1.7 var(--sw-font-mono, ui-monospace, monospace);

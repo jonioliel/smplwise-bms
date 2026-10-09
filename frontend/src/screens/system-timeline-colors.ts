@@ -101,7 +101,7 @@ export class SystemTimelineColors extends LitElement {
       block-size: 28px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: none;
       cursor: pointer;
     }
@@ -114,7 +114,7 @@ export class SystemTimelineColors extends LitElement {
       display: inline-flex;
       gap: 2px;
       padding: 2px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-3);
     }
     .seg button {
@@ -123,7 +123,7 @@ export class SystemTimelineColors extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-xs);
       padding: 5px 10px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
     }
@@ -142,7 +142,7 @@ export class SystemTimelineColors extends LitElement {
     }
     .warn {
       grid-column: 1 / -1;
-      color: var(--sw-warning-text, #b45309);
+      color: var(--sw-warning-text);
       font-size: var(--sw-fs-xs);
     }
     .foot {

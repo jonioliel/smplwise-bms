@@ -174,11 +174,11 @@ export class NvrCameraBatch extends LitElement {
       flex: none;
       inline-size: 20px;
       block-size: 20px;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       border: 2px solid var(--sw-border-strong);
       display: grid;
       place-items: center;
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
       background: transparent;
     }
     .sel[aria-checked='true'] .box {
@@ -244,8 +244,8 @@ export class NvrCameraBatch extends LitElement {
       place-items: center;
     }
     .ic.ok {
-      color: var(--sw-success, #15803d);
-      background: var(--sw-success-soft, #e7f6ec);
+      color: var(--sw-success);
+      background: var(--sw-success-soft);
     }
     .ic.bad {
       color: var(--sw-danger);
@@ -303,7 +303,7 @@ export class NvrCameraBatch extends LitElement {
       background: var(--sw-danger);
     }
     .bar.done > i {
-      background: var(--sw-success, #15803d);
+      background: var(--sw-success);
     }
     .msg {
       margin: 0;

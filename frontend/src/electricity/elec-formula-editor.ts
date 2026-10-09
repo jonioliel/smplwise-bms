@@ -53,7 +53,7 @@ export class ElecFormulaEditor extends LitElement {
       }
       textarea.code {
         min-block-size: 76px;
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
       }
     `,
   ];

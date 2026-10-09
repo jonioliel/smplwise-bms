@@ -365,7 +365,7 @@ export class ExplorePlanEditor extends LitElement {
       gap: 4px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-2);
       padding: 5px;
       z-index: var(--sw-z-map-ui);
@@ -376,7 +376,7 @@ export class ExplorePlanEditor extends LitElement {
       inline-size: 38px;
       block-size: 38px;
       border: 0;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       background: transparent;
       color: var(--sw-text-2);
       cursor: pointer;
@@ -408,7 +408,7 @@ export class ExplorePlanEditor extends LitElement {
       padding: 8px 12px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-1);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
@@ -439,7 +439,7 @@ export class ExplorePlanEditor extends LitElement {
       inline-size: 26px;
       block-size: 26px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text-2);
       cursor: pointer;
@@ -497,7 +497,7 @@ export class ExplorePlanEditor extends LitElement {
       gap: 12px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       padding: 5px 10px;
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
@@ -554,11 +554,11 @@ export class ExplorePlanEditor extends LitElement {
       min-inline-size: 84px;
       text-align: center;
       font: inherit;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       direction: ltr;
       color: var(--sw-text-2);
       border: 1px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 2px 6px;
       background: var(--sw-surface-2);
     }
@@ -579,7 +579,7 @@ export class ExplorePlanEditor extends LitElement {
       gap: 8px;
       padding: 7px 9px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -666,7 +666,7 @@ export class ExplorePlanEditor extends LitElement {
       inline-size: 100%;
       min-inline-size: 0;
       border: 1px solid var(--sw-border);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 4px 6px;
       font: inherit;
       color: var(--sw-text);
@@ -674,7 +674,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     .cand select {
       border: 1px solid var(--sw-border);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 3px 4px;
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -752,7 +752,7 @@ export class ExplorePlanEditor extends LitElement {
       align-items: center;
       padding: 6px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       font-size: var(--sw-fs-xs);
     }
     .vrow.cur {
@@ -764,7 +764,7 @@ export class ExplorePlanEditor extends LitElement {
       inline-size: 56px;
       block-size: 40px;
       object-fit: cover;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-map-bg);
       border: 1px solid var(--sw-border);
     }
@@ -808,7 +808,7 @@ export class ExplorePlanEditor extends LitElement {
     .compare img {
       inline-size: 100%;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-map-bg);
     }
     .bindbar {
@@ -836,7 +836,7 @@ export class ExplorePlanEditor extends LitElement {
       z-index: var(--sw-z-map-ui);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 18px; /* a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
+      border-radius: var(--sw-r-2xl); /* a pill on one row; a rounded card, not a blob, when a narrow canvas wraps it */
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
       max-inline-size: 60%;

@@ -86,7 +86,7 @@ export class SystemHomeScreen extends LitElement {
       aspect-ratio: 120 / 80;
       background: var(--sw-bg);
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     svg.thumb .wg {
       fill: var(--sw-accent);
@@ -121,7 +121,7 @@ export class SystemHomeScreen extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     .seg button {
       all: unset;
@@ -130,7 +130,7 @@ export class SystemHomeScreen extends LitElement {
       padding: 0 14px;
       display: inline-flex;
       align-items: center;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
       cursor: pointer;

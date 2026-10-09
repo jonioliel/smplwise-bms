@@ -86,7 +86,7 @@ export class SystemPresence extends LitElement {
       padding: 8px 10px;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-radius-sm, 8px);
-      background: var(--sw-surface, #fff);
+      background: var(--sw-surface);
       color: inherit;
       box-sizing: border-box;
     }
@@ -106,7 +106,7 @@ export class SystemPresence extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .warn {
-      color: var(--sw-warning, #9a5b00);
+      color: var(--sw-warning);
       font-size: var(--sw-fs-sm);
     }
     .glass {

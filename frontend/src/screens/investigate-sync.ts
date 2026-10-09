@@ -210,9 +210,9 @@ export class InvestigateSync extends LitElement {
       inset-block-end: 8px;
       z-index: 2;
       font-family: var(--sw-font-mono);
-      font-size: 10px;
-      background: rgba(17, 24, 39, 0.6);
-      color: #fff;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       padding: 1px 7px;
       border-radius: var(--sw-r-pill);
       direction: ltr;
@@ -259,7 +259,7 @@ export class InvestigateSync extends LitElement {
     .slot.empty {
       position: relative;
       aspect-ratio: 16 / 9;
-      border-radius: var(--sw-r-md, 10px);
+      border-radius: var(--sw-r-md);
       overflow: hidden;
       background: var(--sw-surface-3);
     }
@@ -302,8 +302,8 @@ export class InvestigateSync extends LitElement {
     /* the lead tag sits on the picture like the number pill: a dark translucent pill with white text in every skin, light and dark
        (the badge's own on-image look keys on the text token, which is light in dark skins) */
     .slot .media .lead {
-      background: rgba(17, 24, 39, 0.65);
-      color: #fff;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
       box-shadow: none;
       border: 0;
     }
@@ -314,26 +314,26 @@ export class InvestigateSync extends LitElement {
       border-radius: var(--sw-r-pill);
       display: grid;
       place-items: center;
-      background: rgba(17, 24, 39, 0.6);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       font-family: var(--sw-font-mono);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
     }
     /* the remove button: a 28 px circle drawn inside a hit area of the touch dial (44 px on touch layouts, the desktop dial above) */
     .slot .media .rm {
       position: absolute;
       inset-inline-end: 0;
       inset-block-start: 0;
-      inline-size: var(--sw-touch-desktop, 44px);
-      block-size: var(--sw-touch-desktop, 44px);
+      inline-size: var(--sw-touch-desktop);
+      block-size: var(--sw-touch-desktop);
       min-inline-size: 32px;
       min-block-size: 32px;
       padding: 0;
       border: 0;
       background: transparent;
-      color: #fff;
+      color: var(--sw-on-video);
       font: inherit;
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
       line-height: 1;
       cursor: pointer;
       display: grid;
@@ -343,12 +343,12 @@ export class InvestigateSync extends LitElement {
       inline-size: 28px;
       block-size: 28px;
       border-radius: 50%;
-      background: rgba(17, 24, 39, 0.6);
+      background: var(--sw-video-scrim);
       display: grid;
       place-items: center;
     }
     .slot .media .rm:hover .x {
-      background: rgba(17, 24, 39, 0.8);
+      background: var(--sw-video-scrim-strong);
     }
     .slot .cap {
       display: flex;

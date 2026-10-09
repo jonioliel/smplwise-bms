@@ -108,14 +108,14 @@ export class SystemNotifications extends LitElement {
         position: static;
       }
       .dh .crumb {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         color: var(--dv-text-2);
         display: flex;
         align-items: center;
         gap: 6px;
       }
       .dh .crumb .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .set {
         display: grid;
@@ -137,16 +137,16 @@ export class SystemNotifications extends LitElement {
         gap: 10px;
         min-block-size: 44px;
         padding: 0 12px;
-        border-radius: 14px;
+        border-radius: var(--sw-r-lg);
         border: 0;
         background: transparent;
         text-align: start;
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
         font-weight: 500;
         color: var(--dv-text-2);
       }
       .setnav button .ic {
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
         color: var(--dv-text-3);
       }
       .setnav button:hover {
@@ -183,7 +183,7 @@ export class SystemNotifications extends LitElement {
       }
       .sec header h2 {
         margin: 0;
-        font-size: 18px;
+        font-size: var(--sw-fs-xl);
         font-weight: 700;
         letter-spacing: -0.02em;
         display: flex;
@@ -191,7 +191,7 @@ export class SystemNotifications extends LitElement {
         gap: 10px;
       }
       .sec header h2 .ic {
-        font-size: 19px;
+        font-size: var(--sw-fs-2xl);
         color: var(--dv-text-2);
       }
       .sec header .sp {
@@ -221,11 +221,11 @@ export class SystemNotifications extends LitElement {
         line-height: 1.3;
       }
       .frow .l b {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         font-weight: 600;
       }
       .frow .l small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .frow .r {
@@ -251,7 +251,7 @@ export class SystemNotifications extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 6px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-2);
         min-inline-size: 0;
@@ -261,7 +261,7 @@ export class SystemNotifications extends LitElement {
       }
       .errline {
         color: var(--dv-danger);
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         font-weight: 600;
       }
       /* the sources matrix */
@@ -272,12 +272,12 @@ export class SystemNotifications extends LitElement {
         inline-size: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         table-layout: fixed;
         min-inline-size: 860px;
       }
       .mx th {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-3);
         text-align: start;
@@ -310,13 +310,13 @@ export class SystemNotifications extends LitElement {
         border-block-end: 0;
         padding: 16px 8px 6px;
         font-weight: 700;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
         letter-spacing: 0.02em;
         block-size: auto;
       }
       .mx tr.cat td .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         vertical-align: -2px;
         margin-inline-end: 6px;
       }
@@ -337,12 +337,12 @@ export class SystemNotifications extends LitElement {
         color: var(--dv-icon-ring-fg);
         display: grid;
         place-items: center;
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
         flex: none;
       }
       .nm b {
         font-weight: 600;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -361,7 +361,7 @@ export class SystemNotifications extends LitElement {
         block-size: 40px;
         min-inline-size: 36px;
         padding: 0 10px;
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-2);
         display: inline-flex;
@@ -395,13 +395,13 @@ export class SystemNotifications extends LitElement {
         border-radius: 999px;
         border: 1px solid var(--dv-border);
         background: var(--dv-surface-2);
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-2);
         white-space: nowrap;
       }
       .chip .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .chip[aria-pressed='true'] {
         background: var(--dv-accent-soft);
@@ -433,7 +433,7 @@ export class SystemNotifications extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 10px;
-        border-radius: 18px;
+        border-radius: var(--sw-r-2xl);
       }
       .scard .top {
         display: flex;
@@ -455,7 +455,7 @@ export class SystemNotifications extends LitElement {
         flex-wrap: wrap;
       }
       .scard .ln > small {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-3);
         font-weight: 600;
         min-inline-size: 52px;
@@ -468,7 +468,7 @@ export class SystemNotifications extends LitElement {
         inline-size: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
       }
       .qmx th,
       .qmx td {
@@ -480,7 +480,7 @@ export class SystemNotifications extends LitElement {
         block-size: 52px;
       }
       .qmx th {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-3);
         background: var(--nt-matrix-head);
@@ -509,7 +509,7 @@ export class SystemNotifications extends LitElement {
       }
       .escprev {
         padding: 12px 14px;
-        border-radius: 16px;
+        border-radius: var(--sw-r-lg);
         background: var(--dv-surface-2);
         border: 1px solid var(--dv-border);
       }
@@ -534,7 +534,7 @@ export class SystemNotifications extends LitElement {
         border-radius: 34px;
         overflow: hidden;
         background: radial-gradient(500px 340px at 20% -10%, #8fb4ff 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #ffb36b 0%, transparent 55%), linear-gradient(180deg, #1b2a4a, #0b1020);
-        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px #0d0f14, inset 0 0 0 8px rgba(255, 255, 255, 0.08);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08);
         color: #fff;
         display: flex;
         flex-direction: column;
@@ -546,7 +546,7 @@ export class SystemNotifications extends LitElement {
       .lphone.sel {
         opacity: 1;
         transform: translateY(-4px);
-        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px #0d0f14, inset 0 0 0 8px rgba(255, 255, 255, 0.08), 0 0 0 3px var(--dv-accent);
+        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42), inset 0 0 0 7px var(--sw-video-bg), inset 0 0 0 8px rgba(255, 255, 255, 0.08), 0 0 0 3px var(--dv-accent);
       }
       :host([data-devices-scheme='dark']) .lphone {
         background: radial-gradient(500px 340px at 20% -10%, #2a3f6e 0%, transparent 60%), radial-gradient(420px 300px at 100% 100%, #5a3a16 0%, transparent 55%), linear-gradient(180deg, #0a0d16, #000);
@@ -554,8 +554,8 @@ export class SystemNotifications extends LitElement {
       .lphone .notch {
         inline-size: 82px;
         block-size: 24px;
-        background: #0d0f14;
-        border-radius: 0 0 16px 16px;
+        background: var(--sw-video-bg);
+        border-radius: 0 0 var(--sw-r-lg) var(--sw-r-lg);
         margin-block-start: 7px;
         flex: none;
       }
@@ -566,7 +566,7 @@ export class SystemNotifications extends LitElement {
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.45);
         color: #fff;
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
         font-weight: 600;
         display: inline-flex;
         align-items: center;
@@ -574,8 +574,8 @@ export class SystemNotifications extends LitElement {
         border: 1px solid rgba(255, 255, 255, 0.14);
       }
       .lphone.sel .llabel {
-        background: #2767ed;
-        border-color: #2767ed;
+        background: var(--sw-accent);
+        border-color: var(--sw-accent);
       }
       .lphone .ltime {
         margin-block-start: 8px;
@@ -587,7 +587,7 @@ export class SystemNotifications extends LitElement {
         font-variant-numeric: tabular-nums;
       }
       .lphone .ldate {
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         font-weight: 500;
         opacity: 0.9;
         margin-block-start: 4px;
@@ -602,8 +602,8 @@ export class SystemNotifications extends LitElement {
       .pushcard {
         inline-size: 100%;
         background: rgba(255, 255, 255, 0.78);
-        color: #1c1c1e;
-        border-radius: 16px;
+        color: var(--sw-text);
+        border-radius: var(--sw-r-lg);
         padding: 8px 10px;
         display: flex;
         flex-direction: column;
@@ -622,8 +622,8 @@ export class SystemNotifications extends LitElement {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 10px;
-        color: #6e6e73;
+        font-size: var(--sw-fs-2xs);
+        color: var(--sw-text-3);
       }
       :host([data-devices-scheme='dark']) .pushcard .ph {
         color: rgba(235, 235, 245, 0.6);
@@ -631,11 +631,11 @@ export class SystemNotifications extends LitElement {
       .pushcard .ph .app {
         inline-size: 16px;
         block-size: 16px;
-        border-radius: 5px;
-        background: #2767ed;
-        color: #fff;
+        border-radius: var(--sw-r-2xs);
+        background: var(--sw-accent);
+        color: var(--sw-text-inverse);
         font-weight: 800;
-        font-size: 9px;
+        font-size: var(--sw-fs-2xs);
         display: grid;
         place-items: center;
       }
@@ -644,13 +644,13 @@ export class SystemNotifications extends LitElement {
         font-variant-numeric: tabular-nums;
       }
       .pushcard b {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 700;
         line-height: 1.25;
       }
       .pushcard p {
         margin: 0;
-        font-size: 11px;
+        font-size: var(--sw-fs-xs);
         color: #3a3a3c;
         line-height: 1.3;
       }
@@ -671,14 +671,14 @@ export class SystemNotifications extends LitElement {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 10.5px;
+        font-size: var(--sw-fs-2xs);
         font-weight: 600;
       }
       :host([data-devices-scheme='dark']) .pushcard .acts span {
         background: rgba(235, 235, 245, 0.14);
       }
       .pushcard .acts span .ic {
-        font-size: 11px;
+        font-size: var(--sw-fs-xs);
       }
       .pushcard .acts span.door .ic {
         color: #ff9f0a;
@@ -686,17 +686,17 @@ export class SystemNotifications extends LitElement {
       /* the log */
       .lgw {
         overflow-x: auto;
-        border-radius: 14px;
+        border-radius: var(--sw-r-lg);
         border: 1px solid var(--dv-border);
       }
       .lg {
         inline-size: 100%;
         border-collapse: separate;
         border-spacing: 0;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
       }
       .lg th {
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
         font-weight: 600;
         color: var(--dv-text-3);
         text-align: start;
@@ -717,7 +717,7 @@ export class SystemNotifications extends LitElement {
         border-block-end: 0;
       }
       .lg td .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         vertical-align: -2px;
         margin-inline-end: 4px;
       }
@@ -740,7 +740,7 @@ export class SystemNotifications extends LitElement {
       }
       .fstat {
         padding: 12px 14px;
-        border-radius: 16px;
+        border-radius: var(--sw-r-lg);
         background: var(--dv-surface-2);
         border: 1px solid var(--dv-border);
         display: flex;
@@ -748,7 +748,7 @@ export class SystemNotifications extends LitElement {
         gap: 2px;
       }
       .fstat b {
-        font-size: 22px;
+        font-size: var(--sw-fs-3xl);
         font-weight: 700;
         letter-spacing: -0.02em;
         font-variant-numeric: tabular-nums;
@@ -757,11 +757,11 @@ export class SystemNotifications extends LitElement {
         color: var(--dv-danger);
       }
       .fstat small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .fstat .ch {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-3);
         font-weight: 600;
       }
@@ -772,7 +772,7 @@ export class SystemNotifications extends LitElement {
       }
       .chc {
         padding: 14px;
-        border-radius: 18px;
+        border-radius: var(--sw-r-2xl);
         background: var(--dv-surface-2);
         border: 1px solid var(--dv-border);
         display: flex;
@@ -788,14 +788,14 @@ export class SystemNotifications extends LitElement {
         color: var(--dv-icon-ring-fg);
         display: grid;
         place-items: center;
-        font-size: 19px;
+        font-size: var(--sw-fs-2xl);
       }
       .chc b {
-        font-size: 14.5px;
+        font-size: var(--sw-fs-md);
         font-weight: 700;
       }
       .chc small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .chc.soon {
@@ -831,9 +831,9 @@ export class SystemNotifications extends LitElement {
         padding: 0 10px;
         border: 0;
         background: transparent;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         text-align: start;
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .pick button:hover {
         background: var(--dv-surface-3);

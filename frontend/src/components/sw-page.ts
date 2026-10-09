@@ -24,7 +24,7 @@ export class SwPage extends LitElement {
       display: flex;
       flex-direction: column;
       min-block-size: 100%;
-      padding: 14px var(--sw-page-pad, 24px) 24px;
+      padding: 14px var(--sw-page-pad) 24px;
       max-inline-size: var(--sw-content-max);
       inline-size: 100%;
       box-sizing: border-box;

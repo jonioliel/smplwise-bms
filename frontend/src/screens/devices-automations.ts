@@ -76,7 +76,7 @@ export class DevicesAutomations extends LitElement {
   @state() private cardAction = '';
   /** The raw query of the address (the editor route reads `kind` / `template` from it). */
   @state() private rawParams = new URLSearchParams();
-  /** A gallery template the editor route named (`?template=`): its draft once loaded, null while loading or when unknown. */
+  /** A gallery template the editor route named (`?template= `): its draft once loaded, null while loading or when unknown. */
   @state() private tplDraft: { id: string; draft: AnyDraft | null; done: boolean } | null = null;
 
   private phoneMq = window.matchMedia('(max-width: 767px)');
@@ -158,7 +158,7 @@ export class DevicesAutomations extends LitElement {
     .dlgform p {
       margin: 0;
       color: var(--dv-text-2);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .dlgrow {
       display: flex;
@@ -174,7 +174,7 @@ export class DevicesAutomations extends LitElement {
     .when .btn {
       justify-content: flex-start;
       min-block-size: 52px;
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     @media (max-width: 767px) {
       .dh-row {

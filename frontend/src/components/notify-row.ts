@@ -44,7 +44,7 @@ export class NotifyRow extends LitElement {
         min-block-size: var(--nt-row-min);
         padding: 10px 8px;
         padding-inline: 10px 8px;
-        border-radius: 18px;
+        border-radius: var(--sw-r-2xl);
         border: 1px solid transparent;
         background: transparent;
         color: var(--dv-text);
@@ -86,7 +86,7 @@ export class NotifyRow extends LitElement {
       .bar {
         inline-size: 4px;
         block-size: calc(100% - 8px);
-        border-radius: 4px;
+        border-radius: var(--sw-r-2xs);
         background: var(--sev);
       }
       .ring {
@@ -97,7 +97,7 @@ export class NotifyRow extends LitElement {
         place-items: center;
         background: var(--sev-soft);
         color: var(--sev);
-        font-size: 19px;
+        font-size: var(--sw-fs-2xl);
         position: relative;
       }
       .ring .cnt {
@@ -107,10 +107,10 @@ export class NotifyRow extends LitElement {
         min-inline-size: 22px;
         block-size: 20px;
         padding: 0 5px;
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         background: var(--dv-text);
         color: var(--mm-text-inverse);
-        font-size: 11px;
+        font-size: var(--sw-fs-xs);
         font-weight: 700;
         display: grid;
         place-items: center;
@@ -125,7 +125,7 @@ export class NotifyRow extends LitElement {
         line-height: 1.3;
       }
       .tx b {
-        font-size: 14.5px;
+        font-size: var(--sw-fs-md);
         font-weight: 600;
         letter-spacing: -0.005em;
         white-space: nowrap;
@@ -147,7 +147,7 @@ export class NotifyRow extends LitElement {
         font-weight: 500;
       }
       .tx small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
         white-space: nowrap;
         overflow: hidden;
@@ -181,7 +181,7 @@ export class NotifyRow extends LitElement {
         color: var(--dv-text-2);
       }
       .st .ic {
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
       }
       .more {
         position: relative;
@@ -213,7 +213,7 @@ export class NotifyRow extends LitElement {
         color: var(--dv-text);
       }
       .more .ic {
-        font-size: 18px;
+        font-size: var(--sw-fs-xl);
       }
       .nrow.crit.open-state {
         background: var(--nt-pin-bg);

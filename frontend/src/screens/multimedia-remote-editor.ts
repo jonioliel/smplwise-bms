@@ -93,7 +93,7 @@ export class MediaRemoteEditor extends LitElement {
         gap: 8px;
         flex-wrap: wrap;
         padding: 10px 10px 10px 14px;
-        border-radius: 20px;
+        border-radius: var(--sw-r-2xl);
         background: var(--mr-sheen), var(--mr-surface);
         border: 1px solid color-mix(in srgb, var(--mr-accent) 45%, transparent);
         box-shadow: 0 0 0 4px var(--mr-accent-soft);
@@ -104,11 +104,11 @@ export class MediaRemoteEditor extends LitElement {
         align-items: center;
         gap: 8px;
         font-weight: 700;
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
       }
       .bar .t .ic {
         color: var(--mr-accent-text);
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
       }
       .grp {
         display: flex;
@@ -117,7 +117,7 @@ export class MediaRemoteEditor extends LitElement {
       }
       .grp h4 {
         margin: 6px 4px 0;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--mr-text-2);
         font-weight: 600;
       }
@@ -127,10 +127,10 @@ export class MediaRemoteEditor extends LitElement {
         gap: 8px;
         padding: 8px 10px;
         min-block-size: 52px;
-        border-radius: 16px;
+        border-radius: var(--sw-r-lg);
         background: var(--mr-surface-2);
         border: 1px solid var(--mr-border);
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .row.off .nm,
       .row.off .gi {
@@ -142,7 +142,7 @@ export class MediaRemoteEditor extends LitElement {
       .grip {
         color: var(--mr-text-2);
         cursor: grab;
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
         display: grid;
         place-items: center;
         inline-size: 24px;
@@ -167,7 +167,7 @@ export class MediaRemoteEditor extends LitElement {
         place-items: center;
       }
       .ib .ic {
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
       }
       .ib[disabled] {
         opacity: 0.35;
@@ -206,7 +206,7 @@ export class MediaRemoteEditor extends LitElement {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--mr-text-2);
         min-block-size: 36px;
       }
@@ -218,23 +218,23 @@ export class MediaRemoteEditor extends LitElement {
       .row .gi {
         inline-size: 34px;
         block-size: 34px;
-        border-radius: 11px;
+        border-radius: var(--sw-r-md);
       }
       .row .gi .ic {
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .row input[type='text'],
       .row select {
         flex: 1;
         min-inline-size: 0;
         block-size: 38px;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         border: 1px solid var(--mr-border);
         background: var(--mr-surface);
         color: var(--mr-text);
         padding: 0 10px;
         font: inherit;
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
       }
       .row select {
         flex: none;
@@ -244,9 +244,9 @@ export class MediaRemoteEditor extends LitElement {
         display: grid;
         grid-template-columns: auto 1fr;
         gap: 6px 14px;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         padding: 12px 14px;
-        border-radius: 16px;
+        border-radius: var(--sw-r-lg);
         background: var(--mr-surface-3);
       }
       .conn span:nth-child(odd) {
@@ -256,11 +256,11 @@ export class MediaRemoteEditor extends LitElement {
         direction: ltr;
         unicode-bidi: isolate;
         font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
       }
       .err {
         color: var(--mr-danger);
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         font-weight: 600;
         padding: 0 4px;
       }

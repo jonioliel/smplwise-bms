@@ -115,7 +115,7 @@ export class ArxNotificationsSettings extends LitElement {
       padding-block-start: 10px;
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {

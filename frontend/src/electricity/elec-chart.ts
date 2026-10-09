@@ -48,7 +48,7 @@ export class ElecChart extends LitElement {
     }
     text {
       fill: var(--c-text);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       font-family: inherit;
     }
     text.v {
@@ -86,7 +86,7 @@ export class ElecChart extends LitElement {
       display: flex;
       gap: 14px;
       flex-wrap: wrap;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--c-text);
       margin-block-start: 6px;
     }
@@ -118,7 +118,7 @@ export class ElecChart extends LitElement {
       border-collapse: collapse;
       inline-size: 100%;
       margin-block-start: 8px;
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--c-text);
     }
     th,
@@ -142,7 +142,7 @@ export class ElecChart extends LitElement {
     .tgl {
       cursor: pointer;
       font: inherit;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       margin-block-start: 6px;
       color: var(--sw-accent-text);
       background: none;

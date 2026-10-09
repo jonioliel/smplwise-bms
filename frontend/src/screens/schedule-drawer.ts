@@ -97,9 +97,9 @@ export class ScheduleActions extends LitElement {
       min-block-size: 48px;
       padding: 10px 12px;
       border: 1px solid var(--dv-border);
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       cursor: pointer;
     }
     label.opt:has(input:checked) {
@@ -109,14 +109,14 @@ export class ScheduleActions extends LitElement {
     label.opt small {
       display: block;
       color: var(--dv-text-2);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
     }
     label.check {
       display: flex;
       gap: 10px;
       align-items: center;
       min-block-size: 44px;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     input[type='radio'],
     input[type='checkbox'] {
@@ -127,12 +127,12 @@ export class ScheduleActions extends LitElement {
     }
     p {
       margin: 0;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .err {
       color: var(--dv-danger);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
     }
   `];
@@ -359,10 +359,10 @@ export class ScheduleDrawer extends LitElement {
       gap: 12px;
       min-block-size: 52px;
       padding: 8px 14px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
       font-weight: 600;
     }
     .chips {
@@ -404,7 +404,7 @@ export class ScheduleDrawer extends LitElement {
     .slot .bad-note {
       display: block;
       color: var(--dv-text-3);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .blk.slot.bad {
       border-color: color-mix(in srgb, var(--dv-warning) 40%, transparent);
@@ -417,10 +417,10 @@ export class ScheduleDrawer extends LitElement {
       gap: 10px;
       min-block-size: 44px;
       padding: 8px 12px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     .li span:last-child {
       color: var(--dv-text-2);
@@ -431,7 +431,7 @@ export class ScheduleDrawer extends LitElement {
       color: var(--dv-text-3);
     }
     .by {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-3);
     }
     .foot2 {

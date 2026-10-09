@@ -34,15 +34,15 @@ export class SwWallPhotoSets extends LitElement {
 
   static styles = css`
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-block: 10px; }
-    .ph { position: relative; aspect-ratio: 4 / 3; border-radius: var(--sw-r-sm, 8px); overflow: hidden; background: var(--sw-surface-3); }
+    .ph { position: relative; aspect-ratio: 4 / 3; border-radius: var(--sw-r-sm); overflow: hidden; background: var(--sw-surface-3); }
     .ph img { inline-size: 100%; block-size: 100%; object-fit: cover; }
     .ph button { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; border: 0; border-radius: 50%; inline-size: 26px; block-size: 26px; background: rgba(0, 0, 0, 0.6); color: #fff; cursor: pointer; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block: 8px; }
     .sets { display: flex; gap: 6px; flex-wrap: wrap; }
-    .set { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill, 999px); padding: 4px 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+    .set { border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
     .set[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; }
     .muted { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
-    .warn { color: var(--sw-danger-text, #b3261e); font-size: var(--sw-fs-sm); }
+    .warn { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     input[type='text'] { font: inherit; color: inherit; background: transparent; border: 0; outline: 0; inline-size: 100%; }
   `;
 

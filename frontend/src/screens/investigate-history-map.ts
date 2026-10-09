@@ -203,7 +203,7 @@ export class InvestigateHistoryMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       padding: 5px 10px;
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
@@ -217,8 +217,8 @@ export class InvestigateHistoryMap extends LitElement {
       inset-block-start: 12px;
       z-index: var(--sw-z-map-ui);
       background: #f3e8ff;
-      color: #6d28d9;
-      border-radius: 10px;
+      color: var(--sw-purple);
+      border-radius: var(--sw-r-md);
       padding: 4px 10px;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);

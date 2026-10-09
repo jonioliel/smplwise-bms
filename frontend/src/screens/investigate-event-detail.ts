@@ -109,7 +109,7 @@ export class InvestigateEventDetail extends LitElement {
     .player {
       position: relative;
       aspect-ratio: 16 / 9;
-      background: #0f172a;
+      background: var(--sw-video-bg);
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       box-shadow: var(--sw-shadow-1);
@@ -127,7 +127,7 @@ export class InvestigateEventDetail extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      color: rgba(255, 255, 255, 0.8);
+      color: var(--sw-on-video-2);
       font-size: var(--sw-fs-sm);
       text-align: center;
       padding: 20px;
@@ -139,9 +139,9 @@ export class InvestigateEventDetail extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(17, 24, 39, 0.72);
-      color: #fff;
-      border-radius: 8px;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-sm);
       padding: 4px 10px;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
@@ -150,7 +150,7 @@ export class InvestigateEventDetail extends LitElement {
       position: absolute;
       inset-inline-start: 12px;
       inset-block-end: 12px;
-      color: #fff;
+      color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       font-size: var(--sw-fs-sm);
     }
@@ -229,7 +229,7 @@ export class InvestigateEventDetail extends LitElement {
       gap: 5px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
@@ -293,13 +293,13 @@ export class InvestigateEventDetail extends LitElement {
       font-size: var(--sw-fs-sm);
       padding: 6px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       max-inline-size: 220px;
     }
     .routeconfirm .ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
       font-size: var(--sw-fs-sm);
     }
     .nearby {

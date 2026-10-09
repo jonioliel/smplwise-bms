@@ -88,7 +88,7 @@ export class MediaAreaCard extends LitElement {
     .sub {
       margin-block-start: 4px;
       padding-inline: 4px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--sw-text-2);
     }
@@ -103,7 +103,7 @@ export class MediaAreaCard extends LitElement {
       background: var(--dv-surface-2, var(--sw-surface));
       color: var(--dv-danger, var(--sw-danger));
       font: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       cursor: pointer;
     }
@@ -126,10 +126,10 @@ export class MediaAreaCard extends LitElement {
     }
     .q {
       margin: 0;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     details {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--sw-text-2);
     }
     summary {
@@ -152,7 +152,7 @@ export class MediaAreaCard extends LitElement {
     }
     .err {
       color: var(--sw-danger);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
   `;
 

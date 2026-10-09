@@ -156,7 +156,7 @@ export class SystemMultimedia extends LitElement {
       min-block-size: 36px;
       padding-inline: 10px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -176,7 +176,7 @@ export class SystemMultimedia extends LitElement {
     .seg {
       display: inline-flex;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
     }
     .seg button {
@@ -229,7 +229,7 @@ export class SystemMultimedia extends LitElement {
       block-size: 32px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -250,7 +250,7 @@ export class SystemMultimedia extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {

@@ -154,7 +154,7 @@ export class SwCameraTile extends LitElement {
     }
     :host([dark]) .off {
       background: #172036;
-      color: rgba(255, 255, 255, 0.65);
+      color: var(--sw-on-video-2);
     }
     .off sw-icon {
       color: var(--sw-text-3);
@@ -163,11 +163,11 @@ export class SwCameraTile extends LitElement {
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
-      background: rgba(17, 24, 39, 0.5);
-      color: #fff;
-      border-radius: 4px;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .pill {
@@ -182,7 +182,7 @@ export class SwCameraTile extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      color: #fff;
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
@@ -218,7 +218,7 @@ export class SwCameraTile extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     :host([dark]) .off .label {
-      color: #fff;
+      color: var(--sw-on-video);
     }
     .off .label .dot {
       background: var(--sw-offline);
@@ -232,7 +232,7 @@ export class SwCameraTile extends LitElement {
       inset-inline-end: 10px;
       inset-block-end: 8px;
       font-family: var(--sw-font-mono);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       color: rgba(255, 255, 255, 0.9);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       direction: ltr;
@@ -245,7 +245,7 @@ export class SwCameraTile extends LitElement {
       inset-inline-end: 10px;
       inset-block-end: 8px;
       font-size: var(--sw-fs-xs);
-      color: rgba(255, 255, 255, 0.85);
+      color: var(--sw-on-video-2);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
   `;

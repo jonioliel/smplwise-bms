@@ -113,7 +113,7 @@ export class SwUserMenu extends LitElement {
         background: transparent;
       }
       .panel {
-        inset-inline-start: calc(var(--sw-rail-w, 86px) + 10px);
+        inset-inline-start: calc(var(--sw-rail-w) + 10px);
         inset-block-end: max(12px, env(safe-area-inset-bottom, 0px));
         inline-size: 300px;
         max-block-size: min(640px, calc(100dvh - 24px));
@@ -139,7 +139,7 @@ export class SwUserMenu extends LitElement {
         inset-inline: 0;
         inset-block-end: 0;
         max-block-size: min(88dvh, 720px);
-        border-radius: 18px 18px 0 0;
+        border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
         padding-block-end: env(safe-area-inset-bottom, 0px);
         padding-inline: env(safe-area-inset-right, 0px) env(safe-area-inset-left, 0px);
         transform: translateY(100%);
@@ -153,7 +153,7 @@ export class SwUserMenu extends LitElement {
       align-self: center;
       inline-size: 38px;
       block-size: 4px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-border-strong);
       margin-block: 8px 2px;
       flex: none;
@@ -305,7 +305,7 @@ export class SwUserMenu extends LitElement {
       place-items: center;
       inline-size: 32px;
       block-size: 32px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
       flex: none;
@@ -324,8 +324,8 @@ export class SwUserMenu extends LitElement {
       box-sizing: border-box;
       border-radius: var(--sw-r-pill);
       background: var(--sw-danger);
-      color: #fff;
-      font-size: 11.5px;
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-bold);
       display: inline-grid;
       place-items: center;

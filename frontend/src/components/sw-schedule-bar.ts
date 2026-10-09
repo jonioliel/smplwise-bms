@@ -59,7 +59,7 @@ export class SwScheduleBar extends LitElement {
     .track {
       position: relative;
       block-size: 14px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-surface-3);
       overflow: hidden;
     }
@@ -93,7 +93,7 @@ export class SwScheduleBar extends LitElement {
       position: relative;
       block-size: 14px;
       margin-block-start: 3px;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       line-height: 14px;
       color: var(--sw-text-3);
       font-variant-numeric: tabular-nums;
@@ -151,7 +151,7 @@ export class SwDayChips extends LitElement {
       inline-size: 22px;
       block-size: 22px;
       border-radius: 50%;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
       color: var(--sw-text-3);
       background: transparent;
@@ -161,7 +161,7 @@ export class SwDayChips extends LitElement {
     :host([compact]) .d {
       inline-size: 19px;
       block-size: 19px;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
     }
     .d.on {
       background: var(--sw-accent);
@@ -255,11 +255,11 @@ export class SwScheduleMarkers extends LitElement {
       font-weight: var(--sw-fw-medium);
       line-height: 16px;
       background: var(--sw-danger-soft);
-      color: #b91c1c;
+      color: var(--sw-danger-text);
     }
     span.m.sens {
       background: var(--sw-stale-soft);
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
   `;
 

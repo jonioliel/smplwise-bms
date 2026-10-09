@@ -202,7 +202,7 @@ export class SwScheduleGrid extends LitElement {
       inset-block-end: 2px;
       transform: translateX(-50%);
       color: var(--sw-text-3);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       font-variant-numeric: tabular-nums;
     }
     .hour:first-child {
@@ -215,8 +215,8 @@ export class SwScheduleGrid extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      color: #b45309;
-      font-size: 10px;
+      color: var(--sw-warning-text);
+      font-size: var(--sw-fs-2xs);
       white-space: nowrap;
       direction: rtl;
     }
@@ -249,7 +249,7 @@ export class SwScheduleGrid extends LitElement {
       color: var(--sw-text);
       text-align: start;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       min-inline-size: 0;
     }
     .rowlabel:hover {
@@ -262,7 +262,7 @@ export class SwScheduleGrid extends LitElement {
     }
     .rowlabel small {
       color: var(--sw-text-3);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
     }
     .row.today .rowlabel b,
     .row.today .rowlabel small {
@@ -274,7 +274,7 @@ export class SwScheduleGrid extends LitElement {
     .track {
       position: relative;
       block-size: var(--row-h);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
       border: 1px solid var(--sw-border);
       overflow: hidden;
@@ -357,7 +357,7 @@ export class SwScheduleGrid extends LitElement {
       position: absolute;
       inset-block: 4px;
       box-sizing: border-box;
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
       border-inline-start: 4px solid var(--c);
       background: var(--bg);
@@ -462,7 +462,7 @@ export class SwScheduleGrid extends LitElement {
       text-overflow: ellipsis;
     }
     .slot .txt small {
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       opacity: 0.85;
       white-space: nowrap;
       overflow: hidden;
@@ -552,7 +552,7 @@ export class SwScheduleGrid extends LitElement {
     /* a point action: a pin with its label beside it */
     .slot.point {
       border-inline-start-width: 1px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       inset-block: 8px;
       inline-size: 28px;
       min-inline-size: 28px;
@@ -574,7 +574,7 @@ export class SwScheduleGrid extends LitElement {
       max-inline-size: 240px;
       background: color-mix(in srgb, var(--bg) 70%, var(--sw-surface));
       padding: 1px 6px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .slot.point.flip .txt {
       left: auto;
@@ -589,7 +589,7 @@ export class SwScheduleGrid extends LitElement {
     .ghost {
       position: absolute;
       inset-block: 2px;
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       border: 2px dashed var(--sw-accent);
       background: rgba(39, 103, 237, 0.1);
       z-index: 5;
@@ -606,9 +606,9 @@ export class SwScheduleGrid extends LitElement {
       transform: translateY(-115%);
       background: var(--sw-text);
       color: #fff;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       white-space: nowrap;
       direction: ltr;
       font-variant-numeric: tabular-nums;
@@ -644,7 +644,7 @@ export class SwScheduleGrid extends LitElement {
       inline-size: 32px;
       justify-content: flex-end;
       transform: translateY(-100%);
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
     }
     :host([orientation='vertical']) .mark sw-icon,
     :host([orientation='vertical']) .mark svg {
@@ -733,7 +733,7 @@ export class SwScheduleGrid extends LitElement {
       block-size: 28px;
       min-block-size: 28px;
       inset-inline: 6px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       justify-content: flex-start;
     }
     :host([orientation='vertical']) .slot.point .body {

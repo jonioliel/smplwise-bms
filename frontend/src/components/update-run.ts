@@ -94,7 +94,7 @@ export class SwUpdateRun extends LitElement {
     .step.done .mk {
       background: var(--sw-live);
       border-color: var(--sw-live);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .step.current {
       color: var(--sw-accent-text);
@@ -103,7 +103,7 @@ export class SwUpdateRun extends LitElement {
     .step.current .mk {
       border-color: var(--sw-accent);
       background: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .step.current .mk sw-icon {
       animation: spin 1.2s linear infinite;
@@ -111,7 +111,7 @@ export class SwUpdateRun extends LitElement {
     .step.failed .mk {
       background: var(--sw-danger);
       border-color: var(--sw-danger);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .step.failed {
       color: var(--sw-danger-text, var(--sw-danger));

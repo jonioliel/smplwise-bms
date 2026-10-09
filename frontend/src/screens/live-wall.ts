@@ -114,7 +114,7 @@ export class LiveWall extends LitElement {
       display: inline-flex;
       gap: 2px;
       background: var(--sw-surface-3);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 2px;
     }
     .layouts button {
@@ -125,7 +125,7 @@ export class LiveWall extends LitElement {
       font-weight: var(--sw-fw-semibold);
       min-inline-size: 28px;
       block-size: 26px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       cursor: pointer;
       color: var(--sw-text-2);
       padding: 0 6px;
@@ -175,7 +175,7 @@ export class LiveWall extends LitElement {
       gap: 10px;
       padding: 6px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
     }
     .settings-move {
@@ -188,7 +188,7 @@ export class LiveWall extends LitElement {
       border: 1px solid var(--sw-border);
       background: var(--sw-surface-3);
       color: var(--sw-text-2);
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       inline-size: 24px;
       block-size: 20px;
       line-height: 1;

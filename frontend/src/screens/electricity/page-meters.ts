@@ -158,7 +158,7 @@ export class ElecMetersPage extends LitElement {
         min-block-size: var(--elec-touch);
       }
       .mcard .big {
-        font-size: 22px;
+        font-size: var(--sw-fs-3xl);
         font-weight: var(--sw-fw-bold);
         color: var(--sw-heading, var(--sw-text));
       }

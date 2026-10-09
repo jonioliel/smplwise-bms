@@ -46,7 +46,7 @@ export class SceneCapture extends LitElement {
     }
     .nm {
       font: inherit;
-      font-size: 22px;
+      font-size: var(--sw-fs-3xl);
       font-weight: 700;
       letter-spacing: -0.02em;
       border: 0;
@@ -61,14 +61,14 @@ export class SceneCapture extends LitElement {
     .nm:focus-visible {
       outline: 2px solid var(--dv-focus);
       outline-offset: 2px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .devs h4 {
       margin: 0 0 8px;
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       color: var(--dv-text-2);
     }
@@ -86,7 +86,7 @@ export class SceneCapture extends LitElement {
       border-radius: var(--dv-radius-control);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
     }
     .dchip small {
@@ -94,7 +94,7 @@ export class SceneCapture extends LitElement {
       font-weight: 500;
     }
     .dchip .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
       color: var(--dv-text-2);
     }
     .dchip button {
@@ -121,7 +121,7 @@ export class SceneCapture extends LitElement {
       background: transparent;
       color: var(--dv-accent-text);
       font-weight: 600;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     .pickwrap {
       position: relative;
@@ -135,7 +135,7 @@ export class SceneCapture extends LitElement {
     }
     .pop .gh {
       padding: 8px 10px 2px;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-text-2);
     }
@@ -152,7 +152,7 @@ export class SceneCapture extends LitElement {
       background: var(--dv-success-soft);
       color: var(--au-ok-text);
       font-weight: 700;
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
     }
     .state-banner.bad {
       background: var(--dv-danger-soft);
@@ -165,7 +165,7 @@ export class SceneCapture extends LitElement {
       inline-size: 100%;
       justify-content: center;
       min-block-size: 52px;
-      font-size: 15.5px;
+      font-size: var(--sw-fs-lg);
     }
     table {
       inline-size: 100%;
@@ -178,7 +178,7 @@ export class SceneCapture extends LitElement {
     }
     th {
       text-align: start;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-text-2);
       padding: 10px 12px;
@@ -188,7 +188,7 @@ export class SceneCapture extends LitElement {
       padding: 10px 12px;
       border-block-start: 1px solid var(--dv-border);
       vertical-align: middle;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     td.dev {
       display: flex;
@@ -210,7 +210,7 @@ export class SceneCapture extends LitElement {
       flex: none;
     }
     .ico .ic {
-      font-size: 17px;
+      font-size: var(--sw-fs-xl);
     }
     th:first-child,
     td.dev {
@@ -223,7 +223,7 @@ export class SceneCapture extends LitElement {
     }
     td.dev small {
       color: var(--dv-text-2);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     td .inp {
       min-block-size: 40px;
@@ -265,7 +265,7 @@ export class SceneCapture extends LitElement {
     }
     .num small {
       color: var(--dv-text-2);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .none {
       color: var(--dv-text-3);

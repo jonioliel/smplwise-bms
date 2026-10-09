@@ -98,8 +98,8 @@ const HOME_WIDGETS_BUBBLE = css`
   :host([data-skin='bubble']) .qsb {
     inline-size: var(--sw-sub-size, var(--sw-sub));
     block-size: var(--sw-sub-size, var(--sw-sub));
-    min-inline-size: var(--sw-touch-desktop, 44px);
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop);
+    min-block-size: var(--sw-touch-desktop);
     box-sizing: border-box;
     border: 0;
     border-radius: 50%;
@@ -250,8 +250,8 @@ export class HomeWidgetsView extends LitElement {
       min-inline-size: 0;
       padding: 14px 18px;
       background: var(--sw-surface);
-      backdrop-filter: var(--sw-glass-blur, none);
-      -webkit-backdrop-filter: var(--sw-glass-blur, none);
+      backdrop-filter: var(--sw-glass-blur);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-1);
@@ -267,7 +267,7 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
@@ -282,7 +282,7 @@ export class HomeWidgetsView extends LitElement {
       margin-inline-start: auto;
       font-weight: var(--sw-fw-regular);
       color: var(--sw-text-3);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -342,19 +342,19 @@ export class HomeWidgetsView extends LitElement {
       min-inline-size: 0;
     }
     .d1 {
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
       color: var(--sw-text-2);
       white-space: nowrap;
     }
     .d2 {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
     }
     .wg-clock[data-size='s'] .d1 {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
     }
     /* ---- weather ---- */
     .wg-weather {
@@ -395,7 +395,7 @@ export class HomeWidgetsView extends LitElement {
       text-align: start;
     }
     .wx-c {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
       margin-block-start: 2px;
@@ -405,7 +405,7 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       gap: 6px 14px;
       flex-wrap: wrap;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     .wx-m span {
@@ -438,7 +438,7 @@ export class HomeWidgetsView extends LitElement {
       flex-direction: column;
       align-items: center;
       gap: 2px;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .fc svg {
@@ -455,7 +455,7 @@ export class HomeWidgetsView extends LitElement {
       color: #3d6fd8;
     }
     .fc b {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
     }
@@ -467,7 +467,7 @@ export class HomeWidgetsView extends LitElement {
     }
     .fc i {
       font-style: normal;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
     }
     /* ---- shabbat ---- */
     .wg-shabbat {
@@ -483,7 +483,7 @@ export class HomeWidgetsView extends LitElement {
       white-space: nowrap;
     }
     .sub {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     .tms {
@@ -495,18 +495,18 @@ export class HomeWidgetsView extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     .tm svg {
       inline-size: 16px;
       block-size: 16px;
-      color: #d97706;
+      color: var(--sw-warning-text);
       flex: none;
     }
     .tm b {
       margin-inline-start: auto;
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
       direction: ltr;
@@ -514,18 +514,18 @@ export class HomeWidgetsView extends LitElement {
     }
     .tm b.txt {
       direction: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     .tm2 {
       display: flex;
       gap: 6px;
       align-items: center;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
       white-space: nowrap;
     }
     .tm2 svg {
-      color: #d97706;
+      color: var(--sw-warning-text);
       inline-size: 14px;
       block-size: 14px;
     }
@@ -536,7 +536,7 @@ export class HomeWidgetsView extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .cd {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: #a15c00;
       font-weight: var(--sw-fw-semibold);
     }
@@ -553,7 +553,7 @@ export class HomeWidgetsView extends LitElement {
       block-size: var(--ali, 40px);
       border-radius: 50%;
       background: var(--sw-success-soft);
-      color: var(--sw-success, #16a34a);
+      color: var(--sw-success);
       flex: none;
     }
     .aic svg {
@@ -579,7 +579,7 @@ export class HomeWidgetsView extends LitElement {
       line-height: 1.2;
     }
     .al-l {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .al-s {
@@ -588,12 +588,12 @@ export class HomeWidgetsView extends LitElement {
       white-space: nowrap;
     }
     .al-x {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
       margin-block-start: 2px;
     }
     .al-go {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
       margin-block-start: 3px;
@@ -624,7 +624,7 @@ export class HomeWidgetsView extends LitElement {
       background: var(--sw-surface);
       font: inherit;
       font-weight: var(--sw-fw-semibold);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       white-space: nowrap;
       cursor: pointer;
@@ -641,7 +641,7 @@ export class HomeWidgetsView extends LitElement {
       block-size: 16px;
     }
     .q-x {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .wg-quick[data-size='s'] .qa {
@@ -651,7 +651,7 @@ export class HomeWidgetsView extends LitElement {
       flex: 1;
       min-block-size: 34px;
       padding: 0 6px;
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
     }
     /* ---- media (CR-015): the screens that are on, as chips that open the remote ---- */
     .wg-media {
@@ -691,7 +691,7 @@ export class HomeWidgetsView extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .mt span {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     .mts {
@@ -718,7 +718,7 @@ export class HomeWidgetsView extends LitElement {
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       font: inherit;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text);
       cursor: pointer;
@@ -732,7 +732,7 @@ export class HomeWidgetsView extends LitElement {
       inline-size: 8px;
       block-size: 8px;
       border-radius: 50%;
-      background: var(--sw-success, #16a34a);
+      background: var(--sw-success);
       flex: none;
     }
     .mchip.more {
@@ -761,7 +761,7 @@ export class HomeWidgetsView extends LitElement {
       text-align: center;
       color: var(--sw-text-3);
       gap: 6px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       min-block-size: 96px;
     }
     .wg.ghost b {
@@ -784,7 +784,7 @@ export class HomeWidgetsView extends LitElement {
       border-radius: 999px;
       padding: 4px 12px;
       font: inherit;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       cursor: pointer;
     }
@@ -866,7 +866,7 @@ export class HomeWidgetsView extends LitElement {
       padding: 2px 9px;
       min-block-size: 24px;
       font: inherit;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       border-radius: 999px;
       cursor: pointer;
@@ -1130,7 +1130,7 @@ export class HomeWidgetsView extends LitElement {
     }
     :host([layout='row']) .wg-quick .qbtn {
       min-block-size: 32px;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       padding: 0 10px;
     }
     :host([layout='row']) .wg-quick[data-size='l'] .qa {

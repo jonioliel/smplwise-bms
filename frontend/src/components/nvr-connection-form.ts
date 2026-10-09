@@ -534,10 +534,10 @@ export class NvrConnectionForm extends LitElement {
       overflow-wrap: anywhere;
     }
     .val.ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .val.warn {
-      color: var(--sw-warning, #b45309);
+      color: var(--sw-warning);
     }
     .ltr {
       direction: ltr;
@@ -562,7 +562,7 @@ export class NvrConnectionForm extends LitElement {
       color: var(--sw-warning-text, var(--sw-warning));
     }
     .line.ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .line.err {
       color: var(--sw-danger-text, var(--sw-danger));
@@ -590,7 +590,7 @@ export class NvrConnectionForm extends LitElement {
     }
     .linkbtn:focus-visible {
       outline: 2px solid var(--sw-accent);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .adv summary {
       cursor: pointer;
@@ -611,7 +611,7 @@ export class NvrConnectionForm extends LitElement {
       gap: 8px;
     }
     .cert .ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .mono {
       font-family: var(--sw-font-mono, monospace);

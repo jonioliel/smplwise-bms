@@ -114,8 +114,8 @@ export class KioskWall extends LitElement {
       display: flex;
       flex-direction: column;
       min-block-size: 100%;
-      background: #0f172a;
-      color: #fff;
+      background: var(--sw-video-bg);
+      color: var(--sw-on-video);
       padding: 14px 20px 16px;
       gap: 12px;
     }
@@ -140,7 +140,7 @@ export class KioskWall extends LitElement {
     }
     .clock {
       font-size: var(--sw-fs-sm);
-      color: rgba(255, 255, 255, 0.75);
+      color: var(--sw-on-video-2);
       font-variant-numeric: tabular-nums;
       direction: ltr;
     }
@@ -150,7 +150,7 @@ export class KioskWall extends LitElement {
       display: grid;
       place-items: center;
       background: rgba(15, 23, 42, 0.86);
-      color: #fff;
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-xl);
       z-index: 50;
       text-align: center;
@@ -160,8 +160,8 @@ export class KioskWall extends LitElement {
       font-size: var(--sw-fs-xs);
       padding: 3px 10px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.85);
+      background: var(--sw-video-hover);
+      color: var(--sw-on-video-2);
     }
     .pill[data-status='warn'] {
       background: rgba(245, 158, 11, 0.25);
@@ -171,27 +171,27 @@ export class KioskWall extends LitElement {
     }
     header select.layout {
       background: #1e293b;
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 8px;
+      color: var(--sw-on-video);
+      border: 1px solid var(--sw-video-line);
+      border-radius: var(--sw-r-sm);
       padding: 3px 8px;
       font: inherit;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     header select.layout option {
       color: #0f1729;
       background: #fff;
     }
     header a.exit {
-      color: rgba(255, 255, 255, 0.85);
+      color: var(--sw-on-video-2);
       text-decoration: none;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 3px 10px;
     }
     header a.exit:hover {
-      background: rgba(255, 255, 255, 0.12);
+      background: var(--sw-video-hover);
     }
     .grid {
       flex: 1;
@@ -200,7 +200,7 @@ export class KioskWall extends LitElement {
       gap: 10px;
     }
     .grid sw-camera-tile {
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     .stats {
       display: grid;
@@ -210,7 +210,7 @@ export class KioskWall extends LitElement {
     .stat {
       background: #172036;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       padding: 12px 14px;
       display: flex;
       align-items: center;
@@ -221,7 +221,7 @@ export class KioskWall extends LitElement {
       place-items: center;
       inline-size: 32px;
       block-size: 32px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: rgba(47, 107, 255, 0.22);
       color: #8fb0ff;
     }
@@ -239,11 +239,11 @@ export class KioskWall extends LitElement {
       line-height: 1.1;
     }
     .stat span {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--sw-on-video-2);
       font-size: var(--sw-fs-xs);
     }
     .note {
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       color: rgba(255, 255, 255, 0.4);
     }
     /* the phone (mobile audit 2026-09-30): the header wraps instead of running off the screen, the tiles keep their own 16:9

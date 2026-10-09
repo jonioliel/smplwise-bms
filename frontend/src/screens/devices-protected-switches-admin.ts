@@ -59,7 +59,7 @@ export class DevicesProtectedSwitches extends LitElement {
       align-items: center;
       padding: 8px 12px;
       margin-block-end: 10px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-warning-soft);
       font-size: var(--sw-fs-sm);
     }
@@ -81,7 +81,7 @@ export class DevicesProtectedSwitches extends LitElement {
       min-block-size: 36px;
       padding: 0 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }
@@ -116,11 +116,11 @@ export class DevicesProtectedSwitches extends LitElement {
       color: var(--sw-text);
     }
     .yes {
-      color: var(--sw-success, #16a34a);
+      color: var(--sw-success);
       font-weight: var(--sw-fw-semibold);
     }
     .wait {
-      color: var(--sw-warning, #d97706);
+      color: var(--sw-warning);
       font-weight: var(--sw-fw-semibold);
     }
     .no {
@@ -143,7 +143,7 @@ export class DevicesProtectedSwitches extends LitElement {
     .warn {
       padding: 8px 10px;
       margin-block: 8px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-warning-soft);
       font-size: var(--sw-fs-sm);
     }
@@ -163,7 +163,7 @@ export class DevicesProtectedSwitches extends LitElement {
         align-items: center;
         padding: 8px 10px;
         border: 1px solid var(--sw-border);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         min-block-size: 44px;
       }
       .card .sub {

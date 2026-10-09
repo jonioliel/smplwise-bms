@@ -75,7 +75,7 @@ export class MediaNowHero extends LitElement {
       background: linear-gradient(135deg, var(--a1, #111827), var(--a2, #3f4a5c));
       display: grid;
       place-items: center;
-      color: #fff;
+      color: var(--sw-on-video);
       font-size: 56px;
       box-shadow: var(--sw-shadow-2);
     }
@@ -195,7 +195,7 @@ export class MediaNowHero extends LitElement {
       display: grid;
       place-items: center;
       cursor: pointer;
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       padding: 0;
       transition: transform 120ms var(--sw-ease);
     }
@@ -204,7 +204,7 @@ export class MediaNowHero extends LitElement {
       block-size: 60px;
       background: var(--sw-text);
       color: var(--sw-bg);
-      font-size: 24px;
+      font-size: var(--sw-fs-3xl);
     }
     .k:active {
       transform: scale(0.94);

@@ -112,7 +112,7 @@ export class MediaRemotePad extends LitElement {
         color: var(--mr-text);
         font: inherit;
         font-weight: 700;
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
         letter-spacing: 0.06em;
         box-shadow: var(--mr-key-shadow), 0 10px 22px rgba(0, 0, 0, 0.1);
         z-index: 2;
@@ -144,7 +144,7 @@ export class MediaRemotePad extends LitElement {
         display: grid;
         place-items: center;
         color: var(--mr-text-2);
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         touch-action: none;
         cursor: grab;
       }
@@ -177,7 +177,7 @@ export class MediaRemotePad extends LitElement {
         opacity: 0;
         transition: opacity 220ms;
         font-weight: 700;
-        font-size: 22px;
+        font-size: var(--sw-fs-3xl);
         pointer-events: none;
       }
       .tpad .fx svg {

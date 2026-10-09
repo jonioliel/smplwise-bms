@@ -78,7 +78,7 @@ export class SwNavOrder extends LitElement {
       place-items: center;
       inline-size: 44px;
       block-size: 44px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-3);
       cursor: grab;
       touch-action: none;
@@ -97,7 +97,7 @@ export class SwNavOrder extends LitElement {
       place-items: center;
       inline-size: 32px;
       block-size: 32px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       flex: none;
@@ -124,7 +124,7 @@ export class SwNavOrder extends LitElement {
       place-items: center;
       inline-size: 44px;
       block-size: 44px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       cursor: pointer;
       flex: none;
@@ -178,7 +178,7 @@ export class SwNavOrder extends LitElement {
     button.link:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: 2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     button.link[disabled] {
       opacity: 0.5;

@@ -208,9 +208,9 @@ export class DevicesCameraCard extends LitElement {
       inline-size: 28px;
       block-size: 28px;
       border: 0;
-      border-radius: 8px;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       cursor: pointer;
       opacity: 0;
       transition: opacity var(--sw-t-fast) var(--sw-ease);
@@ -268,10 +268,10 @@ export class DevicesCameraCard extends LitElement {
       inset-inline-end: 8px;
       inset-block-start: 8px;
       z-index: 1;
-      font-size: 9.5px;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .qbadge {
@@ -279,10 +279,10 @@ export class DevicesCameraCard extends LitElement {
       inset-inline-start: 8px;
       inset-block-start: 8px;
       z-index: 3;
-      font-size: 9.5px;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
       pointer-events: none;
     }
@@ -295,7 +295,7 @@ export class DevicesCameraCard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: #fff;
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);

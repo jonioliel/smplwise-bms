@@ -62,7 +62,7 @@ export class SystemStorage extends LitElement {
       place-items: center;
       inline-size: 30px;
       block-size: 30px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
       margin-inline-start: auto;
@@ -94,7 +94,7 @@ export class SystemStorage extends LitElement {
     }
     .cam .bar {
       block-size: 8px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-surface-3);
       overflow: hidden;
     }
@@ -103,7 +103,7 @@ export class SystemStorage extends LitElement {
       block-size: 100%;
       inline-size: var(--p);
       background: var(--sw-accent);
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     .cam .gb {
       text-align: end;
@@ -127,7 +127,7 @@ export class SystemStorage extends LitElement {
       place-items: center;
       inline-size: 28px;
       block-size: 28px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent);
     }

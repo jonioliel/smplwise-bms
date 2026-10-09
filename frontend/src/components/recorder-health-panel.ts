@@ -188,13 +188,13 @@ export class RecorderHealthPanel extends LitElement {
       background: var(--sw-text-3);
     }
     .dot[data-s='ok'] {
-      background: var(--sw-live, #16a34a);
+      background: var(--sw-live);
     }
     .dot[data-s='warn'] {
-      background: var(--sw-stale, #d97706);
+      background: var(--sw-stale);
     }
     .dot[data-s='error'] {
-      background: var(--sw-danger, #dc2626);
+      background: var(--sw-danger);
     }
     .bar {
       display: flex;
@@ -261,19 +261,19 @@ export class RecorderHealthPanel extends LitElement {
     .chk .box {
       inline-size: 16px;
       block-size: 16px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       border: 1px solid var(--sw-border-strong, var(--sw-border));
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       font-style: normal;
       flex-shrink: 0;
     }
     .chk[aria-pressed='true'] .box {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     :host([data-skin='bubble']) .chk {
       min-inline-size: 44px;

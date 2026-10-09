@@ -49,7 +49,7 @@ export class SystemInfra extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 14px;
-        padding: 14px var(--sw-page-pad, 24px) 24px;
+        padding: 14px var(--sw-page-pad) 24px;
         max-inline-size: var(--sw-content-max);
         inline-size: 100%;
         box-sizing: border-box;

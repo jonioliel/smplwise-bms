@@ -42,7 +42,7 @@ export class SwSteps extends LitElement {
     .step.done .n {
       background: var(--sw-live);
       border-color: var(--sw-live);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .step.current {
       color: var(--sw-accent-text);
@@ -51,7 +51,7 @@ export class SwSteps extends LitElement {
     .step.current .n {
       border-color: var(--sw-accent);
       background: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
       box-shadow: 0 0 0 4px var(--sw-accent-soft);
     }
     .line {

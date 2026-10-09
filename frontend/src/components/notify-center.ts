@@ -61,7 +61,7 @@ export class NotifyCenter extends LitElement {
         transition: visibility 0s linear var(--mm-motion);
         font-family: var(--dv-font);
         color: var(--dv-text);
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
       }
@@ -86,7 +86,7 @@ export class NotifyCenter extends LitElement {
       .panel {
         position: absolute;
         inset-block: 12px;
-        inset-inline-start: calc(var(--sw-rail-w, 86px) + 12px);
+        inset-inline-start: calc(var(--sw-rail-w) + 12px);
         inline-size: var(--nt-sheet-w);
         background: var(--mm-sheen), var(--mm-sheet-surface);
         -webkit-backdrop-filter: var(--mm-sheet-blur);
@@ -110,7 +110,7 @@ export class NotifyCenter extends LitElement {
       /* the full-screen presentation of a wide screen (notify.center_layout = 'page'): the content column beside the rail */
       :host([data-presentation='page']) .panel {
         inset-block: 0;
-        inset-inline: var(--sw-rail-w, 86px) 0;
+        inset-inline: var(--sw-rail-w) 0;
         inline-size: auto;
         border: 0;
         border-radius: 0;
@@ -179,7 +179,7 @@ export class NotifyCenter extends LitElement {
       }
       .nh h3 {
         margin: 0;
-        font-size: 22px;
+        font-size: var(--sw-fs-3xl);
         font-weight: 700;
         letter-spacing: -0.025em;
         display: flex;
@@ -192,19 +192,19 @@ export class NotifyCenter extends LitElement {
         min-inline-size: 26px;
         block-size: 26px;
         padding: 0 8px;
-        border-radius: 13px;
+        border-radius: var(--sw-r-md);
         background: var(--dv-accent);
         color: #fff;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 700;
         font-variant-numeric: tabular-nums;
       }
       .nh small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .nh .crumb {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         color: var(--dv-text-2);
       }
       .nh .x,
@@ -226,7 +226,7 @@ export class NotifyCenter extends LitElement {
       }
       .nh .x .ic,
       .nh .back .ic {
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
       }
       .nbars {
         display: flex;
@@ -255,7 +255,7 @@ export class NotifyCenter extends LitElement {
         flex: none;
       }
       .srcbtn .rc .ic:last-child {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         transition: transform var(--mm-motion) var(--mm-ease);
       }
       .srcbtn .rc[aria-expanded='true'] .ic:last-child {
@@ -287,7 +287,7 @@ export class NotifyCenter extends LitElement {
         align-items: center;
         gap: 8px;
         padding: 14px 10px 6px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--dv-text-3);
         letter-spacing: 0.02em;
@@ -304,7 +304,7 @@ export class NotifyCenter extends LitElement {
         color: var(--nt-sev-critical);
       }
       .gh .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .more-btn {
         align-self: center;
@@ -334,7 +334,7 @@ export class NotifyCenter extends LitElement {
       }
       .skrow .skl:first-child {
         block-size: 48px;
-        border-radius: 4px;
+        border-radius: var(--sw-r-2xs);
       }
       .skrow .skl:nth-child(2) {
         inline-size: 40px;
@@ -389,7 +389,7 @@ export class NotifyCenter extends LitElement {
         place-items: center;
         background: var(--dv-warning-soft);
         color: var(--dv-warning);
-        font-size: 22px;
+        font-size: var(--sw-fs-3xl);
         flex: none;
       }
       .dlg .dh3 .ring.ok {
@@ -402,7 +402,7 @@ export class NotifyCenter extends LitElement {
       }
       .dlg h3 {
         margin: 0;
-        font-size: 17.5px;
+        font-size: var(--sw-fs-xl);
         font-weight: 700;
         letter-spacing: -0.01em;
         line-height: 1.3;
@@ -411,11 +411,11 @@ export class NotifyCenter extends LitElement {
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .dlg .who .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         color: var(--dv-success);
       }
       .dlg .acts {
@@ -441,7 +441,7 @@ export class NotifyCenter extends LitElement {
         padding: 11px 20px 11px 16px;
         border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
         font-weight: 500;
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
         display: flex;
@@ -451,7 +451,7 @@ export class NotifyCenter extends LitElement {
       }
       .toast .ic {
         color: #30d158;
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .toast.bad .ic {
         color: #ff6961;

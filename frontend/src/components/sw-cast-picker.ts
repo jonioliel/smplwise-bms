@@ -70,7 +70,7 @@ export class SwCastPicker extends LitElement {
     }
     .panel.pop {
       position: fixed;
-      z-index: var(--sw-z-drawer, 60);
+      z-index: var(--sw-z-drawer);
       inline-size: min(380px, calc(100vw - 24px));
       max-block-size: min(70vh, 560px);
     }
@@ -282,9 +282,9 @@ export class SwCastPicker extends LitElement {
       border: 1px solid var(--sw-border);
     }
     .yes {
-      background: var(--sw-accent, #2f6bff);
+      background: var(--sw-accent);
       border-color: transparent;
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     footer {
       display: flex;
@@ -298,7 +298,7 @@ export class SwCastPicker extends LitElement {
     .link {
       all: unset;
       cursor: pointer;
-      color: var(--sw-accent, #2f6bff);
+      color: var(--sw-accent);
       font-size: var(--sw-fs-xs);
     }
     .note {

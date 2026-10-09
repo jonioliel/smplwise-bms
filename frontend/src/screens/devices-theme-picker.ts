@@ -75,7 +75,7 @@ export class DevicesThemePicker extends LitElement {
       block-size: 64px;
     }
     .prev {
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 6px;
       display: flex;
       flex-direction: column;
@@ -84,7 +84,7 @@ export class DevicesThemePicker extends LitElement {
     }
     .prev i {
       display: block;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       block-size: 14px;
     }
     .prev b {
@@ -125,7 +125,7 @@ export class DevicesThemePicker extends LitElement {
     select {
       min-block-size: 32px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;

@@ -91,7 +91,7 @@ const shared = css`
     inline-size: 140px;
   }
   .ok {
-    color: #15803d;
+    color: var(--sw-success-text);
     font-size: var(--sw-fs-sm);
   }
   .err {

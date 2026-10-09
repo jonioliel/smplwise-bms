@@ -89,7 +89,7 @@ export class SwCastPill extends LitElement {
       position: absolute;
       inset-block-start: calc(100% + 8px);
       inset-inline-end: 0;
-      z-index: var(--sw-z-drawer, 60);
+      z-index: var(--sw-z-drawer);
       inline-size: min(380px, calc(100vw - 20px));
       max-block-size: min(70vh, 520px);
       overflow: auto;

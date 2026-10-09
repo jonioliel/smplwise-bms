@@ -56,7 +56,7 @@ export class ArxLogin extends LitElement {
       box-sizing: border-box;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg, 16px);
+      border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       padding: 28px 24px 22px;
       display: flex;
@@ -71,7 +71,7 @@ export class ArxLogin extends LitElement {
     .brand img {
       inline-size: 44px;
       block-size: 44px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     .brand .name {
       display: flex;
@@ -118,10 +118,10 @@ export class ArxLogin extends LitElement {
     }
     input {
       font: inherit;
-      font-size: 16px; /* no zoom-on-focus on iOS */
+      font-size: var(--sw-fs-lg); /* no zoom-on-focus on iOS */
       min-block-size: 44px;
       padding: 8px 12px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text);
@@ -140,16 +140,16 @@ export class ArxLogin extends LitElement {
     input.code {
       letter-spacing: 0.4em;
       text-align: center;
-      font-size: 22px;
+      font-size: var(--sw-fs-3xl);
       font-family: var(--sw-font-mono, ui-monospace, monospace);
     }
     button {
       font: inherit;
       min-block-size: 44px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       border: 1px solid var(--sw-accent);
       background: var(--sw-accent);
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-md);
       cursor: pointer;
@@ -172,7 +172,7 @@ export class ArxLogin extends LitElement {
       align-self: center;
     }
     .msg {
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       padding: 10px 12px;
       font-size: var(--sw-fs-sm);
       line-height: 1.5;

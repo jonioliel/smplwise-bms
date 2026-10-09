@@ -587,10 +587,10 @@ export class SystemSetup extends LitElement {
       overflow-wrap: anywhere;
     }
     .val.ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .val.warn {
-      color: var(--sw-warning, #b45309);
+      color: var(--sw-warning);
     }
     .val.err {
       color: var(--sw-danger);

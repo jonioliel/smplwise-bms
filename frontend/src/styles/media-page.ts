@@ -15,7 +15,7 @@ export const mediaPageStyles = css`
       background: var(--dv-backdrop);
       color: var(--dv-text);
       font-family: var(--dv-font);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
     .page {
@@ -113,7 +113,7 @@ export const mediaPageStyles = css`
       background: var(--dv-surface-2);
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       font-weight: 500;
       color: var(--dv-text-2);
       white-space: nowrap;
@@ -147,7 +147,7 @@ export const mediaPageStyles = css`
       pointer-events: none;
     }
     .amb {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .amb em {
@@ -179,14 +179,14 @@ export const mediaPageStyles = css`
       outline: none;
       flex: 1;
       min-inline-size: 0;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text);
     }
     .search input::placeholder {
       color: var(--dv-text-2);
     }
     .search .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     /* groups and the grid */
     .groups {
@@ -207,7 +207,7 @@ export const mediaPageStyles = css`
     }
     .sh h2 {
       margin: 0;
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       font-weight: 700;
       letter-spacing: -0.025em;
       line-height: 1.2;
@@ -218,11 +218,11 @@ export const mediaPageStyles = css`
       display: inline-flex;
       align-items: center;
       gap: 2px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       min-block-size: 28px;
     }
     .shlink .ic {
-      font-size: 19px;
+      font-size: var(--sw-fs-2xl);
       color: var(--dv-text-3);
       transition: transform var(--mm-motion) var(--mm-ease);
     }
@@ -235,7 +235,7 @@ export const mediaPageStyles = css`
     }
     .sh small {
       display: block;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       margin-block-start: 1px;
     }
@@ -274,7 +274,7 @@ export const mediaPageStyles = css`
       display: grid;
       place-items: center;
       color: var(--dv-text);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
     }
     .ecard button:hover {
@@ -288,7 +288,7 @@ export const mediaPageStyles = css`
       opacity: 0.35;
     }
     .ecard .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     /* the confirmation dialogs carry the sheet material (a translucent glass panel over a dimmed page reads as washed out) */
     media-bulk-dialog,
@@ -325,7 +325,7 @@ export const mediaPageStyles = css`
     }
     .note-bad {
       color: var(--dv-danger);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
     }
     .toast {
@@ -343,7 +343,7 @@ export const mediaPageStyles = css`
       padding: 11px 20px 11px 16px;
       border-radius: 999px;
       border: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       font-weight: 500;
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
       display: flex;
@@ -353,7 +353,7 @@ export const mediaPageStyles = css`
     }
     .toast .ic {
       color: #30d158;
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     @media (pointer: coarse), (max-width: 767px) {
       .rc,
@@ -418,7 +418,7 @@ export const mediaPageStyles = css`
         grid-template-columns: minmax(0, 1fr);
       }
       .toast {
-        inset-block-end: calc(var(--sw-bottomnav-h, 66px) + 14px);
+        inset-block-end: calc(var(--sw-bottomnav-h) + 14px);
       }
       .groups {
         gap: 22px;

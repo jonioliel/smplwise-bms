@@ -118,7 +118,7 @@ export class SystemDesign extends LitElement {
       line-height: 1.35;
     }
     .cur {
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       padding: 1px 6px;
       border-radius: 999px;
       background: var(--sw-accent-soft);
@@ -133,7 +133,7 @@ export class SystemDesign extends LitElement {
       gap: 6px;
       padding: 6px;
       block-size: 78px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       direction: rtl;
     }
@@ -198,7 +198,7 @@ export class SystemDesign extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       flex-wrap: wrap;
     }
     .seg button {
@@ -208,7 +208,7 @@ export class SystemDesign extends LitElement {
       align-items: center;
       min-block-size: 36px;
       padding: 0 14px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);

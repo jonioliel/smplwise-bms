@@ -36,7 +36,7 @@ export const bubbleChrome = css`
   }
   /* the screens' own sw-tabs rows (the settings hub, the look card) take the touch dial as their hit height */
   :host([data-skin='bubble']) {
-    --sw-tab-min-h: var(--sw-touch-desktop, 44px);
+    --sw-tab-min-h: var(--sw-touch-desktop);
   }
   :host([data-skin='bubble']) .layouts button,
   :host([data-skin='bubble']) .rangepick button,
@@ -49,8 +49,8 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) .sevseg button {
     border: 0;
     border-radius: var(--sw-r-pill);
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
     block-size: auto;
     box-shadow: none;
     background: transparent;
@@ -121,8 +121,8 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) a.why,
   :host([data-skin='bubble']) button.kiosk,
   :host([data-skin='bubble']) button.chip {
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
   }
   :host([data-skin='bubble']) a.seeall,
   :host([data-skin='bubble']) a.why,
@@ -133,8 +133,8 @@ export const bubbleChrome = css`
     align-items: center;
   }
   :host([data-skin='bubble']) .rev a {
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
   }
   /* the navigation-size card's mini previews (a fixed-width phone bar) never push a 320 px page sideways */
   :host([data-skin='bubble']) .stage > div {
@@ -259,7 +259,7 @@ export const bubbleChrome = css`
     border-radius: var(--sw-r-md);
     background: var(--sw-surface-2);
     box-shadow: none;
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
     box-sizing: border-box;
   }
   :host([data-skin='bubble']) textarea {

@@ -123,7 +123,7 @@ export class SwTabs extends LitElement {
     button:focus-visible {
       outline: 2px solid var(--sw-focus);
       outline-offset: -2px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .lbl {
       display: inline-flex;
@@ -176,7 +176,7 @@ export class SwTabs extends LitElement {
       inset-inline: 0;
       inset-block: max(0px, calc((var(--_h) - 34px) / 2));
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     :host([data-variant='pill']) a,
     :host([data-variant='pill']) button {
@@ -186,7 +186,7 @@ export class SwTabs extends LitElement {
     :host([data-variant='pill']) .lbl {
       min-block-size: 28px;
       padding: 0 12px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       box-sizing: border-box;
       justify-content: center;
     }

@@ -59,7 +59,7 @@ export const playerBase = css`
     transition: transform 120ms var(--mr-ease), box-shadow var(--mr-motion), color var(--mr-motion);
   }
   .rb .ic {
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
   }
   .rb:active,
   .rb.hit {
@@ -111,7 +111,7 @@ export const playerBase = css`
   .vrow .lbl {
     flex: none;
     min-inline-size: 52px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
   }
@@ -230,7 +230,7 @@ export const playerBase = css`
     gap: 10px;
     min-block-size: 52px;
     padding: 4px 12px;
-    border-radius: 15px;
+    border-radius: var(--sw-r-lg);
     background: var(--mr-surface-2);
     border: 1px solid var(--mr-border);
   }
@@ -241,14 +241,14 @@ export const playerBase = css`
     line-height: 1.25;
   }
   .mrow .nm b {
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .mrow .nm small {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--mr-text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -264,10 +264,10 @@ export const playerBase = css`
   }
   :host([data-devices-scheme='light']) .mrow .nm small.ok,
   :host([data-devices-scheme='light']) .ckrow .nm small.ok {
-    color: #1f8f3f;
+    color: var(--sw-success-text);
   }
   .mrow .vv {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 700;
     text-align: end;
     font-variant-numeric: tabular-nums;
@@ -310,7 +310,7 @@ export const playerStyles = css`
     box-shadow: 0 6px 18px var(--mr-accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
   .hpw .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
     stroke-width: 2;
   }
   .hpw:active {
@@ -362,7 +362,7 @@ export const playerStyles = css`
     flex-direction: column;
     gap: 12px;
     padding: 14px;
-    border-radius: 22px;
+    border-radius: var(--sw-r-2xl);
     background: var(--mr-surface-2);
     border: 1px solid var(--mr-border);
   }
@@ -375,7 +375,7 @@ export const playerStyles = css`
   .npb .thumb {
     inline-size: 96px;
     block-size: 96px;
-    border-radius: 18px;
+    border-radius: var(--sw-r-2xl);
     box-shadow: 0 12px 26px rgb(var(--art, 20 24 34) / 0.38);
   }
   .npb .thumb .tile {
@@ -389,13 +389,13 @@ export const playerStyles = css`
     line-height: 1.25;
   }
   .npb .t small {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
     letter-spacing: 0.02em;
   }
   .npb .t b {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
     font-weight: 700;
     letter-spacing: -0.01em;
     white-space: nowrap;
@@ -403,7 +403,7 @@ export const playerStyles = css`
     text-overflow: ellipsis;
   }
   .npb .t span {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     color: var(--mr-text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -411,13 +411,13 @@ export const playerStyles = css`
   }
   .npb .t .al {
     color: var(--mr-text-3);
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
   }
   .pprog {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--mr-text-2);
     min-inline-size: 0;
   }
@@ -448,7 +448,7 @@ export const playerStyles = css`
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: 600;
     color: var(--mr-text-2);
   }
@@ -456,8 +456,8 @@ export const playerStyles = css`
     inline-size: 7px;
     block-size: 7px;
     border-radius: 50%;
-    background: #ff453a;
-    box-shadow: 0 0 6px #ff453a;
+    background: var(--sw-danger);
+    box-shadow: 0 0 6px var(--sw-danger);
     animation: pn-blink 1.6s ease-in-out infinite;
   }
   @keyframes pn-blink {
@@ -481,7 +481,7 @@ export const playerStyles = css`
     color: var(--mr-text-3);
   }
   .idle b {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
     font-weight: 600;
   }
 
@@ -536,7 +536,7 @@ export const playerStyles = css`
     transition: transform 120ms var(--mr-ease), box-shadow 220ms var(--mr-ease), color 220ms;
   }
   .tport .kc .ic {
-    font-size: 20px;
+    font-size: var(--sw-fs-2xl);
   }
   .tport .kb:active .kc,
   .tport .kb.hit .kc {
@@ -559,7 +559,7 @@ export const playerStyles = css`
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
   }
   .tport .kb.main .kc .ic {
-    font-size: 26px;
+    font-size: var(--sw-fs-3xl);
     stroke-width: 2;
   }
   .tport .kb.main:active .kc {
@@ -571,7 +571,7 @@ export const playerStyles = css`
     block-size: 44px;
   }
   .tport .kb.side .kc .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
   .tport .kb.side[aria-pressed='true'] .kc {
     color: var(--mr-accent-text);
@@ -582,7 +582,7 @@ export const playerStyles = css`
     inset-inline-start: 50%;
     inset-block-start: 50%;
     transform: translate(-50%, -45%);
-    font-size: 9px;
+    font-size: var(--sw-fs-2xs);
     font-weight: 800;
   }
   .tport .kb[disabled] {
@@ -603,13 +603,13 @@ export const playerStyles = css`
   }
   .psh h4 {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 700;
     color: var(--mr-text-2);
     letter-spacing: 0.01em;
   }
   .psh small {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -619,16 +619,16 @@ export const playerStyles = css`
     margin-inline-start: auto;
     min-block-size: 28px;
     padding-inline: 6px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     font-weight: 600;
     color: var(--mr-accent-text);
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
   }
   .psh .lnk .ic {
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     transition: transform var(--mr-motion) var(--mr-ease);
   }
   .psh .lnk[aria-expanded='true'] .ic {
@@ -649,7 +649,7 @@ export const playerStyles = css`
     flex-direction: column;
     gap: 4px;
     padding: 8px;
-    border-radius: 18px;
+    border-radius: var(--sw-r-2xl);
     background: var(--mr-surface-2);
     border: 1px solid var(--mr-border);
   }
@@ -659,7 +659,7 @@ export const playerStyles = css`
     align-items: center;
     gap: 10px;
     padding: 6px 8px;
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
     min-block-size: 44px;
   }
   .uq .row.cur {
@@ -670,10 +670,10 @@ export const playerStyles = css`
     place-items: center;
     inline-size: 28px;
     block-size: 28px;
-    border-radius: 9px;
+    border-radius: var(--sw-r-sm);
     background: var(--mr-surface-3);
     color: var(--mr-text-2);
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -682,7 +682,7 @@ export const playerStyles = css`
     color: #fff;
   }
   .uq .ix .ic {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
   }
   .uq .t {
     display: flex;
@@ -691,21 +691,21 @@ export const playerStyles = css`
     line-height: 1.25;
   }
   .uq .t b {
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .uq .t small {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .uq .dur {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
   }
   .uq .umore {
@@ -714,7 +714,7 @@ export const playerStyles = css`
     justify-content: center;
     gap: 6px;
     min-block-size: 36px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
   }
@@ -724,13 +724,13 @@ export const playerStyles = css`
     justify-content: center;
     gap: 8px;
     min-block-size: 48px;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     color: var(--mr-text-2);
     font-weight: 500;
   }
   .uq .unav .ic {
     color: var(--mr-text-3);
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
   }
 
   /* ---- library ---- */
@@ -747,7 +747,7 @@ export const playerStyles = css`
     padding: 6px;
     padding-inline: 6px 10px;
     min-block-size: 56px;
-    border-radius: 16px;
+    border-radius: var(--sw-r-lg);
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
     text-align: start;
@@ -766,10 +766,10 @@ export const playerStyles = css`
   .libi .gi {
     inline-size: 42px;
     block-size: 42px;
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
   }
   .libi .gi .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
   }
   .libi .t {
     display: flex;
@@ -778,14 +778,14 @@ export const playerStyles = css`
     line-height: 1.25;
   }
   .libi .t b {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .libi .t small {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--mr-text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -830,7 +830,7 @@ export const playerStyles = css`
     justify-content: center;
     min-block-size: 56px;
     color: var(--mr-text-2);
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
   }
 
@@ -847,7 +847,7 @@ export const playerStyles = css`
     min-block-size: 48px;
     padding: 4px 8px;
     padding-inline: 12px 8px;
-    border-radius: 15px;
+    border-radius: var(--sw-r-lg);
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
     text-align: start;
@@ -867,14 +867,14 @@ export const playerStyles = css`
     line-height: 1.25;
   }
   .ckrow .nm b {
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .ckrow .nm small {
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     color: var(--mr-text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -901,7 +901,7 @@ export const playerStyles = css`
     transition: background var(--mr-motion), border-color var(--mr-motion);
   }
   .ckrow .ck .ic {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
     stroke-width: 2.6;
     opacity: 0;
   }
@@ -938,15 +938,15 @@ export const playerStyles = css`
   }
   .ckrow.warn > .ic {
     color: var(--mr-warning);
-    font-size: 20px;
+    font-size: var(--sw-fs-2xl);
   }
   .ckrow .gi {
     inline-size: 30px;
     block-size: 30px;
-    border-radius: 9px;
+    border-radius: var(--sw-r-sm);
   }
   .ckrow .gi .ic {
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
   }
   .ckrow .pendring {
     inset: -6px;
@@ -960,7 +960,7 @@ export const playerStyles = css`
   }
   .ctas .btn {
     min-block-size: 46px;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
   }
   .ctas .btn small {
     font-weight: 500;
@@ -970,7 +970,7 @@ export const playerStyles = css`
     display: flex;
     flex-direction: column;
     padding: 4px;
-    border-radius: 16px;
+    border-radius: var(--sw-r-lg);
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
   }
@@ -981,10 +981,10 @@ export const playerStyles = css`
     min-block-size: 48px;
     padding: 4px 8px;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
     background: transparent;
     text-align: start;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
   }
   .pop button:hover {
@@ -993,14 +993,14 @@ export const playerStyles = css`
   .pop .gi {
     inline-size: 32px;
     block-size: 32px;
-    border-radius: 10px;
+    border-radius: var(--sw-r-md);
   }
   .pop .gi .ic {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
   }
   .pop .cnt {
     margin-inline-start: auto;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: 500;
     color: var(--mr-text-2);
     max-inline-size: 45%;
@@ -1020,14 +1020,14 @@ export const playerStyles = css`
     padding: 8px 12px;
     flex-direction: row;
     align-items: center;
-    font-size: 13px;
-    border-radius: 16px;
+    font-size: var(--sw-fs-base);
+    border-radius: var(--sw-r-lg);
     gap: 6px;
   }
   .modes .srci .ck {
     position: static;
     margin-inline-start: auto;
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
   }
   .srci > span:not(.gi):not(.ck) {
     min-inline-size: 0;
@@ -1047,11 +1047,11 @@ export const playerStyles = css`
   /* ---- confirmation (rendered inside the drawer) ---- */
   .cd-line {
     margin: 0;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     color: var(--mr-text-2);
   }
   .cd details {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     color: var(--mr-text-2);
   }
   .cd summary {
@@ -1071,6 +1071,6 @@ export const playerStyles = css`
   .skl-row {
     display: block;
     block-size: 48px;
-    border-radius: 14px;
+    border-radius: var(--sw-r-lg);
   }
 `;

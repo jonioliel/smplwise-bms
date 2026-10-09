@@ -84,7 +84,7 @@ export class SystemDevices extends LitElement {
       inline-size: 48px;
       block-size: 32px;
       object-fit: cover;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       flex-shrink: 0;
       background: var(--sw-surface-3);
     }
@@ -92,7 +92,7 @@ export class SystemDevices extends LitElement {
     .cam .none {
       inline-size: 48px;
       block-size: 32px;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       flex-shrink: 0;
       overflow: hidden;
     }
@@ -147,7 +147,7 @@ export class SystemDevices extends LitElement {
     }
     .ok {
       font-size: var(--sw-fs-xs);
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .nvr {
       display: grid;
@@ -167,7 +167,7 @@ export class SystemDevices extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     // owner 2026-09-29: the Live overview's cameras tile opens the FULL list with the offline cameras first (`?sort=offline`);
-    // `?filter=` still preselects a chip
+    // `?filter= ` still preselects a chip
     const params = parseRoute().params;
     const f = params.get('filter');
     if (f === 'all' || f === 'online' || f === 'offline' || f === 'issues') this.filter = f;

@@ -20,7 +20,7 @@ export const elecCss = css`
     --elec-touch: 32px;
   }
   :host([data-skin='bubble']) {
-    --elec-touch: var(--sw-touch-desktop, 44px);
+    --elec-touch: var(--sw-touch-desktop);
   }
   *,
   *::before,
@@ -32,7 +32,7 @@ export const elecCss = css`
     flex-direction: column;
     gap: 16px;
     min-inline-size: 0;
-    padding: var(--sw-s-4) var(--sw-page-pad, 24px) var(--sw-s-8);
+    padding: var(--sw-s-4) var(--sw-page-pad) var(--sw-s-8);
   }
   .row {
     display: flex;
@@ -109,8 +109,8 @@ export const elecCss = css`
     border: 1px solid var(--sw-border);
     border-radius: var(--sw-r-lg);
     box-shadow: var(--sw-shadow-1);
-    -webkit-backdrop-filter: var(--sw-glass-blur-sheet, none);
-    backdrop-filter: var(--sw-glass-blur-sheet, none);
+    -webkit-backdrop-filter: var(--sw-glass-blur-sheet);
+    backdrop-filter: var(--sw-glass-blur-sheet);
     padding: 16px;
     min-inline-size: 0;
   }
@@ -148,7 +148,7 @@ export const elecCss = css`
     font-size: var(--sw-fs-sm);
   }
   .tile .v {
-    font-size: 24px;
+    font-size: var(--sw-fs-3xl);
     font-weight: var(--sw-fw-bold);
     color: var(--sw-heading);
   }
@@ -160,7 +160,7 @@ export const elecCss = css`
   }
   .prog {
     block-size: 8px;
-    border-radius: 4px;
+    border-radius: var(--sw-r-2xs);
     background: var(--sw-surface-3);
     overflow: hidden;
   }
@@ -275,7 +275,7 @@ export const elecCss = css`
   .ind {
     inline-size: 18px;
     block-size: 18px;
-    border-radius: 5px;
+    border-radius: var(--sw-r-2xs);
     border: 1.5px solid var(--sw-border-strong);
     display: inline-grid;
     place-items: center;
@@ -292,7 +292,7 @@ export const elecCss = css`
   }
   input[type='checkbox']:checked + .ind::after {
     content: '✓';
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-bold);
   }
   input[type='radio']:checked + .ind {
@@ -661,7 +661,7 @@ export const elecCss = css`
   }
   .skl {
     background: linear-gradient(90deg, var(--sw-surface-3), var(--sw-surface-2), var(--sw-surface-3));
-    border-radius: 6px;
+    border-radius: var(--sw-r-xs);
     block-size: 14px;    animation: elec-pulse 1.4s ease-in-out infinite;
   }
   @keyframes elec-pulse {
@@ -707,7 +707,7 @@ export const elecCss = css`
     border-radius: 50%;
     display: grid;
     place-items: center;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-bold);
     background: var(--sw-surface-3);
     color: var(--sw-text-2);
@@ -829,10 +829,10 @@ export const elecCss = css`
   .tok.m small {
     font-weight: var(--sw-fw-medium);
     color: var(--sw-text-3);
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
   }
   .tok.op {
-    font-size: 20px;
+    font-size: var(--sw-fs-2xl);
     font-weight: var(--sw-fw-bold);
     color: var(--sw-heading);
     padding: 0 8px;
@@ -908,7 +908,7 @@ export const elecCss = css`
   }
   .chart text {
     fill: var(--sw-text-3);
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     font-family: var(--sw-font);
   }
   .chart .bar {
@@ -961,7 +961,7 @@ export const elecCss = css`
       --elec-touch: 44px;
     }
     .page {
-      padding-inline: var(--sw-page-pad, 16px);
+      padding-inline: var(--sw-page-pad);
     }
     .cols.side-l,
     .cols.side-r {
@@ -993,7 +993,7 @@ export const elecCss = css`
       gap: 8px;
     }
     .tile .v {
-      font-size: 19px;
+      font-size: var(--sw-fs-2xl);
     }
     .grid-cards {
       grid-template-columns: minmax(0, 1fr);
@@ -1090,7 +1090,7 @@ export const elecCss = css`
     box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
   }
   :host([data-skin='tesla']) .btn {
-    border-radius: 4px;
+    border-radius: var(--sw-r-2xs);
   }
   :host([data-skin='bubble']) .btn,
   :host([data-skin='bubble']) .chip,

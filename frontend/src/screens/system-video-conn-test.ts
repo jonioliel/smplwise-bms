@@ -75,7 +75,7 @@ export class SystemVideoConnTest extends LitElement {
       padding-block-start: 10px;
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
     .err {
@@ -91,7 +91,7 @@ export class SystemVideoConnTest extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .verdicts .good {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .verdicts .bad {
       color: var(--sw-danger);
@@ -103,7 +103,7 @@ export class SystemVideoConnTest extends LitElement {
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2, var(--sw-surface));
       font-family: var(--sw-font-mono, ui-monospace, monospace);
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       line-height: 1.45;
       direction: ltr;
       text-align: left;

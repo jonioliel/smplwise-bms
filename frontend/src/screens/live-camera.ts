@@ -442,7 +442,7 @@ export class LiveCamera extends LitElement {
   static styles = [css`
     /* the detection-zones view (renderZones). Here, not in a <style> element of the template: the remote channel's strict
        CSP (style-src-elem 'self', CR-008 P2) refuses inline style elements; static styles are constructed stylesheets */
-    .zones .frame { position: relative; aspect-ratio: 16 / 9; background: #0f1729; border-radius: 8px; overflow: hidden; }
+    .zones .frame { position: relative; aspect-ratio: 16 / 9; background: var(--sw-video-bg); border-radius: var(--sw-r-sm); overflow: hidden; }
     .zones .frame img { inline-size: 100%; block-size: 100%; object-fit: fill; display: block; }
     .zones .frame svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
     .zones .cell { fill: rgba(239, 68, 68, 0.28); stroke: rgba(239, 68, 68, 0.55); stroke-width: 1; }
@@ -462,8 +462,8 @@ export class LiveCamera extends LitElement {
       margin-inline: auto;
       border-radius: var(--sw-r-lg);
       overflow: hidden;
-      background: #0f1729;
-      color: #fff;
+      background: var(--sw-video-bg);
+      color: var(--sw-on-video);
       box-shadow: var(--sw-shadow-2);
     }
     .video sw-scene,
@@ -487,11 +487,11 @@ export class LiveCamera extends LitElement {
       position: absolute;
       inset-inline-end: 12px;
       inset-block-start: 10px;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
-      border-radius: 4px;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 2px 7px;
       z-index: 2;
     }
@@ -595,13 +595,13 @@ export class LiveCamera extends LitElement {
     .round .q.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-on-video);
     }
     .transport {
       display: inline-flex;
       gap: 2px;
       background: var(--sw-surface-3);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 2px;
     }
     .round .transport button {
@@ -615,7 +615,7 @@ export class LiveCamera extends LitElement {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
       padding: 0 9px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
     }
@@ -682,7 +682,7 @@ export class LiveCamera extends LitElement {
     .zoom button {
       inline-size: 28px;
       block-size: 28px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text-2);

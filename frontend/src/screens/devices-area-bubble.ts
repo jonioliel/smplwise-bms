@@ -169,8 +169,8 @@ export const bubbleAreaStyles = css`
   .sb {
     inline-size: var(--sw-sub-size, var(--sw-sub));
     block-size: var(--sw-sub-size, var(--sw-sub));
-    min-inline-size: var(--sw-touch-desktop, 44px);
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-inline-size: var(--sw-touch-desktop);
+    min-block-size: var(--sw-touch-desktop);
     box-sizing: border-box;
     border: 0;
     border-radius: 50%;
@@ -210,8 +210,8 @@ export const bubbleAreaStyles = css`
   }
   .chip {
     block-size: var(--sw-sub-size, var(--sw-sub));
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
     box-sizing: border-box;
     justify-content: center;
     padding: 0 12px;
@@ -303,7 +303,7 @@ export const bubbleAreaStyles = css`
   }
   .bmore {
     inline-size: 100%;
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
     border: 0;
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface);
@@ -335,7 +335,7 @@ export const bubbleAreaStyles = css`
   :host([data-skin='bubble']) .sec-chip {
     border: 0;
     background: var(--sw-layer-2);
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
     padding: 0 12px;
   }
   @media (max-width: 1100px) {
@@ -405,7 +405,7 @@ export const bubbleAreaStyles = css`
     block-size: 56px;
   }
   .bbtn {
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
     padding: 0 18px;
     border: 0;
     border-radius: var(--sw-r-pill);

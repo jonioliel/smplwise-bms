@@ -75,7 +75,7 @@ export class ScriptEditor extends AutomationEditorBase {
         block-size: 34px;
         border-radius: 50%;
         background: var(--dv-icon-ring-bg);
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
         flex: none;
       }
       .frow2 .nm {
@@ -84,11 +84,11 @@ export class ScriptEditor extends AutomationEditorBase {
         display: flex;
         flex-direction: column;
         gap: 2px;
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         font-weight: 600;
       }
       .frow2 .nm small {
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         font-weight: 500;
         color: var(--dv-text-2);
       }
@@ -101,7 +101,7 @@ export class ScriptEditor extends AutomationEditorBase {
         color: var(--dv-text-3);
         display: grid;
         place-items: center;
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .frow2 .x:hover {
         background: var(--dv-surface-3);

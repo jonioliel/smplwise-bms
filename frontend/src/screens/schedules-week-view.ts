@@ -58,7 +58,7 @@ export class SchedulesWeekView extends LitElement {
       inset-block-end: 2px;
       transform: translateX(-50%);
       color: var(--sw-text-3);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       font-variant-numeric: tabular-nums;
     }
     .hour:first-child {
@@ -90,7 +90,7 @@ export class SchedulesWeekView extends LitElement {
       position: relative;
       background: var(--sw-surface-2);
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       min-block-size: 40px;
     }
@@ -125,13 +125,13 @@ export class SchedulesWeekView extends LitElement {
       align-items: center;
       gap: 5px;
       padding: 0 7px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       border: 1px solid var(--c);
       border-inline-start-width: 3px;
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       cursor: pointer;
       white-space: nowrap;
       direction: rtl;

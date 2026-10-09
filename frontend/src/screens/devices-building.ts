@@ -233,7 +233,7 @@ const BUILDING_BUBBLE = css`
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface);
     box-shadow: none;
-    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale));
     padding: 4px 8px;
     gap: 10px;
     transition: background var(--sw-t-fast) var(--sw-ease);
@@ -253,13 +253,13 @@ const BUILDING_BUBBLE = css`
   }
   :host([data-skin='bubble']) .arow .nm {
     font-weight: var(--sw-fw-semibold);
-    font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+    font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
   }
   /* the ring: the area's hue, the lit halo when something is on */
   :host([data-skin='bubble']) .arow .sdot,
   :host([data-skin='bubble']) .tile-head .ring {
-    inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
-    block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+    inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
+    block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
     border-radius: 50%;
     background: var(--h, var(--sw-surface-2));
     color: var(--sw-ring-on-hue);
@@ -302,7 +302,7 @@ const BUILDING_BUBBLE = css`
   :host([data-skin='bubble']) a.tile {
     flex-direction: row;
     align-items: center;
-    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+    min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale));
     padding: 4px 8px;
   }
   :host([data-skin='bubble']) a.tile.on {
@@ -334,21 +334,21 @@ const BUILDING_BUBBLE = css`
     border: 0;
     border-radius: var(--sw-r-pill);
     background: var(--sw-surface-2);
-    min-block-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
     padding-inline: 12px;
   }
   /* the targets of the tree and the floor headers: the fold, the title, the "⋯" (the layout guard's touch dial) */
   :host([data-skin='bubble']) .tfold {
-    inline-size: var(--sw-touch-desktop, 44px);
-    block-size: var(--sw-touch-desktop, 44px);
+    inline-size: var(--sw-touch-desktop);
+    block-size: var(--sw-touch-desktop);
     border-radius: 50%;
   }
   :host([data-skin='bubble']) .tree-area {
-    padding-inline-start: calc(var(--sw-touch-desktop, 44px) - 20px);
+    padding-inline-start: calc(var(--sw-touch-desktop) - 20px);
   }
   :host([data-skin='bubble']) .fcard header h2 .ftitle {
-    min-block-size: var(--sw-touch-desktop, 44px);
-    min-inline-size: var(--sw-touch-desktop, 44px);
+    min-block-size: var(--sw-touch-desktop);
+    min-inline-size: var(--sw-touch-desktop);
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;
@@ -763,7 +763,7 @@ const HOME_LAYOUT = css`
     display: inline-flex;
     flex-wrap: wrap;
     border: 1px solid var(--sw-border-strong);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     overflow: hidden;
   }
   .floor-filter button {
@@ -1557,7 +1557,7 @@ export class DevicesBuilding extends LitElement {
     .seg .opts {
       display: inline-flex;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
     }
     .seg button {
@@ -1588,7 +1588,7 @@ export class DevicesBuilding extends LitElement {
       min-inline-size: 0;
       min-block-size: min(70vh, 720px);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-lg, 14px);
+      border-radius: var(--sw-r-lg);
       background: var(--sw-surface);
       overflow: hidden;
     }
@@ -1655,7 +1655,7 @@ export class DevicesBuilding extends LitElement {
       /* owner 2026-09-29 ("unnecessary scrolling"): the tree never scrolls on its own unless it is itself taller than
          the viewport - then it sticks and scrolls inside the visible height (the top bar and the page padding off) */
       box-sizing: border-box;
-      max-block-size: calc(100dvh - var(--sw-topbar-h, 64px) - var(--sw-banner-h, 0px) - 16px); /* the view under the top bar, minus the 8 px sticky offset top and bottom */
+      max-block-size: calc(100dvh - var(--sw-topbar-h) - var(--sw-banner-h, 0px) - 16px); /* the view under the top bar, minus the 8 px sticky offset top and bottom */
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-width: thin;
@@ -1882,7 +1882,7 @@ export class DevicesBuilding extends LitElement {
       font: inherit;
       cursor: pointer;
       text-align: start;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     .fcard header h2 .ftitle:hover {
       color: var(--sw-accent);

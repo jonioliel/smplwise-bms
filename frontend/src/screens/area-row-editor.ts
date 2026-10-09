@@ -52,7 +52,7 @@ export class AreaRowEditor extends LitElement {
       gap: 8px;
       min-block-size: 34px;
       padding-inline: 4px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     li:hover {
       background: var(--sw-surface-2);
@@ -74,7 +74,7 @@ export class AreaRowEditor extends LitElement {
       block-size: 28px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -95,7 +95,7 @@ export class AreaRowEditor extends LitElement {
       min-block-size: 34px;
       padding-inline: 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }

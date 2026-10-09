@@ -54,7 +54,7 @@ export class DevicesClimateKindAdmin extends LitElement {
       min-block-size: 36px;
       padding: 0 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }
@@ -63,7 +63,7 @@ export class DevicesClimateKindAdmin extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .err {
-      color: var(--sw-danger, #dc2626);
+      color: var(--sw-danger);
     }
   `;
 

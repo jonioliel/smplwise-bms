@@ -77,7 +77,7 @@ export class SwBlockCard extends LitElement {
         inline-size: 26px;
         block-size: 40px;
         color: var(--dv-text-3);
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
         cursor: grab;
         flex: none;
         border: 0;
@@ -98,7 +98,7 @@ export class SwBlockCard extends LitElement {
         background: transparent;
         padding: 6px 0;
         text-align: start;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         min-block-size: 44px;
       }
       .rg {
@@ -109,7 +109,7 @@ export class SwBlockCard extends LitElement {
         border-radius: 50%;
         background: var(--dv-icon-ring-bg);
         color: var(--dv-icon-ring-fg);
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
         flex: none;
       }
       :host([locked]) .rg {
@@ -125,7 +125,7 @@ export class SwBlockCard extends LitElement {
         line-height: 1.35;
       }
       .bt b {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         font-weight: 600;
         overflow-wrap: anywhere;
       }
@@ -145,7 +145,7 @@ export class SwBlockCard extends LitElement {
         place-items: center;
         color: var(--dv-text-3);
         flex: none;
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .xb:hover {
         background: var(--dv-surface-3);
@@ -177,7 +177,7 @@ export class SwBlockCard extends LitElement {
         display: grid;
         place-items: center;
         color: var(--dv-text-2);
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
       }
       .tools button:hover:not(:disabled) {
         background: var(--dv-surface-3);

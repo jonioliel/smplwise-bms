@@ -164,7 +164,7 @@ export class ExplorePlanImport extends LitElement {
     }
     .pg {
       border: 1.5px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 6px;
       background: var(--sw-surface);
       cursor: pointer;
@@ -181,7 +181,7 @@ export class ExplorePlanImport extends LitElement {
       aspect-ratio: 1;
       object-fit: contain;
       background: #f3f5f9;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       display: block;
       margin-block-end: 4px;
     }
@@ -221,10 +221,10 @@ export class ExplorePlanImport extends LitElement {
       position: absolute;
       inset-inline-start: 8px;
       inset-block-start: 8px;
-      background: rgba(17, 24, 39, 0.7);
-      color: #fff;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-xs);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 3px 8px;
       line-height: 1.4;
       pointer-events: none;
@@ -260,7 +260,7 @@ export class ExplorePlanImport extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .assets button {
@@ -270,7 +270,7 @@ export class ExplorePlanImport extends LitElement {
       gap: 8px;
       padding: 6px 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       font: inherit;
       font-size: var(--sw-fs-xs);

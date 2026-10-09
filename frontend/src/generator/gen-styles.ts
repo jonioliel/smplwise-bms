@@ -8,7 +8,7 @@ import { css } from 'lit';
 export const genCss = css`
   :host {
     --gen-flow: var(--sw-accent);
-    --gen-gen: var(--sw-success, #15803d);
+    --gen-gen: var(--sw-success);
     --gen-grid: var(--sw-accent);
     --gen-load: #6b5bd6;
     --gen-shadow: #1e2e47;
@@ -42,7 +42,7 @@ export const genCss = css`
     flex-wrap: wrap;
   }
   .status-strip .big {
-    font-size: 22px;
+    font-size: var(--sw-fs-3xl);
     font-weight: var(--sw-fw-bold);
     color: var(--sw-heading);
     display: inline-flex;
@@ -83,7 +83,7 @@ export const genCss = css`
     gap: 5px;
     padding: 1px 9px;
     border-radius: var(--sw-r-pill);
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     font-weight: var(--sw-fw-bold);
     line-height: 18px;
     white-space: nowrap;
@@ -209,16 +209,16 @@ export const genCss = css`
     font-family: var(--sw-font);
   }
   .flow .ft {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     fill: var(--sw-text-2);
   }
   .flow .fv {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
     font-weight: 700;
     fill: var(--sw-heading);
   }
   .flow .fs {
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     fill: var(--sw-text-3);
   }
   .flow .fnode.dim .fv {
@@ -229,7 +229,7 @@ export const genCss = css`
     fill: var(--sw-surface-3);
   }
   .flow .fpill text {
-    font-size: 10.5px;
+    font-size: var(--sw-fs-2xs);
     font-weight: 700;
     fill: var(--sw-text-2);
   }
@@ -342,13 +342,13 @@ export const genCss = css`
     stroke: var(--sw-danger);
   }
   .gauge .gv {
-    font-size: 22px;
+    font-size: var(--sw-fs-3xl);
     font-weight: 700;
     fill: var(--sw-heading);
     font-family: var(--sw-font);
   }
   .gauge .gu {
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     fill: var(--sw-text-3);
     font-family: var(--sw-font);
   }
@@ -359,7 +359,7 @@ export const genCss = css`
     text-align: center;
   }
   .gauge .lim {
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
   }
   .stale {
@@ -404,10 +404,10 @@ export const genCss = css`
   }
   .kpi .k {
     color: var(--sw-text-3);
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
   }
   .kpi .v {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
     font-weight: 700;
     color: var(--sw-heading);
   }
@@ -485,7 +485,7 @@ export const genCss = css`
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     pointer-events: none;
     direction: ltr;
@@ -493,7 +493,7 @@ export const genCss = css`
   .axx {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     direction: ltr;
   }
@@ -538,7 +538,7 @@ export const genCss = css`
   .al .ic {
     inline-size: 36px;
     block-size: 36px;
-    border-radius: 10px;
+    border-radius: var(--sw-r-md);
     display: grid;
     place-items: center;
     flex: none;
@@ -655,7 +655,7 @@ export const genCss = css`
   .snap div span {
     display: block;
     color: var(--sw-text-3);
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
   }
   .snap div b {
     font-size: var(--sw-fs-lg);
@@ -703,13 +703,13 @@ export const genCss = css`
     min-inline-size: 28px;
     block-size: 28px;
     padding-inline: 8px;
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     display: inline-grid;
     place-items: center;
     background: var(--sw-surface-3);
     color: var(--sw-text-3);
     border: 1px solid transparent;
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     font-weight: 600;
   }
   .ch.on {
@@ -732,7 +732,7 @@ export const genCss = css`
     border-radius: var(--sw-r-pill);
     background: var(--sw-accent-soft);
     color: var(--sw-accent-text);
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     font-weight: 600;
     white-space: nowrap;
   }
@@ -773,7 +773,7 @@ export const genCss = css`
   }
   .vars code {
     background: var(--sw-surface-3);
-    border-radius: 4px;
+    border-radius: var(--sw-r-2xs);
     padding: 0 4px;
     direction: ltr;
     unicode-bidi: isolate;
@@ -787,7 +787,7 @@ export const genCss = css`
   .det .ic {
     inline-size: 44px;
     block-size: 44px;
-    border-radius: 12px;
+    border-radius: var(--sw-r-md);
     display: grid;
     place-items: center;
     background: var(--sw-success-soft);
@@ -832,7 +832,7 @@ export const genCss = css`
   }
   @media (max-width: 767px) {
     .status-strip .big {
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
     }
     .hero-card {
       padding: 14px 10px 6px;
@@ -846,7 +846,7 @@ export const genCss = css`
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
     .gauge .gv {
-      font-size: 19px;
+      font-size: var(--sw-fs-2xl);
     }
     .plot svg.chart.big {
       block-size: 220px;

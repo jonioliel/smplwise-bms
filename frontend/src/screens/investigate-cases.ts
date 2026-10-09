@@ -100,14 +100,14 @@ export class InvestigateCases extends LitElement {
       margin-block-end: 8px;
     }
     .verdict {
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 8px 10px;
       font-size: var(--sw-fs-sm);
       border: 1px solid var(--sw-border);
       background: var(--sw-surface-2);
     }
     .verdict[data-ok='true'] {
-      border-color: #15803d;
+      border-color: var(--sw-success);
     }
     .verdict[data-ok='false'] {
       border-color: var(--sw-danger);
@@ -129,7 +129,7 @@ export class InvestigateCases extends LitElement {
       max-block-size: 220px;
       overflow: auto;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     .files .r {
       display: grid;
@@ -371,7 +371,7 @@ export class InvestigateCaseDetail extends LitElement {
       border-radius: var(--sw-r-lg);
       overflow: hidden;
       box-shadow: var(--sw-shadow-2);
-      color: #fff;
+      color: var(--sw-on-video);
     }
     .video sw-scene {
       position: absolute;
@@ -390,9 +390,9 @@ export class InvestigateCaseDetail extends LitElement {
       position: absolute;
       inset-inline-end: 12px;
       inset-block-start: 10px;
-      font-size: 10px;
-      background: rgba(17, 24, 39, 0.55);
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      border-radius: var(--sw-r-2xs);
       padding: 2px 7px;
     }
     .bar {
@@ -402,7 +402,7 @@ export class InvestigateCaseDetail extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(17, 24, 39, 0.65);
+      background: var(--sw-video-scrim-strong);
       backdrop-filter: var(--sw-perf-blur, blur(8px));
       border-radius: var(--sw-r-pill);
       padding: 4px 10px;
@@ -434,7 +434,7 @@ export class InvestigateCaseDetail extends LitElement {
     .clip {
       position: relative;
       aspect-ratio: 16 / 9;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
@@ -450,8 +450,8 @@ export class InvestigateCaseDetail extends LitElement {
       position: absolute;
       inset-inline-start: 6px;
       inset-block-end: 5px;
-      color: #fff;
-      font-size: 10px;
+      color: var(--sw-on-video);
+      font-size: var(--sw-fs-2xs);
       font-family: var(--sw-font-mono);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
@@ -466,7 +466,7 @@ export class InvestigateCaseDetail extends LitElement {
     .add {
       aspect-ratio: 16 / 9;
       border: 1.5px dashed var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       display: grid;
       place-items: center;
       color: var(--sw-accent-text);
@@ -495,7 +495,7 @@ export class InvestigateCaseDetail extends LitElement {
       gap: 8px;
       padding: 8px 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       font-size: var(--sw-fs-sm);
       background: var(--sw-surface-2);
     }
@@ -519,7 +519,7 @@ export class InvestigateCaseDetail extends LitElement {
       align-items: center;
       padding: 8px;
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
     }
     .item[data-preservation='missing'] {
@@ -529,7 +529,7 @@ export class InvestigateCaseDetail extends LitElement {
       inline-size: 112px;
       aspect-ratio: 16 / 9;
       object-fit: cover;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface-3);
       display: grid;
       place-items: center;
@@ -587,7 +587,7 @@ export class InvestigateCaseDetail extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .ltr {

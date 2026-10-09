@@ -825,7 +825,7 @@ export class WiskeyOverview extends LitElement {
       place-items: center;
       inline-size: 32px;
       block-size: 32px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-live-soft);
       color: var(--sw-success);
       flex: none;
@@ -892,11 +892,11 @@ export class WiskeyOverview extends LitElement {
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
       background: rgba(17, 24, 39, 0.5);
       color: #fff;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .still .none {

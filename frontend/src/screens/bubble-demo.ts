@@ -207,8 +207,8 @@ export class BubbleDemo extends LitElement {
     .sb {
       inline-size: var(--sw-sub-size, var(--sw-sub));
       block-size: var(--sw-sub-size, var(--sw-sub));
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
       border: 0;
       border-radius: 50%;
       background: var(--sw-surface-2);
@@ -227,8 +227,8 @@ export class BubbleDemo extends LitElement {
     }
     .chip {
       block-size: var(--sw-sub-size, var(--sw-sub));
-      min-block-size: var(--sw-touch-desktop, 44px);
-      min-inline-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
+      min-inline-size: var(--sw-touch-desktop);
       box-sizing: border-box;
       justify-content: center;
       padding: 0 12px;
@@ -246,7 +246,7 @@ export class BubbleDemo extends LitElement {
       cursor: pointer;
     }
     .btn {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
       padding: 0 18px;
       border: 0;
       border-radius: var(--sw-r-pill);

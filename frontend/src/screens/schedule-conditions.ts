@@ -60,7 +60,7 @@ export class ScheduleConditions extends LitElement {
     .preset[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .preset:disabled {
       opacity: 0.5;
@@ -153,7 +153,7 @@ export class ScheduleConditions extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       padding: 3px 10px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
     }
@@ -221,7 +221,7 @@ export class ScheduleConditions extends LitElement {
       margin: 8px 0 0;
       padding: 0;
       list-style: none;
-      color: #92400e;
+      color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
       display: flex;
       flex-direction: column;

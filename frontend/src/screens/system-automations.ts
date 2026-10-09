@@ -120,11 +120,11 @@ export class SystemAutomations extends LitElement {
     }
     .tag.ok {
       background: var(--sw-success-soft);
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .tag.warn {
       background: var(--sw-stale-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
     }
     table.mtx {
       inline-size: 100%;
@@ -152,7 +152,7 @@ export class SystemAutomations extends LitElement {
       inline-size: 64px;
     }
     .yes {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .no {
       color: var(--sw-text-3);
@@ -188,7 +188,7 @@ export class SystemAutomations extends LitElement {
     .seg {
       display: inline-flex;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
     }
     .seg button {
@@ -213,7 +213,7 @@ export class SystemAutomations extends LitElement {
       align-items: center;
       gap: 2px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
     }
     .stepper button {
@@ -222,7 +222,7 @@ export class SystemAutomations extends LitElement {
       border: 0;
       background: transparent;
       font: inherit;
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
       cursor: pointer;
       color: var(--sw-text);
     }
@@ -265,7 +265,7 @@ export class SystemAutomations extends LitElement {
       inline-size: 32px;
       block-size: 32px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -296,7 +296,7 @@ export class SystemAutomations extends LitElement {
       text-decoration: none;
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {
@@ -312,7 +312,7 @@ export class SystemAutomations extends LitElement {
       margin-block-start: 14px;
       padding: 10px 14px;
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-2);
     }

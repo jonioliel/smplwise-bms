@@ -142,7 +142,7 @@ export class SystemUpdate extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       flex-wrap: wrap;
       max-inline-size: 100%;
     }
@@ -153,7 +153,7 @@ export class SystemUpdate extends LitElement {
       align-items: center;
       min-block-size: 44px;
       padding: 0 14px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);
@@ -229,7 +229,7 @@ export class SystemUpdate extends LitElement {
       inline-size: 22px;
       block-size: 22px;
       border: 2px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
     }
     .chk input:checked + .box {

@@ -83,7 +83,7 @@ export class ElecTouEditor extends ElecBase {
       .bar {
         display: flex;
         block-size: 22px;
-        border-radius: 6px;
+        border-radius: var(--sw-r-xs);
         overflow: hidden;
         border: 1px solid var(--sw-border-strong);
       }
@@ -94,7 +94,7 @@ export class ElecTouEditor extends ElecBase {
       .ticks {
         display: flex;
         justify-content: space-between;
-        font-size: 11px;
+        font-size: var(--sw-fs-xs);
         color: var(--sw-text-3);
       }
       .rng {

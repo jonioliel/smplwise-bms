@@ -68,14 +68,14 @@ export class SwPill extends LitElement {
       isolation: isolate;
       overflow: hidden;
       box-sizing: border-box;
-      min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+      min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale));
       padding-inline: var(--pill-pad);
       padding-block: 4px;
       border-radius: var(--sw-r-pill);
       background: var(--pill-base, var(--sw-surface)); /* --pill-base: a host puts the pill on a translucent sheet (--sw-layer) */
       color: var(--sw-text);
       font-family: var(--sw-font);
-      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
       line-height: 1.35;
       user-select: none;
       -webkit-user-select: none;
@@ -103,7 +103,7 @@ export class SwPill extends LitElement {
     /* a palette whose fill is under 3:1 against the track marks the fill's end (transparent otherwise) */
     :host([variant='slider'])::before {
       box-sizing: border-box;
-      border-inline-end: 3px solid var(--sw-fill-edge, transparent);
+      border-inline-end: 3px solid var(--sw-fill-edge);
     }
     :host(:not([on]))::before,
     :host([accent])::before {
@@ -139,10 +139,10 @@ export class SwPill extends LitElement {
     }
     .ring {
       flex: none;
-      inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
-      block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      min-block-size: var(--sw-touch-desktop, 44px);
+      inline-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
+      block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
       border-radius: 50%;
       border: 0;
       padding: 0;
@@ -189,7 +189,7 @@ export class SwPill extends LitElement {
       position: relative;
       flex: 1 1 96px;
       min-inline-size: 0;
-      min-block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+      min-block-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
       display: flex;
     }
     .tx {
@@ -214,7 +214,7 @@ export class SwPill extends LitElement {
       text-overflow: ellipsis;
     }
     .st {
-      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale));
       opacity: 0.86;
       white-space: nowrap;
       overflow: hidden;
@@ -227,7 +227,7 @@ export class SwPill extends LitElement {
       color: var(--sw-on-lit);
       /* --lay-s: where this layer starts, from the pill's inline start; the fill edge is --fill * 100cqw from there (the host is the container).
          Visible = the part of the layer before the fill edge; the rest is clipped on the inline-END side (LTR: right, RTL: left). */
-      --lay-s: calc(var(--pill-pad) + max(var(--sw-touch-desktop, 44px), var(--sw-icon-ring) * var(--sw-look-scale, 1)) + var(--pill-gap));
+      --lay-s: calc(var(--pill-pad) + max(var(--sw-touch-desktop), var(--sw-icon-ring) * var(--sw-look-scale)) + var(--pill-gap));
       --lay-cut: calc(100% - (var(--fill) * 100cqw - var(--lay-s)));
       clip-path: inset(-2px var(--lay-cut) -2px -2px);
       transition: clip-path var(--sw-t-med) var(--sw-ease);
@@ -263,10 +263,10 @@ export class SwPill extends LitElement {
       display: none;
     }
     ::slotted(*) {
-      --sw-sub-size: calc(var(--sw-sub) * var(--sw-look-scale, 1));
+      --sw-sub-size: calc(var(--sw-sub) * var(--sw-look-scale));
     }
     .pct {
-      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale));
       font-weight: var(--sw-fw-bold);
       font-variant-numeric: tabular-nums;
       min-inline-size: 38px;
@@ -300,14 +300,14 @@ export class SwPill extends LitElement {
     }
     /* gradient: a hue-to-hue wash with a solid hue ring; the lit part is a light tint of the hue with dark text */
     :host([data-surface='gradient']:not([accent])) {
-      background: linear-gradient(100deg, color-mix(in oklab, var(--h) var(--sw-wash-start, 40%), var(--sw-surface)) 0%, color-mix(in oklab, var(--h) var(--sw-wash-end, 24%), var(--sw-surface)) 100%);
+      background: linear-gradient(100deg, color-mix(in oklab, var(--h) var(--sw-wash-start), var(--sw-surface)) 0%, color-mix(in oklab, var(--h) var(--sw-wash-end), var(--sw-surface)) 100%);
     }
     :host([data-surface='gradient']:not([accent])) .ring {
       background: var(--h);
       color: var(--sw-ring-on-hue);
     }
     :host([data-surface='gradient'][on]:not([accent]))::before {
-      background: color-mix(in oklab, var(--h) var(--sw-wash-lit, 70%), #fff);
+      background: color-mix(in oklab, var(--h) var(--sw-wash-lit), #fff);
     }
     /* glass: a translucent, blurred layer over the canvas */
     :host([data-surface='glass']:not([accent])) {
@@ -363,17 +363,17 @@ export class SwPill extends LitElement {
     /* ---- touch layouts: 44 px targets whatever the density says ---- */
     @media (max-width: 1100px) {
       :host {
-        min-block-size: max(calc(var(--sw-pill-h) * var(--sw-look-scale, 1)), 52px);
+        min-block-size: max(calc(var(--sw-pill-h) * var(--sw-look-scale)), 52px);
       }
       .ring {
         min-inline-size: 44px;
         min-block-size: 44px;
       }
       .tx.over {
-        --lay-s: calc(var(--pill-pad) + max(44px, var(--sw-icon-ring) * var(--sw-look-scale, 1)) + var(--pill-gap));
+        --lay-s: calc(var(--pill-pad) + max(44px, var(--sw-icon-ring) * var(--sw-look-scale)) + var(--pill-gap));
       }
       ::slotted(*) {
-        --sw-sub-size: max(44px, calc(var(--sw-sub) * var(--sw-look-scale, 1)));
+        --sw-sub-size: max(44px, calc(var(--sw-sub) * var(--sw-look-scale)));
       }
     }
     @media (prefers-reduced-motion: reduce) {

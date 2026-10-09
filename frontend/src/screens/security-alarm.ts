@@ -93,11 +93,11 @@ export class SecurityAlarm extends LitElement {
   static styles = [css`
     :host {
       display: block;
-      --al-ok: var(--sw-success, #22c55e);
-      --al-open: var(--sw-warning, #f59e0b);
-      --al-fault: var(--sw-danger, #ef4444);
-      --al-bypass: var(--sw-purple, #8b5cf6);
-      --al-motion: var(--sw-accent, #2767ed);
+      --al-ok: var(--sw-success);
+      --al-open: var(--sw-warning);
+      --al-fault: var(--sw-danger);
+      --al-bypass: var(--sw-purple);
+      --al-motion: var(--sw-accent);
     }
     .switcher {
       display: flex;
@@ -201,7 +201,7 @@ export class SecurityAlarm extends LitElement {
     .shield {
       inline-size: 56px;
       block-size: 56px;
-      border-radius: 16px;
+      border-radius: var(--sw-r-lg);
       display: grid;
       place-items: center;
       background: color-mix(in srgb, var(--tone, var(--sw-offline)) 14%, var(--sw-surface));
@@ -237,11 +237,11 @@ export class SecurityAlarm extends LitElement {
       border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .ready.no {
       background: var(--sw-warning-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
     }
     .ready ul {
       margin: 4px 0 0;
@@ -318,7 +318,7 @@ export class SecurityAlarm extends LitElement {
     .zicon {
       inline-size: 36px;
       block-size: 36px;
-      border-radius: 11px;
+      border-radius: var(--sw-r-md);
       display: grid;
       place-items: center;
       background: var(--sw-surface-3);
@@ -326,7 +326,7 @@ export class SecurityAlarm extends LitElement {
     }
     .zone[data-tone='open'] .zicon {
       background: var(--sw-warning-soft);
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     .zone[data-tone='fault'] .zicon {
       background: var(--sw-danger-soft);
@@ -360,7 +360,7 @@ export class SecurityAlarm extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .zone[data-tone='open'] .zstate {
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     .zone[data-tone='fault'] .zstate {
       color: var(--al-fault);
@@ -369,7 +369,7 @@ export class SecurityAlarm extends LitElement {
       color: var(--al-bypass);
     }
     .zone[data-tone='ok'] .zstate {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .flag {
       color: var(--al-fault);
@@ -381,7 +381,7 @@ export class SecurityAlarm extends LitElement {
       flex-direction: column;
       align-items: center;
       gap: 2px;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
     }
     button.tgl {
@@ -441,7 +441,7 @@ export class SecurityAlarm extends LitElement {
     }
     .keypad input {
       font: inherit;
-      font-size: 26px;
+      font-size: var(--sw-fs-3xl);
       letter-spacing: 0.4em;
       text-align: center;
       padding: 10px;
@@ -459,10 +459,10 @@ export class SecurityAlarm extends LitElement {
     }
     .keys button {
       font: inherit;
-      font-size: 22px;
+      font-size: var(--sw-fs-3xl);
       font-weight: var(--sw-fw-semibold);
       min-block-size: 56px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       border: 1px solid var(--sw-border);
       background: var(--sw-surface);
       color: var(--sw-text);
@@ -494,13 +494,13 @@ export class SecurityAlarm extends LitElement {
     }
     .toast {
       position: fixed;
-      inset-block-end: calc(var(--sw-bottomnav-h, 58px) + 16px + env(safe-area-inset-bottom, 0px));
+      inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom, 0px));
       inset-inline-start: 50%;
       transform: translateX(50%);
       background: var(--sw-text);
       color: var(--sw-surface);
       padding: 10px 16px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);
       z-index: var(--sw-z-toast);
       max-inline-size: calc(100vw - 32px);

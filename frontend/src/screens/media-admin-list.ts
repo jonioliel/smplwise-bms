@@ -66,7 +66,7 @@ export class MediaAdminToolbar extends LitElement {
   static styles = css`
     :host {
       display: block;
-      --hit: var(--sw-touch-desktop, 36px);
+      --hit: var(--sw-touch-desktop);
     }
     .bar {
       display: flex;
@@ -84,7 +84,7 @@ export class MediaAdminToolbar extends LitElement {
       min-block-size: var(--hit);
       padding-inline: 10px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text-3);
     }
@@ -110,7 +110,7 @@ export class MediaAdminToolbar extends LitElement {
       block-size: var(--hit);
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -144,7 +144,7 @@ export class MediaAdminToolbar extends LitElement {
       min-inline-size: 190px;
       padding: 6px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.18));
     }
@@ -158,7 +158,7 @@ export class MediaAdminToolbar extends LitElement {
       gap: 8px;
       min-block-size: var(--hit);
       padding-inline: 8px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       cursor: pointer;
@@ -223,7 +223,7 @@ export class MediaAdminToolbar extends LitElement {
       gap: 6px;
       min-block-size: var(--hit);
       padding-inline: 12px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       color: var(--sw-text);
@@ -434,7 +434,7 @@ export function adminTable(ctx: TableCtx): TemplateResult {
 
 export const mediaAdminListCss = css`
   .tbl {
-    --hit: var(--sw-touch-desktop, 36px);
+    --hit: var(--sw-touch-desktop);
     display: block;
     margin-block-start: 10px;
     --cols: var(--cols-w);
@@ -567,7 +567,7 @@ export const mediaAdminListCss = css`
     block-size: var(--hit);
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--sw-r-xs);
     background: none;
     color: var(--sw-text-3);
     cursor: pointer;
@@ -634,7 +634,7 @@ export const mediaAdminListCss = css`
     block-size: var(--hit);
     padding: 0;
     border: 1px solid var(--sw-border-strong);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     background: var(--sw-surface);
     color: var(--sw-text);
     cursor: pointer;
