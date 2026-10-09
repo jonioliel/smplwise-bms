@@ -4,7 +4,7 @@ import {
   motionSpans, periodDays, periodSince, playbackParams, playbackState, recordingMode, retentionText, reviewQuery, spanRows, spanText, stillDue, stillIntervalMs, summaryRows, timelineText, withBust,
   type FrigateHealthCamera, type ReviewItem, type ReviewList, type WireCamera, type WireStatus,
 } from '../src/api/frigate';
-import { appendPage, applyReviewed, keyAction, moveFocus, nextReviewedValue, targetIds, toggleId, viewOf } from '../src/screens/reviews-logic';
+import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, moveFocus, nextReviewedValue, targetIds, toggleId, viewOf } from '../src/screens/reviews-logic';
 import { FRIGATE_CAM_LIST, FRIGATE_STATUS, FRIGATE_VENDOR_DETAILS, REVIEW_ITEMS, reviewDetail, reviewList } from '../src/fixtures/frigate';
 
 // NN5-F1B: the Frigate screens' pure logic - the query a filter makes, the wire-to-UI adapters (status, health, motion spans), the
@@ -190,6 +190,23 @@ test('focus moves one card and stops at the ends; the first move lands on the fi
   expect(moveFocus(0, -1, 5)).toBe(0);
   expect(moveFocus(2, 1, 5)).toBe(3);
   expect(moveFocus(0, 1, 0)).toBe(-1);
+});
+
+test('FRG-polish: Home / End jump to the ends, the arrows step through focusAfter; the empty state knows when filters are set', () => {
+  expect(key('Home')).toBe('first');
+  expect(key('End')).toBe('last');
+  expect(keyAction({ key: 'Home', target: { tagName: 'INPUT' } })).toBeNull();
+  expect(focusAfter(2, 'first', 5)).toBe(0);
+  expect(focusAfter(2, 'last', 5)).toBe(4);
+  expect(focusAfter(-1, 'last', 5)).toBe(4);
+  expect(focusAfter(2, 'next', 5)).toBe(3);
+  expect(focusAfter(0, 'prev', 5)).toBe(0);
+  expect(focusAfter(0, 'first', 0)).toBe(-1);
+  expect(filtersActive(DEFAULT_FILTERS, DEFAULT_FILTERS)).toBe(false);
+  expect(filtersActive({ ...DEFAULT_FILTERS, layer: 'motion' }, DEFAULT_FILTERS)).toBe(false); // the layer is a tab, not a filter to clear
+  expect(filtersActive({ ...DEFAULT_FILTERS, camera: 'c1' }, DEFAULT_FILTERS)).toBe(true);
+  expect(filtersActive({ ...DEFAULT_FILTERS, status: 'all' }, DEFAULT_FILTERS)).toBe(true);
+  expect(filtersActive({ ...DEFAULT_FILTERS, period: '7d' }, DEFAULT_FILTERS)).toBe(true);
 });
 
 test('selection toggles without touching the old set; the action targets the selection, else the focused card', () => {

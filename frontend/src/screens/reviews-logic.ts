@@ -1,7 +1,7 @@
 /** NN5-F1B: the pure logic of the review screen (selection, keys, optimistic reviewed state, grouping of the list state). */
 import type { ReviewItem, ReviewList } from '../api/frigate';
 
-export type ReviewKeyAction = 'next' | 'prev' | 'toggle-select' | 'toggle-reviewed' | 'open' | 'select-all' | 'escape' | null;
+export type ReviewKeyAction = 'next' | 'prev' | 'first' | 'last' | 'toggle-select' | 'toggle-reviewed' | 'open' | 'select-all' | 'escape' | null;
 
 /** The keys of the screen. Typing in a field is never a shortcut (the caller passes the event's target tag). */
 export function keyAction(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; target?: { tagName?: string; isContentEditable?: boolean } | null; path?: readonly string[] }): ReviewKeyAction {
@@ -25,6 +25,10 @@ export function keyAction(e: { key: string; ctrlKey?: boolean; metaKey?: boolean
     case 'ArrowUp':
     case 'k':
       return 'prev';
+    case 'Home':
+      return 'first';
+    case 'End':
+      return 'last';
     case ' ':
     case 'x':
       return 'toggle-select';
@@ -44,6 +48,19 @@ export function moveFocus(current: number, delta: 1 | -1, length: number): numbe
   if (length <= 0) return -1;
   if (current < 0) return delta === 1 ? 0 : length - 1;
   return Math.min(length - 1, Math.max(0, current + delta));
+}
+
+/** The index a move lands on: Home / End jump, the arrows step (the same clamp as `moveFocus`). */
+export function focusAfter(current: number, act: 'next' | 'prev' | 'first' | 'last', length: number): number {
+  if (length <= 0) return -1;
+  if (act === 'first') return 0;
+  if (act === 'last') return length - 1;
+  return moveFocus(current, act === 'next' ? 1 : -1, length);
+}
+
+/** The filters differ from the screen's defaults (the empty state then offers to clear them). */
+export function filtersActive(f: { layer: string; camera: string; period: string; status: string; object: string }, def: { layer: string; camera: string; period: string; status: string; object: string }): boolean {
+  return f.camera !== def.camera || f.period !== def.period || f.status !== def.status || f.object !== def.object;
 }
 
 export function toggleId(selected: ReadonlySet<string>, id: string): Set<string> {

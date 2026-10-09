@@ -24,6 +24,7 @@ export class FrigateReviewCard extends LitElement {
   @property({ reflect: true }) variant: 'card' | 'row' = 'card';
   @property() tz = 'Asia/Jerusalem';
   @state() private broken = false;
+  @state() private loaded = false;
 
   static styles = css`
     :host {
@@ -49,7 +50,15 @@ export class FrigateReviewCard extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 1px var(--sw-accent);
     }
-    :host([focused]) article {
+    :host([focused]) article,
+    article:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    article:focus {
+      outline: none;
+    }
+    :host([focused]) article:focus {
       outline: 2px solid var(--sw-focus);
       outline-offset: 2px;
     }
@@ -79,7 +88,35 @@ export class FrigateReviewCard extends LitElement {
       object-fit: cover;
       /* a still is a picture of the camera: never mirrored by RTL */
       direction: ltr;
-      transition: transform var(--sw-t-med) var(--sw-ease);
+      opacity: 0;
+      transition: transform var(--sw-t-med) var(--sw-ease), opacity var(--sw-t-med) var(--sw-ease);
+    }
+    .thumb img[data-loaded] {
+      opacity: 1;
+    }
+    /* while the still is on its way: a quiet shimmer over the video surface */
+    .thumb::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: frc-sh 1.6s linear infinite;
+    }
+    .thumb[data-settled]::before {
+      display: none;
+    }
+    @keyframes frc-sh {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thumb::before,
+      .thumb img,
+      article {
+        animation: none;
+        transition: none;
+      }
     }
     article:hover .thumb img {
       transform: scale(1.03);
@@ -142,6 +179,23 @@ export class FrigateReviewCard extends LitElement {
       font-size: var(--sw-fs-xs);
       font-variant-numeric: tabular-nums;
       direction: ltr;
+    }
+    .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: inherit;
+    }
+    .live i {
+      inline-size: 6px;
+      block-size: 6px;
+      border-radius: 50%;
+      background: var(--sw-live);
+      animation: frc-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes frc-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
     }
     .state {
       position: absolute;
@@ -320,7 +374,16 @@ export class FrigateReviewCard extends LitElement {
     }
     :host([variant='row'][selected]) article {
       background: var(--sw-accent-soft);
-      box-shadow: inset 3px 0 0 var(--sw-accent);
+      box-shadow: none;
+    }
+    /* the selection bar sits at the reading start (right in Hebrew, left in English) */
+    :host([variant='row'][selected]) article::before {
+      content: '';
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: 3px;
+      background: var(--sw-accent);
     }
     :host([variant='row']) .thumb {
       inline-size: 96px;
@@ -484,23 +547,34 @@ export class FrigateReviewCard extends LitElement {
     this.dispatchEvent(new CustomEvent(name, { detail: { id: this.item.id }, bubbles: true, composed: true }));
   }
 
-  updated() {
+  updated(changed: Map<string, unknown>) {
     this.toggleAttribute('data-reviewed', this.item?.reviewed === true);
+    if (changed.has('item') && changed.get('item') && (changed.get('item') as ReviewItem).thumb_url !== this.item?.thumb_url) {
+      this.loaded = false;
+      this.broken = false;
+    }
+  }
+
+  /** Move the keyboard focus onto this item (the screen's roving focus); the page keeps its own keys. */
+  focusCard() {
+    (this.renderRoot.querySelector('article') as HTMLElement | null)?.focus({ preventScroll: true });
+    (this.renderRoot.querySelector('article') as HTMLElement | null)?.scrollIntoView({ block: 'nearest' });
   }
 
   private still(it: ReviewItem, dur: string | null, overlay: boolean) {
     const r = fx().review;
     const src = it.thumb_url ?? '';
     const lt = this.layerText(it.layer);
-    return html`<button type="button" class="thumb" data-review-open aria-label=${`${r.open}: ${it.camera_name}`} @click=${() => this.emit('review-open')}>
+    const settled = it.thumbnail !== 'ready' || !src || this.broken || this.loaded;
+    return html`<button type="button" class="thumb" data-review-open ?data-settled=${settled} aria-label=${`${r.open}: ${it.camera_name}`} @click=${() => this.emit('review-open')}>
       ${it.thumbnail === 'ready' && src && !this.broken
-        ? html`<img src=${src} alt="" loading="lazy" @error=${() => (this.broken = true)} />`
+        ? html`<img src=${src} alt="" loading="lazy" ?data-loaded=${this.loaded} @load=${() => (this.loaded = true)} @error=${() => (this.broken = true)} />`
         : html`<span class="none"><sw-icon name="image" size="22"></sw-icon>${r.noThumb}</span>`}
       ${overlay ? html`<span class="shade"></span>` : nothing}
       ${overlay ? html`<span class="layer" data-layer=${it.layer}><i></i>${lt}</span>` : nothing}
       ${overlay && it.layer !== 'motion' ? html`<span class="state" data-review-state=${it.reviewed ? 'reviewed' : 'new'}>${it.reviewed ? html`<sw-icon name="check" size="12"></sw-icon><span>${r.reviewed}</span>` : html`<i></i><span>${r.unreviewed}</span>`}</span>` : nothing}
       ${dur && !overlay ? html`<span class="dur">${dur}</span>` : nothing}
-      ${overlay ? html`<span class="over"><span class="cam" title=${it.camera_name}>${it.camera_name}</span><time datetime=${it.start}>${cardTime(it.start, this.tz)}${dur ? ` · ${dur}` : ''}</time></span>` : nothing}
+      ${overlay ? html`<span class="over"><span class="cam" title=${it.camera_name}>${it.camera_name}</span><time datetime=${it.start}>${cardTime(it.start, this.tz)}${dur ? ` · ${dur}` : ''}${!it.end ? html` · <span class="live" data-review-ongoing><i></i>${r.ongoing}</span>` : nothing}</time></span>` : nothing}
     </button>`;
   }
 
@@ -513,7 +587,7 @@ export class FrigateReviewCard extends LitElement {
     const r = fx().review;
     const dur = spanText(it.start, it.end);
     const where = [it.area_name, it.floor_name].filter(Boolean).join(' · ');
-    return html`<article data-review-card=${it.id} data-layer=${it.layer} data-reviewed=${String(it.reviewed)}>
+    return html`<article tabindex="-1" data-review-card=${it.id} data-layer=${it.layer} data-reviewed=${String(it.reviewed)}>
       ${this.still(it, dur, true)}
       <div class="body">
         <div class="meta">
@@ -536,7 +610,7 @@ export class FrigateReviewCard extends LitElement {
     const dur = spanText(it.start, it.end);
     const where = [it.area_name, it.floor_name].filter(Boolean).join(' · ');
     const lt = this.layerText(it.layer);
-    return html`<article role="row" data-review-card=${it.id} data-layer=${it.layer} data-reviewed=${String(it.reviewed)}>
+    return html`<article role="row" tabindex="-1" data-review-card=${it.id} data-layer=${it.layer} data-reviewed=${String(it.reviewed)}>
       ${this.canReview
         ? html`<label class="tick" role="cell"><input type="checkbox" data-review-select .checked=${this.selected} aria-label=${`${r.selected}: ${it.camera_name}`} @change=${() => this.emit('review-select')} /></label>`
         : html`<span role="cell"></span>`}
@@ -544,7 +618,7 @@ export class FrigateReviewCard extends LitElement {
       <div class="fold">
         <div class="cell cam in-fold" role="cell"><b class="cam" title=${it.camera_name}>${it.camera_name}</b>${where ? html`<small data-review-where>${where}</small>` : nothing}</div>
         <div class="cell in-fold" role="cell"><time datetime=${it.start}>${cardTime(it.start, this.tz)}</time>${dur ? html`<span class="muted fold-only"> · ${dur}</span>` : nothing}</div>
-        <div class="cell muted" role="cell">${dur ?? '—'}</div>
+        <div class="cell muted" role="cell">${dur ?? (!it.end ? html`<span class="live" data-review-ongoing><i></i>${r.ongoing}</span>` : '—')}</div>
         <div class="cell in-fold" role="cell">${it.objects.length ? html`<ul class="objs" aria-label=${r.objects}>${it.objects.map((o) => html`<li class="obj" data-obj=${o}>${objectLabel(o)}</li>`)}</ul>` : html`<span class="muted">—</span>`}</div>
         <div class="cell muted zones" role="cell">${it.zones.length ? it.zones.join(' · ') : r.noZones}</div>
         <div class="cell muted" role="cell">${where || '—'}</div>
@@ -554,7 +628,7 @@ export class FrigateReviewCard extends LitElement {
       </div>
       <div class="rowacts" role="cell">
         ${this.canReview ? html`<button type="button" class="mark" data-review-toggle title=${it.reviewed ? r.markUnreviewed : r.markReviewed} @click=${() => this.emit('review-toggle')}><sw-icon name="check" size="14"></sw-icon><span class="txt">${it.reviewed ? r.markUnreviewed : r.markReviewed}</span></button>` : nothing}
-        <button type="button" data-review-open-row title=${r.open} aria-label=${`${r.open}: ${it.camera_name}`} @click=${() => this.emit('review-open')}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+        <button type="button" data-review-open-row title=${r.open} aria-label=${`${r.open}: ${it.camera_name}`} @click=${() => this.emit('review-open')}><sw-icon name="chevron" size="16"></sw-icon></button>
       </div>
     </article>`;
   }
