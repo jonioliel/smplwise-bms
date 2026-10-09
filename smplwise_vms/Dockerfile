@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/smplwise /app/smplwise
 COPY www /app/www
+# CR-021 S4: the running version's `[platform-restart]` marker is read from the add-on's own notes (services/release_notes.py).
+COPY CHANGELOG.md /app/CHANGELOG.md
 # The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
 COPY integration /app/integration
 # The signed release APK (owner decision 2026-10-06) ships inside the image: scripts/stage_apk.py places SmplWiseArx.apk and

@@ -19,6 +19,9 @@ os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
 os.environ.setdefault("SW_RECORDER_HEALTH", "0")
 # NN5: the Frigate event loop (WebSocket + polling) stays off in app tests; they call frigate_events.poll_reviews / run_loop explicitly
 os.environ.setdefault("SW_FRIGATE_EVENTS", "0")
+# CR-021 S4: the start-up read of the running release's [platform-restart] marker stays off (a flagged release must not add a
+# restart reason to every test app); tests call release_notes.note_release_restart with their own file
+os.environ.setdefault("SW_RELEASE_MARKER", "0")
 
 from smplwise.config import Settings  # noqa: E402
 from smplwise.main import create_app  # noqa: E402
