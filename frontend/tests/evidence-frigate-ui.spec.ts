@@ -60,7 +60,7 @@ test.describe('review: the restyled screen', () => {
     // the keys live behind one help button
     await page.locator(`${SCREEN} [data-review-keys]`).click();
     await expect(page.locator(`${SCREEN} [data-review-keys-dialog] kbd`).first()).toBeVisible(); // the sw-dialog host has no box of its own
-    await expect(page.locator(`${SCREEN} [data-review-keys-dialog] dd`)).toHaveCount(6);
+    await expect(page.locator(`${SCREEN} [data-review-keys-dialog] dd`)).toHaveCount(8); // FRG-polish: + Home / End, + the drawer's J / K
     await shot(page, 'review-keys');
     await page.keyboard.press('Escape');
     await expect(page.locator(`${SCREEN} [data-review-keys-dialog]`)).toHaveCount(0);
@@ -93,6 +93,10 @@ test.describe('review: the restyled screen', () => {
     await expect(cards(page).first().locator('[data-review-state]')).toHaveAttribute('data-review-state', 'reviewed');
     await cards(page).nth(1).locator('[data-review-select]').check();
     await expect(page.locator(`${SCREEN} [data-review-bulk]`)).toContainText('1 נבחרו');
+    await expect(cards(page).nth(1).locator('[data-review-select]')).toBeFocused(); // FRG-polish: a click keeps its focus (the ring follows, the focus is not taken)
+    await expect(cards(page).nth(1)).toHaveAttribute('focused', '');
+    // the row's open control points forward in the reading direction (Hebrew: left), the selection bar sits at the reading start
+    await expect(cards(page).nth(1).locator('[data-review-open-row] sw-icon')).toHaveAttribute('name', 'chevron');
     await page.keyboard.press('Escape');
     // open from the row's own button
     await cards(page).nth(1).locator('[data-review-open-row]').click();
@@ -118,6 +122,21 @@ test.describe('review: the restyled screen', () => {
     await expect(drawer.locator('[data-review-detections]')).toHaveText('2');
     await expect(drawer.locator('[data-review-activity] [data-timeline-row]')).toHaveCount(2);
     await expect(drawer.locator('[data-review-events] frigate-event-control[ready]')).toHaveCount(2);
+    // FRG-polish: the drawer walks the list - the buttons beside the heading and J / K; the ring on the list follows
+    await expect(drawer.locator('[data-review-drawer-pos]')).toHaveText('2 מתוך 4');
+    const third = (await cards(page).nth(2).locator('[data-review-card]').getAttribute('data-review-card'))!;
+    const first = (await cards(page).nth(0).locator('[data-review-card]').getAttribute('data-review-card'))!;
+    await drawer.locator('[data-review-drawer-next]').click();
+    await expect(drawer.locator(`[data-review-detail="${third}"]`)).toBeVisible();
+    await expect(drawer.locator('[data-review-drawer-pos]')).toHaveText('3 מתוך 4');
+    await page.keyboard.press('k');
+    await expect(drawer.locator('[data-review-detail="rv-2"]')).toBeVisible();
+    await expect(cards(page).nth(1)).toHaveAttribute('focused', '');
+    await page.keyboard.press('Home');
+    await expect(drawer.locator(`[data-review-detail="${first}"]`)).toBeVisible();
+    await expect(drawer.locator('[data-review-drawer-prev]')).toHaveAttribute('disabled', '');
+    await page.keyboard.press('j');
+    await expect(drawer.locator('[data-review-detail="rv-2"]')).toBeVisible();
     const exp = drawer.locator('[data-review-export]');
     await expect(exp).toBeVisible();
     await shot(page, 'review-drawer', 'light');
@@ -432,6 +451,17 @@ test.describe('settings: the Frigate management card', () => {
     await panel.locator('[data-fs-end]').fill('2026-10-06T08:30');
     await noOverflow(page);
     await shot(page, 'settings-supervision', 'light');
+    // FRG-polish: the clip plays here first - a dialog with the video over the same GET; the mock's bytes are no video, so the error line shows
+    await panel.locator('[data-fs-play]').click();
+    const viewer = panel.locator('[data-fs-viewer]');
+    await expect(viewer.locator('[data-fs-video]')).toHaveAttribute('src', /\/api\/v1\/frigate\/nvr-2\/cameras\/fg-front\/clip\.mp4\?start=\d+&end=\d+&supervised=true$/);
+    await expect(viewer.locator('[data-fs-clip-state]')).toHaveAttribute('data-fs-clip-state', 'error');
+    await expect(viewer.locator('[data-fs-clip-state]')).toContainText('הקטע לא זמין');
+    await expect.poll(() => m.ctl.clips.length).toBe(1);
+    expect(m.ctl.clips[0]).toMatch(/^fg-front \d+ \d+ true$/);
+    await shot(page, 'settings-clip-viewer', 'light');
+    await viewer.locator('[data-fs-viewer-close]').click();
+    await expect(panel.locator('[data-fs-viewer]')).toHaveCount(0);
     const opened: string[] = [];
     await page.exposeFunction('__noteOpen', (u: string) => opened.push(u));
     await page.evaluate(() => {
@@ -443,7 +473,7 @@ test.describe('settings: the Frigate management card', () => {
     await panel.locator('[data-fs-open]').click();
     await expect.poll(() => opened.length).toBe(1);
     expect(opened[0]).toMatch(/\/api\/v1\/frigate\/nvr-2\/cameras\/fg-front\/clip\.mp4\?start=\d+&end=\d+&supervised=true$/);
-    expect(m.ctl.clips).toEqual([]); // the tab is opened by the browser; nothing was fetched by the page itself
+    expect(m.ctl.clips).toHaveLength(1); // the tab is opened by the browser; only the in-app viewer above fetched the clip
   });
 
   test('a viewer who may only export sees the exports tab and no toggles; the card never names the platform', async ({ page }) => {
