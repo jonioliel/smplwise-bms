@@ -220,6 +220,9 @@ export const LIBRARY = {
 };
 
 /** Flat token colours for the schematic / full levels = the style palette (levels 1-2 draw the palette flat). */
+/** Material ids that have a CC0 file set under assets/textures/ (tools/process-textures.mjs; LICENSES.md). */
+export const FILE_SETS = { plaster_white: 'Plaster001', /* plaster_ceiling stays procedural: a near-flat WebP shows block artefacts on a plain matte ceiling */ plaster_exterior: 'Plaster003', concrete: 'Concrete034', brick_painted: 'Bricks059', tiles_white: 'Tiles074', oak: 'WoodFloor051', tiles_grey: 'Tiles101', carpet: 'Carpet013', asphalt: 'Asphalt012', grass: 'Grass004', wood_light: 'Wood049', wood_dark: 'Wood049', door_wood: 'Wood049', metal_dark: 'Metal032', metal_light: 'Metal032', fabric_grey: 'Fabric030', fabric_accent: 'Fabric030', fabric_rug: 'Fabric030', linen: 'Fabric024', leather: 'Leather011', floor_sport: 'WoodFloor040' };
+
 export class MaterialLibrary {
   constructor(style = STYLES.light) {
     this.cache = new Map(); // id -> { map, normalMap, roughnessMap }
@@ -229,11 +232,26 @@ export class MaterialLibrary {
     this.style = style;
   }
   palette(id) { return this.style.palette[id] ?? this.style.palette.plaster_white; }
+  /**
+   * The CC0 file set for an id (assets/textures/<id>/, processed by tools/process-textures.mjs from the ambientCG 1K
+   * sets, LICENSES.md): hue-free colour detail (WebP), NormalGL (PNG), AO in R + roughness in G (one PNG), 512 px.
+   * Loaded lazily; the procedural set is the per-id fallback when a file fails. Source is a setting ('files' |
+   * 'procedural').
+   */
+  fileTextures(id, spec) {
+    const base = this.base || 'assets/textures/', setDir = `${base}sets/${FILE_SETS[id]}/`, dir = `${base}${id}/`;
+    if (!this.loader) { this.loader = new THREE.TextureLoader(); this.loaded = new Set(); this.failed = new Set(); }
+    const mk = (file, srgb) => { const t = this.loader.load(file, () => { this.loaded.add(id); this.onLoaded && this.onLoaded(id); }, undefined, () => { this.failed.add(id); this.cache.delete(id); this.onLoaded && this.onLoaded(id); }); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 8; return t; };
+    const roughnessMap = mk(setDir + 'rough_ao.jpg', false);
+    this.bytes += 512 * 512 * 4 * 3 * 1.33;
+    return { map: mk(dir + 'color.webp', true), normalMap: mk(setDir + 'normal.jpg', false), roughnessMap, aoMap: roughnessMap, tile_m: spec.tile_m, spec, file: true };
+  }
   textures(id) {
     let t = this.cache.get(id);
     if (t) return t;
     const t0 = performance.now();
     const spec = LIBRARY[id] || LIBRARY.plaster_white;
+    if ((this.textureSource || 'files') === 'files' && FILE_SETS[id] && !(this.failed && this.failed.has(id))) { t = this.fileTextures(id, spec); this.cache.set(id, t); return t; }
     const S = spec.size;
     const r = spec.recipe(S);
     const map = makeTexture(greyFrom(r.lum, S, r.mid, r.amp, r.tint), S, true);
@@ -255,6 +273,8 @@ export class MaterialLibrary {
     if (level >= 3) {
       const t = this.textures(id);
       m = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap, roughness: 1, metalness: spec.metalness ?? 0, color: tint, envMapIntensity: spec.metalness ? 1.0 : 0.7 });
+      if (t.aoMap) { m.aoMap = t.aoMap; m.aoMap.channel = 0; m.aoMapIntensity = 0.6; }
+      if (t.file) m.normalScale.set(spec.normal, spec.normal);
     } else if (level === 2) {
       m = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.85, metalness: spec.metalness ? 0.6 : 0 });
     } else {

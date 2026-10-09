@@ -1,6 +1,6 @@
-# ST7 look-dev — owner checkpoint (~hour 8)
+# ST7 look-dev — owner checkpoint (~hour 8; frames re-rendered after the CC0 assets landed)
 
-Rendered 2026-10-09 from `docs/design/mockups/plan-studio-6-prototype/` (branch `pilot/ST7-lookdev`, `tools/checkpoint.mjs`,
+Re-rendered 2026-10-09 (evening) with the owner-approved CC0 textures and the Kenney furniture kit (both switchable in settings) from `docs/design/mockups/plan-studio-6-prototype/` (branch `pilot/ST7-lookdev`, `tools/checkpoint.mjs`,
 headless Chromium on the workstation's Intel UHD iGPU, 1440 × 900, realistic rung). Both styles, three frames each:
 
 | Frame | Light architectural (`light-*`) | Dark digital twin (`dark-*`) |
@@ -25,7 +25,13 @@ headless Chromium on the workstation's Intel UHD iGPU, 1440 × 900, realistic ru
   pendant shades with an inner glow.
 - Lamps: plausible emissive levels per time band; the room's pool light is the state cue in the cut view.
 
-## What the frames do NOT show yet (next phases)
+## Since the first checkpoint (same day)
+
+P3-P6 landed (door / window detail, floating chrome, bottom sheet on phones, motion, walk polish, settings list), then the
+CC0 assets: real ambientCG material sets by id and 19 Kenney models by item id, palette-tinted; `shots/lookdev/` holds
+the full §2.1 screen list in both styles.
+
+## What the first checkpoint frames did NOT show (now done)
 
 - P3 remainder: door leaves with panels, door casings, window sills / mullions, the TV picture.
 - P4: the UI chrome is still the prototype's (fallback note over the scene, temperature pill on every room, walk bar

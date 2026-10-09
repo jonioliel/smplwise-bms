@@ -33,6 +33,9 @@ await page.waitForFunction(() => window.studio6 && window.studio6.planScene && w
 const R = { renderer: await page.evaluate(() => window.studio6.env.rendererName()), boot_ms: await page.evaluate(() => window.studio6.bootMs), texture_gen_ms: await page.evaluate(() => Math.round(window.studio6.lib.genMs)), page_ready_ms: Date.now() - tBoot, measured_at: new Date().toISOString(), url, note: 'same-session relative numbers; the workstation runs other sessions - compare only against shots/perf-gpu.json measured the same day' };
 console.log('renderer:', R.renderer, '| boot', R.boot_ms, 'ms | textures', R.texture_gen_ms, 'ms');
 await page.waitForTimeout(GPU ? 4500 : 9000);
+// CC0 file textures load lazily: wait until every requested set has arrived (or 30 s), then let the frame settle
+await page.waitForFunction(() => { const l = window.studio6.lib; return !l.loader || [...l.cache.keys()].every((id) => !l.cache.get(id).file || l.loaded.has(id) || (l.failed && l.failed.has(id))); }, null, { timeout: 30000 }).catch(() => console.log('texture wait timed out'));
+await page.waitForTimeout(800);
 R.probe_note = await page.locator('#note').innerText().catch(() => '');
 
 const app = (fn, ...args) => page.evaluate(fn, ...args);

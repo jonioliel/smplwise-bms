@@ -443,7 +443,10 @@ export class PlanScene {
       // ---- floors, ceilings, state plates per zone
       for (const z of zones) {
         const fid = (z.x_proto && z.x_proto.floor_material) || 'concrete';
-        const slab = extrudeXZ(z.polyM, 0.25, elev - 0.25);
+        // plan L4 ('the ceiling looks like a floor'): an upper level's slab must not hang below the level under it -
+        // 0.25 m on the ground, 0.08 m above (elevation 2.9 - 0.08 = 2.82 > the 2.8 m ceiling below)
+        const slabT = elev > 0.01 ? 0.08 : 0.25;
+        const slab = extrudeXZ(z.polyM, slabT, elev - slabT);
         const floorMat = mat(fid);
         const fm = this.reflections && q >= 3 ? this.transparentClone(floorMat) : floorMat;
         const floor = new THREE.Mesh(boxUV(slab, lib.tileM(fid)), fm);
@@ -767,7 +770,8 @@ export class PlanScene {
       const P = (ox, oz) => { const [wx, wz] = world(ox, oz); return [wx, y + 0.009, wz]; };
       L.blobs.push(quad(P(-bw / 2, -bd / 2), P(bw / 2, -bd / 2), P(bw / 2, bd / 2), P(-bw / 2, bd / 2)));
     }
-    if (this.furnitureMode === 'models' && this.models && this.models.place(item, o, x, y, z, yaw, group, L, plan)) return;
+    // lamps stay procedural (they are devices: bulb, glow, pool light); everything else may come from the model kit
+    if (family !== 'light' && this.furnitureMode === 'models' && this.models && this.models.place(item, o, x, y, z, yaw, group, L, plan)) return;
     switch (family) {
       case 'sofa': {
         const seats = w > 1.9 ? 3 : 2;
@@ -1010,6 +1014,7 @@ export class PlanScene {
   /** Per-frame: door / shutter animation and the lamp light pool (nearest MAX_POOL_LIGHTS lit lamps get real lights). */
   update(dt, cameraPos, opts = {}) {
     let moving = false;
+    if (opts.coneVolumes !== undefined) for (const c of this.cameras) c.vol.visible = !!opts.coneVolumes;
     const k = Math.min(1, dt / (ANIM_MS / 1000));
     for (const dr of this.doors) {
       const target = dr.open ? 1 : 0;
@@ -1068,7 +1073,7 @@ export class PlanScene {
       // in "all" the lower level's ceiling is hidden (the upper slab covers it) unless walking
       if (mode === 'all' && !walk) for (const c of L.ceilings) c.visible = false;
     }
-    for (const c of this.cameras) { c.vol.visible = walk; c.cone.visible = !walk; }
+    for (const c of this.cameras) { c.vol.visible = false; c.cone.visible = !walk; } // the volume shows only while standing at a camera (update opts.coneVolumes)
   }
 
   /** The device under a ray, if any. */

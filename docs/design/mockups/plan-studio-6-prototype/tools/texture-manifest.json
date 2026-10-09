@@ -1,0 +1,107 @@
+{
+  "plaster_white": {
+    "set": "Plaster001",
+    "mid": 214,
+    "amp": 14
+  },
+  "plaster_exterior": {
+    "set": "Plaster003",
+    "mid": 210,
+    "amp": 18
+  },
+  "concrete": {
+    "set": "Concrete034",
+    "mid": 200,
+    "amp": 30
+  },
+  "brick_painted": {
+    "set": "Bricks059",
+    "mid": 205,
+    "amp": 30
+  },
+  "tiles_white": {
+    "set": "Tiles074",
+    "mid": 206,
+    "amp": 22
+  },
+  "oak": {
+    "set": "WoodFloor051",
+    "mid": 196,
+    "amp": 46
+  },
+  "tiles_grey": {
+    "set": "Tiles101",
+    "mid": 206,
+    "amp": 22
+  },
+  "carpet": {
+    "set": "Carpet013",
+    "mid": 200,
+    "amp": 26
+  },
+  "asphalt": {
+    "set": "Asphalt012",
+    "mid": 200,
+    "amp": 30
+  },
+  "grass": {
+    "set": "Grass004",
+    "mid": 205,
+    "amp": 40
+  },
+  "wood_light": {
+    "set": "Wood049",
+    "mid": 200,
+    "amp": 28
+  },
+  "wood_dark": {
+    "set": "Wood049",
+    "mid": 200,
+    "amp": 28
+  },
+  "door_wood": {
+    "set": "Wood049",
+    "mid": 200,
+    "amp": 30
+  },
+  "metal_dark": {
+    "set": "Metal032",
+    "mid": 215,
+    "amp": 10
+  },
+  "metal_light": {
+    "set": "Metal032",
+    "mid": 215,
+    "amp": 10
+  },
+  "fabric_grey": {
+    "set": "Fabric030",
+    "mid": 200,
+    "amp": 26
+  },
+  "fabric_accent": {
+    "set": "Fabric030",
+    "mid": 200,
+    "amp": 26
+  },
+  "fabric_rug": {
+    "set": "Fabric030",
+    "mid": 200,
+    "amp": 26
+  },
+  "linen": {
+    "set": "Fabric024",
+    "mid": 200,
+    "amp": 22
+  },
+  "leather": {
+    "set": "Leather011",
+    "mid": 205,
+    "amp": 22
+  },
+  "floor_sport": {
+    "set": "WoodFloor040",
+    "mid": 196,
+    "amp": 40
+  }
+}

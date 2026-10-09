@@ -28,6 +28,9 @@ const url = process.env.SW_URL || pathToFileURL(path.join(root, 'index.html')).h
 await page.goto(url);
 await page.waitForFunction(() => window.studio6 && window.studio6.planScene && window.studio6.planScene.levels.L0, null, { timeout: 180000 });
 await page.waitForTimeout(GPU ? 4500 : 9000);
+// CC0 file textures load lazily: wait until every requested set has arrived (or 30 s), then let the frame settle
+await page.waitForFunction(() => { const l = window.studio6.lib; return !l.loader || [...l.cache.keys()].every((id) => !l.cache.get(id).file || l.loaded.has(id) || (l.failed && l.failed.has(id))); }, null, { timeout: 30000 }).catch(() => console.log('texture wait timed out'));
+await page.waitForTimeout(800);
 const app = (fn, ...args) => page.evaluate(fn, ...args);
 const settle = async (ms = 1500) => { await app(() => window.studio6.invalidate()); await page.waitForTimeout(ms); };
 const hour = (h) => app((h) => { document.getElementById('sun-slider').value = h * 60; window.studio6.env.setTime({ hour: h, weather: 'clear' }); window.studio6.updateSunCard(); }, h);

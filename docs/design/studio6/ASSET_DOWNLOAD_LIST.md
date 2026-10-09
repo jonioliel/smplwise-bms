@@ -1,6 +1,12 @@
 # ST7 look-dev — proposed CC0 asset download list (awaits owner approval)
 
-**Status:** proposal, 2026-10-09. **Nothing on this list has been downloaded.** The look-dev continues with procedural
+**Status update 2026-10-09 (later the same day):** the owner approved this list in full (question 3, answer A). Rows 1-17
+were downloaded exactly as listed, hashed and recorded in
+`docs/design/mockups/plan-studio-6-prototype/LICENSES.md` (sha256, bytes, date, URL, licence, processing); row 18
+(Poly Haven) was **not** downloaded — the Kenney kit covered the sofa / bed need. The 1K masters stay outside the repo.
+The original proposal follows unchanged.
+
+**Status (original):** proposal, 2026-10-09. **Nothing on this list has been downloaded.** The look-dev continues with procedural
 512 px textures and procedural furniture (owner Q10: both paths, switchable) until the coordinator relays the owner's
 approval per file. Every approved file gets a row in `docs/design/mockups/plan-studio-6-prototype/LICENSES.md` (and
 later `frontend/public/plan3d/MANIFEST.json`) with id, source URL, author, licence, download date, sha256, processing.

@@ -54,7 +54,10 @@ class App {
     this.styleChoice = (() => { try { return localStorage.getItem('studio6.style') || 'auto'; } catch { return 'auto'; } })();
     this.style = this.resolveStyle();
     this.env.style = this.style;
-    this.lib = new MaterialLibrary(this.style);
+    // settings are read before the library so the texture source (CC0 files / procedural) applies from the first build
+    this.settings = Object.assign({ eyeHeight: EYE_M, mouseMode: 'drag', furnitureMode: 'models', textureSource: 'files', defaultView: 'schematic', wallDisplay: 'live', timeSource: 'clock', showTemps: false, sectionCut: true, motion: true }, (() => { try { return JSON.parse(localStorage.getItem('studio6.settings') || '{}'); } catch { return {}; } })());
+    if (/[?&]procedural/.test(location.search)) { this.settings.textureSource = 'procedural'; this.settings.furnitureMode = 'procedural'; }
+    this.lib = new MaterialLibrary(this.style, { textureSource: this.settings.textureSource, onLoaded: () => this.invalidate() });
     this.planScene = new PlanScene(this.lib);
     this.hudOn = /[?&]hud/.test(location.search); // plan L9: no debug HUD on an operator screen; developer toggle
     this.planScene._reflector = { Reflector };
@@ -72,7 +75,6 @@ class App {
     // frame on an Intel UHD 630 - off by default, a toggle in the quality panel; lamp shadows likewise (2 x 6 passes)
     this.opts = { reflections: false, ao: true, bloom: true, lampShadows: false, autoLadder: true, dprCap: 1.25, idleS: IDLE_DEFAULT_S, pointerLock: false };
     // the settings the product port must expose (owner answers Q3 / Q5 / Q7 / Q9 / Q10 / Q11); per browser here
-    this.settings = Object.assign({ eyeHeight: EYE_M, mouseMode: 'drag', furnitureMode: 'procedural', defaultView: 'schematic', wallDisplay: 'live', timeSource: 'clock', showTemps: false, sectionCut: true, motion: true }, (() => { try { return JSON.parse(localStorage.getItem('studio6.settings') || '{}'); } catch { return {}; } })());
     this.tween = null;
     this.planScene.furnitureMode = this.settings.furnitureMode;
     this.fps = { ema: 0, ms: 0, frames: 0, last: performance.now(), window: [] };
@@ -641,7 +643,8 @@ class App {
     const tog = (key, label, fn) => { const b = el('button', 'sw' + (this.settings[key] ? ' on' : '')); b.addEventListener('click', () => { this.settings[key] = !this.settings[key]; b.classList.toggle('on', this.settings[key]); this.saveSettings(); fn && fn(this.settings[key]); }); st.appendChild(el('span', '', label)); st.appendChild(b); };
     sel('defaultView', 'תצוגה בכניסה (לכולם: סכמטי)', [['schematic', 'סכמטי'], ['realistic', 'ריאליסטי']]);
     sel('wallDisplay', 'תצוגת קיר', [['live', 'תלת־ממד חי'], ['stills', 'תמונה מוכנה']]);
-    sel('furnitureMode', 'ריהוט', [['procedural', 'מובנה (פרוצדורלי)'], ['models', 'מודלים (כשקיימים)']], (v) => { this.planScene.furnitureMode = v; this.rebuild(); this.makeThumbs(); });
+    sel('furnitureMode', 'ריהוט', [['models', 'מודלים (CC0)'], ['procedural', 'מובנה (פרוצדורלי)']], (v) => { this.planScene.furnitureMode = v; this.rebuild(); this.makeThumbs(); });
+    sel('textureSource', 'חומרים', [['files', 'ערכות CC0 (קבצים)'], ['procedural', 'מובנה (פרוצדורלי)']], (v) => { this.lib.dispose(); this.lib.textureSource = v; this.lib.failed = new Set(); this.rebuild(); this.makeThumbs(); });
     sel('timeSource', 'שעה ביום', [['clock', 'שעון האתר'], ['manual', 'ידני (המחוון)']], (v) => { if (v === 'clock') $('sun-now').click(); });
     tog('sectionCut', 'חתך קומה במבטי המעוף', () => this.applyCut());
     tog('showTemps', 'טמפרטורה על כל חדר', (v) => $('labels').classList.toggle('temps', v));
@@ -1180,7 +1183,7 @@ class App {
     } else if (this.controls && !this.tween) {
       if (this.controls.update()) moving = true;
     }
-    const anim = this.planScene.update(dt, this.camera.position, { nightFactor: this.env.recipe.night, lampShadows: this.opts.lampShadows && this.quality >= 3 });
+    const anim = this.planScene.update(dt, this.camera.position, { nightFactor: this.env.recipe.night, lampShadows: this.opts.lampShadows && this.quality >= 3, coneVolumes: this.mode === 'walk' && !!this.walk && this.walk.eyeOverride != null });
     if (anim) { moving = true; this.shadowDirty = true; }
     const draw = this.needsFrame || moving || this.continuous || this.probe;
     if (draw) {

@@ -137,6 +137,8 @@ cuts only the top level. Setting: `sectionCut` on / off (default on).
   roses on both faces at 1.02 m, 7 cm casing proud 12 mm on both faces; sliding glass leaf with a 4 cm dark frame.
 - Windows: 6 cm frame, interior sill 3 cm proud on both faces (`tiles_white`), mullion above 1.0 m width (two above 2.0 m),
   transom at 68 % above 1.6 m height.
+- Floor slabs: 0.25 m on the ground level, **0.08 m on upper levels** (a 0.25 m slab under a 2.9 m level hangs below the
+  2.8 m ceiling under it and reads as the ceiling — plan L4, fixed in the look-dev).
 - Skirting: 8 × 1.2 cm along every interior wall footprint; lamps: ceiling disc + rim, pendant cord + rose + shade, floor
   lamp pole + base + shade.
 - Triangle budget: ≤ 2 × the box baseline per floor; above `HEAVY_CONFIG` thresholds (venues) fall back to boxes.
@@ -186,7 +188,8 @@ a one-line hint "<name> · Enter". Mouse look: `drag` (default), `lock` (pointer
 | `style` | `auto` (follow theme) / `light` / `dark` | `auto` | per user (browser) |
 | `defaultView` | `schematic` / `realistic` | `schematic` for everyone; `realistic` per browser choice | per user |
 | `wallDisplay` | `live` / `stills` | `live` | per display (kiosk) |
-| `furnitureMode` | `procedural` / `models` | `procedural` until the CC0 kit lands; then `models` with per-item fallback | per site |
+| `furnitureMode` | `procedural` / `models` | `models` (CC0 kit, per-item fallback to procedural) | per site, changeable later |
+| `textureSource` | `files` (CC0 sets by id) / `procedural` | `files` | per site, changeable later |
 | `timeSource` | `clock` (site clock, IANA zone) / `manual` (slider) + "now" | `clock` | per view |
 | `eyeHeight` | 1.2 … 2.0 m, step 0.05 | 1.65 | per user |
 | `mouseMode` | `drag` / `lock` / `auto` | `drag` | per user |
@@ -197,6 +200,12 @@ a one-line hint "<name> · Enter". Mouse look: `drag` (default), `lock` (pointer
 | quality ladder | auto / fixed rung; DPR cap 1-2 | auto, DPR 1.25 | per device |
 
 Unsensed doors are walkable (Q4) — not a setting.
+
+**Owner rule (2026-10-09): every look choice stays changeable later in settings** — the style and its default pairing
+with the theme, the furniture mode, the texture source, the default view, the wall-display mode, the section cut, the
+time source, the eye height and the mouse mode are all settings with a stored value and a visible control (the
+prototype's "הגדרות" tab is the reference), never constants in code. Defaults are the values above; a change applies
+live without a geometry rebuild (style, cut, temps, motion) or with one rebuild (furniture mode, texture source).
 
 ## 11. Performance (same-session, workstation iGPU under load; see `shots/lookdev-gpu.json` and `BEFORE_AFTER.md`)
 
@@ -219,6 +228,27 @@ even those carry ±30 % noise (min/max in the JSON files).
 | Phone 390 full walk | 9.4 ms / 106.4 fps / 18 dr / 5k | 15.3 ms / 65.4 fps / 18 dr / 5k | 20.1 ms / 49.8 fps / 89 dr / 10k |
 | Dark style lite orbit iso | - | - | 42.2 ms / 23.7 fps / 231 dr / 46k |
 
+**Final run with the CC0 assets** (`lookdev-gpu.json` as committed; the box was calmer than during the columns above —
+treat as the current reference, same caveats):
+
+| Rung | After, CC0 textures + Kenney models (final) |
+|---|---|
+| Realistic orbit iso | 53.5 ms / 18.7 fps / 750 dr / 97k |
+| Lite orbit iso | 21.0 ms / 47.6 fps / 273 dr / 33k |
+| Full (2) orbit iso | 12.3 ms / 81.3 fps / 219 dr / 15k |
+| Schematic (1) orbit iso | 10.6 ms / 94.3 fps / 213 dr / 13k |
+| Realistic persp both floors | 59.2 ms / 16.9 fps / 1162 dr / 134k |
+| Realistic walk | 75.4 ms / 13.3 fps / 894 dr / 108k |
+| Lite walk | 27.9 ms / 35.8 fps / 192 dr / 25k |
+| Full walk | 15.0 ms / 66.7 fps / 148 dr / 11k |
+| Phone 390 lite walk | 16.4 ms / **61 fps** / 245 dr / 29k |
+| Phone 390 full walk | 11.1 ms / 90.1 fps / 95 dr / 8k |
+| Dark style lite orbit iso | 21.8 ms / 45.9 fps / 274 dr / 33k |
+
+The kit models are lighter than the rounded procedural catalog (demo house 33k vs 46k triangles on lite) but are cloned
+per object (273 draws in orbit, up from 230) — instancing per item id is port rule 1. Boot ≈ 10.7 s on the iGPU with
+lazy file textures (no procedural generation on the main thread any more).
+
 (dr = draw calls; k = triangles through the renderer, which counts the GTAO normal / depth passes again on the
 realistic rung. The "after" walk rows start at the new default position looking into the hall and living room, the
 "before" rows at the old one facing the front door — more in view.)
@@ -229,8 +259,9 @@ no cut 62.9 (= noise); lite walk — MSAA ×2 50.9, ×4 54.3, SMAA 75.7, none 70
 MSAA ×4 + GTAO 159.4, ×2 + GTAO 114.1, ×4 no GTAO 135.0 (**GTAO ≈ 25 ms**), SMAA + GTAO 155.0; full (2) orbit 24.8,
 walk 29.0.
 
-**Verdict against the plan's budgets (§5.1):** NOT MET on this box today for "lite walk ≥ 50 fps" and "realistic orbit
-≥ 30 fps"; "phone-size lite ≥ 60 fps" is 55.6 fps (42 fps for the untouched baseline measured in the same hour). The
+**Verdict against the plan's budgets (§5.1), final run:** "phone-size lite ≥ 60 fps" MET (61 fps); "lite walk ≥ 50 fps"
+NOT MET (35.8 fps at 1140 × 852); "realistic orbit ≥ 30 fps" NOT MET (18.7 fps) — the earlier, heavier-load columns were
+8.8 / 6.5 fps. The
 honest reading: the frame time on the iGPU is fill-rate bound (the lit ground disc alone cost 19 ms until it was made
 unlit on the lite / full rungs; MSAA ×4 on a HalfFloat target and GTAO are the top-rung levers, now ×2 on lite), and the
 box was 2-3× slower than in the morning for the unchanged baseline. What the port must do, as rules:
@@ -252,5 +283,68 @@ phones / tablets / the wall kiosk (no device); the product's R178 gate on the ru
 
 ## 12. What the port must NOT copy from the prototype
 
-The JS geometry port (`geometry.js`), the canvas texture generator (the CC0 sets replace it), the localStorage settings
+The JS geometry port (`geometry.js`), the canvas texture generator (now only the fallback), the localStorage settings
 (product: user preferences + site settings), the in-memory stills (product: `plan_bakes`), the demo plan.
+
+## 13. Asset manifest (CC0 files, downloaded 2026-10-09 with the owner's approval; LICENSES.md has the hashes)
+
+### 13.1 Textures — `assets/textures/` (3.1 MB in the repo; the 1K masters stay outside)
+
+Input manifest: `tools/texture-manifest.json` (id → set, mid, amp). Per material id a 512 px hue-free colour detail map (`<id>/color.webp`); per source set a shared `sets/<Set>/normal.jpg`
+(NormalGL) and `sets/<Set>/rough_ao.jpg` (R = AO or 255, G = roughness, B = 255). Processing = `tools/process-textures.mjs`:
+luminance of the Color map, mean pulled to `mid`, two standard deviations mapped onto `amp` (the procedural convention),
+so the style palette (§2) is the only colour. The port serves the same files from `frontend/public/plan3d/textures/` by
+id, with `MANIFEST.json` (id → set, mid, amp, bytes) unit-tested against the files on disk (CR-029 §6.1).
+
+| id | set (ambientCG) | mid / amp | AO in set | color.webp | set normal.jpg | set rough_ao.jpg |
+|---|---|---|---|---|---|---|
+| plaster_white | Plaster001 | 214 / 14 | no | 30 KB | 70 KB | 43 KB |
+| plaster_ceiling | — (procedural, plain matte; a near-flat WebP showed block artefacts on the ceiling) | — | — | — | — | — |
+| plaster_exterior | Plaster003 | 210 / 18 | no | 61 KB | 70 KB | 36 KB |
+| concrete | Concrete034 | 200 / 30 | no | 63 KB | 60 KB | 42 KB |
+| brick_painted | Bricks059 | 205 / 30 | yes | 22 KB | 69 KB | 72 KB |
+| tiles_white | Tiles074 | 206 / 22 | no | 4 KB | 24 KB | 37 KB |
+| oak | WoodFloor051 | 196 / 46 | yes | 49 KB | 46 KB | 50 KB |
+| tiles_grey | Tiles101 | 206 / 22 | yes | 34 KB | 44 KB | 45 KB |
+| carpet | Carpet013 | 200 / 26 | yes | 77 KB | 83 KB | 73 KB |
+| asphalt | Asphalt012 | 200 / 30 | no | 83 KB | 70 KB | 49 KB |
+| grass | Grass004 | 205 / 40 | yes | 92 KB | 80 KB | 86 KB |
+| wood_light / wood_dark / door_wood | Wood049 | 200 / 28-30 | no | 33-35 KB | 64 KB | 49 KB |
+| metal_dark / metal_light | Metal032 | 215 / 10 | no | 3 KB | 35 KB | 36 KB |
+| fabric_grey / fabric_accent / fabric_rug | Fabric030 | 200 / 26 | yes | 85 KB | 85 KB | 80 KB |
+| linen | Fabric024 | 200 / 22 | no | 57 KB | 67 KB | 42 KB |
+| leather | Leather011 | 205 / 22 | no | 25 KB | 65 KB | 46 KB |
+| floor_sport | WoodFloor040 | 196 / 40 | yes | 53 KB | 28 KB | 19 KB |
+
+(exact bytes in `assets/textures/MANIFEST.json`). Material: `aoMap = rough_ao` (channel 0, intensity 0.6),
+`roughnessMap = rough_ao`, `normalScale` = the normal strength of §2. Tiling stays `tile_m` of §2. The procedural set
+remains the per-id fallback (a failed load swaps that id back; nothing else changes).
+
+### 13.2 Models — `assets/models/` (416 KB; Kenney Furniture Kit 2.0, CC0)
+
+Lazy glTF per catalog item id, cloned per object, scaled to the authored (w, d, h) with ≤ 15 % stretch per axis,
+material slots replaced by palette ids (`src/models.js` MODEL_MANIFEST), level 3 only; levels 1-2 keep boxes.
+
+| item id | file | tris | slots → palette |
+|---|---|---|---|
+| sofa.3seat | loungeSofa.glb | 128 | carpet → fabric_accent, wood → wood_dark |
+| chair.basic | chair.glb | 170 | wood → wood_dark |
+| chair.office | chairDesk.glb | 588 | carpet → leather, metalMedium → metal_dark |
+| table.dining | table.glb | 120 | wood → oak |
+| table.coffee | tableCoffee.glb | 124 | wood → wood_dark |
+| table.desk | desk.glb | 198 | wood → wood_light, metal → metal_dark |
+| cabinet.tv | cabinetTelevision.glb | 154 | wood → wood_dark |
+| cabinet.bookcase | bookcaseOpen.glb | 320 | wood → wood_dark |
+| cabinet.wardrobe | cabinetBed.glb | 72 | wood → wood_light, metal → metal_light |
+| cabinet.low | cabinetBedDrawer.glb | 182 | wood → wood_light, metal → metal_light, _defaultMat → wood_dark |
+| bed.double / bed.single | bedDouble.glb / bedSingle.glb | 264 / 214 | wood → wood_light, metal → metal_light, carpetWhite → linen, carpet → fabric_grey |
+| kitchen.fridge | kitchenFridgeLarge.glb | 436 | metalLight → metal_light, metalMedium → metal_dark |
+| kitchen.island | kitchenCabinet.glb | 114 | wood → wood_light, woodDark → concrete, metal → metal_light |
+| plant.pot | plantSmall1.glb | 102 | wood → concrete, plant → grass |
+| sanitary.wc / basin / tub | toilet / bathroomSink / bathtub.glb | 230 / 316 / 602 | carpetWhite → tiles_white, metalLight → metal_light, metalDark → metal_dark, _defaultMat → tiles_white |
+| appliance.washer | washerDryerStacked.glb | 992 | metal* → metal_light / metal_dark, glass → metal_dark |
+
+Rules: **lamps stay procedural** (devices: bulb, glow sprite, pool light); **long kitchen counters are not one stretched
+module** — the port tiles `kitchenCabinet` modules every 0.6 m along the run (the prototype keeps the procedural run for
+`kitchen.counter`); screens stay procedural (emissive picture); any item without a row falls back per item. Demo house:
+31 placed models, ≈ 7k triangles.

@@ -15,29 +15,34 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-/** item id -> { file, slots: { <gltf material name>: <palette id> }, up: 'y', frontAxis: '+z' } */
+/**
+ * item id -> { file, slots: { <glTF material name>: <palette id> } }. The Kenney Furniture Kit 2.0 (CC0, downloaded
+ * 2026-10-09 with the owner's approval, LICENSES.md) names its material slots wood / woodDark / metal / metalLight /
+ * metalMedium / metalDark / carpet / carpetWhite / plant / lamp / glass / _defaultMat (tools/inspect-glb.mjs); the
+ * palette id per slot below is what gives both styles their colour. Every file is 72-992 triangles, 6.6-64 KB.
+ */
 export const MODEL_MANIFEST = {
-  'sofa.3seat': { file: 'assets/models/loungeSofa.glb', slots: { fabric: 'fabric_accent', cushion: 'fabric_grey', wood: 'wood_dark' } },
-  'chair.basic': { file: 'assets/models/chair.glb', slots: { wood: 'wood_dark', fabric: 'fabric_grey' } },
-  'chair.office': { file: 'assets/models/chairDesk.glb', slots: { leather: 'leather', metal: 'metal_dark' } },
-  'table.dining': { file: 'assets/models/table.glb', slots: { wood: 'oak', legs: 'wood_dark' } },
-  'table.coffee': { file: 'assets/models/tableCoffee.glb', slots: { wood: 'wood_dark', metal: 'metal_dark' } },
+  'sofa.3seat': { file: 'assets/models/loungeSofa.glb', slots: { carpet: 'fabric_accent', wood: 'wood_dark' } },
+  'chair.basic': { file: 'assets/models/chair.glb', slots: { wood: 'wood_dark' } },
+  'chair.office': { file: 'assets/models/chairDesk.glb', slots: { carpet: 'leather', metalMedium: 'metal_dark' } },
+  'table.dining': { file: 'assets/models/table.glb', slots: { wood: 'oak' } },
+  'table.coffee': { file: 'assets/models/tableCoffee.glb', slots: { wood: 'wood_dark' } },
   'table.desk': { file: 'assets/models/desk.glb', slots: { wood: 'wood_light', metal: 'metal_dark' } },
-  'cabinet.tv': { file: 'assets/models/cabinetTelevision.glb', slots: { wood: 'wood_dark', metal: 'metal_light' } },
-  'cabinet.bookcase': { file: 'assets/models/bookcaseOpen.glb', slots: { wood: 'wood_dark', books: 'linen' } },
+  'cabinet.tv': { file: 'assets/models/cabinetTelevision.glb', slots: { wood: 'wood_dark' } },
+  'cabinet.bookcase': { file: 'assets/models/bookcaseOpen.glb', slots: { wood: 'wood_dark' } },
   'cabinet.wardrobe': { file: 'assets/models/cabinetBed.glb', slots: { wood: 'wood_light', metal: 'metal_light' } },
-  'cabinet.low': { file: 'assets/models/cabinetBedDrawer.glb', slots: { wood: 'wood_light', metal: 'metal_light' } },
-  'bed.double': { file: 'assets/models/bedDouble.glb', slots: { wood: 'wood_light', linen: 'linen', blanket: 'fabric_grey' } },
-  'bed.single': { file: 'assets/models/bedSingle.glb', slots: { wood: 'wood_light', linen: 'linen', blanket: 'fabric_grey' } },
-  'kitchen.fridge': { file: 'assets/models/kitchenFridgeLarge.glb', slots: { metal: 'metal_light', handle: 'metal_dark' } },
-  'kitchen.counter': { file: 'assets/models/kitchenCabinet.glb', slots: { wood: 'wood_light', top: 'concrete', handle: 'metal_light' } },
-  'kitchen.island': { file: 'assets/models/kitchenCabinet.glb', slots: { wood: 'wood_light', top: 'concrete', handle: 'metal_light' } },
-  'plant.pot': { file: 'assets/models/plantSmall1.glb', slots: { pot: 'concrete', leaves: 'grass' } },
-  'sanitary.wc': { file: 'assets/models/toilet.glb', slots: { ceramic: 'tiles_white' } },
-  'sanitary.basin': { file: 'assets/models/bathroomSink.glb', slots: { ceramic: 'tiles_white', metal: 'metal_light' } },
-  'sanitary.tub': { file: 'assets/models/bathtub.glb', slots: { ceramic: 'tiles_white', metal: 'metal_light' } },
-  'appliance.washer': { file: 'assets/models/washerDryerStacked.glb', slots: { metal: 'metal_light', glass: 'metal_dark' } },
-  'light.floor': { file: 'assets/models/lampRoundFloor.glb', slots: { metal: 'metal_dark', shade: 'linen' } },
+  'cabinet.low': { file: 'assets/models/cabinetBedDrawer.glb', slots: { wood: 'wood_light', metal: 'metal_light', _defaultMat: 'wood_dark' } },
+  'bed.double': { file: 'assets/models/bedDouble.glb', slots: { wood: 'wood_light', metal: 'metal_light', carpetWhite: 'linen', carpet: 'fabric_grey' } },
+  'bed.single': { file: 'assets/models/bedSingle.glb', slots: { wood: 'wood_light', metal: 'metal_light', carpetWhite: 'linen', carpet: 'fabric_grey' } },
+  'kitchen.fridge': { file: 'assets/models/kitchenFridgeLarge.glb', slots: { metalLight: 'metal_light', metalMedium: 'metal_dark' } },
+  // kitchen.counter: NOT mapped - a single cabinet module stretched to a 3-4 m run reads wrong; the port tiles modules (LOOK_SPEC §13), the prototype keeps the procedural run
+  'kitchen.island': { file: 'assets/models/kitchenCabinet.glb', slots: { wood: 'wood_light', woodDark: 'concrete', metal: 'metal_light' } },
+  'plant.pot': { file: 'assets/models/plantSmall1.glb', slots: { wood: 'concrete', plant: 'grass' } },
+  'sanitary.wc': { file: 'assets/models/toilet.glb', slots: { carpetWhite: 'tiles_white', metalLight: 'metal_light', metalDark: 'metal_dark', _defaultMat: 'tiles_white' } },
+  'sanitary.basin': { file: 'assets/models/bathroomSink.glb', slots: { carpetWhite: 'tiles_white', metalLight: 'metal_light', _defaultMat: 'tiles_white' } },
+  'sanitary.tub': { file: 'assets/models/bathtub.glb', slots: { carpetWhite: 'tiles_white', metalLight: 'metal_light', metalDark: 'metal_dark' } },
+  'appliance.washer': { file: 'assets/models/washerDryerStacked.glb', slots: { metalMedium: 'metal_light', metalLight: 'metal_light', metalDark: 'metal_dark', metal: 'metal_dark', glass: 'metal_dark', _defaultMat: 'metal_light' } },
+  // light.*: NOT mapped - lamps are devices (bulb, glow sprite, pool light) and stay procedural
 };
 
 export class ModelLibrary {

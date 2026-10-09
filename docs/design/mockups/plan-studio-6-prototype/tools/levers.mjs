@@ -21,6 +21,9 @@ const page = await (await browser.newContext({ viewport: { width: 1440, height: 
 await page.goto(process.env.SW_URL || pathToFileURL(path.join(root, 'index.html')).href);
 await page.waitForFunction(() => window.studio6 && window.studio6.planScene && window.studio6.planScene.levels.L0, null, { timeout: 180000 });
 await page.waitForTimeout(GPU ? 4500 : 9000);
+// CC0 file textures load lazily: wait until every requested set has arrived (or 30 s), then let the frame settle
+await page.waitForFunction(() => { const l = window.studio6.lib; return !l.loader || [...l.cache.keys()].every((id) => !l.cache.get(id).file || l.loaded.has(id) || (l.failed && l.failed.has(id))); }, null, { timeout: 30000 }).catch(() => console.log('texture wait timed out'));
+await page.waitForTimeout(800);
 const app = (fn, ...args) => page.evaluate(fn, ...args);
 const settle = async (ms = 1200) => { await app(() => window.studio6.invalidate()); await page.waitForTimeout(ms); };
 const R = { renderer: await app(() => window.studio6.env.rendererName()), measured_at: new Date().toISOString() };

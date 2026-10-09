@@ -35,6 +35,16 @@ realistic orbit; 55.6 fps on the 390 px lite walk) and the port rules that follo
 `shots/lookdev-gpu.json` (after), `shots/perf-gpu.json` (before, morning), `shots/perf-baseline-sameminute-gpu.json`
 (before, measured in the same minute as `shots/levers-gpu.json`).
 
+## CC0 assets (same day, after the owner's approval)
+
+The final `shots/lookdev/` set and `checkpoint/` frames use the downloaded CC0 sets (`assets/textures/`, 21 ids over 16
+ambientCG sets, 3.1 MB) and the Kenney furniture kit (`assets/models/`, 19 glTFs, 416 KB) with the palette applied per
+material slot — both switchable back to the procedural sets in settings (`?procedural` forces both). What changed
+visually: real plaster grain and wood / tile structure at the right scale in the walk; recognisable furniture
+silhouettes (sofa, chairs, beds, bookcase, desk) at iso. What stayed procedural and why: lamps (devices), long kitchen
+counters (one module stretched reads wrong), screens (emissive picture), the ceiling (a near-flat WebP showed block
+artefacts).
+
 ## Known limits of the evidence
 
 - `16-walk-upper-floor-after-stairs.png` is a wall close-up: the scripted walker holds W for 4.5 s and reaches the north
