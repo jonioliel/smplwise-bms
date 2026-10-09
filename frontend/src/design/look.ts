@@ -493,9 +493,9 @@ export const DENSITY_BUNDLE: Record<Density, Record<string, string>> = {
 
 /** Radius: the corner scale (video keeps `--sw-r-media`, never the pill radius). */
 export const RADIUS_BUNDLE: Record<Radius, Record<string, string>> = {
-  pill: { '--sw-r-sm': '12px', '--sw-r-md': '18px', '--sw-r-lg': '28px', '--sw-r-xl': '42px', '--sw-r-pill': '999px', '--sw-r-media': '16px' },
-  soft: { '--sw-r-sm': '8px', '--sw-r-md': '12px', '--sw-r-lg': '18px', '--sw-r-xl': '28px', '--sw-r-pill': '999px', '--sw-r-media': '12px' },
-  square: { '--sw-r-sm': '4px', '--sw-r-md': '6px', '--sw-r-lg': '8px', '--sw-r-xl': '12px', '--sw-r-pill': '8px', '--sw-r-media': '4px' },
+  pill: { '--sw-r-2xs': '6px', '--sw-r-xs': '8px', '--sw-r-sm': '12px', '--sw-r-md': '18px', '--sw-r-lg': '28px', '--sw-r-xl': '42px', '--sw-r-2xl': '48px', '--sw-r-pill': '999px', '--sw-r-media': '16px' },
+  soft: { '--sw-r-2xs': '4px', '--sw-r-xs': '6px', '--sw-r-sm': '8px', '--sw-r-md': '12px', '--sw-r-lg': '18px', '--sw-r-xl': '28px', '--sw-r-2xl': '32px', '--sw-r-pill': '999px', '--sw-r-media': '12px' },
+  square: { '--sw-r-2xs': '2px', '--sw-r-xs': '3px', '--sw-r-sm': '4px', '--sw-r-md': '6px', '--sw-r-lg': '8px', '--sw-r-xl': '12px', '--sw-r-2xl': '14px', '--sw-r-pill': '8px', '--sw-r-media': '4px' },
 };
 
 /**

@@ -167,8 +167,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     tokens: {
       '--sw-font': same('"Heebo", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Hebrew", Roboto, Arial, sans-serif'),
       '--sw-font-mono': same('ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace'),
+      // DU1 (2026-10-09): the type scale the screens snap to - 2xs captions / xs / sm / base (13: dense rows, secondary lines) / md body /
+      // lg / xl / 2xl / 3xl. A screen never writes a px font size of its own; the skins re-tune the tiers.
+      '--sw-fs-2xs': same('10px'),
       '--sw-fs-xs': same('11px'),
       '--sw-fs-sm': same('12.5px'),
+      '--sw-fs-base': same('13px'),
       '--sw-fs-md': same('14px'),
       '--sw-fs-lg': same('15px'),
       '--sw-fs-xl': same('17px'),
@@ -210,10 +214,15 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     id: 'shape',
     title: 'Radii, elevation and glass',
     tokens: {
+      // DU1 (2026-10-09): the radius scale - 2xs (small marks, thumbs) / xs (inputs, small chips, inner rows) / sm (buttons, chips, tiles) /
+      // md (cards, panels) / lg (large panels) / xl (dialog, drawer) / 2xl (sheets, hero media) / pill
+      '--sw-r-2xs': same('4px'),
+      '--sw-r-xs': same('6px'),
       '--sw-r-sm': same('8px'),
       '--sw-r-md': same('12px'),
       '--sw-r-lg': same('14px'),
       '--sw-r-xl': same('14px'), // a dialog / large panel (new; classic = r-lg)
+      '--sw-r-2xl': same('22px'),
       '--sw-r-pill': same('999px'),
       '--sw-shadow-1': lt('0 1px 2px rgba(16, 24, 40, 0.04)', '0 1px 2px rgba(0, 0, 0, 0.35)'),
       '--sw-shadow-2': lt('0 6px 18px rgba(34, 49, 76, 0.06)', '0 6px 18px rgba(0, 0, 0, 0.4)'),
@@ -223,6 +232,40 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-glass-blur-nav': same('none'), // rail, bottom bar, corner pill
       '--sw-glass-blur-sheet': same('none'), // dialog, drawer, popover
       '--sw-glass-sheen': same('linear-gradient(transparent, transparent)'), // light catching the top of a glass panel
+    },
+  },
+  {
+    // DU1 (2026-10-09): the states every control shares, so hover / pressed / disabled / focus / loading look the same on every
+    // screen and a skin tunes them once. The classic values are the ones the shared components used as literals before.
+    id: 'control',
+    title: 'Controls and interaction states',
+    tokens: {
+      '--sw-ctl-h-sm': same('26px'), // the small button / chip / input height
+      '--sw-ctl-h-md': same('30px'), // the default control height
+      '--sw-ctl-h-lg': same('36px'), // the large control height (and the phone minimum before the touch rules)
+      '--sw-disabled-opacity': same('0.5'), // a disabled control keeps its shape and fades
+      '--sw-hover-wash': lt('rgba(20, 30, 50, 0.05)', 'rgba(255, 255, 255, 0.06)'), // a hovered row / tile on any surface
+      '--sw-pressed-wash': lt('rgba(20, 30, 50, 0.09)', 'rgba(255, 255, 255, 0.1)'), // the same control while pressed
+      '--sw-focus-w': same('2px'), // the focus ring (styles/focus-policy.ts reads it with a fallback)
+      '--sw-focus-offset': same('2px'),
+      '--sw-skeleton': lt('#eef2f8', '#222d44'), // a loading placeholder block
+      '--sw-skeleton-shine': lt('rgba(255, 255, 255, 0.65)', 'rgba(255, 255, 255, 0.08)'), // the shimmer that crosses it
+      '--sw-shadow-primary': lt('0 1px 2px rgba(39, 103, 237, 0.25)', '0 1px 2px rgba(0, 0, 0, 0.4)'), // the primary button's resting shadow
+    },
+  },
+  {
+    // DU1 (2026-10-09): what sits ON a video frame, a thumbnail or a plan image - the HUD. Video is dark in both schemes, so these are
+    // the same in light and dark; a skin may soften them but never make the text dark.
+    id: 'video',
+    title: 'On-video HUD (same in both schemes)',
+    tokens: {
+      '--sw-on-video': same('#ffffff'), // text and icons over video
+      '--sw-on-video-2': same('rgba(255, 255, 255, 0.72)'), // secondary text over video
+      '--sw-video-scrim': same('rgba(0, 0, 0, 0.55)'), // a HUD pill's backdrop
+      '--sw-video-scrim-strong': same('rgba(0, 0, 0, 0.72)'), // a HUD panel's backdrop (controls bar, the error card)
+      '--sw-video-line': same('rgba(255, 255, 255, 0.18)'), // a hairline on video (tile borders, dividers in the HUD)
+      '--sw-video-hover': same('rgba(255, 255, 255, 0.14)'), // a hovered HUD button
+      '--sw-on-image-bg': lt('rgba(255, 255, 255, 0.92)', 'rgba(21, 28, 44, 0.88)'), // a badge sitting on a thumbnail (text = --sw-text)
     },
   },
   {
