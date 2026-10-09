@@ -190,7 +190,7 @@ test('a glass wall is still a wall: it blocks camera rays and stays a wall for e
 
 test('i18n: every window wall string exists in Hebrew and English', () => {
   expect(Object.keys(PLAN_GLASS_STRINGS.en).sort()).toEqual(Object.keys(PLAN_GLASS_STRINGS.he).sort());
-  expect(glassT('kind', 'he')).toBe('קיר חלונות');
-  expect(glassT('kind', 'en')).toBe('Window wall');
+  expect(glassT('kind', 'he')).toBe('קיר זכוכית'); // WALLP: renamed from 'קיר חלונות' (owner request 2026-10-08)
+  expect(glassT('kind', 'en')).toBe('Glass wall');
   for (const v of [...Object.values(PLAN_GLASS_STRINGS.he), ...Object.values(PLAN_GLASS_STRINGS.en)]) expect(v).not.toMatch(/home assistant|\bHA\b/i);
 });

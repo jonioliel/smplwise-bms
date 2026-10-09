@@ -6,18 +6,21 @@
  *
  * The maths is wall-path.ts (plan pixels; positive bulge = clockwise on screen). No DOM, no Lit: tests/unit-curve-ops.spec.ts.
  */
-import { pointOnWall, type GeometryDoc, type GeomWall, type Pt } from './geometry';
-import { bulgeForRadius, bulgeThrough, bulgesOf, fillet, MAX_BULGE, pathLength, pointAtS, project, radius, wallPx, type P } from './wall-path';
-import { defaultLevelId, newId, withBulges, type WallDefaults } from './studio-ops';
+import { isClosedOutline, pointOnWall, type GeometryDoc, type GeomWall, type Pt } from './geometry';
+import { bulgeForRadius, bulgeThrough, bulgesOf, cumulative, fillet, MAX_BULGE, pathLength, pointAtS, project, radius, sample, wallPx, type P } from './wall-path';
+import { addWall, curveThrough, defaultLevelId, newId, withBulges, withThrough, type WallDefaults } from './studio-ops';
+import { fitCurve, minRadiusPx } from './curve-fit';
+import { withDocVersion } from './glass-wall';
 
 const round5 = (v: number): number => Math.round(v * 1e5) / 1e5;
 const clampPt = (p: Pt): Pt => [round5(Math.min(1, Math.max(0, p[0]))), round5(Math.min(1, Math.max(0, p[1])))];
 const toPx = (p: Pt, W: number, H: number): P => [p[0] * W, p[1] * H];
 
 /** The wall with `polyline` and `bulges` replaced, its openings re-projected onto the new path (each keeps the point
- * nearest to where its centre was). */
-function replaceWall(doc: GeometryDoc, old: GeomWall, polyline: Pt[], bulges: number[] | undefined, W: number, H: number): GeometryDoc {
-  const next = withBulges({ ...old, polyline: polyline.map(clampPt) }, bulges);
+ * nearest to where its centre was). `through`: the clicked points of a wall drawn through points (curve_through);
+ * absent, an edit by any other curve tool makes the wall an ordinary curved wall (its points are no longer re-fitted). */
+function replaceWall(doc: GeometryDoc, old: GeomWall, polyline: Pt[], bulges: number[] | undefined, W: number, H: number, through?: number[]): GeometryDoc {
+  const next = withThrough(withBulges({ ...old, polyline: polyline.map(clampPt) }, bulges), through);
   const { pts, bulges: nb } = wallPx(next, W, H);
   const total = pathLength(pts, nb);
   const openings = doc.openings.map((o) => {
@@ -138,4 +141,127 @@ export function segmentMid(w: GeomWall, seg: number, W: number, H: number): Pt {
 export function cornerRoundable(w: GeomWall, index: number, W: number, H: number): boolean {
   const { pts, bulges } = wallPx(w, W, H);
   return fillet(pts, bulges, index, 1e-6) !== null;
+}
+
+// ---- walls drawn through points (owner request 2026-10-08, "קיר מעוגל דרך נקודות"; curve-fit.ts) ----
+
+/** The server's per-wall corner cap for a curved wall (backend wall_path.MAX_CURVED_CORNERS, the shared curve budget of
+ * security review 2.4.2 M1). A fit past it is never built: the server would refuse the document (422, curve_corners). */
+export const MAX_CURVED_CORNERS = 512;
+/** Clicked points of one wall drawn through points. The fit adds at most one biarc junction per span, so 255 points give
+ * at most 511 corners, open or closed - within MAX_CURVED_CORNERS. */
+export const MAX_CURVE_POINTS = 255;
+
+/** The smooth wall through `points` (normalized) as corners, bulges and the clicked points' indices; the junctions are
+ * rounded to the stored precision before their arcs are computed, so the stored bulges fit the stored corners. */
+export function fitPoints(points: readonly Pt[], closed: boolean, W: number, H: number): { polyline: Pt[]; bulges: number[]; through: number[] } {
+  const round = (q: P): P => toPx(clampPt([q[0] / W, q[1] / H]), W, H);
+  const fit = fitCurve(points.map((p) => toPx(clampPt(p), W, H)), { closed, round });
+  return {
+    polyline: fit.pts.map((q): Pt => clampPt([q[0] / W, q[1] / H])),
+    bulges: fit.bulges.map((b) => (Math.abs(b) < 1e-6 ? 0 : Math.round(b * 1e6) / 1e6)),
+    through: fit.through,
+  };
+}
+
+/** The clicked points of a wall drawn through points (normalized), or null for any other wall. */
+export function curvePoints(w: GeomWall): Pt[] | null {
+  const idx = curveThrough(w);
+  return idx ? idx.map((i): Pt => [w.polyline[i][0], w.polyline[i][1]]) : null;
+}
+
+export const isPointsCurve = (w: GeomWall): boolean => curveThrough(w) !== null;
+
+/** A new wall through `points` (at least two distinct ones; closed: the outline returns to the first point). Drawn with
+ * the defaults of the tool (a glass kind brings its glazing, addWall), one undo step in the editor. Null when the points
+ * make no wall. */
+export function addCurveWall(doc: GeometryDoc, points: readonly Pt[], closed: boolean, defaults: WallDefaults, W: number, H: number): { doc: GeometryDoc; id: string } | null {
+  const fit = fitPoints(points, closed, W, H);
+  if (fit.through.length < 2 || fit.polyline.length < 2 || fit.polyline.length > MAX_CURVED_CORNERS) return null; // past the server's curve budget: not built
+  const r = addWall(doc, fit.polyline, defaults);
+  const walls = r.doc.walls.map((w) => (w.id === r.id ? withThrough(withBulges(w, fit.bulges), fit.through) : w));
+  return { doc: withDocVersion({ ...r.doc, walls }), id: r.id };
+}
+
+/** The wall re-fitted through `points` (its clicked points after an edit); its openings keep their place. */
+export function refitCurve(doc: GeometryDoc, id: string, points: readonly Pt[], W: number, H: number): GeometryDoc {
+  const w = wallOf(doc, id);
+  if (!w) return doc;
+  const fit = fitPoints(points, isClosedOutline(w.polyline), W, H);
+  if (fit.through.length < 2 || fit.polyline.length > MAX_CURVED_CORNERS) return doc; // past the server's curve budget: unchanged
+  return withDocVersion(replaceWall(doc, w, fit.polyline, fit.bulges, W, H, fit.through));
+}
+
+/** Clicked point k moved to p (normalized): the curve re-fits through it. */
+export function moveCurvePoint(doc: GeometryDoc, id: string, k: number, p: Pt, W: number, H: number): GeometryDoc {
+  const w = wallOf(doc, id);
+  const pts = w ? curvePoints(w) : null;
+  if (!w || !pts || k < 0 || k >= pts.length) return doc;
+  return refitCurve(doc, id, pts.map((q, i) => (i === k ? p : q)), W, H);
+}
+
+/** A new clicked point on the curve: at `at` (its nearest point on the path), else in the middle of the longest span
+ * between two clicked points. The curve re-fits (it barely moves: the new point lies on it). */
+export function insertCurvePoint(doc: GeometryDoc, id: string, W: number, H: number, at?: Pt): { doc: GeometryDoc; k: number } | null {
+  const w = wallOf(doc, id);
+  const idx = w ? curveThrough(w) : null;
+  if (!w || !idx) return null;
+  const { pts, bulges } = wallPx(w, W, H);
+  const cum = cumulative(pts, bulges);
+  const closed = isClosedOutline(w.polyline);
+  const stops = closed ? [...idx, pts.length - 1] : idx; // arc length of each clicked point (a closed curve ends on its start)
+  let span = 0;
+  let s: number;
+  if (at) {
+    s = project(pts, bulges, toPx(at, W, H)).s;
+    while (span < stops.length - 2 && s > cum[stops[span + 1]]) span++;
+  } else {
+    let best = -1;
+    for (let i = 0; i < stops.length - 1; i++) {
+      const l = cum[stops[i + 1]] - cum[stops[i]];
+      if (l > best) {
+        best = l;
+        span = i;
+      }
+    }
+    s = (cum[stops[span]] + cum[stops[span + 1]]) / 2;
+  }
+  const lo = cum[stops[span]];
+  const hi = cum[stops[span + 1]];
+  if (!(s - lo > 1) || !(hi - s > 1)) return null; // on a clicked point already: nothing to add
+  const q = pointAtS(pts, bulges, s, cum).p;
+  const points = idx.map((i): Pt => [w.polyline[i][0], w.polyline[i][1]]);
+  points.splice(span + 1, 0, [q[0] / W, q[1] / H]);
+  return { doc: refitCurve(doc, id, points, W, H), k: span + 1 };
+}
+
+/** Clicked point k removed: the curve re-fits through the others; with fewer than two left the wall goes (with its
+ * openings), as a corner removal does. */
+export function removeCurvePoint(doc: GeometryDoc, id: string, k: number, W: number, H: number): { doc: GeometryDoc; wallRemoved: boolean } {
+  const w = wallOf(doc, id);
+  const pts = w ? curvePoints(w) : null;
+  if (!w || !pts || k < 0 || k >= pts.length) return { doc, wallRemoved: false };
+  const rest = pts.filter((_, i) => i !== k);
+  if (rest.length < 2) return { doc: withDocVersion({ ...doc, walls: doc.walls.filter((x) => x.id !== id), openings: doc.openings.filter((o) => o.wall_id !== id) }), wallRemoved: true };
+  return { doc: refitCurve(doc, id, rest, W, H), wallRemoved: false };
+}
+
+/** The clicked point of a wall drawn through points at polyline index i, or -1 (a junction, or another wall). */
+export function curvePointAt(w: GeomWall, i: number): number {
+  const idx = curveThrough(w);
+  if (!idx) return -1;
+  const closed = isClosedOutline(w.polyline);
+  return idx.indexOf(closed && i === w.polyline.length - 1 ? 0 : i);
+}
+
+/** What the drawing shows live: the sampled curve through the points (normalized), its length and its tightest radius
+ * in metres (Infinity when straight). */
+export function curvePreview(points: readonly Pt[], closed: boolean, W: number, H: number, scale: number): { path: Pt[]; lengthM: number; minRadiusM: number } {
+  const fit = fitCurve(points.map((p) => toPx(p, W, H)), { closed });
+  if (fit.pts.length < 2) return { path: [], lengthM: 0, minRadiusM: Number.POSITIVE_INFINITY };
+  return {
+    path: sample(fit.pts, fit.bulges, 0.5).map((q): Pt => [q[0] / W, q[1] / H]),
+    lengthM: pathLength(fit.pts, fit.bulges) * scale,
+    minRadiusM: minRadiusPx(fit) * scale,
+  };
 }

@@ -165,7 +165,8 @@ export function removeCorner(doc: GeometryDoc, id: string, index: number): { doc
   const polyline: Pt[] = closed ? [...ring, [ring[0][0], ring[0][1]]] : ring;
   // a curved wall keeps one bulge per segment: the two segments that met at the corner become one straight segment
   const bulges = w.bulges && w.bulges.length === pl.length - 1 ? removedCornerBulges(w.bulges, index, closed) : undefined;
-  return { doc: { ...doc, walls: doc.walls.map((x) => (x.id === id ? withBulges({ ...x, polyline }, bulges) : x)) }, wallRemoved: false };
+  // a wall drawn through points loses its re-fit here (its corners changed under it); curve-ops removes a clicked point
+  return { doc: { ...doc, walls: doc.walls.map((x) => (x.id === id ? withThrough(withBulges({ ...x, polyline }, bulges), undefined) : x)) }, wallRemoved: false };
 }
 
 /** The bulges after corner `index` goes: segments index-1 and index merge into one straight segment (a closed outline's
@@ -184,6 +185,31 @@ function removedCornerBulges(b: readonly number[], index: number, closed: boolea
 export function withBulges(w: GeomWall, bulges: readonly number[] | undefined): GeomWall {
   const { bulges: _old, ...rest } = w;
   return bulges && bulges.some((v) => v !== 0) ? { ...rest, bulges: [...bulges] } : rest;
+}
+
+/** external_ids key of a wall drawn through points (curve-fit.ts): the polyline indices of the clicked points, e.g.
+ * "0,2,4". The other corners are the junctions of the fit. external_ids is a free string map in schema 2.0 / 2.1, so the
+ * document needs no new field, no migration, and an older reader keeps it untouched (it only loses the re-fit). */
+export const CURVE_THROUGH = 'curve_through';
+
+/** The clicked points' polyline indices of a wall drawn through points, or null: absent, malformed, or stale (they no
+ * longer fit the polyline - another edit changed its corners), so the wall is an ordinary curved wall. */
+export function curveThrough(w: Pick<GeomWall, 'polyline' | 'external_ids'>): number[] | null {
+  const raw = w.external_ids?.[CURVE_THROUGH];
+  if (typeof raw !== 'string' || !/^\d+(,\d+)+$/.test(raw)) return null;
+  const idx = raw.split(',').map(Number);
+  const closed = isClosedOutline(w.polyline);
+  const last = closed ? w.polyline.length - 2 : w.polyline.length - 1;
+  if (idx[0] !== 0 || idx[idx.length - 1] > last || (!closed && idx[idx.length - 1] !== last)) return null;
+  for (let k = 1; k < idx.length; k++) if (!(idx[k] > idx[k - 1])) return null;
+  return idx;
+}
+
+/** The wall with its clicked-point indices set, or without them (undefined). */
+export function withThrough(w: GeomWall, through: readonly number[] | undefined): GeomWall {
+  const { [CURVE_THROUGH]: _old, ...ids } = w.external_ids ?? {};
+  if (!through && _old === undefined) return w;
+  return { ...w, external_ids: through ? { ...ids, [CURVE_THROUGH]: through.join(',') } : ids };
 }
 
 /** A wall takes its openings with it; an object leaves its group and its circuit and takes the connector derived from it;
