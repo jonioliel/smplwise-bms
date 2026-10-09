@@ -16,6 +16,7 @@ import { hourLabel, dateLabel } from './sun.js';
 import { pointInPolygon, polygonCentroid } from './geometry.js';
 import { DEMO_HOUSE } from './data/demo-house.js';
 import { FIXTURE_SAMPLE_V2 } from './data/fixture-sample-v2.generated.js';
+import { STYLES, defaultStyleFor } from './style.js';
 
 const QUALITY_HE = { 3: 'ריאליסטי', 2: 'מלא', 1: 'סכמטי', 0: 'תמונות מוכנות' };
 const LITE_HE = 'ריאליסטי קל';
@@ -48,8 +49,13 @@ class App {
     this.canvas = $('gl');
     this.env = new Environment(this.canvas, { maxDpr: 2 });
     this.env.backdrop = this.stage;
-    this.lib = new MaterialLibrary();
+    // visual style (owner Q12: both; per-browser choice, default follows the UI theme)
+    this.styleChoice = (() => { try { return localStorage.getItem('studio6.style') || 'auto'; } catch { return 'auto'; } })();
+    this.style = this.resolveStyle();
+    this.env.style = this.style;
+    this.lib = new MaterialLibrary(this.style);
     this.planScene = new PlanScene(this.lib);
+    this.hudOn = /[?&]hud/.test(location.search); // plan L9: no debug HUD on an operator screen; developer toggle
     this.planScene._reflector = { Reflector };
     this.env.scene.add(this.planScene.root);
     this.baker = new StillsBaker(this.env, this.planScene);
@@ -84,6 +90,32 @@ class App {
     this.resize();
     window.addEventListener('resize', () => this.resize());
     requestAnimationFrame((t) => this.frame(t));
+  }
+  resolveStyle() { return this.styleChoice === 'auto' ? defaultStyleFor(document.documentElement.dataset.theme) : (STYLES[this.styleChoice] || STYLES.light); }
+  /** Switch the visual style live: palette re-tint, light rig, post numbers, caps - no geometry rebuild. */
+  setStyle(choice) {
+    this.styleChoice = choice;
+    try { localStorage.setItem('studio6.style', choice); } catch { /* ignore */ }
+    this.style = this.resolveStyle();
+    this.planScene.setStyle(this.style);
+    this.env.setStyle(this.style);
+    this.env.buildComposer(this.camera);
+    this.planScene.setNight(this.env.recipe.night);
+    this.applyCut();
+    document.documentElement.dataset.style = this.style.id;
+    this.renderStyleChip && this.renderStyleChip();
+    this.makeThumbs();
+    this.invalidate();
+  }
+  /** The section cut (plan L6): orbit views cut the top visible level at style.cut.fraction of its ceiling; the walk never cuts. */
+  applyCut() {
+    if (this.mode !== 'orbit' || this.quality < 2 || !this.plan) { this.planScene.setCut(null); return; }
+    const ids = this.plan.doc.levels.map((l) => l.id);
+    const top = this.levelMode === 'all' || !this.levelMode ? ids[ids.length - 1] : this.levelMode;
+    const L = this.planScene.levels[top];
+    if (!L) { this.planScene.setCut(null); return; }
+    this.planScene.setCut(L.elevation + L.ceiling * this.style.cut.fraction, top);
+    this.shadowDirty = true;
   }
 
   // ------------------------------------------------------------------ cameras
@@ -205,11 +237,14 @@ class App {
     this.resize();
     if (this.walk) this.walk.scene = this.planScene;
     this.planScene.showLevel(this.levelMode || 'all', this.mode === 'walk');
+    this.planScene.setNight(this.env.recipe.night);
+    this.applyCut();
     this.invalidate();
   }
   setLevelMode(mode) {
     this.levelMode = mode;
     this.planScene.showLevel(mode, this.mode === 'walk');
+    this.applyCut();
     this.buildStrip();
     this.invalidate();
     if (this.mode === 'orbit') { const ext = this.visibleExtent(); this.env.fitShadows(ext, ext.top); }
@@ -279,14 +314,25 @@ class App {
     const sel = $('plan-select');
     for (const p of PLANS) { const o = el('option', '', p.title); o.value = p.id; sel.appendChild(o); }
     sel.addEventListener('change', () => { if (this.mode === 'walk') this.exitWalk(); if (this.mode === 'stills') this.exitStills(false); this.loadPlan(PLANS.find((p) => p.id === sel.value)); });
-    $('theme-toggle').addEventListener('click', () => { const d = document.documentElement; d.dataset.theme = d.dataset.theme === 'dark' ? '' : 'dark'; });
+    $('theme-toggle').addEventListener('click', () => { const d = document.documentElement; d.dataset.theme = d.dataset.theme === 'dark' ? '' : 'dark'; if (this.styleChoice === 'auto') this.setStyle('auto'); });
+    // style chip: auto (follows the theme) / light architectural / dark digital twin
+    const styleSel = $('style-select');
+    if (styleSel) {
+      for (const [v, t] of [['auto', 'סגנון: לפי ערכת נושא'], ['light', `סגנון: ${STYLES.light.name}`], ['dark', `סגנון: ${STYLES.dark.name}`]]) { const o = el('option', '', t); o.value = v; styleSel.appendChild(o); }
+      styleSel.value = this.styleChoice;
+      styleSel.addEventListener('change', () => this.setStyle(styleSel.value));
+      this.renderStyleChip = () => { styleSel.value = this.styleChoice; };
+    }
+    document.documentElement.dataset.style = this.style.id;
+    const hud = $('hud');
+    hud.classList.toggle('on', this.hudOn);
     const slider = $('sun-slider');
     slider.addEventListener('input', () => { this.env.setTime({ hour: slider.value / 60 }); this.updateSunCard(); this.invalidate(); this.userInput(); });
     $('sun-now').addEventListener('click', () => { const d = new Date(); slider.value = d.getHours() * 60 + d.getMinutes(); const start = new Date(d.getFullYear(), 0, 0); this.env.setTime({ hour: slider.value / 60, day: Math.floor((d - start) / 86400000) }); this.updateSunCard(); this.invalidate(); });
     const wx = $('weather');
     for (const [id, he] of WEATHER) { const c = el('button', 'chip', he); c.dataset.w = id; c.addEventListener('click', () => { this.env.setTime({ weather: id }); this.updateSunCard(); this.invalidate(); }); wx.appendChild(c); }
     for (const [he, hour] of [['צהריים', 12.5], ['שקיעה', 18.2], ['לילה', 22.5]]) { const c = el('button', 'chip', he); c.addEventListener('click', () => { slider.value = hour * 60; this.env.setTime({ hour }); this.updateSunCard(); this.invalidate(); }); wx.appendChild(c); }
-    this.env.onTime = () => this.updateSunCard();
+    this.env.onTime = () => { this.updateSunCard(); if (this.planScene) this.planScene.setNight(this.env.recipe.night); };
     this.env.setTime({ hour: slider.value / 60, day: 278 });
     document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('sel', x === b));
@@ -679,8 +725,10 @@ class App {
     this.camera = this.walkCam;
     if (this.controls) this.controls.enabled = false;
     this.planScene.showLevel('all', true);
+    this.planScene.setCut(null);
     this.env.setCamera(this.walkCam);
     this.env.interior = true;
+    this.env.interiorFill = 0.6;
     this.env.applyTime();
     this.continuous = true;
     this.renderBar();
@@ -699,7 +747,9 @@ class App {
     this.buildStrip();
     this.fitCamera(st.preset || 'iso');
     this.env.interior = false;
+    this.env.interiorFill = 1;
     this.env.applyTime();
+    this.applyCut();
     this.continuous = false;
     this.renderBar();
     this.buildWalkPanel();
@@ -993,6 +1043,11 @@ class App {
     let moving = false;
     if (this.mode === 'walk' && this.walk) {
       if (this.walk.step(dt)) { moving = true; this.walk.eyeOverride = null; }
+      // interior exposure adaptation (plan P5): the fill follows the room's daylight factor, eased over ~0.6 s
+      const Lw = this.planScene.levels[this.walk.level];
+      const zone = Lw && Lw.zones.find((z) => pointInPolygon(this.walk.x, this.walk.z, z.polyM));
+      const want = zone && typeof zone.daylight === 'number' ? 0.25 + zone.daylight * 0.75 : 0.6;
+      if (Math.abs(want - this.env.interiorFill) > 0.004) { this.env.interiorFill += (want - this.env.interiorFill) * Math.min(1, dt * 3); this.env.applyFill(); moving = true; }
       const y = this.walk.eyeOverride != null ? this.walk.eyeOverride : this.walk.eyeY();
       this.walkCam.position.set(this.walk.x, y, this.walk.z);
       this.walkCam.rotation.order = 'YXZ';

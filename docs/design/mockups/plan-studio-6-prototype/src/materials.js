@@ -1,36 +1,35 @@
 /**
- * Procedural PBR material library (CR-029 §6 stand-in). Every texture is generated here at load time on a canvas -
- * colour, a height field turned into a tangent-space normal map by a Sobel filter, and a roughness map - so the
- * prototype ships no image assets and needs no licence rows beyond three.js (LICENSES.md). Tiling is in metres
- * (tile_m per material), as the CR requires: the UV generator (scene.js boxUV) divides world metres by tile_m.
+ * Procedural PBR material library (CR-029 §6 stand-in, look-dev version). Every texture is generated at load time on a
+ * canvas: a NEUTRAL detail colour map (luminance variation around mid-light grey, hue-free), a height field turned into a
+ * tangent-space normal map (Sobel), and a roughness map. The colour of a material comes from the STYLE PALETTE
+ * (style.js) multiplied in as `material.color`, so the same detail set serves both styles and a CC0 file set can replace
+ * it by id without touching the palette. Tiling is in metres (tile_m) with REAL sizes: oak plank 0.2 x 1.2 m, grey
+ * floor tile 0.6 m, white tile 0.3 m, plaster 2 m. Floors / walls are 512 px, small-scale sets 256 px.
  */
 import * as THREE from 'three';
-
-const SIZE = 256; // 512 looked a little crisper but cost ~1.5-3 s per material in JS; 256 keeps the boot under ~3 s
+import { STYLES } from './style.js';
 
 // deterministic value noise (seeded) so the textures are the same on every load
 function rng(seed) {
   let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 function valueNoise(size, cells, seed) {
   const r = rng(seed);
   const grid = new Float32Array((cells + 1) * (cells + 1));
   for (let i = 0; i < grid.length; i++) grid[i] = r();
   const out = new Float32Array(size * size);
-  const g = (x, y) => grid[((y % cells) + cells) % cells * (cells + 1) + (((x % cells) + cells) % cells)];
   const sm = (t) => t * t * (3 - 2 * t);
+  const row = new Float32Array(cells + 1);
   for (let y = 0; y < size; y++) {
     const fy = (y / size) * cells;
     const y0 = Math.floor(fy), ty = sm(fy - y0);
+    const y1 = (y0 + 1) % cells;
+    for (let c = 0; c <= cells; c++) row[c] = grid[(y0 % cells) * (cells + 1) + (c % cells)] * (1 - ty) + grid[y1 * (cells + 1) + (c % cells)] * ty;
     for (let x = 0; x < size; x++) {
       const fx = (x / size) * cells;
       const x0 = Math.floor(fx), tx = sm(fx - x0);
-      const a = g(x0, y0), b = g(x0 + 1, y0), c = g(x0, y0 + 1), d = g(x0 + 1, y0 + 1);
-      out[y * size + x] = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+      out[y * size + x] = row[x0 % cells] * (1 - tx) + row[(x0 + 1) % cells] * tx;
     }
   }
   return out;
@@ -48,246 +47,263 @@ function fbm(size, seed, octaves = 4, base = 4) {
   return out;
 }
 
-function makeTexture(data, srgb) {
+function makeTexture(data, size, srgb, aniso = 8) {
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = SIZE;
+  canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(SIZE, SIZE);
+  const img = ctx.createImageData(size, size);
   img.data.set(data);
   ctx.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = aniso;
   tex.needsUpdate = true;
   return tex;
 }
 
 /** Height (0..1 Float32Array) -> tangent-space normal map RGBA bytes. */
-function normalFromHeight(h, strength) {
-  const out = new Uint8ClampedArray(SIZE * SIZE * 4);
-  const at = (x, y) => h[((y + SIZE) % SIZE) * SIZE + ((x + SIZE) % SIZE)];
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const dx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1));
-      const dy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1));
+function normalFromHeight(h, size, strength) {
+  const out = new Uint8ClampedArray(size * size * 4);
+  const S = size;
+  for (let y = 0; y < S; y++) {
+    const ym = ((y - 1 + S) % S) * S, y0 = y * S, yp = ((y + 1) % S) * S;
+    for (let x = 0; x < S; x++) {
+      const xm = (x - 1 + S) % S, xp = (x + 1) % S;
+      const dx = (h[ym + xp] + 2 * h[y0 + xp] + h[yp + xp]) - (h[ym + xm] + 2 * h[y0 + xm] + h[yp + xm]);
+      const dy = (h[yp + xm] + 2 * h[yp + x] + h[yp + xp]) - (h[ym + xm] + 2 * h[ym + x] + h[ym + xp]);
       let nx = -dx * strength, ny = -dy * strength, nz = 1;
       const l = Math.hypot(nx, ny, nz);
       nx /= l; ny /= l; nz /= l;
-      const i = (y * SIZE + x) * 4;
-      out[i] = (nx * 0.5 + 0.5) * 255;
-      out[i + 1] = (ny * 0.5 + 0.5) * 255;
-      out[i + 2] = (nz * 0.5 + 0.5) * 255;
-      out[i + 3] = 255;
+      const i = (y0 + x) * 4;
+      out[i] = (nx * 0.5 + 0.5) * 255; out[i + 1] = (ny * 0.5 + 0.5) * 255; out[i + 2] = (nz * 0.5 + 0.5) * 255; out[i + 3] = 255;
     }
   }
   return out;
 }
-function rgbaFrom(fn) {
-  const out = new Uint8ClampedArray(SIZE * SIZE * 4);
-  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-    const i = (y * SIZE + x) * 4;
-    const [r, g, b] = fn(x, y, y * SIZE + x);
-    out[i] = r; out[i + 1] = g; out[i + 2] = b; out[i + 3] = 255;
+/** Grey detail map from a 0..1 luminance array around `mid` (0..255), amplitude `amp`. */
+function greyFrom(lum, size, mid = 200, amp = 40, tint = [1, 1, 1]) {
+  const out = new Uint8ClampedArray(size * size * 4);
+  for (let i = 0, j = 0; i < lum.length; i++, j += 4) {
+    const v = mid + (lum[i] - 0.5) * 2 * amp;
+    out[j] = v * tint[0]; out[j + 1] = v * tint[1]; out[j + 2] = v * tint[2]; out[j + 3] = 255;
   }
   return out;
 }
-const mix = (a, b, t) => a + (b - a) * t;
-const lerp3 = (c0, c1, t) => [mix(c0[0], c1[0], t), mix(c0[1], c1[1], t), mix(c0[2], c1[2], t)];
+function greyRough(rough, size) {
+  const out = new Uint8ClampedArray(size * size * 4);
+  for (let i = 0, j = 0; i < rough.length; i++, j += 4) { const v = Math.max(0, Math.min(1, rough[i])) * 255; out[j] = v; out[j + 1] = v; out[j + 2] = v; out[j + 3] = 255; }
+  return out;
+}
 
-/** Recipes: each returns { color: rgba, height: Float32Array, rough: Float32Array }. */
+/** Recipes: each returns { lum: Float32Array 0..1 (detail), height, rough, mid, amp, tint? }. All hue-free. */
 const RECIPES = {
-  oak(seed) {
-    const grain = fbm(SIZE, seed, 5, 2);
-    const planks = 6; // planks across the tile
-    const plankW = SIZE / planks;
+  /** planks: `across` planks per tile, staggered by half a tile; a 1.5 px gap line. */
+  planks(S, seed, across = 6, grainAmp = 0.35) {
+    const grain = fbm(S, seed, 5, 2);
+    const plankW = S / across;
     const r = rng(seed + 11);
-    const offsets = Array.from({ length: planks }, () => Math.floor(r() * SIZE));
-    const tints = Array.from({ length: planks }, () => 0.85 + r() * 0.3);
-    const color = rgbaFrom((x, y, i) => {
+    const offsets = Array.from({ length: across }, () => Math.floor(r() * S));
+    const tints = Array.from({ length: across }, () => 0.88 + r() * 0.24);
+    const lum = new Float32Array(S * S), height = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
       const p = Math.floor(x / plankW);
-      const yy = (y + offsets[p]) % SIZE;
-      const g = grain[yy * SIZE + ((x * 3) % SIZE)];
-      const stripe = 0.5 + 0.5 * Math.sin((x / plankW) * Math.PI * 14 + g * 9);
-      const base = lerp3([176, 128, 82], [214, 172, 120], g * 0.7 + stripe * 0.3);
-      const gap = (x % plankW) < 2 || (yy % (SIZE / 2)) < 2 ? 0.55 : 1;
-      const t = tints[p] * gap;
-      return [base[0] * t, base[1] * t, base[2] * t];
-    });
-    const height = new Float32Array(SIZE * SIZE);
-    const rough = new Float32Array(SIZE * SIZE);
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-      const p = Math.floor(x / plankW);
-      const yy = (y + offsets[p]) % SIZE;
-      const gap = (x % plankW) < 2 || (yy % (SIZE / 2)) < 2 ? 0 : 1;
-      const i = y * SIZE + x;
-      height[i] = 0.7 * gap + 0.3 * grain[i];
-      rough[i] = 0.45 + 0.25 * grain[i];
+      const yy = (y + offsets[p]) % S;
+      const g = grain[yy * S + ((x * 3) % S)];
+      const stripe = 0.5 + 0.5 * Math.sin((x / plankW) * Math.PI * 9 + g * 11);
+      const gap = (x % plankW) < 1.5 || (yy % S) < 1.5;
+      const i = y * S + x;
+      lum[i] = gap ? 0.2 : Math.min(1, (0.5 + (g - 0.5) * grainAmp + (stripe - 0.5) * 0.12) * tints[p]);
+      height[i] = gap ? 0 : 0.75 + 0.25 * g;
+      rough[i] = gap ? 0.9 : 0.42 + 0.2 * g;
     }
-    return { color, height, rough };
+    return { lum, height, rough, mid: 196, amp: 46, tint: [1, 0.98, 0.95] };
   },
-  tiles(seed, light) {
-    const n = fbm(SIZE, seed, 3, 8);
-    const tilesPer = 4;
-    const tw = SIZE / tilesPer;
-    const color = rgbaFrom((x, y, i) => {
-      const gx = x % tw, gy = y % tw;
-      const grout = gx < 3 || gy < 3;
+  tiles(S, seed, per = 2, groutPx = 3, glossy = false) {
+    const n = fbm(S, seed, 3, 8);
+    const tw = S / per;
+    const lum = new Float32Array(S * S), height = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const grout = (x % tw) < groutPx || (y % tw) < groutPx;
       const tx = Math.floor(x / tw), ty = Math.floor(y / tw);
-      const v = n[i] * 0.25 + ((tx * 7 + ty * 13) % 5) * 0.03;
-      const base = light ? lerp3([222, 224, 226], [240, 241, 243], v * 1.5) : lerp3([150, 156, 164], [188, 192, 198], v * 1.5);
-      return grout ? [base[0] * 0.72, base[1] * 0.72, base[2] * 0.72] : base;
-    });
-    const height = new Float32Array(SIZE * SIZE), rough = new Float32Array(SIZE * SIZE);
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
-      const i = y * SIZE + x;
-      const grout = (x % tw) < 3 || (y % tw) < 3;
-      height[i] = grout ? 0 : 1 - n[i] * 0.08;
-      rough[i] = grout ? 0.95 : light ? 0.18 + n[i] * 0.1 : 0.3 + n[i] * 0.15;
+      const v = 0.5 + (n[i] - 0.5) * 0.5 + (((tx * 7 + ty * 13) % 5) - 2) * 0.025;
+      lum[i] = grout ? 0.32 : v;
+      height[i] = grout ? 0 : 1 - n[i] * 0.06;
+      rough[i] = grout ? 0.95 : glossy ? 0.18 + n[i] * 0.1 : 0.4 + n[i] * 0.15;
     }
-    return { color, height, rough };
+    return { lum, height, rough, mid: 206, amp: 22 };
   },
-  plaster(seed, tint) {
-    const n = fbm(SIZE, seed, 5, 6);
-    const color = rgbaFrom((x, y, i) => lerp3(tint[0], tint[1], n[i]));
-    const rough = new Float32Array(SIZE * SIZE);
+  plaster(S, seed, amp = 0.12) {
+    const n = fbm(S, seed, 5, 6);
+    const rough = new Float32Array(S * S);
     for (let i = 0; i < rough.length; i++) rough[i] = 0.82 + n[i] * 0.15;
-    return { color, height: n, rough };
+    const lum = new Float32Array(S * S);
+    for (let i = 0; i < lum.length; i++) lum[i] = 0.5 + (n[i] - 0.5) * amp * 2;
+    return { lum, height: n, rough, mid: 214, amp: 14 };
   },
-  concrete(seed) {
-    const n = fbm(SIZE, seed, 6, 3);
-    const spots = valueNoise(SIZE, 64, seed + 5);
-    const color = rgbaFrom((x, y, i) => {
-      const v = n[i] * 0.8 + (spots[i] > 0.93 ? -0.25 : 0);
-      return lerp3([128, 130, 134], [168, 170, 174], v);
-    });
-    const rough = new Float32Array(SIZE * SIZE);
-    for (let i = 0; i < rough.length; i++) rough[i] = 0.7 + n[i] * 0.25;
-    return { color, height: n, rough };
+  concrete(S, seed) {
+    const n = fbm(S, seed, 6, 3);
+    const spots = valueNoise(S, 64, seed + 5);
+    const lum = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let i = 0; i < lum.length; i++) { lum[i] = 0.5 + (n[i] - 0.5) * 0.7 + (spots[i] > 0.94 ? -0.2 : 0); rough[i] = 0.7 + n[i] * 0.25; }
+    return { lum, height: n, rough, mid: 200, amp: 30 };
   },
-  carpet(seed) {
-    const n = fbm(SIZE, seed, 6, 16);
-    const color = rgbaFrom((x, y, i) => lerp3([96, 110, 132], [128, 140, 160], n[i]));
-    const rough = new Float32Array(SIZE * SIZE).fill(0.95);
-    return { color, height: n, rough };
+  fabric(S, seed, weaveF = 0.8, amp = 0.5) {
+    const n = fbm(S, seed, 5, 24);
+    const lum = new Float32Array(S * S), height = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const weave = 0.5 + 0.5 * Math.sin(x * weaveF) * Math.sin(y * weaveF);
+      lum[i] = 0.5 + ((n[i] - 0.5) * 0.6 + (weave - 0.5) * 0.4) * amp;
+      height[i] = n[i] * 0.6 + weave * 0.4;
+    }
+    const rough = new Float32Array(S * S).fill(0.92);
+    return { lum, height, rough, mid: 200, amp: 26 };
   },
-  fabric(seed, tint) {
-    const n = fbm(SIZE, seed, 5, 24);
-    const color = rgbaFrom((x, y, i) => {
-      const weave = 0.5 + 0.5 * Math.sin(x * 0.8) * Math.sin(y * 0.8);
-      return lerp3(tint[0], tint[1], n[i] * 0.6 + weave * 0.4);
-    });
-    const rough = new Float32Array(SIZE * SIZE).fill(0.9);
-    return { color, height: n, rough };
+  wood(S, seed, ringF = 0.12) {
+    const n = fbm(S, seed, 4, 2);
+    const lum = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = y * S + x;
+      const ring = 0.5 + 0.5 * Math.sin(y * ringF + n[i] * 7);
+      lum[i] = 0.5 + (ring - 0.5) * 0.5 + (n[i] - 0.5) * 0.4;
+      rough[i] = 0.38 + n[i] * 0.2;
+    }
+    return { lum, height: n, rough, mid: 200, amp: 28, tint: [1, 0.98, 0.95] };
   },
-  wood(seed, tint) {
-    const n = fbm(SIZE, seed, 4, 2);
-    const color = rgbaFrom((x, y, i) => {
-      const ring = 0.5 + 0.5 * Math.sin(y * 0.12 + n[i] * 7);
-      return lerp3(tint[0], tint[1], ring * 0.6 + n[i] * 0.4);
-    });
-    const rough = new Float32Array(SIZE * SIZE);
-    for (let i = 0; i < rough.length; i++) rough[i] = 0.4 + n[i] * 0.2;
-    return { color, height: n, rough };
+  metal(S, seed) {
+    const n = fbm(S, seed, 4, 32);
+    const lum = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let i = 0; i < lum.length; i++) { lum[i] = n[i]; rough[i] = 0.28 + n[i] * 0.22; }
+    return { lum, height: n, rough, mid: 215, amp: 14 };
   },
-  metal(seed) {
-    const n = fbm(SIZE, seed, 4, 32);
-    const color = rgbaFrom((x, y, i) => lerp3([150, 152, 156], [190, 192, 196], n[i]));
-    const rough = new Float32Array(SIZE * SIZE);
-    for (let i = 0; i < rough.length; i++) rough[i] = 0.3 + n[i] * 0.2;
-    return { color, height: n, rough };
+  leather(S, seed) {
+    const n = fbm(S, seed, 6, 20);
+    const lum = new Float32Array(S * S), rough = new Float32Array(S * S);
+    for (let i = 0; i < lum.length; i++) { lum[i] = n[i]; rough[i] = 0.45 + n[i] * 0.3; }
+    return { lum, height: n, rough, mid: 205, amp: 22 };
   },
-  asphalt(seed) {
-    const n = fbm(SIZE, seed, 6, 12);
-    const color = rgbaFrom((x, y, i) => lerp3([58, 60, 64], [92, 94, 98], n[i]));
-    const rough = new Float32Array(SIZE * SIZE).fill(0.92);
-    return { color, height: n, rough };
-  },
-  grass(seed) {
-    const n = fbm(SIZE, seed, 6, 10);
-    const color = rgbaFrom((x, y, i) => lerp3([74, 112, 52], [118, 156, 74], n[i]));
-    const rough = new Float32Array(SIZE * SIZE).fill(0.95);
-    return { color, height: n, rough };
+  grass(S, seed) {
+    const n = fbm(S, seed, 6, 10);
+    const rough = new Float32Array(S * S).fill(0.95);
+    return { lum: n, height: n, rough, mid: 205, amp: 40 };
   },
 };
 
-/** The library manifest: id -> recipe + tile size in metres + normal strength. Mirrors the CR's §6.2 id list. */
+/**
+ * The library manifest: id -> recipe + tile size in metres + normal strength + resolution. Mirrors the CR §6.2 ids; the
+ * tile sizes are REAL (plan L4): a tile that reads as a 0.6 m floor tile repeats every 1.2 m with 2 tiles per side.
+ */
 export const LIBRARY = {
-  plaster_white: { recipe: () => RECIPES.plaster(31, [[226, 223, 216], [242, 240, 236]]), tile_m: 2.0, normal: 0.5, roughness: 1 },
-  plaster_exterior: { recipe: () => RECIPES.plaster(47, [[200, 194, 182], [222, 217, 208]]), tile_m: 2.0, normal: 1.0, roughness: 1 },
-  plaster_ceiling: { recipe: () => RECIPES.plaster(53, [[236, 236, 234], [248, 248, 246]]), tile_m: 2.0, normal: 0.3, roughness: 1 },
-  concrete: { recipe: () => RECIPES.concrete(61), tile_m: 2.5, normal: 1.5, roughness: 1 },
-  tiles_white: { recipe: () => RECIPES.tiles(71, true), tile_m: 1.2, normal: 2.2, roughness: 1 },
-  tiles_grey: { recipe: () => RECIPES.tiles(79, false), tile_m: 1.6, normal: 2.2, roughness: 1 },
-  oak: { recipe: () => RECIPES.oak(83), tile_m: 1.5, normal: 2.0, roughness: 1 },
-  carpet: { recipe: () => RECIPES.carpet(89), tile_m: 1.0, normal: 1.0, roughness: 1 },
-  fabric_grey: { recipe: () => RECIPES.fabric(97, [[112, 118, 128], [150, 156, 166]]), tile_m: 0.6, normal: 1.0, roughness: 1 },
-  fabric_blue: { recipe: () => RECIPES.fabric(101, [[54, 82, 128], [84, 116, 168]]), tile_m: 0.6, normal: 1.0, roughness: 1 },
-  linen: { recipe: () => RECIPES.fabric(103, [[214, 210, 200], [238, 236, 230]]), tile_m: 0.8, normal: 0.8, roughness: 1 },
-  wood_light: { recipe: () => RECIPES.wood(107, [[196, 160, 118], [226, 196, 156]]), tile_m: 1.0, normal: 1.0, roughness: 1 },
-  wood_dark: { recipe: () => RECIPES.wood(109, [[92, 64, 44], [128, 94, 66]]), tile_m: 1.0, normal: 1.0, roughness: 1 },
-  door_wood: { recipe: () => RECIPES.wood(113, [[150, 108, 72], [186, 142, 100]]), tile_m: 1.0, normal: 1.2, roughness: 1 },
-  metal_dark: { recipe: () => RECIPES.metal(127), tile_m: 0.5, normal: 0.6, roughness: 1, metalness: 0.9, color: 0x3a3f46 },
-  metal_light: { recipe: () => RECIPES.metal(131), tile_m: 0.5, normal: 0.6, roughness: 1, metalness: 0.85 },
-  asphalt: { recipe: () => RECIPES.asphalt(137), tile_m: 3.0, normal: 1.5, roughness: 1 },
-  grass: { recipe: () => RECIPES.grass(139), tile_m: 2.0, normal: 1.0, roughness: 1 },
+  plaster_white: { size: 512, recipe: (S) => RECIPES.plaster(S, 31, 0.1), tile_m: 2.0, normal: 0.35, roughness: 1 },
+  plaster_exterior: { size: 512, recipe: (S) => RECIPES.plaster(S, 47, 0.16), tile_m: 2.0, normal: 0.9, roughness: 1 },
+  plaster_ceiling: { size: 256, recipe: (S) => RECIPES.plaster(S, 53, 0.05), tile_m: 2.0, normal: 0.12, roughness: 1 },
+  concrete: { size: 512, recipe: (S) => RECIPES.concrete(S, 61), tile_m: 2.5, normal: 1.2, roughness: 1 },
+  tiles_white: { size: 512, recipe: (S) => RECIPES.tiles(S, 71, 4, 3, true), tile_m: 1.2, normal: 1.8, roughness: 1 },   // 0.3 m tiles
+  tiles_grey: { size: 512, recipe: (S) => RECIPES.tiles(S, 79, 2, 3, false), tile_m: 1.2, normal: 1.8, roughness: 1 },   // 0.6 m tiles
+  oak: { size: 512, recipe: (S) => RECIPES.planks(S, 83, 6, 0.35), tile_m: 1.2, normal: 1.6, roughness: 1 },             // 0.2 x 1.2 m planks
+  carpet: { size: 256, recipe: (S) => RECIPES.fabric(S, 89, 1.3, 0.35), tile_m: 0.5, normal: 0.8, roughness: 1 },
+  fabric_grey: { size: 256, recipe: (S) => RECIPES.fabric(S, 97, 0.8, 0.5), tile_m: 0.6, normal: 0.9, roughness: 1 },
+  fabric_accent: { size: 256, recipe: (S) => RECIPES.fabric(S, 101, 0.8, 0.5), tile_m: 0.6, normal: 0.9, roughness: 1 },
+  fabric_rug: { size: 256, recipe: (S) => RECIPES.fabric(S, 102, 1.6, 0.4), tile_m: 0.8, normal: 1.0, roughness: 1 },
+  linen: { size: 256, recipe: (S) => RECIPES.fabric(S, 103, 1.1, 0.3), tile_m: 0.8, normal: 0.6, roughness: 1 },
+  leather: { size: 256, recipe: (S) => RECIPES.leather(S, 105), tile_m: 0.6, normal: 0.8, roughness: 1 },
+  wood_light: { size: 256, recipe: (S) => RECIPES.wood(S, 107, 0.12), tile_m: 1.0, normal: 0.7, roughness: 1 },
+  wood_dark: { size: 256, recipe: (S) => RECIPES.wood(S, 109, 0.1), tile_m: 1.0, normal: 0.7, roughness: 1 },
+  door_wood: { size: 256, recipe: (S) => RECIPES.wood(S, 113, 0.14), tile_m: 1.0, normal: 0.9, roughness: 1 },
+  metal_dark: { size: 256, recipe: (S) => RECIPES.metal(S, 127), tile_m: 0.5, normal: 0.4, roughness: 1, metalness: 0.85 },
+  metal_light: { size: 256, recipe: (S) => RECIPES.metal(S, 131), tile_m: 0.5, normal: 0.4, roughness: 1, metalness: 0.8 },
+  asphalt: { size: 256, recipe: (S) => RECIPES.concrete(S, 137), tile_m: 3.0, normal: 1.2, roughness: 1 },
+  grass: { size: 256, recipe: (S) => RECIPES.grass(S, 139), tile_m: 2.0, normal: 0.8, roughness: 1 },
 };
 
-/** Flat token colours for the schematic / full levels (no textures): the product's map tokens. */
-export const FLAT = {
-  plaster_white: 0xd7dde6, plaster_exterior: 0xc9d1dc, plaster_ceiling: 0xf2f4f7, concrete: 0xb4b9c2, tiles_white: 0xe9edf2, tiles_grey: 0xc6ccd5, oak: 0xd4b58a, carpet: 0x8d9bb3,
-  fabric_grey: 0x9aa7b8, fabric_blue: 0x5577aa, linen: 0xe8e4dc, wood_light: 0xcfae84, wood_dark: 0x7a5a42, door_wood: 0xa8865e, metal_dark: 0x4b5567, metal_light: 0xb5bcc8, asphalt: 0x5a5d63, grass: 0x6f9c56,
-};
-
+/** Flat token colours for the schematic / full levels = the style palette (levels 1-2 draw the palette flat). */
 export class MaterialLibrary {
-  constructor() {
+  constructor(style = STYLES.light) {
     this.cache = new Map(); // id -> { map, normalMap, roughnessMap }
     this.materials = new Map(); // key -> material
     this.bytes = 0;
+    this.genMs = 0;
+    this.style = style;
   }
+  palette(id) { return this.style.palette[id] ?? this.style.palette.plaster_white; }
   textures(id) {
     let t = this.cache.get(id);
     if (t) return t;
+    const t0 = performance.now();
     const spec = LIBRARY[id] || LIBRARY.plaster_white;
-    const { color, height, rough } = spec.recipe();
-    const map = makeTexture(color, true);
-    const normalMap = makeTexture(normalFromHeight(height, spec.normal), false);
-    const roughBytes = rgbaFrom((x, y, i) => {
-      const v = Math.max(0, Math.min(1, rough[i])) * 255;
-      return [v, v, v];
-    });
-    const roughnessMap = makeTexture(roughBytes, false);
+    const S = spec.size;
+    const r = spec.recipe(S);
+    const map = makeTexture(greyFrom(r.lum, S, r.mid, r.amp, r.tint), S, true);
+    const normalMap = makeTexture(normalFromHeight(r.height, S, spec.normal), S, false);
+    const roughnessMap = makeTexture(greyRough(r.rough, S), S, false, 2);
     t = { map, normalMap, roughnessMap, tile_m: spec.tile_m, spec };
-    this.bytes += SIZE * SIZE * 4 * 3 * 1.33; // with mipmaps
+    this.bytes += S * S * 4 * 3 * 1.33;
+    this.genMs += performance.now() - t0;
     this.cache.set(id, t);
     return t;
   }
-  /** A material for the quality level: 3 = textured PBR, 2 = flat standard, 1 = flat Lambert. */
+  /** A material for the quality level: 3 = textured PBR tinted by the palette, 2 = flat standard, 1 = flat Lambert. */
   get(id, level, opts = {}) {
-    const key = `${id}|${level}|${opts.side || 0}|${opts.emissive || ''}`;
+    const key = `${id}|${level}|${opts.side || 0}`;
     let m = this.materials.get(key);
     if (m) return m;
-    const flat = FLAT[id] ?? 0xcccccc;
     const spec = LIBRARY[id] || {};
+    const tint = this.palette(id);
     if (level >= 3) {
       const t = this.textures(id);
-      m = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap, roughness: 1, metalness: spec.metalness ?? 0, color: spec.color ?? 0xffffff, envMapIntensity: 0.6 });
-      if (spec.metalness) { m.color.setHex(spec.color ?? 0xffffff); m.metalnessMap = null; }
+      m = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap, roughness: 1, metalness: spec.metalness ?? 0, color: tint, envMapIntensity: spec.metalness ? 1.0 : 0.7 });
     } else if (level === 2) {
-      m = new THREE.MeshStandardMaterial({ color: flat, roughness: 0.85, metalness: spec.metalness ? 0.6 : 0 });
+      m = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.85, metalness: spec.metalness ? 0.6 : 0 });
     } else {
-      m = new THREE.MeshLambertMaterial({ color: flat });
+      m = new THREE.MeshLambertMaterial({ color: tint });
     }
+    m.userData.materialId = id;
     if (opts.side) m.side = opts.side;
     this.materials.set(key, m);
     return m;
   }
-  tileM(id) {
-    return (LIBRARY[id] || LIBRARY.plaster_white).tile_m;
+  /** Re-tint every cached material from a new style palette (no rebuild, no texture regeneration). */
+  setStyle(style) {
+    this.style = style;
+    for (const m of this.materials.values()) {
+      const id = m.userData.materialId;
+      if (id) m.color.setHex(this.palette(id));
+    }
   }
+  tileM(id) { return (LIBRARY[id] || LIBRARY.plaster_white).tile_m; }
   dispose() {
     for (const t of this.cache.values()) { t.map.dispose(); t.normalMap.dispose(); t.roughnessMap.dispose(); }
     for (const m of this.materials.values()) m.dispose();
     this.cache.clear(); this.materials.clear(); this.bytes = 0;
   }
+}
+
+/** Shared small gradient textures (contact blob, junction strip, lamp glow): generated once, no files. */
+let _radial = null, _strip = null;
+export function radialTexture() {
+  if (_radial) return _radial;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.45, 'rgba(0,0,0,0.75)'); g.addColorStop(0.8, 'rgba(0,0,0,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  _radial = new THREE.CanvasTexture(c);
+  return _radial;
+}
+/** A 1-D gradient along V: opaque black at v=0 (the wall), transparent at v=1. */
+export function stripTexture() {
+  if (_strip) return _strip;
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 64);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.35, 'rgba(0,0,0,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 64);
+  _strip = new THREE.CanvasTexture(c);
+  _strip.wrapS = THREE.RepeatWrapping;
+  _strip.wrapT = THREE.ClampToEdgeWrapping;
+  return _strip;
 }

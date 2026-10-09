@@ -56,7 +56,8 @@
   .strip .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .dots { position: absolute; top: 3px; right: 3px; display: flex; gap: 3px; }
   .dots i { display: block; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1.5px #fff; }
-  .hud { left: 12px; bottom: 12px; font: 11px/1.5 var(--sw-mono); color: var(--sw-text-2); padding: 6px 10px; min-width: 210px; direction: ltr; text-align: left; }
+  .hud { left: 12px; bottom: 12px; font: 11px/1.5 var(--sw-mono); color: var(--sw-text-2); padding: 6px 10px; min-width: 210px; direction: ltr; text-align: left; opacity: 0; pointer-events: none; }
+  .hud.on { opacity: 1; pointer-events: auto; }
   .hud b { color: var(--sw-text); font-weight: 600; }
   .hud .warn { color: #b45309; }
   .note { left: 12px; top: 172px; background: var(--glass); border: 1px solid var(--sw-border); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--sw-text-2); pointer-events: auto; max-width: 420px; }
@@ -170,6 +171,7 @@
     <span class="crumbs">חקירה › מתקן ראשי › <span id="crumb-floor">בית דו־קומתי (דמו)</span> › <b>תוכנית</b></span>
     <div class="modes">
       <select id="plan-select" class="chip" aria-label="תוכנית"></select>
+      <select id="style-select" class="chip" aria-label="סגנון"></select>
       <button class="chip" id="theme-toggle" title="ערכת נושא">☾</button>
       <span class="chip">2D</span><span class="chip sel">3D</span><span class="chip">היסטוריה</span>
     </div>

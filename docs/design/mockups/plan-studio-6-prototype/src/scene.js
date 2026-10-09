@@ -8,13 +8,48 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { buildStructure, blockingSegments, polygonCentroid, outlinePolyline, isOpenState } from './geometry.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { buildStructure, blockingSegments, polygonCentroid, outlinePolyline, isOpenState, pointInPolygon } from './geometry.js';
+import { radialTexture, stripTexture } from './materials.js';
+import { STYLES } from './style.js';
 
 export const EYE_M = 1.65;
 export const MAX_POOL_LIGHTS = 8;
 const DOOR_OPEN_DEG = 85;
 const ANIM_MS = 350;
 const yawOf = (dx, dz) => -Math.atan2(dz, dx);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/** A single quad (two triangles) with UVs; p0..p3 are [x, y, z] in order around the quad, v runs p0/p1 -> p3/p2. */
+function quad(p0, p1, p2, p3, uvs = [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+  const g = new THREE.BufferGeometry();
+  const P = [p0, p1, p2, p0, p2, p3].flat();
+  const U = [uvs[0], uvs[1], uvs[2], uvs[0], uvs[2], uvs[3]].flat();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  g.computeVertexNormals();
+  return g;
+}
+/**
+ * Contact-AO strips along a wall footprint (plan L3 c): on each outer edge of the outline a floor quad (0.22 m, dark at
+ * the wall) and a wall quad (0.28 m high, dark at the floor). Edges shorter than `skip` (the ends of a wall part at an
+ * opening) are left out. Cheap: one merged geometry + one gradient texture per level, every rung >= 2.
+ */
+function junctionStrips(outline, y, floorW = 0.22, wallH = 0.28, skip = 0.32) {
+  const n = outline.length, out = [];
+  for (let i = 0; i < n; i++) {
+    const a = outline[i], b = outline[(i + 1) % n];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < skip) continue;
+    let nx = -(b[1] - a[1]) / len, nz = (b[0] - a[0]) / len;
+    if (pointInPolygon((a[0] + b[0]) / 2 + nx * 0.02, (a[1] + b[1]) / 2 + nz * 0.02, outline)) { nx = -nx; nz = -nz; }
+    const rep = len / 0.5;
+    out.push(quad([a[0], y + 0.006, a[1]], [b[0], y + 0.006, b[1]], [b[0] + nx * floorW, y + 0.006, b[1] + nz * floorW], [a[0] + nx * floorW, y + 0.006, a[1] + nz * floorW], [[0, 0], [rep, 0], [rep, 1], [0, 1]]));
+    const o = 0.004;
+    out.push(quad([a[0] + nx * o, y, a[1] + nz * o], [b[0] + nx * o, y, b[1] + nz * o], [b[0] + nx * o, y + wallH, b[1] + nz * o], [a[0] + nx * o, y + wallH, a[1] + nz * o], [[0, 0], [rep, 0], [rep, 1], [0, 1]]));
+  }
+  return out;
+}
 
 /** Box-map UVs in metres / tile onto a non-indexed geometry whose positions are in world metres. */
 export function boxUV(geometry, tileM, offset = [0, 0, 0]) {
@@ -89,14 +124,60 @@ export class PlanScene {
     this.reflectors = [];
     this.cameras = [];
     this.mirror = null;
+    this.style = lib.style || STYLES.light;
+    this.cutY = null;
+    this.clipMaterials = new Set();
+    this.styled = []; // materials re-coloured on a style change: { material, key, prop }
+    this.furnitureMode = 'procedural'; // 'procedural' | 'models' (owner Q10; models fall back per item when absent)
   }
 
   dispose() {
     this.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     this.root.clear();
     this.levels = {}; this.doors = []; this.shutters = []; this.lamps = []; this.devices = []; this.markers = []; this.presence = []; this.tints = []; this.labels = []; this.cameras = [];
+    this.clipMaterials.clear(); this.styled = []; this.screens = []; this.lockPlates = []; this.ground = null;
     for (const l of this.pool) l.parent && l.parent.remove(l);
     this.pool = [];
+  }
+
+  /** Apply a style (style.js) without rebuilding: palette tints, state colours, strip / blob opacity, cap colours. */
+  setStyle(style) {
+    this.style = style;
+    this.lib.setStyle(style);
+    const P = style.palette;
+    for (const s of this.styled) {
+      const hex = P[s.key];
+      if (hex === undefined) continue;
+      if (s.prop === 'color') s.material.color.setHex(hex);
+      else if (s.prop === 'emissive') { s.material.color.setHex(hex); s.material.emissive.setHex(hex); }
+      else if (s.prop === 'opacity') s.material.opacity = style.post[s.key];
+    }
+    for (const L of Object.values(this.levels)) {
+      if (L.capEdges) L.capEdges.visible = !!style.cut.edge && L.capMesh.visible;
+    }
+    if (this.ground) { this.ground.disc.material.color.setHex(style.ground.disc); this.ground.shadow.material.opacity = style.ground.contact; }
+  }
+  /** Night blend of the ground disc (called by the app on every time change). */
+  setNight(night) {
+    if (!this.ground) return;
+    this.ground.disc.material.color.setHex(this.style.ground.disc).lerp(new THREE.Color(this.style.ground.discNight), night);
+  }
+  styledMaterial(material, key, prop = 'color') { this.styled.push({ material, key, prop }); return material; }
+
+  /**
+   * The section cut (plan L6, dollhouse): one world plane clips every wall / object material above `y`; the wall
+   * footprints get a dark cap (poché) at the cut. `null` = no cut (walk, full walls). Only the named level shows caps.
+   */
+  setCut(y, levelId) {
+    this.cutY = y;
+    this.cutLevel = levelId;
+    const planes = y == null ? null : [new THREE.Plane(new THREE.Vector3(0, -1, 0), y)];
+    for (const m of this.clipMaterials) { m.clippingPlanes = planes; m.clipShadows = !!planes; m.needsUpdate = m.needsUpdate || false; }
+    for (const L of Object.values(this.levels)) {
+      const on = y != null && L.id === levelId;
+      if (L.capMesh) { L.capMesh.visible = on; L.capMesh.position.y = y == null ? 0 : y; }
+      if (L.capEdges) { L.capEdges.visible = on && !!this.style.cut.edge; L.capEdges.position.y = y == null ? 0 : y; }
+    }
   }
 
   /** Build everything for a plan bundle { doc, zones, anchors, entities, coverPositions } at a quality level. */
@@ -135,7 +216,7 @@ export class PlanScene {
           zones.push({ id: `plate-${lv.id}`, name: lv.name, level_id: lv.id, polyM: [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ]], x_proto: { floor_material: 'concrete' }, synthetic: true });
         }
       }
-      const L = { id: lv.id, name: lv.name, group, elevation: elev, ceiling: ceilH, zones, ceilings: [], extent: null, statics: [], segs: [], stairs: [], objectsBlocking: [] };
+      const L = { id: lv.id, name: lv.name, group, elevation: elev, ceiling: ceilH, zones, ceilings: [], extent: null, statics: [], segs: [], stairs: [], objectsBlocking: [], strips: [], blobs: [], caps: [], capLines: [] };
       this.levels[lv.id] = L;
       const merged = new Map(); // material id -> geometries
       const push = (id, g) => { (merged.get(id) || merged.set(id, []).get(id)).push(g); };
@@ -151,9 +232,36 @@ export class PlanScene {
         const g = extrudeXZ(outline, h - (w.base_z_m || 0), elev + (w.base_z_m || 0));
         const id = w.kind === 'railing' ? 'metal_dark' : w.kind === 'exterior' ? 'plaster_exterior' : 'plaster_white';
         push(id, boxUV(g, lib.tileM(id)));
+        if (w.kind !== 'railing' && !(w.base_z_m > 0)) {
+          // contact AO at the wall-floor junction (plan L3 c) and the section cap at the cut (plan L6)
+          L.strips.push(...junctionStrips(outline, elev));
+          if (h >= ceilH * 0.5) {
+            const cap = new THREE.ShapeGeometry(shapeFrom(outline));
+            cap.rotateX(-Math.PI / 2);
+            L.caps.push(cap);
+            for (let i = 0; i < outline.length; i++) { const a = outline[i], b = outline[(i + 1) % outline.length]; L.capLines.push(a[0], 0, a[1], b[0], 0, b[1]); }
+          }
+          // skirting board (plan P3): 0.08 x 0.012 m along the footprint, both sides, interior walls only
+          if (q >= 3 && w.kind === 'interior') {
+            const sk = extrudeXZ(outlinePolyline(ptsM, (part.width * scale) / 2 + 0.012), 0.08, elev);
+            push('plaster_ceiling', boxUV(sk, 2));
+          }
+        }
       }
       const ext = zones.length ? zones.flatMap((z) => z.polyM) : walls.flatMap((p) => p.points.map((pt) => [pt[0] * scale, pt[1] * scale]));
       if (ext.length) L.extent = { minX: Math.min(...ext.map((p) => p[0])), maxX: Math.max(...ext.map((p) => p[0])), minZ: Math.min(...ext.map((p) => p[1])), maxZ: Math.max(...ext.map((p) => p[1])) };
+      // daylight per room (plan L3 b / P5): glazed area over floor area, read by the walk's exposure adaptation
+      for (const z of zones) {
+        let glass = 0;
+        for (const op of openings) {
+          if (op.opening.kind !== 'window') continue;
+          const c = [op.c[0] * scale, op.c[1] * scale], nrm = [-op.d[1], op.d[0]];
+          if (pointInPolygon(c[0] + nrm[0] * 0.3, c[1] + nrm[1] * 0.3, z.polyM) || pointInPolygon(c[0] - nrm[0] * 0.3, c[1] - nrm[1] * 0.3, z.polyM)) glass += op.opening.width_m * op.opening.height_m;
+        }
+        let area = 0;
+        for (let i = 0; i < z.polyM.length; i++) { const a = z.polyM[i], b = z.polyM[(i + 1) % z.polyM.length]; area += a[0] * b[1] - b[0] * a[1]; }
+        z.daylight = Math.min(1, glass / Math.max(1, Math.abs(area) / 2) * 5);
+      }
 
       // ---- openings
       for (const op of openings) {
@@ -332,7 +440,7 @@ export class PlanScene {
           const rg = new THREE.ShapeGeometry(shape);
           rg.rotateX(-Math.PI / 2);
           rg.translate(0, elev + 0.026, 0);
-          const ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0x2767ed, transparent: true, opacity: 0.7, depthWrite: false }));
+          const ring = new THREE.Mesh(rg, this.styledMaterial(new THREE.MeshBasicMaterial({ color: this.style.palette.presence, transparent: true, opacity: 0.45, depthWrite: false }), 'presence'));
           ring.visible = false;
           group.add(ring);
           this.presence.push({ entity: presence, mesh: ring, zone: z.id, fade: 1 });
@@ -404,12 +512,13 @@ export class PlanScene {
           const cg = new THREE.ShapeGeometry(shapeFrom(polyM));
           cg.rotateX(-Math.PI / 2);
           cg.translate(0, elev + 0.03, 0);
-          const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: a.online === false ? 0x9aa3b5 : 0x2767ed, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
-          cone.userData = { kind: 'cone' };
+          const coneMat = a.online === false ? new THREE.MeshBasicMaterial({ color: 0x9aa3b5, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }) : this.styledMaterial(new THREE.MeshBasicMaterial({ color: this.style.palette.cone, transparent: true, opacity: 0.11, depthWrite: false, side: THREE.DoubleSide }), 'cone');
+          const cone = new THREE.Mesh(cg, coneMat);
+          cone.userData = { kind: 'cone', noClip: true };
           group.add(cone);
-          const vol = new THREE.Mesh(extrudeXZ(polyM, mount - 0.2, elev + 0.05), new THREE.MeshBasicMaterial({ color: 0x2767ed, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }));
+          const vol = new THREE.Mesh(extrudeXZ(polyM, mount - 0.2, elev + 0.05), this.styledMaterial(new THREE.MeshBasicMaterial({ color: this.style.palette.cone, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }), 'cone'));
           vol.visible = false;
-          vol.userData = { kind: 'cone-volume' };
+          vol.userData = { kind: 'cone-volume', noClip: true };
           group.add(vol);
           this.cameras.push({ id: a.id, cone, vol, body, fwd, pos: [x, z], mount, tilt: a.tilt_deg || 0, label: a.label, level: lv.id });
         }
@@ -428,9 +537,66 @@ export class PlanScene {
         group.add(mesh);
         L.statics.push(mesh);
       }
+      // ---- contact AO strips + blob shadows (rungs >= 2), section caps (any rung; shown only in cut views)
+      if (q >= 2) {
+        if (L.strips.length) {
+          const sm = this.styledMaterial(new THREE.MeshBasicMaterial({ map: stripTexture(), color: 0x000000, transparent: true, opacity: this.style.post.junctionAlpha, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), 'junctionAlpha', 'opacity');
+          const m = new THREE.Mesh(mergeGeometries(L.strips, false), sm);
+          m.userData = { kind: 'ao', noClip: true }; m.renderOrder = 1;
+          group.add(m);
+        }
+        if (L.blobs.length) {
+          const bm = this.styledMaterial(new THREE.MeshBasicMaterial({ map: radialTexture(), color: 0x000000, transparent: true, opacity: this.style.post.contactAlpha, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), 'contactAlpha', 'opacity');
+          const m = new THREE.Mesh(mergeGeometries(L.blobs, false), bm);
+          m.userData = { kind: 'ao', noClip: true }; m.renderOrder = 1;
+          group.add(m);
+        }
+      }
+      if (L.caps.length) {
+        const cm = this.styledMaterial(new THREE.MeshBasicMaterial({ color: this.style.palette.section_cap, toneMapped: false }), 'section_cap');
+        L.capMesh = new THREE.Mesh(mergeGeometries(L.caps.map((x) => (x.index ? x.toNonIndexed() : x)), false), cm);
+        L.capMesh.visible = false;
+        L.capMesh.userData = { kind: 'cap', noClip: true };
+        L.capMesh.renderOrder = 2;
+        group.add(L.capMesh);
+        const lg = new THREE.BufferGeometry();
+        lg.setAttribute('position', new THREE.Float32BufferAttribute(L.capLines, 3));
+        L.capEdges = new THREE.LineSegments(lg, this.styledMaterial(new THREE.LineBasicMaterial({ color: this.style.palette.section_edge, toneMapped: false, transparent: true, opacity: 0.9 }), 'section_edge'));
+        L.capEdges.visible = false;
+        L.capEdges.userData = { kind: 'cap', noClip: true };
+        L.capEdges.renderOrder = 3;
+        group.add(L.capEdges);
+      }
       // collision segments in metres (walls + closed doors + windows) - recomputed when doors change
       L.segsPx = null;
     }
+    // ---- the ground disc with the building's contact shadow (plan L12), under the lowest level
+    {
+      const Ls = Object.values(this.levels).filter((L) => L.extent);
+      if (Ls.length) {
+        const low = Ls.reduce((a, b) => (a.elevation < b.elevation ? a : b));
+        const e = low.extent, w = e.maxX - e.minX, d = e.maxZ - e.minZ;
+        const cx = (e.minX + e.maxX) / 2, cz = (e.minZ + e.maxZ) / 2;
+        const gr = new THREE.Group();
+        gr.userData = { kind: 'ground', noClip: true };
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(w, d) * 2.4, 72), this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.ground.disc, roughness: 1, metalness: 0 }), 'ground_disc'));
+        disc.rotation.x = -Math.PI / 2;
+        disc.position.set(cx, low.elevation - 0.25, cz);
+        disc.receiveShadow = q >= 2;
+        disc.userData = { kind: 'ground', noClip: true };
+        gr.add(disc);
+        const sh = new THREE.Mesh(new THREE.PlaneGeometry(w + 3, d + 3), new THREE.MeshBasicMaterial({ map: radialTexture(), color: 0x000000, transparent: true, opacity: this.style.ground.contact, depthWrite: false }));
+        sh.rotation.x = -Math.PI / 2;
+        sh.position.set(cx, low.elevation - 0.245, cz);
+        sh.userData = { kind: 'ground', noClip: true };
+        gr.add(sh);
+        this.ground = { group: gr, disc, shadow: sh };
+        this.root.add(gr);
+      }
+    }
+    // every material that the section cut may clip (walls, furniture, doors, glass) - not the AO decals, caps, ground, sprites
+    this.root.traverse((o) => { if (o.material && !(o.userData && o.userData.noClip) && !o.isSprite && !o.isLine) this.clipMaterials.add(o.material); });
+    if (this.cutY != null) this.setCut(this.cutY, this.cutLevel);
 
     // register stair bands on their arrival levels
     const departures = Object.values(this.levels).flatMap((L) => L.stairs.filter((s) => !s.arrival));
@@ -484,85 +650,138 @@ export class PlanScene {
     if (q >= 3 && !this.lite) {
       return new THREE.MeshPhysicalMaterial({ color: 0xe8f0f8, metalness: 0, roughness: frosted ? 0.55 : 0.05, transmission: frosted ? 0.7 : 0.92, thickness: 0.05, ior: 1.5, transparent: true, opacity: 1, side: THREE.DoubleSide, envMapIntensity: 1.2, clearcoat: 0.6 });
     }
-    return new THREE.MeshStandardMaterial({ color: 0x9fc7ff, transparent: true, opacity: frosted ? 0.6 : 0.3, roughness: 0.1, metalness: 0.2, side: THREE.DoubleSide });
+    // cheap glass for the lite / full rungs (plan L5): env-map reflection + low opacity, the dome and the ground show through
+    return new THREE.MeshStandardMaterial({ color: 0xdfe9f3, transparent: true, opacity: frosted ? 0.62 : 0.16, roughness: frosted ? 0.5 : 0.05, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 1.4, depthWrite: false });
   }
   shutterMaterial() {
-    if (!this._shutter) this._shutter = new THREE.MeshStandardMaterial({ color: 0xd9dde3, roughness: 0.6, metalness: 0.3 });
+    if (!this._shutter) this._shutter = this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.shutter, roughness: 0.6, metalness: 0.3 }), 'shutter');
     return this._shutter;
   }
   markerMaterial() {
-    if (!this._marker) this._marker = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, roughness: 0.8 });
+    if (!this._marker) this._marker = this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.open_door, emissive: this.style.palette.open_door, emissiveIntensity: 0.9, roughness: 0.8 }), 'open_door', 'emissive');
     return this._marker;
   }
   lockMaterial() {
-    return new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.6, roughness: 0.5, metalness: 0.4 });
+    return new THREE.MeshStandardMaterial({ color: this.style.palette.lock_ok, emissive: this.style.palette.lock_ok, emissiveIntensity: 0.6, roughness: 0.5, metalness: 0.4 });
   }
   lensMaterial(online) {
-    return new THREE.MeshStandardMaterial({ color: online === false ? 0x9aa3b5 : 0x2767ed, emissive: online === false ? 0x000000 : 0x2767ed, emissiveIntensity: 0.9, roughness: 0.2 });
+    const c = this.style.palette.cone;
+    return online === false ? new THREE.MeshStandardMaterial({ color: 0x9aa3b5, roughness: 0.2 }) : this.styledMaterial(new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.2 }), 'cone', 'emissive');
   }
   bulbMaterial(kelvin = 3000) {
     const c = kelvinToRGB(kelvin);
     return new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: new THREE.Color(c[0], c[1], c[2]), emissiveIntensity: 0, roughness: 0.4 });
   }
 
-  /** Procedural furniture by item family. Static parts go through `push` (merged per material); device parts stay meshes. */
+  /**
+   * Procedural furniture by item family (plan L1 / P3): rounded / chamfered parts (RoundedBoxGeometry, 2 segments,
+   * 1-6 cm radii), separate cushions, tapered legs, seams and handles, shades. Static parts go through `push` (merged
+   * per material); device parts stay meshes. Levels 1-2 keep plain boxes (the product's baselines never move), level 3
+   * gets the detail; `HEAVY_CONFIG`-style venues would fall back to boxes above a part threshold (not needed here).
+   * When `furnitureMode === 'models'` and a glTF for the item id is registered (models.js), the model is used instead
+   * and this catalog is the per-item fallback.
+   */
   buildObject(o, x, y, z, yaw, group, push, L, plan) {
     const q = this.quality;
     const lib = this.lib;
     const mat = (id) => lib.get(id, q);
     const { w_m: w, d_m: d, h_m: h } = o.size;
-    const B = (mid, bw, bh, bd, ox, oy, oz) => {
-      // local offsets rotated by yaw
-      const c = Math.cos(yaw), s = Math.sin(yaw);
-      const wx = x + ox * c + oz * s, wz = z - ox * s + oz * c;
-      const g = boxAt(bw, bh, bd, 0, 0, 0, yaw);
+    const cs = Math.cos(yaw), sn = Math.sin(yaw);
+    const world = (ox, oz) => [x + ox * cs + oz * sn, z - ox * sn + oz * cs];
+    const detail = q >= 3;
+    /** box (levels 1-2) / rounded box (level 3) at a local offset */
+    const B = (mid, bw, bh, bd, ox, oy, oz, r = 0.02, seg = 2) => {
+      const [wx, wz] = world(ox, oz);
+      const rr = Math.min(r, bw / 2 - 0.001, bh / 2 - 0.001, bd / 2 - 0.001);
+      const g = detail && rr > 0.003 ? new RoundedBoxGeometry(bw, bh, bd, seg, rr) : new THREE.BoxGeometry(bw, bh, bd);
+      if (yaw) g.rotateY(yaw);
       g.translate(wx, y + oy, wz);
-      push(mid, q >= 3 ? boxUV(g, lib.tileM(mid)) : g);
+      push(mid, detail ? boxUV(g, lib.tileM(mid)) : g);
     };
+    /** cylinder, optionally tapered (rTop) */
     const C = (mid, r, ch, ox, oy, oz, seg = 16, rTop = r) => {
-      const c = Math.cos(yaw), s = Math.sin(yaw);
-      const g = cylAt(r, ch, x + ox * c + oz * s, y + oy, z - ox * s + oz * c, seg, rTop);
-      push(mid, q >= 3 ? boxUV(g, lib.tileM(mid)) : g);
+      const [wx, wz] = world(ox, oz);
+      const g = cylAt(r, ch, wx, y + oy, wz, seg, rTop);
+      push(mid, detail ? boxUV(g, lib.tileM(mid)) : g);
     };
+    /** four tapered legs inside the footprint */
+    const legs = (mid, bw, bd, lh, inset = 0.06, r = 0.022, taper = 0.7) => { for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) C(mid, r, lh, sx * (bw / 2 - inset), lh / 2, sz * (bd / 2 - inset), 10, r * taper); };
     const item = o.item_id;
     const family = item.split('.')[0];
     const entity = o.anchor_ref && o.anchor_ref.resource_type === 'ha_entity' ? o.anchor_ref.resource_id : null;
     const blocks = h >= 0.9 && family !== 'mat' && family !== 'light';
     if (blocks) L.objectsBlocking.push({ x, z, w, d, yaw });
+    // contact blob shadow under everything that stands on the floor (plan L3 c): one quad per object, merged per level
+    if (family !== 'light' && family !== 'mat' && family !== 'screen' && (o.z_m || 0) < 0.05) {
+      const bw = w * 1.3 + 0.1, bd = d * 1.3 + 0.1;
+      const P = (ox, oz) => { const [wx, wz] = world(ox, oz); return [wx, y + 0.009, wz]; };
+      L.blobs.push(quad(P(-bw / 2, -bd / 2), P(bw / 2, -bd / 2), P(bw / 2, bd / 2), P(-bw / 2, bd / 2)));
+    }
+    if (this.furnitureMode === 'models' && this.models && this.models.place(item, o, x, y, z, yaw, group, L, plan)) return;
     switch (family) {
       case 'sofa': {
-        B('fabric_blue', w, 0.42, d, 0, 0.21, 0);
-        B('fabric_blue', w, h - 0.42, 0.22, 0, 0.42 + (h - 0.42) / 2, -d / 2 + 0.11);
-        B('fabric_blue', 0.22, 0.28, d, -w / 2 + 0.11, 0.42 + 0.14, 0);
-        B('fabric_blue', 0.22, 0.28, d, w / 2 - 0.11, 0.42 + 0.14, 0);
-        B('linen', (w - 0.5) / 2 - 0.02, 0.12, d - 0.3, -(w - 0.5) / 4 - 0.01, 0.48, 0.04);
-        B('linen', (w - 0.5) / 2 - 0.02, 0.12, d - 0.3, (w - 0.5) / 4 + 0.01, 0.48, 0.04);
+        const seats = w > 1.9 ? 3 : 2;
+        const legH = 0.08;
+        legs('wood_dark', w - 0.1, d - 0.1, legH, 0.04, 0.02, 0.8);
+        B('fabric_accent', w, 0.34, d - 0.04, 0, legH + 0.17, 0.02, 0.045);
+        B('fabric_accent', w, h - 0.42, 0.2, 0, 0.42 + (h - 0.42) / 2, -d / 2 + 0.1, 0.05);
+        B('fabric_accent', 0.2, 0.3, d, -w / 2 + 0.1, 0.42 + 0.15, 0, 0.06);
+        B('fabric_accent', 0.2, 0.3, d, w / 2 - 0.1, 0.42 + 0.15, 0, 0.06);
+        const cw = (w - 0.4) / seats - 0.02;
+        for (let i = 0; i < seats; i++) {
+          const ox = -(w - 0.4) / 2 + cw / 2 + 0.01 + i * (cw + 0.02);
+          B('fabric_grey', cw, 0.14, d - 0.34, ox, legH + 0.34 + 0.07, 0.07, 0.05);
+          B('fabric_grey', cw - 0.02, 0.36, 0.14, ox, legH + 0.34 + 0.14 + 0.18, -d / 2 + 0.27, 0.05);
+        }
         break;
       }
       case 'chair': {
         const seatH = 0.45;
-        B('wood_dark', w, 0.04, d, 0, seatH, 0);
-        B('fabric_grey', w - 0.04, 0.05, d - 0.04, 0, seatH + 0.045, 0);
-        B('wood_dark', w, h - seatH, 0.04, 0, seatH + (h - seatH) / 2, -d / 2 + 0.02);
-        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B('wood_dark', 0.03, seatH, 0.03, sx * (w / 2 - 0.03), seatH / 2, sz * (d / 2 - 0.03));
+        if (item.includes('office')) {
+          C('metal_dark', 0.03, seatH - 0.08, 0, (seatH - 0.08) / 2 + 0.04, 0, 12);
+          for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; B('metal_dark', 0.3, 0.03, 0.04, Math.cos(a) * 0.15, 0.03, Math.sin(a) * 0.15, 0.01); }
+          B('leather', w, 0.08, d, 0, seatH, 0, 0.03);
+          B('leather', w * 0.9, h - seatH - 0.05, 0.08, 0, seatH + (h - seatH) / 2 + 0.03, -d / 2 + 0.06, 0.03);
+        } else {
+          legs('wood_dark', w, d, seatH, 0.035, 0.018, 0.75);
+          B('wood_dark', w, 0.035, d, 0, seatH, 0, 0.012);
+          B('fabric_grey', w - 0.04, 0.05, d - 0.04, 0, seatH + 0.04, 0, 0.018);
+          B('wood_dark', w * 0.92, h - seatH, 0.03, 0, seatH + (h - seatH) / 2, -d / 2 + 0.02, 0.012);
+          C('wood_dark', 0.014, h - seatH - 0.04, -w / 2 + 0.035, seatH + (h - seatH) / 2, -d / 2 + 0.02, 8);
+          C('wood_dark', 0.014, h - seatH - 0.04, w / 2 - 0.035, seatH + (h - seatH) / 2, -d / 2 + 0.02, 8);
+        }
         break;
       }
       case 'table': {
         const top = item.includes('coffee') ? 'wood_dark' : item.includes('desk') ? 'wood_light' : 'oak';
-        B(top, w, 0.04, d, 0, h - 0.02, 0);
-        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B('metal_dark', 0.05, h - 0.04, 0.05, sx * (w / 2 - 0.06), (h - 0.04) / 2, sz * (d / 2 - 0.06));
-        if (item.includes('desk')) { B('metal_dark', 0.5, 0.02, 0.3, 0.2, h + 0.01, 0); B('metal_dark', 0.5, 0.32, 0.02, 0.2, h + 0.18, -0.1); }
+        B(top, w, 0.035, d, 0, h - 0.0175, 0, 0.012);
+        if (item.includes('coffee')) legs('metal_dark', w, d, h - 0.035, 0.05, 0.016, 0.8);
+        else if (item.includes('desk')) { B('wood_light', 0.03, h - 0.035, d - 0.1, -w / 2 + 0.03, (h - 0.035) / 2, 0, 0.008); B('wood_light', 0.03, h - 0.035, d - 0.1, w / 2 - 0.03, (h - 0.035) / 2, 0, 0.008); B('wood_light', w - 0.1, 0.4, 0.02, 0, h - 0.25, -d / 2 + 0.06, 0.006); }
+        else legs('wood_dark', w, d, h - 0.035, 0.07, 0.03, 0.7);
+        if (item.includes('desk')) { B('metal_dark', 0.52, 0.32, 0.018, 0.15, h + 0.3, -d / 2 + 0.16, 0.006); B('metal_dark', 0.16, 0.12, 0.14, 0.15, h + 0.06, -d / 2 + 0.16, 0.008); B('metal_light', 0.42, 0.012, 0.14, 0.1, h + 0.006, 0.08, 0.004); }
         break;
       }
       case 'cabinet': {
         const mid = item.includes('bookcase') ? 'wood_dark' : item.includes('tv') ? 'wood_dark' : 'wood_light';
-        B(mid, w, h, d, 0, h / 2, 0);
-        if (item.includes('bookcase')) for (let i = 1; i < 5; i++) B('linen', w - 0.06, 0.02, d - 0.04, 0, (h / 5) * i, 0.01);
-        if (item.includes('wardrobe')) { B('metal_light', 0.02, 0.2, 0.02, -0.03, h * 0.5, d / 2 + 0.01); B('metal_light', 0.02, 0.2, 0.02, 0.03, h * 0.5, d / 2 + 0.01); }
+        if (item.includes('bookcase')) {
+          B(mid, 0.025, h, d, -w / 2 + 0.0125, h / 2, 0, 0.004); B(mid, 0.025, h, d, w / 2 - 0.0125, h / 2, 0, 0.004);
+          B(mid, w, 0.025, d, 0, h - 0.0125, 0, 0.004); B(mid, w, 0.03, 0.02, 0, h / 2, -d / 2 + 0.01, 0.004);
+          for (let i = 0; i <= 4; i++) B(mid, w - 0.05, 0.02, d - 0.02, 0, (h / 5) * i + 0.01, 0.01, 0.004);
+          // a few books as muted blocks
+          for (let i = 1; i < 5; i++) for (let k = 0; k < 3; k++) B(k % 2 ? 'linen' : 'fabric_rug', (w - 0.1) / 3.4, (h / 5) * 0.62, d * 0.6, -(w - 0.1) / 2 + ((w - 0.1) / 3) * (k + 0.5), (h / 5) * i + 0.02 + (h / 5) * 0.31, 0.02, 0.006);
+        } else {
+          B(mid, w, h - 0.06, d, 0, (h - 0.06) / 2 + 0.06, 0, 0.012);
+          B('wood_dark', w - 0.08, 0.06, d - 0.06, 0, 0.03, -0.02, 0.006);
+          const doors = Math.max(1, Math.round(w / 0.5));
+          for (let i = 1; i < doors; i++) B('wood_dark', 0.006, h - 0.1, 0.008, -w / 2 + (w / doors) * i, (h - 0.06) / 2 + 0.06, d / 2, 0.002);
+          if (item.includes('wardrobe')) { for (const sx of [-1, 1]) B('metal_light', 0.012, 0.22, 0.012, sx * 0.04, h * 0.5, d / 2 + 0.012, 0.005); }
+          else for (let i = 0; i < doors; i++) B('metal_light', Math.min(0.14, w / doors - 0.1), 0.012, 0.012, -w / 2 + (w / doors) * (i + 0.5), h - 0.12, d / 2 + 0.012, 0.005);
+        }
         break;
       }
       case 'screen': {
-        const m = new THREE.Mesh(boxAt(w, h, d, 0, 0, 0), new THREE.MeshStandardMaterial({ color: 0x0b0f16, emissive: 0x1a2f55, emissiveIntensity: 0, roughness: 0.3, metalness: 0.5 }));
+        const g = detail ? new RoundedBoxGeometry(w, h, d, 2, 0.008) : boxAt(w, h, d, 0, 0, 0);
+        const m = new THREE.Mesh(g, this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.screen_off, emissive: 0x6f7f96, emissiveIntensity: 0, roughness: 0.2, metalness: 0.3 }), 'screen_off'));
         m.position.set(x, y + h / 2, z);
         m.rotation.y = yaw;
         m.userData = { kind: 'device', entity, label: plan.entityNames[entity] || 'טלוויזיה', domain: 'media_player' };
@@ -574,42 +793,59 @@ export class PlanScene {
         break;
       }
       case 'bed': {
-        B('wood_light', w, 0.25, d, 0, 0.125, 0);
-        B('linen', w - 0.06, 0.22, d - 0.1, 0, 0.36, 0.03);
-        B('fabric_blue', w - 0.06, 0.06, d * 0.6, 0, 0.5, d * 0.15);
-        B('linen', w / 2 - 0.1, 0.1, 0.4, -w / 4, 0.52, -d / 2 + 0.3);
-        if (w > 1.2) B('linen', w / 2 - 0.1, 0.1, 0.4, w / 4, 0.52, -d / 2 + 0.3);
-        B('wood_dark', w, h + 0.5, 0.06, 0, (h + 0.5) / 2, -d / 2 + 0.03);
+        B('wood_light', w, 0.2, d, 0, 0.1, 0, 0.02);
+        B('linen', w - 0.06, 0.2, d - 0.1, 0, 0.3, 0.03, 0.06);
+        B('fabric_grey', w - 0.02, 0.08, d * 0.62, 0, 0.44, d * 0.17, 0.04);
+        B('fabric_grey', w - 0.02, 0.05, 0.3, 0, 0.47, d * 0.17 - d * 0.31 + 0.15, 0.025);
+        B('linen', Math.min(0.6, w / 2 - 0.12), 0.11, 0.42, w > 1.2 ? -w / 4 : 0, 0.455, -d / 2 + 0.32, 0.05);
+        if (w > 1.2) B('linen', Math.min(0.6, w / 2 - 0.12), 0.11, 0.42, w / 4, 0.455, -d / 2 + 0.32, 0.05);
+        B('wood_dark', w, h + 0.45, 0.05, 0, (h + 0.45) / 2, -d / 2 + 0.025, 0.02);
+        legs('wood_dark', w - 0.08, d - 0.08, 0.1, 0.02, 0.03, 0.9);
         break;
       }
       case 'kitchen': {
-        if (item.includes('fridge')) { B('metal_light', w, h, d, 0, h / 2, 0); B('metal_dark', 0.03, 0.5, 0.03, w / 2 - 0.08, h * 0.6, d / 2 + 0.02); }
-        else { B('wood_light', w, h - 0.04, d, 0, (h - 0.04) / 2, 0); B('concrete', w + 0.04, 0.04, d + 0.04, 0, h - 0.02, 0); if (item.includes('counter') && w < d) B('metal_light', 0.5, 0.02, 0.4, 0, h + 0.01, 0); }
+        if (item.includes('fridge')) { B('metal_light', w, h, d, 0, h / 2, 0, 0.03); B('metal_dark', 0.006, h - 0.5, 0.006, 0, h * 0.55, d / 2, 0.002); B('metal_dark', 0.02, 0.5, 0.02, w / 2 - 0.08, h * 0.6, d / 2 + 0.015, 0.008); }
+        else {
+          B('wood_light', w, h - 0.14, d, 0, (h - 0.14) / 2 + 0.1, 0, 0.01);
+          B('wood_dark', w - 0.06, 0.1, d - 0.06, 0, 0.05, -0.01, 0.006);
+          B('concrete', w + 0.03, 0.04, d + 0.03, 0, h - 0.02, 0, 0.01);
+          const n = Math.max(1, Math.round(Math.max(w, d) / 0.6));
+          const along = w >= d;
+          for (let i = 1; i < n; i++) B('wood_dark', along ? 0.006 : w + 0.001, h - 0.3, along ? d + 0.001 : 0.006, along ? -w / 2 + (w / n) * i : 0, (h - 0.14) / 2 + 0.1, along ? 0 : -d / 2 + (d / n) * i, 0.002);
+          for (let i = 0; i < n; i++) B('metal_light', along ? 0.12 : 0.012, 0.012, along ? 0.012 : 0.12, along ? -w / 2 + (w / n) * (i + 0.5) : (w / 2 + 0.012) * (o.rotation_deg ? 1 : -1), h - 0.1, along ? d / 2 + 0.012 : -d / 2 + (d / n) * (i + 0.5), 0.005);
+          if (item.includes('counter') && w < d) B('metal_light', 0.44, 0.012, 0.38, 0, h + 0.006, 0, 0.004);
+          if (item.includes('island')) B('metal_dark', 0.5, 0.008, 0.4, w / 4, h + 0.004, 0, 0.003);
+        }
         break;
       }
       case 'plant': {
-        C('concrete', w / 2, 0.35, 0, 0.175, 0, 14, w / 2.4);
-        const g = new THREE.SphereGeometry(w * 0.7, 10, 8);
-        g.translate(x, y + h - w * 0.6, z);
-        push('grass', g);
+        C('concrete', w / 2, 0.36, 0, 0.18, 0, 18, w / 2.3);
+        C('wood_dark', w / 2 - 0.03, 0.02, 0, 0.36, 0, 18);
+        const r = w * 0.55;
+        for (const [ox, oy, oz, k] of [[0, h - r * 0.9, 0, 1], [r * 0.5, h - r * 1.3, r * 0.2, 0.7], [-r * 0.45, h - r * 1.25, -r * 0.3, 0.75], [r * 0.1, h - r * 1.6, -r * 0.5, 0.6], [-r * 0.2, h - r * 1.5, r * 0.5, 0.65]]) {
+          const g = new THREE.SphereGeometry(r * k, 12, 9);
+          const [wx, wz] = world(ox, oz);
+          g.translate(wx, y + oy, wz);
+          push('grass', g);
+        }
         break;
       }
-      case 'mat': B('fabric_blue', w, 0.02, d, 0, 0.01, 0); break;
+      case 'mat': B('fabric_rug', w, 0.016, d, 0, 0.008, 0, 0.006); break;
       case 'sanitary': {
-        if (item.includes('wc')) { C('tiles_white', 0.2, 0.4, 0, 0.2, 0.1, 14); B('tiles_white', 0.38, 0.4, 0.18, 0, 0.6, -d / 2 + 0.09); }
-        else if (item.includes('tub')) { B('tiles_white', w, h, d, 0, h / 2, 0); B('metal_light', w - 0.2, 0.02, d - 0.2, 0, h - 0.08, 0); }
-        else { B('tiles_white', w, 0.15, d, 0, h - 0.075, 0); B('tiles_white', 0.2, h - 0.15, 0.2, 0, (h - 0.15) / 2, 0); }
+        if (item.includes('wc')) { C('tiles_white', 0.19, 0.38, 0, 0.19, 0.08, 18, 0.16); B('tiles_white', 0.4, 0.06, 0.5, 0, 0.42, 0.04, 0.03); B('tiles_white', 0.38, 0.4, 0.17, 0, 0.62, -d / 2 + 0.085, 0.025); }
+        else if (item.includes('tub')) { B('tiles_white', w, h, d, 0, h / 2, 0, 0.06); B('linen', w - 0.18, 0.04, d - 0.18, 0, h - 0.06, 0, 0.012); B('metal_light', 0.02, 0.2, 0.02, w / 2 - 0.2, h + 0.1, 0, 0.008); }
+        else { B('tiles_white', w, 0.14, d, 0, h - 0.07, 0, 0.04); B('tiles_white', 0.22, h - 0.14, 0.2, 0, (h - 0.14) / 2, 0, 0.03); B('metal_light', 0.012, 0.16, 0.012, 0, h + 0.08, -d / 2 + 0.06, 0.005); }
         break;
       }
       case 'appliance': {
-        if (item.includes('boiler')) C('metal_light', w / 2, h, 0, h / 2, 0, 16);
-        else { B('metal_light', w, h, d, 0, h / 2, 0); C('metal_dark', 0.2, 0.02, 0, h * 0.5, d / 2 + 0.01, 16); }
+        if (item.includes('boiler')) { C('metal_light', w / 2, h, 0, h / 2, 0, 18); C('metal_dark', w / 2 - 0.03, 0.02, 0, h, 0, 18); }
+        else { B('metal_light', w, h, d, 0, h / 2, 0, 0.025); C('metal_dark', 0.2, 0.02, 0, h * 0.5, d / 2 + 0.01, 24); B('metal_dark', w - 0.1, 0.1, 0.01, 0, h - 0.09, d / 2 + 0.005, 0.004); }
         break;
       }
       case 'extinguisher': {
         const g = cylAt(0.08, h, x, y + h / 2, z, 12);
         push('metal_dark', g);
-        const red = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, h * 0.8, 12), new THREE.MeshStandardMaterial({ color: 0xe0443c, roughness: 0.4, metalness: 0.3 }));
+        const red = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, h * 0.8, 12), new THREE.MeshStandardMaterial({ color: 0xc8443c, roughness: 0.4, metalness: 0.3 }));
         red.position.set(x, y + h / 2, z);
         group.add(red);
         break;
@@ -617,39 +853,42 @@ export class PlanScene {
       case 'light': {
         const kelvin = item.includes('pendant') ? 2700 : item.includes('floor') ? 2700 : 3200;
         const bulb = this.bulbMaterial(kelvin);
-        let bulbMesh, lightPos;
+        let bulbMesh, lightPos, shade = null;
         if (item.includes('ceiling')) {
-          const disc = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.92, 0.08, 20), bulb);
-          disc.position.set(x, y + 0.04, z);
+          const disc = new THREE.Mesh(new THREE.CylinderGeometry(w / 2 - 0.02, w / 2 * 0.88, 0.07, 24), bulb);
+          disc.position.set(x, y + 0.035, z);
           bulbMesh = disc;
           lightPos = new THREE.Vector3(x, y - 0.12, z);
-          const rim = new THREE.Mesh(new THREE.CylinderGeometry(w / 2 + 0.02, w / 2 + 0.02, 0.03, 20), mat('metal_light'));
-          rim.position.set(x, y + 0.09, z);
+          const rim = new THREE.Mesh(new THREE.CylinderGeometry(w / 2 + 0.01, w / 2 + 0.01, 0.03, 24), mat('metal_light'));
+          rim.position.set(x, y + 0.085, z);
           group.add(rim);
         } else if (item.includes('pendant')) {
-          const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.7, 6), mat('metal_dark'));
+          const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.7, 6), mat('metal_dark'));
           cord.position.set(x, y + h + 0.35, z);
           group.add(cord);
-          const shade = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.5, h, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.5, metalness: 0.6, side: THREE.DoubleSide }));
+          const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 16), mat('metal_dark'));
+          rose.position.set(x, y + h + 0.69, z);
+          group.add(rose);
+          shade = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.45, h, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a3f46, emissive: new THREE.Color(...kelvinToRGB(kelvin)), emissiveIntensity: 0, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide }));
           shade.position.set(x, y + h / 2, z);
           group.add(shade);
-          const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), bulb);
+          const b = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), bulb);
           b.position.set(x, y + 0.1, z);
           bulbMesh = b;
           lightPos = new THREE.Vector3(x, y, z);
         } else if (item.includes('floor')) {
-          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, h - 0.3, 8), mat('metal_dark'));
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, h - 0.3, 10), mat('metal_dark'));
           pole.position.set(x, y + (h - 0.3) / 2, z);
           group.add(pole);
-          const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 16), mat('metal_dark'));
+          const base = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.02, 20), mat('metal_dark'));
           base.position.set(x, y + 0.01, z);
           group.add(base);
-          const shade = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.8, 0.3, 20, 1, true), bulb);
-          shade.position.set(x, y + h - 0.15, z);
-          bulbMesh = shade;
-          lightPos = new THREE.Vector3(x, y + h - 0.1, z);
+          const sh = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.82, 0.32, 24, 1, true), bulb);
+          sh.position.set(x, y + h - 0.16, z);
+          bulbMesh = sh;
+          lightPos = new THREE.Vector3(x, y + h - 0.12, z);
         } else {
-          const sc = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bulb);
+          const sc = new THREE.Mesh(detail ? new RoundedBoxGeometry(w, h, d, 2, 0.02) : new THREE.BoxGeometry(w, h, d), bulb);
           sc.position.set(x, y + h / 2, z);
           sc.rotation.y = yaw;
           bulbMesh = sc;
@@ -659,15 +898,16 @@ export class PlanScene {
         group.add(bulbMesh);
         this.devices.push(bulbMesh);
         const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: new THREE.Color(...kelvinToRGB(kelvin)), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-        glow.scale.set(1.6, 1.6, 1);
+        glow.scale.set(1.1, 1.1, 1);
         glow.position.copy(lightPos);
+        glow.userData = { noClip: true };
         group.add(glow);
-        this.lamps.push({ entity, bulb: bulbMesh, pos: lightPos, glow, kelvin, level: L.id, light: null, on: false, kind: item });
+        this.lamps.push({ entity, bulb: bulbMesh, pos: lightPos, glow, kelvin, level: L.id, light: null, on: false, kind: item, shade });
         this.labels.push({ kind: 'device', entity, pos: lightPos.clone(), level: L.id });
         break;
       }
       default:
-        B('concrete', w, h, d, 0, h / 2, 0);
+        B('concrete', w, h, d, 0, h / 2, 0, 0.01);
     }
   }
 
@@ -712,8 +952,8 @@ export class PlanScene {
     for (const m of this.markers) m.group.visible = isOpenState(entities[m.entity]);
     for (const p of this.presence) p.mesh.visible = entities[p.entity] === 'on';
     for (const t of this.tints) t.mesh.visible = entities[t.entity] === 'on';
-    for (const s of this.screens || []) s.mesh.material.emissiveIntensity = entities[s.entity] === 'playing' || entities[s.entity] === 'on' ? 1.6 : 0;
-    for (const lk of this.lockPlates || []) { const locked = entities[lk.entity] === 'locked'; lk.mesh.material.color.setHex(locked ? 0xef4444 : 0x22c55e); lk.mesh.material.emissive.setHex(locked ? 0xef4444 : 0x22c55e); }
+    for (const s of this.screens || []) s.mesh.material.emissiveIntensity = entities[s.entity] === 'playing' || entities[s.entity] === 'on' ? 0.9 : 0;
+    for (const lk of this.lockPlates || []) { const locked = entities[lk.entity] === 'locked'; const hx = locked ? this.style.palette.open_door : this.style.palette.lock_ok; lk.mesh.material.color.setHex(hx); lk.mesh.material.emissive.setHex(hx); }
     this.updateLevelCollision();
   }
 
@@ -736,13 +976,17 @@ export class PlanScene {
       sh.mesh.scale.y = Math.max(0.001, drop);
       sh.mesh.visible = drop > 0.01;
     }
-    // lamps
+    // lamps (plan L7): plausible emissive levels per style, a small glow, shades with an inner glow; the glow sprite is
+    // hidden when the lamp sits above the section cut (the room's pool light stays, which is the state cue)
     const night = opts.nightFactor ?? 0;
+    const R = this.style.rig;
     const lit = this.lamps.filter((l) => l.on && this.levels[l.level].group.visible);
     for (const l of this.lamps) {
-      const target = l.on ? (this.quality >= 3 ? 2.2 + night * 1.6 : 1.4) : 0;
+      const target = l.on ? (this.quality >= 3 ? lerp(R.lampEmissiveDay, R.lampEmissiveNight, night) : 1.4) : 0;
       l.bulb.material.emissiveIntensity += (target - l.bulb.material.emissiveIntensity) * Math.min(1, dt * 8);
-      const gt = l.on ? 0.35 + night * 0.4 : 0;
+      if (l.shade) l.shade.material.emissiveIntensity = l.bulb.material.emissiveIntensity * 0.22;
+      const above = this.cutY != null && l.pos.y > this.cutY;
+      const gt = l.on && !above ? 0.16 + night * 0.26 : 0;
       l.glow.material.opacity += (gt - l.glow.material.opacity) * Math.min(1, dt * 8);
       if (Math.abs(target - l.bulb.material.emissiveIntensity) > 0.01) moving = true;
     }
@@ -755,10 +999,10 @@ export class PlanScene {
       const l = want[i];
       if (!l) { pl.intensity = 0; continue; }
       pl.position.copy(l.pos);
-      const c = kelvinToRGB(l.kelvin);
+      const c = kelvinToRGB(l.kelvin + R.lampKelvinOffset);
       pl.color.setRGB(c[0], c[1], c[2]);
       const base = l.kind.includes('floor') ? 6 : l.kind.includes('wall') ? 5 : 11; // candela-ish (decay 2)
-      pl.intensity = base * (0.5 + night * 0.8);
+      pl.intensity = base * lerp(R.lampPoolDay, R.lampPoolNight, night);
     }
     return moving;
   }

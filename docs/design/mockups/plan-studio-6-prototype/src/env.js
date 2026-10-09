@@ -1,47 +1,43 @@
 /**
- * Renderer, sky, sun, image-based lighting and the post chain per quality level.
- *  - realistic (3): Sky shader (three addon) -> PMREM environment (IBL), sun DirectionalLight with a 2048 PCF-soft
- *    shadow map fitted to the plan, hemisphere fill, ACES, GTAO (ambient occlusion) + UnrealBloom (lamp glow) + Output.
- *  - full (2): hemisphere + sun shadows (1024), no textures, no post.
+ * Renderer, sky, sun, image-based lighting and the post chain per quality level (look-dev version).
+ *  - realistic (3): LDR sky dome -> PMREM environment (IBL), sun DirectionalLight with a 2048 PCF shadow map fitted to
+ *    the plan, a small hemisphere fill, AgX tone mapping, MSAA x4 render target, GTAO (top rung only) + UnrealBloom
+ *    (threshold above the sunlit-plaster level, so only emitters glow) + Output.
+ *  - realistic lite: the same without GTAO, MSAA x4 kept (cheap on a GPU), DPR 1.
+ *  - full (2): hemisphere + sun shadows (1024), no textures, no post (renderer MSAA).
  *  - schematic (1): Lambert, ambient + directional, no shadows, no post.
+ * Everything that depends on the visual style (style.js) reads `this.style`: exposure, sun / sky scale, env intensity,
+ * bloom numbers, backdrop gradient.
  */
 import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { sunPosition, lightRecipe, toHex, toCss } from './sun.js';
+import { STYLES } from './style.js';
+
+const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Environment {
   constructor(canvas, opts = {}) {
-    // alpha canvas: the sky is the stage's CSS gradient (recipe colours by sun elevation, the product's --sw-map-sky
-    // tokens), not a rendered Sky mesh - the Sky shader's HDR output made the bloom pass haze the whole frame and
-    // costs a full-screen pass; the shader still feeds the PMREM environment map for the image-based lighting
+    // alpha canvas: the sky behind the building is the stage's CSS gradient (style backdrop colours by sun elevation);
+    // the LDR dome is what windows and the walk see and what the IBL is prefiltered from
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true, alpha: true, premultipliedAlpha: true });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap; // r186 removed PCFSoftShadowMap; PCF + radius is the soft edge now
-    // shadow maps are redrawn only when something that casts or lights changed (sun, doors, states, level) - a camera
-    // move never re-renders 1 + 2x6 shadow passes (the kiosk's "no frame when nothing changes" rule, applied to shadows)
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.NeutralToneMapping; // plan L3(a): Khronos PBR Neutral - no hue shift, keeps saturation up to the roll-off (AgX was tried first: too flat, drained the oak)
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.localClippingEnabled = true; // the section cut (plan L6) clips wall materials with one world plane
     this.dpr = Math.min(opts.maxDpr ?? 2, window.devicePixelRatio || 1);
     this.renderer.setPixelRatio(this.dpr);
     this.scene = new THREE.Scene();
-    this.skyScene = new THREE.Scene();
-    this.sky = new Sky();
-    this.sky.scale.setScalar(2000);
-    this.skyScene.add(this.sky);
-    this.skyVisible = new Sky();
-    this.skyVisible.scale.setScalar(2000);
-    this.skyVisible.visible = false; // kept for an optional "sun disc" toggle; off: the gradient dome is the sky
-    this.scene.add(this.skyVisible);
-    // a cheap LDR sky dome (one draw, vertex colours, no lighting): what the windows and the walk see; the same
-    // recipe colours as the CSS backdrop behind the alpha canvas, and a soft sun disc painted into the vertex colours
+    this.style = STYLES.light;
     const domeG = new THREE.SphereGeometry(400, 48, 24);
     const colors = new Float32Array(domeG.attributes.position.count * 3);
     domeG.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -50,16 +46,14 @@ export class Environment {
     this.dome.renderOrder = -10;
     this.dome.userData = { kind: 'sky' };
     this.scene.add(this.dome);
-    // the environment map (IBL) is prefiltered from the SAME LDR dome, so the indirect sky light is bounded (<= 1)
-    // and predictable; the Sky shader stays available for an HDR variant but is not the default any more
     this.domeScene = new THREE.Scene();
     this.domeScene.add(new THREE.Mesh(domeG, this.dome.material));
     this.sun = new THREE.DirectionalLight(0xffffff, 3);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
-    this.sun.shadow.bias = -0.0005;
-    this.sun.shadow.normalBias = 0.03;
-    this.sun.shadow.radius = 6;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.025;
+    this.sun.shadow.radius = 5;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x445566, 1.5);
@@ -76,14 +70,22 @@ export class Environment {
     this.time = { hour: 15.5, day: 278, latitude: 32.08, north: 0, weather: 'clear' };
     this.recipe = lightRecipe(40, 'clear');
     this.fitted = null;
-    this.post = { ao: true, bloom: true };
+    this.post = { ao: true, bloom: true, lite: false, msaa: true };
     this.size = { w: 1, h: 1 };
+    this.interior = false;
+    this.interiorFill = 1; // per-room daylight factor while walking (plan L3 b / P5): 0..1, eased by the app
+    this.isWebGL2 = this.renderer.capabilities.isWebGL2;
   }
 
   rendererName() {
     const gl = this.renderer.getContext();
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
     return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  }
+
+  setStyle(style) {
+    this.style = style;
+    this.applyTime();
   }
 
   setSize(w, h) {
@@ -95,12 +97,12 @@ export class Environment {
     }
   }
 
-  /** Fit the sun's shadow camera to the plan's extent (metres). */
+  /** Fit the sun's shadow camera to the plan's extent (metres), with room for the ground-disc shadow. */
   fitShadows(extent, elevationTop) {
     this.fitted = { extent, top: elevationTop };
     const sc = this.sun.shadow.camera;
     const w = extent.maxX - extent.minX, d = extent.maxZ - extent.minZ;
-    const r = Math.hypot(w, d) / 2 + 2;
+    const r = Math.hypot(w, d) / 2 + 4;
     sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r;
     sc.near = 0.5; sc.far = r * 4 + 20;
     sc.updateProjectionMatrix();
@@ -113,49 +115,53 @@ export class Environment {
   setQuality(q, camera) {
     this.quality = q;
     this.renderer.shadowMap.enabled = q >= 2;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap; // VSM is not supported for point lights (lamp shadows)
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.needsUpdate = true;
     this.sun.castShadow = q >= 2;
-    this.sun.shadow.radius = q >= 3 ? 6 : 1;
+    this.sun.shadow.radius = q >= 3 ? 5 : 1;
     this.sun.shadow.blurSamples = 12;
     this.sun.shadow.mapSize.set(q >= 3 ? 2048 : 1024, q >= 3 ? 2048 : 1024);
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.scene.environment = q >= 3 ? (this.envTarget && this.envTarget.texture) : null;
     this.scene.background = null;
-    this.renderer.toneMapping = q >= 2 ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    this.renderer.toneMapping = q >= 2 ? THREE.NeutralToneMapping : THREE.NoToneMapping;
     this.buildComposer(camera);
     this.applyTime();
   }
 
   buildComposer(camera) {
-    if (this.composer) { this.composer.dispose && this.composer.dispose(); this.composer = null; this.gtao = null; this.bloom = null; }
+    if (this.composer) { this.composer.dispose && this.composer.dispose(); this.composer = null; this.gtao = null; this.bloom = null; this.smaa = null; }
     if (this.quality < 3) return;
     const { w, h } = this.size;
-    const composer = new EffectComposer(this.renderer);
+    // plan L8: MSAA x4 on the composer's own target (WebGL2); SMAA pass as the fallback where samples are unsupported
+    const msaa = this.post.msaa && this.isWebGL2;
+    const target = new THREE.WebGLRenderTarget(Math.round(w * this.dpr), Math.round(h * this.dpr), { type: THREE.HalfFloatType, samples: msaa ? 4 : 0 });
+    const composer = new EffectComposer(this.renderer, target);
     composer.setPixelRatio(this.dpr);
     composer.setSize(w, h);
     const rp = new RenderPass(this.scene, camera);
     rp.clearAlpha = 0;
     composer.addPass(rp);
-    // GTAO + its denoise cost ~30 ms at 1076x828 on an Intel UHD 630 (measured, tools/capture.mjs levers): the
-    // "realistic lite" rung keeps the textures, the IBL, the shadows and the lamp bloom and drops the AO
     if (this.post.ao && !this.post.lite) {
       const gtao = new GTAOPass(this.scene, camera, w, h);
       gtao.output = GTAOPass.OUTPUT.Default;
-      gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 1.1, samples: 8 });
+      // plan L3(d): radius ~0.6 m, low intensity - contact darkening, not a dirty frame
+      gtao.updateGtaoMaterial({ radius: this.style.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: 8 });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
-      gtao.blendIntensity = 0.8;
+      gtao.blendIntensity = this.style.post.aoIntensity;
       composer.addPass(gtao);
       this.gtao = gtao;
     }
     if (this.post.bloom) {
-      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.25 + 0.45 * (this.recipe ? this.recipe.night : 0), 0.5, 2.4);
+      const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.2, this.style.post.bloomRadius, 2.0);
       composer.addPass(bloom);
       this.bloom = bloom;
     }
     composer.addPass(new OutputPass());
+    if (!msaa) { const smaa = new SMAAPass(); composer.addPass(smaa); this.smaa = smaa; }
     this.composer = composer;
     this.camera = camera;
+    this.applyPost();
   }
 
   setCamera(camera) {
@@ -171,8 +177,23 @@ export class Environment {
     Object.assign(this.time, partial);
     this.applyTime();
   }
+  /** Only the fill-dependent numbers (walk: per-room daylight) - no PMREM regeneration, cheap enough per frame. */
+  applyFill() {
+    const S = this.style.rig, r = this.recipe, ibl = this.quality >= 3;
+    const inside = this.interior ? lerp(S.interiorFill[0], S.interiorFill[1], this.interiorFill) * 0.7 : 1;
+    this.hemi.intensity = (this.quality >= 2 ? r.hemiIntensity * (ibl ? S.hemiScale : 1) * (ibl ? 1 : S.skyScale) : 1.2) * inside;
+    if (ibl) this.scene.environmentIntensity = lerp(S.envNight, S.envDay, r.day) * inside;
+  }
+  applyPost() {
+    const r = this.recipe, st = this.style.post;
+    if (this.bloom) {
+      this.bloom.threshold = lerp(st.bloomThresholdDay, st.bloomThresholdNight, r.night);
+      this.bloom.strength = lerp(st.bloomStrengthDay, st.bloomStrengthNight, r.night);
+      this.bloom.radius = st.bloomRadius;
+    }
+  }
   applyTime() {
-    const t = this.time;
+    const t = this.time, S = this.style.rig;
     const sp = sunPosition(t.hour, t.day, t.latitude, t.north);
     const r = lightRecipe(sp.elevation, t.weather);
     this.recipe = r;
@@ -183,40 +204,34 @@ export class Environment {
     this.sun.position.copy(c).addScaledVector(dir, dist * 1.5);
     const ibl = this.quality >= 3;
     // interior factor (the walk): without global illumination the sky's diffuse reaches every indoor wall unoccluded,
-    // so indoors the fill is lowered - the CR's S3 lightmap is the real answer
-    const inside = this.interior ? 0.55 : 1;
-    this.sun.intensity = this.quality >= 2 ? r.sunIntensity * (ibl ? 0.5 : 1) : 1.1;
+    // so indoors the fill is lowered - scaled per room by its window area (plan L3 b, P5)
+    const inside = this.interior ? lerp(S.interiorFill[0], S.interiorFill[1], this.interiorFill) * 0.7 : 1;
+    this.sun.intensity = this.quality >= 2 ? r.sunIntensity * (ibl ? 0.55 : 1) * S.sunScale : 1.1;
     this.sun.color.setHex(toHex(r.sunColor));
     this.sun.visible = sp.elevation > -3 || this.quality < 2;
-    this.moon.intensity = r.moon * 0.5;
+    this.moon.intensity = r.moon * S.moonScale;
     this.moon.position.copy(c).add(new THREE.Vector3(-dist, dist * 0.9, dist * 0.4));
     this.hemi.color.setHex(toHex(r.hemiSky));
     this.hemi.groundColor.setHex(toHex(r.hemiGround));
-    // with image-based lighting the sky's diffuse comes from the environment map; the hemisphere only fills a little
-    this.hemi.intensity = (this.quality >= 2 ? r.hemiIntensity * (ibl ? 0.25 : 1) : 1.2) * inside;
+    this.hemi.intensity = (this.quality >= 2 ? r.hemiIntensity * (ibl ? S.hemiScale : 1) * (ibl ? 1 : S.skyScale) : 1.2) * inside;
     this.ambient.intensity = this.quality >= 2 ? 0 : 0.9;
-    this.renderer.toneMappingExposure = r.exposure * (ibl ? 0.8 : 1) * (this.interior ? 0.9 : 1);
+    this.renderer.toneMappingExposure = r.exposure * lerp(S.exposureDay, S.exposureNight, r.night) * (ibl ? 1.0 : 1.1) * (this.interior ? 1.05 : 1);
     this.renderer.shadowMap.needsUpdate = true;
-    // the bloom works on the HDR buffer: only emitters (lamps, screens, markers) and sun glints cross the threshold;
-    // stronger at night, when the glow is the picture (NeonPlan / the owner's reference)
-    // sunlit white plaster reaches ~2 in the HDR buffer; the emitters (bulbs 2.2-3.8, screens, markers) sit above it
-    if (this.bloom) { this.bloom.threshold = 2.4; this.bloom.strength = 0.25 + 0.45 * r.night; this.bloom.radius = 0.5; }
-    // sky shader
-    for (const sky of [this.sky, this.skyVisible]) {
-      const u = sky.material.uniforms;
-      u.turbidity.value = r.turbidity;
-      u.rayleigh.value = r.rayleigh;
-      u.mieCoefficient.value = r.mie;
-      u.mieDirectionalG.value = 0.8;
-      u.sunPosition.value.copy(dir);
+    this.applyPost();
+    const B = this.style.backdrop;
+    if (this.backdrop) {
+      const top = r.night > 0.5 ? B.topNight : B.topDay, hor = r.night > 0.5 ? B.horizonNight : B.horizonDay;
+      const sky = (a, b, k) => `color-mix(in srgb, ${a} ${Math.round((1 - k) * 100)}%, ${b})`;
+      // the CSS backdrop follows the dome: style colours by day, the recipe's night colours after dusk
+      const topC = sky(top, toCss(r.skyTop.map((v) => v * S.skyScale)), 0.5), horC = sky(hor, toCss(r.skyHorizon.map((v) => v * S.skyScale)), 0.5);
+      this.backdrop.style.background = `linear-gradient(180deg, ${topC} 0%, ${horC} 62%, ${toCss(r.hemiGround.map((v) => v * B.groundTint * 0.9 + 0.08))} 100%)`;
     }
-    if (this.backdrop) this.backdrop.style.background = `linear-gradient(180deg, ${toCss(r.skyTop)} 0%, ${toCss(r.skyHorizon)} 70%, ${toCss(r.hemiGround.map((v) => v * 0.9 + 0.1))} 100%)`;
     this.paintDome(r, dir);
     if (this.quality >= 3) {
       if (this.envTarget) this.envTarget.dispose();
       this.envTarget = this.pmrem.fromScene(this.domeScene, 0, 1, 1000);
       this.scene.environment = this.envTarget.texture;
-      this.scene.environmentIntensity = (0.25 + r.day * 0.65) * inside;
+      this.scene.environmentIntensity = lerp(S.envNight, S.envDay, r.day) * inside;
     }
     if (this.onTime) this.onTime(sp, r);
   }
@@ -225,14 +240,14 @@ export class Environment {
     const g = this.dome.geometry;
     const pos = g.attributes.position, col = g.attributes.color;
     const v = new THREE.Vector3();
-    const ground = r.hemiGround.map((x) => x * 0.9 + 0.1);
+    const S = this.style.rig.skyScale;
+    const ground = r.hemiGround.map((x) => (x * 0.9 + 0.1) * this.style.backdrop.groundTint);
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).normalize();
       const t = v.y; // -1 .. 1
       let c;
       if (t < 0) c = ground;
-      else { const k = Math.pow(t, 0.55); c = [r.skyHorizon[0] + (r.skyTop[0] - r.skyHorizon[0]) * k, r.skyHorizon[1] + (r.skyTop[1] - r.skyHorizon[1]) * k, r.skyHorizon[2] + (r.skyTop[2] - r.skyHorizon[2]) * k]; }
-      // sun disc + halo (only above the horizon)
+      else { const k = Math.pow(t, 0.55); c = [(r.skyHorizon[0] + (r.skyTop[0] - r.skyHorizon[0]) * k) * S, (r.skyHorizon[1] + (r.skyTop[1] - r.skyHorizon[1]) * k) * S, (r.skyHorizon[2] + (r.skyTop[2] - r.skyHorizon[2]) * k) * S]; }
       const d = Math.max(0, v.dot(sunDir));
       const disc = sunDir.y > -0.05 ? Math.pow(d, 400) * 0.9 + Math.pow(d, 12) * 0.18 * r.day : 0;
       col.setXYZ(i, Math.min(1, c[0] + disc * r.sunColor[0]), Math.min(1, c[1] + disc * r.sunColor[1]), Math.min(1, c[2] + disc * r.sunColor[2]));
