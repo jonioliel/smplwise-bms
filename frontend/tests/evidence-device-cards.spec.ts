@@ -103,11 +103,12 @@ test.describe('device cards: water heater, tap, robot vacuum', () => {
       await openCard(page, 'valve.garden');
       await shot(page, `valve-closed-${tag}-${scheme}`);
       if (scheme === 'light') {
-        // the hold in progress
+        // the hold in progress. The shot is taken while the 1.1 s hold runs: a phone-project screenshot takes 300-650 ms (more under
+        // load), so the press is only 200 ms old when it starts - a longer wait let the hold complete under the shot and send open_valve
         const b = (await card(page).locator('[data-card-hold]').boundingBox())!;
         await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
         await page.mouse.down();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(200);
         await shot(page, `valve-holding-${tag}-${scheme}`);
         await page.mouse.up();
       }
@@ -116,10 +117,13 @@ test.describe('device cards: water heater, tap, robot vacuum', () => {
       await shot(page, `vacuum-${tag}-${scheme}`);
       await closeCard(page);
       if (scheme === 'light') {
-        // the heater with its auto-off pending
+        // the heater with its auto-off pending. The count is relative: the holding shot above is taken while the hold runs, and on the
+        // phone project a screenshot can outlast the 1.1 s hold, which then completes and sends open_valve (a timing of the shot, not a
+        // behaviour of the card - the behaviour tests below hold for exact durations without a screenshot in between)
         await openCard(page, 'switch.boiler');
+        const sent = st.actions.length;
         await card(page).locator('[data-card-off]').click();
-        await expect.poll(() => st.actions.length).toBe(1);
+        await expect.poll(() => st.actions.length).toBe(sent + 1);
         await expect(card(page).locator('[data-card-timer="60"]')).toBeVisible();
         await card(page).locator('[data-card-timer="60"]').click();
         await expect(card(page).locator('[data-card-auto-off]')).toBeVisible();
