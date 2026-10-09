@@ -16,7 +16,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 
-from . import ha_sync, home_screen, plan_area_links
+from . import device_types, ha_sync, home_screen, plan_area_links
 from .device_activity import ACTIVITY_DOMAINS, SECURITY_PERMISSIONS, activity_kind
 
 ControlChecker = Callable[[str], bool]
@@ -233,6 +233,7 @@ def load_entities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         "SELECT * FROM ha_entities WHERE removed_at IS NULL AND disabled = 0 AND hidden = 0 AND (entity_category IS NULL OR entity_category = '') AND " + NOT_SCHEDULER_SQL + " ORDER BY domain, name, entity_id"
     ).fetchall()
     overrides = climate_kind_overrides(conn)
+    types = device_types.overrides(conn)  # DEVTYPE: an administrator's fixed type of a switch-wired device
     out = []
     for r in rows:
         e = ha_sync.entity_row(r)
@@ -240,6 +241,8 @@ def load_entities(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         if e["card"]:
             if e["domain"] == "climate":
                 annotate_climate(e, overrides)
+            if e["entity_id"] in types:
+                e["device_type_set"] = types[e["entity_id"]]
             out.append(e)
     return out
 
@@ -391,7 +394,7 @@ def _row(e: dict[str, Any]) -> dict[str, Any]:
         # DEVHIST: the long press / "פעילות" menu item exists for the electrical domains only (the same table that decides the controls);
         # the caller's own devices.activity grant is checked by GET /devices/{id}/activity
         "activity": e["domain"] in ACTIVITY_DOMAINS,
-        "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind"), e.get("name") or e.get("original_name")),
+        "activity_kind": activity_kind(e["domain"], e.get("device_class"), e.get("climate_kind"), e.get("name") or e.get("original_name"), e.get("device_type_set")),
         # a lock / alarm panel's activity is behind the permission that operates it (door.unlock / alarm.arm), not just the one that shows it
         **({"activity_permissions": list(SECURITY_PERMISSIONS[e["domain"]])} if e["domain"] in SECURITY_PERMISSIONS else {}),
         # seam: the alarm screen's own devices (another branch adds the column / predicate); absent = not managed

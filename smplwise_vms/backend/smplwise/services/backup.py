@@ -35,12 +35,16 @@ PROJECT_TABLES = PROJECT_TABLES + [t for t in _energy_backup.MAIN_TABLES if t no
 # (re-polled from Frigate), camera_links (no behaviour yet). A restore never touches Frigate; it only brings back Arx's own records.
 FRIGATE_TABLES = ["frigate_write_policy", "frigate_changes", "frigate_profile_rules", "frigate_review_state"]
 PROJECT_TABLES = PROJECT_TABLES + [t for t in FRIGATE_TABLES if t not in PROJECT_TABLES]
+# DEVTYPE (owner 2026-10-09): the administrator's fixed device types (migration 0076). An archive written before the table keeps the
+# current rows (KEEP_WHEN_ABSENT): an older backup must not silently send every fixed type back to the name-based guess.
+DEVICE_TYPE_TABLES = ["device_type_override"]
+PROJECT_TABLES = PROJECT_TABLES + [t for t in DEVICE_TYPE_TABLES if t not in PROJECT_TABLES]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
 # Frigate: the change log and the reviewed state are history, so an archive written before them does not empty them; the write-class
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
-KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state"}) | _energy_backup.KEEP_WHEN_ABSENT
+KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", *DEVICE_TYPE_TABLES}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
 FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
