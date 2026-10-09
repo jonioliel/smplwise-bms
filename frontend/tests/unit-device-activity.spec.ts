@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  ACTOR_FILTERS, DEFAULT_FILTERS, KIND_ICON, actorView, changedKey, clockOf, describeEvent, footnote, gapText, groupByDay, isFiltered, queryOf, stateLabel, trackedSince,
+  ACTOR_FILTERS, DEFAULT_FILTERS, DEFAULT_VIEW, KIND_ICON, VIEW_KEY, activeFilterCount, actorView, changedKey, clockOf, describeEvent, eventTone, footnote, fullDate, gapText, groupByDay,
+  isFiltered, parseView, queryOf, stateLabel, trackedSince,
 } from '../src/components/device-activity-logic';
 import { ACTIVITY_KINDS, type ActivityItem } from '../src/api/device-activity';
 import { demoActivity } from '../src/api/device-activity-mock';
@@ -126,6 +127,45 @@ test.describe('device activity logic', () => {
     expect(trackedSince('2026-10-04T05:00:00Z', 'Asia/Jerusalem')).toBe('מתועד מ־4.10');
     expect(trackedSince(null)).toBe('');
     expect(gapText({ from: '2026-10-05T00:10:00Z', to: '2026-10-05T00:42:00Z' }, 'UTC')).toBe('המערכת הייתה מנותקת 00:10 עד 00:42; ייתכן שחסרים אירועים');
+  });
+
+  // ACT-polish: the clear chip's count, the view choice, the tone marker, the full date of the tooltip
+  test('the active filter count follows the three filters', () => {
+    expect(activeFilterCount(DEFAULT_FILTERS)).toBe(0);
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, actor: 'person' })).toBe(1);
+    expect(activeFilterCount({ period: 'month', actor: 'scene', kind: 'power' })).toBe(3);
+  });
+
+  test('the view is cards unless the stored choice says list; a stray value falls back', () => {
+    expect(DEFAULT_VIEW).toBe('cards');
+    expect(parseView('list')).toBe('list');
+    expect(parseView('cards')).toBe('cards');
+    expect(parseView(null)).toBe('cards');
+    expect(parseView('table')).toBe('cards');
+    expect(VIEW_KEY).toBe('sw.activity.view');
+  });
+
+  test('the tone of an event: on / off per kind, value, availability lost / back, never a guess for generic', () => {
+    expect(eventTone(item({ to: { state: 'on' } }), 'light')).toBe('on');
+    expect(eventTone(item({}), 'light')).toBe('off');
+    expect(eventTone(item({ to: { state: 'open' } }), 'cover')).toBe('on');
+    expect(eventTone(item({ to: { state: 'closing' } }), 'valve')).toBe('off');
+    expect(eventTone(item({ to: { state: 'stopped' } }), 'cover')).toBe('neutral');
+    expect(eventTone(item({ to: { state: 'cleaning' } }), 'vacuum')).toBe('on');
+    expect(eventTone(item({ to: { state: 'docked' } }), 'vacuum')).toBe('off');
+    expect(eventTone(item({ to: { state: 'heat' } }), 'climate')).toBe('on');
+    expect(eventTone(item({ to: { state: 'on' } }), 'generic')).toBe('neutral');
+    expect(eventTone(item({ kind: 'value', to: { state: 'on', brightness_pct: 60 } }), 'light')).toBe('value');
+    expect(eventTone(item({ kind: 'availability', to: { state: 'unavailable' } }), 'light')).toBe('lost');
+    expect(eventTone(item({ kind: 'availability', from: { state: 'unavailable' }, to: { state: 'off' } }), 'light')).toBe('back');
+    expect(eventTone(item({ to: { state: 'unknown' } }), 'light')).toBe('neutral');
+  });
+
+  test('the full date carries the weekday, the date and the clock in the given zone', () => {
+    const s = fullDate('2026-10-05T10:05:00Z', 'Asia/Jerusalem');
+    expect(s).toContain('5.10.2026');
+    expect(s).toContain('13:05');
+    expect(s).not.toContain('/');
   });
 });
 

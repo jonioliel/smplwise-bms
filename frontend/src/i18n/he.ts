@@ -751,6 +751,14 @@ export const he = {
     schedNewTitle: 'תזמון חדש',
     schedBack: 'חזרה לפעילות',
     schedMore: 'מוסיף התקנים נוספים',
+    // ACT-polish: the view toggle, the clear chip, the day count
+    viewLabel: 'תצוגה',
+    viewCards: 'כרטיסים',
+    viewList: 'רשימה',
+    filterTools: 'סינון ותצוגה',
+    eventsCount: '{n} אירועים',
+    eventOne: 'אירוע אחד',
+    feedList: 'רשימת אירועים',
   },
   /** CARD1 (2026-10-07): the equipment cards of the activity window - water heater, tap / valve, robot vacuum. Operator copy: short, no hints. */
   deviceCard: {
