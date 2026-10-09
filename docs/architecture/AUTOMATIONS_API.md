@@ -205,6 +205,7 @@ present. Runs of items the caller cannot see are never returned.
 | 21 | PUT | `/automations/{kind}/{id}/meta` | `{pinned?, favourite?, hidden?}` (Arx only; `hidden` for integration scenes by admins) | the kind's permission (own prefs) / manage (hidden) |
 | 22 | GET | `/automations/review` | administrator list: sensitive external, storm, invalid, missing entities, owner lost rights, masked values, delegated writes | installation-wide manage |
 | 23 | GET / PUT | `/settings` keys (the הגדרות › אוטומציות tab, CR §4.7): `automations.enabled` (true), `.code_view_roles` (`["site_admin","system_admin"]`), `.trash_days` (30, 7-90), `.versions_keep` (20, 5-50), `.limits` (`{writes_per_min: 30, preview_per_min: 60, run_interval_s: 10, scene_apply_interval_s: 3, storm_item_per_min: 20, storm_total_per_min: 200}`), `.storm_auto_disable` (false), `.sensitive_warning` (true), `.templates_enabled` (true), `.templates_hidden` (`[]`), `.templates_order` (`[]`), `.notify_targets` (`[]`), `.ask_when_on_new` (false). Delegation is **not** a setting here (read-only state from the bridge) | `system.configure` |
+| 24 | GET | `/automations/compat` | HA 2026.10 compatibility scan over the mirror, read-only (no HA call, no write): `{scanned, mirror_seen_at, counts{state_for_attribute, state_for_list, state_for_input_helper, admin_only_service}, items[{kind, id, entity_id, name, source, issues[{code, path, service?}]}], truncated}`. Never a configuration value. `services/ha_compat.py`; docs/operations/HA_2026_10_COMPATIBILITY_HE.md | `system.configure` (installation) |
 
 ### 3.2 Semantics that matter
 
@@ -239,6 +240,7 @@ present. Runs of items the caller cannot see are never returned.
 | 403 | `locked_block_changed` | חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד. |
 | 403 | `delegation_off` | שמירה עבור משתמש זה אינה מופעלת. פנו למנהל המערכת. |
 | 403 | `not_ha_admin` | שמירת תוכן זה דורשת מנהל של תשתית המערכת. |
+| 403 | `requires_ha_admin` | ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת. (a manual run - `trigger` / `run_script` - that the bridge answers `unauthorized`; HA 2026.10 makes `mqtt.publish` / `mqtt.dump` / `synology_dsm.reboot|shutdown` administrator-only; `details.error` = `unauthorized`) |
 | 404 | `item_not_found` | הפריט לא נמצא. |
 | 404 | `trash_not_found` | הפריט אינו בסל המחזור (ייתכן שפג תוקפו). |
 | 409 | `item_changed` | הפריט שונה במקום אחר. טענו את הגרסה העדכנית והחליטו מה לשמור. |

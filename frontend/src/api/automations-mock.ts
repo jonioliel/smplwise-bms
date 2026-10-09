@@ -22,7 +22,7 @@ import {
   fingerprintOf, hasUnknownEffects, isInstallationWide, itemVisibleTo, lockedBlocks, manageRight, maskSecrets, memberSummary, parseAction, revisionOf, saveProfile, sensitiveClassOf, sensitiveSteps,
   shortRunSentence, suggestSchedule, triggerEntities, validateDraft, walkDraft,
   type ActionBlock, type ActionSpec, type AnyDraft, type AutomationCatalog, type AutomationDraft, type AutomationSettings, type AutomationTemplate, type AutomationsAdapter, type AutomationsStatus,
-  type CatalogEntity, type DryRunResult, type Item, type ItemDetail, type ItemKind, type Issue, type ListQuery, type LockedBlock, type MetaPatch, type ModelContext, type PreviewResult,
+  type CatalogEntity, type CompatScan, type DryRunResult, type Item, type ItemDetail, type ItemKind, type Issue, type ListQuery, type LockedBlock, type MetaPatch, type ModelContext, type PreviewResult,
   type ReviewRow, type RunResult, type RunSummary, type RunTrace, type SceneDraft, type SceneMember, type ScriptDraft, type SensitiveClass, type TrashRow, type UserScope, type VersionRow, type WriteBody,
   type WriteResult,
 } from './automations';
@@ -1040,6 +1040,23 @@ export class AutomationsMockStore implements AutomationsAdapter {
     }
     for (const a of this.audit.filter((x) => x.delegated)) rows.push({ kind: a.kind, id: a.id, name: a.id, issue: 'delegated_write', detail: `${a.user} · ${a.action}`, at: a.at });
     return rows;
+  }
+  /** HA 2026.10 scan (§3.1 row 24). Empty by default, so the settings screen shows no card; `seedCompat()` (demo control `compat`) stages findings. */
+  compatValue: CompatScan = { scanned: 0, mirror_seen_at: null, counts: { state_for_attribute: 0, state_for_list: 0, state_for_input_helper: 0, admin_only_service: 0 }, items: [], truncated: false };
+  async compat(): Promise<CompatScan> {
+    if (!this.user.can.configure) this.err(403, 'forbidden');
+    return clone({ ...this.compatValue, scanned: this.compatValue.scanned || this.entries.size });
+  }
+  /** Spec / demo helper: two automations and one script with what HA 2026.10 refuses or limits to administrators. */
+  seedCompat(): void {
+    const items: CompatScan['items'] = [
+      { kind: 'automation', id: 'demo-compat-1', entity_id: 'automation.hall_lights_door', name: 'תאורת מסדרון כשהדלת פתוחה', source: 'ui', issues: [{ code: 'state_for_list', path: 'conditions[0]' }] },
+      { kind: 'automation', id: 'demo-compat-2', entity_id: 'automation.boiler_guest_mode', name: 'דוד במצב אורחים', source: 'yaml', issues: [{ code: 'state_for_input_helper', path: 'conditions[1]' }, { code: 'state_for_attribute', path: 'actions[2].if[0]' }] },
+      { kind: 'script', id: 'arm_alarm_mqtt', entity_id: 'script.arm_alarm_mqtt', name: 'דריכת אזעקה', source: 'ui', issues: [{ code: 'admin_only_service', path: 'sequence[0]', service: 'mqtt.publish' }] },
+    ];
+    const counts = { state_for_attribute: 0, state_for_list: 0, state_for_input_helper: 0, admin_only_service: 0 };
+    for (const i of items) for (const x of i.issues) counts[x.code] += 1;
+    this.compatValue = { scanned: 0, mirror_seen_at: this.clock().toISOString(), counts, items, truncated: false };
   }
   async settings(): Promise<AutomationSettings> {
     if (!this.user.can.configure) this.err(403, 'forbidden');

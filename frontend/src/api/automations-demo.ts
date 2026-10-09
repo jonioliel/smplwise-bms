@@ -14,6 +14,7 @@
  *   offline       boolean                                the platform is down but the last list is still served: status `ha_unavailable` + `stale` (the strip over the list)
  *   scheme        'light' | 'dark'                       the device screens' scheme (devices.scheme) for the demo
  *   phoneFilter   'fold' | 'rows'  ·  sensitiveChip 'amber' | 'red'   the two owner display settings
+ *   compat        boolean                                the HA 2026.10 scan finds items (the settings card "תאימות לגרסה 2026.10")
  *
  * `?state=loading` on the address keeps the screens in their loading state (like the schedules list). Nothing here runs with a backend.
  */
@@ -37,6 +38,7 @@ export interface DemoControl {
   scheme?: 'light' | 'dark';
   phoneFilter?: 'fold' | 'rows';
   sensitiveChip?: 'amber' | 'red';
+  compat?: boolean;
 }
 
 export const DEMO_KEY = 'sw.demo.automations';
@@ -68,6 +70,7 @@ export function autoReady(): Promise<void> {
     if (c.available) store.available = c.available;
     if (c.scheduler !== undefined) store.schedulerPresent = c.scheduler;
     if (c.phoneFilter || c.sensitiveChip) store.settingsValue = { ...store.settingsValue, ...(c.phoneFilter ? { phone_filter: c.phoneFilter } : {}), ...(c.sensitiveChip ? { sensitive_chip: c.sensitiveChip } : {}) };
+    if (c.compat) store.seedCompat();
     for (const entity of c.invalid ?? []) { const e = store.entry('automation', store.idOf(entity)); if (e) e.meta.invalid = true; }
     demoClock = store.clock;
     // a spec hook (demo mode only): the evidence specs reach the store to stage a change made outside, an invalid item, a failing write

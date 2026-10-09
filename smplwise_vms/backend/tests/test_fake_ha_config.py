@@ -70,7 +70,7 @@ def test_post_is_an_upsert_stores_the_raw_body_with_id_first_and_reloads_only_th
 
 def test_post_validates_and_answers_message_malformed(fake):
     bad = [
-        ({**NEW, "triggers": [{"trigger": "nonsense"}]}, "Invalid trigger"), ({**NEW, "extra_key": 1}, "extra keys not allowed"), ({**NEW, "mode": "loop"}, "expected one of"),
+        ({**NEW, "triggers": [{"trigger": "nonsense"}]}, "Invalid trigger"), ({**NEW, "extra_key": 1}, "not a valid option at 'extra_key'"), ({**NEW, "mode": "loop"}, "expected one of"),
         ({k: v for k, v in NEW.items() if k != "actions"}, "required key not provided"), ({**NEW, "actions": [{"nothing": 1}]}, "Unable to determine action"),
         ({**NEW, "actions": [{"action": "nodot"}]}, "does not match format"), ({**NEW, "conditions": [{"condition": "nope"}]}, "Invalid condition"),
     ]
@@ -204,3 +204,46 @@ def test_the_fake_round_trips_through_the_model_over_rest(fake):
         out = m.draft_to_config("automation", read.draft, got)
         assert fake.rest("POST", f"/api/config/automation/config/{a['id']}", out)[0] == 200
         assert json.dumps(fake.file_item("automation", a["id"]), ensure_ascii=False) == json.dumps(a, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- HA 2026.10 profile (docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 6)
+
+def _with_for(**cond):
+    return {**NEW, "conditions": [{"condition": "state", "entity_id": ["binary_sensor.door"], "for": {"minutes": 5}, **cond}]}
+
+
+@pytest.mark.parametrize("cond, refused", [
+    ({"state": "on"}, False),
+    ({"state": ["on"]}, False),                       # a one-item list is still one state
+    ({"state": "on", "entity_id": ["binary_sensor.a", "binary_sensor.b"]}, False),  # several entities stay valid
+    ({"state": ["on", "off"]}, True),
+    ({"state": []}, True),
+    ({"state": "on", "attribute": "battery"}, True),
+    ({"state": "input_select.mode"}, True),
+    ({"state": ["input_number.level"]}, True),
+    ({"state": "input_select._bad"}, False),         # not an entity id by HA's own pattern
+])
+def test_the_2026_10_profile_applies_the_for_rule_and_2026_9_does_not(cond, refused):
+    new, old = FakeHaConfig(ha_version="2026.10.1"), FakeHaConfig(ha_version="2026.9.4")
+    body = _with_for(**cond)
+    status, answer = new.rest("POST", "/api/config/automation/config/1727799999990", body)
+    assert (status == 400) is refused, answer
+    if refused:
+        assert answer["message"].startswith("Message malformed: ") and answer["message"].endswith("at 'conditions[0]'")
+    assert old.rest("POST", "/api/config/automation/config/1727799999990", body)[0] == 200, "2026.9 accepts every one of them"
+
+
+def test_the_for_rule_also_holds_for_a_condition_step_and_a_nested_condition():
+    f = FakeHaConfig(ha_version="2026.10.0")
+    bad = {"condition": "state", "entity_id": "binary_sensor.door", "state": ["on", "off"], "for": "00:05:00"}
+    step = {**NEW, "actions": [bad, {"action": "light.turn_on"}]}
+    nested = {**NEW, "conditions": [{"condition": "or", "conditions": [bad]}]}
+    script = {"alias": "x", "sequence": [{"if": [bad], "then": [{"action": "light.turn_on"}]}]}
+    assert f.rest("POST", "/api/config/automation/config/1727799999991", step)[1]["message"].endswith("at 'actions[0]'")
+    assert f.rest("POST", "/api/config/automation/config/1727799999992", nested)[1]["message"].endswith("at 'conditions[0].conditions[0]'")
+    assert f.rest("POST", "/api/config/script/config/x", script)[0] == 400
+
+
+def test_validator_wording_follows_the_profile():
+    assert FakeHaConfig(ha_version="2026.8.3").rest("POST", "/api/config/automation/config/1", {**NEW, "zz": 1})[1]["message"] == "Message malformed: extra keys not allowed @ data['zz']"
+    assert FakeHaConfig(ha_version="2026.9.4").rest("POST", "/api/config/automation/config/1", {**NEW, "zz": 1})[1]["message"] == "Message malformed: not a valid option at 'zz'"

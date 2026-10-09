@@ -264,6 +264,18 @@ def load_structure(conn: sqlite3.Connection, entities: list[dict[str, Any]]) -> 
     return floors, areas
 
 
+TEMPERATURE_UNITS = ("°C", "°F", "K")
+
+
+def temperature_unit(e: dict[str, Any], a: dict[str, Any]) -> str:
+    """The unit of a climate / water_heater temperature: the entity's own `temperature_unit` attribute (added for HA 2026.11,
+    docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 11), else the stored unit, else °C (what HA reported before)."""
+    unit = a.get("temperature_unit")
+    if isinstance(unit, str) and unit.strip() in TEMPERATURE_UNITS:
+        return unit.strip()
+    return e.get("unit") or "°C"
+
+
 def _climate_summary(e: dict[str, Any]) -> dict[str, Any]:
     """CR-007 slice 4: the building/floor "מזגני הקומה" strip - mode + target only, never the full card."""
     a = e.get("attributes") or {}
@@ -275,7 +287,7 @@ def _climate_summary(e: dict[str, Any]) -> dict[str, Any]:
         "hvac_action": a.get("hvac_action") if isinstance(a.get("hvac_action"), str) else None,
         "current_temperature": _num(a.get("current_temperature")),
         "target_temperature": _num(a.get("temperature")),
-        "unit": e.get("unit") or "°C",
+        "unit": temperature_unit(e, a),
         "available": bool(e.get("available")),
     }
 
@@ -419,7 +431,7 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
         else:
             row["current_temperature"] = _num(a.get("current_temperature"))
             row["target_temperature"] = _num(a.get("temperature"))
-            row["unit"] = e.get("unit") or "°C"
+            row["unit"] = temperature_unit(e, a)
     elif card in ("climate", "heating"):
         if e["domain"] == "climate":
             row["climate_kind"] = e.get("climate_kind") or climate_kind_auto(a)
@@ -431,7 +443,7 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
             row["target_temp_high"] = _num(a.get("target_temp_high"))
             row["fan_mode"] = a.get("fan_mode") if isinstance(a.get("fan_mode"), str) else None
             row["preset_mode"] = a.get("preset_mode") if isinstance(a.get("preset_mode"), str) else None
-            row["unit"] = e.get("unit") or "°C"
+            row["unit"] = temperature_unit(e, a)
             # CR-007 slice 2: the controls offer only what this entity reports (its own modes, its own target range)
             row["hvac_modes"] = _str_list(a.get("hvac_modes"))
             row["fan_modes"] = _str_list(a.get("fan_modes"))

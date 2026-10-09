@@ -713,3 +713,40 @@ def test_migration_0052_shape(settings):
             conn.execute("INSERT INTO recorder_connections(recorder_id, vendor, source, updated_at) VALUES ('x', 'dahua', 'ui', 'now')")
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute("INSERT INTO recorder_connections(recorder_id, vendor, http_port, source, updated_at) VALUES ('x', 'hikvision', 0, 'ui', 'now')")
+
+
+# ---------------------------------------------------------------- HA 2026.10: port 80 refused only on the HA host (finding 12)
+
+def test_bare_host_reads_urls_and_host_headers():
+    bare = connection_probe._bare_host
+    assert bare("http://Ha-Box.test:8123/api") == "ha-box.test"
+    assert bare("ha-box.test:80") == "ha-box.test" and bare("ha-box.test.") == "ha-box.test"
+    assert bare("[fd00::1]:8123") == "fd00::1" and bare("fd00::1") == "fd00::1"
+    assert bare("a.test, b.test") == "a.test" and bare("") is None and bare(None) is None
+
+
+def test_ha_host_port_field_refuses_80_only_on_the_ha_host(fake):
+    fake.resolved["ha-box.test"] = [NVR_ADDR]
+    ports80 = {"http_port": 80, "rtsp_port": 554}
+    f = connection_probe.ha_host_port_field
+    assert f("ha-box.test", NVR_ADDR, ports80, {"ha-box.test"}) == "http_port", "by name"
+    assert f("192.0.2.80", NVR_ADDR, ports80, {"ha-box.test"}) == "http_port", "by the address the HA name resolves to"
+    assert f(NVR_HOST, NVR_ADDR, ports80, {"192.0.2.80"}) == "http_port", "an HA literal address"
+    assert f(NVR_HOST, NVR_ADDR, {"http_port": 8080, "rtsp_port": 80}, {"ha-box.test"}) == "rtsp_port"
+    assert f(NVR_HOST, NVR_ADDR, ports80, {"other-ha.test"}) is None, "an NVR on 80 that is not the HA host stays allowed"
+    assert f(NVR_HOST, NVR_ADDR, {"http_port": 8080, "rtsp_port": 554}, {"ha-box.test"}) is None, "other ports on the HA host: unchanged rules"
+    assert f(NVR_HOST, NVR_ADDR, ports80, set()) is None
+
+
+def test_connection_test_refuses_port_80_on_the_ha_host_and_allows_an_nvr_on_80(world, fake, settings):
+    _, c = world
+    fake.resolved["ha-box.test"] = [NVR_ADDR]  # the browser reached the platform at the same address the NVR form names
+    r = c.post(API + "/test", json=GOOD, headers={**as_user("joni"), "X-Forwarded-Host": "ha-box.test:8123"})
+    assert (r.status_code, r.json()["code"], r.json()["details"]) == (422, "port_refused", {"field": "http_port"}), r.text
+    assert fake.hits == [] and fake.writes == [], "nothing is connected on a refusal"
+    assert audit_rows(settings, "nvr.connection.test")[-1]["reason"] == "port_refused"
+    r = c.put(API, json={**GOOD, "if_revision": 0}, headers={**as_user("joni"), "X-Forwarded-Host": "ha-box.test"})
+    assert (r.status_code, r.json()["code"]) == (422, "port_refused")
+    assert rows(settings, "SELECT * FROM recorder_connections") == [], "never saved"
+    r = c.post(API + "/test", json=GOOD, headers={**as_user("joni"), "X-Forwarded-Host": "other-ha.test"})
+    assert r.status_code == 200 and r.json()["code"] == "ok", "an NVR on port 80 is legitimate"

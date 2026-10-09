@@ -2,7 +2,7 @@
 bridge. docs/architecture/AUTOMATIONS_API.md is the contract (section numbers in the comments below).
 
 Reads: `GET /automations/status` (never 403), `/automations`, `/automations/{kind}/{id}`, `/automations/catalog`, `/automations/templates`, `/automations/trash`,
-`/automations/review`, `/automations/{kind}/{id}/runs[/{run_id}]`, `/versions`. Writes: `POST /automations/{kind}` (create), `PUT /automations/{kind}/{id}` (and
+`/automations/review`, `/automations/compat` (HA 2026.10 scan, administrator only), `/automations/{kind}/{id}/runs[/{run_id}]`, `/versions`. Writes: `POST /automations/{kind}` (create), `PUT /automations/{kind}/{id}` (and
 `/code`), `POST .../delete|copy|enable|disable|run|stop|apply|dry-run`, the trash restore / purge, the version restore, `PUT .../meta`, and `POST /automations/preview`
 and `/automations/scene/capture` (data, never a write).
 
@@ -27,6 +27,7 @@ from ..services import automation_runs as runs
 from ..services import automation_scope as scope
 from ..services import automation_view as view
 from ..services import automations as store
+from ..services import ha_compat
 
 router = APIRouter()
 
@@ -314,6 +315,16 @@ def purge_trash(trash_id: str, request: Request, principal: Principal = Depends(
 def review(request: Request, principal: Principal = Depends(_auto_gate), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """§3.1 row 22 - the administrator's review list (installation-wide automation.manage)."""
     return runs.review(_ctx(request, conn, principal))
+
+
+@router.get("/automations/compat")
+def compat(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """HA 2026.10 compatibility scan of the mirrored automations and scripts (read-only, system.configure).
+
+    docs/operations/HA_2026_10_COMPATIBILITY_HE.md plan row 4: never a call to Home Assistant, never a write. The settings
+    screen's administrator (`system.configure`, installation scope) only."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return ha_compat.scan(conn)
 
 
 @router.post("/automations/preview")

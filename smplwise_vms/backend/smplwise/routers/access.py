@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, get_conn, normalize_username, settings_of
 from ..db import set_setting, bump_permission_revision, get_setting, new_id, now_iso, permission_revision, unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLE_NAMES_HE, ROLES, Principal, all_roles, authorize, camera_floors, effective_permissions, permissions_anywhere, require, role_permissions, scope_name
@@ -960,8 +960,12 @@ def list_audit(
     elif channel == "local":
         sql += f" AND NOT {remote_row}"
     if actor:
-        sql += " AND actor_username = ?"
-        args.append(actor)
+        # HA 2026.10 normalises usernames (strip + casefold, core#175613): "Joni" finds the rows written as "joni" before
+        # or after a rename. SQLite's LOWER() is ASCII-only, so the same Python normalisation runs on both sides.
+        # A name that is empty once normalised matches nothing (never the rows without an actor).
+        conn.create_function("sw_username_norm", 1, normalize_username, deterministic=True)
+        sql += " AND actor_username IS NOT NULL AND sw_username_norm(actor_username) = ?"
+        args.append(normalize_username(actor) or "\x00")
     if resource_id:
         sql += " AND resource_id = ?"
         args.append(resource_id)

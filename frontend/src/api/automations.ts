@@ -216,6 +216,17 @@ export const REVIEW_LABEL: Record<ReviewIssue, string> = {
   sensitive_external: 'פעולה רגישה שונתה מחוץ למערכת', storm: 'רצה בתדירות חריגה', invalid: 'שגיאה בהגדרה', missing_entity: 'מכשיר חסר',
   owner_lost_rights: 'ליוצר אין עוד הרשאה', masked_values: 'ערכים חסויים', delegated_write: 'נשמרה בהאצלה', not_loaded: 'לא נטענה',
 };
+/** HA 2026.10 compatibility scan (§3.1 row 24, `GET /automations/compat`, `system.configure`): read-only over the mirror. */
+export type CompatCode = 'state_for_attribute' | 'state_for_list' | 'state_for_input_helper' | 'admin_only_service';
+export interface CompatIssue { code: CompatCode; path: string; service?: string }
+export interface CompatItem { kind: ItemKind; id: string; entity_id: string | null; name: string; source: string; issues: CompatIssue[] }
+export interface CompatScan { scanned: number; mirror_seen_at: string | null; counts: Record<CompatCode, number>; items: CompatItem[]; truncated: boolean }
+export const COMPAT_LABEL: Record<CompatCode, string> = {
+  state_for_attribute: '"במשך" עם מאפיין',
+  state_for_list: '"במשך" עם כמה מצבים',
+  state_for_input_helper: '"במשך" עם מצב מעזר קלט',
+  admin_only_service: 'הפעלה ידנית למנהל בלבד',
+};
 /** What a create / replace / code-save answers (§3.2): 200/201 `{item, op_id}`, 202 `{status: "not_loaded"}`. */
 export type WriteResult = { item: ItemDetail; op_id: string; status?: undefined } | { status: 'not_loaded'; op_id: string; item?: ItemDetail };
 export interface WriteBody { confirm?: boolean; client_request_id: string }
@@ -299,7 +310,7 @@ export function automationSettingsPatch(from: AutomationSettings, to: Automation
 // ------------------------------------------------------------------------------------------------ errors (§3.3)
 
 export type AutomationErrorCode =
-  | 'forbidden' | 'entity_not_controllable' | 'grant_required' | 'code_view_required' | 'locked_block_changed' | 'delegation_off' | 'not_ha_admin'
+  | 'forbidden' | 'entity_not_controllable' | 'grant_required' | 'code_view_required' | 'locked_block_changed' | 'delegation_off' | 'not_ha_admin' | 'requires_ha_admin'
   | 'item_not_found' | 'trash_not_found' | 'item_changed' | 'confirmation_required' | 'feature_disabled' | 'validation' | 'ha_validation'
   | 'action_not_allowed' | 'code_not_allowed' | 'not_editable' | 'masked_values' | 'rate_limited' | 'run_too_soon' | 'config_refused'
   | 'config_api_unavailable' | 'ha_unavailable' | 'bridge_not_paired' | 'bridge_too_old' | 'config_timeout';
@@ -313,6 +324,7 @@ export const AUTOMATION_ERROR_LABEL: Record<AutomationErrorCode, string> = {
   locked_block_changed: 'חלק נעול שונה. אפשר לשנות אותו רק בתצוגת הקוד.',
   delegation_off: 'שמירה עבור משתמש זה אינה מופעלת. פנו למנהל המערכת.',
   not_ha_admin: 'שמירת תוכן זה דורשת מנהל של תשתית המערכת.',
+  requires_ha_admin: 'ההפעלה נדחתה: אחד הצעדים דורש מנהל של תשתית המערכת.',
   item_not_found: 'הפריט לא נמצא.',
   trash_not_found: 'הפריט אינו בסל המחזור (ייתכן שפג תוקפו).',
   item_changed: 'הפריט שונה במקום אחר. טענו את הגרסה העדכנית והחליטו מה לשמור.',
@@ -349,7 +361,7 @@ export interface AutomationFailure {
 }
 
 const KIND_OF: Record<string, FailureKind> = {
-  forbidden: 'forbidden', entity_not_controllable: 'forbidden', grant_required: 'forbidden', delegation_off: 'forbidden', not_ha_admin: 'forbidden',
+  forbidden: 'forbidden', entity_not_controllable: 'forbidden', grant_required: 'forbidden', delegation_off: 'forbidden', not_ha_admin: 'forbidden', requires_ha_admin: 'forbidden',
   code_view_required: 'locked', locked_block_changed: 'locked', masked_values: 'locked', not_editable: 'locked', code_not_allowed: 'validation',
   item_not_found: 'not_found', trash_not_found: 'not_found', item_changed: 'conflict', confirmation_required: 'confirm', feature_disabled: 'unavailable',
   validation: 'validation', ha_validation: 'validation', action_not_allowed: 'validation', rate_limited: 'rate', run_too_soon: 'rate',
@@ -432,6 +444,7 @@ export interface AutomationsAdapter {
   purgeTrash(trashId: string): Promise<{ ok: true }>;
   setMeta(kind: ItemKind, id: string, patch: MetaPatch): Promise<Item>;
   review(): Promise<ReviewRow[]>;
+  compat(): Promise<CompatScan>;
   settings(): Promise<AutomationSettings>;
   saveSettings(next: AutomationSettings, from?: AutomationSettings): Promise<AutomationSettings>;
 }
@@ -484,6 +497,7 @@ export const httpAutomations: AutomationsAdapter = {
   purgeTrash: (tid) => post(`automations/trash/${enc(tid)}/purge`, {}),
   setMeta: (kind, id, p) => put(`${base(kind, id)}/meta`, p),
   review: async () => rows<ReviewRow>(await get<unknown>('automations/review'), 'items', 'review'),
+  compat: () => get('automations/compat'),
   settings: async () => automationSettingsOf((await get<{ settings: Record<string, unknown> }>('settings')).settings),
   saveSettings: async (next, from) => {
     const body = automationSettingsPatch(from ?? (await httpAutomations.settings()), next);

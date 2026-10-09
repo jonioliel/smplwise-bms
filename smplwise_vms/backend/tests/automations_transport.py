@@ -55,7 +55,7 @@ class FakeTransport:
 
     The bridge side: `admins` = the HA users (ids as the directory pushes them) that are HA administrators, `delegated` = the options-flow switch,
     `allowed[user]` = the entities that non-administrator may control (absent / None = all), `fail_next["timeout"]` = the next bridge call times out
-    before anything is applied. `bridge_calls` records every message the add-on signed (without the signature fields)."""
+    before anything is applied, `fail_next["answer"]` = the next bridge answer as given (nothing applied). `bridge_calls` records every message the add-on signed (without the signature fields)."""
 
     def __init__(self, fake: FakeHaConfig, secret: str) -> None:
         self.fake, self.secret = fake, secret
@@ -88,6 +88,9 @@ class FakeTransport:
         self.bridge_calls.append({k: v for k, v in payload.items() if k not in ("sig", "nonce", "ts")})
         if self.fail_next.pop("timeout", None):
             raise ApiError(504, "config_timeout", "תשתית המערכת לא ענתה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף.")
+        answer = self.fail_next.pop("answer", None)  # `fail_next["answer"]` = the bridge's next answer, verbatim (nothing applied)
+        if answer is not None:
+            return answer
         uid = payload.get("user_id")
         hass = self.fake.bridge_hass()
         hass.write_files()  # the files are the fake's lists as they are now (a test may have edited them outside the bridge)
