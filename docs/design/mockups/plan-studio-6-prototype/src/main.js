@@ -17,6 +17,7 @@ import { pointInPolygon, polygonCentroid } from './geometry.js';
 import { DEMO_HOUSE } from './data/demo-house.js';
 import { FIXTURE_SAMPLE_V2 } from './data/fixture-sample-v2.generated.js';
 import { STYLES, defaultStyleFor } from './style.js';
+import { ModelLibrary } from './models.js';
 
 const QUALITY_HE = { 3: 'ריאליסטי', 2: 'מלא', 1: 'סכמטי', 0: 'תמונות מוכנות' };
 const LITE_HE = 'ריאליסטי קל';
@@ -58,6 +59,9 @@ class App {
     this.hudOn = /[?&]hud/.test(location.search); // plan L9: no debug HUD on an operator screen; developer toggle
     this.planScene._reflector = { Reflector };
     this.env.scene.add(this.planScene.root);
+    // real-model furniture path (owner Q10): lazy glTF by item id, palette slots, per-item fallback; ?testmodels serves
+    // the in-code stand-in for every manifest id so the path is verified before any file is downloaded
+    this.planScene.models = new ModelLibrary(this.lib, { onLoaded: () => { this.rebuild(); this.makeThumbs(); }, testModel: /[?&]testmodels/.test(location.search) });
     this.baker = new StillsBaker(this.env, this.planScene);
     this.quality = 3;
     this.lite = false;
@@ -67,6 +71,10 @@ class App {
     // reflections (a planar Reflector = a second full scene pass incl. the glass transmission pass) measured +116 ms per
     // frame on an Intel UHD 630 - off by default, a toggle in the quality panel; lamp shadows likewise (2 x 6 passes)
     this.opts = { reflections: false, ao: true, bloom: true, lampShadows: false, autoLadder: true, dprCap: 1.25, idleS: IDLE_DEFAULT_S, pointerLock: false };
+    // the settings the product port must expose (owner answers Q3 / Q5 / Q7 / Q9 / Q10 / Q11); per browser here
+    this.settings = Object.assign({ eyeHeight: EYE_M, mouseMode: 'drag', furnitureMode: 'procedural', defaultView: 'schematic', wallDisplay: 'live', timeSource: 'clock', showTemps: false, sectionCut: true, motion: true }, (() => { try { return JSON.parse(localStorage.getItem('studio6.settings') || '{}'); } catch { return {}; } })());
+    this.tween = null;
+    this.planScene.furnitureMode = this.settings.furnitureMode;
     this.fps = { ema: 0, ms: 0, frames: 0, last: performance.now(), window: [] };
     this.needsFrame = true;
     this.continuous = false;
@@ -109,7 +117,7 @@ class App {
   }
   /** The section cut (plan L6): orbit views cut the top visible level at style.cut.fraction of its ceiling; the walk never cuts. */
   applyCut() {
-    if (this.mode !== 'orbit' || this.quality < 2 || !this.plan) { this.planScene.setCut(null); return; }
+    if (this.mode !== 'orbit' || this.quality < 2 || !this.plan || !this.settings.sectionCut) { this.planScene.setCut(null); return; }
     const ids = this.plan.doc.levels.map((l) => l.id);
     const top = this.levelMode === 'all' || !this.levelMode ? ids[ids.length - 1] : this.levelMode;
     const L = this.planScene.levels[top];
@@ -138,7 +146,32 @@ class App {
     c.addEventListener('start', () => this.userInput());
     this.controls = c;
   }
-  fitCamera(preset) {
+  saveSettings() { try { localStorage.setItem('studio6.settings', JSON.stringify(this.settings)); } catch { /* ignore */ } }
+  /** Eased camera move (plan L11): same camera type -> 500 ms tween of position / target / ortho zoom; type change -> cross-fade. */
+  fitCamera(preset, animate = this.settings.motion && !!this.plan && this.mode === 'orbit') {
+    const before = this.camera && this.controls ? { cam: this.camera, pos: this.camera.position.clone(), target: this.controls.target.clone(), half: this.ortho.top } : null;
+    this.fitCameraNow(preset);
+    if (!animate || !before) return;
+    if (before.cam !== this.camera) { this.flash(0.6); return; }
+    const to = { pos: this.camera.position.clone(), target: this.controls.target.clone(), half: this.ortho.top };
+    const cam = this.camera, ctl = this.controls, aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
+    this.tween = { t0: performance.now(), ms: 520, step: (k) => {
+      cam.position.lerpVectors(before.pos, to.pos, k);
+      ctl.target.lerpVectors(before.target, to.target, k);
+      if (cam === this.ortho) { const h = before.half + (to.half - before.half) * k; cam.left = -h * aspect; cam.right = h * aspect; cam.top = h; cam.bottom = -h; cam.updateProjectionMatrix(); }
+      ctl.update();
+    } };
+    ctl.enabled = false;
+  }
+  /** A quick dark flash for cuts the tween cannot bridge (camera type change, floor change). */
+  flash(max = 0.5) {
+    if (!this.settings.motion) return;
+    const f = $('fade');
+    f.style.transition = 'opacity .12s';
+    f.style.opacity = String(max);
+    setTimeout(() => { f.style.transition = 'opacity .28s cubic-bezier(.2,.7,.2,1)'; f.style.opacity = '0'; }, 130);
+  }
+  fitCameraNow(preset) {
     this.preset = preset;
     const ext = this.visibleExtent();
     const cx = (ext.minX + ext.maxX) / 2, cz = (ext.minZ + ext.maxZ) / 2;
@@ -301,13 +334,22 @@ class App {
       this.renderLadder();
     }
   }
-  setNote(text, danger = false) {
+  /** A short bottom toast (clean operator screens: short confirmations, nothing permanent over the scene). */
+  setNote(text, danger = false, holdMs = 6000) {
     const n = $('note');
     n.hidden = !text;
     n.textContent = text || '';
     n.classList.toggle('danger', danger);
+    clearTimeout(this._noteT);
+    if (text && !danger && holdMs > 0) this._noteT = setTimeout(() => { n.hidden = true; }, holdMs);
   }
-  toast(text) { this.setNote(text); clearTimeout(this._toast); this._toast = setTimeout(() => this.setNote(''), 3500); }
+  toast(text) { this.setNote(text, false, 3500); }
+  toOrbit(preset) {
+    if (this.mode === 'walk') { this.orbitState = { ...(this.orbitState || {}), preset }; this.exitWalk(); return; }
+    if (this.mode === 'stills') this.exitStills(true);
+    this.fitCamera(preset);
+    this.renderBar();
+  }
 
   // ------------------------------------------------------------------ UI
   bindUI() {
@@ -339,6 +381,14 @@ class App {
       document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('sel', p.dataset.panel === b.dataset.tab));
     }));
     $('mobile-toggle').addEventListener('click', () => $('aside').classList.toggle('open'));
+    $('sheet-handle').addEventListener('click', () => $('aside').classList.remove('open'));
+    $('sun-row').addEventListener('click', (e) => { if (e.target.id === 'sun-now') return; $('sun-card').classList.toggle('open'); });
+    $('labels').classList.toggle('temps', !!this.settings.showTemps);
+    // phone walk: three floating buttons - exit, next saved position, panel (plan L10)
+    const fabs = $('fabs');
+    const fab = (txt, title, fn, cls = '') => { const b = el('button', 'fab ' + cls, txt); b.title = title; b.addEventListener('click', fn); fabs.insertBefore(b, fabs.firstChild); return b; };
+    this.fabExit = fab('✕', 'יציאה מהסיור', () => this.exitWalk(), 'walk-only');
+    this.fabPos = fab('⤼', 'העמדה השמורה הבאה', () => { if (!this.savedPositions.length) return; this.posIdx = ((this.posIdx ?? -1) + 1) % this.savedPositions.length; this.gotoPosition(this.savedPositions[this.posIdx]); }, 'walk-only');
     $('kiosk-exit').addEventListener('click', (e) => { e.preventDefault(); this.exitStills(true); });
     this.renderBar();
     this.bindStageInput();
@@ -352,21 +402,24 @@ class App {
     $('sun-info').textContent = sp ? `${sp.elevation > 0 ? `שמש מ${dir} · גובה ${sp.elevation.toFixed(0)}°` : 'לילה · השמש מתחת לאופק'} · ${dateLabel(t.day)} · צפון התוכנית ${t.north}° · ${w ? w[1] : ''}` : '';
     document.querySelectorAll('#weather .chip[data-w]').forEach((c) => c.classList.toggle('sel', c.dataset.w === t.weather));
   }
+  /** The floating view bar (plan L9): three views, the walk, one quality dropdown - nothing else over the scene. */
   renderBar() {
     const bar = $('bar');
     bar.innerHTML = '';
     if (!this.plan) return;
-    const chip = (text, sel, fn, opts = {}) => { const c = el('button', 'chip' + (sel ? ' sel' : ''), text); if (opts.disabled) c.disabled = true; c.addEventListener('click', fn); bar.appendChild(c); return c; };
-    const levels = this.plan.doc.levels;
+    const chip = (text, sel, fn, title) => { const c = el('button', 'chip' + (sel ? ' sel' : ''), text); if (title) c.title = title; c.addEventListener('click', fn); bar.appendChild(c); return c; };
     chip('מלמעלה', this.preset === 'top' && this.mode === 'orbit', () => this.toOrbit('top'));
     chip('איזומטרי', this.preset === 'iso' && this.mode === 'orbit', () => this.toOrbit('iso'));
     chip('פרספקטיבה', this.preset === 'persp' && this.mode === 'orbit', () => this.toOrbit('persp'));
-    for (const c of this.planScene.cameras) chip(`מבט מ${c.label.replace('מצלמה · ', '')}`, false, () => this.standAtCamera(c));
     bar.appendChild(el('span', 'sep'));
-    chip('🚶 סיור', this.mode === 'walk', () => (this.mode === 'walk' ? this.exitWalk() : this.enterWalk()));
+    chip('סיור', this.mode === 'walk', () => (this.mode === 'walk' ? this.exitWalk() : this.enterWalk()), 'סיור בגובה עין');
     bar.appendChild(el('span', 'sep'));
-    for (const [q, lite] of RUNGS) chip(q === 3 && lite ? LITE_HE : QUALITY_HE[q], this.quality === q && this.lite === lite, () => this.setQuality(q, null, lite), { disabled: q === 0 && !this.bakes[this.currentLevelId()] });
-    void levels;
+    const q = document.createElement('select');
+    q.className = 'chip';
+    q.setAttribute('aria-label', 'איכות');
+    for (const [qq, lite] of RUNGS) { const o = el('option', '', qq === 3 && lite ? LITE_HE : QUALITY_HE[qq]); o.value = `${qq}|${lite ? 1 : 0}`; if (qq === 0 && !this.bakes[this.currentLevelId()]) o.disabled = true; if (this.quality === qq && this.lite === lite) o.selected = true; q.appendChild(o); }
+    q.addEventListener('change', () => { const [qq, l] = q.value.split('|'); this.setQuality(+qq, null, l === '1'); });
+    bar.appendChild(q);
   }
   buildStrip() {
     const strip = $('strip');
@@ -389,7 +442,7 @@ class App {
       pic.appendChild(dots);
       b.appendChild(pic);
       b.appendChild(document.createTextNode(name));
-      b.addEventListener('click', () => { if (this.mode === 'walk') return; this.setLevelMode(id); this.fitCamera(this.preset); });
+      b.addEventListener('click', () => { if (this.mode === 'walk' || this.levelMode === id) return; this.flash(0.45); this.setLevelMode(id); this.fitCamera(this.preset); });
       strip.appendChild(b);
     };
     for (const l of levels) mk(l.id, l.name);
@@ -447,23 +500,33 @@ class App {
     scene('סגור הכול', () => this.setMany((k) => k.startsWith('binary_sensor.') && k.endsWith('_door'), 'off'));
     scenes.appendChild(row);
     host.appendChild(scenes);
+    // the floors / areas tree (owner rule: survives every design): one collapsible card per floor, rooms inside
+    this.treeCollapsed = this.treeCollapsed || {};
     for (const lv of this.plan.doc.levels) {
-      const card = el('div', 'pcard');
-      const h = el('h3', '', lv.name);
+      const card = el('div', 'pcard tree' + (this.treeCollapsed[lv.id] ? ' collapsed' : ''));
+      const h = el('h3');
+      h.appendChild(el('span', 'tw', '▼'));
+      h.appendChild(document.createTextNode(lv.name));
       h.appendChild(el('span', 'muted', `מפלס ${lv.elevation_m.toFixed(1)} מ׳`));
+      h.addEventListener('click', () => { this.treeCollapsed[lv.id] = !this.treeCollapsed[lv.id]; card.classList.toggle('collapsed', this.treeCollapsed[lv.id]); });
       card.appendChild(h);
+      const body = el('div', 'body');
+      card.appendChild(body);
       const zones = this.plan.zones.filter((z) => z.level_id === lv.id);
-      if (!zones.length) card.appendChild(el('div', 'help', 'אין חדרים מוגדרים בקובץ זה — המצבים מתוך הישויות בלבד.'));
+      if (!zones.length) body.appendChild(el('div', 'help', 'אין חדרים מוגדרים בקובץ זה — המצבים מתוך הישויות בלבד.'));
       for (const z of zones) {
         const r = el('div', 'room');
         const n = el('div', 'name', z.name);
         if (z.x_proto && typeof z.x_proto.temp === 'number') n.appendChild(el('span', 't', `${z.x_proto.temp.toFixed(1)}°`));
+        n.style.cursor = 'pointer';
+        n.title = 'עמוד בחדר';
+        n.addEventListener('click', () => { const L = this.planScene.levels[lv.id]; const zz = L && L.zones.find((x) => x.id === z.id); if (zz) this.standInRoom(L, zz); });
         r.appendChild(n);
         const xp = z.x_proto || {};
         if (xp.light) { const d = el('div', 'dev'); d.appendChild(el('span', 'lbl2', names[xp.light] || xp.light)); d.appendChild(sw(xp.light)); r.appendChild(d); }
         for (const l of this.planScene.lamps.filter((l) => l.level === lv.id && l.entity !== xp.light && this.lampInZone(l, z))) { const d = el('div', 'dev'); d.appendChild(el('span', 'lbl2', names[l.entity] || l.entity)); d.appendChild(sw(l.entity)); r.appendChild(d); }
         if (xp.presence) { const d = el('div', 'dev'); d.appendChild(el('span', 'lbl2', names[xp.presence] || xp.presence)); const b = el('button', 'btn sm', 'דמה תנועה'); b.addEventListener('click', () => this.pulsePresence(xp.presence)); d.appendChild(b); d.appendChild(sw(xp.presence, '')); r.appendChild(d); }
-        card.appendChild(r);
+        body.appendChild(r);
       }
       host.appendChild(card);
     }
@@ -534,15 +597,16 @@ class App {
     const tg = el('div', 'toggles');
     tg.style.marginTop = '8px';
     const eye = document.createElement('input');
-    eye.type = 'range'; eye.min = 1.2; eye.max = 2.0; eye.step = 0.05; eye.value = EYE_M; eye.className = 'pos';
+    eye.type = 'range'; eye.min = 1.2; eye.max = 2.0; eye.step = 0.05; eye.value = this.settings.eyeHeight; eye.className = 'pos';
     const eyeL = el('span', '', `גובה עין ${(+eye.value).toFixed(2)} מ׳`);
-    eye.addEventListener('input', () => { eyeL.textContent = `גובה עין ${(+eye.value).toFixed(2)} מ׳`; if (this.walk) { this.walk.eye = +eye.value; this.invalidate(); } });
+    eye.addEventListener('input', () => { eyeL.textContent = `גובה עין ${(+eye.value).toFixed(2)} מ׳`; this.settings.eyeHeight = +eye.value; this.saveSettings(); if (this.walk) { this.walk.eyeTarget = +eye.value; this.invalidate(); } });
     tg.appendChild(eyeL); tg.appendChild(eye);
-    const pl = el('button', 'btn sm', 'נעילת סמן (אופציונלי)');
-    pl.addEventListener('click', () => this.requestPointerLock());
-    tg.appendChild(el('span', '', 'מבט בעכבר: גרירה (ברירת מחדל)')); tg.appendChild(pl);
+    const mm = document.createElement('select');
+    mm.className = 'inline';
+    for (const [v, t] of [['drag', 'גרירה'], ['lock', 'נעילת סמן'], ['auto', 'אוטומטי']]) { const o = el('option', '', t); o.value = v; if (v === this.settings.mouseMode) o.selected = true; mm.appendChild(o); }
+    mm.addEventListener('change', () => { this.settings.mouseMode = mm.value; this.saveSettings(); if (document.pointerLockElement) document.exitPointerLock(); });
+    tg.appendChild(el('span', '', 'מבט בעכבר')); tg.appendChild(mm);
     c1.appendChild(tg);
-    c1.appendChild(Object.assign(el('div', 'help'), { innerHTML: '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / חיצים — הליכה · <kbd>Shift</kbd> ריצה · <kbd>Q</kbd><kbd>E</kbd> סיבוב · גרירת עכבר — מבט · לחיצה על הרצפה — הליכה לנקודה · <kbd>Enter</kbd> פעולה על ההתקן שבכוונת · <kbd>1</kbd>–<kbd>9</kbd> עמדות שמורות · <kbd>Esc</kbd> יציאה · מגע: ג׳ויסטיק משמאל, גרירה מימין, הקשה — הליכה' }));
     host.appendChild(c1);
     const c2 = el('div', 'pcard');
     c2.appendChild(el('h3', '', 'עמדות שמורות'));
@@ -569,29 +633,51 @@ class App {
   buildQualityPanel() {
     const host = $('panel-quality');
     host.innerHTML = '';
-    const c1 = el('div', 'pcard');
-    c1.appendChild(el('h3', '', 'סולם האיכות'));
+    // ---- the settings list the product port must expose (owner answers; clean operator screens: management here only)
+    const s0 = el('div', 'pcard');
+    s0.appendChild(el('h3', '', 'תצוגה'));
+    const st = el('div', 'toggles');
+    const sel = (key, label, options, fn) => { const s = document.createElement('select'); s.className = 'inline'; for (const [v, t] of options) { const o = el('option', '', t); o.value = v; if (String(v) === String(this.settings[key])) o.selected = true; s.appendChild(o); } s.addEventListener('change', () => { this.settings[key] = s.value; this.saveSettings(); fn && fn(s.value); }); st.appendChild(el('span', '', label)); st.appendChild(s); return s; };
+    const tog = (key, label, fn) => { const b = el('button', 'sw' + (this.settings[key] ? ' on' : '')); b.addEventListener('click', () => { this.settings[key] = !this.settings[key]; b.classList.toggle('on', this.settings[key]); this.saveSettings(); fn && fn(this.settings[key]); }); st.appendChild(el('span', '', label)); st.appendChild(b); };
+    sel('defaultView', 'תצוגה בכניסה (לכולם: סכמטי)', [['schematic', 'סכמטי'], ['realistic', 'ריאליסטי']]);
+    sel('wallDisplay', 'תצוגת קיר', [['live', 'תלת־ממד חי'], ['stills', 'תמונה מוכנה']]);
+    sel('furnitureMode', 'ריהוט', [['procedural', 'מובנה (פרוצדורלי)'], ['models', 'מודלים (כשקיימים)']], (v) => { this.planScene.furnitureMode = v; this.rebuild(); this.makeThumbs(); });
+    sel('timeSource', 'שעה ביום', [['clock', 'שעון האתר'], ['manual', 'ידני (המחוון)']], (v) => { if (v === 'clock') $('sun-now').click(); });
+    tog('sectionCut', 'חתך קומה במבטי המעוף', () => this.applyCut());
+    tog('showTemps', 'טמפרטורה על כל חדר', (v) => $('labels').classList.toggle('temps', v));
+    tog('motion', 'מעברים מונפשים');
+    s0.appendChild(st);
+    host.appendChild(s0);
+    const c1 = el('div', 'pcard tree collapsed');
+    const h1 = el('h3'); h1.appendChild(el('span', 'tw', '▼')); h1.appendChild(document.createTextNode('איכות וביצועים'));
+    h1.addEventListener('click', () => c1.classList.toggle('collapsed'));
+    c1.appendChild(h1);
+    const b1 = el('div', 'body');
+    c1.appendChild(b1);
     this.ladderEl = el('div', 'ladder');
-    c1.appendChild(this.ladderEl);
-    c1.appendChild(el('div', 'help', `נמדד ${PROBE_MS / 1000} שניות אחרי 3 פריימים; מתחת ל־${MIN_FPS} fps יורדים שלב ונשארים שם להמשך ההפעלה. בחירה ידנית מודדת מחדש.`));
+    b1.appendChild(this.ladderEl);
+    b1.appendChild(el('div', 'help', `נמדד ${PROBE_MS / 1000} שניות אחרי 3 פריימים; מתחת ל־${MIN_FPS} fps יורדים שלב ונשארים שם להמשך ההפעלה. בחירה ידנית מודדת מחדש.`));
     const tg = el('div', 'toggles');
     const opt = (key, label, fn) => { const b = el('button', 'sw' + (this.opts[key] ? ' on' : '')); b.addEventListener('click', () => { this.opts[key] = !this.opts[key]; b.classList.toggle('on', this.opts[key]); (fn || (() => this.rebuild()))(); }); tg.appendChild(el('span', '', label)); tg.appendChild(b); };
     opt('autoLadder', 'ירידה אוטומטית ברמה', () => {});
-    opt('reflections', 'השתקפות רצפה (ריאליסטי · יקר: מעבר שני של כל הסצנה)');
+    opt('reflections', 'השתקפות רצפה (ריאליסטי · יקר)');
     opt('ao', 'חסימת סביבה GTAO (ריאליסטי)', () => { this.env.post.ao = this.opts.ao; this.env.buildComposer(this.camera); this.invalidate(); });
     opt('bloom', 'זוהר מנורות (bloom)', () => { this.env.post.bloom = this.opts.bloom; this.env.buildComposer(this.camera); this.invalidate(); });
     opt('lampShadows', 'צללים ממנורות (2 הקרובות)');
-    c1.appendChild(tg);
+    const hudB = el('button', 'sw' + (this.hudOn ? ' on' : ''));
+    hudB.addEventListener('click', () => { this.hudOn = !this.hudOn; hudB.classList.toggle('on', this.hudOn); $('hud').classList.toggle('on', this.hudOn); });
+    tg.appendChild(el('span', '', 'נתוני ביצועים על המסך (למפתחים)')); tg.appendChild(hudB);
+    b1.appendChild(tg);
     const dprRow = el('div', 'toggles');
     const dpr = document.createElement('select');
+    dpr.className = 'inline';
     for (const v of [1, 1.25, 1.5, 2]) { const o = el('option', '', `עד ${v}×`); o.value = v; if (v === this.opts.dprCap) o.selected = true; dpr.appendChild(o); }
     dpr.addEventListener('change', () => { this.opts.dprCap = +dpr.value; this.resize(); });
     dprRow.appendChild(el('span', '', 'יחס פיקסלים')); dprRow.appendChild(dpr);
-    c1.appendChild(dprRow);
+    b1.appendChild(dprRow);
     host.appendChild(c1);
     const c2 = el('div', 'pcard');
-    c2.appendChild(el('h3', '', 'תמונות מוכנות ומצב קיוסק'));
-    c2.appendChild(el('div', 'help', 'אפייה בדפדפן: 4 תמונות לקומה (יום/לילה × כבוי/דולק) במבט איזומטרי + מסכות SVG לכל חדר מאותה מטריצת מצלמה. מצב קיוסק: אפס פריימים, התמונה הדולקת נחשפת לפי המסכה של החדר.'));
+    c2.appendChild(el('h3', '', 'תמונות מוכנות לתצוגת קיר'));
     const bake = el('button', 'btn primary', 'הכן תמונות לקומה הנוכחית');
     const prog = el('div', 'progress'); const bar = el('i'); prog.appendChild(bar);
     bake.addEventListener('click', () => this.bakeCurrent(bake, bar));
@@ -602,20 +688,17 @@ class App {
     c2.appendChild(bakeAll);
     const idle = el('div', 'toggles');
     idle.style.marginTop = '8px';
-    const sel = document.createElement('select');
-    for (const [v, t] of [[0, 'כבוי'], [10, '10 ש׳'], [30, '30 ש׳'], [120, '2 דק׳'], [600, '10 דק׳']]) { const o = el('option', '', t); o.value = v; if (v === this.opts.idleS) o.selected = true; sel.appendChild(o); }
-    sel.addEventListener('change', () => { this.opts.idleS = +sel.value; });
-    idle.appendChild(el('span', '', 'מעבר לתמונה אחרי חוסר פעילות')); idle.appendChild(sel);
+    const idleSel = document.createElement('select');
+    idleSel.className = 'inline';
+    for (const [v, t] of [[0, 'כבוי'], [10, '10 ש׳'], [30, '30 ש׳'], [120, '2 דק׳'], [600, '10 דק׳']]) { const o = el('option', '', t); o.value = v; if (v === this.opts.idleS) o.selected = true; idleSel.appendChild(o); }
+    idleSel.addEventListener('change', () => { this.opts.idleS = +idleSel.value; });
+    idle.appendChild(el('span', '', 'מעבר לתמונה אחרי חוסר פעילות')); idle.appendChild(idleSel);
     c2.appendChild(idle);
     const show = el('button', 'btn sm', 'הצג תמונות מוכנות עכשיו');
     show.style.marginTop = '6px';
     show.addEventListener('click', () => this.setQuality(0));
     c2.appendChild(show);
     host.appendChild(c2);
-    const c3 = el('div', 'pcard');
-    c3.appendChild(el('h3', '', 'מה המדידה אומרת'));
-    c3.appendChild(el('div', 'help', 'ה־HUD בפינה מראה fps, זמן פריים, קריאות ציור, משולשים, טקסטורות וזיכרון JS מתוך three.js ומהדפדפן. שורת ה־GPU מזהה SwiftShader (רינדור תוכנה) — מספרים ממנו אינם מספרי GPU אמיתי.'));
-    host.appendChild(c3);
     this.renderLadder();
   }
   renderLadder() {
@@ -711,7 +794,9 @@ class App {
     this.orbitState = { camera: this.camera, preset: this.preset, levelMode: this.levelMode };
     if (!this.walk) { this.walk = new WalkController(this.planScene); this.walk.onLevelChange = (id) => this.onWalkLevel(id); }
     this.walk.scene = this.planScene;
-    this.walk.eye = +(document.querySelector('#panel-walk input[type=range]') || { value: EYE_M }).value;
+    this.walk.eye = this.settings.eyeHeight;
+    this.walk.eyeTarget = this.settings.eyeHeight;
+    const fromCam = this.camera && this.camera !== this.walkCam ? { pos: this.camera.position.clone(), quat: this.camera.quaternion.clone() } : null;
     const def = this.savedPositions.find((p) => p.is_default) || this.savedPositions[0];
     if (def) this.gotoPosition(def, true);
     else {
@@ -720,9 +805,21 @@ class App {
       const c = z ? polygonCentroid(z.polyM) : [(L.extent.minX + L.extent.maxX) / 2, (L.extent.minZ + L.extent.maxZ) / 2];
       this.walk.placeAt(c[0], c[1], 0, L.id);
     }
-    this.walkCam.fov = this.touch ? 70 : 62;
+    // FOV per device (plan P5): 62 on a desktop, 70 on a touch device, 76 in portrait (the room must still read)
+    const portrait = this.canvas.clientHeight > this.canvas.clientWidth;
+    this.walkCam.fov = portrait ? 76 : this.touch ? 70 : 62;
+    this.walkCam.near = 0.06;
     this.walkCam.updateProjectionMatrix();
     this.camera = this.walkCam;
+    // fly-down into the eye position (plan L11): 650 ms from the orbit camera's pose to the walk pose
+    if (fromCam && this.settings.motion) {
+      this.walkCam.position.set(this.walk.x, this.walk.eyeY(), this.walk.z);
+      this.walkCam.rotation.order = 'YXZ';
+      this.walkCam.rotation.set(this.walk.pitch, this.walk.yaw, 0);
+      const toPos = this.walkCam.position.clone(), toQuat = this.walkCam.quaternion.clone();
+      const cam = this.walkCam;
+      this.tween = { t0: performance.now(), ms: 650, pose: true, step: (k) => { cam.position.lerpVectors(fromCam.pos, toPos, k); cam.quaternion.slerpQuaternions(fromCam.quat, toQuat, k); } };
+    }
     if (this.controls) this.controls.enabled = false;
     this.planScene.showLevel('all', true);
     this.planScene.setCut(null);
@@ -803,11 +900,11 @@ class App {
     $('roomname').textContent = `${room ? room.name + ' · ' : ''}${L.name}${this.walk.onStairs ? ' · מדרגות' : ''}${this.walk.edge ? ' · קצה התוכנית' : ''}`;
     $('mm-level').textContent = L.name;
   }
-  requestPointerLock() {
+  requestPointerLock(quiet = false) {
     if (this.mode !== 'walk') this.enterWalk();
     const p = this.canvas.requestPointerLock && this.canvas.requestPointerLock();
-    if (p && p.catch) p.catch(() => this.toast('נעילת סמן נדחתה על ידי הדפדפן / המסגרת — נשארים בגרירה'));
-    setTimeout(() => { if (!document.pointerLockElement) this.toast('נעילת סמן לא זמינה כאן — נשארים בגרירה'); }, 300);
+    if (p && p.catch) p.catch(() => { if (!quiet) this.toast('נעילת סמן לא זמינה כאן — נשארים בגרירה'); });
+    setTimeout(() => { if (!document.pointerLockElement && !quiet) this.toast('נעילת סמן לא זמינה כאן — נשארים בגרירה'); }, 300);
   }
 
   // ------------------------------------------------------------------ stage input (orbit picking, walk controls, touch)
@@ -845,6 +942,8 @@ class App {
       if (this.mode === 'stills') return;
       down = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId, t: performance.now(), touch: e.pointerType === 'touch' };
       if (this.mode === 'walk' && !(e.pointerType === 'touch' && this.joyActive)) c.setPointerCapture(e.pointerId);
+      // mouse-look mode (owner Q5): drag by default; 'lock' asks for pointer lock on the first click in the walk
+      if (this.mode === 'walk' && e.pointerType === 'mouse' && this.settings.mouseMode !== 'drag' && !document.pointerLockElement) this.requestPointerLock(this.settings.mouseMode === 'auto');
     });
     c.addEventListener('pointermove', (e) => {
       if (this.mode === 'walk' && document.pointerLockElement === c) { this.walk.look(e.movementX * 0.0025, e.movementY * 0.0025); this.invalidate(); return; }
@@ -946,6 +1045,17 @@ class App {
     const hit = this.planScene.pick(this.raycaster);
     if (hit && hit.distance < 3.5) this.showPopover(hit, { clientX: this.canvas.clientWidth / 2 + this.stage.getBoundingClientRect().left, clientY: this.canvas.clientHeight / 2 + this.stage.getBoundingClientRect().top });
   }
+  /** Crosshair + action hint (plan P5): the crosshair grows over a device within 3.5 m and names it (short, no paragraph). */
+  updateAim() {
+    if (this.mode !== 'walk' || this.touch) { if (this.aimKey) { this.aimKey = null; this.stage.classList.remove('aim'); } return; }
+    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.walkCam);
+    const hit = this.planScene.pick(this.raycaster);
+    const key = hit && hit.distance < 3.5 ? (hit.entity || hit.id) : null;
+    if (key === this.aimKey) return;
+    this.aimKey = key;
+    this.stage.classList.toggle('aim', !!key);
+    if (key) { const names = this.plan.entityNames || {}; $('aimhint').textContent = `${hit.label || names[hit.entity] || hit.entity || hit.id} · Enter`; }
+  }
   showPopover(hit, e) {
     this.hidePopover();
     const p = el('div', 'popover');
@@ -1041,20 +1151,33 @@ class App {
     }
     if (this.mode === 'stills') { this.updateHud(now, false); return; }
     let moving = false;
+    // camera tweens (plan L11): eased 0..1, the camera pose is owned by the tween while it runs
+    if (this.tween) {
+      const k0 = Math.min(1, (now - this.tween.t0) / this.tween.ms);
+      const k = k0 < 0.5 ? 2 * k0 * k0 : 1 - Math.pow(-2 * k0 + 2, 2) / 2;
+      this.tween.step(k);
+      moving = true;
+      if (k0 >= 1) { const t = this.tween; this.tween = null; if (!t.pose && this.controls && this.mode === 'orbit') this.controls.enabled = true; }
+    }
     if (this.mode === 'walk' && this.walk) {
       if (this.walk.step(dt)) { moving = true; this.walk.eyeOverride = null; }
+      // eye-height easing (plan P5): the slider moves the target, the eye follows over ~0.4 s
+      if (this.walk.eyeTarget != null && Math.abs(this.walk.eyeTarget - this.walk.eye) > 0.001) { this.walk.eye += (this.walk.eyeTarget - this.walk.eye) * Math.min(1, dt * 6); moving = true; }
       // interior exposure adaptation (plan P5): the fill follows the room's daylight factor, eased over ~0.6 s
       const Lw = this.planScene.levels[this.walk.level];
       const zone = Lw && Lw.zones.find((z) => pointInPolygon(this.walk.x, this.walk.z, z.polyM));
       const want = zone && typeof zone.daylight === 'number' ? 0.25 + zone.daylight * 0.75 : 0.6;
       if (Math.abs(want - this.env.interiorFill) > 0.004) { this.env.interiorFill += (want - this.env.interiorFill) * Math.min(1, dt * 3); this.env.applyFill(); moving = true; }
-      const y = this.walk.eyeOverride != null ? this.walk.eyeOverride : this.walk.eyeY();
-      this.walkCam.position.set(this.walk.x, y, this.walk.z);
-      this.walkCam.rotation.order = 'YXZ';
-      this.walkCam.rotation.set(this.walk.pitch, this.walk.yaw, 0);
+      if (!(this.tween && this.tween.pose)) {
+        const y = this.walk.eyeOverride != null ? this.walk.eyeOverride : this.walk.eyeY();
+        this.walkCam.position.set(this.walk.x, y, this.walk.z);
+        this.walkCam.rotation.order = 'YXZ';
+        this.walkCam.rotation.set(this.walk.pitch, this.walk.yaw, 0);
+      }
       this.updateWalkBar();
+      this.updateAim();
       this.mmMap = drawMinimap($('minimap').querySelector('canvas'), this.planScene, this.walk, { bg: document.documentElement.dataset.theme === 'dark' ? 'rgba(21,28,44,.92)' : 'rgba(255,255,255,.92)' });
-    } else if (this.controls) {
+    } else if (this.controls && !this.tween) {
       if (this.controls.update()) moving = true;
     }
     const anim = this.planScene.update(dt, this.camera.position, { nightFactor: this.env.recipe.night, lampShadows: this.opts.lampShadows && this.quality >= 3 });

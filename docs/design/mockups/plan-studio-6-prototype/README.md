@@ -1,4 +1,4 @@
-# Plan Studio 6 prototype — realistic 3D + eye-level walk-through (CR-029)
+# Plan Studio 6 prototype — realistic 3D + eye-level walk-through (CR-029, ST7 look-dev)
 
 An interactive WebGL prototype of the Studio 6 proposal (`docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md`): one page,
 one bundled script, no server, no CDN. Open `index.html` from `file:///` in Chrome / Edge / Firefox (desktop or a phone).
@@ -10,7 +10,9 @@ one bundled script, no server, no CDN. Open `index.html` from `file:///` in Chro
 
 | Mode | What you get |
 |---|---|
-| **Realistic (quality 3)** | Procedural PBR materials (colour + normal + roughness maps, tiled in metres) on floors, walls, doors, furniture; image-based lighting from a sky dome prefiltered per time of day; sun position by hour / date / latitude / plan north with soft PCF shadows; GTAO ambient occlusion; lit lamps as emissive bodies + a pool of 8 point lights with bloom; physical glass (transmission) on windows; optional planar floor reflections and lamp shadows (off by default — see the measured costs) |
+| **Two visual styles** | Light architectural render and dark digital twin (`src/style.js`): palette per material id, light rig, post numbers, section-cut treatment, ground / backdrop. Header chip: follows the UI theme, or fixed per browser |
+| **Section cut** | Orbit views clip the top visible floor at 60 % of its ceiling with a dark cap (dollhouse); the dark style adds a luminous edge; the walk never cuts (settings: on/off) |
+| **Realistic (quality 3)** | Hue-free procedural detail textures tinted by the style palette (512 px floors / walls, real tile sizes), normal + roughness maps on floors, walls, doors, furniture; image-based lighting from a sky dome prefiltered per time of day; sun position by hour / date / latitude / plan north with soft PCF shadows; GTAO (0.6 m, low) on the top rung + contact AO on every rung (wall-junction strips, blob shadows under objects); Khronos Neutral tone mapping; MSAA x4; lit lamps as emissive bodies + a pool of 8 point lights with bloom; physical glass (transmission) on windows; optional planar floor reflections and lamp shadows (off by default — see the measured costs) |
 | **Realistic lite** | The same textures, lighting, shadows and bloom without the AO, the physical glass and the reflector, at DPR 1 — the rung an integrated GPU lands on |
 | **Full (2)** | Flat standard materials, hemisphere + sun shadows (the product's level 2 look) |
 | **Schematic (1)** | Lambert, no shadows (the product's default level 1) |
@@ -18,7 +20,8 @@ one bundled script, no server, no CDN. Open `index.html` from `file:///` in Chro
 | **Walk-through** | Eye-level first person (1.2–2.0 m), WASD / arrows / Q E, Shift run, mouse-drag look, optional pointer lock, click-to-walk with A* around walls and through open doors only, touch joystick + drag-look + tap-to-walk, wall collision (0.28 m body), doors passable only when their sensor says open (locked = closed, unsensed = passable), stairs between the two levels with the level switch at the top, saved viewpoints (1–9), stand-at-camera / stand-in-room, minimap with heading cone and tap-to-teleport, walk bar with numeric X / Y / heading fields |
 | **Device panel** | Lights per room, doors (sensor simulation) and a lock, roller shutters by position, presence pulse, TV; the 3D reacts: lamps light the room, doors swing / slide (350 ms), shutters drop, the red open-door frame, the blue presence ring, the lock plate |
 | **Time & weather** | Slider 00:00–23:59, "now", presets (noon / sunset / night), weather clear / hazy / overcast; sun azimuth and elevation shown |
-| **HUD** | fps, ms per frame (CPU submit), draw calls, triangles, textures, geometries, JS heap, canvas size and DPR, mode / rung, and the GPU string — a software renderer (SwiftShader) is flagged in orange |
+| **Settings** (panel) | Default view (schematic / realistic), wall display (live / still), furniture (procedural / models), time source (site clock / manual), section cut, temperature pills, motion; eye height 1.2–2.0 m and mouse-look mode (drag / pointer lock / auto) in the walk tab — the list the product port must expose |
+| **HUD** (developers) | Off by default (`?hud` or the settings toggle): fps, ms per frame (CPU submit), draw calls, triangles, textures, geometries, JS heap, canvas size and DPR, mode / rung, and the GPU string — a software renderer (SwiftShader) is flagged in orange |
 | **Quality ladder** | 2.5 s probe after 3 warm-up frames; under 30 fps the view drops one rung (realistic → lite → full → schematic → stills when baked) and says so; manual choice re-measures |
 
 Two plans: the two-floor demo house (synthetic, schema 2.0 + the CR's proposed 2.1 fields under `x_proto`) and the repo's
@@ -48,8 +51,14 @@ walks the product's document as it is (its rooms list is empty, so the floor is 
 ```
 # bundle (esbuild + three.js from frontend/node_modules; copies the repo fixture)
 SW_NODE_MODULES=C:\...\frontend\node_modules node build.mjs
+# static server for the captures (prints its PID; stop that PID only)
+node tools/serve.mjs 4190
 # headless Chromium: smoke | measure | shots | all   (SW_GPU=1 = the workstation's real GPU via ANGLE/D3D11, else SwiftShader)
 SW_NODE_MODULES=... SW_GPU=1 SW_URL=http://127.0.0.1:4190/index.html node tools/capture.mjs all
+# look-dev evidence: both styles x 1440/820/390, walk checks, overflow checks, GIF frames, per-rung measurement
+SW_NODE_MODULES=... SW_GPU=1 SW_URL=... node tools/lookdev-shots.mjs all      # -> shots/lookdev/, shots/lookdev-gpu.json
+SW_NODE_MODULES=... SW_GPU=1 SW_URL=... node tools/checkpoint.mjs             # -> docs/design/studio6/checkpoint/
+SW_NODE_MODULES=... SW_GPU=1 SW_URL=... node tools/probe.mjs "<js>"           # one expression against window.studio6
 ```
 
 `shots/` holds the screenshots, `shots/frames/` the GIF frame sequences, `shots/*.gif` the sequences (built by

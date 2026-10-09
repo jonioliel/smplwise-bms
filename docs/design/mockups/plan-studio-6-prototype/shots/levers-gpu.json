@@ -1,0 +1,148 @@
+{
+  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "measured_at": "2026-10-09T09:06:23.894Z",
+  "lite-orbit-msaa2": {
+    "median_ms": 52.9,
+    "min_ms": 42,
+    "fps": 18.9,
+    "draws": 230,
+    "tris": 45978,
+    "size": "1140x852"
+  },
+  "lite-orbit-msaa4": {
+    "median_ms": 62.6,
+    "min_ms": 44.3,
+    "fps": 16,
+    "draws": 230,
+    "tris": 45978,
+    "size": "1140x852"
+  },
+  "lite-orbit-smaa": {
+    "median_ms": 48.9,
+    "min_ms": 34.1,
+    "fps": 20.4,
+    "draws": 233,
+    "tris": 45981,
+    "size": "1140x852"
+  },
+  "lite-orbit-noaa": {
+    "median_ms": 40.7,
+    "min_ms": 22.3,
+    "fps": 24.6,
+    "draws": 230,
+    "tris": 45978,
+    "size": "1140x852"
+  },
+  "lite-orbit-noaa-nobloom": {
+    "median_ms": 39.6,
+    "min_ms": 17.8,
+    "fps": 25.3,
+    "draws": 217,
+    "tris": 45965,
+    "size": "1140x852"
+  },
+  "lite-orbit-msaa2-no-decals": {
+    "median_ms": 56.1,
+    "min_ms": 41.8,
+    "fps": 17.8,
+    "draws": 226,
+    "tris": 45462,
+    "size": "1140x852"
+  },
+  "lite-orbit-msaa2-no-ground": {
+    "median_ms": 33.9,
+    "min_ms": 32,
+    "fps": 29.5,
+    "draws": 228,
+    "tris": 45904,
+    "size": "1140x852"
+  },
+  "lite-orbit-msaa2-no-cut": {
+    "median_ms": 62.9,
+    "min_ms": 45.4,
+    "fps": 15.9,
+    "draws": 229,
+    "tris": 45920,
+    "size": "1140x852"
+  },
+  "lite-walk-msaa2": {
+    "median_ms": 50.9,
+    "min_ms": 41,
+    "fps": 19.6,
+    "draws": 67,
+    "tris": 32952,
+    "size": "1140x852"
+  },
+  "lite-walk-msaa4": {
+    "median_ms": 54.3,
+    "min_ms": 42.2,
+    "fps": 18.4,
+    "draws": 67,
+    "tris": 32952,
+    "size": "1140x852"
+  },
+  "lite-walk-smaa": {
+    "median_ms": 75.7,
+    "min_ms": 42.3,
+    "fps": 13.2,
+    "draws": 70,
+    "tris": 32955,
+    "size": "1140x852"
+  },
+  "lite-walk-noaa": {
+    "median_ms": 70.6,
+    "min_ms": 46.4,
+    "fps": 14.2,
+    "draws": 67,
+    "tris": 32952,
+    "size": "1140x852"
+  },
+  "real-walk-msaa4-gtao": {
+    "median_ms": 159.4,
+    "min_ms": 91,
+    "fps": 6.3,
+    "draws": 95,
+    "tris": 67338,
+    "size": "1140x852"
+  },
+  "real-walk-msaa2-gtao": {
+    "median_ms": 114.1,
+    "min_ms": 88.2,
+    "fps": 8.8,
+    "draws": 95,
+    "tris": 67338,
+    "size": "1140x852"
+  },
+  "real-walk-msaa4-noao": {
+    "median_ms": 135,
+    "min_ms": 74.9,
+    "fps": 7.4,
+    "draws": 65,
+    "tris": 44878,
+    "size": "1140x852"
+  },
+  "real-walk-smaa-gtao": {
+    "median_ms": 155,
+    "min_ms": 117.2,
+    "fps": 6.5,
+    "draws": 98,
+    "tris": 67341,
+    "size": "1140x852"
+  },
+  "full-orbit-q2": {
+    "median_ms": 24.8,
+    "min_ms": 14.4,
+    "fps": 40.3,
+    "draws": 177,
+    "tris": 14420,
+    "size": "1140x852"
+  },
+  "full-walk-q2": {
+    "median_ms": 29,
+    "min_ms": 14.1,
+    "fps": 34.5,
+    "draws": 51,
+    "tris": 10898,
+    "size": "1140x852"
+  }
+}

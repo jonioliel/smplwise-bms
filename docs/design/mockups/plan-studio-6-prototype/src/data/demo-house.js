@@ -170,7 +170,7 @@ const ANCHORS_M = [
 ];
 
 const WALK_POSITIONS_M = [
-  { id: 'wp-front', name: 'דלת כניסה', level: 'L0', p: [1.3, 2.2], heading: 90, is_default: true },
+  { id: 'wp-front', name: 'דלת כניסה', level: 'L0', p: [1.1, 2.2], heading: 250, is_default: true },
   { id: 'wp-living', name: 'מרכז הסלון', level: 'L0', p: [7.0, 3.3], heading: 0 },
   { id: 'wp-kitchen', name: 'מטבח', level: 'L0', p: [9.0, 8.8], heading: 300 },
   { id: 'wp-gallery', name: 'גלריה', level: 'L1', p: [2.7, 2.0], heading: 180 },

@@ -32,10 +32,9 @@ export class StillsBaker {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
-    const r = this.env.recipe;
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    const css = (v) => `rgb(${Math.round(v[0] * 255)}, ${Math.round(v[1] * 255)}, ${Math.round(v[2] * 255)})`;
-    g.addColorStop(0, css(r.skyTop)); g.addColorStop(0.7, css(r.skyHorizon)); g.addColorStop(1, css(r.hemiGround.map((x) => x * 0.9 + 0.1)));
+    const [top, hor, bottom] = this.env.backdropColors();
+    g.addColorStop(0, top); g.addColorStop(0.62, hor); g.addColorStop(1, bottom);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(source, 0, 0, w, h);

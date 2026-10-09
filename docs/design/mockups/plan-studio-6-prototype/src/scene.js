@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { buildStructure, blockingSegments, polygonCentroid, outlinePolyline, isOpenState, pointInPolygon } from './geometry.js';
-import { radialTexture, stripTexture } from './materials.js';
+import { radialTexture, stripTexture, discAlphaTexture } from './materials.js';
 import { STYLES } from './style.js';
 
 export const EYE_M = 1.65;
@@ -281,7 +281,14 @@ export class PlanScene {
           push('metal_light', boxAt(fr, o.height_m, t * 0.9, c[0] - d[0] * (wm / 2 - fr / 2), elev + o.sill_m + o.height_m / 2, c[1] - d[1] * (wm / 2 - fr / 2), yaw));
           push('metal_light', boxAt(fr, o.height_m, t * 0.9, c[0] + d[0] * (wm / 2 - fr / 2), elev + o.sill_m + o.height_m / 2, c[1] + d[1] * (wm / 2 - fr / 2), yaw));
           push('metal_light', boxAt(wm, fr, t * 0.9, c[0], topY - fr / 2, c[1], yaw));
+          // sill proud of the wall on both faces (plan P3), a mullion on wide windows, a transom bar on tall ones
           push('metal_light', boxAt(wm + 0.1, fr, t + 0.08, c[0], elev + o.sill_m + fr / 2, c[1], yaw));
+          if (q >= 3) {
+            push('tiles_white', boxAt(wm + 0.14, 0.03, t + 0.12, c[0], elev + o.sill_m - 0.015, c[1], yaw));
+            if (wm > 1.0) push('metal_light', boxAt(0.04, o.height_m - fr * 2, t * 0.6, c[0], elev + o.sill_m + o.height_m / 2, c[1], yaw));
+            if (wm > 2.0) { push('metal_light', boxAt(0.04, o.height_m - fr * 2, t * 0.6, c[0] - d[0] * (wm / 3), elev + o.sill_m + o.height_m / 2, c[1] - d[1] * (wm / 3), yaw)); push('metal_light', boxAt(0.04, o.height_m - fr * 2, t * 0.6, c[0] + d[0] * (wm / 3), elev + o.sill_m + o.height_m / 2, c[1] + d[1] * (wm / 3), yaw)); }
+            if (o.height_m > 1.6) push('metal_light', boxAt(wm - fr * 2, 0.04, t * 0.6, c[0], elev + o.sill_m + o.height_m * 0.68, c[1], yaw));
+          }
           const frosted = o.x_proto && o.x_proto.glazing === 'frosted';
           const glass = new THREE.Mesh(boxAt(wm - fr * 2, o.height_m - fr * 2, 0.02, 0, 0, 0), this.glassMaterial(frosted));
           glass.position.set(c[0], elev + o.sill_m + o.height_m / 2, c[1]);
@@ -314,6 +321,13 @@ export class PlanScene {
           push(frameMat, boxAt(fr, o.height_m, t + 0.02, c[0] - d[0] * (wm / 2 - fr / 2), elev + o.height_m / 2, c[1] - d[1] * (wm / 2 - fr / 2), yaw));
           push(frameMat, boxAt(fr, o.height_m, t + 0.02, c[0] + d[0] * (wm / 2 - fr / 2), elev + o.height_m / 2, c[1] + d[1] * (wm / 2 - fr / 2), yaw));
           push(frameMat, boxAt(wm, fr, t + 0.02, c[0], topY - fr / 2, c[1], yaw));
+          if (q >= 3) {
+            // casing (architrave) proud of the wall on both faces: 7 cm wide, 12 mm deep (plan P3)
+            const cw = 0.07, cd = t + 0.024;
+            push(frameMat, boxAt(cw, o.height_m + cw, cd, c[0] - d[0] * (wm / 2 + cw / 2), elev + (o.height_m + cw) / 2, c[1] - d[1] * (wm / 2 + cw / 2), yaw));
+            push(frameMat, boxAt(cw, o.height_m + cw, cd, c[0] + d[0] * (wm / 2 + cw / 2), elev + (o.height_m + cw) / 2, c[1] + d[1] * (wm / 2 + cw / 2), yaw));
+            push(frameMat, boxAt(wm + cw * 2, cw, cd, c[0], topY + cw / 2, c[1], yaw));
+          }
           const entity = o.anchor_ref && o.anchor_ref.resource_type === 'ha_entity' ? o.anchor_ref.resource_id : null;
           const lockEntity = plan.doorLocks && plan.doorLocks[o.id];
           const leafH = o.height_m - fr - 0.01, leafT = 0.045;
@@ -325,17 +339,47 @@ export class PlanScene {
             grp.position.set(hingeM[0], elev, hingeM[1]);
             const closedYaw = yawOf(along[0], along[1]);
             grp.rotation.y = closedYaw;
-            const leaf = new THREE.Mesh(new THREE.BoxGeometry(width - 0.02, leafH, leafT), o.id === 'd-liv-kit' ? this.glassMaterial(false, true) : mat('door_wood'));
+            const glassLeaf = o.id === 'd-liv-kit';
+            const leafW = width - 0.02;
+            const leaf = new THREE.Mesh(q >= 3 ? new RoundedBoxGeometry(leafW, leafH, leafT, 2, 0.006) : new THREE.BoxGeometry(leafW, leafH, leafT), glassLeaf ? this.glassMaterial(false, true) : mat('door_wood'));
             leaf.geometry.translate(width / 2, leafH / 2, 0);
             leaf.castShadow = true;
             leaf.receiveShadow = true;
-            if (q >= 3 && o.id !== 'd-liv-kit') boxUV(leaf.geometry, 1.0);
+            if (q >= 3 && !glassLeaf) boxUV(leaf.geometry, 1.0);
             leaf.userData = { kind: 'device', entity: entity || `door:${o.id}`, label: entity ? plan.entityNames[entity] || entity : 'דלת ללא חיישן', domain: 'door', openingId: o.id, lock: lockEntity || null };
             grp.add(leaf);
-            // handle
-            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.08), mat('metal_light'));
-            handle.position.set(width - 0.15, 1.0, 0);
-            grp.add(handle);
+            if (q >= 3) {
+              if (glassLeaf) {
+                // sliding glass leaf: a slim dark frame around the pane
+                const fm = mat('metal_dark');
+                for (const [bw, bh, bx, by] of [[0.04, leafH, 0.02, leafH / 2], [0.04, leafH, leafW - 0.02, leafH / 2], [leafW, 0.04, leafW / 2, 0.02], [leafW, 0.04, leafW / 2, leafH - 0.02]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, leafT + 0.01), fm); b.position.set(bx + 0.01, by, 0); grp.add(b); }
+              } else {
+                // two raised panels on each face (plan L1): 5 mm proud, 1 cm radius
+                const pm = mat('door_wood');
+                const pw = leafW - 0.22, ph1 = leafH * 0.52, ph2 = leafH * 0.28;
+                for (const s of [-1, 1]) for (const [py, ph] of [[0.14 + ph2 / 2, ph2], [0.14 + ph2 + 0.12 + ph1 / 2, ph1]]) {
+                  const p = new THREE.Mesh(new RoundedBoxGeometry(pw, ph, 0.012, 2, 0.005), pm);
+                  p.position.set(width / 2 + 0.01, py, s * (leafT / 2 + 0.003));
+                  p.castShadow = true;
+                  grp.add(p);
+                }
+              }
+            }
+            // lever handle + rose on both faces
+            for (const s of [-1, 1]) {
+              const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.012, 14), mat('metal_light'));
+              rose.rotation.x = Math.PI / 2;
+              rose.position.set(width - 0.12, 1.02, s * (leafT / 2 + 0.006));
+              grp.add(rose);
+              const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.12, 10), mat('metal_light'));
+              lever.rotation.z = Math.PI / 2;
+              lever.position.set(width - 0.17, 1.02, s * (leafT / 2 + 0.04));
+              grp.add(lever);
+              const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.05, 10), mat('metal_light'));
+              stem.rotation.x = Math.PI / 2;
+              stem.position.set(width - 0.12, 1.02, s * (leafT / 2 + 0.025));
+              grp.add(stem);
+            }
             if (lockEntity) {
               const plate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.06), this.lockMaterial());
               plate.position.set(width - 0.15, 1.12, 0);
@@ -579,10 +623,14 @@ export class PlanScene {
         const cx = (e.minX + e.maxX) / 2, cz = (e.minZ + e.maxZ) / 2;
         const gr = new THREE.Group();
         gr.userData = { kind: 'ground', noClip: true };
-        const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(w, d) * 2.4, 72), this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.ground.disc, roughness: 1, metalness: 0 }), 'ground_disc'));
+        // the lit + shadowed disc measured ~19 ms on the iGPU at 1140x852 (levers-gpu.json): the top rung keeps the
+        // building's sun shadow on the ground, lite / full draw an unlit disc with the contact blob only
+        const shadowed = q >= 3 && !this.lite;
+        const discMat = shadowed ? new THREE.MeshStandardMaterial({ color: this.style.ground.disc, roughness: 1, metalness: 0, transparent: true, alphaMap: discAlphaTexture(), depthWrite: false }) : new THREE.MeshBasicMaterial({ color: this.style.ground.disc, transparent: true, alphaMap: discAlphaTexture(), depthWrite: false });
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(w, d) * 3.2, 72), this.styledMaterial(discMat, 'ground_disc'));
         disc.rotation.x = -Math.PI / 2;
         disc.position.set(cx, low.elevation - 0.25, cz);
-        disc.receiveShadow = q >= 2;
+        disc.receiveShadow = shadowed;
         disc.userData = { kind: 'ground', noClip: true };
         gr.add(disc);
         const sh = new THREE.Mesh(new THREE.PlaneGeometry(w + 3, d + 3), new THREE.MeshBasicMaterial({ map: radialTexture(), color: 0x000000, transparent: true, opacity: this.style.ground.contact, depthWrite: false }));
@@ -693,7 +741,9 @@ export class PlanScene {
     const B = (mid, bw, bh, bd, ox, oy, oz, r = 0.02, seg = 2) => {
       const [wx, wz] = world(ox, oz);
       const rr = Math.min(r, bw / 2 - 0.001, bh / 2 - 0.001, bd / 2 - 0.001);
-      const g = detail && rr > 0.003 ? new RoundedBoxGeometry(bw, bh, bd, seg, rr) : new THREE.BoxGeometry(bw, bh, bd);
+      // triangle budget (plan §2.2): one bevel segment on parts under 12 cm (seams, handles, shelves), two on bodies
+      const sg = Math.min(bw, bh, bd) < 0.12 ? 1 : seg;
+      const g = detail && rr > 0.003 ? new RoundedBoxGeometry(bw, bh, bd, sg, rr) : new THREE.BoxGeometry(bw, bh, bd);
       if (yaw) g.rotateY(yaw);
       g.translate(wx, y + oy, wz);
       push(mid, detail ? boxUV(g, lib.tileM(mid)) : g);
@@ -781,7 +831,7 @@ export class PlanScene {
       }
       case 'screen': {
         const g = detail ? new RoundedBoxGeometry(w, h, d, 2, 0.008) : boxAt(w, h, d, 0, 0, 0);
-        const m = new THREE.Mesh(g, this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.screen_off, emissive: 0x6f7f96, emissiveIntensity: 0, roughness: 0.2, metalness: 0.3 }), 'screen_off'));
+        const m = new THREE.Mesh(g, this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.screen_off, emissive: 0xffffff, emissiveMap: screenTexture(), emissiveIntensity: 0, roughness: 0.2, metalness: 0.3 }), 'screen_off'));
         m.position.set(x, y + h / 2, z);
         m.rotation.y = yaw;
         m.userData = { kind: 'device', entity, label: plan.entityNames[entity] || 'טלוויזיה', domain: 'media_player' };
@@ -1068,6 +1118,25 @@ export function kelvinToRGB(k) {
   b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
   const c = (v) => Math.max(0, Math.min(255, v)) / 255;
   return [c(r), c(g), c(b)];
+}
+
+/** A muted "picture" for a playing screen: soft gradient bands, no logo, no photo (generated, no files). */
+let _screen = null;
+export function screenTexture() {
+  if (_screen) return _screen;
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 144;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 256, 144);
+  g.addColorStop(0, '#2b3f5e'); g.addColorStop(0.45, '#6d8fb3'); g.addColorStop(0.7, '#c9b08a'); g.addColorStop(1, '#3a2f3a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 144);
+  const r = ctx.createRadialGradient(150, 60, 10, 150, 60, 150);
+  r.addColorStop(0, 'rgba(255,245,225,0.55)'); r.addColorStop(1, 'rgba(255,245,225,0)');
+  ctx.fillStyle = r; ctx.fillRect(0, 0, 256, 144);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, 256, 14); ctx.fillRect(0, 130, 256, 14);
+  _screen = new THREE.CanvasTexture(c);
+  _screen.colorSpace = THREE.SRGBColorSpace;
+  return _screen;
 }
 
 let _glow = null;

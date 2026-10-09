@@ -173,10 +173,11 @@ const RECIPES = {
     return { lum, height: n, rough, mid: 200, amp: 28, tint: [1, 0.98, 0.95] };
   },
   metal(S, seed) {
-    const n = fbm(S, seed, 4, 32);
+    // brushed: fine noise stretched along u (streaks), low amplitude - not a hammered surface
+    const n = fbm(S, seed, 3, 4);
     const lum = new Float32Array(S * S), rough = new Float32Array(S * S);
-    for (let i = 0; i < lum.length; i++) { lum[i] = n[i]; rough[i] = 0.28 + n[i] * 0.22; }
-    return { lum, height: n, rough, mid: 215, amp: 14 };
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const i = y * S + x; const streak = n[((y * 7) % S) * S + (x % S)]; lum[i] = 0.5 + (streak - 0.5) * 0.5; rough[i] = 0.3 + streak * 0.15; }
+    return { lum, height: lum, rough, mid: 215, amp: 10 };
   },
   leather(S, seed) {
     const n = fbm(S, seed, 6, 20);
@@ -198,7 +199,7 @@ const RECIPES = {
 export const LIBRARY = {
   plaster_white: { size: 512, recipe: (S) => RECIPES.plaster(S, 31, 0.1), tile_m: 2.0, normal: 0.35, roughness: 1 },
   plaster_exterior: { size: 512, recipe: (S) => RECIPES.plaster(S, 47, 0.16), tile_m: 2.0, normal: 0.9, roughness: 1 },
-  plaster_ceiling: { size: 256, recipe: (S) => RECIPES.plaster(S, 53, 0.05), tile_m: 2.0, normal: 0.12, roughness: 1 },
+  plaster_ceiling: { size: 256, recipe: (S) => RECIPES.plaster(S, 53, 0.03), tile_m: 3.0, normal: 0.04, roughness: 1 }, // plain matte ceiling (plan L4)
   concrete: { size: 512, recipe: (S) => RECIPES.concrete(S, 61), tile_m: 2.5, normal: 1.2, roughness: 1 },
   tiles_white: { size: 512, recipe: (S) => RECIPES.tiles(S, 71, 4, 3, true), tile_m: 1.2, normal: 1.8, roughness: 1 },   // 0.3 m tiles
   tiles_grey: { size: 512, recipe: (S) => RECIPES.tiles(S, 79, 2, 3, false), tile_m: 1.2, normal: 1.8, roughness: 1 },   // 0.6 m tiles
@@ -212,8 +213,8 @@ export const LIBRARY = {
   wood_light: { size: 256, recipe: (S) => RECIPES.wood(S, 107, 0.12), tile_m: 1.0, normal: 0.7, roughness: 1 },
   wood_dark: { size: 256, recipe: (S) => RECIPES.wood(S, 109, 0.1), tile_m: 1.0, normal: 0.7, roughness: 1 },
   door_wood: { size: 256, recipe: (S) => RECIPES.wood(S, 113, 0.14), tile_m: 1.0, normal: 0.9, roughness: 1 },
-  metal_dark: { size: 256, recipe: (S) => RECIPES.metal(S, 127), tile_m: 0.5, normal: 0.4, roughness: 1, metalness: 0.85 },
-  metal_light: { size: 256, recipe: (S) => RECIPES.metal(S, 131), tile_m: 0.5, normal: 0.4, roughness: 1, metalness: 0.8 },
+  metal_dark: { size: 256, recipe: (S) => RECIPES.metal(S, 127), tile_m: 0.5, normal: 0.12, roughness: 1, metalness: 0.85 },
+  metal_light: { size: 256, recipe: (S) => RECIPES.metal(S, 131), tile_m: 0.5, normal: 0.12, roughness: 1, metalness: 0.8 },
   asphalt: { size: 256, recipe: (S) => RECIPES.concrete(S, 137), tile_m: 3.0, normal: 1.2, roughness: 1 },
   grass: { size: 256, recipe: (S) => RECIPES.grass(S, 139), tile_m: 2.0, normal: 0.8, roughness: 1 },
 };
@@ -292,6 +293,19 @@ export function radialTexture() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
   _radial = new THREE.CanvasTexture(c);
   return _radial;
+}
+/** Luminance disc for the ground's alphaMap: opaque centre, transparent rim (the backdrop shows through at the horizon). */
+let _disc = null;
+export function discAlphaTexture() {
+  if (_disc) return _disc;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, '#fff'); g.addColorStop(0.55, '#fff'); g.addColorStop(1, '#000');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
+  _disc = new THREE.CanvasTexture(c);
+  return _disc;
 }
 /** A 1-D gradient along V: opaque black at v=0 (the wall), transparent at v=1. */
 export function stripTexture() {

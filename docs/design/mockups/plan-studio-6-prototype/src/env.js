@@ -133,9 +133,11 @@ export class Environment {
     if (this.composer) { this.composer.dispose && this.composer.dispose(); this.composer = null; this.gtao = null; this.bloom = null; this.smaa = null; }
     if (this.quality < 3) return;
     const { w, h } = this.size;
-    // plan L8: MSAA x4 on the composer's own target (WebGL2); SMAA pass as the fallback where samples are unsupported
-    const msaa = this.post.msaa && this.isWebGL2;
-    const target = new THREE.WebGLRenderTarget(Math.round(w * this.dpr), Math.round(h * this.dpr), { type: THREE.HalfFloatType, samples: msaa ? 4 : 0 });
+    // plan L8: MSAA on the composer's own target (WebGL2): x4 on the top rung, x2 on lite (post.samples overrides for
+    // the lever measurement); SMAA pass as the fallback where samples are unsupported or when post.aa === 'smaa'
+    const samples = this.post.samples != null ? this.post.samples : this.post.lite ? 2 : 4;
+    const msaa = this.post.msaa && this.isWebGL2 && samples > 0 && this.post.aa !== 'smaa';
+    const target = new THREE.WebGLRenderTarget(Math.round(w * this.dpr), Math.round(h * this.dpr), { type: THREE.HalfFloatType, samples: msaa ? samples : 0 });
     const composer = new EffectComposer(this.renderer, target);
     composer.setPixelRatio(this.dpr);
     composer.setSize(w, h);
@@ -158,7 +160,7 @@ export class Environment {
       this.bloom = bloom;
     }
     composer.addPass(new OutputPass());
-    if (!msaa) { const smaa = new SMAAPass(); composer.addPass(smaa); this.smaa = smaa; }
+    if (!msaa && this.post.aa !== 'none') { const smaa = new SMAAPass(); composer.addPass(smaa); this.smaa = smaa; }
     this.composer = composer;
     this.camera = camera;
     this.applyPost();
@@ -176,6 +178,14 @@ export class Environment {
   setTime(partial) {
     Object.assign(this.time, partial);
     this.applyTime();
+  }
+  /** The backdrop gradient stops [top, horizon, bottom] as CSS colours: style colours mixed 50 % with the sun recipe. */
+  backdropColors() {
+    const r = this.recipe, S = this.style.rig, B = this.style.backdrop;
+    const hex = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+    const mix = (a, b) => toCss([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
+    const top = hex(r.night > 0.5 ? B.topNight : B.topDay), hor = hex(r.night > 0.5 ? B.horizonNight : B.horizonDay);
+    return [mix(top, r.skyTop.map((v) => v * S.skyScale)), mix(hor, r.skyHorizon.map((v) => v * S.skyScale)), toCss(r.hemiGround.map((v) => v * B.groundTint * 0.9 + 0.08))];
   }
   /** Only the fill-dependent numbers (walk: per-room daylight) - no PMREM regeneration, cheap enough per frame. */
   applyFill() {
@@ -218,13 +228,9 @@ export class Environment {
     this.renderer.toneMappingExposure = r.exposure * lerp(S.exposureDay, S.exposureNight, r.night) * (ibl ? 1.0 : 1.1) * (this.interior ? 1.05 : 1);
     this.renderer.shadowMap.needsUpdate = true;
     this.applyPost();
-    const B = this.style.backdrop;
     if (this.backdrop) {
-      const top = r.night > 0.5 ? B.topNight : B.topDay, hor = r.night > 0.5 ? B.horizonNight : B.horizonDay;
-      const sky = (a, b, k) => `color-mix(in srgb, ${a} ${Math.round((1 - k) * 100)}%, ${b})`;
-      // the CSS backdrop follows the dome: style colours by day, the recipe's night colours after dusk
-      const topC = sky(top, toCss(r.skyTop.map((v) => v * S.skyScale)), 0.5), horC = sky(hor, toCss(r.skyHorizon.map((v) => v * S.skyScale)), 0.5);
-      this.backdrop.style.background = `linear-gradient(180deg, ${topC} 0%, ${horC} 62%, ${toCss(r.hemiGround.map((v) => v * B.groundTint * 0.9 + 0.08))} 100%)`;
+      const [topC, horC, botC] = this.backdropColors();
+      this.backdrop.style.background = `linear-gradient(180deg, ${topC} 0%, ${horC} 62%, ${botC} 100%)`;
     }
     this.paintDome(r, dir);
     if (this.quality >= 3) {

@@ -1,0 +1,253 @@
+{
+  "renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "boot_ms": 12802,
+  "texture_gen_ms": 1190,
+  "page_ready_ms": 14654,
+  "measured_at": "2026-10-09T09:13:54.807Z",
+  "url": "http://127.0.0.1:4190/index.html",
+  "note": "same-session relative numbers; the workstation runs other sessions - compare only against shots/perf-gpu.json measured the same day",
+  "probe_note": "ריאליסטי נמדד 9 fps (מתחת ל־30) — ירדנו ל\"ריאליסטי קל\" להמשך ההפעלה",
+  "measure:orbit-iso-L0-q3": {
+    "median_ms": 154.2,
+    "min_ms": 105.4,
+    "max_ms": 182.8,
+    "fps_from_median": 6.5,
+    "draw_calls": 621,
+    "triangles": 135924,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי",
+    "mode": "orbit",
+    "style": "light"
+  },
+  "measure:orbit-iso-L0-q3-lite": {
+    "median_ms": 27.5,
+    "min_ms": 25.8,
+    "max_ms": 36.9,
+    "fps_from_median": 36.4,
+    "draw_calls": 230,
+    "triangles": 45978,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי קל",
+    "mode": "orbit",
+    "style": "light"
+  },
+  "measure:orbit-iso-L0-q2": {
+    "median_ms": 24.5,
+    "min_ms": 9.6,
+    "max_ms": 29.7,
+    "fps_from_median": 40.8,
+    "draw_calls": 177,
+    "triangles": 14420,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "מלא",
+    "mode": "orbit",
+    "style": "light"
+  },
+  "measure:orbit-iso-L0-q1": {
+    "median_ms": 9.5,
+    "min_ms": 7.1,
+    "max_ms": 21.2,
+    "fps_from_median": 105.3,
+    "draw_calls": 171,
+    "triangles": 11638,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "סכמטי",
+    "mode": "orbit",
+    "style": "light"
+  },
+  "measure:orbit-persp-both-q3": {
+    "median_ms": 129.6,
+    "min_ms": 100.1,
+    "max_ms": 166.7,
+    "fps_from_median": 7.7,
+    "draw_calls": 916,
+    "triangles": 192987,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי",
+    "mode": "orbit",
+    "style": "light"
+  },
+  "measure:walk-q3": {
+    "median_ms": 259.1,
+    "min_ms": 219.6,
+    "max_ms": 313.3,
+    "fps_from_median": 3.9,
+    "draw_calls": 741,
+    "triangles": 171262,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי",
+    "mode": "walk",
+    "style": "light"
+  },
+  "measure:walk-q3-lite": {
+    "median_ms": 113.2,
+    "min_ms": 45.8,
+    "max_ms": 135.4,
+    "fps_from_median": 8.8,
+    "draw_calls": 175,
+    "triangles": 40490,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי קל",
+    "mode": "walk",
+    "style": "light"
+  },
+  "measure:walk-q2": {
+    "median_ms": 32.4,
+    "min_ms": 27.8,
+    "max_ms": 48.4,
+    "fps_from_median": 30.9,
+    "draw_calls": 131,
+    "triangles": 12676,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "מלא",
+    "mode": "walk",
+    "style": "light"
+  },
+  "measure:dark-orbit-iso-L0-q3-lite": {
+    "median_ms": 42.2,
+    "min_ms": 27.2,
+    "max_ms": 58.3,
+    "fps_from_median": 23.7,
+    "draw_calls": 231,
+    "triangles": 45978,
+    "size": "1140x852",
+    "dpr": 1,
+    "quality": "ריאליסטי קל",
+    "mode": "orbit",
+    "style": "dark"
+  },
+  "measure:phone-390-walk-q3-lite": {
+    "median_ms": 18,
+    "min_ms": 16.4,
+    "max_ms": 33.4,
+    "fps_from_median": 55.6,
+    "draw_calls": 219,
+    "triangles": 51758,
+    "size": "390x796",
+    "dpr": 1,
+    "quality": "ריאליסטי קל",
+    "mode": "walk",
+    "style": "light"
+  },
+  "measure:phone-390-walk-q2": {
+    "median_ms": 20.1,
+    "min_ms": 8.7,
+    "max_ms": 31.4,
+    "fps_from_median": 49.8,
+    "draw_calls": 89,
+    "triangles": 10384,
+    "size": "390x796",
+    "dpr": 1,
+    "quality": "מלא",
+    "mode": "walk",
+    "style": "light"
+  },
+  "overflow:1440-light": {
+    "sw": 1440,
+    "iw": 1440,
+    "bw": 1440,
+    "ok": true
+  },
+  "walk:light:tap_to_walk_waypoints": 5,
+  "walk:light:walk_pos_after_tap": [
+    8.15,
+    7.86,
+    "L0"
+  ],
+  "walk:light:blocked_by_closed_door": {
+    "before": [
+      2.75,
+      6.9
+    ],
+    "after": [
+      3.16,
+      6.9
+    ],
+    "door_x": 3.5
+  },
+  "walk:light:on_stairs": [
+    1.25,
+    5.74,
+    2.93,
+    "L0",
+    true
+  ],
+  "walk:light:after_stairs": [
+    1.25,
+    1.34,
+    4.55,
+    "L1"
+  ],
+  "overflow:820-light": {
+    "sw": 820,
+    "iw": 820,
+    "bw": 820,
+    "ok": true
+  },
+  "overflow:390-light": {
+    "sw": 390,
+    "iw": 390,
+    "bw": 390,
+    "ok": true
+  },
+  "style:light:hud": "idle (0 fps — on-demand)\ndraw 699 · tris 173k · tex 265 · geo 305\n20 MB heap · 1140×852 @1.00×\norbit · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "overflow:1440-dark": {
+    "sw": 1440,
+    "iw": 1440,
+    "bw": 1440,
+    "ok": true
+  },
+  "walk:dark:tap_to_walk_waypoints": 5,
+  "walk:dark:walk_pos_after_tap": [
+    8.78,
+    6.32,
+    "L0"
+  ],
+  "walk:dark:blocked_by_closed_door": {
+    "before": [
+      2.75,
+      6.9
+    ],
+    "after": [
+      3.16,
+      6.9
+    ],
+    "door_x": 3.5
+  },
+  "walk:dark:on_stairs": [
+    1.25,
+    5.86,
+    2.83,
+    "L0",
+    true
+  ],
+  "walk:dark:after_stairs": [
+    1.25,
+    1.32,
+    4.55,
+    "L1"
+  ],
+  "overflow:820-dark": {
+    "sw": 820,
+    "iw": 820,
+    "bw": 820,
+    "ok": true
+  },
+  "overflow:390-dark": {
+    "sw": 390,
+    "iw": 390,
+    "bw": 390,
+    "ok": true
+  },
+  "style:dark:hud": "idle (0 fps — on-demand)\ndraw 700 · tris 173k · tex 362 · geo 306\n20 MB heap · 1140×852 @1.00×\norbit · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "console_errors": [],
+  "console_error_count": 0
+}

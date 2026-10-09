@@ -127,14 +127,18 @@ export class WalkController {
         nx = cx; nz = cz;
       }
       if (Math.abs(nx - this.x) > 1e-5 || Math.abs(nz - this.z) > 1e-5) moved = true;
+      const g0 = this.ground(this.x, this.z, this.level);
       this.x = nx; this.z = nz;
-      // level switch at the stair's far end
+      // level switch at the stair's far end - judged from the band we were on BEFORE the step, so a long step at a low
+      // frame rate (dt up to 0.1 s = 0.28 m when running) cannot jump over the 7 cm switch window at the top / bottom
       const g = this.ground(this.x, this.z, this.level);
-      if (g.stair) {
+      const band = g.stair || g0.stair;
+      if (band) {
+        const s = band;
+        const along = (this.x - s.a[0]) * s.dx + (this.z - s.a[1]) * s.dz;
         this.onStairs = g.stair;
-        const s = g.stair;
-        if (g.along > s.run - 0.02 && this.level === s.from) this.switchLevel(s.to);
-        else if (g.along < 0.02 && this.level === s.to) this.switchLevel(s.from);
+        if (along > s.run - 0.02 && this.level === s.from) this.switchLevel(s.to);
+        else if (along < 0.02 && this.level === s.to) this.switchLevel(s.from);
       } else this.onStairs = null;
     }
     return moved;
