@@ -33,6 +33,7 @@ import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } 
 import { devicesPrefsOf, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
+import './devices-type-admin'; // DEVTYPE (owner 2026-10-09): סוגי התקנים - the fixed type of a switch-wired device
 import './area-row-editor'; // release 0.1.149: הגדרות › חשמל והתקנים › מה מוצג ליד שם האזור
 import type { AreaRowChange } from './area-row-editor';
 import './devices-protected-switches-admin'; // CR-019: הגדרות › חשמל והתקנים › מתגים מוגנים (replaces פעולה קבוצתית)
@@ -1144,6 +1145,7 @@ export class SystemDiagnostics extends LitElement {
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
+      ${api && this.canEdit ? html`<devices-type-admin data-section="device-types"></devices-type-admin>` : nothing}
       ${api && this.canEdit ? html`<devices-protected-switches data-section="protected-switches"></devices-protected-switches>` : nothing}
     </div>`;
   }
