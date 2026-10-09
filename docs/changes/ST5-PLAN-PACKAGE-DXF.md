@@ -150,8 +150,10 @@ Branch `pilot/PLNS-camera-scope` (from `main` 5f907758 = 2.4.0). No migration. C
   entity is withheld from a reader who reaches the floor only through camera bindings. An installation-wide reader with no
   deny is untouched (fast path, byte-identical answers). A camera of a removed recorder is not withheld from a reader who may
   see it (unlike the anchors list, which drops it from the *current* map only).
-- **Read / export:** a hidden reference becomes `null`; the item stays, with its stored position and rotation (the
-  structure is the floor's; only the link is withheld). Applied in one place for the plan-geometry router (`_shown`): GET
+- **Read / export:** a hidden reference becomes `null`; the item stays (the structure is the floor's; only the link is
+  withheld). Since SEC243 (security review 2.4.2 M2, owner decision 2026-10-09) an OBJECT whose reference is withheld is
+  served at the plan's centre (`plan_anchor_scope.WITHHELD_POSITION`, rotation 0), not at its stored pose: the store copies
+  the anchor's position and heading onto the body, so the stored pose is the hidden camera's. Applied in one place for the plan-geometry router (`_shown`): GET
   geometry (draft, published, `?at=`), the PUT / copy-from / detect-accept answers, `export.svg`, `export.png`,
   `export.dxf`; and in `plan_package.build` for the signed package (plan.json, the package DXF). The diff, versions and
   timeline routes carry ids / counts / hashes only; the map bundle carries the row reference only; the global search
@@ -159,10 +161,13 @@ Branch `pilot/PLNS-camera-scope` (from `main` 5f907758 = 2.4.0). No migration. C
 - **Write:** the editor saves what it was served, so a `null` it sends for a reference it was not shown is given back from
   the stored document for the same item (same id; for a glass panel, the same wall id and panel number) - PUT geometry,
   detect-accept, shared-room edits routed to the home floor (CR-009, `shared_spaces.plan_edits(fix=)`), and the package
-  import (replace and merge). Deleting the item still deletes it. A NEW reference to a hidden anchor that exists here (an
-  anchor on the floor, a registered camera or a known entity) is refused on the editor routes (422 `anchor_hidden`,
-  details `ids` = item ids, nothing written) and dropped on the package import (warning `anchor_hidden` in preview and
-  import). Binding a body to a hidden camera would otherwise move the body onto the camera's position. A reference to
+  import (replace and merge); an object gets its stored position and rotation back with it (it was served the withheld
+  pose). Deleting the item still deletes it. A NEW reference to a hidden anchor is refused on the editor routes (422
+  `anchor_hidden`, details `ids` = item ids, nothing written) and dropped on the package import (warning `anchor_hidden`
+  in preview and import). Binding a body to a hidden camera would otherwise move the body onto the camera's position.
+  Since SEC243 (security review 2.4.2 L2) a scoped writer's new CAMERA reference to nothing known here is refused / dropped
+  the same way, so the answer never tells a registered hidden camera from an unknown id, and the import preview lists an
+  anchor the importing person may not see under `anchors_missing`. For a writer who sees every anchor a reference to
   nothing known is left as before (the `anchor_missing` warning).
 
 ## Hashes and ETags (the choice)
@@ -178,8 +183,10 @@ Branch `pilot/PLNS-camera-scope` (from `main` 5f907758 = 2.4.0). No migration. C
   package therefore has another `doc_hash` than the stored row; its re-import restores the hidden references from the draft.
 
 ## Known limits
-- A withheld body does not follow its anchor on the reader's map or in their SVG / PNG (it has no reference); it is drawn
-  where the last save put it, which is the anchor's position at that save.
+- A withheld body does not follow its anchor on the reader's map or in their SVG / PNG / DXF (it has no reference); it is
+  drawn at the plan's centre with rotation 0 (since SEC243; before, it was drawn on the anchor's position at the last save).
+- A scoped reader can still compute nothing from `geometry.doc_hash` about a withheld BODY (its stored pose is not served),
+  but the same hash still covers a withheld reference on an opening or a glass panel (security review 2.4.2 L1, open).
 - The import dialog does not show a text for the new `anchor_hidden` warning yet (the API returns it; UI change not made).
 - A scoped editor who moves a body whose reference they were not shown sees it snap back on save (the hidden reference is
   kept, the store refreshes the position from the anchor).

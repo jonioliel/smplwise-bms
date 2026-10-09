@@ -294,6 +294,11 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
     if any(i["structural"] for i in issues):
         return issues
     width, height = dims["width_px"], dims["height_px"]
+    try:  # security review 2.4.2 M1: the curved walls are measured (arithmetic only) before anything below samples them
+        wall_path.check_walls(doc["walls"], width, height)
+    except wall_path.CurveLimit as exc:
+        _issue(issues, exc.code, exc.message, item=exc.wall_id, path="walls", structural=True)
+        return issues
     seen: dict[str, str] = {}
     for coll in COLLECTIONS:
         for item in doc[coll]:

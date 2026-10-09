@@ -188,6 +188,45 @@ def comparable(zone: dict[str, Any] | None) -> dict[str, Any] | None:
             "loitering_time": 0 if loiter is None else loiter}
 
 
+# Security review 2.4.2 L6: the zone fields Arx does not edit but keeps across a delete + undo (Frigate 0.18 ZoneConfig: per-object
+# filters, the speed estimation's threshold and distances, the display name). A field outside this list is not restored.
+ZONE_EXTRA_KEYS = ("filters", "speed_threshold", "distances", "friendly_name")
+ZONE_EXTRA_MAX_BYTES = 16 * 1024
+ZONE_EXTRA_DEPTH = 6
+_EXTRA_KEY = re.compile(r"^[A-Za-z0-9_-]{1,64}$")  # no ".": Frigate's config/set reads a dotted key as a path
+
+
+def _extra_ok(v: Any, depth: int = 0) -> bool:
+    if depth > ZONE_EXTRA_DEPTH:
+        return False
+    if isinstance(v, dict):
+        return all(isinstance(k, str) and _EXTRA_KEY.fullmatch(k) and _extra_ok(x, depth + 1) for k, x in v.items())
+    if isinstance(v, list):
+        return all(_extra_ok(x, depth + 1) for x in v)
+    if isinstance(v, float):
+        return math.isfinite(v)
+    return v is None or isinstance(v, (str, int, bool))
+
+
+def zone_extra_of(raw: Any) -> dict[str, Any]:
+    """The ZONE_EXTRA_KEYS of a raw zone that hold a value (not None / "" / empty), checked: plain JSON, keys without dots, at
+    most ZONE_EXTRA_DEPTH deep and ZONE_EXTRA_MAX_BYTES as JSON; else 409 `frigate_zone_not_reversible` (the caller does not delete
+    what it could not put back)."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {k: raw[k] for k in ZONE_EXTRA_KEYS if k in raw and raw[k] not in (None, "", [], {})}
+    if not out:
+        return {}
+    try:
+        size = len(json.dumps(out, allow_nan=False))
+    except (TypeError, ValueError):
+        size = ZONE_EXTRA_MAX_BYTES + 1
+    if size > ZONE_EXTRA_MAX_BYTES or not _extra_ok(out):
+        raise ApiError(409, "frigate_zone_not_reversible", "לאזור הזה הגדרות נוספות ש־Arx לא יוכל לשחזר בביטול; מחקו אותו ב־Frigate.",
+                       details={"keys": sorted(out)})
+    return out
+
+
 def same_setting(key: str, a: Any, b: Any) -> bool:
     """Two values of one setting are the same state; None (unset) equals the documented default."""
     d = SETTING[key]["default"]
@@ -237,6 +276,27 @@ class FrigateConfig:
                 return z
         return None
 
+    def zone_extra(self, camera: str, name: str) -> dict[str, Any]:
+        """The fields of one zone that Arx does not model but must not lose when it deletes the zone (security review 2.4.2 L6):
+        only ZONE_EXTRA_KEYS, as Frigate shows them. Raises 409 `frigate_zone_not_reversible` when they cannot be kept for an
+        undo (larger than ZONE_EXTRA_MAX_BYTES, or a key that Frigate's `config/set` would read as a path)."""
+        FrigateAdapter._camera(camera)
+        raw = _dig(self.http.get_json("/api/config"), ["cameras", camera, "zones", name])
+        return zone_extra_of(raw)
+
+    def write_zone(self, camera: str, name: str, zone: dict[str, Any] | None) -> None:
+        """Create / replace one zone, or remove it (`zone=None`). Unset optional fields are removed so Frigate's default applies.
+        `zone["extra"]` (an undo of a delete only, checked by zone_extra_of) writes back the unmodelled fields the zone had."""
+        zone_name(name)
+        if zone is None:
+            self._set(camera, "zones", {name: ""})
+            return
+        coords = ",".join(f"{c:.{PRECISION}f}".rstrip("0").rstrip(".") if c not in (0, 1) else str(int(c)) for p in zone["points"] for c in p)
+        body: dict[str, Any] = {**zone_extra_of(zone.get("extra")), "coordinates": coords, "objects": zone["objects"] or "",
+                                "inertia": "" if zone.get("inertia") is None else zone["inertia"],
+                                "loitering_time": "" if zone.get("loitering_time") is None else zone["loitering_time"]}
+        self._set(camera, "zones", {name: body})
+
     def frigate_schema_check(self) -> dict[str, Any]:
         """Compare our fields with the instance's own JSON schema (a control read). {"checked": bool, "missing": [keys]}; a Frigate that does
         not serve the schema answers checked=False (nothing is concluded)."""
@@ -246,13 +306,17 @@ class FrigateConfig:
             if exc.code in ("frigate_route_missing", "not_found", "source_forbidden"):
                 return {"checked": False, "missing": []}
             raise
-        cam = _camera_schema(doc)
-        if cam is None:
+        budget = _Budget()  # one budget for the whole check: a hostile schema costs at most SCHEMA_WALK_MAX visits
+        try:
+            cam = _camera_schema(doc, budget)
+            if cam is None:
+                return {"checked": False, "missing": []}
+            missing = [s["key"] for s in SETTINGS if not _has_path(doc, cam, s["key"].split("."), budget)]
+            for leaf in ("coordinates", "objects", "inertia", "loitering_time"):
+                if not _has_path(doc, cam, ["zones", "*", leaf], budget):
+                    missing.append(f"zones.*.{leaf}")
+        except (SchemaTooLarge, RecursionError):  # nothing is concluded from a schema we will not walk
             return {"checked": False, "missing": []}
-        missing = [s["key"] for s in SETTINGS if not _has_path(doc, cam, s["key"].split("."))]
-        for leaf in ("coordinates", "objects", "inertia", "loitering_time"):
-            if not _has_path(doc, cam, ["zones", "*", leaf]):
-                missing.append(f"zones.*.{leaf}")
         return {"checked": True, "missing": missing}
 
     # ------------------------------------------------------------------------------------------ the write (ONE call)
@@ -262,17 +326,6 @@ class FrigateConfig:
         FrigateAdapter._camera(camera)
         body = {"requires_restart": 0, "update_topic": f"config/cameras/{camera}/{section}", "config_data": {"cameras": {camera: {section: data}}}}
         self.http.write("config", "PUT", "/api/config/set", body)
-
-    def write_zone(self, camera: str, name: str, zone: dict[str, Any] | None) -> None:
-        """Create / replace one zone, or remove it (`zone=None`). Unset optional fields are removed so Frigate's default applies."""
-        zone_name(name)
-        if zone is None:
-            self._set(camera, "zones", {name: ""})
-            return
-        coords = ",".join(f"{c:.{PRECISION}f}".rstrip("0").rstrip(".") if c not in (0, 1) else str(int(c)) for p in zone["points"] for c in p)
-        self._set(camera, "zones", {name: {"coordinates": coords, "objects": zone["objects"] or "",
-                                            "inertia": "" if zone.get("inertia") is None else zone["inertia"],
-                                            "loitering_time": "" if zone.get("loitering_time") is None else zone["loitering_time"]}})
 
     def write_settings(self, camera: str, section: str, values: dict[str, Any]) -> None:
         """Several keys of ONE section (validated by the caller); None removes a key."""
@@ -302,38 +355,69 @@ def _resolve(doc: Any, node: Any, depth: int = 0) -> Any:
     return node
 
 
-def _children(doc: Any, node: Any) -> list[Any]:
-    node = _resolve(doc, node)
-    if not isinstance(node, dict):
-        return []
-    out = [node]
-    for k in ("anyOf", "allOf", "oneOf"):
-        for alt in node.get(k) or []:
-            out.extend(_children(doc, alt))
+SCHEMA_WALK_MAX = 50_000  # schema nodes one check may visit (security review 2.4.2 L5)
+
+
+class SchemaTooLarge(Exception):
+    """The instance schema needs more than SCHEMA_WALK_MAX visits: the check answers checked=False."""
+
+
+class _Budget:
+    def __init__(self, limit: int = SCHEMA_WALK_MAX) -> None:
+        self.left = limit
+
+    def spend(self) -> None:
+        self.left -= 1
+        if self.left < 0:
+            raise SchemaTooLarge()
+
+
+def _children(doc: Any, node: Any, budget: _Budget | None = None) -> list[Any]:
+    """The node and every alternative it combines (anyOf / allOf / oneOf, through $ref), each schema object once, in
+    document order. Iterative with a visited set (security review 2.4.2 L5: a self-referencing anyOf recursed until
+    RecursionError, and [B, B] nested a few dozen levels deep was exponential)."""
+    budget = budget or _Budget()
+    out: list[Any] = []
+    seen: set[int] = set()
+    stack = [node]
+    while stack:
+        n = _resolve(doc, stack.pop())
+        if not isinstance(n, dict) or id(n) in seen:
+            continue
+        budget.spend()
+        seen.add(id(n))
+        out.append(n)
+        alts: list[Any] = []
+        for k in ("anyOf", "allOf", "oneOf"):
+            v = n.get(k)
+            if isinstance(v, list):
+                alts.extend(v)
+        stack.extend(reversed(alts))
     return out
 
 
-def _has_path(doc: Any, node: Any, path: list[str]) -> bool:
+def _has_path(doc: Any, node: Any, path: list[str], budget: _Budget | None = None) -> bool:
+    budget = budget or _Budget()
     if not path:
         return True
     head, rest = path[0], path[1:]
-    for n in _children(doc, node):
+    for n in _children(doc, node, budget):
         if head == "*":
             ap = n.get("additionalProperties")
-            if isinstance(ap, dict) and _has_path(doc, ap, rest):
+            if isinstance(ap, dict) and _has_path(doc, ap, rest, budget):
                 return True
             continue
         props = n.get("properties")
-        if isinstance(props, dict) and head in props and _has_path(doc, props[head], rest):
+        if isinstance(props, dict) and head in props and _has_path(doc, props[head], rest, budget):
             return True
     return False
 
 
-def _camera_schema(doc: Any) -> Any:
+def _camera_schema(doc: Any, budget: _Budget | None = None) -> Any:
     if not isinstance(doc, dict):
         return None
     cams = _dig(doc, ["properties", "cameras"])
-    for n in _children(doc, cams):
+    for n in _children(doc, cams, budget):
         ap = n.get("additionalProperties")
         if isinstance(ap, dict):
             return ap

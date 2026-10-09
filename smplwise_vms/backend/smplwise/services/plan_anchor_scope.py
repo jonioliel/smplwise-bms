@@ -6,16 +6,20 @@ openings on the item itself, a glass wall on each operable panel (`walls[].glazi
 security review 2.2.0 M2 filter already kept hidden cameras out of the anchors list, the floor bundle, the package's
 anchors.json / report and the DXF devices, but the stored document still named them. Now:
 
-- **Read / export** (`redact`): a reference the reader may not see becomes `null`; the item itself stays, with its own
-  position (the structure is the floor's, only the link to the camera is withheld). The rule is the floor bundle's
+- **Read / export** (`redact`): a reference the reader may not see becomes `null`; the item itself stays (the structure
+  is the floor's, only the link to the camera is withheld). An OBJECT bound to such an anchor is served at
+  WITHHELD_POSITION with rotation 0, never at its stored pose, which the store copied from the anchor (security review
+  2.4.2 M2, owner decision 2026-10-09: the camera's position and heading are not handed to a reader denied the camera). The rule is the floor bundle's
   (routers/anchors.py, T055): a camera follows the reader's camera scope for map.read, an entity is withheld from a
   reader who reaches the floor only through camera bindings. Unlike the anchors list, a camera of a removed recorder is
   NOT withheld from a reader who may see it (its id is no secret to them; history documents name it).
 - **Write** (`carry_hidden`): the stored document is never changed by someone who could not see what they would
   change. A reference the writer was not shown comes back from the stored document for the same item (same id; for a
-  glass panel the same wall id and panel number) when the writer sends `null` for it. A NEW reference to an anchor the
-  writer may not see, that exists here, is refused (the editor routes: 422 `anchor_hidden`) or dropped (the package
-  import: warning `anchor_hidden`) - binding a body to a hidden camera would move the body onto the camera's position.
+  glass panel the same wall id and panel number) when the writer sends `null` for it, and an object takes back its
+  stored pose with it. A NEW reference to an anchor the writer may not see - or, for a scoped writer, a camera
+  reference to nothing known here, so the answer never tells the two apart (security review 2.4.2 L2) - is refused
+  (the editor routes: 422 `anchor_hidden`) or dropped (the package import: warning `anchor_hidden`) - binding a body to
+  a hidden camera would move the body onto the camera's position.
 - Stored documents and their hashes are unchanged; there is no migration. `geometry.doc_hash` and `result_hash` stay the
   identity of the STORED row (the map bundle, the publish timeline and the editor's "pending publish" compare them).
   What is served and redacted carries its own hash: the published read's ETag is computed over the served body, and the
@@ -30,6 +34,10 @@ from typing import Any, Callable, Iterator
 
 Visible = Callable[[str, Any], bool]
 REF_COLLECTIONS = ("openings", "objects")
+# security review 2.4.2 M2: where a reader who may not see a body's anchor is shown that body (the plan's centre, the
+# same for every body and every plan, so it tells nothing about the anchor)
+WITHHELD_POSITION = (0.5, 0.5)
+POSE_FIELDS = ("position", "rotation_deg")
 
 
 class HiddenAnchor(Exception):
@@ -93,14 +101,21 @@ def has_hidden(doc: dict[str, Any], visible: Visible | None) -> bool:
 
 
 def redact(doc: dict[str, Any], visible: Visible | None) -> tuple[dict[str, Any], bool]:
-    """The document as this reader gets it: every reference they may not see set to null, everything else as stored.
-    Returns (document, whether anything was withheld); the document is a copy only when something was."""
+    """The document as this reader gets it: every reference they may not see set to null, everything else as stored -
+    except the pose of an OBJECT bound to such an anchor (security review 2.4.2 M2, owner decision 2026-10-09): the store
+    copies the anchor's position and rotation onto the body (plan_geometry.apply_anchor_positions), so the stored pose IS
+    the hidden camera's; this reader gets the body at WITHHELD_POSITION with rotation 0 instead. Openings and glass panels
+    keep their own place on their wall (nothing is copied onto them). Returns (document, whether anything was withheld);
+    the document is a copy only when something was."""
     if not has_hidden(doc, visible):
         return doc, False
     out = copy.deepcopy(doc)
-    for _coll, _it, _key, holder in _slots(out):
+    for coll, _it, _key, holder in _slots(out):
         if _hidden(holder.get("anchor_ref"), visible):  # type: ignore[arg-type]
             holder["anchor_ref"] = None
+            if coll == "objects":
+                holder["position"] = list(WITHHELD_POSITION)
+                holder["rotation_deg"] = 0
     return out, True
 
 
@@ -131,9 +146,11 @@ def exists_here(conn: sqlite3.Connection, floor_id: str) -> Callable[[dict[str, 
 def fix_item(old: dict[str, Any] | None, new: dict[str, Any], coll: str, visible: Visible, exists: Callable[[dict[str, Any]], bool],
              dropped: list[str]) -> dict[str, Any]:
     """One item a writer sent, against the stored copy of the same item (`old`, None for a new item): a hidden
-    reference left null comes back from `old`; a new hidden reference is dropped and its item id put in `dropped`."""
+    reference left null comes back from `old` (for an object with its stored pose: the writer was shown the withheld
+    one, see `redact`); a new reference the writer may not make (`_refused`) is dropped and its item id put in `dropped`."""
     stored = {k: h.get("anchor_ref") for k, h in _holders(old, coll)} if isinstance(old, dict) else {}
-    if not any(_hidden(r, visible) for r in stored.values()) and not any(_hidden(h.get("anchor_ref"), visible) for _k, h in _holders(new, coll)):
+    refused = {k for k, h in _holders(new, coll) if _refused(h.get("anchor_ref"), stored.get(k), visible, exists)}
+    if not refused and not any(_hidden(r, visible) for r in stored.values()):
         return new
     out = copy.deepcopy(new)
     for key, holder in _holders(out, coll):
@@ -141,10 +158,28 @@ def fix_item(old: dict[str, Any] | None, new: dict[str, Any], coll: str, visible
         if ref is None:
             if _hidden(before, visible):
                 holder["anchor_ref"] = copy.deepcopy(before)
-        elif _hidden(ref, visible) and not _same(ref, before) and exists(ref):
+                if coll == "objects" and isinstance(old, dict):
+                    for f in POSE_FIELDS:
+                        if f in old:
+                            holder[f] = copy.deepcopy(old[f])
+                        else:
+                            holder.pop(f, None)
+        elif key in refused:
             holder["anchor_ref"] = None
             dropped.append(str(out.get("id")))
     return out
+
+
+def _refused(ref: Any, before: Any, visible: Visible, exists: Callable[[dict[str, Any]], bool]) -> bool:
+    """A NEW reference (not the one stored for that place) a scoped writer may not make: one to an anchor their scope
+    hides, or a camera reference to nothing known here - so the answer is the same for a registered hidden camera and an
+    unknown id and never confirms that a camera exists (security review 2.4.2 L2). A writer who sees every anchor
+    (visibility None) never gets here."""
+    if not isinstance(ref, dict) or _same(ref, before):
+        return False
+    if _hidden(ref, visible):
+        return True
+    return ref.get("resource_type") == "camera" and not exists(ref)
 
 
 def carry_hidden(incoming: dict[str, Any], stored: dict[str, Any] | None, visible: Visible | None, exists: Callable[[dict[str, Any]], bool],

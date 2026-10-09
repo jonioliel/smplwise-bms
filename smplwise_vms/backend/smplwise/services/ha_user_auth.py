@@ -32,6 +32,7 @@ import base64
 import collections
 import dataclasses
 import hashlib
+import ipaddress
 import json
 import logging
 import secrets
@@ -605,11 +606,21 @@ class RateLimiter:
     attacker a fresh budget. The hot path stays in memory: `hit` never touches the database."""
 
     SCOPE = "signin"
+    # Security review 2.4.2 L4: every distinct client address used to become a live key AND a persisted row. Now:
+    # - at most MAX_KEYS live keys: past it the expired keys go first, then the least recently hit ones - keys that never
+    #   came near a limit before those that did - down to LOW_WATER (so the sweep runs once per MAX_KEYS - LOW_WATER new keys);
+    # - only a key that reached half of one of its windows' caps is written (a single request from a fresh address is
+    #   never a row); once written, it is kept up to date until its row is deleted;
+    # - at most FLUSH_MAX rows per flush (the rest waits for the next tick), and a failed write puts its batch back.
+    MAX_KEYS = 20000
+    LOW_WATER = 18000
+    FLUSH_MAX = 2000
 
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self._lock = threading.Lock()
-        self._hits: dict[str, collections.deque] = {}
+        self._hits: collections.OrderedDict[str, collections.deque] = collections.OrderedDict()  # least recently hit first
         self._dirty: set[str] = set()
+        self._persisted: set[str] = set()  # keys that have (or are about to have) a row: kept current until deleted
         self._clock = clock
 
     def hit(self, key: str, limits: list[tuple[float, int]]) -> bool:
@@ -617,31 +628,53 @@ class RateLimiter:
         now = self._clock()
         longest = max(w for w, _ in limits)
         with self._lock:
-            q = self._hits.setdefault(key, collections.deque())
+            q = self._hits.get(key)
+            if q is None:
+                q = self._hits[key] = collections.deque()
+            else:
+                self._hits.move_to_end(key)
             while q and now - q[0] > longest:
                 q.popleft()
-            for window, cap in limits:
-                if sum(1 for t in q if now - t <= window) >= cap:
-                    return False
+            counts = [sum(1 for t in q if now - t <= window) for window, _cap in limits]
+            if any(n >= cap for n, (_w, cap) in zip(counts, limits)):
+                return False
             q.append(now)
-            self._dirty.add(key)
-            if len(self._hits) > 20000:
-                for k in [k for k, v in self._hits.items() if not v or now - v[-1] > longest]:
-                    self._hits.pop(k, None)
-                    self._dirty.discard(k)
+            if key in self._persisted or any(n + 1 >= max(1, (cap + 1) // 2) for n, (_w, cap) in zip(counts, limits)):
+                self._dirty.add(key)
+                self._persisted.add(key)
+            if len(self._hits) > self.MAX_KEYS:
+                self._shrink(now, longest)
             return True
+
+    def _shrink(self, now: float, longest: float) -> None:
+        """Under the lock: expired keys first, then cold ones (never near a limit), then the oldest, down to LOW_WATER.
+        An evicted key keeps its row (if it has one) until the row expires; it is no longer flushed."""
+        for k in [k for k, v in self._hits.items() if not v or now - v[-1] > longest]:
+            self._drop(k)
+        for hot in (False, True):
+            if len(self._hits) <= self.LOW_WATER:
+                return
+            for k in [k for k in self._hits if (k in self._persisted) == hot][: len(self._hits) - self.LOW_WATER]:
+                self._drop(k)
+
+    def _drop(self, k: str) -> None:
+        self._hits.pop(k, None)
+        self._dirty.discard(k)
+        self._persisted.discard(k)
 
     def clear(self) -> None:
         with self._lock:
             self._hits.clear()
             self._dirty.clear()
+            self._persisted.clear()
 
     def flush(self, conn: sqlite3.Connection) -> int:
-        """Write the keys that changed since the last flush; returns the number written. The row lives until the longest window
-        after the newest hit (WINDOW_MAX); an emptied key deletes its row."""
+        """Write the keys that changed since the last flush (at most FLUSH_MAX); returns the number written. The row lives until
+        the longest window after the newest hit (WINDOW_MAX); an emptied key deletes its row."""
         with self._lock:
-            batch = {k: list(self._hits.get(k, ())) for k in self._dirty}
-            self._dirty.clear()
+            keys = list(self._dirty)[: self.FLUSH_MAX]
+            batch = {k: list(self._hits.get(k, ())) for k in keys}
+            self._dirty.difference_update(keys)
         if not batch:
             return 0
         horizon = max(w for w, _ in IP_LIMITS + USER_LIMITS)
@@ -654,8 +687,14 @@ class RateLimiter:
                         (self.SCOPE, k, json.dumps(hits), hits[-1] + horizon))
                 else:
                     conn.execute("DELETE FROM block_counters WHERE scope = ? AND key = ?", (self.SCOPE, k))
-        except sqlite3.OperationalError:  # an older schema: memory only, as before
+        except sqlite3.OperationalError:  # busy, or an older schema: the batch waits for the next flush (memory only meanwhile)
+            with self._lock:
+                self._dirty.update(k for k in batch if k in self._hits)
             return 0
+        with self._lock:
+            for k, hits in batch.items():
+                if not hits and not self._hits.get(k):
+                    self._persisted.discard(k)
         return len(batch)
 
     def restore(self, conn: sqlite3.Connection) -> int:
@@ -678,6 +717,7 @@ class RateLimiter:
                 merged = sorted([*q, *stored])
                 q.clear()
                 q.extend(merged)
+                self._persisted.add(r["key"])  # it has a row: later hits keep that row current
                 n += 1
         return n
 
@@ -799,6 +839,21 @@ def client_ip(conn: Any) -> str:
     if not ip and getattr(conn, "client", None):
         ip = conn.client.host
     return ip[:64]
+
+
+def limit_ip(ip: str) -> str:
+    """The rate-limit bucket of a client address (security review 2.4.2 L4): an IPv6 address counts as its /64 - one
+    subscriber's prefix, which a client can rotate through freely - an IPv4-mapped one as its IPv4 address, anything else
+    (IPv4, or a value that is not an address) as itself. Only the limiter keys use it; the audit keeps the full address."""
+    try:
+        addr = ipaddress.ip_address(ip.split("%", 1)[0])
+    except ValueError:
+        return ip
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            return str(addr.ipv4_mapped)
+        return str(ipaddress.IPv6Network((int(addr) >> 64 << 64, 64)))
+    return str(addr)
 
 
 def request_meta(conn: Any) -> dict[str, str]:
@@ -1105,7 +1160,7 @@ async def exchange(app_state: Any, settings: Settings, conn_like: Any, token: st
         await run_in_threadpool(lambda: _audit_refusal(db, actor=actor, reason=reason, meta=meta, subject=subject))
         return err
 
-    if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
+    if not LIMITER.hit(f"ip:{limit_ip(ip)}", IP_LIMITS):
         raise await rejected("rate_limited_ip", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     exp = jwt_exp(token)
     if exp is None or exp <= time.time() or was_rejected(token):
@@ -1214,7 +1269,7 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         _audit_refusal(db, actor=actor, reason=reason, meta=meta, subject=subject)
         return err
 
-    if not LIMITER.hit(f"ip:{ip}", IP_LIMITS):
+    if not LIMITER.hit(f"ip:{limit_ip(ip)}", IP_LIMITS):
         raise rejected("rate_limited_ip", ApiError(429, "rate_limited", RATE_LIMITED_HE, retryable=True))
     try:
         ha_user = asyncio.run(validate_token(settings, token, ip))
