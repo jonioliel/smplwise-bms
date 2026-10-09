@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סיור בגובה עין - שאלות</title>
+<style>
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef2f7;
+  --text: #17202b;
+  --muted: #5b6878;
+  --line: #d9e0e8;
+  --accent: #2563eb;
+  --accent-soft: #e3ecfd;
+  --rec: #0f7b4b;
+  --rec-soft: #e1f4ea;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dc;
+  --sk-wall: #3a4656;
+  --sk-floor: #e9e2d6;
+  --sk-wood: #c49a6c;
+  --sk-sky: #cfe2f7;
+  --sk-sun: #f2b233;
+  --sk-glow: #ffd27a;
+  --sk-dark: #1d2633;
+  --radius: 12px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b;
+    --surface: #18202a;
+    --surface-2: #202a36;
+    --text: #e8edf3;
+    --muted: #9aa8b8;
+    --line: #2c3846;
+    --accent: #6c9cff;
+    --accent-soft: #1d2b45;
+    --rec: #4fd08f;
+    --rec-soft: #15302a;
+    --warn: #f0b45a;
+    --warn-soft: #33270f;
+    --sk-wall: #b8c4d2;
+    --sk-floor: #3a352e;
+    --sk-wood: #9c7650;
+    --sk-sky: #26384f;
+    --sk-sun: #f2b233;
+    --sk-glow: #ffcf70;
+    --sk-dark: #0b0f15;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b;
+  --surface: #18202a;
+  --surface-2: #202a36;
+  --text: #e8edf3;
+  --muted: #9aa8b8;
+  --line: #2c3846;
+  --accent: #6c9cff;
+  --accent-soft: #1d2b45;
+  --rec: #4fd08f;
+  --rec-soft: #15302a;
+  --warn: #f0b45a;
+  --warn-soft: #33270f;
+  --sk-wall: #b8c4d2;
+  --sk-floor: #3a352e;
+  --sk-wood: #9c7650;
+  --sk-sky: #26384f;
+  --sk-sun: #f2b233;
+  --sk-glow: #ffcf70;
+  --sk-dark: #0b0f15;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Heebo", "Segoe UI", "Noto Sans Hebrew", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 120px; }
+header.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; line-height: 1.25; }
+.sub { color: var(--muted); margin: 0; }
+.theme-btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: .9rem; cursor: pointer; min-height: 40px;
+}
+.intro {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px; margin: 20px 0 8px;
+}
+.intro p { margin: 0 0 8px; }
+.intro p:last-child { margin-bottom: 0; }
+.intro ol { margin: 6px 0 0; padding-inline-start: 22px; }
+.progress { color: var(--muted); font-size: .9rem; margin: 14px 2px; }
+.q {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px; margin: 16px 0;
+}
+.q.new { border-color: var(--warn); }
+.q h2 { font-size: 1.15rem; margin: 0 0 6px; line-height: 1.35; display: flex; gap: 10px; align-items: baseline; }
+.q h2 .n {
+  flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font-size: .95rem; font-weight: 700;
+}
+.tag-new { font-size: .75rem; font-weight: 600; color: var(--warn); background: var(--warn-soft); border-radius: 999px; padding: 2px 8px; }
+.why { color: var(--muted); margin: 0 0 12px; }
+.sketch {
+  background: var(--surface-2); border-radius: 10px; padding: 10px; margin: 0 0 14px;
+  display: flex; justify-content: center;
+}
+.sketch svg { width: 100%; max-width: 560px; height: auto; display: block; }
+.sketch figcaption { display: none; }
+.opts { display: grid; gap: 8px; }
+.opt {
+  display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; cursor: pointer; background: var(--surface); min-height: 44px;
+}
+.opt:hover { border-color: var(--accent); }
+.opt input { margin-top: 5px; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+.opt .letter { font-weight: 700; color: var(--accent); flex: none; min-width: 1.2em; }
+.opt .txt { flex: 1; }
+.opt .txt small { display: block; color: var(--muted); font-size: .85rem; }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.rec {
+  display: inline-block; font-size: .75rem; font-weight: 600; color: var(--rec); background: var(--rec-soft);
+  border-radius: 999px; padding: 1px 8px; margin-inline-start: 6px; vertical-align: 1px;
+}
+.note-label { display: block; margin: 12px 0 4px; font-size: .9rem; color: var(--muted); }
+textarea {
+  width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--text); font: inherit; padding: 8px 10px;
+}
+textarea:focus, .opt:focus-within, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bar {
+  position: fixed; inset-inline: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px 16px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; z-index: 5;
+}
+.btn {
+  border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 10px;
+  padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px;
+}
+.btn.ghost { background: transparent; color: var(--accent); }
+.status { color: var(--rec); font-size: .9rem; min-width: 8em; }
+#fallback { display: none; margin-top: 16px; }
+#fallback.show { display: block; }
+#fallback textarea { min-height: 220px; direction: rtl; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+@media (max-width: 520px) {
+  h1 { font-size: 1.3rem; }
+  .q { padding: 14px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>סיור בגובה עין ומראה ריאליסטי לתוכנית - שאלות לפני הבנייה</h1>
+      <p class="sub">13 שאלות קצרות. לכל שאלה מסומנת ההמלצה שלי; אפשר לשנות ולהוסיף הערה.</p>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">כהה / בהיר</button>
+  </header>
+
+  <section class="intro">
+    <p><strong>מה המצב:</strong> אב־הטיפוס שראית הוכיח שהכיוון עובד - הליכה בתוך הבית, דלתות, מדרגות, שעה ביום, תמונות מוכנות למסך קיר. אמרת שהוא "הרבה יותר טוב אבל נראה כמו שנות ה־90". אני מסכים, והסיבות ברורות: רהיטים כקופסאות חדות, צבעים רוויים (כחול חזק, חום כתום), תאורה שטוחה בלי צללים רכים בפינות, טקסטורות מטושטשות בקנה מידה לא נכון, חלונות אפורים אטומים, והרבה מדי כרטיסים ותוויות על המסך.</p>
+    <p><strong>מה יקרה אחרי התשובות:</strong> סוכן עיצוב מתקדם יעבוד כ־20 שעות על המראה עצמו, יחזור אליך באמצע עם שלוש תמונות לאישור, ורק אחר כך ההטמעה במוצר.</p>
+    <p><strong>איך עונים:</strong></p>
+    <ol>
+      <li>בוחרים אפשרות בכל שאלה (ההמלצה כבר מסומנת).</li>
+      <li>כותבים הערה אם צריך.</li>
+      <li>לוחצים "העתק תשובות" ומדביקים בצ'אט.</li>
+    </ol>
+    <p class="sub">התשובות נשמרות בדפדפן הזה בלבד, כך שאפשר לסגור ולחזור.</p>
+  </section>
+
+  <div class="progress" id="progress"></div>
+
+  <form id="form" autocomplete="off"></form>
+
+  <div id="fallback">
+    <p>ההעתקה האוטומטית נחסמה בדפדפן. סמן את הטקסט למטה והעתק ידנית:</p>
+    <textarea id="fallbackText" readonly></textarea>
+  </div>
+</div>
+
+<div class="bar">
+  <button class="btn" type="button" id="copyBtn">העתק תשובות</button>
+  <button class="btn ghost" type="button" id="resetBtn">חזרה להמלצות</button>
+  <span class="status" id="status" role="status" aria-live="polite"></span>
+</div>
+
+<!-- Sketch templates. Colours come from CSS variables so they work in both themes. -->
+<template id="sk1">
+<svg viewBox="0 0 560 150" role="img" aria-label="שלוש גישות: תלת־ממד חי, משולב, תמונות מוכנות">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <g transform="translate(370 0)"><rect x="10" y="10" width="170" height="110" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+    <polygon points="40,90 95,62 150,90 95,118" fill="var(--sk-floor)" stroke="var(--sk-wall)"/>
+    <polygon points="40,90 40,60 95,32 95,62" fill="none" stroke="var(--sk-wall)"/>
+    <polygon points="150,90 150,60 95,32" fill="none" stroke="var(--sk-wall)"/>
+    <path d="M60 40 a30 12 0 1 0 70 0" fill="none" stroke="var(--accent)" stroke-dasharray="4 3"/>
+    <text x="95" y="140">חי - מסתובב, הולכים</text></g>
+    <rect x="195" y="10" width="170" height="110" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+    <polygon points="215,90 255,68 295,90 255,112" fill="var(--sk-floor)" stroke="var(--sk-wall)"/>
+    <rect x="300" y="45" width="52" height="40" rx="4" fill="var(--sk-sky)" stroke="var(--sk-wall)"/>
+    <text x="280" y="38" font-size="20">+</text>
+    <text x="280" y="140" font-weight="700" fill="var(--accent)">משולב</text>
+    <g transform="translate(-370 0)"><rect x="380" y="10" width="170" height="110" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+    <rect x="405" y="30" width="120" height="75" rx="6" fill="var(--sk-sky)" stroke="var(--sk-wall)"/>
+    <polygon points="425,85 465,62 505,85 465,100" fill="var(--sk-floor)"/>
+    <text x="465" y="140">תמונה קבועה בלבד</text></g>
+  </g>
+</svg>
+</template>
+
+<template id="sk2">
+<svg viewBox="0 0 560 120" role="img" aria-label="סדר הבנייה המומלץ">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <g>
+      <rect x="10" y="30" width="120" height="50" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+      <text x="70" y="60">שמש ומנורות</text>
+      <rect x="150" y="30" width="120" height="50" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+      <text x="210" y="60">חומרים ומראה</text>
+      <rect x="290" y="30" width="120" height="50" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="350" y="60" font-weight="700" fill="var(--accent)">הסיור</text>
+      <rect x="430" y="30" width="120" height="50" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+      <text x="490" y="60">שדות חדשים</text>
+    </g>
+    <g stroke="var(--muted)" stroke-width="2" fill="none">
+      <path d="M148 55 h-18 m0 0 l6 -5 m-6 5 l6 5"/><path d="M288 55 h-18 m0 0 l6 -5 m-6 5 l6 5"/><path d="M428 55 h-18 m0 0 l6 -5 m-6 5 l6 5"/>
+    </g>
+    <text x="280" y="108" fill="var(--muted)">הסיור לא צריך טקסטורות - לכן אפשר ללכת בתוכניות האמיתיות כבר בגרסה הראשונה</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk3">
+<svg viewBox="0 0 560 160" role="img" aria-label="גובה עין 1.65 מטר ו־1.2 מטר">
+  <g stroke="var(--sk-wall)" fill="none" stroke-width="2">
+    <line x1="20" y1="145" x2="540" y2="145"/>
+    <circle cx="160" cy="34" r="11"/>
+    <path d="M160 45 v50 M160 95 l-14 48 M160 95 l14 48 M160 58 l-20 26 M160 58 l20 26"/>
+    <circle cx="380" cy="72" r="11"/>
+    <path d="M380 83 v34 M380 98 l18 10 M366 117 h34 v26"/>
+    <circle cx="372" cy="128" r="16"/>
+  </g>
+  <g stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="2">
+    <line x1="175" y1="34" x2="300" y2="34"/>
+    <line x1="395" y1="72" x2="520" y2="72"/>
+  </g>
+  <g font-size="13" fill="var(--text)">
+    <text x="240" y="26" text-anchor="middle">1.65 מ׳ - עמידה</text>
+    <text x="460" y="64" text-anchor="middle">1.2 מ׳ - כיסא גלגלים</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk4">
+<svg viewBox="0 0 560 150" role="img" aria-label="דלת עם חיישן ודלת בלי חיישן">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <path d="M120 20 H40 V120 H240 V20 H168" fill="none" stroke="var(--sk-wall)" stroke-width="6" stroke-linejoin="round"/>
+    <line x1="120" y1="20" x2="148" y2="58" stroke="var(--sk-wood)" stroke-width="5" stroke-linecap="round"/>
+    <path d="M168 20 A48 48 0 0 1 148 58" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/>
+    <circle cx="196" cy="34" r="8" fill="var(--rec)"/>
+    <text x="140" y="142">יש חיישן - יודעים אם פתוחה</text>
+    <path d="M400 20 H320 V120 H520 V20 H448" fill="none" stroke="var(--sk-wall)" stroke-width="6" stroke-linejoin="round"/>
+    <line x1="400" y1="20" x2="448" y2="20" stroke="var(--sk-wood)" stroke-width="5"/>
+    <text x="424" y="80" font-size="34" fill="var(--warn)">?</text>
+    <text x="420" y="142">אין חיישן - האם מותר לעבור?</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk5">
+<svg viewBox="0 0 560 130" role="img" aria-label="גרירה להסתכלות לעומת נעילת סמן">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="30" y="15" width="220" height="85" rx="8" fill="var(--sk-sky)" stroke="var(--line)"/>
+    <rect x="120" y="45" width="26" height="38" rx="13" fill="var(--surface)" stroke="var(--sk-wall)" stroke-width="2"/>
+    <path d="M100 64 h-30 m0 0 l8 -6 m-8 6 l8 6 M166 64 h30 m0 0 l-8 -6 m8 6 l-8 6" stroke="var(--accent)" stroke-width="2" fill="none"/>
+    <text x="140" y="122">לוחצים וגוררים כדי להסתכל</text>
+    <rect x="310" y="15" width="220" height="85" rx="8" fill="var(--sk-sky)" stroke="var(--line)"/>
+    <circle cx="420" cy="57" r="6" fill="none" stroke="var(--sk-wall)" stroke-width="2"/>
+    <rect x="455" y="24" width="64" height="22" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+    <text x="487" y="40" font-size="11">Esc ליציאה</text>
+    <text x="420" y="122">העכבר "ננעל" - כמו במשחק</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk6">
+<svg viewBox="0 0 560 120" role="img" aria-label="דוגמאות חומרים: עץ, אריחים, טיח, בטון">
+  <defs>
+    <pattern id="p-wood" width="40" height="12" patternUnits="userSpaceOnUse"><rect width="40" height="12" fill="var(--sk-wood)"/><line x1="0" y1="11.5" x2="40" y2="11.5" stroke="var(--sk-wall)" stroke-opacity=".35"/><line x1="22" y1="0" x2="22" y2="12" stroke="var(--sk-wall)" stroke-opacity=".25"/></pattern>
+    <pattern id="p-tile" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="var(--surface)"/><path d="M0 19.5 H20 M19.5 0 V20" stroke="var(--line)"/></pattern>
+    <pattern id="p-conc" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="var(--surface-2)"/><circle cx="4" cy="5" r="1" fill="var(--muted)" opacity=".4"/><circle cx="11" cy="12" r="1.2" fill="var(--muted)" opacity=".3"/></pattern>
+  </defs>
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="20" y="10" width="110" height="75" rx="8" fill="url(#p-wood)" stroke="var(--line)"/><text x="75" y="105">פרקט עץ</text>
+    <rect x="155" y="10" width="110" height="75" rx="8" fill="url(#p-tile)" stroke="var(--line)"/><text x="210" y="105">אריחים</text>
+    <rect x="290" y="10" width="110" height="75" rx="8" fill="var(--sk-floor)" stroke="var(--line)"/><text x="345" y="105">טיח</text>
+    <rect x="425" y="10" width="110" height="75" rx="8" fill="url(#p-conc)" stroke="var(--line)"/><text x="480" y="105">בטון</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk7">
+<svg viewBox="0 0 560 150" role="img" aria-label="מסלול השמש לאורך היום ומחוון שעה">
+  <path d="M40 110 Q280 -20 520 110" fill="none" stroke="var(--sk-sun)" stroke-dasharray="5 5" stroke-width="2"/>
+  <circle cx="190" cy="44" r="14" fill="var(--sk-sun)"/>
+  <line x1="20" y1="110" x2="540" y2="110" stroke="var(--sk-wall)" stroke-width="2"/>
+  <rect x="120" y="126" width="320" height="6" rx="3" fill="var(--line)"/>
+  <rect x="120" y="126" width="110" height="6" rx="3" fill="var(--accent)"/>
+  <circle cx="230" cy="129" r="9" fill="var(--surface)" stroke="var(--accent)" stroke-width="3"/>
+  <rect x="455" y="118" width="70" height="24" rx="12" fill="var(--accent-soft)" stroke="var(--accent)"/>
+  <text x="490" y="135" font-size="13" text-anchor="middle" fill="var(--accent)">עכשיו</text>
+  <text x="60" y="135" font-size="12" text-anchor="middle" fill="var(--muted)">06:00</text>
+  <text x="505" y="100" font-size="12" fill="var(--muted)" text-anchor="middle">19:00</text>
+</svg>
+</template>
+
+<template id="sk8">
+<svg viewBox="0 0 560 150" role="img" aria-label="תמונה מוכנה: בסיס, גרסה עם אורות, ומסכה לכל חדר">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="395" y="15" width="150" height="95" rx="6" fill="var(--sk-dark)"/>
+    <rect x="415" y="35" width="50" height="55" fill="#2b3442"/><rect x="475" y="35" width="50" height="55" fill="#2b3442"/>
+    <text x="470" y="132">אורות כבויים</text>
+    <text x="375" y="70" font-size="22">+</text>
+    <rect x="205" y="15" width="150" height="95" rx="6" fill="var(--sk-dark)"/>
+    <rect x="225" y="35" width="50" height="55" fill="var(--sk-glow)"/><rect x="285" y="35" width="50" height="55" fill="var(--sk-glow)"/>
+    <text x="280" y="132">אורות דולקים</text>
+    <text x="185" y="70" font-size="22">=</text>
+    <rect x="15" y="15" width="150" height="95" rx="6" fill="var(--sk-dark)"/>
+    <rect x="35" y="35" width="50" height="55" fill="#2b3442"/><rect x="95" y="35" width="50" height="55" fill="var(--sk-glow)"/>
+    <rect x="95" y="35" width="50" height="55" fill="none" stroke="var(--accent)" stroke-dasharray="4 3" stroke-width="2"/>
+    <text x="90" y="132">רק הסלון דולק - לפי מסכת החדר</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk9">
+<svg viewBox="0 0 560 140" role="img" aria-label="מסך קיר: אחרי זמן ללא שימוש עובר לתמונה ולא מצייר">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="330" y="15" width="200" height="100" rx="12" fill="var(--sk-dark)" stroke="var(--sk-wall)" stroke-width="3"/>
+    <polygon points="370,80 430,52 490,80 430,106" fill="var(--sk-floor)"/>
+    <text x="430" y="35" fill="#9fb3c8" font-size="11">תלת־ממד חי</text>
+    <text x="280" y="70" font-size="13" fill="var(--muted)">אחרי N דקות</text>
+    <path d="M310 80 h-60 m0 0 l8 -6 m-8 6 l8 6" stroke="var(--muted)" stroke-width="2" fill="none"/>
+    <rect x="30" y="15" width="200" height="100" rx="12" fill="var(--sk-dark)" stroke="var(--sk-wall)" stroke-width="3"/>
+    <polygon points="70,80 130,52 190,80 130,106" fill="var(--sk-floor)" opacity=".85"/>
+    <text x="130" y="35" fill="#9fb3c8" font-size="11">תמונה - 0 ציורים</text>
+    <text x="280" y="135" fill="var(--muted)">פחות חום, פחות סוללה, אותו מראה. נגיעה מחזירה לחי.</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk10">
+<svg viewBox="0 0 560 140" role="img" aria-label="ספה כקופסה, ספה מצוירת משופרת, ספה כדגם אמיתי">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="405" y="55" width="120" height="40" fill="#2f55c9"/><rect x="405" y="35" width="120" height="22" fill="#2348b8"/>
+    <text x="465" y="125">היום: קופסאות</text>
+    <rect x="215" y="62" width="130" height="34" rx="10" fill="var(--sk-wood)" opacity=".55"/>
+    <rect x="222" y="40" width="58" height="28" rx="9" fill="var(--sk-floor)" stroke="var(--line)"/>
+    <rect x="282" y="40" width="58" height="28" rx="9" fill="var(--sk-floor)" stroke="var(--line)"/>
+    <rect x="219" y="96" width="6" height="8" fill="var(--sk-wall)"/><rect x="335" y="96" width="6" height="8" fill="var(--sk-wall)"/>
+    <text x="280" y="125" font-weight="700" fill="var(--accent)">מצויר משופר</text>
+    <path d="M30 96 q-6 -38 30 -46 h70 q36 8 30 46 z" fill="var(--sk-floor)" stroke="var(--sk-wall)"/>
+    <path d="M50 74 q45 -14 90 0" fill="none" stroke="var(--line)" stroke-width="2"/>
+    <text x="95" y="125">דגם אמיתי</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk11">
+<svg viewBox="0 0 560 120" role="img" aria-label="סכמטי לעומת ריאליסטי">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="310" y="10" width="210" height="80" rx="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+    <polygon points="360,60 415,35 470,60 415,85" fill="none" stroke="var(--sk-wall)" stroke-width="2"/>
+    <text x="415" y="110" font-weight="700" fill="var(--accent)">סכמטי - ברירת מחדל</text>
+    <rect x="40" y="10" width="210" height="80" rx="10" fill="var(--sk-sky)" stroke="var(--line)"/>
+    <polygon points="90,60 145,35 200,60 145,85" fill="var(--sk-wood)"/>
+    <circle cx="225" cy="28" r="9" fill="var(--sk-sun)"/>
+    <text x="145" y="110">ריאליסטי - בחירה</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk12">
+<svg viewBox="0 0 560 170" role="img" aria-label="שני סגנונות: הדמיה אדריכלית בהירה ותאום דיגיטלי כהה">
+  <g font-size="13" text-anchor="middle">
+    <rect x="290" y="10" width="260" height="130" rx="12" fill="#f3efe9"/>
+    <ellipse cx="420" cy="122" rx="104" ry="12" fill="#000" opacity=".10"/>
+    <polygon points="325,92 420,47 515,92 420,137" fill="#e6dccb"/>
+    <polygon points="325,92 325,58 420,13 420,47" fill="#f7f4ef"/>
+    <polygon points="420,47 420,13 515,58 515,92" fill="#ebe6de"/>
+    <polyline points="325,58 420,13 515,58" fill="none" stroke="#2d2a26" stroke-width="5" stroke-linejoin="round"/>
+    <line x1="420" y1="47" x2="420" y2="13" stroke="#d2cbc0" stroke-width="1"/>
+    <line x1="372" y1="70" x2="372" y2="36" stroke="#2d2a26" stroke-width="4"/>
+    <ellipse cx="398" cy="96" rx="22" ry="9" fill="#9fae94"/>
+    <rect x="440" y="84" width="34" height="12" rx="4" fill="#b88c62"/>
+    <ellipse cx="457" cy="102" rx="24" ry="5" fill="#000" opacity=".08"/>
+    <text x="420" y="160" fill="var(--text)" font-weight="700">א. הדמיה אדריכלית בהירה</text>
+    <rect x="10" y="10" width="260" height="130" rx="12" fill="#0d1320"/>
+    <polygon points="45,92 140,47 235,92 140,137" fill="#141c2c" stroke="#3fb6ff" stroke-width="1.5"/>
+    <polyline points="45,92 45,58 140,13 235,58 235,92" fill="none" stroke="#3fb6ff" stroke-width="2"/>
+    <line x1="140" y1="13" x2="140" y2="47" stroke="#3fb6ff" stroke-width="1.5"/>
+    <circle cx="105" cy="84" r="16" fill="#ffc861" opacity=".45"/>
+    <circle cx="105" cy="84" r="5" fill="#ffe2a6"/>
+    <circle cx="180" cy="92" r="6" fill="#53e0a0"/>
+    <text x="140" y="160" fill="var(--text)" font-weight="700">ב. תאום דיגיטלי כהה</text>
+  </g>
+</svg>
+</template>
+
+<template id="sk13">
+<svg viewBox="0 0 560 140" role="img" aria-label="חלוקת שעות: 20 שעות עיצוב מראה ואחר כך הטמעה">
+  <g font-size="13" fill="var(--text)" text-anchor="middle">
+    <rect x="430" y="30" width="110" height="34" rx="6" fill="var(--accent)"/>
+    <text x="485" y="52" fill="#fff" font-weight="700">20 ש׳ מראה</text>
+    <rect x="20" y="30" width="410" height="34" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+    <text x="225" y="52">הטמעה מלאה במוצר: כ־85-115 שעות, בשתי גרסאות</text>
+    <text x="280" y="95" fill="var(--muted)">שלב המראה - עיצוב מתקדם, בודקים איתך באמצע.</text>
+    <text x="280" y="118" fill="var(--muted)">ההטמעה - הנדסה ובדיקות, במודל זול יותר, לפי מסמך המראה שאושר.</text>
+  </g>
+</svg>
+</template>
+
+<script>
+(function () {
+  "use strict";
+  var STORE_KEY = "smplwise.studio6.ownerform.v1";
+  var THEME_KEY = "smplwise.studio6.ownerform.theme";
+
+  // Each question: id, title, why (one or two sentences), sketch template id, options [letter, text, sub, recommended].
+  var QUESTIONS = [
+    { id: "q1", title: "איך לבנות את התלת־ממד הריאליסטי?", sk: "sk1",
+      why: "תלת־ממד חי מאפשר להסתובב וללכת, אבל מחמם טאבלט שדולק כל היום. תמונות מוכנות קלות לכל מכשיר, אבל אי אפשר ללכת בתוכן. המשולב לוקח את הטוב משניהם: אותה תצוגה מייצרת פעם אחת את התמונות.",
+      opts: [
+        ["א", "משולב: תלת־ממד חי + תמונות מוכנות למכשירים חלשים, למסך קיר ולאפליקציה", "", true],
+        ["ב", "תלת־ממד חי בלבד", "", false],
+        ["ג", "תמונות מוכנות בלבד", "בלי סיור - לא עומד בדרישה של הכרטיס", false]
+      ] },
+    { id: "q2", title: "באיזה סדר לבנות במוצר?", sk: "sk2",
+      why: "הסיור לא צריך טקסטורות ולא רישיונות - רק את הקירות והדלתות שכבר קיימים. לכן אפשר להוציא אותו מוקדם ולתת לך ללכת בתוכניות האמיתיות.",
+      opts: [
+        ["א", "שדות חדשים, אחר כך הסיור, אחר כך חומרים, אחר כך שמש ומנורות", "", true],
+        ["ב", "חומרים ושעה ביום לפני הסיור", "", false],
+        ["ג", "הכול בגרסה אחת", "גרסה גדולה יותר ומאוחרת יותר", false]
+      ] },
+    { id: "q3", title: "באיזה גובה נמצאת העין בסיור?", sk: "sk3",
+      why: "1.65 מ׳ הוא אדם עומד. 1.2 מ׳ מראה מה רואה מישהו בכיסא גלגלים - שימושי לבדיקת נגישות ולבדיקה שמצלמה לא מוסתרת.",
+      opts: [
+        ["א", "1.65 מ׳ קבוע", "", false],
+        ["ב", "הגדרה בין 1.2 ל־2.0 מ׳ (ברירת מחדל 1.65)", "", true]
+      ] },
+    { id: "q4", title: "דלת בלי חיישן - אפשר לעבור דרכה בסיור?", sk: "sk4",
+      why: "דלת עם חיישן פתוחה או סגורה לפי החיישן. דלת נעולה וחיישן שלא דיווח זמן רב נחשבים תמיד סגורים. השאלה רק על דלתות שאין להן חיישן בכלל.",
+      opts: [
+        ["א", "עבירה", "אחרת אי אפשר להסתובב ברוב הבתים", true],
+        ["ב", "חסומה", "", false],
+        ["ג", "הגדרה במערכת", "", false]
+      ] },
+    { id: "q5", title: "איך מסתכלים עם העכבר?", sk: "sk5",
+      why: "\"נעילת סמן\" היא מצב שבו העכבר נעלם וכל תזוזה מסובבת את המבט, כמו במשחק. בתוך המסגרת של תשתית המערכת ייתכן שהדפדפן חוסם את זה, ולכן גרירה היא הדרך הבטוחה.",
+      opts: [
+        ["א", "גרירה בלבד", "עובד בכל מקום", true],
+        ["ב", "גרירה, ובנוסף כפתור לנעילת סמן שמושבת היכן שחסום", "", false]
+      ] },
+    { id: "q6", title: "מאיזה רישיון מותר לקחת טקסטורות ודגמים?", sk: "sk6",
+      why: "כ־16 סטים של חומרים (עץ, אריחים, טיח, בטון...) מאתרים מוכרים. רישיון חופשי לגמרי לא מחייב כלום. רישיון עם קרדיט מחייב להציג שמות יוצרים במסך \"אודות\".",
+      opts: [
+        ["א", "רק חופשי לגמרי, בלי חובת קרדיט", "מספיק לכל מה שתכננו", true],
+        ["ב", "גם חומרים שדורשים קרדיט, עם מסך קרדיטים", "", false]
+      ] },
+    { id: "q7", title: "מאיפה מגיעה השעה ביום (שמש, צללים, לילה)?", sk: "sk7",
+      why: "השמש זזה לפי השעה, התאריך והכיוון של הבית. מחוון מאפשר לבדוק, למשל, איך נראה הסלון בשקיעה.",
+      opts: [
+        ["א", "מהשעון של האתר, עם מחוון לשינוי וכפתור \"עכשיו\"", "", true],
+        ["ב", "מחוון בלבד", "", false],
+        ["ג", "מהשעון בלבד", "", false]
+      ] },
+    { id: "q8", title: "הכנת תאורה ותמונות מוכנות - מתי?", sk: "sk8",
+      why: "פעם אחת, בדפדפן של המנהל, המערכת מצלמת כל קומה ביום ובלילה, עם אורות וכבויים, ומייצרת מסכה לכל חדר. בנוסף אפשר להכין \"מפת תאורה\" שמוסיפה צללים רכים בפינות ובתוך החדרים - זה החסר הכי בולט כרגע במראה מבפנים.",
+      opts: [
+        ["א", "תמונות מוכנות כבר בגרסה הראשונה, מפת תאורה בגרסה השנייה", "לפי מה שאב־הטיפוס הראה: מסך הקיר צריך את התמונות מוקדם", true],
+        ["ב", "הכול בגרסה השנייה", "", false],
+        ["ג", "רק תמונות מוכנות, בלי מפת תאורה", "", false],
+        ["ד", "לא עכשיו", "", false]
+      ] },
+    { id: "q9", title: "מסך קיר שדולק כל היום - מה עושה התלת־ממד?", sk: "sk9",
+      why: "כשאף אחד לא נוגע, אין סיבה לצייר. אחרי כמה דקות המסך עובר לתמונה המוכנה של אותו מבט, ומצב החדרים (אורות, דלתות) ממשיך להתעדכן עליה.",
+      opts: [
+        ["א", "לא מצייר כשאין שינוי, ועובר לתמונה מוכנה אחרי N דקות (N בהגדרה)", "", true],
+        ["ב", "תלת־ממד חי תמיד", "", false]
+      ] },
+    { id: "q10", title: "ריהוט - כמה ריאליסטי?", sk: "sk10",
+      why: "הקופסאות החדות הן חלק גדול מתחושת \"שנות ה־90\". שיפור הרהיטים המצוירים (פינות מעוגלות, כריות, רגליים, פרופורציות) נכנס לשלב המראה. דגמים אמיתיים יפים יותר, אבל עולים זמן ומשקל.",
+      opts: [
+        ["א", "רהיטים מצוירים משופרים בלבד", "נכנס ל־20 השעות", true],
+        ["ב", "בנוסף, דגמים אמיתיים חינמיים ל־20 הפריטים הבולטים, בגרסה השנייה", "כ־12-16 שעות נוספות", false],
+        ["ג", "דגמים אמיתיים כבר עכשיו, במקום השיפור המצויר", "", false]
+      ] },
+    { id: "q11", title: "מה רואים כברירת מחדל?", sk: "sk11",
+      why: "הרמה הריאליסטית כבדה יותר. ברירת מחדל סכמטית מבטיחה שאף מכשיר לא נתקע; כל דפדפן יכול לעבור לריאליסטי, ואם הוא חלש המערכת יורדת רמה לבד.",
+      opts: [
+        ["א", "סכמטי לכולם; ריאליסטי לפי בחירה בכל דפדפן", "", true],
+        ["ב", "כמו א, ובנוסף הגדרת מערכת \"ריאליסטי כברירת מחדל\"", "", false]
+      ] },
+    { id: "q12", title: "לאיזה סגנון מכוונים את המראה החדש?", sk: "sk12",
+      why: "על אב־הטיפוס אמרת: הכיוון נכון, המראה מיושן. כדי שסוכן העיצוב יכוון למטרה אחת, צריך לבחור סגנון. א: חתך \"בית בובות\" נקי, קירות חתוכים עם קו כהה, צבעים טבעיים רגועים, צללים רכים - כמו הדמיות של משרדי אדריכלים היום. ב: רקע כהה, קווי מתאר זוהרים ואורות חמים - בהשראת הכרטיס שסימנת.",
+      opts: [
+        ["א", "הדמיה אדריכלית בהירה", "מתאים לשפה הבהירה של המערכת, וגם במצב כהה נראה טוב", true],
+        ["ב", "תאום דיגיטלי כהה", "", false],
+        ["ג", "שניהם, כשני סגנונות לבחירה", "כ־6 שעות נוספות", false]
+      ] },
+    { id: "q13", isNew: true, title: "מה עושים ב־20 השעות?", sk: "sk13",
+      why: "ההערכה להטמעה המלאה במוצר (כולל בדיקות) היא כ־85-115 שעות, ב־20 שעות היא לא נכנסת. ההצעה: 20 השעות של העיצוב המתקדם הולכות למראה עצמו, באב־הטיפוס, עד שאתה מאשר. אחר כך ההטמעה במוצר, לפי מסמך מראה מחייב, במודל זול יותר.",
+      opts: [
+        ["א", "20 שעות למראה באב־הטיפוס + מסמך מראה; ההטמעה אחר כך במודל זול יותר", "תמונות ביניים לאישור שלך אחרי כ־8 שעות", true],
+        ["ב", "20 שעות להטמעת הסיור במוצר, בלי שיפור מראה עכשיו", "", false],
+        ["ג", "לאשר עכשיו את כל ההטמעה (כ־85-115 שעות, בשתי גרסאות)", "", false]
+      ] }
+  ];
+
+  var form = document.getElementById("form");
+  var statusEl = document.getElementById("status");
+  var progressEl = document.getElementById("progress");
+
+  function load(key) {
+    try { var v = window.localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  }
+  function save(key, value) {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable: the form still works */ }
+  }
+
+  function recommended(q) {
+    for (var i = 0; i < q.opts.length; i++) { if (q.opts[i][3]) { return q.opts[i][0]; } }
+    return q.opts[0][0];
+  }
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    if (attrs) { for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs, k)) { e.setAttribute(k, attrs[k]); } } }
+    if (text) { e.textContent = text; }
+    return e;
+  }
+
+  function render(state) {
+    form.textContent = "";
+    QUESTIONS.forEach(function (q, idx) {
+      var sec = el("section", { "class": "q" + (q.isNew ? " new" : ""), id: q.id, "aria-labelledby": q.id + "-t" });
+      var h = el("h2", { id: q.id + "-t" });
+      h.appendChild(el("span", { "class": "n" }, String(idx + 1)));
+      h.appendChild(el("span", null, q.title));
+      if (q.isNew) { h.appendChild(el("span", { "class": "tag-new" }, "שאלה חדשה")); }
+      sec.appendChild(h);
+      sec.appendChild(el("p", { "class": "why" }, q.why));
+      var tpl = document.getElementById(q.sk);
+      if (tpl) {
+        var fig = el("figure", { "class": "sketch" });
+        fig.style.margin = "0 0 14px";
+        fig.appendChild(tpl.content.cloneNode(true));
+        sec.appendChild(fig);
+      }
+      var group = el("div", { "class": "opts", role: "radiogroup", "aria-labelledby": q.id + "-t" });
+      var chosen = (state[q.id] && state[q.id].choice) || recommended(q);
+      q.opts.forEach(function (o) {
+        var lab = el("label", { "class": "opt" });
+        var inp = el("input", { type: "radio", name: q.id, value: o[0] });
+        if (o[0] === chosen) { inp.checked = true; }
+        lab.appendChild(inp);
+        lab.appendChild(el("span", { "class": "letter" }, o[0] + "."));
+        var t = el("span", { "class": "txt" });
+        t.appendChild(document.createTextNode(o[1]));
+        if (o[3]) { t.appendChild(el("span", { "class": "rec" }, "מומלץ")); }
+        if (o[2]) { t.appendChild(el("small", null, o[2])); }
+        lab.appendChild(t);
+        group.appendChild(lab);
+      });
+      sec.appendChild(group);
+      var nl = el("label", { "class": "note-label", "for": q.id + "-note" }, "הערה (לא חובה)");
+      sec.appendChild(nl);
+      var ta = el("textarea", { id: q.id + "-note", name: q.id + "-note", rows: "2" });
+      ta.value = (state[q.id] && state[q.id].note) || "";
+      sec.appendChild(ta);
+      form.appendChild(sec);
+    });
+    var gen = el("section", { "class": "q" });
+    var gh = el("h2", null);
+    gh.appendChild(el("span", null, "הערה כללית"));
+    gen.appendChild(gh);
+    var gta = el("textarea", { id: "general-note", name: "general-note", rows: "3", "aria-label": "הערה כללית" });
+    gta.value = state.general || "";
+    gen.appendChild(gta);
+    form.appendChild(gen);
+    updateProgress();
+  }
+
+  function collect() {
+    var state = {};
+    QUESTIONS.forEach(function (q) {
+      var r = form.querySelector('input[name="' + q.id + '"]:checked');
+      var n = document.getElementById(q.id + "-note");
+      state[q.id] = { choice: r ? r.value : recommended(q), note: n ? n.value.trim() : "" };
+    });
+    var g = document.getElementById("general-note");
+    state.general = g ? g.value.trim() : "";
+    return state;
+  }
+
+  function updateProgress() {
+    var s = collect();
+    var changed = 0, notes = 0;
+    QUESTIONS.forEach(function (q) {
+      if (s[q.id].choice !== recommended(q)) { changed++; }
+      if (s[q.id].note) { notes++; }
+    });
+    progressEl.textContent = "שונו מההמלצה: " + changed + " מתוך " + QUESTIONS.length + " · הערות: " + notes;
+  }
+
+  function answersText() {
+    var s = collect();
+    var lines = ["תשובות - סיור בגובה עין ומראה ריאליסטי"];
+    QUESTIONS.forEach(function (q, idx) {
+      var c = s[q.id].choice, label = "";
+      q.opts.forEach(function (o) { if (o[0] === c) { label = o[1]; } });
+      var mark = c === recommended(q) ? " (ההמלצה)" : "";
+      lines.push((idx + 1) + ". " + q.title + " - " + c + ". " + label + mark);
+      if (s[q.id].note) { lines.push("   הערה: " + s[q.id].note); }
+    });
+    if (s.general) { lines.push("הערה כללית: " + s.general); }
+    return lines.join("\n");
+  }
+
+  function flash(msg) {
+    statusEl.textContent = msg;
+    window.clearTimeout(flash.t);
+    flash.t = window.setTimeout(function () { statusEl.textContent = ""; }, 3000);
+  }
+
+  function showFallback(text) {
+    var box = document.getElementById("fallback");
+    var ta = document.getElementById("fallbackText");
+    ta.value = text;
+    box.className = "show";
+    ta.focus();
+    ta.select();
+  }
+
+  function copyAnswers() {
+    var text = answersText();
+    function legacy() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-1000px";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) { flash("הועתק. הדבק בצ'אט."); } else { showFallback(text); }
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { flash("הועתק. הדבק בצ'אט."); }, legacy);
+      } else {
+        legacy();
+      }
+    } catch (e) {
+      legacy();
+    }
+  }
+
+  // Theme: system by default, button cycles light / dark, remembered per browser.
+  var root = document.documentElement;
+  var savedTheme = load(THEME_KEY);
+  if (savedTheme === "light" || savedTheme === "dark") { root.setAttribute("data-theme", savedTheme); }
+  document.getElementById("themeBtn").addEventListener("click", function () {
+    var cur = root.getAttribute("data-theme");
+    if (!cur) { cur = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+    var next = cur === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    save(THEME_KEY, next);
+  });
+
+  render(load(STORE_KEY) || {});
+
+  form.addEventListener("change", function () { save(STORE_KEY, collect()); updateProgress(); });
+  form.addEventListener("input", function () { save(STORE_KEY, collect()); updateProgress(); });
+  form.addEventListener("submit", function (e) { e.preventDefault(); });
+  document.getElementById("copyBtn").addEventListener("click", copyAnswers);
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!window.confirm("להחזיר את כל הבחירות להמלצה? ההערות יישארו.")) { return; }
+    var s = collect();
+    QUESTIONS.forEach(function (q) { s[q.id].choice = recommended(q); });
+    save(STORE_KEY, s);
+    render(s);
+    flash("הבחירות הוחזרו להמלצה.");
+  });
+}());
+</script>
+</body>
+</html>
