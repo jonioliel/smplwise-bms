@@ -107,7 +107,7 @@ export class SystemNavSize extends LitElement {
     }
     .seg button:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .seg .cur {

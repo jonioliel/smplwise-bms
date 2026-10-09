@@ -34,8 +34,8 @@ export class NvrUndoToast extends LitElement {
       gap: 12px;
       align-items: center;
       padding: 6px 8px 6px 14px;
-      background: var(--sw-text);
-      color: var(--sw-text-inverse);
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       border-radius: var(--sw-r-md);
       box-shadow: var(--sw-shadow-3);
       font-size: var(--sw-fs-sm);
@@ -45,7 +45,7 @@ export class NvrUndoToast extends LitElement {
     a {
       border: 0;
       background: transparent;
-      color: var(--sw-toast-action, #8db4ff);
+      color: var(--sw-toast-action);
       font: inherit;
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;

@@ -166,7 +166,7 @@ export class SystemUpdate extends LitElement {
       box-shadow: var(--sw-shadow-1);
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .seg button[disabled] {
@@ -245,7 +245,7 @@ export class SystemUpdate extends LitElement {
       transform: translateY(-1px) rotate(45deg);
     }
     .chk input:focus-visible + .box {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .chk input:disabled + .box {

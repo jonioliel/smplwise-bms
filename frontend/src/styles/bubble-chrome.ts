@@ -268,7 +268,7 @@ export const bubbleChrome = css`
   :host([data-skin='bubble']) input:focus-visible,
   :host([data-skin='bubble']) select:focus-visible,
   :host([data-skin='bubble']) textarea:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
   /* 6. nothing sticks over the rows in this skin (the sticky save / bulk bars of the settings and list screens become the last

@@ -111,7 +111,7 @@ const HOME_WIDGETS_BUBBLE = css`
     padding: 0;
   }
   :host([data-skin='bubble']) .qsb:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   :host([data-skin='bubble']) .qsb:disabled {
@@ -749,7 +749,7 @@ export class HomeWidgetsView extends LitElement {
     .eb:focus-visible,
     .seg button:focus-visible,
     .al-go:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* ---- ghosts (edit mode: a widget that is off or not available) ---- */

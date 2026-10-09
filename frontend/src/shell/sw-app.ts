@@ -581,7 +581,7 @@ export class SwApp extends LitElement {
       color: var(--sw-text);
     }
     .float button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     /* the status dot of a user who may not open הגדרות › בריאות: the same dot, not a button */
@@ -665,8 +665,8 @@ export class SwApp extends LitElement {
       z-index: var(--sw-z-topbar);
       padding: 10px 18px;
       border-radius: var(--sw-r-md);
-      background: var(--sw-text);
-      color: var(--sw-surface);
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       font-size: var(--sw-fs-sm);
       box-shadow: var(--sw-shadow-3);
       max-inline-size: calc(100vw - 32px);
@@ -791,7 +791,7 @@ export class SwApp extends LitElement {
       box-shadow: var(--sw-shadow-1);
     }
     nav.sections a:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     @media (max-width: 767px) {
@@ -864,7 +864,7 @@ export class SwApp extends LitElement {
       font-weight: var(--sw-fw-regular);
     }
     .pk-head:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .pk-areas {
@@ -938,7 +938,7 @@ export class SwApp extends LitElement {
       }
     }
     button.me:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
       border-radius: var(--sw-r-md);
     }
@@ -1102,7 +1102,7 @@ export class SwApp extends LitElement {
         transform: scale(0.94);
       }
       :host([data-design='a']) nav.bottom.dock .fab:focus-visible {
-        outline: 2px solid var(--sw-focus);
+        outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: 2px;
       }
       /* 320-359 px: six 44 px items (the areas and the user) and a 44 px home button fit exactly with 2 px paddings */
@@ -1316,7 +1316,7 @@ export class SwApp extends LitElement {
         outline: none;
       }
       :host([data-design='a']) nav.secrow a:focus-visible .pill {
-        outline: 2px solid var(--sw-focus);
+        outline: var(--sw-focus-w) solid var(--sw-focus);
       }
       :host([data-design='a']) nav.bottom {
         position: relative;
@@ -1361,7 +1361,7 @@ export class SwApp extends LitElement {
       }
       :host([data-design='a']) nav.bottom a:focus-visible .ic,
       :host([data-design='a']) nav.bottom button.me:focus-visible .ic {
-        outline: 2px solid var(--sw-focus);
+        outline: var(--sw-focus-w) solid var(--sw-focus);
       }
       :host([data-design='a']) nav.bottom button.me.open {
         color: var(--sw-text);

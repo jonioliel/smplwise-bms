@@ -222,7 +222,7 @@ export class BubbleDemo extends LitElement {
       background: var(--sw-surface-3);
     }
     .sb:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .chip {
@@ -270,7 +270,7 @@ export class BubbleDemo extends LitElement {
     .btn:focus-visible,
     .chip:focus-visible,
     .tree-row:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .actions {

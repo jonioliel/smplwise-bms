@@ -252,6 +252,11 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-skeleton': lt('#eef2f8', '#222d44'), // a loading placeholder block
       '--sw-skeleton-shine': lt('rgba(255, 255, 255, 0.65)', 'rgba(255, 255, 255, 0.08)'), // the shimmer that crosses it
       '--sw-shadow-primary': lt('0 1px 2px rgba(39, 103, 237, 0.25)', '0 1px 2px rgba(0, 0, 0, 0.4)'), // the primary button's resting shadow
+      // the inverted surface: toasts, the undo bar, a tooltip over the 24 h grid, the placing hint on the plan. Dark on light, a lifted
+      // slate in dark (a "background: var(--sw-text); color: #fff" pair broke in dark mode: light on light)
+      '--sw-toast-bg': lt('#1e2e47', '#2c3a57'),
+      '--sw-toast-text': lt('#ffffff', '#f3f6fc'),
+      '--sw-toast-action': lt('#8db4ff', '#9cc0ff'),
     },
   },
   {

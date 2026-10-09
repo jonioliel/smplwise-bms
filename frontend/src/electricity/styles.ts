@@ -304,7 +304,7 @@ export const elecCss = css`
     opacity: 0.4;
   }
   input:focus-visible + .ind {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   input.err,
@@ -1038,7 +1038,7 @@ export const elecCss = css`
     background: var(--sw-surface-2);
   }
   table.t tbody tr.pick:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;
   }
   .li.pick {

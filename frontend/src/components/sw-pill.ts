@@ -83,7 +83,7 @@ export class SwPill extends LitElement {
       container-type: inline-size;
     }
     :host(:focus-visible) {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* the fill grows from the inline start (RTL: from the right) */
@@ -160,7 +160,7 @@ export class SwPill extends LitElement {
       transform: scale(0.94);
     }
     .ring:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     span.ring {

@@ -560,11 +560,11 @@ export const formStyles = css`
     inline-size: 22px;
     block-size: 22px;
     border-radius: var(--sw-r-xs);
-    color: #fff;
+    color: var(--sw-text-inverse);
     flex: none;
   }
   .k.if {
-    background: #8e8e93;
+    background: var(--sw-text-3);
   }
   .k.then {
     background: var(--dv-accent);

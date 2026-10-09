@@ -257,7 +257,7 @@ export class SwUserMenu extends LitElement {
     footer > button:focus-visible,
     summary:focus-visible,
     button.x:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
     }
     /* a view choice: the label and, at the end, a compact two-option control (the menu stays open when it is used) */
@@ -297,7 +297,7 @@ export class SwUserMenu extends LitElement {
       box-shadow: var(--sw-shadow-1);
     }
     li.view .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .ic {

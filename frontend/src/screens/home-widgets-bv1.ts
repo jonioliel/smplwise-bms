@@ -302,7 +302,7 @@ export const BV1_STYLES = css`
     outline: none;
   }
   .lb:focus-visible .lr {
-    outline: 2px solid var(--sw-focus, var(--sw-accent));
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   .lb .ll {

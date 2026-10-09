@@ -208,7 +208,7 @@ export class SwKpi extends LitElement {
       -webkit-tap-highlight-color: transparent;
     }
     .hit:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     :host([interactive]) {

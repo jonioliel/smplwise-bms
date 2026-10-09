@@ -128,7 +128,7 @@ export class SystemTabsConfig extends LitElement {
     }
     .handle:focus-visible,
     .mv:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
     }
     .name {
@@ -209,7 +209,7 @@ export class SystemTabsConfig extends LitElement {
       text-decoration: underline;
     }
     button.link:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
       border-radius: var(--sw-r-2xs);
     }

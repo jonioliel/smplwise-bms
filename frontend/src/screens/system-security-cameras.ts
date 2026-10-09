@@ -250,7 +250,7 @@ export class SystemSecurityCameras extends LitElement {
       inline-size: 7px;
       block-size: 7px;
       border-radius: 50%;
-      background: var(--sw-text-4, #9aa3b2);
+      background: var(--sw-text-3);
       margin-inline-end: 6px;
       vertical-align: middle;
     }

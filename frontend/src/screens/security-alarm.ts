@@ -420,7 +420,7 @@ export class SecurityAlarm extends LitElement {
     .keys button:focus-visible,
     .switcher button:focus-visible,
     .chips button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     details.unpaired {
@@ -497,8 +497,8 @@ export class SecurityAlarm extends LitElement {
       inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom, 0px));
       inset-inline-start: 50%;
       transform: translateX(50%);
-      background: var(--sw-text);
-      color: var(--sw-surface);
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       padding: 10px 16px;
       border-radius: var(--sw-r-md);
       font-size: var(--sw-fs-sm);

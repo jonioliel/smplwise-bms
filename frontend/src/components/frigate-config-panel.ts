@@ -136,7 +136,7 @@ export class FrigateConfigPanel extends LitElement {
       background: var(--sw-surface-2);
     }
     .zl button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
     }
     .zl .zn {
@@ -177,7 +177,7 @@ export class FrigateConfigPanel extends LitElement {
       opacity: 0.6;
     }
     .chips button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .sect {

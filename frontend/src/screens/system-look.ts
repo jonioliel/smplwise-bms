@@ -103,7 +103,7 @@ export class SystemLook extends LitElement {
       opacity: 0.6;
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .range {
@@ -141,7 +141,7 @@ export class SystemLook extends LitElement {
       background: var(--sw-accent-soft);
     }
     .range button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     /* the palette row: one chip per palette with its four swatch colours */
@@ -177,7 +177,7 @@ export class SystemLook extends LitElement {
       opacity: 0.6;
     }
     .pal button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .dots {

@@ -121,7 +121,7 @@ export class SwTabs extends LitElement {
     }
     a:focus-visible,
     button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
       border-radius: var(--sw-r-xs);
     }

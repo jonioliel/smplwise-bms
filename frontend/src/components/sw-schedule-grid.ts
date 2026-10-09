@@ -406,7 +406,7 @@ export class SwScheduleGrid extends LitElement {
       z-index: 3;
     }
     .slot:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
       z-index: 4;
     }
@@ -605,8 +605,8 @@ export class SwScheduleGrid extends LitElement {
     }
     .ghost span {
       transform: translateY(-115%);
-      background: var(--sw-text);
-      color: #fff;
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
       font-size: var(--sw-fs-2xs);

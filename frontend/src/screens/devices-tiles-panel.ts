@@ -266,7 +266,7 @@ export class DevicesTilesPanel extends LitElement {
       }
       .seg button:focus-visible,
       .search input:focus-visible {
-        outline: 2px solid var(--sw-focus, var(--sw-accent));
+        outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: -2px;
       }
       .search {
@@ -328,7 +328,7 @@ export class DevicesTilesPanel extends LitElement {
         cursor: default;
       }
       button.master:focus-visible {
-        outline: 2px solid var(--sw-focus, var(--sw-accent));
+        outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: 2px;
       }
       button.master .badge {

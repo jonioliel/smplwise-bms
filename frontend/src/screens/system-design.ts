@@ -102,7 +102,7 @@ export class SystemDesign extends LitElement {
       opacity: 0.7;
     }
     .skin:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .skin .nm {
@@ -225,7 +225,7 @@ export class SystemDesign extends LitElement {
       opacity: 0.6;
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .foot {

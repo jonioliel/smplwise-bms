@@ -130,7 +130,7 @@ export class FrigateZoneEditor extends LitElement {
       outline: none;
     }
     .h:focus-visible::before {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .h:active {

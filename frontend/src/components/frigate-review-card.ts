@@ -50,7 +50,7 @@ export class FrigateReviewCard extends LitElement {
       box-shadow: 0 0 0 1px var(--sw-accent);
     }
     :host([focused]) article {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     :host([data-reviewed]) .body,
@@ -298,7 +298,7 @@ export class FrigateReviewCard extends LitElement {
     }
     button:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* ---- the table row ---- */

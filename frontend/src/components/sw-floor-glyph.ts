@@ -15,7 +15,7 @@ export class SwFloorGlyph extends LitElement {
       place-items: center;
       inline-size: var(--sz, 44px);
       block-size: var(--sz, 44px);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-accent-soft);
       flex-shrink: 0;
     }

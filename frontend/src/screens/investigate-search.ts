@@ -226,8 +226,8 @@ export class InvestigateSearch extends LitElement {
       inset-inline-end: 6px;
       inset-block-start: 6px;
       font-size: var(--sw-fs-2xs);
-      background: rgba(17, 24, 39, 0.5);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }

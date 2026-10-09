@@ -157,7 +157,7 @@ export class SwDropdown extends LitElement {
     }
     .chip:focus-visible,
     .opt:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .chip[aria-expanded='true'] {
@@ -538,7 +538,7 @@ export class SwDropdown extends LitElement {
       background: var(--sw-dd-active, var(--sw-surface-3));
     }
     .act:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .act[disabled] {

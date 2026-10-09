@@ -248,7 +248,7 @@ const BUILDING_BUBBLE = css`
   }
   :host([data-skin='bubble']) .arow:focus-visible,
   :host([data-skin='bubble']) a.tile:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   :host([data-skin='bubble']) .arow .nm {
@@ -1890,7 +1890,7 @@ export class DevicesBuilding extends LitElement {
       text-underline-offset: 3px;
     }
     .fcard header h2 .ftitle:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* an area row is a link into the area (owner feedback 2026-09-29) */

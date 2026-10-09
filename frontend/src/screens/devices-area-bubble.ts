@@ -108,7 +108,7 @@ export const bubbleAreaStyles = css`
     padding-inline: 4px 10px;
   }
   .bsep .bt.fold:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   .bsep .bt.fold sw-icon {
@@ -205,7 +205,7 @@ export const bubbleAreaStyles = css`
   .sb:focus-visible,
   .chip:focus-visible,
   .bbtn:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   .chip {
@@ -313,7 +313,7 @@ export const bubbleAreaStyles = css`
     cursor: pointer;
   }
   .bmore:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   /* the head pill of the area (name, counts, the temperature, all off): a plain-variant pill is not a button */

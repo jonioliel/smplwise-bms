@@ -129,7 +129,7 @@ export class ArxLogin extends LitElement {
       inline-size: 100%;
     }
     input:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
       border-color: var(--sw-accent);
     }

@@ -90,7 +90,7 @@ export class BubbleSliders extends LitElement {
       color: var(--sw-warning-text);
     }
     .chip:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     @media (max-width: 1100px) {

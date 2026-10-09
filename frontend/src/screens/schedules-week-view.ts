@@ -143,7 +143,7 @@ export class SchedulesWeekView extends LitElement {
     .pill:focus-visible {
       z-index: 3;
       box-shadow: var(--sw-shadow-2);
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
     }
     .pill.cond {
       border-style: dashed;

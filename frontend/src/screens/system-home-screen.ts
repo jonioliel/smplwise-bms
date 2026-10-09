@@ -77,7 +77,7 @@ export class SystemHomeScreen extends LitElement {
     }
     button.opt:focus-visible,
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     svg.thumb {

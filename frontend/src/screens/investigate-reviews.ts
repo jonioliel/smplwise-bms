@@ -401,7 +401,7 @@ export class InvestigateReviews extends LitElement {
     .seg button:focus-visible,
     .ib:focus-visible,
     .linkbtn:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .layers .n {

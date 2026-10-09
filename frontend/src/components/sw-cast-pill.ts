@@ -62,7 +62,7 @@ export class SwCastPill extends LitElement {
       background: var(--sw-surface-3);
     }
     .pill:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .pill .lbl {
@@ -164,7 +164,7 @@ export class SwCastPill extends LitElement {
       cursor: default;
     }
     .b:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .err {

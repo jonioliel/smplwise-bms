@@ -103,7 +103,7 @@ export class HomeEditPanel extends LitElement {
     input:focus-visible,
     select:focus-visible,
     button:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .seg {
@@ -128,7 +128,7 @@ export class HomeEditPanel extends LitElement {
     }
     .seg button[aria-pressed='true'] {
       background: var(--sw-accent);
-      color: var(--sw-on-accent, #fff);
+      color: var(--sw-text-inverse);
     }
     .seg button:disabled {
       opacity: 0.45;

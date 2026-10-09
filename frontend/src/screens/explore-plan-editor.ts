@@ -482,8 +482,8 @@ export class ExplorePlanEditor extends LitElement {
       z-index: var(--sw-z-map-ui);
     }
     .placing-hint span {
-      background: var(--sw-text);
-      color: #fff;
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
       border-radius: 999px;
       padding: 6px 14px;
       font-size: var(--sw-fs-sm);

@@ -327,7 +327,7 @@ export class ScheduleEditor extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
     }
     label.snap {
       display: inline-flex;

@@ -656,7 +656,7 @@ export abstract class AutomationEditorBase extends LitElement {
           inset: auto 0 0 0;
           inline-size: auto;
           block-size: calc(100dvh - 20px);
-          border-radius: 28px 28px 0 0;
+          border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
           border-block-end: 0;
         }
         dialog.sheet[open] {

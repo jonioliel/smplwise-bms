@@ -711,7 +711,7 @@ export const devicesLayoutCss = [
       background: var(--sw-accent-soft, var(--sw-surface-2));
     }
     .lay-tbtn:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .lay-item:has(> .lay-tbtn) > .lay-hd {

@@ -59,7 +59,7 @@ export class SwVSlider extends LitElement {
       transition: background var(--sw-t-state) var(--sw-ease);
     }
     :host(:focus-visible) {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* the fill: from the bottom edge up */

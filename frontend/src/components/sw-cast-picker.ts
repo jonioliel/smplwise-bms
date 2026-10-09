@@ -120,7 +120,7 @@ export class SwCastPicker extends LitElement {
     .perm:focus-visible,
     .link:focus-visible,
     .yes:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .opts {

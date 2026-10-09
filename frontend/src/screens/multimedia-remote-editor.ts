@@ -191,7 +191,7 @@ export class MediaRemoteEditor extends LitElement {
         inline-size: 24px;
         block-size: 24px;
         border-radius: 50%;
-        background: #fff;
+        background: var(--sw-toggle-thumb);
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
         transition: inset-inline-start var(--mr-motion) var(--mr-ease);
       }

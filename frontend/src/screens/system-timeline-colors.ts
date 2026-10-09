@@ -93,7 +93,7 @@ export class SystemTimelineColors extends LitElement {
     }
     .sw button:focus-visible,
     .sw input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .sw input[type='color'] {
@@ -137,7 +137,7 @@ export class SystemTimelineColors extends LitElement {
       opacity: 0.6;
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .warn {

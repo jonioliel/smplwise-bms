@@ -138,7 +138,7 @@ export class AutomationEntityPicker extends LitElement {
         border: 1.5px solid var(--dv-border-strong);
         display: grid;
         place-items: center;
-        color: #fff;
+        color: var(--sw-text-inverse);
         flex: none;
         font-size: var(--sw-fs-base);
       }

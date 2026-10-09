@@ -581,7 +581,7 @@ export class DeviceActivity extends LitElement {
     }
     .chip:hover { background: var(--sw-surface-3); }
     .chip:disabled { opacity: .45; cursor: not-allowed; }
-    .chip:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .chip:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .auto { display: flex; align-items: center; gap: var(--sw-s-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); min-block-size: 28px; }
     .auto span { flex: 1; min-inline-size: 0; }
     /* the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
@@ -595,7 +595,7 @@ export class DeviceActivity extends LitElement {
     .hbtn.holding .prog { inline-size: 100%; transition: inline-size var(--hold, 1100ms) linear; }
     .hbtn.armed { background: var(--sw-warning-soft); border-color: var(--sw-warning); color: var(--sw-warning-text); }
     .hbtn:disabled { opacity: .45; cursor: not-allowed; }
-    .hbtn:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+    .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { .hbtn.holding .prog { transition: none; inline-size: 100%; opacity: .5; } }
     .skels.tight { padding: 0; }
     .scrim { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); }
@@ -624,7 +624,7 @@ export class DeviceActivity extends LitElement {
       font-weight: var(--sw-fw-medium); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--sw-s-1h);
     }
     .segt button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
-    .segt button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .segt button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .cnt { font-size: var(--sw-fs-xs); background: var(--sw-accent-soft); color: var(--sw-accent-text); border-radius: var(--sw-r-pill); padding: 0 6px; }
 
     .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); }

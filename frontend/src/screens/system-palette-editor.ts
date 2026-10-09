@@ -113,7 +113,7 @@ export class SystemPaletteEditor extends LitElement {
     .seg button:focus-visible,
     select:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .fields {
@@ -165,7 +165,7 @@ export class SystemPaletteEditor extends LitElement {
       box-shadow: 0 0 0 2px var(--sw-surface-2), 0 0 0 4px var(--sw-accent);
     }
     .chip:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .note {
