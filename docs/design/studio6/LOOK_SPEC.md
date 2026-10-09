@@ -200,8 +200,55 @@ Unsensed doors are walkable (Q4) — not a setting.
 
 ## 11. Performance (same-session, workstation iGPU under load; see `shots/lookdev-gpu.json` and `BEFORE_AFTER.md`)
 
-Filled from the final measurement run — see §11 of `BEFORE_AFTER.md`. SwiftShader per-rung numbers: **NOT_RUN** (software
-renderer, the harness times out on the realistic rung); real phones / tablets / kiosk: **NOT_RUN** (no device).
+All numbers: Intel UHD 630 iGPU, headless Chromium ANGLE/D3D11, DPR 1, GPU-synchronised median of 12 frames. The
+workstation ran several other sessions all day: the untouched baseline measured 42.5 ms in the morning and 95.6 ms at
+the time of the levers run on the SAME realistic frame, so only columns measured minutes apart are comparable, and
+even those carry ±30 % noise (min/max in the JSON files).
+
+| Rung | Before (morning, `perf-gpu.json`) | Before (same minute as the levers run, `perf-baseline-sameminute-gpu.json`) | After (`lookdev-gpu.json`, final run) |
+|---|---|---|---|
+| Realistic orbit iso | 42.5 ms / 23.5 fps / 326 dr / 23k | 95.6 ms / 10.5 fps / 326 dr / 23k | 154.2 ms / 6.5 fps / 621 dr / 136k |
+| Lite orbit iso | 20.3 ms / 49.3 fps / 129 dr / 8k | 32.8 ms / 30.5 fps / 129 dr / 8k | 27.5 ms / 36.4 fps / 230 dr / 46k |
+| Full (2) orbit iso | 12.3 ms / 81.3 fps / 117 dr / 8k | 20.9 ms / 47.8 fps / 117 dr / 8k | 24.5 ms / 40.8 fps / 177 dr / 14k |
+| Schematic (1) orbit iso | 10.7 ms / 93.5 fps / 116 dr / 6k | 18.3 ms / 54.6 fps / 116 dr / 6k | 9.5 ms / 105.3 fps / 171 dr / 12k |
+| Realistic persp both floors | 38.8 ms / 25.8 fps / 504 dr / 32k | 83.4 ms / 12 fps / 504 dr / 32k | 129.6 ms / 7.7 fps / 916 dr / 193k |
+| Realistic walk | 82.4 ms / 12.1 fps / 79 dr / 17k | 108.5 ms / 9.2 fps / 79 dr / 17k | 259.1 ms / 3.9 fps / 741 dr / 171k |
+| Lite walk | 39.9 ms / 25.1 fps / 31 dr / 5k | 41.9 ms / 23.9 fps / 31 dr / 5k | 113.2 ms / 8.8 fps / 175 dr / 40k |
+| Full walk | 14.8 ms / 67.6 fps / 17 dr / 5k | 25.6 ms / 39.1 fps / 17 dr / 5k | 32.4 ms / 30.9 fps / 131 dr / 13k |
+| Phone 390 lite walk | 12.7 ms / 78.7 fps / 38 dr / 6k | 23.8 ms / 42 fps / 38 dr / 6k | 18 ms / 55.6 fps / 219 dr / 52k |
+| Phone 390 full walk | 9.4 ms / 106.4 fps / 18 dr / 5k | 15.3 ms / 65.4 fps / 18 dr / 5k | 20.1 ms / 49.8 fps / 89 dr / 10k |
+| Dark style lite orbit iso | - | - | 42.2 ms / 23.7 fps / 231 dr / 46k |
+
+(dr = draw calls; k = triangles through the renderer, which counts the GTAO normal / depth passes again on the
+realistic rung. The "after" walk rows start at the new default position looking into the hall and living room, the
+"before" rows at the old one facing the front door — more in view.)
+
+Lever costs (`levers-gpu.json`, same process back to back, 1140 × 852, median of 16): lite orbit — MSAA ×2 52.9 ms,
+MSAA ×4 62.6, SMAA 48.9, no AA 40.7, no AA + no bloom 39.6, no contact decals 56.1 (= noise), **no ground disc 33.9**,
+no cut 62.9 (= noise); lite walk — MSAA ×2 50.9, ×4 54.3, SMAA 75.7, none 70.6 (noise-dominated); realistic walk —
+MSAA ×4 + GTAO 159.4, ×2 + GTAO 114.1, ×4 no GTAO 135.0 (**GTAO ≈ 25 ms**), SMAA + GTAO 155.0; full (2) orbit 24.8,
+walk 29.0.
+
+**Verdict against the plan's budgets (§5.1):** NOT MET on this box today for "lite walk ≥ 50 fps" and "realistic orbit
+≥ 30 fps"; "phone-size lite ≥ 60 fps" is 55.6 fps (42 fps for the untouched baseline measured in the same hour). The
+honest reading: the frame time on the iGPU is fill-rate bound (the lit ground disc alone cost 19 ms until it was made
+unlit on the lite / full rungs; MSAA ×4 on a HalfFloat target and GTAO are the top-rung levers, now ×2 on lite), and the
+box was 2-3× slower than in the morning for the unchanged baseline. What the port must do, as rules:
+
+1. Draw calls: the door detail (two leaves × panels + roses + levers as separate meshes) and the lamp parts must be
+   merged / instanced per (shape, material) as the product already does for the catalog — 741 draws in the walk is the
+   prototype's shortcut, the cap stays ≤ 150 on the lite rung.
+2. Triangles: the rounded catalog is ~46k on the demo house (5.9 × the box baseline, over the ≤ 2× budget); the port
+   bevels only above a 0.12 m part size with one segment (done here), drops the 5-sphere plants to 3 on lite, and
+   falls back to boxes above `HEAVY_CONFIG`.
+3. The ground disc is unlit below the top rung (done); the contact blob carries the grounding.
+4. MSAA: ×4 only on the top rung; ×2 on lite; SMAA only where `samples` is unsupported; measure on the runner's
+   390 px / 4× CPU-throttle gate (R178) before shipping — the prototype numbers above are not a gate.
+5. GTAO stays top-rung only (≈ 25 ms here); the junction strips + blobs are the lite rung's contact AO (≈ free).
+
+**NOT_RUN:** SwiftShader per-rung numbers (the page boots under SwiftShader — renderer string recorded, 28.9 s boot —
+but the HUD read times out while a realistic frame renders in software, as the original README recorded); real
+phones / tablets / the wall kiosk (no device); the product's R178 gate on the runner (the port's job).
 
 ## 12. What the port must NOT copy from the prototype
 

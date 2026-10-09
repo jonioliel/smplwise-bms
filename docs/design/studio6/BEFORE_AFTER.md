@@ -30,5 +30,17 @@ over it), tap-to-walk through the open sliding door with 5 waypoints.
 
 ## Performance (same-session relative numbers; the workstation ran other sessions all day)
 
-See `shots/lookdev-gpu.json` (after), `shots/perf-gpu.json` (before, re-measured today at the start of the session) and
-`shots/levers-gpu.json` (lever costs). Filled in §11 of `LOOK_SPEC.md` after the final run.
+The table, the lever costs, the verdict against the plan's budgets (not met on this box today for the lite walk and the
+realistic orbit; 55.6 fps on the 390 px lite walk) and the port rules that follow are in `LOOK_SPEC.md` §11. Files:
+`shots/lookdev-gpu.json` (after), `shots/perf-gpu.json` (before, morning), `shots/perf-baseline-sameminute-gpu.json`
+(before, measured in the same minute as `shots/levers-gpu.json`).
+
+## Known limits of the evidence
+
+- `16-walk-upper-floor-after-stairs.png` is a wall close-up: the scripted walker holds W for 4.5 s and reaches the north
+  wall of the gallery; the position row in the JSON (`[1.25, 1.34, 4.55, "L1"]`) is the check.
+- The 390 px walk frames carry the kiosk idle toast: the capture's own pauses exceeded the 30 s idle default after a
+  bake existed; a product wall display has that timer, a phone does not.
+- No model files: `?testmodels` renders in-code stand-ins through the real loader path (31 placed, palette slots,
+  authored sizes); the Kenney kit waits for the owner's download approval.
+- SwiftShader: boots only; real devices: none measured.
