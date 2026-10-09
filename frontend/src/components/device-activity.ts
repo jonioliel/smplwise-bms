@@ -21,8 +21,8 @@ import { ApiError } from '../api/client';
 import { can } from '../api/session';
 import { OPEN_EVENT, type ActivityOpen, type ActivityTarget } from './device-activity-press';
 import {
-  ACTOR_FILTERS, DEFAULT_FILTERS, EVENT_FILTERS, KIND_ICON, PERIODS, PERIOD_LABEL, actorView, clockOf, describeEvent, footnote, gapText, groupByDay,
-  isFiltered, queryOf, trackedSince, type Filters, type Period,
+  ACTOR_FILTERS, DEFAULT_FILTERS, EVENT_FILTERS, KIND_ICON, PERIODS, PERIOD_LABEL, VIEW_KEY, activeFilterCount, actorView, clockOf, describeEvent, eventTone, footnote, fullDate, gapText,
+  groupByDay, isFiltered, parseView, queryOf, trackedSince, type ActivityView, type Filters, type Period,
 } from './device-activity-logic';
 import {
   AUTO_CLOSE_MINUTES, BOOST_MINUTES, HOLD_MS, VACUUM_ACTIONS, autoOffDraft, cardKindOf, domainOf, fanSpeedKey, findAutoOff, isMovingState, isOnState, lastCleaningAt,
@@ -30,6 +30,22 @@ import {
 } from './device-card-logic';
 
 type Tab = 'activity' | 'schedules';
+
+function readView(): ActivityView {
+  try {
+    return parseView(localStorage.getItem(VIEW_KEY));
+  } catch {
+    return parseView(null);
+  }
+}
+
+function saveView(v: ActivityView) {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* storage unavailable: the choice lives for this popup only */
+  }
+}
 type FeedStatus = 'loading' | 'ready' | 'forbidden' | 'unavailable';
 type SchedStatus = 'loading' | 'ready' | 'forbidden' | 'unavailable';
 /** CARD1: the equipment card's own row - loading, the server's row, or none (no API / not visible: state from the tile only, no controls). */
@@ -57,6 +73,8 @@ export class DeviceActivity extends LitElement {
   @state() private tab: Tab = 'activity';
   @state() private menu: { x: number; y: number } | null = null;
   @state() private filters: Filters = { ...DEFAULT_FILTERS };
+  /** ACT-polish: cards (the default) or a dense list; the choice is kept per browser. */
+  @state() private view: ActivityView = readView();
   @state() private feed: ActivityItem[] = [];
   @state() private page: ActivityPage | null = null;
   @state() private feedStatus: FeedStatus = 'loading';
@@ -254,7 +272,7 @@ export class DeviceActivity extends LitElement {
   private renderPopup(tg: ActivityTarget) {
     const card = cardKindOf(tg.kind);
     const on = card ? isOnState(card, this.row?.state ?? null) || (!this.row && !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state)) : !!tg.state && !/כבוי|סגור|לא זמין/.test(tg.state);
-    return html`<sw-sheet ?open=${this.open && !this.editing} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:380px" @close=${() => this.closePopup()}>
+    return html`<sw-sheet ?open=${this.open && !this.editing} heading=${`${t('deviceActivity.popupLabel')}: ${tg.name}`} data-device-activity style="--sw-sheet-w:430px" @close=${() => this.closePopup()}>
       <div slot="head" class="ph ${on ? '' : 'off'}">
         <span class="ic"><sw-icon name=${KIND_ICON[tg.kind] as IconName} size=${18}></sw-icon></span>
         <div class="tt"><h3>${bidi(tg.name)}</h3><div class="sub">${card
@@ -279,9 +297,13 @@ export class DeviceActivity extends LitElement {
   }
 
   private onTabKey = (e: KeyboardEvent) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    let next: Tab | null = null;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') next = this.tab === 'activity' ? 'schedules' : 'activity';
+    else if (e.key === 'Home') next = 'activity';
+    else if (e.key === 'End') next = 'schedules';
+    if (!next) return;
     e.preventDefault();
-    this.tab = this.tab === 'activity' ? 'schedules' : 'activity';
+    this.tab = next;
     requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`#da-tab-${this.tab}`)?.focus());
   };
 
@@ -308,6 +330,7 @@ export class DeviceActivity extends LitElement {
       ${loading
         ? html`<div class="skels tight" data-card-loading role="status" aria-label=${t('deviceCard.loading')}><div class="sk"><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div></div>`
         : html`<div class="st">
+              <i class="cdot ${on ? 'on' : ''} ${isMovingState(state) || state === 'returning' ? 'moving' : ''} ${!state ? 'unknown' : ''}" aria-hidden="true"></i>
               <span class="big" data-card-big>${text}</span>
               <span class="meta" data-card-meta>${this.renderMeta(card, row, tg)}</span>
             </div>
@@ -474,14 +497,68 @@ export class DeviceActivity extends LitElement {
 
   // ---------------------------------------------------------------------------------------------- activity tab
 
+  private setView(v: ActivityView) {
+    if (v === this.view) return;
+    this.view = v;
+    saveView(v);
+  }
+
+  private clearFilters() {
+    this.filters = { ...DEFAULT_FILTERS };
+    void this.loadFeed();
+  }
+
+  /** The two view buttons behave as one radio group: the arrow keys move between them, Home / End jump. */
+  private onViewKey = (e: KeyboardEvent) => {
+    const order: ActivityView[] = ['cards', 'list'];
+    let next: ActivityView | null = null;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') next = this.view === 'cards' ? 'list' : 'cards';
+    else if (e.key === 'Home') next = order[0];
+    else if (e.key === 'End') next = order[1];
+    if (!next) return;
+    e.preventDefault();
+    this.setView(next);
+    requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(`[data-view="${this.view}"]`)?.focus());
+  };
+
+  /** The toolbar: the three filters, a "clear" chip once any is narrowed, the view toggle and refresh at the end. */
   private renderFilters() {
     const f = this.filters;
+    const n = activeFilterCount(f);
+    const loading = this.feedStatus === 'loading';
     const dd = (label: string, items: { id: string; label: string }[], value: string, on: (id: string) => void, key: string) =>
       html`<sw-dropdown class="fchip" data-filter=${key} .items=${items} .value=${value} label=${label} @change=${(e: CustomEvent<DropdownChange>) => on(e.detail.id)}></sw-dropdown>`;
-    return html`<div class="fl" role="group">
-      ${dd(t('deviceActivity.filterPeriod'), PERIODS.map((p) => ({ id: p, label: PERIOD_LABEL[p] })), f.period, (id) => this.setFilter({ period: id as Period }), 'period')}
-      ${dd(t('deviceActivity.filterActor'), ACTOR_FILTERS, f.actor, (id) => this.setFilter({ actor: id as Filters['actor'] }), 'actor')}
-      ${dd(t('deviceActivity.filterKind'), EVENT_FILTERS, f.kind, (id) => this.setFilter({ kind: id as Filters['kind'] }), 'kind')}
+    const views: { id: ActivityView; icon: IconName; label: string }[] = [
+      { id: 'cards', icon: 'grid', label: t('deviceActivity.viewCards') },
+      { id: 'list', icon: 'list', label: t('deviceActivity.viewList') },
+    ];
+    return html`<div class="fl" role="group" aria-label=${t('deviceActivity.filterTools')}>
+      <div class="fchips">
+        ${dd(t('deviceActivity.filterPeriod'), PERIODS.map((p) => ({ id: p, label: PERIOD_LABEL[p] })), f.period, (id) => this.setFilter({ period: id as Period }), 'period')}
+        ${dd(t('deviceActivity.filterActor'), ACTOR_FILTERS, f.actor, (id) => this.setFilter({ actor: id as Filters['actor'] }), 'actor')}
+        ${dd(t('deviceActivity.filterKind'), EVENT_FILTERS, f.kind, (id) => this.setFilter({ kind: id as Filters['kind'] }), 'kind')}
+        ${n
+          ? html`<button type="button" class="clr" data-clear-filters @click=${() => this.clearFilters()}><sw-icon name="close" size=${12}></sw-icon>${t('deviceActivity.clearFilters')}<span class="n">${n}</span></button>`
+          : nothing}
+      </div>
+      <div class="ftools">
+        <span class="vw" role="radiogroup" aria-label=${t('deviceActivity.viewLabel')} data-view-toggle>
+          ${views.map(
+            (v) => html`<button type="button" role="radio" aria-checked=${String(this.view === v.id)} tabindex=${this.view === v.id ? 0 : -1} class=${this.view === v.id ? 'on' : ''} data-view=${v.id} aria-label=${v.label} title=${v.label}
+                @click=${() => this.setView(v.id)} @keydown=${this.onViewKey}><sw-icon name=${v.icon} size=${15}></sw-icon></button>`,
+          )}
+        </span>
+        <sw-button iconOnly size="sm" variant="ghost" icon="refresh" label=${t('deviceActivity.refresh')} data-feed-refresh ?disabled=${loading} @click=${() => void this.loadFeed()}></sw-button>
+      </div>
+    </div>`;
+  }
+
+  private renderSkeletons(n: number, tag: string | typeof nothing = nothing) {
+    const list = this.view === 'list';
+    return html`<div class="skels ${list ? 'list' : ''}" data-feed-state=${tag} role="status" aria-label=${t('deviceActivity.loading')}>
+      ${Array.from({ length: n }, () => (list
+        ? html`<div class="sk l"><i class="skel d"></i><i class="skel dot"></i><i class="skel a"></i><i class="skel b"></i></div>`
+        : html`<div class="sk"><i class="skel c"></i><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div>`))}
     </div>`;
   }
 
@@ -490,37 +567,60 @@ export class DeviceActivity extends LitElement {
       return html`<sw-state-panel state="forbidden" heading=${t('deviceActivity.forbiddenTitle')} hint=${t('deviceActivity.forbiddenHint')} compact data-feed-state="forbidden"></sw-state-panel>`;
     }
     const head = this.renderFilters();
-    if (this.feedStatus === 'loading') {
-      return html`${head}<div class="skels" data-feed-state="loading" role="status" aria-label=${t('deviceActivity.loading')}>${[0, 1, 2].map(() => html`<div class="sk"><i class="skel c"></i><span><i class="skel a"></i><i class="skel b"></i></span><i class="skel d"></i></div>`)}</div>`;
-    }
+    if (this.feedStatus === 'loading') return html`${head}${this.renderSkeletons(3, 'loading')}`;
     if (this.feedStatus === 'unavailable') {
       return html`${head}<sw-state-panel state="error" heading=${t('deviceActivity.unavailableTitle')} hint=${t('deviceActivity.unavailableHint')} actionLabel=${t('deviceActivity.retry')} compact data-feed-state="unavailable" @action=${() => void this.loadFeed()}></sw-state-panel>`;
     }
     const page = this.page;
     const gap = page?.coverage.gaps[0];
     const since = trackedSince(page?.tracked_since);
+    const f = this.filters;
+    // nothing matched: a narrowed actor / kind is cleared; only a short period is widened to 30 days
+    const narrowed = f.actor !== '' || f.kind !== '';
     const body = this.feed.length
       ? html`${page?.availability === 'partial' || gap ? html`<div class="gap" role="note" data-feed-state="partial"><sw-icon name="warning" size=${14}></sw-icon><span>${gap ? gapText(gap) : t('deviceActivity.partialBanner')}</span></div>` : nothing}
-          ${groupByDay(this.feed).map(
-            (g) => html`<div class="day" data-day>${g.label}</div>${repeat(g.items, (i) => i.id, (i) => this.renderEvent(i, tg))}`,
-          )}
+          <div class="feed ${this.view}" role="list" aria-label=${t('deviceActivity.feedList')} data-feed-view=${this.view}>
+            ${groupByDay(this.feed).map(
+              (g) => html`<section class="dg" data-day-group>
+                <div class="day" data-day><span class="dl">${g.label}</span><span class="dn" aria-label=${g.items.length === 1 ? t('deviceActivity.eventOne') : tf('deviceActivity.eventsCount', { n: g.items.length })}>${g.items.length}</span></div>
+                <div class="dgb">${repeat(g.items, (i) => i.id, (i) => (this.view === 'list' ? this.renderRow(i, tg) : this.renderEvent(i, tg)))}</div>
+              </section>`,
+            )}
+          </div>
+          ${this.loadingMore ? this.renderSkeletons(2) : nothing}
           ${page?.next_cursor ? html`<div class="more"><sw-button size="sm" ?disabled=${this.loadingMore} data-load-more @click=${() => void this.loadFeed(true)}>${this.loadingMore ? t('deviceActivity.loadingMore') : t('deviceActivity.loadMore')}</sw-button></div>` : nothing}`
-      : isFiltered(this.filters)
-        ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${t('deviceActivity.widen')} compact data-feed-state="empty-filtered" @action=${() => this.setFilter({ period: 'month' })}></sw-state-panel>`
+      : isFiltered(f)
+        ? html`<sw-state-panel state="empty" heading=${t('deviceActivity.emptyTitle')} actionLabel=${narrowed ? t('deviceActivity.clearFilters') : t('deviceActivity.widen')} compact data-feed-state="empty-filtered"
+            @action=${() => (narrowed ? this.clearFilters() : this.setFilter({ period: 'month' }))}></sw-state-panel>`
         : html`<sw-state-panel state="empty" heading=${page?.tracked_since ? t('deviceActivity.emptyTitle') : t('deviceActivity.emptyNone')} compact data-feed-state="empty"></sw-state-panel>`;
     return html`${head}${body}<div class="pf" data-foot>${since ? html`<span data-tracked-since>${since}</span> · ` : nothing}${footnote(page?.retention_days ?? 90, this.feed.some((x) => x.actor.type === 'device'))}</div>`;
   }
 
+  /** The card row: avatar with a tone marker, who did what, before -> after, the clock (full date on hover). */
   private renderEvent(it: ActivityItem, tg: ActivityTarget) {
     const a = actorView(it);
     const d = describeEvent(it, tg.kind);
-    return html`<div class="ev" data-event=${it.id} data-actor=${a.type}>
-      <span class=${`av ${a.type}`} aria-hidden="true">${a.type === 'person' && a.initials ? a.initials : html`<sw-icon name=${a.glyph as IconName} size=${14}></sw-icon>`}</span>
+    const tone = eventTone(it, tg.kind);
+    return html`<div class="ev" role="listitem" data-event=${it.id} data-actor=${a.type} data-tone=${tone}>
+      <span class=${`av ${a.type}`} aria-hidden="true">${a.type === 'person' && a.initials ? a.initials : html`<sw-icon name=${a.glyph as IconName} size=${14}></sw-icon>`}<i class="tn"></i></span>
       <div class="c">
         <div class="l1">${a.prefix ? html`<span class="kd">${a.prefix}:</span> ` : nothing}<b>${bidi(a.name)}</b><span class="vb">${d.verb}</span>${a.qualifier ? html`<span class="mt">${a.qualifier}</span>` : nothing}</div>
         <div class="l2">${d.from || d.to ? html`<span class="ba">${d.from ? html`<i><bdi>${d.from}</bdi></i><span class="arr" aria-hidden="true">←</span>` : nothing}<b><bdi>${d.to}</bdi></b></span>` : nothing}${it.note ? html`<span class="mt">${it.note}</span>` : nothing}</div>
       </div>
-      <time class="t" datetime=${it.at}>${clockOf(it.at)}</time>
+      <time class="t" datetime=${it.at} title=${fullDate(it.at)}>${clockOf(it.at)}</time>
+    </div>`;
+  }
+
+  /** The list row: one dense line - the clock, the tone dot, who, what, and the result. */
+  private renderRow(it: ActivityItem, tg: ActivityTarget) {
+    const a = actorView(it);
+    const d = describeEvent(it, tg.kind);
+    const tone = eventTone(it, tg.kind);
+    return html`<div class="rw" role="listitem" data-event=${it.id} data-actor=${a.type} data-tone=${tone}>
+      <time class="t" datetime=${it.at} title=${fullDate(it.at)}>${clockOf(it.at)}</time>
+      <i class="tn" aria-hidden="true"></i>
+      <span class="who">${a.prefix ? html`<span class="kd">${a.prefix}:</span> ` : nothing}<b>${bidi(a.name)}</b>${a.qualifier ? html` <span class="mt">${a.qualifier}</span>` : nothing}</span>
+      <span class="what"><span class="vb">${d.verb}</span>${d.from || d.to ? html`<span class="ba">${d.from ? html`<i><bdi>${d.from}</bdi></i><span class="arr" aria-hidden="true">←</span>` : nothing}<b><bdi>${d.to}</bdi></b></span>` : nothing}</span>
     </div>`;
   }
 
@@ -566,6 +666,10 @@ export class DeviceActivity extends LitElement {
     .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h, 14px); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
     .card.on { background: var(--sw-accent-soft); border-color: transparent; }
     .card .st { display: flex; align-items: baseline; gap: var(--sw-s-2); flex-wrap: wrap; min-inline-size: 0; }
+    .cdot { flex: none; align-self: center; inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--sw-text-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-text-3) 18%, transparent); }
+    .cdot.on { background: var(--sw-success); box-shadow: 0 0 0 3px var(--sw-success-soft); }
+    .cdot.moving { background: var(--sw-stale); box-shadow: 0 0 0 3px var(--sw-stale-soft); animation: pulse 1.2s ease-in-out infinite; }
+    .cdot.unknown { background: transparent; border: 1.5px dashed var(--sw-border-strong); box-shadow: none; }
     .card .big { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
     .card.on .big { color: var(--sw-accent-text); }
     .card .meta { color: var(--sw-text-2); font-size: var(--sw-fs-sm); display: inline-flex; flex-wrap: wrap; gap: 0 var(--sw-s-1); align-items: center; }
@@ -627,20 +731,78 @@ export class DeviceActivity extends LitElement {
     .segt button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
     .cnt { font-size: var(--sw-fs-xs); background: var(--sw-accent-soft); color: var(--sw-accent-text); border-radius: var(--sw-r-pill); padding: 0 6px; }
 
-    .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); }
-    .fl { display: flex; flex-wrap: wrap; gap: var(--sw-s-2); padding-block: var(--sw-s-1h) var(--sw-s-2); }
-    .day { padding: var(--sw-s-2) 0 var(--sw-s-1); color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+    .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); scrollbar-width: thin; }
+    /* a phone: the sheet itself scrolls, one scroller only (no list inside a list) */
+    @media (max-width: 767px) { .pbody { max-block-size: none; overflow: visible; } }
+
+    /* ---- the toolbar: filters at the start, the view toggle and refresh at the end; on a phone the chips scroll sideways in one row ---- */
+    .fl { display: flex; align-items: center; gap: var(--sw-s-2); padding-block: var(--sw-s-1h) var(--sw-s-2); }
+    .fchips { flex: 1 1 auto; min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .ftools { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+    @media (max-width: 767px) {
+      .fl { align-items: flex-start; }
+      .fchips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-block: 2px; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); }
+      .fchips::-webkit-scrollbar { display: none; }
+      .fchips > * { flex: none; }
+    }
+    .clr {
+      display: inline-flex; align-items: center; gap: 4px; min-block-size: 32px; padding-inline: 10px; border-radius: var(--sw-r-pill); border: 1px dashed var(--sw-border-strong);
+      background: transparent; color: var(--sw-text-2); font: inherit; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); cursor: pointer; white-space: nowrap;
+    }
+    .clr:hover { background: var(--sw-surface-3); color: var(--sw-text); }
+    .clr:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .clr .n { min-inline-size: 16px; block-size: 16px; display: inline-grid; place-items: center; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .vw { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--sw-r-sm); background: var(--sw-surface-3); }
+    .vw button { display: inline-grid; place-items: center; inline-size: 28px; block-size: 28px; border: 0; border-radius: calc(var(--sw-r-sm) - 2px); background: transparent; color: var(--sw-text-2); cursor: pointer; padding: 0; }
+    .vw button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
+    .vw button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+
+    /* ---- the day groups: a sticky day line (translucent, so the sheet's glass stays) with the count at its end ---- */
+    .feed { display: grid; gap: var(--sw-s-2); }
+    .dg { min-inline-size: 0; }
+    .day {
+      position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--sw-s-2);
+      padding: var(--sw-s-2) 2px var(--sw-s-1); color: var(--sw-text-3); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold);
+      /* the sheet's own colour, nearly opaque: no second backdrop blur inside the blurred sheet (a phone pays for nested blurs) */
+      background: rgba(var(--sw-sheet-rgb), max(var(--sw-sheet-alpha, 1), 0.92));
+    }
+    .dn { min-inline-size: 18px; padding-inline: 5px; block-size: 18px; display: inline-grid; place-items: center; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-variant-numeric: tabular-nums; font-weight: var(--sw-fw-medium); }
+    /* cards: the day's events sit in one soft card */
+    .feed.cards .dgb { border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); padding-inline: var(--sw-s-3); }
     .ev { display: grid; grid-template-columns: 28px 1fr auto; gap: var(--sw-s-3); align-items: center; min-block-size: 52px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1h); }
-    .av { display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
+    .feed.cards .ev:last-child { border-block-end: 0; }
+    .av { position: relative; display: grid; place-items: center; inline-size: 28px; block-size: 28px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); }
     .av.unknown { background: transparent; border: 1px dashed var(--sw-border-strong); color: var(--sw-text-3); }
     .av.automation, .av.schedule, .av.scene, .av.device, .av.system { background: var(--sw-surface-3); color: var(--sw-text-2); }
+    /* the tone marker: a small dot - on (success), off (muted), a value change (accent), availability lost (stale) / back (success ring) */
+    .tn { display: block; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--sw-text-3); box-sizing: border-box; }
+    .av .tn { position: absolute; inset-inline-end: -2px; inset-block-end: -1px; inline-size: 10px; block-size: 10px; border: 2px solid var(--sw-surface-2); }
+    [data-tone='on'] .tn { background: var(--sw-success); }
+    [data-tone='off'] .tn { background: var(--sw-text-3); }
+    [data-tone='value'] .tn { background: var(--sw-accent); }
+    [data-tone='lost'] .tn { background: var(--sw-stale); }
+    [data-tone='back'] .tn { background: var(--sw-success-soft); border-color: var(--sw-success); }
+    .rw[data-tone='back'] .tn { border: 2px solid var(--sw-success); }
     .c { min-inline-size: 0; }
     .l1 { font-size: var(--sw-fs-md); display: flex; flex-wrap: wrap; gap: 0 var(--sw-s-1h); align-items: baseline; }
     .l1 .kd, .vb { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .l2 { display: flex; flex-wrap: wrap; gap: 0 var(--sw-s-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); align-items: baseline; }
     .ba i { font-style: normal; } .ba b { color: var(--sw-text); font-weight: var(--sw-fw-medium); } .arr { margin-inline: var(--sw-s-1); }
+    [data-tone='on'] .ba b { color: var(--sw-success); }
+    [data-tone='lost'] .ba b { color: var(--sw-stale); }
     .mt { color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     .t { color: var(--sw-text-3); font-size: var(--sw-fs-sm); direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+    /* list: one dense line per event - clock | dot | who | what */
+    .rw { display: grid; grid-template-columns: auto 8px fit-content(42%) minmax(0, 1fr); gap: var(--sw-s-2); align-items: center; min-block-size: 36px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1); font-size: var(--sw-fs-sm); }
+    .rw .t { min-inline-size: 38px; }
+    .rw .tn { inline-size: 8px; block-size: 8px; }
+    .rw .who, .rw .what { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rw .who b { font-weight: var(--sw-fw-medium); color: var(--sw-text); }
+    .rw .what .vb { margin-inline-end: var(--sw-s-1h); }
+    @media (max-width: 480px) {
+      .rw { grid-template-columns: auto 8px minmax(0, 1fr); }
+      .rw .what { grid-column: 3; }
+    }
     .more { display: flex; justify-content: center; padding: var(--sw-s-3); }
     .pf { padding-block: var(--sw-s-2) 0; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     .gap { display: flex; gap: var(--sw-s-2); align-items: center; padding: var(--sw-s-2) var(--sw-s-3); margin-block: var(--sw-s-1h); border-radius: var(--sw-r-sm); background: var(--sw-warning-soft); color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
@@ -648,10 +810,12 @@ export class DeviceActivity extends LitElement {
     .skels { display: grid; gap: var(--sw-s-3); padding: var(--sw-s-2) 0; }
     .sk { display: grid; grid-template-columns: auto 1fr 30px; gap: var(--sw-s-3); align-items: center; }
     .sk > span { display: grid; gap: 6px; }
+    .sk.l { grid-template-columns: 38px 8px 1fr 1.2fr; gap: var(--sw-s-2); min-block-size: 28px; }
     .skel { display: block; block-size: 12px; border-radius: 6px; background: var(--sw-surface-3); animation: pulse 1.2s ease-in-out infinite; }
     .skel.c { inline-size: 28px; block-size: 28px; border-radius: 50%; } .skel.a { inline-size: 60%; } .skel.b { inline-size: 35%; block-size: 10px; } .skel.d { block-size: 10px; }
+    .skel.dot { inline-size: 8px; block-size: 8px; border-radius: 50%; }
     @keyframes pulse { 50% { opacity: .5; } }
-    @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .skel, .cdot.moving { animation: none; } }
 
     .sr { display: grid; grid-template-columns: 1fr auto auto; gap: var(--sw-s-3); align-items: center; min-block-size: 56px; border-block-end: 1px solid var(--sw-border); padding-block: var(--sw-s-1h); }
     .nm { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium); } .nx { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
