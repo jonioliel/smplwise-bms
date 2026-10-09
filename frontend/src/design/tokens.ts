@@ -76,6 +76,28 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     },
   },
   {
+    // DU1 (2026-10-09): the product's interaction and state colours, resolved on :root and inherited as plain colours. The glass
+    // screens (styles/devices-themes.ts) rewrite `--sw-accent` & co. on their host from the `--dv-*` knobs, so a knob that wanted
+    // the PRODUCT accent could not say var(--sw-accent) there (a cycle); it reads these instead. Never bridged, never overridden
+    // by a skin (a skin changes the originals).
+    id: 'product',
+    title: 'Product colours as seen by the knob layers',
+    tokens: {
+      '--sw-product-accent': same('var(--sw-accent)'),
+      '--sw-product-accent-hover': same('var(--sw-accent-hover)'),
+      '--sw-product-accent-soft': same('var(--sw-accent-soft)'),
+      '--sw-product-accent-text': same('var(--sw-accent-text)'),
+      '--sw-product-focus': same('var(--sw-focus)'),
+      '--sw-product-toggle-on': same('var(--sw-toggle-on)'),
+      '--sw-product-success': same('var(--sw-success)'),
+      '--sw-product-success-soft': same('var(--sw-success-soft)'),
+      '--sw-product-warning': same('var(--sw-warning)'),
+      '--sw-product-warning-soft': same('var(--sw-warning-soft)'),
+      '--sw-product-danger': same('var(--sw-danger)'),
+      '--sw-product-danger-soft': same('var(--sw-danger-soft)'),
+    },
+  },
+  {
     id: 'state',
     title: 'State colours (always paired with text or a shape)',
     tokens: {

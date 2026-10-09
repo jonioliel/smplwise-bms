@@ -319,16 +319,16 @@ export const DEVICE_PALETTES: DevicePalette[] = [
   {
     id: 'default',
     name: 'כחול',
-    hint: 'ברירת המחדל: כחול iOS',
+    hint: 'ברירת המחדל: הכחול של המערכת',
     light: {
       knobs: null,
       roles: DEFAULT_LIGHT_ROLES,
-      preview: { backdrop: 'radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.3), transparent 60%), linear-gradient(180deg, #eef2f9, #e5eaf4)', surface: '#fbfcfe', text: '#1c1c1e', accent: '#007aff', on: 'rgb(255 159 10)' },
+      preview: { backdrop: 'radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.3), transparent 60%), linear-gradient(180deg, #eef2f9, #e5eaf4)', surface: '#fbfcfe', text: '#1c1c1e', accent: 'var(--sw-accent)', on: 'rgb(255 159 10)' },
     },
     dark: {
       knobs: null,
       roles: DEFAULT_DARK_ROLES,
-      preview: { backdrop: 'radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.3), transparent 60%), #0a0a0c', surface: '#1c1c1e', text: '#f5f5f7', accent: '#0a84ff', on: 'rgb(255 159 10)' },
+      preview: { backdrop: 'radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.3), transparent 60%), #0a0a0c', surface: '#1c1c1e', text: '#f5f5f7', accent: 'var(--sw-accent)', on: 'rgb(255 159 10)' },
     },
   },
   {
