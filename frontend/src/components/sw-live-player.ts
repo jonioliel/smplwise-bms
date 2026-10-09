@@ -220,7 +220,7 @@ export class SwLivePlayer extends LitElement {
       font-size: var(--sw-fs-xs);
       text-align: center;
       padding: 12px;
-      background: rgba(15, 23, 41, 0.35);
+      background: color-mix(in srgb, var(--sw-video-bg) 35%, transparent);
     }
     .center div {
       display: grid;
@@ -234,8 +234,8 @@ export class SwLivePlayer extends LitElement {
     .spin {
       inline-size: 22px;
       block-size: 22px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: #fff;
+      border: 2px solid var(--sw-video-line);
+      border-top-color: var(--sw-on-video);
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
@@ -282,7 +282,7 @@ export class SwLivePlayer extends LitElement {
       backdrop-filter: var(--sw-perf-blur, blur(6px));
     }
     .vbadge.mse {
-      background: rgba(180, 83, 9, 0.85);
+      background: color-mix(in srgb, var(--sw-warning-text) 85%, transparent);
     }
     .vbadge.trying {
       background: var(--sw-video-scrim);

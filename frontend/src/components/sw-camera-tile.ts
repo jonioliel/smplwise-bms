@@ -153,7 +153,7 @@ export class SwCameraTile extends LitElement {
       padding: 8px;
     }
     :host([dark]) .off {
-      background: #172036;
+      background: var(--sw-video-bg);
       color: var(--sw-on-video-2);
     }
     .off sw-icon {

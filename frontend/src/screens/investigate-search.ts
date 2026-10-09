@@ -97,7 +97,7 @@ export class InvestigateSearch extends LitElement {
                     ${a.parsed.window ? html`<sw-chip selected icon="clock">${a.parsed.window.label}</sw-chip>` : nothing}
                     ${!a.parsed.objects.length && !a.parsed.places.length && !a.parsed.window ? html`<span class="note">לא זוהה סוג, מקום או זמן — מוצגים אירועי היום בהיקף שלך.</span>` : nothing}
                   </div>
-                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning, #b45309)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${a.unsupported.map((u) => `"${u.term}" — ${u.reason.startsWith('color') ? 'צבע' : 'מאפיין מראה'} דורש ספק ניתוח ב־opt-in`).join(' · ')}</div>` : nothing}
+                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning-text)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${a.unsupported.map((u) => `"${u.term}" — ${u.reason.startsWith('color') ? 'צבע' : 'מאפיין מראה'} דורש ספק ניתוח ב־opt-in`).join(' · ')}</div>` : nothing}
                   ${a.parsed.leftovers.length ? html`<div class="note" style="margin-block-start:4px">מילים שלא שימשו: ${a.parsed.leftovers.join(', ')}</div>` : nothing}
                 </sw-card>
                 <div class="head"><span>${a.total} התאמות (לפי metadata)</span><a href="#/investigate/events">מרכז האירועים</a></div>

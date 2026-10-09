@@ -368,17 +368,17 @@ export class HomeWidgetsView extends LitElement {
     .wx-ic {
       inline-size: var(--wxi, 44px);
       block-size: var(--wxi, 44px);
-      color: #e58e0b;
+      color: var(--sw-warning);
       stroke-width: 1.5;
       flex: none;
     }
     .wg-weather[data-cond='cloud'] .wx-ic,
     .wg-weather[data-cond='fog'] .wx-ic {
-      color: #7b8aa6;
+      color: var(--sw-text-3);
     }
     .wg-weather[data-cond='rain'] .wx-ic,
     .wg-weather[data-cond='storm'] .wx-ic {
-      color: #3d6fd8;
+      color: var(--sw-accent);
     }
     .wx-tc {
       display: flex;
@@ -444,15 +444,15 @@ export class HomeWidgetsView extends LitElement {
     .fc svg {
       inline-size: 20px;
       block-size: 20px;
-      color: #e58e0b;
+      color: var(--sw-warning);
     }
     .fc[data-cond='cloud'] svg,
     .fc[data-cond='fog'] svg {
-      color: #7b8aa6;
+      color: var(--sw-text-3);
     }
     .fc[data-cond='rain'] svg,
     .fc[data-cond='storm'] svg {
-      color: #3d6fd8;
+      color: var(--sw-accent);
     }
     .fc b {
       font-size: var(--sw-fs-sm);
@@ -537,7 +537,7 @@ export class HomeWidgetsView extends LitElement {
     }
     .cd {
       font-size: var(--sw-fs-xs);
-      color: #a15c00;
+      color: var(--sw-warning-text);
       font-weight: var(--sw-fw-semibold);
     }
     /* ---- alarm ---- */
@@ -565,8 +565,8 @@ export class HomeWidgetsView extends LitElement {
       color: var(--sw-text-2);
     }
     .wg-alarm[data-tone='err'] {
-      background: linear-gradient(160deg, rgba(255, 59, 48, 0.22), rgba(255, 59, 48, 0.04)), var(--sw-surface);
-      border-color: rgba(215, 0, 21, 0.35);
+      background: linear-gradient(160deg, color-mix(in srgb, var(--sw-danger) 22%, transparent), color-mix(in srgb, var(--sw-danger) 4%, transparent)), var(--sw-surface);
+      border-color: color-mix(in srgb, var(--sw-danger) 35%, transparent);
     }
     .wg-alarm[data-tone='err'] .aic {
       background: var(--sw-danger-soft);
@@ -634,7 +634,7 @@ export class HomeWidgetsView extends LitElement {
     }
     .qbtn.danger {
       color: var(--sw-danger);
-      border-color: rgba(215, 0, 21, 0.4);
+      border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
     }
     .qbtn svg {
       inline-size: 16px;
@@ -775,7 +775,7 @@ export class HomeWidgetsView extends LitElement {
       block-size: 16px;
     }
     .wg.ghost.warn {
-      border-color: rgba(255, 159, 10, 0.55);
+      border-color: color-mix(in srgb, var(--sw-warning) 55%, transparent);
       background: var(--sw-warning-soft);
     }
     .gbtn {

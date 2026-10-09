@@ -418,7 +418,7 @@ export class SwApp extends LitElement {
       font-size: var(--sw-fs-xl);
       text-decoration: none;
       margin-block-end: 8px;
-      box-shadow: 0 5px 12px rgba(39, 103, 237, 0.25);
+      box-shadow: var(--sw-shadow-primary);
     }
     a.item.a {
       flex-direction: column;
@@ -668,7 +668,7 @@ export class SwApp extends LitElement {
       background: var(--sw-text);
       color: var(--sw-surface);
       font-size: var(--sw-fs-sm);
-      box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+      box-shadow: var(--sw-shadow-3);
       max-inline-size: calc(100vw - 32px);
     }
     .sysbanner {

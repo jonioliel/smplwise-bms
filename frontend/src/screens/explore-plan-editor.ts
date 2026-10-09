@@ -5177,7 +5177,7 @@ export class ExplorePlanEditor extends LitElement {
               <div class="mapwrap">
                 <div class="bar">
                   <span class="autosave ${dirty ? 'dirty' : ''}"><i></i>${dirty ? `${dirty} שינויים לא שמורים` : 'הכל שמור'}</span>
-                  ${this.info ? html`<span style="color:#15803d">${this.info}</span>` : nothing}
+                  ${this.info ? html`<span style="color:var(--sw-success-text)">${this.info}</span>` : nothing}
                   ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
                   <span class="grow"></span>
                   ${b.needsAlignment ? html`<sw-badge kind="partial" label="פריטים מגרסת תוכנית קודמת — בדוק מיקומים"></sw-badge>

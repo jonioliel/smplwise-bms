@@ -251,12 +251,12 @@ export class ScheduleEditor extends LitElement {
     .banner.warn {
       background: var(--sw-warning-soft);
       color: var(--sw-warning-text);
-      border-color: #fde3b0;
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent);
     }
     .banner.err {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
-      border-color: #f6c7c7;
+      border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
     }
     .banner.info {
       background: var(--sw-accent-soft);
@@ -383,29 +383,30 @@ export class ScheduleEditor extends LitElement {
       block-size: 2px;
       background: var(--sw-danger);
     }
+    /* DU1: the same state tokens as sw-schedule-grid's --sc-* knobs, so the legend and the grid agree in every scheme and skin */
     .c-on {
-      --c: #16a34a;
-      --bg: rgba(34, 197, 94, 0.16);
+      --c: var(--sw-success-text);
+      --bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
     }
     .c-off {
-      --c: #64748b;
-      --bg: rgba(100, 116, 139, 0.15);
+      --c: var(--sw-text-2);
+      --bg: color-mix(in srgb, var(--sw-text-3) 15%, transparent);
     }
     .c-level {
-      --c: #d97706;
-      --bg: rgba(245, 158, 11, 0.18);
+      --c: var(--sw-warning-text);
+      --bg: color-mix(in srgb, var(--sw-warning) 18%, transparent);
     }
     .c-climate {
-      --c: #2767ed;
-      --bg: rgba(39, 103, 237, 0.14);
+      --c: var(--sw-accent-text);
+      --bg: color-mix(in srgb, var(--sw-accent) 14%, transparent);
     }
     .c-cover {
-      --c: #0d9488;
-      --bg: rgba(20, 184, 166, 0.16);
+      --c: var(--sw-circuit-6);
+      --bg: color-mix(in srgb, var(--sw-circuit-6) 16%, transparent);
     }
     .c-secure {
-      --c: #7c3aed;
-      --bg: rgba(139, 92, 246, 0.15);
+      --c: var(--sw-purple);
+      --bg: color-mix(in srgb, var(--sw-purple) 15%, transparent);
     }
     .linked {
       display: flex;
@@ -1757,7 +1758,7 @@ export class ScheduleEditor extends LitElement {
         <div class="repeat" role="group" aria-label="חזרה">
           ${(['repeat', 'pause', 'single'] as RepeatType[]).map((r) => html`<button type="button" data-repeat-btn=${r} aria-pressed=${d.repeat === r} ?disabled=${ro} @click=${() => this.patch({ repeat: r })}>${{ repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' }[r]}</button>`)}
         </div>
-        ${d.repeat === 'single' ? html`<div class="hint" style="color:#92400e" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
+        ${d.repeat === 'single' ? html`<div class="hint" style="color:var(--sw-warning-text)" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
       </div>
       <div class="sec" data-period>
         <h4>תקופה</h4>

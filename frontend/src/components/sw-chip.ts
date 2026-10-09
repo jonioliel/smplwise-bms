@@ -51,20 +51,20 @@ export class SwChip extends LitElement {
       flex-shrink: 0;
     }
     :host([selected]) .d {
-      outline: 2px solid rgba(255, 255, 255, 0.7);
+      outline: 2px solid color-mix(in srgb, var(--sw-text-inverse) 70%, transparent);
     }
     .count {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      color: rgba(255, 255, 255, 0.8);
+      color: color-mix(in srgb, var(--sw-text-inverse) 80%, transparent);
     }
     button:disabled {
       cursor: default;
       color: var(--sw-text-3);
       box-shadow: none;
-      opacity: 0.7;
+      opacity: var(--sw-disabled-opacity);
     }
     button:disabled:hover {
       background: var(--sw-surface);

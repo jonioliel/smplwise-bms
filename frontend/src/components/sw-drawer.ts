@@ -220,7 +220,7 @@ export class SwDrawer extends LitElement {
       display: none;
     }
     dialog.panel::backdrop {
-      background: rgba(15, 23, 42, 0.38);
+      background: var(--sw-overlay);
     }
     .trap {
       position: absolute;

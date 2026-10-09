@@ -918,7 +918,7 @@ export class InvestigateEvents extends LitElement {
         <span>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ing.last_error})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
         <span>· עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'}</span>
         <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
-        ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning, #b45309);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
+        ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning-text);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
       </div>
       <div class="kpis" data-kpis>
         <div class="kpi"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>

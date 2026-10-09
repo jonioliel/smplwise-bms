@@ -18,8 +18,8 @@ import { ReactiveElement } from 'lit';
 
 export const FOCUS_POLICY_CSS = `
 :where(:focus-visible):not(sw-field > *) {
-  outline: 2px solid var(--sw-focus);
-  outline-offset: 2px;
+  outline: var(--sw-focus-w, 2px) solid var(--sw-focus, #2767ed);
+  outline-offset: var(--sw-focus-offset, 2px);
 }
 :where(input, select, textarea):where(:focus-visible):not(sw-field > *) {
   outline-offset: 1px;

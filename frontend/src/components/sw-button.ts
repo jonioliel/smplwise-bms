@@ -36,7 +36,7 @@ export class SwButton extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 6px;
-      min-block-size: 30px;
+      min-block-size: var(--sw-ctl-h-md);
       padding-inline: 12px;
       border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
@@ -55,14 +55,14 @@ export class SwButton extends LitElement {
       background: var(--sw-surface-2);
     }
     :host([size='sm']) button {
-      min-block-size: 26px;
+      min-block-size: var(--sw-ctl-h-sm);
       padding-inline: 9px;
       font-size: var(--sw-fs-xs);
       border-radius: var(--sw-r-xs);
       gap: 5px;
     }
     :host([size='lg']) button {
-      min-block-size: 36px;
+      min-block-size: var(--sw-ctl-h-lg);
       padding-inline: 16px;
       font-size: var(--sw-fs-md);
     }
@@ -70,7 +70,7 @@ export class SwButton extends LitElement {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
-      box-shadow: 0 1px 2px rgba(47, 107, 255, 0.25);
+      box-shadow: var(--sw-shadow-primary);
     }
     :host([variant='primary']) button:hover {
       background: var(--sw-accent-hover);
@@ -96,17 +96,17 @@ export class SwButton extends LitElement {
     }
     :host([disabled]) button {
       cursor: not-allowed;
-      opacity: 0.45;
+      opacity: var(--sw-disabled-opacity);
     }
     :host([icononly]) button {
-      inline-size: 30px;
+      inline-size: var(--sw-ctl-h-md);
       padding-inline: 0;
     }
     :host([icononly][size='sm']) button {
-      inline-size: 26px;
+      inline-size: var(--sw-ctl-h-sm);
     }
     :host([icononly][size='lg']) button {
-      inline-size: 36px;
+      inline-size: var(--sw-ctl-h-lg);
     }
     :host([round]) button {
       border-radius: 50%;

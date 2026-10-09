@@ -154,23 +154,24 @@ export class SwScheduleGrid extends LitElement {
       --label-w: 64px;
       --row-h: 46px;
       --axis-h: 22px;
-      --sc-on: #16a34a;
-      --sc-on-bg: rgba(34, 197, 94, 0.16);
-      --sc-off: #64748b;
-      --sc-off-bg: rgba(100, 116, 139, 0.15);
-      --sc-level: #d97706;
-      --sc-level-bg: rgba(245, 158, 11, 0.18);
-      --sc-climate: #2767ed;
-      --sc-climate-bg: rgba(39, 103, 237, 0.14);
-      --sc-cover: #0d9488;
-      --sc-cover-bg: rgba(20, 184, 166, 0.16);
-      --sc-secure: #7c3aed;
-      --sc-secure-bg: rgba(139, 92, 246, 0.15);
-      --sc-custom: #475569;
-      --sc-custom-bg: rgba(71, 85, 105, 0.12);
-      --sc-empty: #94a3b8;
-      --sc-empty-bg: rgba(148, 163, 184, 0.1);
-      --sc-night: rgba(30, 46, 71, 0.045);
+      /* DU1: the slot colours are the product's state tokens (so dark mode and the skins reach the grid); the fills are the same colours at a low share */
+      --sc-on: var(--sw-success-text);
+      --sc-on-bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
+      --sc-off: var(--sw-text-2);
+      --sc-off-bg: color-mix(in srgb, var(--sw-text-3) 15%, transparent);
+      --sc-level: var(--sw-warning-text);
+      --sc-level-bg: color-mix(in srgb, var(--sw-warning) 18%, transparent);
+      --sc-climate: var(--sw-accent-text);
+      --sc-climate-bg: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+      --sc-cover: var(--sw-circuit-6);
+      --sc-cover-bg: color-mix(in srgb, var(--sw-circuit-6) 16%, transparent);
+      --sc-secure: var(--sw-purple);
+      --sc-secure-bg: color-mix(in srgb, var(--sw-purple) 15%, transparent);
+      --sc-custom: var(--sw-text-2);
+      --sc-custom-bg: color-mix(in srgb, var(--sw-text-2) 12%, transparent);
+      --sc-empty: var(--sw-text-3);
+      --sc-empty-bg: color-mix(in srgb, var(--sw-text-3) 10%, transparent);
+      --sc-night: color-mix(in srgb, var(--sw-text) 4.5%, transparent);
     }
     :host([compact]) {
       --row-h: 32px;

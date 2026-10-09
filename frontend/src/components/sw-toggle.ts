@@ -34,7 +34,7 @@ export class SwToggle extends LitElement {
       inline-size: 18px;
       block-size: 18px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-toggle-thumb);
       box-shadow: var(--sw-shadow-1);
       transition: transform var(--sw-t-fast) var(--sw-ease);
     }
@@ -48,7 +48,7 @@ export class SwToggle extends LitElement {
       transform: translateX(18px);
     }
     :host([disabled]) button {
-      opacity: 0.5;
+      opacity: var(--sw-disabled-opacity);
       cursor: not-allowed;
     }
     span {

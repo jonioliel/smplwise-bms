@@ -109,6 +109,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-success-text': lt('#16a34a', '#3ddc84'),
       '--sw-forbidden-text': lt('#b91c1c', '#ff8a82'),
       '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
+      '--sw-toggle-thumb': same('#ffffff'), // the switch's knob (white on the track in both schemes; a skin may tint it)
       // Investigation timeline kinds (owner 2026-10-01): the defaults; the installation setting `timeline.colors` (api/timeline-colors.ts)
       // overrides them on the document root. Mid-tones that read on the light surface and on a dark one.
       '--sw-tl-recording': same('var(--sw-accent)'),

@@ -35,7 +35,7 @@ export class SwField extends LitElement {
     ::slotted(textarea) {
       inline-size: 100%;
       box-sizing: border-box;
-      min-block-size: 30px;
+      min-block-size: var(--sw-ctl-h-md);
       padding: 5px 10px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
