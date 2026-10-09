@@ -8,9 +8,10 @@ import { fx } from '../i18n/frigate-text';
  * it never talks to the server. The stage is ALWAYS left-to-right and never mirrored (video and map geometry are not mirrored by RTL):
  * a point is (x right, y down) in 0..1 of the frame, exactly what Frigate stores.
  *
- * Editing (`editing`): a tap / click on the image adds a point at the end, a handle is dragged with a pointer (mouse, touch, pen), and a
- * focused handle moves with the arrow keys (Shift = larger steps) and is removed with Delete / Backspace. Events: `zone-points` {points}
- * on every change, `zone-pick` {name} when a zone is chosen by tapping it while not editing. Tokens only.
+ * Editing (`editing`): a tap / click on the image adds a point at the end, a handle is dragged with a pointer (mouse, touch, pen), a
+ * focused handle moves with the arrow keys (Shift = larger steps) and is removed with Delete / Backspace, and the small handle on the
+ * middle of an edge inserts a point there (FRG-polish; a tap, or a drag that starts the new point moving at once). Events: `zone-points`
+ * {points} on every change, `zone-pick` {name} when a zone is chosen by tapping it while not editing. Tokens only.
  */
 @customElement('frigate-zone-editor')
 export class FrigateZoneEditor extends LitElement {
@@ -25,6 +26,8 @@ export class FrigateZoneEditor extends LitElement {
   @property({ type: Boolean }) editing = false;
   @state() private broken = false;
   private drag: { index: number; id: number } | null = null;
+  /** a drag that started on a midpoint ends with a click on the stage: that click is not a new point */
+  private swallowClick = false;
 
   static styles = css`
     :host {
@@ -136,6 +139,41 @@ export class FrigateZoneEditor extends LitElement {
     .h:active {
       cursor: grabbing;
     }
+    /* the midpoint of an edge: a smaller, hollow handle that inserts a point */
+    .m {
+      position: absolute;
+      inline-size: 28px;
+      block-size: 28px;
+      margin: -14px 0 0 -14px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      display: grid;
+      place-items: center;
+      cursor: copy;
+      touch-action: none;
+      opacity: 0.75;
+    }
+    .m::before {
+      content: '';
+      inline-size: 9px;
+      block-size: 9px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--sw-surface) 80%, transparent);
+      border: 2px dashed var(--sw-warning, var(--sw-stale-text));
+      box-sizing: border-box;
+    }
+    .m:hover,
+    .m:focus-visible {
+      opacity: 1;
+    }
+    .m:focus-visible {
+      outline: none;
+    }
+    .m:focus-visible::before {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
   `;
 
   private rect() {
@@ -147,7 +185,11 @@ export class FrigateZoneEditor extends LitElement {
   }
 
   private onStageClick(e: MouseEvent) {
-    if (!this.editing || (e.target as HTMLElement).closest('.h') || this.points.length >= 40) return;
+    if (this.swallowClick) {
+      this.swallowClick = false;
+      return;
+    }
+    if (!this.editing || (e.target as HTMLElement).closest('.h, .m') || this.points.length >= 40) return;
     this.emit([...this.points, toRelative(e.clientX, e.clientY, this.rect())]);
   }
 
@@ -157,6 +199,30 @@ export class FrigateZoneEditor extends LitElement {
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     this.drag = { index: i, id: e.pointerId };
+  }
+
+  /** The midpoint of edge i -> i+1 (the last edge closes the polygon). */
+  private mid(i: number): Pt {
+    const a = this.points[i];
+    const b = this.points[(i + 1) % this.points.length];
+    const c = (v: number) => Math.round(v * 10000) / 10000;
+    return [c((a[0] + b[0]) / 2), c((a[1] + b[1]) / 2)];
+  }
+
+  /** Insert a point after index i; the new point is the drag target when a pointer started it (the stage's move handler finishes it). */
+  private insertAt(i: number, e?: PointerEvent) {
+    if (!this.editing || this.points.length >= 40) return;
+    const next = [...this.points.slice(0, i + 1), this.mid(i), ...this.points.slice(i + 1)];
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      // the stage receives the moves (the midpoint button is re-rendered away): capture on the stage itself
+      (this.renderRoot.querySelector('.stage') as HTMLElement).setPointerCapture(e.pointerId);
+      this.drag = { index: i + 1, id: e.pointerId };
+      this.swallowClick = true;
+    }
+    this.emit(next);
+    if (!e) void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-zone-handle="${i + 1}"]`) as HTMLElement | null)?.focus());
   }
 
   private onMove(e: PointerEvent) {
@@ -215,6 +281,11 @@ export class FrigateZoneEditor extends LitElement {
         const [cx, cy] = this.centroid(z.points!);
         return html`<span class="name" style=${`left:${cx * 100}%;top:${cy * 100}%`}>${z.name}</span>`;
       })}
+      ${this.selected !== null && this.editing && this.points.length >= 2 && this.points.length < 40
+        ? this.points.map((_, i) => (i === this.points.length - 1 && this.points.length < 3 ? nothing : html`<button type="button" class="m" style=${`left:${this.mid(i)[0] * 100}%;top:${this.mid(i)[1] * 100}%`}
+            aria-label=${`${t.insertPoint} ${i + 2}`} title=${t.insertPoint} data-zone-mid=${i} @pointerdown=${(e: PointerEvent) => this.insertAt(i, e)} @click=${(e: Event) => e.stopPropagation()}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.insertAt(i); } }}></button>`))
+        : nothing}
       ${this.selected !== null
         ? this.points.map(([x, y], i) => html`<button type="button" class=${`h ${i === 0 ? 'first' : ''}`} style=${`left:${x * 100}%;top:${y * 100}%`} aria-label=${`${t.points} ${i + 1}`}
             data-zone-handle=${i} ?disabled=${!this.editing} @pointerdown=${(e: PointerEvent) => this.onDown(i, e)} @keydown=${(e: KeyboardEvent) => this.onKey(i, e)}></button>`)

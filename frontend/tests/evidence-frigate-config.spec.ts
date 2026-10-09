@@ -112,10 +112,22 @@ test.describe('settings: zones and camera settings', () => {
     await panel.locator('[data-zone-handle="1"]').focus();
     await page.keyboard.press('ArrowDown');
     await expect(panel.locator('[data-zone-handle]')).toHaveCount(4);
+    // FRG-polish: the midpoint handle of edge 1 -> 2 inserts a point between them (keyboard here; a pointer drags it at once)
+    await expect(panel.locator('[data-zone-mid]')).toHaveCount(4);
+    const before = JSON.parse(await panel.locator('[data-zone-handle="1"]').evaluate((h) => JSON.stringify([h.style.left, h.style.top])));
+    await panel.locator('[data-zone-mid="1"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(panel.locator('[data-zone-handle]')).toHaveCount(5);
+    await expect(panel.locator('[data-fcp-points]')).toContainText('5');
+    await expect(panel.locator('[data-zone-handle="2"]')).toBeFocused(); // the new point takes the focus
+    expect(await panel.locator('[data-zone-handle="1"]').evaluate((h) => JSON.stringify([h.style.left, h.style.top]))).toBe(JSON.stringify(before)); // its neighbours did not move
+    await page.keyboard.press('Delete'); // and can be removed again
+    await expect(panel.locator('[data-zone-handle]')).toHaveCount(4);
     await panel.locator('[data-fcp-save]').click();
     await confirm(panel, false);
     const b = bodyOf(writes(m, 'config/zones/driveway')[0]);
     expect(b.supervised).toBeUndefined();
+    expect(b.points).toHaveLength(4);
     expect(b.points[0][0]).toBeCloseTo(0.6, 1);
     expect(b.points[0][1]).toBeCloseTo(0.3, 1);
     expect(b.points[1][1]).toBeCloseTo(0.405, 3);
