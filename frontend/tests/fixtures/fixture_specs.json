@@ -10,7 +10,9 @@
         "evidence-curved-walls.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-curve-points.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
-        "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]}
+        "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
+        "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
+        "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]}
       }
     },
     "devices_floor": {

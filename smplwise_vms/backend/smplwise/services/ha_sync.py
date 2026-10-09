@@ -579,6 +579,22 @@ def handle_state_event(db: Database, data: dict[str, Any], attempts: int = 1) ->
     return row
 
 
+def on_state_changed(db: Database, data: dict[str, Any]) -> dict[str, Any]:
+    """One `state_changed` frame with a new state, as the socket handler runs it: the stored row first (a screen that
+    refetches - or a command poll the push wakes - must read the new state), then the push to every /ha/ws subscriber.
+    Event-driven end to end: no polling interval anywhere between Home Assistant and the screens (LAT1)."""
+    row = handle_state_event(db, data)
+    STATE.sequence += 1
+    STATE.last_event_at = now_iso()
+    publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
+    eid = str(data.get("entity_id") or "")
+    if eid.startswith(("media_player.", "remote.")):
+        from . import media_store  # CR-015: a screen's own `media_state` frame (throttled, scoped by media.read in /ha/ws)
+
+        media_store.on_state_event(db, eid)
+    return row
+
+
 def _note_connect_gap(db: Database) -> None:
     """DEVHIST: the activity log was not fed between the last state the mirror had seen and this connection."""
     from . import device_activity
@@ -751,17 +767,9 @@ class HaSync:
                         debouncer.poke("state_removed")
                 return
             try:
-                row = handle_state_event(db, data)
+                on_state_changed(db, data)
             except Exception:
                 log.exception("state update failed for %s", eid)
-                return
-            STATE.sequence += 1
-            STATE.last_event_at = now_iso()
-            publish({"type": "entity_state_changed", "sequence": STATE.sequence, "entity": row})
-            if eid.startswith(("media_player.", "remote.")):
-                from . import media_store  # CR-015: a screen's own `media_state` frame (throttled, scoped by media.read in /ha/ws)
-
-                media_store.on_state_event(db, eid)
 
         def on_message(msg: dict[str, Any]) -> None:
             if self._sched_sub_id is not None and msg.get("id") == self._sched_sub_id:

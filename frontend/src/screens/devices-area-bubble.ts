@@ -491,7 +491,7 @@ export function renderBubblePill(h: BubbleAreaHost, r: DeviceRow, card: CardId):
   const can = r.can_control && !unavailable;
   const hue = hueOf(r.entity_id);
   const ctl = h.ctl;
-  const pending = ctl.rowPending(r.entity_id);
+  const pending = ctl.rowPendingVisible(r.entity_id); // LAT1: shown only for a command still pending after PENDING_VISIBLE_MS
   const open = () => h.openSheet(r, card);
   const common = { 'data-entity': r.entity_id };
   void common;

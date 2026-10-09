@@ -9,10 +9,13 @@ devices area's bulk actions (services/device_bulk.py, CR-007 slice 3), so both a
 - a pending record becomes "unknown" once CONFIRM_WINDOW_S passed without that report."""
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import sqlite3
-from typing import Any
+import threading
+import time
+from typing import Any, Callable, Iterator
 
 from ..db import now_iso
 from ..errors import ApiError
@@ -32,6 +35,52 @@ EQUIVALENT_STATES: dict[str, frozenset[str]] = {
     # showing the live state, so "בהשהיית יציאה" is never shown as "armed".
     **{f"alarm_control_panel.alarm_arm_{m}": frozenset({f"armed_{m}", "arming"}) for m in ("home", "away", "night", "vacation", "custom_bypass")},
 }
+
+
+class HopTimer:
+    """LAT1: the per-hop times of one device command, for the `Server-Timing` header, the answer's `timing_ms` and the log
+    line. `clock` is the seam (perf_counter); hops may be timed from another thread (the bridge call runs in parallel
+    with the pending record), so each hop is stored under its own name."""
+
+    clock = staticmethod(time.perf_counter)
+
+    def __init__(self) -> None:
+        self.t0 = self.clock()
+        self.hops: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def _put(self, name: str, ms: float) -> None:
+        with self._lock:
+            self.hops[name] = round(ms, 1)
+
+    def mark(self, name: str) -> None:
+        """A hop from the start of the request to now (`checks`: everything before the command left)."""
+        self._put(name, (self.clock() - self.t0) * 1000)
+
+    @contextlib.contextmanager
+    def hop(self, name: str) -> Iterator[None]:
+        start = self.clock()
+        try:
+            yield
+        finally:
+            self._put(name, (self.clock() - start) * 1000)
+
+    def timed(self, name: str, fn: Callable[..., Any], *args: Any, **kw: Any) -> Any:
+        with self.hop(name):
+            return fn(*args, **kw)
+
+    def as_dict(self) -> dict[str, float]:
+        with self._lock:
+            out = dict(self.hops)
+        out["total"] = round((self.clock() - self.t0) * 1000, 1)
+        return out
+
+    def header(self) -> str:
+        """`Server-Timing: checks;dur=3.1, bridge;dur=41.0, pending_row;dur=6.2, record;dur=5.0, total;dur=52.4` (DevTools -> Network -> Timing)."""
+        return ", ".join(f"{k};dur={v}" for k, v in self.as_dict().items())
+
+    def log_line(self) -> str:
+        return " ".join(f"{k}={v}ms" for k, v in self.as_dict().items())
 
 
 def state_matches(action_id: str, expected: str, state: str | None) -> bool:

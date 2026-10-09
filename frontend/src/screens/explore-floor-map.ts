@@ -2317,7 +2317,7 @@ export class ExploreFloorMap extends LitElement {
         const token = this.action;
         await awaitAction(r.id, (a) => {
           if (this.action === token || this.action?.record?.id === a.id) this.action = { entityId, spec, record: a, error: '', busy: a.status === 'pending' };
-        });
+        }, undefined, entityId); // LAT1: the entity's push wakes the next look (no fixed 1.5 s wait)
       }
     } catch (err) {
       const msg = err instanceof ApiError && err.code === 'bridge_not_paired' ? 'הגשר אינו מצומד. התקנה וצימוד: הגדרות → כללי.' : describeError(err);
