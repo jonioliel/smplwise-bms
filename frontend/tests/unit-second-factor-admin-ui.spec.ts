@@ -226,14 +226,11 @@ test('roles screen: every role card has the policy override select', async ({ pa
   expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'auth/second-factor/overrides/role/viewer', body: { policy: 'optional' } }]);
 });
 
-test('remote-access settings: the note says the factor does not protect the infrastructure login, without naming Home Assistant', async ({ page }) => {
+test('remote-access settings: no infrastructure-coverage note under the second-factor policy (owner 2026-10-09: removed, it does not matter to users)', async ({ page }) => {
   await setup(page);
   await page.goto('/?design=a#/system/diagnostics?tab=remote');
   await page.waitForSelector('sw-app system-diagnostics');
-  const note = page.locator('system-diagnostics [data-second-factor-infra-note]');
-  await expect(note).toBeVisible();
-  await expect(note).toContainText('תשתית המערכת');
-  const text = (await note.textContent()) ?? '';
-  expect(text).not.toMatch(/Home Assistant|\bHA\b|הום אסיסטנט/);
-  expect(text.length).toBeLessThan(120);
+  await expect(page.locator('system-diagnostics [data-second-factor-policy-row]')).toBeVisible();
+  await expect(page.locator('system-diagnostics [data-second-factor-infra-note]')).toHaveCount(0);
+  await expect(page.locator('system-diagnostics')).not.toContainText('ולא על הכניסה של תשתית המערכת');
 });

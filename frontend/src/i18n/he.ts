@@ -832,7 +832,6 @@ export const he = {
     policyLabel: 'אימות דו־שלבי מאפליקציה',
     policyOptional: 'רשות',
     policyAdmins: 'חובה למנהלים',
-    infraNote: 'האימות הדו־שלבי מגן על הכניסה ל־Arx בלבד, ולא על הכניסה של תשתית המערכת עצמה.',
     overrideLabel: 'אימות דו־שלבי בכניסה מרחוק',
     overrideInherit: 'לפי ההגדרה הכללית',
     overrideOptional: 'רשות',

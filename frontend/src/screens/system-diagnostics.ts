@@ -1034,7 +1034,6 @@ export class SystemDiagnostics extends LitElement {
           ${sel('remote.require_mfa_admin', 'false', [['false', 'רשות'], ['true', 'חובה למנהלים']])}</div>
         <div class="row" data-second-factor-policy-row><span class="lbl">${t('secondFactor.policyLabel')}</span>
           ${sel('security.second_factor_policy', 'optional', [['optional', t('secondFactor.policyOptional')], ['admins', t('secondFactor.policyAdmins')]])}</div>
-        <div class="muted" data-second-factor-infra-note style="margin-block-start:6px">${t('secondFactor.infraNote')}</div>
       </sw-card>
       <sw-card heading="הורדת אפליקציית Android" subheading="מוצגת במסך הכניסה רק למי שנכנס ממכשיר Android, ורק כשהוגדרה כתובת. ריק = לא מוצגת." data-card="remote.android-download" data-android-download-settings>
         <div class="row"><span class="lbl">כתובת הורדה<span class="muted">https בלבד</span></span>
