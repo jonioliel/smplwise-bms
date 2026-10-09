@@ -5,6 +5,7 @@ import { DEVICE_THEMES, devicesThemes, type DeviceThemeId } from '../styles/devi
 import { devicesPalettes } from '../styles/devices-palettes';
 import { devicesLayoutCss } from './devices-layout-css';
 import { areaRowOf, AREA_ROW_DEFAULT, FLOOR_ROW_DEFAULT, floorRowOf, type AreaRow, type FloorRow } from '../api/area-row';
+import { onDesign, resolvedTheme } from '../design/apply';
 
 /**
  * CR-007 slice 6a: the presentation settings of the device-control screens (הגדרות › חשמל והתקנים, `devices.*`, per
@@ -79,7 +80,10 @@ export function applyDevicesPrefs(host: HTMLElement, p: DevicesPrefs) {
 
 /** CR-007 6b: the hosts whose scheme is `auto`, re-resolved when the operating system's scheme changes. */
 const autoHosts = new Set<HTMLElement>();
+/** DU1: every host, with the `devices.scheme` it was given, re-resolved when the product's scheme (`ui.scheme`) changes. */
+const hosts = new Map<HTMLElement, DevicesScheme>();
 let darkQuery: MediaQueryList | null = null;
+let designWatched = false;
 
 function systemDark(): boolean {
   try {
@@ -89,11 +93,34 @@ function systemDark(): boolean {
   }
 }
 
-/** The RESOLVED scheme on the host: `data-devices-scheme="light" | "dark"`. Dark applies only when chosen - `dark`, or
- * `auto` on a device whose operating system is dark (resolved here, in JS: the CSS has no colour-scheme media query,
- * so while the app shell is light only the device area never turns dark by itself - DEVICE_THEMES.md §6). */
+/** DU1 (2026-10-09): the resolved scheme of a glass host. Dark when `devices.scheme` says so (`dark`, or `auto` on a dark
+ * operating system) - and also whenever the PRODUCT is dark (`ui.scheme`, resolved on `<html data-theme>`): the device,
+ * schedule, automation, media and notification surfaces are never lighter than the shell around them (a white glass area
+ * inside a dark shell was the largest inconsistency of the DU1 audit). A dark OS alone still changes nothing while the
+ * installation's `ui.scheme` is light. */
+function resolveDevicesScheme(scheme: DevicesScheme): 'light' | 'dark' {
+  if (scheme === 'dark' || (scheme === 'auto' && systemDark())) return 'dark';
+  return resolvedTheme() === 'dark' ? 'dark' : 'light';
+}
+
+function reapply() {
+  for (const [h, s] of [...hosts]) {
+    if (!h.isConnected) {
+      hosts.delete(h);
+      autoHosts.delete(h);
+    } else h.setAttribute('data-devices-scheme', resolveDevicesScheme(s));
+  }
+}
+
+/** The RESOLVED scheme on the host: `data-devices-scheme="light" | "dark"` (see resolveDevicesScheme). The CSS has no
+ * colour-scheme media query: the resolution happens here, in JS - DEVICE_THEMES.md §6. */
 export function applyDevicesScheme(host: HTMLElement, scheme: DevicesScheme) {
-  host.setAttribute('data-devices-scheme', scheme === 'dark' || (scheme === 'auto' && systemDark()) ? 'dark' : 'light');
+  host.setAttribute('data-devices-scheme', resolveDevicesScheme(scheme));
+  hosts.set(host, scheme);
+  if (!designWatched) {
+    designWatched = true;
+    onDesign(reapply); // the product's skin / scheme changed (settings, ?scheme=, the OS under ui.scheme=auto)
+  }
   if (scheme !== 'auto') {
     autoHosts.delete(host);
     return;
@@ -105,7 +132,7 @@ export function applyDevicesScheme(host: HTMLElement, scheme: DevicesScheme) {
       darkQuery.addEventListener('change', () => {
         for (const h of [...autoHosts]) {
           if (!h.isConnected) autoHosts.delete(h);
-          else h.setAttribute('data-devices-scheme', systemDark() ? 'dark' : 'light');
+          else h.setAttribute('data-devices-scheme', resolveDevicesScheme('auto'));
         }
       });
     } catch {
