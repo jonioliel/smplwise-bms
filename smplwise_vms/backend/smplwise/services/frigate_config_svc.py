@@ -79,6 +79,11 @@ def delete_zone(conn: sqlite3.Connection, principal: Principal, adapter: Frigate
     if not cur["editable"]:
         raise ApiError(409, "frigate_zone_not_editable", "האזור הזה נשמר ב־Frigate בצורה ש־Arx אינו עורך.")
     before = fcfg.comparable(cur)
+    # security review 2.4.2 L6: the fields Arx does not model go into the change log too, so the undo puts the whole zone back
+    # (a zone whose extra fields cannot be kept is refused with 409 before anything is written)
+    extra = cfg.zone_extra(cam["source_ref"], name)
+    if extra and before is not None:
+        before = {**before, "extra": extra}
     base = _base(adapter, cam, "config_zone", name, request_id)
     try:
         cfg.write_zone(cam["source_ref"], name, None)
@@ -95,7 +100,14 @@ def _zone_back(cfg: fcfg.FrigateConfig, camera_key: str, name: str, want: dict[s
         seen = cfg.zone(camera_key, name)
     except ApiError:
         return False, None
-    return fcfg.comparable(seen) == want, seen
+    if want is None or "extra" not in want:
+        return fcfg.comparable(seen) == want, seen
+    # an undo of a delete: the modelled fields as before, and the unmodelled ones Frigate shows again
+    try:
+        extra_now = cfg.zone_extra(camera_key, name)
+    except ApiError:
+        return False, seen
+    return fcfg.comparable(seen) == {k: v for k, v in want.items() if k != "extra"} and extra_now == want["extra"], seen
 
 
 # ---------------------------------------------------------------------------------------------- settings

@@ -70,7 +70,9 @@ def test_reads_withhold_the_hidden_camera_and_keep_the_item(settings, bound):
     assert ron.status_code == 200 and vault not in ron.text
     objs = _objects(ron.json())
     assert objs["o-vault"]["anchor_ref"] is None, "the reference is withheld"
-    assert objs["o-vault"]["position"] == _objects(admin.json())["o-vault"]["position"], "the item stays where it is"
+    # security review 2.4.2 M2 (owner decision 2026-10-09): the item stays, but not on the hidden camera's pose
+    assert objs["o-vault"]["position"] == list(scope.WITHHELD_POSITION) != _objects(admin.json())["o-vault"]["position"]
+    assert objs["o-vault"]["rotation_deg"] == 0
     assert objs["o-lobby"]["anchor_ref"] == _ref("camera", lobby) and objs["o-lamp"]["anchor_ref"] == _ref("ha_entity", "light.hall")
     # the stored row is unchanged and still identifies the revision; the ETag follows what ron is served
     assert ron.json()["geometry"]["doc_hash"] == admin.json()["geometry"]["doc_hash"]
@@ -180,11 +182,21 @@ def test_a_scoped_editor_cannot_bind_a_body_to_a_hidden_camera(settings, bound):
     r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=moved), "base_revision": g["geometry"]["revision"]}, headers=as_user("edna"))
     assert r.status_code == 422 and r.json()["code"] == "anchor_hidden"
     assert _stored(settings, vid, "draft") == before, "nothing was written"
-    # a camera she may see binds as before; a reference to nothing known is left alone (a warning, as before)
-    ok = [*g["doc"]["objects"], OBJ("o-new", pos=(0.1, 0.9), anchor_ref=_ref("camera", lobby)), OBJ("o-ghost", pos=(0.2, 0.9), anchor_ref=_ref("camera", "no-such-camera"))]
+    # security review 2.4.2 L2: for her, a camera reference to nothing known is refused the same way (no existence oracle)
+    ghost = [*g["doc"]["objects"], OBJ("o-ghost", pos=(0.2, 0.9), anchor_ref=_ref("camera", "no-such-camera"))]
+    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=ghost), "base_revision": g["geometry"]["revision"]}, headers=as_user("edna"))
+    assert r.status_code == 422 and r.json()["code"] == "anchor_hidden" and r.json()["details"]["ids"] == ["o-ghost"]
+    assert _stored(settings, vid, "draft") == before, "nothing was written"
+    # a camera she may see binds as before
+    ok = [*g["doc"]["objects"], OBJ("o-new", pos=(0.1, 0.9), anchor_ref=_ref("camera", lobby))]
     r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=ok), "base_revision": g["geometry"]["revision"]}, headers=as_user("edna"))
     assert r.status_code == 200, r.text
     assert _objects(r.json())["o-new"]["position"] == [0.3, 0.4], "bound to the lobby camera's anchor"
+    # an unscoped writer's reference to nothing known is left alone (a warning, as before)
+    g = c.get(f"/api/v1/plan-versions/{vid}/geometry?draft=true").json()
+    ghost = [*g["doc"]["objects"], OBJ("o-ghost", pos=(0.2, 0.9), anchor_ref=_ref("camera", "no-such-camera"))]
+    r = c.put(f"/api/v1/plan-versions/{vid}/geometry", json={"doc": dict(g["doc"], objects=ghost), "base_revision": g["geometry"]["revision"]})
+    assert r.status_code == 200, r.text
     assert ("anchor_missing", "o-ghost") in {(i["code"], i["id"]) for i in r.json()["issues"]}
 
 
@@ -249,15 +261,21 @@ def test_carry_hidden_gives_back_what_the_writer_was_not_shown():
     back, dropped = scope.carry_hidden(sent, stored, _visible, lambda ref: True, strict=True)
     assert dropped == [] and back["objects"][0] == {"id": "o1", "anchor_ref": _ref("camera", "cam-hidden"), "label": "x"}
     assert back["openings"] == stored["openings"] and back["walls"] == stored["walls"]
-    # a new hidden reference: refused when strict, dropped otherwise; a reference to nothing known is left alone
+    # a new hidden reference: refused when strict, dropped otherwise - whether or not it names something known here
+    # (security review 2.4.2 L2), and so is a new camera reference to nothing known
     sent["objects"].append({"id": "o3", "anchor_ref": _ref("camera", "cam-hidden")})
     with pytest.raises(scope.HiddenAnchor) as e:
         scope.carry_hidden(sent, stored, _visible, lambda ref: True, strict=True)
     assert e.value.items == ["o3"]
     back, dropped = scope.carry_hidden(sent, stored, _visible, lambda ref: True, strict=False)
     assert dropped == ["o3"] and back["objects"][2]["anchor_ref"] is None
-    back, dropped = scope.carry_hidden(sent, stored, _visible, lambda ref: False, strict=True)
-    assert dropped == [] and back["objects"][2]["anchor_ref"] == _ref("camera", "cam-hidden")
+    with pytest.raises(scope.HiddenAnchor):
+        scope.carry_hidden(sent, stored, _visible, lambda ref: False, strict=True)
+    unknown = dict(sent, objects=[*sent["objects"][:2], {"id": "o4", "anchor_ref": _ref("camera", "cam-ok")}])
+    with pytest.raises(scope.HiddenAnchor) as e:
+        scope.carry_hidden(unknown, stored, _visible, lambda ref: False, strict=True)
+    assert e.value.items == ["o4"]
+    assert scope.carry_hidden(unknown, stored, _visible, lambda ref: True, strict=True)[1] == []
     # an item the writer deleted stays deleted; a full-scope writer is not touched
     gone = dict(sent, objects=[sent["objects"][1]])
     assert [o["id"] for o in scope.carry_hidden(gone, stored, _visible, lambda ref: True, strict=True)[0]["objects"]] == ["o2"]

@@ -554,8 +554,8 @@ def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str
         raise PackageError(422, "validation", "מצב ייבוא לא מוכר.", {"modes": list(MODES)})
     current, draft = store.working_doc(conn, version)
     incoming = pg.rebase(pkg.doc, version, store._asset(conn, version))
-    incoming, hidden_dropped = anchor_scope.carry_hidden(incoming, current, anchor_scope.visibility(conn, principal, version["floor_id"]),
-                                                         anchor_scope.exists_here(conn, version["floor_id"]), strict=False)
+    visible = anchor_scope.visibility(conn, principal, version["floor_id"])
+    incoming, hidden_dropped = anchor_scope.carry_hidden(incoming, current, visible, anchor_scope.exists_here(conn, version["floor_id"]), strict=False)
     drawing_ok = _same_drawing(pkg.doc, current)
     # custom items: what the document needs, what this installation has, what the package brings
     needed = sorted({str(o.get("item_id")) for o in pkg.doc.get("objects") or [] if isinstance(o, dict) and o.get("item_id")} - plan_catalog.builtin_ids())
@@ -600,6 +600,10 @@ def plan(conn: sqlite3.Connection, version: sqlite3.Row, pkg: Package, mode: str
     for a in pkg.anchors:
         rtype, rid = a["resource_type"], a["resource_id"]
         entry = {"resource_type": rtype, "resource_id": zipsafe._s(rid, 120), "name": zipsafe._s(a.get("name"), 120)}
+        if visible is not None and not visible(rtype, rid):
+            # security review 2.4.2 L2: an anchor the importing person may not see reads as missing, never "registered here"
+            anchors_missing.append(entry)
+            continue
         if rtype == "camera":
             exists = conn.execute("SELECT 1 FROM cameras WHERE id = ?", (rid,)).fetchone() is not None
         else:

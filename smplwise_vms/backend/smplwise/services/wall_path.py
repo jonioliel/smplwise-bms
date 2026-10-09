@@ -185,6 +185,92 @@ def sample_with_s(pts: Sequence[Point], bulges: Sequence[float], tol: float = TO
     return out, s_out
 
 
+# ---------------------------------------------------------------- the sampling budget (security review 2.4.2 M1)
+#
+# A curved segment of ~26 bytes of JSON samples to up to MAX_SEGMENTS points, so a document must be measured BEFORE
+# anything samples it. CurveBudget counts what sampling would produce with arithmetic only (arc_of + _steps, no point
+# list) and refuses past the caps below. EVERY path that brings walls with bulges into the server calls it first:
+# plan_geometry.validate (save, candidate acceptance, package import, publish, the shared-room merge), the shared-room
+# edit planner before its membership test, the DXF import's candidates. A later producer of bulges (for example a curve
+# fitted through points) calls `check_walls` / `CurveBudget.add` on its output before it samples or stores it.
+# Straight walls are not counted: they are never amplified (one point per corner).
+
+MAX_CURVED_CORNERS = 512  # corners of ONE wall that has at least one arc
+MAX_CURVED_SEGMENTS = 5000  # arc segments of one document (or one edit)
+MAX_SAMPLED_POINTS = 200_000  # points the curved walls of one document sample to, in total
+
+CURVE_LIMIT_MESSAGES = {
+    "curve_corners": f"קיר מעוגל עם יותר מ־{MAX_CURVED_CORNERS} נקודות.",
+    "curve_segments": f"יותר מ־{MAX_CURVED_SEGMENTS} קטעי קשת במבנה.",
+    "curve_points": "הקירות המעוגלים מפורטים מדי; פשט את הקשתות או פצל את המבנה.",
+}
+
+
+class CurveLimit(ValueError):
+    """A wall or a document past the sampling budget. `code` is one of CURVE_LIMIT_MESSAGES (ASCII, safe for an API error
+    code), `message` its Hebrew text, `wall_id` the wall that crossed the limit (None when unknown)."""
+
+    def __init__(self, code: str, wall_id: Any = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.message = CURVE_LIMIT_MESSAGES[code]
+        self.wall_id = wall_id if isinstance(wall_id, str) else None
+
+
+def sample_count(wall: Mapping[str, Any], width: float, height: float, tol: float = TOL_PX) -> tuple[int, int]:
+    """(arc segments, sampled points) of one wall, by arithmetic only - exactly what `sample` would return. A wall whose
+    corners cannot be read counts (0, 0): it cannot be sampled either."""
+    bulges = bulges_of(wall)
+    if not any(abs(b) > EPS for b in bulges):
+        return 0, 0
+    try:
+        pts, _ = wall_px(wall, width, height)
+    except (TypeError, ValueError, IndexError):
+        return 0, 0
+    arcs, n = 0, 1
+    for i in range(len(pts) - 1):
+        arc = arc_of(pts[i], pts[i + 1], bulges[i])
+        if arc is None:
+            n += 1
+        else:
+            arcs += 1
+            n += _steps(arc[2], arc[4], tol)
+    return arcs, n
+
+
+class CurveBudget:
+    """A running count over the walls of one document (or one edit) in plan pixels `width` x `height`; `add` raises
+    CurveLimit before the caps are crossed, so the caller never samples a wall that would cross them."""
+
+    def __init__(self, width: float, height: float, tol: float = TOL_PX) -> None:
+        self.width, self.height, self.tol = width, height, tol
+        self.segments = 0
+        self.points = 0
+
+    def add(self, wall: Mapping[str, Any]) -> None:
+        if not is_curved(wall):
+            return
+        pl = wall.get("polyline")
+        if isinstance(pl, list) and len(pl) > MAX_CURVED_CORNERS:  # checked before any arithmetic on the corners
+            raise CurveLimit("curve_corners", wall.get("id"))
+        arcs, n = sample_count(wall, self.width, self.height, self.tol)
+        self.segments += arcs
+        if self.segments > MAX_CURVED_SEGMENTS:
+            raise CurveLimit("curve_segments", wall.get("id"))
+        self.points += n
+        if self.points > MAX_SAMPLED_POINTS:
+            raise CurveLimit("curve_points", wall.get("id"))
+
+
+def check_walls(walls: Any, width: float, height: float, tol: float = TOL_PX) -> None:
+    """THE shared cap: raise CurveLimit when the walls (a list of wall dicts; anything else is skipped) would sample past
+    the budget. Arithmetic only - call it before anything samples them."""
+    budget = CurveBudget(width, height, tol)
+    for w in walls if isinstance(walls, list) else []:
+        if isinstance(w, Mapping):
+            budget.add(w)
+
+
 def sample(pts: Sequence[Point], bulges: Sequence[float], tol: float = TOL_PX) -> list[Point]:
     return sample_with_s(pts, bulges, tol)[0]
 

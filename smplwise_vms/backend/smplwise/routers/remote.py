@@ -60,7 +60,7 @@ def app_download_offer(request: Request) -> JSONResponse:
     sha256 of the address an administrator saved; `{"android": null}` when none is configured."""
     _remote_only(request)
     # security review 2.2.0 L8: a public route - a modest per-address limit, like the other anonymous ones
-    if not hua.LIMITER.hit(f"appdl:{hua.client_ip(request)}", APP_DOWNLOAD_LIMITS):
+    if not hua.LIMITER.hit(f"appdl:{hua.limit_ip(hua.client_ip(request))}", APP_DOWNLOAD_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     with request.app.state.db.connection(mode="read", label="auth/app-download") as conn:
         body = app_download.public_offer(conn, settings_of(request).downloads_dir)
@@ -75,7 +75,7 @@ def app_download_file(request: Request) -> Response:
     """Public (no identity), remote channel only: the signed release APK bundled in the add-on image. The path is fixed (no
     caller input reaches the file system); 404 when no valid bundled file exists."""
     _remote_only(request)
-    if not hua.LIMITER.hit(f"apk:{hua.client_ip(request)}", FILE_LIMITS):
+    if not hua.LIMITER.hit(f"apk:{hua.limit_ip(hua.client_ip(request))}", FILE_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     bundled = app_download.load_bundled(settings_of(request).downloads_dir)
     if bundled is None:
@@ -117,7 +117,7 @@ async def create_session(request: Request) -> JSONResponse:
 async def delete_session(request: Request) -> Response:
     _remote_only(request)
     settings = settings_of(request)
-    if not hua.LIMITER.hit(f"logout:{hua.client_ip(request)}", hua.IP_LIMITS):
+    if not hua.LIMITER.hit(f"logout:{hua.limit_ip(hua.client_ip(request))}", hua.IP_LIMITS):
         raise ApiError(429, "rate_limited", hua.RATE_LIMITED_HE, retryable=True)
     await run_in_threadpool(hua.logout, request.app.state, settings, request)
     await hua._close_sockets()
@@ -335,7 +335,7 @@ async def csp_report(request: Request) -> Response:
     address and in total, the body bounded while it streams, at most 20 reports a batch, and nothing kept but counters
     per disposition, directive and blocked origin (no page URL, no sample, no path)."""
     _remote_only(request)
-    if not hua.LIMITER.hit(f"csp:{hua.client_ip(request)}", CSP_IP_LIMITS) or not hua.LIMITER.hit("csp:*", CSP_ALL_LIMITS):
+    if not hua.LIMITER.hit(f"csp:{hua.limit_ip(hua.client_ip(request))}", CSP_IP_LIMITS) or not hua.LIMITER.hit("csp:*", CSP_ALL_LIMITS):
         raise ApiError(429, "rate_limited", "יותר מדי דיווחים.", retryable=True)
     ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
     if ctype not in ("application/csp-report", "application/reports+json", "application/json"):

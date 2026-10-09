@@ -20,7 +20,7 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
-from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize
+from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, wall_path
 from .catalog import get_floor
 
 router = APIRouter()
@@ -732,6 +732,12 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
         if isinstance(exc, plan_dxf.DxfError):
             raise ApiError(422, exc.code, DXF_IMPORT_MESSAGES.get(exc.code, "קובץ ה־DXF לא ניתן לקריאה או ריק בשכבות שנבחרו."), details=exc.details)
         raise ApiError(500, "dxf_import_failed", "ייבוא הגאומטריה מה־DXF נכשל.", details={"error": type(exc).__name__})
+    dims = doc.get("dimensions") or {}
+    try:  # security review 2.4.2 M1: curved candidates the editor could never accept (and that every client would sample) are refused here
+        wall_path.check_walls(result.get("walls"), float(dims.get("width_px") or 1), float(dims.get("height_px") or 1))
+    except wall_path.CurveLimit as exc:
+        raise ApiError(422, exc.code, exc.message, details={"limits": {"corners": wall_path.MAX_CURVED_CORNERS, "segments": wall_path.MAX_CURVED_SEGMENTS,
+                                                                        "points": wall_path.MAX_SAMPLED_POINTS}})
     existing = {c: sum(1 for i in doc.get(c) or [] if isinstance(i, dict) and i.get("source") == "imported") for c in ("walls", "openings", "objects")}
     audit(conn, actor=principal, action="geometry.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "asset_id": asset["id"], "walls": len(result["walls"]), "openings": len(result["openings"]), "objects": len(result["objects"]),

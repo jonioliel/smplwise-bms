@@ -288,3 +288,22 @@ lands (invert them into regression tests then, or drop them). They are in their 
 4. L8 + L7: bind the bridge's new pairs to one entity of their own domain; give valve-like switches the valve's confirmation and keep them
    out of bulk "switches on".
 5. L1 + L2: opaque hashes and scope-only refusals for redacted readers / writers.
+
+## Fix status (SEC243, branch `pilot/SEC243-fixes`, 2026-10-09)
+
+The PoC file `tests/test_security_review_242_poc.py` now holds regression tests that assert the fixed behaviour.
+
+| ID | Status | What changed |
+|---|---|---|
+| M1 | Fixed | `services/wall_path.py`: `CurveBudget` / `check_walls` / `sample_count` / `CurveLimit` - arithmetic only (no point list), caps `MAX_CURVED_CORNERS = 512` per curved wall, `MAX_CURVED_SEGMENTS = 5000` arcs and `MAX_SAMPLED_POINTS = 200 000` points per document. `plan_geometry.validate` runs it right after the structural field checks and before any sampling; a breach is a structural issue (`curve_corners` / `curve_segments` / `curve_points`, Hebrew message), so PUT geometry, detect/accept, the package preview / import, publish and the shared-room merge (`shared_spaces.plan_edits` validates the merged home document; walls are not a shared collection) all answer a clean 422 `geometry_structure` before sampling. The DXF geometry import refuses curved candidates past the budget with 422 `curve_*`. Not done: analytic arc bounds (the bounds check still samples, now bounded by the budget). |
+| M2 | Fixed (owner decision 2026-10-09) | `plan_anchor_scope.redact`: an object whose reference is withheld is served at `WITHHELD_POSITION` (the plan's centre), rotation 0; `fix_item` gives the stored pose back with the stored reference on every write path. The stored document is unchanged. |
+| L1 | Mitigated for bodies | Follows from M2 (the stored pose is no longer served, so the stored hash cannot be recomputed for a withheld body). Still open for a withheld reference on an opening or a glass panel. |
+| L2 | Fixed | `plan_anchor_scope._refused`: for a scoped writer a new camera reference to nothing known is refused / dropped exactly like a hidden one; the package preview lists an anchor the importer may not see under `anchors_missing`. |
+| L3 | Open | Not in SEC243 scope. |
+| L4 | Fixed | `ha_user_auth.RateLimiter`: LRU with `MAX_KEYS = 20000` (expired, then cold, then hot keys evicted down to `LOW_WATER`); only a key at half of a window's cap is persisted; `FLUSH_MAX = 2000` rows per flush; a failed flush keeps its batch. `limit_ip` buckets IPv6 per /64 for every limiter key built from the client address (sign-in, bearer, app download, APK, logout, CSP). |
+| L5 | Fixed | `recorders/frigate_config.py`: iterative `_children` with a visited set, one `SCHEMA_WALK_MAX = 50 000` budget per check; `SchemaTooLarge` / `RecursionError` answer `{"checked": false}`. |
+| L6 | Fixed | `delete_zone` keeps the zone's `filters`, `speed_threshold`, `distances`, `friendly_name` (`ZONE_EXTRA_KEYS`, at most 16 KB, keys without dots) in the change log and the undo writes them back and verifies them; a zone whose extra fields cannot be kept is refused with 409 `frigate_zone_not_reversible` before any write. |
+| L7 | Accepted (owner decision 2026-10-09) | A switch named like a valve / water heater keeps turning on without a confirmation. |
+| L8 | Open | Bridge 0.8.1, not in SEC243 scope. |
+
+For a later producer of bulges (pilot/WALLP-glass-tool-curve-points: curves fitted through points): call `wall_path.check_walls(walls, width_px, height_px)` (or `CurveBudget(width_px, height_px).add(wall)` per wall) on the fitted output BEFORE sampling, rendering or returning it, and map `CurveLimit` to a 422 with `exc.code` / `exc.message`; anything it stores still goes through `plan_geometry.validate`, which applies the same budget. Do not add a second copy of the caps.
