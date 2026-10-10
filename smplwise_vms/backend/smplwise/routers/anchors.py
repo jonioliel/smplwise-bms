@@ -178,6 +178,14 @@ def floor_map(floor_id: str, principal: Principal = Depends(current_principal_ro
         else:
             geometry_row = geometry_store.published_row(conn, version["id"])
     geometry = geometry_store.ref(geometry_row)
+    if geometry is not None and geometry_row is not None:
+        # security review 2.4.2 L1: the hash the geometry read hands this reader (a withheld reference changes it), never
+        # the stored one - the map keys its cached structure by it and asks the geometry read on a miss
+        from ..services import plan_anchor_scope
+
+        _row = geometry_row
+        geometry = {**geometry, "doc_hash": plan_anchor_scope.served_hash(_row["doc_hash"], lambda: geometry_store.load_doc(_row),
+                                                                          plan_anchor_scope.visibility(conn, principal, floor_id))}
     levels = geometry_store.levels_of(geometry_row)
     circuits = [] if camera_only else geometry_store.circuits_of(geometry_row)
     # CR-009: the rooms other floors share with this one - their zones, anchors and circuits in this plan's coordinates
