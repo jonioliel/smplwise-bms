@@ -49,12 +49,12 @@ export class ScriptFieldsForm extends LitElement {
       border-block-end: 0;
     }
     .f > .nm {
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
       font-weight: 600;
     }
     .f > .nm small {
       display: block;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       font-weight: 500;
       color: var(--dv-text-2);
     }
@@ -95,7 +95,7 @@ export class ScriptFieldsForm extends LitElement {
       background: transparent;
       font: inherit;
       font-weight: 700;
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
       color: var(--dv-text);
       font-variant-numeric: tabular-nums;
       -moz-appearance: textfield;
@@ -103,11 +103,11 @@ export class ScriptFieldsForm extends LitElement {
     }
     .stepper input:focus-visible {
       outline: 2px solid var(--dv-focus);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     .stepper small {
       color: var(--dv-text-2);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       margin-inline-end: 4px;
     }
     .inp {

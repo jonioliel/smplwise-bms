@@ -250,7 +250,7 @@ export class SystemWizard extends LitElement {
       gap: 4px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -288,7 +288,7 @@ export class SystemWizard extends LitElement {
     .rail button:focus-visible {
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .dot {
       display: grid;
@@ -306,12 +306,12 @@ export class SystemWizard extends LitElement {
     .done .dot {
       background: var(--sw-live);
       border-color: var(--sw-live);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .failed .dot {
       background: var(--sw-danger);
       border-color: var(--sw-danger);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .todo .dot {
       border-color: var(--sw-warning);
@@ -327,7 +327,7 @@ export class SystemWizard extends LitElement {
       align-items: center;
       gap: 14px;
       padding: 14px 16px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       flex-wrap: wrap;
@@ -343,7 +343,7 @@ export class SystemWizard extends LitElement {
       block-size: 40px;
       border-radius: 50%;
       background: var(--sw-live);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .summary .count {
       font-size: var(--sw-fs-lg);
@@ -374,7 +374,7 @@ export class SystemWizard extends LitElement {
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
       border-inline-start: 4px solid var(--sw-border-strong);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       padding: 14px 16px;
       display: flex;
       flex-direction: column;
@@ -435,7 +435,7 @@ export class SystemWizard extends LitElement {
     }
     .pill.done {
       background: var(--sw-live-soft);
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .pill.failed {
       background: var(--sw-danger-soft);
@@ -465,7 +465,7 @@ export class SystemWizard extends LitElement {
       display: flex;
       gap: 10px;
       padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-warning-soft);
       font-size: var(--sw-fs-sm);
       line-height: 1.55;
@@ -511,7 +511,7 @@ export class SystemWizard extends LitElement {
     .linkbtn:focus-visible {
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     /* a finger needs 44px */
     @media (pointer: coarse) {
@@ -577,7 +577,7 @@ export class SystemWizard extends LitElement {
       min-inline-size: 0;
     }
     dd.ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     dd.warn {
       color: var(--sw-warning);

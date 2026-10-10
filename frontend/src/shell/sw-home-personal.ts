@@ -92,7 +92,7 @@ export class SwHomePersonal extends LitElement {
       block-size: 28px;
       padding: 0;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: var(--sw-text);
       cursor: pointer;
@@ -103,7 +103,7 @@ export class SwHomePersonal extends LitElement {
     }
     button:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .err {

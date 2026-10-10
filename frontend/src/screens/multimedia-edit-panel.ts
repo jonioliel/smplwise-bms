@@ -50,7 +50,7 @@ export class MultimediaEditPanel extends LitElement {
     h3,
     h4 {
       margin: 0;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 700;
       color: var(--dv-text-2);
       letter-spacing: 0.02em;
@@ -63,7 +63,7 @@ export class MultimediaEditPanel extends LitElement {
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .rows {
@@ -97,14 +97,14 @@ export class MultimediaEditPanel extends LitElement {
       color: var(--dv-text-3);
       cursor: grab;
       display: inline-flex;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .check {
       display: inline-flex;
       align-items: center;
       gap: 8px;
       min-block-size: 32px;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       min-inline-size: 0;
     }
     .check input {
@@ -118,7 +118,7 @@ export class MultimediaEditPanel extends LitElement {
     }
     .check small {
       color: var(--dv-text-2);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .sp {
       flex: 1;
@@ -130,7 +130,7 @@ export class MultimediaEditPanel extends LitElement {
       flex-wrap: wrap;
       padding-block-start: 8px;
       border-block-start: 1px dashed var(--dv-border);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
     }
     .phone .pl {
@@ -140,11 +140,11 @@ export class MultimediaEditPanel extends LitElement {
       min-block-size: 32px;
       padding-inline: 8px;
       border: 1px solid var(--dv-border-strong);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--dv-surface-solid);
       color: var(--dv-text);
       font: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     .ib {
       position: relative;
@@ -154,7 +154,7 @@ export class MultimediaEditPanel extends LitElement {
       block-size: 34px;
       padding: 0;
       border: 1px solid var(--dv-border-strong);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--dv-surface);
       color: var(--dv-text);
     }
@@ -168,7 +168,7 @@ export class MultimediaEditPanel extends LitElement {
       opacity: 0.35;
     }
     .ib .ic {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     .ib .dot {
       position: absolute;
@@ -205,7 +205,7 @@ export class MultimediaEditPanel extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     @media (pointer: coarse), (max-width: 767px) {
       .ib {

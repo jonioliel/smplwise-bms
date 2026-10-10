@@ -151,7 +151,7 @@ export class MediaPlayerCard extends LitElement {
       border: 0;
       padding: 0;
       background: var(--mm-screen-off);
-      color: #fff;
+      color: var(--sw-on-video);
       cursor: pointer;
       isolation: isolate;
       box-shadow: var(--mm-cover-shadow);
@@ -176,7 +176,7 @@ export class MediaPlayerCard extends LitElement {
       display: grid;
       place-items: center;
       color: var(--dv-text-2);
-      font-size: 26px;
+      font-size: var(--sw-fs-3xl);
       z-index: 2;
     }
     .cov .ctr .ic {
@@ -197,7 +197,7 @@ export class MediaPlayerCard extends LitElement {
       z-index: 3;
       block-size: 22px;
       padding-inline: 8px;
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
     }
     .cov .pb {
       position: absolute;
@@ -224,17 +224,17 @@ export class MediaPlayerCard extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 10.5px;
+      font-size: var(--sw-fs-2xs);
       font-weight: 700;
-      color: #fff;
+      color: var(--sw-on-video);
       text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
     }
     .cov .live i {
       inline-size: 6px;
       block-size: 6px;
       border-radius: 50%;
-      background: #ff453a;
-      box-shadow: 0 0 6px #ff453a;
+      background: var(--sw-danger);
+      box-shadow: 0 0 6px var(--sw-danger);
       animation: blink 1.6s ease-in-out infinite;
     }
     @keyframes blink {
@@ -270,14 +270,14 @@ export class MediaPlayerCard extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       font-weight: 600;
       padding: 8px;
       text-align: center;
       line-height: 1.2;
     }
     .cov.rcv .ctr .ic {
-      font-size: 26px;
+      font-size: var(--sw-fs-3xl);
       color: var(--dv-text-2);
     }
     .cov.rcv .ctr span {
@@ -297,7 +297,7 @@ export class MediaPlayerCard extends LitElement {
       line-height: 1.3;
     }
     .tx b {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
       font-weight: 600;
       letter-spacing: -0.01em;
       white-space: nowrap;
@@ -312,7 +312,7 @@ export class MediaPlayerCard extends LitElement {
       flex-wrap: wrap;
     }
     .tx small {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       white-space: nowrap;
       overflow: hidden;
@@ -338,7 +338,7 @@ export class MediaPlayerCard extends LitElement {
       border-radius: 999px;
       background: var(--dv-accent-soft);
       color: var(--dv-accent-text);
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       font-weight: 600;
       white-space: nowrap;
       max-inline-size: 100%;
@@ -346,7 +346,7 @@ export class MediaPlayerCard extends LitElement {
       text-overflow: ellipsis;
     }
     .gchip .ic {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     .gchip.warn {
       background: var(--dv-warning-soft);
@@ -372,7 +372,7 @@ export class MediaPlayerCard extends LitElement {
       transition: transform 120ms var(--mm-ease), background var(--mm-motion), box-shadow var(--mm-motion);
     }
     .pk .ic {
-      font-size: 22px;
+      font-size: var(--sw-fs-3xl);
       stroke-width: 2;
     }
     .pk:active {
@@ -412,7 +412,7 @@ export class MediaPlayerCard extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
     }
     .unl .ic {
@@ -425,7 +425,7 @@ export class MediaPlayerCard extends LitElement {
     .pop .wait {
       padding: 14px;
       color: var(--dv-text-2);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     :host([compact]) .pcard,
     :host([data-size='s']) .pcard {
@@ -435,7 +435,7 @@ export class MediaPlayerCard extends LitElement {
     }
     :host([compact]) .tx b,
     :host([data-size='s']) .tx b {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     :host([compact]) .pk,
     :host([data-size='s']) .pk {
@@ -450,12 +450,12 @@ export class MediaPlayerCard extends LitElement {
        the volume button at the end; the volume button MORPHS the row into a slider (mute · slider · % · close · play), as in
        the Bubble Card video. No blur, no shadow: a scrolling list stays cheap on a phone. ---- */
     :host([data-skin='bubble']) .pcard {
-      --mm-cover-size: calc(var(--sw-icon-ring) * var(--sw-look-scale, 1));
+      --mm-cover-size: calc(var(--sw-icon-ring) * var(--sw-look-scale));
       grid-template-columns: auto minmax(0, 1fr) auto;
       grid-template-areas: 'cov tx main';
       gap: 6px 10px;
       padding: 6px 8px;
-      min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale, 1));
+      min-block-size: calc(var(--sw-pill-h) * var(--sw-look-scale));
       border-radius: var(--sw-r-pill);
       border: 0;
       background: var(--sw-surface);
@@ -486,8 +486,8 @@ export class MediaPlayerCard extends LitElement {
       border: 0;
     }
     :host([data-skin='bubble']) .cov {
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
       border-radius: 50%;
       box-shadow: none;
       background: var(--sw-surface-2);
@@ -502,22 +502,22 @@ export class MediaPlayerCard extends LitElement {
       display: none;
     }
     :host([data-skin='bubble']) .cov .ctr {
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       color: inherit;
     }
     :host([data-skin='bubble']) .cov.rcv .ctr span {
       display: none;
     }
     :host([data-skin='bubble']) .cov.rcv .ctr .ic {
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       color: inherit;
     }
     :host([data-skin='bubble']) .tx b {
-      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-name) * var(--sw-look-scale));
       font-weight: var(--sw-fw-semibold);
     }
     :host([data-skin='bubble']) .tx small {
-      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale, 1));
+      font-size: calc(var(--sw-fs-state) * var(--sw-look-scale));
     }
     :host([data-skin='bubble']) .tx .st {
       flex-wrap: nowrap;
@@ -540,10 +540,10 @@ export class MediaPlayerCard extends LitElement {
     :host([data-skin='bubble']) .pw,
     :host([data-skin='bubble']) .rb,
     :host([data-skin='bubble']) .vb {
-      inline-size: calc(var(--sw-sub) * var(--sw-look-scale, 1));
-      block-size: calc(var(--sw-sub) * var(--sw-look-scale, 1));
-      min-inline-size: var(--sw-touch-desktop, 44px);
-      min-block-size: var(--sw-touch-desktop, 44px);
+      inline-size: calc(var(--sw-sub) * var(--sw-look-scale));
+      block-size: calc(var(--sw-sub) * var(--sw-look-scale));
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
       box-shadow: none;
       border: 0;
       border-radius: 50%;
@@ -556,11 +556,11 @@ export class MediaPlayerCard extends LitElement {
       color: var(--sw-bg);
     }
     :host([data-skin='bubble']) .pk .ic {
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
     }
     :host([data-skin='bubble']) .pcard.lit .pk {
-      background: rgba(0, 0, 0, 0.72);
-      color: #fff;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
     }
     :host([data-skin='bubble']) .pk.idle,
     :host([data-skin='bubble']) .pw,
@@ -587,7 +587,7 @@ export class MediaPlayerCard extends LitElement {
       display: none;
     }
     :host([data-skin='bubble']) .main .rbtn {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
       border: 0;
       border-radius: var(--sw-r-pill);
       background: rgba(0, 0, 0, 0.1);

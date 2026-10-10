@@ -136,7 +136,7 @@ export class MediaScreenCard extends LitElement {
       overflow: hidden;
       border: 0;
       padding: 0;
-      color: #fff;
+      color: var(--sw-on-video);
       text-align: start;
       background: var(--mm-screen-off);
       cursor: pointer;
@@ -168,7 +168,7 @@ export class MediaScreenCard extends LitElement {
       z-index: 2;
     }
     .shot .ov b {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
       font-weight: 700;
       letter-spacing: -0.01em;
       white-space: nowrap;
@@ -177,7 +177,7 @@ export class MediaScreenCard extends LitElement {
       text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
     }
     .shot .ov small {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       opacity: 0.92;
       white-space: nowrap;
       overflow: hidden;
@@ -216,11 +216,11 @@ export class MediaScreenCard extends LitElement {
       align-content: center;
       gap: 8px;
       color: var(--dv-text-2);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 500;
     }
     .shot .ctr .ic {
-      font-size: 24px;
+      font-size: var(--sw-fs-3xl);
       stroke-width: 1.6;
     }
     .shot.off,
@@ -272,7 +272,7 @@ export class MediaScreenCard extends LitElement {
       line-height: 1.3;
     }
     .srow .tx b {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
       font-weight: 600;
       letter-spacing: -0.01em;
       white-space: nowrap;
@@ -280,7 +280,7 @@ export class MediaScreenCard extends LitElement {
       text-overflow: ellipsis;
     }
     .srow .tx small {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       white-space: nowrap;
       overflow: hidden;
@@ -301,7 +301,7 @@ export class MediaScreenCard extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
     }
     .unl .ic {
@@ -314,7 +314,7 @@ export class MediaScreenCard extends LitElement {
     .pop .wait {
       padding: 14px;
       color: var(--dv-text-2);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     /* the phone's horizontal card (and size "s") */
     :host([compact]) .scard,
@@ -345,7 +345,7 @@ export class MediaScreenCard extends LitElement {
     :host([data-size='s']) .shot {
       grid-area: shot;
       aspect-ratio: 16 / 10.5;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
     }
     :host([compact]) .shot .ov,
     :host([data-size='s']) .shot .ov {
@@ -353,7 +353,7 @@ export class MediaScreenCard extends LitElement {
     }
     :host([compact]) .shot .ov b,
     :host([data-size='s']) .shot .ov b {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     :host([compact]) .shot .ov small,
     :host([compact]) .shot .tl,

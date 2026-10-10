@@ -120,7 +120,7 @@ export class ScheduleSlotPanel extends LitElement {
     }
     .chip.sens {
       background: rgba(139, 92, 246, 0.14);
-      color: #6d28d9;
+      color: var(--sw-purple);
     }
     .fields {
       display: grid;
@@ -267,7 +267,7 @@ export class ScheduleSlotPanel extends LitElement {
       padding: 10px 12px;
       border-radius: var(--sw-r-md);
       background: var(--sw-warning-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);
     }
     .lockmsg sw-icon {

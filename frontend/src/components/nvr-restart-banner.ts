@@ -154,7 +154,7 @@ export class NvrRestartBanner extends LitElement {
       gap: 10px;
       margin: 12px 24px 0;
       padding: 8px 12px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-warning-soft);
       color: var(--sw-warning-text);
       font-size: var(--sw-fs-sm);

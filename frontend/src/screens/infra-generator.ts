@@ -51,7 +51,7 @@ export class InfraGenerator extends LitElement {
   private timer = 0;
 
   static styles = [elecCss, genCss, css`
-    :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad, 24px) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
+    :host { display: flex; flex-direction: column; gap: 14px; min-block-size: 100%; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box; }
     .rows { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
     .body { min-inline-size: 0; }
     .body > * { display: block; }

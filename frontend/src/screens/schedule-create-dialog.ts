@@ -140,7 +140,7 @@ export class ScheduleCreateDialog extends LitElement {
       place-items: center;
       inline-size: 30px;
       block-size: 30px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
       flex: none;
@@ -184,7 +184,7 @@ export class ScheduleCreateDialog extends LitElement {
     .chip[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .chip:disabled {
       opacity: 0.45;
@@ -202,11 +202,11 @@ export class ScheduleCreateDialog extends LitElement {
     }
     .banner.ok {
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .banner.err {
       background: var(--sw-danger-soft);
-      color: #991b1b;
+      color: var(--sw-danger-text);
     }
     .hint {
       color: var(--sw-text-3);

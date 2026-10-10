@@ -194,7 +194,7 @@ export class SystemTabsMode extends LitElement {
       align-items: center;
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .err {
       color: var(--sw-danger);

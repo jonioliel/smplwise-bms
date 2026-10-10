@@ -110,7 +110,7 @@ export class DevicesAreaNav extends LitElement {
       position: absolute;
       inset-block-start: calc(100% + 4px);
       inset-inline-start: 0;
-      z-index: var(--sw-z-modal, 50);
+      z-index: var(--sw-z-modal);
       min-inline-size: 200px;
       max-block-size: min(60vh, 420px);
       overflow: auto;
@@ -174,8 +174,8 @@ export class DevicesAreaNav extends LitElement {
     .back {
       position: fixed;
       inset: 0;
-      z-index: calc(var(--sw-z-modal, 50) - 1);
-      background: var(--sw-overlay, rgba(0, 0, 0, 0.4));
+      z-index: calc(var(--sw-z-modal) - 1);
+      background: var(--sw-overlay);
     }
     @media (max-width: 599px) {
       .crumb {

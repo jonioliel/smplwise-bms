@@ -1,5 +1,11 @@
 # Token contract (designer handoff, 2026-09-30)
 
+> **Status 2026-10-09 - DU1 (branch `pilot/DU1-design-unification`, `docs/design/DU1_DESIGN_UNIFICATION.md`):** the screens now read the
+> table for every font size and radius (new tiers `--sw-fs-2xs` / `--sw-fs-base`, `--sw-r-2xs` / `--sw-r-xs` / `--sw-r-2xl`), the control
+> states (`--sw-ctl-h-*`, `--sw-disabled-opacity`, `--sw-focus-w`, `--sw-hover-wash`, ...), the toast surface and the on-video HUD family;
+> the glass knobs' default palette takes the product accent / toggle / state colours through `--sw-product-*`, and the glass surfaces
+> follow `ui.scheme`. A lint (`frontend/tests/unit-token-lint.spec.ts`) keeps literals out of the screens.
+>
 > **Status 2026-10-01 - the foundation is implemented (branch `pilot/design-foundation`).** The decisions this contract left open are
 > closed: (1) ONE table of `{name:{light,dark}}` in `frontend/src/design/tokens.ts` replaces `styles/tokens.css` (`--sw-*`, 145 names, the
 > light column = the previous look, the dark column new for the whole shell); (2) the switch is `<html data-skin data-theme>` (§1 rule 3);

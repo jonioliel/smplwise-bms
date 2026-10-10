@@ -107,7 +107,7 @@ export class SwTimeline extends LitElement {
       display: inline-flex;
       gap: 2px;
       background: var(--sw-surface-3);
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       padding: 2px;
     }
     .windows button {
@@ -116,7 +116,7 @@ export class SwTimeline extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-xs);
       padding: 4px 10px;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       cursor: pointer;
       color: var(--sw-text-2);
     }

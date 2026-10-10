@@ -124,7 +124,7 @@ export class ElecMeterCard extends LitElement {
       }
       svg.chart text {
         fill: var(--sw-text-3);
-        font-size: 11px;
+        font-size: var(--sw-fs-xs);
       }
       svg.chart text.val {
         fill: var(--sw-text-2);

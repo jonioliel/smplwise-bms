@@ -89,7 +89,7 @@ export class StyleguideScreen extends LitElement {
     }
     .swatch {
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       background: var(--sw-surface);
       font-size: var(--sw-fs-xs);
@@ -118,10 +118,10 @@ export class StyleguideScreen extends LitElement {
     }
     .scenes div {
       aspect-ratio: 16 / 9;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       position: relative;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
     }
     .scenes span {
       position: absolute;
@@ -143,9 +143,9 @@ export class StyleguideScreen extends LitElement {
       gap: 3px;
       padding: 8px 4px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-text-2);
     }
     .panel {

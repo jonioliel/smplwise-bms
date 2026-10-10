@@ -197,7 +197,7 @@ export class DevicesSchedules extends LitElement {
       opacity: 0.5;
     }
     .foldbtn small {
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       font-weight: 700;
       color: var(--dv-accent-text);
     }
@@ -209,7 +209,7 @@ export class DevicesSchedules extends LitElement {
       min-inline-size: 40px;
     }
     .views .ic {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     /* the filters behind "סינון": the same chips and dropdown chips as the header */
     .more {
@@ -229,8 +229,8 @@ export class DevicesSchedules extends LitElement {
     @media (min-width: 1101px) and (pointer: fine) {
       :host([data-skin='bubble']) .pick,
       :host([data-skin='bubble']) .more-btn {
-        inline-size: var(--sw-touch-desktop, 44px);
-        block-size: var(--sw-touch-desktop, 44px);
+        inline-size: var(--sw-touch-desktop);
+        block-size: var(--sw-touch-desktop);
       }
     }
     .rc.day {
@@ -271,7 +271,7 @@ export class DevicesSchedules extends LitElement {
     }
     .upnext > b {
       flex: none;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 700;
       color: var(--dv-text-2);
     }
@@ -280,7 +280,7 @@ export class DevicesSchedules extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text);
       white-space: nowrap;
     }
@@ -310,7 +310,7 @@ export class DevicesSchedules extends LitElement {
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
-      border-radius: 24px;
+      border-radius: var(--sw-r-2xl);
       box-shadow: var(--dv-shadow-1);
       transition: box-shadow var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
@@ -344,7 +344,7 @@ export class DevicesSchedules extends LitElement {
     }
     .acard h3 {
       margin: 0;
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
       font-weight: 700;
       letter-spacing: -0.015em;
       line-height: 1.25;
@@ -370,7 +370,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 0 8px;
       margin-block-start: 3px;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       min-inline-size: 0;
     }
@@ -380,7 +380,7 @@ export class DevicesSchedules extends LitElement {
       white-space: nowrap;
     }
     .where .ic {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-3);
     }
     .where .ar {
@@ -440,7 +440,7 @@ export class DevicesSchedules extends LitElement {
       color: var(--dv-text);
     }
     .more-btn .ic {
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
     }
     .acard .pop {
       background: var(--dv-surface-solid, #fff);
@@ -468,7 +468,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 8px 12px;
       margin-block-start: auto;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .run {
@@ -494,7 +494,7 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       padding: 10px 16px;
       border-block-end: 1px solid var(--dv-border);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     .tr:last-child {
       border-block-end: 0;
@@ -502,7 +502,7 @@ export class DevicesSchedules extends LitElement {
     .tr.h {
       background: var(--dv-surface-2);
       color: var(--dv-text-2);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       padding-block: 9px;
     }
@@ -516,7 +516,7 @@ export class DevicesSchedules extends LitElement {
     .tr .name {
       display: block;
       font-weight: 700;
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -525,7 +525,7 @@ export class DevicesSchedules extends LitElement {
       color: var(--dv-accent-text);
     }
     .tr .sub {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -561,8 +561,8 @@ export class DevicesSchedules extends LitElement {
       align-items: center;
       gap: 5px;
       padding: 1px 8px;
-      border-radius: 8px;
-      font-size: 12px;
+      border-radius: var(--sw-r-sm);
+      font-size: var(--sw-fs-sm);
       background: color-mix(in srgb, var(--c) 16%, transparent);
       color: var(--dv-text);
       max-inline-size: 100%;
@@ -571,7 +571,7 @@ export class DevicesSchedules extends LitElement {
       text-overflow: ellipsis;
     }
     .linkbtn {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-accent-text);
       background: none;
@@ -597,15 +597,15 @@ export class DevicesSchedules extends LitElement {
       gap: 12px;
       align-items: center;
       padding: 14px 16px;
-      border-radius: 18px;
+      border-radius: var(--sw-r-2xl);
     }
     .li .t {
       font-weight: 700;
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     .li .d {
       color: var(--dv-text-2);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
     }
     .li .issues {
       display: flex;
@@ -677,7 +677,7 @@ export class DevicesSchedules extends LitElement {
     .dlgform p {
       margin: 0;
       color: var(--dv-text-2);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .dlgrow {
       display: flex;
@@ -795,10 +795,10 @@ export class DevicesSchedules extends LitElement {
       }
       .acard {
         padding: 14px 16px 12px;
-        border-radius: 22px;
+        border-radius: var(--sw-r-2xl);
       }
       .bulk {
-        inset-block-end: calc(var(--sw-bottomnav-h, 66px) + 10px);
+        inset-block-end: calc(var(--sw-bottomnav-h) + 10px);
       }
     }
   `];

@@ -268,8 +268,8 @@ export class LiveViews extends LitElement {
     .thumb {
       display: grid;
       gap: 3px;
-      background: #0f172a;
-      border-radius: 8px;
+      background: var(--sw-video-bg);
+      border-radius: var(--sw-r-sm);
       padding: 4px;
       aspect-ratio: 16 / 9;
       margin-block-end: 10px;

@@ -78,7 +78,7 @@ export class InvestigateExports extends LitElement {
     }
     .warn {
       font-size: var(--sw-fs-xs);
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     @media (max-width: 767px) {
       .job {

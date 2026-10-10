@@ -216,6 +216,26 @@ Classic ו-Tesla לא מקבלים כלום.
 הסקינים x 10 רוחבים + הגיליון עם המחוונים האנכיים), `tests/evidence-bv1-tiles.spec.ts` (צילומים ל-`docs/design/evidence/bv1-tiles/`),
 `backend/tests/test_bv1_tiles.py`. לא נבנה: מחוונים אנכיים ברשת האזור (שובר את רשת הכמוסות; דורש החלטה על מצב "אריחים גבוהים").
 
+## 6ה. DU1 - איחוד העיצוב ברמת הטוקנים (2026-10-09)
+
+ענף `pilot/DU1-design-unification`; הרשומה המלאה (ביקורת מסך-מסך, החלטות, ראיות) ב-`docs/design/DU1_DESIGN_UNIFICATION.md`.
+מה שסקין צריך לדעת מאז:
+
+- **סולם הטיפוגרפיה** הוא הטוקנים בלבד: `--sw-fs-2xs` (10) · `xs` · `sm` · **`base` (13, חדש)** · `md` · `lg` · `xl` · `2xl` · `3xl`. אף מסך לא כותב
+  `font-size` בפיקסלים (הבדיקה `tests/unit-token-lint.spec.ts` נכשלת על כך). סקין שמשנה את הסולם מגדיר את כל המדרגות, כולל `2xs` ו-`base`.
+- **סולם הרדיוסים**: `--sw-r-2xs` (4) · `xs` (6) · `sm` · `md` · `lg` · `xl` · **`2xl` (22, חדש)** · `pill`. גם כאן אין ערכי פיקסל במסכים (4-24px);
+  חבילות חוגת ה-`radius` של Bubble נושאות את המדרגות החדשות.
+- **מצבי פקדים** (קבוצת `control`): גובה פקד `--sw-ctl-h-sm/md/lg`, `--sw-disabled-opacity` (דהייה אחת לכפתור, צ'יפ ומתג), `--sw-hover-wash`,
+  `--sw-pressed-wash`, `--sw-focus-w` / `--sw-focus-offset` (טבעת פוקוס אחת לכל הרכיבים), `--sw-skeleton`, `--sw-shadow-primary`, `--sw-toggle-thumb`.
+- **טוסט / משטח הפוך**: `--sw-toast-bg` / `-text` / `-action` (הדפוס `background: var(--sw-text); color: #fff` היה בהיר-על-בהיר בכהה).
+- **מעל וידאו** (קבוצת `video`, זהה בשני הסכמים): `--sw-on-video(-2)`, `--sw-video-scrim(-strong)`, `--sw-video-line`, `--sw-video-hover`,
+  `--sw-on-image-bg`. טקסט לבן על וידאו אינו `--sw-text-inverse` (שב-Domus כהה הוא כהה).
+- **משטחי הזכוכית עוקבים אחרי סכמת המוצר**: `data-devices-scheme` נפתר לכהה גם כשה-`ui.scheme` כהה (`screens/devices-style.ts`), כך
+  שמסכי התזמונים, האוטומציות, המולטימדיה וההתראות לעולם אינם בהירים מהמעטפת סביבם.
+- **פלטת ברירת המחדל של הזכוכית קוראת את צבעי המוצר**: `--dv-accent`, `--dv-focus`, `--dv-toggle-on` וצבעי המצב של הפלטה `default` הם
+  `var(--sw-product-*)` (כינויים שלעולם לא עוברים גשר, קבוצת `product` ב-`tokens.ts`). סקין שמשנה את ה-accent או את `--sw-toggle-on`
+  משנה אותם גם במסכי הזכוכית. הפלטות sand / forest / graphite והשלט (`--mr-*`) שומרות על ערכיהן.
+
 ## 7. מה עוד לא כלול (עבודה לפי מסך)
 
 היסוד מכסה טוקנים, מעטפת, רכיבים משותפים ועץ הבניין; שלב C את הבית, האזור והמולטימדיה; שלב D את המעטפת של האבטחה,

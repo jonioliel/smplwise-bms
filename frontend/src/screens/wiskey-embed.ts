@@ -339,7 +339,7 @@ export class WiskeyEmbed extends LitElement {
     .only {
       display: grid;
       place-items: center;
-      padding: 24px var(--sw-page-pad, 16px);
+      padding: 24px var(--sw-page-pad);
     }
     .actions {
       display: flex;
@@ -352,7 +352,7 @@ export class WiskeyEmbed extends LitElement {
       flex-wrap: wrap;
       align-items: center;
       gap: 6px 12px;
-      padding: 6px var(--sw-page-pad, 16px);
+      padding: 6px var(--sw-page-pad);
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
       border-block-end: 1px solid var(--sw-border);
@@ -384,13 +384,13 @@ export class WiskeyEmbed extends LitElement {
       gap: 4px;
       overflow-x: auto;
       scrollbar-width: none;
-      padding: 6px var(--sw-page-pad, 16px);
+      padding: 6px var(--sw-page-pad);
       border-block-end: 1px solid var(--sw-border);
       background: var(--sw-surface);
     }
     nav.tools a {
       padding: 4px 10px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       text-decoration: none;
       font-size: var(--sw-fs-sm);

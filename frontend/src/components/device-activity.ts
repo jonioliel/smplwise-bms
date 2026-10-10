@@ -663,7 +663,7 @@ export class DeviceActivity extends LitElement {
     :host { display: contents; }
 
     /* CARD1: the equipment card between the head and the tabs */
-    .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h, 14px); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
+    .card { display: grid; gap: var(--sw-s-2); padding: var(--sw-s-3) var(--sw-s-3h); margin-block: 2px var(--sw-s-3); border-radius: var(--sw-r-lg); background: var(--sw-surface-2); border: 1px solid var(--sw-border); }
     .card.on { background: var(--sw-accent-soft); border-color: transparent; }
     .card .st { display: flex; align-items: baseline; gap: var(--sw-s-2); flex-wrap: wrap; min-inline-size: 0; }
     .cdot { flex: none; align-self: center; inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--sw-text-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-text-3) 18%, transparent); }
@@ -685,13 +685,13 @@ export class DeviceActivity extends LitElement {
     }
     .chip:hover { background: var(--sw-surface-3); }
     .chip:disabled { opacity: .45; cursor: not-allowed; }
-    .chip:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .chip:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .auto { display: flex; align-items: center; gap: var(--sw-s-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); min-block-size: 28px; }
     .auto span { flex: 1; min-inline-size: 0; }
     /* the hold-to-confirm button: a bar fills it over HOLD_MS while the pointer is held */
     .hbtn {
       position: relative; overflow: hidden; isolation: isolate; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; padding-inline: 16px;
-      border-radius: 8px; border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
+      border-radius: var(--sw-r-sm); border: 1px solid var(--sw-accent); background: var(--sw-accent); color: var(--sw-text-inverse); font: inherit; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-medium);
       cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
     }
     .hbtn .lb { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; }
@@ -699,7 +699,7 @@ export class DeviceActivity extends LitElement {
     .hbtn.holding .prog { inline-size: 100%; transition: inline-size var(--hold, 1100ms) linear; }
     .hbtn.armed { background: var(--sw-warning-soft); border-color: var(--sw-warning); color: var(--sw-warning-text); }
     .hbtn:disabled { opacity: .45; cursor: not-allowed; }
-    .hbtn:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+    .hbtn:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { .hbtn.holding .prog { transition: none; inline-size: 100%; opacity: .5; } }
     .skels.tight { padding: 0; }
     .scrim { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); }
@@ -709,7 +709,7 @@ export class DeviceActivity extends LitElement {
       display: grid; gap: 2px;
     }
     .menu button {
-      display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: var(--sw-touch-desktop, 44px); padding: 0 var(--sw-s-3);
+      display: flex; align-items: center; gap: var(--sw-s-2); min-block-size: var(--sw-touch-desktop); padding: 0 var(--sw-s-3);
       background: transparent; border: 0; border-radius: var(--sw-r-sm); color: inherit; font: inherit; font-size: var(--sw-fs-md); cursor: pointer; text-align: start;
     }
     .menu button:hover, .menu button:focus-visible { background: var(--sw-accent-soft); color: var(--sw-accent-text); outline: none; }
@@ -728,7 +728,7 @@ export class DeviceActivity extends LitElement {
       font-weight: var(--sw-fw-medium); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--sw-s-1h);
     }
     .segt button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
-    .segt button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .segt button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .cnt { font-size: var(--sw-fs-xs); background: var(--sw-accent-soft); color: var(--sw-accent-text); border-radius: var(--sw-r-pill); padding: 0 6px; }
 
     .pbody { min-block-size: 120px; max-block-size: min(60vh, 520px); overflow: auto; margin-inline: calc(var(--sw-s-1) * -1); padding-inline: var(--sw-s-1); scrollbar-width: thin; }
@@ -750,12 +750,12 @@ export class DeviceActivity extends LitElement {
       background: transparent; color: var(--sw-text-2); font: inherit; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); cursor: pointer; white-space: nowrap;
     }
     .clr:hover { background: var(--sw-surface-3); color: var(--sw-text); }
-    .clr:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .clr:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .clr .n { min-inline-size: 16px; block-size: 16px; display: inline-grid; place-items: center; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 10px; font-variant-numeric: tabular-nums; }
     .vw { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--sw-r-sm); background: var(--sw-surface-3); }
     .vw button { display: inline-grid; place-items: center; inline-size: 28px; block-size: 28px; border: 0; border-radius: calc(var(--sw-r-sm) - 2px); background: transparent; color: var(--sw-text-2); cursor: pointer; padding: 0; }
     .vw button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
-    .vw button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
+    .vw button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
 
     /* ---- the day groups: a sticky day line (translucent, so the sheet's glass stays) with the count at its end ---- */
     .feed { display: grid; gap: var(--sw-s-2); }
@@ -811,7 +811,7 @@ export class DeviceActivity extends LitElement {
     .sk { display: grid; grid-template-columns: auto 1fr 30px; gap: var(--sw-s-3); align-items: center; }
     .sk > span { display: grid; gap: 6px; }
     .sk.l { grid-template-columns: 38px 8px 1fr 1.2fr; gap: var(--sw-s-2); min-block-size: 28px; }
-    .skel { display: block; block-size: 12px; border-radius: 6px; background: var(--sw-surface-3); animation: pulse 1.2s ease-in-out infinite; }
+    .skel { display: block; block-size: 12px; border-radius: var(--sw-r-xs); background: var(--sw-surface-3); animation: pulse 1.2s ease-in-out infinite; }
     .skel.c { inline-size: 28px; block-size: 28px; border-radius: 50%; } .skel.a { inline-size: 60%; } .skel.b { inline-size: 35%; block-size: 10px; } .skel.d { block-size: 10px; }
     .skel.dot { inline-size: 8px; block-size: 8px; border-radius: 50%; }
     @keyframes pulse { 50% { opacity: .5; } }

@@ -75,7 +75,7 @@ export class NotifyDetail extends LitElement {
         place-items: center;
         background: var(--sev-soft);
         color: var(--sev);
-        font-size: 25px;
+        font-size: var(--sw-fs-3xl);
         flex: none;
       }
       .dhead.crit .ring {
@@ -90,7 +90,7 @@ export class NotifyDetail extends LitElement {
       }
       .dhead h4 {
         margin: 0;
-        font-size: 19px;
+        font-size: var(--sw-fs-2xl);
         font-weight: 700;
         letter-spacing: -0.02em;
         line-height: 1.2;
@@ -100,7 +100,7 @@ export class NotifyDetail extends LitElement {
         flex-wrap: wrap;
         align-items: center;
         gap: 6px 8px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .meta .sevtag {
@@ -113,25 +113,25 @@ export class NotifyDetail extends LitElement {
         background: var(--sev-soft);
         color: var(--sev);
         font-weight: 700;
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
       }
       .dcard {
         padding: 14px 16px;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        border-radius: 20px;
+        border-radius: var(--sw-r-2xl);
       }
       .kv {
         display: grid;
         grid-template-columns: 80px minmax(0, 1fr);
         gap: 4px 12px;
         align-items: baseline;
-        font-size: 13.5px;
+        font-size: var(--sw-fs-base);
       }
       .kv .k {
         color: var(--dv-text-3);
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
       }
       .kv .v {
@@ -149,25 +149,25 @@ export class NotifyDetail extends LitElement {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        border-radius: 6px;
+        border-radius: var(--sw-r-xs);
         min-block-size: 44px;
       }
       .kv .v .lnk:focus-visible {
         outline: 2px solid var(--dv-focus);
       }
       .kv .v .lnk .ic {
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
       .dline {
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 13px;
+        font-size: var(--sw-fs-base);
         color: var(--dv-text-2);
         padding: 0 4px;
       }
       .dline .ic {
-        font-size: 15px;
+        font-size: var(--sw-fs-lg);
         color: var(--dv-success);
       }
       .dline.bad {
@@ -186,7 +186,7 @@ export class NotifyDetail extends LitElement {
       .snap {
         position: relative;
         block-size: 150px;
-        border-radius: 16px;
+        border-radius: var(--sw-r-lg);
         overflow: hidden;
         background: radial-gradient(circle at 70% 30%, #3b4660, #141a28 70%);
         color: #fff;
@@ -207,7 +207,7 @@ export class NotifyDetail extends LitElement {
         flex-direction: column;
         align-items: center;
         gap: 6px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: rgba(255, 255, 255, 0.8);
       }
       .snap .ctr .ic {
@@ -226,7 +226,7 @@ export class NotifyDetail extends LitElement {
         -webkit-backdrop-filter: var(--sw-perf-blur, blur(10px));
         backdrop-filter: var(--sw-perf-blur, blur(10px));
         color: #fff;
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
         font-weight: 600;
         display: inline-flex;
         align-items: center;
@@ -242,7 +242,7 @@ export class NotifyDetail extends LitElement {
         grid-column: 1 / -1;
       }
       .tlh {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-3);
         font-weight: 600;
       }

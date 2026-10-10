@@ -66,8 +66,8 @@ export class BubbleSliders extends LitElement {
     ::slotted(.chip),
     .chip {
       block-size: var(--sw-sub-size, var(--sw-sub));
-      min-block-size: var(--sw-touch-desktop, 44px);
-      min-inline-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
+      min-inline-size: var(--sw-touch-desktop);
       box-sizing: border-box;
       justify-content: center;
       padding: 0 12px;
@@ -90,7 +90,7 @@ export class BubbleSliders extends LitElement {
       color: var(--sw-warning-text);
     }
     .chip:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     @media (max-width: 1100px) {

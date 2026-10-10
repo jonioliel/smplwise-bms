@@ -83,7 +83,7 @@ export class ScheduleEntityPicker extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       padding: 4px 12px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
     }
@@ -172,7 +172,7 @@ export class ScheduleEntityPicker extends LitElement {
       align-items: center;
     }
     .sens {
-      color: #6d28d9;
+      color: var(--sw-purple);
     }
     .state {
       padding: 24px 0;

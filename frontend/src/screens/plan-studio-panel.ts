@@ -1715,7 +1715,7 @@ export const studioPanelStyles = css`
   .modes button.on {
     background: var(--sw-accent);
     border-color: var(--sw-accent);
-    color: #fff;
+    color: var(--sw-text-inverse);
   }
   .lamps button {
     display: inline-flex;
@@ -1750,7 +1750,7 @@ export const studioPanelStyles = css`
     border: 1px solid var(--sw-border);
     background: var(--sw-surface);
     color: var(--sw-text);
-    border-radius: var(--sw-r-sm, 6px);
+    border-radius: var(--sw-r-sm);
     font: inherit;
     font-size: var(--sw-fs-sm);
     cursor: pointer;
@@ -1759,7 +1759,7 @@ export const studioPanelStyles = css`
   .panelchips button.on {
     background: var(--sw-accent);
     border-color: var(--sw-accent);
-    color: #fff;
+    color: var(--sw-text-inverse);
   }
   .panelchips button:disabled {
     cursor: default;
@@ -1805,7 +1805,7 @@ export const studioPanelStyles = css`
     border: 1px solid var(--sw-border);
     background: var(--sw-surface);
     color: var(--sw-text);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     padding: 6px 8px;
     font: inherit;
     font-size: var(--sw-fs-sm);
@@ -1870,7 +1870,7 @@ export const studioPanelStyles = css`
     align-items: center;
     padding: 6px 8px;
     border: 1px solid var(--sw-border);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     background: var(--sw-surface);
     font-size: var(--sw-fs-sm);
     cursor: pointer;
@@ -1932,7 +1932,7 @@ export const studioPanelStyles = css`
     max-inline-size: 180px;
     padding-inline: 6px;
     border: 1px solid var(--sw-border-strong);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     background: var(--sw-surface);
     color: var(--sw-text);
   }
@@ -1979,7 +1979,7 @@ export const studioPanelStyles = css`
   }
   .hint {
     border: 1px dashed var(--sw-map-candidate);
-    border-radius: 8px;
+    border-radius: var(--sw-r-sm);
     padding: 8px;
     margin-block: 8px;
     display: grid;
@@ -2032,7 +2032,7 @@ export const studioPanelStyles = css`
   .dcand.on {
     outline: 2px solid var(--sw-map-candidate);
     outline-offset: -2px;
-    border-radius: 6px;
+    border-radius: var(--sw-r-xs);
   }
   .dcand.bad {
     background: var(--sw-danger-soft);

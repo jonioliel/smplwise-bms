@@ -65,7 +65,7 @@ export class MediaLibraryBrowse extends LitElement {
         gap: 8px;
         padding-inline: 12px 6px;
         min-block-size: 42px;
-        border-radius: 14px;
+        border-radius: var(--sw-r-lg);
         background: var(--mr-surface-2);
         border: 1px solid var(--mr-border);
       }
@@ -73,7 +73,7 @@ export class MediaLibraryBrowse extends LitElement {
         border-color: var(--mr-accent);
       }
       .srch .ic {
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
         color: var(--mr-text-3);
         flex: none;
       }
@@ -82,7 +82,7 @@ export class MediaLibraryBrowse extends LitElement {
         flex: 1;
         min-inline-size: 0;
         font: inherit;
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         color: var(--mr-text);
       }
       .srch input::placeholder {
@@ -95,7 +95,7 @@ export class MediaLibraryBrowse extends LitElement {
         place-items: center;
         inline-size: 30px;
         block-size: 30px;
-        border-radius: 9px;
+        border-radius: var(--sw-r-sm);
         color: var(--mr-text-2);
       }
       .srch .x:focus-visible {
@@ -117,7 +117,7 @@ export class MediaLibraryBrowse extends LitElement {
         flex: none;
         padding: 6px 12px;
         border-radius: 999px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--mr-text-2);
         background: var(--mr-surface-2);
@@ -152,7 +152,7 @@ export class MediaLibraryBrowse extends LitElement {
         place-items: center;
         inline-size: 34px;
         block-size: 34px;
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         color: var(--mr-text-2);
       }
       .tile .add:hover {
@@ -163,7 +163,7 @@ export class MediaLibraryBrowse extends LitElement {
         outline: 2px solid var(--mr-focus);
       }
       .tile .add .ic {
-        font-size: 17px;
+        font-size: var(--sw-fs-xl);
       }
       .tile .add[disabled] {
         opacity: 0.4;
@@ -179,7 +179,7 @@ export class MediaLibraryBrowse extends LitElement {
         min-block-size: 36px;
         padding-inline: 14px;
         border-radius: 999px;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         color: var(--mr-text-2);
       }

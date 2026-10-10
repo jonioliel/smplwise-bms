@@ -185,14 +185,14 @@ export class SystemSchedules extends LitElement {
       place-items: center;
       inline-size: 30px;
       block-size: 30px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-success-soft);
-      color: #15803d;
+      color: var(--sw-success-text);
       flex: none;
     }
     .ic.warn {
       background: var(--sw-stale-soft);
-      color: #b45309;
+      color: var(--sw-warning-text);
     }
     .ic.mute {
       background: var(--sw-surface-3);
@@ -205,7 +205,7 @@ export class SystemSchedules extends LitElement {
     .seg {
       display: inline-flex;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
     }
     .seg button {
@@ -266,7 +266,7 @@ export class SystemSchedules extends LitElement {
       border-block-end: 1px solid var(--sw-border);
     }
     td.yes {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     td.no {
       color: var(--sw-text-3);
@@ -289,7 +289,7 @@ export class SystemSchedules extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 1023px) {

@@ -103,7 +103,7 @@ export class SystemTabsConfig extends LitElement {
       place-items: center;
       inline-size: 40px;
       block-size: 40px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-3);
       flex: none;
     }
@@ -128,7 +128,7 @@ export class SystemTabsConfig extends LitElement {
     }
     .handle:focus-visible,
     .mv:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: -2px;
     }
     .name {
@@ -209,9 +209,9 @@ export class SystemTabsConfig extends LitElement {
       text-decoration: underline;
     }
     button.link:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     button.link[disabled] {
       opacity: 0.5;
@@ -223,7 +223,7 @@ export class SystemTabsConfig extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .err {
       color: var(--sw-danger);

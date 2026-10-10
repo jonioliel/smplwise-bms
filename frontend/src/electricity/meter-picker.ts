@@ -77,7 +77,7 @@ export class ElecMeterPicker extends LitElement {
         inline-size: 20px;
         block-size: 20px;
         border: 2px solid var(--sw-border-strong);
-        border-radius: 6px;
+        border-radius: var(--sw-r-xs);
         display: grid;
         place-items: center;
         color: var(--sw-text-inverse);

@@ -176,8 +176,8 @@ export class SwSheet extends LitElement {
     /* the close button: a round target of the touch size (44 px on a phone and by default on a desktop; the look dial may say 32) */
     .x {
       flex: none;
-      inline-size: var(--sw-touch-desktop, 44px);
-      block-size: var(--sw-touch-desktop, 44px);
+      inline-size: var(--sw-touch-desktop);
+      block-size: var(--sw-touch-desktop);
       min-inline-size: 32px;
       border: 0;
       border-radius: 50%;
@@ -192,7 +192,7 @@ export class SwSheet extends LitElement {
       background: var(--sw-layer-2);
     }
     .x:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     @media (max-width: 1100px) {

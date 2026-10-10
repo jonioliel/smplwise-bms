@@ -55,19 +55,19 @@ export class SceneEditor extends AutomationEditorBase {
         block-size: 34px;
         border-radius: 50%;
         background: var(--dv-icon-ring-bg);
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
         flex: none;
       }
       .mrow .nm {
         display: flex;
         flex-direction: column;
         gap: 1px;
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
         font-weight: 600;
         min-inline-size: 0;
       }
       .mrow .nm small {
-        font-size: 11.5px;
+        font-size: var(--sw-fs-xs);
         font-weight: 500;
         color: var(--dv-text-2);
       }
@@ -90,7 +90,7 @@ export class SceneEditor extends AutomationEditorBase {
         color: var(--dv-text-3);
         display: grid;
         place-items: center;
-        font-size: 16px;
+        font-size: var(--sw-fs-lg);
       }
       .mrow .x:hover {
         background: var(--dv-surface-3);
@@ -98,7 +98,7 @@ export class SceneEditor extends AutomationEditorBase {
       }
       .mrow .sum {
         flex: 1 1 100%;
-        font-size: 12px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
       }
       .empty {

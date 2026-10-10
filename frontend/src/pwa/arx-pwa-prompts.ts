@@ -45,18 +45,18 @@ export class ArxPwaPrompts extends LitElement {
       gap: 12px;
       inline-size: min(520px, 100%);
       box-sizing: border-box;
-      background: var(--sw-surface, #fff);
-      color: var(--sw-text, #0f172a);
-      border: 1px solid var(--sw-border, #e2e8f0);
-      border-radius: 14px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3, 0 10px 30px rgba(15, 23, 42, 0.16));
       padding: 12px 14px;
-      font-size: var(--sw-fs-sm, 14px);
+      font-size: var(--sw-fs-sm);
     }
     .card img {
       inline-size: 40px;
       block-size: 40px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       flex-shrink: 0;
     }
     .text {
@@ -67,10 +67,10 @@ export class ArxPwaPrompts extends LitElement {
       gap: 2px;
     }
     .text b {
-      font-weight: var(--sw-fw-semibold, 600);
+      font-weight: var(--sw-fw-semibold);
     }
     .text span {
-      color: var(--sw-text-2, #475569);
+      color: var(--sw-text-2);
       line-height: 1.45;
     }
     .actions {
@@ -81,10 +81,10 @@ export class ArxPwaPrompts extends LitElement {
     .x {
       border: 0;
       background: transparent;
-      color: var(--sw-text-3, #64748b);
+      color: var(--sw-text-3);
       cursor: pointer;
       padding: 4px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       display: inline-flex;
     }
     .share {

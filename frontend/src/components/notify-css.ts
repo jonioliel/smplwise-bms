@@ -50,14 +50,14 @@ export const notifyControls = css`
     block-size: 24px;
     padding-inline: 9px;
     border-radius: 999px;
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     font-weight: 600;
     background: var(--dv-neutral-soft);
     color: var(--dv-text-2);
     white-space: nowrap;
   }
   .tag .ic {
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
   }
   .tag.soon {
     background: var(--dv-accent-soft);
@@ -106,7 +106,7 @@ export const notifyControls = css`
     background: var(--dv-surface-2);
     -webkit-backdrop-filter: var(--dv-surface-blur);
     backdrop-filter: var(--dv-surface-blur);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
     color: var(--dv-text-2);
     white-space: nowrap;
@@ -127,15 +127,15 @@ export const notifyControls = css`
     box-shadow: var(--dv-shadow-control);
   }
   .rc .ic {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
   }
   .inp {
     block-size: 44px;
-    border-radius: 14px;
+    border-radius: var(--sw-r-lg);
     border: 1px solid var(--dv-border);
     background: var(--dv-surface-2);
     padding-inline: 14px;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     color: var(--dv-text);
     min-inline-size: 0;
     inline-size: 100%;
@@ -149,7 +149,7 @@ export const notifyControls = css`
     direction: ltr;
     text-align: left;
     font-family: var(--sw-font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
   }
   .inp.sm {
     block-size: 44px;
@@ -194,13 +194,13 @@ export const notifyControls = css`
     min-inline-size: 52px;
     text-align: center;
     font-weight: 700;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     font-variant-numeric: tabular-nums;
   }
   .stp .vv small {
     font-weight: 500;
     color: var(--dv-text-2);
-    font-size: 11.5px;
+    font-size: var(--sw-fs-xs);
     margin-inline-start: 3px;
   }
   .days {
@@ -215,7 +215,7 @@ export const notifyControls = css`
     border: 1px solid var(--dv-border);
     background: var(--dv-surface-2);
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     color: var(--dv-text-2);
   }
   .days button[aria-pressed='true'] {
@@ -226,7 +226,7 @@ export const notifyControls = css`
   .chk {
     inline-size: 32px;
     block-size: 32px;
-    border-radius: 9px;
+    border-radius: var(--sw-r-sm);
     border: 1.5px solid var(--dv-border-strong);
     background: var(--dv-surface-2);
     display: grid;
@@ -246,7 +246,7 @@ export const notifyControls = css`
     border-color: transparent;
   }
   .chk .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
     stroke-width: 2.4;
     opacity: 0;
   }
@@ -276,15 +276,15 @@ export const notifyControls = css`
     min-block-size: 44px;
     padding: 6px 8px;
     padding-inline: 14px 8px;
-    border-radius: 16px;
-    font-size: 13px;
+    border-radius: var(--sw-r-lg);
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     background: var(--dv-surface-2);
     border: 1px solid var(--dv-border);
     color: var(--dv-text);
   }
   .bnr > .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
     color: var(--dv-text-2);
     flex: none;
   }
@@ -326,7 +326,7 @@ export const notifyControls = css`
     position: relative;
   }
   .tl .ev .t {
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-text-3);
     font-variant-numeric: tabular-nums;
     padding-block-start: 2px;
@@ -376,7 +376,7 @@ export const notifyControls = css`
     display: flex;
     flex-direction: column;
     gap: 1px;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     line-height: 1.3;
     padding-block-end: 10px;
   }
@@ -384,7 +384,7 @@ export const notifyControls = css`
     font-weight: 600;
   }
   .tl .ev .b small {
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
   }
   .tl .ev.pending .b {

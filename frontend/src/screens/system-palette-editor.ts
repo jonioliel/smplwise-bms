@@ -90,7 +90,7 @@ export class SystemPaletteEditor extends LitElement {
       gap: 2px;
       padding: 3px;
       background: var(--sw-surface-3);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     .seg button {
       all: unset;
@@ -99,7 +99,7 @@ export class SystemPaletteEditor extends LitElement {
       align-items: center;
       min-block-size: 36px;
       padding: 0 12px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
       font-weight: var(--sw-fw-medium);
       cursor: pointer;
@@ -113,7 +113,7 @@ export class SystemPaletteEditor extends LitElement {
     .seg button:focus-visible,
     select:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .fields {
@@ -165,7 +165,7 @@ export class SystemPaletteEditor extends LitElement {
       box-shadow: 0 0 0 2px var(--sw-surface-2), 0 0 0 4px var(--sw-accent);
     }
     .chip:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .note {
@@ -188,7 +188,7 @@ export class SystemPaletteEditor extends LitElement {
       block-size: 32px;
       padding: 0;
       border: 0;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: none;
       cursor: pointer;
     }
@@ -236,7 +236,7 @@ export class SystemPaletteEditor extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .pv-btn {
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
       padding: 0 16px;
       border: 0;
       border-radius: var(--sw-r-pill);

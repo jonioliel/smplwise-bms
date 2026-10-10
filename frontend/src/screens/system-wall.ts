@@ -78,7 +78,7 @@ export class SystemWall extends LitElement {
       .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-block-end: 12px; }
       .toolbar .count { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
       table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
-      th { text-align: start; color: var(--sw-text-3); font-weight: var(--sw-fw-medium, 500); padding: 8px 10px; }
+      th { text-align: start; color: var(--sw-text-3); font-weight: var(--sw-fw-medium); padding: 8px 10px; }
       td { padding: 10px; border-block-start: 1px solid var(--sw-border); vertical-align: middle; }
       .who b { display: block; }
       .who span, .muted { color: var(--sw-text-3); direction: ltr; unicode-bidi: isolate; font-size: var(--sw-fs-xs); }

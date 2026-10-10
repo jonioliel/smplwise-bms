@@ -62,7 +62,7 @@ export class SwCastPill extends LitElement {
       background: var(--sw-surface-3);
     }
     .pill:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .pill .lbl {
@@ -89,7 +89,7 @@ export class SwCastPill extends LitElement {
       position: absolute;
       inset-block-start: calc(100% + 8px);
       inset-inline-end: 0;
-      z-index: var(--sw-z-drawer, 60);
+      z-index: var(--sw-z-drawer);
       inline-size: min(380px, calc(100vw - 20px));
       max-block-size: min(70vh, 520px);
       overflow: auto;
@@ -164,7 +164,7 @@ export class SwCastPill extends LitElement {
       cursor: default;
     }
     .b:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .err {

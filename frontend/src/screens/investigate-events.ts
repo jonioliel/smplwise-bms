@@ -106,7 +106,7 @@ export class InvestigateEvents extends LitElement {
       display: inline-flex;
       gap: 2px;
       background: var(--sw-surface-3);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 2px;
     }
     .rangepick button {
@@ -115,7 +115,7 @@ export class InvestigateEvents extends LitElement {
       border: 0;
       background: transparent;
       color: var(--sw-text-2);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 4px 8px;
       cursor: pointer;
     }
@@ -133,7 +133,7 @@ export class InvestigateEvents extends LitElement {
     .thumb.none {
       inline-size: 64px;
       block-size: 40px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       overflow: hidden;
     }
     .thumb.none {
@@ -146,7 +146,7 @@ export class InvestigateEvents extends LitElement {
       inline-size: 64px;
       block-size: 40px;
       object-fit: cover;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       display: block;
       background: var(--sw-surface-3);
     }
@@ -196,9 +196,9 @@ export class InvestigateEvents extends LitElement {
       position: absolute;
       inset-inline: 8px;
       inset-block-end: 8px;
-      background: rgba(17, 24, 39, 0.7);
-      color: #fff;
-      border-radius: 6px;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-xs);
       padding: 4px 8px;
     }
     .ty {
@@ -238,10 +238,10 @@ export class InvestigateEvents extends LitElement {
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;
-      font-size: 10px;
-      background: rgba(17, 24, 39, 0.55);
-      color: #fff;
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     dl {
@@ -310,7 +310,7 @@ export class InvestigateEvents extends LitElement {
     .kpi .ic {
       inline-size: 36px;
       block-size: 36px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       display: grid;
       place-items: center;
       background: var(--sw-accent-soft);
@@ -413,7 +413,7 @@ export class InvestigateEvents extends LitElement {
     .rowpreview .cell {
       aspect-ratio: 16 / 9;
       background: var(--sw-surface-3);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       overflow: hidden;
       display: grid;
       place-items: center;
@@ -436,9 +436,9 @@ export class InvestigateEvents extends LitElement {
       inset-block-end: 3px;
       inset-inline-end: 5px;
       font-family: var(--sw-font-mono);
-      font-size: 10px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.55);
+      font-size: var(--sw-fs-2xs);
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim);
       padding: 0 4px;
       border-radius: 3px;
     }
@@ -918,7 +918,7 @@ export class InvestigateEvents extends LitElement {
         <span>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ing.last_error})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה ${this.fmt(ing.last_heartbeat_at)}` : ''}</span>
         <span>· עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'}</span>
         <span>· אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה (inferred), לא התראה שנמדדה</span>
-        ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning, #b45309);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
+        ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning-text);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
       </div>
       <div class="kpis" data-kpis>
         <div class="kpi"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>

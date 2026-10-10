@@ -166,7 +166,7 @@ export class NvrCameraEditor extends LitElement {
     details.history summary:focus-visible {
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     ol {
       list-style: none;

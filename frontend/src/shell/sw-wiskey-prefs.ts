@@ -42,7 +42,7 @@ export class SwWiskeyPrefs extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     select:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
     .note {

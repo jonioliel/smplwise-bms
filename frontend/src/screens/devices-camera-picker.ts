@@ -107,7 +107,7 @@ export class DevicesCameraPicker extends LitElement {
     .err {
       margin-block-start: 6px;
       font-size: var(--sw-fs-xs);
-      color: var(--sw-danger, #b42318);
+      color: var(--sw-danger);
     }
     button.opt {
       display: flex;

@@ -68,7 +68,7 @@ export class MediaMaConnection extends LitElement {
       min-block-size: 36px;
       padding-inline: 10px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -77,7 +77,7 @@ export class MediaMaConnection extends LitElement {
       inline-size: min(320px, 100%);
     }
     .err {
-      color: var(--sw-danger-text, #b3261e);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
       padding-block: 6px;
     }

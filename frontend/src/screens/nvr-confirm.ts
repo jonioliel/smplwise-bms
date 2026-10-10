@@ -41,7 +41,7 @@ export class NvrConfirm extends LitElement {
     summary:focus-visible {
       outline: 2px solid var(--sw-accent);
       outline-offset: 2px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     ul {
       list-style: none;

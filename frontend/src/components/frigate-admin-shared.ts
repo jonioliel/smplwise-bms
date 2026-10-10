@@ -207,7 +207,7 @@ export const adminStyles = css`
   .form input:focus-visible,
   .form select:focus-visible,
   .inline input:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
   .sup {
@@ -282,7 +282,7 @@ export const adminStyles = css`
     opacity: 0.6;
   }
   .seg button:focus-visible {
-    outline: 2px solid var(--sw-focus);
+    outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
   .row {

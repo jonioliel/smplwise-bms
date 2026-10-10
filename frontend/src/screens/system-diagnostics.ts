@@ -137,7 +137,7 @@ export class SystemDiagnostics extends LitElement {
       font-size: var(--sw-fs-xs);
       background: var(--sw-surface-2, var(--sw-accent-soft));
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       direction: ltr;
       unicode-bidi: isolate;
     }
@@ -190,7 +190,7 @@ export class SystemDiagnostics extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
     .err {
@@ -292,7 +292,7 @@ export class SystemDiagnostics extends LitElement {
     .note-in {
       inline-size: 200px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 6px 8px;
       font: inherit;
       color: var(--sw-text);
@@ -301,7 +301,7 @@ export class SystemDiagnostics extends LitElement {
     .confirm-in {
       inline-size: 100%;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 8px 10px;
       font: inherit;
       font-family: var(--sw-font-mono);
@@ -380,7 +380,7 @@ export class SystemDiagnostics extends LitElement {
     .sw-prev {
       inline-size: 176px;
       block-size: 104px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 8px;
       display: grid;
       grid-template-columns: 44px 1fr 1fr;
@@ -390,7 +390,7 @@ export class SystemDiagnostics extends LitElement {
     }
     .sw-prev i {
       display: block;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
     }
     .sw-prev .tree {
       grid-row: 1 / 3;
@@ -404,14 +404,14 @@ export class SystemDiagnostics extends LitElement {
       box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
     }
     .sw-prev.smplwise i.on {
-      background: linear-gradient(180deg, #fff4e0, #ffffff 70%);
+      background: linear-gradient(180deg, var(--sw-warning-soft), #ffffff 70%);
       border-color: #f7d49a;
     }
     .sw-prev.glass {
       background: radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.45), transparent 60%), radial-gradient(120px 80px at 10% 110%, rgba(10, 132, 255, 0.5), transparent 60%), #0a0a0c;
     }
     .sw-prev.glass i {
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       background: rgba(44, 44, 46, 0.62);
       border: 1px solid rgba(255, 255, 255, 0.13);
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
@@ -1346,7 +1346,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}
-        ${this.backupMsg ? html`<div class="muted" style="color:#15803d;padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
+        ${this.backupMsg ? html`<div class="muted" style="color:var(--sw-success-text);padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
           : this.backups === null
@@ -1378,7 +1378,7 @@ export class SystemDiagnostics extends LitElement {
     return html`
       <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
         <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
-        ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:#15803d">${this.message}</div>` : nothing}
+        ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-success-text)">${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>

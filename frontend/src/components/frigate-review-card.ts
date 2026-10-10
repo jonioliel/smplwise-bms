@@ -52,14 +52,14 @@ export class FrigateReviewCard extends LitElement {
     }
     :host([focused]) article,
     article:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     article:focus {
       outline: none;
     }
     :host([focused]) article:focus {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     :host([data-reviewed]) .body,
@@ -137,7 +137,7 @@ export class FrigateReviewCard extends LitElement {
       justify-content: center;
       gap: 6px;
       font-size: var(--sw-fs-xs);
-      color: rgba(255, 255, 255, 0.72);
+      color: var(--sw-on-video-2);
       background: linear-gradient(135deg, var(--sw-surface-3), var(--sw-video-bg));
     }
     .layer {
@@ -151,8 +151,8 @@ export class FrigateReviewCard extends LitElement {
       border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
-      color: #fff;
-      background: rgba(8, 12, 22, 0.62);
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
     }
@@ -174,8 +174,8 @@ export class FrigateReviewCard extends LitElement {
       inset-block-end: var(--sw-s-2);
       padding: 1px 6px;
       border-radius: var(--sw-r-sm);
-      background: rgba(8, 12, 22, 0.62);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-xs);
       font-variant-numeric: tabular-nums;
       direction: ltr;
@@ -209,8 +209,8 @@ export class FrigateReviewCard extends LitElement {
       block-size: 22px;
       padding-inline: 7px;
       border-radius: var(--sw-r-pill);
-      background: rgba(8, 12, 22, 0.62);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-medium);
     }
@@ -231,7 +231,7 @@ export class FrigateReviewCard extends LitElement {
       align-items: baseline;
       justify-content: space-between;
       gap: var(--sw-s-2);
-      color: #fff;
+      color: var(--sw-on-video);
       text-align: start;
       pointer-events: none;
       min-inline-size: 0;
@@ -352,7 +352,7 @@ export class FrigateReviewCard extends LitElement {
     }
     button:focus-visible,
     input:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
     }
     /* ---- the table row ---- */
@@ -393,7 +393,7 @@ export class FrigateReviewCard extends LitElement {
     }
     :host([variant='row']) .thumb .dur {
       inset: auto 3px 3px auto;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       padding: 0 4px;
     }
     :host([variant='row']) .none {

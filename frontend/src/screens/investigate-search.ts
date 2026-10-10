@@ -97,7 +97,7 @@ export class InvestigateSearch extends LitElement {
                     ${a.parsed.window ? html`<sw-chip selected icon="clock">${a.parsed.window.label}</sw-chip>` : nothing}
                     ${!a.parsed.objects.length && !a.parsed.places.length && !a.parsed.window ? html`<span class="note">לא זוהה סוג, מקום או זמן — מוצגים אירועי היום בהיקף שלך.</span>` : nothing}
                   </div>
-                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning, #b45309)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${a.unsupported.map((u) => `"${u.term}" — ${u.reason.startsWith('color') ? 'צבע' : 'מאפיין מראה'} דורש ספק ניתוח ב־opt-in`).join(' · ')}</div>` : nothing}
+                  ${a.unsupported.length ? html`<div class="note" style="margin-block-start:6px;color:var(--sw-warning-text)" data-semantic-unsupported>לא נתמך ב־baseline המקומי: ${a.unsupported.map((u) => `"${u.term}" — ${u.reason.startsWith('color') ? 'צבע' : 'מאפיין מראה'} דורש ספק ניתוח ב־opt-in`).join(' · ')}</div>` : nothing}
                   ${a.parsed.leftovers.length ? html`<div class="note" style="margin-block-start:4px">מילים שלא שימשו: ${a.parsed.leftovers.join(', ')}</div>` : nothing}
                 </sw-card>
                 <div class="head"><span>${a.total} התאמות (לפי metadata)</span><a href="#/investigate/events">מרכז האירועים</a></div>
@@ -135,7 +135,7 @@ export class InvestigateSearch extends LitElement {
       gap: 10px;
       align-items: center;
       padding: 8px 10px;
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       border: 1px solid var(--sw-line);
       cursor: pointer;
@@ -162,7 +162,7 @@ export class InvestigateSearch extends LitElement {
     .by .ref {
       inline-size: 120px;
       block-size: 90px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       flex-shrink: 0;
       position: relative;
@@ -213,7 +213,7 @@ export class InvestigateSearch extends LitElement {
     .res .pic {
       position: relative;
       aspect-ratio: 4 / 3;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       overflow: hidden;
       box-shadow: var(--sw-shadow-1);
     }
@@ -225,10 +225,10 @@ export class InvestigateSearch extends LitElement {
       position: absolute;
       inset-inline-end: 6px;
       inset-block-start: 6px;
-      font-size: 9.5px;
-      background: rgba(17, 24, 39, 0.5);
-      color: #fff;
-      border-radius: 4px;
+      font-size: var(--sw-fs-2xs);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .res .cap {

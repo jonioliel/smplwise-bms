@@ -250,13 +250,13 @@ export class ScheduleEditor extends LitElement {
     }
     .banner.warn {
       background: var(--sw-warning-soft);
-      color: #92400e;
-      border-color: #fde3b0;
+      color: var(--sw-warning-text);
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent);
     }
     .banner.err {
       background: var(--sw-danger-soft);
-      color: #991b1b;
-      border-color: #f6c7c7;
+      color: var(--sw-danger-text);
+      border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
     }
     .banner.info {
       background: var(--sw-accent-soft);
@@ -264,7 +264,7 @@ export class ScheduleEditor extends LitElement {
     }
     .banner.ok {
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .banner ul {
       margin: 0;
@@ -315,7 +315,7 @@ export class ScheduleEditor extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-sm);
       padding: 5px 12px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       color: var(--sw-text-2);
       cursor: pointer;
       min-block-size: 30px;
@@ -327,7 +327,7 @@ export class ScheduleEditor extends LitElement {
       font-weight: var(--sw-fw-semibold);
     }
     .seg button:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
     }
     label.snap {
       display: inline-flex;
@@ -383,29 +383,30 @@ export class ScheduleEditor extends LitElement {
       block-size: 2px;
       background: var(--sw-danger);
     }
+    /* DU1: the same state tokens as sw-schedule-grid's --sc-* knobs, so the legend and the grid agree in every scheme and skin */
     .c-on {
-      --c: #16a34a;
-      --bg: rgba(34, 197, 94, 0.16);
+      --c: var(--sw-success-text);
+      --bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
     }
     .c-off {
-      --c: #64748b;
-      --bg: rgba(100, 116, 139, 0.15);
+      --c: var(--sw-text-2);
+      --bg: color-mix(in srgb, var(--sw-text-3) 15%, transparent);
     }
     .c-level {
-      --c: #d97706;
-      --bg: rgba(245, 158, 11, 0.18);
+      --c: var(--sw-warning-text);
+      --bg: color-mix(in srgb, var(--sw-warning) 18%, transparent);
     }
     .c-climate {
-      --c: #2767ed;
-      --bg: rgba(39, 103, 237, 0.14);
+      --c: var(--sw-accent-text);
+      --bg: color-mix(in srgb, var(--sw-accent) 14%, transparent);
     }
     .c-cover {
-      --c: #0d9488;
-      --bg: rgba(20, 184, 166, 0.16);
+      --c: var(--sw-circuit-6);
+      --bg: color-mix(in srgb, var(--sw-circuit-6) 16%, transparent);
     }
     .c-secure {
-      --c: #7c3aed;
-      --bg: rgba(139, 92, 246, 0.15);
+      --c: var(--sw-purple);
+      --bg: color-mix(in srgb, var(--sw-purple) 15%, transparent);
     }
     .linked {
       display: flex;
@@ -429,7 +430,7 @@ export class ScheduleEditor extends LitElement {
     }
     .chip.sens {
       background: rgba(139, 92, 246, 0.14);
-      color: #6d28d9;
+      color: var(--sw-purple);
     }
     .chip.warn {
       background: var(--sw-danger-soft);
@@ -464,13 +465,13 @@ export class ScheduleEditor extends LitElement {
       font-size: var(--sw-fs-md);
     }
     .dayrow button small {
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       color: var(--sw-text-3);
     }
     .dayrow button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .dayrow button[aria-pressed='true'] small {
       color: rgba(255, 255, 255, 0.85);
@@ -511,11 +512,11 @@ export class ScheduleEditor extends LitElement {
     }
     .status.ok {
       background: var(--sw-success-soft);
-      color: #166534;
+      color: var(--sw-success-text);
     }
     .status.bad {
       background: var(--sw-danger-soft);
-      color: #991b1b;
+      color: var(--sw-danger-text);
     }
     .status ul {
       margin: 0;
@@ -598,7 +599,7 @@ export class ScheduleEditor extends LitElement {
     .days button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .days button:disabled {
       opacity: 0.5;
@@ -653,7 +654,7 @@ export class ScheduleEditor extends LitElement {
     .repeat button[aria-pressed='true'] {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
     .dates {
       display: grid;
@@ -732,7 +733,7 @@ export class ScheduleEditor extends LitElement {
       }
       .tabs button[aria-selected='true'] {
         background: var(--sw-accent);
-        color: #fff;
+        color: var(--sw-text-inverse);
       }
       .layout[data-tab='board'] .side,
       .layout[data-tab='settings'] .boardcol {
@@ -1757,7 +1758,7 @@ export class ScheduleEditor extends LitElement {
         <div class="repeat" role="group" aria-label="חזרה">
           ${(['repeat', 'pause', 'single'] as RepeatType[]).map((r) => html`<button type="button" data-repeat-btn=${r} aria-pressed=${d.repeat === r} ?disabled=${ro} @click=${() => this.patch({ repeat: r })}>${{ repeat: 'חוזר', pause: 'פעם אחת, מושהה', single: 'פעם אחת, נמחק' }[r]}</button>`)}
         </div>
-        ${d.repeat === 'single' ? html`<div class="hint" style="color:#92400e" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
+        ${d.repeat === 'single' ? html`<div class="hint" style="color:var(--sw-warning-text)" data-single-warning>התזמון יימחק אחרי ההרצה האחרונה.</div>` : nothing}
       </div>
       <div class="sec" data-period>
         <h4>תקופה</h4>

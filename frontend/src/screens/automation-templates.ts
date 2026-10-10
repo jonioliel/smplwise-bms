@@ -62,10 +62,10 @@ export class AutomationTemplates extends LitElement {
         place-items: center;
         inline-size: 40px;
         block-size: 40px;
-        border-radius: 12px;
+        border-radius: var(--sw-r-md);
         background: var(--dv-accent-soft);
         color: var(--dv-accent-text);
-        font-size: 20px;
+        font-size: var(--sw-fs-2xl);
       }
       .blank .tile {
         background: var(--dv-surface-3);
@@ -73,11 +73,11 @@ export class AutomationTemplates extends LitElement {
         border-radius: 50%;
       }
       .tpl b {
-        font-size: 14.5px;
+        font-size: var(--sw-fs-md);
         font-weight: 700;
       }
       .tpl small {
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
         line-height: 1.4;
       }

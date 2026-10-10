@@ -219,7 +219,7 @@ export class NvrRecordersCard extends LitElement {
     .local-only {
       margin: 0;
       color: var(--sw-text-secondary, #5b6573);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     :host {
       display: block;
@@ -287,24 +287,24 @@ export class NvrRecordersCard extends LitElement {
     .conn {
       padding: 10px 12px;
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md, 10px);
-      background: var(--sw-surface-2, transparent);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
       min-inline-size: 0;
     }
     .name-in {
       font: inherit;
-      min-block-size: var(--sw-touch-desktop, 44px);
+      min-block-size: var(--sw-touch-desktop);
       max-inline-size: 100%;
       inline-size: 260px;
       box-sizing: border-box;
       padding: 4px 8px;
       border: 1px solid var(--sw-border-strong, var(--sw-border));
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }
     .line.ok {
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
     }
     .line.err {
       color: var(--sw-danger-text, var(--sw-danger));

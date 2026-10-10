@@ -151,7 +151,7 @@ export class MultimediaGroups extends LitElement {
       flex: none;
       inline-size: 44px;
       block-size: 44px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       display: grid;
       place-items: center;
       color: #fff;
@@ -164,7 +164,7 @@ export class MultimediaGroups extends LitElement {
       box-shadow: none;
     }
     .gi .ic {
-      font-size: 21px;
+      font-size: var(--sw-fs-2xl);
     }
     .gh .tx {
       flex: 1;
@@ -174,7 +174,7 @@ export class MultimediaGroups extends LitElement {
       line-height: 1.3;
     }
     .gh .tx b {
-      font-size: 17px;
+      font-size: var(--sw-fs-xl);
       font-weight: 700;
       letter-spacing: -0.01em;
       white-space: nowrap;
@@ -182,7 +182,7 @@ export class MultimediaGroups extends LitElement {
       text-overflow: ellipsis;
     }
     .gh .tx small {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       white-space: nowrap;
       overflow: hidden;
@@ -194,7 +194,7 @@ export class MultimediaGroups extends LitElement {
       gap: 12px;
       align-items: center;
       padding: 10px;
-      border-radius: 16px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface-2);
       border: 1px solid var(--dv-border);
     }
@@ -202,7 +202,7 @@ export class MultimediaGroups extends LitElement {
       position: relative;
       inline-size: 52px;
       block-size: 52px;
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
       overflow: hidden;
       color: #fff;
       box-shadow: 0 8px 18px rgb(var(--art, 20 24 34) / 0.32);
@@ -214,14 +214,14 @@ export class MultimediaGroups extends LitElement {
       line-height: 1.3;
     }
     .gnp .t b {
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .gnp .t small {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       white-space: nowrap;
       overflow: hidden;
@@ -242,7 +242,7 @@ export class MultimediaGroups extends LitElement {
       transition: transform 120ms var(--mm-ease);
     }
     .pk .ic {
-      font-size: 19px;
+      font-size: var(--sw-fs-2xl);
       stroke-width: 2;
     }
     .pk:active {
@@ -266,7 +266,7 @@ export class MultimediaGroups extends LitElement {
       font-variant-numeric: tabular-nums;
     }
     .vrow .lbl {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       font-weight: 600;
       flex: none;
@@ -352,7 +352,7 @@ export class MultimediaGroups extends LitElement {
     }
     .psh h4 {
       margin: 0;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 700;
       color: var(--dv-text-2);
     }
@@ -363,7 +363,7 @@ export class MultimediaGroups extends LitElement {
       align-items: center;
       gap: 4px;
       min-block-size: 44px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       color: var(--dv-accent-text);
     }
@@ -383,7 +383,7 @@ export class MultimediaGroups extends LitElement {
       gap: 10px;
       min-block-size: var(--mm-member-row-h);
       padding: 6px 12px;
-      border-radius: 15px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface-2);
       border: 1px solid var(--dv-border);
     }
@@ -394,14 +394,14 @@ export class MultimediaGroups extends LitElement {
       line-height: 1.25;
     }
     .mrow .nm b {
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .mrow .nm small {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--dv-text-2);
       white-space: nowrap;
       overflow: hidden;
@@ -416,7 +416,7 @@ export class MultimediaGroups extends LitElement {
       font-weight: 600;
     }
     .mrow .vv {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 700;
       text-align: end;
       font-variant-numeric: tabular-nums;
@@ -426,7 +426,7 @@ export class MultimediaGroups extends LitElement {
       block-size: 44px;
     }
     .mrow .rb .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     .mrow.lead {
       border-color: color-mix(in srgb, var(--dv-accent) 35%, transparent);
@@ -442,7 +442,7 @@ export class MultimediaGroups extends LitElement {
     .roomchips .chipx {
       block-size: 28px;
       padding-inline: 10px;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .roomchips .chipx .ic {
       color: var(--dv-text-3);
@@ -464,7 +464,7 @@ export class MultimediaGroups extends LitElement {
       flex-wrap: wrap;
     }
     .gfoot .st {
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       display: inline-flex;
       align-items: center;
@@ -472,7 +472,7 @@ export class MultimediaGroups extends LitElement {
       min-inline-size: 0;
     }
     .gfoot .st.ok {
-      color: #1f8f3f;
+      color: var(--sw-success-text);
       font-weight: 600;
     }
     .gfoot .st.bad {

@@ -311,7 +311,7 @@ export class InvestigateRules extends LitElement {
       place-items: center;
       inline-size: 36px;
       block-size: 36px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       background: var(--bg);
       color: var(--fg);
       flex-shrink: 0;

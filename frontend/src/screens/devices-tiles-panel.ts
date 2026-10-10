@@ -233,7 +233,7 @@ export class DevicesTilesPanel extends LitElement {
       .seg {
         display: flex;
         border: 1px solid var(--sw-border-strong);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         overflow: hidden;
       }
       .seg button {
@@ -260,7 +260,7 @@ export class DevicesTilesPanel extends LitElement {
       }
       .seg button:focus-visible,
       .search input:focus-visible {
-        outline: 2px solid var(--sw-focus, var(--sw-accent));
+        outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: -2px;
       }
       .search {
@@ -269,7 +269,7 @@ export class DevicesTilesPanel extends LitElement {
         gap: 6px;
         padding-inline: 10px;
         border: 1px solid var(--sw-border);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         background: var(--sw-surface-2);
         color: var(--sw-text-3);
       }
@@ -322,7 +322,7 @@ export class DevicesTilesPanel extends LitElement {
         cursor: default;
       }
       button.master:focus-visible {
-        outline: 2px solid var(--sw-focus, var(--sw-accent));
+        outline: var(--sw-focus-w) solid var(--sw-focus);
         outline-offset: 2px;
       }
       button.master .badge {
@@ -335,8 +335,8 @@ export class DevicesTilesPanel extends LitElement {
         box-sizing: border-box;
         border-radius: 999px;
         background: var(--sw-warning);
-        color: #1c1c1e;
-        font-size: 11px;
+        color: var(--sw-text);
+        font-size: var(--sw-fs-xs);
         font-weight: var(--sw-fw-bold);
         line-height: 18px;
         text-align: center;

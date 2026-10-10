@@ -123,7 +123,7 @@ export class AutomationCode extends LitElement {
         gap: 8px;
         align-items: flex-start;
         color: var(--dv-danger);
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         font-weight: 600;
         padding: 10px 12px;
         border-block-start: 1px solid var(--dv-border);
@@ -136,13 +136,13 @@ export class AutomationCode extends LitElement {
         display: flex;
         gap: 8px;
         align-items: flex-start;
-        font-size: 12.5px;
+        font-size: var(--sw-fs-sm);
         color: var(--dv-text-2);
         line-height: 1.5;
       }
       .note .ic {
         margin-block-start: 3px;
-        font-size: 14px;
+        font-size: var(--sw-fs-md);
       }
     `,
   ];

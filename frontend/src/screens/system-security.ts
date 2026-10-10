@@ -60,7 +60,7 @@ export class SystemSecurity extends LitElement {
       display: block;
     }
     .tabs {
-      padding: 14px var(--sw-page-pad, 24px) 0;
+      padding: 14px var(--sw-page-pad) 0;
     }
     .tabs sw-tabs[data-variant^='underline'] {
       inline-size: 100%;
@@ -81,10 +81,10 @@ export class SystemSecurity extends LitElement {
       border-block-end: 0;
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
     }
     .warn {
-      color: #92400e;
+      color: var(--sw-warning-text);
     }
     .err {
       color: var(--sw-danger);

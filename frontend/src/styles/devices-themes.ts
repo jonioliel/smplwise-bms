@@ -214,17 +214,21 @@ export const devicesThemes = css`
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
     --dv-text-3: #6e6e73;
-    --dv-accent: #007aff;
-    --dv-accent-hover: #0066d6;
-    --dv-accent-soft: rgba(0, 122, 255, 0.13);
-    --dv-accent-text: #0062cc;
-    --dv-focus: #007aff;
-    --dv-success: #34c759;
-    --dv-success-soft: rgba(52, 199, 89, 0.16);
-    --dv-warning: #ff9f0a;
-    --dv-warning-soft: rgba(255, 159, 10, 0.16);
-    --dv-danger: #d70015;
-    --dv-danger-soft: rgba(255, 59, 48, 0.13);
+    /* DU1 (2026-10-09): the default palette's interaction and state colours are the PRODUCT's (the skin's accent, toggle and
+       state colours, light or dark), read through the never-bridged --sw-product-* aliases (design/tokens.ts). One accent and
+       one toggle colour per skin on every screen; the mockup's iOS values live on in the sand / forest / graphite palettes'
+       own blocks and in the remote's --mr-* set. */
+    --dv-accent: var(--sw-product-accent);
+    --dv-accent-hover: var(--sw-product-accent-hover);
+    --dv-accent-soft: var(--sw-product-accent-soft);
+    --dv-accent-text: var(--sw-product-accent-text);
+    --dv-focus: var(--sw-product-focus);
+    --dv-success: var(--sw-product-success);
+    --dv-success-soft: var(--sw-product-success-soft);
+    --dv-warning: var(--sw-product-warning);
+    --dv-warning-soft: var(--sw-product-warning-soft);
+    --dv-danger: var(--sw-product-danger);
+    --dv-danger-soft: var(--sw-product-danger-soft);
     --dv-neutral-soft: rgba(120, 120, 128, 0.14);
     --dv-offline: #8e8e93;
     --dv-radius-sm: 14px;
@@ -249,7 +253,7 @@ export const devicesThemes = css`
     --dv-icon-ring-on-bg: rgba(255, 255, 255, 0.34);
     --dv-icon-ring-fg: #1c1c1e;
     --dv-card-badge-size: 34px;
-    --dv-toggle-on: #34c759;
+    --dv-toggle-on: var(--sw-product-toggle-on);
     --dv-fs-title: 16px;
     --dv-fs-tile-name: 14px;
     --dv-fs-item-name: 12.5px;
@@ -291,16 +295,8 @@ export const devicesThemes = css`
     --dv-text: #f5f5f7;
     --dv-text-2: rgba(235, 235, 245, 0.72);
     --dv-text-3: rgba(235, 235, 245, 0.56);
-    --dv-accent: #0a84ff;
-    --dv-accent-hover: #409cff;
-    --dv-accent-soft: rgba(10, 132, 255, 0.26);
-    --dv-accent-text: #64d2ff;
-    --dv-focus: #64d2ff;
-    --dv-success: #30d158;
-    --dv-success-soft: rgba(48, 209, 88, 0.2);
-    --dv-warning-soft: rgba(255, 159, 10, 0.2);
-    --dv-danger: #ff453a;
-    --dv-danger-soft: rgba(255, 69, 58, 0.2);
+    /* the accent and state knobs stay on the --sw-product-* aliases of the light block: the product's dark values apply when
+       the product is dark; with devices.scheme=dark under a light product the light accent reads on the dark glass */
     --dv-neutral-soft: rgba(142, 142, 147, 0.2);
     --dv-shadow-1: 0 18px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     --dv-shadow-2: 0 22px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -309,7 +305,7 @@ export const devicesThemes = css`
     --dv-icon-ring-bg: rgba(235, 235, 245, 0.12);
     --dv-icon-ring-on-bg: rgba(255, 255, 255, 0.18);
     --dv-icon-ring-fg: #f5f5f7;
-    --dv-toggle-on: #30d158;
+    --dv-toggle-on: var(--sw-product-toggle-on);
   }
   /* palette "default": phone (sizes only; colours as above) - every palette (6b) */
   @media (max-width: 767px) {

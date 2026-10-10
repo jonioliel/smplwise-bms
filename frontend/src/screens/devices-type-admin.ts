@@ -56,7 +56,7 @@ export class DevicesTypeAdmin extends LitElement {
       min-block-size: 36px;
       padding: 0 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }
@@ -102,7 +102,7 @@ export class DevicesTypeAdmin extends LitElement {
       padding-block: 8px;
     }
     .err {
-      color: var(--sw-danger, #dc2626);
+      color: var(--sw-danger);
     }
     @media (max-width: 599px) {
       table {
@@ -120,7 +120,7 @@ export class DevicesTypeAdmin extends LitElement {
         align-items: center;
         padding: 8px 10px;
         border: 1px solid var(--sw-border);
-        border-radius: 10px;
+        border-radius: var(--sw-r-md);
         min-block-size: 44px;
       }
       .card .sub {

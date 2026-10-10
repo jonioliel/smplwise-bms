@@ -154,23 +154,24 @@ export class SwScheduleGrid extends LitElement {
       --label-w: 64px;
       --row-h: 46px;
       --axis-h: 22px;
-      --sc-on: #16a34a;
-      --sc-on-bg: rgba(34, 197, 94, 0.16);
-      --sc-off: #64748b;
-      --sc-off-bg: rgba(100, 116, 139, 0.15);
-      --sc-level: #d97706;
-      --sc-level-bg: rgba(245, 158, 11, 0.18);
-      --sc-climate: #2767ed;
-      --sc-climate-bg: rgba(39, 103, 237, 0.14);
-      --sc-cover: #0d9488;
-      --sc-cover-bg: rgba(20, 184, 166, 0.16);
-      --sc-secure: #7c3aed;
-      --sc-secure-bg: rgba(139, 92, 246, 0.15);
-      --sc-custom: #475569;
-      --sc-custom-bg: rgba(71, 85, 105, 0.12);
-      --sc-empty: #94a3b8;
-      --sc-empty-bg: rgba(148, 163, 184, 0.1);
-      --sc-night: rgba(30, 46, 71, 0.045);
+      /* DU1: the slot colours are the product's state tokens (so dark mode and the skins reach the grid); the fills are the same colours at a low share */
+      --sc-on: var(--sw-success-text);
+      --sc-on-bg: color-mix(in srgb, var(--sw-success) 16%, transparent);
+      --sc-off: var(--sw-text-2);
+      --sc-off-bg: color-mix(in srgb, var(--sw-text-3) 15%, transparent);
+      --sc-level: var(--sw-warning-text);
+      --sc-level-bg: color-mix(in srgb, var(--sw-warning) 18%, transparent);
+      --sc-climate: var(--sw-accent-text);
+      --sc-climate-bg: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+      --sc-cover: var(--sw-circuit-6);
+      --sc-cover-bg: color-mix(in srgb, var(--sw-circuit-6) 16%, transparent);
+      --sc-secure: var(--sw-purple);
+      --sc-secure-bg: color-mix(in srgb, var(--sw-purple) 15%, transparent);
+      --sc-custom: var(--sw-text-2);
+      --sc-custom-bg: color-mix(in srgb, var(--sw-text-2) 12%, transparent);
+      --sc-empty: var(--sw-text-3);
+      --sc-empty-bg: color-mix(in srgb, var(--sw-text-3) 10%, transparent);
+      --sc-night: color-mix(in srgb, var(--sw-text) 4.5%, transparent);
     }
     :host([compact]) {
       --row-h: 32px;
@@ -202,7 +203,7 @@ export class SwScheduleGrid extends LitElement {
       inset-block-end: 2px;
       transform: translateX(-50%);
       color: var(--sw-text-3);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       font-variant-numeric: tabular-nums;
     }
     .hour:first-child {
@@ -215,8 +216,8 @@ export class SwScheduleGrid extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      color: #b45309;
-      font-size: 10px;
+      color: var(--sw-warning-text);
+      font-size: var(--sw-fs-2xs);
       white-space: nowrap;
       direction: rtl;
     }
@@ -249,7 +250,7 @@ export class SwScheduleGrid extends LitElement {
       color: var(--sw-text);
       text-align: start;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       min-inline-size: 0;
     }
     .rowlabel:hover {
@@ -262,7 +263,7 @@ export class SwScheduleGrid extends LitElement {
     }
     .rowlabel small {
       color: var(--sw-text-3);
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
     }
     .row.today .rowlabel b,
     .row.today .rowlabel small {
@@ -274,7 +275,7 @@ export class SwScheduleGrid extends LitElement {
     .track {
       position: relative;
       block-size: var(--row-h);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       background: var(--sw-surface-2);
       border: 1px solid var(--sw-border);
       overflow: hidden;
@@ -357,7 +358,7 @@ export class SwScheduleGrid extends LitElement {
       position: absolute;
       inset-block: 4px;
       box-sizing: border-box;
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
       border-inline-start: 4px solid var(--c);
       background: var(--bg);
@@ -405,7 +406,7 @@ export class SwScheduleGrid extends LitElement {
       z-index: 3;
     }
     .slot:focus-visible {
-      outline: 2px solid var(--sw-focus);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
       z-index: 4;
     }
@@ -462,7 +463,7 @@ export class SwScheduleGrid extends LitElement {
       text-overflow: ellipsis;
     }
     .slot .txt small {
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       opacity: 0.85;
       white-space: nowrap;
       overflow: hidden;
@@ -552,7 +553,7 @@ export class SwScheduleGrid extends LitElement {
     /* a point action: a pin with its label beside it */
     .slot.point {
       border-inline-start-width: 1px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       inset-block: 8px;
       inline-size: 28px;
       min-inline-size: 28px;
@@ -574,7 +575,7 @@ export class SwScheduleGrid extends LitElement {
       max-inline-size: 240px;
       background: color-mix(in srgb, var(--bg) 70%, var(--sw-surface));
       padding: 1px 6px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     .slot.point.flip .txt {
       left: auto;
@@ -589,7 +590,7 @@ export class SwScheduleGrid extends LitElement {
     .ghost {
       position: absolute;
       inset-block: 2px;
-      border-radius: 7px;
+      border-radius: var(--sw-r-xs);
       border: 2px dashed var(--sw-accent);
       background: rgba(39, 103, 237, 0.1);
       z-index: 5;
@@ -604,11 +605,11 @@ export class SwScheduleGrid extends LitElement {
     }
     .ghost span {
       transform: translateY(-115%);
-      background: var(--sw-text);
-      color: #fff;
-      border-radius: 5px;
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
       white-space: nowrap;
       direction: ltr;
       font-variant-numeric: tabular-nums;
@@ -644,7 +645,7 @@ export class SwScheduleGrid extends LitElement {
       inline-size: 32px;
       justify-content: flex-end;
       transform: translateY(-100%);
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
     }
     :host([orientation='vertical']) .mark sw-icon,
     :host([orientation='vertical']) .mark svg {
@@ -733,7 +734,7 @@ export class SwScheduleGrid extends LitElement {
       block-size: 28px;
       min-block-size: 28px;
       inset-inline: 6px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       justify-content: flex-start;
     }
     :host([orientation='vertical']) .slot.point .body {

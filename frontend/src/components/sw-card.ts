@@ -82,9 +82,9 @@ export class SwCard extends LitElement {
       transform: none;
     }
     .fold:focus-visible {
-      outline: 2px solid var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 2px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
     }
     :host([collapsed]) header {
       margin-block-end: 0;

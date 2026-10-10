@@ -52,13 +52,13 @@ export class ScheduleLoweringDialog extends LitElement {
       padding: 12px;
       border-radius: var(--sw-r-md);
       background: var(--sw-danger-soft);
-      color: #991b1b;
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
     .warn.soft {
       background: var(--sw-warning-soft);
-      color: #92400e;
+      color: var(--sw-warning-text);
     }
     .warn sw-icon {
       flex: none;

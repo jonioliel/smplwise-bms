@@ -77,13 +77,13 @@ export class ScenesPanel extends LitElement {
     }
     .sh h2 {
       margin: 0;
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
       font-weight: 700;
       letter-spacing: -0.025em;
     }
     .sh small {
       display: block;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .grid {
@@ -102,7 +102,7 @@ export class ScenesPanel extends LitElement {
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
-      border-radius: 22px;
+      border-radius: var(--sw-r-2xl);
       box-shadow: var(--dv-shadow-1);
     }
     .scard.hid {
@@ -129,10 +129,10 @@ export class ScenesPanel extends LitElement {
       color: var(--dv-accent-text);
     }
     .ico .ic {
-      font-size: 19px;
+      font-size: var(--sw-fs-2xl);
     }
     .badge {
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       font-weight: 600;
       padding: 3px 10px;
       border-radius: 999px;
@@ -148,7 +148,7 @@ export class ScenesPanel extends LitElement {
       gap: 5px;
     }
     .badge .ic {
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .star,
     .eyeb {
@@ -174,7 +174,7 @@ export class ScenesPanel extends LitElement {
     }
     .star .ic,
     .eyeb .ic {
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
     }
     /* hiding a scene of a device is an administrator's chore: with a mouse the control shows on hover or focus, not on every card;
        a touch screen has no hover, so it stays reachable there (quiet, like the star) - otherwise nobody could unhide a scene on a phone */
@@ -190,13 +190,13 @@ export class ScenesPanel extends LitElement {
     }
     h3 {
       margin: 6px 0 0;
-      font-size: 16.5px;
+      font-size: var(--sw-fs-xl);
       font-weight: 700;
       letter-spacing: -0.01em;
       line-height: 1.3;
     }
     .sub {
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       min-block-size: 1.3em;
     }
@@ -235,7 +235,7 @@ export class ScenesPanel extends LitElement {
     .dlgform p {
       margin: 0;
       color: var(--dv-text-2);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .dlgrow {
       display: flex;

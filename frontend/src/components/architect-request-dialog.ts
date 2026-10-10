@@ -33,7 +33,7 @@ export class ArchitectRequestDialog extends LitElement {
       color: var(--sw-text);
       background: var(--sw-surface-2);
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md, 10px);
+      border-radius: var(--sw-r-md);
       user-select: text;
       -webkit-user-select: text;
     }
@@ -52,7 +52,7 @@ export class ArchitectRequestDialog extends LitElement {
       flex: 1 1 100%;
       min-block-size: 1.2em;
       font-size: var(--sw-fs-sm);
-      color: var(--sw-success, #15803d);
+      color: var(--sw-success);
       font-weight: var(--sw-fw-semibold);
     }
     .notice:empty {
@@ -65,7 +65,7 @@ export class ArchitectRequestDialog extends LitElement {
       gap: 6px;
       min-block-size: 36px;
       padding-inline: 16px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border-strong);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);

@@ -52,7 +52,7 @@ export class AutomationCard extends LitElement {
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
-      border-radius: 24px;
+      border-radius: var(--sw-r-2xl);
       box-shadow: var(--dv-shadow-1);
       transition: box-shadow var(--mm-motion) var(--mm-ease), transform var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
@@ -82,7 +82,7 @@ export class AutomationCard extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
       font-weight: 700;
       letter-spacing: -0.015em;
       line-height: 1.25;
@@ -109,7 +109,7 @@ export class AutomationCard extends LitElement {
       align-items: center;
       gap: 0 8px;
       margin-block-start: 3px;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
       min-inline-size: 0;
     }
@@ -119,7 +119,7 @@ export class AutomationCard extends LitElement {
       white-space: nowrap;
     }
     .where .ic {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-3);
     }
     .where .ar {
@@ -149,11 +149,11 @@ export class AutomationCard extends LitElement {
       color: var(--dv-text);
     }
     .more .ic {
-      font-size: 20px;
+      font-size: var(--sw-fs-2xl);
     }
     .sentence-line {
       margin: 0;
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
       line-height: 1.55;
       color: var(--dv-text);
       display: -webkit-box;
@@ -171,7 +171,7 @@ export class AutomationCard extends LitElement {
       align-items: center;
       gap: 8px 12px;
       margin-block-start: auto;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .run {
@@ -188,10 +188,10 @@ export class AutomationCard extends LitElement {
       font-weight: 600;
       text-decoration: none;
       min-block-size: 32px;
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
     }
     a.why .ic {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     a.why:hover {
       text-decoration: underline;
@@ -231,7 +231,7 @@ export class AutomationCard extends LitElement {
     @media (max-width: 767px) {
       .acard {
         padding: 14px 16px 12px;
-        border-radius: 22px;
+        border-radius: var(--sw-r-2xl);
       }
     }
   `];

@@ -207,7 +207,7 @@ export class SystemAudit extends LitElement {
       inline-size: 26px;
       block-size: 26px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       font: inherit;
       font-size: var(--sw-fs-xs);
@@ -217,7 +217,7 @@ export class SystemAudit extends LitElement {
     .pages button.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-text-inverse);
     }
   `, bubbleChrome];
 

@@ -84,7 +84,7 @@ export class AutomationDrawer extends LitElement {
       gap: 6px;
     }
     .desc {
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .blk .chip.warn {
@@ -96,7 +96,7 @@ export class AutomationDrawer extends LitElement {
       gap: 12px;
       min-block-size: 52px;
       padding: 8px 12px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
     }
@@ -111,17 +111,17 @@ export class AutomationDrawer extends LitElement {
       flex: none;
     }
     .dev .bi .ic {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     .dev .bt {
       flex: 1;
       min-inline-size: 0;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .dev .bt small {
       display: block;
       color: var(--dv-text-3);
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
     }
     .run {
       display: flex;
@@ -129,14 +129,14 @@ export class AutomationDrawer extends LitElement {
       gap: 10px;
       min-block-size: 48px;
       padding: 8px 12px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
       color: inherit;
       text-align: start;
       inline-size: 100%;
       box-sizing: border-box;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     a.run,
     button.run {
@@ -179,7 +179,7 @@ export class AutomationDrawer extends LitElement {
       border-radius: var(--dv-radius-control);
       border: 1px solid var(--dv-border);
       background: var(--dv-surface-2);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
       color: var(--dv-text);
     }
@@ -194,7 +194,7 @@ export class AutomationDrawer extends LitElement {
       gap: 4px 10px;
       align-items: center;
       padding: 12px 14px;
-      border-radius: 16px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
     }
@@ -207,16 +207,16 @@ export class AutomationDrawer extends LitElement {
       align-items: center;
       gap: 8px;
       font-weight: 700;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       flex-wrap: wrap;
     }
     .ver .vs {
       grid-column: 1;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     .ver .vm {
       grid-column: 1;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
     }
     .ver .btn {
@@ -229,7 +229,7 @@ export class AutomationDrawer extends LitElement {
       gap: 4px 12px;
       align-items: center;
       padding: 12px 14px;
-      border-radius: 16px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
     }
@@ -244,15 +244,15 @@ export class AutomationDrawer extends LitElement {
       color: var(--dv-text-2);
     }
     .tr .bi .ic {
-      font-size: 17px;
+      font-size: var(--sw-fs-xl);
     }
     .tr b {
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
     }
     .tr small {
       grid-column: 2;
       color: var(--dv-text-2);
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
     }
     .tr .urgent {
       color: var(--dv-danger);
@@ -268,10 +268,10 @@ export class AutomationDrawer extends LitElement {
       align-items: center;
       gap: 10px;
       padding: 10px 12px;
-      border-radius: 14px;
+      border-radius: var(--sw-r-lg);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .dry-row .st {
       display: grid;
@@ -292,12 +292,12 @@ export class AutomationDrawer extends LitElement {
       color: var(--dv-danger);
     }
     .dry-row .st .ic {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     .dry-row .arrow {
       margin-inline-start: auto;
       color: var(--dv-text-2);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
     }
     .skl-stack {
       display: flex;
@@ -313,7 +313,7 @@ export class AutomationDrawer extends LitElement {
       padding: 30px 10px;
     }
     .center b {
-      font-size: 16px;
+      font-size: var(--sw-fs-lg);
     }
     .dlgform {
       display: flex;
@@ -323,7 +323,7 @@ export class AutomationDrawer extends LitElement {
     }
     .dlgform p {
       margin: 0;
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-2);
     }
     .dlgrow {

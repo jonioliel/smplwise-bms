@@ -38,7 +38,7 @@ export class RunTraceView extends LitElement {
       border-radius: var(--dv-radius-md);
       background: var(--dv-surface);
       border: 1px solid var(--dv-border);
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
     }
     .sum dt {
       color: var(--dv-text-2);
@@ -60,13 +60,13 @@ export class RunTraceView extends LitElement {
       align-items: center;
       gap: 8px;
       padding: 8px 14px;
-      font-size: 12.5px;
+      font-size: var(--sw-fs-sm);
       font-weight: 600;
       color: var(--dv-text-2);
       background: var(--dv-surface-3);
     }
     .sec > h5 .ic {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
     }
     .sec > h5 .cnt {
       margin-inline-start: auto;
@@ -94,7 +94,7 @@ export class RunTraceView extends LitElement {
       color: var(--dv-text-2);
     }
     .row .st .ic {
-      font-size: 15px;
+      font-size: var(--sw-fs-lg);
     }
     .row.ok .st {
       background: var(--dv-success-soft);
@@ -113,7 +113,7 @@ export class RunTraceView extends LitElement {
       color: var(--au-warn-text);
     }
     .row .tx {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       line-height: 1.45;
       min-inline-size: 0;
       overflow-wrap: anywhere;
@@ -123,14 +123,14 @@ export class RunTraceView extends LitElement {
     }
     .row .err {
       color: var(--dv-danger);
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       margin-block-start: 2px;
     }
     .row .meta {
       grid-row: 1 / span 2;
       grid-column: 3;
       text-align: end;
-      font-size: 12px;
+      font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
       font-variant-numeric: tabular-nums;
       display: flex;
@@ -142,7 +142,7 @@ export class RunTraceView extends LitElement {
     .row .meta code,
     .row .path {
       font-family: var(--sw-font-mono, ui-monospace, 'SF Mono', Menlo, monospace);
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       color: var(--dv-text-2);
       direction: ltr;
       unicode-bidi: isolate;
@@ -160,9 +160,9 @@ export class RunTraceView extends LitElement {
     }
     .vars span {
       font-family: var(--sw-font-mono, ui-monospace, 'SF Mono', Menlo, monospace);
-      font-size: 11.5px;
+      font-size: var(--sw-fs-xs);
       padding: 2px 8px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--dv-surface-3);
       color: var(--dv-text);
       direction: ltr;
@@ -176,7 +176,7 @@ export class RunTraceView extends LitElement {
     }
     .skip-note {
       padding: 10px 14px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .vlist {

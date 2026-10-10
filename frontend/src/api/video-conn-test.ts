@@ -67,7 +67,7 @@ export interface ParsedCandidate {
   component: number;
 }
 
-/** One ICE candidate line (`candidate:… typ host …`, with or without the `a=` prefix) as type / protocol / address CLASS. */
+/** One ICE candidate line (`candidate:… typ host …`, with or without the `a= ` prefix) as type / protocol / address CLASS. */
 export function parseCandidate(line: string): ParsedCandidate | null {
   const t = line.trim().replace(/^a=/, '').replace(/^candidate:/, '').split(/\s+/);
   // foundation component protocol priority address port typ <type> …

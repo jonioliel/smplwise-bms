@@ -56,7 +56,7 @@ export class InfraElectricity extends LitElement {
       flex-direction: column;
       gap: 14px;
       min-block-size: 100%;
-      padding: 14px var(--sw-page-pad, 24px) 24px;
+      padding: 14px var(--sw-page-pad) 24px;
       max-inline-size: var(--sw-content-max);
       inline-size: 100%;
       box-sizing: border-box;

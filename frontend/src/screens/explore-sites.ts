@@ -51,11 +51,11 @@ export class ExploreSites extends LitElement {
       position: absolute;
       inset-inline-end: 8px;
       inset-block-start: 8px;
-      font-size: 9.5px;
+      font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
       background: rgba(17, 24, 39, 0.5);
       color: #fff;
-      border-radius: 4px;
+      border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
     .info {
@@ -122,7 +122,7 @@ export class ExploreSites extends LitElement {
     .brow sw-scene {
       inline-size: 64px;
       block-size: 44px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       flex-shrink: 0;
     }
     .brow b {
@@ -157,7 +157,7 @@ export class ExploreSites extends LitElement {
     img.photo.small {
       inline-size: 64px;
       block-size: 44px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       flex-shrink: 0;
     }
     .map {

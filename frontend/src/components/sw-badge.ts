@@ -42,7 +42,7 @@ export class SwBadge extends LitElement {
       white-space: nowrap;
     }
     :host([onimage]) {
-      background: rgba(255, 255, 255, 0.92);
+      background: var(--sw-on-image-bg);
       color: var(--sw-text);
       box-shadow: var(--sw-shadow-1);
     }
@@ -62,7 +62,7 @@ export class SwBadge extends LitElement {
       animation: pulse 1.6s ease-in-out infinite;
     }
     :host([onimage][kind='live']) {
-      background: rgba(255, 255, 255, 0.92);
+      background: var(--sw-on-image-bg);
       color: var(--sw-text);
     }
     :host([kind='recorded']),

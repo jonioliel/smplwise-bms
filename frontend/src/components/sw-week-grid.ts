@@ -84,7 +84,7 @@ export class SwWeekGrid extends LitElement {
     .h {
       color: var(--sw-text-3);
       text-align: center;
-      font-size: 10px;
+      font-size: var(--sw-fs-2xs);
     }
     .d {
       color: var(--sw-text-2);

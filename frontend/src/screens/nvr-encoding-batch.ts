@@ -150,11 +150,11 @@ export class NvrEncodingBatch extends LitElement {
       flex: none;
       inline-size: 20px;
       block-size: 20px;
-      border-radius: 5px;
+      border-radius: var(--sw-r-2xs);
       border: 2px solid var(--sw-border-strong);
       display: grid;
       place-items: center;
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
     }
     .sel[aria-checked='true'] .box {
       background: var(--sw-accent);

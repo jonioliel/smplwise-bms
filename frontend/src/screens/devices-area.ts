@@ -102,7 +102,7 @@ const AREA_DESIGN = css`
     font-weight: var(--sw-fw-medium);
   }
   .sec-chip.ok span {
-    color: var(--sw-success, #16a34a);
+    color: var(--sw-success);
     font-weight: var(--sw-fw-medium);
   }
   .sec-chip.warn span {
@@ -195,7 +195,7 @@ const AREA_DESIGN = css`
     font-size: var(--sw-fs-xs);
     padding: 3px 6px;
     border: 1px solid var(--sw-border-strong);
-    border-radius: 7px;
+    border-radius: var(--sw-r-xs);
     background: var(--sw-surface);
     color: var(--sw-text);
   }

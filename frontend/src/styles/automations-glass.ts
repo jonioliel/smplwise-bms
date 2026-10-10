@@ -31,14 +31,14 @@ export const automationsControls = css`
     block-size: 26px;
     padding-inline: 10px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     font-weight: 600;
     white-space: nowrap;
     background: var(--dv-surface-3);
     color: var(--dv-text-2);
     border: 1px solid transparent;
   }
-  .chip .ic { font-size: 13px; }
+  .chip .ic { font-size: var(--sw-fs-base); }
   .chip.ok { background: var(--dv-success-soft); color: var(--au-ok-text); }
   .chip.info { background: var(--dv-accent-soft); color: var(--dv-accent-text); }
   .chip.warn { background: var(--dv-warning-soft); color: var(--au-warn-text); }
@@ -46,8 +46,8 @@ export const automationsControls = css`
   /* the sensitive chip: amber (default) or red, the owner's setting */
   .chip.sens { background: var(--au-sens-bg, var(--dv-warning-soft)); color: var(--au-sens-fg, var(--au-warn-text)); }
   .dot { inline-size: 8px; block-size: 8px; border-radius: 50%; flex: none; background: var(--dv-offline, #98989d); }
-  .dot.ok { background: #30d158; }
-  .dot.bad { background: #ff453a; }
+  .dot.ok { background: var(--sw-success); }
+  .dot.bad { background: var(--sw-danger); }
   .dot.run { background: var(--dv-accent); box-shadow: 0 0 0 3px var(--dv-accent-soft); }
   /* banners above a list or inside the drawer */
   .banner {
@@ -60,13 +60,13 @@ export const automationsControls = css`
     background: var(--dv-surface);
     -webkit-backdrop-filter: var(--dv-surface-blur);
     backdrop-filter: var(--dv-surface-blur);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
     color: var(--dv-text);
   }
-  .banner > .ic { font-size: 20px; flex: none; }
-  .banner b { display: block; font-size: 14px; font-weight: 700; }
-  .banner small { display: block; font-size: 12.5px; font-weight: 500; color: var(--dv-text-2); margin-block-start: 2px; }
+  .banner > .ic { font-size: var(--sw-fs-2xl); flex: none; }
+  .banner b { display: block; font-size: var(--sw-fs-md); font-weight: 700; }
+  .banner small { display: block; font-size: var(--sw-fs-sm); font-weight: 500; color: var(--dv-text-2); margin-block-start: 2px; }
   .banner.warn { background: linear-gradient(var(--dv-warning-soft), var(--dv-warning-soft)), var(--dv-surface); border-color: color-mix(in srgb, var(--dv-warning) 38%, transparent); }
   .banner.warn > .ic { color: var(--au-warn-text); }
   .banner.bad { background: linear-gradient(var(--dv-danger-soft), var(--dv-danger-soft)), var(--dv-surface); border-color: color-mix(in srgb, var(--dv-danger) 30%, transparent); }
@@ -82,12 +82,12 @@ export const automationsControls = css`
     border-radius: var(--dv-radius-md);
     background: var(--dv-accent-soft);
     color: var(--dv-text);
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
     font-weight: 500;
     line-height: 1.55;
   }
-  .sentence > .ic { font-size: 20px; color: var(--dv-accent-text); flex: none; margin-block-start: 2px; }
-  .sentence small { display: block; font-size: 12.5px; color: var(--dv-text-2); margin-block-start: 3px; font-weight: 500; }
+  .sentence > .ic { font-size: var(--sw-fs-2xl); color: var(--dv-accent-text); flex: none; margin-block-start: 2px; }
+  .sentence small { display: block; font-size: var(--sw-fs-sm); color: var(--dv-text-2); margin-block-start: 3px; font-weight: 500; }
   /* drawer sections: כאשר / אם / אז, devices, runs */
   .sect { display: flex; flex-direction: column; gap: 8px; }
   .sect > h4 {
@@ -95,7 +95,7 @@ export const automationsControls = css`
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     font-weight: 600;
     color: var(--dv-text-2);
   }
@@ -105,12 +105,12 @@ export const automationsControls = css`
     place-items: center;
     inline-size: 22px;
     block-size: 22px;
-    border-radius: 7px;
+    border-radius: var(--sw-r-xs);
     color: #fff;
     background: var(--dv-accent);
   }
-  .sect > h4 .tag .ic { font-size: 13px; }
-  .sect > h4 .tag.t1 { background: #ff9f0a; }
+  .sect > h4 .tag .ic { font-size: var(--sw-fs-base); }
+  .sect > h4 .tag.t1 { background: var(--sw-warning); }
   .sect > h4 .tag.t2 { background: #8e8e93; }
   .sect > h4 .tag.t3 { background: var(--dv-accent); }
   .blk {
@@ -119,10 +119,10 @@ export const automationsControls = css`
     gap: 12px;
     min-block-size: 48px;
     padding: 8px 12px;
-    border-radius: 14px;
+    border-radius: var(--sw-r-lg);
     background: var(--dv-surface);
     border: 1px solid var(--dv-border);
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     min-inline-size: 0;
   }
   .blk .bi {
@@ -135,16 +135,16 @@ export const automationsControls = css`
     background: var(--dv-surface-3);
     color: var(--dv-text-2);
   }
-  .blk .bi .ic { font-size: 16px; }
+  .blk .bi .ic { font-size: var(--sw-fs-lg); }
   .blk .bt { flex: 1; min-inline-size: 0; }
-  .blk .bt small { display: block; color: var(--dv-text-3); font-size: 12px; }
+  .blk .bt small { display: block; color: var(--dv-text-3); font-size: var(--sw-fs-sm); }
   .blk.locked { border-style: dashed; background: var(--dv-surface-2); }
   .blk.nested { margin-inline-start: 22px; }
   .blk .chip { flex: none; }
-  .tpl-badge { direction: ltr; font-family: var(--sw-font-mono, monospace); font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--dv-surface-3); color: var(--dv-text-2); }
+  .tpl-badge { direction: ltr; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xs); padding: 1px 6px; border-radius: var(--sw-r-xs); background: var(--dv-surface-3); color: var(--dv-text-2); }
   /* a small round back / close button on a sheet header */
   .rb.sm { inline-size: 36px; block-size: 36px; }
-  .rb.sm .ic { font-size: 16px; }
+  .rb.sm .ic { font-size: var(--sw-fs-lg); }
   /* sheet footer and its buttons */
   .foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .foot .btn { flex: none; }
@@ -153,7 +153,7 @@ export const automationsControls = css`
     display: flex;
     flex-direction: column;
     gap: 5px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--dv-text-2);
     min-inline-size: 0;
   }
@@ -166,13 +166,13 @@ export const automationsControls = css`
     background: var(--dv-surface-2);
     color: var(--dv-text);
     font: inherit;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     min-inline-size: 0;
   }
   .inp:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 1px; }
   select.inp { padding-inline: 10px; }
   .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .empty-note { color: var(--dv-text-2); font-size: 13.5px; padding: 6px 2px; }
+  .empty-note { color: var(--dv-text-2); font-size: var(--sw-fs-base); padding: 6px 2px; }
   @media (pointer: coarse), (max-width: 767px) {
     .rb.sm { inline-size: 44px; block-size: 44px; }
     .chip { block-size: 28px; }

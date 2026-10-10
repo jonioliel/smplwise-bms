@@ -202,7 +202,7 @@ export class SwRemoteSessions extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .ok {
-      color: #15803d;
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-xs);
     }
     .err {

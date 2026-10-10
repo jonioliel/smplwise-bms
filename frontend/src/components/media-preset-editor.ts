@@ -45,7 +45,7 @@ export class MediaPresetEditor extends LitElement {
       min-block-size: 44px;
       padding-inline: 12px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
@@ -72,7 +72,7 @@ export class MediaPresetEditor extends LitElement {
       min-block-size: 48px;
       padding: 4px 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 12px;
+      border-radius: var(--sw-r-md);
     }
     .row.off {
       opacity: 0.5;

@@ -40,7 +40,7 @@ export class SwShareMembers extends LitElement {
     }
     h4 {
       margin: 0 0 6px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       font-weight: 600;
     }
     .row {
@@ -48,8 +48,8 @@ export class SwShareMembers extends LitElement {
       align-items: center;
       gap: 8px;
       padding: 6px 0;
-      border-top: 1px solid var(--sw-border, rgba(0, 0, 0, 0.08));
-      font-size: 13px;
+      border-top: 1px solid var(--sw-border);
+      font-size: var(--sw-fs-base);
     }
     .row .main {
       flex: 1;
@@ -57,8 +57,8 @@ export class SwShareMembers extends LitElement {
     }
     .row .main span {
       display: block;
-      color: var(--sw-text-3, #6b7280);
-      font-size: 12px;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
     }
     .ic {
       width: 16px;
@@ -69,24 +69,24 @@ export class SwShareMembers extends LitElement {
       stroke-width: 1.6;
       stroke-linecap: round;
       stroke-linejoin: round;
-      color: var(--sw-text-2, #374151);
+      color: var(--sw-text-2);
     }
     .search {
       flex: 1 1 100%;
       font: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       padding: 4px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--sw-border, rgba(0, 0, 0, 0.15));
-      background: var(--sw-surface, #fff);
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
       color: inherit;
     }
     .kind {
-      font-size: 11px;
+      font-size: var(--sw-fs-xs);
       padding: 1px 6px;
-      border-radius: 8px;
-      background: var(--sw-surface-2, rgba(0, 0, 0, 0.05));
-      color: var(--sw-text-2, #374151);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
       white-space: nowrap;
     }
     .add {
@@ -99,21 +99,21 @@ export class SwShareMembers extends LitElement {
       flex: 1;
       min-width: 140px;
       font: inherit;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       padding: 4px 6px;
-      border-radius: 8px;
-      border: 1px solid var(--sw-border, rgba(0, 0, 0, 0.15));
-      background: var(--sw-surface, #fff);
+      border-radius: var(--sw-r-sm);
+      border: 1px solid var(--sw-border);
+      background: var(--sw-surface);
       color: inherit;
     }
     .note,
     .err {
-      font-size: 12px;
-      color: var(--sw-text-3, #6b7280);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-3);
       margin-top: 6px;
     }
     .err {
-      color: var(--sw-error, #b91c1c);
+      color: var(--sw-error, var(--sw-danger-text));
     }
   `;
 

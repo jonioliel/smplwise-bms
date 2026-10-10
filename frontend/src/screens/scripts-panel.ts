@@ -55,7 +55,7 @@ export class ScriptsPanel extends LitElement {
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border: 1px solid var(--dv-border);
-      border-radius: 24px;
+      border-radius: var(--sw-r-2xl);
       box-shadow: var(--dv-shadow-1);
     }
     .pcard.running {
@@ -73,7 +73,7 @@ export class ScriptsPanel extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: 18px;
+      font-size: var(--sw-fs-xl);
       font-weight: 700;
       letter-spacing: -0.015em;
       line-height: 1.25;
@@ -105,7 +105,7 @@ export class ScriptsPanel extends LitElement {
       align-items: center;
       gap: 0 8px;
       margin-block-start: 3px;
-      font-size: 13.5px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .where b {
@@ -113,7 +113,7 @@ export class ScriptsPanel extends LitElement {
       font-weight: 700;
     }
     .where .ic {
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       color: var(--dv-text-3);
     }
     .go {
@@ -127,7 +127,7 @@ export class ScriptsPanel extends LitElement {
     }
     p {
       margin: 0;
-      font-size: 14.5px;
+      font-size: var(--sw-fs-md);
       line-height: 1.55;
       display: -webkit-box;
       -webkit-line-clamp: 3;
@@ -143,7 +143,7 @@ export class ScriptsPanel extends LitElement {
       flex-wrap: wrap;
       align-items: center;
       gap: 8px 12px;
-      font-size: 13px;
+      font-size: var(--sw-fs-base);
       color: var(--dv-text-2);
     }
     .runl {
@@ -164,7 +164,7 @@ export class ScriptsPanel extends LitElement {
     .dlgform p {
       min-block-size: 0;
       color: var(--dv-text-2);
-      font-size: 14px;
+      font-size: var(--sw-fs-md);
       display: block;
     }
     .dlgrow {

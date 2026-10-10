@@ -265,7 +265,7 @@ export class ExploreFloorMap extends LitElement {
       display: inline-flex;
       gap: 2px;
       background: var(--sw-surface-3);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 2px;
     }
     .layers button {
@@ -273,7 +273,7 @@ export class ExploreFloorMap extends LitElement {
       background: transparent;
       inline-size: 28px;
       block-size: 26px;
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       display: grid;
       place-items: center;
       color: var(--sw-text-3);
@@ -312,7 +312,7 @@ export class ExploreFloorMap extends LitElement {
       font-weight: var(--sw-fw-semibold);
       min-inline-size: 38px;
       padding: 6px 8px;
-      border-radius: 9px;
+      border-radius: var(--sw-r-sm);
       border: 1px solid var(--sw-border);
       background: var(--sw-surface);
       color: var(--sw-text-2);
@@ -323,7 +323,7 @@ export class ExploreFloorMap extends LitElement {
     .floorbtns button.on {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
-      color: #fff;
+      color: var(--sw-on-video);
     }
     .jz {
       display: flex;
@@ -386,7 +386,7 @@ export class ExploreFloorMap extends LitElement {
       gap: 6px;
       background: var(--sw-surface);
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       padding: 6px 10px;
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
@@ -434,7 +434,7 @@ export class ExploreFloorMap extends LitElement {
       text-align: start;
       padding: 6px 10px;
       border: 1px solid var(--sw-border);
-      border-radius: 10px;
+      border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       box-shadow: var(--sw-shadow-1);
       font: inherit;
@@ -475,7 +475,7 @@ export class ExploreFloorMap extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
       background: var(--sw-surface);
-      border-radius: 8px;
+      border-radius: var(--sw-r-sm);
       padding: 4px 8px;
     }
     .circuits .err {
@@ -609,7 +609,7 @@ export class ExploreFloorMap extends LitElement {
       margin-inline-start: 4px;
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-regular, 400);
+      font-weight: var(--sw-fw-regular);
     }
     .shared-members {
       position: absolute;
@@ -824,7 +824,7 @@ export class ExploreFloorMap extends LitElement {
       font: inherit;
       font-size: var(--sw-fs-xs);
       border: 1px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       padding: 3px 6px;
       background: var(--sw-surface);
       color: var(--sw-text);
@@ -890,7 +890,7 @@ export class ExploreFloorMap extends LitElement {
       font: inherit;
       padding: 6px 8px;
       border: 1px solid var(--sw-border-strong);
-      border-radius: 6px;
+      border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
       color: inherit;
     }
@@ -965,7 +965,7 @@ export class ExploreFloorMap extends LitElement {
         inline-size: auto;
         max-inline-size: none;
         block-size: 38%;
-        border-radius: var(--sw-r-lg, 14px) var(--sw-r-lg, 14px) 0 0;
+        border-radius: var(--sw-r-lg) var(--sw-r-lg) 0 0;
         border-block-end: 0;
         transition: block-size 0.2s ease;
       }
