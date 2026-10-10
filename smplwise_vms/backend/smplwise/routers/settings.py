@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import app_download, area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, plan_view, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -123,6 +123,11 @@ DEFAULTS: dict[str, str] = {
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
     "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
     "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
+    # CR-029 S0 (Plan Studio 6, LOOK_SPEC section 10): the installation's look dials of the realistic 3D and the walk - a JSON object
+    # read back as an object (services/plan_view.py: style, furniture models / procedural, texture files / procedural, wall display
+    # live / stills, kiosk idle seconds, time source, mouse look, quality rung, eye height, DPR cap, section cut, temperatures, motion).
+    # A person's own override (/plan-view/prefs) wins per dial; the default view stays schematic for everyone (owner 2026-10-09).
+    "plan.view": json.dumps({k: plan_view.DEFAULT[k] for k in plan_view.SITE_DIALS}, separators=(",", ":")),
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
@@ -332,6 +337,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
     out["plan.surfaces"] = stored_plan_surfaces(out["plan.surfaces"])
+    out["plan.view"] = plan_view.stored_site(out["plan.view"])
     out["home.widgets"] = home_screen.effective_config(conn)
     out["multimedia.remote_default"] = _stored_remote_default(out["multimedia.remote_default"])
     out["multimedia.favourites"] = _stored_favourites(conn)
@@ -560,6 +566,7 @@ class SettingsPatch(BaseModel):
     plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
+    plan_view: dict[str, Any] | None = Field(default=None, alias="plan.view")  # CR-029 S0: a partial update of the dials, validated in full by services/plan_view.py
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
     ai_privacy_ack: str | None = Field(default=None, pattern="^(true|false)$", alias="ai.privacy_ack")
     ai_budget_daily: int | None = Field(default=None, ge=0, le=100000, alias="ai.budget_daily")
@@ -752,6 +759,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if bad:
             raise ApiError(422, "validation", "מיקומי התוכנית החיה: ערך לא מוכר.", details={"plan.surfaces": bad})
         changes["plan.surfaces"] = [c for c in PLAN_SURFACES if c in changes["plan.surfaces"]]
+    if "plan.view" in changes:
+        try:  # a partial update over the stored dials (the defaults when nothing was saved)
+            changes["plan.view"] = plan_view.normalize_site(changes["plan.view"], plan_view.stored_site(get_setting(conn, "plan.view", DEFAULTS["plan.view"])))
+        except ValueError as exc:
+            raise ApiError(422, "validation", "הגדרות התלת־ממד הריאליסטי: ערך לא תקין.", details={"plan.view": str(exc)})
     if "schedules.classes" in changes:
         bad = [c for c in changes["schedules.classes"] if c not in SCHEDULE_CLASSES]
         if bad:
@@ -836,7 +848,7 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         if key == "home.widgets":
             set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value else "")
             continue
-        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
+        set_setting(conn, key, json.dumps(value, ensure_ascii=False, separators=(",", ":")) if key in ("ui.tabs", "ui.nav_size", "ui.look", "ui.palettes", "ui.tabs_mode_groups", "ui.dd_style_groups", "ui.dd_size_groups", "ui.dd_ring_groups", "ui.dd_panel_groups", "ui.mobile", "timeline.colors", "schedules.classes", "plan.surfaces", "plan.view", "devices.area_row", "devices.floor_row", "multimedia.remote_default", *automation_settings.JSON_KEYS) else str(value))
     if "schedules.classes" in changes:
         set_setting(conn, CLASSES_REV_KEY, "2")  # from now on the list is read as saved (the 2026-10-04 classes can be switched off)
     if changes.get("schedules.enabled") == "true":  # CR-014: the feature was just switched on - start listening to the component now
