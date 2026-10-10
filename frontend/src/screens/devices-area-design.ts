@@ -36,21 +36,48 @@ export const BULK_LOOK_LABEL: Record<BulkLook, string> = { icon: 'אייקון �
 export interface SectionBulkAction {
   kind: BulkKind;
   label: string;
-  icon: 'power' | 'arrowUp' | 'arrowDown';
+  icon: 'power' | 'bolt' | 'arrowUp' | 'arrowDown';
+  /** ALLON (owner 2026-10-10): a "turn on" action is offered only while the section holds a device of this domain that it
+   * could turn on - one that is off, available and (a switch) not protected from group actions (`sectionBulkShown`). */
+  turnsOn?: 'light' | 'switch';
 }
 
 /** Which built-in sections have a bulk button and what it does. Registry-driven: another kind of section is one entry
  * (media: `media: [{ kind: 'screens_off', label: 'כבה הכל', icon: 'power' }]` - the server already has screens_off; it stays
- * off here until the owner asks for it). Every action goes through the confirmation dialog of the bulk flow. */
+ * off here until the owner asks for it). Every action goes through the confirmation dialog of the bulk flow.
+ *
+ * ALLON (owner 2026-10-10: "like there is turn-all-off there must be turn-all-on"): lighting and switches pair "הדלק הכל"
+ * with "כבה הכל" - "on" first, so in RTL it reads first (right), as "פתח" precedes "סגור". Climate stays off-only (what "on"
+ * means - which mode, which set point - is not one thing); covers already have open / close. */
 export const SECTION_BULK: Partial<Record<CardId, SectionBulkAction[]>> = {
-  lighting: [{ kind: 'lights_off', label: 'כבה הכל', icon: 'power' }],
-  switches: [{ kind: 'switches_off', label: 'כבה הכל', icon: 'power' }],
+  lighting: [
+    { kind: 'lights_on', label: 'הדלק הכל', icon: 'bolt', turnsOn: 'light' },
+    { kind: 'lights_off', label: 'כבה הכל', icon: 'power' },
+  ],
+  switches: [
+    { kind: 'switches_on', label: 'הדלק הכל', icon: 'bolt', turnsOn: 'switch' },
+    { kind: 'switches_off', label: 'כבה הכל', icon: 'power' },
+  ],
   covers: [
     { kind: 'covers_open', label: 'פתח', icon: 'arrowUp' },
     { kind: 'covers_close', label: 'סגור', icon: 'arrowDown' },
   ],
   climate: [{ kind: 'climate_off', label: 'כבה הכל', icon: 'power' }],
 };
+
+/** Whether a section's bulk button is drawn for these rows (the section's own devices). The "off" / cover buttons keep their
+ * rule (the section has devices - the caller checks); a "turn on" button only while something could be turned on: a device of
+ * its domain that is available, not on, and - a switch - not left out of group actions (protected, the door layer, the alarm).
+ * A hint only: the server's preview decides, and states, exactly what is sent. */
+export function sectionBulkShown(a: SectionBulkAction, rows: readonly DeviceRow[]): boolean {
+  if (!a.turnsOn) return true;
+  return rows.some((r) => r.domain === a.turnsOn && r.available && !r.active && r.state !== 'unavailable' && !r.alarm_managed && (r.bulk_reason === undefined || r.bulk_reason === 'allowed'));
+}
+
+/** The registry's buttons a section shows now (see `sectionBulkShown`). */
+export function sectionBulkActions(card: CardId, rows: readonly DeviceRow[]): SectionBulkAction[] {
+  return (SECTION_BULK[card] ?? []).filter((a) => sectionBulkShown(a, rows));
+}
 
 export function isBulkLook(v: unknown): v is BulkLook {
   return v === 'icon' || v === 'text' || v === 'both';

@@ -20,6 +20,12 @@ export type BulkKind = 'lights_off' | 'covers_close' | 'covers_open' | 'covers_s
 export type BulkOutcome = 'queued' | 'accepted' | 'confirmed' | 'sent' | 'not_confirmed' | 'refused' | 'unknown';
 
 export const BULK_KINDS: BulkKind[] = ['lights_off', 'covers_close', 'climate_off', 'heating_off', 'screens_off', 'all_off'];
+/** ALLON (owner 2026-10-10, "like there is turn-all-off there must be turn-all-on"): the floor / area quick-actions menu
+ * offers "הדלק תאורה" right after "כבה תאורה". No "turn everything on" - what "on" means for climate, covers and screens is
+ * not one thing - so "כבה הכל" has no mirror. */
+export const BULK_MENU_KINDS: BulkKind[] = ['lights_off', 'lights_on', 'covers_close', 'climate_off', 'heating_off', 'screens_off', 'all_off'];
+/** The kinds that turn something ON (the server's device_bulk.ON_KINDS): they look for devices that are off. */
+export const BULK_ON_KINDS: ReadonlySet<BulkKind> = new Set<BulkKind>(['switches_on', 'lights_on', 'screens_on']);
 /** The cover group control's own four actions (devices-area.ts): open all / stop all / close all / position all. */
 export const COVER_GROUP_KINDS: BulkKind[] = ['covers_open', 'covers_stop', 'covers_close', 'covers_position'];
 

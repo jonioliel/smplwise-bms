@@ -804,8 +804,10 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:
         raise act.refuse(ApiError(409, "target_changed", "רשימת ההתקנים השתנתה מאז שנפתח חלון האישור, ולכן לא נשלח דבר. פתחו את הפעולה מחדש.", details={"count": plan["count"]}))
+    turning_on = body.kind in bulk.ON_KINDS  # ALLON: "הדלק הכל" - the words must be true for a kind that turns something ON
     if not plan["count"]:
-        raise act.refuse(ApiError(409, "nothing_to_do", "אין מה לשלוח: לפי הדיווח האחרון אין בהיקף הזה התקן פעיל מהסוג הזה.", details={"skipped": plan["skipped"]}))
+        why = "אין בהיקף הזה התקן כבוי מהסוג הזה" if turning_on else "אין בהיקף הזה התקן פעיל מהסוג הזה"
+        raise act.refuse(ApiError(409, "nothing_to_do", f"אין מה לשלוח: לפי הדיווח האחרון {why}.", details={"skipped": plan["skipped"]}))
     settings = settings_of(request)
     if principal.source not in ("ingress", "remote") and not settings.dev_user:  # CR-008: the Arx remote channel is the same HA user
         raise act.refuse(ApiError(403, "identity_unmapped", "לא ניתן למפות את הזהות לפעולת ההתקן."))
@@ -835,7 +837,7 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
         if not started:
             bulk.RUNNER.release(bulk_id)
     out = bulk.load(conn, bulk_id)
-    out["note"] = "הבקשה התקבלה ונשלחת להתקנים. התקן נחשב כבוי רק כשמתקבל דיווח על כך."
+    out["note"] = f"הבקשה התקבלה ונשלחת להתקנים. התקן נחשב {'דולק' if turning_on else 'כבוי'} רק כשמתקבל דיווח על כך."
     return out
 
 

@@ -9,8 +9,9 @@ import { ApiError, describeError } from '../api/client';
 import type { DeviceCounts } from '../api/devices';
 import { ALARM_HE } from '../api/devices';
 import {
-  BULK_KINDS,
   BULK_KIND_LABEL,
+  BULK_MENU_KINDS,
+  BULK_ON_KINDS,
   BULK_SCOPE_LABEL,
   OUTCOME_LABEL,
   bulkHeadline,
@@ -40,6 +41,8 @@ export interface BulkRequest {
  * preview is what the dialog states and what is sent). */
 export function activeFor(kind: BulkKind, c: DeviceCounts): number {
   if (kind === 'lights_off') return c.lights_on;
+  if (kind === 'lights_on') return Math.max(0, c.lights - c.lights_on); // ALLON: the lights that are not on (an unavailable one too - the preview counts it apart)
+  if (kind === 'switches_on') return Math.max(0, c.switches - c.switches_on);
   if (kind === 'covers_close') return c.covers_open;
   if (kind === 'climate_off') return c.climate_active;
   if (kind === 'heating_off') return c.heating_active;
@@ -50,7 +53,8 @@ export function activeFor(kind: BulkKind, c: DeviceCounts): number {
 /** Owner feedback 2026-09-29 ("hide empty domains"): a quick action for a domain the scope has no entity of at all
  * is not offered (no covers → no "סגור תריסים"); "כבה הכל" always is. The server's preview still decides what is sent. */
 export function presentFor(kind: BulkKind, c: DeviceCounts): boolean {
-  if (kind === 'lights_off') return c.lights > 0;
+  if (kind === 'lights_off' || kind === 'lights_on') return c.lights > 0;
+  if (kind === 'switches_off' || kind === 'switches_on') return c.switches > 0;
   if (kind === 'covers_close' || kind === 'covers_open' || kind === 'covers_stop' || kind === 'covers_position') return c.covers > 0;
   if (kind === 'climate_off') return c.climate > 0;
   if (kind === 'heating_off') return c.heating > 0;
@@ -468,11 +472,12 @@ export class DevicesBulkMenu extends LitElement {
       <div class="title">${BULK_SCOPE_LABEL[this.scope]} · ${bidi(this.targetName)}</div>
       ${this.variant === 'popover' && c ? this.renderChips(c) : nothing}
       ${this.actions
-        ? html`${BULK_KINDS.filter((k) => !c || presentFor(k, c)).map((k) => {
+        ? html`${BULK_MENU_KINDS.filter((k) => !c || presentFor(k, c)).map((k) => {
               const n = c ? activeFor(k, c) : null;
+              const on = BULK_ON_KINDS.has(k); // ALLON: an ON kind counts what is off
               const label = k === 'all_off' ? `${BULK_KIND_LABEL[k]}${this.scope === 'area' ? ' באזור' : this.scope === 'floor' ? ' בקומה' : ''} · אישור` : BULK_KIND_LABEL[k];
               return html`<button class=${classMap({ item: true, all: k === 'all_off' })} role="menuitem" data-bulk-kind=${k} ?disabled=${n === 0} @click=${() => this.pick(k)}>
-                <sw-icon .name=${KIND_ICON[k]} size=${14}></sw-icon>${label}${n !== null ? html`<span class="n">${n === 0 ? 'אין פעילים' : `${ltrNum(n)} פעילים`}</span>` : nothing}
+                <sw-icon .name=${KIND_ICON[k]} size=${14}></sw-icon>${label}${n !== null ? html`<span class="n">${n === 0 ? (on ? 'אין כבויים' : 'אין פעילים') : `${ltrNum(n)} ${on ? 'כבויים' : 'פעילים'}`}</span>` : nothing}
               </button>`;
             })}
             <div class="foot">כל פעולה נפתחת בחלון אישור. מנעולים ואזעקה אינם נכללים.</div>`

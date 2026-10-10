@@ -12,7 +12,8 @@
         "evidence-plan-glass.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-plan-glass-entity.spec.ts": {"gate": false, "projects": ["desktop", "mobile"]},
         "evidence-lat1-instant-toggle.spec.ts": {"gate": false, "projects": ["desktop"]},
-        "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]}
+        "evidence-devices.spec.ts": {"gate": false, "projects": ["desktop"]},
+        "evidence-area-redesign.spec.ts": {"gate": false, "projects": ["desktop", "tablet", "mobile"]}
       }
     },
     "devices_floor": {
