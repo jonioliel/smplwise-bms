@@ -75,7 +75,30 @@ that changes the update path. Later (not urgent): signed releases and an integri
 - Release-notes text of the NEWER version on the Updates page: only the infrastructure has it (`/addons/self/changelog` or the
   store), which conflicts with the rule "no upstream text echoed or stored" and is an unverified lab assumption. Needs an owner and
   security decision (option: render it as plain text, escaped, size-capped, never stored).
-- An admin switch that turns the in-app update off: the feature ships on for `system.update` holders by owner decision; a switch is
-  an open owner question (`docs/changes/CR021-S3-STATUS.md`).
+- (Built in 2.4.4: the admin switch that turns the in-app update off - section 6.)
 - Release signing and an integrity check: needs a signing key decision.
 - Notification to all administrators on each platform restart (review finding 4 suggestion, owner decision).
+
+## 6. The self-update switch (2.4.4, owner request 2026-10-10)
+
+Settings > Updates carries a switch "Install updates from Arx" (setting `update.apply_enabled`, `"true"` by default = the behaviour
+before 2.4.4). It answers the open question of section 5.
+
+- **What OFF does.** `POST /system/update/apply` is refused with 409 `self_update_disabled` after the permission, the same-origin
+  check and the body, and before the infrastructure is asked anything or a run row is written; the refusal is audited
+  (`system.update.apply`, `denied`, reason `self_update_disabled`). A replayed idempotency key still returns its existing run (nothing new
+  starts). The update worker reads the switch again just before the one update call: switched off in between, the run ends as
+  `failed / self_update_disabled` and the call is never sent. The Updates page shows the switch and, instead of the "Update" button, a
+  plain notice; `GET /system/update/state` carries `apply_enabled`.
+- **What OFF never does (no lock-out).** It does not touch the infrastructure, the add-on manifest (`hassio_role`, `backup: hot`) or
+  the store. The owner's manual update in the platform's own add-on store keeps working exactly as before; so do the manual and the
+  periodic check, the interval, "restart Arx" and the platform restart. Arx starts and migrates normally after a manual update whatever
+  the switch says. The switch itself lives in `PATCH /settings`, never behind the update path, so it can always be turned back on.
+- **Who.** Changing it needs `system.configure` at installation scope (like every product setting); every effective change writes its
+  own audit row `system.update.apply_enabled` (`details.to`) next to the usual `settings.update` row. Using the update still needs
+  `system.update` (system administrators only, unchanged).
+- **Backup.** The value is a row of `settings`, so a project backup carries it and a restore brings back the value of the archive (an
+  archive written before 2.4.4 has no row: the switch reads ON, today's behaviour).
+- **Tests.** `smplwise_vms/backend/tests/test_self_update_switch.py` (default, refusal before any call, the rest of the page unaffected,
+  turning it back on, the worker re-check, replay, RBAC and audit); `frontend/tests/evidence-system-update-apply.spec.ts` ("the
+  self-update switch").

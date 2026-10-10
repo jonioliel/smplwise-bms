@@ -8,7 +8,11 @@ import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../components/update-run';
 import '../components/restarts-card';
+import '../components/sw-toggle';
 import { describeError } from '../api/client';
+import { patchSettings } from '../api/media';
+import { invalidateSettings } from '../api/prefs';
+import { t } from '../i18n/he';
 import { applyUpdate, classifyRunError, newIdempotencyKey, runFailureRequestText, type RunView } from '../api/system-update-runs';
 import { productSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
@@ -70,6 +74,9 @@ export class SystemUpdate extends LitElement {
   @state() private applying = false;
   @state() private applyError = '';
   @state() private manualOpen = false;
+  /** 2.4.4: the self-update switch (`update.apply_enabled`) is being saved / its last error. */
+  @state() private switchSaving = false;
+  @state() private switchError = '';
   private applyKey = '';
 
   static styles = css`
@@ -361,6 +368,37 @@ export class SystemUpdate extends LitElement {
     }
   }
 
+  /** 2.4.4: the self-update switch lives in the product settings (system.configure), never behind the update path itself. */
+  private async setApplyEnabled(on: boolean) {
+    if (this.switchSaving || !this.data) return;
+    this.switchSaving = true;
+    this.switchError = '';
+    try {
+      const r = await patchSettings({ 'update.apply_enabled': on ? 'true' : 'false' });
+      invalidateSettings();
+      this.data = { ...this.data, apply_enabled: r.settings['update.apply_enabled'] !== 'false' };
+    } catch (err) {
+      this.switchError = describeError(err);
+    } finally {
+      this.switchSaving = false;
+    }
+  }
+
+  private renderSwitch(d: UpdateState) {
+    const on = d.apply_enabled !== false;
+    const canSet = !isApi() || can('system.configure');
+    return html`<sw-card heading=${t('selfUpdate.heading')} data-update-switch-card>
+      <div class="row">
+        <span class="lbl">${t('selfUpdate.switchLabel')}</span>
+        <sw-toggle .checked=${on} ?disabled=${!canSet || this.switchSaving} labelHidden label=${t('selfUpdate.switchLabel')} data-update-switch
+          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setApplyEnabled(e.detail.checked)}></sw-toggle>
+      </div>
+      <p class="msg" data-update-switch-hint>${t('selfUpdate.switchHint')}</p>
+      ${canSet ? nothing : html`<p class="msg" data-update-switch-ro>${t('selfUpdate.needsConfigure')}</p>`}
+      ${this.switchError ? html`<p class="msg err" role="alert" data-update-switch-error>${this.switchError}</p>` : nothing}
+    </sw-card>`;
+  }
+
   private when(iso: string | null | undefined): string {
     if (!iso) return '';
     const d = new Date(iso);
@@ -413,6 +451,10 @@ export class SystemUpdate extends LitElement {
         <div class="foot"><sw-button size="sm" data-update-manual-open aria-expanded=${this.manualOpen ? 'true' : 'false'} @click=${() => (this.manualOpen = !this.manualOpen)}>הוראות</sw-button></div>
         ${this.manualOpen ? html`<ol class="how" data-update-manual>${MANUAL_STEPS.map((s) => html`<li>${s}</li>`)}</ol>` : nothing}
       </div>`;
+    }
+    if (d.apply_enabled === false) {
+      // 2.4.4: switched off by an administrator - no button that cannot work; the manual path stays described
+      return html`<div class="apply" data-update-disabled><p class="msg" role="status">${t('selfUpdate.disabledNotice')}</p></div>`;
     }
     return html`<div class="foot"><sw-button variant="primary" icon="download" data-update-apply @click=${() => this.openConfirm()}>עדכן</sw-button></div>`;
   }
@@ -486,6 +528,7 @@ export class SystemUpdate extends LitElement {
           </div>
           ${this.intervalError ? html`<p class="msg err" role="alert" data-update-interval-error>${this.intervalError}</p>` : nothing}
         </sw-card>
+        ${this.renderSwitch(d)}
         ${this.renderNotes(d)}
         <sw-restarts-card ?required=${d.requires_platform_restart === true} @run-started=${(e: CustomEvent<RunView>) => this.startRun(e.detail)}></sw-restarts-card>
       </div>

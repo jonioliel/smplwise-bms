@@ -4,6 +4,7 @@
  * "תשתית המערכת" (this is a settings screen, but the wording rule holds anyway).
  */
 import { ApiError, api, get, post } from './client';
+import { t } from '../i18n/he';
 
 export type RunKind = 'update' | 'platform_restart';
 export type RunState = 'requested' | 'backing_up' | 'updating' | 'restarting' | 'verifying' | 'succeeded' | 'failed' | 'abandoned';
@@ -72,6 +73,8 @@ export type RunFailure =
   | { kind: 'unreachable' }
   | { kind: 'forbidden' }
   | { kind: 'manual' }
+  /** 2.4.4: the administrator's self-update switch is off (409 self_update_disabled). */
+  | { kind: 'disabled' }
   | { kind: 'error'; message: string };
 
 /** Sorts a refused apply / restart request into the states the screen words (the server's text is only the last fallback). */
@@ -88,6 +91,7 @@ export function classifyRunError(err: unknown): RunFailure {
       case 'platform_not_permitted': return { kind: 'not_permitted' };
       case 'infrastructure_unreachable': return { kind: 'unreachable' };
       case 'restart_manual': return { kind: 'manual' };
+      case 'self_update_disabled': return { kind: 'disabled' };
       case 'rate_limited': {
         const w = Number((err.body.details ?? {})['retry_after_s']);
         return { kind: 'too_soon', wait: Number.isFinite(w) && w > 0 ? w : null };
@@ -120,6 +124,7 @@ export function runFailureRequestText(f: RunFailure, what: 'update' | 'restart' 
     case 'unreachable': return 'תשתית המערכת אינה זמינה כרגע.';
     case 'forbidden': return 'אין הרשאה לבצע את הפעולה.';
     case 'manual': return 'אי אפשר להפעיל מחדש מכאן. יש להפעיל את השירות ידנית.';
+    case 'disabled': return t('selfUpdate.disabledRefused');
     default: return f.message || 'הפעולה נכשלה. נסו שוב.';
   }
 }
@@ -171,6 +176,7 @@ export function runFailureText(run: Pick<RunView, 'kind' | 'state' | 'error_code
     case 'restart_not_observed': return 'לא נצפתה הפעלה מחדש של תשתית המערכת, ולכן לא ידוע אם בוצעה. בדקו את מצב המערכת ונסו שוב אם צריך.';
     case 'platform_not_back': return 'תשתית המערכת לא חזרה לפעולה בזמן.';
     case 'bridge_not_loaded': return 'תשתית המערכת חזרה, אך הגשר שלה לא נטען.';
+    case 'self_update_disabled': return t('selfUpdate.disabledRun');
     default: return 'הפעולה נכשלה.';
   }
 }

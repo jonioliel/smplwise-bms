@@ -129,6 +129,7 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
     ['infrastructure_unreachable', 503, 'תשתית המערכת אינה זמינה כרגע', 'unreachable'],
     ['rate_limited', 429, 'עדכון הופעל לאחרונה. נסו שוב בעוד 8 דקות', 'too-soon', { retry_after_s: 470 }],
     ['forbidden', 403, 'אין הרשאה לבצע את הפעולה', 'forbidden'],
+    ['self_update_disabled', 409, 'העדכון מתוך Arx כבוי בהגדרות', 'disabled'],
   ];
   for (const [code, status, text, name, details] of REFUSALS) {
     test(`a refused update (${name}) is worded in plain Hebrew inside the dialog, which stays open`, async ({ page }) => {
@@ -171,6 +172,63 @@ test.describe('apply: the confirmation (CR-021 S3)', () => {
     await expect(blocked.locator('[data-update-manual] li')).toHaveCount(3);
     await noOverflow(page);
     await shot(page, 'apply-blocked');
+  });
+});
+
+test.describe('the self-update switch (2.4.4, update.apply_enabled)', () => {
+  /** PATCH /settings answers with the stored switch; GET keeps the mock's plain settings. Registered after mockBackend, so it wins. */
+  async function settingsRoute(page: Page, patches: Record<string, unknown>[]) {
+    await page.route('**/api/v1/settings', async (route) => {
+      const req = route.request();
+      if (req.method() !== 'PATCH') return route.fallback();
+      const body = req.postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ settings: { 'ui.design': 'a', 'update.apply_enabled': body['update.apply_enabled'] }, can_edit: true }) });
+    });
+  }
+
+  test('off: no "עדכן" button, a plain notice; the switch turns it back on and the button returns', async ({ page }) => {
+    const mock = withUpdate(freshMock(), { apply_enabled: false });
+    await mockBackend(page, ADMIN_PERMS, mock);
+    const patches: Record<string, unknown>[] = [];
+    await settingsRoute(page, patches);
+    await open(page, '/system/update');
+    const notice = root(page).locator('[data-update-disabled]');
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    await expect(notice).toContainText('העדכון מתוך Arx כבוי');
+    await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
+    const sw = root(page).locator('[data-update-switch]');
+    await expect(sw).not.toHaveAttribute('checked', '');
+    expect(((await deepText(page)) ?? '')).not.toMatch(FORBIDDEN);
+    await noOverflow(page);
+    await shot(page, 'switch-off');
+    await sw.locator('button').click();
+    await expect(root(page).locator('[data-update-apply]')).toBeVisible();
+    expect(patches).toEqual([{ 'update.apply_enabled': 'true' }]);
+    await expect(sw).toHaveAttribute('checked', '');
+  });
+
+  test('on (default): the switch is on; turning it off sends false and hides the button', async ({ page }) => {
+    const mock = withUpdate(freshMock());
+    await mockBackend(page, ADMIN_PERMS, mock);
+    const patches: Record<string, unknown>[] = [];
+    await settingsRoute(page, patches);
+    await open(page, '/system/update');
+    await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 15000 });
+    const sw = root(page).locator('[data-update-switch]');
+    await expect(sw).toHaveAttribute('checked', '');
+    await sw.locator('button').click();
+    await expect(root(page).locator('[data-update-disabled]')).toBeVisible();
+    await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
+    expect(patches).toEqual([{ 'update.apply_enabled': 'false' }]);
+  });
+
+  test('without system.configure the switch is shown but cannot be changed', async ({ page }) => {
+    const mock = withUpdate(freshMock());
+    await mockBackend(page, [...ADMIN_PERMS.filter((p) => p !== 'system.configure')], mock);
+    await open(page, '/system/update');
+    await expect(root(page).locator('[data-update-switch-ro]')).toBeVisible({ timeout: 15000 });
+    await expect(root(page).locator('[data-update-switch]')).toHaveAttribute('disabled', '');
   });
 });
 

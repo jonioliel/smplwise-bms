@@ -89,7 +89,8 @@ STEPS = ("sending", "job_running", "backup_done", "job_done", "outcome_unknown",
          "restart_sent", "restart_accepted", "waiting_for_platform", "bridge_wait")
 ERROR_CODES = ("platform_not_permitted", "infrastructure_unreachable", "infrastructure_busy", "infrastructure_error", "update_job_failed",
                "version_unchanged", "version_unexpected", "interrupted", "restart_loop", "health_check_failed", "timeout",
-               "platform_config_invalid", "platform_not_back", "bridge_not_loaded", "restart_not_observed")
+               "platform_config_invalid", "platform_not_back", "bridge_not_loaded", "restart_not_observed",
+               "self_update_disabled")  # 2.4.4: the administrator's switch went off before the update call was sent
 
 
 def _default_spawn(fn: Callable[[], None], name: str) -> None:
@@ -318,12 +319,19 @@ def _refuse_gap(conn: sqlite3.Connection) -> None:
         raise ApiError(429, "rate_limited", "עדכון הופעל זה עתה. נסו שוב בעוד כמה דקות.", retryable=True, details={"retry_after_s": wait})
 
 
+SELF_UPDATE_DISABLED = "self_update_disabled"
+SELF_UPDATE_DISABLED_TEXT = ("העדכון מתוך Arx כבוי בהגדרות › עדכונים. מנהל יכול להפעיל אותו שם מחדש, "
+                             "או לעדכן ידנית בחנות התוספים של תשתית המערכת.")
+
+
 def start_update(conn: sqlite3.Connection, db: Database, settings: Settings, principal: Any, req: ApplyRequest, *, remote: bool,
                  request_id: str | None) -> tuple[dict[str, Any], bool]:
     """`POST /apply` after the permission, the same-origin check and the body. Returns (run view, created)."""
     replay = _replay(conn, req.idempotency_key, False, req.target_version)
     if replay is not None:
         return replay, False
+    if not su.apply_enabled(conn):  # 2.4.4: the administrator switched installing from Arx off - nothing is sent, nothing is stored
+        raise ApiError(409, SELF_UPDATE_DISABLED, SELF_UPDATE_DISABLED_TEXT)
     sweep_overdue(conn)
     _refuse_active(conn)
     _refuse_gap(conn)
@@ -481,6 +489,11 @@ def update_worker(db: Database, settings: Settings, run_id: str, slug: str, back
 
 
 def _update_worker(db: Database, settings: Settings, run_id: str, slug: str, backup: bool) -> None:
+    with db.connection(mode="read", label="update_runs.switch") as conn:
+        enabled = su.apply_enabled(conn)
+    if not enabled:  # 2.4.4: switched off between the request and the send - the update call is never made
+        finish(db, run_id, "failed", SELF_UPDATE_DISABLED)
+        return
     advance(db, run_id, state="backing_up" if backup else "updating", step="sending")
     reply = su.call(settings, "POST", su.P_UPDATE, body={"backup": backup, "background": True}, slug=slug, timeout=UPDATE_CALL_TIMEOUT_S)
     if reply.kind == "dropped":  # the request went out, no answer: the container is probably being replaced - never resent

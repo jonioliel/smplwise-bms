@@ -292,6 +292,10 @@ DEFAULTS: dict[str, str] = {
     **automation_settings.DEFAULTS,
     # 2026-10-06 (owner): the Android app download offer on the sign-in page; empty address = nothing is offered (services/app_download.py)
     **app_download.DEFAULTS,
+    # 2.4.4 (owner 2026-10-10): CR-021 self-update switch - "true" (default, today's behaviour) | "false": POST /system/update/apply is
+    # refused (409 self_update_disabled) and the Updates page says so. The check, the interval, the platform restart and an update
+    # installed by hand in the platform's own add-on store are never affected (docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md).
+    "update.apply_enabled": "true",
 }
 
 SCHEDULE_CLASSES = ("light", "switch", "cover", "climate", "fan", "alarm", "lock", "door", "script", "scene", "helper", "humidifier", "vacuum", "siren", "media", "number", "select")
@@ -650,6 +654,7 @@ class SettingsPatch(BaseModel):
     automations_ask_when_on_new: str | None = Field(default=None, pattern="^(true|false)$", alias="automations.ask_when_on_new")
     automations_phone_filter: str | None = Field(default=None, pattern="^(fold|rows)$", alias="automations.phone_filter")
     automations_sensitive_chip: str | None = Field(default=None, pattern="^(amber|red)$", alias="automations.sensitive_chip")
+    update_apply_enabled: str | None = Field(default=None, pattern="^(true|false)$", alias="update.apply_enabled")  # 2.4.4: CR-021 self-update switch
 
     model_config = {"populate_by_name": True}
 
@@ -785,6 +790,11 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             if changes["schedules.allow_disarm"] == "true" and (disarm_confirm or "").strip() != ALLOW_DISARM_WORD:
                 raise ApiError(422, "confirm_required", f"כדי לאפשר נטרול אזעקה בתזמונים יש להקליד \"{ALLOW_DISARM_WORD}\".", details={"field": "schedules.allow_disarm_confirm"})
             disarm_change = changes["schedules.allow_disarm"]
+    update_switch = None  # 2.4.4: the CR-021 self-update switch gets its own audit row when it actually changes
+    if "update.apply_enabled" in changes:
+        current_switch = get_setting(conn, "update.apply_enabled", DEFAULTS["update.apply_enabled"]) or DEFAULTS["update.apply_enabled"]
+        if changes["update.apply_enabled"] != ("false" if current_switch == "false" else "true"):
+            update_switch = changes["update.apply_enabled"]
     force_sensor = bool(changes.pop("schedules.shabbat_sensor_force", False))
     forced = False
     if changes.get("schedules.shabbat_sensor"):
@@ -854,6 +864,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     if disarm_change is not None:
         audit(conn, actor=principal, action="schedules.allow_disarm", decision="allowed", resource_type="installation", resource_id="*",
               request_id=getattr(request.state, "correlation_id", None), details={"to": disarm_change})
+    if update_switch is not None:
+        audit(conn, actor=principal, action="system.update.apply_enabled", decision="allowed", resource_type="installation", resource_id="update",
+              request_id=getattr(request.state, "correlation_id", None), details={"to": update_switch == "true"})
     audit(conn, actor=principal, action="settings.update", decision="allowed", resource_type="installation", resource_id="*",
           request_id=getattr(request.state, "correlation_id", None), details={**changes, "forced": True} if forced else changes)  # an override of the calendar-sensor check is on the record
     return {"settings": read_settings(conn), "can_edit": True, **_capacity_info(conn)}

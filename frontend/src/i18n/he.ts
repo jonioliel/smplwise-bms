@@ -862,6 +862,19 @@ export const he = {
     overrideOptional: 'רשות',
     overrideRequired: 'חובה',
   },
+  /** 2.4.4: the CR-021 self-update switch (הגדרות › עדכונים, `update.apply_enabled`). */
+  selfUpdate: {
+    heading: 'עדכון מתוך Arx',
+    switchLabel: 'התקנת עדכונים מתוך Arx',
+    switchHint: 'כשהמתג כבוי הכפתור "עדכן" לא זמין. הבדיקה, ההפעלה מחדש והעדכון הידני בחנות התוספים של תשתית המערכת ממשיכים לעבוד.',
+    on: 'פעיל',
+    off: 'כבוי',
+    needsConfigure: 'שינוי המתג דורש הרשאה לשינוי הגדרות המערכת.',
+    disabledNotice: 'העדכון מתוך Arx כבוי. אפשר להפעיל אותו במתג למעלה, או לעדכן ידנית בחנות התוספים של תשתית המערכת.',
+    disabledRefused: 'העדכון מתוך Arx כבוי בהגדרות. אפשר להפעיל אותו מחדש בהגדרות › עדכונים, או לעדכן ידנית בחנות התוספים של תשתית המערכת.',
+    disabledRun: 'העדכון לא נשלח: העדכון מתוך Arx כובה לפני שליחתו.',
+    saved: 'נשמר',
+  },
 } as const;
 
 type Path<T> = T extends object ? { [K in keyof T]: `${K & string}.${Path<T[K]>}` | (T[K] extends string ? K & string : never) }[keyof T] : never;

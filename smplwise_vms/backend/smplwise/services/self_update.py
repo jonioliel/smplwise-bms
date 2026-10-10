@@ -336,6 +336,17 @@ def set_interval(conn: sqlite3.Connection, hours: int) -> None:
     set_setting(conn, K_INTERVAL, str(hours))
 
 
+K_APPLY_ENABLED = "update.apply_enabled"   # 2.4.4 (owner 2026-10-10): "true" (default) | "false"; PATCH /settings, system.configure
+
+
+def apply_enabled(conn: sqlite3.Connection) -> bool:
+    """The administrator's switch for installing an update FROM ARX (`POST /apply`). On unless the stored value is exactly "false":
+    a missing or corrupt row keeps today's behaviour. It never touches the infrastructure: an update installed by hand in the
+    platform's own add-on store, the check, the interval and the platform restart are not affected
+    (docs/security/CR021_SELF_UPDATE_SECURITY_NOTES.md, section "The self-update switch")."""
+    return (get_setting(conn, K_APPLY_ENABLED, "true") or "true") != "false"
+
+
 def view(conn: sqlite3.Connection) -> dict[str, Any]:
     """The page data for a holder of `system.update`. `installed` is the running version; the flag is recomputed against it, so a
     stale 'available' of an older check disappears the moment the new version runs."""
@@ -355,6 +366,7 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
         "installed": installed, "latest": latest or None, "update_available": available,
         "checked_at": get_setting(conn, K_CHECKED_AT) or None, "check_result": get_setting(conn, K_RESULT) or None,
         "interval_hours": get_interval(conn), "permitted": permitted if permitted in ("unknown", "yes", "no") else "unknown",
+        "apply_enabled": apply_enabled(conn),
         "notes": [],  # release notes arrive with S4 (CR-021 section 4 point 3)
         "requires_platform_restart": bool(reasons), "platform_restart_reasons": reasons,
         "run": run_out,

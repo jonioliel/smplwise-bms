@@ -187,6 +187,8 @@ export interface ProductSettings {
   'app.android_url'?: string;
   'app.android_version'?: string;
   'app.android_sha256'?: string;
+  /** 2.4.4: CR-021 self-update switch - 'true' (default) | 'false' (POST /system/update/apply is refused; Settings › Updates says so). */
+  'update.apply_enabled'?: 'true' | 'false';
 }
 
 /** `nvr_channels`: the recorder's channel capacity when known; `warnings`: advisory only, never blocks a save. */

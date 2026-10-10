@@ -23,6 +23,8 @@ export interface UpdateState {
   check_result?: CheckResult | null;
   interval_hours?: number;
   permitted?: 'unknown' | 'yes' | 'no';
+  /** 2.4.4: the administrator's self-update switch (`update.apply_enabled`); false = "עדכן" is refused (409 self_update_disabled). Absent = on. */
+  apply_enabled?: boolean;
   notes?: UpdateNote[];
   requires_platform_restart?: boolean;
   /** CR-021 S3: why (bridge / wiskey / release), holders only. */

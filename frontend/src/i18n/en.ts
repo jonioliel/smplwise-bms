@@ -55,4 +55,16 @@ export const en = {
     fanTurbo: 'turbo',
     fanMax: 'max',
   },
+  selfUpdate: {
+    heading: 'Updating from Arx',
+    switchLabel: 'Install updates from Arx',
+    switchHint: 'While this is off the "Update" button is not available. The check, the restarts and a manual update in the platform\'s add-on store keep working.',
+    on: 'On',
+    off: 'Off',
+    needsConfigure: 'Changing this switch needs the permission to change system settings.',
+    disabledNotice: 'Updating from Arx is switched off. Turn it on with the switch above, or update manually in the platform\'s add-on store.',
+    disabledRefused: 'Updating from Arx is switched off in Settings. Turn it on again in Settings › Updates, or update manually in the platform\'s add-on store.',
+    disabledRun: 'The update was not sent: updating from Arx was switched off before it was sent.',
+    saved: 'Saved',
+  },
 } satisfies PartialCatalogue;
