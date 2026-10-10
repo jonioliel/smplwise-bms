@@ -38,6 +38,10 @@ PROJECT_TABLES = PROJECT_TABLES + [t for t in FRIGATE_TABLES if t not in PROJECT
 # CR-029 S0 (Plan Studio 6): each person's own look override of the realistic 3D (plan_view_prefs, migration 0074); the
 # installation's dials are the `plan.view` setting (already in `settings`). An archive written before the table keeps them.
 PROJECT_TABLES = PROJECT_TABLES + ["plan_view_prefs"]
+# CR-029 S3: the stills, room masks and lightmaps of every floor (plan_bakes, migration 0075; files under plans/bakes/). The
+# regenerate requests (plan_bake_jobs) are runtime state and stay out. An archive written before the table restores no bake: the
+# floors show their live view until an editor bakes again (a replace restore sweeps the files nobody names).
+PROJECT_TABLES = PROJECT_TABLES + ["plan_bakes"]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
 # them) keeps the current rows instead of emptying them - an older backup must never unprotect every switch.
@@ -45,7 +49,7 @@ ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # policy is NOT kept (an older archive without it leaves every class OFF - the default - never a class that happened to be on).
 KEEP_WHEN_ABSENT = frozenset({"device_bulk_protected", "device_switch_classified", "frigate_changes", "frigate_review_state", "plan_view_prefs"}) | _energy_backup.KEEP_WHEN_ABSENT
 OPTIONAL_TABLES = {"audit": ["audit_log"], "events": ["events"]}
-FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], **_energy_backup.FILE_COLUMNS}
+FILE_COLUMNS = {"plan_assets": ["storage_path"], "plan_versions": ["image_path", "stylized_path"], "floor_images": ["path"], "plan_bakes": ["path"], **_energy_backup.FILE_COLUMNS}
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$")
 KEEP = {"auto-pre-upgrade": 5, "auto-daily": 7}
 SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.version", "bridge.secret", "bridge.pairing_code", "bridge.paired_at",
@@ -403,11 +407,14 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
     from .skins import store as skins_store
 
     swept = skins_store.sweep_orphans(settings, conn) if "plan_skin_controls" in existing else 0
+    from . import plan_bakes
+
+    bakes_swept = plan_bakes.sweep_orphans(settings, conn)  # CR-029 S3: bakes of floors the restored project no longer has
     if skipped:
         log.warning("restore skipped %s row(s) with an unsafe id or path", sum(skipped.values()))
     if files_skipped:
         log.warning("restore skipped %s archive file(s) outside the restorable set", files_skipped)
-    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "skipped_unsafe": skipped,
+    return {"mode": mode, "scope": scope, "tables": counts, "files": files, "files_skipped": files_skipped, "skin_controls_swept": swept, "bakes_swept": bakes_swept, "skipped_unsafe": skipped,
             "kept_current": kept_current, "roles_pruned": roles_pruned, "energy": energy, "app_version": manifest.get("app_version"), "created_at": manifest.get("created_at")}
 
 
