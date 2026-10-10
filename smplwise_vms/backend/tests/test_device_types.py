@@ -157,3 +157,36 @@ def test_fixed_types_are_backed_up_and_an_older_archive_keeps_them(dev_app, tmp_
     assert res.status_code == 200 and "device_type_override" in res.json()["kept_current"]
     with app.state.db.connection(mode="read") as conn:
         assert {r[0]: r[1] for r in conn.execute("SELECT entity_id, kind FROM device_type_override")} == {"switch.sign": "water_heater", "switch.plug": "fan"}
+
+
+def test_climate_kind_overrides_are_backed_up_and_an_older_archive_keeps_them(dev_app):
+    """2.4.4: the climate-kind override (air conditioning / heating, migration 0040) is in the archive; a restore brings it back, and an
+    archive written before it was listed (no `device_climate_kind` member) leaves the current rows alone."""
+    app, s = dev_app
+    c = TestClient(app)
+    assert "device_climate_kind" in backup.PROJECT_TABLES and "device_climate_kind" in backup.KEEP_WHEN_ABSENT
+    assert c.put("/api/v1/devices/entities/climate.lobby/climate-kind", json={"kind": "heating"}).status_code == 200
+    e = c.post("/api/v1/backups", json={}).json()
+    assert e["tables"]["device_climate_kind"] == 1
+    raw = c.get(f"/api/v1/backups/{e['name']}/download").content
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
+        assert "data/device_climate_kind.json" in z.namelist()
+    # changed after the backup, then restored: replace = equal to the backup
+    assert c.put("/api/v1/devices/entities/climate.lobby/climate-kind", json={"kind": "ac"}).status_code == 200
+    up = c.post("/api/v1/backups/upload", files={"file": ("new.zip", raw, "application/zip")})
+    res = c.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200, res.text
+    with app.state.db.connection(mode="read") as conn:
+        assert {r[0]: r[1] for r in conn.execute("SELECT entity_id, kind FROM device_climate_kind")} == {"climate.lobby": "heating"}
+    # an archive written before the table was listed: the current override stays (never silently back to the automatic group)
+    old = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(raw)) as zin, zipfile.ZipFile(old, "w") as zout:
+        for n in zin.namelist():
+            if n != "data/device_climate_kind.json":
+                zout.writestr(n, zin.read(n))
+    assert c.put("/api/v1/devices/entities/climate.lobby/climate-kind", json={"kind": "ac"}).status_code == 200
+    up = c.post("/api/v1/backups/upload", files={"file": ("old.zip", old.getvalue(), "application/zip")})
+    res = c.post(f"/api/v1/backups/{up.json()['name']}/restore", json={"mode": "replace", "scope": "project", "confirm": "RESTORE"})
+    assert res.status_code == 200 and "device_climate_kind" in res.json()["kept_current"]
+    with app.state.db.connection(mode="read") as conn:
+        assert {r[0]: r[1] for r in conn.execute("SELECT entity_id, kind FROM device_climate_kind")} == {"climate.lobby": "ac"}

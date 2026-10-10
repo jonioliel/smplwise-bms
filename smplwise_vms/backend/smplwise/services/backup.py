@@ -37,7 +37,9 @@ FRIGATE_TABLES = ["frigate_write_policy", "frigate_changes", "frigate_profile_ru
 PROJECT_TABLES = PROJECT_TABLES + [t for t in FRIGATE_TABLES if t not in PROJECT_TABLES]
 # DEVTYPE (owner 2026-10-09): the administrator's fixed device types (migration 0073). An archive written before the table keeps the
 # current rows (KEEP_WHEN_ABSENT): an older backup must not silently send every fixed type back to the name-based guess.
-DEVICE_TYPE_TABLES = ["device_type_override"]
+# 2.4.4 (owner 2026-10-10): the climate-kind override (migration 0040: an administrator's "air conditioning" / "heating" group of a
+# climate entity) travels the same way - it was missing from the archive, so a restore onto a new installation lost it.
+DEVICE_TYPE_TABLES = ["device_type_override", "device_climate_kind"]
 PROJECT_TABLES = PROJECT_TABLES + [t for t in DEVICE_TYPE_TABLES if t not in PROJECT_TABLES]
 ACCESS_TABLES = ["users", "groups", "group_members", "bindings", "custom_roles"]
 # CR-019 section 6.6: switch protection is safety state. A `replace` restore of an archive WITHOUT these tables (one written before
