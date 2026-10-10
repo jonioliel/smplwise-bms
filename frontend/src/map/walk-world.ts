@@ -176,6 +176,50 @@ export const bearingOf = (dx: number, dz: number): number => {
   return r4(((b % 360) + 360) % 360);
 };
 
+const segDist = (x: number, z: number, s: WalkSeg): number => {
+  const ex = s.b[0] - s.a[0];
+  const ez = s.b[1] - s.a[1];
+  const l2 = ex * ex + ez * ez;
+  const u = l2 > 0 ? Math.min(1, Math.max(0, ((x - s.a[0]) * ex + (z - s.a[1]) * ez) / l2)) : 0;
+  return Math.hypot(x - (s.a[0] + u * ex), z - (s.a[1] + u * ez)) - s.r;
+};
+
+/** The "centre of the plan" start: the open spot nearest the middle of the level (the most clearance from every capsule,
+ * up to 1.5 m, less a little for the distance from the middle - on a 0.5 m grid), facing the longest free view of 16
+ * bearings. Never a spot pressed against a wall (owner review of the walk: the plain centre stood in front of one). */
+export function openSpot(lv: Pick<WalkLevel, 'extent' | 'segs'>): { x: number; z: number; heading: number } {
+  const e = lv.extent;
+  const cx = (e.minX + e.maxX) / 2;
+  const cz = (e.minZ + e.maxZ) / 2;
+  const clear = (x: number, z: number): number => lv.segs.reduce((m, s) => Math.min(m, segDist(x, z, s)), Infinity);
+  let best = { x: cx, z: cz, score: -Infinity };
+  const step = 0.5;
+  const nx = Math.min(200, Math.floor((e.maxX - e.minX) / step));
+  const nz = Math.min(200, Math.floor((e.maxZ - e.minZ) / step));
+  for (let j = 1; j < nz; j++) {
+    for (let i = 1; i < nx; i++) {
+      const x = e.minX + i * step;
+      const z = e.minZ + j * step;
+      const score = Math.min(1.5, clear(x, z)) - 0.05 * Math.hypot(x - cx, z - cz);
+      if (score > best.score + 1e-9) best = { x, z, score };
+    }
+  }
+  let heading = 0;
+  let longest = -1;
+  for (let k = 0; k < 16; k++) {
+    const b = k * 22.5;
+    const dx = Math.sin((b * Math.PI) / 180);
+    const dz = -Math.cos((b * Math.PI) / 180);
+    let t = 0.25;
+    while (t < 30 && clear(best.x + dx * t, best.z + dz * t) > 0.3) t += 0.25;
+    if (t > longest + 1e-9) {
+      longest = t;
+      heading = b;
+    }
+  }
+  return { x: r4(best.x), z: r4(best.z), heading };
+}
+
 class WorldBuilder {
   readonly scale: number;
   readonly estimated: boolean;
@@ -402,7 +446,10 @@ class WorldBuilder {
       starts.push({ id: `cam:${a.id}`, kind: 'camera', label: a.label, level: this.levelOf(a.level_id).id, x, z, heading_deg: r4(((a.rotation % 360) + 360) % 360), pitch_deg: r4(-tilt), eye_m: r4(mount) });
     }
     const lv0 = levelById.get(defaultLevel) ?? levels[0];
-    if (lv0) starts.push({ id: 'centre', kind: 'centre', label: 'מרכז התוכנית', level: lv0.id, x: r4((lv0.extent.minX + lv0.extent.maxX) / 2), z: r4((lv0.extent.minZ + lv0.extent.maxZ) / 2), heading_deg: 0, pitch_deg: 0, eye_m: null });
+    if (lv0) {
+      const c = openSpot(lv0);
+      starts.push({ id: 'centre', kind: 'centre', label: 'מרכז התוכנית', level: lv0.id, x: c.x, z: c.z, heading_deg: c.heading, pitch_deg: 0, eye_m: null });
+    }
     const savedDefault = saved.find((p) => p.is_default) ?? saved[0];
     const defaultStart = savedDefault ? `pos:${savedDefault.id}` : doorStart ?? largest?.id ?? (lv0 ? 'centre' : null);
     return { starts, defaultStart };

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-chip';
-import { SceneView, renderControlImage, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
+import { SceneView, renderControlImage, WALK_ENTRY_MS, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
 import { CONTROL_BACKDROP, CONTROL_H, CONTROL_W, controlColor } from './skin-control';
 import { keepIsos, type SceneDescription, type ScenePart, type Vec3 } from './scene-builder';
 import { WEBGL_UNAVAILABLE_HE } from './webgl';
@@ -10,6 +10,11 @@ import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
 import { PILL_CAP } from './scene-frame';
+import { WalkSession } from './walk-session';
+import { drawMinimap, type MinimapFrame } from './walk-minimap';
+import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
+import type { WalkEvent } from './walk-controller';
+import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
@@ -45,10 +50,45 @@ export interface StripLevel {
   name: string;
   elevation_m: number;
 }
+/** CR-029 S4: the walk asks the host for a description with the walk world (`on`), or tells it the walk ended. */
+export interface WalkChangeDetail {
+  on: boolean;
+}
+/** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
+export interface FloorRequestDetail {
+  floorId: string;
+}
+/** LOOK_SPEC section 9: the walk's field of view - desktop, touch, portrait. */
+export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
+/** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
+export const WALK_ACT_M = 3.5;
+const WALK_TOAST_MS = 2600;
+const START_KIND_HE: Record<string, string> = { saved: 'עמדות שמורות', door: 'כניסה', room: 'חדרים', camera: 'מצלמות', centre: 'מרכז' };
 
 /** A download name without whitespace or path characters (Hebrew letters stay): "plan-3d-אולם 3D" -> "plan-3d-אולם-3D". */
 function safeFileName(name: string): string {
   return name.replace(/[\s/\\:*?"<>|]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '') || 'plan-3d';
+}
+
+/** Where the walk resumes on a floor reached by a stair from `fromFloor` (CR-029 section 4.3): just off the mouth of the
+ * twin stair that leads back there, facing away from it; null = the floor has no such twin (its default start then). */
+export function twinStart(world: WalkWorld, fromFloor: string): WalkStart | null {
+  const band = world.bands.find((b) => b.farFloor?.id === fromFloor);
+  const ramp = band?.ramps[0];
+  if (!band || !ramp) return null;
+  const len = Math.hypot(ramp.b[0] - ramp.a[0], ramp.b[1] - ramp.a[1]) || 1;
+  const ux = (ramp.b[0] - ramp.a[0]) / len;
+  const uz = (ramp.b[1] - ramp.a[1]) / len;
+  const heading = ((Math.atan2(-ux, uz) * 180) / Math.PI + 360) % 360; // the bearing of (-ux, -uz): away from the stair
+  return { id: `twin:${band.id}`, kind: 'centre', label: '', level: band.from, x: ramp.a[0] - ux * 0.6, z: ramp.a[1] - uz * 0.6, heading_deg: heading, pitch_deg: 0, eye_m: null };
+}
+
+/** A token colour with an alpha for the minimap's fills (#rgb / #rrggbb; any other form is used as it is). */
+export function withAlpha(color: string, a: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
+  return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${a})`;
 }
 
 const KIND_HE: Record<string, string> = { wall: 'קיר', opening: 'פתח', object: 'עצם', connector: 'מחבר', camera: 'מצלמה', entity: 'ישות', zone: 'חדר', label: 'תווית', level: 'מפלס' };
@@ -107,6 +147,27 @@ export class SwPlan3d extends LitElement {
   @property({ type: Number }) minFps = DEFAULT_MIN_FPS;
   /** Render every frame instead of on demand - only for measuring the frame rate (the live spec, Task 10). */
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
+  /** CR-029 S4: the host can build a description with the walk world (it listens to `walk-change`): the "סיור" button shows. */
+  @property({ type: Boolean }) walkable = false;
+  /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
+  @state() private walkState: 'off' | 'requested' | 'on' = 'off';
+  /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
+  @state() private walkShown: { x: number; z: number; heading: number; level: string } | null = null;
+  /** The device under the crosshair within WALK_ACT_M (the hint "<name> · Enter"). */
+  @state() private walkAim: SceneHit | null = null;
+  /** A short walk message (a closed door, the edge of the plan, the room entered) and its tone. */
+  @state() private walkNote: { text: string; tone: 'info' | 'warn' } | null = null;
+  /** A stair to another floor reached its top: the "continue to the floor" prompt. */
+  @state() private crossFloor: { id: string; name: string | null } | null = null;
+  /** The person's look dials (eye height, mouse mode, motion; api/plan-view.ts) - the defaults until they load. */
+  private viewDials: PlanViewDials = { ...DEFAULT_VIEW };
+  private walk: WalkSession | null = null;
+  private walkNoteTimer = 0;
+  private walkShownAt = 0;
+  private walkAimAt = 0;
+  private minimapFrame: MinimapFrame | null = null;
+  /** The floor the walk came from (a stair's "continue to the floor"): the walk resumes at the twin stair of the new floor. */
+  private walkArrivedFrom: string | null = null;
   @state() private hover: PartHoverDetail | null = null;
   /** The DOM labels of the description - the temperature chips (1b) and the entity pills (1c): laid out on the
    * projected points after every drawn frame, readable at any zoom, RTL, in the theme's tokens, hidden behind the
@@ -400,6 +461,129 @@ export class SwPlan3d extends LitElement {
     .err {
       color: var(--sw-danger);
     }
+    /* CR-029 S4, the walk: a crosshair, the minimap in the top start corner, one floating walk bar, short notes */
+    .cross {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      inline-size: 12px;
+      block-size: 12px;
+      margin: -6px 0 0 -6px;
+      border: 2px solid color-mix(in srgb, var(--sw-surface) 85%, transparent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--sw-text) 35%, transparent);
+      pointer-events: none;
+      transition: transform 120ms ease;
+    }
+    .cross[data-aim] {
+      transform: scale(1.5);
+      border-color: var(--sw-map-lit);
+    }
+    .aim {
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 18px);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    .minimap {
+      position: absolute;
+      inset-block-start: 12px;
+      inset-inline-start: 12px;
+      inline-size: 160px;
+      block-size: 160px;
+      border-radius: 10px;
+      box-shadow: var(--sw-shadow-1);
+      cursor: pointer;
+      z-index: var(--sw-z-map-ui);
+    }
+    .walkbar {
+      position: absolute;
+      inset-block-end: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: var(--sw-z-map-ui);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--sw-surface) 82%, transparent);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-1);
+      backdrop-filter: blur(14px);
+      direction: rtl;
+      max-inline-size: calc(100% - 24px);
+      overflow-x: auto;
+    }
+    .walkbar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .walkbar input {
+      inline-size: 58px;
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 8px;
+      padding: 3px 6px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      direction: ltr;
+    }
+    .walkbar select {
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      border: 1px solid var(--sw-border-strong);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      max-inline-size: 170px;
+    }
+    .pill {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: var(--sw-z-map-ui);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      padding: 4px 12px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text);
+      box-shadow: var(--sw-shadow-1);
+      direction: rtl;
+      white-space: nowrap;
+    }
+    .pill.walknote {
+      inset-block-end: 64px;
+    }
+    .pill.walknote[data-tone='warn'] {
+      color: var(--sw-danger);
+    }
+    .pill.cross-floor {
+      inset-block-start: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    :host([data-walk]) .bar,
+    :host([data-walk]) .strip {
+      display: none;
+    }
+    @media (max-width: 640px) {
+      .walkbar .num {
+        display: none;
+      }
+      .minimap {
+        inline-size: 112px;
+        block-size: 112px;
+      }
+    }
     @media (max-width: 640px) {
       .bar {
         inset-inline-start: 8px;
@@ -468,6 +652,8 @@ export class SwPlan3d extends LitElement {
     this.endProbe(false);
     this.probed = false;
     this.probePending = false;
+    this.stopWalk(false);
+    window.clearTimeout(this.walkNoteTimer);
     this.view?.dispose();
     this.view = null;
     this.applied = null;
@@ -497,7 +683,7 @@ export class SwPlan3d extends LitElement {
       this.view = new SceneView({
         mount: this.stage,
         color: (token) => getComputedStyle(this).getPropertyValue(`--sw-${token}`).trim() || '#888888',
-        onSelect: (hit) => this.emitSelect(hit),
+        onSelect: (hit, x, y) => this.onViewSelect(hit, x, y),
         onHover: (hit, x, y) => this.setHover(hit, x, y),
         onFrame: (frames, fps) => {
           this.setAttribute('data-frames', String(frames));
@@ -515,6 +701,13 @@ export class SwPlan3d extends LitElement {
       return;
     }
     this.view.setContinuous(this.continuous);
+    // the person's walk dials (eye height, mouse look, motion): the defaults until they load, never an error
+    void planViewPrefs().then((p) => {
+      this.viewDials = p.effective;
+      this.walk?.ctrl.setEyeHeight(p.effective.eye_m);
+      this.walk?.setMouseMode(p.effective.mouse_mode);
+      this.walk?.kick();
+    });
     this.ro = new ResizeObserver(() => this.view?.resize());
     this.ro.observe(this);
     this.presetApplied = false;
@@ -531,12 +724,15 @@ export class SwPlan3d extends LitElement {
    * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
    * of elements repositioned every frame. */
   protected willUpdate(changed: PropertyValues<this>): void {
-    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover'))) return;
+    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover') || (changed as Map<string, unknown>).has('walkState'))) return;
     const parts = this.description?.parts ?? [];
     const chips = parts.filter((p) => p.kind === 'chip');
     let pills = parts.filter((p) => p.kind === 'entity' && (!this.activeLevel || p.level_id === this.activeLevel));
     this.hiddenPills = 0;
-    if (pills.length > PILL_CAP) {
+    if (this.walkState === 'on') {
+      // the walk shows no pill cloud at eye level (CR-029 section 4.6): only the selected and the hovered entity
+      pills = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id);
+    } else if (pills.length > PILL_CAP) {
       const keep = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id || p.color !== 'text-3');
       this.hiddenPills = pills.length - keep.length;
       pills = keep;
@@ -549,7 +745,10 @@ export class SwPlan3d extends LitElement {
     if (!this.view) return;
     const reframe = changed.has('frameKey') && changed.get('frameKey') !== undefined;
     if (reframe) this.presetApplied = false;
+    // the walk went on to another floor (a stair's "continue"): it resumes there at the twin stair, once the new world arrives
+    if (reframe && this.walkState === 'on') this.walkArrivedFrom = String(changed.get('frameKey') ?? '');
     if (changed.has('description') && this.description) this.apply(this.description);
+    if (changed.has('description')) this.syncWalk();
     if (reframe && !this.presetApplied && this.applied) this.frame(); // the key changed without a new description object
     if (changed.has('selectedId') || changed.has('description')) {
       this.view.setSelected(this.selectedId);
@@ -743,6 +942,251 @@ export class SwPlan3d extends LitElement {
     this.dispatchEvent(new CustomEvent<LevelSelectDetail>('level-select', { detail: { id: next }, bubbles: true, composed: true }));
   }
 
+  // ---- the eye-level walk (CR-029 S4): a WalkSession drives the eye; the description carries the walk world
+
+  /** "סיור": walk now when the description already carries the walk world, else ask the host for one (`walk-change`). */
+  requestWalk(): void {
+    if (this.walkState !== 'off' || !this.view) return;
+    this.walkState = 'requested';
+    if (this.description?.walk) this.startWalk();
+    else this.dispatchEvent(new CustomEvent<WalkChangeDetail>('walk-change', { detail: { on: true }, bubbles: true, composed: true }));
+  }
+
+  /** A new description: the walk starts when its world arrived, follows a new world (a door opened, a level filter), and
+   * ends when the host stopped sending one. */
+  private syncWalk(): void {
+    const world = this.description?.walk;
+    if (this.walkState === 'requested' && world) this.startWalk();
+    else if (this.walkState === 'on') {
+      if (!world) this.stopWalk(true);
+      else if (this.walkArrivedFrom !== null && world !== this.walk?.ctrl.world) {
+        const from = this.walkArrivedFrom;
+        this.walkArrivedFrom = null;
+        this.startWalk(twinStart(world, from) ?? undefined);
+      } else this.walk?.setWorld(world);
+    }
+  }
+
+  get walking(): boolean {
+    return this.walkState === 'on';
+  }
+
+  /** The walk's controller (tests drive it: a scripted walk in the browser must equal the node model). */
+  get walkController(): WalkSession['ctrl'] | null {
+    return this.walk?.ctrl ?? null;
+  }
+
+  private walkFov(): number {
+    const portrait = this.clientHeight > this.clientWidth * 1.15;
+    if (portrait) return WALK_FOV.portrait;
+    const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    return touch ? WALK_FOV.touch : WALK_FOV.desktop;
+  }
+
+  /** Start the walk at `start` (default: the world's default start). */
+  startWalk(start?: WalkStart): void {
+    const world = this.description?.walk;
+    const view = this.view;
+    if (!world || !view) {
+      this.walkState = 'off';
+      return;
+    }
+    this.walk?.dispose();
+    const first = start ?? world.starts.find((s) => s.id === world.defaultStart) ?? world.starts[0] ?? null;
+    this.walk = new WalkSession(world, {
+      canvas: view.renderer.domElement,
+      onPose: () => this.onWalkPose(),
+      onEvents: (e) => this.onWalkEvents(e),
+      onExit: () => this.stopWalk(true),
+      onAct: () => this.walkAct(),
+      onLowFps: () => this.onWalkLowFps(),
+    }, { eye_m: this.viewDials.eye_m, mouseMode: this.viewDials.mouse_mode, start: first });
+    view.enterWalk(this.walkCameraPose(), this.walkFov(), this.viewDials.motion ? WALK_ENTRY_MS : 0);
+    this.endProbe(false); // the walk keeps its own frame floor (section 3.4)
+    this.walkState = 'on';
+    this.crossFloor = null;
+    this.setAttribute('data-walk', '');
+    this.setAttribute('data-walk-level', this.walk.ctrl.level);
+    void this.updateComplete.then(() => this.onWalkPose(true));
+  }
+
+  /** Leave the walk (Esc, the exit button, a host that stopped sending the world); `notify` tells the host. */
+  stopWalk(notify: boolean): void {
+    if (this.walkState === 'off') return;
+    this.walk?.dispose();
+    this.walk = null;
+    this.view?.exitWalk();
+    this.walkState = 'off';
+    this.walkShown = null;
+    this.walkAim = null;
+    this.crossFloor = null;
+    this.minimapFrame = null;
+    this.removeAttribute('data-walk');
+    this.removeAttribute('data-walk-pos');
+    this.removeAttribute('data-walk-level');
+    if (notify) this.dispatchEvent(new CustomEvent<WalkChangeDetail>('walk-change', { detail: { on: false }, bubbles: true, composed: true }));
+  }
+
+  private walkCameraPose(): { x: number; y: number; z: number; heading_deg: number; pitch_deg: number } {
+    const p = this.walk!.ctrl.pose();
+    return { x: p.x, y: p.y, z: p.z, heading_deg: p.heading_deg, pitch_deg: p.pitch_deg };
+  }
+
+  private onWalkPose(force = false): void {
+    const w = this.walk;
+    const view = this.view;
+    if (!w || !view) return;
+    const p = w.ctrl.pose();
+    view.setWalkPose(p);
+    this.drawWalkMinimap();
+    this.setAttribute('data-walk-pos', `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.heading_deg.toFixed(1)}`);
+    const now = performance.now();
+    if (force || now - this.walkShownAt > 120) {
+      this.walkShownAt = now;
+      this.walkShown = { x: p.x, z: p.z, heading: Math.round(p.heading_deg), level: p.level };
+    }
+    if (force || now - this.walkAimAt > 150) {
+      this.walkAimAt = now;
+      requestAnimationFrame(() => {
+        if (!this.walk || !this.view) return;
+        const hit = this.view.pickCentre(WALK_ACT_M);
+        const aim = hit && ['entity', 'camera', 'object', 'opening'].includes(hit.kind) ? hit : null;
+        if (aim?.partId !== this.walkAim?.partId) this.walkAim = aim;
+      });
+    }
+  }
+
+  private onWalkEvents(events: WalkEvent[]): void {
+    for (const e of events) {
+      if (e.type === 'level') {
+        this.setAttribute('data-walk-level', e.level);
+        // the 2D, the strip and the chips follow the level only when a level is shown on its own (all levels: they agree)
+        if (this.activeLevel !== null && this.activeLevel !== e.level) this.dispatchEvent(new CustomEvent<LevelSelectDetail>('level-select', { detail: { id: e.level }, bubbles: true, composed: true }));
+      } else if (e.type === 'cross-floor') this.crossFloor = e.floor;
+      else if (e.type === 'blocked') this.walkMessage(`הדלת ${DOOR_STATE_HE[e.door.state]}`, 'warn');
+      else if (e.type === 'edge') this.walkMessage('קצה התוכנית', 'info');
+      else if (e.type === 'room' && e.room?.name) this.walkMessage(e.room.name, 'info');
+    }
+  }
+
+  private walkMessage(text: string, tone: 'info' | 'warn'): void {
+    this.walkNote = { text, tone };
+    window.clearTimeout(this.walkNoteTimer);
+    this.walkNoteTimer = window.setTimeout(() => (this.walkNote = null), WALK_TOAST_MS);
+  }
+
+  /** Enter: the device under the crosshair opens its card (the existing action path; the walk adds none). */
+  private walkAct(): void {
+    const hit = this.view?.pickCentre(WALK_ACT_M) ?? null;
+    if (hit) this.emitSelect(hit);
+  }
+
+  /** The walk ran under 24 fps: level 2 drops to level 1 in place, for the session (never to stills). */
+  private onWalkLowFps(): void {
+    if (this.quality !== 2) return;
+    this.fallBack();
+    this.walkMessage('הסיור עבר לרמה סכמטית — קצב הפריימים היה נמוך', 'info');
+  }
+
+  /** A click on the view: in the walk a device opens its card and the floor is a walk there (tap-to-walk); in pointer lock
+   * the click acts on the crosshair. Outside the walk: the existing selection. */
+  private onViewSelect(hit: SceneHit | null, x?: number, y?: number): void {
+    const w = this.walk;
+    if (this.walkState !== 'on' || !w) {
+      this.emitSelect(hit);
+      return;
+    }
+    if (w.pointerLocked) {
+      const aim = this.view?.pickCentre(WALK_ACT_M) ?? null;
+      if (aim) this.emitSelect(aim);
+      return;
+    }
+    if (hit && hit.kind !== 'zone') {
+      this.emitSelect(hit);
+      return;
+    }
+    if (x === undefined || y === undefined) return;
+    const pt = this.view?.floorPoint(x, y, w.ctrl.pose().ground);
+    if (pt && !w.walkTo(pt[0], pt[1])) this.walkMessage('אין דרך פתוחה לשם', 'warn');
+  }
+
+  private drawWalkMinimap(): void {
+    const cv = this.renderRoot.querySelector<HTMLCanvasElement>('canvas.minimap');
+    const w = this.walk;
+    const world = this.description?.walk;
+    if (!cv || !w || !world) return;
+    const size = cv.clientWidth || 160;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(size * dpr)) {
+      cv.width = Math.round(size * dpr);
+      cv.height = Math.round(size * dpr);
+    }
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const css = getComputedStyle(this);
+    const tok = (t: string, fallback: string): string => css.getPropertyValue(`--sw-${t}`).trim() || fallback;
+    const accent = tok('accent', '#2767ed');
+    this.minimapFrame = drawMinimap(ctx, world, w.ctrl.pose(), w.ctrl.path, size, {
+      bg: tok('surface', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
+      doorOpen: tok('live', '#22c55e'), doorClosed: tok('danger', '#ef4444'), object: tok('text-3', '#9aa3b5'), stair: tok('text-2', '#6b7f99'),
+      room: withAlpha(accent, 0.07), path: tok('live', '#22c55e'), me: accent, meRing: withAlpha(accent, 0.25),
+    });
+  }
+
+  private onMinimapClick(e: MouseEvent): void {
+    const f = this.minimapFrame;
+    const w = this.walk;
+    if (!f || !w) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const [x, z] = f.toM(e.clientX - rect.left, e.clientY - rect.top);
+    w.goTo({ id: 'minimap', kind: 'centre', label: '', level: w.ctrl.level, x, z, heading_deg: w.ctrl.heading, pitch_deg: w.ctrl.pitch, eye_m: null });
+  }
+
+  /** The numeric walk fields (x, y in metres on the plan's axes, the heading in degrees): a keyboard alternative to every move. */
+  private onWalkField(key: 'x' | 'z' | 'heading', e: Event): void {
+    const w = this.walk;
+    const v = Number((e.target as HTMLInputElement).value);
+    if (!w || !Number.isFinite(v)) return;
+    const c = w.ctrl;
+    w.goTo({ id: 'field', kind: 'centre', label: '', level: c.level, x: key === 'x' ? v : c.x, z: key === 'z' ? v : c.z, heading_deg: key === 'heading' ? v : c.heading, pitch_deg: c.pitch, eye_m: null });
+  }
+
+  private onWalkStart(e: Event): void {
+    const sel = e.target as HTMLSelectElement;
+    const s = this.description?.walk?.starts.find((q) => q.id === sel.value);
+    sel.value = '';
+    if (s) this.walk?.goTo(s);
+  }
+
+  private renderWalk() {
+    if (this.walkState !== 'on' || !this.walk) return nothing;
+    const starts = this.description?.walk?.starts ?? [];
+    const kinds = ['saved', 'door', 'room', 'camera', 'centre'].filter((k) => starts.some((s) => s.kind === k));
+    const s = this.walkShown;
+    return html`
+      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה" @click=${(e: MouseEvent) => this.onMinimapClick(e)}></canvas>
+      <span class="cross" ?data-aim=${!!this.walkAim} aria-hidden="true"></span>
+      ${this.walkAim ? html`<span class="pill aim" data-walk-aim>${this.labelOf(this.walkAim)} · Enter</span>` : nothing}
+      ${this.walkNote ? html`<span class="pill walknote" role="status" data-tone=${this.walkNote.tone} data-walk-note>${this.walkNote.text}</span>` : nothing}
+      ${this.crossFloor
+        ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>המדרגות ממשיכות ל${this.crossFloor.name ?? 'קומה אחרת'}
+            <sw-button size="sm" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
+        : nothing}
+      <div class="walkbar" role="group" aria-label="סיור בגובה עין" data-walk-bar>
+        <sw-button size="sm" variant="ghost" data-walk-exit @click=${() => this.stopWalk(true)}>יציאה</sw-button>
+        <select data-walk-start aria-label="עמוד ב…" @change=${(e: Event) => this.onWalkStart(e)}>
+          <option value="">עמוד ב…</option>
+          ${kinds.map((k) => html`<optgroup label=${START_KIND_HE[k]}>${starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || START_KIND_HE[k]}</option>`)}</optgroup>`)}
+        </select>
+        ${s
+          ? html`<label class="num">x <input type="number" step="0.1" inputmode="decimal" data-walk-x aria-label="x במטרים" .value=${s.x.toFixed(2)} @change=${(e: Event) => this.onWalkField('x', e)} /></label>
+              <label class="num">y <input type="number" step="0.1" inputmode="decimal" data-walk-y aria-label="y במטרים" .value=${s.z.toFixed(2)} @change=${(e: Event) => this.onWalkField('z', e)} /></label>
+              <label class="num">כיוון <input type="number" step="5" inputmode="numeric" data-walk-heading aria-label="כיוון במעלות" .value=${String(s.heading)} @change=${(e: Event) => this.onWalkField('heading', e)} /></label>`
+          : nothing}
+      </div>`;
+  }
+
   // ---- the thumbnail strip: one small isometric per listed level, cached for the description it came from
 
   /** The thumbnail of a level from the cache ('' until the pass drew it); a new description or quality empties the
@@ -870,6 +1314,7 @@ export class SwPlan3d extends LitElement {
             : nothing}</div>`
         : nothing}
       ${this.renderStrip()}
+      ${this.renderWalk()}
       <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>
         <sw-chip data-preset-top ?selected=${preset === 'top'} @click=${() => this.pickPreset('top')}>מלמעלה</sw-chip>
         <sw-chip data-preset-iso ?selected=${preset === 'iso'} @click=${() => this.pickPreset('iso')}>איזומטרי</sw-chip>
@@ -884,6 +1329,9 @@ export class SwPlan3d extends LitElement {
         <sw-chip data-quality-1 title="רמה סכמטית: חומרים שטוחים, בלי צללים" ?selected=${q === 1} @click=${() => this.setQuality(1)}>סכמטי</sw-chip>
         <sw-chip data-quality-2 title="רמה מלאה: צללים רכים, חומרים, חיתוך קירות" ?selected=${q === 2} @click=${() => this.setQuality(2)}>מלא</sw-chip>
         <sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>
+        ${this.walkable
+          ? html`<sw-chip data-walk-btn title="סיור בגובה עין: W A S D או החצים להליכה, Shift לריצה, גרירה להסתכלות, לחיצה על הרצפה להליכה לשם, Esc ליציאה" ?selected=${this.walkState !== 'off'} @click=${() => this.requestWalk()}>${this.walkState === 'requested' ? 'טוען סיור…' : 'סיור'}</sw-chip>`
+          : nothing}
         <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}

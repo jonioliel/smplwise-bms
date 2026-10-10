@@ -40,7 +40,7 @@ import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEn
 import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
-import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
+import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, WalkChangeDetail } from '../map/sw-plan-3d';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
@@ -157,6 +157,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private threeState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
+  /** CR-029 S4: the eye-level walk asked for the walk world (the element's `walk-change`); the scene is then built with it. */
+  @state() private walk3d = false;
   /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
   @state() private quality3d: QualityLevel | null = null;
   @state() private catalog3d: Catalog3DLookup | null = null;
@@ -1703,7 +1705,7 @@ export class ExploreFloorMap extends LitElement {
     const b = this.bundle;
     if (!b || !this.hasScene) return null;
     const structureAll = this.sceneStructureKeys(b);
-    const structure = [...structureAll, this.levelFilter];
+    const structure = [...structureAll, this.levelFilter, this.walk3d]; // the walk world rides on the shown description only (never the strip's)
     const layer = this.roomStateLayer;
     const states = this.sceneStatesKey(b, layer);
     const memo = this.sceneMemo;
@@ -1738,7 +1740,7 @@ export class ExploreFloorMap extends LitElement {
     }
     if (!base) return null;
     const layers = { structure: this.layers.has('structure'), objects: this.layers.has('objects'), connectors: this.layers.has('connectors'), zones: this.layers.has('zones') };
-    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer });
+    const desc = buildScene({ ...base, level: this.levelFilter, layers, roomStates: layer, walk: this.walk3d });
     // the strip draws every level from a description keyed on the structure only (without the level filter and without
     // the state layer): a live state push or a level switch keeps the memo's object, so the element's thumbnail cache
     // (keyed on it) is not redrawn - the state dots are drawn over the cached pictures (CR-006 1b)
@@ -1760,8 +1762,16 @@ export class ExploreFloorMap extends LitElement {
     return webglAvailable() && this.hasScene;
   }
 
+  /** CR-029 S4: the walk asks for the walk world (or ended): the next scene is built with it at once, not after the push window. */
+  private onWalkChange(on: boolean): void {
+    if (this.walk3d === on) return;
+    this.walk3d = on;
+    this.sceneDue = true;
+  }
+
   private async toggle3d(): Promise<void> {
     if (this.shows3d) {
+      this.walk3d = false;
       this.view3d = false;
       await this.updateComplete;
       this.onViewChange(); // the canvas is back: an open card re-anchors at its pin
@@ -1857,7 +1867,9 @@ export class ExploreFloorMap extends LitElement {
     return html`<sw-plan-3d data-floor-3d .description=${s.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${b.floorId} .cameras=${s.cameras} .labels=${s.labels}
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
-      @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}></sw-plan-3d>`;
+      @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}
+      .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
+      @floor-request=${(e: CustomEvent<FloorRequestDetail>) => { if (e.detail.floorId !== this.floorId && this.floors.some((f) => f.id === e.detail.floorId)) navigate(`/explore/floors/${e.detail.floorId}`); }}></sw-plan-3d>`;
   }
 
   /** Items per layer for the panel (M07: counts next to every toggle). */
