@@ -3,8 +3,8 @@
   "library_version": "2026.10.1",
   "description": "CR-029 S0 / LOOK_SPEC section 2: the material library of the realistic 3D level, by id. Tints are hex per visual style (light = architectural, dark = digital twin); level 3 multiplies a hue-free detail texture (assets, a later approved step - `set` names the CC0 source set, null = procedural only), levels 1-2 never read this file. tile_m = the texture repeat in metres. Aliases are the CR-029 section 6.2 spellings, accepted and normalised to the id. Copied byte for byte to frontend/src/map/materials.json (test_plan_studio6.py keeps the copies identical).",
   "materials": [
-    {"id": "plaster_white", "group": "wall", "he": "טיח לבן", "tile_m": 2.0, "tint": {"light": "#ece6dc", "dark": "#4b5364"}, "roughness": 1.0, "metalness": 0.0, "normal": 0.35, "set": "Plaster001", "aliases": []},
-    {"id": "plaster_exterior", "group": "wall", "he": "טיח חוץ", "tile_m": 2.0, "tint": {"light": "#d3ccc0", "dark": "#343b4a"}, "roughness": 1.0, "metalness": 0.0, "normal": 0.9, "set": "Plaster003", "aliases": []},
+    {"id": "plaster_white", "group": "wall", "he": "טיח לבן", "tile_m": 2.0, "tint": {"light": "#ece6dc", "dark": "#4b5364"}, "roughness": 1.0, "metalness": 0.0, "normal": 0.22, "set": "Plaster001", "aliases": []},
+    {"id": "plaster_exterior", "group": "wall", "he": "טיח חוץ", "tile_m": 2.0, "tint": {"light": "#d3ccc0", "dark": "#343b4a"}, "roughness": 1.0, "metalness": 0.0, "normal": 0.6, "set": "Plaster003", "aliases": []},
     {"id": "plaster_ceiling", "group": "ceiling", "he": "תקרה חלקה", "tile_m": 3.0, "tint": {"light": "#f4f2ee", "dark": "#3e4554"}, "roughness": 1.0, "metalness": 0.0, "normal": 0.04, "set": null, "aliases": []},
     {"id": "concrete", "group": "floor", "he": "בטון", "tile_m": 2.5, "tint": {"light": "#b0ada6", "dark": "#4b5059"}, "roughness": 1.0, "metalness": 0.0, "normal": 1.2, "set": "Concrete034", "aliases": ["floor_concrete"]},
     {"id": "brick_painted", "group": "wall", "he": "לבנים צבועות", "tile_m": 1.5, "tint": {"light": "#d8d0c4", "dark": "#4f5562"}, "roughness": 1.0, "metalness": 0.0, "normal": 1.0, "set": "Bricks059", "aliases": []},
@@ -29,7 +29,7 @@
     {"id": "metal_light", "group": "object", "he": "מתכת בהירה", "tile_m": 0.5, "tint": {"light": "#babdc1", "dark": "#8d949c"}, "roughness": 0.45, "metalness": 0.8, "normal": 0.4, "set": "Metal032", "aliases": []},
     {"id": "screen_off", "group": "object", "he": "מסך", "tile_m": 1.0, "tint": {"light": "#15181d", "dark": "#0b0d12"}, "roughness": 0.25, "metalness": 0.0, "normal": 0.0, "set": null, "aliases": []},
     {"id": "shutter", "group": "window", "he": "תריס", "tile_m": 1.0, "tint": {"light": "#d9dbdd", "dark": "#7a8088"}, "roughness": 0.6, "metalness": 0.3, "normal": 0.0, "set": null, "aliases": []},
-    {"id": "glass", "group": "window", "he": "זכוכית", "tile_m": 1.0, "tint": {"light": "#dfe9f3", "dark": "#dfe9f3"}, "roughness": 0.05, "metalness": 0.0, "normal": 0.0, "set": null, "glass": {"opacity": 0.16}, "aliases": []},
+    {"id": "glass", "group": "window", "he": "זכוכית", "tile_m": 1.0, "tint": {"light": "#cfe0ea", "dark": "#9fc4de"}, "roughness": 0.05, "metalness": 0.0, "normal": 0.0, "set": null, "glass": {"opacity": 0.22}, "aliases": []},
     {"id": "glass_frosted", "group": "window", "he": "זכוכית חלבית", "tile_m": 1.0, "tint": {"light": "#dfe9f3", "dark": "#dfe9f3"}, "roughness": 0.05, "metalness": 0.0, "normal": 0.0, "set": null, "glass": {"opacity": 0.62}, "aliases": []}
   ]
 }
