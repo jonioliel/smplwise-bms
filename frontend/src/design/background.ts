@@ -170,7 +170,9 @@ export async function saveOwnBackground(mode: BackgroundMode | null): Promise<vo
 /** The address of an uploaded picture (null when the slot is empty). The stamp is the cache key: a new upload is a new address. */
 export function customBackgroundUrl(slot: BackgroundSlot, images: BackgroundImages = installation.images): string | null {
   const stamp = images[slot];
-  return stamp ? `${apiUrl(`settings/background/${slot}`)}?v=${encodeURIComponent(stamp)}` : null;
+  if (!stamp) return null;
+  const base = typeof document === 'undefined' ? `api/v1/settings/background/${slot}` : apiUrl(`settings/background/${slot}`); // Node (the unit spec) has no page
+  return `${base}?v=${encodeURIComponent(stamp)}`;
 }
 
 /** The picture the page shows for a theme under a mode (null = none). Pure: the settings preview and the evidence spec call it too. */

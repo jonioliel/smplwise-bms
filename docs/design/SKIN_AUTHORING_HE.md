@@ -15,7 +15,7 @@
 | `frontend/src/design/apply.ts` | זמן ריצה: מי הסקין והסכמה בתוקף, `data-skin` + `data-theme` על `<html>`, גיליון הטוקנים וגיליון כללי הסקין. |
 | `smplwise_vms/backend/smplwise/routers/settings.py` | האימות של `ui.skin` / `ui.scheme` (ערך לא מוכר = 422). **שומרים את הרשימה בסנכרון עם `SKIN_IDS`** (בדיקה: `test_ui_skin_and_scheme_settings`). |
 
-מנגנון ההחלפה: `<html data-skin="classic|domus|tesla" data-theme="light|dark">`. `auto` נפתר ב-JS לפי `prefers-color-scheme`
+מנגנון ההחלפה: `<html data-skin="classic|domus|tesla|bubble|crystal" data-theme="light|dark">`. `auto` נפתר ב-JS לפי `prefers-color-scheme`
 ומתעדכן חי; ה-CSS מכיל גם רשת ביטחון ב-`@media (prefers-color-scheme: dark)` כשאין `data-theme`.
 
 ## 2. איך מוסיפים סקין (4 צעדים)
@@ -235,6 +235,21 @@ Classic ו-Tesla לא מקבלים כלום.
 - **פלטת ברירת המחדל של הזכוכית קוראת את צבעי המוצר**: `--dv-accent`, `--dv-focus`, `--dv-toggle-on` וצבעי המצב של הפלטה `default` הם
   `var(--sw-product-*)` (כינויים שלעולם לא עוברים גשר, קבוצת `product` ב-`tokens.ts`). סקין שמשנה את ה-accent או את `--sw-toggle-on`
   משנה אותם גם במסכי הזכוכית. הפלטות sand / forest / graphite והשלט (`--mr-*`) שומרות על ערכיהן.
+
+## 6ו. CRY - סקין Crystal ואפשרות הרקע (2026-10-10)
+
+ענף `pilot/CRY-crystal-skin`; הרשומה המלאה ב-`docs/design/CRY_CRYSTAL_SKIN.md`. הסקין `crystal` (`skins/crystal.ts`, 27 כללים) הוא
+זכוכית מוארת עם שפה זוהרת על קנבס פנינה (בהיר) / אינדיגו (כהה). חדש לכל סקין:
+
+- **טוקן `--sw-bg-image`** (בסיס: `none`): כתובת תמונת הרקע, נכתב inline על `<html>` על ידי `design/background.ts` לפי ההגדרה
+  `ui.background` (מובנה יום/לילה לפי הסכמה | ללא | תמונות של ההתקנה) והעדפת המשתמש (`/me/prefs`). סקין שרוצה להציג את הרקע מצייר
+  אותו בכלל הקנבס שלו (`:host(sw-app) { background: linear-gradient(var(--sw-bg-veil), var(--sw-bg-veil)), var(--sw-bg-image) center / cover no-repeat, var(--sw-canvas); }`)
+  ומגדיר `--sw-bg-veil` (הצעיף שמרכך כל תמונה כדי שטקסט על הקנבס יישאר קריא). סקין שלא מצייר אותו - התמונה לא מופיעה.
+- **שני ציורים מקוריים** (`frontend/src/design/backgrounds/*.svg`, נוצרים ב-`scripts/crystal-backgrounds.mjs`, מיוצאים ל-WebP
+  ב-`public/backgrounds/`, כל אחד ~22 KB). בלי צילומים ובלי נכסים של צד שלישי.
+- **העלאת תמונות**: `POST/DELETE/GET /settings/background/{day|night}` (`system.configure`, ביקורת `settings.update`, גיבוי).
+- **בדיקות**: `tests/unit-crystal-background.spec.ts`, `tests/evidence-cry.spec.ts` (צילומים ל-`docs/design/evidence/cry/`),
+  `backend/tests/test_ui_background.py`.
 
 ## 7. מה עוד לא כלול (עבודה לפי מסך)
 
