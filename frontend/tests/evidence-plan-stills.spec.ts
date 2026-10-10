@@ -76,7 +76,7 @@ test.describe('stills in the browser', () => {
       const bakes = { bake_key: 'k', complete: true, stale_count: 0, recipes: ['still-q2.1'], levels: { L0: {
         stills: { 'iso/light/day/off': { url: await pic('#dde3ea'), width: 800, height: 500, recipe: 'still-q2.1' }, 'iso/light/day/on': { url: await pic('#ffd27a'), width: 800, height: 500, recipe: 'still-q2.1' } },
         masks: { iso: { url: maskUrl } }, lightmap: null } } };
-      const el = document.createElement('sw-plan-stills') as HTMLElement & Record<string, unknown>;
+      const el = document.createElement('sw-plan-stills') as unknown as HTMLElement & Record<string, unknown>;
       el.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:99999';
       Object.assign(el, { bakes, level: 'L0', styleId: 'light', band: 'day', rooms: { z0: { lit: true }, z1: { lit: null, presence: true } }, openOpenings: ['do0'] });
       el.id = 'stills-under-test';
