@@ -55,6 +55,13 @@ export const en = {
     fanTurbo: 'turbo',
     fanMax: 'max',
   },
+  glassScheme: {
+    label: 'Glass screens: light or dark',
+    hint: 'Devices, schedules, automations, media and notifications. "Follow the system" is never lighter than the frame around it.',
+    follow: 'Follow the system',
+    light: 'Always light',
+    dark: 'Always dark',
+  },
   selfUpdate: {
     heading: 'Updating from Arx',
     switchLabel: 'Install updates from Arx',

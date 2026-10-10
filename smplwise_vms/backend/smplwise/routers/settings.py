@@ -192,6 +192,10 @@ DEFAULTS: dict[str, str] = {
     # CR-007 6b: the device area's colour scheme - light (default) | dark | auto (the viewer's operating-system scheme).
     # Light by default while the app shell is light only: dark never applies by itself (docs/design/DEVICE_THEMES.md).
     "devices.scheme": "light",
+    # 2.4.4 (owner 2026-10-10): the glass screens' light / dark behaviour (devices, schedules, automations, media, notifications) -
+    # follow (default: the product's scheme, the DU1 rule - never lighter than the shell; `devices.scheme` above still applies inside it)
+    # | light (always light, whatever the product's scheme) | dark (always dark). Presentation only (frontend/src/screens/devices-style.ts).
+    "devices.glass_scheme": "follow",
     # Owner decision 2026-09-30 (area screen redesign): the direction every area screen opens in - tiles ("אריחים צפופים":
     # section cards in columns, dense tiles) | sections ("מקטעים ברצף": one section after the other). A user holding
     # screen.personalize may override it for their own browser (frontend/src/screens/devices-area.ts).
@@ -588,6 +592,7 @@ class SettingsPatch(BaseModel):
     devices_show_climate_strip: str | None = Field(default=None, pattern="^(true|false)$", alias="devices.show_climate_strip")
     devices_density: str | None = Field(default=None, pattern="^(comfortable|compact)$", alias="devices.density")
     devices_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="devices.scheme")
+    devices_glass_scheme: str | None = Field(default=None, pattern="^(follow|light|dark)$", alias="devices.glass_scheme")  # 2.4.4
     devices_area_design: str | None = Field(default=None, pattern="^(tiles|sections)$", alias="devices.area_design")
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # validated in full by services/area_row.py
     devices_floor_row: dict[str, Any] | None = Field(default=None, alias="devices.floor_row")  # validated in full by services/area_row.py

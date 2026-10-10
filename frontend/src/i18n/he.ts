@@ -862,6 +862,14 @@ export const he = {
     overrideOptional: 'רשות',
     overrideRequired: 'חובה',
   },
+  /** 2.4.4: the glass screens' light / dark behaviour (הגדרות › חשמל והתקנים, `devices.glass_scheme`). */
+  glassScheme: {
+    label: 'מסכי הזכוכית: בהיר או כהה',
+    hint: 'חשמל והתקנים, תזמונים, אוטומציות, מולטימדיה והתראות. "לפי צבעוניות המערכת" לעולם לא בהיר יותר מהמסגרת סביבו.',
+    follow: 'לפי צבעוניות המערכת',
+    light: 'תמיד בהיר',
+    dark: 'תמיד כהה',
+  },
   /** 2.4.4: the CR-021 self-update switch (הגדרות › עדכונים, `update.apply_enabled`). */
   selfUpdate: {
     heading: 'עדכון מתוך Arx',

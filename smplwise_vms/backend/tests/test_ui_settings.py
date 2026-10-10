@@ -136,6 +136,7 @@ DEVICES_DEFAULTS = {
     "devices.show_climate_strip": "true",
     "devices.density": "comfortable",
     "devices.scheme": "light",  # CR-007 6b
+    "devices.glass_scheme": "follow",  # 2.4.4: the glass screens follow the product's scheme unless an administrator fixes one
 }
 
 
@@ -150,7 +151,7 @@ def test_devices_settings_defaults_validation_audit_and_gate(settings):
         assert {k: before[k] for k in DEVICES_DEFAULTS} == DEVICES_DEFAULTS
         # (devices.area_design - the area screens' direction, owner 2026-09-30 - has its own tests: test_area_redesign.py)
         assert sorted(k for k in before if k.startswith("devices.") and k not in ("devices.area_design", "devices.area_row", "devices.floor_row")) == sorted(DEVICES_DEFAULTS)  # (area_row / floor_row: test_area_row.py)
-        change = {"devices.style": "glass", "devices.default_view": "tiles", "devices.show_sensors": "false", "devices.show_climate_strip": "false", "devices.density": "compact"}
+        change = {"devices.style": "glass", "devices.default_view": "tiles", "devices.show_sensors": "false", "devices.show_climate_strip": "false", "devices.density": "compact", "devices.glass_scheme": "dark"}
         r = c.patch("/api/v1/settings", json=change)
         assert r.status_code == 200, r.text
         assert {k: r.json()["settings"][k] for k in change} == change
@@ -163,6 +164,7 @@ def test_devices_settings_defaults_validation_audit_and_gate(settings):
             ("devices.show_sensors", "yes"), ("devices.show_sensors", "1"),
             ("devices.show_climate_strip", "no"),
             ("devices.density", "dense"), ("devices.density", "cozy"),
+            ("devices.glass_scheme", "auto"), ("devices.glass_scheme", "Light"), ("devices.glass_scheme", ""),
         ):
             assert c.patch("/api/v1/settings", json={key: bad}).status_code == 422, (key, bad)
         # a refused value changes nothing

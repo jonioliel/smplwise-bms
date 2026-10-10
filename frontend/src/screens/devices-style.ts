@@ -27,6 +27,10 @@ export type DevicesDensity = 'comfortable' | 'compact';
 export type DevicesView = 'cards' | 'tiles';
 /** CR-007 6b: the device area's colour scheme (glass style). `auto` follows the viewer's operating system. */
 export type DevicesScheme = 'light' | 'dark' | 'auto';
+/** 2.4.4 (owner 2026-10-10, `devices.glass_scheme`): the glass screens follow the product's scheme (default), or are always light / dark. */
+export type GlassScheme = 'follow' | 'light' | 'dark';
+export const GLASS_SCHEMES: readonly GlassScheme[] = ['follow', 'light', 'dark'];
+export const glassSchemeOf = (v: unknown): GlassScheme => (v === 'light' || v === 'dark' ? v : 'follow');
 
 export interface DevicesPrefs {
   style: DevicesStyle;
@@ -38,11 +42,13 @@ export interface DevicesPrefs {
   floorRow: FloorRow;
   density: DevicesDensity;
   scheme: DevicesScheme;
+  /** 2.4.4: follow the product's scheme (default) | always light | always dark. */
+  glassScheme: GlassScheme;
   /** K88 (plan.surfaces): where the live plan shows besides the map tab - the devices screen's plan view, the area page's card. */
   planSurfaces: ('devices' | 'area')[];
 }
 
-export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, areaRow: AREA_ROW_DEFAULT, floorRow: FLOOR_ROW_DEFAULT, density: 'comfortable', scheme: 'light', planSurfaces: ['devices', 'area'] };
+export const DEVICES_PREFS_DEFAULT: DevicesPrefs = { style: 'smplwise', theme: 'default', defaultView: 'cards', showSensors: true, areaRow: AREA_ROW_DEFAULT, floorRow: FLOOR_ROW_DEFAULT, density: 'comfortable', scheme: 'light', glassScheme: 'follow', planSurfaces: ['devices', 'area'] };
 
 /** The `devices.*` settings as the screens use them; anything unknown falls back to today's look / the default palette. */
 export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): DevicesPrefs {
@@ -56,6 +62,7 @@ export function devicesPrefsOf(s: Partial<ProductSettings> | null | undefined): 
     floorRow: floorRowOf(s?.['devices.floor_row']),
     density: s?.['devices.density'] === 'compact' ? 'compact' : 'comfortable',
     scheme: s?.['devices.scheme'] === 'dark' || s?.['devices.scheme'] === 'auto' ? s['devices.scheme'] : 'light',
+    glassScheme: glassSchemeOf(s?.['devices.glass_scheme']),
     planSurfaces: Array.isArray(s?.['plan.surfaces']) ? s['plan.surfaces'].filter((x): x is 'devices' | 'area' => x === 'devices' || x === 'area') : ['devices', 'area'],
   };
 }
@@ -75,7 +82,19 @@ export function applyDevicesPrefs(host: HTMLElement, p: DevicesPrefs) {
   host.setAttribute('data-devices-style', p.style);
   host.setAttribute('data-devices-theme', p.theme);
   host.setAttribute('data-devices-density', p.density);
+  setGlassScheme(p.glassScheme);
   applyDevicesScheme(host, p.scheme);
+}
+
+/** 2.4.4: the installation's `devices.glass_scheme`, shared by every glass host (the media, notification and automation surfaces call
+ * applyDevicesScheme with `devices.scheme` only). Set from the product settings (shell boot, a device screen's prefs, a save in Settings). */
+let glassScheme: GlassScheme = 'follow';
+export const currentGlassScheme = (): GlassScheme => glassScheme;
+export function setGlassScheme(v: unknown): void {
+  const next = glassSchemeOf(v);
+  if (next === glassScheme) return;
+  glassScheme = next;
+  reapply();
 }
 
 /** CR-007 6b: the hosts whose scheme is `auto`, re-resolved when the operating system's scheme changes. */
@@ -98,7 +117,9 @@ function systemDark(): boolean {
  * schedule, automation, media and notification surfaces are never lighter than the shell around them (a white glass area
  * inside a dark shell was the largest inconsistency of the DU1 audit). A dark OS alone still changes nothing while the
  * installation's `ui.scheme` is light. */
-function resolveDevicesScheme(scheme: DevicesScheme): 'light' | 'dark' {
+export function resolveDevicesScheme(scheme: DevicesScheme): 'light' | 'dark' {
+  // 2.4.4: an administrator's fixed choice wins over everything (the product's scheme, devices.scheme, the OS)
+  if (glassScheme !== 'follow') return glassScheme;
   if (scheme === 'dark' || (scheme === 'auto' && systemDark())) return 'dark';
   return resolvedTheme() === 'dark' ? 'dark' : 'light';
 }

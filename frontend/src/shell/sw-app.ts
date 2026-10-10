@@ -101,6 +101,7 @@ import { can, canNav, isApi, loadSession, onRemote, onSession, watchPermissions,
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
+import { setGlassScheme } from '../screens/devices-style';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
 import { loadLook, setInstallationLook } from '../design/look';
@@ -1461,6 +1462,7 @@ export class SwApp extends LitElement {
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
           applyPlaybackDisplay(ps); // the helper line and the diagnostics block of the recording screens
           applyTimelineColors(ps['timeline.colors']); // the investigation timeline's colours (הגדרות › וידאו ומדיה › צבעי ציר הזמן)
+          setGlassScheme(ps['devices.glass_scheme']); // 2.4.4: the glass screens follow the product's scheme, or a fixed light / dark
           if (String(ps['ui.hide_search'] ?? 'false') === 'true') HIDDEN_HREFS.add('#/investigate/search');
           const hideMap = String(ps['ui.hide_map'] ?? 'false') === 'true';
           if (hideMap) for (const h of MAP_HREFS) HIDDEN_HREFS.add(h);

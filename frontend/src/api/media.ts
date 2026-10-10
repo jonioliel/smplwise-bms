@@ -159,6 +159,8 @@ export interface ProductSettings {
   'devices.density'?: 'comfortable' | 'compact';
   /** CR-007 6b: the device area's colour scheme - light (default), dark, or auto (the viewer's operating system). */
   'devices.scheme'?: 'light' | 'dark' | 'auto';
+  /** 2.4.4: the glass screens' light / dark behaviour - follow the product's scheme (default) | always light | always dark. */
+  'devices.glass_scheme'?: 'follow' | 'light' | 'dark';
   /** Owner 2026-09-30 (area redesign): the direction every area screen opens in - dense tiles | sequential sections. */
   'devices.area_design'?: 'tiles' | 'sections';
   /** Release 0.1.149: what shows next to an area's name / in a floor's header (api/area-row.ts), read back as objects. */

@@ -30,7 +30,7 @@ import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport }
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
-import { devicesPrefsOf, type DevicesStyle } from './devices-style';
+import { GLASS_SCHEMES, devicesPrefsOf, setGlassScheme, type DevicesStyle } from './devices-style';
 import './devices-theme-picker';
 import './devices-climate-kind-admin'; // owner 2026-09-30: מיזוג / חימום per climate entity
 import './devices-type-admin'; // DEVTYPE (owner 2026-10-09): סוגי התקנים - the fixed type of a switch-wired device
@@ -654,6 +654,7 @@ export class SystemDiagnostics extends LitElement {
       setInstallWiskeyView(r.settings as unknown as Record<string, unknown>); // WisKey rc.37: the installation's density / wall defaults
       applyWiskeyHidden(r.settings as unknown as Record<string, unknown>); // ditto for a direct URL landing on "not available"
       applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
+      setGlassScheme(r.settings['devices.glass_scheme']); // 2.4.4: every open glass surface follows at once
       this.message = 'ההגדרות נשמרו';
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
@@ -1098,7 +1099,7 @@ export class SystemDiagnostics extends LitElement {
   private renderDevices() {
     const api = isApi();
     const ro = !api || !this.canEdit;
-    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.area_row', 'devices.floor_row', 'devices.theme', 'devices.scheme', 'devices.area_design'] as const;
+    const keys = ['devices.style', 'devices.default_view', 'devices.density', 'devices.show_sensors', 'devices.area_row', 'devices.floor_row', 'devices.theme', 'devices.scheme', 'devices.glass_scheme', 'devices.area_design'] as const;
     const areaDesign = ({ ...(this.settings ?? {}), ...this.draft })['devices.area_design'] === 'sections' ? 'sections' : 'tiles';
     const dirty = keys.some((k) => k in this.draft);
     const p = devicesPrefsOf({ ...(this.settings ?? {}), ...this.draft });
@@ -1119,6 +1120,10 @@ export class SystemDiagnostics extends LitElement {
           ${swatch('glass', 'זכוכית', 'שקוף, מעוגל, אייקונים')}
         </div>
         <devices-theme-picker data-devices-theme-picker .theme=${p.theme} .scheme=${p.scheme} ?disabled=${ro} @devices-pick=${(e: CustomEvent<DevicesPick>) => this.set(e.detail.key, e.detail.value as never)}></devices-theme-picker>
+        <div class="row" data-glass-scheme-row><span class="lbl">${t('glassScheme.label')}<span class="muted">${t('glassScheme.hint')}</span></span>
+          <sw-field class="ctl"><select data-set-glass-scheme ?disabled=${ro} @change=${(e: Event) => this.set('devices.glass_scheme', (e.target as HTMLSelectElement).value as never)}>
+            ${GLASS_SCHEMES.map((g) => html`<option value=${g} ?selected=${p.glassScheme === g}>${t(`glassScheme.${g}`)}</option>`)}
+          </select></sw-field></div>
         <div class="row"><span class="lbl">תצוגת הפתיחה של המבנה<span class="muted">מה שמשתמש רואה בפעם הראשונה. מי שבחר בעצמו "כרטיסים" או "אריחים" ממשיך עם הבחירה שלו.</span></span>
           <sw-field class="ctl"><select data-set-devices-view ?disabled=${ro} @change=${(e: Event) => this.set('devices.default_view', (e.target as HTMLSelectElement).value === 'tiles' ? 'tiles' : 'cards')}>
             <option value="cards" ?selected=${p.defaultView === 'cards'}>כרטיסים: עץ המבנה וכרטיסי קומה</option><option value="tiles" ?selected=${p.defaultView === 'tiles'}>אריחים: אריח לכל אזור</option>
