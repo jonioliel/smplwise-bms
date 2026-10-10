@@ -212,6 +212,8 @@ export class InvestigateEvents extends LitElement {
       block-size: 8px;
       border-radius: 50%;
       background: var(--tone);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 22%, transparent);
+      flex: none;
     }
     .sub {
       color: var(--sw-text-3);
@@ -257,20 +259,24 @@ export class InvestigateEvents extends LitElement {
     dd {
       margin: 0;
     }
+    /* the ingest status strip: one quiet line - the dot says connected, the rest is secondary */
     .banner {
       font-size: var(--sw-fs-xs);
       padding: 6px 10px;
       border-radius: var(--sw-r-md);
       background: var(--sw-surface-2);
+      border: 1px solid var(--sw-border);
       color: var(--sw-text-2);
       display: flex;
       gap: 10px;
       align-items: center;
       flex-wrap: wrap;
+      line-height: 1.5;
     }
     .banner.warn {
-      background: var(--sw-stale-soft);
-      color: #7c2d12;
+      background: var(--sw-warning-soft);
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent);
+      color: var(--sw-warning-text);
     }
     .dot {
       inline-size: 8px;
@@ -278,9 +284,20 @@ export class InvestigateEvents extends LitElement {
       border-radius: 50%;
       background: var(--sw-offline);
       display: inline-block;
+      box-shadow: 0 0 0 2px var(--sw-offline-soft);
+      flex: none;
     }
     .dot.on {
       background: var(--sw-live);
+      box-shadow: 0 0 0 2px var(--sw-live-soft);
+    }
+    .rangepick button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .rangepick button:hover:not(.on) {
+      color: var(--sw-text);
+      background: var(--sw-hover-wash);
     }
     .kpis {
       display: none;
@@ -316,6 +333,13 @@ export class InvestigateEvents extends LitElement {
       background: var(--sw-accent-soft);
       color: var(--sw-accent-text);
     }
+    .kpi.hot .ic {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
+    }
+    .kpi.hot .n {
+      color: var(--sw-warning-text);
+    }
     @media (max-width: 767px) {
       .kpis {
         display: grid;
@@ -342,7 +366,11 @@ export class InvestigateEvents extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .wrow:hover {
-      background: var(--sw-surface-3);
+      background: var(--sw-hover-wash);
+    }
+    .wrow:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
     }
     /* M047: a ticked raw event (for a split) and the spotlight rules of the window */
     .wrow.tick {
@@ -802,7 +830,7 @@ export class InvestigateEvents extends LitElement {
 
   private windowColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '72px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
-    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? '#6b7280'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מה־NVR'}</div>`; } },
+    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מה־NVR'}</div>`; } },
     { key: 'spotlight', label: 'זרקור', width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>קיבוץ ידני</span>` : nothing; } },
     { key: 'camera_name', label: 'מצלמה / קבוצה', render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת')}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
     { key: 'start', label: 'זמן', render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
@@ -835,7 +863,7 @@ export class InvestigateEvents extends LitElement {
       <sw-button size="sm" variant="ghost" icon=${this.showRaw ? 'chevron' : 'list'} data-window-raw-toggle aria-expanded=${this.showRaw} @click=${() => (this.showRaw = !this.showRaw)}>${this.showRaw ? 'הסתר את האירועים' : `${w.count} אירועים מקוריים`}</sw-button>
       ${this.showRaw
         ? html`<div class="wlist" data-window-events>
-            ${evs.map((e) => html`<a class="wrow ${w.count > 1 ? 'tick' : ''}" href=${`#/investigate/events/${e.id}`}>${w.count > 1 ? html`<input type="checkbox" aria-label="בחר אירוע לפיצול" data-window-tick=${e.id} .checked=${this.ticked.has(e.id)} @click=${(ev: Event) => ev.stopPropagation()} @change=${(ev: Event) => this.tick(e.id, (ev.target as HTMLInputElement).checked)} />` : nothing}<span class="ty" style="--tone:${EVENT_TONE[e.type] ?? '#6b7280'}"><i></i>${EVENT_LABEL[e.type] ?? e.type}</span><span class="ltr">${this.fmt(e.occurred_at)}</span><span class="sub">${e.acked_at ? 'טופל' : 'ממתין'}</span></a>`)}
+            ${evs.map((e) => html`<a class="wrow ${w.count > 1 ? 'tick' : ''}" href=${`#/investigate/events/${e.id}`}>${w.count > 1 ? html`<input type="checkbox" aria-label="בחר אירוע לפיצול" data-window-tick=${e.id} .checked=${this.ticked.has(e.id)} @click=${(ev: Event) => ev.stopPropagation()} @change=${(ev: Event) => this.tick(e.id, (ev.target as HTMLInputElement).checked)} />` : nothing}<span class="ty" style="--tone:${EVENT_TONE[e.type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[e.type] ?? e.type}</span><span class="ltr">${this.fmt(e.occurred_at)}</span><span class="sub">${e.acked_at ? 'טופל' : 'ממתין'}</span></a>`)}
             ${evs.length < w.count ? html`<div class="sub">${w.count - evs.length} אירועים נוספים אינם בסינון הנוכחי.</div>` : nothing}
           </div>
           <div class="wfix" data-window-fix>
@@ -891,7 +919,7 @@ export class InvestigateEvents extends LitElement {
 
   private apiColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '72px', render: (r) => this.renderThumb(r as unknown as VmsEvent) },
-    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? '#6b7280'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן התקן' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
+    { key: 'type', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${EVENT_TONE[r.type as EventKind] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[r.type as EventKind] ?? String(r.type)}${Number(r.count) > 1 ? html` <span class="sub">×${String(r.count)}</span>` : nothing}</span><div class="sub">${r.source === 'ha' ? 'חיישן התקן' : r.source === 'system' ? 'מערכת' : r.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'} · ${r.acked_at ? `טופל · ${String(r.acked_by_username ?? '')}` : 'ממתין לטיפול'}</div>` },
     { key: 'camera_name', label: 'מצלמה', render: (r) => html`${String(r.camera_name ?? (r.channel ? `ערוץ ${String(r.channel)}` : 'מערכת'))}<div class="sub ltr">${String(r.raw_type)}</div>` },
     { key: 'occurred_at', label: 'זמן', render: (r) => html`${this.fmt(String(r.occurred_at))}<div class="sub">${this.fmtDate(String(r.occurred_at))}${r.ended_at ? ` · עד ${this.fmt(String(r.ended_at))}` : ''}</div>` },
     { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${SEV_LABEL[r.severity as keyof typeof SEV_LABEL] ?? String(r.severity)}></sw-badge>` },
@@ -921,7 +949,7 @@ export class InvestigateEvents extends LitElement {
         ${ing?.connected && this.facets && !this.facets.sources.some((s) => s.source === 'alertstream') ? html`<span data-no-alerts style="color:var(--sw-warning-text);font-weight:600">· ה־NVR לא שלח התראות ב־${this.facets.days} הימים האחרונים — הפעל "Notify Surveillance Center" ב־linkage של זיהוי התנועה ב־NVR</span>` : nothing}
       </div>
       <div class="kpis" data-kpis>
-        <div class="kpi"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
+        <div class="kpi ${unacked ? 'hot' : ''}"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
         <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
       </div>
       <div class="filters">

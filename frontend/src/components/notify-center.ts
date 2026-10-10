@@ -130,7 +130,7 @@ export class NotifyCenter extends LitElement {
         inset: auto 0 0 0;
         inline-size: auto;
         block-size: calc(100% - 20px);
-        border-radius: 28px 28px 0 0;
+        border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
         border-block-end: 0;
         transform: translateY(56px);
         padding-block-end: env(safe-area-inset-bottom, 0px);
@@ -194,7 +194,7 @@ export class NotifyCenter extends LitElement {
         padding: 0 8px;
         border-radius: var(--sw-r-md);
         background: var(--dv-accent);
-        color: #fff;
+        color: var(--sw-text-inverse);
         font-size: var(--sw-fs-sm);
         font-weight: 700;
         font-variant-numeric: tabular-nums;
@@ -434,33 +434,71 @@ export class NotifyCenter extends LitElement {
         inline-size: max-content;
         max-inline-size: calc(100% - 24px);
         inset-block-end: 78px;
-        background: rgba(28, 28, 30, 0.88);
-        -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
-        backdrop-filter: var(--sw-perf-blur, blur(20px));
-        color: #fff;
+        background: var(--sw-toast-bg);
+        color: var(--sw-toast-text);
         padding: 11px 20px 11px 16px;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: var(--sw-r-pill);
+        border: 1px solid var(--sw-border-strong);
         font-size: var(--sw-fs-base);
         font-weight: 500;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        box-shadow: var(--sw-shadow-3);
         display: flex;
         gap: 9px;
         align-items: center;
         animation: mm-pop var(--mm-motion) var(--mm-ease);
       }
       .toast .ic {
-        color: #30d158;
+        color: var(--sw-product-success);
         font-size: var(--sw-fs-lg);
       }
       .toast.bad .ic {
-        color: #ff6961;
+        color: var(--sw-product-danger);
+      }
+      .nh .x:focus-visible,
+      .nh .back:focus-visible,
+      .gh:focus-visible {
+        outline: 2px solid var(--dv-focus);
+        outline-offset: 2px;
+      }
+      .nh .x:hover,
+      .nh .back:hover {
+        background: var(--dv-surface-2);
+      }
+      /* the empty state: a ring, one line, nothing to do */
+      .statebox {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+        color: var(--dv-text-2);
+      }
+      .statebox .ring {
+        inline-size: 64px;
+        block-size: 64px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--dv-surface-3);
+        color: var(--dv-text-3);
+      }
+      .statebox b {
+        font-size: var(--sw-fs-lg);
+        color: var(--dv-text);
+      }
+      .statebox p {
+        margin: 0;
+        font-size: var(--sw-fs-sm);
       }
       @media (prefers-reduced-motion: reduce) {
         /* the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
         :host,
         .panel {
           transition: none;
+        }
+        .dlg,
+        .toast {
+          animation: none;
         }
       }
     `,

@@ -188,8 +188,8 @@ export class NotifyDetail extends LitElement {
         block-size: 150px;
         border-radius: var(--sw-r-lg);
         overflow: hidden;
-        background: radial-gradient(circle at 70% 30%, #3b4660, #141a28 70%);
-        color: #fff;
+        background: radial-gradient(circle at 70% 30%, color-mix(in srgb, var(--sw-video-bg) 70%, var(--sw-on-video-2)), var(--sw-video-bg) 70%);
+        color: var(--sw-on-video);
         display: grid;
         place-items: center;
         border: 1px solid var(--dv-border);
@@ -208,7 +208,7 @@ export class NotifyDetail extends LitElement {
         align-items: center;
         gap: 6px;
         font-size: var(--sw-fs-sm);
-        color: rgba(255, 255, 255, 0.8);
+        color: var(--sw-on-video-2);
       }
       .snap .ctr .ic {
         font-size: 28px;
@@ -221,17 +221,17 @@ export class NotifyDetail extends LitElement {
         inset-inline-start: 10px;
         block-size: 24px;
         padding: 0 10px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.45);
+        border-radius: var(--sw-r-pill);
+        background: var(--sw-video-scrim);
         -webkit-backdrop-filter: var(--sw-perf-blur, blur(10px));
         backdrop-filter: var(--sw-perf-blur, blur(10px));
-        color: #fff;
+        color: var(--sw-on-video);
         font-size: var(--sw-fs-xs);
         font-weight: 600;
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.16);
+        border: 1px solid var(--sw-video-line);
       }
       .dacts {
         display: grid;

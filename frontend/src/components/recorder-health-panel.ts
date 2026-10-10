@@ -4,6 +4,7 @@ import './sw-badge';
 import './sw-button';
 import './sw-card';
 import './sw-field';
+import './sw-state-panel';
 import { describeError } from '../api/client';
 import { checkRecorderHealth, healthThresholds, recorderHealth, saveHealthThresholds, type CameraRecordingMode, type HealthState, type HealthThresholds, type RecorderHealthCard, type ThresholdsAnswer } from '../api/recorder-health';
 import type { StateKind } from './sw-badge';
@@ -107,21 +108,48 @@ export class RecorderHealthPanel extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
       gap: 10px;
     }
+    /* one recorder per card: the status badge in the head, a tone bar at the start edge and a faint wash when something needs attention */
     .card {
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
       padding: 10px 12px;
-      background: var(--sw-surface);
+      background: var(--sw-glass-sheen), var(--sw-surface);
+      -webkit-backdrop-filter: var(--sw-glass-blur);
+      backdrop-filter: var(--sw-glass-blur);
+      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
       display: flex;
       flex-direction: column;
       gap: 4px;
       min-inline-size: 0;
+      position: relative;
+      overflow: hidden;
+      transition: border-color var(--sw-t-state) var(--sw-ease), background var(--sw-t-state) var(--sw-ease);
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset-block: 0;
+      inset-inline-start: 0;
+      inline-size: 4px;
+      background: var(--sw-live);
+    }
+    .card[data-status='unknown']::before,
+    .card[data-status='off']::before {
+      background: var(--sw-unknown);
     }
     .card[data-status='error'] {
-      border-color: var(--sw-danger);
+      border-color: color-mix(in srgb, var(--sw-danger) 55%, var(--sw-border));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--sw-danger) 5%, var(--sw-surface));
+    }
+    .card[data-status='error']::before {
+      background: var(--sw-danger);
     }
     .card[data-status='warn'] {
-      border-color: var(--sw-stale);
+      border-color: color-mix(in srgb, var(--sw-stale) 55%, var(--sw-border));
+      background: var(--sw-glass-sheen), color-mix(in srgb, var(--sw-stale) 5%, var(--sw-surface));
+    }
+    .card[data-status='warn']::before {
+      background: var(--sw-stale);
     }
     .hh {
       display: flex;
@@ -150,6 +178,17 @@ export class RecorderHealthPanel extends LitElement {
     .r .k {
       color: var(--sw-text-2);
       flex-shrink: 0;
+    }
+    .r .v span {
+      font-variant-numeric: tabular-nums;
+    }
+    .r:has(.dot[data-s='error']) .v span {
+      color: var(--sw-danger-text);
+      font-weight: var(--sw-fw-medium);
+    }
+    .r:has(.dot[data-s='warn']) .v span {
+      color: var(--sw-warning-text);
+      font-weight: var(--sw-fw-medium);
     }
     .r .k.nm2 {
       flex-shrink: 1;
@@ -195,6 +234,17 @@ export class RecorderHealthPanel extends LitElement {
     }
     .dot[data-s='error'] {
       background: var(--sw-danger);
+    }
+    .dot[data-s='unknown'] {
+      background: transparent;
+      border: 1px dashed var(--sw-unknown);
+      box-sizing: border-box;
+    }
+    .chk:focus-visible,
+    .fcams > summary:focus-visible,
+    .percam summary:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
     }
     .bar {
       display: flex;
@@ -472,8 +522,8 @@ export class RecorderHealthPanel extends LitElement {
   }
 
   render() {
-    if (this.error && !this.cards) return html`<div class="err" role="alert" data-rh-error>${this.error}</div>`;
-    if (!this.cards) return html`<div class="ok" data-rh-loading>טוען…</div>`;
+    if (this.error && !this.cards) return html`<sw-card heading="מקליטים"><sw-state-panel compact state="error" heading="המקליטים לא נבדקו" hint=${this.error} actionLabel="נסה שוב" data-rh-error @action=${() => this.load()}></sw-state-panel></sw-card>`;
+    if (!this.cards) return html`<sw-card heading="מקליטים"><sw-state-panel compact state="loading" heading="קורא…" data-rh-loading></sw-state-panel></sw-card>`;
     if (!this.cards.length) return nothing;
     return html`<sw-card heading="מקליטים" data-rh-panel data-state="ready">
         ${this.manage ? html`<div class="bar"><sw-button size="sm" icon="refresh" data-rh-check ?disabled=${this.busy} @click=${() => this.check()}>בדוק עכשיו</sw-button></div>` : nothing}

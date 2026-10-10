@@ -112,7 +112,7 @@ export class InvestigateEventDetail extends LitElement {
       background: var(--sw-video-bg);
       border-radius: var(--sw-r-lg);
       overflow: hidden;
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-shadow-2);
     }
     .player sw-live-player,
     .player img {
@@ -320,7 +320,15 @@ export class InvestigateEventDetail extends LitElement {
       border: 1px solid var(--sw-border);
     }
     .nearby a:hover {
-      background: var(--sw-surface-3);
+      background: var(--sw-hover-wash);
+    }
+    .nearby a:focus-visible,
+    .corr .link a:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .corr .link {
+      transition: background var(--sw-t-fast) var(--sw-ease);
     }
     .note {
       font-size: var(--sw-fs-xs);

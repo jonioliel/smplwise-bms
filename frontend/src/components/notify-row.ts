@@ -64,6 +64,12 @@ export class NotifyRow extends LitElement {
         background: var(--dv-surface-2);
         border-color: var(--dv-border);
       }
+      .nrow:has(.open:focus-visible) {
+        border-color: var(--dv-focus);
+      }
+      .tx b .ud {
+        transition: opacity var(--mm-motion) var(--mm-ease), transform var(--mm-motion) var(--mm-ease);
+      }
       :host([selected]) .nrow {
         background: var(--dv-surface);
         border-color: var(--dv-border-strong);
