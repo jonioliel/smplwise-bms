@@ -637,8 +637,8 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** CR-029 S0 / S3: one dial of the installation's `plan.view`, the draft first (a partial object) then the stored value. */
-  private viewValue<K extends keyof NonNullable<ProductSettings['plan.view']>>(key: K, fallback: NonNullable<ProductSettings['plan.view']>[K]): NonNullable<ProductSettings['plan.view']>[K] {
-    return (this.draft['plan.view']?.[key] ?? this.settings?.['plan.view']?.[key] ?? fallback) as NonNullable<ProductSettings['plan.view']>[K];
+  private viewValue<K extends keyof NonNullable<ProductSettings['plan.view']>>(key: K, fallback: NonNullable<NonNullable<ProductSettings['plan.view']>[K]>): NonNullable<NonNullable<ProductSettings['plan.view']>[K]> {
+    return (this.draft['plan.view']?.[key] ?? this.settings?.['plan.view']?.[key] ?? fallback) as NonNullable<NonNullable<ProductSettings['plan.view']>[K]>;
   }
 
   private setView(patch: NonNullable<ProductSettings['plan.view']>): void {
@@ -646,8 +646,8 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** CR-029 S3: one key of `plan.bakes`, the draft first then the stored value. */
-  private bakeValue<K extends keyof NonNullable<ProductSettings['plan.bakes']>>(key: K, fallback: NonNullable<ProductSettings['plan.bakes']>[K]): NonNullable<ProductSettings['plan.bakes']>[K] {
-    return (this.draft['plan.bakes']?.[key] ?? this.settings?.['plan.bakes']?.[key] ?? fallback) as NonNullable<ProductSettings['plan.bakes']>[K];
+  private bakeValue<K extends keyof NonNullable<ProductSettings['plan.bakes']>>(key: K, fallback: NonNullable<NonNullable<ProductSettings['plan.bakes']>[K]>): NonNullable<NonNullable<ProductSettings['plan.bakes']>[K]> {
+    return (this.draft['plan.bakes']?.[key] ?? this.settings?.['plan.bakes']?.[key] ?? fallback) as NonNullable<NonNullable<ProductSettings['plan.bakes']>[K]>;
   }
 
   private setBakes(patch: NonNullable<ProductSettings['plan.bakes']>): void {
