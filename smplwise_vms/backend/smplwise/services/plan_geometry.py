@@ -15,7 +15,7 @@ from typing import Any, Mapping
 from ..db import new_id
 from .plan_schema import canonical_json as canonical_json
 from . import plan_catalog
-from . import plan_glass, wall_path
+from . import plan_glass, plan_studio6, wall_path
 
 SCHEMA_VERSION = "2.0"
 # Document 2.1 is one minor, additive bump shared by two features: window walls (plan_glass: a glass wall or a glazing
@@ -24,7 +24,10 @@ SCHEMA_VERSION = "2.0"
 # refuses, never misreads, a 2.1 one). Both are accepted here; rebase() stamps the right one on every save.
 SCHEMA_VERSION_21 = plan_glass.GLAZING_SCHEMA_VERSION
 SCHEMA_VERSION_CURVED = SCHEMA_VERSION_21  # the curved-walls name of the same bump
-SCHEMA_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_21)
+# Document 2.2 (CR-029 S0, Plan Studio 6): the realistic-3D and walk fields (materials, ceiling, north, lamp light, window
+# tint, saved walk positions; services/plan_studio6.py) - the same rule: written only on a document that uses one of them.
+SCHEMA_VERSION_22 = plan_studio6.SCHEMA_VERSION
+SCHEMA_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_21, SCHEMA_VERSION_22)
 SUPPORTED_VERSIONS = SCHEMA_VERSIONS
 TOKENS_VERSION = "map-1"
 DEFAULT_LEVEL_ID = "L0"
@@ -197,9 +200,11 @@ def has_curves(doc: Mapping[str, Any]) -> bool:
 
 
 def document_version(doc: Mapping[str, Any]) -> str:
-    """The schema version a document is stored with: "2.1" when it uses window walls (a glass wall or a glazing
-    block) or curved walls (a wall with bulges), else "2.0" - the lowest version that describes it, so older readers
-    keep every document they can read."""
+    """The schema version a document is stored with: "2.2" when it carries a Plan Studio 6 field (plan_studio6), else
+    "2.1" when it uses window walls (a glass wall or a glazing block) or curved walls (a wall with bulges), else "2.0" -
+    the lowest version that describes it, so older readers keep every document they can read."""
+    if plan_studio6.uses_studio6(doc):
+        return SCHEMA_VERSION_22
     return SCHEMA_VERSION_21 if plan_glass.uses_glazing(doc) or has_curves(doc) else SCHEMA_VERSION
 
 
@@ -286,6 +291,7 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
                 continue
             _check_fields(coll, i, item, issues)
     _check_uncertainty_shape(doc.get("uncertainty"), issues)
+    plan_studio6.check_doc_fields(doc, lambda code, message, **kw: _issue(issues, code, message, **kw))
     if not any(i["structural"] for i in issues):
         hit = _find_nonfinite(doc)
         if hit is not None:
@@ -318,6 +324,7 @@ def validate(doc: Any, items: Mapping[str, Mapping[str, Any]] | None = None) -> 
     _check_groups(doc["groups"], objects, issues)
     _check_connectors(doc["connectors"], levels, objects, issues)
     _check_circuits(doc["circuits"], objects, known, issues)
+    plan_studio6.check(doc, levels, known, lambda code, message, **kw: _issue(issues, code, message, **kw))
     fh = doc.get("floor_height_m")
     if fh is not None and not (_num(fh) and FLOOR_HEIGHT_M[0] <= fh <= FLOOR_HEIGHT_M[1]):
         _issue(issues, "floor_height", f"גובה הקומה בין {FLOOR_HEIGHT_M[0]:g} ל־{FLOOR_HEIGHT_M[1]:g} מ׳.", path="floor_height_m")
@@ -498,6 +505,7 @@ def _check_fields(coll: str, i: int, item: dict[str, Any], issues: list[dict[str
         req("color_token", isinstance(item.get("color_token"), str))
         opt("power_w", _num)
     # uncertain_regions: no field rules yet (phase 3, detection)
+    plan_studio6.check_item_fields(coll, item, bad)  # document 2.2 (CR-029 S0): materials, ceiling, tint, light
 
 
 def _check_uncertainty_shape(unc: Any, issues: list[dict[str, Any]]) -> None:
@@ -808,7 +816,9 @@ def diff(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> dict[str, Any
     new_dims = new.get("dimensions") or {}
     cal = old is not None and (canonical_json(old_dims.get("calibration") or {}) != canonical_json(new_dims.get("calibration") or {})
                                or canonical_json(old_dims.get("scale_m_per_px")) != canonical_json(new_dims.get("scale_m_per_px")))
-    return {"collections": out, "total": total, "calibration_changed": bool(cal), "same": total == 0 and not cal}
+    # document 2.2: the plan's north and the saved walk positions live at the top level, outside every collection
+    view = old is not None and any(canonical_json(old.get(k)) != canonical_json(new.get(k)) for k in plan_studio6.DOC_FIELDS)
+    return {"collections": out, "total": total, "calibration_changed": bool(cal), "view_changed": bool(view), "same": total == 0 and not cal and not view}
 
 
 def _clip_unit(a: list[float], b: list[float]) -> tuple[float, float] | None:
@@ -1039,6 +1049,7 @@ def normalize(doc: Mapping[str, Any], items: Mapping[str, Mapping[str, Any]]) ->
     yet validate. Tags on walls, objects and rooms are stored as check_tags cleans them (trimmed, merged
     case-insensitively); a list check_tags refuses is left as it is for validate() to report."""
     out = copy.deepcopy(dict(doc))
+    plan_studio6.normalize(out)  # document 2.2: material aliases -> ids, an empty walk_positions list dropped, headings folded
     for coll in ("walls", "objects", "rooms"):
         for it in out.get(coll) if isinstance(out.get(coll), list) else []:
             if isinstance(it, dict) and it.get("tags") is not None:

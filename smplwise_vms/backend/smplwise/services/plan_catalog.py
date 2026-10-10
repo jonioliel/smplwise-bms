@@ -79,6 +79,25 @@ def check_item(item: Any, ids: set[str], *, builtin: bool) -> list[str]:
         out.append(f"{tag}: unknown icon")
     if item.get("color_token") not in COLOR_TOKENS:
         out.append(f"{tag}: unknown color_token")
+    # catalog 2026.10.1 (CR-029 S0, Plan Studio 6): optional realistic-3D fields - the item's material (an id of
+    # catalog/materials.json), a lamp's emission and whether the walk passes over the item (a mat, a stair, a tribune)
+    if "material_id" in item:
+        from . import plan_studio6  # local: plan_studio6 imports plan_glass only, but keep the catalog importable alone
+
+        if plan_studio6.canonical(item["material_id"]) != item["material_id"]:
+            out.append(f"{tag}: material_id must be an id of catalog/materials.json")
+    if "light" in item:
+        light = item["light"]
+        from . import plan_studio6
+
+        if not (isinstance(light, dict) and light.get("kind") in plan_studio6.LIGHT_KINDS and _num(light.get("color_k")) and plan_studio6.COLOR_K[0] <= light["color_k"] <= plan_studio6.COLOR_K[1]
+                and _num(light.get("lumens")) and plan_studio6.LUMENS[0] <= light["lumens"] <= plan_studio6.LUMENS[1]
+                and (light.get("beam_deg") is None or (_num(light["beam_deg"]) and plan_studio6.BEAM_DEG[0] <= light["beam_deg"] <= plan_studio6.BEAM_DEG[1]))):
+            out.append(f"{tag}: light must be {{kind, color_k 1800..6500, lumens 1..20000, beam_deg?}}")
+        elif item.get("role") != "light":
+            out.append(f"{tag}: light is only for items of role light")
+    if "walkable" in item and not isinstance(item["walkable"], bool):
+        out.append(f"{tag}: walkable must be true or false")
     if builtin:
         if item.get("z_ref") not in Z_REFS:
             out.append(f"{tag}: z_ref must be floor or ceiling")
@@ -140,7 +159,9 @@ def row_item(r: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     """A custom row as a library item: its own fields, and from its base what a row does not carry."""
     base = builtin()["items"].get(r["based_on"]) if r["based_on"] else None
     names = json.loads(r["names_json"])
-    return {
+    # catalog 2026.10.1 (CR-029 S0): the realistic-3D fields come from the base too (a custom item has no columns for them)
+    s6 = {k: copy.deepcopy(base[k]) for k in ("material_id", "light", "walkable") if base and k in base and (k != "light" or r["role"] == "light")}
+    return {**s6,
         "id": r["id"], "custom": True, "based_on": r["based_on"], "category": r["category"], "names": {"he": names.get("he", ""), "en": names.get("en", "")},
         "tags": json.loads(r["tags_json"] or "[]"), "role": r["role"], "shape": r["shape"], "size": json.loads(r["size_json"]),
         "z_ref": base["z_ref"] if base else "floor", "z_m": r["z_m"], "params": json.loads(r["params_json"] or "{}"),

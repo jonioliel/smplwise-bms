@@ -27,7 +27,7 @@ def test_the_built_in_catalog_is_valid_and_complete():
     assert cat.check_catalog(data) == []
     b = cat.builtin()
     items = b["items"]
-    assert b["catalog_version"] == "2026.09.2" and len(items) == 154
+    assert b["catalog_version"] == "2026.10.1" and len(items) == 154
     assert [c["id"] for c in b["categories"]] == list(cat.CATEGORIES) and len(cat.CATEGORIES) == 12
     assert {i["category"] for i in items.values()} == set(cat.CATEGORIES), "every category has items"
     assert {i["icon"] for i in items.values()} == set(cat.ICONS) and len(cat.ICONS) == 24, "every symbol is used"
@@ -71,7 +71,7 @@ def test_params_size_is_measured_in_utf8_bytes_not_characters():
 def test_custom_items_merge_with_their_base_and_move_the_revision(settings):
     app = create_app(settings)
     with app.state.db.connection() as conn:
-        assert cat.revision(conn) == "2026.09.2:0:" and cat.custom_items(conn) == []
+        assert cat.revision(conn) == "2026.10.1:0:" and cat.custom_items(conn) == []
         conn.execute("INSERT INTO catalog_items(id, based_on, names_json, category, tags_json, role, shape, size_json, z_m, params_json, icon, color_token, created_by, created_at, updated_at) "
                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                      ("c1", "light.ceiling", '{"he": "מנורת אולם", "en": "Hall lamp"}', "lighting", '["אולם"]', "light", "cylinder", '{"w_m": 0.6, "d_m": 0.6, "h_m": 0.2}', -0.5,
@@ -85,7 +85,7 @@ def test_custom_items_merge_with_their_base_and_move_the_revision(settings):
         idx = cat.item_index(conn)
         assert "c1" in idx and "chair.basic" in idx and len(idx) == 155
         assert cat.names_index(conn)["c1"] == {"he": "מנורת אולם", "en": "Hall lamp", "tags": ["אולם"]}
-        assert cat.revision(conn) == "2026.09.2:1:2026-09-25T08:00:00Z"
+        assert cat.revision(conn) == "2026.10.1:1:2026-09-25T08:00:00Z"
         lib = cat.library(conn)
         assert lib["revision"] == cat.revision(conn) and len(lib["items"]) == 155 and lib["items"][0]["custom"] is False and lib["items"][-1]["id"] == "c1"
         # a custom item without a base takes the neutral defaults
