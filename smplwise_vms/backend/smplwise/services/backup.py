@@ -55,7 +55,7 @@ SETTINGS_KEEP = {"permission_revision", "instance_id", "installation_id", "app.v
 # CR-022 security review F1: what a restore may write into the data directory. Only the plan files the archive's own rows
 # reference (FILE_COLUMNS), under these roots, never the key folder, a database file or the add-on options - whatever the
 # archive contains. The same rule drops an archive row whose file column points anywhere else (it could steer a later read).
-RESTORABLE_ROOTS = ("plans/",) + _energy_backup.RESTORABLE_ROOTS  # CR-023: stored bill PDFs and business logos (energy/bills/, energy/assets/)
+RESTORABLE_ROOTS = ("plans/", "ui_backgrounds/") + _energy_backup.RESTORABLE_ROOTS  # CR-023: stored bill PDFs and business logos (energy/bills/, energy/assets/); CRY: the background pictures
 _NEVER_RESTORED_NAME = re.compile(r"(^options\.json$|\.db$|\.db-|\.sqlite|-wal$|-shm$|-journal$|\.key$)", re.IGNORECASE)
 # CR-020 S2C security review finding 4: runtime state of the multi-camera batches (the batch record with who started it and
 # the request id, its heartbeat, the device lock). Never exported, never restored, never deleted by a `replace` restore -
@@ -109,6 +109,15 @@ def _file_refs(data: dict[str, list[dict[str, Any]]]) -> list[str]:
                 v = row.get(c)
                 if v and v not in refs:
                     refs.append(str(v))
+    # CRY (2026-10-10): the background pictures are referenced by a settings row (`ui.background_images`, the stamp of each uploaded
+    # slot), not by a table column: a slot with a stamp travels with the archive and comes back with a restore
+    from ..routers.ui_background import STAMPS_KEY, rel_path, stored_stamps
+
+    for row in data.get("settings", []):
+        if row.get("key") == STAMPS_KEY:
+            for slot, stamp in stored_stamps(row.get("value")).items():
+                if stamp and rel_path(slot) not in refs:
+                    refs.append(rel_path(slot))
     return refs
 
 

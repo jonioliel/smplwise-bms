@@ -15,6 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from . import ui_background
 from ..services import app_download, area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
@@ -59,6 +60,12 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    # CRY (2026-10-10): the background artwork behind the glass (the crystal skin paints it) - builtin (the day / night pair that
+    # ships with the product, chosen by the scheme) | none | custom (the installation's uploads, routers/ui_background.py). A user's
+    # own choice (/me/prefs `ui.background`) wins. `ui.background_images` is written by the upload routes only (the version stamp of
+    # each slot) and read back as an object.
+    "ui.background": "builtin",
+    "ui.background_images": "{}",
     # Bubble foundation (owner 2026-10-02): the look dials of the skin - density, surface, pop-up kind, corner radius, transparency,
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
@@ -312,6 +319,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.look"] = look.stored(out["ui.look"])
+    out["ui.background_images"] = ui_background.stored_stamps(out["ui.background_images"])
     out["ui.palettes"] = palettes.stored(out["ui.palettes"])
     out["ui.tabs_mode"] = tabs_mode.stored_mode(out["ui.tabs_mode"])
     out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
@@ -528,8 +536,9 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
-    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
+    ui_background: str | None = Field(default=None, pattern="^(builtin|none|custom)$", alias="ui.background")  # CRY: keep in step with BACKGROUND_MODES in frontend/src/design/background.ts
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py

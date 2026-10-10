@@ -17,6 +17,7 @@ import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
 import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
 import { activePaletteTokens, bootPalettes, onPalettes, syncPalette } from './palette';
+import { applyBackground, bootBackground, onBackground } from './background';
 
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
@@ -101,6 +102,7 @@ function apply() {
   const theme = resolvedTheme();
   if (root.getAttribute('data-skin') !== skin) root.setAttribute('data-skin', skin);
   if (root.getAttribute('data-theme') !== theme) root.setAttribute('data-theme', theme);
+  applyBackground(theme); // CRY: the artwork of the scheme (day / night) or the chosen picture, as `--sw-bg-image` on <html>
   if (sheet && sheetSkin !== skin) {
     sheet.replaceSync(skinRules(skin));
     sheetSkin = skin;
@@ -157,9 +159,11 @@ export function bootDesign() {
   loadStored();
   bootLook(); // the look dials (data-bubble-* and the numeric custom properties on <html>), before the first paint
   bootPalettes(); // the installation's custom palettes as last known (no flash of the default colours)
+  bootBackground(); // CRY: the background choice as last known (the picture is painted with the first apply)
   // the palette dial and the custom list re-apply the colours (the user's own override, the installation's, `?look=`)
   onLook(() => apply());
   onPalettes(() => apply());
+  onBackground(() => apply());
   // the token CSS is a constructable stylesheet: the strict CSP candidate (remote channel) refuses inline <style> elements
   try {
     const tokens = new CSSStyleSheet();

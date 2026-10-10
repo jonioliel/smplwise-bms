@@ -838,6 +838,28 @@ export const he = {
     overrideOptional: 'רשות',
     overrideRequired: 'חובה',
   },
+  // CRY (2026-10-10): הגדרות › כללי › מראה המערכת › רקע (design/background.ts)
+  background: {
+    label: 'רקע',
+    note: 'פועל בסגנון קריסטל; יום ולילה מתחלפים לפי הצבעוניות',
+    builtin: 'יום ולילה מובנים',
+    none: 'ללא',
+    custom: 'תמונות שלי',
+    ownLabel: 'הרקע אצלי',
+    ownNote: 'נשמר למשתמש הזה בכל מכשיר; "כמו המערכת" מבטל',
+    likeSystem: 'כמו המערכת',
+    day: 'יום',
+    night: 'לילה',
+    empty: 'אין תמונה',
+    upload: 'העלאה',
+    replace: 'החלפה',
+    remove: 'הסרה',
+    uploaded: 'התמונה נשמרה',
+    removed: 'התמונה הוסרה',
+    demoOnly: 'העלאת תמונות זמינה רק מול השרת',
+    hint: 'PNG, JPG או WebP עד 12 MB; מומלץ 2560×1440 ותמונה רגועה',
+    fallback: 'כשחסרה תמונה לאחד המצבים, התמונה השנייה משמשת לשניהם',
+  },
 } as const;
 
 type Path<T> = T extends object ? { [K in keyof T]: `${K & string}.${Path<T[K]>}` | (T[K] extends string ? K & string : never) }[keyof T] : never;

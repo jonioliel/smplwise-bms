@@ -61,6 +61,12 @@ def _choice(name: str, allowed: tuple[str, ...]) -> Callable[[Any], str]:
 # `ui.wiskey_wall`); "auto" for the density is an explicit "let WisKey size the overview by itself".
 WISKEY_DENSITIES: tuple[str, ...] = ("auto", "4", "6", "8", "9", "12")
 WISKEY_WALLS: tuple[str, ...] = ("4", "9", "12")
+# CRY (2026-10-10): the user's own background behind the glass - builtin | none | custom (the installation's uploads); no stored value
+# (null) = follow the installation's `ui.background`. Presentation only (frontend/src/design/background.ts).
+BACKGROUND_MODES: tuple[str, ...] = ("builtin", "none", "custom")
+VALIDATORS["ui.background"] = _choice("ui.background", BACKGROUND_MODES)
+DEFAULTS["ui.background"] = None
+
 VALIDATORS["wiskey.density"] = _choice("wiskey.density", WISKEY_DENSITIES)
 VALIDATORS["wiskey.wall"] = _choice("wiskey.wall", WISKEY_WALLS)
 DEFAULTS["wiskey.density"] = None
