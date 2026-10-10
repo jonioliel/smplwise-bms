@@ -778,9 +778,16 @@ const HOME_LAYOUT = css`
   .floor-filter button + button {
     border-inline-start: 1px solid var(--sw-border-strong);
   }
+  .floor-filter button:hover {
+    background: var(--sw-hover-wash);
+  }
+  .floor-filter button:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: -2px;
+  }
   .floor-filter button[aria-pressed='true'] {
     background: var(--sw-accent);
-    color: var(--sw-on-accent, #fff);
+    color: var(--sw-text-inverse);
   }
   .split[data-no-tree] {
     grid-template-columns: minmax(0, 1fr);
@@ -1483,6 +1490,7 @@ export class DevicesBuilding extends LitElement {
       margin: 0;
       font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
     }
     .level {
       font-size: var(--sw-fs-xs);
@@ -1572,9 +1580,16 @@ export class DevicesBuilding extends LitElement {
     .seg button + button {
       border-inline-start: 1px solid var(--sw-border-strong);
     }
+    .seg button:hover {
+      background: var(--sw-hover-wash);
+    }
+    .seg button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: -2px;
+    }
     .seg button[aria-pressed='true'] {
       background: var(--sw-accent);
-      color: var(--sw-on-accent, #fff);
+      color: var(--sw-text-inverse);
     }
     .toolbar .bulk-buttons {
       margin-inline-start: auto;
@@ -1676,14 +1691,29 @@ export class DevicesBuilding extends LitElement {
       cursor: pointer;
       min-inline-size: 0;
     }
-    .tree-row:hover,
+    .tree-row:hover {
+      background: var(--sw-hover-wash);
+    }
+    /* HOME polish (2026-10-10): keyboard focus is a ring, not only a wash (the wash alone vanished on a hovered row) */
     .tree-row:focus-visible {
-      background: var(--sw-surface-2);
-      outline: none;
+      background: var(--sw-hover-wash);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: -2px;
     }
     .tree-row.selected {
       background: var(--sw-accent-soft, var(--sw-surface-2));
+      color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .tree-row,
+      .arow,
+      .sdot,
+      .tile-head .dot,
+      .ind .i,
+      button.chip {
+        transition: background-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-state) var(--sw-ease);
+      }
     }
     .tree-row .nm {
       flex: 1;
@@ -1731,11 +1761,18 @@ export class DevicesBuilding extends LitElement {
       align-items: center;
       margin-block-start: 6px;
     }
+    /* a floor is the tree's grouping level: it reads as the heading of its area rows, not as a smaller caption */
     .tree-floor .tree-row {
       font-weight: var(--sw-fw-semibold);
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text);
       text-transform: none;
+    }
+    .tree-floor .tree-row > sw-icon {
+      color: var(--sw-text-3);
+    }
+    .tree-floor .tree-row.selected > sw-icon {
+      color: inherit;
     }
     /* the floor's fold chevron: a compact column at the row's start (a touch screen's hit area grows invisibly past it) */
     .tfold {
@@ -1759,12 +1796,13 @@ export class DevicesBuilding extends LitElement {
     }
     button.tfold:hover,
     button.tfold:focus-visible {
-      background: var(--sw-surface-2);
+      background: var(--sw-hover-wash);
       color: var(--sw-text);
       outline: none;
     }
     button.tfold:focus-visible {
-      box-shadow: 0 0 0 2px var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     @media (pointer: coarse) {
       button.tfold::before {
@@ -1817,8 +1855,10 @@ export class DevicesBuilding extends LitElement {
       background: var(--sw-border-strong);
       flex: none;
     }
+    /* something is on: the warm dot carries a soft halo, so the state reads from across the room and in both schemes */
     .sdot.on {
       background: var(--sw-warning);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-warning) 22%, transparent);
     }
     /* the hover "כבה אזור" takes NO room in the row (owner 2026-09-29: an invisible button used to squeeze the names):
        it floats over the count column, before the "⋯", while the row is hovered or focused; on a touch screen the
@@ -1865,13 +1905,15 @@ export class DevicesBuilding extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 12px 14px 8px;
+      padding: 14px 16px 8px;
       flex-wrap: wrap;
     }
     .fcard header h2 {
       margin: 0;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-lg);
       font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
     }
     /* owner feedback 2026-09-29: the floor's title enters the floor, like "פתח קומה" */
     .fcard header h2 .ftitle {
@@ -1934,12 +1976,24 @@ export class DevicesBuilding extends LitElement {
       cursor: pointer;
       flex-wrap: nowrap;
     }
-    .arow:hover,
+    .arow:hover {
+      background: var(--sw-hover-wash);
+    }
     .arow:focus-visible {
-      background: var(--sw-surface-2);
-      outline: none;
+      background: var(--sw-hover-wash);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: -2px;
+      border-radius: var(--sw-r-xs);
+    }
+    .arow.empty {
+      color: var(--sw-text-3);
+      cursor: default;
+    }
+    .arow.empty:hover {
+      background: transparent;
     }
     .arow .nm {
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
       flex: 1 1 auto;
       min-inline-size: 0;
@@ -1992,7 +2046,7 @@ export class DevicesBuilding extends LitElement {
     .fcard footer {
       display: flex;
       gap: 8px;
-      padding: 8px 14px 12px;
+      padding: 8px 16px 12px;
       border-block-start: 1px solid var(--sw-border);
     }
     .fcard.loose {
@@ -2022,17 +2076,33 @@ export class DevicesBuilding extends LitElement {
       box-shadow: var(--sw-shadow-1);
       color: inherit;
       text-decoration: none;
-      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
-    a.tile:hover,
-    a.tile:focus-visible {
+    @media (prefers-reduced-motion: no-preference) {
+      a.tile {
+        transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-state) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      }
+      a.tile:hover {
+        transform: translateY(var(--sw-hover-lift));
+      }
+    }
+    a.tile:hover {
       border-color: var(--sw-border-strong);
       box-shadow: var(--sw-shadow-2);
-      outline: none;
+    }
+    a.tile:focus-visible {
+      border-color: var(--sw-border-strong);
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
     }
     a.tile.on {
       background: linear-gradient(180deg, var(--sw-warning-soft), var(--sw-surface) 70%);
       border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+    }
+    .tile-head > sw-icon {
+      color: var(--sw-text-2);
+    }
+    a.tile.on .tile-head > sw-icon {
+      color: var(--sw-warning-text);
     }
     a.tile.empty {
       background: var(--sw-surface-2);
@@ -2060,6 +2130,7 @@ export class DevicesBuilding extends LitElement {
       block-size: 8px;
       border-radius: 50%;
       background: var(--sw-warning);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-warning) 22%, transparent);
       flex: none;
     }
     .pills {
@@ -2085,6 +2156,79 @@ export class DevicesBuilding extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    /* ---- the loading skeleton (HOME polish 2026-10-10) ---- */
+    .skeleton {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    .skl {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-skeleton);
+    }
+    .skl::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, var(--sw-skeleton-shine), transparent);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .skl::after {
+        animation: skl-shine 1.4s var(--sw-ease) infinite;
+      }
+    }
+    @keyframes skl-shine {
+      to {
+        transform: translateX(100%);
+      }
+    }
+    .skl-band {
+      display: flex;
+      gap: 12px;
+    }
+    .skl-band .wg {
+      flex: 1 1 210px;
+      block-size: 146px;
+    }
+    .skl-kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .skl-kpis .kpi {
+      block-size: 44px;
+    }
+    .skl-split {
+      display: grid;
+      grid-template-columns: clamp(250px, 16vw, 320px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .skl-split .tree {
+      block-size: 220px;
+    }
+    .skl-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 12px;
+    }
+    .skl-cards .card {
+      block-size: 180px;
+    }
+    @media (max-width: 899px) {
+      .skl-band .wg:nth-child(n + 3),
+      .skl-split .tree {
+        display: none;
+      }
+      .skl-split,
+      .skl-cards {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
     @media (max-width: 767px) {
       .kpis {
@@ -2119,10 +2263,23 @@ export class DevicesBuilding extends LitElement {
     .fchips:empty {
       display: none;
     }
+    /* HOME polish: the count chips are quiet pills on the card (no outline); the lit chip takes the warm tone when something is on */
     .fchips button.chip {
       position: relative;
-      background: transparent;
+      background: var(--sw-surface-2);
+      border-color: transparent;
       min-block-size: 28px;
+    }
+    .fh-chips button.chip.lit {
+      background: var(--sw-surface-2);
+      border-color: transparent;
+    }
+    .fh-chips button.chip.lit.warm {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
+    }
+    .fh-chips button.chip.lit.warm sw-icon {
+      color: var(--sw-warning);
     }
     @media (max-width: 767px), (pointer: coarse) {
       .fchips button.chip {
@@ -2145,14 +2302,13 @@ export class DevicesBuilding extends LitElement {
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
     }
-    button.chip:hover,
-    button.chip:focus-visible {
+    button.chip:hover {
       border-color: var(--sw-border-strong);
-      background: var(--sw-surface-2);
-      outline: none;
+      background: var(--sw-surface-3);
     }
     button.chip:focus-visible {
-      box-shadow: 0 0 0 2px var(--sw-focus, var(--sw-accent));
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     button.chip[aria-expanded='true'] {
       border-color: var(--sw-accent);
@@ -2337,9 +2493,9 @@ export class DevicesBuilding extends LitElement {
     }
     const t = this.tree;
     if (!t) {
-      return html`<sw-page heading=${heading} subheading="המבנה">${this.error
+      return html`<sw-page heading=${heading} subheading="המבנה" wide>${this.error
         ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error}></sw-state-panel>`
-        : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
+        : this.renderSkeleton()}</sw-page>`;
     }
     const floors = t.floors.filter((f) => f.floor_id !== 'none').length;
     const areas = t.floors.reduce((n, f) => n + f.areas.length, 0);
@@ -2356,7 +2512,7 @@ export class DevicesBuilding extends LitElement {
     const widgets = this.renderWidgets(t, h, items, layout);
     const sideLayout = layout === 'side';
     const body = html`${!t.floors.length
-        ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'רק ישויות שהוצבו על המפה של הקומות שבהרשאתך מופיעות כאן.' : 'צרו קומות ואזורים ושייכו אליהם התקנים; העץ יתעדכן מעצמו אחרי סנכרון הרישום.'}></sw-state-panel>`
+        ? html`<sw-state-panel data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
       ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
@@ -2384,6 +2540,21 @@ export class DevicesBuilding extends LitElement {
       ${this.lay.renderPanel()}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
+  }
+
+  /** HOME polish (2026-10-10): the loading state is the screen's own shape - the widget band, the summary strip, the tree and two
+   * floor cards as skeleton blocks (tokens `--sw-skeleton` / `--sw-skeleton-shine`; the shimmer stops under reduced motion) -
+   * so the first paint does not jump when the tree arrives. */
+  private renderSkeleton() {
+    const block = (cls: string) => html`<div class=${`skl ${cls}`}></div>`;
+    return html`<div class="skeleton" data-devices-state="loading" role="status" aria-label="טוען…" aria-busy="true">
+      <div class="skl-band">${block('wg')}${block('wg')}${block('wg')}${block('wg')}</div>
+      <div class="skl-kpis">${block('kpi')}${block('kpi')}${block('kpi')}${block('kpi')}${block('kpi')}</div>
+      <div class="skl-split">
+        ${block('tree')}
+        <div class="skl-cards">${block('card')}${block('card')}</div>
+      </div>
+    </div>`;
   }
 
   /** The toolbar row: the view switch, in direction b the floor filter (the tree is gone there), and - unless the quick-actions
@@ -2615,7 +2786,7 @@ export class DevicesBuilding extends LitElement {
         </div>
       </header>
       <div class="rows">
-        ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow" style="cursor:default">אין אזורים בקומה</div>`}
+        ${f.areas.length ? repeat(f.areas, (a) => a.area_id, (a) => this.renderAreaRow(a, 'card')) : html`<div class="arow empty">אין אזורים בקומה</div>`}
       </div>
       ${this.selected !== f.floor_id
         ? html`<footer><sw-button size="sm" icon="floor" data-open-floor=${f.floor_id} @click=${() => (this.selected = f.floor_id)}>פתח קומה</sw-button></footer>`

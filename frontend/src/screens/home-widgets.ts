@@ -263,6 +263,25 @@ export class HomeWidgetsView extends LitElement {
       padding: 12px 14px;
       gap: 4px;
     }
+    /* HOME polish (2026-10-10): a state change (the alarm's tone, a chip's dot, a button's wash) fades in; nothing moves under
+       reduced motion */
+    @media (prefers-reduced-motion: no-preference) {
+      .wg,
+      .aic,
+      .qbtn,
+      .mchip,
+      .gbtn {
+        transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+      }
+      .wg-alarm[data-tone='err'] .aic {
+        animation: al-pulse 1.6s var(--sw-ease) infinite;
+      }
+    }
+    @keyframes al-pulse {
+      50% {
+        box-shadow: 0 0 0 8px color-mix(in srgb, var(--sw-danger) 22%, transparent);
+      }
+    }
     .wg-h {
       display: flex;
       align-items: center;
@@ -630,11 +649,23 @@ export class HomeWidgetsView extends LitElement {
       cursor: pointer;
     }
     .qbtn:hover {
-      background: var(--sw-surface-2);
+      background: var(--sw-hover-wash);
+      border-color: var(--sw-text-3);
+    }
+    .qbtn:active {
+      background: var(--sw-pressed-wash);
+    }
+    .qbtn:disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: default;
     }
     .qbtn.danger {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       border-color: color-mix(in srgb, var(--sw-danger) 40%, transparent);
+    }
+    .qbtn.danger:hover {
+      background: var(--sw-danger-soft);
+      border-color: color-mix(in srgb, var(--sw-danger) 60%, transparent);
     }
     .qbtn svg {
       inline-size: 16px;
@@ -726,7 +757,12 @@ export class HomeWidgetsView extends LitElement {
       white-space: nowrap;
     }
     .mchip:hover {
-      background: var(--sw-surface-2);
+      background: var(--sw-hover-wash);
+      border-color: var(--sw-text-3);
+    }
+    .mchip:disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: default;
     }
     .mchip i {
       inline-size: 8px;
@@ -745,6 +781,7 @@ export class HomeWidgetsView extends LitElement {
     }
     .mchip:focus-visible,
     .qbtn:focus-visible,
+    .gbtn:focus-visible,
     .grip:focus-visible,
     .eb:focus-visible,
     .seg button:focus-visible,
@@ -787,6 +824,9 @@ export class HomeWidgetsView extends LitElement {
       font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       cursor: pointer;
+    }
+    .gbtn:hover {
+      background: var(--sw-hover-wash);
     }
     /* ---- edit chrome on every shown widget ---- */
     :host([editing]) .wg:not(.ghost) {

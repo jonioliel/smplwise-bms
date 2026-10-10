@@ -259,9 +259,12 @@ export class DevicesTilesPanel extends LitElement {
       .seg button + button {
         border-inline-start: 1px solid var(--sw-border-strong);
       }
+      .seg button:hover {
+        background: var(--sw-hover-wash);
+      }
       .seg button[aria-pressed='true'] {
         background: var(--sw-accent);
-        color: var(--sw-on-accent, #fff);
+        color: var(--sw-text-inverse);
         font-weight: var(--sw-fw-semibold);
       }
       .seg button:focus-visible,
@@ -321,7 +324,7 @@ export class DevicesTilesPanel extends LitElement {
       button.master[data-state='on'],
       button.master[data-state='mixed'] {
         background: var(--sw-accent);
-        color: var(--sw-on-accent, #fff);
+        color: var(--sw-text-inverse);
       }
       button.master:disabled {
         opacity: 0.4;
@@ -410,6 +413,14 @@ export class DevicesTilesPanel extends LitElement {
       .row.on {
         background: var(--sw-warning-soft);
         border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
+      }
+      /* HOME polish (2026-10-10): a row's state change fades in; still under reduced motion */
+      @media (prefers-reduced-motion: no-preference) {
+        .row,
+        .row > sw-icon,
+        button.master {
+          transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease);
+        }
       }
       .row.unavailable {
         opacity: 0.65;

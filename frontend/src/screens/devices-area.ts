@@ -118,6 +118,11 @@ const AREA_DESIGN = css`
   }
   a.sec-chip:hover {
     border-color: var(--sw-border-strong);
+    background: var(--sw-hover-wash);
+  }
+  a.sec-chip:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
   }
   /* the main sensors strip and its fold */
   .main-sensors {
@@ -155,6 +160,7 @@ const AREA_DESIGN = css`
   .msens .mv b {
     font-size: var(--sw-fs-md);
     font-weight: var(--sw-fw-semibold);
+    color: var(--sw-heading);
     font-variant-numeric: tabular-nums;
   }
   .msens .mv span {
@@ -175,6 +181,14 @@ const AREA_DESIGN = css`
     font: inherit;
     font-size: var(--sw-fs-xs);
     cursor: pointer;
+  }
+  .more-sens:hover {
+    background: var(--sw-hover-wash);
+    border-color: var(--sw-accent);
+  }
+  .more-sens:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
   }
   .more-sens + .sensor-groups {
     margin-block-start: 8px;
@@ -216,11 +230,17 @@ const AREA_DESIGN = css`
   .tile .t > sw-icon {
     grid-area: ic;
   }
+  /* HOME polish (2026-10-10): a device's name may take two lines before the ellipsis (the dense tile cut "תאורה אולם ספור…") */
   .tile .t > span {
     grid-area: nm;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    line-height: 1.25;
     font-weight: var(--sw-fw-medium);
     font-size: var(--sw-fs-sm);
   }
@@ -700,6 +720,19 @@ export class DevicesArea extends LitElement {
       background: var(--sw-warning-soft);
       border-color: color-mix(in srgb, var(--sw-warning) 40%, var(--sw-border));
     }
+    /* HOME polish (2026-10-10): a device's state change fades in (the warm fill, the icon); still under reduced motion */
+    @media (prefers-reduced-motion: no-preference) {
+      .tile,
+      .row,
+      .msens,
+      .tile .t sw-icon,
+      .sec-chip {
+        transition: background-color var(--sw-t-state) var(--sw-ease), border-color var(--sw-t-state) var(--sw-ease), color var(--sw-t-state) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease);
+      }
+    }
+    .tile .t sw-icon {
+      color: var(--sw-text-2);
+    }
     .tile.off {
       color: var(--sw-text-2);
     }
@@ -788,6 +821,47 @@ export class DevicesArea extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    /* ---- the loading skeleton (HOME polish 2026-10-10): the strip and three section cards in the screen's own shape ---- */
+    .skeleton {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    .skl {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-skeleton);
+    }
+    .skl::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, var(--sw-skeleton-shine), transparent);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .skl::after {
+        animation: skl-shine 1.4s var(--sw-ease) infinite;
+      }
+    }
+    @keyframes skl-shine {
+      to {
+        transform: translateX(100%);
+      }
+    }
+    .skl.strip {
+      block-size: 44px;
+    }
+    .skl-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 12px;
+    }
+    .skl-cards .card {
+      block-size: 200px;
     }
     .row .n .muted {
       font-size: var(--sw-fs-xs);
@@ -1058,7 +1132,10 @@ export class DevicesArea extends LitElement {
     if (!d) {
       return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building">${this.error
         ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את האזור" hint=${this.error}></sw-state-panel>`
-        : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
+        : html`<div class="skeleton" data-devices-state="loading" role="status" aria-label="טוען…" aria-busy="true">
+            <div class="skl strip"></div>
+            <div class="skl-cards"><div class="skl card"></div><div class="skl card"></div><div class="skl card"></div></div>
+          </div>`}</sw-page>`;
     }
     const floorName = d.area.floor_name ?? '';
     // the floor is a crumb now (devices-area-nav.ts): the subtitle keeps only the counts
@@ -1110,7 +1187,7 @@ export class DevicesArea extends LitElement {
             ${repeat(customKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCustomCard(k)))}
             ${repeat(cameraKeys, (k) => k, (k) => this.lay.wrap(k, this.renderCameraCard(k)))}
           </div>`
-        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="שייכו התקנים לאזור (או מ״ללא שיוך״); כרטיס של תאורה, מתגים, מיזוג, תריסים, אבטחה, מסכים או חיישנים מופיע כשיש באזור התקן מהסוג הזה."></sw-state-panel>`}
+        : html`<sw-state-panel data-devices-state="area_empty" state="empty" heading="אין התקנים באזור הזה" hint="התקנים שישויכו לאזור יופיעו כאן."></sw-state-panel>`}
       ${anyControllable ? nothing : html`<div class="note" data-readonly-note>תצוגה לקריאה בלבד: מצב ההתקנים כפי שדווח.</div>`}
       ${bulk ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${this.canAssignArea ? this.renderAssignDialog() : nothing}
