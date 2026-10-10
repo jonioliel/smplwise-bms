@@ -8,7 +8,6 @@ import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../components/update-run';
 import '../components/restarts-card';
-import '../components/sw-toggle';
 import { describeError } from '../api/client';
 import { patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
@@ -389,9 +388,13 @@ export class SystemUpdate extends LitElement {
     const canSet = !isApi() || can('system.configure');
     return html`<sw-card heading=${t('selfUpdate.heading')} data-update-switch-card>
       <div class="row">
-        <span class="lbl">${t('selfUpdate.switchLabel')}</span>
-        <sw-toggle .checked=${on} ?disabled=${!canSet || this.switchSaving} labelHidden label=${t('selfUpdate.switchLabel')} data-update-switch
-          @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setApplyEnabled(e.detail.checked)}></sw-toggle>
+        <span class="lbl" id="sw-update-switch-lbl">${t('selfUpdate.switchLabel')}</span>
+        <span class="seg" role="group" aria-labelledby="sw-update-switch-lbl" data-update-switch data-on=${on ? 'true' : 'false'}>
+          ${([true, false] as const).map(
+            (v) => html`<button type="button" data-update-switch-option=${v ? 'on' : 'off'} aria-pressed=${on === v ? 'true' : 'false'} ?disabled=${!canSet || this.switchSaving}
+              @click=${() => { if (on !== v) void this.setApplyEnabled(v); }}>${v ? t('selfUpdate.on') : t('selfUpdate.off')}</button>`,
+          )}
+        </span>
       </div>
       <p class="msg" data-update-switch-hint>${t('selfUpdate.switchHint')}</p>
       ${canSet ? nothing : html`<p class="msg" data-update-switch-ro>${t('selfUpdate.needsConfigure')}</p>`}

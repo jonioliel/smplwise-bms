@@ -198,14 +198,15 @@ test.describe('the self-update switch (2.4.4, update.apply_enabled)', () => {
     await expect(notice).toContainText('העדכון מתוך Arx כבוי');
     await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
     const sw = root(page).locator('[data-update-switch]');
-    await expect(sw).not.toHaveAttribute('checked', '');
+    await expect(sw).toHaveAttribute('data-on', 'false');
+    await expect(sw.locator('[data-update-switch-option="off"]')).toHaveAttribute('aria-pressed', 'true');
     expect(((await deepText(page)) ?? '')).not.toMatch(FORBIDDEN);
     await noOverflow(page);
     await shot(page, 'switch-off');
-    await sw.locator('button').click();
+    await sw.locator('[data-update-switch-option="on"]').click();
     await expect(root(page).locator('[data-update-apply]')).toBeVisible();
     expect(patches).toEqual([{ 'update.apply_enabled': 'true' }]);
-    await expect(sw).toHaveAttribute('checked', '');
+    await expect(sw).toHaveAttribute('data-on', 'true');
   });
 
   test('on (default): the switch is on; turning it off sends false and hides the button', async ({ page }) => {
@@ -216,8 +217,9 @@ test.describe('the self-update switch (2.4.4, update.apply_enabled)', () => {
     await open(page, '/system/update');
     await expect(root(page).locator('[data-update-apply]')).toBeVisible({ timeout: 15000 });
     const sw = root(page).locator('[data-update-switch]');
-    await expect(sw).toHaveAttribute('checked', '');
-    await sw.locator('button').click();
+    await expect(sw).toHaveAttribute('data-on', 'true');
+    await sw.locator('[data-update-switch-option="on"]').click(); // already on: nothing is sent
+    await sw.locator('[data-update-switch-option="off"]').click();
     await expect(root(page).locator('[data-update-disabled]')).toBeVisible();
     await expect(root(page).locator('[data-update-apply]')).toHaveCount(0);
     expect(patches).toEqual([{ 'update.apply_enabled': 'false' }]);
@@ -228,7 +230,7 @@ test.describe('the self-update switch (2.4.4, update.apply_enabled)', () => {
     await mockBackend(page, [...ADMIN_PERMS.filter((p) => p !== 'system.configure')], mock);
     await open(page, '/system/update');
     await expect(root(page).locator('[data-update-switch-ro]')).toBeVisible({ timeout: 15000 });
-    await expect(root(page).locator('[data-update-switch]')).toHaveAttribute('disabled', '');
+    await expect(root(page).locator('[data-update-switch] button[disabled]')).toHaveCount(2);
   });
 });
 
