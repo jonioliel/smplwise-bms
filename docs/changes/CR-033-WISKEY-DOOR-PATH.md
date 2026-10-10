@@ -179,8 +179,8 @@ Today a grant needs a custom role or a built-in role that already holds `access.
 5. Commit the outcome audit row. Never retry; never queue; an unknown outcome is resolved only by
    `trusted_door.status(request_id)` (`door_open_status`), never by signing the open again (DR-11).
 
-No fallback exists anywhere: a WisKey door is never sent through `execute`, `lock.unlock` or the WS `stations/test_unlock`
-once the feature flag is on (5.4).
+No fallback exists anywhere: a WisKey door is never sent through `execute` or `lock.unlock`, and never through the WS
+`stations/test_unlock` once the feature flag is on (5.4, 5.5). Steps 3 to 4 describe the flag-on transport.
 
 ### 5.2 Entry points moved
 
@@ -206,15 +206,31 @@ once the feature flag is on (5.4).
   administrator only, confirmation, audit `bridge.policy.changed`. The add-on guard (T3: the add-on never sends `execute` for
   a WisKey door) is independent of this setting and is not weakened by it (see 13.2).
 - Bridge version bump 0.8.0 -> 0.8.1, both copies (`custom_components/smplwise_bridge`, `smplwise_vms/integration/...`) via
-  `scripts/sync_integration.py`; release notes say "requires add-on >= the version that carries D5a" because older add-ons
-  would see refused WisKey `lock.unlock` calls.
+  `scripts/sync_integration.py`; release notes say "requires add-on >= the version that carries D4" because older add-ons
+  still send WisKey tile unlocks through `execute` and would see them refused (5.5).
 
 ### 5.4 Bridge `door_open` / `door_open_status` (later bridge version)
 
 New services verifying `signed_message_json` (closed schema), clock and replay stages per DTO v3, then handing the verified
 DTO to the WisKey capability and returning WisKey's closed answer. Built only when the WisKey consumer side is confirmed (**W?**).
-Until then the add-on keeps the feature flag `doors.trusted_path` = `off` (setting, system administrator, default off) and the
-existing release path stays as it is today. Turning the flag on is an owner-approved step after the gate (11.3).
+Until then the add-on keeps the feature flag `doors.trusted_path` = `off` (setting, system administrator, default off).
+Turning the flag on is an owner-approved step after the gate (11.3).
+
+### 5.5 Interim transport while the flag is off (why bridge 0.8.1 does not break the tiles)
+
+Today a tile unlock of a WisKey lock goes through `execute` -> `lock.unlock` (V). Bridge 0.8.1 refuses exactly that by default
+(decision 20). So D4 makes `trusted_door` choose its transport from the flag:
+
+| `doors.trusted_path` | Transport for every Arx entry point (A1, A2, A4, B1, B2, runs) |
+|---|---|
+| `off` (until D5b, WisKey's consumer and the gate) | today's B1 transport, WS `stations/test_unlock` with the add-on token (V `intercom_client.release_door`), after `door_authority.check`. WisKey sees the infrastructure user, as B1 does today; Arx audit holds the person. Never `execute` |
+| `on` | signed `door_open` only; no other transport exists |
+
+Release order this forces: the add-on version carrying D4 is released **before** bridge 0.8.1, and the 0.8.1 notes state the
+minimum add-on version. An older add-on with bridge 0.8.1 would see its WisKey tile unlocks refused (fail closed, not unsafe).
+Consequence to record: from D4 on, tile opens of a WisKey door no longer carry the HA user context to WisKey's lock entity; this
+loses nothing today because that entity checks nobody (V, transition table H1), and with the flag on the real actor travels
+inside the signed body.
 
 ## 6. Saved items (schedules, automations, scripts, scenes)
 
@@ -347,8 +363,8 @@ Number note: the task said 0073 is DEVTYPE and 0076+ is free, but `origin/pilot/
 ### 11.2 Rollout order
 
 1. D0 fakes -> D1 map and D2 scope (parallel) -> D3 authority and grant UX.
-2. D5a bridge 0.8.1 (independent; can ship as soon as the add-on guard of D4 is merged).
-3. D4 transport behind `doors.trusted_path = off`; D6 lock actions.
+2. D4 transport (interim mode with the flag off, 5.5); D6 lock actions; add-on release.
+3. D5a bridge 0.8.1, released only after the add-on of step 2 (5.5).
 4. D7 inventory -> owner-approved read on the installation -> D8 editor block, D9 run guard.
 5. D10 conversions only for what the inventory found.
 6. D5b bridge `door_open` when WisKey's consumer is confirmed.
