@@ -135,6 +135,24 @@ export class LiveWall extends LitElement {
       color: var(--sw-accent-text);
       box-shadow: var(--sw-shadow-1);
     }
+    .layouts button:hover:not(.on) {
+      color: var(--sw-text);
+      background: var(--sw-hover-wash);
+    }
+    .layouts button:focus-visible,
+    .pbar .kiosk:focus-visible,
+    .settings-move button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    /* a tile that just lost or gained its stream keeps its place; only the picture inside changes (sw-camera-tile) */
+    .grid sw-camera-tile {
+      transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease), opacity var(--sw-t-state) var(--sw-ease);
+    }
+    .grid sw-camera-tile[state='offline'],
+    .grid sw-camera-tile[state='unknown'] {
+      opacity: 0.92;
+    }
     sw-field {
       inline-size: 140px;
     }
@@ -157,6 +175,17 @@ export class LiveWall extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+      line-height: 1.5;
+    }
+    .note a {
+      color: var(--sw-accent-text);
+      text-decoration: none;
+      font-weight: var(--sw-fw-medium);
+    }
+    .note a:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+      border-radius: var(--sw-r-2xs);
     }
     .err {
       font-size: var(--sw-fs-xs);

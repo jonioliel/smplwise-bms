@@ -56,17 +56,6 @@ export class SwCameraTile extends LitElement {
   private stillTimer = 0;
   private stillObs: IntersectionObserver | null = null;
 
-  connectedCallback() {
-    super.connectedCallback();
-    document.addEventListener('visibilitychange', this.stillTick);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    document.removeEventListener('visibilitychange', this.stillTick);
-    this.stopStill();
-  }
-
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('stillRefresh')) {
       this.stopStill();
@@ -116,12 +105,30 @@ export class SwCameraTile extends LitElement {
       box-shadow: var(--sw-shadow-1);
       transition: box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
       isolation: isolate;
+      outline: none;
     }
     :host(:hover) {
       box-shadow: var(--sw-shadow-2);
+      transform: translateY(var(--sw-hover-lift));
+    }
+    :host(:focus-visible) {
+      box-shadow: 0 0 0 var(--sw-focus-w) var(--sw-focus), var(--sw-shadow-2);
     }
     :host([selected]) {
       box-shadow: 0 0 0 2px var(--sw-accent), var(--sw-shadow-2);
+    }
+    /* an offline / forbidden / unknown tile is a quiet card with a dashed edge: the absence of a picture reads as a state, not a loading gap */
+    :host([state='offline']),
+    :host([state='forbidden']),
+    :host([state='unknown']) {
+      box-shadow: inset 0 0 0 1px var(--sw-border-strong);
+    }
+    :host([state='offline']) .off sw-icon,
+    :host([state='unknown']) .off sw-icon {
+      color: var(--sw-offline);
+    }
+    :host([state='forbidden']) .off sw-icon {
+      color: var(--sw-forbidden);
     }
     sw-scene,
     sw-live-player,
@@ -151,6 +158,23 @@ export class SwCameraTile extends LitElement {
       background: var(--sw-surface-3);
       text-align: center;
       padding: 8px;
+    }
+    .off .ring {
+      inline-size: 44px;
+      block-size: 44px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--sw-border-strong);
+      background: var(--sw-surface-2);
+    }
+    :host([compact]) .off .ring {
+      inline-size: 34px;
+      block-size: 34px;
+    }
+    :host([dark]) .off .ring {
+      border-color: var(--sw-video-line);
+      background: var(--sw-video-hover);
     }
     :host([dark]) .off {
       background: var(--sw-video-bg);
@@ -201,11 +225,33 @@ export class SwCameraTile extends LitElement {
       block-size: 7px;
       border-radius: 50%;
       background: var(--sw-live);
-      box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+      box-shadow: 0 0 0 1.5px var(--sw-on-video-2);
       flex-shrink: 0;
+    }
+    /* the live dot breathes while the picture is live (the same rhythm as sw-badge); still under reduced motion */
+    :host([state='live']) .label .dot {
+      animation: breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.45;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :host([state='live']) .label .dot {
+        animation: none;
+      }
+      :host(:hover) {
+        transform: none;
+      }
     }
     :host([state='stale']) .label .dot {
       background: var(--sw-stale);
+      animation: none;
     }
     :host([state='recorded']) .label .dot,
     :host([state='historic']) .label .dot {
@@ -233,7 +279,7 @@ export class SwCameraTile extends LitElement {
       inset-block-end: 8px;
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-2xs);
-      color: rgba(255, 255, 255, 0.9);
+      color: var(--sw-on-video);
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
       direction: ltr;
     }
@@ -254,11 +300,39 @@ export class SwCameraTile extends LitElement {
     return this.state === 'forbidden' ? 'אין הרשאת צפייה' : this.state === 'offline' ? 'המצלמה מנותקת' : 'מצב לא ידוע';
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener('visibilitychange', this.stillTick);
+    // a tile is a control (it opens the camera): reachable from the keyboard, Enter / Space press it like a click
+    if (!this.hasAttribute('tabindex')) this.tabIndex = 0;
+    if (!this.hasAttribute('role')) this.setAttribute('role', 'button');
+    this.addEventListener('keydown', this.onKey);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('visibilitychange', this.stillTick);
+    this.removeEventListener('keydown', this.onKey);
+    this.stopStill();
+  }
+
+  private onKey = (e: KeyboardEvent) => {
+    if (e.target !== this || e.defaultPrevented) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.click();
+    }
+  };
+
+  protected updated(changed: Map<string, unknown>) {
+    if (changed.has('name')) this.setAttribute('aria-label', this.name || 'מצלמה');
+  }
+
   render() {
     const off = this.state === 'offline' || this.state === 'forbidden' || this.state === 'unknown';
     if (off) {
       return html`<div class="off">
-        <sw-icon name=${this.state === 'forbidden' ? 'lock' : 'offline'} size=${this.compact ? 18 : 24}></sw-icon>
+        <span class="ring" aria-hidden="true"><sw-icon name=${this.state === 'forbidden' ? 'lock' : 'offline'} size=${this.compact ? 16 : 20}></sw-icon></span>
         <span>${this.offMessage()}</span>
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}
       </div>`;
