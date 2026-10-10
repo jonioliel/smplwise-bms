@@ -9,35 +9,24 @@ import { css } from 'lit';
  */
 
 export const notifyKnobs = css`
+  /* MEDIA-polish (2026-10-10): the knobs read the product's state colours through the glass layer (the --dv-* knobs, which the default
+     palette takes from --sw-product-*), so the severities are the product's warning / danger in every skin, light and dark; the
+     information severity is the tertiary text. One block for both schemes: every value follows the scheme by itself. */
   :host([data-devices-style='glass']) {
-    --nt-sev-info: #8e8e93;
-    --nt-sev-alert: #ff9f0a;
-    --nt-sev-critical: #d70015;
-    --nt-sev-info-soft: rgba(142, 142, 147, 0.16);
-    --nt-sev-alert-soft: rgba(255, 159, 10, 0.16);
-    --nt-sev-critical-soft: rgba(255, 59, 48, 0.14);
-    --nt-critical-glow: rgba(215, 0, 21, 0.22);
-    --nt-unread-dot: #007aff;
+    --nt-sev-info: var(--dv-text-3);
+    --nt-sev-alert: var(--dv-warning);
+    --nt-sev-critical: var(--dv-danger);
+    --nt-sev-info-soft: color-mix(in srgb, var(--dv-text-3) 16%, transparent);
+    --nt-sev-alert-soft: var(--dv-warning-soft);
+    --nt-sev-critical-soft: var(--dv-danger-soft);
+    --nt-critical-glow: color-mix(in srgb, var(--dv-danger) 24%, transparent);
+    --nt-unread-dot: var(--dv-accent);
     --nt-row-min: 72px;
-    --nt-pin-bg: linear-gradient(180deg, rgba(255, 59, 48, 0.08), rgba(255, 59, 48, 0.02));
-    --nt-timeline-line: rgba(60, 60, 67, 0.18);
-    --nt-matrix-head: rgba(120, 120, 128, 0.08);
-    --nt-warn-text: #9a5b00;
+    --nt-pin-bg: linear-gradient(180deg, color-mix(in srgb, var(--dv-danger) 9%, transparent), color-mix(in srgb, var(--dv-danger) 2%, transparent));
+    --nt-timeline-line: var(--dv-border-strong);
+    --nt-matrix-head: var(--dv-surface-2);
+    --nt-warn-text: var(--sw-warning-text);
     --nt-sheet-w: 480px;
-  }
-  :host([data-devices-style='glass'][data-devices-scheme='dark']) {
-    --nt-sev-info: #98989d;
-    --nt-sev-alert: #ffb340;
-    --nt-sev-critical: #ff453a;
-    --nt-sev-info-soft: rgba(152, 152, 157, 0.2);
-    --nt-sev-alert-soft: rgba(255, 179, 64, 0.2);
-    --nt-sev-critical-soft: rgba(255, 69, 58, 0.22);
-    --nt-critical-glow: rgba(255, 69, 58, 0.3);
-    --nt-unread-dot: #0a84ff;
-    --nt-pin-bg: linear-gradient(180deg, rgba(255, 69, 58, 0.14), rgba(255, 69, 58, 0.03));
-    --nt-timeline-line: rgba(255, 255, 255, 0.2);
-    --nt-matrix-head: rgba(255, 255, 255, 0.05);
-    --nt-warn-text: #ffb340;
   }
 `;
 
@@ -221,7 +210,7 @@ export const notifyControls = css`
   .days button[aria-pressed='true'] {
     background: var(--dv-accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--sw-text-inverse);
   }
   .chk {
     inline-size: 32px;
@@ -231,7 +220,7 @@ export const notifyControls = css`
     background: var(--dv-surface-2);
     display: grid;
     place-items: center;
-    color: #fff;
+    color: var(--sw-text-inverse);
     padding: 0;
     flex: none;
     position: relative;

@@ -8,7 +8,7 @@ import {
 import { mediaGlassStyles } from '../styles/media-glass';
 import { nIcon } from './notify-icons';
 import { notifyControls, notifyKnobs } from './notify-css';
-import { filterCounts, sourceOptions, subtitleText, visibleRows } from './notify-logic';
+import { filterCounts, menuArrow, sourceOptions, subtitleText, visibleRows } from './notify-logic';
 import { applyNotifyGlass, notifyStore, type NotifyState } from './notify-store';
 import './notify-row';
 import './notify-detail';
@@ -194,7 +194,7 @@ export class NotifyCenter extends LitElement {
         padding: 0 8px;
         border-radius: var(--sw-r-md);
         background: var(--dv-accent);
-        color: #fff;
+        color: var(--sw-text-inverse);
         font-size: var(--sw-fs-sm);
         font-weight: 700;
         font-variant-numeric: tabular-nums;
@@ -434,27 +434,27 @@ export class NotifyCenter extends LitElement {
         inline-size: max-content;
         max-inline-size: calc(100% - 24px);
         inset-block-end: 78px;
-        background: rgba(28, 28, 30, 0.88);
+        background: var(--sw-toast-bg);
         -webkit-backdrop-filter: var(--sw-perf-blur, blur(20px));
         backdrop-filter: var(--sw-perf-blur, blur(20px));
-        color: #fff;
+        color: var(--sw-toast-text);
         padding: 11px 20px 11px 16px;
         border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid color-mix(in srgb, var(--sw-toast-text) 12%, transparent);
         font-size: var(--sw-fs-base);
         font-weight: 500;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+        box-shadow: var(--sw-shadow-3);
         display: flex;
         gap: 9px;
         align-items: center;
         animation: mm-pop var(--mm-motion) var(--mm-ease);
       }
       .toast .ic {
-        color: #30d158;
+        color: var(--sw-success);
         font-size: var(--sw-fs-lg);
       }
       .toast.bad .ic {
-        color: #ff6961;
+        color: var(--sw-danger);
       }
       @media (prefers-reduced-motion: reduce) {
         /* the host too: its delayed visibility (--mm-motion, a literal 240 ms in the glass layer) kept the closed, click-through layer visible */
@@ -521,18 +521,28 @@ export class NotifyCenter extends LitElement {
   }
 
   private onKey = (e: KeyboardEvent) => {
-    if (!this.open || e.key !== 'Escape') return;
+    if (!this.open) return;
+    if (this.srcMenu && menuArrow(e, this.renderRoot.querySelector('[data-source-menu]'))) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== 'Escape') return;
     e.stopPropagation();
     if (this.door.phase === 'confirm' || this.door.phase === 'step_up') this.door = reduceDoorOpen(this.door, { type: 'cancel' });
     else if (this.door.phase === 'done' || this.door.phase === 'failed') this.door = reduceDoorOpen(this.door, { type: 'dismiss' });
     else if (this.door.phase === 'sending') return; // a command is on its way: nothing closes it
-    else if (this.srcMenu) this.srcMenu = false;
+    else if (this.srcMenu) this.toggleSourceMenu();
     else if (this.detailId) this.detailId = null;
     else this.close();
   };
 
   private close() {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+  }
+  /** The source menu: opened, it takes the focus on its first item (arrow keys move, Escape closes it and returns to the button). */
+  private toggleSourceMenu() {
+    this.srcMenu = !this.srcMenu;
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(this.srcMenu ? '[data-source-menu] [role^="menuitem"]' : '[data-source-filter]')?.focus({ preventScroll: true }));
   }
   private go(href: string) {
     this.dispatchEvent(new CustomEvent('navigate', { detail: { href }, bubbles: true, composed: true }));
@@ -643,7 +653,7 @@ export class NotifyCenter extends LitElement {
     const seg = (f: InboxFilter, label: string, n?: number) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => (this.filter = f)}>${label}${n !== undefined && n > 0 ? html`<small class="n">${n}</small>` : nothing}</button>`;
     return html`<div class="nfilt" data-center-filters>
       <div class="seg" role="group" aria-label="סינון">${seg('all', 'הכל')}${seg('unread', 'לא נקראו', c.unread)}${seg('critical', 'קריטי', c.critical)}</div>
-      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => (this.srcMenu = !this.srcMenu)}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : 'מקור'}${nIcon('chevronDown')}</button>
+      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => this.toggleSourceMenu()}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : 'מקור'}${nIcon('chevronDown')}</button>
         ${this.srcMenu ? html`<div class="pop" role="menu" data-source-menu>
           <button type="button" role="menuitemradio" aria-checked=${String(this.category === null)} data-source-opt="all" @click=${() => { this.category = null; this.srcMenu = false; }}>${nIcon('list')}כל המקורות<span class="cnt n">${s.rows.length}</span></button>
           ${opts.map((o) => html`<button type="button" role="menuitemradio" aria-checked=${String(this.category === o.category)} data-source-opt=${o.category} @click=${() => { this.category = o.category; this.srcMenu = false; }}>${nIcon(o.icon)}${o.label}<span class="cnt n">${o.count}</span></button>`)}

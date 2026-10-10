@@ -87,7 +87,7 @@ export class MediaQueueList extends LitElement {
       }
       .tap.sel .ix {
         background: var(--mr-accent);
-        color: #fff;
+        color: var(--sw-text-inverse);
       }
       .hacts {
         display: inline-flex;
@@ -177,7 +177,7 @@ export class MediaQueueList extends LitElement {
       }
       .ask .yes {
         background: var(--mr-danger, var(--sw-danger));
-        color: #fff;
+        color: var(--sw-text-inverse);
       }
       .ask.choice {
         flex-direction: column;

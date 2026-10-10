@@ -24,8 +24,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
   'screens/devices-layout-css.ts': 'the layout editor grid lines',
-  'screens/multimedia-groups.ts': 'the media material knobs (--mm-*)',
-  'screens/multimedia-screens.ts': 'the media material knobs (--mm-*)',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
   'screens/explore-plan-editor.ts': 'the plan editor canvas HUD',
   'screens/explore-plan-import.ts': 'the import preview canvas',
