@@ -7,3 +7,5 @@
 export * from 'three';
 export { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 export { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+// Plan Studio 6 S1: the bevelled furniture and door leaves of the realistic level (BoxGeometry + Vector3 only).
+export { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';

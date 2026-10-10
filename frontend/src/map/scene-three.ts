@@ -17,12 +17,25 @@
  * camera is far. Colours come from the element's computed design tokens - the description carries names only. This is
  * the only module that imports the three bundle (the lazy chunk).
  */
-import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFSoftShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer } from './three-bundle';
+import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
+import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
+import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
+import { LOOK_STYLES } from './look-style';
+import type { PostChain } from './post-chain';
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
-export type QualityLevel = 1 | 2;
+/** 1 schematic, 2 full, 3 realistic (the rung - realistic or lite - is RealSettings.rung). */
+export type QualityLevel = 1 | 2 | 3;
+/** The sun's inputs (CR-029 S2): an instant, the site and the plan's north. */
+export interface SunInput {
+  utcMs: number;
+  latitude: number;
+  longitude: number;
+}
+/** LOOK_SPEC section 8: door swing / slide and shutters. */
+export const DOOR_ANIM_MS = 350;
 /** The eye of the walk (CR-029 S4): metres on the description's axes, the map's bearing (clockwise from plan up) and the
  * pitch (positive looks up). */
 export interface WalkCameraPose {
@@ -55,6 +68,12 @@ export interface SceneViewOptions {
   /** A fixed device pixel ratio (the control image of a skin: exactly its size in pixels on every screen); default
    * min(2, devicePixelRatio). */
   pixelRatio?: number;
+  /** The realistic level's dials (CR-029 S1: rung, style, furniture, textures, section cut). */
+  real?: Partial<RealSettings>;
+  /** Where the plan3d assets are served (default: plan3d/ next to index.html). */
+  assetBase?: string;
+  /** The realistic level asks for a frame after an asset (texture, model, post chunk) arrived. */
+  onAsset?: () => void;
 }
 
 export const SMALL_PART_M = 0.6;
@@ -149,6 +168,12 @@ const THUMB_W = 160;
 const THUMB_H = 100;
 
 const rad = (d: number): number => (d * Math.PI) / 180;
+/** The direction the level-3 sun light comes from: the solar direction, never further below the horizon than -0.2 (the
+ * twilight sun still lights from a sensible side; the light itself is off below -3 deg). */
+function sunLightDir(sp: SunPosition): Vec3 {
+  const v = new Vector3(sp.dir[0], Math.max(sp.dir[1], -0.2), sp.dir[2]).normalize();
+  return [v.x, v.y, v.z];
+}
 const isSmall = (p: ScenePart): boolean => p.kind === 'object' && Math.max(p.size[0], p.size[1], p.size[2]) < SMALL_PART_M;
 type Role = 'std' | 'floor' | 'glass' | 'object';
 const roleOf = (p: ScenePart): Role => (p.kind === 'floor' ? 'floor' : p.color === 'map-glass' ? 'glass' : p.kind === 'object' ? 'object' : 'std');
@@ -272,6 +297,8 @@ interface Realised {
   placed: Map<string, Placed>;
   glows: ScenePart[];
   ao: InstancedMesh | null;
+  /** The realistic level's graph (level 3 only). */
+  real: RealBuilt | null;
 }
 
 export class SceneView {
@@ -335,12 +362,40 @@ export class SceneView {
   /** The eye-level walk (CR-029 S4): the orbit preset to return to, and the entry flight while it runs. Orbit controls are
    * off, the cutaway is off (walls full height) and the perspective camera is the eye. */
   private walking: { prevPreset: ScenePreset; fov: number; fly: { from: Vector3; fromQ: Quaternion; to: Vector3; toQ: Quaternion; t0: number; ms: number } | null } | null = null;
+  // ---- the realistic level (CR-029 S1 / S2)
+  private real: RealSettings;
+  private realMats: RealMaterials | null = null;
+  private realModels: RealModels | null = null;
+  private realBuilt: RealBuilt | null = null;
+  private exterior: Exterior | null = null;
+  private post: PostChain | null = null;
+  private postRung: string | null = null;
+  private postLoading = false;
+  private pmrem: PMREMGenerator | null = null;
+  private envTarget: WebGLRenderTarget | null = null;
+  private envElevation: number | null = null;
+  private sunInput: SunInput = { utcMs: Date.now(), latitude: DEFAULT_SITE.latitude, longitude: DEFAULT_SITE.longitude };
+  private sunPos: SunPosition | null = null;
+  private recipe: LightRecipe = lightRecipe(45);
+  private rig: { hemi: HemisphereLight; sun: DirectionalLight; moon: DirectionalLight; rim: DirectionalLight } | null = null;
+  private clipPlane = new Plane(new Vector3(0, -1, 0), 0);
+  private poolKey = '';
+  /** The walk's interior fill (the room's daylight factor, eased); null outside a room or outside the walk. */
+  private interior: { target: number; value: number } | null = null;
+  /** Door leaves / shutters moving toward their new state (LOOK_SPEC section 8: 350 ms ease-in-out). */
+  private anims: { obj: Object3D; from: { p: Vector3; q: Quaternion; sy: number }; to: { p: Vector3; q: Quaternion; sy: number }; t0: number; ms: number }[] = [];
+  private motion = true;
+  private readonly basePixelRatio: number;
+  /** Fired with the latest renderer counters after a level-3 frame (the perf report). */
+  lastFrameInfo: { calls: number; triangles: number } = { calls: 0, triangles: 0 };
 
   constructor(private readonly opts: SceneViewOptions) {
     this.quality = opts.quality ?? 1;
     this.night = !!opts.night;
+    this.real = { ...DEFAULT_REAL, ...(opts.real ?? {}) };
     this.renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(opts.pixelRatio ?? Math.min(2, window.devicePixelRatio || 1));
+    this.basePixelRatio = opts.pixelRatio ?? Math.min(2, window.devicePixelRatio || 1);
+    this.renderer.setPixelRatio(this.basePixelRatio);
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
     this.outlineMaterial = new LineBasicMaterial({ color: new Color(opts.color('accent')), depthTest: false, transparent: true });
@@ -424,7 +479,7 @@ export class SceneView {
     this.controls.update();
     this.updateCutaway();
     const one = () => {
-      this.renderer.render(this.scene, this.active);
+      this.drawFrame();
       gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
     };
     one();
@@ -472,9 +527,21 @@ export class SceneView {
       else if (child instanceof AmbientLight || child instanceof HemisphereLight) child.dispose();
     }
     this.sun = null;
+    this.rig = null;
     this.cutAzimuth = null;
     this.cutNow.clear();
     const night = this.night;
+    // the realistic level's renderer state is undone for levels 1-2 (their pictures must not move)
+    this.renderer.localClippingEnabled = this.quality === 3;
+    this.renderer.shadowMap.autoUpdate = this.quality !== 3;
+    this.renderer.shadowMap.type = this.quality === 3 ? PCFShadowMap : PCFSoftShadowMap;
+    this.renderer.setPixelRatio(this.quality === 3 ? Math.min(this.basePixelRatio, this.real.rung === 'lite' ? 1 : this.realDprCap) : this.basePixelRatio);
+    this.scene.environment = null;
+    this.scene.fog = null;
+    if (this.quality === 3) {
+      this.applyRealRig();
+      return;
+    }
     if (this.quality === 2) {
       this.renderer.shadowMap.enabled = true;
       this.renderer.toneMapping = ACESFilmicToneMapping;
@@ -501,7 +568,8 @@ export class SceneView {
   }
 
   /** The sun and its shadow camera around the extent: an orthographic box that holds the whole floor from the sun's
-   * side (a fixed direction: the shadows are part of the deterministic look, not of the camera). */
+   * side (a fixed direction: the shadows are part of the deterministic look, not of the camera). At level 3 the
+   * direction is the solar position (CR-029 S2), the box padded by 4 m (LOOK_SPEC section 3). */
   private fitSun(): void {
     const sun = this.sun;
     const e = this.extent;
@@ -509,11 +577,12 @@ export class SceneView {
     const cx = (e.x0 + e.x1) / 2;
     const cy = (e.y0 + e.y1) / 2;
     const cz = (e.z0 + e.z1) / 2;
-    const r = Math.max(Math.hypot(e.x1 - e.x0, e.y1 - e.y0, e.z1 - e.z0) / 2, 2) * 1.05;
-    sun.position.set(cx + SUN_DIR[0] * r * 2, cy + SUN_DIR[1] * r * 2, cz + SUN_DIR[2] * r * 2);
+    const r = Math.max(Math.hypot(e.x1 - e.x0, e.y1 - e.y0, e.z1 - e.z0) / 2, 2) * 1.05 + (this.quality === 3 ? 4 : 0);
+    const dir: Vec3 = this.quality === 3 && this.sunPos ? sunLightDir(this.sunPos) : SUN_DIR;
+    sun.position.set(cx + dir[0] * r * 2, cy + dir[1] * r * 2, cz + dir[2] * r * 2);
     sun.target.position.set(cx, cy, cz);
     sun.target.updateMatrixWorld();
-    const px = this.config().shadowMapPx;
+    const px = this.quality === 3 ? (this.real.rung === 'realistic' && !this.heavy ? 2048 : 1024) : this.config().shadowMapPx;
     if (sun.shadow.mapSize.x !== px) {
       // a new map size takes a new render target: three allocates it on the next shadow pass when the old one is gone
       sun.shadow.mapSize.set(px, px);
@@ -529,6 +598,255 @@ export class SceneView {
     cam.far = r * 4;
     cam.updateProjectionMatrix();
     sun.shadow.needsUpdate = true;
+    if (this.quality === 3) this.renderer.shadowMap.needsUpdate = true;
+  }
+
+  // ---- the realistic level (CR-029 S1 / S2): rig, sky, environment, post chain, section cut, lamp pool, animation
+
+  /** The DPR cap of the top rung (the person's / device's dial; LOOK_SPEC section 10 default 1.25). */
+  private realDprCap = 1.25;
+
+  /** The light rig of level 3 from the solar recipe and the style (LOOK_SPEC section 3), created once per switch. */
+  private applyRealRig(): void {
+    const s = LOOK_STYLES[this.real.style].rig;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.toneMapping = NeutralToneMapping;
+    const hemi = new HemisphereLight(0xffffff, 0x445566, 1);
+    const sun = new DirectionalLight(0xffffff, 3);
+    sun.castShadow = true;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.025;
+    sun.shadow.blurSamples = 12;
+    sun.shadow.radius = this.real.rung === 'realistic' ? s.shadowRadius : 3;
+    const moon = new DirectionalLight(0xbfd0ff, 0);
+    const rim = new DirectionalLight(0x7cc8ff, 0);
+    this.lights.add(hemi, sun, sun.target, moon, rim);
+    this.sun = sun;
+    this.rig = { hemi, sun, moon, rim };
+    this.fitSun();
+    this.applyTime();
+  }
+
+  /** The sun, the sky, the exposure, the environment and the lamps for the current instant and style. */
+  private applyTime(): void {
+    if (this.quality !== 3 || !this.rig) return;
+    const st = LOOK_STYLES[this.real.style];
+    const S = st.rig;
+    const north = this.desc?.real?.north_deg ?? 0;
+    const sp = sunPosition(this.sunInput.utcMs, this.sunInput.latitude, this.sunInput.longitude, north);
+    this.sunPos = sp;
+    const r = lightRecipe(sp.elevation);
+    this.recipe = r;
+    const { hemi, sun, moon, rim } = this.rig;
+    const inside = this.interior ? (S.interiorFill[0] + (S.interiorFill[1] - S.interiorFill[0]) * this.interior.value) * 0.7 : 1;
+    sun.intensity = r.sunIntensity * 0.55 * S.sunScale;
+    sun.color.setRGB(r.sunColor[0], r.sunColor[1], r.sunColor[2]);
+    sun.visible = sp.elevation > -3;
+    sun.castShadow = sp.elevation > -3;
+    hemi.color.setRGB(r.hemiSky[0], r.hemiSky[1], r.hemiSky[2]);
+    hemi.groundColor.setRGB(r.hemiGround[0], r.hemiGround[1], r.hemiGround[2]);
+    hemi.intensity = r.hemiIntensity * S.hemiScale * inside;
+    moon.intensity = r.moon * S.moonScale;
+    const e = this.extent;
+    const c = e ? new Vector3((e.x0 + e.x1) / 2, 0, (e.z0 + e.z1) / 2) : new Vector3();
+    const dist = e ? Math.hypot(e.x1 - e.x0, e.z1 - e.z0) + 10 : 20;
+    moon.position.copy(c).add(new Vector3(-dist, dist * 0.9, dist * 0.4));
+    moon.target = sun.target;
+    if (S.rim) {
+      const d = sunLightDir(sp);
+      rim.color.setHex(S.rim.color);
+      rim.intensity = S.rim.intensity * (this.walking ? 0.6 : 1);
+      rim.position.copy(c).addScaledVector(new Vector3(-d[0], 0.5, -d[2]).normalize(), dist);
+      rim.target = sun.target;
+    } else rim.intensity = 0;
+    this.renderer.toneMappingExposure = r.exposure * (S.exposureDay + (S.exposureNight - S.exposureDay) * r.night) * (this.walking ? 1.05 : 1);
+    this.fitSun();
+    this.scene.environmentIntensity = (S.envNight + (S.envDay - S.envNight) * r.day) * inside;
+    if (this.walking) {
+      const f = S.fog;
+      const col = new Color(f.color).multiplyScalar(1 - r.night * 0.6);
+      this.scene.fog = new FogExp2(col.getHex(), f.density);
+    } else this.scene.fog = null;
+    if (this.exterior) {
+      paintSky(this.exterior, r, sunLightDir(sp), this.real.style);
+      const disc = this.exterior.disc.material as MeshBasicMaterial;
+      disc.color.setHex(st.ground.disc).lerp(new Color(st.ground.discNight), r.night);
+      // the environment (IBL) is prefiltered from the dome; again only when the sun moved a degree (a slider drag is cheap)
+      const q = Math.round(sp.elevation) * 1000 + Math.round(sp.azimuth / 5);
+      if (q !== this.envElevation) {
+        this.envElevation = q;
+        this.pmrem ??= new PMREMGenerator(this.renderer);
+        const next = this.pmrem.fromScene(this.exterior.domeScene, 0, 1, 1000);
+        this.envTarget?.dispose();
+        this.envTarget = next;
+      }
+      this.scene.environment = this.envTarget?.texture ?? null;
+    }
+    this.applyLamps();
+    this.post?.setLook(this.real.style, r.night);
+    this.renderer.shadowMap.needsUpdate = true;
+    this.invalidate();
+  }
+
+  /** The lamp bodies glow while on (emissive in their colour temperature, day / night strength) and the pool's lights go
+   * to the lit lamps nearest the camera by distance bucket (sun.poolLamps; never a change of the light count). */
+  private applyLamps(): void {
+    if (this.quality !== 3) return;
+    const real = this.desc?.real;
+    const S = LOOK_STYLES[this.real.style].rig;
+    const night = this.recipe.night;
+    const lamps = (real?.lamps ?? []).map((l) => ({ ...l }));
+    for (const p of this.desc?.parts ?? []) if (p.kind === 'glow' && p.userData.kind === 'entity') lamps.push({ id: p.id, owner: p.id, level_id: p.level_id ?? '', position: p.position, kind: 'ceiling', color_k: 3000, lumens: 800, on: true });
+    for (const [id, m] of this.realBuilt?.bulbs ?? []) {
+      const lamp = lamps.find((l) => l.id === `lamp:${id}`);
+      if (lamp?.on) {
+        m.emissive.copy(lampColor(lamp.color_k));
+        m.emissiveIntensity = S.lampEmissiveDay + (S.lampEmissiveNight - S.lampEmissiveDay) * night;
+      } else m.emissiveIntensity = 0;
+    }
+    const cam = this.active.position;
+    const chosen = poolLamps(lamps, [cam.x, cam.y, cam.z], MAX_GLOW_LIGHTS);
+    this.poolKey = chosen.map((l) => l.id).join(',');
+    const pool = S.lampPoolDay + (S.lampPoolNight - S.lampPoolDay) * night;
+    this.glowPool.forEach((light, i) => {
+      const l = chosen[i];
+      if (!l) {
+        light.intensity = 0;
+        return;
+      }
+      const base = l.kind === 'floor' ? 6 : l.kind === 'wall' ? 5 : 11;
+      light.color.copy(lampColor(l.color_k));
+      light.intensity = base * pool * Math.min(3, Math.max(0.4, l.lumens / 1200));
+      light.distance = 0;
+      light.decay = 2;
+      light.position.set(l.position[0], l.position[1] - 0.05, l.position[2]);
+    });
+  }
+
+  /** The section cut (LOOK_SPEC section 5): one world plane at 0.6 x the ceiling of the top visible level, the caps of that
+   * level shown at it; never in the walk; off by the setting. */
+  private applyCut(): void {
+    if (this.quality !== 3 || !this.realMats) return;
+    const d = this.desc;
+    const top = d && d.levels.length ? [...d.levels].sort((a, b) => b.elevation_m - a.elevation_m || (a.id < b.id ? -1 : 1))[0] : null;
+    const on = !!top && this.real.sectionCut && !this.walking && typeof this.preset === 'string';
+    const y = top ? top.elevation_m + top.ceiling_height_m * 0.6 : 0;
+    this.clipPlane.constant = y;
+    this.realMats.setClip(on ? [this.clipPlane] : null);
+    const caps = this.realBuilt?.caps;
+    if (caps) for (const c of caps.children) c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
+  /** Change the realistic level's dials: the style re-tints and re-lights; the rung, the furniture or the texture source
+   * realise the description again; the section cut moves the plane. */
+  setRealSettings(next: Partial<RealSettings> & { dprCap?: number; motion?: boolean }): void {
+    const before = this.real;
+    const { dprCap, motion, ...rest } = next;
+    if (typeof motion === 'boolean') this.motion = motion;
+    if (typeof dprCap === 'number' && dprCap > 0) this.realDprCap = dprCap;
+    this.real = { ...this.real, ...rest };
+    if (this.quality !== 3) return;
+    const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures;
+    if (before.style !== this.real.style) {
+      this.realMats?.setStyle(this.real.style);
+      const st = LOOK_STYLES[this.real.style];
+      if (this.exterior) {
+        (this.exterior.band.material as MeshBasicMaterial).color.setHex(st.horizon.color);
+        (this.exterior.contact.material as MeshBasicMaterial).opacity = st.ground.contact;
+      }
+      for (const c of this.realBuilt?.caps?.children ?? []) {
+        const m = (c as Mesh).material as MeshBasicMaterial;
+        if (c.userData.edge) m.color.setHex(st.cut.edge ?? st.cut.cap);
+        else m.color.setHex(st.cut.cap);
+      }
+      this.envElevation = null;
+      if (!rebuild) this.applyTime(); // re-tinted and re-lit: no geometry rebuild (LOOK_SPEC section 1)
+    }
+    if (rebuild) {
+      this.realMats?.setRung(this.real.rung);
+      this.realMats?.setSource(this.real.textures);
+      this.applyQuality();
+      this.rebuildNow();
+    } else this.applyCut();
+    this.invalidate();
+  }
+
+  getRealSettings(): RealSettings {
+    return { ...this.real };
+  }
+
+  /** The instant and the site of the sun (CR-029 S2: the site clock or the slider). */
+  setSun(input: Partial<SunInput>): void {
+    this.sunInput = { ...this.sunInput, ...input };
+    this.applyTime();
+  }
+
+  /** What the sun is doing now (the time pill: elevation, azimuth, night factor). */
+  sunState(): { elevation: number; azimuth: number; night: number; day: number } | null {
+    return this.sunPos ? { elevation: this.sunPos.elevation, azimuth: this.sunPos.azimuth, night: this.recipe.night, day: this.recipe.day } : null;
+  }
+
+  /** The CSS backdrop stops of the sky behind the canvas (the element paints them). */
+  skyBackdrop(): [string, string, string] {
+    return backdropColors(this.recipe, this.real.style);
+  }
+
+  /** The walk entered a room: its daylight factor drives the interior fill (eased dt x 3); null: outside / no room. */
+  setInterior(daylight: number | null): void {
+    if (daylight === null) this.interior = null;
+    else this.interior = { target: daylight, value: this.interior?.value ?? daylight };
+    this.applyTime();
+  }
+
+  /** Assets still loading (textures, models) - the visual tests wait for 0 before a capture. */
+  get realPending(): number {
+    return (this.realMats?.pending ?? 0) + (this.realModels?.pending ?? 0) + (this.postLoading ? 1 : 0);
+  }
+
+  /** The post chain's passes (tests; [] without one). */
+  get postPasses(): string[] {
+    return this.post?.passes ?? [];
+  }
+
+  /** The realistic graph's counters (the perf report). */
+  get realStats(): RealBuilt['stats'] | null {
+    return this.realBuilt?.stats ?? null;
+  }
+
+  /** Load the post chain chunk for the rung (once; a rung change re-creates the chain). */
+  private ensurePost(): void {
+    if (this.quality !== 3 || this.postLoading) return;
+    if (this.post && this.postRung === this.real.rung) return;
+    this.post?.dispose();
+    this.post = null;
+    this.postLoading = true;
+    const rung = this.real.rung;
+    void import('./post-chain')
+      .then(({ PostChain }) => {
+        if (this.disposed || this.quality !== 3 || this.real.rung !== rung) return;
+        const w = this.opts.mount.clientWidth || 1;
+        const h = this.opts.mount.clientHeight || 1;
+        this.post = new PostChain(this.renderer, this.scene, this.active, rung, w, h, this.real.style);
+        this.post.setLook(this.real.style, this.recipe.night);
+        this.postRung = rung;
+      })
+      .catch((err) => console.warn('sw-plan-3d: post chain failed to load, drawing without it', err))
+      .finally(() => {
+        this.postLoading = false;
+        this.opts.onAsset?.();
+        this.invalidate();
+      });
+  }
+
+  /** Realise the kept description again now (an asset arrived, a rung changed). */
+  rebuildNow(): void {
+    if (!this.desc) return;
+    const d = this.desc;
+    const sel = this.selectedId;
+    this.desc = null;
+    this.setDescription(d);
+    this.setSelected(sel);
   }
 
   // ---- building
@@ -536,18 +854,18 @@ export class SceneView {
   private material(token: string, opacity: number, doubleSided = false, role: Role = 'std'): MeshLambertMaterial | MeshStandardMaterial {
     // an object on a heavy floor shades with Lambert (HEAVY_CONFIG): its own cache entry, so a floor that crosses the
     // threshold between two descriptions never reuses the other configuration's material
-    const lambert = this.quality === 2 && role === 'object' && this.config().lambertObjects;
-    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality === 2 ? (lambert ? 'object-lambert' : role) : 'l1'}`;
+    const lambert = this.quality >= 2 && role === 'object' && this.config().lambertObjects;
+    const key = `${token}|${opacity}|${doubleSided ? 2 : 1}|${this.quality >= 2 ? (lambert ? 'object-lambert' : role) : 'l1'}`;
     let entry = this.materials.get(key);
     if (!entry) {
       // a double-sided translucent surface draws in one pass (three would draw it twice, back then front)
       const sides = doubleSided ? { side: DoubleSide, forceSinglePass: true } : {};
-      const tok = this.quality === 2 && token === STRUCTURE_TOKEN && role === 'std' ? WALL_TOKEN_3D : token;
+      const tok = this.quality >= 2 && token === STRUCTURE_TOKEN && role === 'std' ? WALL_TOKEN_3D : token;
       const color = new Color(this.opts.color(tok));
       let material: MeshLambertMaterial | MeshStandardMaterial;
-      if (this.quality === 2 && role === 'glass') {
+      if (this.quality >= 2 && role === 'glass') {
         material = new MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.25, transparent: true, opacity: Math.max(opacity, 0.35), depthWrite: false, side: DoubleSide, forceSinglePass: true });
-      } else if (this.quality === 2 && !lambert) {
+      } else if (this.quality >= 2 && !lambert) {
         material = new MeshStandardMaterial({ color, roughness: role === 'floor' ? 1 : 0.88, metalness: 0, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
       } else {
         material = new MeshLambertMaterial({ color, transparent: opacity < 1, opacity, depthWrite: opacity >= 1, ...sides });
@@ -580,7 +898,7 @@ export class SceneView {
   }
 
   private shadows(o: Mesh | InstancedMesh, p: ScenePart): void {
-    if (this.quality !== 2) return;
+    if (this.quality < 2) return;
     const objects = this.config().objectShadows;
     o.castShadow = (objects ? CASTERS : HEAVY_CASTERS).has(p.kind) && p.color !== 'map-glass';
     o.receiveShadow = RECEIVERS.has(p.kind) && (objects || p.kind !== 'object');
@@ -669,10 +987,24 @@ export class SceneView {
 
   /** Realise a list of parts into a group: the instance groups, the singles, the sprites, the occlusion. The same parts
    * in the same order give the same objects in the same order (design rule 4). */
-  private realise(parts: ScenePart[], desc: SceneDescription): Realised {
-    const out: Realised = { root: new Group(), lookup: new Map(), small: [], placed: new Map(), glows: [], ao: null };
+  private realise(parts: ScenePart[], desc: SceneDescription, plain = false): Realised {
+    const out: Realised = { root: new Group(), lookup: new Map(), small: [], placed: new Map(), glows: [], ao: null, real: null };
     const groups = new Map<string, ScenePart[]>();
     const singles: ScenePart[] = [];
+    // level 3 (CR-029 S1): the structure and the objects come from the realistic description (scene-real.ts); the state
+    // layer below keeps the level-2 path. A thumbnail (`plain`) draws the level-2 silhouette.
+    if (this.quality === 3 && !plain && desc.real) {
+      this.realMats ??= new RealMaterials(this.opts.assetBase ?? assetBase(), () => this.onRealAsset());
+      this.realModels ??= new RealModels(this.opts.assetBase ?? assetBase(), () => this.onRealAsset());
+      this.realMats.setStyle(this.real.style);
+      this.realMats.setRung(this.real.rung);
+      this.realMats.setSource(this.real.textures);
+      const built = buildReal({ desc, real: desc.real, parts, settings: this.real, heavy: desc.parts.length > HIDE_SMALL_ABOVE_PARTS, mats: this.realMats, models: this.realModels });
+      out.real = built;
+      out.root.add(built.root);
+      for (const [o, ps] of built.lookup) out.lookup.set(o, ps as ScenePart[]);
+      parts = parts.filter((p) => !REAL_KINDS.has(p.kind));
+    }
     for (const p of parts) {
       if (p.group && (p.shape === 'box' || p.shape === 'cylinder')) {
         const bucket = groups.get(p.group);
@@ -726,6 +1058,10 @@ export class SceneView {
   private disposeGroup(group: Group): void {
     for (const child of [...group.children]) {
       group.remove(child);
+      if (child.name === 'real' || child.name === 'exterior') {
+        disposeDeep(child);
+        continue;
+      }
       if (child instanceof InstancedMesh) child.dispose();
       else if (child instanceof Mesh && child.geometry !== this.unitBox && child.geometry !== this.unitCylinder) child.geometry.dispose();
       if (child instanceof Mesh && child.userData.ownMaterial && !Array.isArray(child.material)) child.material.dispose();
@@ -747,6 +1083,24 @@ export class SceneView {
     this.cutAzimuth = null;
     this.cutNow.clear();
     this.caps = null; // disposed with the root's children
+    this.realBuilt = null;
+    this.exterior = null; // disposed with the root's children
+    this.envElevation = null;
+  }
+
+  /** A texture, a model or the post chain arrived: one frame; a model also needs the graph realised again (debounced). */
+  private realRebuildTimer = 0;
+  private builtModels = 0;
+  private onRealAsset(): void {
+    this.invalidate();
+    const v = this.realModels?.version ?? 0;
+    if (this.quality === 3 && v !== this.builtModels && !this.realRebuildTimer) {
+      this.realRebuildTimer = window.setTimeout(() => {
+        this.realRebuildTimer = 0;
+        if (!this.disposed && this.quality === 3) this.rebuildNow();
+      }, 30);
+    }
+    this.opts.onAsset?.();
   }
 
   setDescription(desc: SceneDescription): void {
@@ -762,13 +1116,38 @@ export class SceneView {
       this.invalidate();
       return;
     }
+    // level 3: the door leaves and shutters as drawn now, so a state change animates from here (LOOK_SPEC section 8)
+    const before = new Map<string, { p: Vector3; q: Quaternion; sy: number }>();
+    for (const [id, o] of this.realBuilt?.leaves ?? []) before.set(id, { p: o.position.clone(), q: o.quaternion.clone(), sy: o.scale.y });
+    for (const [id, s] of this.realBuilt?.shutters ?? []) before.set(id, { p: s.mesh.position.clone(), q: s.mesh.quaternion.clone(), sy: s.mesh.scale.y });
+    this.anims = [];
     this.clear();
     this.recolour();
     this.desc = desc;
     this.extent = sceneExtent(desc);
     this.heavy = desc.parts.length > HIDE_SMALL_ABOVE_PARTS;
     this.builds++;
+    this.builtModels = this.realModels?.version ?? 0;
     const built = this.realise(desc.parts, desc);
+    this.realBuilt = built.real;
+    if (built.real && this.extent) {
+      this.exterior = buildExterior(this.extent, this.real.style, this.real.rung === 'realistic');
+      this.root.add(this.exterior.root);
+      const now = performance.now();
+      const animate = (id: string, obj: Object3D) => {
+        const was = before.get(id);
+        if (!was || !this.motion) return;
+        const to = { p: obj.position.clone(), q: obj.quaternion.clone(), sy: obj.scale.y };
+        if (was.p.distanceTo(to.p) < 1e-4 && was.q.angleTo(to.q) < 1e-4 && Math.abs(was.sy - to.sy) < 1e-4) return;
+        obj.position.copy(was.p);
+        obj.quaternion.copy(was.q);
+        obj.scale.y = was.sy;
+        obj.visible = true;
+        this.anims.push({ obj, from: was, to, t0: now, ms: DOOR_ANIM_MS });
+      };
+      for (const [id, o] of built.real.leaves) animate(id, o);
+      for (const [id, s] of built.real.shutters) animate(id, s.mesh);
+    }
     for (const child of [...built.root.children]) {
       this.root.add(child);
       if (child instanceof Mesh && child.userData.ownMaterial) this.tints.set(child.name, child);
@@ -790,7 +1169,29 @@ export class SceneView {
     this.fitSun();
     if (!this.framed) this.framed = this.setPreset('iso');
     this.updateCutaway();
+    if (this.quality === 3) {
+      this.ensurePost();
+      this.applyCut();
+      this.applyTime();
+    }
     this.invalidate();
+  }
+
+  /** One step of the door / shutter animations (ease-in-out quad); true while any runs. */
+  private stepAnims(): boolean {
+    if (!this.anims.length) return false;
+    const now = performance.now();
+    this.anims = this.anims.filter((a) => {
+      const t = Math.min(1, (now - a.t0) / a.ms);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      a.obj.position.lerpVectors(a.from.p, a.to.p, e);
+      a.obj.quaternion.slerpQuaternions(a.from.q, a.to.q, e);
+      a.obj.scale.y = a.from.sy + (a.to.sy - a.from.sy) * e;
+      if (t >= 1 && a.to.sy <= 1e-3 && a.obj.name.startsWith('shutter:')) a.obj.visible = false;
+      return t < 1;
+    });
+    this.renderer.shadowMap.needsUpdate = true;
+    return this.anims.length > 0;
   }
 
   // ---- selection and presets
@@ -913,6 +1314,7 @@ export class SceneView {
     this.preset = preset;
     this.controls.update();
     this.updateCutaway();
+    this.applyCut(); // level 3: a camera preset never cuts
     this.invalidate();
     return true;
   }
@@ -945,6 +1347,8 @@ export class SceneView {
       this.persp.quaternion.copy(toQ);
     }
     this.updateCutaway();
+    this.applyCut(); // level 3: the walk sees the walls full height
+    this.applyTime(); // the walk's fog and exposure
     this.invalidate();
   }
 
@@ -980,7 +1384,9 @@ export class SceneView {
     this.persp.near = 0.05;
     this.persp.updateProjectionMatrix();
     this.cutAzimuth = Number.NaN; // the cutaway is decided afresh for the restored view
+    this.interior = null;
     if (!this.setPreset(w.prevPreset)) this.setPreset('iso');
+    this.applyTime();
   }
 
   get isWalking(): boolean {
@@ -1129,7 +1535,20 @@ export class SceneView {
       if (hit.distance > maxDistance) return null;
       const parts = this.lookup.get(hit.object);
       if (!parts) continue;
-      const part = parts[hit.instanceId ?? 0];
+      // a merged level-3 mesh carries the first triangle of each part: the face's part by binary search
+      const ranges = hit.object.userData.ranges as Uint32Array | undefined;
+      let index = hit.instanceId ?? 0;
+      if (ranges && hit.instanceId === undefined && hit.faceIndex !== undefined && hit.faceIndex !== null) {
+        let lo = 0;
+        let hi = ranges.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (ranges[mid] <= hit.faceIndex) lo = mid;
+          else hi = mid - 1;
+        }
+        index = lo;
+      }
+      const part = parts[index];
       if (!part) continue;
       if (part.kind === 'floor') {
         if (this.plateOpacity(part) < 1) continue; // a translucent upper plate: the click goes on to the level below
@@ -1194,6 +1613,7 @@ export class SceneView {
     const w = this.opts.mount.clientWidth || 1;
     const h = this.opts.mount.clientHeight || 1;
     this.renderer.setSize(w, h);
+    this.post?.setSize(w, h);
     this.persp.aspect = w / h;
     this.persp.updateProjectionMatrix();
     this.applyOrthoFrame();
@@ -1204,13 +1624,16 @@ export class SceneView {
     this.raf = 0;
     if (this.disposed) return;
     // the walk owns the camera (orbit controls off; update() would turn it to the orbit target): only the entry flight moves it here
-    const moving = this.walking ? this.stepFly() : this.controls.update(); // true while damping still moves the camera
+    const flying = this.walking ? this.stepFly() : this.controls.update(); // true while damping still moves the camera
+    const animating = this.stepAnims();
+    const easing = this.stepInterior();
+    const moving = flying || animating || easing;
     if (this.hideSmall) {
       const show = this.walking ? true : this.active === this.ortho ? this.ortho.top / (this.ortho.zoom || 1) < HIDE_SMALL_DISTANCE_M / 2 : this.persp.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
       for (const g of this.smallGroups) g.visible = show;
     }
     this.updateCutaway();
-    this.renderer.render(this.scene, this.active);
+    this.drawFrame();
     this.opts.onDraw?.();
     this.frames++;
     const now = performance.now();
@@ -1233,6 +1656,46 @@ export class SceneView {
       this.windowFrames = 0;
     }
   };
+
+  /** Render the frame: through the post chain at level 3 once it loaded, else straight (levels 1-2 always straight). The
+   * lamp pool follows the camera by distance bucket (no change: no work). */
+  private drawFrame(): void {
+    if (this.quality === 3) {
+      const c = this.active.position;
+      const lamps = this.desc?.real?.lamps ?? [];
+      if (lamps.length > MAX_GLOW_LIGHTS && poolLamps(lamps, [c.x, c.y, c.z], MAX_GLOW_LIGHTS).map((l) => l.id).join(',') !== this.poolKey) this.applyLamps();
+      this.renderer.info.reset();
+      this.renderer.info.autoReset = false;
+      if (this.post) {
+        this.post.setCamera(this.active);
+        this.post.draw();
+      } else this.renderer.render(this.scene, this.active);
+      this.lastFrameInfo = { calls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles };
+      this.renderer.info.autoReset = true;
+      return;
+    }
+    this.renderer.render(this.scene, this.active);
+  }
+
+  /** The walk's interior fill eases toward the room's daylight (dt x 3, LOOK_SPEC section 8); true while it moves. */
+  private interiorAt = 0;
+  private stepInterior(): boolean {
+    const i = this.interior;
+    if (!i || this.quality !== 3) return false;
+    const now = performance.now();
+    const dt = this.interiorAt ? Math.min(0.1, (now - this.interiorAt) / 1000) : 0.016;
+    this.interiorAt = now;
+    if (Math.abs(i.target - i.value) < 0.01) {
+      this.interiorAt = 0;
+      return false;
+    }
+    i.value += (i.target - i.value) * Math.min(1, dt * 3);
+    const S = LOOK_STYLES[this.real.style].rig;
+    const inside = (S.interiorFill[0] + (S.interiorFill[1] - S.interiorFill[0]) * i.value) * 0.7;
+    if (this.rig) this.rig.hemi.intensity = this.recipe.hemiIntensity * S.hemiScale * inside;
+    this.scene.environmentIntensity = (S.envNight + (S.envDay - S.envNight) * this.recipe.day) * inside;
+    return true;
+  }
 
   /** One step of the walk-entry flight (ease-in-out quad on the position, slerp on the orientation); true while it runs. */
   private stepFly(): boolean {
@@ -1259,7 +1722,7 @@ export class SceneView {
   capture(): string {
     if (!this.walking) this.controls.update();
     this.updateCutaway();
-    this.renderer.render(this.scene, this.active);
+    this.drawFrame();
     return this.renderer.domElement.toDataURL('image/png');
   }
 
@@ -1273,10 +1736,10 @@ export class SceneView {
     const parts = desc.parts.filter((p) => p.level_id === levelId && p.kind !== 'cone' && p.shape !== 'sprite' && p.shape !== 'light');
     if (!desc.levels.some((l) => l.id === levelId)) return null;
     const one: SceneDescription = { ...desc, levels: desc.levels.filter((l) => l.id === levelId), parts };
-    const built = this.realise(parts, one);
+    const built = this.realise(parts, one, true); // the strip is a silhouette: never the realistic graph
     const scene = new Scene();
     scene.add(built.root);
-    if (this.quality === 2) {
+    if (this.quality >= 2) {
       scene.add(this.night ? new HemisphereLight(NIGHT_HEMI_SKY, NIGHT_HEMI_GROUND, NIGHT_HEMI_INTENSITY) : new HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY));
       const sun = this.night ? new DirectionalLight(NIGHT_MOON_COLOR, NIGHT_MOON_INTENSITY) : new DirectionalLight(SUN_COLOR, SUN_INTENSITY);
       sun.position.set(SUN_DIR[0] * 50, SUN_DIR[1] * 50, SUN_DIR[2] * 50);
@@ -1354,7 +1817,13 @@ export class SceneView {
     canvas.removeEventListener('webglcontextrestored', this.invalidate);
     this.controls.removeEventListener('change', this.invalidate);
     this.controls.dispose();
+    window.clearTimeout(this.realRebuildTimer);
     this.clear();
+    this.post?.dispose();
+    this.realMats?.dispose();
+    this.realModels?.dispose();
+    this.envTarget?.dispose();
+    this.pmrem?.dispose();
     for (const { material } of this.materials.values()) material.dispose();
     for (const light of this.glowPool) light.dispose();
     if (this.aoMaterial) {

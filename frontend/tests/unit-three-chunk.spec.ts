@@ -27,6 +27,8 @@ import { build } from 'vite';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, '..');
 const LIMIT_GZIP = 200 * 1024;
+/** vite.config.ts manualChunks, verbatim: three in its chunk, the realistic level's post chain (CR-029 S1) in its own. */
+export const CHUNKS = (id: string): string | undefined => (/\/node_modules\/three\/examples\/jsm\/(postprocessing|shaders|math)\//.test(id) ? 'three-post' : id.includes('/node_modules/three/') ? 'three' : undefined);
 
 export const gzipBytes = (file: string): number => zlib.gzipSync(fs.readFileSync(file), { level: 9 }).length;
 
@@ -42,7 +44,7 @@ export async function buildProbe(entry: string): Promise<{ dir: string; files: {
       emptyOutDir: true,
       target: 'es2022',
       sourcemap: false,
-      rollupOptions: { input: entry, output: { manualChunks: (id) => (id.includes('/node_modules/three/') ? 'three' : undefined) } },
+      rollupOptions: { input: entry, output: { manualChunks: CHUNKS } },
     },
   });
   const assets = path.join(dir, 'assets');
@@ -130,4 +132,34 @@ test('the app build keeps three out of the entry and in one lazy chunk under 200
   const viewSrc = fs.readFileSync(path.join(assets, view[0]), 'utf8');
   expect(viewSrc).toMatch(/from"\.\/three-[\w-]+\.js"/); // the view pulls the library in, relatively (the Ingress rule)
   expect(viewSrc).not.toContain('"/assets/');
+});
+
+test('Plan Studio 6 (CR-029 S1): with the realistic level the three chunk stays under 200 KB gzip and the post chain is its own lazy chunk', async () => {
+  test.setTimeout(180_000);
+  const srcDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sw-three-probe-real-'));
+  const map = path.join(FRONTEND, 'src', 'map').replace(/\\/g, '/');
+  const entry = path.join(srcDir, 'real-probe.ts');
+  // the 3D view as the app loads it (SceneView with the realistic level statically) and the post chain behind its dynamic import
+  fs.writeFileSync(entry, [`import { SceneView } from '${map}/scene-three';`, `export const view = SceneView;`, `export const post = () => import('${map}/post-chain');`, 'console.log(view, post);', ''].join('\n'));
+  const { dir, files } = await buildProbe(entry);
+  try {
+    const three = files.filter((f) => /^three-[\w-]+\.js$/.test(f.name) && !f.name.startsWith('three-post'));
+    const postChunk = files.filter((f) => /^three-post-[\w-]+\.js$/.test(f.name));
+    console.log(`realistic probe: ${files.map((f) => `${f.name} ${f.gzip}`).join(', ')}`);
+    expect(three, 'one three chunk').toHaveLength(1);
+    expect(postChunk, 'one three-post chunk').toHaveLength(1);
+    expect(three[0].gzip).toBeLessThanOrEqual(LIMIT_GZIP);
+    const threeSrc = fs.readFileSync(path.join(dir, 'assets', three[0].name), 'utf8');
+    expect(threeSrc).not.toContain('GTAOPass'); // the post chain never enters the capped chunk
+    expect(threeSrc).not.toContain('UnrealBloomPass');
+    const postSrc = fs.readFileSync(path.join(dir, 'assets', postChunk[0].name), 'utf8');
+    expect(postSrc).toContain('GTAO');
+    const entryChunk = files.find((f) => /^real-probe-[\w-]+\.js$/.test(f.name));
+    expect(entryChunk, 'the probe entry').toBeTruthy();
+    const entrySrc = fs.readFileSync(path.join(dir, 'assets', entryChunk!.name), 'utf8');
+    expect(entrySrc).not.toMatch(/from"\.\/three-post-[\w-]+\.js"/); // never a static import of the post chunk
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(srcDir, { recursive: true, force: true });
+  }
 });
