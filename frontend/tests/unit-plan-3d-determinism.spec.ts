@@ -140,6 +140,26 @@ test('the builder is a pure function: the same plan JSON, state snapshot and now
   expect(JSON.stringify(buildScene(freshInput(null, layerA)))).toBe(JSON.stringify(withStates));
 });
 
+test('the walk (CR-029 S4) is additive: without it the description is unchanged; with it the walk world is deterministic and only unsensed door leaves move', () => {
+  const plain = buildScene(freshInput(null, live));
+  expect('walk' in plain).toBe(false);
+  expect(JSON.stringify(buildScene({ ...freshInput(null, live), walk: false }))).toBe(JSON.stringify(plain));
+  const a = buildScene({ ...freshInput(null, live), walk: true });
+  const b = buildScene({ ...freshInput(null, live), walk: true });
+  expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  expect(a.walk?.version).toBe('walk-1');
+  expect(a.walk!.levels.length).toBeGreaterThan(0);
+  expect(a.parts.map((p) => p.id)).toEqual(plain.parts.map((p) => p.id));
+  const sensed = new Set(input.doc.openings.filter((o) => o.anchor_ref?.resource_type === 'ha_entity').map((o) => o.id));
+  for (let i = 0; i < a.parts.length; i++) {
+    if (JSON.stringify(a.parts[i]) === JSON.stringify(plain.parts[i])) continue;
+    expect(a.parts[i].kind, a.parts[i].id).toBe('door'); // a leaf
+    expect(sensed.has(a.parts[i].userData.id), a.parts[i].id).toBe(false); // of a door without a sensor
+  }
+  // the level filter narrows the parts, never the walk: a stair leads to the next level
+  expect(buildScene({ ...freshInput('L0', live), walk: true }).walk!.levels.map((l) => l.id)).toEqual(a.walk!.levels.map((l) => l.id));
+});
+
 test('the realised scene graph is identical after a full rebuild from an equal description - names, instance matrices, materials, shadows - and so are the pixels, at both levels and every overview preset', async ({ page }) => {
   test.setTimeout(240_000);
   const el = await openDemo(page);
