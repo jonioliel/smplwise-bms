@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
@@ -34,15 +34,16 @@ export function barChart(data: { label: string; value: number }[], ariaLabel: st
   const barW = Math.min(bw * 0.64, 24);
   const labelEvery = Math.ceil(data.length / 12);
   const hi = data.reduce((m, d, i) => (d.value > data[m].value ? i : m), 0);
+  // the children come from the `svg` template tag: an `html` child inside an <svg> is an HTML-namespace element and never paints (the chart was blank)
   return html`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label=${ariaLabel} data-chart>
-    <line x1=${pad} x2=${W - pad} y1=${H - 22} y2=${H - 22} class="grid" />
+    ${svg`<line x1=${pad} x2=${W - pad} y1=${H - 22} y2=${H - 22} class="grid" />`}
     ${data.map((d, i) => {
       const bh = Math.max(d.value > 0 ? 2 : 0, (d.value / max) * (H - 44));
       const x = W - pad - (i + 1) * bw + (bw - barW) / 2;
       const last = i === data.length - 1;
-      return html`<rect class=${last ? 'bar hi' : 'bar'} x=${x} y=${H - 22 - bh} width=${barW} height=${bh} rx="3"><title>${d.label}: ${fmtKwh(d.value)}</title></rect>
-        ${i % labelEvery === 0 || last ? html`<text x=${x + barW / 2} y=${H - 6} text-anchor="middle">${d.label}</text>` : nothing}
-        ${last || i === hi ? html`<text x=${x + barW / 2} y=${H - 27 - bh} text-anchor="middle" class="val">${Math.round(d.value)}</text>` : nothing}`;
+      return svg`<rect class=${last ? 'bar hi' : 'bar'} x=${x} y=${H - 22 - bh} width=${barW} height=${bh} rx="3"><title>${d.label}: ${fmtKwh(d.value)}</title></rect>
+        ${i % labelEvery === 0 || last ? svg`<text x=${x + barW / 2} y=${H - 6} text-anchor="middle">${d.label}</text>` : nothing}
+        ${last || i === hi ? svg`<text x=${x + barW / 2} y=${H - 27 - bh} text-anchor="middle" class="val">${Math.round(d.value)}</text>` : nothing}`;
     })}
   </svg>`;
 }

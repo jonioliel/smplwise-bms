@@ -188,6 +188,10 @@ export class ElecMetersPage extends LitElement {
         .head .inp {
           flex: 1 1 200px;
         }
+        /* the phone's area select fills the row beside the add button (one tidy row instead of a short select and a shorter button) */
+        .head .inp.phone-only {
+          flex: 1 1 160px;
+        }
         .desk-only {
           display: none;
         }
@@ -425,7 +429,7 @@ export class ElecMetersPage extends LitElement {
       <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-meters-search placeholder="חיפוש מונה" aria-label="חיפוש מונה" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       <div class="seg desk-only" role="group" aria-label="תצוגה"><button type="button" aria-pressed=${this.view === 'cards' ? 'true' : 'false'} data-view="cards" @click=${() => this.setView('cards')}>כרטיסים</button><button type="button" aria-pressed=${this.view === 'table' ? 'true' : 'false'} data-view="table" @click=${() => this.setView('table')}>טבלה</button></div>
       <span class="sp"></span>
-      <label class="inp phone-only" style="flex:0 1 180px"><select data-area-select aria-label="אזור" @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
+      <label class="inp phone-only"><select data-area-select aria-label="אזור" @change=${(e: Event) => this.setParams({ area: (e.target as HTMLSelectElement).value || null })}>
         <option value="" ?selected=${!this.areaFilter}>כל האזורים</option>
         ${tree.flatMap((f) => f.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.areaFilter}>${a.name}</option>`))}</select></label>
       ${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-add-meter @click=${() => this.openAdd()}>הוספת מונה</sw-button>` : nothing}
