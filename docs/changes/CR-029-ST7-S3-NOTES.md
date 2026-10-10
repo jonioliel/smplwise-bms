@@ -115,7 +115,28 @@ route; both are read-only `map.read`.
   and adds `G x weight(room)` as emissive light; levels 1-2 ignore it (their baselines do not move).
 - `sw-plan-3d` gains only `stillsAvailable` and the `stills-fallback` event (no rendering change).
 
-## 8. Not in S3 (owner-visible)
+## 8. What S3 delivers (files)
+
+- Backend: migration `0075_plan_bakes.sql` (`plan_bakes`, `plan_bake_jobs`); `services/plan_bakes.py` (slots, bake key, validation
+  with the metadata allow-lists and the bounded decoder, store / evict / delete / sweep, describe / bundle part, jobs, the
+  `plan.bakes` setting); `routers/plan_bakes.py`; wiring in `main.py`, `body_limit.py` (4 MB + multipart slack),
+  `routers/catalog.py` (deleted with the floor), `routers/anchors.py` (bundle `bakes`), `services/backup.py` (table, file column,
+  sweep after a restore), `routers/settings.py` (`plan.bakes`); `tests/test_plan_bakes.py`; the four migration-list tests;
+  `contracts/API_INVENTORY.md` regenerated (715 routes).
+- Frontend: `map/still-bake.ts` (slots, bands, palettes, the still description, the iso camera, masks, the renderer interface,
+  bake status), `map/lightmap-bake.ts` (the CPU baker, `LightmapSet`, UVs, room blend), `map/bake-runner.ts` (the job),
+  `map/still-render-scene.ts` (the level-2 renderer on SceneView, no SceneView change), `map/sw-plan-stills.ts` (the still view),
+  `map/quality-ladder.ts` (ladder + view decision + wall display flag), `api/bakes.ts`, bundle typing in `api/maps.ts` /
+  `api/types.ts`, `screens/floor-stills.ts` + wiring in `screens/explore-floor-map.ts` (the still view on the ladder's last rung,
+  without WebGL and on a wall display set to stills; the editor tool "הכן תמונות ותאורה" next to the control images),
+  `sw-plan-3d.ts` (`stillsAvailable`, `stills-fallback` only), settings rows in `screens/system-diagnostics.ts` (wall display
+  live / stills, styles, time bands, size, lightmap, storage caps). Tests: `tests/unit-still-bake.spec.ts` (node),
+  `tests/evidence-plan-stills.spec.ts` (dev server: the renderer's camera equals the pure projection, same bytes twice, variants
+  differ, no DOM left; the still view composes lit rooms / an open door / presence without a canvas).
+- A wall display is marked by opening the map with `?display=wall` (remembered in that browser; `?display=desk` clears it); its
+  own live / stills pin is `localStorage sw.plan3d.wall_display` (the UI for it is S5).
+
+## 9. Not in S3 (owner-visible)
 
 - Wall-face lightmaps: v1 bakes the floor surfaces only (walls darken through the level-3 junction strips); the atlas format has
   room for wall faces.
@@ -123,3 +144,19 @@ route; both are read-only `map.read`.
   at about 4 MB). The setting turns `top` on.
 - Real-device timing of a bake (workstation / owner evidence, S7); the R178 perf gate (S7); the kiosk idle swap timer itself and
   the wall tablet's own override UI (S5).
+- Sunset at level 2 is the day picture under a fixed warm grade (there is no sun model before S2); night is level 2's night mode.
+  The level-3 renderer (S1 / S2) brings the real light rig per band; its recipe id makes every q2 bake show as "improved version
+  available" to editors.
+- No automatic pickup: a pending request is fulfilled when an editor presses "הכן תמונות ותאורה" (the press joins the open
+  request). Starting a multi-minute GPU job silently on someone's page was judged wrong; owner question 2 below.
+- The wall display (CR-030 `sw-wall`) has no plan pane yet (`layout.map` is computed but not drawn); the stills reach the wall
+  tablet through the floor map opened with `?display=wall`. Embedding `sw-plan-stills` in `sw-wall` is S5.
+
+## 10. Contradictions recorded
+
+| # | What disagrees | Decision | Why |
+|---|---|---|---|
+| S3-1 | CR-029 5.3: variants `day_off / day_on / night_off / night_on`, presets three; owner 2026-10-10: time bands day / sunset / night and both styles | slot = preset x style x band x off / on; default bake = iso only | the owner's answer is binding; one preset keeps a floor near 4 MB |
+| S3-2 | CR-029 5.3: `POST` stores with `map.edit`, served by `GET /floors/{id}/bakes/{kind}/{variant}[/{preset}]` | served by `GET /floors/{id}/bakes/{bake_id}/file` | a slot has six dimensions now; the id is unambiguous and the URL carries `?v=<sha16>` for caching |
+| S3-3 | CR-029 5.3 size caps 2 MB still / 4 MB lightmap; no mask cap | kept, plus 256 KB per mask, per-floor and installation caps in `plan.bakes` | the owner asked for caps and eviction |
+| S3-4 | CR-029 3.1 bakes AO "into one lightmap atlas per floor and level" on all surfaces | floor surfaces only in v1, atlas format ready for more | wall faces need per-instance lightmap UVs in SceneView (S1 owner); the floor is where the darkening reads |
