@@ -1,5 +1,5 @@
 {
-  "light": "15 fps · 12.3 ms/frame (CPU submit)\ndraw 222 · tris 34k · tex 334 · geo 363\n23 MB heap · 1140×852 @1.00×\nwalk · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
-  "dark": "16 fps · 8.6 ms/frame (CPU submit)\ndraw 222 · tris 34k · tex 353 · geo 364\n23 MB heap · 1140×852 @1.00×\nwalk · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "light": "11 fps · 48.9 ms/frame (CPU submit)\ndraw 195 · tris 37k · tex 245 · geo 234\n23 MB heap · 1140×852 @1.00×\nwalk · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
+  "dark": "11 fps · 35.0 ms/frame (CPU submit)\ndraw 195 · tris 37k · tex 264 · geo 235\n23 MB heap · 1140×852 @1.00×\nwalk · ריאליסטי\nGPU: ANGLE (Intel, Intel(R) UHD Graphics (0x00009B41) Direct3D11 …",
   "errors": []
 }

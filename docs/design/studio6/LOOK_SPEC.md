@@ -1,6 +1,7 @@
 # Studio 6 — LOOK SPEC (binding recipes for the product port)
 
-**Status:** look-dev result, 2026-10-09, branch `pilot/ST7-lookdev`. Source of every number: the prototype in
+**Status:** look-dev result, round 2 of 2026-10-10 (round 1: 2026-10-09), branch `pilot/ST7-lookdev`. Round-2 changes are
+marked **R2**; the self-critique that drove them is `ROUND2_CRITIQUE.md`. Source of every number: the prototype in
 `docs/design/mockups/plan-studio-6-prototype/` (`src/style.js`, `src/materials.js`, `src/env.js`, `src/scene.js`,
 `index.html`). Evidence: `shots/lookdev/{light,dark}/`, `shots/lookdev-gpu.json`, `docs/design/studio6/checkpoint/`,
 `docs/design/studio6/BEFORE_AFTER.md`.
@@ -24,11 +25,17 @@ re-tints materials and re-applies the light rig; it never rebuilds geometry.
 | id / name (he) | `light` / אדריכלי בהיר | `dark` / תאום דיגיטלי כהה |
 | UI accent | `#2767ed` (product token) | `#38bdf8` |
 | Label background / text | `rgba(255,255,255,.86)` / `#22314c` | `rgba(21,28,44,.86)` / `#e6ebf5` |
-| Section cap (poché) | `#2f3237` flat, no edge | `#151b27` flat + edge line `#5fd3ff` 1 px, opacity .9 |
+| Section cap (poché) | `#3a3e46` flat, no edge (R2: lighter, frames instead of dominates) | `#151b27` flat + edge line `#5fd3ff` 1.5 px, opacity .9 |
 | Ground disc (day / night) | `#d4d8dd` / `#1a2130`, contact shadow α .38 | `#11161f` / `#0b0f17`, contact α .50 |
 | Backdrop gradient (day) | top `#cfdff2` → horizon `#eef3f9` (mixed 50 % with the sun recipe) | top `#111a2b` → `#1b2a44` |
 | Backdrop gradient (night) | `#0d1a33` → `#1a2b47` | `#070c17` → `#111c33` |
 | Ground tint on the dome | 0.96 | 0.50 |
+| Horizon band (R2, G4) | cylinder r 55 m, h 7 m, `#9aa897`, alpha = vegetation silhouette texture | `#121a24` |
+| Glass (lite / full rungs; R2, G4) | tint `#cfe0ea`, opacity .22, env 1.6 | `#9fc4de`, .20, 1.8 |
+| Grade (R2, G2; CSS on the canvas, every rung) | vignette .32 (`rgba(20,24,32,.42)` multiply, from 45 %), contrast 1.06, saturation 1.05 | vignette .40 (`rgba(0,0,0,.6)`), contrast 1.08, saturation 1.0 |
+| Rim light (R2, G5) | none | `#7cc8ff` 0.55 (x0.6 while walking), from the sun-opposite side, elevation 0.5 |
+| Floor sheen (R2, G5) | roughness x 1.0 | roughness x 0.72 on floors (env reflection reads as a sheen, no Reflector pass) |
+| Walk fog (R2, G6; walk only) | FogExp2 `#dfe6ee` 0.028 (x (1 - 0.6 night)) | `#0a1322` 0.045 |
 
 ## 2. Material palette (hex tints; level 3 multiplies the hue-free detail texture, levels 1-2 draw the tint flat)
 
@@ -38,8 +45,8 @@ hues and they are tokens (`open_door`, `presence`, `cone`, `lock_ok`).
 
 | Material id | tile_m | detail set (size px, normal strength) | `light` | `dark` |
 |---|---|---|---|---|
-| `plaster_white` (interior walls) | 2.0 | plaster 512, 0.35 | `#ece6dc` | `#4b5364` |
-| `plaster_exterior` | 2.0 | plaster 512, 0.9 | `#d3ccc0` | `#343b4a` |
+| `plaster_white` (interior walls) | 2.0 | plaster 512, 0.22 (R2: amp 14 -> 7, normal .35 -> .22; the mottle read as concrete) | `#ece6dc` | `#4b5364` |
+| `plaster_exterior` | 2.0 | plaster 512, 0.6 (R2: amp 18 -> 12) | `#d3ccc0` | `#343b4a` |
 | `plaster_ceiling` (plain matte, L4) | 3.0 | plaster 256, 0.04 | `#f4f2ee` | `#3e4554` |
 | `concrete` (worktops, pots, plates) | 2.5 | concrete 512, 1.2 | `#b0ada6` | `#4b5059` |
 | `tiles_white` (wet rooms; 0.3 m tiles, 4 per tile) | 1.2 | tiles 512, 1.8, glossy | `#e2e1dc` | `#6c7178` |
@@ -74,12 +81,12 @@ arrive (`ASSET_DOWNLOAD_LIST.md`) they are desaturated to the same mid / amplitu
 | Parameter | `light` | `dark` | Where |
 |---|---|---|---|
 | Tone mapping | Khronos **Neutral** (`NeutralToneMapping`); AgX rejected (flat, drains the oak); ACES rejected (orange shift) | same | renderer |
-| Exposure day / night (× recipe exposure 0.95-1.05) | 0.68 / 0.90 | 0.72 / 0.80 | `toneMappingExposure` |
+| Exposure day / night (× recipe exposure 0.95-1.05) | 0.62 / 0.90 (R2) | 0.72 / 0.80 | `toneMappingExposure` |
 | Sun intensity | recipe (3.4 clear … 0.9 overcast) × 0.55 (IBL on) × **1.30** | × 0.55 × **0.55** | DirectionalLight |
-| Sun shadow | 2048 PCF, radius 5, bias −0.0004, normalBias .025, blurSamples 12; fitted to extent + 4 m (the ground disc gets the building's shadow) | same | |
+| Sun shadow | top rung 2048 PCF **radius 8** (R2, G7), lite 1024 radius 3, full 1024 radius 1; bias −0.0004, normalBias .025, blurSamples 12; fitted to extent + 4 m | same | |
 | Sky scale (dome + backdrop) | 1.0 | 0.32 | dome vertex colours |
 | Environment (IBL from the LDR dome) day / night | 0.50 / 0.22 | 0.50 / 0.20 | `scene.environmentIntensity` |
-| Hemisphere fill (× recipe) | 0.22 | 0.35 | HemisphereLight |
+| Hemisphere fill (× recipe) | 0.26 (R2) | 0.35 | HemisphereLight |
 | Interior fill while walking | lerp(0.55, 1.0, daylight) × 0.7 | lerp(0.45, 0.9, daylight) × 0.7 | hemi + env while `interior` |
 | Moon | recipe night × .35 × 0.5 | × 0.8 | DirectionalLight |
 | Lamp bulb emissive day / night | 1.6 / 3.0 | 2.6 / 3.4 | emissive intensity (lerp by `night`) |
@@ -94,8 +101,8 @@ the orbit views. Night factor = recipe `night` (civil twilight −4° … −12�
 
 | Rung | Chain | Numbers |
 |---|---|---|
-| Realistic (top) | RenderPass (MSAA ×4, HalfFloat) → GTAO → UnrealBloom → Output | GTAO radius **0.6 m**, scale .9, samples 8, denoise (lumaPhi 10, depthPhi 2, normalPhi 3, r 4, rings 2, 6) , blend `light` .55 / `dark` .50 |
-| Realistic lite | RenderPass (MSAA ×2) → UnrealBloom → Output | no GTAO, no transmission, DPR 1 |
+| Realistic (top) | RenderPass (**MSAA x2**, HalfFloat) → GTAO → UnrealBloom → Output | GTAO radius **0.6 m**, scale .9, **samples 6** (R2), denoise (lumaPhi 10, depthPhi 2, normalPhi 3, r 4, rings 2, 6), blend `light` .55 / `dark` .50. R2: x4 cost +10 ms and rendered blank with instanced meshes on the workstation's ANGLE/D3D11; x2 everywhere |
+| Realistic lite | RenderPass (MSAA x2) → UnrealBloom → Output | no GTAO, no transmission, DPR 1 |
 | Full (2), Schematic (1) | renderer (its own MSAA), no composer | |
 | WebGL1 fallback | SMAA pass after Output | only where `samples` is unsupported |
 
@@ -104,10 +111,10 @@ Bloom (both rungs): threshold day / night `light` **2.0 / 1.6**, `dark` **1.2 / 
 white plaster peaks ~1.5 in the HDR buffer.
 
 Contact AO on every rung ≥ 2 (plan L3 c, the lite rung's substitute for GTAO):
-- **junction strip** along every wall footprint edge longer than 0.32 m: a floor quad 0.22 m wide and a wall quad 0.28 m
-  high, gradient black α 1 → .45 at 35 % → 0, material opacity `light` .50 / `dark` .55, no depth write, polygon offset −1;
+- **junction strip** along every wall footprint edge longer than 0.32 m: a floor quad **0.30 m** wide and a wall quad **0.30 m**
+  high (R2), gradient black α 1 → .45 at 35 % → 0, material opacity `light` **.62** / `dark` **.62** (R2), no depth write, polygon offset −1;
 - **blob** under every floor-standing object (not lights / rugs / screens): a quad (w × 1.3 + 0.1) × (d × 1.3 + 0.1) with
-  a radial gradient (α 1 → .75 at 45 % → .18 at 80 % → 0), opacity `light` .42 / `dark` .50;
+  a radial gradient (α 1 → .75 at 45 % → .18 at 80 % → 0), opacity `light` .46 / `dark` .52 (R2);
 - **building contact** under the footprint: (w + 3) × (d + 3) radial, opacity per style (above).
 
 ## 5. Section cut (plan L6)
@@ -135,6 +142,7 @@ cuts only the top level. Setting: `sectionCut` on / off (default on).
 - Plants: tapered pot + 5 spheres (r = 0.55 w × 0.6-1.0).
 - Doors: leaf 45 mm, two raised panels per face (52 % / 28 % of the height, 5 mm proud, 1 cm radius), lever handles with
   roses on both faces at 1.02 m, 7 cm casing proud 12 mm on both faces; sliding glass leaf with a 4 cm dark frame.
+  **R2 (G8): per leaf exactly two meshes**: one wood (leaf + panels merged) and one metal (roses + levers + stems merged).
 - Windows: 6 cm frame, interior sill 3 cm proud on both faces (`tiles_white`), mullion above 1.0 m width (two above 2.0 m),
   transom at 68 % above 1.6 m height.
 - Floor slabs: 0.25 m on the ground level, **0.08 m on upper levels** (a 0.25 m slab under a 2.9 m level hangs below the
@@ -151,6 +159,8 @@ cuts only the top level. Setting: `sectionCut` on / off (default on).
 - Top-right: the **floors tree strip** (thumbnail + name + state dots per floor, "all floors"); the side panel holds the
   floors / areas tree with per-floor collapse (owner rule) — room rows are "stand in room" shortcuts.
 - Bottom centre: one view bar — top / iso / perspective | walk | quality dropdown. Nothing else over the scene.
+- Typography (R2, G9): body 13.5 px, chips 12.5 px, time pill 14 px 700 tabular numerals, card titles 13.5 px; chip
+  hover lifts 1 px (150 ms), active bar chip 600 weight, labels fade in 250 ms, strip buttons carry the card shadow.
 - Labels: room names as floor text (12.5 px, 700, heading colour, 2 px halo), temperature pill only on hover of the
   room name (or the `showTemps` setting), device labels on hover; camera labels always. No HUD (developer toggle).
 - Toasts: one bottom pill, auto-hide 6 s (3.5 s for confirmations); nothing permanent.
@@ -249,6 +259,27 @@ The kit models are lighter than the rounded procedural catalog (demo house 33k v
 per object (273 draws in orbit, up from 230) — instancing per item id is port rule 1. Boot ≈ 10.7 s on the iGPU with
 lazy file textures (no procedural generation on the main thread any more).
 
+**Round 2 run** (`lookdev-gpu.json` as committed, 2026-10-10, the box again under load - the untouched q1 rung
+measured 25 ms where it was 9.5 ms in the calm run above; compare draw calls, not milliseconds):
+
+| Rung | Round 2 (instanced kit, merged doors, MSAA x2, GTAO 6) |
+|---|---|
+| Realistic orbit iso | 94.4 ms / 10.6 fps / **459 dr** (was 750) / 99k |
+| Lite orbit iso | 39.0 ms / 25.6 fps / **177 dr** (was 273) / 34k |
+| Full (2) orbit iso | 21.5 ms / 46.5 fps / 163 dr / 16k |
+| Schematic (1) orbit iso | 25.1 ms / 39.8 fps / 157 dr / 13k |
+| Realistic persp both floors | 100.6 ms / 9.9 fps / **742 dr** (was 1162) / 137k |
+| Realistic walk | 145.1 ms / 6.9 fps / **564 dr** (was 894) / 112k |
+| Lite walk | 61.9 ms / 16.2 fps / **126 dr** (was 192) / 26k |
+| Full walk | 29.9 ms / 33.4 fps / 112 dr / 11k |
+| Phone 390 lite walk | 25.4 ms / 39.4 fps / 158 dr / 32k |
+| Phone 390 full walk | 15.8 ms / 63.3 fps / 74 dr / 8k |
+| Dark style lite orbit iso | 36.8 ms / 27.2 fps / 178 dr / 34k |
+
+Draw calls fell 30-37 % on every rung (G8). The lite-rung fps budgets are still NOT MET on this workstation today; the
+q1 reference row shows the box itself was 2.6x slower than in the calm run, so the round-2 milliseconds are not
+comparable with it. The draw-call reduction is the durable gain; the port's R178 gate on the runner is the real test.
+
 (dr = draw calls; k = triangles through the renderer, which counts the GTAO normal / depth passes again on the
 realistic rung. The "after" walk rows start at the new default position looking into the hall and living room, the
 "before" rows at the old one facing the front door — more in view.)
@@ -322,8 +353,12 @@ remains the per-id fallback (a failed load swaps that id back; nothing else chan
 
 ### 13.2 Models — `assets/models/` (416 KB; Kenney Furniture Kit 2.0, CC0)
 
-Lazy glTF per catalog item id, cloned per object, scaled to the authored (w, d, h) with ≤ 15 % stretch per axis,
-material slots replaced by palette ids (`src/models.js` MODEL_MANIFEST), level 3 only; levels 1-2 keep boxes.
+Lazy glTF per catalog item id, **one `InstancedMesh` per (level, item id, kit mesh)** (R2, G8: 77 instanced meshes for
+the demo house instead of ~200 clones), scaled to the authored (w, d, h) with ≤ 15 % stretch per axis over a uniform
+fit, material slots replaced by palette ids (`src/models.js` MODEL_MANIFEST), level 3 only; levels 1-2 keep boxes.
+R2 (G1): **creased vertex normals** at 35 deg (curved parts smooth, edges crisp), **per-slot roughness** (carpet .9,
+carpetWhite .85, wood .55, metal .3-.4, plant .8, lamp .6, glass .1), **per-instance luminance jitter +-5 %** (instance
+colour) so repeated chairs differ.
 
 | item id | file | tris | slots → palette |
 |---|---|---|---|
@@ -339,12 +374,11 @@ material slots replaced by palette ids (`src/models.js` MODEL_MANIFEST), level 3
 | cabinet.low | cabinetBedDrawer.glb | 182 | wood → wood_light, metal → metal_light, _defaultMat → wood_dark |
 | bed.double / bed.single | bedDouble.glb / bedSingle.glb | 264 / 214 | wood → wood_light, metal → metal_light, carpetWhite → linen, carpet → fabric_grey |
 | kitchen.fridge | kitchenFridgeLarge.glb | 436 | metalLight → metal_light, metalMedium → metal_dark |
-| kitchen.island | kitchenCabinet.glb | 114 | wood → wood_light, woodDark → concrete, metal → metal_light |
 | plant.pot | plantSmall1.glb | 102 | wood → concrete, plant → grass |
 | sanitary.wc / basin / tub | toilet / bathroomSink / bathtub.glb | 230 / 316 / 602 | carpetWhite → tiles_white, metalLight → metal_light, metalDark → metal_dark, _defaultMat → tiles_white |
 | appliance.washer | washerDryerStacked.glb | 992 | metal* → metal_light / metal_dark, glass → metal_dark |
 
-Rules: **lamps stay procedural** (devices: bulb, glow sprite, pool light); **long kitchen counters are not one stretched
-module** — the port tiles `kitchenCabinet` modules every 0.6 m along the run (the prototype keeps the procedural run for
-`kitchen.counter`); screens stay procedural (emissive picture); any item without a row falls back per item. Demo house:
+Rules: **lamps stay procedural** (devices: bulb, glow sprite, pool light); **kitchen counters and islands are not one
+stretched module**: the port tiles `kitchenCabinet` modules every 0.6 m along the run (the prototype keeps the
+procedural run for `kitchen.counter` and `kitchen.island`; R2 G10: one kitchen language per room); screens stay procedural (emissive picture); any item without a row falls back per item. Demo house:
 31 placed models, ≈ 7k triangles.

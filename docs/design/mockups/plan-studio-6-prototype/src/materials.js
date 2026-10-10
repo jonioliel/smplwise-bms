@@ -197,8 +197,8 @@ const RECIPES = {
  * tile sizes are REAL (plan L4): a tile that reads as a 0.6 m floor tile repeats every 1.2 m with 2 tiles per side.
  */
 export const LIBRARY = {
-  plaster_white: { size: 512, recipe: (S) => RECIPES.plaster(S, 31, 0.1), tile_m: 2.0, normal: 0.35, roughness: 1 },
-  plaster_exterior: { size: 512, recipe: (S) => RECIPES.plaster(S, 47, 0.16), tile_m: 2.0, normal: 0.9, roughness: 1 },
+  plaster_white: { size: 512, recipe: (S) => RECIPES.plaster(S, 31, 0.1), tile_m: 2.0, normal: 0.22, roughness: 1 }, // G3: calmer plaster
+  plaster_exterior: { size: 512, recipe: (S) => RECIPES.plaster(S, 47, 0.16), tile_m: 2.0, normal: 0.6, roughness: 1 },
   plaster_ceiling: { size: 256, recipe: (S) => RECIPES.plaster(S, 53, 0.03), tile_m: 3.0, normal: 0.04, roughness: 1 }, // plain matte ceiling (plan L4)
   concrete: { size: 512, recipe: (S) => RECIPES.concrete(S, 61), tile_m: 2.5, normal: 1.2, roughness: 1 },
   tiles_white: { size: 512, recipe: (S) => RECIPES.tiles(S, 71, 4, 3, true), tile_m: 1.2, normal: 1.8, roughness: 1 },   // 0.3 m tiles
@@ -265,7 +265,7 @@ export class MaterialLibrary {
   }
   /** A material for the quality level: 3 = textured PBR tinted by the palette, 2 = flat standard, 1 = flat Lambert. */
   get(id, level, opts = {}) {
-    const key = `${id}|${level}|${opts.side || 0}`;
+    const key = `${id}|${level}|${opts.side || 0}|${opts.variant || ''}|${opts.roughness ?? ''}`;
     let m = this.materials.get(key);
     if (m) return m;
     const spec = LIBRARY[id] || {};
@@ -281,6 +281,9 @@ export class MaterialLibrary {
       m = new THREE.MeshLambertMaterial({ color: tint });
     }
     m.userData.materialId = id;
+    if (opts.variant) m.userData.variant = opts.variant;
+    if (opts.roughness != null && level >= 3) m.roughness = opts.roughness; // kit slots: fabric .9 / wood .55 / metal .35 (G1)
+    if (opts.variant === 'floor' && level >= 3) m.roughness = this.style.rig.floorSheen ?? 1; // dark style floor sheen (G5)
     if (opts.side) m.side = opts.side;
     this.materials.set(key, m);
     return m;
@@ -291,6 +294,7 @@ export class MaterialLibrary {
     for (const m of this.materials.values()) {
       const id = m.userData.materialId;
       if (id) m.color.setHex(this.palette(id));
+      if (m.userData.variant === 'floor' && m.isMeshStandardMaterial && m.map) m.roughness = style.rig.floorSheen ?? 1;
     }
   }
   tileM(id) { return (LIBRARY[id] || LIBRARY.plaster_white).tile_m; }
@@ -326,6 +330,25 @@ export function discAlphaTexture() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
   _disc = new THREE.CanvasTexture(c);
   return _disc;
+}
+/** Horizon band alpha (G4): opaque at the bottom, a soft irregular top edge (vegetation silhouette), transparent above. */
+let _band = null;
+export function bandAlphaTexture() {
+  if (_band) return _band;
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1024, 128);
+  const r = rng(77);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(0, 128);
+  for (let x = 0; x <= 1024; x += 8) { const h = 60 + 22 * Math.sin(x * 0.02) + 14 * Math.sin(x * 0.071 + 1.3) + r() * 10; ctx.lineTo(x, 128 - h); }
+  ctx.lineTo(1024, 128); ctx.closePath(); ctx.fill();
+  const g = ctx.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, 'rgba(0,0,0,0.35)'); g.addColorStop(0.55, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 1024, 128);
+  _band = new THREE.CanvasTexture(c);
+  _band.wrapS = THREE.RepeatWrapping; _band.repeat.set(6, 1);
+  return _band;
 }
 /** A 1-D gradient along V: opaque black at v=0 (the wall), transparent at v=1. */
 export function stripTexture() {

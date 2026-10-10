@@ -3,26 +3,12 @@
     "set": "Plaster001",
     "size_px": 512,
     "mid": 214,
-    "amp": 14,
+    "amp": 7,
     "source_mean": 211.7,
     "source_sd": 4.2,
     "has_ao": false,
     "bytes": {
-      "color": 30708,
-      "normal": 87241,
-      "rough_ao": 24385
-    }
-  },
-  "plaster_ceiling": {
-    "set": "Plaster001",
-    "size_px": 512,
-    "mid": 220,
-    "amp": 6,
-    "source_mean": 211.7,
-    "source_sd": 4.2,
-    "has_ao": false,
-    "bytes": {
-      "color": 4756,
+      "color": 7044,
       "normal": 87241,
       "rough_ao": 24385
     }
@@ -31,12 +17,12 @@
     "set": "Plaster003",
     "size_px": 512,
     "mid": 210,
-    "amp": 18,
+    "amp": 12,
     "source_mean": 212.1,
     "source_sd": 12.7,
     "has_ao": false,
     "bytes": {
-      "color": 62264,
+      "color": 43618,
       "normal": 94498,
       "rough_ao": 16173
     }

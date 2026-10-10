@@ -45,6 +45,19 @@ silhouettes (sofa, chairs, beds, bookcase, desk) at iso. What stayed procedural 
 counters (one module stretched reads wrong), screens (emissive picture), the ceiling (a near-flat WebP showed block
 artefacts).
 
+## Round 2 (2026-10-10): the ten gaps of `ROUND2_CRITIQUE.md`
+
+Every `shots/lookdev/` screen and the six `checkpoint/` frames were re-rendered after round 2. What to look for, by gap:
+G1 kit furniture (walk living / stand-at-camera: smooth-shaded sofa and chairs, fabric vs wood vs metal response, chairs
+no longer identical) - G2 light day iso (vignette, lighter poche, calmer exposure) - G3 walls (plaster reads as plaster)
+- G4 windows (horizon silhouette outside, tinted glass) - G5 dark style (rim light separates planes, floor sheen, 1.5 px
+cap edges) - G6 walk (fog depth) - G7 shadows (radius 8) - G8 draw calls (door 2 meshes, kit instanced; perf table in
+LOOK_SPEC section 11) - G9 UI (hover lift, weights, label fade) - G10 kitchen (one language per room).
+
+Round-2 regressions caught and fixed on the way: a post-process grade pass drove the composer's alpha to 0 on this
+driver (replaced by a CSS vignette + canvas filter, free on every rung); MSAA x4 rendered blank with instanced meshes
+(x2 everywhere now, and cheaper).
+
 ## Known limits of the evidence
 
 - `16-walk-upper-floor-after-stairs.png` is a wall close-up: the scripted walker holds W for 4.5 s and reaches the north

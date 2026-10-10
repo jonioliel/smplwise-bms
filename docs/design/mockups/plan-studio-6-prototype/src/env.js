@@ -16,6 +16,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
 import { sunPosition, lightRecipe, toHex, toCss } from './sun.js';
 import { STYLES } from './style.js';
 
@@ -62,6 +63,10 @@ export class Environment {
     this.scene.add(this.ambient);
     this.moon = new THREE.DirectionalLight(0xbfd0ff, 0);
     this.scene.add(this.moon);
+    // rim light (dark style, G5): cool, from the side opposite the sun, separates the planes without GI
+    this.rim = new THREE.DirectionalLight(0x7cc8ff, 0);
+    this.scene.add(this.rim);
+    this.fogOn = false;
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.pmrem.compileCubemapShader();
     this.envTarget = null;
@@ -118,9 +123,11 @@ export class Environment {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.needsUpdate = true;
     this.sun.castShadow = q >= 2;
-    this.sun.shadow.radius = q >= 3 ? 5 : 1;
+    // G7: softer sun shadow on the top rung (radius from the style), 1024 / radius 3 on lite (fill-rate), 1 on full
+    const top = q >= 3 && !this.post.lite;
+    this.sun.shadow.radius = top ? (this.style.rig.shadowRadius || 8) : q >= 3 ? 3 : 1;
     this.sun.shadow.blurSamples = 12;
-    this.sun.shadow.mapSize.set(q >= 3 ? 2048 : 1024, q >= 3 ? 2048 : 1024);
+    this.sun.shadow.mapSize.set(top ? 2048 : 1024, top ? 2048 : 1024);
     if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     this.scene.environment = q >= 3 ? (this.envTarget && this.envTarget.texture) : null;
     this.scene.background = null;
@@ -135,7 +142,9 @@ export class Environment {
     const { w, h } = this.size;
     // plan L8: MSAA on the composer's own target (WebGL2): x4 on the top rung, x2 on lite (post.samples overrides for
     // the lever measurement); SMAA pass as the fallback where samples are unsupported or when post.aa === 'smaa'
-    const samples = this.post.samples != null ? this.post.samples : this.post.lite ? 2 : 4;
+    // round 2 (G8): MSAA x2 on BOTH rungs - x4 on the HalfFloat target cost +10 ms on the iGPU (levers-gpu.json) and,
+    // with the instanced kit furniture, rendered a blank frame on the workstation's ANGLE/D3D11 driver; x2 is the AA
+    const samples = this.post.samples != null ? this.post.samples : 2;
     const msaa = this.post.msaa && this.isWebGL2 && samples > 0 && this.post.aa !== 'smaa';
     const target = new THREE.WebGLRenderTarget(Math.round(w * this.dpr), Math.round(h * this.dpr), { type: THREE.HalfFloatType, samples: msaa ? samples : 0 });
     const composer = new EffectComposer(this.renderer, target);
@@ -148,7 +157,7 @@ export class Environment {
       const gtao = new GTAOPass(this.scene, camera, w, h);
       gtao.output = GTAOPass.OUTPUT.Default;
       // plan L3(d): radius ~0.6 m, low intensity - contact darkening, not a dirty frame
-      gtao.updateGtaoMaterial({ radius: this.style.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: 8 });
+      gtao.updateGtaoMaterial({ radius: this.style.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: 6 });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
       gtao.blendIntensity = this.style.post.aoIntensity;
       composer.addPass(gtao);
@@ -178,6 +187,13 @@ export class Environment {
   setTime(partial) {
     Object.assign(this.time, partial);
     this.applyTime();
+  }
+  /** Walk atmosphere (G6): exponential fog in the style colour, only while walking; off in the orbit / cut views. */
+  setFog(on) { this.fogOn = on; this.applyFog(); }
+  applyFog() {
+    const F = this.style.rig.fog;
+    if (this.fogOn && F && this.quality >= 2) { const night = this.recipe ? this.recipe.night : 0; const col = new THREE.Color(F.color).multiplyScalar(1 - night * 0.6); if (!this.scene.fog) this.scene.fog = new THREE.FogExp2(col, F.density); else { this.scene.fog.color.copy(col); this.scene.fog.density = F.density; } }
+    else this.scene.fog = null;
   }
   /** The backdrop gradient stops [top, horizon, bottom] as CSS colours: style colours mixed 50 % with the sun recipe. */
   backdropColors() {
@@ -221,6 +237,8 @@ export class Environment {
     this.sun.visible = sp.elevation > -3 || this.quality < 2;
     this.moon.intensity = r.moon * S.moonScale;
     this.moon.position.copy(c).add(new THREE.Vector3(-dist, dist * 0.9, dist * 0.4));
+    if (S.rim) { this.rim.color.setHex(S.rim.color); this.rim.intensity = S.rim.intensity * (this.interior ? 0.6 : 1); this.rim.position.copy(c).addScaledVector(new THREE.Vector3(-dir.x, 0.5, -dir.z).normalize(), dist * 1.2); this.rim.target.position.copy(c); this.rim.target.updateMatrixWorld(); } else this.rim.intensity = 0;
+    this.applyFog();
     this.hemi.color.setHex(toHex(r.hemiSky));
     this.hemi.groundColor.setHex(toHex(r.hemiGround));
     this.hemi.intensity = (this.quality >= 2 ? r.hemiIntensity * (ibl ? S.hemiScale : 1) * (ibl ? 1 : S.skyScale) : 1.2) * inside;

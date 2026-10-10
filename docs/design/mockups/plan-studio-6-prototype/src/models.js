@@ -14,6 +14,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/** Per-slot surface response for the kit (G1): the palette gives the colour, this gives the material its feel. */
+const SLOT_ROUGHNESS = { carpet: 0.9, carpetWhite: 0.85, wood: 0.55, woodDark: 0.55, metal: 0.35, metalLight: 0.3, metalMedium: 0.35, metalDark: 0.4, plant: 0.8, lamp: 0.6, glass: 0.1, _defaultMat: 0.6 };
+const CREASE = (35 * Math.PI) / 180;
 
 /**
  * item id -> { file, slots: { <glTF material name>: <palette id> } }. The Kenney Furniture Kit 2.0 (CC0, downloaded
@@ -36,7 +41,7 @@ export const MODEL_MANIFEST = {
   'bed.single': { file: 'assets/models/bedSingle.glb', slots: { wood: 'wood_light', metal: 'metal_light', carpetWhite: 'linen', carpet: 'fabric_grey' } },
   'kitchen.fridge': { file: 'assets/models/kitchenFridgeLarge.glb', slots: { metalLight: 'metal_light', metalMedium: 'metal_dark' } },
   // kitchen.counter: NOT mapped - a single cabinet module stretched to a 3-4 m run reads wrong; the port tiles modules (LOOK_SPEC §13), the prototype keeps the procedural run
-  'kitchen.island': { file: 'assets/models/kitchenCabinet.glb', slots: { wood: 'wood_light', woodDark: 'concrete', metal: 'metal_light' } },
+  // kitchen.island: NOT mapped (round 2, G10) - one kitchen language per room, the procedural island matches the counters
   'plant.pot': { file: 'assets/models/plantSmall1.glb', slots: { wood: 'concrete', plant: 'grass' } },
   'sanitary.wc': { file: 'assets/models/toilet.glb', slots: { carpetWhite: 'tiles_white', metalLight: 'metal_light', metalDark: 'metal_dark', _defaultMat: 'tiles_white' } },
   'sanitary.basin': { file: 'assets/models/bathroomSink.glb', slots: { carpetWhite: 'tiles_white', metalLight: 'metal_light', _defaultMat: 'tiles_white' } },
@@ -66,6 +71,8 @@ export class ModelLibrary {
       const p = new Promise((resolve) => {
         this.loader.load(row.file, (gltf) => {
           const scene = gltf.scene;
+          // G1: smooth the curved parts of the low-poly kit, keep edges sharper than 35 deg crisp
+          scene.traverse((m) => { if (m.isMesh) { const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry; m.geometry = toCreasedNormals(g, CREASE); } });
           scene.updateMatrixWorld(true);
           const bbox = new THREE.Box3().setFromObject(scene);
           this.cache.set(itemId, { scene, bbox, row });
@@ -99,33 +106,54 @@ export class ModelLibrary {
   place(itemId, o, x, y, z, yaw, group, L, plan) {
     const t = this.template(itemId);
     if (!t) return false;
-    const q = 3;
-    const clone = t.scene.clone(true);
     const size = new THREE.Vector3();
     t.bbox.getSize(size);
     const { w_m: w, d_m: d, h_m: h } = o.size;
+    // proportion-preserving scale (G1): uniform by the smallest ratio, then at most 15 % stretch per axis toward the authored box
     const s = new THREE.Vector3(size.x > 1e-6 ? w / size.x : 1, size.y > 1e-6 ? h / size.y : 1, size.z > 1e-6 ? d / size.z : 1);
     const uniform = Math.min(s.x, s.y, s.z);
-    // keep proportions when the kit model is close to the authored size; stretch only within 15 %
     const sx = Math.min(s.x, uniform * 1.15), sy = Math.min(s.y, uniform * 1.15), sz = Math.min(s.z, uniform * 1.15);
     const ctr = new THREE.Vector3();
     t.bbox.getCenter(ctr);
-    clone.traverse((m) => {
-      if (!m.isMesh) return;
-      const slot = m.material && m.material.name;
-      const pid = (t.row.slots && t.row.slots[slot]) || 'wood_light';
-      m.material = this.lib.get(pid, q);
-      m.castShadow = true; m.receiveShadow = true;
-      m.userData = { kind: 'model', item: itemId };
-    });
-    const holder = new THREE.Group();
-    holder.add(clone);
-    clone.position.set(-ctr.x * sx, -t.bbox.min.y * sy, -ctr.z * sz);
-    clone.scale.set(sx, sy, sz);
-    holder.position.set(x, y, z);
-    holder.rotation.y = yaw;
-    holder.userData = { kind: 'model', item: itemId, test: !!t.test };
-    group.add(holder);
+    // world matrix of the object: translate(x, y, z) * rotateY(yaw) * scale * translate(-centre.x, -min.y, -centre.z)
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(sx, sy, sz));
+    m.multiply(new THREE.Matrix4().makeTranslation(-ctr.x, -t.bbox.min.y, -ctr.z));
+    // luminance jitter per object (G1): repeats of one item never share the exact tone
+    const jitter = 1 + ((Math.sin((x * 12.9898 + z * 78.233) * 43758.5453) % 1) * 0.1 - 0.05);
+    this.pending = this.pending || new Map();
+    const key = `${L.id}|${itemId}`;
+    if (!this.pending.has(key)) this.pending.set(key, { itemId, group, L, list: [] });
+    this.pending.get(key).list.push({ matrix: m, jitter, o });
     return true;
+  }
+
+  /**
+   * After a level's objects are collected: one InstancedMesh per (item id, kit mesh) with the palette material of its
+   * slot (G8 - draw calls), per-instance colour = the jitter; placed meshes are not pickable devices (furniture only).
+   */
+  flush(levelId) {
+    if (!this.pending) return;
+    for (const [key, p] of [...this.pending]) {
+      if (!key.startsWith(`${levelId}|`)) continue;
+      this.pending.delete(key);
+      const t = this.template(p.itemId);
+      if (!t) continue;
+      const meshes = [];
+      t.scene.traverse((m) => { if (m.isMesh) meshes.push(m); });
+      for (const src of meshes) {
+        const slot = src.material && src.material.name;
+        const pid = (t.row.slots && t.row.slots[slot]) || 'wood_light';
+        const mat = this.lib.get(pid, 3, { roughness: SLOT_ROUGHNESS[slot] ?? 0.6 });
+        const im = new THREE.InstancedMesh(src.geometry, mat, p.list.length);
+        const local = src.matrixWorld.clone();
+        const tmp = new THREE.Matrix4();
+        p.list.forEach((inst, i) => { tmp.multiplyMatrices(inst.matrix, local); im.setMatrixAt(i, tmp); im.setColorAt(i, new THREE.Color(inst.jitter, inst.jitter, inst.jitter)); });
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        im.castShadow = true; im.receiveShadow = true;
+        im.userData = { kind: 'model', item: p.itemId, test: !!t.test, count: p.list.length };
+        p.group.add(im);
+      }
+    }
   }
 }

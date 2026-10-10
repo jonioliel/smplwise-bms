@@ -113,9 +113,18 @@ class App {
     this.planScene.setNight(this.env.recipe.night);
     this.applyCut();
     document.documentElement.dataset.style = this.style.id;
+    this.applyGrade();
     this.renderStyleChip && this.renderStyleChip();
     this.makeThumbs();
     this.invalidate();
+  }
+  /** Grade (G2): CSS vignette + contrast / saturation from the style post numbers; applies on every rung. */
+  applyGrade() {
+    const P = this.style.post, st = this.stage.style;
+    st.setProperty('--vignette', String(P.vignette ?? 0));
+    st.setProperty('--vignette-color', this.style.id === 'dark' ? 'rgba(0,0,0,.6)' : 'rgba(20,24,32,.42)');
+    st.setProperty('--grade-contrast', String(P.contrast ?? 1));
+    st.setProperty('--grade-saturation', String(P.saturation ?? 1));
   }
   /** The section cut (plan L6): orbit views cut the top visible level at style.cut.fraction of its ceiling; the walk never cuts. */
   applyCut() {
@@ -368,6 +377,7 @@ class App {
       this.renderStyleChip = () => { styleSel.value = this.styleChoice; };
     }
     document.documentElement.dataset.style = this.style.id;
+    this.applyGrade();
     const hud = $('hud');
     hud.classList.toggle('on', this.hudOn);
     const slider = $('sun-slider');
@@ -829,6 +839,7 @@ class App {
     this.env.setCamera(this.walkCam);
     this.env.interior = true;
     this.env.interiorFill = 0.6;
+    this.env.setFog(true);
     this.env.applyTime();
     this.continuous = true;
     this.renderBar();
@@ -848,6 +859,7 @@ class App {
     this.fitCamera(st.preset || 'iso');
     this.env.interior = false;
     this.env.interiorFill = 1;
+    this.env.setFog(false);
     this.env.applyTime();
     this.applyCut();
     this.continuous = false;

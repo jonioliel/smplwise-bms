@@ -28,15 +28,16 @@
   :root[data-style="dark"] { --sw-accent: #38bdf8; --sw-accent-text: #7dd3fc; --sw-map-presence: #38bdf8; }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; font: 13px/1.45 var(--sw-font); color: var(--sw-text); background: var(--sw-bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; font: 13.5px/1.45 var(--sw-font); color: var(--sw-text); background: var(--sw-bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
   button, input, select { font: inherit; color: inherit; }
   .shell { display: grid; grid-template-rows: 48px 1fr; height: 100vh; height: 100dvh; }
   header { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--sw-surface); border-bottom: 1px solid var(--sw-border); min-width: 0; }
   header .brand { font-weight: 700; color: var(--sw-accent-text); letter-spacing: -.2px; white-space: nowrap; }
   header .crumbs { color: var(--sw-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   header .modes { margin-inline-start: auto; display: flex; gap: 6px; align-items: center; flex: none; }
-  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1px solid var(--sw-border-strong); border-radius: 999px; background: var(--sw-surface); color: var(--sw-text); font-size: 12px; white-space: nowrap; cursor: pointer; line-height: 1.4; transition: background .15s, border-color .15s, color .15s; }
-  .chip:hover { border-color: var(--sw-accent); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1px solid var(--sw-border-strong); border-radius: 999px; background: var(--sw-surface); color: var(--sw-text); font-size: 12.5px; white-space: nowrap; cursor: pointer; line-height: 1.4; transition: background .15s, border-color .15s, color .15s, transform .15s var(--ease), box-shadow .15s; }
+  .chip:hover { border-color: var(--sw-accent); transform: translateY(-1px); }
+  .chip:active { transform: translateY(0); }
   .chip.sel { border-color: var(--sw-accent); color: var(--sw-accent-text); box-shadow: 0 0 0 1px var(--sw-accent); background: var(--sw-accent-soft); }
   .chip[disabled] { opacity: .5; cursor: default; }
   .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sw-success); }
@@ -45,7 +46,10 @@
   main { display: grid; grid-template-columns: 1fr 300px; gap: 0; min-height: 0; }
   /* the stage is full-bleed: the chrome floats over it (plan L9) */
   .stage { position: relative; overflow: hidden; background: linear-gradient(180deg, var(--sw-map-sky) 0%, var(--sw-map-sky-horizon) 100%); min-height: 0; user-select: none; touch-action: none; }
-  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: contrast(var(--grade-contrast, 1)) saturate(var(--grade-saturation, 1)); }
+  /* grade (round 2, G2): vignette overlay + contrast / saturation on the canvas - free on every rung, numbers from the style */
+  .vignette { inset: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, var(--vignette-color, rgba(0,0,0,.32)) 100%); mix-blend-mode: multiply; opacity: var(--vignette, 0); }
+  .stage.stills .vignette { display: none; }
   .stage.walk canvas { cursor: crosshair; }
   .overlay { position: absolute; pointer-events: none; }
   .card { background: var(--glass); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); border: 1px solid var(--glass-border); border-radius: var(--r); padding: 8px 12px; box-shadow: var(--shadow); pointer-events: auto; }
@@ -53,7 +57,8 @@
   .tb { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; }
   .tb .chip { border-color: transparent; background: transparent; }
   .tb .chip:hover { background: var(--sw-surface-3); }
-  .tb .chip.sel { background: var(--sw-accent-soft); box-shadow: none; border-color: transparent; }
+  .tb .chip.sel { background: var(--sw-accent-soft); box-shadow: none; border-color: transparent; font-weight: 600; }
+  .tb .chip:hover { transform: none; }
   .tb .sep { width: 1px; height: 18px; background: var(--sw-border-strong); margin: 0 2px; }
   .bar { left: 50%; bottom: 14px; transform: translateX(-50%); max-width: calc(100% - 28px); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .bar::-webkit-scrollbar { display: none; }
@@ -61,7 +66,7 @@
   .sun { left: 14px; top: 14px; width: auto; max-width: 340px; transition: width .25s var(--ease); }
   .sun .row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .sun .row .ico { color: var(--sw-stale); font-size: 14px; }
-  .sun .t { font-weight: 600; min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+  .sun .t { font-weight: 700; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; font-size: 14px; letter-spacing: .2px; }
   .sun .caret { color: var(--sw-text-3); font-size: 10px; transition: transform .2s; }
   .sun.open .caret { transform: rotate(180deg); }
   .sun .more { display: none; margin-top: 8px; }
@@ -71,7 +76,8 @@
   .sun .presets { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
   /* floors / areas tree strip (owner rule: stays in every design) */
   .strip { right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; }
-  .strip button { width: 96px; padding: 4px; border: 1px solid var(--glass-border); border-radius: 10px; background: var(--glass); backdrop-filter: blur(10px); color: var(--sw-text-2); text-align: center; cursor: pointer; pointer-events: auto; font-size: 12px; transition: border-color .15s; }
+  .strip button { width: 96px; padding: 4px; border: 1px solid var(--glass-border); border-radius: 10px; background: var(--glass); backdrop-filter: blur(10px); color: var(--sw-text-2); text-align: center; cursor: pointer; pointer-events: auto; font-size: 12px; box-shadow: var(--shadow); transition: border-color .15s, transform .15s var(--ease); }
+  .strip button:hover { transform: translateY(-1px); }
   .strip button.sel { border-color: var(--sw-accent); color: var(--sw-accent-text); box-shadow: 0 0 0 1px var(--sw-accent); }
   .strip .pic { display: block; height: 50px; border-radius: 6px; background: linear-gradient(135deg, var(--sw-surface-3), var(--sw-border-strong)); position: relative; margin-bottom: 2px; overflow: hidden; }
   .strip .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -84,7 +90,8 @@
   .note[hidden] { display: none; }
   .note.danger { color: #b91c1c; border-color: var(--sw-danger); }
   .labels { inset: 0; overflow: hidden; }
-  .lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none; }
+  .lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none; animation: lblin .25s var(--ease); }
+  @keyframes lblin { from { opacity: 0; transform: translate(-50%, -40%); } to { opacity: 1; transform: translate(-50%, -50%); } }
   .lbl.room { font-size: 12.5px; font-weight: 700; color: var(--sw-heading); text-shadow: 0 0 2px var(--sw-surface), 0 0 1px var(--sw-surface), 0 1px 3px var(--sw-surface); letter-spacing: .1px; opacity: .92; pointer-events: auto; cursor: default; padding: 4px 6px; }
   .lbl.temp { font-size: 11px; font-weight: 600; color: var(--sw-map-temp); background: var(--glass-strong); border: 1px solid var(--glass-border); padding: 1px 7px; border-radius: 999px; box-shadow: 0 1px 2px rgba(0,0,0,.08); display: none; }
   .lbl.room:hover + .lbl.temp, .labels.temps .lbl.temp { display: block; }
@@ -156,7 +163,7 @@
   .panel { display: none; flex-direction: column; gap: 10px; }
   .panel.sel { display: flex; }
   .pcard { background: var(--sw-surface-2); border: 1px solid var(--sw-border); border-radius: var(--r); padding: 10px 12px; }
-  .pcard h3 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .pcard h3 { margin: 0 0 8px; font-size: 13.5px; display: flex; align-items: center; gap: 6px; letter-spacing: .1px; }
   .pcard h3 .muted { font-weight: 400; color: var(--sw-text-3); font-size: 11px; margin-inline-start: auto; }
   .pcard.tree h3 { cursor: pointer; margin: 0; }
   .pcard.tree h3 .tw { display: inline-block; width: 14px; color: var(--sw-text-3); transition: transform .2s; font-size: 10px; }
@@ -169,7 +176,8 @@
   .room .name .t { margin-inline-start: auto; color: var(--sw-map-temp); font-weight: 500; font-size: 12px; }
   .dev { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; color: var(--sw-text-2); }
   .dev .lbl2 { flex: 1; }
-  .sw { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #c9d1dc; border: 0; cursor: pointer; flex: none; padding: 0; transition: background .15s; }
+  .sw { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #c9d1dc; border: 0; cursor: pointer; flex: none; padding: 0; transition: background .2s var(--ease); }
+  .sw:hover { filter: brightness(1.05); }
   .sw::after { content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
   .sw.on { background: var(--sw-accent); }
   .sw.on::after { transform: translateX(-14px); }
@@ -239,6 +247,7 @@
   <main>
     <section class="stage" id="stage" aria-label="3D">
       <canvas id="gl"></canvas>
+      <div class="overlay vignette" id="vignette"></div>
       <div class="overlay labels" id="labels"></div>
       <div class="overlay kiosk-layer" id="stills"></div>
       <div class="overlay kiosk-note" id="kiosk-note">תצוגת קיר · תמונה מוכנה · <a href="#" id="kiosk-exit">חזרה לתצוגה חיה</a></div>

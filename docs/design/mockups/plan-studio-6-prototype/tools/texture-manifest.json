@@ -2,12 +2,12 @@
   "plaster_white": {
     "set": "Plaster001",
     "mid": 214,
-    "amp": 14
+    "amp": 7
   },
   "plaster_exterior": {
     "set": "Plaster003",
     "mid": 210,
-    "amp": 18
+    "amp": 12
   },
   "concrete": {
     "set": "Concrete034",

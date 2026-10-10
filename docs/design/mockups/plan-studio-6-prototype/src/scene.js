@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { buildStructure, blockingSegments, polygonCentroid, outlinePolyline, isOpenState, pointInPolygon } from './geometry.js';
-import { radialTexture, stripTexture, discAlphaTexture } from './materials.js';
+import { radialTexture, stripTexture, discAlphaTexture, bandAlphaTexture } from './materials.js';
 import { STYLES } from './style.js';
 
 export const EYE_M = 1.65;
@@ -35,7 +35,7 @@ function quad(p0, p1, p2, p3, uvs = [[0, 0], [1, 0], [1, 1], [0, 1]]) {
  * the wall) and a wall quad (0.28 m high, dark at the floor). Edges shorter than `skip` (the ends of a wall part at an
  * opening) are left out. Cheap: one merged geometry + one gradient texture per level, every rung >= 2.
  */
-function junctionStrips(outline, y, floorW = 0.22, wallH = 0.28, skip = 0.32) {
+function junctionStrips(outline, y, floorW = 0.3, wallH = 0.3, skip = 0.32) {
   const n = outline.length, out = [];
   for (let i = 0; i < n; i++) {
     const a = outline[i], b = outline[(i + 1) % n];
@@ -155,7 +155,8 @@ export class PlanScene {
     for (const L of Object.values(this.levels)) {
       if (L.capEdges) L.capEdges.visible = !!style.cut.edge && L.capMesh.visible;
     }
-    if (this.ground) { this.ground.disc.material.color.setHex(style.ground.disc); this.ground.shadow.material.opacity = style.ground.contact; }
+    if (this.ground) { this.ground.disc.material.color.setHex(style.ground.disc); this.ground.shadow.material.opacity = style.ground.contact; if (this.ground.band && style.horizon) this.ground.band.material.color.setHex(style.horizon.low); }
+    for (const s of this.styled) if (s.key === 'glass_tint' && style.glass) { s.material.color.setHex(style.glass.tint); s.material.envMapIntensity = style.glass.env; if (s.material.opacity < 0.5) s.material.opacity = style.glass.opacity; }
   }
   /** Night blend of the ground disc (called by the app on every time change). */
   setNight(night) {
@@ -348,38 +349,31 @@ export class PlanScene {
             if (q >= 3 && !glassLeaf) boxUV(leaf.geometry, 1.0);
             leaf.userData = { kind: 'device', entity: entity || `door:${o.id}`, label: entity ? plan.entityNames[entity] || entity : 'דלת ללא חיישן', domain: 'door', openingId: o.id, lock: lockEntity || null };
             grp.add(leaf);
+            // G8: one wood mesh (leaf + raised panels) and one metal mesh (roses, levers, stems) per leaf instead of ~12
+            const woodParts = [], metalParts = [];
+            const nonIdx = (g) => (g.index ? g.toNonIndexed() : g);
             if (q >= 3) {
               if (glassLeaf) {
                 // sliding glass leaf: a slim dark frame around the pane
-                const fm = mat('metal_dark');
-                for (const [bw, bh, bx, by] of [[0.04, leafH, 0.02, leafH / 2], [0.04, leafH, leafW - 0.02, leafH / 2], [leafW, 0.04, leafW / 2, 0.02], [leafW, 0.04, leafW / 2, leafH - 0.02]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, leafT + 0.01), fm); b.position.set(bx + 0.01, by, 0); grp.add(b); }
+                for (const [bw, bh, bx, by] of [[0.04, leafH, 0.02, leafH / 2], [0.04, leafH, leafW - 0.02, leafH / 2], [leafW, 0.04, leafW / 2, 0.02], [leafW, 0.04, leafW / 2, leafH - 0.02]]) { const g = new THREE.BoxGeometry(bw, bh, leafT + 0.01); g.translate(bx + 0.01, by, 0); metalParts.push(boxUV(nonIdx(g), 0.5)); }
               } else {
-                // two raised panels on each face (plan L1): 5 mm proud, 1 cm radius
-                const pm = mat('door_wood');
+                // two raised panels on each face (plan L1): 5 mm proud, 1 cm radius - merged into the leaf
                 const pw = leafW - 0.22, ph1 = leafH * 0.52, ph2 = leafH * 0.28;
-                for (const s of [-1, 1]) for (const [py, ph] of [[0.14 + ph2 / 2, ph2], [0.14 + ph2 + 0.12 + ph1 / 2, ph1]]) {
-                  const p = new THREE.Mesh(new RoundedBoxGeometry(pw, ph, 0.012, 2, 0.005), pm);
-                  p.position.set(width / 2 + 0.01, py, s * (leafT / 2 + 0.003));
-                  p.castShadow = true;
-                  grp.add(p);
+                for (const sg of [-1, 1]) for (const [py, ph] of [[0.14 + ph2 / 2, ph2], [0.14 + ph2 + 0.12 + ph1 / 2, ph1]]) {
+                  const g = new RoundedBoxGeometry(pw, ph, 0.012, 2, 0.005);
+                  g.translate(width / 2 + 0.01, py, sg * (leafT / 2 + 0.003));
+                  woodParts.push(boxUV(nonIdx(g), 1.0));
                 }
               }
             }
             // lever handle + rose on both faces
-            for (const s of [-1, 1]) {
-              const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.012, 14), mat('metal_light'));
-              rose.rotation.x = Math.PI / 2;
-              rose.position.set(width - 0.12, 1.02, s * (leafT / 2 + 0.006));
-              grp.add(rose);
-              const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.12, 10), mat('metal_light'));
-              lever.rotation.z = Math.PI / 2;
-              lever.position.set(width - 0.17, 1.02, s * (leafT / 2 + 0.04));
-              grp.add(lever);
-              const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.05, 10), mat('metal_light'));
-              stem.rotation.x = Math.PI / 2;
-              stem.position.set(width - 0.12, 1.02, s * (leafT / 2 + 0.025));
-              grp.add(stem);
+            for (const sg of [-1, 1]) {
+              const rose = new THREE.CylinderGeometry(0.025, 0.025, 0.012, 14); rose.rotateX(Math.PI / 2); rose.translate(width - 0.12, 1.02, sg * (leafT / 2 + 0.006)); metalParts.push(nonIdx(rose));
+              const lever = new THREE.CylinderGeometry(0.009, 0.009, 0.12, 10); lever.rotateZ(Math.PI / 2); lever.translate(width - 0.17, 1.02, sg * (leafT / 2 + 0.04)); metalParts.push(nonIdx(lever));
+              const stem = new THREE.CylinderGeometry(0.009, 0.009, 0.05, 10); stem.rotateX(Math.PI / 2); stem.translate(width - 0.12, 1.02, sg * (leafT / 2 + 0.025)); metalParts.push(nonIdx(stem));
             }
+            if (woodParts.length && !glassLeaf) { leaf.geometry = mergeGeometries([nonIdx(leaf.geometry), ...woodParts], false); }
+            if (metalParts.length) { const mm = new THREE.Mesh(mergeGeometries(metalParts, false), mat(glassLeaf ? 'metal_dark' : 'metal_light')); mm.castShadow = true; grp.add(mm); }
             if (lockEntity) {
               const plate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.06), this.lockMaterial());
               plate.position.set(width - 0.15, 1.12, 0);
@@ -447,7 +441,7 @@ export class PlanScene {
         // 0.25 m on the ground, 0.08 m above (elevation 2.9 - 0.08 = 2.82 > the 2.8 m ceiling below)
         const slabT = elev > 0.01 ? 0.08 : 0.25;
         const slab = extrudeXZ(z.polyM, slabT, elev - slabT);
-        const floorMat = mat(fid);
+        const floorMat = lib.get(fid, q, { variant: 'floor' });
         const fm = this.reflections && q >= 3 ? this.transparentClone(floorMat) : floorMat;
         const floor = new THREE.Mesh(boxUV(slab, lib.tileM(fid)), fm);
         floor.receiveShadow = true;
@@ -503,6 +497,8 @@ export class PlanScene {
         const base = elev + (o.z_m || 0);
         this.buildObject(o, x, base, z, yaw, group, push, L, plan);
       }
+
+      if (this.models && this.furnitureMode === 'models') this.models.flush(lv.id);
 
       // ---- stairs (connectors leaving this level)
       for (const cn of doc.connectors.filter((x) => x.level_from === lv.id && x.kind === 'stairs' && x.polyline.length >= 2)) {
@@ -608,7 +604,7 @@ export class PlanScene {
         group.add(L.capMesh);
         const lg = new THREE.BufferGeometry();
         lg.setAttribute('position', new THREE.Float32BufferAttribute(L.capLines, 3));
-        L.capEdges = new THREE.LineSegments(lg, this.styledMaterial(new THREE.LineBasicMaterial({ color: this.style.palette.section_edge, toneMapped: false, transparent: true, opacity: 0.9 }), 'section_edge'));
+        L.capEdges = new THREE.LineSegments(lg, this.styledMaterial(new THREE.LineBasicMaterial({ color: this.style.palette.section_edge, toneMapped: false, transparent: true, opacity: 0.9, linewidth: this.style.cut.edgeWidth || 1 }), 'section_edge'));
         L.capEdges.visible = false;
         L.capEdges.userData = { kind: 'cap', noClip: true };
         L.capEdges.renderOrder = 3;
@@ -641,7 +637,14 @@ export class PlanScene {
         sh.position.set(cx, low.elevation - 0.245, cz);
         sh.userData = { kind: 'ground', noClip: true };
         gr.add(sh);
-        this.ground = { group: gr, disc, shadow: sh };
+        // horizon band (G4): a distant terrain / vegetation silhouette seen through the windows and below the dome
+        const Hz = this.style.horizon || { low: 0x9aa897, high: 0xc2ccc5, radius: 55, height: 7 };
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(Hz.radius, Hz.radius, Hz.height, 72, 1, true), this.styledMaterial(new THREE.MeshBasicMaterial({ color: Hz.low, transparent: true, alphaMap: bandAlphaTexture(), side: THREE.DoubleSide, depthWrite: false, fog: true }), 'horizon_low'));
+        band.position.set(cx, low.elevation - 0.25 + Hz.height / 2, cz);
+        band.userData = { kind: 'ground', noClip: true };
+        band.renderOrder = -5;
+        gr.add(band);
+        this.ground = { group: gr, disc, shadow: sh, band };
         this.root.add(gr);
       }
     }
@@ -702,7 +705,8 @@ export class PlanScene {
       return new THREE.MeshPhysicalMaterial({ color: 0xe8f0f8, metalness: 0, roughness: frosted ? 0.55 : 0.05, transmission: frosted ? 0.7 : 0.92, thickness: 0.05, ior: 1.5, transparent: true, opacity: 1, side: THREE.DoubleSide, envMapIntensity: 1.2, clearcoat: 0.6 });
     }
     // cheap glass for the lite / full rungs (plan L5): env-map reflection + low opacity, the dome and the ground show through
-    return new THREE.MeshStandardMaterial({ color: 0xdfe9f3, transparent: true, opacity: frosted ? 0.62 : 0.16, roughness: frosted ? 0.5 : 0.05, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 1.4, depthWrite: false });
+    const G = this.style.glass || { tint: 0xdfe9f3, opacity: 0.16, env: 1.4 };
+    return this.styledMaterial(new THREE.MeshStandardMaterial({ color: G.tint, transparent: true, opacity: frosted ? 0.62 : G.opacity, roughness: frosted ? 0.5 : 0.05, metalness: 0, side: THREE.DoubleSide, envMapIntensity: G.env, depthWrite: false }), 'glass_tint');
   }
   shutterMaterial() {
     if (!this._shutter) this._shutter = this.styledMaterial(new THREE.MeshStandardMaterial({ color: this.style.palette.shutter, roughness: 0.6, metalness: 0.3 }), 'shutter');
