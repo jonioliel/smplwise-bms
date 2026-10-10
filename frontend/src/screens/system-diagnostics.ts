@@ -636,6 +636,24 @@ export class SystemDiagnostics extends LitElement {
     return `${v} ${what} זה יותר ממחצית הערוצים שה־NVR בנוי להם (${channels}). זה עלול להעמיס על ה־NVR ולפגוע בהקלטה. השמירה אפשרית.`;
   }
 
+  /** CR-029 S0 / S3: one dial of the installation's `plan.view`, the draft first (a partial object) then the stored value. */
+  private viewValue<K extends keyof NonNullable<ProductSettings['plan.view']>>(key: K, fallback: NonNullable<ProductSettings['plan.view']>[K]): NonNullable<ProductSettings['plan.view']>[K] {
+    return (this.draft['plan.view']?.[key] ?? this.settings?.['plan.view']?.[key] ?? fallback) as NonNullable<ProductSettings['plan.view']>[K];
+  }
+
+  private setView(patch: NonNullable<ProductSettings['plan.view']>): void {
+    this.set('plan.view', { ...(this.draft['plan.view'] ?? {}), ...patch });
+  }
+
+  /** CR-029 S3: one key of `plan.bakes`, the draft first then the stored value. */
+  private bakeValue<K extends keyof NonNullable<ProductSettings['plan.bakes']>>(key: K, fallback: NonNullable<ProductSettings['plan.bakes']>[K]): NonNullable<ProductSettings['plan.bakes']>[K] {
+    return (this.draft['plan.bakes']?.[key] ?? this.settings?.['plan.bakes']?.[key] ?? fallback) as NonNullable<ProductSettings['plan.bakes']>[K];
+  }
+
+  private setBakes(patch: NonNullable<ProductSettings['plan.bakes']>): void {
+    this.set('plan.bakes', { ...(this.draft['plan.bakes'] ?? {}), ...patch });
+  }
+
   private value<K extends keyof ProductSettings>(key: K): ProductSettings[K] | undefined {
     return (this.draft[key] ?? this.settings?.[key]) as ProductSettings[K] | undefined;
   }
@@ -809,6 +827,31 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">דעיכת סימון תנועה במפה<span class="muted">חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)</span></span>
           <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>
             ${[['off', 'כבוי — רק בזמן תנועה'], ['1', 'דקה'], ['2', '2 דקות'], ['3', '3 דקות'], ['5', '5 דקות'], ['10', '10 דקות'], ['15', '15 דקות'], ['30', '30 דקות'], ['60', 'שעה']].map(([v, l]) => html`<option value=${v} ?selected=${String(this.value('plan.presence_fade') ?? '3') === v}>${l}</option>`)}
+          </select></sw-field></div>
+        <div class="row" data-set-stills-row><span class="lbl">מסך קיר — תצוגת התוכנית<span class="muted">מסך קיר מציג תלת־ממד חי; תמונות מוכנות חוסכות חום וסוללה. קומה בלי תמונות מוכנות נשארת בתלת־ממד חי</span></span>
+          <sw-field class="ctl"><select data-set-wall-display ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setView({ wall_display: (e.target as HTMLSelectElement).value as 'live' | 'stills' })}>
+            <option value="live" ?selected=${this.viewValue('wall_display', 'live') !== 'stills'}>תלת־ממד חי</option><option value="stills" ?selected=${this.viewValue('wall_display', 'live') === 'stills'}>תמונות מוכנות</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תמונות מוכנות — סגנונות ושעות<span class="muted">מה „הכן תמונות ותאורה” מצייר לכל קומה: יותר סגנונות ושעות = יותר תמונות ואחסון</span></span>
+          <sw-field class="ctl"><select data-set-bake-styles ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ styles: (e.target as HTMLSelectElement).value.split(',') as ('light' | 'dark')[] })}>
+            ${[['light,dark', 'שני הסגנונות'], ['light', 'אדריכלי בהיר'], ['dark', 'תאום דיגיטלי כהה']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('styles', ['light', 'dark']).join(',') === v}>${l}</option>`)}
+          </select></sw-field>
+          <sw-field class="ctl"><select data-set-bake-bands ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ bands: (e.target as HTMLSelectElement).value.split(',') as ('day' | 'sunset' | 'night')[] })}>
+            ${[['day,sunset,night', 'יום, שקיעה ולילה'], ['day,night', 'יום ולילה'], ['day', 'יום בלבד']].map(([v, l]) => html`<option value=${v} ?selected=${this.bakeValue('bands', ['day', 'sunset', 'night']).join(',') === v}>${l}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תמונות מוכנות — גודל ומפת תאורה<span class="muted">מפת התאורה מוסיפה הצללה רכה ואור מנורות לתצוגה הריאליסטית</span></span>
+          <sw-field class="ctl"><select data-set-bake-size ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ size: (e.target as HTMLSelectElement).value })}>
+            ${['1280x800', '1600x1000', '1920x1200'].map((v) => html`<option value=${v} ?selected=${this.bakeValue('size', '1600x1000') === v}>${v.replace('x', '×')}</option>`)}
+          </select></sw-field>
+          <sw-field class="ctl"><select data-set-bake-lightmap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ lightmap: (e.target as HTMLSelectElement).value === 'true' })}>
+            <option value="true" ?selected=${this.bakeValue('lightmap', true) !== false}>עם מפת תאורה</option><option value="false" ?selected=${this.bakeValue('lightmap', true) === false}>בלי מפת תאורה</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">אחסון לתמונות מוכנות<span class="muted">לכל קומה / לכל המערכת. כשנגמר המקום נמחקות קודם תמונות שאינן מעודכנות; תמונות מעודכנות לא נמחקות לבד</span></span>
+          <sw-field class="ctl"><select data-set-bake-floor-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ floor_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
+            ${[16, 32, 64, 128, 256].map((v) => html`<option value=${v} ?selected=${this.bakeValue('floor_cap_mb', 64) === v}>${v} MB לקומה</option>`)}
+          </select></sw-field>
+          <sw-field class="ctl"><select data-set-bake-total-cap ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.setBakes({ total_cap_mb: Number((e.target as HTMLSelectElement).value) })}>
+            ${[128, 256, 512, 1024, 2048].map((v) => html`<option value=${v} ?selected=${this.bakeValue('total_cap_mb', 512) === v}>${v >= 1024 ? `${v / 1024} GB` : `${v} MB`} בסך הכול</option>`)}
           </select></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">הסתרת חיפוש AI<span class="muted">מסיר את הלשונית מהניווט; המסך עצמו נשאר זמין בכתובת</span></span>
           <sw-field class="ctl"><select data-set-hide-search ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_search', (e.target as HTMLSelectElement).value)}>
