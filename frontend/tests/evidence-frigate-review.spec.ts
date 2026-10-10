@@ -93,11 +93,16 @@ test('filters become the query; layers switch; the status filter shows the revie
 
 test('paging: the server returns a page, "טען עוד" continues from where it stopped and adds only new cards', async ({ page }) => {
   const m = await start(page, { pageLimit: 2 });
-  await expect(cards(page)).toHaveCount(2);
-  await page.locator(`${SCREEN} [data-review-more]`).click();
+  // FRG-polish: on a wide screen the foot of a short first page is already in view and the next page follows by itself; on the phone
+  // the foot sits below two tall cards until the person scrolls to it (the button stays as the fallback for keyboards and old browsers)
+  if (test.info().project.name === 'mobile') {
+    await expect(cards(page)).toHaveCount(2);
+    await page.locator(`${SCREEN} [data-review-foot]`).scrollIntoViewIfNeeded();
+  }
   await expect(cards(page)).toHaveCount(4);
   expect(m.hits.some((h) => /reviews\?.*before=\d/.test(h))).toBe(true);
   await expect(page.locator(`${SCREEN} [data-review-more]`)).toHaveCount(0);
+  expect(m.hits.filter((h) => /reviews\?.*before=\d/.test(h))).toHaveLength(1); // one page, read once
 });
 
 test('reviewed: one card, the bulk bar, "mark all shown" and un-marking - at once, saved per user and recorder', async ({ page }) => {
@@ -223,7 +228,14 @@ test('states: loading, empty, offline with the last data, error with retry, no p
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await start(page, { reviews: 'empty' });
   await expect(page.locator(`${SCREEN} [data-review-state="empty"]`)).toContainText('אין פריטים לסינון הזה');
+  await expect(page.locator(`${SCREEN} [data-review-state="empty"]`).getByRole('button')).toHaveCount(0); // the defaults: nothing to clear
   await shot(page, 'review-empty');
+  // FRG-polish: with a filter set the empty state offers to clear it, back to the defaults
+  await page.locator(`${SCREEN} [data-review-filter="period"]`).click();
+  await page.getByRole('option', { name: '7 ימים' }).click();
+  await page.locator(`${SCREEN} [data-review-state="empty"]`).getByRole('button', { name: 'נקה סינון' }).click();
+  await expect(page.locator(`${SCREEN} [data-review-filter="period"]`)).toContainText('24 שעות');
+  await expect(page.locator(`${SCREEN} [data-review-state="empty"]`).getByRole('button')).toHaveCount(0);
 
   // offline: the recorder's sync reports an error, the list is the last one kept, and the banner says so
   await page.unrouteAll({ behavior: 'ignoreErrors' });

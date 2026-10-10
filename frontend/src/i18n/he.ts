@@ -442,6 +442,12 @@ export const he = {
           open: 'פתח קטע',
           clipSupervised: 'הקריאה הראשונה מבוצעת בפיקוח',
           clipRangeError: 'חלון של עד שעה, לא בעתיד',
+          // FRG-polish: the in-app clip viewer
+          play: 'נגן כאן',
+          openTab: 'פתח בכרטיסייה',
+          clipLoading: 'טוען קטע…',
+          clipError: 'הקטע לא זמין',
+          close: 'סגור',
         },
         // FRGS: zones and the curated camera settings (Settings > the Frigate recorder > "אזורים והגדרות")
         config: {
@@ -474,6 +480,8 @@ export const he = {
           noZones: 'אין אזורים',
           noCameras: 'אין מצלמות',
           noFrame: 'אין תמונה מהמצלמה',
+          insertPoint: 'הוסף נקודה',
+          loading: 'טוען…',
           defaultValue: 'ברירת מחדל',
           useDefault: 'החזר לברירת המחדל',
           unavailable: 'לא ניתן לקרוא את הגדרות המצלמה',
@@ -660,11 +668,20 @@ export const he = {
       exportRange: 'טווח',
       exported: 'הייצוא נוצר',
       exportFailed: 'הייצוא לא נוצר',
+      // FRG-polish: the empty-state actions, the ongoing tag, the drawer's item navigation
+      clearFilters: 'נקה סינון',
+      showReviewed: 'הצג גם את מה שנסקר',
+      ongoing: 'מתמשך',
+      prevItem: 'הפריט הקודם',
+      nextItem: 'הפריט הבא',
+      of: 'מתוך',
       keyRows: {
         move: 'מעבר בין פריטים',
+        ends: 'הפריט הראשון / האחרון',
         select: 'בחירה',
         reviewed: 'סמן כנסקר / לא נסקר',
         open: 'פתיחה',
+        drawer: 'הקודם / הבא בתוך החלונית',
         all: 'בחר הכול',
         esc: 'סגירה / ניקוי בחירה',
       },

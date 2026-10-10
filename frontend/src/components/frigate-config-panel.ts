@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import './sw-dialog';
 import './sw-dropdown';
+import './sw-state-panel';
 import './frigate-zone-editor';
 import { describeError } from '../api/client';
 import type { WireCamera } from '../api/frigate';
@@ -41,6 +42,7 @@ export class FrigateConfigPanel extends LitElement {
   @state() private cameraId = '';
   @state() private view: CameraConfigView | null = null;
   @state() private failed = false;
+  @state() private loading = false;
   @state() private mode: Mode = 'zones';
   @state() private draft: Draft | null = null;
   @state() private values: Record<string, string | string[]> = {};
@@ -70,13 +72,20 @@ export class FrigateConfigPanel extends LitElement {
 
   private async reload() {
     if (!this.cameraId) return;
+    const id = this.cameraId;
+    this.loading = true;
     try {
-      this.view = await getCameraConfig(this.recorderId, this.cameraId);
+      const view = await getCameraConfig(this.recorderId, id);
+      if (id !== this.cameraId) return; // another camera was picked meanwhile
+      this.view = view;
       this.values = {};
       this.failed = false;
     } catch {
+      if (id !== this.cameraId) return;
       this.view = null;
       this.failed = true;
+    } finally {
+      if (id === this.cameraId) this.loading = false;
     }
   }
 
@@ -226,6 +235,13 @@ export class FrigateConfigPanel extends LitElement {
       flex-wrap: wrap;
       gap: var(--sw-s-2);
       justify-content: flex-end;
+    }
+    .body {
+      transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .body[data-busy] {
+      opacity: 0.55;
+      pointer-events: none;
     }
   `];
 
@@ -504,7 +520,8 @@ export class FrigateConfigPanel extends LitElement {
         </div>
       </div>
       ${this.failed ? html`<div class="msg err" data-fcp-failed>${t.unavailable}</div>` : nothing}
-      ${v && !this.failed ? (this.mode === 'zones' ? this.zonesView(v) : this.settingsView(v)) : nothing}
+      ${this.loading && !v ? html`<sw-state-panel state="loading" compact heading=${t.loading} data-fcp-loading></sw-state-panel>` : nothing}
+      ${v && !this.failed ? html`<div class="body" ?data-busy=${this.loading}>${this.mode === 'zones' ? this.zonesView(v) : this.settingsView(v)}</div>` : nothing}
       ${this.msg ? html`<div class=${`msg ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-fcp-msg>${this.msg.text}</div>` : nothing}
       ${this.dialog()}
     </div>`;

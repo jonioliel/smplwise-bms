@@ -22,7 +22,7 @@ import {
 import { createExport, getFirstWrites, getPolicy, isFirstWriteRefusal, type FirstWrites } from '../api/frigate-control';
 import { ROW_COLUMNS_CSS } from '../components/frigate-review-card';
 import { REVIEW_ITEMS, reviewDetail as demoDetail, reviewList as demoList, FRIGATE_CAMERAS } from '../fixtures/frigate';
-import { appendPage, applyReviewed, keyAction, moveFocus, nextReviewedValue, targetIds, toggleId, viewOf } from './reviews-logic';
+import { appendPage, applyReviewed, filtersActive, focusAfter, keyAction, nextReviewedValue, targetIds, toggleId, viewOf } from './reviews-logic';
 import { fx, frigateLocale } from '../i18n/frigate-text';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -94,6 +94,10 @@ export class InvestigateReviews extends LitElement {
   private timer = 0;
   private seq = 0;
   private policyRead = new Set<string>();
+  /** the next page is read when the foot comes into view (the button stays for keyboards and old browsers) */
+  private io: IntersectionObserver | null = null;
+  /** the focus index was moved by a key (then the DOM focus follows it; a click never has its focus taken away) */
+  private focusByKey = false;
 
   private get demo() {
     return !isApi();
@@ -120,6 +124,29 @@ export class InvestigateReviews extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     document.removeEventListener('visibilitychange', this.onVisible);
     window.clearInterval(this.timer);
+    this.io?.disconnect();
+    this.io = null;
+  }
+
+  updated(changed: Map<string, unknown>) {
+    if (changed.has('focusIdx') && this.focusIdx >= 0 && this.focusByKey) {
+      this.focusByKey = false;
+      const card = this.renderRoot.querySelectorAll('frigate-review-card')[this.focusIdx] as (HTMLElement & { focusCard?: () => void }) | undefined;
+      card?.focusCard?.();
+    }
+    if (changed.has('list') || changed.has('view')) this.watchFoot();
+  }
+
+  /** The foot sentinel: when it scrolls into view the next page is read (once per page; the button is the fallback). */
+  private watchFoot() {
+    this.io?.disconnect();
+    this.io = null;
+    const foot = this.renderRoot.querySelector('[data-review-foot]');
+    if (!foot || typeof IntersectionObserver === 'undefined') return;
+    this.io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) void this.more();
+    }, { rootMargin: '240px 0px' });
+    this.io.observe(foot);
   }
 
   private async init() {
@@ -204,6 +231,11 @@ export class InvestigateReviews extends LitElement {
     void this.load();
   }
 
+  /** The empty state's action: back to the default filters of the current layer. */
+  private clearFilters() {
+    this.setFilter({ camera: DEFAULT_FILTERS.camera, period: DEFAULT_FILTERS.period, status: DEFAULT_FILTERS.status, object: DEFAULT_FILTERS.object });
+  }
+
   private setView(v: ViewMode) {
     this.view = v;
     try {
@@ -258,15 +290,20 @@ export class InvestigateReviews extends LitElement {
       else if (act === 'toggle-reviewed') {
         e.preventDefault();
         void this.mark([this.drawer.item.id], !this.drawer.item.reviewed);
+      } else if (act === 'next' || act === 'prev' || act === 'first' || act === 'last') {
+        e.preventDefault();
+        this.step(act);
       }
       return;
     }
     switch (act) {
       case 'next':
       case 'prev':
+      case 'first':
+      case 'last':
         e.preventDefault();
-        this.focusIdx = moveFocus(this.focusIdx, act === 'next' ? 1 : -1, items.length);
-        void this.updateComplete.then(() => this.renderRoot.querySelector('frigate-review-card[focused]')?.scrollIntoView({ block: 'nearest' }));
+        this.focusByKey = true;
+        this.focusIdx = focusAfter(this.focusIdx, act, items.length);
         break;
       case 'toggle-select':
         if (items[this.focusIdx] && this.canReview) {
@@ -315,6 +352,21 @@ export class InvestigateReviews extends LitElement {
 
   private closeDrawer() {
     this.drawer = null;
+  }
+
+  /** The index of the drawer's item in the list (-1 when it left the list, e.g. after a refilter). */
+  private drawerIdx(): number {
+    const id = this.drawer?.item.id;
+    return id ? (this.list?.items ?? []).findIndex((i) => i.id === id) : -1;
+  }
+
+  /** Move the drawer to the previous / next item of the list; the focused card follows. */
+  private step(act: 'next' | 'prev' | 'first' | 'last') {
+    const items = this.list?.items ?? [];
+    const idx = focusAfter(this.drawerIdx(), act, items.length);
+    if (idx < 0 || !items[idx] || items[idx].id === this.drawer?.item.id) return;
+    this.focusIdx = idx; // the ring follows; the DOM focus stays inside the modal drawer
+    void this.open(items[idx]);
   }
 
   private play() {
@@ -434,6 +486,80 @@ export class InvestigateReviews extends LitElement {
       gap: var(--sw-s-2);
       align-items: center;
       min-inline-size: 0;
+    }
+    /* the list dims while a new filter is on its way; the old items stay put so nothing jumps */
+    .list {
+      display: grid;
+      gap: var(--sw-s-3);
+      transition: opacity var(--sw-t-fast) var(--sw-ease);
+    }
+    .list[aria-busy='true'] {
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    /* the first load: the shape of the cards, not a spinner */
+    .skl {
+      display: block;
+      border-radius: var(--sw-r-md);
+      background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface-2) 50%, var(--sw-surface-3) 100%);
+      background-size: 200% 100%;
+      animation: rv-sh 1.6s linear infinite;
+    }
+    .skl.card {
+      aspect-ratio: 16 / 11;
+    }
+    .skl.row {
+      block-size: 56px;
+      border-radius: 0;
+    }
+    .skl.row + .skl.row {
+      border-block-start: 1px solid var(--sw-border);
+    }
+    @keyframes rv-sh {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skl {
+        animation: none;
+      }
+    }
+    /* the drawer's item navigation: previous / next and "2 מתוך 4", beside the heading */
+    .dnav {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-xs);
+      font-variant-numeric: tabular-nums;
+    }
+    .dnav button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      inline-size: 36px;
+      block-size: 36px;
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: transparent;
+      color: var(--sw-text-2);
+      cursor: pointer;
+    }
+    .dnav button:hover:not(:disabled) {
+      background: var(--sw-surface-2);
+      color: var(--sw-text);
+    }
+    .dnav button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .dnav button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    .dnav .n {
+      padding-inline: 4px;
+      white-space: nowrap;
     }
     /* the view switch and the help: a quiet segmented pair and one icon button */
     .seg {
@@ -660,6 +786,23 @@ export class InvestigateReviews extends LitElement {
       .toolbar .txt {
         display: none;
       }
+      /* the phone: one strip of filters that scrolls sideways instead of stacking three rows */
+      .filters {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-block: 2px;
+        margin-inline: calc(-1 * var(--sw-s-2));
+        padding-inline: var(--sw-s-2);
+        scroll-snap-type: inline proximity;
+      }
+      .filters::-webkit-scrollbar {
+        display: none;
+      }
+      .filters > * {
+        flex: none;
+        scroll-snap-align: start;
+      }
     }
   `, bubbleChrome];
 
@@ -714,6 +857,7 @@ export class InvestigateReviews extends LitElement {
   private items(list: ReviewList) {
     const r = fx().review;
     const card = (it: ReviewItem, i: number, variant: 'card' | 'row') => html`<frigate-review-card role=${variant === 'row' ? 'row' : 'listitem'} variant=${variant} .item=${it} .tz=${this.tz} .canReview=${this.canReview} ?selected=${this.selected.has(it.id)} ?focused=${i === this.focusIdx}
+      @focusin=${() => { if (this.focusIdx !== i) this.focusIdx = i; }}
       @review-open=${() => void this.open(it)} @review-select=${() => (this.selected = toggleId(this.selected, it.id))} @review-toggle=${() => void this.mark([it.id], !it.reviewed)}></frigate-review-card>`;
     if (this.view === 'table') {
       return html`<div class="tbl" role="table" aria-label=${r.title} data-review-table>
@@ -722,6 +866,14 @@ export class InvestigateReviews extends LitElement {
       </div>`;
     }
     return html`<div class="grid" data-review-grid role="list">${list.items.map((it, i) => card(it, i, 'card'))}</div>`;
+  }
+
+  /** The first load: six placeholders in the shape of the chosen view. */
+  private skeleton() {
+    const n = [0, 1, 2, 3, 4, 5];
+    return this.view === 'table'
+      ? html`<div class="tbl" aria-hidden="true">${n.map(() => html`<span class="skl row"></span>`)}</div>`
+      : html`<div class="grid" aria-hidden="true">${n.map(() => html`<span class="skl card"></span>`)}</div>`;
   }
 
   private body(list: ReviewList) {
@@ -734,20 +886,33 @@ export class InvestigateReviews extends LitElement {
           <sw-button size="sm" variant="ghost" data-review-clear @click=${() => (this.selected = new Set())}>${r.clearSelection}</sw-button>
         </div>`
       : nothing;
-    if (view === 'all-reviewed') return html`${bulk}<sw-state-panel state="empty" heading=${r.emptyAllReviewed} data-review-state="all-reviewed"></sw-state-panel>`;
+    const active = filtersActive(this.filters, DEFAULT_FILTERS);
+    if (view === 'all-reviewed') {
+      return html`${bulk}<sw-state-panel state="empty" heading=${r.emptyAllReviewed} actionLabel=${r.showReviewed} data-review-state="all-reviewed" @action=${() => this.setFilter({ status: 'all' })}></sw-state-panel>`;
+    }
     if (view === 'empty' || view === 'offline-empty') {
-      return html`<sw-state-panel state=${view === 'offline-empty' ? 'stale' : 'empty'} heading=${view === 'offline-empty' ? r.offline : r.empty} data-review-state=${view}></sw-state-panel>`;
+      return html`<sw-state-panel state=${view === 'offline-empty' ? 'stale' : 'empty'} heading=${view === 'offline-empty' ? r.offline : r.empty} actionLabel=${active ? r.clearFilters : ''} data-review-state=${view} @action=${() => this.clearFilters()}></sw-state-panel>`;
     }
     return html`${bulk}
-      ${this.items(list)}
-      ${list.next_cursor ? html`<div class="foot"><sw-button data-review-more ?disabled=${this.moreBusy} @click=${() => this.more()}>${r.loadMore}</sw-button></div>` : nothing}`;
+      <div class="list" aria-busy=${String(this.busy)}>${this.items(list)}</div>
+      ${list.next_cursor ? html`<div class="foot" data-review-foot><sw-button data-review-more ?disabled=${this.moreBusy} @click=${() => this.more()}>${r.loadMore}</sw-button></div>` : nothing}`;
   }
 
   private drawerView() {
     const d = this.drawer;
     if (!d) return nothing;
     const canExport = this.mayExport && this.exportOn.has(d.item.recorder_id);
+    const r = fx().review;
+    const n = this.list?.items.length ?? 0;
+    const idx = this.drawerIdx();
     return html`<sw-drawer modal open heading=${d.item.camera_name} subheading=${LAYER_TEXT[d.item.layer].one} data-review-drawer @close=${() => this.closeDrawer()}>
+      ${n > 1 && idx >= 0
+        ? html`<span slot="action" class="dnav" data-review-drawer-nav>
+            <button type="button" title=${r.prevItem} aria-label=${r.prevItem} data-review-drawer-prev ?disabled=${idx <= 0} @click=${() => this.step('prev')}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+            <span class="n" data-review-drawer-pos>${idx + 1} ${r.of} ${n}</span>
+            <button type="button" title=${r.nextItem} aria-label=${r.nextItem} data-review-drawer-next ?disabled=${idx >= n - 1} @click=${() => this.step('next')}><sw-icon name="chevron" size="16"></sw-icon></button>
+          </span>`
+        : nothing}
       ${d.loading || !d.detail
         ? html`<sw-state-panel state="loading" compact></sw-state-panel>`
         : html`<frigate-review-detail .detail=${d.detail} .tz=${this.tz} .canReview=${this.canReview} .canEvents=${!this.demo && canAnywhere('analytics.events')} .canExport=${canExport}
@@ -782,9 +947,11 @@ export class InvestigateReviews extends LitElement {
     return html`<sw-dialog open heading=${r.keysTitle} data-review-keys-dialog @close=${() => (this.keysOpen = false)}>
       <dl class="keys">
         <dt><kbd>↑</kbd><kbd>↓</kbd><kbd>J</kbd><kbd>K</kbd></dt><dd>${k.move}</dd>
+        <dt><kbd>Home</kbd><kbd>End</kbd></dt><dd>${k.ends}</dd>
         <dt><kbd>Space</kbd><kbd>X</kbd></dt><dd>${k.select}</dd>
         <dt><kbd>R</kbd></dt><dd>${k.reviewed}</dd>
         <dt><kbd>Enter</kbd></dt><dd>${k.open}</dd>
+        <dt><kbd>J</kbd><kbd>K</kbd></dt><dd>${k.drawer}</dd>
         <dt><kbd>Ctrl</kbd>+<kbd>A</kbd></dt><dd>${k.all}</dd>
         <dt><kbd>Esc</kbd></dt><dd>${k.esc}</dd>
       </dl>
@@ -803,7 +970,7 @@ export class InvestigateReviews extends LitElement {
     if (!this.list) {
       return html`<sw-page heading=${r.title}>${this.error
         ? html`<sw-state-panel state="error" heading=${r.error} hint=${this.error} actionLabel=${r.retry} data-review-state="error" @action=${() => this.load()}></sw-state-panel>`
-        : html`<sw-state-panel state="loading" heading=${r.loading} data-review-state="loading"></sw-state-panel>`}</sw-page>`;
+        : html`<div role="status" aria-label=${r.loading} data-review-state="loading">${this.skeleton()}</div>`}</sw-page>`;
     }
     const list = this.list;
     return html`<sw-page heading=${r.title} subheading=${this.demo ? r.demo : ''} data-review-screen>
