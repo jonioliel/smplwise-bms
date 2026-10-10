@@ -78,7 +78,7 @@ def test_unlock_needs_its_own_grant(paired):
     assert r.status_code == 403 and r.json()["code"] == "grant_required" and r.json()["details"]["grant"] == "door.unlock"
     assert not calls, "nothing reaches Home Assistant without the grant"
     # a custom role carrying the sensitive grant at that floor unlocks it, in the user's own identity
-    role = c.post("/api/v1/access/roles", json={"name": "פותח דלתות", "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()
+    role = c.post("/api/v1/access/roles", json={"name": "פותח מנעולים", "permissions": ["map.read"], "sensitive": ["door.unlock"]}).json()
     assert c.post("/api/v1/access/bindings", json={"subject_kind": "user", "subject_id": "dev-omer", "role_id": role["id"], "scope_type": "floor", "scope_id": f2}).status_code == 201
     assert {a["id"]: a["granted"] for a in c.get("/api/v1/ha/entities/lock.front", headers=o).json()["actions"]}["lock.unlock"] is True
     r = c.post("/api/v1/ha/entities/lock.front/actions", json=_body(allowed_action_id="lock.unlock", confirmation_grant="confirmed", client_request_id="r2"), headers=o)

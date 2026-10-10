@@ -232,6 +232,14 @@
         "presence.report",
         "presence.sensors.view"
       ]
+    },
+    {
+      "id": "door_opener",
+      "name_he": "פותח דלתות",
+      "permissions": [
+        "access.read",
+        "access.release"
+      ]
     }
   ],
   "sensitive_permissions_not_implied": [

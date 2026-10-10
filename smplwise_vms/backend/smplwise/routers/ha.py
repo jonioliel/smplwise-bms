@@ -25,7 +25,7 @@ from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
-from ..services import bridge_install, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, media_store
+from ..services import bridge_install, device_activity, door_authority, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -47,6 +47,17 @@ def _grant_label(permission: str) -> str:
     from .access import PERMISSION_LABELS  # the one Hebrew label catalogue (lazy: routers stay independent)
 
     return PERMISSION_LABELS.get(permission, permission)
+
+
+def _wiskey_open_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str) -> bool:
+    """Whether the open button of a WisKey lock entity is offered to this caller: the door map resolves it and the one door
+    rule allows it (the action route checks both again). Display only, never authority."""
+    try:
+        target = intercom_doors.resolve(conn, entity_id)
+    except ApiError:
+        return False
+    # display only: a developer identity counts as identified here (it never exists in the add-on; the route decides for real)
+    return door_authority.check(conn, principal, target.station_id, target.relay, entity_id=entity_id, dev_mode=True).allowed
 
 
 def _entity(conn: sqlite3.Connection, entity_id: str) -> dict[str, Any]:
@@ -157,6 +168,10 @@ def get_entity(entity_id: str, principal: Principal = Depends(current_principal)
     e["schedule_entity"] = dsvc.is_scheduler_entity(entity_id, e.get("platform"))  # CR-014: read-only here
     e["media_managed"] = media_store.is_managed(conn, entity_id)  # CR-015: read-only here, operated from "מולטימדיה"
     e["actions"] = [] if (e["alarm_managed"] or e["schedule_entity"] or e["media_managed"]) else [{**a, "granted": e["can_control"] and (not a["grant"] or _entity_allowed(conn, principal, entity_id, a["grant"]))} for a in ha_bridge.actions_for(e["domain"])]
+    if e["actions"] and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D3: a WisKey door's open is the one door rule's answer (access.release on its station or door.unlock on it)
+        e["wiskey_door"] = True
+        e["actions"] = [{**a, "granted": _wiskey_open_allowed(conn, principal, entity_id)} if a["id"] == "lock.unlock" else a for a in e["actions"]]
     e["recent_actions"] = [] if not (e["can_control"] or authorize(conn, principal, "system.configure", INSTALLATION).allowed) else [dict(r) for r in conn.execute("SELECT id, action_id, status, requested_at, confirmed_at, principal_username, error FROM ha_actions WHERE entity_id = ? ORDER BY requested_at DESC, rowid DESC LIMIT 5", (entity_id,)).fetchall()]
     return e
 
@@ -219,6 +234,18 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     settings = settings_of(request)
     db: Database = request.app.state.db
     rid = getattr(request.state, "correlation_id", None)
+    if body.allowed_action_id == "lock.unlock" and intercom_doors.is_wiskey_lock(conn, entity_id):
+        # CR-033 D3/D4: a WisKey door is opened only through the one door authority and the door transport - never
+        # through the bridge's `execute` / `lock.unlock`, and ha.entity.control is not what decides it
+        e = _entity(conn, entity_id)
+        if e["removed_at"] or e["disabled"]:
+            raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
+        ha_bridge.validate_action(body.allowed_action_id, entity_id, body.arguments)
+        from .access_control import open_from_tile
+
+        out = open_from_tile(request, principal, entity_id, body.allowed_action_id, body.client_request_id, body.expires_at, body.confirmation_grant)
+        timing.mark("door")
+        return out
     if not ha_scope.control_allowed(conn, principal, entity_id):
         # devices.control (CR-007 slice 2) reaches this same route, but only for the everyday domains
         # (ha_scope.DEVICES_CONTROL_DOMAINS: never a lock, the alarm panel, a siren, a script, a scene or a button).
