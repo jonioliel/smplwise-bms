@@ -58,6 +58,7 @@ test.describe('device activity popup', () => {
         localStorage.removeItem('sw.ui.look');
         localStorage.removeItem('sw.devices.treeCollapsed');
         localStorage.removeItem('sw.devices.layout');
+        localStorage.removeItem('sw.activity.view');
       } catch {
         /* storage unavailable */
       }
@@ -79,6 +80,16 @@ test.describe('device activity popup', () => {
         await expect(panel(page).locator('.ev').first()).toBeVisible();
         await shot(page, `feed-${skin}-${tag}-${scheme}`);
         if (skin === 'classic') {
+          // ACT-polish: the list view, and the toolbar with a narrowed filter (the clear chip)
+          await page.locator('sw-app device-activity [data-view="list"]').click();
+          await expect(panel(page).locator('.rw').first()).toBeVisible();
+          await shot(page, `feed-list-${skin}-${tag}-${scheme}`);
+          await page.locator('sw-app device-activity [data-view="cards"]').click();
+          await page.locator('sw-app device-activity [data-filter="actor"]').evaluate((el) => el.dispatchEvent(new CustomEvent('change', { detail: { id: 'person' }, bubbles: true, composed: true })));
+          await expect(panel(page).locator('[data-clear-filters]')).toBeVisible();
+          await shot(page, `feed-filtered-${skin}-${tag}-${scheme}`);
+          await panel(page).locator('[data-clear-filters]').click();
+          await expect(panel(page).locator('[data-clear-filters]')).toHaveCount(0);
           await page.locator('sw-app device-activity [data-tab="schedules"]').click();
           await expect(panel(page).locator('[data-schedule]')).toHaveCount(3);
           await shot(page, `schedules-${skin}-${tag}-${scheme}`);
@@ -327,5 +338,99 @@ test.describe('device activity popup', () => {
     await page.keyboard.press('ArrowLeft');
     await expect(page.locator('sw-app device-activity [data-tab="schedules"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('sw-app device-activity [data-tab="schedules"]')).toBeFocused();
+    // Home / End jump to the first / last tab
+    await page.keyboard.press('Home');
+    await expect(page.locator('sw-app device-activity [data-tab="activity"]')).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('End');
+    await expect(page.locator('sw-app device-activity [data-tab="schedules"]')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  // ACT-polish (2026-10-09): the two views, the clear chip, refresh, the day counts and the tone markers
+  test('the views: cards by default, the list view is kept across popups, the radio group follows the arrow keys', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
+    await installDevhistMock(page);
+    await open(page, '&skin=classic');
+    const light = tile(page, 'light.living_main');
+    await hold(page, light, LONG);
+    const p = panel(page);
+    await expect(p.locator('[data-feed-view]')).toHaveAttribute('data-feed-view', 'cards');
+    await expect(p.locator('.ev')).toHaveCount(7);
+    await expect(p.locator('.rw')).toHaveCount(0);
+    // the day line carries the count of its events
+    await expect(p.locator('[data-day]').first().locator('.dn')).toHaveText('3');
+    // the tone marker: off / on / value / back, from the mock's rows
+    await expect(p.locator('[data-event="e1"]')).toHaveAttribute('data-tone', 'off');
+    await expect(p.locator('[data-event="e2"]')).toHaveAttribute('data-tone', 'on');
+    await expect(p.locator('[data-event="e3"]')).toHaveAttribute('data-tone', 'value');
+    await expect(p.locator('[data-event="e6"]')).toHaveAttribute('data-tone', 'back');
+    // the list view: one dense row per event, the same ids
+    const toggle = page.locator('sw-app device-activity [data-view-toggle]');
+    await expect(toggle).toHaveAttribute('role', 'radiogroup');
+    await toggle.locator('[data-view="list"]').click();
+    await expect(p.locator('[data-feed-view]')).toHaveAttribute('data-feed-view', 'list');
+    await expect(p.locator('.rw')).toHaveCount(7);
+    await expect(p.locator('.ev')).toHaveCount(0);
+    await expect(p.locator('.rw').first()).toContainText('דנה כהן');
+    await expect(p.locator('.rw').first()).toContainText('כיבוי');
+    await expect(p.locator('.rw').first().locator('time')).toHaveAttribute('title', /2026/);
+    // the keyboard: the checked radio is the tab stop, an arrow moves the choice
+    await toggle.locator('[data-view="list"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(toggle.locator('[data-view="cards"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle.locator('[data-view="cards"]')).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(toggle.locator('[data-view="list"]')).toHaveAttribute('aria-checked', 'true');
+    // the choice survives closing and reopening (kept per browser)
+    await page.keyboard.press('Escape');
+    await expect(opened(page)).toHaveCount(0);
+    await page.waitForTimeout(500);
+    await hold(page, light, LONG);
+    await expect(p.locator('[data-feed-view]')).toHaveAttribute('data-feed-view', 'list');
+    expect(await page.evaluate(() => localStorage.getItem('sw.activity.view'))).toBe('list');
+    // no platform name on the list either
+    expect(await popup(page).evaluate((el) => (el.textContent ?? '') + (el.innerHTML ?? ''))).not.toMatch(/Home Assistant|Ingress|\bHA\b/);
+  });
+
+  test('the clear chip counts the narrowed filters and resets them; the empty state clears a narrowed actor; refresh re-queries', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'the behaviour runs once');
+    const st = await installDevhistMock(page);
+    await open(page, '&skin=classic');
+    await hold(page, tile(page, 'light.living_main'), LONG);
+    const p = panel(page);
+    const setFilter = (key: string, id: string) =>
+      page.locator(`sw-app device-activity [data-filter="${key}"]`).evaluate((el, v) => el.dispatchEvent(new CustomEvent('change', { detail: { id: v }, bubbles: true, composed: true })), id);
+    await expect(p.locator('[data-clear-filters]')).toHaveCount(0);
+    await setFilter('actor', 'scene');
+    await expect(p.locator('[data-clear-filters]')).toBeVisible();
+    await expect(p.locator('[data-clear-filters] .n')).toHaveText('1');
+    await setFilter('period', 'day');
+    await expect(p.locator('[data-clear-filters] .n')).toHaveText('2');
+    // the chip resets everything and re-queries with the default period only
+    const before = st.feedCalls.length;
+    await p.locator('[data-clear-filters]').click();
+    await expect.poll(() => st.feedCalls.length).toBeGreaterThan(before);
+    expect(st.feedCalls.at(-1)?.query).not.toContain('actor=');
+    await expect(p.locator('[data-clear-filters]')).toHaveCount(0);
+    await expect(p.locator('.ev')).toHaveCount(7);
+    // nothing matches a narrowed kind: the empty state's action clears the filters
+    await setFilter('kind', 'availability');
+    await setFilter('actor', 'scene');
+    await expect(p.locator('[data-feed-state="empty-filtered"]')).toBeVisible();
+    await p.locator('[data-feed-state="empty-filtered"]').getByRole('button').click();
+    await expect(p.locator('.ev')).toHaveCount(7);
+    // only the period is narrowed and nothing matches: the action widens to 30 days
+    st.feedMode = 'empty';
+    await setFilter('period', 'hour');
+    await expect(p.locator('[data-feed-state="empty-filtered"]')).toBeVisible();
+    await expect(p.locator('[data-feed-state="empty-filtered"] sw-button')).toContainText('30');
+    st.feedMode = 'ok';
+    await p.locator('[data-feed-state="empty-filtered"]').getByRole('button').click();
+    await expect(p.locator('.ev')).toHaveCount(7);
+    expect(st.feedCalls.at(-1)?.query).toContain('since=');
+    // refresh asks the server again with the same filters
+    const n = st.feedCalls.length;
+    await page.locator('sw-app device-activity [data-feed-refresh]').click();
+    await expect.poll(() => st.feedCalls.length).toBe(n + 1);
+    expect(st.feedCalls.at(-1)?.query).toBe(st.feedCalls.at(-2)?.query);
   });
 });

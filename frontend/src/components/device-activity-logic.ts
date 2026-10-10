@@ -194,6 +194,29 @@ export function queryOf(f: Filters, now = Date.now(), cursor: string | null = nu
 /** True when the filters differ from the defaults (the empty state then offers to widen). */
 export const isFiltered = (f: Filters): boolean => f.actor !== '' || f.kind !== '' || f.period !== DEFAULT_PERIOD;
 
+/** How many of the three filters are narrowed (the "clear" chip shows it). */
+export const activeFilterCount = (f: Filters): number => (f.actor ? 1 : 0) + (f.kind ? 1 : 0) + (f.period !== DEFAULT_PERIOD ? 1 : 0);
+
+/** ACT-polish: the two ways the feed is drawn - `cards` (avatar, two lines, a day card) or `list` (one dense line per event). */
+export type ActivityView = 'cards' | 'list';
+export const VIEW_KEY = 'sw.activity.view';
+export const DEFAULT_VIEW: ActivityView = 'cards';
+export const parseView = (v: string | null | undefined): ActivityView => (v === 'list' || v === 'cards' ? v : DEFAULT_VIEW);
+
+/** ACT-polish: the tone of one event - what the marker next to it says at a glance. */
+export type EventTone = 'on' | 'off' | 'value' | 'lost' | 'back' | 'neutral';
+
+export function eventTone(item: Pick<ActivityItem, 'kind' | 'from' | 'to'>, kind: ActivityKind): EventTone {
+  const to = item.to.state ?? '';
+  if (item.kind === 'availability') return to === 'unavailable' || to === 'unknown' ? 'lost' : 'back';
+  if (item.kind === 'value') return 'value';
+  if (!to || to === 'unavailable' || to === 'unknown') return 'neutral';
+  if (kind === 'cover' || kind === 'garage_door' || kind === 'valve') return to === 'open' || to === 'opening' ? 'on' : to === 'closed' || to === 'closing' ? 'off' : 'neutral';
+  if (kind === 'vacuum') return to === 'cleaning' ? 'on' : to === 'docked' || to === 'returning' || to === 'paused' || to === 'idle' ? 'off' : 'neutral';
+  if (kind === 'generic') return 'neutral';
+  return to === 'off' ? 'off' : 'on';
+}
+
 // ------------------------------------------------------------------------------------------------ grouping and time
 
 export interface DayGroup {
@@ -227,6 +250,11 @@ export function groupByDay(items: ActivityItem[], now = new Date(), tz?: string)
 
 export function clockOf(iso: string, tz?: string): string {
   return new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+}
+
+/** The full instant for a tooltip: "יום ג׳ 3.10.2026, 15:45". */
+export function fullDate(iso: string, tz?: string): string {
+  return new Intl.DateTimeFormat('he-IL', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)).replace(/\//g, '.');
 }
 
 /** The one-line footnote: retention and the honest "manual" caveat. */
