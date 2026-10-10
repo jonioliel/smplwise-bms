@@ -65,7 +65,7 @@ test.describe('the area screen navigation', () => {
     await expect(nav(page).locator('[data-crumb="area"]')).toContainText('משרדים');
     await expect(nav(page).locator('[data-crumb="area"]')).toHaveAttribute('aria-current', 'location');
     await expect(page.locator('devices-area sw-page [data-page-back]')).toHaveCount(0); // the unexplained chevron
-    await expect(page.locator('devices-area sw-page .titlebar + .sub')).toHaveText('1 התקנים'); // counts only
+    await expect(page.locator('devices-area sw-page .sub')).toHaveText('1 התקנים'); // counts only (no plain title block above it any more)
     await expect(page.locator('devices-area sw-chip[data-nav-option]')).toHaveCount(0); // the tabs row is merged into the area list
     // the pickers are comfortable controls (44 px at the reference dropdown size), the floor first and the area beside it
     const floorBox = (await nav(page).locator('[data-crumb="floor"]').boundingBox())!;
