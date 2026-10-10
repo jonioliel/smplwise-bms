@@ -126,7 +126,7 @@ DEFAULTS: dict[str, str] = {
     "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
     "map.default_floor": "",  # owner 2026-09-30: the floor the map's floor tab opens first when several floors exist ("" = the built-in order); an existing floor id, cleared when that floor is deleted
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
-    "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
+    "plan.quality": "auto",  # CR-006 / owner bug 2026-10-10: the 3D view mode a browser opens with - auto (full, dropping to schematic after a sustained low frame rate), 2 (full, kept even when slow: a hint only), 1 (schematic); a user's own /me/prefs plan.quality overrides it
     "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
@@ -574,7 +574,7 @@ class SettingsPatch(BaseModel):
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
     map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
-    plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
+    plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")

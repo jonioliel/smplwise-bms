@@ -71,7 +71,7 @@ export interface ProductSettings {
   'map.default_view'?: '2d' | '3d';
   /** CR-006: the 3D quality level a browser opens with ('1' schematic, '2' shadows, materials and the cutaway); each
    * browser may override it (sw.plan3d.quality) and drops to 1 by itself when level 2 misses the frame budget. */
-  'plan.quality'?: '1' | '2';
+  'plan.quality'?: 'auto' | '1' | '2';
   /** CR-006 1b: the presence tint's fade after the last motion - 'off' (the tint only while a sensor is on) or the
    * window in minutes as a string (default '3'), per installation. */
   'plan.presence_fade'?: string;

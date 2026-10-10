@@ -108,6 +108,13 @@ DEFAULTS["ui.dd_picker"] = None
 VALIDATORS["generator.view_mode"] = _choice("generator.view_mode", ("gauges", "charts"))
 DEFAULTS["generator.view_mode"] = "gauges"
 
+# `plan.quality` (owner bug 2026-10-10): the user's own 3D view mode over the installation's `plan.quality` setting - auto (full,
+# dropping to schematic after a sustained low frame rate) | 2 (full, never downgraded on its own) | 1 (schematic); null = follow
+# the installation. Presentation only: no permission needed (the 3D toolbar writes it on every explicit choice).
+PLAN_QUALITY_MODES: tuple[str, ...] = ("auto", "1", "2")
+VALIDATORS["plan.quality"] = _choice("plan.quality", PLAN_QUALITY_MODES)
+DEFAULTS["plan.quality"] = None
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None

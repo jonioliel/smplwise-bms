@@ -125,25 +125,65 @@ test('level 2: hemisphere and shadow sun, standard materials, occlusion; level 1
   await expect.poll(async () => (await again.getAttribute('data-quality')) === '2' || (await again.locator('[data-3d-fallback]').count()) === 1, { timeout: 10000 }).toBe(true);
 });
 
-test('the frame-budget probe: level 2 under the minimum drops to level 1 with a note; choosing level 2 again measures afresh', async ({ page }) => {
+test('the frame-budget probe: a chosen full mode stays full with a hint (owner bug 2026-10-10); only auto drops to level 1 with a note', async ({ page }) => {
   test.setTimeout(120_000);
   const el = await openDemo(page);
-  await el.evaluate((n) => { (n as unknown as Probe).minFps = 100000; }); // no device keeps this: the fallback must happen
-  await el.locator('[data-quality-2]').click(); // level 2 draws while the probe runs (too briefly to assert under a loaded software renderer)
+  await el.evaluate((n) => { (n as unknown as Probe).minFps = 100000; }); // no device keeps this: the rate is always low
+  // the manual full mode: the probe measures a sustained low rate, the hint offers the switch, the level stays 2
+  await el.locator('[data-quality-2]').click();
+  await expect(el.locator('[data-3d-low-fps]')).toBeAttached({ timeout: 20000 });
+  await expect(el).toHaveAttribute('data-quality', '2');
+  await expect(el).toHaveAttribute('data-quality-mode', 'full');
+  await expect(el.locator('[data-3d-fallback]')).toHaveCount(0);
+  expect(await page.evaluate(() => sessionStorage.getItem('sw.plan3d.fallback'))).toBeNull();
+  expect(Number(await el.getAttribute('data-probe-fps'))).toBeGreaterThanOrEqual(0);
+  await expect(el).not.toHaveAttribute('data-measure', ''); // the probe's continuous frames ended with it
+  await page.waitForTimeout(1500);
+  await expect(el).toHaveAttribute('data-quality', '2'); // still full: nothing downgrades it later
+  // the close keeps full; the one-tap switch picks schematic as the viewer's own choice
+  await el.locator('[data-3d-low-fps-close]').click();
+  await expect(el.locator('[data-3d-low-fps]')).toHaveCount(0);
+  await expect(el).toHaveAttribute('data-quality', '2');
+  await el.locator('[data-quality-2]').click(); // full again: level 2 already draws, no new probe, no hint
+  // auto on this device: full first, the probe runs, the sustained low rate drops it to level 1 and the note says so
+  await el.locator('[data-quality-1]').click();
+  await expect(el).toHaveAttribute('data-quality', '1');
+  await el.locator('[data-quality-auto]').click();
+  await expect(el).toHaveAttribute('data-quality-mode', 'auto');
   await expect(el.locator('[data-3d-fallback]')).toBeAttached({ timeout: 20000 });
   await expect(el).toHaveAttribute('data-quality', '1');
-  expect(Number(await el.getAttribute('data-probe-fps'))).toBeGreaterThanOrEqual(0);
   expect(await page.evaluate(() => sessionStorage.getItem('sw.plan3d.fallback'))).toBe('1');
-  expect(await page.evaluate(() => localStorage.getItem('sw.plan3d.quality'))).toBe('2'); // the choice stays; the device does not
-  await expect(el).not.toHaveAttribute('data-measure', ''); // the probe's continuous frames ended with it
+  expect(await page.evaluate(() => localStorage.getItem('sw.plan3d.quality'))).toBe('auto'); // the choice stays; the device does not
   const summary = await summarise(el);
   expect(summary.some((o) => o.type === 'HemisphereLight')).toBe(false); // level 1 draws
-  // the viewer insists: level 2 again, this time with the probe disabled, and the note goes
+  // the viewer insists on full: level 2 again, the auto note goes and the fallback is cleared
   await disableProbe(el);
   await el.locator('[data-quality-2]').click();
   await expect(el).toHaveAttribute('data-quality', '2');
   await expect(el.locator('[data-3d-fallback]')).toHaveCount(0);
   expect(await page.evaluate(() => sessionStorage.getItem('sw.plan3d.fallback'))).toBeNull();
+  // the one-tap switch of the hint: back to a slow rate in full, then the hint's button
+  await el.evaluate((n) => { (n as unknown as Probe).minFps = 100000; });
+  await el.locator('[data-quality-1]').click();
+  await expect(el).toHaveAttribute('data-quality', '1');
+  await el.locator('[data-quality-2]').click();
+  await expect(el.locator('[data-3d-low-fps]')).toBeAttached({ timeout: 20000 });
+  await el.locator('[data-3d-low-fps-switch]').click();
+  await expect(el).toHaveAttribute('data-quality', '1');
+  await expect(el).toHaveAttribute('data-quality-mode', 'schematic');
+  expect(await page.evaluate(() => localStorage.getItem('sw.plan3d.quality'))).toBe('1');
+});
+
+test('the chosen full mode persists across a reload and is not downgraded by a fallback left in the session', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/#/styleguide');
+  await page.evaluate(() => { localStorage.setItem('sw.plan3d.quality', '2'); sessionStorage.setItem('sw.plan3d.fallback', '1'); });
+  await page.reload();
+  const el = await openDemo(page);
+  await expect(el).toHaveAttribute('data-quality-mode', 'full');
+  await expect(el).toHaveAttribute('data-quality', '2');
+  await expect(el.locator('[data-3d-fallback]')).toHaveCount(0);
+  await expect(el.locator('[data-quality-2]')).toHaveAttribute('selected', '');
 });
 
 test('the isometric preset is a true isometric on an orthographic camera; the perspective preset is the phase-4 view', async ({ page }) => {

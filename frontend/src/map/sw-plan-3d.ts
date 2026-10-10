@@ -10,14 +10,19 @@ import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
 import { PILL_CAP } from './scene-frame';
+import { FpsWatch, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, levelFor, lowFpsAction, modeFromWire, recoverFps, resolveMode, type QualityMode } from './quality-mode';
+import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
+/** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
+export { QUALITY_KEY } from '../api/plan-quality';
 
 const EXPORT_FAILED_HE = 'ייצוא glTF נכשל';
 const FALLBACK_HE = 'עבר לרמה סכמטית — קצב הפריימים היה נמוך';
+/** A chosen full mode on a slow device: a hint and a one-tap switch, never a forced downgrade (owner bug 2026-10-10). */
+const LOW_FPS_HE = 'קצב הפריימים נמוך';
+const LOW_FPS_SWITCH_HE = 'מעבר לסכמטי';
 const TOAST_MS = 4000;
-/** The per-browser quality choice (like sw.wall.cols: the viewer's own override of the installation default). */
-export const QUALITY_KEY = 'sw.plan3d.quality';
-/** A fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
+/** An automatic fallback holds for the session: the device does not get re-measured on every mount (a new explicit choice does). */
 export const FALLBACK_KEY = 'sw.plan3d.fallback';
 /** K88: the viewer's night-mode choice for this browser. */
 export const NIGHT_KEY = 'sw.plan3d.night';
@@ -69,13 +74,12 @@ const writeStore = (store: 'local' | 'session', key: string, value: string | nul
     /* private mode: the choice lives for this page only */
   }
 };
-const asLevel = (v: unknown): QualityLevel | null => (v === 2 || v === '2' ? 2 : v === 1 || v === '1' ? 1 : null);
 
 /**
  * The schematic 3D view of a floor (T087, design 10.3; CR-006 slice 1a): a SceneView on a canvas, the presets (top /
- * isometric / perspective / from a camera), the quality level (the installation default `plan.quality`, overridden per
- * browser in localStorage, with the automatic fallback to level 1 when the first seconds of level 2 miss the frame
- * budget), the level thumbnail strip (small isometric renders from the same scene, cached per level and bounded by the
+ * isometric / perspective / from a camera), the view mode (quality-mode.ts: the installation default `plan.quality`,
+ * overridden by the viewer's own choice - /me/prefs, cached in this browser; only the `auto` mode falls back to level 1
+ * when level 2 keeps missing the frame budget, a chosen `full` mode shows a hint instead), the level thumbnail strip (small isometric renders from the same scene, cached per level and bounded by the
  * listed levels like the building page's cache), the export, the hover label and the data attributes the tests read.
  * The screen builds the description (scene-builder) and owns the selection and the level filter: `selectedId` comes in
  * as a source id, `part-select` goes out with one; `activeLevel` comes in, `level-select` goes out. This module is
@@ -101,9 +105,11 @@ export class SwPlan3d extends LitElement {
   /** The state dots of the strip (CR-006 1b, room-state.ts): per level, the presence fade, an open opening, a lit room -
    * drawn over the cached thumbnail, never into it (a state push redraws no thumbnail). */
   @property({ attribute: false }) levelDots: Record<string, LevelDots> = {};
-  /** The installation default when the viewer has not chosen (the host may pass it; else the element asks the settings). */
-  @property({ attribute: false }) qualityDefault: QualityLevel | null = null;
-  /** Level 2 falls back to level 1 under this rate during the probe window; 0 disables the probe (tests, measurements). */
+  /** The installation default when the viewer has not chosen (the host may pass it - a mode, or a level 1 / 2 read as
+   * schematic / full; else the element asks the settings). */
+  @property({ attribute: false }) qualityDefault: QualityMode | QualityLevel | null = null;
+  /** A sustained rate under this during the probe drops `auto` to level 1 (and shows the hint in `full`); 0 disables the
+   * probe (tests, measurements). */
   @property({ type: Number }) minFps = DEFAULT_MIN_FPS;
   /** Render every frame instead of on demand - only for measuring the frame rate (the live spec, Task 10). */
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
@@ -121,12 +127,15 @@ export class SwPlan3d extends LitElement {
   @state() private error = '';
   /** An export failed: a toast that clears itself; the view stays. */
   @state() private toast = '';
-  /** The viewer's stored choice (null = the installation default applies). */
-  @state() private chosen: QualityLevel | null = asLevel(readStore('local', QUALITY_KEY));
-  /** The installation default read from the settings (null until answered; level 1 meanwhile). */
-  @state() private installDefault: QualityLevel | null = null;
-  /** Level 2 missed the frame budget on this device: level 1 draws and the note says so. */
+  /** The viewer's own mode (the browser's cache at once, the server's /me/prefs value when it answers; null = the
+   * installation default applies). */
+  @state() private chosen: QualityMode | null = cachedOwnMode();
+  /** The installation default read from the settings (null until answered; schematic when they cannot be read). */
+  @state() private installDefault: QualityMode | null = null;
+  /** `auto` missed the frame budget on this device: level 1 draws and the note says so. Ignored in a manual mode. */
   @state() private fallback = readStore('session', FALLBACK_KEY) === '1';
+  /** A manual `full` missed the frame budget: the hint with its one-tap switch shows (until a choice or a close). */
+  @state() private lowFps = false;
   /** K88 3D round 2: night mode (dark sky, a moon instead of the sun, the lit rooms glow) - the viewer's choice, stored. */
   @state() private night = readStore('local', NIGHT_KEY) === '1';
   private toastTimer = 0;
@@ -139,8 +148,9 @@ export class SwPlan3d extends LitElement {
   private presetApplied = false;
   /** The description object last handed to the view (the first mount must not build it twice). */
   private applied: SceneDescription | null = null;
-  /** The probe of level 2: the first counter report after it started and the deadline. */
-  private probe: { until: number; t0: number; f0: number; start: number } | null = null;
+  /** The probe of level 2: when it started (s0), the first counter report after the warm-up (t0 / f0), the deadline, and
+   * the last report (lt / lf) - each report closes one measured interval for the sustained-low watch. */
+  private probe: { until: number; t0: number; f0: number; start: number; s0: number; lt: number; lf: number; watch: FpsWatch } | null = null;
   private probeTimer = 0;
   /** The probe ran (or is running) for this mount / level switch: a live state push never starts it again. */
   private probed = false;
@@ -154,6 +164,7 @@ export class SwPlan3d extends LitElement {
    * main frame is redrawn at once: the pass borrows the canvas corner). */
   private thumbPass = 0;
   private settingsAsked = false;
+  private ownAsked = false;
 
   static styles = css`
     :host {
@@ -373,6 +384,28 @@ export class SwPlan3d extends LitElement {
     .note.fb {
       inset-block-end: 40px;
     }
+    /* the low-frame-rate hint of a chosen full mode: a one-tap switch and a close, never in the way of the view */
+    .note.hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .note.hint button {
+      font: inherit;
+      color: var(--sw-accent);
+      background: none;
+      border: 0;
+      padding: 0 2px;
+      cursor: pointer;
+    }
+    .note.hint button.x {
+      color: var(--sw-text-2);
+    }
+    .note.hint button:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+      border-radius: var(--sw-r-sm);
+    }
     .spinner {
       position: absolute;
       inset: 0;
@@ -476,20 +509,32 @@ export class SwPlan3d extends LitElement {
     window.clearTimeout(this.toastTimer);
   }
 
-  /** The level that draws: the viewer's choice, else the installation default, else 1 - and 1 after a fallback. */
+  /** The mode that applies: the viewer's own, else the installation default (host or settings), else auto. */
+  get mode(): QualityMode {
+    return resolveMode(this.chosen, modeFromWire(this.qualityDefault) ?? this.installDefault);
+  }
+
+  /** The level that draws: the mode's - and 1 after a fallback, in `auto` only (a chosen mode is never downgraded). */
   get quality(): QualityLevel {
-    if (this.fallback) return 1;
-    return this.chosen ?? this.qualityDefault ?? this.installDefault ?? 1;
+    return levelFor(this.mode, this.fallback);
   }
 
   private init(): void {
+    if (!this.ownAsked) {
+      // the viewer's own mode as the server keeps it (another browser may have changed it); the cache already applies
+      this.ownAsked = true;
+      void loadOwnMode().then((own) => {
+        if (own && own !== this.chosen) this.chosen = own;
+      });
+    }
     // the installation default when neither the viewer nor the host chose: one build at the right level, no rebuild
     // when the settings land (the cached settings answer at once; a first fetch takes the round trip)
-    if (this.chosen === null && this.qualityDefault === null && this.installDefault === null && !this.settingsAsked) {
+    if (this.chosen === null && modeFromWire(this.qualityDefault) === null && this.installDefault === null && !this.settingsAsked) {
       this.settingsAsked = true;
-      // settings unavailable, or not answered within SETTINGS_WAIT_MS: level 1 until the viewer chooses
-      void withTimeout(productSettings().then((s) => asLevel(s['plan.quality']) ?? 1), SETTINGS_WAIT_MS, 1 as QualityLevel)
-        .then((q) => { this.installDefault = q; })
+      // settings without the key (the static demo), unavailable, or not answered within SETTINGS_WAIT_MS: schematic until
+      // the viewer chooses (a real backend always answers with its default, auto)
+      void withTimeout(productSettings().then((s) => modeFromWire(s['plan.quality']) ?? 'schematic'), SETTINGS_WAIT_MS, 'schematic' as QualityMode)
+        .then((m) => { this.installDefault = m; })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
       return;
     }
@@ -598,6 +643,7 @@ export class SwPlan3d extends LitElement {
   private applyQuality(): void {
     const q = this.quality;
     this.setAttribute('data-quality', String(q));
+    this.setAttribute('data-quality-mode', this.mode);
     if (!this.view || this.view.getQuality() === q) return;
     this.view.setQuality(q);
     this.thumbs.clear(); // the strip follows the materials of the level
@@ -622,17 +668,27 @@ export class SwPlan3d extends LitElement {
     return this.night;
   }
 
-  /** The viewer's choice for this browser (the chips): stored; level 2 clears a fallback and measures again. */
-  setQuality(q: QualityLevel): void {
-    this.chosen = q;
-    writeStore('local', QUALITY_KEY, String(q));
-    if (q === 2 && this.fallback) {
+  /** The viewer's own mode (the chips; the settings row writes the same /me/prefs key): remembered in this browser and on
+   * the server, kept across reloads. A manual mode is never downgraded; `full` after an automatic fallback measures
+   * afresh; `auto` on a device already measured slow (the hint showed) drops at once. */
+  setMode(mode: QualityMode): void {
+    const measuredSlow = this.lowFps;
+    this.chosen = mode;
+    this.lowFps = false;
+    void saveOwnMode(mode);
+    if (mode === 'auto' && measuredSlow) this.fallBack();
+    else if (mode === 'full' && this.fallback) {
       this.fallback = false;
       writeStore('session', FALLBACK_KEY, null);
     }
   }
 
-  // ---- the frame budget probe: continuous frames for PROBE_MS, then the rate decides
+  /** Level 1 / 2 as the schematic / full mode (the older API: tests and hosts that pick a level). */
+  setQuality(q: QualityLevel): void {
+    this.setMode(q === 2 ? 'full' : 'schematic');
+  }
+
+  // ---- the frame budget probe: continuous frames for PROBE_MS; a sustained low rate decides (quality-mode.ts FpsWatch)
 
   private startProbe(): void {
     this.endProbe(false);
@@ -643,7 +699,8 @@ export class SwPlan3d extends LitElement {
       return;
     }
     this.probePending = false;
-    this.probe = { until: 0, t0: 0, f0: 0, start: Number(this.getAttribute('data-frames') ?? 0) };
+    const now = performance.now();
+    this.probe = { until: 0, t0: 0, f0: 0, start: Number(this.getAttribute('data-frames') ?? 0), s0: now, lt: 0, lf: 0, watch: new FpsWatch(this.minFps, recoverFps(this.minFps), PROBE_MS) };
     this.view.setContinuous(true);
     this.probeTimer = window.setTimeout(() => this.endProbe(true), PROBE_FIRST_FRAME_MS);
   }
@@ -659,18 +716,21 @@ export class SwPlan3d extends LitElement {
     const now = performance.now();
     if (!p.t0) {
       if (frames - p.start < PROBE_WARM_FRAMES) return; // still warming up: the first-frame timer keeps watch
-      p.t0 = now;
-      p.f0 = frames;
+      p.t0 = p.lt = now;
+      p.f0 = p.lf = frames;
       p.until = now + PROBE_MS;
       window.clearTimeout(this.probeTimer);
       this.probeTimer = window.setTimeout(() => this.endProbe(true), PROBE_FALLBACK_MS);
       return;
     }
-    if (now < p.until) return;
-    const fps = ((frames - p.f0) * 1000) / (now - p.t0);
-    this.setAttribute('data-probe-fps', String(Math.round(fps)));
+    // one measured interval since the last report: low for PROBE_MS on end decides; a good one clears the streak
+    const low = p.watch.sample(((frames - p.lf) * 1000) / Math.max(1, now - p.lt), p.lt, now);
+    p.lt = now;
+    p.lf = frames;
+    if (!low && now < p.until) return;
+    this.setAttribute('data-probe-fps', String(Math.round(((frames - p.f0) * 1000) / Math.max(1, now - p.t0))));
     this.endProbe(false);
-    if (fps < this.minFps) this.fallBack();
+    if (low) this.onLowFps();
   }
 
   /** Stop measuring; `decide` reads the counters one last time (the timer's path when no report landed in time). */
@@ -685,12 +745,22 @@ export class SwPlan3d extends LitElement {
       return;
     }
     if (decide && p) {
-      // the timer's path: no report landed in time - the rate over what did draw (nothing at all: 0)
+      // the timer's path: no report landed in time - the last interval is what did draw since the last report (nothing
+      // at all since the start: 0 over the whole wait, which is sustained by itself)
       const frames = Number(this.getAttribute('data-frames') ?? 0);
-      const fps = p.t0 ? ((frames - p.f0) * 1000) / Math.max(1, performance.now() - p.t0) : 0;
+      const now = performance.now();
+      const fps = p.t0 ? ((frames - p.f0) * 1000) / Math.max(1, now - p.t0) : 0;
       this.setAttribute('data-probe-fps', String(Math.round(fps)));
-      if (fps < this.minFps) this.fallBack();
+      const low = p.t0 ? p.watch.sample(((frames - p.lf) * 1000) / Math.max(1, now - p.lt), p.lt, now) : p.watch.sample(0, p.s0, now);
+      if (low) this.onLowFps();
     }
+  }
+
+  /** A sustained low rate at level 2: `auto` drops to level 1 (the note says so); a chosen `full` stays and shows the hint. */
+  private onLowFps(): void {
+    const action = lowFpsAction(this.mode);
+    if (action === 'downgrade') this.fallBack();
+    else if (action === 'hint') this.lowFps = true;
   }
 
   private onVisibility = (): void => {
@@ -858,6 +928,7 @@ export class SwPlan3d extends LitElement {
     const preset = typeof this.preset === 'string' ? this.preset : 'camera';
     const cameraId = typeof this.preset === 'string' ? '' : this.preset.camera.replace(/^cam:/, '');
     const q = this.quality;
+    const mode = this.mode;
     return html`
       <div class="stage"></div>
       ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
@@ -881,13 +952,17 @@ export class SwPlan3d extends LitElement {
             </select>`
           : nothing}
         <span class="sep" aria-hidden="true"></span>
-        <sw-chip data-quality-1 title="רמה סכמטית: חומרים שטוחים, בלי צללים" ?selected=${q === 1} @click=${() => this.setQuality(1)}>סכמטי</sw-chip>
-        <sw-chip data-quality-2 title="רמה מלאה: צללים רכים, חומרים, חיתוך קירות" ?selected=${q === 2} @click=${() => this.setQuality(2)}>מלא</sw-chip>
+        <sw-chip data-quality-1 title=${QUALITY_MODE_HINT.schematic} ?selected=${mode === 'schematic'} @click=${() => this.setMode('schematic')}>${QUALITY_MODE_LABEL.schematic}</sw-chip>
+        <sw-chip data-quality-2 title=${QUALITY_MODE_HINT.full} ?selected=${mode === 'full'} @click=${() => this.setMode('full')}>${QUALITY_MODE_LABEL.full}</sw-chip>
+        <sw-chip data-quality-auto title=${QUALITY_MODE_HINT.auto} ?selected=${mode === 'auto'} @click=${() => this.setMode('auto')}>${QUALITY_MODE_LABEL.auto}</sw-chip>
         <sw-chip data-night-toggle title="מצב לילה: שמיים כהים, אור ירח, החדרים הדלוקים זוהרים" ?selected=${this.night} aria-pressed=${this.night} @click=${() => this.setNight(!this.night)}>לילה</sw-chip>
         <sw-button size="sm" variant="ghost" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
-      ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${FALLBACK_HE}</div>` : nothing}
+      ${this.fallback && mode === 'auto' ? html`<div class="note fb" role="status" data-3d-fallback>${FALLBACK_HE}</div>` : nothing}
+      ${this.lowFps && mode === 'full' && q === 2
+        ? html`<div class="note fb hint" role="status" data-3d-low-fps>${LOW_FPS_HE}<button type="button" data-3d-low-fps-switch @click=${() => this.setMode('schematic')}>${LOW_FPS_SWITCH_HE}</button><button type="button" class="x" aria-label="סגירה" data-3d-low-fps-close @click=${() => (this.lowFps = false)}>×</button></div>`
+        : nothing}
       ${this.toast ? html`<div class="toast" role="status" data-3d-toast>${this.toast}</div>` : nothing}
       ${this.hover ? html`<div class="tip" data-3d-tip data-3d-tip-kind=${this.hover.kind} style=${`left:${this.hover.x}px;top:${this.hover.y}px`}>${this.hover.label}</div>` : nothing}
     `;

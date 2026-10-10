@@ -797,7 +797,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await host.locator('[data-view-3d]').click();
     const el = host.locator('sw-plan-3d[data-floor-3d]');
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
-    // the installation default is level 2: this Chrome either keeps the budget (level 2 stays) or falls back with the note -
+    // the installation default is auto (level 2 first): this Chrome either keeps the budget (level 2 stays) or falls back with the note -
     // both are reported; on the workstation's GPU level 2 is expected to stay
     await expect.poll(async () => (await el.getAttribute('data-probe-fps')) !== null || (await el.getAttribute('data-quality')) === '1', { timeout: 20000 }).toBe(true);
     const quality = await el.getAttribute('data-quality');
@@ -844,9 +844,11 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
     await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
     await expect(el).toHaveAttribute('data-quality', '1');
     await page.evaluate(() => localStorage.removeItem('sw.plan3d.quality'));
-    // the installation setting: level 1 as the default opens level 1 for a browser without a choice; back to 2
+    // the installation setting: level 1 as the default opens level 1 for a browser without a choice; back to the default
+    // (auto since the owner bug of 2026-10-10). The personal server-side choice is cleared too, so the default applies.
+    expect((await api.put('api/v1/me/prefs', { data: { 'plan.quality': null } })).status()).toBe(200);
     const settings = (await (await api.get('api/v1/settings')).json()) as { settings: Record<string, string> };
-    expect(settings.settings['plan.quality']).toBe('2');
+    expect(settings.settings['plan.quality']).toBe('auto');
     expect((await api.patch('api/v1/settings', { data: { 'plan.quality': '1' } })).status()).toBe(200);
     try {
       await page.reload();
@@ -861,7 +863,7 @@ test.describe.serial('plan studio phase 4 (SW A)', () => {
       await expect(page.locator('system-diagnostics select[data-set-plan-quality]')).toBeEnabled({ timeout: 30000 });
       await expect(page.locator('system-diagnostics select[data-set-plan-quality]')).toHaveValue('1');
     } finally {
-      expect((await api.patch('api/v1/settings', { data: { 'plan.quality': '2' } })).status()).toBe(200);
+      expect((await api.patch('api/v1/settings', { data: { 'plan.quality': 'auto' } })).status()).toBe(200);
     }
     report(`PERF quality-2 screenshots ${shots}`);
   });
