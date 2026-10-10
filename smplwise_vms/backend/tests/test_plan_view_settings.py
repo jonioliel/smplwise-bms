@@ -5,6 +5,8 @@ in every backup) and a person's own override (PUT /plan-view/prefs: map.read, ow
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from conftest import as_user, bind
@@ -111,6 +113,28 @@ def test_a_person_without_map_read_may_not_keep_a_look(settings):
         with app.state.db.connection() as conn:
             assert conn.execute("SELECT COUNT(*) FROM plan_view_prefs").fetchone()[0] == 0
             assert conn.execute("SELECT decision FROM audit_log WHERE action = 'plan.view_prefs'").fetchall()[-1][0] == "denied"
+
+
+def test_the_frontend_lists_and_defaults_agree():
+    front = (Path(__file__).resolve().parents[3] / "frontend" / "src" / "api" / "plan-view.ts").read_text(encoding="utf-8")
+    choices = front[front.index("export const CHOICES"):front.index("} as const;")]
+    for key, allowed in pv.CHOICES.items():
+        m = re.search(rf"\b{key}: \[([^\]]*)\]", choices)
+        assert m, key
+        values = tuple(int(v) if v.strip().isdigit() else v.strip().strip("'") for v in m.group(1).split(","))
+        assert values == allowed, key
+    block = front[front.index("export const DEFAULT_VIEW"):]
+    block = block[: block.index("};")]
+    for key, value in pv.DEFAULT.items():
+        m = re.search(rf"\b{key}: ([^,\n]+)", block)
+        assert m, key
+        raw = m.group(1).strip()
+        parsed = raw.strip("'") if raw.startswith("'") else (raw == "true") if raw in ("true", "false") else float(raw)
+        assert parsed == value, key
+    personal = re.search(r"PERSONAL_DIALS: readonly PersonalDial\[\] = \[([^\]]*)\]", front)
+    assert personal and tuple(v.strip().strip("'") for v in personal.group(1).split(",")) == pv.USER_DIALS
+    for key, (lo, hi, step) in pv.RANGES.items():
+        assert re.search(rf"\b{key}: \[{lo}, {hi}, {step}\]", front), key
 
 
 def test_the_own_dials_are_backed_up_and_survive_an_older_archive():
