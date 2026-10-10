@@ -142,7 +142,7 @@ def test_state_before_any_check(world):
     _, c = world
     s = j(c, "get", "/state").json()
     assert s == {"installed": __version__, "latest": None, "update_available": False, "checked_at": None, "check_result": None, "interval_hours": 6,
-                 "permitted": "unknown", "notes": [], "requires_platform_restart": False, "platform_restart_reasons": [], "run": None}
+                 "permitted": "unknown", "apply_enabled": True, "notes": [], "requires_platform_restart": False, "platform_restart_reasons": [], "run": None}
 
 
 # ---------------------------------------------------------------- the check
