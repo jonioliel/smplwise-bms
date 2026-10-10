@@ -71,7 +71,7 @@ test.describe('palettes and the still description', () => {
     const d1 = stillDescription(on(), 'L0', 'on');
     expect(d0.parts.every((p) => p.level_id === 'L0' && p.shape !== 'sprite' && !['camera', 'cone', 'entity', 'marker', 'chip', 'label'].includes(p.kind))).toBe(true);
     expect(d0.parts.some((p) => p.kind === 'glow')).toBe(false);
-    expect(d1.parts.some((p) => p.kind === 'glow')).toBe(true);
+    expect(d1.parts.filter((p) => p.kind === 'glow').length).toBe(on().parts.filter((p) => p.kind === 'glow' && p.level_id === 'L0').length); // every glow of the level survives
     expect(d1.parts.some((p) => p.kind === 'tint' && p.id.endsWith('#lit'))).toBe(true);
     expect(JSON.stringify(stillDescription(off(), 'L0', 'off'))).toBe(JSON.stringify(d0)); // deterministic
   });
@@ -285,7 +285,8 @@ test.describe('the bake job', () => {
     let r = deps();
     let out = await runBake({ ...r.d, skip: new Set(['still/L0/iso/light/day/off']), only: new Set(['still/L0/iso/light/day/off', 'still/L0/iso/light/day/on', 'mask/L0/iso']) });
     expect(out.skipped).toEqual(['still/L0/iso/light/day/off']);
-    expect(r.uploads.map((u) => slotName(u.slot))).toEqual(['still/L0/iso/light/day/on', 'mask/L0/iso']);
+    // the first picture was skipped (already current): the iso mask needs no picture and goes at once
+    expect(r.uploads.map((u) => slotName(u.slot))).toEqual(['mask/L0/iso', 'still/L0/iso/light/day/on']);
 
     r = deps({ renderer: null });
     out = await runBake(r.d);
