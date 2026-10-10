@@ -319,13 +319,18 @@ def test_regenerate_claim_lease_and_finish(settings):
         assert fin.status_code == 200 and fin.json()["job"]["status"] == "done"
         assert c.post(f"/api/v1/floors/{fid}/bakes/jobs/{job['id']}/finish", json={"status": "failed"}).json()["code"] == "job_closed"
         assert c.get(f"/api/v1/floors/{fid}/bakes").json()["job"] is None
+        # a request may name a preset the setting does not list: done needs ITS slots, not the setting's
+        j3 = c.post(f"/api/v1/floors/{fid}/bakes/regenerate", json={**scope, "presets": ["top"]}).json()["job"]
+        f3 = c.post(f"/api/v1/floors/{fid}/bakes/jobs/{j3['id']}/finish", json={"status": "done"})
+        assert f3.status_code == 409 and f3.json()["details"]["missing_count"] == 3
+        assert c.post(f"/api/v1/floors/{fid}/bakes/jobs/{j3['id']}/finish", json={"status": "cancelled"}).status_code == 200
         # a failed request keeps a short, cleaned reason
         j2 = c.post(f"/api/v1/floors/{fid}/bakes/regenerate", json={}).json()["job"]
         f2 = c.post(f"/api/v1/floors/{fid}/bakes/jobs/{j2['id']}/finish", json={"status": "failed", "error": "WebGL <lost>"})
         assert f2.json()["job"]["error"] == "WebGL lost"
         with app.state.db.connection() as conn:
             steps = [json.loads(x[0])["step"] for x in conn.execute("SELECT details_json FROM audit_log WHERE action = 'plan.bake.job' ORDER BY rowid")]
-        assert steps == ["claim", "claim", "done", "failed"]
+        assert steps == ["claim", "claim", "done", "cancelled", "failed"]
 
 
 def test_a_request_for_an_outdated_key_is_superseded(settings):

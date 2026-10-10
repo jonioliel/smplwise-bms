@@ -766,9 +766,12 @@ def finish_job(conn: sqlite3.Connection, floor_id: str, job_id: str, status: str
     if r["status"] not in ("requested", "claimed"):
         raise BakeError("job_closed", "בקשת האפייה כבר הסתיימה.", {"status": r["status"]})
     if status == "done":
-        d = describe(conn, floor_id)
+        # every slot the REQUEST asked for must be stored for the floor's current key (the request may name slots the setting
+        # does not list, e.g. a preset turned off since)
+        key = bake_key(conn, floor_id)
+        have = {r2["slot"] for r2 in (row_api(x, key[0] if key else None) for x in rows_of(conn, floor_id)) if not r2["stale"]}
         want = expected_slots_for_scope(job_api(r)["scope"])  # type: ignore[index]
-        missing = [s for s in want if s in set(d["missing"])]
+        missing = [s for s in want if s not in have]
         if missing:
             raise BakeError("incomplete", "לא כל הקבצים של הבקשה נשמרו.", {"missing": missing[:20], "missing_count": len(missing)})
     clean = None if error is None else re.sub(r"[^\w .,:;()/-]", "", str(error))[:200]
