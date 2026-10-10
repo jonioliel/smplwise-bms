@@ -147,6 +147,9 @@ export interface ProductSettings {
   /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
   'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble';
   'ui.scheme'?: 'light' | 'dark' | 'auto';
+  /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
+  'ui.accent'?: string;
+  'ui.toggle_on'?: string;
   /** Bubble foundation (2026-10-02): the installation's look dials (every dial present; shape in design/look.ts). A user's own partial `ui.look` (/me/prefs) wins per dial. */
   'ui.look'?: Record<string, unknown>;
   /** Release 0.1.155: the installation's custom colour palettes (design/palette.ts; the backend refuses a palette that fails the contrast checks). */

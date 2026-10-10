@@ -17,6 +17,7 @@ import { skinRules, skinTable, tokensCss } from './css';
 import { alphaFloor, liteAlpha, sheetModelOf, washCap, washModelOf } from './contrast';
 import { bootLook, onLook, setAlphaFloor, setLiteAlpha, setWashCap } from './look';
 import { activePaletteTokens, bootPalettes, onPalettes, syncPalette } from './palette';
+import { bootBrand, brandColors, brandTokens, onBrand } from './brand';
 
 export type Scheme = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
@@ -109,7 +110,10 @@ function apply() {
   const t = skinTable(skin);
   // the palette of the look dial (bubble only): inline custom properties on <html>, so the floor below is computed from ITS colours
   const { palette, tokens: pt } = activePaletteTokens(skin, theme);
-  syncPalette(root, pt);
+  // 2.4.4: the installation's brand colours (accent, switch on) ride the same inline layer, after the palette, so they win over it and
+  // over every skin; one owner of the inline properties keeps a skin / palette switch from dropping them (design/brand.ts)
+  const bt = brandTokens(brandColors(), theme);
+  syncPalette(root, pt || Object.keys(bt).length ? { ...(pt ?? {}), ...bt } : null);
   const model = sheetModelOf((n) => pt?.[n] ?? t[n]?.[theme] ?? '');
   // a palette also carries its own minimum glass opacity (high-contrast: 88 %); the computed floor never goes below it
   setAlphaFloor(Math.max(model ? alphaFloor(model) : 1, palette ? palette.schemes[theme].glass.opacity.min : 0));
@@ -160,6 +164,8 @@ export function bootDesign() {
   // the palette dial and the custom list re-apply the colours (the user's own override, the installation's, `?look=`)
   onLook(() => apply());
   onPalettes(() => apply());
+  bootBrand(); // the brand colours as last known (no flash of the default accent)
+  onBrand(() => apply());
   // the token CSS is a constructable stylesheet: the strict CSP candidate (remote channel) refuses inline <style> elements
   try {
     const tokens = new CSSStyleSheet();

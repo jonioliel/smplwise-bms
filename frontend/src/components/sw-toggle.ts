@@ -39,7 +39,8 @@ export class SwToggle extends LitElement {
       transition: transform var(--sw-t-fast) var(--sw-ease);
     }
     :host([checked]) button {
-      background: var(--sw-accent);
+      /* 2.4.4: the switch-on colour token (classic: the same blue as the accent; Settings › "צבע מתג פעיל" may change it) */
+      background: var(--sw-toggle-on);
     }
     :host([checked]) button::after {
       transform: translateX(-18px);

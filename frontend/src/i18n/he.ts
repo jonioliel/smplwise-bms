@@ -862,6 +862,27 @@ export const he = {
     overrideOptional: 'רשות',
     overrideRequired: 'חובה',
   },
+  /** 2.4.4: the brand colours (הגדרות › כללי, `ui.accent`, `ui.toggle_on`). */
+  brandColors: {
+    heading: 'צבעי המותג',
+    subheading: 'צבע ההדגשה וצבע מתג פעיל, לכל המשתמשים ובכל הסגנונות',
+    accentLabel: 'צבע ההדגשה',
+    accentHint: 'כפתורים ראשיים, קישורים, בחירה ומיקוד',
+    toggleLabel: 'צבע מתג פעיל',
+    toggleHint: 'מתגי הפעלה וכיבוי במצב פעיל, גם במסכי הזכוכית',
+    custom: 'צבע אחר',
+    lowContrast: 'צבע בהיר: טקסט לבן על כפתור בצבע הזה יהיה קשה לקריאה',
+    save: 'שמור',
+    saved: 'הצבעים נשמרו',
+    preset_default: 'כחול המערכת (ברירת מחדל)',
+    preset_ios_green: 'ירוק iOS',
+    preset_ios_blue: 'כחול iOS',
+    preset_teal: 'טורקיז',
+    preset_purple: 'סגול',
+    preset_orange: 'כתום',
+    preset_pink: 'ורוד',
+    preset_graphite: 'גרפיט',
+  },
   /** 2.4.4: the glass screens' light / dark behaviour (הגדרות › חשמל והתקנים, `devices.glass_scheme`). */
   glassScheme: {
     label: 'מסכי הזכוכית: בהיר או כהה',

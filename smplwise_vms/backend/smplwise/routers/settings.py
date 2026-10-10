@@ -15,7 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import app_download, area_row, automation_settings, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
+from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
 
@@ -59,6 +59,11 @@ DEFAULTS: dict[str, str] = {
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
     "ui.skin": "classic",
     "ui.scheme": "light",
+    # 2.4.4 (owner 2026-10-10): the product's accent colour and the colour of a switch that is on - "default" (the skin's own: the
+    # system blue of the classic look) | a preset id (ios_green = the earlier glass mockup's green) | "#rrggbb". services/brand_colors.py;
+    # applied by the frontend on the DU1 token layer (design/brand.ts). Per installation.
+    "ui.accent": brand_colors.DEFAULT,
+    "ui.toggle_on": brand_colors.DEFAULT,
     # Bubble foundation (owner 2026-10-02): the look dials of the skin - density, surface, pop-up kind, corner radius, transparency,
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
@@ -336,6 +341,8 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.dd_panel_groups"] = dd_style.stored_panel_groups(out["ui.dd_panel_groups"])
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
+    for key in brand_colors.KEYS:  # a corrupt stored colour never reaches the page as CSS
+        out[key] = brand_colors.stored(out[key])
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
@@ -538,6 +545,8 @@ class SettingsPatch(BaseModel):
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
     ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
+    ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
+    ui_toggle_on: str | None = Field(default=None, max_length=16, alias="ui.toggle_on")
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
@@ -747,6 +756,12 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
             changes["timeline.colors"] = timeline_colors.normalize(changes["timeline.colors"])
         except ValueError as exc:
             raise ApiError(422, "validation", "צבעי ציר הזמן: ערך לא תקין.", details={"timeline.colors": str(exc)})
+    for key in brand_colors.KEYS:
+        if key in changes:
+            try:
+                changes[key] = brand_colors.normalize(changes[key])
+            except ValueError as exc:
+                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן או קוד ‎#rrggbb.", details={key: str(exc)})
     if "devices.area_row" in changes:
         try:
             changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])

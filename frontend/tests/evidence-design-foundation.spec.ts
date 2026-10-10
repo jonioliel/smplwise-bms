@@ -147,6 +147,37 @@ test.describe('design foundation', () => {
       expect(await attr(page, 'data-theme')).toBe('dark');
     });
 
+    test('brand colours (2.4.4): a preset accent and the iOS green switch apply as tokens on save, survive a reload, default writes nothing', async ({ page }, info) => {
+      test.skip(info.project.name === 'tablet', 'two widths are enough');
+      const brand = (p: Page) => p.locator('sw-app system-brand-colors');
+      const inline = (p: Page, n: string) => p.evaluate((name) => document.documentElement.style.getPropertyValue(name), n);
+      await open(page, '/system/diagnostics');
+      await expect(brand(page).locator('[data-brand-row]')).toHaveCount(2);
+      expect(await inline(page, '--sw-accent')).toBe(''); // default: the skin's own system blue
+      await brand(page).locator('[data-brand-row="accent"] [data-brand-option="purple"]').click();
+      await brand(page).locator('[data-brand-row="toggle"] [data-brand-option="ios_green"]').click();
+      expect(await inline(page, '--sw-accent')).toBe(''); // a draft until saved
+      await expect(brand(page).locator('[data-brand-low-contrast]')).toHaveCount(0);
+      await brand(page).locator('[data-brand-save]').click();
+      await expect(brand(page).locator('[data-brand-message]')).toBeVisible();
+      expect(await inline(page, '--sw-accent')).toBe('#7c3aed');
+      expect(await inline(page, '--sw-toggle-on')).toBe('#34c759');
+      // the product aliases the glass screens read follow
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sw-product-accent').trim())).toBe('#7c3aed');
+      await page.reload();
+      await page.waitForSelector('sw-app');
+      expect(await inline(page, '--sw-accent')).toBe('#7c3aed');
+      await open(page, '/system/diagnostics');
+      await brand(page).locator('[data-brand-row="accent"] [data-brand-option="ios_green"]').click();
+      await expect(brand(page).locator('[data-brand-low-contrast]')).toBeVisible(); // warn only
+      await brand(page).locator('[data-brand-row="accent"] [data-brand-option="default"]').click();
+      await brand(page).locator('[data-brand-row="toggle"] [data-brand-option="default"]').click();
+      await brand(page).locator('[data-brand-save]').click();
+      await expect(brand(page).locator('[data-brand-message]')).toBeVisible();
+      expect(await inline(page, '--sw-accent')).toBe('');
+      expect(await inline(page, '--sw-toggle-on')).toBe('');
+    });
+
     test('auto follows the operating system, live', async ({ page }, info) => {
       test.skip(info.project.name === 'mobile', 'one width is enough');
       await page.emulateMedia({ colorScheme: 'dark' });
