@@ -41,6 +41,10 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, WalkChangeDetail } from '../map/sw-plan-3d';
+import { BAKE_BUTTON_HE, BAKE_TITLE_HE, bakeStatus, hasStills, renderStills, runFloorBake, stillsLevel } from './floor-stills';
+import { isWallDisplay, viewMode, wallDisplayMode } from '../map/quality-ladder';
+import { STILL_RECIPE_Q2 } from '../map/still-bake';
+import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import type { QualityLevel } from '../map/scene-three';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
@@ -1410,6 +1414,8 @@ export class ExploreFloorMap extends LitElement {
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
           this.liveTransport = effectiveTransport(s);
         })
+        .then(() => planViewPrefs())
+        .then((p) => { if (p) this.viewDials = p.effective; })
         .catch(() => (this.liveTransport = effectiveTransport(null))); // settings unavailable: keep every level shown
       const seq = ++this.geomSeq;
       this.geometry = null;
@@ -1755,11 +1761,16 @@ export class ExploreFloorMap extends LitElement {
   /** The 3D is on screen (the element's module loaded and the floor has a scene): the 2D canvas stays mounted but hidden
    * underneath (its pan and zoom survive the round trip) and the 2D legend of pin colours steps aside. */
   private get shows3d(): boolean {
-    return this.view3d && this.threeState === 'ready' && this.hasScene;
+    return this.view3d && ((this.threeState === 'ready' && this.hasScene) || this.stillsOnly);
   }
 
   private get can3d(): boolean {
-    return webglAvailable() && this.hasScene;
+    return (webglAvailable() && this.hasScene) || this.stillsOnly;
+  }
+
+  /** CR-029 S3: no WebGL here, but the shown level has a current still set - the 3D view is the stills. */
+  private get stillsOnly(): boolean {
+    return !webglAvailable() && hasStills(this.bundle, stillsLevel(this.bundle, this.levelFilter));
   }
 
   /** CR-029 S4: the walk asks for the walk world (or ended): the next scene is built with it at once, not after the push window. */
@@ -1778,6 +1789,11 @@ export class ExploreFloorMap extends LitElement {
       return;
     }
     if (!this.can3d || this.threeState === 'loading') return;
+    if (this.stillsOnly) {
+      this.anchor = null;
+      this.view3d = true;
+      return;
+    }
     if (this.threeState !== 'ready') {
       this.threeState = 'loading';
       try {
@@ -1860,6 +1876,13 @@ export class ExploreFloorMap extends LitElement {
   }
 
   private render3d(b: MapBundle) {
+    // CR-029 S3: the stills instead of the live 3D - a wall display set to stills, no WebGL, or the live ladder exhausted
+    const level = stillsLevel(b, this.levelFilter);
+    const stills = hasStills(b, level);
+    const hash = typeof location !== 'undefined' ? location.hash : '';
+    const mode = viewMode({ webgl: webglAvailable(), wallDisplay: isWallDisplay(hash.includes('?') ? hash.slice(hash.indexOf('?')) : ''),
+      wallMode: wallDisplayMode(this.viewDials.wall_display), idle: false, exhausted: this.stillsFallback, hasStills: stills, want3d: true });
+    if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials);
     const s = this.scene3d();
     if (!s) return nothing;
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
@@ -1869,6 +1892,7 @@ export class ExploreFloorMap extends LitElement {
       exportName=${`plan-3d-${b.floorName}${this.levelFilter ? `-${this.levelFilter}` : ''}-${stamp}`} @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}
       @level-select=${(e: CustomEvent<LevelSelectDetail>) => (this.levelFilter = e.detail.id)}
       .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
+      .stillsAvailable=${stills} @stills-fallback=${() => { this.stillsFallback = true; }}
       @floor-request=${(e: CustomEvent<FloorRequestDetail>) => { if (e.detail.floorId !== this.floorId && this.floors.some((f) => f.id === e.detail.floorId)) navigate(`/explore/floors/${e.detail.floorId}`); }}></sw-plan-3d>`;
   }
 
@@ -2378,6 +2402,14 @@ export class ExploreFloorMap extends LitElement {
   /** CR-006 2a: the control-image export (the 3D tool row's button) is running / what it reported. */
   @state() private skinBusy = false;
   @state() private skinNote = '';
+  /** CR-029 S3: the live 3D ladder is exhausted on this device (the element's `stills-fallback`): a level with stills shows them. */
+  @state() private stillsFallback = false;
+  /** CR-029 S3: the editor's "prepare stills and lighting" run (progress / result line). */
+  @state() private bakeBusy = false;
+  @state() private bakeNote = '';
+  private bakeCancel = false;
+  /** CR-029 S0 / S3: the person's effective look dials (wall display live / stills, style). */
+  @state() private viewDials: PlanViewDials = DEFAULT_VIEW;
 
   private async saveRename(a: Anchor) {
     const r = this.renaming;
@@ -2664,7 +2696,26 @@ export class ExploreFloorMap extends LitElement {
     return html`<div class="pexport">
       <sw-button variant="ghost" size="sm" icon="image" data-skin-controls-export ?disabled=${this.skinBusy} title="תמונות הבקרה של הקומה לסקין עתידי (אורות כבויים / דולקים), מהמבנה המפורסם, בלי תוויות — נשמרות במתקן בלבד" @click=${() => this.exportControlImages()}>${this.skinBusy ? 'מצלם…' : 'תמונות בקרה'}</sw-button>
       ${this.skinNote ? html`<span class="note" data-skin-note>${this.skinNote}</span>` : nothing}
+      <sw-button variant="ghost" size="sm" icon="image" data-bake-run ?disabled=${this.bakeBusy || !this.geometry} title=${BAKE_TITLE_HE} @click=${() => this.runBake()}>${this.bakeBusy ? 'מכין…' : BAKE_BUTTON_HE}</sw-button>
+      <span class="note" data-bake-note>${this.bakeNote || bakeStatus(b, STILL_RECIPE_Q2)}</span>
     </div>`;
+  }
+
+  /** CR-029 S3: draw the floor's stills, masks and lightmap in this browser and store them (an editor tool next to the control
+   * images; floor-stills.runFloorBake). The map is reloaded afterwards so the bundle lists the new set. */
+  private async runBake(): Promise<void> {
+    const b = this.bundle;
+    if (!b || b.source !== 'api' || !this.geometry || this.bakeBusy) return;
+    this.bakeBusy = true;
+    this.bakeCancel = false;
+    this.bakeNote = 'מכין תמונות ותאורה…';
+    try {
+      this.bakeNote = await runFloorBake({ bundle: b, geometry: this.geometry, catalog: this.catalog3d, live: this.sceneMemo?.all ?? null,
+        onProgress: (t) => { this.bakeNote = t; }, cancelled: () => this.bakeCancel || !this.isConnected || this.bundle?.floorId !== b.floorId });
+      if (this.isConnected && this.bundle?.floorId === b.floorId) this.bundle = { ...b, bakes: (await loadMap(b.floorId)).bakes ?? null };
+    } finally {
+      this.bakeBusy = false;
+    }
   }
 
   /** T085: one button per lighting circuit of the published structure - its switch state, and the toggle through the

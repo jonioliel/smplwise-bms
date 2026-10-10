@@ -6,6 +6,8 @@ import { svg, type SVGTemplateResult } from 'lit';
 import { del, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
 import { markStillCameras } from './frigate';
+import { resolveBundleBakes } from './bakes';
+import type { BundleBakes } from '../map/still-bake';
 import type { Anchor, Camera, CircuitState, FloorMap, GeometryRef, PlanAsset, PlanVersion, SpatialZone } from './types';
 import type { GeomLevel } from '../map/geometry';
 import { demoCameras, demoFloors, demoPlan, demoSite } from '../fixtures/demo';
@@ -58,6 +60,8 @@ export interface MapBundle {
   circuitStates: Record<string, CircuitState>;
   /** K88: the floor's own picture(s) - lights off / on - and where their corners sit on the plan (null = none uploaded). */
   floorImages: FloorImageLayer | null;
+  /** CR-029 S3: the floor's current stills, masks and lightmaps per level (urls resolved); null / absent = none. */
+  bakes?: BundleBakes | null;
 }
 
 function demoBundle(floorId: string): MapBundle {
@@ -154,6 +158,7 @@ export async function loadMap(floorId: string, draft = false, at?: string): Prom
     levels: m.levels ?? [],
     circuitStates: m.circuit_states ?? {},
     floorImages: m.floor_images ? { off: m.floor_images.off ? resourceUrl(m.floor_images.off) : null, on: m.floor_images.on ? resourceUrl(m.floor_images.on) : null, corners: m.floor_images.corners, opacity: m.floor_images.opacity ?? 1 } : null,
+    bakes: resolveBundleBakes(m.bakes),
   };
 }
 

@@ -54,6 +54,11 @@ export interface StripLevel {
 export interface WalkChangeDetail {
   on: boolean;
 }
+/** CR-029 S3: the live ladder is exhausted on this device (no WebGL, or level 1 under the frame budget with a current still
+ * set): the host may swap to the pre-rendered stills (quality-ladder.ts viewMode). */
+export interface StillsFallbackDetail {
+  reason: 'webgl' | 'fps';
+}
 /** CR-029 S4: a stair to another floor was walked to its top - "continue to that floor" (a document load, not a walk). */
 export interface FloorRequestDetail {
   floorId: string;
@@ -149,6 +154,9 @@ export class SwPlan3d extends LitElement {
   @property({ type: Boolean, reflect: true, attribute: 'data-measure' }) continuous = false;
   /** CR-029 S4: the host can build a description with the walk world (it listens to `walk-change`): the "סיור" button shows. */
   @property({ type: Boolean }) walkable = false;
+  /** CR-029 S3: the shown level has a current still set - after the session fallback to level 1, level 1 is measured once more
+   * and a miss fires `stills-fallback` (without stills the ladder ends at level 1, exactly as before). */
+  @property({ type: Boolean }) stillsAvailable = false;
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -698,6 +706,7 @@ export class SwPlan3d extends LitElement {
     } catch (err) {
       console.warn('sw-plan-3d: WebGL failed to start', err);
       this.error = WEBGL_UNAVAILABLE_HE;
+      this.dispatchEvent(new CustomEvent<StillsFallbackDetail>('stills-fallback', { detail: { reason: 'webgl' }, bubbles: true, composed: true }));
       return;
     }
     this.view.setContinuous(this.continuous);
@@ -790,7 +799,7 @@ export class SwPlan3d extends LitElement {
     this.toggleAttribute('data-estimated', desc.estimated);
     if (!this.presetApplied) this.frame();
     this.view?.setSelected(this.selectedId);
-    if (this.quality === 2 && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
+    if ((this.quality === 2 || this.measuresLevel1()) && !this.probed) this.startProbe(); // once per mount: a live state push is not a new device
   }
 
   /** The view follows the effective level; a switch to level 2 starts the probe, a switch away ends it. */
@@ -801,7 +810,7 @@ export class SwPlan3d extends LitElement {
     this.view.setQuality(q);
     this.thumbs.clear(); // the strip follows the materials of the level
     this.probed = false;
-    if (q === 2 && this.applied) this.startProbe();
+    if ((q === 2 || this.measuresLevel1()) && this.applied) this.startProbe();
     else this.endProbe(false);
     this.requestUpdate();
   }
@@ -898,10 +907,19 @@ export class SwPlan3d extends LitElement {
         this.endProbe(false);
         this.probePending = true;
       }
-    } else if (this.probePending && this.quality === 2 && this.view) this.startProbe();
+    } else if (this.probePending && (this.quality === 2 || this.measuresLevel1()) && this.view) this.startProbe();
   };
 
+  /** CR-029 S3: level 1 is measured only after a fallback and only when a still set could take over. */
+  private measuresLevel1(): boolean {
+    return this.fallback && this.stillsAvailable && this.quality === 1;
+  }
+
   private fallBack(): void {
+    if (this.fallback && this.view?.getQuality() === 1) {
+      this.dispatchEvent(new CustomEvent<StillsFallbackDetail>('stills-fallback', { detail: { reason: 'fps' }, bubbles: true, composed: true }));
+      return;
+    }
     this.fallback = true;
     writeStore('session', FALLBACK_KEY, '1');
   }

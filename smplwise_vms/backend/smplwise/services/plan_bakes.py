@@ -644,7 +644,10 @@ def describe(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any]:
     have = {r["slot"] for r in rows if not r["stale"]}
     expected = expected_slots(levels, setting)
     missing = [slot_id(s) for s in expected if slot_id(s) not in have]
-    return {"floor_id": floor_id, "bake_key": current, "geometry_key": key[1] if key else None, "levels": levels, "setting": setting,
+    from .skins import store as skins_store
+
+    gk = skins_store.geometry_key(conn, floor_id)
+    return {"floor_id": floor_id, "bake_key": current, "geometry_key": key[1] if key else None, "doc_hash": gk[1] if gk else None, "levels": levels, "setting": setting,
             "size": list(still_size(setting)), "bakes": rows, "expected": [slot_id(s) for s in expected], "missing": missing,
             "complete": bool(current) and not missing, "stale_count": sum(1 for r in rows if r["stale"]),
             "usage": {"floor_bytes": usage(conn, floor_id), "total_bytes": usage(conn), "floor_cap_bytes": setting["floor_cap_mb"] * 1024 * 1024,
