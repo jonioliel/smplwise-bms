@@ -1163,7 +1163,8 @@ export class DevicesArea extends LitElement {
     const arranging = this.lay.tileCard ? ordered.find((c) => this.lay.arranging(`card:${c.id}`)) : undefined;
     const arrangingCustom = this.lay.tileCard && customKeys.includes(this.lay.tileCard) && this.lay.arranging(this.lay.tileCard) ? this.lay.tileCard : '';
     const bubble = this.skin.bubble;
-    return html`<sw-page heading=${bubble ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
+    // owner 2026-10-10: the area picker in the breadcrumb row IS the title (its value is the h1); the unassigned bucket keeps the plain one
+    return html`<sw-page heading=${bubble || d.area.area_id !== 'unassigned' ? '' : bidi(d.area.name)} subheading=${bubble ? '' : sub} wide @bulk-request=${this.onBulkRequest}>
       <devices-area-nav slot="crumbs" .areaId=${d.area.area_id} .areaName=${d.area.name} .floorName=${floorName} .areas=${d.floor_areas}></devices-area-nav>
       <div slot="actions">
         ${d.area.map ? html`<sw-button size="sm" variant="ghost" icon="map" data-show-on-map @click=${() => { location.hash = mapHrefForArea(d.area.map) ?? location.hash; }}>הצג על המפה</sw-button>` : nothing}

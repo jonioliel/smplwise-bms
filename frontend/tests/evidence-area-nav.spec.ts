@@ -2,10 +2,11 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import path from 'node:path';
 
 // Owner request 2026-09-30 - the area screen's header is ONE interactive navigation: a breadcrumb of real controls
-// (חשמל והתקנים › קומה ▾ › אזור ▾), each level a button that lists its siblings with counts; the title is the current area with
-// no chevron, the subtitle keeps only the counts, no separate tabs row on the desktop; on a phone the floor is a bottom sheet
-// and the floor's areas are a scrollable row of 44 px chips. Fixture backend (tests/fixtures/devices_fake_ha.py, SW_LIVE=1
-// SW_DEVICES_FIXTURE=1) with three floors. SW_SHOTS=<dir> saves screenshots there (docs/evidence/UIR2-area/).
+// (חשמל והתקנים › קומה ▾ › אזור ▾), each level a button that lists its siblings with counts; the subtitle keeps only the counts,
+// no separate tabs row. Owner request 2026-10-10 (HOME polish): the floor and the area are two comfortable pickers side by side
+// (44 px, a caption over the value) on EVERY width; the area picker's value is the page's h1 (the name is on the screen once);
+// on a phone both lists are bottom sheets and the chip row is gone. Fixture backend (tests/fixtures/devices_fake_ha.py,
+// SW_LIVE=1 SW_DEVICES_FIXTURE=1) with three floors. SW_SHOTS=<dir> saves screenshots there (docs/evidence/UIR2-area/).
 const SHOTS = process.env.SW_SHOTS ?? '';
 const FLOORS = [
   { floor_id: 'ar3_f0', name: 'קומת כניסה', level: 0 },
@@ -66,8 +67,16 @@ test.describe('the area screen navigation', () => {
     await expect(page.locator('devices-area sw-page [data-page-back]')).toHaveCount(0); // the unexplained chevron
     await expect(page.locator('devices-area sw-page .titlebar + .sub')).toHaveText('1 התקנים'); // counts only
     await expect(page.locator('devices-area sw-chip[data-nav-option]')).toHaveCount(0); // the tabs row is merged into the area list
-    // a crumb is a real control, 30 px+ on a desktop
-    expect((await nav(page).locator('[data-crumb="floor"]').boundingBox())!.height).toBeGreaterThanOrEqual(30);
+    // the pickers are comfortable controls (44 px at the reference dropdown size), the floor first and the area beside it
+    const floorBox = (await nav(page).locator('[data-crumb="floor"]').boundingBox())!;
+    const areaBox = (await nav(page).locator('[data-crumb="area"]').boundingBox())!;
+    expect(floorBox.height).toBeGreaterThanOrEqual(44);
+    expect(areaBox.height).toBeGreaterThanOrEqual(44);
+    expect(areaBox.x + areaBox.width).toBeLessThanOrEqual(floorBox.x + 1); // RTL: the area sits to the left of the floor (after it in reading order)
+    expect(Math.abs(areaBox.y - floorBox.y)).toBeLessThan(4); // one row
+    // the area's name is on the screen once: the picker's value is the h1, no second title under it
+    await expect(page.locator('devices-area sw-page h1')).toHaveCount(1);
+    await expect(nav(page).locator('[data-crumb="area"] h1')).toHaveText('משרדים');
     await shot(page, 'nav-crumbs', testInfo);
   });
 
@@ -165,20 +174,22 @@ test.describe('the area screen navigation', () => {
     }
   });
 
-  test('phone: home + floor crumbs (the floor is a bottom sheet), the floor\'s areas as a scrollable row of 44 px chips, no page scroll sideways', async ({ page, request }, testInfo) => {
+  test('phone: the home crumb and the two pickers (44 px; both lists are bottom sheets), no chip row, no page scroll sideways', async ({ page, request }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'the phone layout');
     await seed(request);
     await open(page);
-    await expect(nav(page).locator('[data-crumb="area"]')).toHaveCount(0);
-    for (const c of ['home', 'floor']) expect((await nav(page).locator(`[data-crumb="${c}"]`).boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    const chips = nav(page).locator('sw-chip[data-nav-option]');
-    await expect(chips).toHaveCount(3);
-    await expect(nav(page).locator('sw-chip[data-nav-option="ar3_offices"]')).toHaveAttribute('selected', '');
-    for (const box of await chips.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
+    for (const c of ['home', 'floor', 'area']) expect((await nav(page).locator(`[data-crumb="${c}"]`).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(nav(page).locator('sw-chip[data-nav-option]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     await shot(page, 'nav-phone', testInfo);
-    // one tap on a chip switches the area
-    await nav(page).locator('sw-chip[data-nav-option="ar3_yard"]').click();
+    // the area sheet: the floor's areas, a tap switches the area
+    await nav(page).locator('[data-crumb="area"]').click();
+    const areaSheet = nav(page).locator('[data-nav-menu="area"]');
+    await expect(areaSheet.locator('[data-nav-option]')).toHaveCount(3);
+    const ab = (await areaSheet.boundingBox())!;
+    expect(Math.round(ab.y + ab.height)).toBe(page.viewportSize()!.height); // pinned to the bottom edge
+    await shot(page, 'nav-phone-area-sheet', testInfo);
+    await areaSheet.locator('[data-nav-option="ar3_yard"]').click();
     await expect.poll(() => hash(page)).toBe('#/devices/areas/ar3_yard');
     await expect(title(page)).toHaveText('חוץ');
     // the floor sheet

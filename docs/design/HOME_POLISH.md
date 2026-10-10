@@ -30,6 +30,27 @@ hints, no new badges or paragraphs); no platform name outside the settings; Hebr
 | Quick actions / media chips | hover `--sw-surface-2` | hover wash + `--sw-text-3` edge, pressed wash, `--sw-disabled-opacity`; the danger button hovers on `--sw-danger-soft` | the shared control states |
 | `--sw-on-accent, #fff` | a fallback for a token that never existed | `--sw-text-inverse` | DU1 rule; the two files leave `ALLOW_HEX` |
 
+## The area header: two pickers (owner request 2026-10-10)
+
+The owner's screenshot: a small text crumb `קומה -1 ▾` under the shell's pair row, the area's name as a plain big title, and
+(in the dropdown tabs mode) the floor's areas as a second chip in the shell's pair row at the top. Decision:
+
+- the floor and the area are two field-like **pickers** side by side in the breadcrumb row - `חשמל והתקנים › [קומה · קומה -1 ▾] [אזור · מסדרונות ▾]`
+  - a caption over the value, an icon, a chevron that turns when open; 44 px at the reference dropdown size (the home group's
+  size dial: 36 / 44 / 52), `--sw-surface` on `--sw-border-strong`, the open one ringed with `--sw-accent-soft`; the same
+  lists as before (every floor with its count, the floor's areas with their counts, the current one marked), the same
+  keyboard (ArrowDown opens, Home / End / arrows move, Enter chooses, Escape returns to the picker), a bottom sheet on a phone;
+- the **area picker is the title**: its value is the page's `<h1>` (`sw-page` draws no second heading), so the area's name is
+  on the screen once; the count line (`29 התקנים`) stays under the row. The unassigned bucket is not an area of a floor: it
+  keeps the floor picker and the plain title;
+- the pickers exist on **every width and in every tabs mode**: the phone's chip row of areas and the shell's pair chip
+  (0.1.153 / 0.1.157, `tab-pair.ts`) are no longer published by this screen - the picker is the one place. `tab-pair.ts`
+  itself and the shell's pair row stay (the multimedia pages still use them);
+- reading order in RTL: the floor first, the area to its left (DOM order floor → area; a phone wraps them under the home crumb,
+  each half the row, a long name takes the whole row).
+- not changed: the floors / areas tree of the home screen and its per-floor collapse; the bubble skin's head pill (it carries
+  the room temperature and the all-off button, so it stays next to the pickers).
+
 ## Evidence
 
 `docs/design/evidence/home-polish/before/` (c151ae20) and `after/` (this branch), captured by
