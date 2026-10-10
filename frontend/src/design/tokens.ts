@@ -38,6 +38,12 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-bg': lt('#f5f7fb', '#0d1220'),
       // what the page is painted with; a skin may make it a gradient with blooms (the glass sits on it)
       '--sw-canvas': same('linear-gradient(var(--sw-bg), var(--sw-bg))'),
+      // CRY (2026-10-10): the background artwork under the canvas - `none`, or `url(..)` written inline on <html> by design/background.ts
+      // (the installation's `ui.background` / the user's own choice: the built-in day / night pair follows the scheme, or a custom upload).
+      // Only a skin whose canvas rule paints it shows it (crystal); the veil is the tint a skin lays over the image so text on the
+      // canvas keeps its contrast whatever the picture.
+      '--sw-bg-image': same('none'),
+      '--sw-bg-veil': same('transparent'),
       '--sw-surface': lt('#ffffff', '#151c2c'),
       '--sw-surface-2': lt('#f7f9fc', '#1a2336'),
       '--sw-surface-3': lt('#eef2f8', '#222d44'),

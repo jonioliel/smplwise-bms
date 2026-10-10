@@ -35,7 +35,7 @@ test('the colours of the shell exist for both schemes: surfaces, text, accent, e
 });
 
 test('skins: registered ids, overrides carry both columns and name existing tokens, rules stay inside the budget', () => {
-  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble']);
+  expect([...SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'bubble', 'crystal']);
   expect(DEFAULT_SKIN).toBe('classic');
   expect(SKINS.classic.tokens).toEqual({});
   expect(SKINS.classic.rules).toBe('');
@@ -52,6 +52,11 @@ test('skins: registered ids, overrides carry both columns and name existing toke
   expect(ruleCount(SKINS.domus.rules)).toBeGreaterThan(10);
   expect(ruleCount(SKINS.tesla.rules)).toBeGreaterThan(10);
   expect(ruleCount(SKINS.bubble.rules)).toBeGreaterThan(10);
+  expect(ruleCount(SKINS.crystal.rules)).toBeGreaterThan(10);
+  // CRY: the crystal canvas paints the background artwork (design/background.ts) under its veil; the base table knows both names
+  expect(TOKENS['--sw-bg-image'].light).toBe('none');
+  expect(SKINS.crystal.rules).toContain('var(--sw-bg-image) center / cover no-repeat');
+  expect(SKINS.crystal.tokens['--sw-bg-veil']).toBeTruthy();
 });
 
 // ---- the look dials (Bubble foundation): the lists match the backend, the bundles cover every value, the resolver's order ----
