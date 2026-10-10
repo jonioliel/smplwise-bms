@@ -670,7 +670,7 @@ export class DevicesTilesPanel extends LitElement {
     if (this.notFound) return html`<sw-state-panel data-panel-state="not_found" state="empty" heading="הקומה או האזור לא נמצאו" hint="ייתכן שהמבנה השתנה, או שאין בהם התקנים שבהרשאתך."></sw-state-panel>`;
     if (!this.data) {
       return this.error
-        ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error}></sw-state-panel>`
+        ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`;
     }
     const d = this.data;

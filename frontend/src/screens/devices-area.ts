@@ -1131,7 +1131,7 @@ export class DevicesArea extends LitElement {
     const d = this.detail;
     if (!d) {
       return html`<sw-page heading=${heading} subheading="אזור" backHref="/devices/building">${this.error
-        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את האזור" hint=${this.error}></sw-state-panel>`
+        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את האזור" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : html`<div class="skeleton" data-devices-state="loading" role="status" aria-label="טוען…" aria-busy="true">
             <div class="skl strip"></div>
             <div class="skl-cards"><div class="skl card"></div><div class="skl card"></div><div class="skl card"></div></div>

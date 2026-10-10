@@ -2494,7 +2494,7 @@ export class DevicesBuilding extends LitElement {
     const t = this.tree;
     if (!t) {
       return html`<sw-page heading=${heading} subheading="המבנה" wide>${this.error
-        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error}></sw-state-panel>`
+        ? html`<sw-state-panel data-devices-state="load_error" state="error" heading="לא ניתן לטעון את עץ המבנה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : this.renderSkeleton()}</sw-page>`;
     }
     const floors = t.floors.filter((f) => f.floor_id !== 'none').length;
