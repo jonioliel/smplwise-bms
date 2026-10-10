@@ -40,6 +40,7 @@ import {
 } from '../api/schedules';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 
 /** The technical name of each class as the settings page shows it (a settings screen keeps the exact names). */
 const CLASS_DOMAIN: Record<ScheduleClass, string> = {
@@ -132,47 +133,33 @@ export class SystemSchedules extends LitElement {
   @state() private canMark = false;
   private noteTimer = 0;
 
-  static styles = [css`
-    :host {
-      display: block;
-    }
+  static styles = [settingsStyles, css`
     .cols {
       display: grid;
       grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
-      gap: 14px;
+      gap: var(--sw-s-3);
       align-items: start;
     }
     .col {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: var(--sw-s-3);
       min-inline-size: 0;
-    }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    .row:last-child {
-      border-block-end: 0;
     }
     .lbl {
       display: flex;
       flex-direction: column;
       gap: 2px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
     }
-    .muted {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
+    .who {
+      display: flex;
+      gap: var(--sw-s-3);
+      align-items: center;
+      min-inline-size: 0;
     }
-    code,
     .mono {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
@@ -197,33 +184,6 @@ export class SystemSchedules extends LitElement {
     .ic.mute {
       background: var(--sw-surface-3);
       color: var(--sw-text-3);
-    }
-    .ctl {
-      min-inline-size: 180px;
-      max-inline-size: 280px;
-    }
-    .seg {
-      display: inline-flex;
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-sm);
-      overflow: hidden;
-    }
-    .seg button {
-      border: 0;
-      background: var(--sw-surface);
-      padding: 0 14px;
-      min-block-size: 30px;
-      font: inherit;
-      font-size: var(--sw-fs-sm);
-      cursor: pointer;
-      color: var(--sw-text-2);
-    }
-    .seg button + button {
-      border-inline-start: 1px solid var(--sw-border);
-    }
-    .seg button[aria-pressed='true'] {
-      background: var(--sw-accent);
-      color: var(--sw-text-inverse);
     }
     ol {
       margin: 8px 0 0;
@@ -271,26 +231,8 @@ export class SystemSchedules extends LitElement {
     td.no {
       color: var(--sw-text-3);
     }
-    .bar {
-      position: sticky;
-      inset-block-end: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      background: var(--sw-surface);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-3);
-      z-index: 3;
-    }
-    .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-sm);
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-sm);
+    .savebar {
+      max-inline-size: none;
     }
     @media (max-width: 1023px) {
       .cols {
@@ -440,7 +382,7 @@ export class SystemSchedules extends LitElement {
               : a.stale ? 'הסימון בוטל: הסקריפט השתנה' : 'לא מסומן: אי אפשר לתזמן אותו';
             return html`<div class="row" data-script-row=${x.entity_id}>
               <span class="lbl">${x.name}<span class="muted">${why} · ${state}</span></span>
-              <span style="display:flex;gap:10px;align-items:center"><sw-badge kind=${a.approved ? 'live' : 'stale'} label=${a.approved ? 'מותר' : 'חסום'}></sw-badge>
+              <span class="end"><sw-badge kind=${a.approved ? 'live' : 'stale'} label=${a.approved ? 'מותר' : 'חסום'}></sw-badge>
                 <sw-toggle label=${`${x.name}: מותר בתזמונים`} labelHidden .checked=${live(a.approved)} ?disabled=${this.busy || !this.canMark} data-script-mark=${x.entity_id}
                   @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setMark(x.entity_id, e.detail.checked)}></sw-toggle></span>
             </div>`;
@@ -454,7 +396,7 @@ export class SystemSchedules extends LitElement {
     return html`<sw-card heading="נטרול אזעקה בתזמונים" data-sched-disarm>
       <div class="row">
         <span class="lbl" data-disarm-state>${on ? 'נטרול אזעקה בתזמונים: מותר (ניתן להגביל)' : 'נטרול אזעקה בתזמונים: מוגבל'}<span class="muted">${on ? 'עם הרשאת נטרול, הרשאה לפעולות רגישות ואישור מפורש בעורך. נטרול שדורש קוד לעולם אינו ניתן לתזמון.' : 'מנהל מערכת הגביל. תזמון קיים נשמר כפי שהוא.'}</span></span>
-        <span style="display:flex;gap:10px;align-items:center"><sw-badge kind="stale" label="רגיש"></sw-badge><sw-toggle label="נטרול אזעקה בתזמונים" labelHidden .checked=${live(on)} ?disabled=${this.busy} data-allow-disarm
+        <span class="end"><sw-badge kind="stale" label="רגיש"></sw-badge><sw-toggle label="נטרול אזעקה בתזמונים" labelHidden .checked=${live(on)} ?disabled=${this.busy} data-allow-disarm
           @change=${(e: CustomEvent<{ checked: boolean }>) => { if (e.detail.checked) { this.disarmAsk = true; this.requestUpdate(); } else void this.setAllowDisarm(false); }}></sw-toggle></span>
       </div>
     </sw-card>`;
@@ -497,16 +439,16 @@ export class SystemSchedules extends LitElement {
     const bridgeMissing = !!a && !a.bridge_version;
     return html`<sw-card heading="חיבור" data-sched-connection>
       <div class="row">
-        <span style="display:flex;gap:12px;align-items:center"><span class=${found ? 'ic' : missing ? 'ic warn' : 'ic mute'}><sw-icon name=${found ? 'check' : 'warning'} size=${16}></sw-icon></span>
+        <span class="who"><span class=${found ? 'ic' : missing ? 'ic warn' : 'ic mute'}><sw-icon name=${found ? 'check' : 'warning'} size=${16}></sw-icon></span>
           <span class="lbl">רכיב התזמונים (Scheduler)<span class="muted" data-component-line>${found ? `נמצא · גרסה ${a?.component_version ?? '?'} · דורש Home Assistant 2024.11.0 ומעלה${a?.ha_version ? ` · מותקן ${a.ha_version}` : ''}` : missing ? 'לא נמצא' : 'לא נבדק'}</span></span></span>
         <sw-button size="sm" icon="refresh" data-recheck @click=${() => void this.load()}>בדיקה מחדש</sw-button>
       </div>
       <div class="row">
-        <span style="display:flex;gap:12px;align-items:center"><span class=${bridgeOld || bridgeMissing ? 'ic warn' : 'ic'}><sw-icon name=${bridgeOld || bridgeMissing ? 'warning' : 'check'} size=${16}></sw-icon></span>
+        <span class="who"><span class=${bridgeOld || bridgeMissing ? 'ic warn' : 'ic'}><sw-icon name=${bridgeOld || bridgeMissing ? 'warning' : 'check'} size=${16}></sw-icon></span>
           <span class="lbl">גשר Arx<span class="muted">${bridgeMissing ? `לא מותקן (נדרש ${a?.bridge_required ?? ''} ומעלה לשמירת תזמונים)` : `גרסה ${a?.bridge_version ?? '?'} (נדרש ${a?.bridge_required ?? '?'} ומעלה)${bridgeOld ? ' · נדרש עדכון של רכיב החיבור' : ''}`}</span></span></span>
       </div>
       <div class="row">
-        <span style="display:flex;gap:12px;align-items:center"><span class="ic mute"><sw-icon name="clock" size=${16}></sw-icon></span>
+        <span class="who"><span class="ic mute"><sw-icon name="clock" size=${16}></sw-icon></span>
           <span class="lbl">סנכרון אחרון<span class="muted">${s.last_sync_at ? whenLabel(s.last_sync_at) : 'עדיין לא'} · ${s.counts.visible} תזמונים${s.counts.hidden ? ` · ${s.counts.hidden} מוסתרים מהמשתמש הנוכחי` : ''}${s.stale ? ' · אין חיבור נוכחי' : ''}</span></span></span>
       </div>
       <button class="link" data-help-toggle @click=${() => (this.help = !this.help)}>הרכיב לא מותקן? הוראות התקנה ${this.help ? '▴' : '◂'}</button>
@@ -546,7 +488,7 @@ export class SystemSchedules extends LitElement {
     return html`<sw-card heading="סוגי התקנים מותרים בתזמון" data-sched-classes>
       ${ALL_CLASSES.map(
         (c) => html`<div class="row"><span class="lbl">${CLASS_LABEL[c]}<span class="muted"><code>${CLASS_DOMAIN[c]}</code>${CLASS_NOTE[c] ? ` · ${CLASS_NOTE[c]}` : ''}</span></span>
-          <span style="display:flex;gap:10px;align-items:center">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label="רגיש"></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`,
+          <span class="end">${SENSITIVE_CLASSES.includes(c) ? html`<sw-badge kind="stale" label="רגיש"></sw-badge>` : nothing}<sw-toggle label=${CLASS_LABEL[c]} labelHidden .checked=${d.classes.includes(c)} data-class=${c} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setClass(c, e.detail.checked)}></sw-toggle></span></div>`,
       )}
     </sw-card>`;
   }
@@ -572,12 +514,12 @@ export class SystemSchedules extends LitElement {
   }
 
   render() {
-    if (!this.loaded) return html`<sw-page heading="תזמונים"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.error && !this.status) return html`<sw-page heading="תזמונים"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (!this.loaded) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.error && !this.status) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const s = this.status;
-    if (!s || !s.can.configure) return html`<sw-page heading="תזמונים"><sw-state-panel state="forbidden" data-schedules-settings-forbidden></sw-state-panel></sw-page>`;
+    if (!s || !s.can.configure) return html`<sw-page crumbs="הגדרות" heading="תזמונים"><sw-state-panel state="forbidden" data-schedules-settings-forbidden></sw-state-panel></sw-page>`;
     const pick = this.unsuggestedPick;
-    return html`<sw-page heading="הגדרות › תזמונים" subheading="רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה." wide data-schedules-settings>
+    return html`<sw-page crumbs="הגדרות" heading="תזמונים" subheading="רק למנהל מערכת. מסך התזמונים של המשתמשים אינו מציג הגדרות אלה." wide data-schedules-settings>
       ${this.confirmSensor
         ? html`<sw-dialog open heading="חיישן שבת וחג" data-sensor-confirm @close=${() => (this.confirmSensor = false)}>
             <p style="margin:0;font-size:var(--sw-fs-sm)">חיישן שאינו לוח שנה יהודי - להשתמש בו בכל זאת?${pick ? html`<br /><b>${pick.name}</b> <code>${pick.entity_id}</code>` : nothing}</p>
@@ -598,10 +540,10 @@ export class SystemSchedules extends LitElement {
         <div class="col">${this.renderDefaults()}${this.renderRoles()}</div>
       </div>
       ${this.dirty || this.note || this.error
-        ? html`<div class="bar" data-settings-bar>
-            ${this.error ? html`<span class="err" role="alert" data-settings-error>${this.error}</span>` : this.note ? html`<span class="ok" role="status" data-settings-saved>${this.note}</span>` : html`<span class="muted">יש שינויים שלא נשמרו.</span>`}
-            <span style="flex:1"></span>
-            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>ביטול</sw-button><sw-button variant="primary" data-settings-save ?disabled=${this.busy} @click=${() => this.requestSave()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
+        ? html`<div class="savebar" data-settings-bar>
+            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">יש שינויים שלא נשמרו.</span>`}
+            <span class="grow"></span>
+            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => this.cancel()}>ביטול</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => this.requestSave()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
           </div>`
         : nothing}
     </sw-page>`;

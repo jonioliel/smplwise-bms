@@ -918,7 +918,7 @@ export class SystemSecurityCameras extends LitElement {
       content = html`<sw-state-panel state="empty" heading="אין NVR מחובר" actionLabel="לחיבורים" data-nvr-none @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel>`;
     else if (f) content = html`<sw-state-panel state="error" heading="ה־NVR אינו זמין." hint=${f.status === 503 ? '' : f.message} actionLabel="נסה שוב" data-nvr-error @action=${() => void this.load()}></sw-state-panel>`;
     else content = this.renderBody();
-    return html`<sw-page heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>
+    return html`<sw-page crumbs="הגדרות | אבטחה" heading="הגדרות מצלמות" subheading=${this.subheading()}><div data-nvr-cameras data-state=${this.loading && !this.data ? 'loading' : f ? 'error' : this.data?.stale ? 'stale' : 'ready'} style="display:contents">${content}</div></sw-page>
       ${this.data?.can_write ? this.renderEditor() : nothing}
       ${this.renderBatch()}
       <nvr-confirm .model=${this.confirm?.model ?? null} @confirm=${() => void this.confirmed()} @cancel=${() => (this.confirm = null)} @extra=${() => this.openBatch()}></nvr-confirm>

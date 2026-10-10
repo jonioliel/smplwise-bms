@@ -28,6 +28,7 @@ import { DEFAULT_VIEW, loadView, saveView, type ListView } from './media-admin-l
 import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -70,10 +71,7 @@ export class SystemMultimedia extends LitElement {
   @state() private tab: 'main' | 'cast' | 'mine' | 'announce' = 'main';
   private noteTimer = 0;
 
-  static styles = [mediaAdminListCss, css`
-    :host {
-      display: block;
-    }
+  static styles = [settingsStyles, mediaAdminListCss, css`
     sw-tabs {
       --sw-tab-min-h: 44px;
       margin-block-end: 10px;
@@ -84,31 +82,16 @@ export class SystemMultimedia extends LitElement {
       gap: 14px;
     }
     .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 10px 0;
-      border-block-end: 1px solid var(--sw-border);
       flex-wrap: wrap;
-    }
-    .row:last-child {
-      border-block-end: 0;
     }
     .lbl {
       display: flex;
       flex-direction: column;
       gap: 2px;
       min-inline-size: 0;
-      font-size: var(--sw-fs-md);
+      font-size: var(--sw-fs-base);
       font-weight: var(--sw-fw-medium);
     }
-    .muted {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-      font-weight: var(--sw-fw-regular);
-    }
-    code,
     .mono {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
@@ -272,13 +255,20 @@ export class SystemMultimedia extends LitElement {
     super.connectedCallback();
     this.view = loadView('screens', session.me?.user.id ?? '');
     this.readTab();
+    // SET-polish: a deep link from the settings navigation (`?tab=`) while this screen is mounted switches the tab
+    window.addEventListener('hashchange', this.onHash);
     void this.load();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener('hashchange', this.onHash);
     window.clearTimeout(this.noteTimer);
   }
+
+  private onHash = () => {
+    if (window.location.hash.startsWith('#/system/multimedia')) this.readTab();
+  };
 
   private async load() {
     this.error = '';
@@ -531,17 +521,17 @@ export class SystemMultimedia extends LitElement {
   }
 
   render() {
-    if (this.phase === 'forbidden') return html`<sw-page heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
-    if (this.tab === 'cast') return html`<sw-page heading="מולטימדיה" subheading="שידור מצלמות למסכים">${this.tabsRow()}<system-cast></system-cast></sw-page>`;
-    if (this.tab === 'announce') return html`<sw-page heading="מולטימדיה" subheading=${announceText().sub}>${this.tabsRow()}<system-announcements></system-announcements></sw-page>`;
-    if (this.tab === 'mine') return html`<sw-page heading="מולטימדיה" subheading="המסכים שאפשר לשדר אליהם">${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
-    if (this.phase === 'loading') return html`<sw-page heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page heading="מולטימדיה">${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
+    if (this.tab === 'cast') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading="שידור מצלמות למסכים">${this.tabsRow()}<system-cast></system-cast></sw-page>`;
+    if (this.tab === 'announce') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading=${announceText().sub}>${this.tabsRow()}<system-announcements></system-announcements></sw-page>`;
+    if (this.tab === 'mine') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading="המסכים שאפשר לשדר אליהם">${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
+    if (this.phase === 'loading') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה">${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const st = this.status;
     const screens = this.list.devices.filter((d) => d.kind === 'screen');
     const pending = screens.filter((d) => !d.approved).length;
     const bridge = st?.bridge;
-    return html`<sw-page heading="מולטימדיה" subheading=${`${screens.filter((d) => d.approved).length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
+    return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading=${`${screens.filter((d) => d.approved).length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
       ${this.tabsRow()}
       <div class="stack">
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}

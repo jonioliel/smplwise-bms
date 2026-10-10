@@ -16,6 +16,7 @@ import { listNvrChanges, notifyStatus, nvrSystemApi, rollbackNvrChange, setNotif
 import '../components/sw-dialog';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsStyles } from '../styles/settings';
 import '../components/nvr-connection-form';
 import '../components/nvr-recorders-card';
 
@@ -427,7 +428,7 @@ export class SystemSetup extends LitElement {
   private renderApi() {
     const h = this.raw;
     return html`
-      <sw-page heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · פרטי חיבור ה־NVR נשמרים כאן">
+      <sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · פרטי חיבור ה־NVR נשמרים כאן">
         <sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.load()}>${this.busy ? 'בודק…' : 'רענון'}</sw-button>
         ${this.error ? html`<sw-state-panel state="error" heading="מצב החיבורים לא נטען" hint=${this.error}></sw-state-panel>` : nothing}
         ${!h
@@ -493,7 +494,7 @@ export class SystemSetup extends LitElement {
     `;
   }
 
-  static styles = [css`
+  static styles = [settingsStyles, css`
     .matrix {
       inline-size: 100%;
       border-collapse: collapse;
@@ -511,12 +512,6 @@ export class SystemSetup extends LitElement {
       font-weight: 500;
       font-size: var(--sw-fs-xs);
     }
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-block-start: 8px;
-    }
     ul.changes {
       margin: 4px 0 0;
       padding-inline-start: 18px;
@@ -525,23 +520,6 @@ export class SystemSetup extends LitElement {
     }
     ul.changes li {
       margin-block: 2px;
-    }
-    .two {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .check {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 0;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .check:last-child {
-      border-block-end: 0;
     }
     /* owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
        separation - a wall of controls. A real section head (icon, label, rule) makes it scannable. */
@@ -564,38 +542,6 @@ export class SystemSetup extends LitElement {
     .syshead sw-icon {
       color: var(--sw-accent);
     }
-    .grouplabel {
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-semibold);
-      color: var(--sw-text-3);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-block: 4px 2px;
-      grid-column: 1 / -1;
-    }
-    .grouplabel:not(:first-child) {
-      margin-block-start: 14px;
-    }
-    .hint {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
-    }
-    .val {
-      color: var(--sw-text-2);
-      text-align: start;
-      max-inline-size: 60%;
-      overflow-wrap: anywhere;
-    }
-    .val.ok {
-      color: var(--sw-success);
-    }
-    .val.warn {
-      color: var(--sw-warning);
-    }
-    .val.err {
-      color: var(--sw-danger);
-      font-weight: 600;
-    }
     .opts {
       columns: 2;
       column-gap: 24px;
@@ -604,16 +550,8 @@ export class SystemSetup extends LitElement {
       break-inside: avoid;
     }
     @media (max-width: 767px) {
-      .two {
-        grid-template-columns: 1fr;
-      }
       .opts {
         columns: 1;
-      }
-    }
-    @media (max-width: 767px) {
-      .two {
-        grid-template-columns: 1fr;
       }
     }
   `, bubbleChrome];
@@ -622,7 +560,7 @@ export class SystemSetup extends LitElement {
     if (isApi()) return this.renderApi();
     // T071: the demo onboarding wizard that lived here became the real wizard (system-wizard.ts, #/system/wizard);
     // this page lists live connection facts, which a design preview without a backend does not have.
-    return html`<sw-page heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
+    return html`<sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
       <sw-state-panel state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
     </sw-page>`;
   }

@@ -158,7 +158,7 @@ export class SystemAudit extends LitElement {
   private renderApi() {
     const rows = this.rows;
     return html`
-      <sw-page heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, פעולה, החלטה, משאב, סיבה, request_id, permission_revision · אין סיסמאות או טוקנים ביומן">
+      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, פעולה, החלטה, משאב, סיבה, request_id, permission_revision · אין סיסמאות או טוקנים ביומן">
         <sw-button slot="actions" icon="download" ?disabled=${!rows?.length} @click=${() => this.exportCsv()}>ייצוא CSV</sw-button>
         <div class="filters" data-audit-filters>
           <sw-field><select aria-label="פעולה" .value=${this.family} @change=${(e: Event) => { this.family = (e.target as HTMLSelectElement).value; void this.load(); }}>${PREFIXES.map((p) => html`<option value=${p.id} ?selected=${p.id === this.family}>${p.label}</option>`)}</select></sw-field>
@@ -224,7 +224,7 @@ export class SystemAudit extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, מקור זהות, תפקיד והיקף, החלטה, request_id, permission_revision · נתוני הדגמה">
+      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, מקור זהות, תפקיד והיקף, החלטה, request_id, permission_revision · נתוני הדגמה">
         <sw-button slot="actions" icon="download">ייצוא</sw-button>
         <div class="filters">
           <sw-field><select aria-label="פעולה"><option>כל הפעולות</option><option>צפייה</option><option>שינוי</option><option>ייצוא</option><option>פעולת HA</option></select></sw-field>
