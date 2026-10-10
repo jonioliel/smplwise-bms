@@ -37,6 +37,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import device_activity
 from ..services import device_bulk as bulk
+from ..services import device_types
 from ..services import devices as svc
 from ..services import ha_bridge, ha_client, ha_scope, ha_sync, home_screen, switch_protection, user_prefs
 from ..services.timeutil import parse_utc
@@ -181,7 +182,7 @@ def device_activity_feed(
     ck = None
     if row["domain"] == "climate":
         ck = svc.climate_kind_overrides(conn).get(entity_id) or svc.climate_kind_auto(json.loads(conn.execute("SELECT attributes_json FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()[0] or "{}"))
-    out["entity"] = {"entity_id": entity_id, "name": row["name"] or entity_id, "domain": row["domain"], "activity_kind": device_activity.activity_kind(row["domain"], row["device_class"], ck, row["name"]),
+    out["entity"] = {"entity_id": entity_id, "name": row["name"] or entity_id, "domain": row["domain"], "activity_kind": device_activity.activity_kind(row["domain"], row["device_class"], ck, row["name"], device_types.overrides(conn).get(entity_id)),
                      "virtual": row["domain"] in device_activity.VIRTUAL_DOMAINS, "power": device_activity.linked_power(conn, entity_id)}
     return out
 
@@ -563,6 +564,73 @@ def set_climate_kind(entity_id: str, body: ClimateKindBody, request: Request, pr
           request_id=getattr(request.state, "correlation_id", None), details={"kind": body.kind})
     e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
     return {"entity_id": entity_id, "kind": e["climate_kind"] if e else None, "auto": e["climate_kind_auto"] if e else None, "set": e["climate_kind_set"] if e else None}
+
+
+# ---------------------------------------------------------------- DEVTYPE: the device type of a switch-wired device (owner 2026-10-09)
+
+DEVICE_TYPE_REFUSALS = {
+    "not_found": "הישות לא נמצאה בקטלוג.",
+    "not_typeable": "את הסוג של התקן כזה קובע התקן עצמו; אפשר לקבוע ידנית רק סוג של מתג.",
+    "kind_not_allowed": "הסוג הזה אינו זמין להתקן הזה.",
+}
+
+
+class DeviceTypeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["auto", "switch", "outlet", "light", "fan", "heater", "water_heater", "valve"]
+
+
+class DeviceTypeManyBody(DeviceTypeBody):
+    entity_ids: list[Annotated[str, Field(min_length=1, max_length=255)]] = Field(min_length=1, max_length=device_types.BULK_MAX)
+
+
+@router.get("/devices/device-types")
+def list_device_types(principal: Principal = Depends(_configure_holder_early_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """Every switch-wired device (a switch, a virtual on/off helper) with its type now, the type its name gives (`auto`), the administrator's
+    fixed type (`set`, or None = automatic), the types it may take and its place - the Settings list. system.configure."""
+    entities = svc.load_entities(conn)
+    floors, areas = svc.load_structure(conn, entities)
+    return {"devices": device_types.listing(conn, entities, floors, areas), "kinds": list(device_types.ALL_KINDS)}
+
+
+@router.put("/devices/entities/{entity_id}/device-type")
+def set_device_type(entity_id: str, request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Fix the type of one switch-wired device, or return it to automatic (`auto`: its name decides again). system.configure, checked before
+    the body; JSON only; audited (`devices.device_type`; a refusal too). Presentation only - the controls stay the entity's own domain's."""
+    body = _json_body(request, raw, DeviceTypeBody)
+    rid = getattr(request.state, "correlation_id", None)
+    why = device_types.refusal(device_types.domain_of(conn, entity_id), body.kind)
+    if why:
+        audit(conn, actor=principal, action="devices.device_type", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=why,
+              request_id=rid, details={"kind": body.kind})
+        raise ApiError(404 if why == "not_found" else 422, why, DEVICE_TYPE_REFUSALS[why])
+    changed = device_types.set_kind(conn, principal, entity_id, body.kind, request_id=rid)
+    e = next((x for x in svc.load_entities(conn) if x["entity_id"] == entity_id), None)
+    row = next((r for r in device_types.listing(conn, [e], [], []) if r["entity_id"] == entity_id), None) if e else None
+    return {"entity_id": entity_id, "changed": changed, "kind": row["kind"] if row else None, "auto": row["auto"] if row else None, "set": row["set"] if row else None}
+
+
+@router.post("/devices/device-types")
+def set_device_types(request: Request, principal: Principal = Depends(_configure_holder_early_ro), raw: bytes = Depends(_raw_body), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Fix one type on many switch-wired devices at once (or return them all to automatic) - the Settings list's group change.
+    system.configure, checked before the body; JSON only; 1..BULK_MAX ids, each handled once in the order given. Per id
+    `{entity_id, ok, reason, changed}` (refused: not_found / not_typeable / kind_not_allowed). One audit row per changed entity and one
+    summary row (`devices.device_type.batch`)."""
+    body = _json_body(request, raw, DeviceTypeManyBody)
+    rid = getattr(request.state, "correlation_id", None)
+    results = []
+    changed = 0
+    for eid in dict.fromkeys(body.entity_ids):
+        why = device_types.refusal(device_types.domain_of(conn, eid), body.kind)
+        if why:
+            results.append({"entity_id": eid, "ok": False, "reason": why, "changed": False})
+            continue
+        did = device_types.set_kind(conn, principal, eid, body.kind, request_id=rid, batch=True)
+        changed += int(did)
+        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": did})
+    audit(conn, actor=principal, action="devices.device_type.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"kind": body.kind, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
+    return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
 
 
 # ---------------------------------------------------------------- slice 4: assign an unassigned entity to an area

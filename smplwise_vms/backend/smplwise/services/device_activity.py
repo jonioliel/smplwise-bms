@@ -63,6 +63,15 @@ WATER_HEATER_NAME_RE = re.compile(r"דוד|בוילר|דוד\s*שמש|boiler|wat
 VALVE_NAME_RE = re.compile(r"ברז|שסתום|השקיה|ממטר|valve|irrigation|sprinkler", re.IGNORECASE)
 
 
+# DEVTYPE (owner 2026-10-09): the types an administrator may fix per entity in Settings (services/device_types). Only the on/off domains
+# whose type is a guess - a switch and a virtual on/off helper; every other domain's kind follows its own domain / class (a climate
+# entity's heating-or-air-conditioning group has its own override, device_climate_kind). Presentation only: the controls stay the domain's.
+TYPE_OVERRIDE_KINDS: dict[str, tuple[str, ...]] = {
+    "switch": ("switch", "outlet", "light", "fan", "heater", "water_heater", "valve"),
+    "input_boolean": ("switch", "light", "fan", "heater", "water_heater", "valve"),
+}
+
+
 def switch_equipment(name: str | None) -> str | None:
     """`water_heater` / `valve` for a switch whose name says so, else None."""
     if not name:
@@ -74,10 +83,13 @@ def switch_equipment(name: str | None) -> str | None:
     return None
 
 
-def activity_kind(domain: str, device_class: str | None = None, climate_kind: str | None = None, name: str | None = None) -> str | None:
-    """The popup's device kind (twelve): None when the domain has no activity at all."""
+def activity_kind(domain: str, device_class: str | None = None, climate_kind: str | None = None, name: str | None = None, override: str | None = None) -> str | None:
+    """The popup's device kind (twelve): None when the domain has no activity at all. `override` is an administrator's fixed type
+    (DEVTYPE, table device_type_override); it wins over the device class and the name when the domain may carry it."""
     if domain not in ACTIVITY_DOMAINS:
         return None
+    if override and override in TYPE_OVERRIDE_KINDS.get(domain, ()):
+        return override
     if domain == "switch":
         if device_class == "outlet":
             return "outlet"
