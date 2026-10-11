@@ -5,6 +5,7 @@
  * apart from explore-floor-map.ts so the host only wires state and buttons. Hebrew texts, no internal codes on screen.
  */
 import { html, nothing } from 'lit';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import type { MapBundle } from '../api/maps';
 import type { GeometryDoc } from '../map/geometry';
 import { buildScene, type Catalog3DLookup, type SceneDescription, type SceneInput } from '../map/scene-builder';
@@ -37,12 +38,21 @@ export function stillsStyle(style: PlanViewDials['style']): StillStyle {
   return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). The
- * time band follows the sun at the site (map/sun.ts resolveSite; the fallback location when not given). */
-export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer | null, dials: PlanViewDials, now: Date = new Date(), site?: { latitude: number; longitude: number }) {
+/** What `renderStills` adds for a kiosk (CR-029 S5-B): the named slot of a `sw-plan-3d` it fills as that view's idle still, and
+ * whether the still follows the time of day on its own (an idle wall gets no host re-render to change its band). */
+export interface StillsView {
+  slot?: string;
+  autoBand?: boolean;
+  site?: { latitude: number; longitude: number } | null;
+}
+
+/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). The time band
+ * follows the sun at the site (`view.site`, map/sun.ts resolveSite; the fallback location when not given). */
+export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer | null, dials: PlanViewDials, now: Date = new Date(), view: StillsView = {}) {
   const rooms: Record<string, { lit: boolean; presence: boolean }> = {};
   for (const [id, r] of Object.entries(layer?.rooms ?? {})) rooms[id] = { lit: r.lit === true, presence: r.presence === true || r.presenceFade > 0 };
-  return html`<sw-plan-stills data-floor-stills .bakes=${b.bakes ?? null} .level=${level} .styleId=${stillsStyle(dials.style)} .band=${site ? bandAt(now, site.latitude, site.longitude) : bandAt(now)}
+  return html`<sw-plan-stills data-floor-stills slot=${ifDefined(view.slot)} .bakes=${b.bakes ?? null} .level=${level} .styleId=${stillsStyle(dials.style)}
+    .band=${bandAt(now, view.site?.latitude, view.site?.longitude)} .autoBand=${!!view.autoBand} .site=${view.site ?? null}
     .rooms=${rooms} .openOpenings=${layer?.openOpenings ?? []}></sw-plan-stills>`;
 }
 

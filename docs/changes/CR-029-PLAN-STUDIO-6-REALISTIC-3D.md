@@ -158,7 +158,7 @@ build.
 | Desktop / laptop (integrated GPU) | 60 fps vsync at level 3, 1,000 objects; ≥ 30 fps at 3,000 | render on demand; continuous only while walking or animating |
 | Tablet (iPad 9th gen / mid Android) | ≥ 30 fps at level 3, 1,000 objects, DPR ≤ 1.5 | `HEAVY_CONFIG` thresholds lowered for level 3 (Lambert objects above 1,500 parts; 1024 shadow map always) |
 | Phone (390 px) | ≥ 30 fps at level 3, 1,000 objects (R178) | DPR 1.5 cap; no lamp shadow; normal maps off above 1,000 parts; textures 512 px |
-| Kiosk wall tablet (24/7) | zero frames when nothing changes; ≤ 1 frame per state change; still after idle | on-demand rendering (exists) + idle timer → still (§3.3) + `visibilitychange` already honoured |
+| Kiosk wall tablet (24/7) | zero frames when nothing changes; ≤ 1 frame per state change; still after idle | on-demand rendering (exists) + idle timer → still (§3.3) + the frame loop paused in a hidden tab and while idle (S5-B, built: `CR-029-ST7-S5B-NOTES.md` §2-3) |
 | Weak / no WebGL (SwiftShader, old Android WebView, HA Companion on an old phone) | always usable | ladder below |
 
 Fallback ladder, decided per mount by the existing probe (`DEFAULT_MIN_FPS` 30, 2.5 s window after three warm-up frames):
@@ -262,6 +262,10 @@ Pointer lock gives mouse-look without a drag, but the product runs inside the HA
 `requestPointerLock` needs the embedding frame's permission policy (`allow="pointer-lock"`), which the product does not
 control. Fact to verify in the first slice on the real Ingress page; the design therefore makes drag-to-look the default
 and pointer lock an opt-in button that silently stays disabled where the API refuses. Nothing depends on it.
+
+*S5-B (built, 2026-10-12):* the opt-in is the `mouse_mode` dial; where the page runs in a frame whose sandbox forbids pointer lock, or after a
+refusal in this tab session, the walk stays on drag without asking (a refusal is learned once, from any request). The real Ingress page is
+still a device row for the owner - `CR-029-ST7-S5B-NOTES.md` §4.
 
 ### 4.6 What the walk shows
 
@@ -435,7 +439,7 @@ review time. The order is the recommended one (§10).
 | **Total (S0-S7)** | | **88-120 h** | |
 
 S5 is built in two halves: **S5-A, touch** (joystick, look, pinch, tap-to-walk, long press, the phone's bottom sheet, the minimap
-under a finger, the saved positions as a route - section 14) and S5-B (the kiosk idle still, the wall display, the pointer-lock check).
+under a finger, the saved positions as a route - section 15) and S5-B (the kiosk idle still, the wall display, the pointer-lock check).
 
 Visual regression: as CR-006 1c - pixel baselines drawn and compared on SwiftShader only (`renderer-<project>.json`),
 `SW_REQUIRE_VISUAL=1` lanes, ≤ 0.2 % differing pixels at 2/255; level 3 baselines are new files, the level 1-2 baselines

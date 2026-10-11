@@ -139,3 +139,63 @@ def test_websocket_announces_config_and_disable(settings):
         assert ws.receive_json()["type"] == "config"
         c.patch("/api/v1/wall/profiles/dev-wall", json={"enabled": False}, headers=ADMIN)
         assert ws.receive_json()["type"] == "disabled"
+
+
+def test_plan_block_is_the_screens_own_plan_view(settings):
+    """CR-029 S5-B: a wall screen's own plan mode / quality / idle time live in the profile config (config_json: no migration),
+    start as follow, are validated in full, merge partially, are audited as a diff, reach the display, and an older row without
+    the block reads as follow."""
+    import json
+
+    app, c, cams = _setup(settings)
+    r = _add(c, cams)
+    follow = {"mode": "follow", "quality": "follow", "idle_s": "follow"}
+    assert r.json()["config"]["plan"] == follow
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"show_map": True, "plan": {"mode": "stills", "quality": "schematic", "idle_s": 120}}}, headers=ADMIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["config"]["plan"] == {"mode": "stills", "quality": "schematic", "idle_s": 120}
+    assert r.json()["version"] == 2
+    seen = c.get("/api/v1/wall/config", headers=W).json()
+    assert seen["config"]["plan"] == {"mode": "stills", "quality": "schematic", "idle_s": 120} and seen["config"]["show_map"] is True
+    # a partial patch changes only what it names; idle 0 is a value ("never"), follow hands the dial back
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": {"idle_s": 0}}}, headers=ADMIN)
+    assert r.json()["config"]["plan"] == {"mode": "stills", "quality": "schematic", "idle_s": 0}
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": {"mode": "follow", "quality": "follow", "idle_s": "follow"}}}, headers=ADMIN)
+    assert r.json()["config"]["plan"] == follow
+    # nothing is clamped silently: a value outside the lists is a 422 and the stored block stays as it was
+    for bad in ({"mode": "main"}, {"quality": "ultra"}, {"quality": 2}, {"idle_s": 7}, {"idle_s": "30"}, {"idle_s": -1}, {"idle_s": None}, {"zoom": 2}):
+        got = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": bad}}, headers=ADMIN)
+        assert got.status_code == 422, (bad, got.text)
+    assert c.get("/api/v1/wall/profiles/dev-wall", headers=ADMIN).json()["config"]["plan"] == follow
+    # the diff is audited with the dotted names, never a value that is a secret (there is none) - and a no-op writes nothing
+    c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": {"mode": "live"}}}, headers=ADMIN)
+    with app.state.db.connection() as conn:
+        rows = conn.execute("SELECT details_json FROM audit_log WHERE action = 'wall.profile.update' ORDER BY rowid").fetchall()
+    changed = [json.loads(x["details_json"])["changed"] for x in rows]
+    assert any("config.plan.mode" in ch for ch in changed) and any("config.show_map" in ch for ch in changed)
+    assert changed[-1] == ["config.plan.mode"]
+    before = c.get("/api/v1/wall/profiles/dev-wall", headers=ADMIN).json()["version"]
+    c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": {"mode": "live"}}}, headers=ADMIN)
+    assert c.get("/api/v1/wall/profiles/dev-wall", headers=ADMIN).json()["version"] == before, "the same value is not a change"
+    # a profile stored before the block existed reads as follow (config_of falls back per field, never a 500 on a wall)
+    old = wall_service.default_config()
+    old.pop("plan")
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE wall_profiles SET config_json = ? WHERE user_id = ?", (json.dumps(old), "dev-wall"))
+    assert c.get("/api/v1/wall/config", headers=W).json()["config"]["plan"] == follow
+    # the wall user cannot write it (administration only)
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"plan": {"mode": "stills"}}}, headers=W).status_code == 403
+
+
+def test_plan_block_choices_agree_with_the_installation_dials():
+    """The screen's lists are the plan.view lists plus follow - one vocabulary for the dial and its per-screen override."""
+    from typing import get_args
+
+    from smplwise.services import plan_view
+
+    def values(field: str) -> list:
+        return list(get_args(wall_service.Plan.model_fields[field].annotation))
+
+    assert values("mode") == ["follow", *plan_view.CHOICES["wall_display"]]
+    assert values("quality") == ["follow", *plan_view.CHOICES["quality"]]
+    assert values("idle_s") == ["follow", *plan_view.CHOICES["kiosk_idle_s"]]

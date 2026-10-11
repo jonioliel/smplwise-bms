@@ -44,7 +44,9 @@ import type { ScenePreset } from '../map/scene-three'; // type only: the three c
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
 import type { FloorRequestDetail, LevelSelectDetail, PartSelectDetail, RealisticChangeDetail, WalkChangeDetail } from '../map/sw-plan-3d';
 import { BAKE_BUTTON_HE, BAKE_TITLE_HE, autoBakeWanted, bakeStatus, hasStills, renderStills, runFloorBake, stillsLevel } from './floor-stills';
-import { isWallDisplay, viewMode, wallDisplayMode } from '../map/quality-ladder';
+import { isWallDisplay, viewMode } from '../map/quality-ladder';
+import { NO_PINS, applyWallParams, resolveWallPlan, type WallPins } from '../map/wall-plan-mode';
+import { planChangeKey } from '../map/plan-change-key';
 import { STILL_RECIPE_Q2 } from '../map/still-bake';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { resolveSite, type ResolvedSite } from '../map/sun';
@@ -1882,14 +1884,30 @@ export class ExploreFloorMap extends LitElement {
     }
   }
 
+  /** CR-029 S5-B: this browser's wall pins (live / stills, quality, idle seconds) from the route's wall parameters, applied once
+   * per address (`?display=wall&plan=stills&quality=schematic&idle=120`; map/wall-plan-mode.ts). */
+  private wallSearch: string | null = null;
+  private wallPins: WallPins = NO_PINS;
+  private wallPinsFor(search: string): WallPins {
+    if (search !== this.wallSearch) {
+      this.wallSearch = search;
+      this.wallPins = applyWallParams(search);
+    }
+    return this.wallPins;
+  }
+
   private render3d(b: MapBundle) {
-    // CR-029 S3: the stills instead of the live 3D - a wall display set to stills, no WebGL, or the live ladder exhausted
+    // CR-029 S3: the stills instead of the live 3D - a wall display set to stills, no WebGL, or the live ladder exhausted.
+    // CR-029 S5-B: a wall display's live / stills, quality and idle time are this browser's pins over the installation's dials; an
+    // idle wall swaps to the slotted still inside the 3D element, which also stops its frame loop (sw-plan-3d idleS).
     const level = stillsLevel(b, this.levelFilter);
     const stills = hasStills(b, level);
     const hash = typeof location !== 'undefined' ? location.hash : '';
-    const mode = viewMode({ webgl: webglAvailable(), wallDisplay: isWallDisplay(hash.includes('?') ? hash.slice(hash.indexOf('?')) : ''),
-      wallMode: wallDisplayMode(this.viewDials.wall_display), idle: false, exhausted: this.stillsFallback, hasStills: stills, want3d: true });
-    if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials, new Date(), this.stillsSite);
+    const search = hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
+    const wall = isWallDisplay(search);
+    const plan = resolveWallPlan(null, this.wallPinsFor(search), this.viewDials);
+    const mode = viewMode({ webgl: webglAvailable(), wallDisplay: wall, wallMode: plan.mode, idle: false, exhausted: this.stillsFallback, hasStills: stills, want3d: true });
+    if (mode === 'stills') return renderStills(b, level, this.roomStateLayer, this.viewDials, new Date(), { autoBand: wall, site: this.stillsSite });
     const s = this.scene3d();
     if (!s) return nothing;
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
@@ -1901,7 +1919,17 @@ export class ExploreFloorMap extends LitElement {
       .walkable=${true} @walk-change=${(e: CustomEvent<WalkChangeDetail>) => this.onWalkChange(e.detail.on)}
       @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) { this.real3d = e.detail.on; this.sceneDue = true; } }}
       .stillsAvailable=${stills} @stills-fallback=${() => { this.stillsFallback = true; }}
-      @floor-request=${(e: CustomEvent<FloorRequestDetail>) => { if (e.detail.floorId !== this.floorId && this.floors.some((f) => f.id === e.detail.floorId)) navigate(`/explore/floors/${e.detail.floorId}`); }}></sw-plan-3d>`;
+      .idleS=${wall ? plan.idleS : 0} .changeKey=${wall ? this.planChangeKeyOf(b) : ''} .qualityForce=${wall ? plan.quality : null}
+      @floor-request=${(e: CustomEvent<FloorRequestDetail>) => { if (e.detail.floorId !== this.floorId && this.floors.some((f) => f.id === e.detail.floorId)) navigate(`/explore/floors/${e.detail.floorId}`); }}>
+      ${wall && stills ? renderStills(b, level, this.roomStateLayer, this.viewDials, new Date(), { slot: 'idle-still', autoBand: true, site: this.stillsSite }) : nothing}
+    </sw-plan-3d>`;
+  }
+
+  /** CR-029 S5-B: what the plan shows of the devices, as one string - an idle wall wakes when it changes (plan-change-key.ts). */
+  private planChangeKeyOf(b: MapBundle): string {
+    const cameras: Record<string, string> = {};
+    for (const a of b.anchors) if (a.resource_type === 'camera') cameras[a.id] = a.camera?.status ?? '?';
+    return planChangeKey({ layer: this.roomStateLayer, circuits: this.circuitStates3d, cameras });
   }
 
   /** Items per layer for the panel (M07: counts next to every toggle). */

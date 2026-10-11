@@ -28,6 +28,8 @@ import {
   type WallWindow,
 } from '../api/wall';
 import { MAX_PER_PAGE } from '../wall/wall-logic';
+import { FOLLOW_PLAN, type WallPlanSetting } from '../map/wall-plan-mode';
+import { RUNG_HE } from '../map/quality-ladder';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -166,7 +168,9 @@ export class SystemWall extends LitElement {
     }
     void this.loadPhotoSets();
     this.editing = p;
-    this.draft = { title: p.title, enabled: p.enabled, remote: p.remote_allowed, config: structuredClone(p.config) };
+    const config = structuredClone(p.config);
+    config.plan = { ...FOLLOW_PLAN, ...(config.plan ?? {}) }; // an answer from before the plan block reads as follow
+    this.draft = { title: p.title, enabled: p.enabled, remote: p.remote_allowed, config };
   }
 
   private async loadPhotoSets(): Promise<void> {
@@ -338,6 +342,18 @@ export class SystemWall extends LitElement {
       html`<div class="line"><span>${label}</span><sw-field><select aria-label=${label} data-wall-field=${attr} @change=${(e: Event) => { on((e.target as HTMLSelectElement).value); this.requestUpdate(); }}>${opts.map(([v, l]) => html`<option value=${String(v)} ?selected=${String(v) === String(value)}>${l}</option>`)}</select></sw-field></div>`;
     const tog = (label: string, checked: boolean, on: (v: boolean) => void, attr = '') =>
       html`<div class="line"><span>${label}</span><sw-toggle label=${label} labelHidden .checked=${checked} data-wall-field=${attr} @change=${(e: CustomEvent<{ checked: boolean }>) => { on(e.detail.checked); this.requestUpdate(); }}></sw-toggle></div>`;
+    // CR-029 S5-B: the map band of a portrait wall and how it draws the plan; each dial can follow the browser's pin / the installation
+    const plan: WallPlanSetting = c.plan ?? (c.plan = { ...FOLLOW_PLAN });
+    const FOLLOW_HE = 'כמו בהגדרות המערכת';
+    const mapSection = html`<div class="sec" data-wall-section="map"><h3>מפה</h3>
+        ${tog('להציג מפה (במסך לאורך)', c.show_map, (v) => (c.show_map = v), 'show-map')}
+        ${c.show_map && !p.floor_id ? html`<div class="warn" data-wall-map-nofloor>למסך הזה אין קומה, ולכן המפה לא תוצג</div>` : nothing}
+        ${c.show_map
+          ? html`${sel('תצוגת התוכנית', plan.mode, [['follow', FOLLOW_HE], ['live', 'תלת־ממד חי'], ['stills', 'תמונות מוכנות']], (v) => (plan.mode = v as WallPlanSetting['mode']), 'plan-mode')}
+              ${sel('איכות התלת־ממד', plan.quality, [['follow', FOLLOW_HE], ['auto', RUNG_HE.auto], ['realistic', RUNG_HE.realistic], ['lite', RUNG_HE.lite], ['full', RUNG_HE.full], ['schematic', RUNG_HE.schematic]], (v) => (plan.quality = v as WallPlanSetting['quality']), 'plan-quality')}
+              ${sel('מעבר לתמונה מוכנה בלי מגע ובלי שינוי', plan.idle_s, [['follow', FOLLOW_HE], [0, 'לעולם לא'], [10, '10 שנ׳'], [30, '30 שנ׳'], [120, '2 דקות'], [600, '10 דקות']], (v) => (plan.idle_s = v === 'follow' ? 'follow' : (Number(v) as WallPlanSetting['idle_s'])), 'plan-idle')}`
+          : nothing}
+      </div>`;
     return html`<sw-drawer open modal heading=${p.title} subheading=${p.username} data-wall-drawer @close=${() => { this.editing = null; this.draft = null; }}>
       <div class="sec"><h3>משתמש</h3>
         <sw-field label="כותרת"><input type="text" maxlength="40" aria-label="כותרת" data-wall-field="title" .value=${d.title} @input=${(e: Event) => { d.title = (e.target as HTMLInputElement).value; }} /></sw-field>
@@ -362,6 +378,7 @@ export class SystemWall extends LitElement {
         <div class="line"><span>שורת מצב</span><span class="days">${STRIP_CHIPS.map((s) => html`<label title=${s.label}><input type="checkbox" .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label.slice(0, 2)}</span></label>`)}</span></div>
         <sw-field label="ישויות בשורת המצב (עד 8, מופרדות בפסיק)"><input type="text" dir="ltr" data-wall-field="entities" .value=${c.state_entities.join(', ')} @change=${(e: Event) => { c.state_entities = (e.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); this.requestUpdate(); }} /></sw-field>
       </div>
+      ${mapSection}
       <div class="sec" data-wall-section="alerts"><h3>התראות במסך</h3>
         ${tog('להציג התראות', c.alerts.enabled, (v) => (c.alerts.enabled = v), 'alerts-enabled')}
         <div class="line"><span>קטגוריות</span><span class="days">${ALERT_CATEGORIES.map((k) => html`<label title=${k.label}><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label.slice(0, 2)}</span></label>`)}</span></div>

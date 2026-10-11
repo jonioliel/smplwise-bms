@@ -351,6 +351,8 @@ export class SceneView {
   private heavyOverride: HeavyConfig | null = null;
   private disposed = false;
   private continuous = false;
+  /** CR-029 S5-B: the frame loop is stopped (a hidden tab, the kiosk's idle phase) - see setPaused. */
+  private paused = false;
   private raf = 0;
   private frames = 0;
   private fps = 0;
@@ -1606,11 +1608,33 @@ export class SceneView {
 
   // ---- frames: on demand (a change schedules one frame; damping keeps scheduling until it settles), or continuous
 
-  /** Schedule one frame (several calls before it runs collapse into one). */
+  /** Schedule one frame (several calls before it runs collapse into one). While the loop is paused nothing is scheduled. */
   invalidate = (): void => {
-    if (this.disposed || this.raf) return;
+    if (this.disposed || this.raf || this.paused) return;
     this.raf = requestAnimationFrame(this.frame);
   };
+
+  /**
+   * CR-029 S5-B: stop the frame loop (`true`) or start it again (`false`). Paused, a frame already waiting is cancelled and
+   * every later `invalidate` - a state push, a resize, a texture arriving, the sun's minute tick, continuous mode - only
+   * records that something changed: no frame is drawn, no GPU work is done, until the loop resumes, which draws exactly one
+   * frame that shows everything that changed meanwhile (and continues if the view is continuous or still easing). The canvas
+   * keeps its last picture on screen. An explicit capture or export draws on request, paused or not.
+   */
+  setPaused(on: boolean): void {
+    if (this.disposed || on === this.paused) return;
+    this.paused = on;
+    if (on) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      this.windowStart = 0; // the next burst measures afresh
+      this.windowFrames = 0;
+    } else this.invalidate();
+  }
+
+  get isPaused(): boolean {
+    return this.paused;
+  }
 
   /** Render every frame (the fps measurement of the live spec) or only on change (the default). */
   setContinuous(on: boolean): void {
@@ -1723,7 +1747,7 @@ export class SceneView {
   /** Draw the main frame now instead of at the next animation frame (after a thumbnail pass used the canvas corner:
    * the picture on screen is whole again before the browser paints). A pending frame is folded into this one. */
   redrawNow(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return; // paused: the resume draws the frame
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.frame();

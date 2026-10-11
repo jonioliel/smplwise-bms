@@ -1,5 +1,6 @@
 /** CR-030 wall display API: the display's own reads (`wall/config`, `wall/states`) and the Settings administration (`wall/profiles`). */
 import { api, apiUrl, del, get, patch, post, upload } from './client';
+import type { WallPlanSetting } from '../map/wall-plan-mode';
 
 export type WallLayout = 'auto' | 'tablet-landscape' | 'tablet-portrait' | 'single';
 export type WallStatus = 'connected' | 'not_connected' | 'never' | 'disabled';
@@ -15,6 +16,10 @@ export interface WallConfig {
   strip: string[];
   state_entities: string[];
   show_map: boolean;
+  /** CR-029 S5-B: how the map band draws the plan - live 3D or the baked stills, at which quality, after how long it idles
+   * into the still. "follow" hands a dial to this browser's pin, then the installation (map/wall-plan-mode.ts). Absent in an
+   * answer from before the block existed: read it as follow everywhere. */
+  plan?: WallPlanSetting;
   theme: 'follow' | 'dark' | 'light';
   alerts: { enabled: boolean; categories: string[]; min_severity: string; ack_allowed: boolean; takeover_timeout_s: number; sound: boolean };
   frame: { enabled: boolean; folder: string | null; idle_min: number; interval_s: number; fit: string; clock: boolean; motion: string };

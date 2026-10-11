@@ -13,6 +13,8 @@ import { PILL_CAP } from './scene-frame';
 import { FpsWatch, recoverFps } from './quality-mode';
 import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
+import { KioskIdle, PauseGate, type IdleReason } from './kiosk-idle';
+import { PointerLockGate } from './pointer-lock-gate';
 import { drawMinimap, type MinimapFrame } from './walk-minimap';
 import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
 import type { WalkEvent } from './walk-controller';
@@ -85,6 +87,14 @@ export interface StillsFallbackDetail {
 export interface FloorRequestDetail {
   floorId: string;
 }
+/** CR-029 S5-B: the kiosk idle phase changed (`idle`: the slotted still is shown and the frame loop is stopped). */
+export interface KioskIdleDetail {
+  idle: boolean;
+  reason: IdleReason;
+}
+/** The input that keeps a kiosk awake, read on the window (capture, passive): a touch or a key anywhere on the page counts. */
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const;
+const LOCK_REFUSED_HE = 'נעילת סמן אינה זמינה בדף הזה — המבט נשאר בגרירה';
 /** LOOK_SPEC section 9: the walk's field of view - desktop, touch, portrait. */
 export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
 /** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
@@ -182,6 +192,21 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S3: the shown level has a current still set - after the session fallback to level 1, level 1 is measured once more
    * and a miss fires `stills-fallback` (without stills the ladder ends at level 1, exactly as before). */
   @property({ type: Boolean }) stillsAvailable = false;
+  /** CR-029 S5-B, the kiosk: seconds without input or plan change before the view idles (the slotted `idle-still` replaces it and
+   * the frame loop stops; kiosk-idle.ts); 0 = never (a desk). */
+  @property({ type: Number }) idleS = 0;
+  /** CR-029 S5-B: a signature of what the plan shows of the devices (lit rooms, open doors, presence, camera status); a change
+   * counts as activity and wakes an idle view. The host computes it (plan-change-key.ts). */
+  @property() changeKey = '';
+  /** CR-029 S5-B: a mode the host forces (a wall screen's own setting, CR-030): wins over the viewer's choice, the dials and
+   * the installation default. null = the usual precedence. */
+  @property({ attribute: false }) qualityForce: QualityMode | null = null;
+  /** CR-029 S5-B: the wall display's bare view - no bar, strip, time pill, hints or tooltips, and nothing to operate (the canvas takes
+   * no pointer: a touch on the plan is a touch on the wall). */
+  @property({ type: Boolean, reflect: true }) kiosk = false;
+  /** CR-029 S5-B: the look the host forces (a wall's own theme, CR-030): the realistic level's style and sky follow it instead of the
+   * viewer's dial and the page's scheme. null = as usual. */
+  @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
   /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
    * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
    * contradict the replayed states). null = the site clock / the slider, as on the live map. */
@@ -198,6 +223,15 @@ export class SwPlan3d extends LitElement {
   @state() private crossFloor: { id: string; name: string | null } | null = null;
   /** The person's look dials (eye height, mouse mode, motion; api/plan-view.ts) - the defaults until they load. */
   private viewDials: PlanViewDials = { ...DEFAULT_VIEW };
+  /** CR-029 S5-B: the kiosk is idle (the still shows, the loop is stopped), the machine that decides it, and why the loop is
+   * stopped at all (a hidden tab, the idle phase). Pointer lock: a refusal anywhere moves the walk to drag (pointer-lock-gate.ts). */
+  @state() private idle = false;
+  @state() private hasIdleStill = false;
+  private kioskIdle: KioskIdle | null = null;
+  private readonly pauseGate = new PauseGate();
+  private readonly lockGate = new PointerLockGate(undefined, () => this.onLockRefused());
+  private lockStop: (() => void) | null = null;
+  private readonly onActivity = (): void => this.kioskIdle?.input();
   private walk: WalkSession | null = null;
   private walkNoteTimer = 0;
   private walkShownAt = 0;
@@ -757,6 +791,48 @@ export class SwPlan3d extends LitElement {
         block-size: 35px;
       }
     }
+    /* CR-029 S5-B, the wall display's bare view: the plan and nothing to operate (no bar, level strip, time pill, hints, tooltips) */
+    :host([kiosk]) .bar,
+    :host([kiosk]) .strip,
+    :host([kiosk]) .timepill,
+    :host([kiosk]) .timepop,
+    :host([kiosk]) .note,
+    :host([kiosk]) .pill,
+    :host([kiosk]) .toast,
+    :host([kiosk]) .tip {
+      display: none;
+    }
+    :host([kiosk]) .stage,
+    :host([kiosk]) .overlay {
+      pointer-events: none;
+    }
+    :host([kiosk]) .spinner:not(.err) {
+      display: none;
+    }
+    /* the idle still: the host's baked picture over the stopped view; it takes the wake touch, fades in and out, and is
+       always laid out (hidden, not removed) so its picture is loaded before the view idles */
+    .idle-still {
+      position: absolute;
+      inset: 0;
+      z-index: calc(var(--sw-z-map-ui) + 2);
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--sw-t-state) ease, visibility 0s linear var(--sw-t-state);
+      background: var(--sw-map-bg);
+    }
+    .idle-still[data-on] {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      transition: opacity var(--sw-t-state) ease;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .idle-still,
+      .idle-still[data-on] {
+        transition: none;
+      }
+    }
   `;
 
   protected firstUpdated(): void {
@@ -779,13 +855,19 @@ export class SwPlan3d extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    if (this.pauseGate.set('hidden', document.hidden)) this.toggleAttribute('data-paused', this.pauseGate.paused); // a view mounted in a background tab draws nothing until the tab is shown
     if (this.hasUpdated && !this.view) this.init(); // moved in the DOM: the canvas was disposed on the way out
     document.addEventListener('visibilitychange', this.onVisibility);
+    this.lockStop ??= this.lockGate.attach();
+    if (this.hasUpdated) this.setupIdle();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener('visibilitychange', this.onVisibility);
+    this.lockStop?.();
+    this.lockStop = null;
+    this.disposeIdle();
     window.clearInterval(this.clockTimer);
     this.themeObserver?.disconnect();
     this.themeObserver = undefined;
@@ -813,7 +895,7 @@ export class SwPlan3d extends LitElement {
     // pilot/PLANMODE-sticky-quality) <- auto
     const dial = this.dialsReady && this.viewDials.quality !== 'auto' ? this.viewDials.quality : null;
     const host = asMode(this.qualityDefault);
-    return this.chosen ?? dial ?? host ?? this.installMode ?? 'auto';
+    return this.qualityForce ?? this.chosen ?? dial ?? host ?? this.installMode ?? 'auto';
   }
 
   /** Where `auto` starts: realistic when the person's default view is realistic, else the installation's plan.quality. */
@@ -864,7 +946,7 @@ export class SwPlan3d extends LitElement {
           this.installMode = asMode(s['plan.quality']) ?? 'schematic';
           this.site = resolveSite(p.location, s['time.zone']);
           const d = p.dials;
-          this.viewDials = d;
+          this.viewDials = { ...d, mouse_mode: this.lockGate.effectiveMode(d.mouse_mode) }; // pointer lock only where this page can have it
           this.dialsReady = true;
         })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
@@ -895,6 +977,7 @@ export class SwPlan3d extends LitElement {
       return;
     }
     this.view.setContinuous(this.continuous);
+    this.view.setPaused(this.pauseGate.paused); // a view built while the tab is hidden or the kiosk idles draws nothing yet
     this.view.setRealSettings({ dprCap: this.viewDials.dpr_cap, motion: this.viewDials.motion });
     this.applySun();
     this.startClock();
@@ -935,6 +1018,7 @@ export class SwPlan3d extends LitElement {
 
   protected updated(changed: PropertyValues<this>): void {
     if (changed.has('sunAt')) this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
+    this.syncKiosk(changed);
     if (!this.view) return;
     const reframe = changed.has('frameKey') && changed.get('frameKey') !== undefined;
     if (reframe) this.presetApplied = false;
@@ -989,11 +1073,11 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
   }
 
   private uiTheme(): 'light' | 'dark' {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    return this.themeForce ?? (document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
   }
 
   /** The UI theme changed: the `auto` style follows it (a re-tint, no rebuild). */
@@ -1148,8 +1232,8 @@ export class SwPlan3d extends LitElement {
     this.endProbe(false);
     this.probed = true;
     if (!this.view || this.minFps <= 0) return;
-    if (document.hidden) {
-      this.probePending = true; // a background tab draws no frames: measure when it comes back
+    if (document.hidden || this.pauseGate.paused) {
+      this.probePending = true; // a background tab (or an idle kiosk) draws no frames: measure when it comes back
       return;
     }
     this.probePending = false;
@@ -1227,6 +1311,8 @@ export class SwPlan3d extends LitElement {
   }
 
   private onVisibility = (): void => {
+    this.kioskIdle?.setVisible(!document.hidden);
+    this.setPause('hidden', document.hidden); // a hidden tab draws no frames (CR-029 S5-B); shown again, one frame catches up
     if (document.hidden) {
       if (this.probe) {
         this.endProbe(false);
@@ -1234,6 +1320,80 @@ export class SwPlan3d extends LitElement {
       }
     } else if (this.probePending && (probes(this.rung) || this.measuresLevel1()) && this.view) this.startProbe();
   };
+
+  // ---- the kiosk (CR-029 S5-B): idle -> the slotted still and no frames; hidden tab -> no frames; pointer lock only where allowed
+
+  /** The props that drive the kiosk changed: the idle time, the plan-change signature, the walk (a hold: it draws on purpose). */
+  private syncKiosk(changed: PropertyValues<this>): void {
+    if (changed.has('idleS')) this.setupIdle();
+    if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {
+      this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
+      this.applySun();
+    }
+    if (changed.has('changeKey') && changed.get('changeKey') !== undefined) this.kioskIdle?.change();
+    if ((changed as Map<string, unknown>).has('walkState')) this.kioskIdle?.hold('walk', this.walkState !== 'off');
+  }
+
+  private setupIdle(): void {
+    const s = this.idleS;
+    if (!(s > 0)) {
+      this.disposeIdle();
+      return;
+    }
+    if (this.kioskIdle) {
+      this.kioskIdle.setIdleS(s);
+      return;
+    }
+    this.kioskIdle = new KioskIdle({ idleS: s, onChange: (phase, reason) => this.onIdlePhase(phase === 'idle', reason) });
+    for (const t of ACTIVITY_EVENTS) window.addEventListener(t, this.onActivity, { capture: true, passive: true });
+    if (this.walkState !== 'off') this.kioskIdle.hold('walk', true);
+  }
+
+  private disposeIdle(): void {
+    if (!this.kioskIdle) return;
+    this.kioskIdle.dispose();
+    this.kioskIdle = null;
+    for (const t of ACTIVITY_EVENTS) window.removeEventListener(t, this.onActivity, { capture: true });
+    if (this.idle) this.onIdlePhase(false, 'config');
+  }
+
+  /** Idle: the still takes the screen and the frame loop stops. Awake: the loop resumes with one frame and the still fades out. */
+  private onIdlePhase(idle: boolean, reason: IdleReason): void {
+    this.idle = idle;
+    this.toggleAttribute('data-idle', idle);
+    this.setPause('idle', idle);
+    this.dispatchEvent(new CustomEvent<KioskIdleDetail>('kiosk-idle', { detail: { idle, reason }, bubbles: true, composed: true }));
+  }
+
+  private setPause(reason: 'hidden' | 'idle', on: boolean): void {
+    if (this.pauseGate.set(reason, on)) this.applyPause();
+  }
+
+  /** The loop follows the gate. Paused mid-probe: nothing was measured, so the probe runs again on resume. */
+  private applyPause(): void {
+    const paused = this.pauseGate.paused;
+    if (paused && this.probe) {
+      this.endProbe(false);
+      this.probePending = true;
+    }
+    this.view?.setPaused(paused);
+    this.toggleAttribute('data-paused', paused);
+    if (!paused) {
+      this.requestUpdate(); // the strip may owe thumbnails that were skipped while paused
+      if (this.probePending && this.view && (probes(this.rung) || this.measuresLevel1())) this.startProbe();
+    }
+  }
+
+  private onIdleSlot = (e: Event): void => {
+    this.hasIdleStill = (e.target as HTMLSlotElement).assignedElements().length > 0;
+  };
+
+  /** A request for pointer lock was refused here (the embedding frame, the browser): the walk goes on with drag, and says so once. */
+  private onLockRefused(): void {
+    this.viewDials = { ...this.viewDials, mouse_mode: 'drag' };
+    this.walk?.setMouseMode('drag');
+    if (this.walkState === 'on') this.walkMessage(LOCK_REFUSED_HE, 'info');
+  }
 
   /** CR-029 S3: schematic is measured once more only after the `auto` fallback reached it and only when a still set could
    * take over (a miss fires `stills-fallback`; without stills the ladder ends at schematic, exactly as before). */
@@ -1550,7 +1710,7 @@ export class SwPlan3d extends LitElement {
   /** One animation frame: draw every listed level without a picture, then redraw the main frame at once (the pass used
    * the canvas corner) and re-render the strip. A failed thumbnail is not cached: the next pass tries again. */
   private scheduleThumbs(): void {
-    if (this.thumbPass) return;
+    if (this.thumbPass || this.pauseGate.paused) return; // paused: the resume re-renders the strip, which asks again
     this.thumbPass = requestAnimationFrame(() => {
       this.thumbPass = 0;
       const src = this.thumbnailScene;
@@ -1713,6 +1873,7 @@ export class SwPlan3d extends LitElement {
       ${q === 3 ? html`<div class="vignette" aria-hidden="true"></div>` : nothing}
       ${this.toast ? html`<div class="toast" role="status" data-3d-toast>${this.toast}</div>` : nothing}
       ${this.hover ? html`<div class="tip" data-3d-tip data-3d-tip-kind=${this.hover.kind} style=${`left:${this.hover.x}px;top:${this.hover.y}px`}>${this.hover.label}</div>` : nothing}
+      <div class="idle-still" data-idle-still ?data-on=${this.idle && this.hasIdleStill} aria-hidden=${this.idle && this.hasIdleStill ? 'false' : 'true'}><slot name="idle-still" @slotchange=${this.onIdleSlot}></slot></div>
     `;
   }
 

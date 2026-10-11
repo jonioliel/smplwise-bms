@@ -67,6 +67,7 @@ export class SwWall extends LitElement {
   private epoch = new Map<string, number>();
   private tries = new Map<string, number>();
   private nextTry = new Map<string, number>();
+  private planLoaded = false;
   private readonly env = readDeviceEnv();
   private readonly onResize = () => {
     this.vw = window.innerWidth;
@@ -310,8 +311,8 @@ export class SwWall extends LitElement {
     .tile[data-health='lost'] sw-camera-tile {
       visibility: hidden;
     }
-    /* the Studio 6 slot: the map pane of a portrait wall (cfg.show_map). Reserved here as an empty surface with the tile material;
-       the plan, the idle-to-stills switch and the live / stills override are drawn by the Studio 6 branches, not by this file. */
+    /* the map pane of a portrait wall (cfg.show_map): the tile material under the plan that sw-wall-plan draws (CR-029 S5-B); an
+       empty surface until the floor loads, and for a profile with no floor */
     .pane {
       position: relative;
       min-block-size: 0;
@@ -1204,12 +1205,19 @@ export class SwWall extends LitElement {
   }
 
   /**
-   * The map pane of a portrait wall (`cfg.show_map`, wall-logic.ts `Layout.map`): the slot the Studio 6 branches fill with the
-   * floor plan, the idle-to-stills switch and the live / stills override. Until then it is an empty surface in the tile material
-   * (no copy, no placeholder art: a wall never explains itself).
+   * The map pane of a portrait wall (`cfg.show_map`, wall-logic.ts `Layout.map`): the floor's plan of the wall's profile
+   * (CR-029 S5-B, `sw-wall-plan`: live 3D or the baked stills by the screen's own `plan` setting, the idle swap to the still, the
+   * wall's theme). A profile with no floor, or a floor still loading, leaves the empty surface in the tile material (no copy, no
+   * placeholder art: a wall never explains itself). The element is fetched on demand - a wall without a map never loads it.
    */
   private renderMapPane() {
-    return html`<div class="pane" data-wall-map-slot aria-hidden="true"></div>`;
+    const d = this.data;
+    if (!d?.floor_id) return html`<div class="pane" data-wall-map-slot aria-hidden="true"></div>`;
+    if (!this.planLoaded) {
+      this.planLoaded = true;
+      void import('./sw-wall-plan');
+    }
+    return html`<div class="pane" data-wall-map-slot role="img" aria-label="תוכנית הקומה"><sw-wall-plan .floorId=${d.floor_id} .plan=${d.config.plan} .theme=${d.config.theme}></sw-wall-plan></div>`;
   }
 
   private healthChip() {
