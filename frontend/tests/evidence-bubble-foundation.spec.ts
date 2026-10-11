@@ -59,6 +59,7 @@ test.describe('bubble foundation', () => {
 
   test('evidence shots: the demo page and the settings section, light and dark', async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'the tablet width is shot from the desktop project');
+    test.setTimeout(240_000); // up to 2 widths x 2 schemes x 5 page loads on the Vite dev server, each with its settle waits and a shot
     const widths = info.project.name === 'mobile' ? [390] : [1440, 820];
     for (const w of widths) {
       await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
@@ -149,12 +150,15 @@ test.describe('bubble foundation', () => {
     await demo(page).locator('[data-open-area]').click();
     const sheet = demo(page).locator('sw-sheet[data-sheet-area]');
     await expect(sheet).toHaveAttribute('data-layout', 'bottom');
-    await page.waitForTimeout(700);
+    // the sheet sits at the bottom edge, inside the viewport: wait for the slide-in to end (a fixed 700 ms was overtaken by the
+    // animation on a loaded machine and the boxes below were measured mid-slide)
+    const panel = sheet.locator('[data-sheet]');
+    await expect.poll(async () => { const b = await panel.boundingBox(); return b ? Math.round(b.y + b.height) : -1; }, { timeout: 15_000 }).toBe(844);
+    await expect.poll(async () => { const a = await panel.boundingBox(); await page.waitForTimeout(120); const b = await panel.boundingBox(); return !!a && !!b && a.y === b.y; }).toBe(true);
     const grab = sheet.locator('[data-sheet-grab]');
     const gb = await grab.boundingBox();
     expect(gb!.height).toBeGreaterThanOrEqual(44);
-    // the sheet sits at the bottom edge, inside the viewport
-    const sb = await sheet.locator('[data-sheet]').boundingBox();
+    const sb = await panel.boundingBox();
     expect(Math.round(sb!.y + sb!.height)).toBe(844);
     // swipe down from the grabber past 35 % of the sheet's height closes it (a fast flick closes earlier; speed is not assumed here)
     const x = gb!.x + gb!.width / 2;

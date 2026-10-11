@@ -153,6 +153,9 @@ test('keys: J/K and arrows move, space selects, R reviews, Ctrl+A selects all, E
   await expect(cards(page).nth(0).locator('[data-review-select]')).toBeChecked();
   await page.keyboard.press('r'); // the selection is the target
   await expect.poll(() => marks(m)[0]).toEqual({ ids: ['rv-1'], reviewed: true });
+  // the screen drops the selection when the server's answer to the mark arrives (mark() in investigate-reviews.ts); the mock having
+  // seen the request is not that moment. Select-all pressed before it would be wiped by the late answer and the bar would vanish.
+  await expect(page.locator(`${SCREEN} [data-review-bulk]`)).toHaveCount(0);
   await page.keyboard.press('Control+a');
   await expect(page.locator(`${SCREEN} [data-review-bulk]`)).toContainText('4 נבחרו');
   await page.keyboard.press('Escape');

@@ -419,8 +419,13 @@ def test_queue_edits_are_rate_limited_per_device(d, monkeypatch):
     monkeypatch.setattr(media_queue, "EDIT_DEVICE", (2.0, 4.0))
     connect(c)
     items = _rows(c, keys)
+    # the device bucket (burst 4, 2 tokens a second) refills on media_commands.MONO; six edits on a slow machine can take longer than
+    # the half second that earns the missing tokens back, and then no 429 appears. Freeze the clock the buckets read.
+    monkeypatch.setattr(media_commands, "MONO", lambda: 5000.0)
+    media_commands.BUCKETS.clear()
     codes = [c.post(f"{API}/devices/{keys['a']}/queue", json=body(op="move", item=items["שיר 6"], to=5)).status_code for _ in range(6)]
     assert 429 in codes
+    assert codes[:4] == [codes[0]] * 4 and 429 not in codes[:4] and codes[4:] == [429, 429], codes
 
 
 def test_an_expired_or_malformed_edit_is_refused_before_anything_is_sent(d):
