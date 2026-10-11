@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { hourLabel, kelvinRgb, lightRecipe, poolLamps, siteInstant, siteLocal, sunDir, sunPosition, timeBand } from '../src/map/sun';
+import { DEFAULT_SITE, DEFAULT_ZONE, hourLabel, kelvinRgb, lightRecipe, poolLamps, resolveSite, siteInstant, siteLocal, sunDir, sunPosition, timeBand } from '../src/map/sun';
 
 // CR-029 S2 (section 8): the solar position against reference values, the light recipe's monotonic factors, the site
 // clock through the IANA zone, the lamp pool's deterministic assignment. Node only.
@@ -115,6 +115,27 @@ test('the lamp pool: the nearest lit lamps by distance bucket, then by id; unlit
   // a small camera move inside the bucket keeps the same pool
   expect(poolLamps(lamps, [0.5, 2, 0], 8).map((l) => l.id)).toEqual(a.map((l) => l.id));
   expect(poolLamps([...lamps].reverse(), [0, 2, 0], 8).map((l) => l.id)).toEqual(a.map((l) => l.id));
+});
+
+test('the site location (owner 2026-10-11): the server-resolved home / override wins, anything else is the fallback with a note', () => {
+  const home = { latitude: 31.78, longitude: 35.23, elevation_m: 754, time_zone: 'Asia/Jerusalem', source: 'ha', mode: 'home', home: null };
+  expect(resolveSite(home)).toEqual({ latitude: 31.78, longitude: 35.23, zone: 'Asia/Jerusalem', source: 'ha', known: true });
+  const manual = { ...home, latitude: -33.87, longitude: 151.21, time_zone: 'Australia/Sydney', source: 'manual', mode: 'manual' };
+  expect(resolveSite(manual)).toEqual({ latitude: -33.87, longitude: 151.21, zone: 'Australia/Sydney', source: 'manual', known: true });
+  // the server's own fallback, an older server without `location`, the demo, garbage: the fallback, flagged unknown
+  const fallback = { latitude: DEFAULT_SITE.latitude, longitude: DEFAULT_SITE.longitude, zone: DEFAULT_ZONE, source: 'default', known: false };
+  for (const bad of [undefined, null, 'x', 7, {}, { ...home, source: 'default' }, { ...home, source: 'gps' }, { ...home, latitude: 91 }, { ...home, longitude: -180.5 },
+    { ...home, latitude: '31.78' }, { ...home, latitude: Number.NaN }, { ...home, longitude: Number.POSITIVE_INFINITY }]) {
+    expect(resolveSite(bad), JSON.stringify(bad)).toEqual(fallback);
+  }
+  // the zone: the location's, else the site clock passed in, else the default; an unknown zone is never used
+  expect(resolveSite({ ...home, time_zone: 'Mars/Olympus' }, 'Europe/Berlin').zone).toBe('Europe/Berlin');
+  expect(resolveSite({ ...home, time_zone: null }, 'Not/AZone').zone).toBe(DEFAULT_ZONE);
+  expect(resolveSite(null, 'America/Denver')).toEqual({ ...fallback, zone: 'America/Denver' });
+  // the resolved location is what moves the sun: the same instant, a southern site, the sun in the north
+  const t = Date.parse('2026-01-15T02:00:00Z');
+  const sydney = resolveSite(manual);
+  expect(Math.abs(sunPosition(t, sydney.latitude, sydney.longitude).azimuth - 180)).toBeGreaterThan(60);
 });
 
 test('colour temperature: warm 2700 K is red-heavy, 6500 K is near white', () => {

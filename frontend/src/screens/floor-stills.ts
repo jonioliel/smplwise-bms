@@ -37,11 +37,12 @@ export function stillsStyle(style: PlanViewDials['style']): StillStyle {
   return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). */
-export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer | null, dials: PlanViewDials, now: Date = new Date()) {
+/** The still view of a floor level with the live room states (lit rooms through their masks, open doors, presence). The
+ * time band follows the sun at the site (map/sun.ts resolveSite; the fallback location when not given). */
+export function renderStills(b: MapBundle, level: string, layer: RoomStateLayer | null, dials: PlanViewDials, now: Date = new Date(), site?: { latitude: number; longitude: number }) {
   const rooms: Record<string, { lit: boolean; presence: boolean }> = {};
   for (const [id, r] of Object.entries(layer?.rooms ?? {})) rooms[id] = { lit: r.lit === true, presence: r.presence === true || r.presenceFade > 0 };
-  return html`<sw-plan-stills data-floor-stills .bakes=${b.bakes ?? null} .level=${level} .styleId=${stillsStyle(dials.style)} .band=${bandAt(now)}
+  return html`<sw-plan-stills data-floor-stills .bakes=${b.bakes ?? null} .level=${level} .styleId=${stillsStyle(dials.style)} .band=${site ? bandAt(now, site.latitude, site.longitude) : bandAt(now)}
     .rooms=${rooms} .openOpenings=${layer?.openOpenings ?? []}></sw-plan-stills>`;
 }
 

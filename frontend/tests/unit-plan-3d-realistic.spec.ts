@@ -27,6 +27,8 @@ interface Probe {
   minFps: number;
   setTimeHour: (h: number) => void;
   timeNow: () => void;
+  site: { latitude: number; longitude: number; zone: string; source: string; known: boolean };
+  setSite: (location: unknown) => void;
   capture: () => string | null;
 }
 
@@ -127,6 +129,31 @@ test('the level-3 graph is deterministic after a full rebuild from an equal desc
   expect(b.length).toBe(a.length);
   expect(b).toEqual(a);
   expect(await el.evaluate((n) => (n as unknown as Probe).capture())).toBe(pixels);
+});
+
+test('the sun stands at the resolved site (owner 2026-10-11): the fallback says so, the home location or an override moves the sun', async ({ page }) => {
+  test.setTimeout(300_000);
+  const el = await openDemo(page);
+  await realistic(el, page, 'lite');
+  // the demo has no server: the fallback location, and the time pill says so
+  expect(await el.evaluate((n) => (n as unknown as Probe).site)).toEqual({ latitude: 32, longitude: 34.8, zone: 'Asia/Jerusalem', source: 'default', known: false });
+  await el.locator('[data-3d-time-toggle]').click();
+  await expect(el.locator('[data-3d-site-default]')).toBeVisible();
+  const at = (loc: unknown) => el.evaluate((n, l) => { const e = n as unknown as Probe; e.setSite(l); e.setTimeHour(13); return { sun: e.view.sunState()!, site: e.site }; }, loc);
+  // the home's location (source ha): a northern site, the 13:00 sun in the south; no "not known" note
+  const home = await at({ latitude: 31.78, longitude: 35.23, elevation_m: 754, time_zone: 'Asia/Jerusalem', source: 'ha', mode: 'home', home: null });
+  expect(home.site.source).toBe('ha');
+  expect(home.sun.azimuth > 90 && home.sun.azimuth < 270, `azimuth ${home.sun.azimuth}`).toBe(true);
+  await expect(el.locator('[data-3d-site-default]')).toHaveCount(0);
+  // an override far south, in its own zone: 13:00 there puts the sun in the north
+  const south = await at({ latitude: -33.87, longitude: 151.21, elevation_m: null, time_zone: 'Australia/Sydney', source: 'manual', mode: 'manual', home: null });
+  expect(south.site).toMatchObject({ source: 'manual', zone: 'Australia/Sydney' });
+  expect(south.sun.azimuth < 90 || south.sun.azimuth > 270, `azimuth ${south.sun.azimuth}`).toBe(true);
+  await expect(el.locator('[data-3d-time-label]')).toHaveText('13:00');
+  // unreadable: the fallback again, with its note
+  const back = await at({ latitude: 'x', source: 'ha' });
+  expect(back.site.source).toBe('default');
+  await expect(el.locator('[data-3d-site-default]')).toBeVisible();
 });
 
 test('the time of day moves the sun deterministically; the style re-tints without a rebuild; a chosen rung is never lowered', async ({ page }) => {

@@ -82,6 +82,12 @@ export interface ProductSettings {
   'plan.view'?: Partial<Omit<import('./plan-view').PlanViewDials, 'default_view'>>;
   /** CR-029 S3: what "prepare stills and lighting" bakes and the storage caps (services/plan_bakes.py); a PATCH sends a partial object. */
   'plan.bakes'?: Partial<import('../map/still-bake').BakeSetting>;
+  /** CR-029 S2 (owner 2026-10-11): where the sun stands - 'home' (default; the home's own location) or 'manual' (the two
+   * values below, an explicit override). The 3D view reads the resolved location from /plan-view/prefs, never these. */
+  'site.location_source'?: 'home' | 'manual';
+  /** The manual override in degrees: a number (or null when not set) read back, a string ('' clears) sent. */
+  'site.latitude'?: number | string | null;
+  'site.longitude'?: number | string | null;
   'time.zone'?: string;
   'playback.max_sessions'?: number;
   'playback.lease_s'?: number;
