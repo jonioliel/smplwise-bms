@@ -5,13 +5,13 @@ import { inPageCheck, summarize, type Finding } from './layout-guard';
 // the 2.4.6 release restyled, in demo mode (every /api/v1 call is aborted: the demo data answers), classic skin, light and dark, at the
 // phone (390), the reference tablet (1024) and the desktop (1440) widths. The visual matrix compares pixels against a baseline and only
 // warns; this spec states the rules a restyle must keep whatever the pixels: nothing escapes or is clipped inside its container, nothing
-// scrolls the page sideways, and every control is a 44 px target on a touch layout. It would have caught the 30 x 28 px cards / list switch
-// of the alarm screen that the 2.4.5 zone redesign introduced.
-// The shell's own corner (.float, the search / status button) and the pre-existing widgets named in KNOWN keep their own contracts and are
-// listed with the reason; a new entry there needs the same: what it is and why the guard may not measure it.
+// scrolls the page sideways, nothing floats over a control, and every control is a 44 px target on a phone (the classic skins keep their
+// dense desktop and tablet controls; tests/layout-media-admin-list.spec.ts states the same rule). It would have caught the 30 x 28 px
+// cards / list switch of the alarm screen that the 2.4.5 zone redesign introduced.
+// KNOWN lists what the guard does not hold against a screen yet, each with its reason; a new entry needs the same.
 // Run (the dev or preview server of the branch, no backend):
 //   SW_BASE_URL=http://127.0.0.1:5173/ npx playwright test tests/layout-visdiff-246.spec.ts --project=desktop --workers=1
-//   VISDIFF_REPORT=1 prints every finding without failing (discovery mode).
+//   VISDIFF_REPORT=1 prints every finding (one `FIND|class|element|detail|count|first context` line each) without failing.
 const REPORT_ONLY = !!process.env.VISDIFF_REPORT;
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [390, 1440] : [390, 1024, 1440];
@@ -41,8 +41,14 @@ const SCREENS: Screen[] = [
 ];
 
 // decorative layers and the shell's own items the guard must not measure
-const SKIP = '.vh, .gbox, .bg, .veil, .skl, .wx-ic, .fc, .sr-only';
+// .edit-slot = the layout editor's overlay of the multimedia page (mounted only for the person who edits the layout, inert otherwise)
+const SKIP = '.vh, .gbox, .bg, .veil, .skl, .wx-ic, .fc, .sr-only, .edit-slot';
 const BUBBLE = '.hero, .zcard, .zrow, .kcard';
+
+type Row = Finding & { w: number; screen: string };
+/** Findings the guard does not hold against a screen yet (pre-existing, outside this review); a row names the element and the reason. */
+const KNOWN: { screen?: string; el: RegExp; why: string }[] = [];
+const isKnown = (r: Row) => KNOWN.some((k) => (!k.screen || k.screen === r.screen) && k.el.test(r.el));
 
 async function open(page: Page, hash: string, theme: string) {
   await page.goto('about:blank');
@@ -82,7 +88,7 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    const results: Finding[] = [];
+    const results: Row[] = [];
     let runs = 0;
     for (const theme of THEMES) {
       for (const w of WIDTHS) {
@@ -91,17 +97,30 @@ test.describe('layout guard: the screens of the visual matrix and the restyled s
           await open(page, s.hash, theme);
           await settle(page);
           runs++;
-          results.push(...(await page.evaluate(inPageCheck, { ctx: `${s.id} ${theme} ${w}`, bubble: BUBBLE, skip: SKIP })));
-          await scrollMain(page, 'bottom');
-          results.push(...(await page.evaluate(inPageCheck, { ctx: `${s.id} ${theme} ${w} bottom`, bubble: BUBBLE, skip: SKIP })));
+          for (const part of ['', ' bottom']) {
+            if (part) await scrollMain(page, 'bottom');
+            const found = await page.evaluate(inPageCheck, { ctx: `${s.id} ${theme} ${w}${part}`, bubble: BUBBLE, skip: SKIP });
+            results.push(...found.map((f) => ({ ...f, w, screen: s.id })));
+          }
         }
       }
     }
-    const { byCls, lines } = summarize(results, 200);
-    console.log(`layout-visdiff-246: ${runs} checks, findings ${results.length} (${JSON.stringify(byCls)}), page errors ${errors.length}`);
-    for (const l of lines) console.log('  ' + l);
+    // the rules: the geometry classes at every width, 44 px targets at the phone width only
+    const enforced = results.filter((r) => (r.cls !== 'target' || r.w <= 480) && !isKnown(r));
+    const sum = summarize(enforced, 200);
+    console.log(`layout-visdiff-246: ${runs} checks, findings ${results.length} (${JSON.stringify(summarize(results).byCls)}), enforced ${enforced.length} (${JSON.stringify(sum.byCls)}), page errors ${errors.length}`);
+    // every distinct finding, one machine-readable line each
+    const uniq = new Map<string, { f: Row; n: number }>();
+    for (const f of results) {
+      const k = `${f.cls}|${f.el}|${f.detail}`;
+      const u = uniq.get(k);
+      if (u) u.n++;
+      else uniq.set(k, { f, n: 1 });
+    }
+    const order = { escape: 0, overflow: 1, clipped: 2, floating: 3, target: 4 } as const;
+    for (const { f, n } of [...uniq.values()].sort((a, b) => order[a.f.cls] - order[b.f.cls] || b.n - a.n)) console.log(`FIND|${f.cls}|${f.el}|${f.detail}|${n}|${f.ctx}`);
     if (REPORT_ONLY) return;
     expect(errors, 'page errors').toEqual([]);
-    expect(lines, 'layout findings').toEqual([]);
+    expect(sum.lines, 'layout findings').toEqual([]);
   });
 });
