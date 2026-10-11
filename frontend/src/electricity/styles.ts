@@ -147,12 +147,20 @@ export const elecCss = css`
     color: var(--sw-text-2);
     font-size: var(--sw-fs-sm);
   }
+  /* the number and its unit have no break opportunity between them (digits glued to letters), so with the skins' larger value type
+     (tesla 30px) a narrow tile would push the unit out; flex-wrap lets the unit drop to its own line, and a too-long number may break */
   .tile .v {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
     font-size: var(--sw-fs-3xl);
     font-weight: var(--sw-fw-bold);
     color: var(--sw-heading);
   }
   .tile .u {
+    min-inline-size: 0;
     font-size: var(--sw-fs-sm);
     color: var(--sw-text-3);
     font-weight: var(--sw-fw-medium);
