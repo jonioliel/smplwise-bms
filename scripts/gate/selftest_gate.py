@@ -247,8 +247,9 @@ check("lpt: every item in exactly one bin; the two heaviest never share", sorted
       and not any("t1" in b and "t2" in b for b in bins), bins)
 sizes = {"tests/test_a.py": 1000, "tests/test_b.py": 1000, "tests/test_new.py": 4000, "tests/test_c.py": 500}
 plan = g.backend_shard_plan(sizes, {"tests/test_a.py": 100.0, "tests/test_b.py": 300.0, "tests/test_c.py": 50.0}, 2)
-check("backend shards: every file once; an untimed file is weighed by its size x the median s/byte (4000 x 0.1 = 400 s, alone in a shard)",
-      sorted(x for s in plan for x in s) == sorted(sizes) and any(s == ["tests/test_new.py"] for s in plan), plan)
+check("backend shards: every file once; an untimed file is weighed by its size x the median s/byte (4000 x 0.1 = 400 s: shards 400+50 / 300+100, "
+      "not 'new' alone as by size)", sorted(x for s in plan for x in s) == sorted(sizes)
+      and plan == [["tests/test_new.py", "tests/test_c.py"], ["tests/test_b.py", "tests/test_a.py"]], plan)
 
 # items, splitting, packing
 table = {"heavy.spec.ts": {"projects": ["desktop"]}, "multi.spec.ts": {"projects": ["desktop", "tablet", "mobile"]},
