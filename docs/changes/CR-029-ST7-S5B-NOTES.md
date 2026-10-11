@@ -68,7 +68,7 @@ What draws what on a wall tablet that runs 24/7, by state:
 
 | State | WebGL frames | Other work |
 |---|---|---|
-| Live, nothing changing | 0 (render on demand since T087) | the sun / sky tick once a minute at level 3 (one frame, only when the sun moved visibly), the 1 s wall clock (DOM) |
+| Live, nothing changing | 0 at the schematic and full rungs (render on demand since T087); 1 per minute at the realistic rungs (the sun tick re-lights the scene; the sky is re-prefiltered only when the sun moved about a degree) | the 1 s wall clock (DOM) |
 | Live, something changes | one frame per change; a door leaf or a presence fade animates for 350 ms - a few seconds | - |
 | Walking / the quality probe | continuous (the probe only for its first 2.5 s after a mount or a rung change) | - |
 | **Idle with a still** | **0** (the loop is stopped) | the still is an SVG with no animation frame; one timer per minute re-reads the time band; the 30 s refresh of the floor's circuit switches (network) |
