@@ -128,10 +128,11 @@ export class SystemNav extends LitElement {
       font-weight: var(--sw-fw-semibold);
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: var(--sw-text-3);
+      /* VISDIFF-246: a 10 px label takes the secondary text colour (the tertiary one is 2.8:1 on the light page) */
+      color: var(--sw-text-2);
     }
     .grp > b sw-icon {
-      color: var(--sw-text-3);
+      color: var(--sw-text-2);
     }
     a {
       display: flex;
