@@ -106,6 +106,7 @@ import { setBrandColors } from '../design/brand';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
 import { loadLook, setInstallationLook } from '../design/look';
+import { loadBackgroundPref, setInstallationBackground } from '../design/background';
 import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
 import { DEMO_DEVICES_TREE } from '../screens/devices-building';
@@ -1440,6 +1441,7 @@ export class SwApp extends LitElement {
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
         void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
         void loadLook(who, s.mode === 'api' || s.mode === 'no_access'); // Bubble foundation: this user's look dials
+        void loadBackgroundPref(who, s.mode === 'api' || s.mode === 'no_access'); // CRY: this user's own background choice
         void loadTabsMode(who, s.mode === 'api' || s.mode === 'no_access');
       }
       if (s.mode !== 'loading') {
@@ -1458,6 +1460,7 @@ export class SwApp extends LitElement {
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationDesign(ps['ui.skin'], ps['ui.scheme']); // the installation's skin and light / dark choice (design foundation)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
+          setInstallationBackground(ps['ui.background'], ps['ui.background_images']); // CRY: the background artwork and the uploaded pictures' stamps
           setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
           setInstallationTabsMode(ps as unknown as Record<string, unknown>); // ui.tabs_mode(+_groups): tabs / hybrid / dropdown (0.1.153)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
