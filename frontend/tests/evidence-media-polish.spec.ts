@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installElectricityMock, url as elecUrl } from './electricity-mocks';
-import { EL, HARNESS } from './electricity-ui';
 
 // MEDIA-polish (2026-10-10): the before / after evidence of the design pass on the three feature areas - multimedia (screens, players,
 // groups, the player panel with its queue), the notification centre (sheet, detail, states, the settings screen) and electricity (meters,
@@ -160,42 +159,6 @@ test.describe('media-polish evidence', () => {
     await page.waitForSelector(`${P} [data-state="error"]`, { timeout: 20_000 });
     await shot(page, `elec-meters-error-classic-light-${view(info)}`);
   });
-
-  test('electricity: accounts, history, bills, a bill, the wizard, prices', async ({ page }, info) => {
-    const go = async (route: string, skin: Skin, scheme: Scheme, screen: string, state = 'ready') => {
-      await page.addInitScript(() => {
-        try {
-          localStorage.setItem('sw.demo.electricity', JSON.stringify({}));
-        } catch {
-          /* storage unavailable */
-        }
-      });
-      await page.goto('about:blank');
-      await page.goto(`${HARNESS}?skin=${skin}&scheme=${scheme}#${route}`);
-      await page.waitForSelector('[data-harness]');
-      await expect(page.locator(`[data-elec="${screen}"]`).first()).toHaveAttribute('data-state', state, { timeout: 20_000 });
-    };
-    for (const [skin, scheme] of MATRIX) {
-      if (phone(info) && skin !== 'classic') continue;
-      const tag = `${skin}-${scheme}-${view(info)}`;
-      await go(`${EL}/accounts`, skin, scheme, 'accounts');
-      await shot(page, `elec-accounts-${tag}`);
-      await go(`${EL}/accounts/a1/history`, skin, scheme, 'account');
-      await shot(page, `elec-account-history-${tag}`);
-      await noOverflow(page, 'account history');
-      await go(`${EL}/bills`, skin, scheme, 'bills');
-      await shot(page, `elec-bills-${tag}`);
-      await noOverflow(page, 'bills');
-      if (skin === 'classic') {
-        await go(`${EL}/accounts/a1`, skin, scheme, 'account');
-        await shot(page, `elec-account-status-${tag}`);
-        await go(`${EL}/bills/b104`, skin, scheme, 'bill');
-        await shot(page, `elec-bill-${tag}`);
-        await go(`${EL}/accounts/new`, skin, scheme, 'wizard');
-        await shot(page, `elec-wizard-1-${tag}`);
-        await go('/system/infra/prices', skin, scheme, 'settings-prices');
-        await shot(page, `elec-settings-prices-${tag}`);
-      }
-    }
-  });
+  // 2.4.6: the harness-driven electricity test (accounts, history, bills, a bill, the wizard, prices) lives in
+  // evidence-media-polish-electricity.spec.ts, which needs the Vite dev server (the gate runs it in its dev phase)
 });
