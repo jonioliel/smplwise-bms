@@ -5,6 +5,9 @@ state_changed events. Asserts correctness (counts, tombstones, freshness, area m
 prints the measured durations / memory (run with `-s`; numbers also land in SW_M024_EVIDENCE if that path is set).
 
 Bounds are generous (a busy shared runner) and scale with SW_TEST_TIME_FACTOR; the measured numbers are the evidence.
+The bounds are on the CPU time the process spent (time.process_time): the work is CPU-bound (SQLite writes in-process), and
+the wall clock of a shared runner is not the code's - a stalled disk or a descheduled process once made the first connect take 39 s
+of wall time (1 s of CPU, 1 s when idle) and failed the run. Wall time keeps a loose hang detector (HANG x the CPU bound).
 """
 from __future__ import annotations
 
@@ -32,6 +35,23 @@ DOMAINS = ["light", "switch", "sensor", "binary_sensor", "cover", "climate", "lo
 FLOOR_COUNT, AREA_COUNT = 4, 20
 STAMP = "2026-10-05T08:00:00+00:00"
 EVIDENCE: dict[str, Any] = {}
+HANG = 5.0  # wall-clock multiple of a CPU bound: only a real hang / starvation of minutes fails on wall time
+
+
+class Lap:
+    """Wall and CPU time of one measured step."""
+
+    def __init__(self) -> None:
+        self.w0, self.c0 = time.perf_counter(), time.process_time()
+
+    def stop(self) -> tuple[float, float]:
+        return time.perf_counter() - self.w0, time.process_time() - self.c0
+
+
+def within(lap: tuple[float, float], bound_s: float, what: str) -> None:
+    wall, cpu = lap
+    assert cpu < bound_s, f"{what}: {cpu:.1f} s of CPU (bound {bound_s:.0f} s; wall {wall:.1f} s)"
+    assert wall < bound_s * HANG, f"{what}: {wall:.1f} s of wall time (hang bound {bound_s * HANG:.0f} s; CPU {cpu:.1f} s)"
 
 
 def _state(eid: str, state: str, n: int) -> dict[str, Any]:
@@ -85,12 +105,12 @@ def tree_counts(c: TestClient) -> dict[str, int]:
     return {a["area_id"]: a["counts"]["entities"] for f in t["floors"] for a in f["areas"]}
 
 
-def listing(c: TestClient) -> tuple[list[dict[str, Any]], float]:
-    t0 = time.perf_counter()
+def listing(c: TestClient) -> tuple[list[dict[str, Any]], tuple[float, float]]:
+    lap = Lap()
     r = c.get("/api/v1/ha/entities?limit=2000")
-    dt = time.perf_counter() - t0
+    took = lap.stop()
     assert r.status_code == 200
-    return r.json()["entities"], dt
+    return r.json()["entities"], took
 
 
 def rss_mb() -> float:
@@ -108,26 +128,29 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
     async def noop(on_event, on_message, settle):
         await settle(1)
 
-    t0 = time.perf_counter()
+    lap = Lap()
     run_session(app, s, fake, noop, monkeypatch)
-    EVIDENCE["connect_1000_s"] = round(time.perf_counter() - t0, 3)
-    assert EVIDENCE["connect_1000_s"] < 30 * f
+    took = lap.stop()
+    EVIDENCE["connect_1000_s"] = round(took[0], 3)
+    within(took, 30 * f, "first connect")
     assert ha_sync.STATE.connected is True and ha_sync.STATE.entities == N
     assert fake.subscribed.count("state_changed") == 1
-    ents, dt = listing(c)
-    EVIDENCE["list_1000_s"] = round(dt, 3)
+    ents, list_took = listing(c)
+    EVIDENCE["list_1000_s"] = round(list_took[0], 3)
     assert len(ents) == N and all(e["fresh"] for e in ents) and all(e["area_id"] for e in ents)
-    t0 = time.perf_counter()
+    lap = Lap()
     counts = tree_counts(c)
-    EVIDENCE["tree_s"] = round(time.perf_counter() - t0, 3)
+    tree_took = lap.stop()
+    EVIDENCE["tree_s"] = round(tree_took[0], 3)
     assert counts == expected_area_counts(fake) and sum(counts.values()) == N
-    assert EVIDENCE["list_1000_s"] < 10 * f and EVIDENCE["tree_s"] < 10 * f
+    within(list_took, 10 * f, "entity list")
+    within(tree_took, 10 * f, "area tree")
 
     # ---- 2. the link drops: nothing is invented, nothing is lost
     before = {e["entity_id"]: (e["state"], e["last_changed"], e["state_seen_at"]) for e in ents}
     ha_sync.STATE.connected = False  # what HaSync._loop does when ws_session ends
-    ents_down, dt = listing(c)
-    EVIDENCE["list_1000_disconnected_s"] = round(dt, 3)
+    ents_down, down_took = listing(c)
+    EVIDENCE["list_1000_disconnected_s"] = round(down_took[0], 3)
     assert len(ents_down) == N
     assert not any(e["fresh"] for e in ents_down), "stale entities must never be reported fresh while disconnected"
     assert {e["entity_id"]: (e["state"], e["last_changed"], e["state_seen_at"]) for e in ents_down} == before
@@ -153,14 +176,15 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
         if e["entity_id"] in moved:
             e.update(area_id="ar19", device_id=None)
 
-    t0 = time.perf_counter()
+    lap = Lap()
     run_session(app, s, fake, noop, monkeypatch)
-    EVIDENCE["reconnect_resync_s"] = round(time.perf_counter() - t0, 3)
-    assert EVIDENCE["reconnect_resync_s"] < 30 * f
+    took = lap.stop()
+    EVIDENCE["reconnect_resync_s"] = round(took[0], 3)
+    within(took, 30 * f, "reconnect resync")
     assert ha_sync.STATE.connected is True
     expected_total = N - len(deleted) + len(added)
-    ents2, dt = listing(c)
-    EVIDENCE["list_after_return_s"] = round(dt, 3)
+    ents2, back_took = listing(c)
+    EVIDENCE["list_after_return_s"] = round(back_took[0], 3)
     by = {e["entity_id"]: e for e in ents2}
     assert len(ents2) == expected_total == ha_sync.STATE.entities
     assert all(e["fresh"] for e in ents2)
@@ -187,9 +211,10 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
             on_event({"entity_id": eid, "old_state": None, "new_state": _state(eid, "burst", i) | {"last_changed": "2026-10-05T10:00:00+00:00", "last_updated": "2026-10-05T10:00:00+00:00"}})
         await settle(1)
 
-    t0 = time.perf_counter()
+    lap = Lap()
     _, published = run_session(app, s, fake, burst, monkeypatch)
-    EVIDENCE["burst_1000_events_s"] = round(time.perf_counter() - t0, 3)
+    burst_took = lap.stop()
+    EVIDENCE["burst_1000_events_s"] = round(burst_took[0], 3)
     pushed = [m for m in published if m.get("type") == "entity_state_changed"]
     # every event reached the mirror and the sequence; the live push queue of one subscriber is bounded (500) and lossy by
     # design (ha_sync.subscribe): an undrained subscriber keeps the FIRST 500 frames in order, the rest are dropped and a
@@ -200,7 +225,7 @@ def test_1000_entities_connect_disconnect_return(app_s, monkeypatch):
     assert [m["sequence"] for m in pushed] == list(range(seq0 + 1, seq0 + len(pushed) + 1))  # in order, no gap inside the kept prefix
     ents3, _ = listing(c)
     assert sum(1 for e in ents3 if e["state"] == "burst") == len(live_ids)
-    assert EVIDENCE["burst_1000_events_s"] < 60 * f
+    within(burst_took, 60 * f, "1,000-event burst")
 
     EVIDENCE["py_heap_peak_mb"] = round(peak / 1048576, 1)
     EVIDENCE["process_max_rss_mb"] = round(rss_mb(), 1)

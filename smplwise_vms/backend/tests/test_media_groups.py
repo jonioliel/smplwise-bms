@@ -298,11 +298,15 @@ def test_group_volume_skips_a_muted_or_off_room_with_its_reason_and_refuses_a_no
     assert c.post(f"{GROUPS}/nope/volume", json=req(level=10)).status_code == 404
 
 
-def test_group_volume_is_rate_limited_per_group_and_never_single_flight(g):
+def test_group_volume_is_rate_limited_per_group_and_never_single_flight(g, monkeypatch):
     app, c, calls, keys, settings, fx, put = g
     done(c, c.post(f"{GROUPS}/join", json=req(leader_key=keys["a"], member_keys=[keys["b"]])))
+    # the token bucket (2 a second, burst 2) refills on media_commands.MONO: with the real clock a slow machine earns a token back
+    # between two of the six presses and no 429 appears. Freeze it (the seam the media tests use): exactly the burst gets through.
+    monkeypatch.setattr(media_commands, "MONO", lambda: 5000.0)
+    media_commands.BUCKETS.clear()
     codes = [c.post(f"{GROUPS}/{keys['a']}/volume", json=req(level=10 + i)).status_code for i in range(6)]
-    assert codes.count(202) >= 2 and 429 in codes, codes
+    assert codes == [202, 202, 429, 429, 429, 429], codes
 
 
 def test_a_static_group_volume_reaches_its_children_and_the_group_cannot_be_joined(g):

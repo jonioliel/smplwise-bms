@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,26 @@ def sw_time_factor() -> float:
     except ValueError:
         return 1.0
     return factor if factor > 1.0 else 1.0
+
+
+def sw_load_factor(samples: int = 5, spin_s: float = 0.05, cap: float = 12.0) -> float:
+    """How much slower than an idle core this thread is being run right now (>= 1, capped), for the few bounds that are
+    really about wall-clock time (a latency, a throughput) and so cannot be made clock-free.
+
+    Spins the calling thread for `spin_s` of wall time and compares it with the CPU time the thread actually got
+    (`time.thread_time`, per thread - other threads of the test do not count). On an idle machine the two are equal; when the
+    runner carries other jobs the thread is descheduled and wall/CPU grows by about the factor the code under test is slowed.
+    The median of `samples` spins is used, multiplied with `sw_time_factor()` (the manual override). Call it AFTER the
+    measured work so it sees the load the work saw. It never loosens a bound on an idle machine (returns 1.0 there)."""
+    ratios: list[float] = []
+    for _ in range(samples):
+        w0, c0 = time.perf_counter(), time.thread_time()
+        while time.perf_counter() - w0 < spin_s:
+            pass
+        wall, cpu = time.perf_counter() - w0, time.thread_time() - c0
+        ratios.append(wall / cpu if cpu > 0 else 1.0)
+    ratios.sort()
+    return min(max(ratios[len(ratios) // 2], 1.0), cap) * sw_time_factor()
 
 
 def sw_perf_enabled() -> bool:

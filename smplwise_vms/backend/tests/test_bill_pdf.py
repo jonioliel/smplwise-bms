@@ -72,6 +72,18 @@ def pdf_fonts(pdf: bytes) -> list[list[str]]:
     return [line.split() for line in out.splitlines()[2:] if line.strip()]
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _weasyprint_gets_the_time_it_needs():
+    """In `auto` a WeasyPrint render slower than 5 s is stopped and redrawn by the simple engine (owner round 4, bill_pdf.py): on a
+    runner carrying other jobs a correct render crosses that line and the page comes out without the logo / chart / table these tests
+    look for. The layout tests are about WeasyPrint's output, not about its speed (the fallback has its own tests above), so the
+    slow-render budget is raised for this module; the hard timeout stays bounded."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("SW_BILL_PDF_FALLBACK_S", "60")
+        mp.setenv("SW_BILL_PDF_TIMEOUT_S", "90")
+        yield
+
+
 @pytest.fixture(scope="module")
 def base_pdf() -> bytes:
     return render_bill_pdf(S.base(), logo=S.logo_png())

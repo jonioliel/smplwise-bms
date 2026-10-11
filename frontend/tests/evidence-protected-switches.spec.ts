@@ -267,8 +267,15 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
   test('protect more: Shift+click selects a range of selectable rows only; the action sends only what it can change', async ({ page }) => {
     const fake: Fake = { rows: house(), posts: [], mode: 'ok' };
     await open(page, fake);
+    // the rows arrive with the fetch after the element is defined: nothing below (is the table header there? which rows, in which order?)
+    // may be asked before they are listed - read at once, the order came back empty and the sort was skipped on a slow start
+    await expect(el(page).locator('[data-protected-counts]')).toHaveText(/13 מתוך 13 מתגים/);
     const sortByArea = el(page).locator('th button[data-protected-sort="area"]');
-    if (await sortByArea.isVisible()) await sortByArea.click(); // the table header exists on wide screens only
+    if (await sortByArea.isVisible()) {
+      await sortByArea.click(); // the table header exists on wide screens only
+      // the sort is applied by the next render: read the row order only once the header says it is in force
+      await expect(el(page).locator('th[aria-sort="ascending"] button[data-protected-sort="area"]')).toHaveCount(1);
+    }
     const ids = await listed(page).evaluateAll((trs) => trs.map((t) => (t as HTMLElement).dataset.entity!));
     const a = ids.indexOf('switch.garden_lights');
     const b = ids.indexOf('switch.lobby_sign');
@@ -276,8 +283,8 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
     expect(b).toBeGreaterThanOrEqual(0);
     await boxOf(page, ids[Math.min(a, b)].replace('switch.', '')).click();
     await boxOf(page, ids[Math.max(a, b)].replace('switch.', '')).click({ modifiers: ['Shift'] });
-    const picked = await el(page).locator('input[data-protected-row]:checked:visible').count();
-    expect(picked).toBeGreaterThanOrEqual(2);
+    // the range is applied by the next render, not by the click itself
+    await expect.poll(() => el(page).locator('input[data-protected-row]:checked:visible').count()).toBeGreaterThanOrEqual(2);
     await el(page).locator('sw-button[data-protected-do-protect]').click();
     await shots(page, 'ps-07-protect-dialog-light', [1440]);
     await el(page).locator('sw-button[data-protected-confirm]').click();

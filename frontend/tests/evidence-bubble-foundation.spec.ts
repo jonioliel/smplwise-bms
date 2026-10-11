@@ -21,6 +21,19 @@ async function open(page: Page, hash: string, query = '') {
   await page.clock.setFixedTime(new Date('2026-10-02T13:00:00Z'));
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=bubble${query}#${hash}`);
+  // The Vite DEV server serves the app as hundreds of separate modules. When it is slow (the runner carries other jobs) the browser's
+  // requests pile up past its limit and some fail for good with net::ERR_INSUFFICIENT_RESOURCES: main.ts or a screen module never
+  // arrives, <sw-app> is never defined and stays an empty (hidden) element - a hang until the test timeout, not a slow page. A failed
+  // module is not retried by the browser, a reload is (the server has transformed most modules by then, so it answers faster).
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.waitForFunction(() => !!customElements.get('sw-app'), undefined, { timeout: 30_000 });
+      break;
+    } catch (err) {
+      if (attempt >= 4) throw err;
+      await page.reload();
+    }
+  }
   await page.waitForSelector('sw-app');
   await page.waitForTimeout(600);
   await page.evaluate(() => document.fonts.ready);
@@ -57,32 +70,39 @@ test.describe('bubble foundation', () => {
     });
   });
 
-  test('evidence shots: the demo page and the settings section, light and dark', async ({ page }, info) => {
-    test.skip(info.project.name === 'tablet', 'the tablet width is shot from the desktop project');
-    const widths = info.project.name === 'mobile' ? [390] : [1440, 820];
-    for (const w of widths) {
-      await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
-      for (const scheme of ['light', 'dark'] as const) {
-        await open(page, '/styleguide/bubble', `&scheme=${scheme}`);
-        await expect(page.locator('html')).toHaveAttribute('data-skin', 'bubble');
-        await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
-        await shot(page, `demo-${w}-${scheme}`);
-        await demo(page).locator('[data-open-area]').click();
-        await page.waitForTimeout(700);
-        await shot(page, `demo-sheet-area-${w}-${scheme}`);
-        await page.keyboard.press('Escape');
-        if (scheme === 'light') {
-          await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:row,surface:gradient,radius:soft`);
-          await shot(page, `demo-row-gradient-soft-${w}-${scheme}`);
-          await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:compact,surface:glass,touch:32`);
-          await shot(page, `demo-compact-glass-${w}-${scheme}`);
+  // This test only produces the evidence screenshots (its assertions are the theme attributes). The headless Chromium of the shared runner
+  // sometimes dies under load on the 1440 px page - 'Page crashed' / 'Unable to capture screenshot' - which says nothing about the app,
+  // so a crashed attempt is repeated (reported as flaky, not hidden). Every behaviour test of this file keeps retries: 0.
+  test.describe('evidence shots', () => {
+    test.describe.configure({ retries: 2 });
+    test('evidence shots: the demo page and the settings section, light and dark', async ({ page }, info) => {
+      test.skip(info.project.name === 'tablet', 'the tablet width is shot from the desktop project');
+      test.setTimeout(240_000); // up to 2 widths x 2 schemes x 5 page loads on the Vite dev server, each with its settle waits and a shot
+      const widths = info.project.name === 'mobile' ? [390] : [1440, 820];
+      for (const w of widths) {
+        await page.setViewportSize({ width: w, height: w <= 480 ? 844 : 900 });
+        for (const scheme of ['light', 'dark'] as const) {
+          await open(page, '/styleguide/bubble', `&scheme=${scheme}`);
+          await expect(page.locator('html')).toHaveAttribute('data-skin', 'bubble');
+          await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
+          await shot(page, `demo-${w}-${scheme}`);
+          await demo(page).locator('[data-open-area]').click();
+          await page.waitForTimeout(700);
+          await shot(page, `demo-sheet-area-${w}-${scheme}`);
+          await page.keyboard.press('Escape');
+          if (scheme === 'light') {
+            await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:row,surface:gradient,radius:soft`);
+            await shot(page, `demo-row-gradient-soft-${w}-${scheme}`);
+            await open(page, '/styleguide/bubble', `&scheme=${scheme}&look=density:compact,surface:glass,touch:32`);
+            await shot(page, `demo-compact-glass-${w}-${scheme}`);
+          }
+          await open(page, '/system/diagnostics', `&scheme=${scheme}`);
+          await lookCard(page).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(300);
+          await shot(page, `settings-look-${w}-${scheme}`);
         }
-        await open(page, '/system/diagnostics', `&scheme=${scheme}`);
-        await lookCard(page).evaluate((el) => el.scrollIntoView({ block: 'start' }));
-        await page.waitForTimeout(300);
-        await shot(page, `settings-look-${w}-${scheme}`);
       }
-    }
+    });
   });
 
   test('the sheet: focus moves in, Tab wraps, Esc closes, focus returns; the backdrop closes; the inline kind never covers the tree', async ({ page }, info) => {
@@ -149,12 +169,15 @@ test.describe('bubble foundation', () => {
     await demo(page).locator('[data-open-area]').click();
     const sheet = demo(page).locator('sw-sheet[data-sheet-area]');
     await expect(sheet).toHaveAttribute('data-layout', 'bottom');
-    await page.waitForTimeout(700);
+    // the sheet sits at the bottom edge, inside the viewport: wait for the slide-in to end (a fixed 700 ms was overtaken by the
+    // animation on a loaded machine and the boxes below were measured mid-slide)
+    const panel = sheet.locator('[data-sheet]');
+    await expect.poll(async () => { const b = await panel.boundingBox(); return b ? Math.round(b.y + b.height) : -1; }, { timeout: 15_000 }).toBe(844);
+    await expect.poll(async () => { const a = await panel.boundingBox(); await page.waitForTimeout(120); const b = await panel.boundingBox(); return !!a && !!b && a.y === b.y; }).toBe(true);
     const grab = sheet.locator('[data-sheet-grab]');
     const gb = await grab.boundingBox();
     expect(gb!.height).toBeGreaterThanOrEqual(44);
-    // the sheet sits at the bottom edge, inside the viewport
-    const sb = await sheet.locator('[data-sheet]').boundingBox();
+    const sb = await panel.boundingBox();
     expect(Math.round(sb!.y + sb!.height)).toBe(844);
     // swipe down from the grabber past 35 % of the sheet's height closes it (a fast flick closes earlier; speed is not assumed here)
     const x = gb!.x + gb!.width / 2;
