@@ -522,7 +522,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | plans | POST | `/api/v1/floors/{floor_id}/bakes/jobs/{job_id}/finish` | Close the request: done (every slot it asked for is stored for the current key - 409 incomplete otherwise), failed or |
 | plans | POST | `/api/v1/floors/{floor_id}/bakes/regenerate` | Ask for the floor's stills / masks / lightmap to be drawn again (all the settings list, or a subset). The request is a job |
 | plans | DELETE | `/api/v1/floors/{floor_id}/bakes/{bake_id}` |  |
-| plans | GET | `/api/v1/floors/{floor_id}/bakes/{bake_id}/file` | One stored file (a still, a mask document or a lightmap); ETag = its sha256, so a viewer revalidates for free. |
+| plans | GET | `/api/v1/floors/{floor_id}/bakes/{bake_id}/file` | One stored file (a still, a mask document or a lightmap); ETag = the sha256 of what is served, so a viewer revalidates |
 | plans | GET | `/api/v1/floors/{floor_id}/images` | The floor's own images (off / on) and their alignment. |
 | plans | POST | `/api/v1/floors/{floor_id}/images` | Upload or replace one variant ("off" = lights off, "on" = lights on). PNG or JPEG, up to 12 MB and 36 megapixels. |
 | plans | PUT | `/api/v1/floors/{floor_id}/images/layout` | Where the image's four corners (top-left, top-right, bottom-right, bottom-left) sit on the plan, in plan-normalised |
