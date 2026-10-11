@@ -67,7 +67,9 @@ export class SystemNav extends LitElement {
     .search input {
       inline-size: 100%;
       box-sizing: border-box;
-      min-block-size: var(--sw-ctl-h-lg);
+      /* the large control height on a desktop; a skin whose desktop targets follow the touch dial (bubble) sets
+         --sw-settings-search-h on the shell; touch layouts (below) always get 44 px */
+      min-block-size: var(--sw-settings-search-h, var(--sw-ctl-h-lg));
       padding: 0 32px 0 10px;
       padding-inline-start: 32px;
       padding-inline-end: 30px;
@@ -237,6 +239,10 @@ export class SystemNav extends LitElement {
       }
       :host([compact]) .search {
         max-inline-size: none;
+      }
+      /* the search row is a touch target on a phone and a tablet (the layout guard's 44 px) */
+      .search input {
+        min-block-size: 44px;
       }
     }
   `;
