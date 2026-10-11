@@ -54,6 +54,8 @@ import { inAndroidApp, switchServer } from '../arx/android-app';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncDisconnectedText } from '../api/ha-sync-status';
+import { QUALITY_MODES, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, modeFromWire, modeToWire, type QualityMode, type QualityWire } from '../map/quality-mode';
+import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -96,6 +98,8 @@ export class SystemDiagnostics extends LitElement {
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
+  /** The viewer's own 3D mode (null = the installation default; undefined = not read / no backend). */
+  @state() private ownQuality: QualityMode | null | undefined = undefined;
   @state() private nvrChannels: number | null = null;
   @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
@@ -484,6 +488,16 @@ export class SystemDiagnostics extends LitElement {
     }
     // the floors for הגדרות › מפה › קומת ברירת מחדל (grouped by site and building)
     void loadTree().then((t) => (this.floorTree = t.sites)).catch(() => undefined);
+    // the viewer's own 3D mode (/me/prefs plan.quality): unreadable = the row stays disabled
+    void loadOwnMode().then((m) => (this.ownQuality = m));
+  }
+
+  /** מצב התצוגה שלי: the viewer's own 3D mode ('' = back to the installation default), the same key the 3D toolbar writes. */
+  private async saveOwnQuality(value: string) {
+    const mode = value === '' ? null : modeFromWire(value);
+    if (value !== '' && mode === null) return;
+    this.ownQuality = mode;
+    await saveOwnMode(mode);
   }
 
   private async loadMedia() {
@@ -806,9 +820,14 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-levels ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.levels', (e.target as HTMLSelectElement).value as 'all' | 'default')}>
             <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>כל המפלסים יחד</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>מפלס ברירת המחדל של הקומה</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">רמת איכות בתלת-ממד<span class="muted">ברירת המחדל של המערכת לתצוגת התלת-ממד במפה; כל דפדפן יכול לבחור לעצמו, ומכשיר איטי יורד לבד לרמה הסכמטית</span></span>
-          <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as '1' | '2')}>
-            <option value="2" ?selected=${String(this.value('plan.quality') ?? '2') !== '1'}>מלאה — צללים, חומרים, חיתוך קירות</option><option value="1" ?selected=${String(this.value('plan.quality') ?? '2') === '1'}>סכמטית — שטוחה, בלי צללים</option>
+        <div class="row"><span class="lbl">מצב תצוגה ברירת מחדל<span class="muted">מצב התלת-ממד במפה לכל המשתמשים. רק במצב אוטומטי התצוגה יורדת לבד לסכמטי; בחירה ידנית נשארת</span></span>
+          <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as QualityWire)}>
+            ${QUALITY_MODES.map((m) => html`<option value=${modeToWire(m)} ?selected=${(modeFromWire(this.value('plan.quality')) ?? 'auto') === m}>${QUALITY_MODE_LABEL[m]} — ${QUALITY_MODE_HINT[m]}</option>`)}
+          </select></sw-field></div>
+        <div class="row" data-plan-quality-own-row><span class="lbl">מצב התצוגה שלי<span class="muted">גובר על ברירת המחדל, רק עבורך; גם הבחירה בסרגל התלת-ממד נשמרת כאן</span></span>
+          <sw-field class="ctl"><select data-set-plan-quality-own ?disabled=${this.ownQuality === undefined} @change=${(e: Event) => void this.saveOwnQuality((e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.ownQuality}>לפי ברירת המחדל</option>
+            ${QUALITY_MODES.map((m) => html`<option value=${m} ?selected=${this.ownQuality === m}>${QUALITY_MODE_LABEL[m]}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">דעיכת סימון תנועה במפה<span class="muted">חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)</span></span>
           <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>

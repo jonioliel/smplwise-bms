@@ -41,7 +41,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
-import type { QualityLevel } from '../map/scene-three';
+import { modeFromWire, type QualityMode } from '../map/quality-mode';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
@@ -158,7 +158,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
   /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
-  @state() private quality3d: QualityLevel | null = null;
+  @state() private quality3d: QualityMode | null = null;
   @state() private catalog3d: Catalog3DLookup | null = null;
   private itemNames = new Map<string, string>();
   private sceneMemo: SceneBuild | null = null;
@@ -1404,7 +1404,7 @@ export class ExploreFloorMap extends LitElement {
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
           if (this.bundle === b) this.default3d = (s['map.default_view'] === '3d' || this.keep3d()) && !this.view3d;
-          this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
+          this.quality3d = modeFromWire(s['plan.quality']); // auto | full | schematic (map/quality-mode.ts); the viewer's own mode wins in the element
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
           this.liveTransport = effectiveTransport(s);
         })
