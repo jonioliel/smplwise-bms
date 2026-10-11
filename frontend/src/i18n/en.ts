@@ -117,4 +117,7 @@ export const en = {
     hint: 'PNG, JPG or WebP up to 12 MB; 2560×1440 and a calm picture work best',
     fallback: 'When one of the two is missing, the other picture serves both',
   },
+  replay3d: {
+    eventNote: 'The current plan structure; device states at the event time (no history: unknown).',
+  },
 } satisfies PartialCatalogue;

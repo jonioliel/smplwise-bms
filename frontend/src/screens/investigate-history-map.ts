@@ -28,10 +28,12 @@ import { dateInZone, frameUrl, instantInZone, minuteInZone, recordingsForDay, ty
 import { entityMarkerKind, stateLabel } from '../api/ha';
 import { geometryAt, geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
-import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
+import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
+import type { CatalogMaterialLookup } from '../map/material-resolve';
 import type { ScenePreset } from '../map/scene-three';
-import type { PartSelectDetail } from '../map/sw-plan-3d';
+import type { PartSelectDetail, RealisticChangeDetail } from '../map/sw-plan-3d';
+import { REPLAY_VIEW, replayStates } from '../map/replay-3d';
 import { boundItemOf } from '../map/part-select';
 import { zonesWithChips } from '../map/shared-space';
 import { WEBGL_UNAVAILABLE_HE, webglAvailable } from '../map/webgl';
@@ -95,6 +97,11 @@ export class InvestigateHistoryMap extends LitElement {
   /** Kept in a field: the element re-applies a preset only when the property changes (an inline literal would snap the camera every render). */
   @state() private preset3d: ScenePreset = 'iso';
   @state() private catalog3d: Catalog3DLookup | null = null;
+  /** ST7HIST: the element draws the realistic level (its `realistic-change`): the description carries the realistic part. */
+  @state() private real3d = false;
+  private materials3d: CatalogMaterialLookup | null = null;
+  /** The bundle reload of the latest settled cursor (an older answer arriving late never replaces a newer one). */
+  private bundleSeq = 0;
   private itemNames = new Map<string, string>();
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
@@ -387,6 +394,7 @@ export class InvestigateHistoryMap extends LitElement {
         void loadLibrary(this.bundle.catalogRevision).then((lib) => {
           this.catalogLookup = lookupOf(lib);
           this.catalog3d = lookup3dOf(lib);
+          this.materials3d = lookupMaterialsOf(lib);
           this.itemNames = new Map(lib.items.map((i) => [i.id, i.names.he]));
         }).catch(() => {}); // without the library objects draw as plain boxes
       }
@@ -523,18 +531,21 @@ export class InvestigateHistoryMap extends LitElement {
     if (seq === this.geomSeq) this.geometry = g;
   }
 
-  /** The plan version and the anchors follow the instant (T038): reload the bundle once the cursor leaves the shown version's period. */
+  /** The plan version, the anchors and the device states follow the instant (T038; ST7HIST): every settled cursor reloads the
+   * bundle at its instant - the anchors carry the states of that instant (`state_at`), which the 2D, the panel and the 3D
+   * replay; a cursor still at the bundle's own instant reloads nothing. */
   private async ensureVersion() {
     const b = this.bundle;
     if (!b || b.source !== 'api' || !b.at) return;
     const t = this.instant.toISOString().replace(/\.\d{3}Z$/, 'Z');
-    const inside = b.history === 'current' ? !b.historyFrom || t < b.historyFrom : (!b.planPublishedAt || b.planPublishedAt <= t) && (!b.planArchivedAt || t < b.planArchivedAt);
-    if (inside) {
+    if (t === b.at) {
       void this.updateGeometry();
       return;
     }
+    const seq = ++this.bundleSeq;
     try {
       const nb = await loadMap(this.floorId, false, t);
+      if (seq !== this.bundleSeq || this.bundle !== b) return; // a newer cursor or another floor answered meanwhile
       const before = b.anchors.map((a) => a.resource_id).sort().join(',');
       this.bundle = nb;
       if (nb.planVersionId !== b.planVersionId) this.geometry = null; // another plan version: its own structure, once fetched
@@ -602,23 +613,25 @@ export class InvestigateHistoryMap extends LitElement {
     const b = this.bundle;
     const g = this.geometry;
     if (!this.view3d || !b || b.source !== 'api' || !g) return null;
-    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, this.recordings, this.minute, this.tz];
+    const refs: unknown[] = [b, g, this.catalog3d, this.level, this.itemNames, this.recordings, this.minute, this.tz, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.refs, refs)) return this.sceneMemo.desc;
+    // ST7HIST (map/replay-3d.ts): the states of the instant - known only, explicit nulls otherwise (never the last live value);
+    // a circuit's switch only when the history knows it at the instant
+    const { entityStates, circuitStates } = replayStates(b.anchors, b.circuitStates);
     const anchors: SceneAnchor[] = b.anchors.map((a) => ({
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
       polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: this.stateAt(a),
       online: a.resource_type === 'camera' ? this.coverageAt(a.resource_id).state === 'historic' : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
     }));
-    // explicit nulls for every entity without a known state at the instant: never the last live value
-    const entityStates = Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]));
-    const circuitStates = Object.fromEntries(Object.entries(b.circuitStates).map(([id, s]) => [id, s.state]));
     const zones = b.zones.map((z) => ({ id: z.id, name: z.name, polygon: z.polygon, level_id: z.level_id ?? null }));
-    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level, this.itemNames];
+    const keys: unknown[] = [JSON.stringify([b.floorId, b.width, b.height, anchors, entityStates, circuitStates, zones]), g, this.catalog3d, this.level, this.itemNames, this.real3d, this.materials3d];
     if (this.sceneMemo && sameRefs(this.sceneMemo.keys, keys)) {
       this.sceneMemo = { ...this.sceneMemo, refs };
       return this.sceneMemo.desc;
     }
-    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true });
+    // the realistic part only while the element draws level 3 (its `realistic-change`): levels 1-2 get exactly the description of before
+    const desc = buildScene({ doc: g, width: b.width, height: b.height, anchors, entityStates, circuitStates, catalog: this.catalog3d, zones, level: this.level, anchorsEveryLevel: true,
+      ...(this.real3d ? { realistic: true, materialsCatalog: this.materials3d } : {}) });
     // hover labels: anchors by their map name, objects by label or library name, zones by name
     const labels: Record<string, string> = {};
     for (const a of b.anchors) labels[a.id] = entityName(a);
@@ -733,6 +746,8 @@ export class InvestigateHistoryMap extends LitElement {
           ${this.shows3d && this.sceneDescription
             ? html`<sw-plan-3d data-history-3d .description=${this.sceneDescription} .selectedId=${this.selectedId} .preset=${this.preset3d} .frameKey=${b.floorId} .labels=${this.sceneMemo?.labels ?? {}}
                 .cameras=${b.anchors.filter((a) => a.resource_type === 'camera').map((a) => ({ id: a.id, label: entityName(a) }))} exportName=${`plan-3d-${b.floorName}-${this.date}`}
+                .sunAt=${this.instant.getTime()} .walkable=${REPLAY_VIEW.walkable} .stillsAvailable=${REPLAY_VIEW.stillsAvailable}
+                @realistic-change=${(e: CustomEvent<RealisticChangeDetail>) => { if (this.real3d !== e.detail.on) this.real3d = e.detail.on; }}
                 @part-select=${(e: CustomEvent<PartSelectDetail>) => this.onPartSelect(e)}></sw-plan-3d>`
             : nothing}
           <sw-plan-canvas style=${this.shows3d ? 'display:none' : ''} alwaysLabel .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.apiMarkers} .selectedId=${this.selectedId} .zones=${zonesWithChips(b.zones)} .geometry=${this.geometry} .structureLevel=${this.level} .catalog=${this.catalogLookup} .anchorPositions=${Object.fromEntries(b.anchors.map((a) => [`${a.resource_type}:${a.resource_id}`, { x: a.position.x, y: a.position.y, rotation: a.rotation_degrees } as AnchorPosition]))} .entityStates=${Object.fromEntries(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => [a.resource_id, this.stateAt(a)]))} dimEntities

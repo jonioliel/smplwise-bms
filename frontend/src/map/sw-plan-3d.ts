@@ -178,6 +178,10 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S3: the shown level has a current still set - after the session fallback to level 1, level 1 is measured once more
    * and a miss fires `stills-fallback` (without stills the ladder ends at level 1, exactly as before). */
   @property({ type: Boolean }) stillsAvailable = false;
+  /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
+   * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
+   * contradict the replayed states). null = the site clock / the slider, as on the live map. */
+  @property({ attribute: false }) sunAt: number | null = null;
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -972,6 +976,10 @@ export class SwPlan3d extends LitElement {
     // the first update lists every initial property, `continuous` included: it must not stop a probe init() just
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
+    if (changed.has('sunAt')) {
+      this.toggleAttribute('data-sun-fixed', this.sunAt !== null);
+      this.applySun(); // the instant moved (the history cursor): the sun follows, no rebuild
+    }
     this.applyQuality(); // the choice, the installation default or a fallback changed: a no-op when the view already draws the level
     this.layoutOverlays(); // the label elements may be new (a state push): place them at once
   }
@@ -1060,8 +1068,10 @@ export class SwPlan3d extends LitElement {
 
   // ---- the time of day (CR-029 S2): the site clock, or the slider; the sun follows
 
-  /** The instant the sun is drawn for: the site clock now, or the slider's local hour on its local date. */
+  /** The instant the sun is drawn for: the host's fixed instant (ST7HIST), else the site clock now, or the slider's local
+   * hour on its local date. */
   private sunInstant(): number {
+    if (this.sunAt !== null && Number.isFinite(this.sunAt)) return this.sunAt;
     const t = this.timeManual;
     if (!t) return Date.now();
     return siteInstant(t.ymd[0], t.ymd[1], t.ymd[2], t.hour, this.site.zone);
@@ -1088,7 +1098,7 @@ export class SwPlan3d extends LitElement {
   private startClock(): void {
     window.clearInterval(this.clockTimer);
     if (this.viewDials.time_source === 'manual' && !this.timeManual) this.setTimeHour(siteLocal(Date.now(), this.site.zone).hour);
-    this.clockTimer = window.setInterval(() => { if (!this.timeManual && this.quality === 3) this.applySun(); }, CLOCK_TICK_MS);
+    this.clockTimer = window.setInterval(() => { if (!this.timeManual && this.sunAt === null && this.quality === 3) this.applySun(); }, CLOCK_TICK_MS);
   }
 
   /** The slider: a local hour (0..24) on the shown date (today by the site clock unless a date was picked). */
@@ -1656,7 +1666,7 @@ export class SwPlan3d extends LitElement {
    * use, a click opens the slider and the date. */
   private renderTime() {
     const s = this.sunShown;
-    if (!s || this.walkState === 'on') return nothing;
+    if (!s || this.walkState === 'on' || this.sunAt !== null) return nothing; // a fixed instant: the screen shows the time
     const glyph = s.band === 'day' ? '☀' : s.band === 'night' ? '☾' : '◐';
     const today = siteLocal(Date.now(), this.site.zone);
     const ymd = this.timeManual?.ymd ?? [today.year, today.month, today.day];
