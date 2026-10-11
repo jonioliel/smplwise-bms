@@ -267,6 +267,9 @@ test.describe('מתגים מוגנים (CR-019 S3)', () => {
   test('protect more: Shift+click selects a range of selectable rows only; the action sends only what it can change', async ({ page }) => {
     const fake: Fake = { rows: house(), posts: [], mode: 'ok' };
     await open(page, fake);
+    // the rows arrive with the fetch after the element is defined: nothing below (is the table header there? which rows, in which order?)
+    // may be asked before they are listed - read at once, the order came back empty and the sort was skipped on a slow start
+    await expect(el(page).locator('[data-protected-counts]')).toHaveText(/13 מתוך 13 מתגים/);
     const sortByArea = el(page).locator('th button[data-protected-sort="area"]');
     if (await sortByArea.isVisible()) {
       await sortByArea.click(); // the table header exists on wide screens only
