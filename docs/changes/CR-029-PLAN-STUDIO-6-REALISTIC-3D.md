@@ -641,8 +641,11 @@ sun and the states of the instant, the cursor moving both, determinism after a r
 time and never the live values; layout (the 3D inside its box, no sideways scroll). Pixel baselines exist only for the new
 level-3 states (`evidence-replay-3d.spec.ts-snapshots/*-linux.png`: the history at day lite / day realistic / night lite,
 the event card lite), drawn by the Linux runner's SwiftShader (`run_smart.py linux-pixel <branch>
-tests/evidence-replay-3d.spec.ts -g "pixel baseline" --update-snapshots`); another platform without its own file skips
-the comparison and says so. The level 1-2 baselines (`docs/evidence/T087/visual/`) are untouched - the guard that level 3
+tests/evidence-replay-3d.spec.ts -g "pixel baseline" --update-snapshots=all`); another platform without its own file
+skips the comparison and says so. A baseline is taken once the camera settled (the orbit damping advances per drawn frame
+and the realistic rung draws few frames per second on SwiftShader: the capture repeats until two pictures are equal). The
+lite and event baselines are byte-stable run to run (tolerance 0.2 % as T087); the realistic rung (GTAO + MSAA x2) still
+moved 0.24-0.27 % of the pixels (711-811 px), edge pixels only, between runs on the tablet project, so its tolerance is 1 %. The level 1-2 baselines (`docs/evidence/T087/visual/`) are untouched - the guard that level 3
 stays additive.
 
 תקציר: מפת ההיסטוריה ודף האירוע מציגים עכשיו את התלת־ממד באותו סולם איכות של המפה החיה (כולל ריאליסטי וריאליסטי קל,

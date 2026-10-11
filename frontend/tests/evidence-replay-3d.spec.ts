@@ -332,5 +332,9 @@ async function shoot(el: Locator, page: Page, info: TestInfo, name: string): Pro
   expect(url?.startsWith('data:image/png;base64,')).toBe(true);
   const renderer = await el.evaluate((n) => (n as unknown as Probe).view.rendererInfo().renderer);
   info.annotations.push({ type: 'renderer', description: `${name}: ${renderer}` });
-  expect(Buffer.from(url!.slice('data:image/png;base64,'.length), 'base64')).toMatchSnapshot(name, { maxDiffPixelRatio: 0.002, threshold: 0.02 });
+  // the lite rung and the event card are byte-stable run to run (the T087 tolerance); the realistic rung (GTAO + MSAA x2)
+  // moved 0.24-0.27 % of the pixels (711-811 of 557 x 540) between runs on the tablet project, edge pixels only (looked
+  // at on the runner): its ratio is 1 %, still far under any real change of the scene (a lamp, a door leaf, a wall material)
+  const ratio = name.includes('-realistic-') ? 0.01 : 0.002;
+  expect(Buffer.from(url!.slice('data:image/png;base64,'.length), 'base64')).toMatchSnapshot(name, { maxDiffPixelRatio: ratio, threshold: 0.02 });
 }
