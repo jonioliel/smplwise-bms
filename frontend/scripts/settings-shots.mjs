@@ -12,6 +12,8 @@ if (!out) throw new Error('usage: settings-shots.mjs <outDir> [--set=quick|full]
 const set = (args.find((a) => a.startsWith('--set=')) ?? '--set=quick').slice(6);
 const base = (args.find((a) => a.startsWith('--base=')) ?? '--base=http://127.0.0.1:4815/').slice(7);
 const only = (args.find((a) => a.startsWith('--only=')) ?? '').slice(7).split(',').filter(Boolean);
+/** --variants=classic-light-390,domus-light-1440: only those skin-scheme-width cells of the chosen set. */
+const variants = (args.find((a) => a.startsWith('--variants=')) ?? '').slice(11).split(',').filter(Boolean);
 
 const ROUTES = [
   { id: 'settings-general', hash: '/system/diagnostics' },
@@ -67,7 +69,7 @@ const SKINS = [
   { skin: 'bubble', scheme: 'dark', width: 390 },
   { skin: 'classic', scheme: 'light', width: 1024 },
 ];
-const matrix = set === 'full' ? FULL : set === 'skins' ? SKINS : QUICK;
+const matrix = (set === 'full' ? FULL : set === 'skins' ? SKINS : QUICK).filter((v) => !variants.length || variants.includes(`${v.skin}-${v.scheme}-${v.width}`));
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch();
