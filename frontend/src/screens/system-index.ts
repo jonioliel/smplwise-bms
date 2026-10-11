@@ -37,11 +37,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: 'מראה ותצוגה',
     icon: 'dashboard',
     entries: [
-      { tab: 'general', label: 'כללי', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות' },
+      { tab: 'general', label: 'כללי', href: GEN, keywords: 'מראה סגנון skin בהיר כהה dark light אזור זמן אחסון בריאות צפיפות ניווט נייד אפשרויות צבעי המותג צבע הדגשה מתג accent brand' },
       { tab: 'general', label: 'לשוניות', href: `${GEN}?tab=tabs`, sub: true, keywords: 'סדר הסתרה סרגל פס תחתון כמוסה dropdown' },
       { tab: 'general', label: 'וידאו ומדיה', href: `${GEN}?tab=media`, sub: true, keywords: 'webrtc mse תעבורה קיר מצלמות קיוסק מסך פתיחה זרמים go2rtc ייצוא שמירה ימים ציר זמן צבעים סקינים AI' },
       { tab: 'general', label: 'מפה', href: `${GEN}?tab=map`, sub: true, keywords: 'קומת ברירת מחדל 2D 3D מפלסים תוכנית' },
-      { tab: 'general', label: 'חשמל והתקנים', href: `${GEN}?tab=devices`, sub: true, keywords: 'זכוכית glass אריחים כרטיסים חיישנים מיזוג מתגים מוגנים מסך ראשי' },
+      { tab: 'general', label: 'חשמל והתקנים', href: `${GEN}?tab=devices`, sub: true, keywords: 'זכוכית glass אריחים כרטיסים חיישנים מיזוג מתגים מוגנים מסך ראשי צבעוניות זכוכית' },
+      { tab: 'general', label: 'סוגי התקנים', href: `${GEN}?tab=devices&section=device-types`, sub: true, keywords: 'דוד ברז מתג סוג סמל כרטיס פעילות device types' },
       { tab: 'general', label: 'אפליקציה לנייד', href: `${GEN}?tab=mobile`, sub: true, keywords: 'נוכחות presence טלפון שיתוף נתונים חיישנים' },
       { tab: 'wall', label: 'מסכי קיר', href: '#/system/wall', keywords: 'wall טאבלט קיוסק תצוגה' },
     ],
@@ -146,7 +147,8 @@ export function routeHref(r: RouteState | null): string {
   const p = r.params;
   if (!s[1] || s[1] === 'diagnostics') {
     const tab = p.get('tab');
-    return tab && tab !== 'general' ? `${GEN}?tab=${tab}` : GEN;
+    const section = p.get('section');
+    return tab && tab !== 'general' ? `${GEN}?tab=${tab}${section ? `&section=${section}` : ''}` : GEN;
   }
   if (s[1] === 'access') {
     const tab = p.get('tab');
@@ -171,6 +173,10 @@ export function activeEntry(groups: SettingsGroup[], r: RouteState | null): Sett
   const all = groups.flatMap((g) => g.entries);
   const exact = all.find((e) => e.href === href);
   if (exact) return exact;
+  // a deeper link than the index lists (a card section) lands on its tab's entry, then on the screen's
+  const tab = href.split('&')[0];
+  const byTab = all.find((e) => e.href === tab);
+  if (byTab) return byTab;
   const base = href.split('?')[0].split('/').slice(0, 3).join('/');
   return all.find((e) => !e.sub && e.href.split('?')[0] === base) ?? null;
 }

@@ -64,7 +64,16 @@ restore dialog and the typed-word confirmations were already so.
 One or two rules each, inside the budget: Domus (rule 10) pill links with the current one lifted like a tab; Tesla (rule 11)
 a rule at the column's edge and an accent bar instead of a fill; Bubble pill links at 36 px.
 
-### 2.6 Operator screens
+### 2.6 The 2.4.4 cards and the switch colour that follows the accent
+
+Rebased onto 2.4.4 (origin/main 3e804087): צבעי המותג, סוגי ההתקנים, צבעוניות הזכוכית and the self-update switch are in the
+settings now. צבעי המותג adopts the shared stylesheet, and its switch row gets a third kind of value (owner 2026-10-11):
+**"כמו צבע ההדגשה"** - `ui.toggle_on = "accent"`, admitted for the switch only (backend `brand_colors.normalize(value, key)`,
+422 for `ui.accent`), written as `--sw-toggle-on: var(--sw-accent)` so it follows the skin's accent or the one chosen above,
+now and whenever it changes; Hebrew and English strings, backend and frontend tests. The index lists סוגי ההתקנים under חשמל
+והתקנים (`?tab=devices&section=device-types`, the card's own scroll anchor).
+
+### 2.7 Operator screens
 
 The schedules and automations screens (glass language, CR-014 / CR-017) were already at the level asked for; the one
 change is the schedules "today" strip, which is one scrolling line on a phone. The schedule editor, the week / table views,
@@ -89,6 +98,5 @@ job regenerates them there - the pixel check skips when no baseline of the platf
 - The remaining settings screens with their own form CSS (update, storage, audit, wall, entities, the electricity sections,
   notifications) keep it; adopting `settingsStyles` there is the same mechanical step, one screen at a time.
 - A `?card=` anchor into a card of a long sub-tab (the index links to the tab, not the card).
-- The device-types card (another branch) lands on הגדרות › חשמל והתקנים; the index gets its sub-entry when it does.
 - The notifications page's own section navigation and the settings column are two navigations on one page on a wide screen;
   the column yields to it today. Folding its sections into the index is the day the page adopts the shared language.

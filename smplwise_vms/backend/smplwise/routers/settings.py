@@ -342,7 +342,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     for key in brand_colors.KEYS:  # a corrupt stored colour never reaches the page as CSS
-        out[key] = brand_colors.stored(out[key])
+        out[key] = brand_colors.stored(out[key], key)
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
@@ -759,9 +759,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     for key in brand_colors.KEYS:
         if key in changes:
             try:
-                changes[key] = brand_colors.normalize(changes[key])
+                changes[key] = brand_colors.normalize(changes[key], key)
             except ValueError as exc:
-                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן או קוד ‎#rrggbb.", details={key: str(exc)})
+                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן, קוד ‎#rrggbb, ולמתג גם \"כמו הצבע הראשי\".", details={key: str(exc)})
     if "devices.area_row" in changes:
         try:
             changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])

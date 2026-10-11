@@ -38,3 +38,14 @@ test('the light-colour warning: white on the iOS green is below 3:1, on the syst
   expect(contrastOnWhite('#34c759')).toBeLessThan(3);
   expect(contrastOnWhite('#2767ed')).toBeGreaterThan(4.5);
 });
+
+test('"accent" (SET-polish): the switch follows the accent - admitted for the switch only, writes var(--sw-accent), no hex of its own', () => {
+  expect(normalizeBrand('accent', 'toggle')).toBe('accent');
+  expect(normalizeBrand('accent')).toBe('default');
+  expect(normalizeBrand('accent', 'accent')).toBe('default');
+  expect(brandHex('accent')).toBeNull();
+  expect(brandTokens({ accent: 'default', toggle: 'accent' }, 'light')).toEqual({ '--sw-toggle-on': 'var(--sw-accent)' });
+  const both = brandTokens({ accent: '#7c3aed', toggle: 'accent' }, 'dark');
+  expect(both['--sw-accent']).toBe('#7c3aed');
+  expect(both['--sw-toggle-on']).toBe('var(--sw-accent)');
+});

@@ -55,4 +55,7 @@ test('the route maps to its deep link, and the active entry falls back to the sc
   expect(activeEntry(groups, parseRoute('#/system/security/nvr'))?.label).toBe('אבטחה'); // the NVR page is reached from the security tabs, not listed
   expect(activeEntry(groups, parseRoute('#/system/infra/prices'))?.label).toBe('תשתיות');
   expect(activeEntry(groups, parseRoute('#/live'))).toBeNull();
+  expect(routeHref(parseRoute('#/system/diagnostics?tab=devices&section=device-types'))).toBe('#/system/diagnostics?tab=devices&section=device-types');
+  expect(activeEntry(groups, parseRoute('#/system/diagnostics?tab=devices&section=device-types'))?.label).toBe('סוגי התקנים');
+  expect(activeEntry(groups, parseRoute('#/system/diagnostics?tab=devices&section=other'))?.label).toBe('חשמל והתקנים');
 });
