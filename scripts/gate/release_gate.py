@@ -13,6 +13,12 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     (default origin/main) selects the touched screens: runs `visual.mjs run --touched` on the dist preview against the committed
     linux baselines; the matrix spec then leaves the pixel group;
   * the final report lists every category with its counts, its baseline and the ratio.
+
+Partial runs for the nightly (scripts/gate/nightly_tests.sh drives this engine; a release gate never sets them):
+  GATE_SKIP_BACKEND=1   no backend shards (nightly --frontend-only); GATE_SKIP_DEV=1  no dev-server Playwright phase (--no-dev).
+  A skipped category is left out of the baseline check (named in the warnings), so a partial run is not "0 of N".
+  GATE_COSTS_DIR=<dir>  a second results directory whose gate_*.logs also feed the --workers=1 chunk balance (the nightly writes
+  its reports to its own directory and borrows the release gates' per-file times).
 """
 import concurrent.futures as cf, glob, json, os, re, signal, socket, subprocess, sys, tempfile, threading, time, urllib.request
 from pathlib import Path
@@ -45,6 +51,10 @@ T0 = time.time()
 DEADLINE = T0 + TOTAL - 150
 TAG = ""
 PW_WORKERS = os.environ.get("GATE_PW_WORKERS", "3")
+SKIP_BACKEND = os.environ.get("GATE_SKIP_BACKEND") == "1"
+SKIP_DEV = os.environ.get("GATE_SKIP_DEV") == "1"
+SKIPPED_CATS = ({"backend"} if SKIP_BACKEND else set()) | ({"dev"} if SKIP_DEV else set())
+COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
 # specs that need a fake backend and are part of the gate's routine; any other spec that needs a fixture self-skips in the
 # preview run and is listed under "fixture needed but not in the gate routine"
 # One source with scripts/fixture_job.py (the runner's `fixture` job): frontend/tests/fixtures/fixture_specs.json, the specs with
@@ -584,7 +594,9 @@ def prior_costs():
         return _COSTS
     _COSTS = {}
     mine = f"gate_{TAG}_{STATE['sha']}.logs"
-    dirs = sorted((d for d in RES.glob("gate_*.logs") if d.is_dir() and d.name != mine), key=lambda d: d.stat().st_mtime, reverse=True)
+    roots = [RES] + ([Path(COSTS_DIR)] if COSTS_DIR and Path(COSTS_DIR).resolve() != RES.resolve() else [])
+    dirs = sorted((d for r in roots for d in r.glob("gate_*.logs") if d.is_dir() and not (r == RES and d.name == mine)),
+                  key=lambda d: d.stat().st_mtime, reverse=True)
     for d in dirs[:10]:
         costs = {}
         for jp in d.glob("pw_*.json"):
@@ -722,6 +734,9 @@ def check_baselines(baseline, tier):
         warns.append(f"no baseline for tier {tier}: the count-drop check was NOT applied")
         return warns
     for cat, exp in base.items():
+        if cat in SKIPPED_CATS:
+            warns.append(f"category {cat} was not run in this partial run (GATE_SKIP_*): its baseline was NOT checked")
+            continue
         act = passed_of(cat)
         ratio = (act / exp) if exp else 1.0
         low = act < DROP_THRESHOLD * exp
@@ -823,7 +838,7 @@ def main():
         with Phase("modules", "node modules"):
             if not need_modules(wt, logd / "npm.log"):
                 hard_fail.append("npm ci failed")
-        if TIER in ("M", "L"):
+        if TIER in ("M", "L") and not SKIP_BACKEND:
             with Phase("backend-start", "backend: 3 shards started"):
                 procs, nbackend = backend_start(wt, logd)
         with Phase("tsc", "tsc --noEmit"):
@@ -913,7 +928,7 @@ def main():
                         status("running", f"visual matrix ({VISUAL})")
                         run_visual(wt, fe, f"http://127.0.0.1:{port}/", logd)
                     reap(vp)
-            if cls["dev"]:
+            if cls["dev"] and not SKIP_DEV:
                 with Phase("playwright-dev", "Playwright on the Vite dev server"):
                     port = free_port()
                     vp, ok = start_vite(fe, "dev", port, logd, dead)

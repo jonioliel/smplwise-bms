@@ -28,6 +28,27 @@ scp scripts/gate/selftest_gate.py runner:~/ && ssh runner 'python3 ~/selftest_ga
 
 Expected last line: `SELFTEST PASSED`.
 
+## Nightly run (cron 02:00 Asia/Jerusalem)
+
+`nightly_tests.sh` (installed as `~/nightly_tests.sh`, cron line `0 2 * * * /home/sw/nightly_tests.sh >> ~/smplwise-results/cron.log 2>&1`)
+drives THIS engine, tier L without the visual step, from its own copy in `~/nightly-gate/` so that installing a new nightly never
+changes the release gate (and the reverse). Since 2026-10-09 (NIGHTLY-speed): the old script ran every spec on the dist preview on
+all three projects with `--workers=2`, dev-server specs included, and hit its 150 min limit; the engine's classification and
+parallel groups finish the same suite in about 60 min.
+
+```
+ssh runner 'mkdir -p ~/nightly-gate && cp ~/nightly_tests.sh ~/nightly_tests.sh.bak-$(date +%Y%m%d)'
+scp scripts/gate/release_gate.py scripts/gate/gate_baselines.json runner:~/nightly-gate/
+scp scripts/gate/nightly_tests.sh runner:~/ && ssh runner 'chmod +x ~/nightly_tests.sh && ~/nightly_tests.sh --dry-run'
+```
+
+Never while a nightly or a gate runs (`~/.smplwise-tests.lock` free, no `~/.gate-pending`). Results: the per-branch summary stays
+`~/smplwise-results/<date>_<branch>.md` (the dashboard reads it); the engine's full report, logs and its own `gate_status.json` are
+in `~/smplwise-results/nightly/` (never the release gate's files). Knobs: `SW_NIGHTLY_MAX_MIN` (hard limit, 150),
+`SW_NIGHTLY_BRANCH_MAX_MIN` (engine budget per branch, 120), `GATE_PW_WORKERS` (workers per Playwright process, 3),
+`SW_NIGHTLY_ENGINE` (engine path). `--backend-only` keeps the old two-shard backend path; `--frontend-only` / `--no-dev` map to
+the engine's `GATE_SKIP_BACKEND=1` / `GATE_SKIP_DEV=1` (a skipped category is left out of the baseline check).
+
 ## Usage
 
 ```
