@@ -365,6 +365,11 @@ export class SwApp extends LitElement {
           'main'
           'bottom';
       }
+      /* KIOSK polish: a pull at the top of a screen stays inside the app - the browser's own pull-to-refresh would reload the
+         whole shell (and, installed, the whole app); the screens refresh themselves from the live channel */
+      main {
+        overscroll-behavior-y: contain;
+      }
       nav.rail {
         display: none;
       }

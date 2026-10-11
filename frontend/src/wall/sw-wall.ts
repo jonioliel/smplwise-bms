@@ -78,29 +78,61 @@ export class SwWall extends LitElement {
     if (this.data?.config.schedule.wake_on_touch) this.wakeUntil = Date.now() + 10 * 60_000;
   };
 
+  /**
+   * KIOSK polish (2026-10-11). The wall is read at a distance, so type is one tier larger than the shell's and scales with
+   * the physical screen (`--s`, wall-logic.ts wallScale). Colours: the per-profile wall THEME (dark / light, `cfg.theme`) is
+   * independent of the product scheme, so the four `--wall-*` knobs below carry both themes themselves (a light wall inside a
+   * dark product and the reverse are both configured installations); everything that does not depend on the theme reads the
+   * product tokens - the on-video family (same in both schemes), the state colours, radii, weights, shadows. Idle: the whole
+   * composition glides on the burn-in shift (a 2 s transition, so a 2 px move is never a jump), the strip loses its fill and the
+   * clock becomes an outline when dimmed (no static bright pixels), the sleep clock drifts. State changes land with a short
+   * fade / rise; every transition and animation is off under prefers-reduced-motion.
+   */
   static styles = css`
     :host {
       position: fixed;
       inset: 0;
       display: block;
       direction: rtl;
-      background: var(--wall-bg, #05070c);
-      color: var(--wall-text, #f3f6fc);
-      font-family: var(--sw-font, 'Heebo', 'Segoe UI', sans-serif);
+      background: var(--wall-bg);
+      color: var(--wall-text);
+      font-family: var(--sw-font);
+      line-height: 1.3;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      /* the dark wall theme: the product's video canvas, white HUD text */
+      --wall-bg: var(--sw-video-bg);
+      --wall-text: var(--sw-on-video);
+      --wall-text-2: var(--sw-on-video-2);
       --wall-tile: #060912;
-      --wall-tile-border: rgba(255, 255, 255, 0.08);
+      --wall-tile-border: var(--sw-video-line);
       --wall-strip: rgba(255, 255, 255, 0.06);
-      --wall-text-2: rgba(243, 246, 252, 0.72);
+      --wall-chip: rgba(127, 140, 170, 0.18);
+      --wall-chip-strong: rgba(127, 140, 170, 0.3);
+      --wall-dot: rgba(255, 255, 255, 0.3);
+      --wall-dot-on: rgba(255, 255, 255, 0.85);
+      --wall-danger-soft: rgba(255, 107, 98, 0.22);
+      --wall-danger-text: #ffb3ad;
+      --wall-stale-soft: rgba(245, 176, 67, 0.22);
+      --wall-stale-text: #ffd08a;
+      --wall-panel: rgba(20, 24, 38, 0.96);
     }
     :host([data-wall-theme='light']) {
       --wall-bg: #dfe5f0;
       --wall-text: #1e2e47;
       --wall-text-2: #5b6a85;
+      --wall-tile: #0f1729;
+      --wall-tile-border: rgba(30, 46, 71, 0.12);
       --wall-strip: rgba(255, 255, 255, 0.85);
-    }
-    :host(:not([data-wall-theme='light'])) {
-      --wall-bg: #05070c;
+      --wall-chip: rgba(30, 46, 71, 0.08);
+      --wall-chip-strong: rgba(30, 46, 71, 0.14);
+      --wall-dot: rgba(30, 46, 71, 0.25);
+      --wall-dot-on: rgba(30, 46, 71, 0.85);
+      --wall-danger-soft: rgba(239, 68, 68, 0.14);
+      --wall-danger-text: #b91c1c;
+      --wall-stale-soft: rgba(245, 158, 11, 0.18);
+      --wall-stale-text: #b45309;
+      --wall-panel: rgba(255, 255, 255, 0.96);
     }
     .wall {
       position: absolute;
@@ -108,15 +140,19 @@ export class SwWall extends LitElement {
       display: grid;
       padding: var(--pad);
       gap: var(--gap);
-      --pad: calc(14px * var(--s, 1));
-      --gap: calc(10px * var(--s, 1));
-      --strip-h: calc(56px * var(--s, 1));
-      --chip-h: calc(40px * var(--s, 1));
+      --pad: calc(16px * var(--s, 1));
+      --gap: calc(12px * var(--s, 1));
+      --strip-h: calc(64px * var(--s, 1));
+      --chip-h: calc(44px * var(--s, 1));
       grid-template-rows: var(--strip-h) minmax(0, 1fr);
-      transition: opacity 0.6s;
+      /* the pixel shift glides and the dim fades: a burn-in move is never a visible jump */
+      transition: opacity 3s ease, transform 2s ease-in-out;
     }
     .wall[data-preset='tablet-portrait'] {
       grid-template-rows: var(--strip-h) minmax(0, 1fr) auto;
+    }
+    .wall[data-preset='tablet-portrait'][data-map] {
+      grid-template-rows: var(--strip-h) minmax(0, 1fr) minmax(0, 0.55fr) auto;
     }
     .wall[data-preset='single'] {
       grid-template-rows: minmax(0, 1fr);
@@ -125,83 +161,112 @@ export class SwWall extends LitElement {
       position: absolute;
       inset: var(--pad) var(--pad) auto;
       z-index: 2;
-      background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
-      color: #f3f6fc;
+      background: linear-gradient(var(--sw-video-scrim), transparent);
+      color: var(--sw-on-video);
+      --wall-text-2: var(--sw-on-video-2);
     }
     .strip {
       display: flex;
       align-items: center;
       gap: var(--gap);
       block-size: var(--strip-h);
-      padding: 0 calc(var(--pad) * 0.5);
+      padding: 0 calc(var(--pad) * 0.75);
       background: var(--wall-strip);
-      border-radius: var(--sw-r-md, 12px);
+      border-radius: var(--sw-r-lg);
+      transition: background-color 3s ease;
     }
-    :host-context(html[data-skin='bubble']) .strip {
-      border-radius: var(--sw-r-pill, 999px);
+    :host-context(html[data-skin='bubble']) .strip,
+    :host-context(html[data-skin='bubble']) .panel {
+      border-radius: var(--sw-r-pill);
     }
     .place {
-      font-size: calc(17px * var(--s, 1));
-      font-weight: 600;
+      font-size: calc(19px * var(--s, 1));
+      font-weight: var(--sw-fw-semibold);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-inline-size: 0;
     }
     .clock {
       margin-inline: auto;
       display: flex;
       align-items: baseline;
-      gap: 10px;
-      font-size: calc(30px * var(--s, 1));
-      font-weight: 700;
+      gap: calc(12px * var(--s, 1));
+      min-block-size: calc(44px * var(--s, 1));
+      padding-inline: calc(8px * var(--s, 1));
+      font-size: calc(34px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
       user-select: none;
+      -webkit-user-select: none;
       touch-action: manipulation;
+      transition: color 3s ease;
     }
     .clock .date {
-      font-size: calc(13px * var(--s, 1));
-      font-weight: 400;
+      font-size: calc(15px * var(--s, 1));
+      font-weight: var(--sw-fw-regular);
       color: var(--wall-text-2);
     }
+    /* dimmed (burn-in): the strip's fill goes, the clock becomes an outline, the chips recede - nothing stays bright */
     .dim .clock {
-      -webkit-text-stroke: 1px currentColor;
+      -webkit-text-stroke: 1px var(--wall-text);
       color: transparent;
+    }
+    .dim .strip {
+      background-color: transparent;
+    }
+    .dim .chip,
+    .dim .place,
+    .dim .dots {
+      opacity: 0.7;
     }
     .chips {
       display: flex;
-      gap: 6px;
+      gap: calc(8px * var(--s, 1));
       align-items: center;
     }
     .chip {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: calc(8px * var(--s, 1));
       block-size: var(--chip-h);
-      padding: 0 12px;
-      border-radius: var(--sw-r-pill, 999px);
-      background: rgba(127, 140, 170, 0.18);
-      font-size: calc(15px * var(--s, 1));
+      padding: 0 calc(14px * var(--s, 1));
+      border-radius: var(--sw-r-pill);
+      background: var(--wall-chip);
+      font-size: calc(16px * var(--s, 1));
       white-space: nowrap;
+      transition: opacity 3s ease;
+      animation: rise 0.5s var(--sw-ease) both;
+    }
+    .chip b {
+      font-weight: var(--sw-fw-semibold);
+      font-variant-numeric: tabular-nums;
     }
     .chip i {
-      inline-size: 8px;
-      block-size: 8px;
+      inline-size: calc(9px * var(--s, 1));
+      block-size: calc(9px * var(--s, 1));
       border-radius: 50%;
-      background: var(--sw-live, #3ddc84);
+      background: var(--sw-live);
+      flex: none;
     }
     .chip[data-tone='stale'] i {
-      background: var(--sw-stale, #f5b043);
+      background: var(--sw-stale);
     }
     .chip[data-tone='danger'] {
-      background: rgba(255, 107, 98, 0.2);
-      color: #ffb3ad;
+      background: var(--wall-danger-soft);
+      color: var(--wall-danger-text);
+      font-weight: var(--sw-fw-semibold);
     }
     .chip[data-tone='danger'] i {
-      background: var(--sw-danger, #ff6b62);
+      background: var(--sw-danger);
+      animation: breathe 2.4s ease-in-out infinite;
     }
     .grid {
       display: grid;
       gap: var(--gap);
       min-block-size: 0;
+      position: relative;
       grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
       grid-template-rows: repeat(var(--rows, 2), minmax(0, 1fr));
     }
@@ -210,20 +275,30 @@ export class SwWall extends LitElement {
     }
     .tile {
       position: relative;
+      display: grid;
+      place-items: center;
+      container-type: size;
       background: var(--wall-tile);
       border: 1px solid var(--wall-tile-border);
-      border-radius: var(--sw-r-md, 12px);
+      border-radius: var(--sw-r-lg);
       overflow: hidden;
       min-block-size: 0;
       direction: ltr;
+      animation: fade-in 0.6s var(--sw-ease) both;
     }
+    /* the picture keeps its 16:9 and sits centred in the cell (a portrait cell is taller than wide: no dead band under the
+       video, the letterbox is split above and below); where container units are missing the tile fills the width as before */
     .tile sw-camera-tile {
-      position: absolute;
-      inset: 0;
       display: block;
+      inline-size: 100%;
+      inline-size: min(100%, calc(100cqh * 16 / 9));
+      max-block-size: 100%;
+      border-radius: 0;
+      box-shadow: none;
     }
     .tile[data-health='stale'] sw-camera-tile {
       filter: brightness(0.55) saturate(0.7);
+      transition: filter 1s ease;
     }
     .tile[data-health='stale']::after {
       content: '';
@@ -235,64 +310,108 @@ export class SwWall extends LitElement {
     .tile[data-health='lost'] sw-camera-tile {
       visibility: hidden;
     }
+    /* the Studio 6 slot: the map pane of a portrait wall (cfg.show_map). Reserved here as an empty surface with the tile material;
+       the plan, the idle-to-stills switch and the live / stills override are drawn by the Studio 6 branches, not by this file. */
+    .pane {
+      position: relative;
+      min-block-size: 0;
+      background: var(--wall-tile);
+      border: 1px solid var(--wall-tile-border);
+      border-radius: var(--sw-r-lg);
+      overflow: hidden;
+      animation: fade-in 0.6s var(--sw-ease) both;
+    }
     .badge,
     .lost {
       position: absolute;
       z-index: 1;
-      font-size: calc(14px * var(--s, 1));
       direction: rtl;
     }
     .badge {
-      inset-block-start: 8px;
-      inset-inline-start: 8px;
-      padding: 4px 10px;
-      border-radius: var(--sw-r-pill, 999px);
-      background: rgba(245, 176, 67, 0.25);
-      color: #ffd08a;
+      inset-block-start: calc(10px * var(--s, 1));
+      inset-inline-start: calc(10px * var(--s, 1));
+      display: inline-flex;
+      align-items: center;
+      gap: calc(8px * var(--s, 1));
+      padding: 0 calc(12px * var(--s, 1));
+      min-block-size: calc(32px * var(--s, 1));
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
+      font-size: calc(15px * var(--s, 1));
+      font-weight: var(--sw-fw-medium);
+      font-variant-numeric: tabular-nums;
+      animation: rise 0.5s var(--sw-ease) both;
+    }
+    .badge::before {
+      content: '';
+      inline-size: calc(9px * var(--s, 1));
+      block-size: calc(9px * var(--s, 1));
+      border-radius: 50%;
+      background: var(--sw-stale);
     }
     .lost {
       inset: 0;
       display: grid;
       place-content: center;
       text-align: center;
-      gap: 6px;
+      gap: calc(8px * var(--s, 1));
       font-size: calc(18px * var(--s, 1));
-      color: var(--wall-text-2);
+      color: var(--sw-on-video-2);
+    }
+    .lost b {
+      font-size: calc(24px * var(--s, 1));
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-on-video);
     }
     .banner {
-      background: rgba(255, 107, 98, 0.2);
-      color: #ffb3ad;
-      padding: 0 14px;
-      border-radius: var(--sw-r-pill, 999px);
+      background: var(--wall-danger-soft);
+      color: var(--wall-danger-text);
+      padding: 0 calc(16px * var(--s, 1));
+      border-radius: var(--sw-r-pill);
       block-size: var(--chip-h);
       display: inline-flex;
       align-items: center;
-      font-size: calc(15px * var(--s, 1));
+      gap: calc(10px * var(--s, 1));
+      font-size: calc(16px * var(--s, 1));
+      font-weight: var(--sw-fw-semibold);
+      animation: rise 0.5s var(--sw-ease) both;
+    }
+    .banner::before {
+      content: '';
+      inline-size: calc(9px * var(--s, 1));
+      block-size: calc(9px * var(--s, 1));
+      border-radius: 50%;
+      background: var(--sw-danger);
+      animation: breathe 2.4s ease-in-out infinite;
     }
     .band {
       display: flex;
       gap: var(--gap);
       flex-wrap: wrap;
       align-items: center;
-      padding: calc(6px * var(--s, 1)) 0;
+      padding: calc(4px * var(--s, 1)) 0;
     }
     .dots {
       position: absolute;
-      inset-block-end: calc(6px * var(--s, 1));
+      inset-block-end: calc(8px * var(--s, 1));
       inset-inline: 0;
       display: flex;
       justify-content: center;
-      gap: 8px;
+      gap: calc(8px * var(--s, 1));
       pointer-events: none;
+      transition: opacity 3s ease;
     }
     .dots i {
-      inline-size: 10px;
-      block-size: 10px;
+      inline-size: calc(8px * var(--s, 1));
+      block-size: calc(8px * var(--s, 1));
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.35);
+      background: var(--wall-dot);
+      transition: background-color 0.4s ease, transform 0.4s var(--sw-ease);
     }
     .dots i[data-on] {
-      background: #fff;
+      background: var(--wall-dot-on);
+      transform: scale(1.25);
     }
     .center {
       position: absolute;
@@ -300,100 +419,147 @@ export class SwWall extends LitElement {
       display: grid;
       place-content: center;
       text-align: center;
-      gap: 10px;
-      padding: 24px;
+      gap: calc(12px * var(--s, 1));
+      padding: calc(32px * var(--s, 1));
+      animation: fade-in 0.25s var(--sw-ease) both;
     }
     .center h1 {
       margin: 0;
-      font-size: calc(26px * var(--s, 1));
+      font-size: calc(30px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.2;
     }
     .center p {
       margin: 0;
       color: var(--wall-text-2);
-      font-size: calc(16px * var(--s, 1));
+      font-size: calc(18px * var(--s, 1));
+      max-inline-size: 36ch;
+      justify-self: center;
+    }
+    .center .mark {
+      inline-size: calc(56px * var(--s, 1));
+      block-size: calc(56px * var(--s, 1));
+      margin: 0 auto calc(8px * var(--s, 1));
+      display: grid;
+      place-content: center;
+      border-radius: 50%;
+      background: var(--wall-chip);
+      color: var(--wall-text-2);
+    }
+    .center .mark[data-tone='danger'] {
+      background: var(--wall-danger-soft);
+      color: var(--wall-danger-text);
+    }
+    .center .mark[data-tone='live'] {
+      color: var(--sw-live);
+    }
+    .center .mark[data-tone='live'] sw-icon {
+      animation: breathe 2.4s ease-in-out infinite;
     }
     .empty {
       display: grid;
       place-content: center;
       text-align: center;
       color: var(--wall-text-2);
-      font-size: calc(18px * var(--s, 1));
+      font-size: calc(20px * var(--s, 1));
     }
     .sleep .bigclock {
       position: absolute;
-      font-size: calc(64px * var(--s, 1));
-      font-weight: 700;
+      font-size: calc(72px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
       opacity: 0.2;
+      letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
-      transition: inset 1s;
+      transition: inset 2s ease-in-out;
+    }
+    .sleep .bigclock small {
+      display: block;
+      font-size: calc(18px * var(--s, 1));
+      font-weight: var(--sw-fw-regular);
+      letter-spacing: 0;
+      text-align: center;
     }
     .panel {
       position: absolute;
-      inset-block-start: calc(var(--pad) + var(--strip-h) + 6px);
+      inset-block-start: calc(var(--pad) + var(--strip-h) + 8px);
       inset-inline-start: 50%;
       transform: translateX(50%);
       z-index: 5;
-      min-inline-size: 320px;
-      padding: 14px 18px;
-      border-radius: var(--sw-r-md, 12px);
-      background: rgba(20, 24, 38, 0.96);
-      color: #f3f6fc;
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
-      font-size: calc(15px * var(--s, 1));
+      min-inline-size: calc(340px * var(--s, 1));
+      padding: calc(16px * var(--s, 1)) calc(20px * var(--s, 1));
+      border-radius: var(--sw-r-lg);
+      background: var(--wall-panel);
+      color: var(--wall-text);
+      box-shadow: var(--sw-shadow-3);
+      font-size: calc(16px * var(--s, 1));
+      animation: rise 0.3s var(--sw-ease) both;
     }
     .panel dl {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 4px 16px;
+      gap: calc(6px * var(--s, 1)) calc(20px * var(--s, 1));
       margin: 0;
     }
     .panel dt {
-      color: rgba(243, 246, 252, 0.7);
+      color: var(--wall-text-2);
     }
     .panel dd {
       margin: 0;
       direction: ltr;
       text-align: end;
+      font-variant-numeric: tabular-nums;
     }
     .updated {
       position: absolute;
-      inset-block-end: calc(var(--pad) + 4px);
+      inset-block-end: calc(var(--pad) + 6px);
       inset-inline-start: 50%;
       transform: translateX(50%);
       z-index: 4;
+      background: var(--wall-chip-strong);
     }
     .atile {
       position: relative;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
       background: var(--wall-tile);
-      border: 2px solid var(--sw-stale, #f5b043);
-      border-radius: var(--sw-r-md, 12px);
+      border: 2px solid var(--sw-stale);
+      border-radius: var(--sw-r-lg);
       overflow: hidden;
       min-block-size: 0;
+      color: var(--sw-on-video);
+      --wall-text-2: var(--sw-on-video-2);
+      animation: fade-in 0.6s var(--sw-ease) both;
     }
     .atile .head {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: calc(10px * var(--s, 1)) calc(14px * var(--s, 1));
+      gap: calc(14px * var(--s, 1));
+      padding: calc(12px * var(--s, 1)) calc(16px * var(--s, 1));
       background: rgba(245, 176, 67, 0.14);
+    }
+    .atile .head > div {
+      min-inline-size: 0;
     }
     .atile .head b {
       display: block;
-      font-size: calc(22px * var(--s, 1));
+      font-size: calc(24px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.15;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .atile .head span.sub {
-      font-size: calc(14px * var(--s, 1));
+      font-size: calc(15px * var(--s, 1));
       color: var(--wall-text-2);
     }
     .atile .icon {
-      inline-size: calc(40px * var(--s, 1));
-      block-size: calc(40px * var(--s, 1));
+      inline-size: calc(44px * var(--s, 1));
+      block-size: calc(44px * var(--s, 1));
       border-radius: 50%;
       display: grid;
       place-content: center;
-      background: var(--sw-stale, #f5b043);
+      background: var(--sw-stale);
       color: #1b1403;
       flex: none;
     }
@@ -411,34 +577,54 @@ export class SwWall extends LitElement {
     .takeover .foot {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: calc(10px * var(--s, 1)) calc(14px * var(--s, 1));
+      flex-wrap: wrap;
+      gap: calc(12px * var(--s, 1));
+      padding: calc(10px * var(--s, 1)) calc(16px * var(--s, 1));
     }
     .more {
       margin-inline-start: auto;
-      padding: 2px 10px;
-      border-radius: var(--sw-r-pill, 999px);
-      background: rgba(255, 255, 255, 0.14);
-      font-size: calc(14px * var(--s, 1));
+      display: inline-grid;
+      place-content: center;
+      min-inline-size: calc(44px * var(--s, 1));
+      min-block-size: calc(44px * var(--s, 1));
+      padding: 0 calc(12px * var(--s, 1));
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-video-hover);
+      font-size: calc(16px * var(--s, 1));
+      font-weight: var(--sw-fw-semibold);
+      font-variant-numeric: tabular-nums;
       cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .btn {
       position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      min-block-size: calc(44px * var(--s, 1));
-      padding: 0 calc(20px * var(--s, 1));
+      gap: calc(10px * var(--s, 1));
+      min-block-size: calc(48px * var(--s, 1));
+      min-inline-size: calc(120px * var(--s, 1));
+      padding: 0 calc(22px * var(--s, 1));
       border: 0;
-      border-radius: var(--sw-r-pill, 999px);
-      background: rgba(127, 140, 170, 0.28);
+      border-radius: var(--sw-r-pill);
+      background: var(--wall-chip-strong);
       color: inherit;
       font: inherit;
-      font-weight: 600;
-      font-size: calc(16px * var(--s, 1));
+      font-weight: var(--sw-fw-semibold);
+      font-size: calc(17px * var(--s, 1));
       overflow: hidden;
       touch-action: none;
       user-select: none;
+      -webkit-user-select: none;
+      cursor: pointer;
+      transition: transform var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) ease;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .btn:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-on-video);
+      outline-offset: var(--sw-focus-offset);
     }
     .btn[data-hold]::before {
       content: '';
@@ -452,7 +638,10 @@ export class SwWall extends LitElement {
       position: relative;
     }
     .note {
-      font-size: calc(14px * var(--s, 1));
+      display: inline-flex;
+      align-items: center;
+      gap: calc(6px * var(--s, 1));
+      font-size: calc(15px * var(--s, 1));
       color: var(--wall-text-2);
     }
     .takeover {
@@ -464,9 +653,12 @@ export class SwWall extends LitElement {
       gap: var(--gap);
       padding: var(--pad);
       background: #080506;
-      color: #f3f6fc;
-      border: calc(8px * var(--s, 1)) solid var(--sw-danger, #ff6b62);
-      animation: pulse 2s ease-in-out 30;
+      color: var(--sw-on-video);
+      --wall-text-2: var(--sw-on-video-2);
+      --wall-chip: rgba(255, 255, 255, 0.1);
+      --wall-chip-strong: rgba(255, 255, 255, 0.18);
+      border: calc(8px * var(--s, 1)) solid var(--sw-danger);
+      animation: pulse 2s ease-in-out 30, takeover-in 0.5s var(--sw-ease-dialog) both;
     }
     @keyframes pulse {
       50% {
@@ -478,7 +670,7 @@ export class SwWall extends LitElement {
     }
     .takeover .media {
       position: relative;
-      border-radius: var(--sw-r-md, 12px);
+      border-radius: var(--sw-r-lg);
       overflow: hidden;
       background: #14100f;
       direction: ltr;
@@ -491,32 +683,33 @@ export class SwWall extends LitElement {
     .takeover .titles {
       position: absolute;
       z-index: 1;
-      inset-block-start: calc(16px * var(--s, 1));
-      inset-inline-start: calc(20px * var(--s, 1));
-      inset-inline-end: calc(20px * var(--s, 1));
+      inset-block-start: calc(18px * var(--s, 1));
+      inset-inline-start: calc(22px * var(--s, 1));
+      inset-inline-end: calc(22px * var(--s, 1));
       display: flex;
-      gap: 16px;
+      gap: calc(18px * var(--s, 1));
       align-items: center;
       direction: rtl;
-      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
     }
     .takeover .titles b {
       display: block;
-      font-size: calc(44px * var(--s, 1));
+      font-size: calc(46px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
       line-height: 1.1;
     }
     .takeover .titles span.sub {
-      font-size: calc(20px * var(--s, 1));
-      color: rgba(243, 246, 252, 0.8);
+      font-size: calc(21px * var(--s, 1));
+      color: var(--sw-on-video-2);
     }
     .takeover .icon {
-      inline-size: calc(64px * var(--s, 1));
-      block-size: calc(64px * var(--s, 1));
+      inline-size: calc(68px * var(--s, 1));
+      block-size: calc(68px * var(--s, 1));
       border-radius: 50%;
       display: grid;
       place-content: center;
-      background: var(--sw-danger, #ff6b62);
-      color: #fff;
+      background: var(--sw-danger);
+      color: var(--sw-on-video);
       flex: none;
     }
     .takeover .foot {
@@ -527,16 +720,17 @@ export class SwWall extends LitElement {
       inset: 0;
       background: #000;
       overflow: hidden;
+      transition: opacity 3s ease, transform 2s ease-in-out;
     }
     .frame img {
       position: absolute;
       inset: 0;
       inline-size: 100%;
       block-size: 100%;
-      transition: opacity 0.6s;
+      animation: fade-in 0.8s ease both;
     }
     .frame[data-motion='slow'] img {
-      animation: kb 40s ease-in-out infinite alternate;
+      animation: fade-in 0.8s ease both, kb 40s ease-in-out infinite alternate;
     }
     @keyframes kb {
       to {
@@ -545,26 +739,55 @@ export class SwWall extends LitElement {
     }
     .frame .fclock {
       position: absolute;
-      inset-block-end: calc(24px * var(--s, 1));
-      inset-inline-end: calc(28px * var(--s, 1));
+      inset-block-end: calc(28px * var(--s, 1));
+      inset-inline-end: calc(32px * var(--s, 1));
       text-align: end;
-      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
-      color: #fff;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
+      color: var(--sw-on-video);
       direction: rtl;
     }
     .frame .fclock b {
       display: block;
-      font-size: calc(54px * var(--s, 1));
+      font-size: calc(58px * var(--s, 1));
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
+      line-height: 1.1;
     }
     .frame .fclock span {
-      font-size: calc(16px * var(--s, 1));
-      opacity: 0.85;
+      font-size: calc(17px * var(--s, 1));
+      color: var(--sw-on-video-2);
     }
     .frame .chips {
       position: absolute;
-      inset-block-start: calc(16px * var(--s, 1));
-      inset-inline-start: calc(16px * var(--s, 1));
+      inset-block-start: calc(18px * var(--s, 1));
+      inset-inline-start: calc(18px * var(--s, 1));
+      --wall-chip: var(--sw-video-scrim);
+      --wall-danger-soft: rgba(255, 107, 98, 0.3);
+      --wall-danger-text: #ffb3ad;
+      color: var(--sw-on-video);
+    }
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+      }
+    }
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+    }
+    @keyframes takeover-in {
+      from {
+        opacity: 0;
+        transform: scale(1.02);
+      }
+    }
+    @keyframes breathe {
+      50% {
+        opacity: 0.45;
+      }
     }
     @media (prefers-reduced-motion: reduce) {
       * {
@@ -862,20 +1085,21 @@ export class SwWall extends LitElement {
   }
 
   protected render() {
-    if (this.phase === 'loading') return html`<div class="center" data-wall-state="loading"><p>טוען…</p></div>`;
-    if (this.phase === 'no-connection') return html`<div class="center" data-wall-state="no-connection"><h1>אין חיבור לשרת</h1><p>מנסה שוב אוטומטית</p></div>`;
-    if (this.phase === 'removed') return html`<div class="center" data-wall-state="access-removed"><h1>הגישה למסך הזה הוסרה</h1><p>יש להתחבר מחדש עם משתמש מסך קיר</p></div>`;
-    if (this.phase === 'remote-refused') return html`<div class="center" data-wall-state="remote-refused"><h1>המסך הזה אינו מורשה להתחבר מרחוק</h1><p>יש להתחבר מהרשת המקומית, או לאפשר גישה מרחוק בהגדרות מסכי קיר</p></div>`;
+    const scale = wallScale(this.env.screenWidth, this.env.screenHeight);
+    const s = `--s:${scale}`;
+    if (this.phase === 'loading') return html`<div class="center" data-wall-state="loading" style=${s}><span class="mark" data-tone="live"><sw-icon name="camera" size="28"></sw-icon></span><p>טוען…</p></div>`;
+    if (this.phase === 'no-connection') return html`<div class="center" data-wall-state="no-connection" style=${s}><span class="mark" data-tone="danger"><sw-icon name="warning" size="28"></sw-icon></span><h1>אין חיבור לשרת</h1><p>מנסה שוב אוטומטית</p></div>`;
+    if (this.phase === 'removed') return html`<div class="center" data-wall-state="access-removed" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>הגישה למסך הזה הוסרה</h1><p>יש להתחבר מחדש עם משתמש מסך קיר</p></div>`;
+    if (this.phase === 'remote-refused') return html`<div class="center" data-wall-state="remote-refused" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>המסך הזה אינו מורשה להתחבר מרחוק</h1><p>יש להתחבר מהרשת המקומית, או לאפשר גישה מרחוק בהגדרות מסכי קיר</p></div>`;
     const data = this.data;
     if (!data) return nothing;
     const cfg = data.config;
-    const scale = wallScale(this.env.screenWidth, this.env.screenHeight);
     this.setAttribute('data-wall-theme', cfg.theme === 'light' ? 'light' : 'dark');
     const clock = this.clockParts();
     const asleep = !this.awake();
     if (asleep) {
       const [x, y] = [10 + ((this.now / 60000) % 60) * 1.3, 15 + ((this.now / 90000) % 60) * 1.2];
-      return html`<div class="wall sleep" data-wall-state="sleep" style=${`--s:${scale};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%`}>${clock.time}</div></div>`;
+      return html`<div class="wall sleep" data-wall-state="sleep" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div></div>`;
     }
     const layout = resolveLayout({ layout: cfg.layout, grid: cfg.grid, cameras: data.cameras.length, viewportW: this.vw, viewportH: this.vh, showMap: cfg.show_map, rotateS: cfg.rotate_s });
     const page = layout.rotateS > 0 ? Math.floor(this.now / (layout.rotateS * 1000)) % layout.pages : 0;
@@ -886,7 +1110,8 @@ export class SwWall extends LitElement {
     const dim = cfg.burn_in.dim_after_min > 0 && idleMin >= cfg.burn_in.dim_after_min;
     const down = serverHealth(this.downSince, this.now);
     if (down === 'clock') {
-      return html`<div class="wall sleep" data-wall-state="server-offline-clock" style=${`--s:${scale};display:block`}><div class="bigclock" style="inset-inline-start:30%;inset-block-start:30%;opacity:.5">${clock.time}</div><div class="banner" style="position:absolute;inset-block-end:24px;inset-inline-start:24px">אין חיבור למערכת · מנסה שוב</div></div>`;
+      const [x, y] = [20 + ((this.now / 60000) % 60) * 0.6, 20 + ((this.now / 90000) % 60) * 0.7];
+      return html`<div class="wall sleep" data-wall-state="server-offline-clock" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%;opacity:.5`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div><div class="banner" style="position:absolute;inset-block-end:var(--pad);inset-inline-start:var(--pad)">אין חיבור למערכת · מנסה שוב</div></div>`;
     }
     const transport = effectiveTransport(this.settings);
     const view = alertView(this.alertsOn(), this.shownAt, this.seenUntil, this.now, cfg.alerts.takeover_timeout_s, this.tap);
@@ -905,11 +1130,12 @@ export class SwWall extends LitElement {
         : html`<span style="margin-inline:auto"></span>`}
       <span class="chips">${down === 'banner' ? html`<span class="banner" data-wall-banner>אין חיבור למערכת · מנסה שוב</span>` : chips}</span>
     </div>`;
-    return html`<div class=${`wall ${dim ? 'dim' : ''}`} data-wall-state="base" data-preset=${layout.preset} data-wall-class=${classifyDevice(this.env)} style=${`--s:${scale};--cols:${layout.cols};--rows:${layout.rows};transform:translate(${dx}px,${dy}px);opacity:${dim ? cfg.burn_in.dim_to : 1}`}>
+    return html`<div class=${`wall ${dim ? 'dim' : ''}`} data-wall-state="base" data-preset=${layout.preset} ?data-map=${layout.map} data-wall-class=${classifyDevice(this.env)} style=${`${s};--cols:${layout.cols};--rows:${layout.rows};transform:translate(${dx}px,${dy}px);opacity:${dim ? cfg.burn_in.dim_to : 1}`}>
       ${stripEl}
       ${cams.length || view.tile
         ? html`<div class="grid" data-wall-grid>${view.tile ? this.renderAlertTile(view.tile, view.more, cfg, transport) : nothing}${cams.slice(view.tile ? 1 : 0).map((c) => this.renderTile(c, transport, cfg.offline.show_last_frame_s))}${layout.pages > 1 ? html`<div class="dots" data-wall-dots>${Array.from({ length: layout.pages }, (_, i) => html`<i ?data-on=${i === page}></i>`)}</div>` : nothing}</div>`
         : html`<div class="empty" data-wall-state="no-cameras">לא הוגדרו מצלמות למסך הזה</div>`}
+      ${layout.map ? this.renderMapPane() : nothing}
       ${layout.preset === 'tablet-portrait' ? html`<div class="band" data-wall-band>${chips}</div>` : nothing}
       ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
       ${this.panel ? this.renderPanel(data) : nothing}
@@ -975,6 +1201,15 @@ export class SwWall extends LitElement {
       ${alertChips.length ? html`<span class="chips" data-wall-frame-chips>${alertChips}</span>` : nothing}
       ${fr.clock ? html`<div class="fclock" data-wall-frame-clock><b>${clock.time}</b><span>${clock.date}${clock.date ? ' · ' : ''}${data.title}</span></div>` : nothing}
     </div>`;
+  }
+
+  /**
+   * The map pane of a portrait wall (`cfg.show_map`, wall-logic.ts `Layout.map`): the slot the Studio 6 branches fill with the
+   * floor plan, the idle-to-stills switch and the live / stills override. Until then it is an empty surface in the tile material
+   * (no copy, no placeholder art: a wall never explains itself).
+   */
+  private renderMapPane() {
+    return html`<div class="pane" data-wall-map-slot aria-hidden="true"></div>`;
   }
 
   private healthChip() {
