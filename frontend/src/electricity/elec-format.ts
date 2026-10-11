@@ -8,6 +8,20 @@ const NF0 = nf(0, 0);
 export const f2 = (x: number | string): string => NF2.format(Number(x));
 export const f4 = (x: number | string): string => NF4.format(Number(x));
 export const f0 = (x: number | string): string => NF0.format(Number(x));
+/** BILL-start-reading: a meter reading on the bill, or "לא נקלט" when the system has none (never 0.00, never a bare dash). */
+export const NOT_CAPTURED = 'לא נקלט';
+export const readingText = (x: number | string | null | undefined): string => (x === null || x === undefined || x === '' ? NOT_CAPTURED : f2(x));
+/** Where the opening reading of a meter on a bill comes from (snapshot `meters[].start.kind`), as a short Hebrew phrase. */
+export function openingSource(kind: string): string {
+  switch (kind) {
+    case 'reading': return 'קריאה בתחילת התקופה';
+    case 'interpolated': return 'חישוב בין שתי קריאות';
+    case 'carried': return 'סוף החיוב הקודם';
+    case 'first_reading': return 'הקריאה הראשונה שנקלטה';
+    case 'manual': return 'קריאה ידנית';
+    default: return NOT_CAPTURED;
+  }
+}
 /** `497.35 ₪` */
 export const ils = (x: number | string): string => `${f2(x)} ₪`;
 /** 30 -> "30%", 0.3 -> "30%" is not guessed: the caller passes percent. */

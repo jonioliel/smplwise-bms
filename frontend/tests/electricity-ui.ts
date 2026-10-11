@@ -19,6 +19,8 @@ export interface Ctl {
   latency?: number;
   /** EL5: account a4 bills on a time-of-use tariff */
   tou?: boolean;
+  /** BILL-start-reading: the draft's meters lack a plain opening reading */
+  opening?: boolean;
 }
 export interface Opts {
   skin?: 'classic' | 'domus' | 'tesla' | 'bubble';

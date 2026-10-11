@@ -10,7 +10,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { BillSnapshot } from '../api/electricity-billing';
 import './elec-chart';
 import { hasComparison } from './elec-chart-data';
-import { f2, f4, fmtDate, fmtDateTime } from './elec-format';
+import { f2, f4, fmtDate, fmtDateTime, openingSource, readingText } from './elec-format';
 import { factorLabel } from './elec-formula';
 
 const n = (s: string | number) => html`<span class="n">${s}</span>`;
@@ -228,7 +228,9 @@ export class ElecBillPaper extends LitElement {
     const due = s.bill.due_date ?? s.bill.expected_due_date;
     const multi = s.lines.length > 1;
     const pieces = new Set(s.lines.map((l) => `${l.from}|${l.to}`)).size;
-    const readingNote = s.meters.filter((m) => m.start.kind !== 'reading' || m.end.kind !== 'reading');
+    // the start of a meter that began reporting inside the period, a typed opening or none at all is explained by the server's notes
+    const startNoted = (k: string) => k === 'interpolated' || k === 'carried';
+    const readingNote = s.meters.filter((m) => startNoted(m.start.kind) || (m.end.kind !== 'reading' && m.end.reading_kwh !== null));
     const prev = s.history.previous.filter((p) => p.kwh !== null);
     const prevKwh = prev.length ? prev[prev.length - 1].kwh : null;
     const wm = this.watermark;
@@ -263,11 +265,11 @@ export class ElecBillPaper extends LitElement {
           <table>
             <thead><tr><th>מונה</th><th class="r">קריאה בתחילת התקופה</th><th class="r">קריאה בסוף התקופה</th><th class="r">צריכה (קוט״ש)</th><th class="r">חלק</th><th class="r">לחיוב (קוט״ש)</th></tr></thead>
             <tbody>
-              ${s.meters.map((m) => html`<tr><td>${m.name}</td><td class="r">${f2(m.start.reading_kwh)}</td><td class="r">${f2(m.end.reading_kwh)}</td><td class="r">${f2(m.consumption_kwh)}</td><td class="r">${factorLabel(Number(m.coefficient))}</td><td class="r">${f2(m.contribution_kwh)}</td></tr>`)}
+              ${s.meters.map((m) => html`<tr data-meter=${m.meter_id}><td>${m.name}</td><td class="r" data-start-kind=${m.start.kind}>${readingText(m.start.reading_kwh)}</td><td class="r">${readingText(m.end.reading_kwh)}</td><td class="r">${f2(m.consumption_kwh)}</td><td class="r">${factorLabel(Number(m.coefficient))}</td><td class="r">${f2(m.contribution_kwh)}</td></tr>`)}
             </tbody>
           </table>
           <div class="note">נוסחת החשבון: ${s.account.formula.sentence_he}</div>
-          ${readingNote.map((m) => html`<div class="note">${m.name}: ${m.end.kind !== 'reading' ? html`קריאת סוף התקופה ב-${n(fmtDateTime(m.end.at))}` : ''}${m.start.kind !== 'reading' && m.end.kind !== 'reading' ? '; ' : ''}${m.start.kind !== 'reading' ? html`קריאת תחילת התקופה לפי ${m.start.kind === 'interpolated' ? 'חישוב בין שתי קריאות' : 'סוף החיוב הקודם'}` : ''}.</div>`)}
+          ${readingNote.map((m) => { const endN = m.end.kind !== 'reading' && m.end.reading_kwh !== null; const startN = startNoted(m.start.kind); return html`<div class="note">${m.name}: ${endN ? html`קריאת סוף התקופה ב-${n(fmtDateTime(m.end.at))}` : ''}${startN && endN ? '; ' : ''}${startN ? html`קריאת תחילת התקופה לפי ${openingSource(m.start.kind)}` : ''}.</div>`; })}
           <table>
             <thead><tr><th>פירוט</th><th class="r">כמות</th><th class="r">מחיר ליחידה</th><th class="r">סכום (₪)</th></tr></thead>
             <tbody>
@@ -278,7 +280,7 @@ export class ElecBillPaper extends LitElement {
             </tbody>
           </table>
           <div class="note">
-            ${s.totals.price_mode_note_he ? html`${s.totals.price_mode_note_he}; המחיר לפני מע״מ מוצג מעוגל ל-4 ספרות. ` : nothing}הקריאות הן קריאות מונה מצטברות שנמדדו בפועל.${prevKwh ? html` צריכה בתקופה הקודמת: ${n(f2(prevKwh))} קוט״ש.` : nothing}
+            ${s.totals.price_mode_note_he ? html`${s.totals.price_mode_note_he}; המחיר לפני מע״מ מוצג מעוגל ל-4 ספרות. ` : nothing}הקריאות הן קריאות מונה מצטברות שנמדדו בפועל; הצריכה של כל מונה היא קריאת הסוף פחות קריאת הפתיחה.${prevKwh ? html` צריכה בתקופה הקודמת: ${n(f2(prevKwh))} קוט״ש.` : nothing}
           </div>
           ${s.notes.map((x) => html`<div class="note" data-note=${x.code}>${x.text_he}</div>`)}
           ${b.footer_note ? html`<div class="note"><b>הערות:</b> ${b.footer_note}</div>` : nothing}

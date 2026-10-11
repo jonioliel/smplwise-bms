@@ -34,6 +34,7 @@ from .timeutil import parse_utc
 UTC = dt.timezone.utc
 UNDO_WINDOW_S = 24 * 3600
 FUTURE_SLACK_S = 300
+HEAD_BACKDATE_S = 62 * 86400  # BILL-start-reading: an opening reading may precede the meter's creation by up to two monthly periods
 FACTOR_MIN, FACTOR_MAX = Decimal("0.5"), Decimal("2")
 FACTOR_PLACES = 6
 MAX_VALUE_WH = 10**15          # 1e12 kWh: beyond any real meter
@@ -44,6 +45,7 @@ ONE = Decimal(1)
 EFFECT_TEXT = {
     "open_gap": "הקריאה השלימה את הפער מאז הדיווח האחרון. הצריכה עד הקריאה חולקה לפי זמן.",
     "closed_gap": "הקריאה חילקה מחדש את הצריכה בפער הדיווח. הסכום הכולל לא השתנה.",
+    "head_gap": "הקריאה נקבעה כקריאת פתיחה לפני הקריאה הראשונה של המונה. הצריכה עד הקריאה הראשונה חולקה לפי זמן.",
     "reported": "המונה דיווח בזמן הזה. הקריאה נשמרה להשוואה בלבד.",
     "outside_counter": "הקריאה שונה מערך המונה במערכת. היא נשמרה להשוואה; לתיקון קבוע אפשר להגדיר כיול.",
     "no_counter_data": "אין במערכת קריאות סביב הזמן הזה. הקריאה נשמרה להשוואה בלבד.",
@@ -321,7 +323,8 @@ def save_reading(conn: sqlite3.Connection, store: st.EnergyStore, tz: ZoneInfo, 
         raise ApiError(422, "validation", "זמן הקריאה בעתיד.", details={"fields": ["read_at"]})
     created = int(parse_utc(meter["created_at"]).timestamp())
     epoch, lo, hi = epoch_of(conn, meter["id"], read_at)
-    if epoch is None or read_at < created - FUTURE_SLACK_S:
+    before_meter = read_at < created - FUTURE_SLACK_S
+    if epoch is None or (before_meter and read_at < created - HEAD_BACKDATE_S):
         raise ApiError(422, "validation", "זמן הקריאה לפני הוספת המונה למערכת.", details={"fields": ["read_at"]})
     _monotonic(conn, meter["id"], epoch["id"], read_at, value_wh)
     segs = segments(conn, meter["id"])
@@ -329,13 +332,22 @@ def save_reading(conn: sqlite3.Connection, store: st.EnergyStore, tz: ZoneInfo, 
     counter_wh = seg.counter(value_wh)
     sys_raw, exact = raw_reading_at(store, meter["id"], read_at)
     billed = billed_until(conn, meter["id"])
+    if before_meter:
+        # BILL-start-reading: before the meter was added only an opening reading (before the counter's first reading) is accepted
+        head = store.manual_reading(meter["id"], ts=read_at, raw_wh=counter_wh, max_kw=float(meter["max_kw"]), epoch_lo=lo, epoch_hi=hi,
+                                    billed_until=billed, tz=tz, dry_run=True)
+        if head.reason != "head_gap":
+            raise ApiError(422, "validation", "זמן הקריאה לפני הוספת המונה למערכת.", details={"fields": ["read_at"]})
     plan = store.manual_reading(meter["id"], ts=read_at, raw_wh=counter_wh, max_kw=float(meter["max_kw"]), epoch_lo=lo, epoch_hi=hi,
                                 billed_until=billed, tz=tz, dry_run=dry_run)
     system_wh = seg.physical(sys_raw)
+    span_from = None
+    if plan.effect == "allocation":
+        span_from = _iso(read_at) if plan.reason == "head_gap" else (_iso(plan.prev[0]) if plan.prev else None)
     row = {
         "id": None, "meter_id": meter["id"], "epoch_id": epoch["id"], "read_at": _iso(read_at), "value_wh": value_wh, "typed_value": typed, "typed_unit": unit,
         "counter_wh": counter_wh, "system_raw_wh": sys_raw, "system_exact": 1 if exact else 0, "effect": plan.effect, "effect_reason": plan.reason,
-        "span_from": _iso(plan.prev[0]) if plan.effect == "allocation" and plan.prev else None,
+        "span_from": span_from,
         "span_to": _iso(plan.next[0]) if plan.effect == "allocation" and plan.next else None,
         "note": (note or "").strip()[:500] or None, "created_by": actor, "created_at": _iso(now), "voided_at": None, "voided_by": None, "void_reason": None,
     }

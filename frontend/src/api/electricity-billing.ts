@@ -247,8 +247,10 @@ export interface SnapshotMeter {
   meter_id: string;
   name: string;
   coefficient: string;
-  start: { at: string; reading_kwh: string; kind: string };
-  end: { at: string; reading_kwh: string; kind: string };
+  /** kind: reading | interpolated | carried | first_reading (the meter's first stored reading, inside the period) | manual (an
+   *  administrator's opening reading) | none; reading_kwh null = not captured (shown as "לא נקלט") */
+  start: { at: string; reading_kwh: string | null; kind: string };
+  end: { at: string; reading_kwh: string | null; kind: string };
   consumption_kwh: string;
   contribution_kwh: string;
   carried_in_kwh?: string;
@@ -295,7 +297,8 @@ export interface BillSnapshot {
     expected_due_date: string | null;
     payment_terms: { mode: string; days: number | null; day_of_month: number | null };
   };
-  period: { from: string; to: string; days: number };
+  /** start_utc: the instant the period starts (local midnight of `from` in the account's zone) */
+  period: { from: string; to: string; days: number; start_utc?: string; end_utc?: string; timezone?: string };
   business: { name: string; registration_no: string; address: string; phone: string; email: string; accent_color: string; footer_note: string; logo: { sha256: string; mime: string } | null };
   customer: { id: string; customer_number: string; name: string; address: string; phone: string; email: string; tax_id: string };
   account: { id: string; name: string; tariff: { id: string; name: string; kind?: TariffKind }; formula: { text: string; sentence_he: string } };
@@ -514,6 +517,8 @@ export interface DemoControl {
   latency?: number;
   /** EL5: the shared-areas account bills on a time-of-use tariff (band lines, the daily table) */
   tou?: boolean;
+  /** BILL-start-reading: the draft shows a meter that began reporting inside the period and one without an opening reading */
+  opening?: boolean;
 }
 export function demoControl(): DemoControl {
   try {

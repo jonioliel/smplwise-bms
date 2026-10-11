@@ -770,6 +770,24 @@ def _end_caps(conn: sqlite3.Connection, aid: str, period: per.Period, replaces: 
     return out
 
 
+def _opening_notes(mid: str, name: str, w: MeterWindow, start_kind: str, cons: Decimal, tz: str) -> list[dict[str, Any]]:
+    """BILL-start-reading: say where the opening reading of a meter comes from when it is not a plain reading at the period start,
+    and say so when the consumption is not simply the end reading minus the opening reading."""
+    out: list[dict[str, Any]] = []
+    if w.start.reading_wh is None and (w.end.reading_wh is not None or cons != 0):  # a meter with no reading at all has its not-reporting note
+        out.append({"code": "opening_unknown", "meter_id": mid,
+                    "text_he": f"קריאת הפתיחה של המונה {name} לא נקלטה. מנהל יכול להזין אותה ידנית; עד אז החיוב כולל רק צריכה שנמדדה."})
+    elif start_kind == "first_reading":
+        out.append({"code": "opening_first_reading", "meter_id": mid, "at": _iso(w.start.at),
+                    "text_he": f"קריאת הפתיחה של המונה {name} היא הקריאה הראשונה שנקלטה במערכת, ב-{_fmt_local(w.start.at, tz)}. צריכה שלפניה לא נמדדה ולא חויבה."})
+    if w.start.reading_wh is not None and w.end.reading_wh is not None and not w.resets:
+        delta = _kwh(w.end.reading_wh - w.start.reading_wh)
+        if abs(px.r2(delta) - px.r2(cons)) > Decimal("0.01"):
+            out.append({"code": "reading_difference", "meter_id": mid,
+                        "text_he": f"הצריכה של המונה {name} ({px.s2(cons)} קוט״ש) שונה מהפרש הקריאות ({px.s2(delta)} קוט״ש) בגלל כיול או קריאה ידנית. החיוב לפי הצריכה שנמדדה."})
+    return out
+
+
 def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite3.Row, period: per.Period, *, origin: str = "manual",
             replaces: sqlite3.Row | None = None, bill_id: str | None = None, now: dt.datetime | None = None) -> Computed:
     """The draft snapshot of `account` for `period` (raises ApiError: formula_invalid / formula_negative / tariff_missing /
@@ -831,9 +849,12 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
         manual = manual_fn(mid, w.start.at, w_end + dt.timedelta(seconds=1)) if manual_fn is not None else []
         cal_fn = getattr(provider, "calibrations", None)
         cals = cal_fn(mid, w.start.at, w_end) if cal_fn is not None else []
+        start_kind = w.start.kind
+        if start_kind in ("reading", "first_reading") and any(at == w.start.at and eff == "allocation" for at, _v, eff in manual):
+            start_kind = "manual"  # BILL-start-reading: the opening reading was typed by an administrator (audited manual reading)
         entry: dict[str, Any] = {
             "meter_id": mid, "name": name, "coefficient": fx._dec_str(coef),
-            "start": {"at": _iso(w.start.at), "reading_kwh": str(px.r3(_kwh(w.start.reading_wh))) if w.start.reading_wh is not None else None, "kind": w.start.kind},
+            "start": {"at": _iso(w.start.at), "reading_kwh": str(px.r3(_kwh(w.start.reading_wh))) if w.start.reading_wh is not None else None, "kind": start_kind},
             "end": {"at": _iso(w.end.at), "reading_kwh": str(px.r3(_kwh(w.end.reading_wh))) if w.end.reading_wh is not None else None, "kind": w.end.kind},
             "consumption_kwh": px.s2(cons), "contribution_kwh": px.s2(cons * coef), "carried_in_kwh": px.s2(_kwh(w.carried_in_wh)),
             "resets": [{"at": _iso(r)} for r in w.resets],
@@ -845,6 +866,7 @@ def compute(conn: sqlite3.Connection, provider: BillingReadings, account: sqlite
         if manual:
             entry["manual_readings"] = [{"at": _iso(at), "reading_kwh": str(px.r3(_kwh(Decimal(v)))), "effect": eff} for at, v, eff in manual[:12]]
         meters_out.append(entry)
+        notes.extend(_opening_notes(mid, name, w, start_kind, cons, tz))
         if known_to is None or known_to < w_end - stale:
             since = f"מאז {_fmt_local(known_to, tz)}" if known_to else "מעולם"
             notes.append({"code": "meter_not_reporting", "meter_id": mid, "at": _iso(known_to),

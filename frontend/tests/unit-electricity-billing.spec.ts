@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { astToTokens, coefficients, detectPreset, evaluate, factorLabel, meterIdsOf, parseTokens, presetTokens, sentence, textToTokens, tokensToText, type Tok } from '../src/electricity/elec-formula';
-import { baseNumber, billNumber, nextPeriods, periodContaining } from '../src/electricity/elec-format';
+import { NOT_CAPTURED, baseNumber, billNumber, nextPeriods, openingSource, periodContaining, readingText } from '../src/electricity/elec-format';
 import { chartBars, hasComparison } from '../src/electricity/elec-chart-data';
 import { mockBackend, mockHistoryWire } from '../src/api/electricity-billing-mock';
 import { ERROR_TEXT, PDF_RETRYABLE, buildHistory, eventText, type BillHistory } from '../src/api/electricity-billing';
@@ -278,5 +278,24 @@ test.describe('energy permissions: one source', () => {
       'energy.manage': 'ניהול מונים, חשבונות, לקוחות ומחירים',
     });
     expect(energyPermissionLabel('map.read')).toBeUndefined();
+  });
+});
+// BILL-start-reading: the bill's reading columns never print 0.00 or a bare dash for a reading the system does not have
+test.describe('bill reading columns', () => {
+  test('a missing reading says "not captured"; a real one keeps two places, zero included', () => {
+    expect(NOT_CAPTURED).toBe('לא נקלט');
+    expect(readingText(null)).toBe('לא נקלט');
+    expect(readingText(undefined)).toBe('לא נקלט');
+    expect(readingText('')).toBe('לא נקלט');
+    expect(readingText('607.520')).toBe('607.52');
+    expect(readingText('12480.62')).toBe('12,480.62');
+    expect(readingText('0')).toBe('0.00');
+  });
+  test('the source of an opening reading', () => {
+    expect(openingSource('first_reading')).toBe('הקריאה הראשונה שנקלטה');
+    expect(openingSource('manual')).toBe('קריאה ידנית');
+    expect(openingSource('carried')).toBe('סוף החיוב הקודם');
+    expect(openingSource('interpolated')).toBe('חישוב בין שתי קריאות');
+    expect(openingSource('none')).toBe('לא נקלט');
   });
 });

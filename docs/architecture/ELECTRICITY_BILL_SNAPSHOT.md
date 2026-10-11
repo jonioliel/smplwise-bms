@@ -79,9 +79,15 @@ the same in seven years.
       "end":   {"at": "2026-10-31T22:00:00Z", "reading_kwh": "13121.878", "kind": "reading"},
       // kind: "reading" (a real reading within 15 minutes of the boundary), "interpolated" (by time between two readings),
       //       "carried" (the start is where the previous bill of this account stopped for this meter), "last_report"
-      //       (the meter did not report up to the end; the end is its last report), "none" (no reading known: a meter
-      //       that started reporting inside the period - reading_kwh is null)
-      // reading_kwh may be null whenever the store has no value for that instant (print "-")
+      //       (the meter did not report up to the end; the end is its last report), "first_reading" (BILL-start-reading,
+      //       2026-10-11: a meter that started reporting inside the period - the start is its FIRST stored reading, at that
+      //       reading's own instant `at`; nothing before it was measured or billed), "manual" (the opening is an
+      //       administrator's audited manual reading at the period start, EL6 head_gap), "none" (no reading known -
+      //       reading_kwh is null)
+      // reading_kwh may be null whenever the store has no value for that instant: printed "לא נקלט" (never 0.00 or a bare "-")
+      // Arithmetic: consumption_kwh = end.reading_kwh - start.reading_kwh unless a reset / replacement (note meter_reset) or
+      // a calibration change (note reading_difference) lies inside the window. Notes opening_first_reading / opening_unknown
+      // say where an opening that is not a plain reading came from.
       "consumption_kwh": "776.20",           // what is billed for this meter in this bill (before the coefficient)
       "contribution_kwh": "776.20",          // coefficient x consumption
       "carried_in_kwh": "0.00",              // part of consumption_kwh that happened before the period (a late report)

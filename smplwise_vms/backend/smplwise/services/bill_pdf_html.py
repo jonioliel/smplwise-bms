@@ -39,10 +39,13 @@ def kwh(x: Decimal) -> str:
     return f"{x.quantize(_Q2, rounding=ROUND_HALF_UP):,.2f}"
 
 
+NOT_CAPTURED = "לא נקלט"  # BILL-start-reading: a reading the system does not have is said so, never printed as 0 or a bare dash
+
+
 def reading(x: Decimal | None) -> str:
-    """A meter reading: 3 places as stored, but a trailing zero beyond the second place is not printed; none = a dash."""
+    """A meter reading: 3 places as stored, but a trailing zero beyond the second place is not printed; none = "לא נקלט"."""
     if x is None:
-        return "-"
+        return NOT_CAPTURED
     text = f"{x.quantize(Decimal('0.001'), rounding=ROUND_HALF_UP):,.3f}"
     return text[:-1] if text.endswith("0") else text
 
@@ -398,7 +401,7 @@ def build_html(s: BillSnapshot, has_logo: bool, logo_size: tuple[int, int] | Non
     base = []
     if s.price_note:
         base.append(E(s.price_note))
-    base.append("הקריאות הן קריאות מונה מצטברות שנמדדו בפועל.")
+    base.append("הקריאות הן קריאות מונה מצטברות שנמדדו בפועל; הצריכה של כל מונה היא קריאת הסוף פחות קריאת הפתיחה.")
     line = " ".join(base)
     if s.previous_kwh is not None:
         line += f" צריכה בתקופה הקודמת: {num(kwh(s.previous_kwh))} קוט״ש."
