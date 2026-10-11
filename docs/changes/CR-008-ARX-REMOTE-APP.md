@@ -544,6 +544,7 @@ The two open items the reviewers recorded (round-10 report §6.1) are closed:
 | catalog_image | `POST sites/{id}/image`, `POST buildings/{id}/image` | 12 MiB + 64 KiB |
 | skins_control_image | `POST floors/{id}/skins/control-image` | 8 MiB + 64 KiB |
 | ui_background | `POST settings/background/{slot}` | 12 MiB + 64 KiB (SEC246 I1; the route checks the pixel budget before decoding and decodes one picture at a time) |
+| plan_bake | `POST floors/{id}/bakes` | 4 MiB + 64 KiB (CR-029 S3, 2.4.7: the largest bake kind, a lighting map; each kind keeps its own cap in the service: still 2 MiB, mask 256 KiB) |
 | backup_upload | `POST backups/upload` | 200 MiB + 64 KiB |
 | evidence_bundle | `POST cases/bundles/verify`, `POST cases/bundles/import` | ceiling of `cases.import_max_mb` (4096 MiB) + 64 KiB; the routes stop at the configured value while streaming |
 | geometry_document / detection_accept | `PUT plan-versions/{id}/geometry`, `POST plan-versions/{id}/detect/accept` | 16 MiB |
