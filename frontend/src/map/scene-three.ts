@@ -1413,6 +1413,13 @@ export class SceneView {
     return this.pick(rect.left + rect.width / 2, rect.top + rect.height / 2, maxDistance);
   }
 
+  /** What is under a client point and where the ray met it (scene metres): the touch walk walks to the foot of a tapped
+   * thing and opens a long-pressed device (CR-029 S5-A). The same pick as a click; null = nothing (or an opaque floor). */
+  pickAt(clientX: number, clientY: number, maxDistance = Infinity): (SceneHit & { point: Vec3 }) | null {
+    const hit = this.pick(clientX, clientY, maxDistance);
+    return hit ? { ...hit, point: [this.lastHitPoint.x, this.lastHitPoint.y, this.lastHitPoint.z] } : null;
+  }
+
   /** Host pixels of a scene point (null behind the camera). */
   projectPoint(p: Vec3): { x: number; y: number } | null {
     this.active.updateMatrixWorld();
@@ -1526,6 +1533,9 @@ export class SceneView {
 
   // ---- picking
 
+  /** Where the ray of the last successful pick met its part (scene metres): read by pickAt. */
+  private lastHitPoint = new Vector3();
+
   private pick(clientX: number, clientY: number, maxDistance = Infinity): SceneHit | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
@@ -1554,6 +1564,7 @@ export class SceneView {
         if (this.plateOpacity(part) < 1) continue; // a translucent upper plate: the click goes on to the level below
         return null; // an opaque plate: an empty click
       }
+      this.lastHitPoint.copy(hit.point);
       return { id: part.userData.id, kind: part.userData.kind, partId: part.id };
     }
     return null;

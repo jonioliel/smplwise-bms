@@ -15,7 +15,11 @@ import { cachedOwnMode, loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { WalkSession } from './walk-session';
 import { drawMinimap, type MinimapFrame } from './walk-minimap';
 import { DOOR_STATE_HE, type WalkStart, type WalkWorld } from './walk-world';
-import type { WalkEvent } from './walk-controller';
+import { EDGE_M, type WalkEvent } from './walk-controller';
+import './walk-hud';
+import type { SwWalkHud, WalkHudField, WalkHudGoto, WalkHudRoute } from './walk-hud';
+import { resolveLongPress, resolveTap } from './walk-tap';
+import type { WalkRouteState } from './walk-session';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
@@ -86,7 +90,7 @@ export const WALK_FOV = { desktop: 62, touch: 70, portrait: 76 } as const;
 /** The crosshair turns to a device within this distance (LOOK_SPEC section 9). */
 export const WALK_ACT_M = 3.5;
 const WALK_TOAST_MS = 2600;
-const START_KIND_HE: Record<string, string> = { saved: 'עמדות שמורות', door: 'כניסה', room: 'חדרים', camera: 'מצלמות', centre: 'מרכז' };
+const NO_STARTS: WalkStart[] = [];
 
 /** A download name without whitespace or path characters (Hebrew letters stay): "plan-3d-אולם 3D" -> "plan-3d-אולם-3D". */
 function safeFileName(name: string): string {
@@ -188,6 +192,15 @@ export class SwPlan3d extends LitElement {
   @state() private walkNote: { text: string; tone: 'info' | 'warn' } | null = null;
   /** A stair to another floor reached its top: the "continue to the floor" prompt. */
   @state() private crossFloor: { id: string; name: string | null } | null = null;
+  /** CR-029 S5-A: the saved positions are playing as a route (the HUD's play button reads it). */
+  @state() private routePlaying = false;
+  /** CR-029 S5-A: how long each stop of a route shows (ms; 0 = the default, 4 s). */
+  @property({ type: Number }) routeDwellMs = 0;
+  /** The last input was a finger: no crosshair and no "Enter" hint (they are for a keyboard and a mouse). */
+  private lastInput: 'touch' | 'mouse' | 'key' | null = null;
+  /** The destination ring of a tap is on screen. */
+  private targetShown = false;
+  private minimapPointer: number | null = null;
   /** The person's look dials (eye height, mouse mode, motion; api/plan-view.ts) - the defaults until they load. */
   private viewDials: PlanViewDials = { ...DEFAULT_VIEW };
   private walk: WalkSession | null = null;
@@ -659,53 +672,7 @@ export class SwPlan3d extends LitElement {
       box-shadow: var(--sw-shadow-1);
       cursor: pointer;
       z-index: var(--sw-z-map-ui);
-    }
-    .walkbar {
-      position: absolute;
-      inset-block-end: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: var(--sw-z-map-ui);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--sw-surface) 82%, transparent);
-      border: 1px solid var(--sw-border);
-      box-shadow: var(--sw-shadow-1);
-      backdrop-filter: blur(14px);
-      direction: rtl;
-      max-inline-size: calc(100% - 24px);
-      overflow-x: auto;
-    }
-    .walkbar label {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-2);
-    }
-    .walkbar input {
-      inline-size: 58px;
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 8px;
-      padding: 3px 6px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      direction: ltr;
-    }
-    .walkbar select {
-      font: inherit;
-      font-size: var(--sw-fs-xs);
-      border: 1px solid var(--sw-border-strong);
-      border-radius: 999px;
-      padding: 4px 8px;
-      background: var(--sw-surface);
-      color: var(--sw-text);
-      max-inline-size: 170px;
+      touch-action: none;
     }
     .pill {
       position: absolute;
@@ -738,13 +705,24 @@ export class SwPlan3d extends LitElement {
     :host([data-walk]) .strip {
       display: none;
     }
+    /* S5-A: a finger has no crosshair and no "Enter" hint; the stage is not selectable and a long press is the walk's, not a menu */
+    :host([data-walk-touch]) .cross,
+    :host([data-walk-touch]) .pill.aim {
+      display: none;
+    }
+    :host([data-walk]) .stage {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
     @media (max-width: 640px) {
-      .walkbar .num {
-        display: none;
-      }
       .minimap {
         inline-size: 112px;
         block-size: 112px;
+      }
+      /* above the bottom sheet's row */
+      .pill.walknote {
+        inset-block-end: 84px;
       }
     }
     @media (max-width: 640px) {
@@ -1339,6 +1317,7 @@ export class SwPlan3d extends LitElement {
     }
     this.walk?.dispose();
     const first = start ?? world.starts.find((s) => s.id === world.defaultStart) ?? world.starts[0] ?? null;
+    const fov = this.walkFov();
     this.walk = new WalkSession(world, {
       canvas: view.renderer.domElement,
       onPose: () => this.onWalkPose(),
@@ -1346,8 +1325,15 @@ export class SwPlan3d extends LitElement {
       onExit: () => this.stopWalk(true),
       onAct: () => this.walkAct(),
       onLowFps: () => this.onWalkLowFps(),
-    }, { eye_m: this.viewDials.eye_m, mouseMode: this.viewDials.mouse_mode, start: first });
-    view.enterWalk(this.walkCameraPose(), this.walkFov(), this.viewDials.motion ? WALK_ENTRY_MS : 0);
+      onTap: (x, y) => this.onWalkTap(x, y),
+      onLongPress: (x, y) => this.onWalkLongPress(x, y),
+      onFov: (f) => this.view?.setWalkFov(f),
+      onStick: (st) => this.hud()?.setStick(st),
+      onInput: (k) => this.noteInput(k),
+      onFade: (on) => this.hud()?.setFade(on),
+      onRoute: (r) => this.onWalkRoute(r),
+    }, { eye_m: this.viewDials.eye_m, mouseMode: this.viewDials.mouse_mode, start: first, fov, ease: this.viewDials.motion, fadeMs: this.viewDials.motion ? undefined : 0, routeDwellMs: this.routeDwellMs || undefined });
+    view.enterWalk(this.walkCameraPose(), fov, this.viewDials.motion ? WALK_ENTRY_MS : 0);
     this.endProbe(false); // the walk keeps its own frame floor (section 3.4)
     this.walkState = 'on';
     this.crossFloor = null;
@@ -1367,6 +1353,10 @@ export class SwPlan3d extends LitElement {
     this.walkAim = null;
     this.crossFloor = null;
     this.minimapFrame = null;
+    this.routePlaying = false;
+    this.targetShown = false;
+    this.lastInput = null;
+    this.removeAttribute('data-walk-touch');
     this.removeAttribute('data-walk');
     this.removeAttribute('data-walk-pos');
     this.removeAttribute('data-walk-level');
@@ -1385,13 +1375,14 @@ export class SwPlan3d extends LitElement {
     const p = w.ctrl.pose();
     view.setWalkPose(p);
     this.drawWalkMinimap();
+    this.updateTarget();
     this.setAttribute('data-walk-pos', `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.heading_deg.toFixed(1)}`);
     const now = performance.now();
     if (force || now - this.walkShownAt > 120) {
       this.walkShownAt = now;
       this.walkShown = { x: p.x, z: p.z, heading: Math.round(p.heading_deg), level: p.level };
     }
-    if (force || now - this.walkAimAt > 150) {
+    if ((force || now - this.walkAimAt > 150) && this.lastInput !== 'touch') {
       this.walkAimAt = now;
       requestAnimationFrame(() => {
         if (!this.walk || !this.view) return;
@@ -1411,6 +1402,7 @@ export class SwPlan3d extends LitElement {
       } else if (e.type === 'cross-floor') this.crossFloor = e.floor;
       else if (e.type === 'blocked') this.walkMessage(`הדלת ${DOOR_STATE_HE[e.door.state]}`, 'warn');
       else if (e.type === 'edge') this.walkMessage('קצה התוכנית', 'info');
+      else if (e.type === 'path-blocked') this.walkMessage('אין דרך פתוחה לשם', 'warn');
       else if (e.type === 'room') {
         // LOOK_SPEC section 3: the room's daylight factor drives the walk's interior fill (level 3)
         this.view?.setInterior(e.room ? this.description?.real?.rooms[e.room.id]?.daylight ?? null : null);
@@ -1482,44 +1474,135 @@ export class SwPlan3d extends LitElement {
     const tok = (t: string, fallback: string): string => css.getPropertyValue(`--sw-${t}`).trim() || fallback;
     const accent = tok('accent', '#2767ed');
     this.minimapFrame = drawMinimap(ctx, world, w.ctrl.pose(), w.ctrl.path, size, {
-      bg: tok('surface', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
+      bg: tok('surface-solid', '#ffffff'), wall: tok('map-structure', '#56617a'), low: tok('map-wall', '#9aa3b5'), window: tok('map-glass', '#7fb2ff'),
       doorOpen: tok('live', '#22c55e'), doorClosed: tok('danger', '#ef4444'), object: tok('text-3', '#9aa3b5'), stair: tok('text-2', '#6b7f99'),
       room: withAlpha(accent, 0.07), path: tok('live', '#22c55e'), me: accent, meRing: withAlpha(accent, 0.25),
     });
   }
 
-  private onMinimapClick(e: MouseEvent): void {
+  /** The minimap takes a finger or a click: the walk teleports to the point (an operator convenience, not an edit) and follows a
+   * drag; the point is held inside the level's extent. */
+  private onMinimapDown(e: PointerEvent): void {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    this.noteInput(e.pointerType === 'mouse' ? 'mouse' : 'touch');
+    this.minimapPointer = e.pointerId;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* the pointer is gone already */
+    }
+    e.preventDefault();
+    this.minimapGo(e);
+  }
+
+  private onMinimapMove(e: PointerEvent): void {
+    if (e.pointerId === this.minimapPointer) this.minimapGo(e);
+  }
+
+  private onMinimapUp(e: PointerEvent): void {
+    if (e.pointerId === this.minimapPointer) this.minimapPointer = null;
+  }
+
+  private minimapGo(e: PointerEvent): void {
     const f = this.minimapFrame;
     const w = this.walk;
     if (!f || !w) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const [x, z] = f.toM(e.clientX - rect.left, e.clientY - rect.top);
+    let [x, z] = f.toM(e.clientX - rect.left, e.clientY - rect.top);
+    const ex = this.description?.walk?.levels.find((l) => l.id === w.ctrl.level)?.extent;
+    if (ex) {
+      x = Math.min(Math.max(x, ex.minX + EDGE_M), Math.max(ex.minX + EDGE_M, ex.maxX - EDGE_M));
+      z = Math.min(Math.max(z, ex.minZ + EDGE_M), Math.max(ex.minZ + EDGE_M, ex.maxZ - EDGE_M));
+    }
     w.goTo({ id: 'minimap', kind: 'centre', label: '', level: w.ctrl.level, x, z, heading_deg: w.ctrl.heading, pitch_deg: w.ctrl.pitch, eye_m: null });
   }
 
-  /** The numeric walk fields (x, y in metres on the plan's axes, the heading in degrees): a keyboard alternative to every move. */
-  private onWalkField(key: 'x' | 'z' | 'heading', e: Event): void {
+  // ---- CR-029 S5-A, the touch walk: what the gesture machine reports (walk-session.ts) becomes a walk, a card, a field of view
+
+  private hud(): SwWalkHud | null {
+    return this.renderRoot.querySelector<SwWalkHud>('sw-walk-hud');
+  }
+
+  private noteInput(kind: 'touch' | 'mouse' | 'key'): void {
+    if (kind === this.lastInput) return;
+    this.lastInput = kind;
+    this.toggleAttribute('data-walk-touch', kind === 'touch');
+    if (kind === 'touch') this.walkAim = null;
+  }
+
+  /** A tap: walk there (a tap while walking stops the walk); never a device (walk-tap.ts). */
+  private onWalkTap(x: number, y: number): void {
     const w = this.walk;
-    const v = Number((e.target as HTMLInputElement).value);
-    if (!w || !Number.isFinite(v)) return;
+    const view = this.view;
+    if (!w || !view) return;
+    const r = resolveTap(view, w.ctrl, x, y);
+    if (r.kind === 'walk') w.kick();
+    else if (r.kind === 'unreachable') this.walkMessage('אין דרך פתוחה לשם', 'warn');
+    this.updateTarget();
+  }
+
+  /** A long press: the device under the finger opens exactly as a click on it does - the host's own action path decides. */
+  private onWalkLongPress(x: number, y: number): void {
+    const hit = this.view ? resolveLongPress(this.view, x, y) : null;
+    if (!hit) return;
+    try {
+      navigator.vibrate?.(12);
+    } catch {
+      /* no haptics on this device */
+    }
+    this.emitSelect(hit);
+  }
+
+  private onWalkRoute(r: WalkRouteState): void {
+    this.routePlaying = r.playing;
+    if (r.label) this.walkMessage(r.label, 'info');
+  }
+
+  /** The ring where the auto-walk is heading, projected into the view after every pose (hidden when the walk is not under way). */
+  private updateTarget(): void {
+    const hud = this.hud();
+    const w = this.walk;
+    const view = this.view;
+    if (!hud || !w || !view) return;
+    const path = w.ctrl.path;
+    if (!path || !path.length) {
+      if (this.targetShown) {
+        this.targetShown = false;
+        hud.setTarget(null);
+      }
+      return;
+    }
+    const end = path[path.length - 1];
+    const at = view.projectPoint([end[0], w.ctrl.pose().ground, end[1]]);
+    this.targetShown = !!at;
+    hud.setTarget(at);
+  }
+
+  private onHudGoto(e: CustomEvent<WalkHudGoto>): void {
+    const s = this.description?.walk?.starts.find((q) => q.id === e.detail.id);
+    if (s) this.walk?.goTo(s);
+  }
+
+  /** The numeric walk fields (x, y in metres on the plan's axes, the heading in degrees): a keyboard alternative to every move. */
+  private onHudField(e: CustomEvent<WalkHudField>): void {
+    const w = this.walk;
+    if (!w) return;
+    const { key, value: v } = e.detail;
     const c = w.ctrl;
     w.goTo({ id: 'field', kind: 'centre', label: '', level: c.level, x: key === 'x' ? v : c.x, z: key === 'z' ? v : c.z, heading_deg: key === 'heading' ? v : c.heading, pitch_deg: c.pitch, eye_m: null });
   }
 
-  private onWalkStart(e: Event): void {
-    const sel = e.target as HTMLSelectElement;
-    const s = this.description?.walk?.starts.find((q) => q.id === sel.value);
-    sel.value = '';
-    if (s) this.walk?.goTo(s);
+  private onHudRoute(e: CustomEvent<WalkHudRoute>): void {
+    if (e.detail.play) this.walk?.playRoute();
+    else this.walk?.cancelRoute();
   }
 
   private renderWalk() {
     if (this.walkState !== 'on' || !this.walk) return nothing;
-    const starts = this.description?.walk?.starts ?? [];
-    const kinds = ['saved', 'door', 'room', 'camera', 'centre'].filter((k) => starts.some((s) => s.kind === k));
-    const s = this.walkShown;
     return html`
-      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה" @click=${(e: MouseEvent) => this.onMinimapClick(e)}></canvas>
+      <canvas class="minimap" data-walk-minimap role="img" aria-label="מפה קטנה של המפלס; לחיצה מעבירה לנקודה"
+        @pointerdown=${(e: PointerEvent) => this.onMinimapDown(e)} @pointermove=${(e: PointerEvent) => this.onMinimapMove(e)}
+        @pointerup=${(e: PointerEvent) => this.onMinimapUp(e)} @pointercancel=${(e: PointerEvent) => this.onMinimapUp(e)}></canvas>
       <span class="cross" ?data-aim=${!!this.walkAim} aria-hidden="true"></span>
       ${this.walkAim ? html`<span class="pill aim" data-walk-aim>${this.labelOf(this.walkAim)} · Enter</span>` : nothing}
       ${this.walkNote ? html`<span class="pill walknote" role="status" data-tone=${this.walkNote.tone} data-walk-note>${this.walkNote.text}</span>` : nothing}
@@ -1527,18 +1610,8 @@ export class SwPlan3d extends LitElement {
         ? html`<span class="pill cross-floor" role="status" data-walk-cross=${this.crossFloor.id}>המדרגות ממשיכות ל${this.crossFloor.name ?? 'קומה אחרת'}
             <sw-button size="sm" variant="ghost" data-walk-cross-go @click=${() => this.dispatchEvent(new CustomEvent<FloorRequestDetail>('floor-request', { detail: { floorId: this.crossFloor!.id }, bubbles: true, composed: true }))}>המשך לקומה</sw-button></span>`
         : nothing}
-      <div class="walkbar" role="group" aria-label="סיור בגובה עין" data-walk-bar>
-        <sw-button size="sm" variant="ghost" data-walk-exit @click=${() => this.stopWalk(true)}>יציאה</sw-button>
-        <select data-walk-start aria-label="עמוד ב…" @change=${(e: Event) => this.onWalkStart(e)}>
-          <option value="">עמוד ב…</option>
-          ${kinds.map((k) => html`<optgroup label=${START_KIND_HE[k]}>${starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || START_KIND_HE[k]}</option>`)}</optgroup>`)}
-        </select>
-        ${s
-          ? html`<label class="num">x <input type="number" step="0.1" inputmode="decimal" data-walk-x aria-label="x במטרים" .value=${s.x.toFixed(2)} @change=${(e: Event) => this.onWalkField('x', e)} /></label>
-              <label class="num">y <input type="number" step="0.1" inputmode="decimal" data-walk-y aria-label="y במטרים" .value=${s.z.toFixed(2)} @change=${(e: Event) => this.onWalkField('z', e)} /></label>
-              <label class="num">כיוון <input type="number" step="5" inputmode="numeric" data-walk-heading aria-label="כיוון במעלות" .value=${String(s.heading)} @change=${(e: Event) => this.onWalkField('heading', e)} /></label>`
-          : nothing}
-      </div>`;
+      <sw-walk-hud .starts=${this.description?.walk?.starts ?? NO_STARTS} .shown=${this.walkShown} .routePlaying=${this.routePlaying}
+        @hud-exit=${() => this.stopWalk(true)} @hud-goto=${(e: CustomEvent<WalkHudGoto>) => this.onHudGoto(e)} @hud-field=${(e: CustomEvent<WalkHudField>) => this.onHudField(e)} @hud-route=${(e: CustomEvent<WalkHudRoute>) => this.onHudRoute(e)}></sw-walk-hud>`;
   }
 
   // ---- the thumbnail strip: one small isometric per listed level, cached for the description it came from
