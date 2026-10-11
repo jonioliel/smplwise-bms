@@ -8,7 +8,10 @@
  */
 import { LitElement, css, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { convexHull, stillKey, type BundleBakes, type MaskDoc, type StillBand, type StillPreset, type StillStyle } from './still-bake';
+import { bandAt, convexHull, stillKey, type BundleBakes, type MaskDoc, type StillBand, type StillPreset, type StillStyle } from './still-bake';
+
+/** A kiosk shows the same still for hours: with `autoBand` the band (day / sunset / night) is re-read from the clock this often. */
+const BAND_TICK_MS = 60_000;
 
 export interface StillsRoomState {
   lit?: boolean | null;
@@ -39,6 +42,11 @@ export class SwPlanStills extends LitElement {
   @property() preset: StillPreset = 'iso';
   @property() styleId: StillStyle = 'light';
   @property() band: StillBand = 'day';
+  /** CR-029 S5-B: follow the time of day by itself - the band is read from the clock when the view connects and once a minute
+   * after, so a wall that idles on its still all evening changes from the day picture to the sunset and night ones (an idle
+   * kiosk gets no host re-render to do it). `site` is the installation's position (default: the S3 fallback). */
+  @property({ type: Boolean }) autoBand = false;
+  @property({ attribute: false }) site: { lat: number; lon: number } | null = null;
   /** Room id -> state (room-state.ts RoomStateLayer.rooms). */
   @property({ attribute: false }) rooms: Record<string, StillsRoomState> = {};
   /** Ids of the openings that are open now (room-state.ts openOpenings). */
@@ -57,6 +65,32 @@ export class SwPlanStills extends LitElement {
     .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sw-text-2, #5b6a85); font: 500 13px/1.4 var(--sw-font, system-ui); }
   `;
 
+  private bandTimer = 0;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.watchBand();
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.clearInterval(this.bandTimer);
+    this.bandTimer = 0;
+  }
+
+  private watchBand(): void {
+    window.clearInterval(this.bandTimer);
+    this.bandTimer = 0;
+    if (!this.autoBand || !this.isConnected) return;
+    this.readBand();
+    this.bandTimer = window.setInterval(() => this.readBand(), BAND_TICK_MS);
+  }
+
+  private readBand(): void {
+    const next = bandAt(new Date(), this.site?.lat, this.site?.lon);
+    if (next !== this.band) this.band = next;
+  }
+
   private levelSet() {
     return this.level ? this.bakes?.levels[this.level] ?? null : null;
   }
@@ -72,6 +106,7 @@ export class SwPlanStills extends LitElement {
   }
 
   protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('autoBand') || changed.has('site')) this.watchBand();
     if (changed.has('bakes') || changed.has('level') || changed.has('preset')) {
       const url = this.levelSet()?.masks[this.preset]?.url ?? null;
       if (url !== this.maskUrl) {
