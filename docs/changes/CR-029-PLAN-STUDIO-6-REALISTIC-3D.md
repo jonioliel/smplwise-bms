@@ -685,7 +685,7 @@ and is not touched here. S4 had already built the controller's A*, the minimap a
 a right-half look, a click turned into a walk); S5-A keeps all of it working and adds what section 4.2 and the S5 row of
 section 8 list for a finger.
 
-### 14.1 What section 4.2 / 8 lists and where it is now
+### 15.1 What section 4.2 / 8 lists and where it is now
 
 | CR-029 | Before S5-A (S4) | S5-A | Where |
 |---|---|---|---|
@@ -707,7 +707,7 @@ against the base, nearly all of it the S4 bar's markup and CSS that the HUD repl
 method), `i18n/he.ts` (a `walk` section: the HUD's strings go through the catalogue). No code from `three` is imported by any new
 module, so the `three` chunk is unchanged (`unit-three-chunk`).
 
-### 14.2 Decisions (owner-level, the safest default taken; recorded in the commit messages)
+### 15.2 Decisions (owner-level, the safest default taken; recorded in the commit messages)
 
 1. **On touch a tap never operates a device.** The plan view's click on a lamp of a circuit runs the circuit's action
    (`explore-floor-map.onPartSelect`); a finger covers a lot of the screen and a walk across a room would toggle lights. Only a
@@ -719,14 +719,14 @@ module, so the `three` chunk is unchanged (`unit-three-chunk`).
 5. **Saved positions are not edited from the walk.** Editing is `map.edit` on the plan (the editor's "עמדות סיור" tool,
    branch `pilot/ST7-ui`); the walk only uses them. Nothing here writes a document.
 
-### 14.3 Not in S5-A
+### 15.3 Not in S5-A
 
 Saving a position from inside the walk (needs the plan-editor draft / publish path); the kiosk's idle still, "route when the
 screen is idle", the wall display and the pointer-lock check on the real Ingress page (S5-B); a real phone, tablet or wall
 tablet (every number here is a headless browser with emulated touch: NOT_RUN on a device); a per-browser FOV memory (the
 pinch lasts for the walk).
 
-### 14.4 Tests
+### 15.4 Tests
 
 Node: `unit-walk-stick` (joystick and look maths, the ease, the pinch), `unit-walk-touch` (the gesture machine on scripted
 fingers and a scripted clock, and a determinism replay through the controller), `unit-walk-path` (A* through an open door and
