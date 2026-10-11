@@ -160,3 +160,16 @@ route; both are read-only `map.read`.
 | S3-2 | CR-029 5.3: `POST` stores with `map.edit`, served by `GET /floors/{id}/bakes/{kind}/{variant}[/{preset}]` | served by `GET /floors/{id}/bakes/{bake_id}/file` | a slot has six dimensions now; the id is unambiguous and the URL carries `?v=<sha16>` for caching |
 | S3-3 | CR-029 5.3 size caps 2 MB still / 4 MB lightmap; no mask cap | kept, plus 256 KB per mask, per-floor and installation caps in `plan.bakes` | the owner asked for caps and eviction |
 | S3-4 | CR-029 3.1 bakes AO "into one lightmap atlas per floor and level" on all surfaces | floor surfaces only in v1, atlas format ready for more | wall faces need per-instance lightmap UVs in SceneView (S1 owner); the floor is where the darkening reads |
+
+## 11. Test record (2026-10-10 / 11)
+
+| Run | Where | Result |
+|---|---|---|
+| `tests/test_plan_bakes.py` (14) | workstation + runner | PASS |
+| Full backend suite @ 54ec52a5 (2 shards) | runner, under heavy load (3 h) | 6,372 passed, 8 failed: 7 timing tests (ha_sync_1000, lat1 toggle latency, media seek rate limit, nvr m2 45 s, refusal throttle x2, remote auth flood) PASS when re-run alone @ b3c20414 = FLAKY under load; `test_release_check` "migrations contiguous" red = expected on this branch (0073 lives on main 2.4.4; clears at integration) |
+| tsc | runner @ b84c799a | ok |
+| `unit-still-bake.spec.ts` (15), `evidence-plan-stills.spec.ts` (2, dev server, SwiftShader) | runner | PASS |
+| 3D / map / settings specs on the dist preview, 3 projects (unit-plan-3d*, determinism, floor-map-3d, three-chunk, skin-control, levels / presence / skins settings) | runner | PASS after the chunk fix; `evidence-material-dials` 2 failures are pre-existing (same 2 fail on `pilot/ST7-port-s0-s4`) |
+| Visual matrix `map-floor`, `settings-diagnostics` (light / dark x 3 projects) | runner | 12 / 12 pixel-stable (levels 1-2 baselines unchanged); artefacts private-evidence/visual-out/pilot-ST7-port-s3-stills-39f21da3 |
+| Full dist-preview suite | runner | NOT_RUN to the end (terminated by the session pause; not repeated to save the shared runner) |
+| Real GPU / phone / wall tablet bake timing, owner review of the still pictures | - | NOT_RUN |
