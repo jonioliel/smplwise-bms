@@ -1,6 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { fixtureCandidates, fixtureEpochs, fixtureMeters, fixtureSeries } from '../src/electricity/fixtures';
 import { fixtureReadingLog, type ReadingLog } from '../src/api/electricity-readings';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-023 electricity UI: the mock layer of the Playwright specs. It speaks the WIRE contract of pilot/elec-server
 // (docs/architecture/ELECTRICITY_INTERFACES.md section 3: `items`, `display_name`, `value_kwh`, `state`, candidates with `ref` / `verdict` / `code`, settings
@@ -314,7 +315,7 @@ export async function installElectricityMock(page: Page, opts: MockOptions = {})
   return st;
 }
 
-export const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+export const SKINS = SKIN_IDS;
 
 /** The URL of a screen: skin and scheme as the dev query, the route as the hash. */
 export const url = (hash: string, skin = 'classic', scheme: 'light' | 'dark' = 'light') => `/?design=a&skin=${skin}&scheme=${scheme}#${hash}`;

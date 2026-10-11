@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import type { SkinId } from '../src/design/skins';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +22,7 @@ export interface Ctl {
   tou?: boolean;
 }
 export interface Opts {
-  skin?: 'classic' | 'domus' | 'tesla' | 'bubble';
+  skin?: SkinId;
   scheme?: 'light' | 'dark';
   ctl?: Ctl;
 }

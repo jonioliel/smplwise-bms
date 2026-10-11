@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
+import { SKIN_IDS } from '../src/design/skins';
 
 // SEC screens polish (2026-10-10): the evidence matrix of the security area - the alarm (state card, zones, the keypad), the live
 // overview, the wall, one camera, the saved views, the events centre (table + drawer), camera health, the notification centre
@@ -17,7 +18,7 @@ import { settlePage } from './pixel-settle';
 
 const PHASE = process.env.SW_SEC_PHASE === 'before' ? 'before' : 'after';
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), `../../docs/design/evidence/security-polish/${PHASE}`);
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 /** The four screens every skin is shot on; the rest are classic only. */
 const KEY = new Set(['alarm', 'wall', 'events', 'notify']);

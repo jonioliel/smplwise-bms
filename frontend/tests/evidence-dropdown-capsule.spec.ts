@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, type Page } from '@playwright/test';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Unreleased (owner request 2026-10-04): evidence screenshots of the `capsule` dropdown - closed and open, desktop and phone, light and dark, the
 // three sizes - for the owner's review. SW_SHOTS=<dir> saves them elsewhere (default docs/evidence/dropdown-capsule). One project only: the specs set
@@ -74,7 +75,7 @@ test('capsule: the three sizes side by side (desktop, light)', async ({ page }) 
   await shot(page, 'capsule-sizes-desktop-1280-light.png');
 });
 
-for (const skin of ['domus', 'tesla', 'bubble']) {
+for (const skin of SKIN_IDS.filter((s) => s !== 'classic')) {
   test(`capsule in the ${skin} skin (desktop, open)`, async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project');
     await stage(page, 1280, 'light', ['md'], skin);

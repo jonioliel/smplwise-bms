@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize } from './layout-guard';
 import { ADMIN, installFrigate, newControlMock, newFrigateMock, openApp, type FrigateControlMock, type FrigateMock } from './frigate-mocks';
+import { SKIN_IDS } from '../src/design/skins';
 
 // FRGD (owner 2026-10-07): the Frigate user interface, polished and completed - the restyled review screen (cards AND a table view, the
 // state chips, the keys behind one help button, the drawer with "ייצוא הקטע"), and Settings > the Frigate recorder as one tabbed
@@ -191,7 +192,7 @@ test.describe('review: the restyled screen', () => {
     await installFrigate(page, m);
     const findings: { cls: string }[] = [];
     for (const view of ['cards', 'table'] as const) {
-      for (const skin of ['classic', 'domus', 'tesla', 'bubble'] as const) {
+      for (const skin of SKIN_IDS) {
         for (const scheme of ['light', 'dark'] as const) {
           await page.goto('about:blank');
           await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#/investigate/reviews`);

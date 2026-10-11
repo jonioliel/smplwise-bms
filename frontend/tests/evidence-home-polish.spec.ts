@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
+import { SKIN_IDS } from '../src/design/skins';
 
 // HOME polish (2026-10-10): the evidence matrix of the home screen (cards and tiles views), the area screen and the tiles panel,
 // across the four skins x light / dark at 1440, the classic skin at 1024 and 390, plus the non-ready states (loading, error, an
@@ -76,7 +77,7 @@ const RESET = {
   'home.clock_size': 'medium', 'home.weather_size': 'medium', 'home.jewish_size': 'medium', 'home.clock_seconds': 'false', 'devices.area_design': 'tiles',
 };
 
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 const WIDTH: Record<string, string> = { desktop: '1440', tablet: '1024', mobile: '390' };
 

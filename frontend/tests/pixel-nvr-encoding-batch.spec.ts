@@ -3,13 +3,14 @@ import fs from 'node:fs';
 import { newMock } from './nvr-cameras-write-mock';
 import { settlePage } from './pixel-settle';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-020 phase D pixel baselines: the bulk encoding change's two new screens - the target settings form and the preview - in the four skins
 // (classic, domus, tesla, bubble), desktop 1440 and phone 390, against the mocked backend (deterministic data, fixed clock, performance:full).
 // Baselines are per OS (fonts and text shaping differ): the Linux ones are generated on the runner with `--update-snapshots`; on an OS without a
 // baseline the check is skipped instead of failing on a missing file (the design-foundation rule).
 //   ~/run_remote.sh spec <branch> tests/pixel-nvr-encoding-batch.spec.ts --project=desktop --project=mobile [--update-snapshots]
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const PAGE = 'sw-app system-security system-security-cameras';
 const DLG = `${PAGE} nvr-encoding-batch sw-dialog[open][data-nvr-enc]`;
 

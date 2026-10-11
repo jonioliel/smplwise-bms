@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { freshMock, mockSt7Backend, openSt7, settle, waitEditor } from './st7-ui-mocks';
+import { SKIN_IDS } from '../src/design/skins';
 
-// CR-029 ST7 UI: the layout guard (tests/layout-guard.ts) over the new Studio 6 cards, in every skin (classic, domus, tesla, bubble)
+// CR-029 ST7 UI: the layout guard (tests/layout-guard.ts) over the new Studio 6 cards, in every registered skin (SKIN_IDS; crystal since 2.4.7)
 // x light / dark x widths 320..1440, over the mocked backend (tests/st7-ui-mocks.ts): the realistic-3D settings card (both targets)
 // and, from 768 px (the plan editor is desktop-only), the editor's material field (wall, object, room), the north card and the
 // walk positions card. FAILS on escape / overflow / floating / clipped / target. Every new control is sized by the desktop touch
@@ -10,7 +11,7 @@ import { freshMock, mockSt7Backend, openSt7, settle, waitEditor } from './st7-ui
 //   npm run build && npx playwright test tests/layout-st7-ui.spec.ts --project=desktop --workers=1     (LAYOUT_QUICK=1: 320/768/1440)
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 768, 1440] : [320, 390, 768, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS; // 2.4.7 integration: the five-skin sweep (pilot/SPECS-five-skins) covers the Studio 6 cards too
 const SCHEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const ED = 'explore-plan-editor';

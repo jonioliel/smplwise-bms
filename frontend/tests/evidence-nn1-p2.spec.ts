@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMBOS, installInstallationMock, type Combo, type HaState } from './nn1-p2-mocks';
 import { inPageCheck, type Finding } from './layout-guard';
+import { SKIN_IDS } from '../src/design/skins';
 
 // NN1 P2 (docs/architecture/CAPABILITIES.md section 4): the shell reacts to the installation's capabilities. Mocked backend
 // (tests/nn1-p2-mocks.ts), no device, no NVR, no media server, no Home Assistant. Four installations:
@@ -341,7 +342,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
     expect(mine.map((f) => `${f.cls} ${f.ctx} ${f.el} ${f.detail}`), `${found.length} findings in total`).toEqual([]);
   });
 
-  for (const skin of ['classic', 'domus', 'tesla', 'bubble']) {
+  for (const skin of SKIN_IDS) {
     for (const scheme of ['light', 'dark']) {
       test(`the neutral panels in the ${skin} skin, ${scheme}`, async ({ page }, info) => {
         for (const [combo, hash, kind] of [['A', '/live/wall', 'no_nvr'], ['C', '/live/wall', 'no_media']] as [Combo, string, Outcome][]) {

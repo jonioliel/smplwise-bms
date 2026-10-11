@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { setLook } from './bubble-chrome-screens';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Owner 2026-10-04: the schedules screen is designed exactly like the automations and scenes screens (docs/design/schedules-parity.md).
 // The layout guard (tests/layout-guard.ts) over every state of it - the list as cards, table and week, "סינון" open, the drawer,
@@ -160,7 +161,7 @@ test.describe('layout guard: the schedules screen in the automations screen\'s d
     report('layout-schedules-parity (bubble)', runs, results, errors);
   });
 
-  for (const skin of ['classic', 'domus', 'tesla']) test(`${skin} skin: every state, the geometry classes (44 px targets at the phone width)`, async ({ page }) => {
+  for (const skin of SKIN_IDS) test(`${skin} skin: every state, the geometry classes (44 px targets at the phone width)`, async ({ page }) => {
     test.skip(test.info().project.name !== 'desktop', 'one project runs the sweep');
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
