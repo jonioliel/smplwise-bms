@@ -1,0 +1,30 @@
+{
+  "pin": "rc37-contract.4",
+  "provider": "WisKey (hikvision_intercom)",
+  "runtime_version": "2.0.0-rc.37",
+  "source_commit": "909579e3d113803e6274dbe4e4046aa5e6bf3c3c",
+  "license": "MIT",
+  "identical_catalogs_in": [
+    "rc37-contract.1",
+    "rc37-contract.2",
+    "rc37-contract.3",
+    "rc37-contract.4"
+  ],
+  "files": {
+    "commands.static.json": {
+      "sha256": "2e3cd9325f182712b99f97e50a11fb902bf5b2c63d5cc3ab6eaca46c96da8c8f",
+      "count": 238
+    },
+    "errors.static.json": {
+      "sha256": "6044dc2625302f4be8fb8d49f972635e1829a8e91d17ba4dc16c2cfe6dcac0c1",
+      "count": 301
+    },
+    "background-summary.proposed.schema.json": {
+      "sha256": "fb5c96bc9223ede5e7a9bda7f20bb47a13627b260356595cc81ac56980551d88",
+      "status": "proposed by WisKey (D-006), not implemented by WisKey"
+    },
+    "LICENSE": {
+      "sha256": "84dd9f1b887230cec87efb15b654a01aff6ef959445b2cb94db71a68c0593336"
+    }
+  }
+}

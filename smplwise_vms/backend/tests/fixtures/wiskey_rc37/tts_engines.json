@@ -1,0 +1,26 @@
+{
+ "default": "tts.piper",
+ "engines": [
+  {
+   "engine_id": "tts.piper",
+   "name": "Piper",
+   "supported_languages": [
+    "en",
+    "he"
+   ],
+   "default_language": "he"
+  },
+  {
+   "engine_id": "tts.google_translate_en_com",
+   "name": "Google Translate",
+   "supported_languages": [
+    "en",
+    "iw"
+   ],
+   "default_language": "en"
+  },
+  {
+   "name": "no id, dropped"
+  }
+ ]
+}

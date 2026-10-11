@@ -78,6 +78,19 @@ async def overview(call: Call) -> dict[str, Any]:
     return result
 
 
+async def authorization_session(call: Call) -> dict[str, Any]:
+    """`hikvision_intercom/authorization/session {}` - what WisKey sees the connection's user as: `allowed`, `is_admin`,
+    `areas` ({overview, users, events, stations, management}: none | view | manage), `station_ids` (null = every station,
+    a list, [] = none), `fields`, `revision` (the global panel permission revision), `personal_renewal` and, when WisKey has a
+    PanelSecurity, `security` ({locked, idle_minutes, reauth_sensitive, elevated}). A READ command (no `api_contract`
+    needed). The diagnostics view (B0) is its only caller: it asks it once per channel identity - the service session, the
+    background session and, in `/arx`, the signed-in operator - and shows the answer; nothing is decided from it."""
+    result = _result(await call(command_type("authorization/session")), "authorization/session")
+    if not isinstance(result, dict):
+        raise IntercomError("invalid_response", "authorization/session")
+    return result
+
+
 async def subscribe(call: Call) -> int:
     """`hikvision_intercom/subscribe` - WisKey's only push channel. Its events are data-free (`{"kind": "refresh"}` or
     `{"kind": "access_revoked"}`); a client refetches what it shows. Returns the subscription id the events carry."""

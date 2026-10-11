@@ -1,0 +1,296 @@
+{
+ "access": {
+  "allowed": true,
+  "is_admin": true,
+  "revision": 3,
+  "areas": {
+   "overview": "manage",
+   "users": "manage",
+   "events": "manage",
+   "stations": "manage",
+   "management": "manage"
+  }
+ },
+ "user_count": 1,
+ "api": {
+  "version": 1,
+  "min_client": 0,
+  "capabilities": [
+   "panel_permissions"
+  ],
+  "commands": [
+   "authorization/session",
+   "cards/capture_cancel",
+   "cards/capture_confirm",
+   "cards/capture_start",
+   "cards/capture_status",
+   "cards/reader_capabilities",
+   "events/list",
+   "media/signal",
+   "overview",
+   "stations/test_unlock",
+   "users/create",
+   "users/delete",
+   "users/get",
+   "users/pin_generate",
+   "users/query",
+   "users/update"
+  ]
+ },
+ "default_zone": {
+  "kind": "iana",
+  "name": "Asia/Jerusalem"
+ },
+ "version": "4.2.0",
+ "users": [
+  {
+   "id": "u1",
+   "employee_no": "1001",
+   "display_name": "Dana",
+   "active": true,
+   "pin_configured": true,
+   "phone": "+972500000000",
+   "cards": [
+    {
+     "masked_number": "****1234",
+     "label": "Main",
+     "card_type": "normal",
+     "enabled": true
+    }
+   ],
+   "assignments": {},
+   "revision": 1,
+   "identity_locked": false,
+   "valid_from": null,
+   "valid_until": null
+  }
+ ],
+ "stations": [
+  {
+   "id": "entry-a",
+   "sync_reference": "ref-a",
+   "name": "Main gate",
+   "lock_enabled": true,
+   "loaded": true,
+   "online": true,
+   "call_state": "idle",
+   "sync_state": "synced",
+   "last_error": null,
+   "scanned_at": null,
+   "scanning": false,
+   "scan_error": null,
+   "observations": {
+    "call_status": true
+   },
+   "integrated_locks": [
+    {
+     "physical_index": 1,
+     "api_id": 1,
+     "name": "Gate"
+    }
+   ],
+   "event_status": {
+    "stream": "connected",
+    "history": "idle",
+    "reconnects": 0,
+    "recovered_until": null
+   },
+   "reconciled_at": null,
+   "managed_user_count": 12,
+   "pending_user_count": 0,
+   "last_seen": "2026-09-27T08:00:00+00:00",
+   "last_poll_ms": 40,
+   "last_access": {
+    "timestamp": "2026-09-27T07:59:00+03:00",
+    "time_source": "device",
+    "person_name": "Dana",
+    "employee_no": "1001",
+    "authentication": "card",
+    "result": "granted",
+    "event_type": "access_granted",
+    "recovered": false,
+    "door": 1
+   },
+   "user_count": 12,
+   "card_count": 9,
+   "unmanaged_count": 0,
+   "model": "DS-KV6113",
+   "firmware": "V2.2",
+   "host": "192.0.2.10",
+   "entities": {
+    "camera": "camera.main_gate",
+    "lock": "lock.main_gate",
+    "online": "binary_sensor.main_gate_online",
+    "ringing": "binary_sensor.main_gate_ringing",
+    "call_status": "sensor.main_gate_call_status"
+   },
+   "capabilities": {
+    "max_users": 500,
+    "max_cards": 500,
+    "cards_per_person": 5,
+    "pin_writable": true,
+    "pin_min": 4,
+    "pin_max": 8,
+    "name_max": 32,
+    "schedules": true
+   },
+   "clock": {
+    "source": "device",
+    "zone": {
+     "kind": "iana",
+     "name": "Asia/Jerusalem"
+    },
+    "device_zone": null,
+    "device_time": null,
+    "checked_at": null,
+    "status": "ok",
+    "error": null,
+    "skew_seconds": 1,
+    "time_mode": "ntp"
+   }
+  },
+  {
+   "id": "entry-b",
+   "sync_reference": "ref-a",
+   "name": "Side door",
+   "lock_enabled": false,
+   "loaded": true,
+   "online": false,
+   "call_state": "unavailable",
+   "sync_state": "offline",
+   "last_error": null,
+   "scanned_at": null,
+   "scanning": false,
+   "scan_error": null,
+   "observations": {
+    "call_status": true
+   },
+   "integrated_locks": [],
+   "event_status": {
+    "stream": "connected",
+    "history": "idle",
+    "reconnects": 0,
+    "recovered_until": null
+   },
+   "reconciled_at": null,
+   "managed_user_count": 12,
+   "pending_user_count": 2,
+   "last_seen": "2026-09-27T08:00:00+00:00",
+   "last_poll_ms": 40,
+   "last_access": null,
+   "user_count": 12,
+   "card_count": 9,
+   "unmanaged_count": 0,
+   "model": "DS-KV6113",
+   "firmware": "V2.2",
+   "host": "192.0.2.10",
+   "entities": {
+    "online": "binary_sensor.side_door_online"
+   },
+   "capabilities": {
+    "max_users": 500,
+    "max_cards": 500,
+    "cards_per_person": 5,
+    "pin_writable": true,
+    "pin_min": 4,
+    "pin_max": 8,
+    "name_max": 32,
+    "schedules": true
+   },
+   "clock": null
+  },
+  {
+   "id": "entry-c",
+   "sync_reference": "ref-a",
+   "name": "Loading dock",
+   "lock_enabled": true,
+   "loaded": true,
+   "online": true,
+   "call_state": "ringing",
+   "sync_state": "synced",
+   "last_error": null,
+   "scanned_at": null,
+   "scanning": false,
+   "scan_error": null,
+   "observations": {
+    "call_status": true
+   },
+   "integrated_locks": [
+    {
+     "physical_index": 1,
+     "api_id": 1,
+     "name": "Gate"
+    },
+    {
+     "physical_index": 2,
+     "api_id": 7,
+     "name": "Barrier"
+    }
+   ],
+   "event_status": {
+    "stream": "connected",
+    "history": "idle",
+    "reconnects": 0,
+    "recovered_until": null
+   },
+   "reconciled_at": null,
+   "managed_user_count": 12,
+   "pending_user_count": 0,
+   "last_seen": "2026-09-27T08:00:00+00:00",
+   "last_poll_ms": 40,
+   "last_access": {
+    "timestamp": "2026-09-27T07:59:00+03:00",
+    "time_source": "device",
+    "person_name": "Dana",
+    "employee_no": "1001",
+    "authentication": "card",
+    "result": "granted",
+    "event_type": "access_granted",
+    "recovered": false,
+    "door": 1
+   },
+   "user_count": 12,
+   "card_count": 9,
+   "unmanaged_count": 0,
+   "model": "DS-KV6113",
+   "firmware": "V2.2",
+   "host": "192.0.2.10",
+   "entities": {
+    "camera": "camera.main_gate",
+    "lock": "lock.main_gate",
+    "online": "binary_sensor.main_gate_online",
+    "ringing": "binary_sensor.main_gate_ringing",
+    "call_status": "sensor.main_gate_call_status"
+   },
+   "capabilities": {
+    "max_users": 500,
+    "max_cards": 500,
+    "cards_per_person": 5,
+    "pin_writable": true,
+    "pin_min": 4,
+    "pin_max": 8,
+    "name_max": 32,
+    "schedules": true
+   },
+   "clock": {
+    "source": "device",
+    "zone": {
+     "kind": "iana",
+     "name": "Asia/Jerusalem"
+    },
+    "device_zone": null,
+    "device_time": null,
+    "checked_at": null,
+    "status": "ok",
+    "error": null,
+    "skew_seconds": 1,
+    "time_mode": "ntp"
+   }
+  }
+ ],
+ "tombstones": [],
+ "revocations": [],
+ "card_removals": [],
+ "pin_removals": [],
+ "sync_operations": []
+}

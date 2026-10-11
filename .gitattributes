@@ -14,3 +14,8 @@
 *.woff2 binary
 *.ttf binary
 *.mp4 binary
+
+# WisKey pinned contract catalogs: byte-exact copies of the delivered files (their SHA-256 is the provenance), so no
+# line-ending normalisation.
+docs/integrations/wiskey/catalog/**/*.json -text
+docs/integrations/wiskey/catalog/**/LICENSE -text

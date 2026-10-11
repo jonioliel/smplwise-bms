@@ -1,0 +1,31 @@
+{
+ "allowed": true,
+ "is_admin": false,
+ "revision": 3,
+ "personal_renewal": false,
+ "areas": {
+  "overview": "view",
+  "users": "none",
+  "events": "none",
+  "stations": "none",
+  "management": "none"
+ },
+ "fields": {
+  "phone": "none",
+  "photo": "none",
+  "credentials": "none",
+  "profile": "none",
+  "access": "none"
+ },
+ "station_ids": [
+  "entry-a",
+  "entry-b",
+  "entry-c"
+ ],
+ "security": {
+  "locked": false,
+  "idle_minutes": 0,
+  "reauth_sensitive": false,
+  "elevated": false
+ }
+}
