@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { t, type I18nKey } from '../i18n/he';
 import { ROUTE_MIN_STOPS, routeStops } from './walk-route';
 import type { WalkStart } from './walk-world';
 
@@ -39,8 +40,10 @@ export interface WalkStickShape {
 
 /** Up to this width of the element the bar becomes a bottom sheet. */
 export const SHEET_MAX_W = 640;
-export const START_KIND_HE: Record<string, string> = { saved: 'עמדות שמורות', door: 'כניסה', room: 'חדרים', camera: 'מצלמות', centre: 'מרכז' };
 const KINDS = ['saved', 'door', 'room', 'camera', 'centre'] as const;
+const KIND_KEY: Record<(typeof KINDS)[number], I18nKey> = { saved: 'walk.kindSaved', door: 'walk.kindDoor', room: 'walk.kindRoom', camera: 'walk.kindCamera', centre: 'walk.kindCentre' };
+/** The Hebrew title of a kind of start point (the places list, the select's groups). */
+export const kindTitle = (kind: string): string => (kind in KIND_KEY ? t(KIND_KEY[kind as keyof typeof KIND_KEY]) : kind);
 /** A drag of the grabber past this opens (up) or closes (down) the sheet. */
 const SWIPE_PX = 28;
 
@@ -431,29 +434,29 @@ export class SwWalkHud extends LitElement {
 
   private routeButton() {
     if (routeStops(this.starts).length < ROUTE_MIN_STOPS) return nothing;
-    return html`<button type="button" class="btn ${this.compact ? '' : 'ghost'}" data-walk-route aria-pressed=${this.routePlaying ? 'true' : 'false'} @click=${() => this.toggleRoute()}>${this.routePlaying ? 'עצירה' : 'מסלול'}</button>`;
+    return html`<button type="button" class="btn ${this.compact ? '' : 'ghost'}" data-walk-route aria-pressed=${this.routePlaying ? 'true' : 'false'} @click=${() => this.toggleRoute()}>${this.routePlaying ? t('walk.routeStop') : t('walk.route')}</button>`;
   }
 
   private fields() {
     const s = this.shown;
     if (!s) return nothing;
-    return html`<label class="num">x <input type="number" step="0.1" inputmode="decimal" data-walk-x aria-label="x במטרים" .value=${s.x.toFixed(2)} @change=${(e: Event) => this.onField('x', e)} /></label>
-      <label class="num">y <input type="number" step="0.1" inputmode="decimal" data-walk-y aria-label="y במטרים" .value=${s.z.toFixed(2)} @change=${(e: Event) => this.onField('z', e)} /></label>
-      <label class="num">כיוון <input type="number" step="5" inputmode="numeric" data-walk-heading aria-label="כיוון במעלות" .value=${String(s.heading)} @change=${(e: Event) => this.onField('heading', e)} /></label>`;
+    return html`<label class="num">x <input type="number" step="0.1" inputmode="decimal" data-walk-x aria-label=${t('walk.xMetres')} .value=${s.x.toFixed(2)} @change=${(e: Event) => this.onField('x', e)} /></label>
+      <label class="num">y <input type="number" step="0.1" inputmode="decimal" data-walk-y aria-label=${t('walk.yMetres')} .value=${s.z.toFixed(2)} @change=${(e: Event) => this.onField('z', e)} /></label>
+      <label class="num">${t('walk.heading')} <input type="number" step="5" inputmode="numeric" data-walk-heading aria-label=${t('walk.headingDeg')} .value=${String(s.heading)} @change=${(e: Event) => this.onField('heading', e)} /></label>`;
   }
 
   private bar() {
     const kinds = KINDS.filter((k) => this.starts.some((s) => s.kind === k));
-    return html`<div class="walkbar" role="group" aria-label="סיור בגובה עין" data-walk-bar>
-      <button type="button" class="btn ghost" data-walk-exit @click=${() => this.emit('hud-exit', null)}>יציאה</button>
-      <select data-walk-start aria-label="עמוד ב…" @change=${(e: Event) => {
+    return html`<div class="walkbar" role="group" aria-label=${t('walk.bar')} data-walk-bar>
+      <button type="button" class="btn ghost" data-walk-exit @click=${() => this.emit('hud-exit', null)}>${t('walk.exit')}</button>
+      <select data-walk-start aria-label=${t('walk.standAt')} @change=${(e: Event) => {
         const sel = e.target as HTMLSelectElement;
         const id = sel.value;
         sel.value = '';
         this.goto(id);
       }}>
-        <option value="">עמוד ב…</option>
-        ${kinds.map((k) => html`<optgroup label=${START_KIND_HE[k]}>${this.starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || START_KIND_HE[k]}</option>`)}</optgroup>`)}
+        <option value="">${t('walk.standAt')}</option>
+        ${kinds.map((k) => html`<optgroup label=${kindTitle(k)}>${this.starts.filter((q) => q.kind === k).map((q) => html`<option value=${q.id}>${q.label || kindTitle(k)}</option>`)}</optgroup>`)}
       </select>
       ${this.routeButton()}
       ${this.fields()}
@@ -462,18 +465,18 @@ export class SwWalkHud extends LitElement {
 
   private sheet() {
     const kinds = KINDS.filter((k) => this.starts.some((s) => s.kind === k));
-    return html`<div class="sheet" role="group" aria-label="סיור בגובה עין" data-walk-bar data-walk-sheet data-open=${this.open ? 'true' : 'false'}>
+    return html`<div class="sheet" role="group" aria-label=${t('walk.bar')} data-walk-bar data-walk-sheet data-open=${this.open ? 'true' : 'false'}>
       ${this.open
         ? html`<div class="body" id="walk-sheet-body" data-walk-sheet-body>
-            ${kinds.map((k) => html`<div class="group"><h4>${START_KIND_HE[k]}</h4>
-              <div class="places">${this.starts.filter((q) => q.kind === k).map((q) => html`<button type="button" class="btn" data-walk-place=${q.id} @click=${() => this.goto(q.id)}>${q.label || START_KIND_HE[k]}</button>`)}</div></div>`)}
+            ${kinds.map((k) => html`<div class="group"><h4>${kindTitle(k)}</h4>
+              <div class="places">${this.starts.filter((q) => q.kind === k).map((q) => html`<button type="button" class="btn" data-walk-place=${q.id} @click=${() => this.goto(q.id)}>${q.label || kindTitle(k)}</button>`)}</div></div>`)}
             <div class="fields">${this.fields()}</div>
           </div>`
         : nothing}
       <div class="row">
-        <button type="button" class="btn ghost" data-walk-exit @click=${() => this.emit('hud-exit', null)}>יציאה</button>
+        <button type="button" class="btn ghost" data-walk-exit @click=${() => this.emit('hud-exit', null)}>${t('walk.exit')}</button>
         <button type="button" class="btn" data-walk-sheet-toggle aria-expanded=${this.open ? 'true' : 'false'} aria-controls="walk-sheet-body"
-          style="touch-action: none" @pointerdown=${this.onGrabDown} @pointermove=${this.onGrabMove} @pointerup=${this.onGrabUp} @pointercancel=${this.onGrabUp} @click=${this.onGrabClick}>עמוד ב…<i class="chev" aria-hidden="true"></i></button>
+          style="touch-action: none" @pointerdown=${this.onGrabDown} @pointermove=${this.onGrabMove} @pointerup=${this.onGrabUp} @pointercancel=${this.onGrabUp} @click=${this.onGrabClick}>${t('walk.standAt')}<i class="chev" aria-hidden="true"></i></button>
         <span class="gap"></span>
         ${this.routeButton()}
       </div>
