@@ -2,7 +2,8 @@
 caller's own override and the effective values the 3D view applies; PUT sets or resets (null) the caller's own dials.
 Anyone who may read a map (map.read at some scope) may keep their own look; nobody reads or writes another person's.
 Every write is audited (plan.view_prefs). The installation's dials are the `plan.view` setting (PATCH /settings,
-system.configure)."""
+system.configure). GET / PUT also carry `location` (read-only, services/site_location.py): the latitude / longitude /
+elevation / time zone the sun uses and its `source` (ha | manual | default)."""
 from __future__ import annotations
 
 import sqlite3
@@ -16,7 +17,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import get_setting
 from ..errors import forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere
-from ..services import plan_view
+from ..services import plan_view, site_location
 
 router = APIRouter()
 ACTION = "plan.view_prefs"
@@ -44,7 +45,9 @@ def _payload(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
     mine = plan_view.own(conn, principal.user_id)
     return {"site": site, "own": mine, "effective": plan_view.effective(site, mine), "personal_dials": list(plan_view.USER_DIALS),
             "choices": {k: list(v) for k, v in plan_view.CHOICES.items()}, "ranges": {k: list(v) for k, v in plan_view.RANGES.items()},
-            "can_edit_site": authorize(conn, principal, "system.configure", INSTALLATION).allowed}
+            "can_edit_site": authorize(conn, principal, "system.configure", INSTALLATION).allowed,
+            # CR-029 S2 (owner 2026-10-11): where the sun stands - the home's location, an explicit override, or the fallback
+            "location": site_location.resolve(conn)}
 
 
 @router.get("/plan-view/prefs")

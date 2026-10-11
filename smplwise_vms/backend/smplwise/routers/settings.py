@@ -140,8 +140,11 @@ DEFAULTS: dict[str, str] = {
     # live / stills, kiosk idle seconds, time source, mouse look, quality rung, eye height, DPR cap, section cut, temperatures, motion).
     # A person's own override (/plan-view/prefs) wins per dial; the default view stays schematic for everyone (owner 2026-10-09).
     "plan.view": json.dumps({k: plan_view.DEFAULT[k] for k in plan_view.SITE_DIALS}, separators=(",", ":")),
-    # CR-029 S2 (Plan Studio 6): the site's location for the sun of the realistic 3D (degrees, east / north positive); "" = not set,
-    # the view then uses the fallback 32.0 / 34.8 (central Israel) and says so. Read-only for the view; never sent anywhere.
+    # CR-029 S2 (Plan Studio 6; owner 2026-10-11): where the sun of the realistic 3D stands. "home" (default) = the home's own
+    # location (the core config the HA sync reads, services/site_location.py); "manual" = the two values below, an explicit
+    # override only. Without either the view uses the fallback 32.0 / 34.8 (central Israel) and says so. Never sent anywhere.
+    "site.location_source": "home",
+    # the manual override (degrees, east / north positive); "" = not set. Used only while site.location_source = "manual".
     "site.latitude": "",
     "site.longitude": "",
     # CR-029 S3: what the "prepare stills and lighting" step bakes per floor (presets, styles, time bands, the lightmap, the still's
@@ -605,6 +608,7 @@ class SettingsPatch(BaseModel):
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
+    site_location_source: str | None = Field(default=None, pattern="^(home|manual)$", alias="site.location_source")  # CR-029 S2 (owner 2026-10-11)
     site_latitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.latitude")  # CR-029 S2: "" clears
     site_longitude: str | None = Field(default=None, max_length=12, pattern=r"^(|-?\d{1,3}(\.\d{1,6})?)$", alias="site.longitude")
     plan_view: dict[str, Any] | None = Field(default=None, alias="plan.view")  # CR-029 S0: a partial update of the dials, validated in full by services/plan_view.py
