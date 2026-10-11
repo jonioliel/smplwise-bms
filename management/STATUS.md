@@ -1,16 +1,16 @@
 # Project status — generated view
 
-Generated: 2026-10-11T05:56:51.149836+00:00
+Generated: 2026-10-11T17:48:06.560582+00:00
 
-Tasks: 118 | Requirements: 231 | Tests: 247 | Screens: 32
+Tasks: 150 | Requirements: 263 | Tests: 279 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 104
-- BLOCKED: 2
+- BACKLOG: 125
+- BLOCKED: 10
 - DONE: 2
-- IN_PROGRESS: 6
+- IN_PROGRESS: 9
 - READY: 2
 - REVIEW: 2
 
@@ -18,13 +18,21 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 39
-- V2: 14
+- V1: 64
+- V2: 21
 - V3: 2
 
 ## Blockers
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
 - T004: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
+- WXH0: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH1: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH2: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH3: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH4: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH5: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH6: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+- WXH7: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -147,3 +155,35 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T116](tasks/T116.md) | V1 | BACKLOG | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
 | [T117](tasks/T117.md) | V1 | BACKLOG | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
 | [T118](tasks/T118.md) | V1 | BACKLOG | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
+| [WXD0](tasks/WXD0.md) | V1 | IN_PROGRESS | WisKey CR-033: Trusted-bridge fakes and vector oracle | — |
+| [WXD1](tasks/WXD1.md) | V1 | BACKLOG | WisKey CR-033: WisKey door map (explicit, single relay, manual) | WXD0 |
+| [WXD2](tasks/WXD2.md) | V1 | IN_PROGRESS | WisKey CR-033: Access control station scope and placement | — |
+| [WXD3](tasks/WXD3.md) | V1 | BACKLOG | WisKey CR-033: One door authority rule, door opener role, grant card | WXD1, WXD2 |
+| [WXD4](tasks/WXD4.md) | V1 | BACKLOG | WisKey CR-033: trusted_door transport (interim + signed), audit fields, "sent" | WXD0, WXD3 |
+| [WXD5A](tasks/WXD5A.md) | V1 | BACKLOG | WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting) | WXD4 |
+| [WXD5B](tasks/WXD5B.md) | V1 | BACKLOG | WisKey CR-033: Bridge door_open / door_open_status | WXH1, WXD4 |
+| [WXD6](tasks/WXD6.md) | V1 | BACKLOG | WisKey CR-033: WisKey locks without lock.lock / lock-all | WXD1 |
+| [WXD7](tasks/WXD7.md) | V1 | BACKLOG | WisKey CR-033: Read-only door-path inventory and report | WXD1 |
+| [WXD7R](tasks/WXD7R.md) | V1 | BACKLOG | WisKey CR-033: Owner-approved inventory read on the installation | WXD7 |
+| [WXD8](tasks/WXD8.md) | V1 | BACKLOG | WisKey CR-033: Editor block setting (default blocked) | WXD7 |
+| [WXD9](tasks/WXD9.md) | V1 | BACKLOG | WisKey CR-033: Run guard for Arx-started runs (R-17) | WXD4, WXD7 |
+| [WXD10A](tasks/WXD10A.md) | V1 | BACKLOG | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
+| [WXD10B](tasks/WXD10B.md) | V1 | BACKLOG | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
+| [WXD11](tasks/WXD11.md) | V1 | BACKLOG | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
+| [WXG0](tasks/WXG0.md) | V1 | BACKLOG | WisKey CR-034: Merge WX3 gate tool to main | — |
+| [WXG1](tasks/WXG1.md) | V1 | BACKLOG | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
+| [WXH0](tasks/WXH0.md) | V1 | BLOCKED | WisKey CR-034: Rotation fakes | — |
+| [WXH1](tasks/WXH1.md) | V1 | BLOCKED | WisKey CR-034: Bridge multi-key verifier and rotate service | WXH0 |
+| [WXH2](tasks/WXH2.md) | V1 | BLOCKED | WisKey CR-034: Arx key set and rotation state machine | WXH0 |
+| [WXH3](tasks/WXH3.md) | V1 | BLOCKED | WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice | WXH2 |
+| [WXH4](tasks/WXH4.md) | V1 | BLOCKED | WisKey CR-034: Fresh-key re-pair with verification, emergency revocation | WXH2, WXH3 |
+| [WXH5](tasks/WXH5.md) | V1 | BLOCKED | WisKey CR-034: Maintenance screen and watchdog | WXH2, WXH4 |
+| [WXH6](tasks/WXH6.md) | V1 | BLOCKED | WisKey CR-034: Anchor eligibility and capability status hand-over | WXH1, WXH4 |
+| [WXH7](tasks/WXH7.md) | V1 | BLOCKED | WisKey CR-034: Rotation gate on fakes | WXH1, WXH2, WXH3, WXH4, WXH5, WXH6 |
+| [ST7S0](tasks/ST7S0.md) | V2 | IN_PROGRESS | Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings | — |
+| [ST7S4](tasks/ST7S4.md) | V2 | BACKLOG | Plan Studio 6 S4: eye-level walk-through core | ST7S0 |
+| [ST7S1](tasks/ST7S1.md) | V2 | BACKLOG | Plan Studio 6 S1: material library and level-3 rendering | ST7S0 |
+| [ST7S2](tasks/ST7S2.md) | V2 | BACKLOG | Plan Studio 6 S2: sun, sky, time of day, lamps | ST7S1 |
+| [ST7S5](tasks/ST7S5.md) | V2 | BACKLOG | Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk) | ST7S4 |
+| [ST7S3](tasks/ST7S3.md) | V2 | BACKLOG | Plan Studio 6 S3: lighting bake, stills and storage | ST7S1, ST7S2 |
+| [ST7S7](tasks/ST7S7.md) | V2 | BACKLOG | Plan Studio 6 S7: performance gate, determinism and release | ST7S0, ST7S1, ST7S2, ST7S3, ST7S4, ST7S5 |

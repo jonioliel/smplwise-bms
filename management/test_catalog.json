@@ -6844,5 +6844,773 @@
     "evidence": [],
     "executed_at": null,
     "notes": "Registered 2026-10-07 by TASKS-SYNC-4. No signed APK exists and none is staged in 2.2.1 / 2.3.0; fixture file only. NOT_RUN on a phone."
+  },
+  {
+    "id": "AT249",
+    "requirement_ids": [
+      "R233"
+    ],
+    "task_ids": [
+      "WXD0"
+    ],
+    "title": "WisKey CR-033: Trusted-bridge fakes and vector oracle",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Trusted-bridge fakes and vector oracle (CR-033, plan slice WXD0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT250",
+    "requirement_ids": [
+      "R234"
+    ],
+    "task_ids": [
+      "WXD1"
+    ],
+    "title": "WisKey CR-033: WisKey door map (explicit, single relay, manual)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey door map (explicit, single relay, manual) (CR-033, plan slice WXD1), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT251",
+    "requirement_ids": [
+      "R235"
+    ],
+    "task_ids": [
+      "WXD2"
+    ],
+    "title": "WisKey CR-033: Access control station scope and placement",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Access control station scope and placement (CR-033, plan slice WXD2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT252",
+    "requirement_ids": [
+      "R236"
+    ],
+    "task_ids": [
+      "WXD3"
+    ],
+    "title": "WisKey CR-033: One door authority rule, door opener role, grant card",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "One door authority rule, door opener role, grant card (CR-033, plan slice WXD3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT253",
+    "requirement_ids": [
+      "R237"
+    ],
+    "task_ids": [
+      "WXD4"
+    ],
+    "title": "WisKey CR-033: trusted_door transport (interim + signed), audit fields, \"sent\"",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "trusted_door transport (interim + signed), audit fields, \"sent\" (CR-033, plan slice WXD4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT254",
+    "requirement_ids": [
+      "R238"
+    ],
+    "task_ids": [
+      "WXD5A"
+    ],
+    "title": "WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge 0.8.1 execute block for WisKey doors (admin setting) (CR-033, plan slice WXD5A), built and tested on fakes and fixtures only; entry gate: release order: WXD4 must be released first. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT255",
+    "requirement_ids": [
+      "R239"
+    ],
+    "task_ids": [
+      "WXD5B"
+    ],
+    "title": "WisKey CR-033: Bridge door_open / door_open_status",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge door_open / door_open_status (CR-033, plan slice WXD5B), built and tested on fakes and fixtures only; entry gate: WisKey consumer side confirmed; also needs WXH1 (deferred, see notes). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT256",
+    "requirement_ids": [
+      "R240"
+    ],
+    "task_ids": [
+      "WXD6"
+    ],
+    "title": "WisKey CR-033: WisKey locks without lock.lock / lock-all",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "WisKey locks without lock.lock / lock-all (CR-033, plan slice WXD6), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT257",
+    "requirement_ids": [
+      "R241"
+    ],
+    "task_ids": [
+      "WXD7"
+    ],
+    "title": "WisKey CR-033: Read-only door-path inventory and report",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Read-only door-path inventory and report (CR-033, plan slice WXD7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT258",
+    "requirement_ids": [
+      "R242"
+    ],
+    "task_ids": [
+      "WXD7R"
+    ],
+    "title": "WisKey CR-033: Owner-approved inventory read on the installation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Owner-approved inventory read on the installation (CR-033, plan slice WXD7R), built and tested on fakes and fixtures only; entry gate: owner approval (read of the Arx database only). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT259",
+    "requirement_ids": [
+      "R243"
+    ],
+    "task_ids": [
+      "WXD8"
+    ],
+    "title": "WisKey CR-033: Editor block setting (default blocked)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Editor block setting (default blocked) (CR-033, plan slice WXD8), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT260",
+    "requirement_ids": [
+      "R244"
+    ],
+    "task_ids": [
+      "WXD9"
+    ],
+    "title": "WisKey CR-033: Run guard for Arx-started runs (R-17)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Run guard for Arx-started runs (R-17) (CR-033, plan slice WXD9), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT261",
+    "requirement_ids": [
+      "R245"
+    ],
+    "task_ids": [
+      "WXD10A"
+    ],
+    "title": "WisKey CR-033: Arx event door jobs (M1), disable-and-list",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Arx event door jobs (M1), disable-and-list (CR-033, plan slice WXD10A), built and tested on fakes and fixtures only; entry gate: inventory result (only if it finds event-driven items). Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT262",
+    "requirement_ids": [
+      "R246"
+    ],
+    "task_ids": [
+      "WXD10B"
+    ],
+    "title": "WisKey CR-033: Hold-open program hand-over (M3)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Hold-open program hand-over (M3) (CR-033, plan slice WXD10B), built and tested on fakes and fixtures only; entry gate: WisKey offers program creation for an Arx operator. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT263",
+    "requirement_ids": [
+      "R247"
+    ],
+    "task_ids": [
+      "WXD11"
+    ],
+    "title": "WisKey CR-033: Door-path gate T1..T26 on fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT264",
+    "requirement_ids": [
+      "R248"
+    ],
+    "task_ids": [
+      "WXG0"
+    ],
+    "title": "WisKey CR-034: Merge WX3 gate tool to main",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Merge WX3 gate tool to main (CR-034, plan slice WXG0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT265",
+    "requirement_ids": [
+      "R249"
+    ],
+    "task_ids": [
+      "WXG1"
+    ],
+    "title": "WisKey CR-034: Gate: impact block, exit 5, gate:allow",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Gate: impact block, exit 5, gate:allow (CR-034, plan slice WXG1), built and tested on fakes and fixtures only; entry gate: WisKey authors the impact block for installation candidates. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT266",
+    "requirement_ids": [
+      "R250"
+    ],
+    "task_ids": [
+      "WXH0"
+    ],
+    "title": "WisKey CR-034: Rotation fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Rotation fakes (CR-034, plan slice WXH0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT267",
+    "requirement_ids": [
+      "R251"
+    ],
+    "task_ids": [
+      "WXH1"
+    ],
+    "title": "WisKey CR-034: Bridge multi-key verifier and rotate service",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Bridge multi-key verifier and rotate service (CR-034, plan slice WXH1), built and tested on fakes and fixtures only; entry gate: WisKey answers to question 31 before merge. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT268",
+    "requirement_ids": [
+      "R252"
+    ],
+    "task_ids": [
+      "WXH2"
+    ],
+    "title": "WisKey CR-034: Arx key set and rotation state machine",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Arx key set and rotation state machine (CR-034, plan slice WXH2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT269",
+    "requirement_ids": [
+      "R253"
+    ],
+    "task_ids": [
+      "WXH3"
+    ],
+    "title": "WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "bridge.key.rotate, owner contacts, emergency notice (CR-034, plan slice WXH3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT270",
+    "requirement_ids": [
+      "R254"
+    ],
+    "task_ids": [
+      "WXH4"
+    ],
+    "title": "WisKey CR-034: Fresh-key re-pair with verification, emergency revocation",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Fresh-key re-pair with verification, emergency revocation (CR-034, plan slice WXH4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT271",
+    "requirement_ids": [
+      "R255"
+    ],
+    "task_ids": [
+      "WXH5"
+    ],
+    "title": "WisKey CR-034: Maintenance screen and watchdog",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Maintenance screen and watchdog (CR-034, plan slice WXH5), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT272",
+    "requirement_ids": [
+      "R256"
+    ],
+    "task_ids": [
+      "WXH6"
+    ],
+    "title": "WisKey CR-034: Anchor eligibility and capability status hand-over",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Anchor eligibility and capability status hand-over (CR-034, plan slice WXH6), built and tested on fakes and fixtures only; entry gate: WisKey high-water mechanism. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT273",
+    "requirement_ids": [
+      "R257"
+    ],
+    "task_ids": [
+      "WXH7"
+    ],
+    "title": "WisKey CR-034: Rotation gate on fakes",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Rotation gate on fakes (CR-034, plan slice WXH7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT274",
+    "requirement_ids": [
+      "R258"
+    ],
+    "task_ids": [
+      "ST7S0"
+    ],
+    "title": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings: Studio 6 material, ceiling, tint, light, north and walk-position fields; material resolver; installation look settings with a per-person override (migration 0074). Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT275",
+    "requirement_ids": [
+      "R259"
+    ],
+    "task_ids": [
+      "ST7S4"
+    ],
+    "title": "Plan Studio 6 S4: eye-level walk-through core",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S4: eye-level walk-through core: Walk world, controller with collision/doors/stairs, A* and minimap frame, SceneView walk mode and walk UI in sw-plan-3d. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT276",
+    "requirement_ids": [
+      "R260"
+    ],
+    "task_ids": [
+      "ST7S1"
+    ],
+    "title": "Plan Studio 6 S1: material library and level-3 rendering",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S1: material library and level-3 rendering: CC0 PBR material sets, box-mapped UVs, level 3 in SceneView with the memory cap and lite rung. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT277",
+    "requirement_ids": [
+      "R261"
+    ],
+    "task_ids": [
+      "ST7S2"
+    ],
+    "title": "Plan Studio 6 S2: sun, sky, time of day, lamps",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S2: sun, sky, time of day, lamps: Solar position, sky lookup, time-of-day slider, emissive lamps in a fixed light pool, door/cover animation. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT278",
+    "requirement_ids": [
+      "R262"
+    ],
+    "task_ids": [
+      "ST7S5"
+    ],
+    "title": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk)",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk): Joystick, tap-to-walk, pinch FOV, minimap, saved positions and route, idle still, pointer-lock opt-in. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT279",
+    "requirement_ids": [
+      "R263"
+    ],
+    "task_ids": [
+      "ST7S3"
+    ],
+    "title": "Plan Studio 6 S3: lighting bake, stills and storage",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+  },
+  {
+    "id": "AT280",
+    "requirement_ids": [
+      "R264"
+    ],
+    "task_ids": [
+      "ST7S7"
+    ],
+    "title": "Plan Studio 6 S7: performance gate, determinism and release",
+    "kind": "integration/e2e",
+    "preconditions": [
+      "Build tied to a recorded commit"
+    ],
+    "procedure": [
+      "Run the slice tests named in its change request on fakes / fixtures; no live device."
+    ],
+    "expected": "Plan Studio 6 S7: performance gate, determinism and release: R178 gate (level 3, 1,000 objects, 390 px, 30 fps) with the lever table, baselines, CHANGELOG, owner checklist, registry rows. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged.",
+    "status": "NOT_RUN",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null,
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
   }
 ]

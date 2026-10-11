@@ -2964,7 +2964,8 @@
       "2026-09-29 (0.1.132, merge of pilot/T054-capture-lane-race 4c3f559): capture-lane race fixed - slot released before the result was recorded so a cancel could read 'lost'; on_result step before release, audits/cleanup after; regression test fails on old code; 179 intercom tests; Opus review APPROVED. Plus intercom timing tests hardened (SW_PERF pattern).",
       "2026-09-29 (0.1.135, merge of pilot/T054-embed-frame-css a710862): owner report of a dark edge around the embedded WisKey panel - stage/iframe/overlay used --sw-bg and the iframe had its own min height; now --sw-surface, display:block, outline none, min height on the stage only; embed spec asserts frame box == stage box, zero border, surface colour (desktop 16 + mobile). rc.25 confirmed in the owner's screenshot: single toolbar.",
       "2026-09-29 (0.1.139, merge of pilot/T054-embed-followups 9cf9f97): owner report '4 cameras not 12' root-caused in WisKey's own source (cards per page from frame height in fixed steps, choice in memory only) - new desktop 'הגדל/צמצם' embed mode (8 per page at 900 px, 12 at 1080p) + follow-up request doc for the WisKey devs; experimental Companion-app embed behind access.phone_embed (default off): proxy of the app's auth bridge into the same-origin frame, tokens forwarded only to our frame, bus not relayed, wrappers removed on detach, fallback to 0.1.123 behaviour; not tested on a real device. Tests: connector 14, specs 72 across viewports, relay x3; two Opus security reviews (3 medium fixed).",
-      "2026-10-06 (TASKS-SYNC-3, registry update): tooling for the WisKey gate only, NOT product evidence: task GT3, branch pilot/GT3-podman (head 5be92cfd, NOT merged, not in 2.2.0): rootless Podman 4.9.3 installed on the Linux test machine (no sysctl change, no reboot; the socket and auto-update units disabled), an idempotent setup script with install / smoke / status modes, a no-network smoke test (a container runs with --network=none, has no non-loopback interface, a public connect fails, podman reports rootless) and notes with the undo steps, all under the gitignored private/runner area (force-added in that commit; review before merging). Purpose: run WisKey images with --network=none in the gate. No WisKey image has been run in it yet. This does not change this card's acceptance status."
+      "2026-10-06 (TASKS-SYNC-3, registry update): tooling for the WisKey gate only, NOT product evidence: task GT3, branch pilot/GT3-podman (head 5be92cfd, NOT merged, not in 2.2.0): rootless Podman 4.9.3 installed on the Linux test machine (no sysctl change, no reboot; the socket and auto-update units disabled), an idempotent setup script with install / smoke / status modes, a no-network smoke test (a container runs with --network=none, has no non-loopback interface, a public connect fails, podman reports rootless) and notes with the undo steps, all under the gitignored private/runner area (force-added in that commit; review before merging). Purpose: run WisKey images with --network=none in the gate. No WisKey image has been run in it yet. This does not change this card's acceptance status.",
+      "2026-10-10 (REGISTRY-wiskey-rows, note only): the WisKey door-path (CR-033) and key-rotation (CR-034) plan is registered as rows WXD0-WXD11, WXG0-WXG1, WXH0-WXH7. Stage 1 of WisKey = absorb WisKey so the screens and the intercom integration run through Arx. WXH* is deferred by the owner. This row is unchanged."
     ],
     "owner": null,
     "commit": null,
@@ -4939,7 +4940,9 @@
       "Documentation, known limits and rollback notes",
       "Desktop/mobile/RTL screenshots for UI tasks"
     ],
-    "evidence": [],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows, note only): the Studio 6 slices S0-S5 and S7 of CR-029-PLAN-STUDIO-6-REALISTIC-3D are registered as ST7S0, ST7S4, ST7S1, ST7S2, ST7S5, ST7S3, ST7S7. Port branch pilot/ST7-port-s0-s4 carries S0 and S4. Owner decision: everything ships in one version. This row is unchanged."
+    ],
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
@@ -6295,6 +6298,1462 @@
       "Not proven / NOT_RUN: the offer seen from a real Android phone outside the app on the real remote address; no signed release APK exists (the Android build is a debug build, so no link may be published yet). AT232 stays NOT_RUN.",
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - a signed APK can now be bundled in the add-on image and served from the sign-in page: released in 2.2.1 (merge 5b429fe5 of pilot/apk-in-addon, head 92e6f508; public route auth/app-download/file with version, size and SHA-256; staging script scripts/stage_apk.py, documented in docs/release/RELEASE_PACKAGE_V1.md; an administrator's external https address still wins; the public route is rate-limited per address). Nothing is shown until a signed APK is staged and the 2.2.1 and 2.3.0 images carry NO APK. Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_app_download.py; Playwright frontend/tests/unit-android-download.spec.ts (expectations updated for the size / bundled fields after the first 2.2.1 gate run caught them) and evidence-android-download.spec.ts (mocked).",
       "Not proven / NOT_RUN: the offer and a download seen from a real Android phone; no signed release APK exists and none is staged, so the bundled path has only been exercised with a test fixture file. AT232 and AT248 stay NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD0",
+    "title": "WisKey CR-033: Trusted-bridge fakes and vector oracle",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Trusted-bridge fakes and vector oracle (CR-033, plan slice WXD0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R233"
+    ],
+    "test_ids": [
+      "AT249"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 3,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-wave1)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Status IN_PROGRESS."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD1",
+    "title": "WisKey CR-033: WisKey door map (explicit, single relay, manual)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey door map (explicit, single relay, manual) (CR-033, plan slice WXD1), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R234"
+    ],
+    "test_ids": [
+      "AT250"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-wave1)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD2",
+    "title": "WisKey CR-033: Access control station scope and placement",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Access control station scope and placement (CR-033, plan slice WXD2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R235"
+    ],
+    "test_ids": [
+      "AT251"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 6,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-wave1)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Status IN_PROGRESS."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD3",
+    "title": "WisKey CR-033: One door authority rule, door opener role, grant card",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD1",
+      "WXD2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "One door authority rule, door opener role, grant card (CR-033, plan slice WXD3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R236"
+    ],
+    "test_ids": [
+      "AT252"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus+sonnet",
+      "estimate_hours": 6,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-wave1)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus+sonnet. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD4",
+    "title": "WisKey CR-033: trusted_door transport (interim + signed), audit fields, \"sent\"",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD0",
+      "WXD3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "trusted_door transport (interim + signed), audit fields, \"sent\" (CR-033, plan slice WXD4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R237"
+    ],
+    "test_ids": [
+      "AT253"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": 8,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-wave1)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 8 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD5A",
+    "title": "WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge 0.8.1 execute block for WisKey doors (admin setting) (CR-033, plan slice WXD5A), built and tested on fakes and fixtures only; entry gate: release order: WXD4 must be released first. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R238"
+    ],
+    "test_ids": [
+      "AT254"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model opus. External gate: release order: WXD4 must be released first.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD5B",
+    "title": "WisKey CR-033: Bridge door_open / door_open_status",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXH1",
+      "WXD4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge door_open / door_open_status (CR-033, plan slice WXD5B), built and tested on fakes and fixtures only; entry gate: WisKey consumer side confirmed; also needs WXH1 (deferred, see notes). Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R239"
+    ],
+    "test_ids": [
+      "AT255"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": 8,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 8 h, model opus. External gate: WisKey consumer side confirmed; also needs WXH1 (deferred, see notes).",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "Depends on WXH1, which is deferred by the owner (key rotation not to be built until asked); this row cannot start before the owner asks for rotation or re-plans the dependency."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD6",
+    "title": "WisKey CR-033: WisKey locks without lock.lock / lock-all",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "WisKey locks without lock.lock / lock-all (CR-033, plan slice WXD6), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R240"
+    ],
+    "test_ids": [
+      "AT256"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 2,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 2 h, model sonnet. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD7",
+    "title": "WisKey CR-033: Read-only door-path inventory and report",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Read-only door-path inventory and report (CR-033, plan slice WXD7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R241"
+    ],
+    "test_ids": [
+      "AT257"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 6,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD7R",
+    "title": "WisKey CR-033: Owner-approved inventory read on the installation",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Owner-approved inventory read on the installation (CR-033, plan slice WXD7R), built and tested on fakes and fixtures only; entry gate: owner approval (read of the Arx database only). Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R242"
+    ],
+    "test_ids": [
+      "AT258"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 0.5,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 0.5 h, model sonnet. External gate: owner approval (read of the Arx database only).",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD8",
+    "title": "WisKey CR-033: Editor block setting (default blocked)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Editor block setting (default blocked) (CR-033, plan slice WXD8), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R243"
+    ],
+    "test_ids": [
+      "AT259"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 3,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model sonnet. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD9",
+    "title": "WisKey CR-033: Run guard for Arx-started runs (R-17)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD4",
+      "WXD7"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Run guard for Arx-started runs (R-17) (CR-033, plan slice WXD9), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R244"
+    ],
+    "test_ids": [
+      "AT260"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 6,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD10A",
+    "title": "WisKey CR-033: Arx event door jobs (M1), disable-and-list",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD9",
+      "WXD7R"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx event door jobs (M1), disable-and-list (CR-033, plan slice WXD10A), built and tested on fakes and fixtures only; entry gate: inventory result (only if it finds event-driven items). Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R245"
+    ],
+    "test_ids": [
+      "AT261"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": 10,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 10 h, model opus. External gate: inventory result (only if it finds event-driven items).",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD10B",
+    "title": "WisKey CR-033: Hold-open program hand-over (M3)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [
+      "WXD9",
+      "WXD7R"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Hold-open program hand-over (M3) (CR-033, plan slice WXD10B), built and tested on fakes and fixtures only; entry gate: WisKey offers program creation for an Arx operator. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R246"
+    ],
+    "test_ids": [
+      "AT262"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model opus. External gate: WisKey offers program creation for an Arx operator.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXD11",
+    "title": "WisKey CR-033: Door-path gate T1..T26 on fakes",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [
+      "WXD0",
+      "WXD1",
+      "WXD2",
+      "WXD3",
+      "WXD4",
+      "WXD5A",
+      "WXD5B",
+      "WXD6",
+      "WXD7",
+      "WXD7R",
+      "WXD8",
+      "WXD9",
+      "WXD10A",
+      "WXD10B"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R247"
+    ],
+    "test_ids": [
+      "AT263"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "model": "sonnet+opus",
+      "estimate_hours": 3,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model sonnet+opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "Its dependency list names WXD5B, which waits on deferred WXH1; drop or re-plan with the owner if rotation stays deferred."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXG0",
+    "title": "WisKey CR-034: Merge WX3 gate tool to main",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Merge WX3 gate tool to main (CR-034, plan slice WXG0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R248"
+    ],
+    "test_ids": [
+      "AT264"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 1,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 1 h, model sonnet. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXG1",
+    "title": "WisKey CR-034: Gate: impact block, exit 5, gate:allow",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [
+      "WXG0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Gate: impact block, exit 5, gate:allow (CR-034, plan slice WXG1), built and tested on fakes and fixtures only; entry gate: WisKey authors the impact block for installation candidates. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R249"
+    ],
+    "test_ids": [
+      "AT265"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model sonnet. External gate: WisKey authors the impact block for installation candidates.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH0",
+    "title": "WisKey CR-034: Rotation fakes",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Rotation fakes (CR-034, plan slice WXH0), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R250"
+    ],
+    "test_ids": [
+      "AT266"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH1",
+    "title": "WisKey CR-034: Bridge multi-key verifier and rotate service",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge multi-key verifier and rotate service (CR-034, plan slice WXH1), built and tested on fakes and fixtures only; entry gate: WisKey answers to question 31 before merge. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R251"
+    ],
+    "test_ids": [
+      "AT267"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": 10,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 10 h, model opus. External gate: WisKey answers to question 31 before merge.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH2",
+    "title": "WisKey CR-034: Arx key set and rotation state machine",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx key set and rotation state machine (CR-034, plan slice WXH2), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R252"
+    ],
+    "test_ids": [
+      "AT268"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": 10,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 10 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH3",
+    "title": "WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "bridge.key.rotate, owner contacts, emergency notice (CR-034, plan slice WXH3), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R253"
+    ],
+    "test_ids": [
+      "AT269"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 3,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH4",
+    "title": "WisKey CR-034: Fresh-key re-pair with verification, emergency revocation",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH2",
+      "WXH3"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Fresh-key re-pair with verification, emergency revocation (CR-034, plan slice WXH4), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R254"
+    ],
+    "test_ids": [
+      "AT270"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 6,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH5",
+    "title": "WisKey CR-034: Maintenance screen and watchdog",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH2",
+      "WXH4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Maintenance screen and watchdog (CR-034, plan slice WXH5), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R255"
+    ],
+    "test_ids": [
+      "AT271"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "model": "sonnet",
+      "estimate_hours": 4,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model sonnet. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH6",
+    "title": "WisKey CR-034: Anchor eligibility and capability status hand-over",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [
+      "WXH1",
+      "WXH4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Anchor eligibility and capability status hand-over (CR-034, plan slice WXH6), built and tested on fakes and fixtures only; entry gate: WisKey high-water mechanism. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R256"
+    ],
+    "test_ids": [
+      "AT272"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "medium",
+      "model": "opus",
+      "estimate_hours": 3,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model opus. External gate: WisKey high-water mechanism.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WXH7",
+    "title": "WisKey CR-034: Rotation gate on fakes",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [
+      "WXH1",
+      "WXH2",
+      "WXH3",
+      "WXH4",
+      "WXH5",
+      "WXH6"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Rotation gate on fakes (CR-034, plan slice WXH7), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval."
+    ],
+    "requirement_ids": [
+      "R257"
+    ],
+    "test_ids": [
+      "AT273"
+    ],
+    "status": "BLOCKED",
+    "blocker": "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.",
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "deep",
+      "effort": "medium",
+      "model": "sonnet+opus",
+      "estimate_hours": 2,
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and tests on fakes in an isolated branch (pilot/WXD-... or pilot/WXH-... per wave)",
+      "Change request: docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md and CR-033 / CR-034 (branch pilot/WISKEY-CRs)"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 2 h, model sonnet+opus. External gate: -.",
+      "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
+      "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)"
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S0",
+    "title": "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings: Studio 6 material, ceiling, tint, light, north and walk-position fields; material resolver; installation look settings with a per-person override (migration 0074). Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R258"
+    ],
+    "test_ids": [
+      "AT274"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "10-14",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 10-14 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
+      "The port work for S0 and S4 is on branch pilot/ST7-port-s0-s4 (see docs/changes/CR-029-ST7-PORT-NOTES.md there); not merged to main.",
+      "Status IN_PROGRESS: ported on pilot/ST7-port-s0-s4, awaiting integration. ST7S4 is ported on the same branch but stays BACKLOG because its dependency ST7S0 is not DONE."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S4",
+    "title": "Plan Studio 6 S4: eye-level walk-through core",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S4: eye-level walk-through core: Walk world, controller with collision/doors/stairs, A* and minimap frame, SceneView walk mode and walk UI in sw-plan-3d. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R259"
+    ],
+    "test_ids": [
+      "AT275"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "14-18",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 14-18 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
+      "The port work for S0 and S4 is on branch pilot/ST7-port-s0-s4 (see docs/changes/CR-029-ST7-PORT-NOTES.md there); not merged to main."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S1",
+    "title": "Plan Studio 6 S1: material library and level-3 rendering",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S0"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S1: material library and level-3 rendering: CC0 PBR material sets, box-mapped UVs, level 3 in SceneView with the memory cap and lite rung. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R260"
+    ],
+    "test_ids": [
+      "AT276"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "14-20",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 14-20 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S2",
+    "title": "Plan Studio 6 S2: sun, sky, time of day, lamps",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S1"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S2: sun, sky, time of day, lamps: Solar position, sky lookup, time-of-day slider, emissive lamps in a fixed light pool, door/cover animation. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R261"
+    ],
+    "test_ids": [
+      "AT277"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "8-10",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 8-10 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S5",
+    "title": "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk)",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S4"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S5: walk UX (touch, minimap, saved positions, kiosk): Joystick, tap-to-walk, pinch FOV, minimap, saved positions and route, idle still, pointer-lock opt-in. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R262"
+    ],
+    "test_ids": [
+      "AT278"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "12-16",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 12-16 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S3",
+    "title": "Plan Studio 6 S3: lighting bake, stills and storage",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S1",
+      "ST7S2"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S3: lighting bake, stills and storage: In-browser lightmap baker, per-room blend mask, pre-rendered stills with masks, plan_bakes storage. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R263"
+    ],
+    "test_ids": [
+      "AT279"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "18-26",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 18-26 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "ST7S7",
+    "title": "Plan Studio 6 S7: performance gate, determinism and release",
+    "epic": "MAP",
+    "phase": "V2",
+    "dependencies": [
+      "ST7S0",
+      "ST7S1",
+      "ST7S2",
+      "ST7S3",
+      "ST7S4",
+      "ST7S5"
+    ],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "Plan Studio 6 S7: performance gate, determinism and release: R178 gate (level 3, 1,000 objects, 390 px, 30 fps) with the lever table, baselines, CHANGELOG, owner checklist, registry rows. Verified by the slice tests in CR-029 section 8, with level 1-2 baselines unchanged."
+    ],
+    "requirement_ids": [
+      "R264"
+    ],
+    "test_ids": [
+      "AT280"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "deep",
+      "review": "deep",
+      "effort": "large",
+      "model": "opus",
+      "estimate_hours": "8-12",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization. No live door, key, lock or device action without the owner's explicit, task-specific approval."
+    },
+    "deliverables": [
+      "Implementation and regression tests in an isolated branch (pilot/ST7-port-s0-s4 for S0 and S4)",
+      "Desktop/mobile/RTL screenshots for UI tasks"
+    ],
+    "evidence": [
+      "2026-10-10 (REGISTRY-wiskey-rows): row registered because tasks.json had no Studio 6 slice rows (T087 / T089 are the umbrella 3D rows; T089 holds R177 / R178). Source: docs/changes/CR-029-PLAN-STUDIO-6-REALISTIC-3D.md section 8 and 13.4; estimate 8-12 h (13.4 revised).",
+      "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
+      "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here."
     ],
     "owner": null,
     "commit": null,
