@@ -33,8 +33,9 @@ the footnote paragraph is gone (clean operator screens).
 
 `SwWall.renderMapPane()` renders `<div class="pane" data-wall-map-slot>` when `Layout.map` is true (portrait preset with
 `cfg.show_map`), as an empty surface in the tile material with the grid row `minmax(0, 0.55fr)`. Studio 6 draws the plan,
-the idle-to-stills switch and the live / stills override there. `show_map` defaults to false, so no installation sees the
-empty pane unless it asked for the map.
+the idle-to-stills switch and the live / stills override there (built in CR-029 S5-B: `wall/sw-wall-plan.ts`, see
+`docs/changes/CR-029-ST7-S5B-NOTES.md`; a profile with no floor keeps the empty surface). `show_map` defaults to false, so no installation
+sees the empty pane unless it asked for the map.
 
 ## 4. Phone PWA shell
 

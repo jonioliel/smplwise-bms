@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { demoRooms } from '../src/fixtures/demo';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { DEFAULT_VIEW } from '../src/api/plan-view';
+import type { SkinId } from '../src/design/skins';
 
 // Plan Studio 6, slice S5-B: the mocked backend of a portrait wall display with a map band (CR-030 show_map), shared by
 // evidence-wall-plan.spec.ts and pixel-wall-plan.spec.ts. The wall user's profile carries the screen's own plan setting; the floor is
@@ -78,7 +79,7 @@ export interface Mock {
   plan: PlanCfg | null; // null: a configuration from before the block existed
   floor: string | null;
   dials: Partial<typeof DEFAULT_VIEW>;
-  skin: 'classic' | 'bubble';
+  skin: SkinId;
   scheme: 'light' | 'dark';
   theme: 'dark' | 'light' | 'follow';
   circuit: 'on' | 'off';
