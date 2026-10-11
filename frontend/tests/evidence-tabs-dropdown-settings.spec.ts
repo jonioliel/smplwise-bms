@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// 0.1.153 (companion of evidence-tabs-dropdown.spec.ts): the home areas chip row (devices-area-nav on a phone), the Settings card
+// 0.1.153 (companion of evidence-tabs-dropdown.spec.ts): the home area navigation (devices-area-nav; since the HOME polish of 2026-10-10
+// two pickers instead of the phone's chip row), the Settings card
 // "תצוגת לשוניות" in demo mode and against a mocked backend (the keys the installation default and the personal choice send).
 // Needs the Vite DEV server (imports /src/...):
 //   $env:SW_API_PORT='59999'; npx vite --host 127.0.0.1 --port 5196   then
@@ -40,7 +41,7 @@ async function setMode(page: Page, mode: string | null, groups: Record<string, s
   );
 }
 
-test.describe('the home areas chip row (devices-area-nav, phone)', () => {
+test.describe('the home area pickers (devices-area-nav) and the tabs-mode / size dials', () => {
   async function mountNav(page: Page, n: number) {
     await page.evaluate(
       async (count) => {
@@ -57,39 +58,88 @@ test.describe('the home areas chip row (devices-area-nav, phone)', () => {
     );
     await page.waitForTimeout(300);
   }
+  // HOME polish (owner 2026-10-10, docs/design/HOME_POLISH.md "The area header: two pickers"): the floor and the area are two pickers in the
+  // breadcrumb row on EVERY width and in EVERY tabs mode - the tabs-mode dial no longer switches this screen between a chip row and a chip in
+  // the shell's pair row (both are gone; the area picker's list is the floor's areas with counts). What still applies to the home group is
+  // the dropdown SIZE dial: it sizes the two pickers (36 / 44 / 52 px; never under 44 on a phone).
   const state = (page: Page) =>
-    page.locator('#nav').evaluate((el) => ({ chips: el.shadowRoot!.querySelectorAll('.areas sw-chip').length, dropdown: !!el.shadowRoot!.querySelector('[data-areas-in-shell]') && !!document.querySelector('sw-app')!.shadowRoot!.querySelector('[data-pair-chip]') }));
+    page.locator('#nav').evaluate((el) => ({
+      floor: !!el.shadowRoot!.querySelector('[data-crumb=floor]'),
+      area: !!el.shadowRoot!.querySelector('[data-crumb=area]'),
+      chips: el.shadowRoot!.querySelectorAll('sw-chip').length,
+      inShell: !!el.shadowRoot!.querySelector('[data-areas-in-shell]') || !!document.querySelector('sw-app')!.shadowRoot!.querySelector('[data-pair-chip]'),
+    }));
+  const PICKERS = { floor: true, area: true, chips: 0, inShell: false };
+  /** Opens the area picker and returns its list (name + count per option, the marked one), then closes it again with Escape. */
+  async function areaList(page: Page) {
+    await page.locator('#nav').evaluate((el) => el.shadowRoot!.querySelector<HTMLElement>('[data-crumb=area]')!.click());
+    await page.waitForTimeout(150);
+    const list = await page.locator('#nav').evaluate((el) =>
+      [...el.shadowRoot!.querySelectorAll<HTMLElement>('[data-nav-menu=area] [data-nav-option]')].map((o) => ({ id: o.dataset.navOption, name: o.querySelector('span:not(.n)')!.textContent!.trim(), count: o.querySelector('.n')!.textContent!.trim(), current: o.getAttribute('aria-checked') === 'true' })),
+    );
+    await page.locator('#nav').evaluate((el) => el.shadowRoot!.querySelector<HTMLElement>('[data-crumb=area]')!.click()); // the picker toggles its list shut
+    return list;
+  }
+  const pickHeight = (page: Page, which: 'floor' | 'area') => page.locator('#nav').evaluate((el, w) => el.shadowRoot!.querySelector(`[data-crumb=${w}]`)!.getBoundingClientRect().height, which);
+  async function setSize(page: Page, groups: Record<string, string>) {
+    await page.evaluate(async ([url, g]) => (await import(/* @vite-ignore */ url as string)).saveOwnDdSize(null, g), [MODE_URL, groups] as const);
+  }
 
-  test('tabs: the chip row as today; dropdown: one dropdown with counts; hybrid: only a longer list', async ({ page }) => {
+  test('every tabs mode (tabs, dropdown, hybrid at 5 and 3 areas, a group override): the floor and the area pickers, the areas with counts in the area list; the size dial sizes the pickers', async ({ page }) => {
     await stage(page);
     await setMode(page, 'tabs', {});
     await mountNav(page, 5);
-    expect(await state(page)).toEqual({ chips: 5, dropdown: false });
+    expect(await state(page)).toEqual(PICKERS);
     await shot(page, 'home-areas-tabs-390-light');
-    await setMode(page, 'dropdown', {});
-    await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true });
-    const dd = page.locator('sw-app').locator('sw-dropdown[data-pair-chip]'); // the shell draws it, beside the home area's page chip
-    await expect(dd.locator('.chip')).toContainText('אזור 1');
-    await expect(dd.locator('.chip')).toContainText('(2)');
-
-    await setMode(page, 'hybrid', {});
-    await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true }); // 5 areas: more than three
+    const five = await areaList(page);
+    expect(five.map((o) => o.id)).toEqual(['a1', 'a2', 'a3', 'a4', 'a5']);
+    expect(five[0]).toEqual({ id: 'a1', name: 'אזור 1', count: '2', current: true }); // the name and its device count; the current area is marked
+    expect(five[4]).toEqual({ id: 'a5', name: 'אזור 5', count: '6', current: false });
+    for (const mode of ['dropdown', 'hybrid'] as const) {
+      await setMode(page, mode, {});
+      await expect.poll(() => state(page)).toEqual(PICKERS); // never a chip row, never a chip in the shell
+      expect((await areaList(page)).length).toBe(5);
+    }
     await page.locator('#nav').evaluate((el) => ((el as unknown as { areas: unknown[] }).areas = (el as unknown as { areas: unknown[] }).areas.slice(0, 3)));
-    await expect.poll(() => state(page)).toEqual({ chips: 3, dropdown: false }); // 3 areas: the chips stay
+    await expect.poll(() => state(page)).toEqual(PICKERS); // hybrid with 3 areas: still the picker (no chips come back)
+    expect((await areaList(page)).map((o) => o.id)).toEqual(['a1', 'a2', 'a3']);
     await setMode(page, 'tabs', { home: 'dropdown' });
-    await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: true }); // the group override wins over the global tabs
+    await expect.poll(() => state(page)).toEqual(PICKERS); // a group override changes nothing here either
+    // the dial that still applies: the home group's dropdown size (a phone never goes under 44 px)
+    await setSize(page, { home: 'lg' });
+    await expect(page.locator('#nav')).toHaveAttribute('data-dd-size', 'lg');
+    for (const w of ['floor', 'area'] as const) expect(await pickHeight(page, w)).toBeGreaterThanOrEqual(52);
+    await setSize(page, { home: 'sm' });
+    await expect(page.locator('#nav')).toHaveAttribute('data-dd-size', 'sm');
+    for (const w of ['floor', 'area'] as const) expect(await pickHeight(page, w)).toBeGreaterThanOrEqual(44);
+    await setSize(page, { security: 'lg' }); // another group's size does not touch the home pickers
+    await expect(page.locator('#nav')).toHaveAttribute('data-dd-size', 'md');
   });
 
-  test('a screen wider than the phone: the dropdown form is the same chip in the shell (0.1.157, no phone-only gate); tabs keep the breadcrumb', async ({ page }) => {
+  test('a screen wider than the phone: both pickers in every tabs mode, side by side on one row (the area never dropped nor moved to the shell); the size dial applies', async ({ page }) => {
     await stage(page, 1000);
     await setMode(page, 'dropdown', {});
     await mountNav(page, 5);
-    expect((await state(page)).dropdown).toBe(true);
-    // the breadcrumb's area crumb is replaced by that chip (never dropped without one); the floor crumb stays
-    expect(await page.locator('#nav').evaluate((el) => ({ floor: !!el.shadowRoot!.querySelector('[data-crumb=floor]'), area: !!el.shadowRoot!.querySelector('[data-crumb=area]') }))).toEqual({ floor: true, area: false });
-    await setMode(page, 'tabs', {});
-    await expect.poll(() => state(page)).toEqual({ chips: 0, dropdown: false });
-    expect(await page.locator('#nav').evaluate((el) => !!el.shadowRoot!.querySelector('[data-crumb=area]'))).toBe(true);
+    const row = () =>
+      page.locator('#nav').evaluate((el) => {
+        const f = el.shadowRoot!.querySelector('[data-crumb=floor]')!.getBoundingClientRect();
+        const a = el.shadowRoot!.querySelector('[data-crumb=area]')!.getBoundingClientRect();
+        return { sameRow: Math.abs(f.top - a.top) < 4, areaLeftOfFloor: a.right <= f.left + 1 };
+      });
+    for (const mode of ['dropdown', 'hybrid', 'tabs'] as const) {
+      await setMode(page, mode, {});
+      await expect.poll(() => state(page)).toEqual(PICKERS);
+      expect(await row()).toEqual({ sameRow: true, areaLeftOfFloor: true }); // RTL: the floor first, the area beside it
+      expect((await areaList(page)).length).toBe(5);
+    }
+    expect(await pickHeight(page, 'floor')).toBeGreaterThanOrEqual(44); // the reference size
+    await setSize(page, { home: 'lg' });
+    await expect(page.locator('#nav')).toHaveAttribute('data-dd-size', 'lg');
+    const lg = await pickHeight(page, 'floor');
+    expect(lg).toBeGreaterThanOrEqual(52);
+    await setSize(page, { home: 'sm' });
+    await expect(page.locator('#nav')).toHaveAttribute('data-dd-size', 'sm');
+    expect(await pickHeight(page, 'floor')).toBeLessThan(lg); // smaller than the large one (36 px is the floor of the field, the text may need a little more)
   });
 });
 
