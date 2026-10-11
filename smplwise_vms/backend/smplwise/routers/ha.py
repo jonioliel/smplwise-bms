@@ -265,6 +265,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_scheduler_switch(conn, principal, request, entity_id, body.allowed_action_id)
     _refuse_media_managed(conn, principal, request, entity_id, body.allowed_action_id)
+    _refuse_door_chain(conn, principal, request, entity_id, body.allowed_action_id)
     e = _entity(conn, entity_id)
     if e["removed_at"] or e["disabled"]:
         raise ApiError(409, "entity_unavailable", "ההתקן אינו זמין.")
@@ -398,6 +399,21 @@ def _refuse_scheduler_switch(conn: sqlite3.Connection, principal: Principal, req
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="use_schedules_screen",
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
     raise ApiError(409, "use_schedules_screen", "התזמון מנוהל במסך התזמונים.", details={"action": action_id, "route": "/devices/schedules"})
+
+
+def _refuse_door_chain(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
+    """CR-033 D9 (rule R-17): a script, a scene, a button or a non-WisKey lock (a lock group, a template lock) pressed on a
+    tile or a map card that reaches a WisKey door - or may reach one, as far as the static resolver can tell - is refused
+    here, audited, before anything is sent: no inner `lock.unlock` reaches a WisKey lock on an Arx-started path. A WisKey
+    lock's own unlock never gets here (the door path above)."""
+    from ..services import door_run_guard
+
+    try:
+        door_run_guard.judge_entity_action(conn, entity_id, action_id)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
+        raise
 
 
 def _refuse_media_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:

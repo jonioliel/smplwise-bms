@@ -99,3 +99,44 @@ export interface DoorSettings {
 
 export const getDoorSettings = () => get<DoorSettings>('doors/settings');
 export const setEditorBlock = (editorBlock: DoorSettings['editor_block']) => put<DoorSettings>('doors/settings', { editor_block: editorBlock, confirmed: true });
+
+/** One saved item of the read-only door-path inventory (CR-033 D7, "פריטים שפותחים דלתות"). Names only: no entity or
+ * station id ever reaches the screen. The `*_text` fields are the server's Hebrew. */
+export interface DoorPathItem {
+  kind: 'automation' | 'script' | 'scene' | 'schedule' | 'launcher';
+  kind_text: string;
+  key: string;
+  name: string;
+  origin: 'arx_authored' | 'arx_edited_externally' | 'external' | 'unknown';
+  origin_text: string;
+  state: 'enabled' | 'disabled' | 'ready' | 'gone' | 'unknown';
+  autonomous: boolean;
+  author: string | null;
+  created_by: string | null;
+  approver: string | null;
+  approved_at: string | null;
+  approver_status: 'approved' | 'none' | 'inactive' | 'no_permission';
+  approver_text: string;
+  last_run: { at: string; result: string | null } | null;
+  door_steps: number;
+  lock_steps: number;
+  doors: string[];
+  resolvable: boolean;
+  unresolved: string[];
+  run_guard: 'refused_not_converted' | 'refused_unresolvable' | 'unchanged';
+  run_guard_text: string;
+  suggestion: 'door_button' | 'hold_open_program' | 'arx_event_job' | 'manual_review' | 'remove_lock_step' | 'external_untouched';
+  suggestion_text: string;
+  disable_required: boolean;
+  revision: string | null;
+}
+
+export interface DoorPathInventory {
+  wiskey_present: boolean;
+  generated_at: string;
+  counts: { items: number; door_steps: number; unresolvable: number; arx_authored: number; external: number; disable_required: number };
+  items: DoorPathItem[];
+}
+
+/** Read-only: nothing is converted, disabled or sent by this request. */
+export const getDoorPathInventory = () => get<DoorPathInventory>('intercom/door-path-inventory');

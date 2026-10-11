@@ -24,7 +24,7 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, require
 from . import door_path_guard as guard
-from . import ha_bridge, ha_sync
+from . import door_run_guard, ha_bridge, ha_sync
 from . import schedule_model as model
 from . import schedule_policy as policy
 from . import schedule_view as view
@@ -754,6 +754,12 @@ def run(w: W, schedule_id: str, slot_index: int | None, skip_conditions: bool, c
         cls = model.classify(core, w.ctx.resolver)
         if not cls["understood"]:
             raise ApiError(422, "unsupported_content", "התזמון כולל תוכן שהמערכת אינה מציגה במלואו; אפשר לערוך אותו רק ברכיב המקורי.")
+        # CR-033 D9 (R-17): a slot that opens a WisKey door is never run from Arx through the component (no inner
+        # lock.unlock on an Arx-started path): refused before anything else about the run, and the schedule is listed in
+        # the door-path inventory
+        door_slot = slot_index if slot_index is not None else (0 if len(core["slots"]) == 1 else None)
+        if door_slot is not None and 0 <= door_slot < len(core["slots"]):
+            door_run_guard.judge_schedule_slot(w.conn, schedule_id, item, door_slot)
         old_rights(w, core, cls)
         if slot_index is None:
             if len(core["slots"]) != 1:
