@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { GROUPS, deviceFor, typesFor, valuesFor, type Level, type Scenario } from './generator-fixtures';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-031 GEN1: the mock layer of the generator specs - the wire contract of routers/generator.py, fake data only. The whole app runs against it through page.route.
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -155,4 +156,4 @@ export async function installGeneratorMock(page: Page, o: GenMockOptions = {}): 
   return st;
 }
 export const url = (hash: string, skin = 'classic', scheme: 'light' | 'dark' = 'light') => `/?design=a&skin=${skin}&scheme=${scheme}#${hash}`;
-export const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+export const SKINS = SKIN_IDS;

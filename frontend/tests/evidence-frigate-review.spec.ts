@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize } from './layout-guard';
 import { installFrigate, newFrigateMock, openApp, type FrigateMock } from './frigate-mocks';
+import { SKIN_IDS } from '../src/design/skins';
 
 // NN5-F1B: the review screen ("סקירה") of a Frigate recorder - cards, layers, filters, per-user reviewed state with bulk marking and
 // keys, the drawer and the recording action, paging, the motion layer, and every state (loading, empty, all reviewed, offline, error,
@@ -11,7 +12,7 @@ import { installFrigate, newFrigateMock, openApp, type FrigateMock } from './fri
 // projects (desktop, tablet, mobile), and once in demo mode (no backend). SW_SHOTS=1 writes evidence screenshots to
 // docs/design/evidence/nn5-f1b. No real frame, host or credential.
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/nn5-f1b');
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 
 const SCREEN = 'investigate-reviews';
 const cards = (page: Page) => page.locator(`${SCREEN} frigate-review-card`);

@@ -1,11 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
+import { SKIN_IDS } from '../src/design/skins';
 
 // 0.1.164 (DD6): the layout guard (tests/layout-guard.ts) over the media players and media screens pages, whose floor filter is now the shared
 // dropdown, in the four skins x light / dark x widths 320 / 390 / 768 / 1440, with the dropdown closed and open. Static demo, the built app
 // (npm run build, then the preview server). FAILS on escape / overflow / floating / clipped / target and on page errors.
 // LAYOUT_WIDTHS=320,1440 narrows the widths.
-const SKINS = ['bubble', 'classic', 'domus', 'tesla'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
 const WIDTHS = (process.env.LAYOUT_WIDTHS ? process.env.LAYOUT_WIDTHS.split(',').map(Number) : [320, 390, 768, 1440]);
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);

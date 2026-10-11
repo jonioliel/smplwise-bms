@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { installMulti } from './multi-nvr-mock';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-024 (multi-NVR): the layout guard (tests/layout-guard.ts) over the screens this change touched, with two recorders - the recorders
 // card (list, an open connection form, the add dialog), the camera settings table with its recorder filter, the wall with its recorder
@@ -9,7 +10,7 @@ import { installMulti } from './multi-nvr-mock';
 //   ~/run_remote.sh spec <branch> tests/layout-multi-nvr.spec.ts --project=desktop      (LAYOUT_QUICK=1: four widths)
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = ['light', 'dark'] as const;
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-022 slice C: the NVR connection screens - the shared form (vendor choice, test, save, offline save, remove NVR), the settings
 // card, the wizard's NVR step and the restart-required banner (AT-022-21 ... AT-022-24). Against a MOCKED backend (page.route on
@@ -677,7 +678,7 @@ test.describe('operator wording, RTL and layout (AT-022-24)', () => {
 // ------------------------------------------------------------------ every skin, light and dark (the layout guard of tests/layout-guard.ts)
 // decorative layers; and the open dialog (sw-dialog's fixed backdrop sits inside the card in the DOM - its box is asserted separately)
 const SKIP = '.vh, .skl, .gbox, .bg, .veil, .backdrop, .backdrop *';
-const SKINS = QUICK ? ['classic', 'bubble'] : ['classic', 'domus', 'tesla', 'bubble'];
+const SKINS = QUICK ? ['classic', 'bubble'] : SKIN_IDS;
 const SCHEMES = QUICK ? ['light'] : ['light', 'dark'];
 
 test.describe('skins x schemes', () => {

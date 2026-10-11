@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { SKIN_IDS } from '../src/design/skins';
 
 // 0.1.157 (owner decision 2026-10-03: all six dropdown styles approved): the `dd-style` of sw-dropdown / sw-tabs, the resolver
 // (user group > user global > installation group > installation global > auto), every style rendering in every skin, aria and keyboard
@@ -8,7 +9,7 @@ import { test, expect, type Page } from '@playwright/test';
 //   $env:SW_BASE_URL='http://127.0.0.1:5196/'; npx playwright test dropdown-styles --project=desktop --workers=1
 const MODE_URL = '/src/shell/tabs-mode.ts';
 const STYLES = ['auto', 'pill', 'field', 'underline', 'text', 'prefix', 'tonal', 'capsule'] as const;
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const ADMIN = ['alarm.view', 'audit.read', 'devices.read', 'devices.control', 'entity.state.read', 'events.read', 'map.read', 'media.browse', 'media.control', 'media.read', 'rbac.assign', 'schedule.view', 'schedule.manage', 'sources.configure', 'system.configure', 'video.live', 'video.playback', 'access.read', 'automation.manage', 'script.run'];
 
 type Server = { inst: { style: string; groups: Record<string, string> }; own: { style: string | null; groups: Record<string, string> | null }; patches: Record<string, unknown>[]; puts: Record<string, unknown>[] };

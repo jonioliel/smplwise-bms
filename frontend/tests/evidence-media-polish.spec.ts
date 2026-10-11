@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import type { SkinId } from '../src/design/skins';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,7 @@ import { installElectricityMock, url as elecUrl } from './electricity-mocks';
 const PHASE = process.env.SW_POLISH_PHASE || 'after';
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/media-polish', PHASE);
 type Scheme = 'light' | 'dark';
-type Skin = 'classic' | 'domus' | 'tesla' | 'bubble';
+type Skin = SkinId;
 const view = (info: { project: { name: string } }) => (info.project.name === 'mobile' ? '390' : '1440');
 const phone = (info: { project: { name: string } }) => info.project.name === 'mobile';
 
@@ -34,7 +35,7 @@ async function noOverflow(page: Page, where: string) {
   expect(over, `horizontal overflow on ${where}`).toBeLessThanOrEqual(1);
 }
 
-const MATRIX: [Skin, Scheme][] = [['classic', 'light'], ['classic', 'dark'], ['domus', 'light'], ['domus', 'dark'], ['tesla', 'light'], ['bubble', 'dark']];
+const MATRIX: [Skin, Scheme][] = [['classic', 'light'], ['classic', 'dark'], ['domus', 'light'], ['domus', 'dark'], ['tesla', 'light'], ['bubble', 'dark'], ['crystal', 'light'], ['crystal', 'dark']];
 
 test.describe('media-polish evidence', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');

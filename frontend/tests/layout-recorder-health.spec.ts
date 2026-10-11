@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-026 recorder health: the layout guard (tests/layout-guard.ts) over הגדרות › בריאות ועבודות with the per-recorder health cards
 // (one healthy, one with every kind of fault, one not answering, one Hikvision with detail (NN6H), one vendor with reachability only)
@@ -9,7 +10,7 @@ import { inPageCheck, summarize, type Finding } from './layout-guard';
 //   SW_BASE_URL=http://127.0.0.1:<port>/ LAYOUT_QUICK=1 npx playwright test tests/layout-recorder-health.spec.ts --project=desktop --workers=1
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 820, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const THEMES = QUICK ? (['light'] as const) : (['light', 'dark'] as const);
 const height = (w: number) => (w <= 480 ? 844 : w <= 820 ? 1100 : 900);
 const ADMIN = ['video.live', 'video.playback', 'map.read', 'events.read', 'devices.read', 'system.configure', 'rbac.assign'];

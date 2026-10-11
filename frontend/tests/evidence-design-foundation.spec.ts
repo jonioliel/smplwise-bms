@@ -15,7 +15,7 @@ import { SKIN_IDS } from '../src/design/skins';
 //   SW_SHOTS_OFF=1 skips the evidence matrix (only the classic baseline check runs).
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/design/evidence/design-foundation');
 
-const SKINS = ['classic', 'domus', 'tesla'] as const;
+const SKINS = SKIN_IDS;
 const SCHEMES = ['light', 'dark'] as const;
 
 const SCREENS = [

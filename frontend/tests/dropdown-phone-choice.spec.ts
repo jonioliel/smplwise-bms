@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Owner decision 2026-10-03: how a dropdown opens on a PHONE - the regular small list under the field (default, owner 2026-10-05) or a bottom sheet.
 // `ui.dd_phone` (sheet | list): the installation's default (admins) and the user's own choice (null = follow), one global value.
@@ -7,7 +8,7 @@ import { test, expect, type Page } from '@playwright/test';
 // close, reduced motion, dark, every skin. One project only (desktop): the widths are set inside the tests. Mock layer, no backend.
 //   ~/run_remote.sh spec <branch> tests/dropdown-phone-choice.spec.ts --project=desktop
 const ADMIN = ['alarm.view', 'audit.read', 'devices.read', 'devices.control', 'entity.state.read', 'events.read', 'map.read', 'media.browse', 'media.control', 'media.read', 'rbac.assign', 'schedule.view', 'schedule.manage', 'sources.configure', 'system.configure', 'video.live', 'video.playback', 'access.read', 'automation.manage', 'script.run'];
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const WORDS = ['סלון', 'מטבח', 'חדר שינה', 'משרד', 'מרפסת', 'חצר', 'מחסן', 'חדר כביסה', 'חדר ילדים', 'פינת אוכל', 'גג', 'מעלית', 'חניה'];
 
 type Server = { inst: string; own: string | null; patches: Record<string, unknown>[]; puts: Record<string, unknown>[]; canEdit: boolean; refuse: boolean };

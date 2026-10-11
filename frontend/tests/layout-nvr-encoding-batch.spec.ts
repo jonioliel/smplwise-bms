@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { inPageCheck, summarize, type Finding } from './layout-guard';
 import { newMock } from './nvr-cameras-write-mock';
 import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
+import { SKIN_IDS } from '../src/design/skins';
 
 // CR-020 phase D: the layout guard (tests/layout-guard.ts) over "שינוי קידוד לכמה מצלמות" - the checklist with its filters (a list with its own
 // scroll), the target settings form, the preview (tabs + a list of two-line rows) and the ONE confirmation - across widths 320..1440 x light /
@@ -13,7 +14,7 @@ import { batchCameras, installBatch, newBatchMock } from './nvr-batch-mock';
 const QUICK = !!process.env.LAYOUT_QUICK;
 const WIDTHS = QUICK ? [320, 390, 800, 1440] : [320, 360, 390, 480, 600, 768, 820, 1024, 1280, 1440];
 const THEMES = ['light', 'dark'] as const;
-const SKINS = ['classic', 'domus', 'tesla', 'bubble'] as const;
+const SKINS = SKIN_IDS;
 const PAGE = 'sw-app system-security system-security-cameras';
 const ENC = `${PAGE} nvr-encoding-batch`;
 const DLG = `${ENC} sw-dialog[open][data-nvr-enc]`;
