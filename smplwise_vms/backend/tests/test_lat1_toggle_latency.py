@@ -26,7 +26,7 @@ from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from conftest import sw_time_factor
+from conftest import sw_load_factor, sw_time_factor
 from fastapi.testclient import TestClient
 
 from smplwise.main import create_app
@@ -209,7 +209,9 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     finally:
         sub.close()
     print("\n" + _table("idle + 40/s state stream", rows))
-    f = sw_time_factor()
+    # a latency bound is wall-clock by nature; it scales with the load this machine carried during the toggles (sw_load_factor: 1.0 when
+    # idle), so a runner busy with another job does not turn the behavioural check (no hidden wait, no new connection) into noise
+    f = sw_load_factor()
     dispatch = statistics.median(r["dispatch"] for r in rows)
     push = statistics.median(r["push"] for r in rows)
     # the fake HA's own share of the push is 57 ms; everything else is Arx. Generous bounds: a behavioural check, not a benchmark

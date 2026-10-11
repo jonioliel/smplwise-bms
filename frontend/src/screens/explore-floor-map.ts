@@ -41,7 +41,7 @@ import { loadLibrary, lookup3dOf, lookupOf } from '../api/plan-catalog';
 import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import type { LevelSelectDetail, PartSelectDetail } from '../map/sw-plan-3d';
-import type { QualityLevel } from '../map/scene-three';
+import { modeFromWire, type QualityMode } from '../map/quality-mode';
 import { boundItemOf } from '../map/part-select';
 import { sharedChip, zonesWithChips } from '../map/shared-space';
 import '../components/sw-share-members';
@@ -158,7 +158,7 @@ export class ExploreFloorMap extends LitElement {
   @state() private threeError = '';
   @state() private preset3d: ScenePreset = 'iso';
   /** The installation's 3D quality default (plan.quality), handed to the element so it builds once at the right level. */
-  @state() private quality3d: QualityLevel | null = null;
+  @state() private quality3d: QualityMode | null = null;
   @state() private catalog3d: Catalog3DLookup | null = null;
   private itemNames = new Map<string, string>();
   private sceneMemo: SceneBuild | null = null;
@@ -1404,7 +1404,7 @@ export class ExploreFloorMap extends LitElement {
         .then((s) => {
           if (this.bundle === b) this.levelFilter = initialLevel(s['plan.levels'], b); // 0.1.89: plan.levels default level, else every level
           if (this.bundle === b) this.default3d = (s['map.default_view'] === '3d' || this.keep3d()) && !this.view3d;
-          this.quality3d = s['plan.quality'] === '1' ? 1 : s['plan.quality'] === '2' ? 2 : null;
+          this.quality3d = modeFromWire(s['plan.quality']); // auto | full | schematic (map/quality-mode.ts); the viewer's own mode wins in the element
           this.presenceFade = parsePresenceFade(s['plan.presence_fade']); // CR-006 1b: off, or the fade window in minutes
           this.liveTransport = effectiveTransport(s);
         })
@@ -2544,7 +2544,9 @@ export class ExploreFloorMap extends LitElement {
   }
 
   /** K88 3D round 2: the building's floors beside the 3D view with state dots (lit · presence · open); a tap switches
-   * the floor and keeps the 3D view. The other floors' bundles load lazily, once per 3D opening. */
+   * the floor and keeps the 3D view. The other floors' bundles load lazily, once per 3D opening. It replaces the 2D quick
+   * floor buttons (`.floorbtns`), which are not rendered while the 3D is on screen: both stand in the same corner, and
+   * the buttons under the strip's translucent card showed through as a second, smaller set (owner report 2026-10-11). */
   private renderFloorStrip() {
     const floors = this.buildingFloors;
     if (this.bundle?.source !== 'api' || floors.length < 2) return nothing;
@@ -2750,7 +2752,7 @@ export class ExploreFloorMap extends LitElement {
       ${this.threeState === 'error' ? html`<div class="banner" data-3d-load-error><sw-state-panel compact state="error" heading="תלת-ממד לא נטען" hint=${this.threeError}></sw-state-panel></div>` : nothing}
       <div class="floorchip" data-floorchip><sw-icon name="building" size=${14}></sw-icon>${b.floorName}</div>
       ${b.levels.length > 1 ? html`<div class="levelbar">${renderLevelChips(b.levels, this.levelFilter, (id) => (this.levelFilter = id))}</div>` : nothing}
-      ${b.source === 'api' && this.buildingFloors.length > 1
+      ${b.source === 'api' && this.buildingFloors.length > 1 && !this.shows3d
         ? html`<div class="floorbtns" role="group" aria-label="מעבר מהיר בין קומות" data-floor-buttons>
             ${this.buildingFloors.map((f) => html`<button class=${f.id === this.floorId ? 'on' : ''} data-floor-button=${f.id} title=${`${f.name}${f.hasPlan ? '' : ' · אין תוכנית'}`} aria-pressed=${f.id === this.floorId} @click=${() => { if (f.id !== this.floorId) navigate(`/explore/floors/${f.id}`); }}>${f.short}</button>`)}
           </div>`

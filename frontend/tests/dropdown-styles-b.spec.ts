@@ -546,40 +546,24 @@ test.describe('the areas of a floor (home group) in dropdown mode on a wide scre
   const navFacts = (page: Page) =>
     page.locator('#nav').evaluate((el) => ({ floorCrumb: !!el.shadowRoot!.querySelector('[data-crumb=floor]'), areaCrumb: !!el.shadowRoot!.querySelector('[data-crumb=area]'), inShell: !!el.shadowRoot!.querySelector('[data-areas-in-shell]') }));
 
-  test('dropdown mode at 1280 px: the area row is a selectable chip in the shell; the floor crumb stays; nothing disappears without a replacement', async ({ page }) => {
-    await openShell(page, '/devices/building', 1280);
-    await setMode(page, 'dropdown');
-    await mountNav(page, 5);
-    const nav = await navFacts(page);
-    expect(nav.floorCrumb).toBe(true);
-    expect(nav.areaCrumb).toBe(false);
-    expect(nav.inShell).toBe(true);
-    const f = await shellFacts(page);
-    expect(f.pairChip).toBe(1); // the replacement: the areas as a dropdown chip in the pair row
-    const handle = await page.locator('sw-app').evaluateHandle((app) => app.shadowRoot!.querySelector('.tabpair [data-pair-chip]')!);
-    const dd = handle.asElement()!;
-    expect(await dd.evaluate((e) => (e as HTMLElement & { items: unknown[] }).items.length)).toBe(5);
-    await (await dd.evaluateHandle((e) => e.shadowRoot!.querySelector<HTMLElement>('.chip')!)).asElement()!.click();
-    await page.keyboard.press('End');
-    await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => location.hash)).toBe('#/devices/areas/a5');
-    // back to tabs: the breadcrumb's area crumb returns and the pair chip goes
-    await setMode(page, 'tabs');
-    await mountNav(page, 5);
-    expect(await navFacts(page)).toEqual({ floorCrumb: true, areaCrumb: true, inShell: false });
-    expect((await shellFacts(page)).pairChip).toBe(0);
-  });
-
-  test('hybrid at 1280 px: three areas keep the breadcrumb crumb, four become the chip', async ({ page }) => {
-    await openShell(page, '/devices/building', 1280);
-    await setMode(page, 'hybrid');
-    await mountNav(page, 3);
-    expect(await navFacts(page)).toEqual({ floorCrumb: true, areaCrumb: true, inShell: false });
-    expect((await shellFacts(page)).pairChip).toBe(0);
-    await mountNav(page, 4);
-    expect(await navFacts(page)).toEqual({ floorCrumb: true, areaCrumb: false, inShell: true });
-    expect((await shellFacts(page)).pairChip).toBe(1);
-  });
+  // HOME polish (owner 2026-10-10): the floor and the area are two pickers in the breadcrumb row in EVERY tabs mode; the shell's pair row
+  // never carries the areas any more (the picker's list is the areas of the floor; its size follows the group's dropdown size dial)
+  for (const mode of ['dropdown', 'hybrid', 'tabs'] as const) {
+    test(`${mode} mode at 1280 px: the floor and the area pickers stay in the breadcrumb row, no pair chip in the shell`, async ({ page }) => {
+      await openShell(page, '/devices/building', 1280);
+      await setMode(page, mode);
+      await mountNav(page, 5);
+      expect(await navFacts(page)).toEqual({ floorCrumb: true, areaCrumb: true, inShell: false });
+      expect((await shellFacts(page)).pairChip).toBe(0);
+      // the area picker lists the five areas; End + Enter lands on the last one
+      await page.locator('#nav').evaluate((el) => el.shadowRoot!.querySelector<HTMLElement>('[data-crumb=area]')!.click());
+      expect(await page.locator('#nav').evaluate((el) => el.shadowRoot!.querySelectorAll('[data-nav-menu=area] [data-nav-option]').length)).toBe(5);
+      await page.locator('#nav').evaluate((el) => el.shadowRoot!.querySelector<HTMLElement>('[data-nav-menu=area] [data-nav-option]')!.focus());
+      await page.keyboard.press('End');
+      await page.keyboard.press('Enter');
+      expect(await page.evaluate(() => location.hash)).toBe('#/devices/areas/a5');
+    });
+  }
 });
 
 test.describe('the settings sub-tabs follow the tabs mode and the style of the settings group', () => {

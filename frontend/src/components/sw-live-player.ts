@@ -263,6 +263,14 @@ export class SwLivePlayer extends LitElement {
       place-items: center;
       cursor: pointer;
     }
+    .mute:hover {
+      background: var(--sw-video-scrim-strong);
+    }
+    .mute:focus-visible,
+    .tap:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-on-video);
+      outline-offset: var(--sw-focus-offset);
+    }
     :host([compact]) .mute,
     :host([compact]) .status span.t {
       display: none;

@@ -11,6 +11,28 @@ import pytest
 from smplwise.services import ha_user_auth as hua
 
 
+class _Clock:
+    """The module's `time`, with `time()` under the test's hand. The throttle windows are wall-clock (time.time) and the old
+    tests used 0.2 s windows and real sleeps: on a loaded runner six audit writes outlast 0.2 s (a second row appears) or a
+    0.3 s sleep is overtaken. Everything else of `time` is passed through."""
+
+    def __init__(self) -> None:
+        self.now = 1_000_000.0
+
+    def time(self) -> float:
+        return self.now
+
+    def __getattr__(self, name: str):
+        return getattr(time, name)
+
+
+@pytest.fixture()
+def clock(monkeypatch) -> _Clock:
+    c = _Clock()
+    monkeypatch.setattr(hua, "time", c)
+    return c
+
+
 @pytest.fixture(autouse=True)
 def _clean():
     hua.REFUSAL_AUDITS.clear()
@@ -47,7 +69,7 @@ def test_the_user_limit_is_throttled_per_user_and_reason_not_per_address(client)
     assert hua._throttle_key("rate_limited_user", {"client_ip": "x"}, "u-a") != hua._throttle_key("rate_limited_ip", {"client_ip": "u-a"}, None)
 
 
-def test_suppressed_counts_travel_with_the_next_row_of_the_same_key(client, monkeypatch):
+def test_suppressed_counts_travel_with_the_next_row_of_the_same_key(client, monkeypatch, clock):
     db = client.app.state.db
     for _ in range(4):
         _refuse(db, "rate_limited_user", "198.51.100.1", "u-a")
@@ -59,14 +81,16 @@ def test_suppressed_counts_travel_with_the_next_row_of_the_same_key(client, monk
     assert hua.flush_refusal_summaries(db) == 0  # nothing was left behind
 
 
-def test_a_key_that_goes_quiet_gets_an_end_of_window_summary_row(client, monkeypatch):
+def test_a_key_that_goes_quiet_gets_an_end_of_window_summary_row(client, monkeypatch, clock):
     db = client.app.state.db
-    monkeypatch.setattr(hua.RefusalAudits, "WINDOW_S", 0.2)
+    monkeypatch.setattr(hua.RefusalAudits, "WINDOW_S", 60.0)
     for _ in range(6):
         _refuse(db, "rate_limited_user", "198.51.100.1", "u-quiet")
     assert len(_rows(db, "rate_limited_user")) == 1
     assert hua.flush_refusal_summaries(db) == 0  # the window is still open
-    time.sleep(0.3)
+    clock.now += 59.0
+    assert hua.flush_refusal_summaries(db) == 0  # ... until its last second
+    clock.now += 2.0
     assert hua.flush_refusal_summaries(db) == 1
     rows = _rows(db, "rate_limited_user")
     assert len(rows) == 2 and rows[-1]["resource_id"] == "u-quiet"
@@ -74,25 +98,25 @@ def test_a_key_that_goes_quiet_gets_an_end_of_window_summary_row(client, monkeyp
     assert hua.flush_refusal_summaries(db) == 0  # counted once
 
 
-def test_another_keys_refusal_flushes_a_quiet_keys_summary(client, monkeypatch):
+def test_another_keys_refusal_flushes_a_quiet_keys_summary(client, monkeypatch, clock):
     db = client.app.state.db
-    monkeypatch.setattr(hua.RefusalAudits, "WINDOW_S", 0.2)
+    monkeypatch.setattr(hua.RefusalAudits, "WINDOW_S", 60.0)
     for _ in range(3):
         _refuse(db, "rate_limited_ip", "198.51.100.9")
-    time.sleep(0.3)
+    clock.now += 61.0
     _refuse(db, "rate_limited_user", "198.51.100.1", "u-other")  # any later throttled refusal drains the ended windows
     summary = [r for r in _rows(db, "rate_limited_ip") if r["details"].get("summary")]
     assert len(summary) == 1 and summary[0]["details"]["suppressed"] == 2 and summary[0]["details"]["client_ip"] == "198.51.100.9"
 
 
-def test_a_full_table_never_drops_a_held_count():
+def test_a_full_table_never_drops_a_held_count(clock):
     a = hua.RefusalAudits()
-    a.WINDOW_S = 0.05
+    a.WINDOW_S = 60.0
     a.admit("held", {"reason": "rate_limited_user", "meta": {}, "resource_id": "u"})
     a.admit("held")
     a.admit("held")
     for i in range(20001):
         a.admit(f"k{i}")
-    time.sleep(0.1)
+    clock.now += 61.0
     a.admit("trigger-prune-1")  # the rollover path prunes when the table is large
     assert [(k, n) for k, n, _ in a.expired()] == [("held", 2)]

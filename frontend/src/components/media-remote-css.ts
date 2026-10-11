@@ -180,7 +180,7 @@ export const remoteStyles = css`
     flex-direction: column;
     gap: 14px;
     min-inline-size: 0;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     line-height: 1.45;
     color: var(--mr-text);
     padding-block-end: 6px;
@@ -295,12 +295,12 @@ export const remoteStyles = css`
     gap: 1px;
   }
   .np .t small {
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
   }
   .np .t b {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -310,7 +310,7 @@ export const remoteStyles = css`
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: var(--sw-fs-xs);
     color: var(--mr-text-2);
     direction: ltr;
     margin-block-start: 5px;
@@ -347,7 +347,7 @@ export const remoteStyles = css`
     background: transparent;
     border-radius: 999px;
     padding: 6px 14px;
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
     min-block-size: 44px;
     display: inline-flex;
@@ -360,7 +360,7 @@ export const remoteStyles = css`
   }
   .seg.sm button {
     min-block-size: 44px;
-    font-size: 13px;
+    font-size: var(--sw-fs-base);
     padding: 4px 12px;
   }
   .seg button[aria-selected='true'],
@@ -380,7 +380,7 @@ export const remoteStyles = css`
     border: 1px solid var(--mr-border);
     background: var(--mr-sheen), var(--mr-surface);
     color: var(--mr-text);
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
@@ -405,7 +405,7 @@ export const remoteStyles = css`
     pointer-events: none;
   }
   .btn .ic {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
   }
 
   /* ---- round buttons ---- */
@@ -425,7 +425,7 @@ export const remoteStyles = css`
     transition: transform 120ms var(--mr-ease), box-shadow var(--mr-motion), color var(--mr-motion);
   }
   .rb .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
   }
   .rb:active,
   .rb.hit {
@@ -510,7 +510,7 @@ export const remoteStyles = css`
     padding: 3px 2px;
   }
   .recent .lbl {
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
     flex: none;
@@ -525,7 +525,7 @@ export const remoteStyles = css`
     border-radius: 15px;
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 500;
     white-space: nowrap;
     flex: none;
@@ -572,7 +572,7 @@ export const remoteStyles = css`
     border-radius: 11px;
   }
   .rchip .gi .ic {
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
 
   /* ---- the pad body ---- */
@@ -637,7 +637,7 @@ export const remoteStyles = css`
     border: 0;
     background: transparent;
     padding: 0;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 500;
     min-inline-size: var(--mr-key-size);
@@ -759,12 +759,12 @@ export const remoteStyles = css`
     direction: rtl;
   }
   .rock .rv small {
-    font-size: 10.5px;
+    font-size: var(--sw-fs-2xs);
     color: var(--mr-text-2);
     font-weight: 600;
   }
   .rock .rv b {
-    font-size: 16px;
+    font-size: var(--sw-fs-lg);
     font-variant-numeric: tabular-nums;
     margin-block-start: 1px;
   }
@@ -783,7 +783,7 @@ export const remoteStyles = css`
     block-size: 46px;
   }
   .pbk .kc .ic {
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
   }
   .pbk .main .kc {
     inline-size: 62px;
@@ -806,14 +806,14 @@ export const remoteStyles = css`
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
     color: var(--mr-text);
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     font-weight: 600;
   }
   .morebtn:hover {
     background: var(--mr-surface);
   }
   .morebtn .ic {
-    font-size: 15px;
+    font-size: var(--sw-fs-lg);
     transition: transform var(--mr-motion) var(--mr-ease);
   }
   .morebtn[aria-expanded='true'] .ic {
@@ -827,7 +827,7 @@ export const remoteStyles = css`
   }
   .more h4 {
     margin: 0 0 8px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 600;
     text-align: center;
@@ -845,7 +845,7 @@ export const remoteStyles = css`
     border: 0;
     background: var(--mr-key-bg);
     box-shadow: var(--mr-key-shadow);
-    font-size: 20px;
+    font-size: var(--sw-fs-2xl);
     font-weight: 600;
     color: var(--mr-key-fg);
     display: grid;
@@ -855,7 +855,7 @@ export const remoteStyles = css`
     touch-action: manipulation;
   }
   .npad button .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
   }
   .npad button:active,
   .npad button.hit {
@@ -869,12 +869,12 @@ export const remoteStyles = css`
     justify-content: center;
     gap: 8px;
     block-size: 24px;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     margin-block-end: 6px;
   }
   .chentry b {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
     color: var(--mr-accent-text);
     letter-spacing: 0.1em;
     direction: ltr;
@@ -938,7 +938,7 @@ export const remoteStyles = css`
     flex: 1;
     min-inline-size: 0;
     font: inherit;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     background: transparent;
     color: var(--mr-text);
   }
@@ -947,7 +947,7 @@ export const remoteStyles = css`
   }
   .kbd .fld .ic {
     color: var(--mr-text-2);
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
   .kbd .btn {
     min-block-size: 48px;
@@ -963,12 +963,12 @@ export const remoteStyles = css`
     text-align: center;
   }
   .roff > b {
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
     font-weight: 600;
     margin-block-start: 6px;
   }
   .roff small {
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     color: var(--mr-text-2);
   }
   .roff > .ic {
@@ -1070,7 +1070,7 @@ export const remoteStyles = css`
     border: 1px solid var(--mr-border);
     background: var(--mr-surface-2);
     text-align: start;
-    font-size: 14px;
+    font-size: var(--sw-fs-md);
     font-weight: 600;
     color: var(--mr-text);
     transition: transform 120ms, background var(--mr-motion), border-color var(--mr-motion);
@@ -1087,11 +1087,11 @@ export const remoteStyles = css`
     border-radius: 50%;
   }
   .srci .gi .ic {
-    font-size: 19px;
+    font-size: var(--sw-fs-2xl);
   }
   .srci small {
     display: block;
-    font-size: 12px;
+    font-size: var(--sw-fs-sm);
     color: var(--mr-text-2);
     font-weight: 500;
   }
@@ -1108,7 +1108,7 @@ export const remoteStyles = css`
     inset-block-start: 12px;
     inset-inline-end: 12px;
     color: var(--mr-accent-text);
-    font-size: 18px;
+    font-size: var(--sw-fs-xl);
   }
   .srci .pendring {
     inset: 6px;
@@ -1131,7 +1131,7 @@ export const remoteStyles = css`
     border: 0;
     background: transparent;
     padding: 4px 0;
-    font-size: 12.5px;
+    font-size: var(--sw-fs-sm);
     font-weight: 500;
     color: var(--mr-text);
     border-radius: 14px;
@@ -1185,7 +1185,7 @@ export const remoteStyles = css`
     border-radius: 14px;
     background: var(--mr-danger-soft);
     color: var(--mr-text);
-    font-size: 13.5px;
+    font-size: var(--sw-fs-base);
     font-weight: 600;
   }
   .notice[hidden] {
@@ -1193,6 +1193,6 @@ export const remoteStyles = css`
   }
   .notice .ic {
     color: var(--mr-danger);
-    font-size: 17px;
+    font-size: var(--sw-fs-xl);
   }
 `;

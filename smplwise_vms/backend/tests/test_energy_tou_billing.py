@@ -471,7 +471,7 @@ def test_pdf_model_and_html_of_a_tou_bill(w):
     assert "פירוט יומי" not in bill_pdf_html.build_html(plain, False)
 
 
-def test_pdf_renders_a_tou_bill_with_the_real_engine(w):
+def test_pdf_renders_a_tou_bill_with_the_real_engine(w, monkeypatch):
     """The whole render pipeline (WeasyPrint in its sandboxed process) on a 2-month TOU bill with its daily table; the text is
     read back with poppler. Skipped where WeasyPrint/poppler are not installed (the add-on image and the runner have them)."""
     import shutil
@@ -482,6 +482,10 @@ def test_pdf_renders_a_tou_bill_with_the_real_engine(w):
         pytest.skip("poppler-utils not installed")
     from smplwise.services.bill_pdf import render_bill_pdf
 
+    # the test is about the WeasyPrint layout (daily table, 2-6 pages), not its speed: on a loaded runner the 5 s slow-render rule of
+    # `auto` would redraw the bill with the simple engine, which has no such table
+    monkeypatch.setenv("SW_BILL_PDF_FALLBACK_S", "60")
+    monkeypatch.setenv("SW_BILL_PDF_TIMEOUT_S", "90")
     hourly(w, "m1", loc(2026, 3, 1), loc(2026, 5, 2))
     s = setup_tou(w)
     b = bill(w, s["account"]["id"], "2026-03-01", "2026-04-30")

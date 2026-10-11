@@ -154,9 +154,9 @@ export class MultimediaGroups extends LitElement {
       border-radius: var(--sw-r-lg);
       display: grid;
       place-items: center;
-      color: #fff;
-      background: linear-gradient(135deg, #0b3a5c, #3b8bd9);
-      box-shadow: 0 8px 18px rgba(11, 58, 92, 0.28);
+      color: var(--sw-on-video);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--dv-accent) 55%, var(--sw-video-bg)), var(--dv-accent));
+      box-shadow: 0 8px 18px color-mix(in srgb, var(--dv-accent) 28%, transparent);
     }
     .gi.src {
       background: var(--dv-surface-3);
@@ -204,7 +204,7 @@ export class MultimediaGroups extends LitElement {
       block-size: 52px;
       border-radius: var(--sw-r-md);
       overflow: hidden;
-      color: #fff;
+      color: var(--sw-on-video);
       box-shadow: 0 8px 18px rgb(var(--art, 20 24 34) / 0.32);
     }
     .gnp .t {
@@ -301,7 +301,7 @@ export class MultimediaGroups extends LitElement {
       inline-size: 26px;
       block-size: 26px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-toggle-thumb);
       margin-block-start: -9px;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
     }
@@ -310,7 +310,7 @@ export class MultimediaGroups extends LitElement {
       block-size: 26px;
       border: 0;
       border-radius: 50%;
-      background: #fff;
+      background: var(--sw-toggle-thumb);
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     }
     .rng[disabled] {

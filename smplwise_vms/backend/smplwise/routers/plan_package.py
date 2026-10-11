@@ -32,6 +32,7 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import bundle as bundle_svc
 from ..services import geometry_store as store
+from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_package as pkg_svc
 from ..services import signing
 from .catalog import get_floor
@@ -222,6 +223,12 @@ def import_package(version_id: str, request: Request, mode: Literal["replace", "
     audit(conn, actor=principal, action="geometry.package.import", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request),
           details={"version_id": v["id"], "mode": mode, "package_sha256": package.package_sha256, "source_installation_id": origin["installation_id"],
                    "trust": origin["trust"], "kid": origin["kid"], "source_version_id": origin["plan_version_id"], "result_hash": row["doc_hash"],
-                   "changes": out["diff"]["total"], "same_drawing": out["same_drawing"]})
-    return {"geometry": store.row_api(row), "origin": origin, "result_hash": row["doc_hash"], "result_geometry_hash": pkg_svc.geometry_hash(store.load_doc(row)),
+                   "changes": out["diff"]["total"], "same_drawing": out["same_drawing"],
+                   "withheld_restored": out["withheld_restored"], "hidden_removed": out["hidden_removed"]})
+    # security review 2.4.2 L1: the hashes as this importer is handed them (the same values the preview showed)
+    visible = anchor_scope.visibility(conn, principal, v["floor_id"])
+    saved = store.load_doc(row)
+    served = anchor_scope.served_hash(row["doc_hash"], lambda: saved, visible)
+    return {"geometry": {**store.row_api(row), "doc_hash": served}, "origin": origin, "result_hash": served,
+            "result_geometry_hash": pkg_svc.geometry_hash(anchor_scope.redact(saved, visible)[0]),
             "diff": out["diff"], "entities": out["entities"], "warnings": out["warnings"]}

@@ -41,6 +41,14 @@ export const COL_LABEL: Record<ColKey, string> = { type: 'סוג', integration: 
 export type Bp = 'wide' | 'md';
 export const BREAKPOINT_MD = 1280;
 export const BREAKPOINT_PHONE = 860;
+/** 2.4.6: the same three layouts chosen by the TABLE's own width (a container query; the viewport breakpoints above are the
+ * fallback): the wide columns need 1228 px at the defaults, the tablet columns 864 px (W below: the tracks, 10 px gaps and
+ * the row's 12 px padding). Measured: a 1440 px window gives a settings table about 1030 px (tablet columns), a 1024 px
+ * window about 850 px (cards), 1920 px about 1510 px (wide). Keep in step with the @container rules in media-admin-list.ts. */
+export const CQ_WIDE = 1228;
+export const CQ_CARDS = 864;
+/** The layout of a table this wide (px). */
+export const bpOfWidth = (w: number): Bp => (w >= CQ_WIDE ? 'wide' : 'md');
 
 /** Today's behaviour: everything shows, except the separate floor column, and the room and the cast marking on a tablet width. */
 export function defaultVisible(k: ColKey, bp: Bp): boolean {

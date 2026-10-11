@@ -101,6 +101,7 @@ class PrefsPatch(BaseModel):
     nav_order: list[Any] | None = Field(default=None, alias="nav.order", max_length=user_prefs.MAX_LIST)
     ui_nav_size: dict[str, Any] | None = Field(default=None, alias="ui.nav_size")  # validated in full by services/nav_size.py
     ui_look: dict[str, Any] | None = Field(default=None, alias="ui.look")  # Bubble foundation: a partial override of the look dials (services/look.py); null = follow the installation
+    ui_background: str | None = Field(default=None, alias="ui.background")  # CRY: builtin | none | custom, the background behind the glass (services/user_prefs.py); null = follow the installation
     ui_tabs_mode: str | None = Field(default=None, alias="ui.tabs_mode")  # release 0.1.153: tabs | hybrid | dropdown (services/tabs_mode.py); null = follow the installation
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # the same per tab group
     ui_dd_style: str | None = Field(default=None, alias="ui.dd_style")  # release 0.1.157: auto | pill | field | underline | text | prefix | tonal (services/dd_style.py); null = follow the installation
@@ -115,6 +116,7 @@ class PrefsPatch(BaseModel):
     ui_dd_panel: str | None = Field(default=None, alias="ui.dd_panel")  # Unreleased: button | 240 | 300, open-panel width, capsule style only; null = follow the installation
     ui_dd_panel_groups: dict[str, Any] | None = Field(default=None, alias="ui.dd_panel_groups")  # the same per tab group
     generator_view_mode: str | None = Field(default=None, alias="generator.view_mode")  # CR-031: gauges | charts, the generator live screen's presentation (null = gauges)
+    plan_quality: str | None = Field(default=None, alias="plan.quality")  # owner bug 2026-10-10: auto | 1 | 2, the user's own 3D view mode (services/user_prefs.py); null = follow the installation
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)

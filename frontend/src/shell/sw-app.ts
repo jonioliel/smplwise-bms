@@ -72,6 +72,7 @@ import '../screens/investigate-rules';
 import '../screens/system-access';
 import '../screens/system-audit';
 import '../screens/system-setup';
+import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import '../screens/system-wizard';
 import '../screens/system-devices';
 import '../screens/system-diagnostics';
@@ -106,6 +107,7 @@ import { setBrandColors } from '../design/brand';
 import { applyPlaybackDisplay } from '../api/playback-display';
 import { currentSkin, onDesign, setInstallationDesign } from '../design/apply';
 import { loadLook, setInstallationLook } from '../design/look';
+import { loadBackgroundPref, setInstallationBackground } from '../design/background';
 import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
 import { DEMO_DEVICES_TREE } from '../screens/devices-building';
@@ -311,6 +313,23 @@ export class SwApp extends LitElement {
       flex: 1;
       min-block-size: 0;
     }
+    /* SET-polish: the settings pages carry their own navigation column (screens/system-nav.ts) at the start side on a wide
+       screen; up to 1100 px (the reference tablet width included, and the phone) it is the search row above the page */
+    main > .screen[data-settings] {
+      flex-direction: row;
+      align-items: stretch;
+    }
+    main > .screen[data-settings] > system-nav {
+      flex: none;
+    }
+    main > .screen[data-settings] > :not(system-nav) {
+      min-inline-size: 0;
+    }
+    @media (max-width: 1100px) {
+      main > .screen[data-settings] {
+        flex-direction: column;
+      }
+    }
     nav.bottom {
       display: none;
     }
@@ -345,6 +364,11 @@ export class SwApp extends LitElement {
           'topbar'
           'main'
           'bottom';
+      }
+      /* KIOSK polish: a pull at the top of a screen stays inside the app - the browser's own pull-to-refresh would reload the
+         whole shell (and, installed, the whole app); the screens refresh themselves from the live channel */
+      main {
+        overscroll-behavior-y: contain;
       }
       nav.rail {
         display: none;
@@ -1440,6 +1464,7 @@ export class SwApp extends LitElement {
         void loadNavOrder(who, s.mode === 'api' || s.mode === 'no_access');
         void loadNavSize(who, s.mode === 'api' || s.mode === 'no_access');
         void loadLook(who, s.mode === 'api' || s.mode === 'no_access'); // Bubble foundation: this user's look dials
+        void loadBackgroundPref(who, s.mode === 'api' || s.mode === 'no_access'); // CRY: this user's own background choice
         void loadTabsMode(who, s.mode === 'api' || s.mode === 'no_access');
       }
       if (s.mode !== 'loading') {
@@ -1458,6 +1483,7 @@ export class SwApp extends LitElement {
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
           setInstallationDesign(ps['ui.skin'], ps['ui.scheme']); // the installation's skin and light / dark choice (design foundation)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
+          setInstallationBackground(ps['ui.background'], ps['ui.background_images']); // CRY: the background artwork and the uploaded pictures' stamps
           setCustomPalettes(ps['ui.palettes']); // the installation's custom colour palettes (a palette id in the look dial may point at one)
           setInstallationTabsMode(ps as unknown as Record<string, unknown>); // ui.tabs_mode(+_groups): tabs / hybrid / dropdown (0.1.153)
           setInstallationMobileOptions(ps['ui.mobile']); // the phone UX guards (הגדרות › כללי › אפשרויות נייד)
@@ -2414,7 +2440,7 @@ export class SwApp extends LitElement {
         ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
         ${this.renderGate() || html`
           ${this.renderChrome(section, tabs, editor, rowMode, rowStyle, showSections)}
-          <div class="screen">${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
+          <div class="screen" ?data-settings=${this.settingsNav(area, editor)}>${this.settingsNav(area, editor) ? html`<system-nav ?compact=${this.phone}></system-nav>` : nothing}${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       ${this.skin === 'bubble'
         ? html`<nav class=${classMap({ bottom: true, dock: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי" data-dock>
@@ -2488,6 +2514,16 @@ export class SwApp extends LitElement {
     const pagesDd = tabs.length > 1 && !editor && (rowMode.variant === 'dropdown' || (rowMode.adaptive && tabs.length > HYBRID_MAX_ITEMS));
     if (pagesDd) return html`<div class="tabpair" data-tab-pair>${pageChip(rowMode.label)}${secondChip}</div>`;
     return html`${sections}${own}<div class="tabpair single" data-tab-pair>${secondChip}</div>`;
+  }
+
+  /** SET-polish: the settings navigation column is drawn on every הגדרות page except the wizard (a guided flow) and, on a wide
+   * screen, the notifications page (it has a section navigation of its own); the phone gets the search row everywhere else. */
+  private settingsNav(area: ReturnType<typeof areaOf>, editor: boolean): boolean {
+    if (area !== 'system' || editor || this.gated || (this.session.mode !== 'api' && this.session.mode !== 'demo')) return false;
+    const s = this.route?.segments[1] ?? '';
+    if (s === 'wizard') return false;
+    if (s === 'notifications' && !this.phone) return false;
+    return true;
   }
 
   /** 0.1.153: the `variant` / `adaptive` a row of an area's tab group gets - the row's own style when the mode is `tabs` (nothing changes). */

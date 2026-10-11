@@ -9,7 +9,7 @@ import { TOKEN_NAMES } from '../src/design/tokens';
 //   npx playwright test tests/unit-token-lint.spec.ts --project=desktop
 // What is allowed: structural 1-3 px radii, `0` / `50%` / pill, the mask colours of fades (#000 / #fff in mask-image), the
 // documented knob layers (--dv-*, --mm-*, --mr-*: styles/devices-themes.ts, media-glass.ts, media-remote-css.ts), the plan canvas
-// and 3D neutrals (map/), the printable bill, the offline page and the kiosk wall (their own documents), and the static style
+// and 3D neutrals (map/), the printable bill, the offline page (their own documents), and the static style
 // swatches of the settings screens (listed in ALLOW_HEX below, each with its reason).
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src');
@@ -18,25 +18,17 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src')
 const ALLOW_HEX: Record<string, string> = {
   'screens/system-diagnostics.ts': 'static style previews of the device styles (DEVICE_THEMES.md §3: swatches, not knobs)',
   'screens/system-notifications.ts': 'the phone mock of the push preview (a drawn phone, dark in both schemes)',
-  'screens/kiosk-wall.ts': 'the kiosk wall is its own dark document (SC31)',
   'screens/investigate-playback.ts': 'timeline and scrubber HUD on video (LTR geometry, dark in both schemes)',
   'screens/live-camera.ts': 'zone / line editor overlays on video',
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
   'screens/devices-layout-css.ts': 'the layout editor grid lines',
-  'screens/multimedia-groups.ts': 'the media material knobs (--mm-*)',
-  'screens/multimedia-screens.ts': 'the media material knobs (--mm-*)',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
   'screens/explore-plan-editor.ts': 'the plan editor canvas HUD',
   'screens/explore-plan-import.ts': 'the import preview canvas',
-  'screens/investigate-events.ts': 'thumbnail HUD',
   'screens/investigate-history-map.ts': 'history map HUD',
-  'screens/live-views.ts': 'layout glyphs',
-  'screens/security-alarm.ts': 'the alarm keypad (its own material, both schemes)',
   'screens/devices-schedules.ts': 'the summary bar swatches',
-  'screens/devices-tiles-panel.ts': 'the master control glyph',
   'screens/devices-automations.ts': 'the automation card glyphs',
-  'screens/devices-building.ts': 'the glass tiles (--dv-*)',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
   'screens/nvr-camera-batch.ts': 'the encoding table HUD',

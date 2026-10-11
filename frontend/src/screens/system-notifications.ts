@@ -681,7 +681,7 @@ export class SystemNotifications extends LitElement {
         font-size: var(--sw-fs-xs);
       }
       .pushcard .acts span.door .ic {
-        color: #ff9f0a;
+        color: var(--nt-sev-alert);
       }
       /* the log */
       .lgw {

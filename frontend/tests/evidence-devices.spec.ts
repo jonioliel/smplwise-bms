@@ -937,7 +937,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     // "כבה מיזוג" - owner feedback 2026-09-29) and "all off"
     await expect(panel.locator('[data-chip="lights"]')).toContainText('2/2');
     await expect(panel.locator('[data-chip="locks"]')).toBeVisible();
-    await expect(panel.locator('button[data-bulk-kind]')).toHaveCount(4);
+    await expect(panel.locator('button[data-bulk-kind]')).toHaveCount(5); // ALLON: + "הדלק תאורה" (disabled here: both lights are on)
+    await expect(panel.locator('button[data-bulk-kind="lights_on"]')).toBeDisabled();
     await expect(panel.locator('button[data-bulk-kind="climate_off"]')).toHaveCount(0);
     await expect(panel.locator('button[data-bulk-kind="all_off"]')).toContainText('כבה הכל באזור · אישור');
     await expect(panel.locator('a[data-open-area]')).toHaveAttribute('href', '#/devices/areas/cr007_hall');
@@ -1123,7 +1124,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const pop = cardRow.locator('[data-bulk-panel="popover"]');
       await expect(pop.locator('[data-chip="lights"]')).toContainText('1/2');
       await expect(pop.locator('[data-chip="alarm"]')).toBeVisible();
-      await expect(pop.locator('button[data-bulk-kind]')).toHaveCount(5);
+      await expect(pop.locator('button[data-bulk-kind]')).toHaveCount(6); // ALLON: + "הדלק תאורה"
       await pop.locator('a[data-open-area]').click();
       await expect.poll(() => p.evaluate(() => location.hash)).toBe('#/devices/areas/cr007_lobby');
       await expect(p.locator('devices-area sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });

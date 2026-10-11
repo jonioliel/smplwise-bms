@@ -161,6 +161,8 @@ test.describe('electricity: the meter card', () => {
     await expect(card).toContainText('סטודיו אורן - קומה 1'); // the accounts that use it (the detail's used_in)
     await card.locator('[data-range="hours"]').click();
     await expect(card.locator('[data-chart] rect')).toHaveCount(24);
+    // MEDIA-polish regression: the bars are SVG elements that paint (an `html` child inside <svg> was an HTML element: the chart drew nothing)
+    expect(await card.locator('[data-chart] rect').first().evaluate((el) => el instanceof SVGElement && el.getBoundingClientRect().width > 0)).toBe(true);
     await card.locator('[data-meter-pause]').click();
     await expect(card.locator('[data-meter-status="paused"]')).toBeVisible();
     expect(mock.calls.some((c) => c.method === 'PATCH' && c.path.startsWith('meters/m2'))).toBe(true);

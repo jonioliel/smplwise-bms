@@ -645,6 +645,8 @@ test.describe('CR-020 S2c phone and layout facts (mocked backend)', () => {
     await fits(CONFIRM);
     await page.locator(`${CONFIRM} [data-nvr-confirm]`).click();
     await expect(page.locator(PROG)).toHaveCount(1);
+    // the panel can show before the mock has answered the POST that starts the batch: step it only once the batch exists
+    await expect.poll(() => d.running !== null).toBe(true);
     await fits(PROG);
     d.step();
     d.step('failed');

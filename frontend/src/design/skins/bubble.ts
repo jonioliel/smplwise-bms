@@ -110,7 +110,7 @@ const tokens: TokenTable = {
    shell and the shared components. A floating glass layer always has its solid twin (@supports / reduced transparency). */
 const rules = `
 /* bubble 1 - the canvas with its two blooms */
-:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); /* 0.1.157: the shell's tab rows meet the touch dial */ }
+:host(sw-app) { background: var(--sw-canvas); --sw-tab-min-h: var(--sw-touch-desktop); --sw-settings-search-h: var(--sw-touch-desktop); /* 0.1.157: the shell's tab rows meet the touch dial; 2.4.6: so does the settings search field (screens/system-nav.ts) */ }
 /* bubble 2 - the rail is a floating glass pill column */
 :host(sw-app) nav.rail.rail { margin-block: 12px; margin-inline-start: 12px; border: 0; border-radius: var(--sw-r-lg); background: var(--sw-nav-glass); -webkit-backdrop-filter: var(--sw-glass-blur-nav); backdrop-filter: var(--sw-glass-blur-nav); box-shadow: inset 0 1px 0 var(--sw-highlight); }
 :host(sw-app) .brand-tile { border-radius: 50%; }
@@ -171,6 +171,8 @@ const rules = `
 :host(sw-app) nav.secrow.secrow::before { border-radius: var(--sw-r-pill); background: var(--sw-surface-2); }
 :host(sw-app) nav.secrow.secrow a.on .pill { border-radius: var(--sw-r-pill); background: var(--sw-surface-solid); box-shadow: var(--sw-shadow-2); }
 @media (max-width: 1100px) { :host(sw-app) .subnav, :host(sw-app) nav.sections.sections { --sw-tab-min-h: 44px; } }
+/* the settings navigation column: pills, like every bubble list row */
+:host(system-nav) a { border-radius: var(--sw-r-pill); min-block-size: 36px; }
 `;
 
 export const bubble: Skin = { id: 'bubble', name: 'Bubble', nameHe: 'Bubble', noteHe: 'חלונות קופצים שקופים, כמוסות, פס צף בטלפון; צפיפות, משטח ופינות לבחירה', tokens, rules };

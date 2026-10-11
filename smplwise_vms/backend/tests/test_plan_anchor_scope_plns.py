@@ -74,8 +74,10 @@ def test_reads_withhold_the_hidden_camera_and_keep_the_item(settings, bound):
     assert objs["o-vault"]["position"] == list(scope.WITHHELD_POSITION) != _objects(admin.json())["o-vault"]["position"]
     assert objs["o-vault"]["rotation_deg"] == 0
     assert objs["o-lobby"]["anchor_ref"] == _ref("camera", lobby) and objs["o-lamp"]["anchor_ref"] == _ref("ha_entity", "light.hall")
-    # the stored row is unchanged and still identifies the revision; the ETag follows what ron is served
-    assert ron.json()["geometry"]["doc_hash"] == admin.json()["geometry"]["doc_hash"]
+    # the stored row is unchanged; security review 2.4.2 L1 (SEC244): ron is handed the hash of what he is served, never the
+    # stored one; the ETag follows what ron is served
+    assert ron.json()["geometry"]["doc_hash"] != admin.json()["geometry"]["doc_hash"]
+    assert ron.json()["geometry"]["doc_hash"] == store.doc_hash(scope.redact(_stored(settings, vid, "published"), lambda t, rid: not (t == "camera" and rid == vault))[0])
     assert ron.headers["etag"] != admin.headers["etag"] and "-r" in ron.headers["etag"]
     assert c.get(f"/api/v1/plan-versions/{vid}/geometry", headers={**as_user("ron"), "If-None-Match": ron.headers["etag"]}).status_code == 304
     assert c.get(f"/api/v1/plan-versions/{vid}/geometry", headers={**as_user("ron"), "If-None-Match": admin.headers["etag"]}).status_code == 200, \

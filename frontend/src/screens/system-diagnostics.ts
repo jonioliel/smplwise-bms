@@ -19,7 +19,8 @@ import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/sessio
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { describeError, get } from '../api/client';
-import { navigate, parseRoute } from '../router';
+import { navigate, parseRoute, replaceRoute } from '../router';
+import { settingsStyles } from '../styles/settings';
 import { TabsModeController } from '../shell/tabs-mode';
 import { bridgePairing, haStatus, fmtTime, installBridge, type HaIntegrationStatus, type HaStatus } from '../api/ha';
 import '../components/sw-kpi';
@@ -55,6 +56,8 @@ import { inAndroidApp, switchServer } from '../arx/android-app';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncDisconnectedText } from '../api/ha-sync-status';
+import { QUALITY_MODES, QUALITY_MODE_HINT, QUALITY_MODE_LABEL, modeFromWire, modeToWire, type QualityMode, type QualityWire } from '../map/quality-mode';
+import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 
 /** הגדרות › בקרות כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -71,6 +74,22 @@ interface VideoCodecs {
   sub: { ok: number; no: number; unknown: number };
   checked_at: string | null;
 }
+
+/** SET-polish: one line under the page title per sub-tab - what the tab is about, as the title now names the tab. */
+const TAB_SUB: Record<string, string> = {
+  general: 'המראה של המערכת, הניווט, הזמן והאינטגרציות',
+  tabs: 'אילו לשוניות מוצגות בכל אזור, באיזה סדר ובאיזה סגנון',
+  media: 'תעבורת וידאו, קיר המצלמות, מסך הפתיחה, מכסות ושמירת נתונים',
+  map: 'איך מפות הקומה נפתחות ומה מוצג בסרגל המפלסים',
+  ha: 'החיבור לתשתית, הגשר והצימוד שלו',
+  'access-control': 'אילו מסכי WisKey מוטמעים ואילו נבנו כאן',
+  devices: 'המראה של מסכי החשמל וההתקנים לכל המשתמשים',
+  remote: 'כניסה מרחוק, אימות, הכניסות הפעילות והווידאו מבחוץ',
+  mobile: 'שיתוף הנתונים של אפליקציית הטלפון ומדיניות החיישנים',
+  health: 'מצב נפרד לכל רכיב, הבדיקות ותור העבודות',
+  backup: 'גיבויים של הפרויקט, העלאה, שחזור וגיבוי אוטומטי',
+  support: 'חבילת תמיכה מצונזרת',
+};
 
 const TABS = [
   { id: 'general', label: 'כללי' },
@@ -97,6 +116,8 @@ export class SystemDiagnostics extends LitElement {
   @state() private tab = 'general';
   @state() private settings: ProductSettings | null = null;
   @state() private canEdit = false;
+  /** The viewer's own 3D mode (null = the installation default; undefined = not read / no backend). */
+  @state() private ownQuality: QualityMode | null | undefined = undefined;
   @state() private nvrChannels: number | null = null;
   @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
@@ -128,21 +149,13 @@ export class SystemDiagnostics extends LitElement {
   @state() private skinsBusy = false;
   @state() private skinsError = '';
   @state() private restoreTarget: BackupEntry | null = null;
+  @state() private removeTarget: BackupEntry | null = null;
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
   @state() private restoreConfirm = '';
   @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
-  static styles = [css`
-    code {
-      font-family: var(--sw-font-mono, ui-monospace, monospace);
-      font-size: var(--sw-fs-xs);
-      background: var(--sw-surface-2, var(--sw-accent-soft));
-      padding: 2px 6px;
-      border-radius: var(--sw-r-2xs);
-      direction: ltr;
-      unicode-bidi: isolate;
-    }
+  static styles = [settingsStyles, css`
     .steps {
       margin: 0;
       padding-inline-start: 20px;
@@ -152,12 +165,6 @@ export class SystemDiagnostics extends LitElement {
       flex-direction: column;
       gap: 4px;
     }
-    .sections {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-inline-size: 760px;
-    }
     /* K88: the plan.surfaces check rows */
     .chk {
       display: flex;
@@ -165,39 +172,6 @@ export class SystemDiagnostics extends LitElement {
       gap: 8px;
       font-size: var(--sw-fs-sm);
       cursor: pointer;
-    }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 9px 0;
-      border-block-end: 1px solid var(--sw-border);
-      font-size: var(--sw-fs-sm);
-    }
-    .row:last-child {
-      border-block-end: 0;
-    }
-    .row .lbl {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-    }
-    .row .ctl {
-      inline-size: 220px;
-      flex-shrink: 0;
-    }
-    .muted {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-    }
-    .ok {
-      color: var(--sw-success-text);
-      font-size: var(--sw-fs-xs);
-    }
-    .err {
-      color: var(--sw-danger);
-      font-size: var(--sw-fs-xs);
     }
     .health {
       display: flex;
@@ -293,16 +267,25 @@ export class SystemDiagnostics extends LitElement {
     }
     .note-in {
       inline-size: 200px;
-      border: 1px solid var(--sw-border);
+      min-block-size: var(--sw-ctl-h-md);
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
-      padding: 6px 8px;
+      padding: 5px 10px;
       font: inherit;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text);
       background: var(--sw-surface);
     }
+    .note-in:focus,
+    .confirm-in:focus {
+      outline: none;
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
     .confirm-in {
       inline-size: 100%;
-      border: 1px solid var(--sw-border);
+      box-sizing: border-box;
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       padding: 8px 10px;
       font: inherit;
@@ -318,11 +301,6 @@ export class SystemDiagnostics extends LitElement {
       grid-template-columns: repeat(2, minmax(0, 170px));
       gap: 8px;
       padding-block: 4px 8px;
-    }
-    .foot {
-      display: flex;
-      gap: 8px;
-      padding-block-start: 10px;
     }
     .bar {
       block-size: 6px;
@@ -447,27 +425,43 @@ export class SystemDiagnostics extends LitElement {
       direction: ltr;
     }
     @media (max-width: 767px) {
-      .row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .row .ctl {
-        inline-size: auto;
+      .note-in {
+        inline-size: 100%;
       }
     }
   `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
-    const wanted = parseRoute().params.get('tab');
-    if (wanted && TABS.some((x) => x.id === wanted)) {
-      this.tab = wanted;
-      if (wanted === 'health') void this.loadReport();
-      if (wanted === 'backup') void this.loadBackups();
-      if (wanted === 'media') void this.loadMedia();
-      if (wanted === 'ha') void this.loadHa();
-    }
+    this.readTab();
+    window.addEventListener('hashchange', this.onHash);
     void this.loadSettings();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('hashchange', this.onHash);
+  }
+
+  /** SET-polish: the sub-tab is a deep link (`#/system/diagnostics?tab=backup`): read on arrival and whenever the address changes while this
+   * screen stays mounted (the settings navigation), written back in place when the user switches a tab. */
+  private readTab() {
+    const wanted = parseRoute().params.get('tab') ?? 'general';
+    if (wanted !== this.tab && TABS.some((x) => x.id === wanted)) this.openTab(wanted, false);
+  }
+
+  private onHash = () => {
+    const h = window.location.hash;
+    if (h.startsWith('#/system/diagnostics') || h === '#/system') this.readTab();
+  };
+
+  private openTab(id: string, write = true) {
+    this.tab = id;
+    if (id === 'health') void this.loadReport();
+    if (id === 'backup') void this.loadBackups();
+    if (id === 'media') void this.loadMedia();
+    if (id === 'ha') void this.loadHa();
+    if (write) replaceRoute('/system/diagnostics', id === 'general' ? undefined : new URLSearchParams({ tab: id }));
   }
 
   private async loadSettings() {
@@ -485,6 +479,16 @@ export class SystemDiagnostics extends LitElement {
     }
     // the floors for הגדרות › מפה › קומת ברירת מחדל (grouped by site and building)
     void loadTree().then((t) => (this.floorTree = t.sites)).catch(() => undefined);
+    // the viewer's own 3D mode (/me/prefs plan.quality): unreadable = the row stays disabled
+    void loadOwnMode().then((m) => (this.ownQuality = m));
+  }
+
+  /** מצב התצוגה שלי: the viewer's own 3D mode ('' = back to the installation default), the same key the 3D toolbar writes. */
+  private async saveOwnQuality(value: string) {
+    const mode = value === '' ? null : modeFromWire(value);
+    if (value !== '' && mode === null) return;
+    this.ownQuality = mode;
+    await saveOwnMode(mode);
   }
 
   private async loadMedia() {
@@ -572,7 +576,7 @@ export class SystemDiagnostics extends LitElement {
     if (!i) return nothing;
     const kind = i.state === 'active' ? 'live' : i.state === 'installed_pending' || i.state === 'update_pending' ? 'stale' : i.state === 'error' ? 'error' : 'unknown';
     const label = i.state === 'active' ? 'פעילה' : i.state === 'installed_pending' ? 'ממתינה ל־Restart' : i.state === 'update_pending' ? 'עדכון ממתין' : i.state === 'error' ? 'שגיאה' : i.state === 'not_installed' ? 'לא הותקנה' : 'לא זמין';
-    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span style="display:flex;gap:8px;align-items:center"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
+    return html`<div class="row"><span class="lbl">התקנת האינטגרציה ב־Home Assistant<span class="muted">${this.integrationText(i)}${i.discovery_posted_at ? ` · הוכרזה ל־Supervisor ${fmtTime(i.discovery_posted_at)}` : ''}</span></span><span class="end"><sw-badge kind=${kind} label=${label}></sw-badge>${this.canEdit && !onRemote() && i.state !== 'not_available' ? html`<sw-button size="sm" ?disabled=${this.busy} @click=${() => this.installBridgeNow()}>התקן / עדכן</sw-button>` : nothing}</span></div>`;
   }
 
   private renderHa() {
@@ -598,8 +602,8 @@ export class SystemDiagnostics extends LitElement {
           : nothing}
         ${p
           ? html`<div class="row"><span class="lbl">כתובת ה־Add-on ברשת של HA<span class="muted">להדביק בשדה "כתובת" של האינטגרציה</span></span><code class="ltr">${p.addon_url}</code></div>
-            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span style="display:flex;gap:8px;align-items:center"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
-            <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span style="display:flex;gap:8px"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
+            <div class="row"><span class="lbl">קוד צימוד<span class="muted">סוד משותף; מוצג רק למנהלי מערכת ונרשם באודיט</span></span><span class="end"><code class="ltr">${this.showCode ? p.pairing_code : '••••••••••••'}</code><sw-button size="sm" @click=${() => (this.showCode = !this.showCode)}>${this.showCode ? 'הסתר' : 'הצג'}</sw-button><sw-button size="sm" @click=${() => this.copyCode()}>${this.copied ? 'הועתק' : 'העתק'}</sw-button></span></div>
+            <div class="row"><span class="lbl">יצירת קוד חדש<span class="muted">מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה</span></span>${this.regenArmed ? html`<span class="end"><sw-button size="sm" variant="danger" @click=${() => this.loadHa(true)}>אשר יצירה</sw-button><sw-button size="sm" variant="ghost" @click=${() => (this.regenArmed = false)}>ביטול</sw-button></span>` : html`<sw-button size="sm" @click=${() => (this.regenArmed = true)}>צור קוד חדש</sw-button>`}</div>`
           : onRemote()
             ? html`<div class="muted" data-ha-local-only>${LOCAL_ONLY_GENERIC}</div>`
             : this.canEdit
@@ -695,7 +699,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-kpi icon="bolt" value="0/33" label="מתגים פעילים" tone="neutral" layout=${previewLayout}></sw-kpi>
         <sw-kpi icon="lock" value="8/8" label="מנעולים נעולים" detail="הכול נעול" tone="live" layout=${previewLayout}></sw-kpi>
       </div>
-      ${this.canEdit ? html`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!dirty || this.busy} @click=${() => this.saveDesign()}>שמור עיצוב</sw-button>${this.message && this.tab === 'general' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'general' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>` : nothing}
+      ${this.canEdit ? html`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!dirty || this.busy} @click=${() => this.saveDesign()}>שמור עיצוב</sw-button>${this.message && this.tab === 'general' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'general' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
     </sw-card>`;
   }
 
@@ -731,8 +735,8 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">התראת אחסון נמוך<span class="muted">מתחת ל־10% פנוי</span></span><sw-toggle checked label="פעיל"></sw-toggle></div>
       </sw-card>`}
       <sw-card heading="אינטגרציות">
-        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span style="display:flex;gap:8px;align-items:center"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => { this.tab = 'media'; void this.loadMedia(); }}>הגדרה</sw-button></span></div>
-        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => { this.tab = 'ha'; void this.loadHa(); }}>הגדרה</sw-button></div>
+        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span class="end"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></span></div>
+        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
       </sw-card>
       <sw-card heading="בריאות המערכת">
         <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>
@@ -807,9 +811,14 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-plan-levels ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.levels', (e.target as HTMLSelectElement).value as 'all' | 'default')}>
             <option value="all" ?selected=${String(this.value('plan.levels') ?? 'all') !== 'default'}>כל המפלסים יחד</option><option value="default" ?selected=${String(this.value('plan.levels') ?? 'all') === 'default'}>מפלס ברירת המחדל של הקומה</option>
           </select></sw-field></div>
-        <div class="row"><span class="lbl">רמת איכות בתלת-ממד<span class="muted">ברירת המחדל של המערכת לתצוגת התלת-ממד במפה; כל דפדפן יכול לבחור לעצמו, ומכשיר איטי יורד לבד לרמה הסכמטית</span></span>
-          <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as '1' | '2')}>
-            <option value="2" ?selected=${String(this.value('plan.quality') ?? '2') !== '1'}>מלאה — צללים, חומרים, חיתוך קירות</option><option value="1" ?selected=${String(this.value('plan.quality') ?? '2') === '1'}>סכמטית — שטוחה, בלי צללים</option>
+        <div class="row"><span class="lbl">מצב תצוגה ברירת מחדל<span class="muted">מצב התלת-ממד במפה לכל המשתמשים. רק במצב אוטומטי התצוגה יורדת לבד לסכמטי; בחירה ידנית נשארת</span></span>
+          <sw-field class="ctl"><select data-set-plan-quality ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.quality', (e.target as HTMLSelectElement).value as QualityWire)}>
+            ${QUALITY_MODES.map((m) => html`<option value=${modeToWire(m)} ?selected=${(modeFromWire(this.value('plan.quality')) ?? 'auto') === m}>${QUALITY_MODE_LABEL[m]} — ${QUALITY_MODE_HINT[m]}</option>`)}
+          </select></sw-field></div>
+        <div class="row" data-plan-quality-own-row><span class="lbl">מצב התצוגה שלי<span class="muted">גובר על ברירת המחדל, רק עבורך; גם הבחירה בסרגל התלת-ממד נשמרת כאן</span></span>
+          <sw-field class="ctl"><select data-set-plan-quality-own ?disabled=${this.ownQuality === undefined} @change=${(e: Event) => void this.saveOwnQuality((e.target as HTMLSelectElement).value)}>
+            <option value="" ?selected=${!this.ownQuality}>לפי ברירת המחדל</option>
+            ${QUALITY_MODES.map((m) => html`<option value=${m} ?selected=${this.ownQuality === m}>${QUALITY_MODE_LABEL[m]}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">דעיכת סימון תנועה במפה<span class="muted">חדר שזוהתה בו תנועה נצבע בכחול; הצבע דוהה במשך הזמן הזה אחרי שהתנועה פסקה (כבוי: רק בזמן התנועה)</span></span>
           <sw-field class="ctl"><select data-set-plan-presence-fade ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('plan.presence_fade', (e.target as HTMLSelectElement).value)}>
@@ -842,7 +851,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">שמירת אודיט (ימים)<span class="muted">מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('audit.retention_days') ?? 365)} @change=${(e: Event) => this.set('audit.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">גודל מרבי לחבילת ראיות (MB)<span class="muted">אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
         <div class="row"><span class="lbl">אזור זמן של האתר וה־NVR<span class="muted">IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('time.zone') ?? 'Asia/Jerusalem')} @change=${(e: Event) => this.set('time.zone', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
-        <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
+        <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
       ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
@@ -850,7 +859,7 @@ export class SystemDiagnostics extends LitElement {
       <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
         ${!api || !this.canEdit
           ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
-          : html`<div class="row"><span class="lbl">שרת<span class="muted">${this.go2rtc ? `גרסה ${String((this.go2rtc as { version?: string }).version ?? '?')}` : 'לא נבדק'}</span></span><span style="display:flex;gap:8px"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.loadMedia()}>בדיקה</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון זרמים</sw-button></span></div>
+          : html`<div class="row"><span class="lbl">שרת<span class="muted">${this.go2rtc ? `גרסה ${String((this.go2rtc as { version?: string }).version ?? '?')}` : 'לא נבדק'}</span></span><span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.loadMedia()}>בדיקה</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון זרמים</sw-button></span></div>
               ${this.streams === null ? nothing : this.streams.length ? this.streams.map((st) => html`<div class="stream"><span>${st.name}</span><span>${st.online ? 'online' : 'idle'}</span></div>`) : html`<div class="muted">אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".</div>`}
               ${this.streams !== null ? html`<div class="muted" style="margin-block-start:6px">${this.foreign} זרמים זרים (אינטרקום, מצלמות אחרות) קיימים בשרת ולא נגענו בהם.</div>` : nothing}`}
       </sw-card>
@@ -896,7 +905,7 @@ export class SystemDiagnostics extends LitElement {
           <span class="ctl" style="display:flex;flex-direction:column;gap:6px">
             ${([['devices', 'תצוגת "תוכנית" במסך חשמל והתקנים (העץ נשאר בצד)'], ['area', 'כרטיס "על התוכנית" בדף האזור']] as const).map(([v, l]) => html`<label class="chk"><input type="checkbox" data-set-plan-surface=${v} ?disabled=${!api || !this.canEdit} .checked=${surfaces.includes(v)} @change=${(e: Event) => this.set('plan.surfaces', (e.target as HTMLInputElement).checked ? [...surfaces.filter((x) => x !== v), v] : surfaces.filter((x) => x !== v))} /> ${l}</label>`)}
           </span></div>
-        <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>
+        <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
       ${api && this.canEdit ? html`<plan-area-links-admin data-section="area-links"></plan-area-links-admin>` : nothing}
@@ -998,7 +1007,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
         <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
         ${this.canEdit
-          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
@@ -1074,7 +1083,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       ${api && can('system.configure') ? html`<system-video-conn-test></system-video-conn-test>` : nothing}
       ${this.canEdit
-        ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+        ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
         : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
     </div>`;
   }
@@ -1085,8 +1094,7 @@ export class SystemDiagnostics extends LitElement {
     const v = this.health?.video_codecs;
     const open = (e: Event) => {
       e.preventDefault();
-      this.tab = 'health';
-      void this.loadReport();
+      this.openTab('health');
     };
     const link = html`<a href="#/system/diagnostics?tab=health" data-remote-codec-link @click=${open}>לפירוט בבריאות המערכת</a>`;
     let text: string;
@@ -1150,7 +1158,7 @@ export class SystemDiagnostics extends LitElement {
         </div>
         <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
         ${this.canEdit && api
-          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="ok" style="align-self:center">${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="err" style="align-self:center">${this.error}</span>` : nothing}</div>`
+          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
@@ -1243,7 +1251,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="row" data-backup-meters><span class="lbl">נתוני מוני החשמל<span class="muted">${m.on ? `כל הקריאות נכנסות לגיבוי${size}` : 'בלי הקריאות עצמן; מונים, חיובים וסיכומים יומיים נכנסים תמיד'}</span></span>
         <sw-toggle data-backup-meters-toggle ?checked=${m.on} ?disabled=${!m.editable || this.meterBackupBusy} label="לכלול את נתוני המונים בגיבוי" labelHidden
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.toggleMeterBackup(e.detail.checked)}></sw-toggle></div>
-      ${this.meterBackupError ? html`<div class="muted" role="alert" style="color:var(--sw-error)" data-backup-meters-error>${this.meterBackupError}</div>` : nothing}`;
+      ${this.meterBackupError ? html`<div class="msg err" role="alert" data-backup-meters-error>${this.meterBackupError}</div>` : nothing}`;
   }
 
   private async createBackup() {
@@ -1276,17 +1284,26 @@ export class SystemDiagnostics extends LitElement {
     }
   }
 
+  /** SET-polish: a destructive action asks in the product's own dialog (the native confirm box named no file size and could not be styled). */
   private async removeBackup(b: BackupEntry) {
-    if (!window.confirm(`למחוק את הגיבוי ${b.name}?`)) return;
+    this.removeTarget = null;
     this.backupBusy = true;
     try {
       await deleteBackup(b.name);
+      this.backupMsg = `הגיבוי ${b.name} נמחק`;
       await this.loadBackups();
     } catch (err) {
       this.error = describeError(err);
     } finally {
       this.backupBusy = false;
     }
+  }
+
+  private renderRemoveDialog(b: BackupEntry) {
+    return html`<sw-dialog open heading="למחוק את הגיבוי?" subheading=${b.name} data-backup-remove-dialog @close=${() => (this.removeTarget = null)}>
+      <div class="hint" style="font-size:var(--sw-fs-sm)">${this.fmtWhen(b.created_at)} · ${fmtBytes(b.bytes)} · ${KIND_LABEL[b.kind] ?? b.kind}${b.note ? ` · ${b.note}` : ''}. הקובץ נמחק מ־/data/backups ואי אפשר לשחזר ממנו אחר כך; עותק שהורד למחשב אינו מושפע.</div>
+      <div slot="footer"><sw-button variant="danger" icon="trash" ?disabled=${this.backupBusy} data-backup-remove-go @click=${() => void this.removeBackup(b)}>${this.backupBusy ? 'מוחק…' : 'מחק'}</sw-button><sw-button variant="ghost" @click=${() => (this.removeTarget = null)}>ביטול</sw-button></div>
+    </sw-dialog>`;
   }
 
   private openRestore(b: BackupEntry) {
@@ -1330,7 +1347,7 @@ export class SystemDiagnostics extends LitElement {
       <div class="acts">
         <a href=${backupDownloadUrl(b.name)} download=${b.name} data-backup-download><sw-button size="sm" icon="download">הורד</sw-button></a>
         <sw-button size="sm" icon="history" ?disabled=${!b.valid || this.backupBusy} data-backup-restore @click=${() => this.openRestore(b)}>שחזר</sw-button>
-        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} @click=${() => this.removeBackup(b)}>מחק</sw-button>
+        <sw-button size="sm" variant="ghost" icon="trash" ?disabled=${this.backupBusy} data-backup-remove @click=${() => (this.removeTarget = b)}>מחק</sw-button>
       </div>
     </div>`;
   }
@@ -1355,7 +1372,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">העלאת גיבוי<span class="muted">קובץ zip שהורד מכאן (גם מהתקנה קודמת); אחרי ההעלאה לוחצים "שחזר"</span></span>
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}
-        ${this.backupMsg ? html`<div class="muted" style="color:var(--sw-success-text);padding-block:6px" data-backup-msg>${this.backupMsg}</div>` : nothing}
+        ${this.backupMsg ? html`<div class="msg ok" role="status" data-backup-msg><sw-icon name="check" size=${13}></sw-icon>${this.backupMsg}</div>` : nothing}
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
           : this.backups === null
@@ -1371,7 +1388,8 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">גיבוי Home Assistant<span class="muted">ה־Add-on מוגדר backup: hot, ולכן /data (כולל הגיבויים האלה) נכלל גם בגיבוי המלא של HA</span></span></div>
       </sw-card>
     </div>
-    ${this.restoreTarget ? this.renderRestoreDialog(this.restoreTarget) : nothing}`;
+    ${this.restoreTarget ? this.renderRestoreDialog(this.restoreTarget) : nothing}
+    ${this.removeTarget ? this.renderRemoveDialog(this.removeTarget) : nothing}`;
   }
 
   private renderSupport() {
@@ -1384,11 +1402,12 @@ export class SystemDiagnostics extends LitElement {
   }
 
   render() {
+    const cur = TABS.find((t) => t.id === this.tab) ?? TABS[0];
     return html`
-      <sw-page heading="הגדרות המערכת" subheading=${isApi() ? 'תעבורת וידאו, go2rtc, מכסות ובריאות' : 'אזור זמן, מדיניות אחסון, אינטגרציות ובריאות · נתוני הדגמה'}>
-        <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => { this.tab = e.detail.id; if (this.tab === 'media') void this.loadMedia(); if (this.tab === 'ha') void this.loadHa(); if (this.tab === 'backup') void this.loadBackups(); if (this.tab === 'health') void this.loadReport(); }}></sw-tabs>
-        ${this.message && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-success-text)">${this.message}</div>` : nothing}
-        ${this.error && this.tab === 'ha' ? html`<div class="muted" style="color:var(--sw-error)">${this.error}</div>` : nothing}
+      <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${TAB_SUB[cur.id] ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
+        <sw-tabs underline data-settings-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הגדרות" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
+        ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
+        ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;

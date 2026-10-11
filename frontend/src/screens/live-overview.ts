@@ -211,7 +211,7 @@ export class LiveOverview extends LitElement {
               const fl = (s.buildings ?? []).flatMap((b) => b.floors ?? []);
               const plans = fl.filter((f) => f.has_plan).length;
               const placed = fl.reduce((n, f) => n + f.camera_count, 0);
-              return html`<div class="hrow" @click=${() => navigate('/explore/sites')} style="cursor:pointer"><span>${s.name}<div class="muted">${(s.buildings ?? []).length} מבנים · ${fl.length} קומות · ${placed} מצלמות מוצבות · ${plans}/${fl.length} תוכניות</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? 'תוכניות מפורסמות' : 'חסרות תוכניות'}</span></div>`;
+              return html`<div class="hrow link" role="link" tabindex="0" @click=${() => navigate('/explore/sites')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/explore/sites'); } }}><span>${s.name}<div class="muted">${(s.buildings ?? []).length} מבנים · ${fl.length} קומות · ${placed} מצלמות מוצבות · ${plans}/${fl.length} תוכניות</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? 'תוכניות מפורסמות' : 'חסרות תוכניות'}</span></div>`;
             })}
             ${this.recorder ? html`<div class="hrow"><span>NVR · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}
           </sw-card>
@@ -221,11 +221,11 @@ export class LiveOverview extends LitElement {
             <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
             ${this.recent.length
               ? this.recent.map(
-                  (e) => html`<div class="ev" data-overview-event @click=${() => navigate(`/investigate/events/${e.id}`)}>
+                  (e) => html`<div class="ev" data-overview-event role="link" tabindex="0" @click=${() => navigate(`/investigate/events/${e.id}`)} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate(`/investigate/events/${e.id}`); } }}>
                     ${e.thumbnail === 'ready'
                       ? html`<img class="thumb" src=${thumbnailUrl(e.id)} alt="" loading="lazy" />`
                       : html`<div class="none"><sw-icon name=${e.type === 'offline' || e.type === 'coverage_gap' ? 'offline' : e.type === 'door' || e.type === 'io' ? 'door' : e.type === 'person' ? 'user' : e.type === 'vehicle' ? 'route' : 'bell'} size=${14}></sw-icon></div>`}
-                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? '#6b7280'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ' · לבדיקה'}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? 'ללא מצלמה'} · ${e.confidence === 'inferred' ? 'נגזר מהקלטה' : e.source === 'ha' ? 'חיישן התקן' : 'התראה'}</small></div>
+                    <div class="txt"><b style=${`--tone:${API_EVENT_TONE[e.type as keyof typeof API_EVENT_TONE] ?? 'var(--sw-tl-offline)'}`}><i></i>${EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type}${e.acked_at ? '' : ' · לבדיקה'}</b><small>${e.camera_name ?? (e.details as { name?: string } | undefined)?.name ?? 'ללא מצלמה'} · ${e.confidence === 'inferred' ? 'נגזר מהקלטה' : e.source === 'ha' ? 'חיישן התקן' : 'התראה'}</small></div>
                     <time>${this.fmtTime(e.occurred_at)}</time>
                   </div>`,
                 )
@@ -318,6 +318,21 @@ export class LiveOverview extends LitElement {
     .hrow:last-child {
       border-block-end: 0;
     }
+    .hrow.link {
+      cursor: pointer;
+      border-radius: var(--sw-r-xs);
+      transition: background var(--sw-t-fast) var(--sw-ease);
+    }
+    .hrow.link:hover,
+    .ev:hover {
+      background: var(--sw-hover-wash);
+    }
+    .hrow.link:focus-visible,
+    .ev:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: -2px;
+      border-radius: var(--sw-r-xs);
+    }
     .status {
       display: inline-flex;
       align-items: center;
@@ -335,10 +350,13 @@ export class LiveOverview extends LitElement {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 7px 0;
+      padding: 7px 4px;
+      margin-inline: -4px;
       border-block-end: 1px solid var(--sw-border);
       font-size: var(--sw-fs-sm);
       cursor: pointer;
+      border-radius: var(--sw-r-xs);
+      transition: background var(--sw-t-fast) var(--sw-ease);
     }
     .ev:last-child {
       border-block-end: 0;
@@ -420,8 +438,14 @@ export class LiveOverview extends LitElement {
       background: var(--sw-danger-soft);
       color: var(--sw-danger);
     }
+    .spot.critical .t {
+      color: var(--sw-danger-text);
+    }
     .spot .t {
       font-weight: var(--sw-fw-semibold);
+    }
+    .spot .actions a {
+      text-decoration: none;
     }
     .spot .why {
       font-size: var(--sw-fs-xs);
@@ -530,7 +554,7 @@ export class LiveOverview extends LitElement {
           <sw-card heading="אירועים אחרונים">
             <a slot="actions" class="seeall" href="#/investigate/events">הצג הכל</a>
             ${demoEvents.slice(0, 5).map(
-              (e) => html`<div class="ev" @click=${() => navigate('/investigate/events')}>
+              (e) => html`<div class="ev" role="link" tabindex="0" @click=${() => navigate('/investigate/events')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/investigate/events'); } }}>
                 ${e.type === 'offline' || e.type === 'door'
                   ? html`<div class="none"><sw-icon name=${e.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>`
                   : html`<sw-scene kind=${(EVENT_SCENE[e.camera] ?? 'lobby') as 'lobby'}></sw-scene>`}

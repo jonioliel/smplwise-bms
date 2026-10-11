@@ -221,11 +221,17 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
       await expect(row(page, first.key).locator('.c-area')).toBeVisible(); // the cards keep every field
       return;
     }
-    // the tablet project opens at 820 px (cards); the table band the control is for starts above 860 px
-    const width = test.info().project.name === 'tablet' ? 1024 : 1440;
+    // 2.4.6: the table picks its layout by its OWN width (a container query), and on a settings page the navigation column
+    // takes 236 px: a 1920 px window gives the wide columns (table about 1510 px), 1440 px the tablet columns (about 1030 px);
+    // 1024 px now leaves about 850 px, which is the cards (the tablet columns need 864 px). Each project still covers its
+    // band; the band is read from the table's real width, so the test follows what the table shows.
+    const width = test.info().project.name === 'tablet' ? 1440 : 1920;
     await page.setViewportSize({ width, height: 900 });
     await page.waitForTimeout(300);
-    const wide = width > 1280;
+    const tblW = await list.locator('[data-mm-table]').evaluate((el) => el.getBoundingClientRect().width);
+    expect(tblW, 'the table band the columns control is for (tablet columns need 864 px)').toBeGreaterThanOrEqual(864);
+    const wide = tblW >= 1228;
+    expect(wide, `the ${test.info().project.name} project covers its band`).toBe(test.info().project.name !== 'tablet');
     const roomCell = row(page, first.key).locator('.c-area');
     if (wide) await expect(roomCell).toBeVisible();
     else await expect(roomCell).toBeHidden(); // today's default: the room hides on a tablet width

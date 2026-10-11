@@ -10,7 +10,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import sw_time_factor
+from conftest import sw_load_factor
 from fake_ha_core import make_jwt
 from smplwise import auth as auth_mod
 from smplwise import db as db_mod
@@ -117,7 +117,6 @@ def test_an_unauthenticated_remote_flood_never_touches_the_gate(arx, spy):
 
 def test_the_flood_does_not_queue_behind_a_writer_nor_delay_the_next_one(arx, spy):
     db = arx.app.state.db
-    factor = sw_time_factor()
     holding, release = threading.Event(), threading.Event()
     got: dict[str, float] = {}
 
@@ -173,6 +172,9 @@ def test_the_flood_does_not_queue_behind_a_writer_nor_delay_the_next_one(arx, sp
     # behind the holder, up to the 10 s busy timeout)
     assert codes == [401] * len(requests)
     assert most_waiting["n"] == 1  # only the legitimate writer ever queued
+    # the two wall-clock bounds are sanity limits against the 10 s busy timeout the old order waited out; they scale with the load the
+    # machine carried while the flood ran (a descheduled thread is not a queue behind the writer - `most_waiting` and `acquires` prove that)
+    factor = sw_load_factor()
     assert flood_s < 5.0 * factor
     try:
         assert spy.acquires == baseline  # not one acquire by the flood

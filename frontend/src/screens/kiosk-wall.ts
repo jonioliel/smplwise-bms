@@ -23,6 +23,8 @@ const PHONE_LAYOUTS = [[1, 1], [1, 2], [1, 3], [1, 4], [2, 2], [2, 3]] as const;
 /** What a phone opens with when this browser has not chosen a layout and the address carries none: one column, three tiles
  * a page. The installation's default (ui.kiosk_cols x ui.kiosk_rows) is for a wall display, not for a phone. */
 const PHONE_DEFAULT = { cols: 1, rows: 3 };
+/** Idle minutes before the header and the counters recede (the video never dims). */
+const IDLE_DIM_MS = 10 * 60_000;
 
 /** cols x rows for a kiosk page: the URL wins, then this browser's last pick, then the owner's default (0.1.61). */
 function defaultLayout(settings?: { 'ui.kiosk_cols'?: number | string; 'ui.kiosk_rows'?: number | string } | null): { cols: number; rows: number } {
@@ -54,7 +56,13 @@ export class KioskWall extends LitElement {
   private readonly phone = new PhoneWidth(this);
   @state() private cams: Camera[] | null = null;
   @state() private settings: ProductSettings | null = null;
-  @state() private clock = '';
+  @state() private clock = { time: '', date: '' };
+  /** The last touch / click on the screen: after IDLE_DIM_MS the chrome recedes (data-idle), never the video. */
+  private touchedAt = Date.now();
+  private readonly onTouch = () => {
+    this.touchedAt = Date.now();
+    this.removeAttribute('data-idle');
+  };
   @state() private page = 0; // restored per view in connectedCallback / onHash (T057)
   @state() private health: HealthSummary | null = null;
   @state() private disconnected = false;
@@ -109,6 +117,14 @@ export class KioskWall extends LitElement {
     }
   }
 
+  /**
+   * KIOSK polish (2026-10-11): the route is read from across a room, so the clock is the largest text (3xl, tabular) with the
+   * date under it, the counters are one tier up, every control is a 44 px target at every size, and the page keeps clear of the
+   * device's safe areas on every side. Colours are the product's on-video family and state tokens with `color-mix` washes - the
+   * kiosk is dark in both schemes (video is), and nothing on it is a literal any more. After ten idle minutes the chrome (header,
+   * counters) recedes to 70 % - the video itself never dims - and a touch brings it back; the tiles fade in when they appear.
+   * Nothing on the screen explains itself (clean operator screens): the former footnote is gone.
+   */
   static styles = css`
     :host {
       display: flex;
@@ -116,13 +132,25 @@ export class KioskWall extends LitElement {
       min-block-size: 100%;
       background: var(--sw-video-bg);
       color: var(--sw-on-video);
-      padding: 14px 20px 16px;
+      padding-block: max(14px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+      padding-inline: max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-left, 0px));
       gap: 12px;
+      --k-wash: var(--sw-video-hover);
+      --k-line: var(--sw-video-line);
+    }
+    header,
+    .stats {
+      transition: opacity 3s ease;
+    }
+    :host([data-idle]) header,
+    :host([data-idle]) .stats {
+      opacity: 0.7;
     }
     header {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-block-size: 48px;
     }
     header img {
       block-size: 24px;
@@ -132,75 +160,165 @@ export class KioskWall extends LitElement {
     }
     h1 {
       margin: 0;
-      font-size: var(--sw-fs-xl);
+      font-size: var(--sw-fs-2xl);
       font-weight: var(--sw-fw-semibold);
+      white-space: nowrap;
     }
     .spacer {
       flex: 1;
     }
     .clock {
-      font-size: var(--sw-fs-sm);
-      color: var(--sw-on-video-2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.1;
       font-variant-numeric: tabular-nums;
       direction: ltr;
+    }
+    .clock b {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: 0.02em;
+    }
+    .clock span {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-on-video-2);
+      direction: rtl;
     }
     .overlay {
       position: fixed;
       inset: 0;
       display: grid;
-      place-items: center;
-      background: rgba(15, 23, 42, 0.86);
+      place-content: center;
+      gap: 8px;
+      background: var(--sw-video-scrim-strong);
       color: var(--sw-on-video);
-      font-size: var(--sw-fs-xl);
-      z-index: 50;
+      z-index: var(--sw-z-modal);
       text-align: center;
-      line-height: 1.6;
+      animation: k-in 0.6s var(--sw-ease) both;
+    }
+    .overlay b {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+    }
+    .overlay span {
+      font-size: var(--sw-fs-lg);
+      color: var(--sw-on-video-2);
+    }
+    .overlay .mark {
+      inline-size: 56px;
+      block-size: 56px;
+      margin: 0 auto 8px;
+      display: grid;
+      place-content: center;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--sw-danger) 24%, transparent);
+      color: var(--sw-danger);
     }
     .pill {
-      font-size: var(--sw-fs-xs);
-      padding: 3px 10px;
-      border-radius: 999px;
-      background: var(--sw-video-hover);
-      color: var(--sw-on-video-2);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-block-size: 36px;
+      padding: 0 14px;
+      border-radius: var(--sw-r-pill);
+      background: var(--k-wash);
+      color: var(--sw-on-video);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      animation: k-rise 0.4s var(--sw-ease) both;
+    }
+    .pill::before {
+      content: '';
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background: var(--sw-live);
+      flex: none;
     }
     .pill[data-status='warn'] {
-      background: rgba(245, 158, 11, 0.25);
+      background: color-mix(in srgb, var(--sw-warning) 24%, transparent);
+    }
+    .pill[data-status='warn']::before {
+      background: var(--sw-warning);
     }
     .pill[data-status='error'] {
-      background: rgba(239, 68, 68, 0.3);
+      background: color-mix(in srgb, var(--sw-danger) 28%, transparent);
+    }
+    .pill[data-status='error']::before {
+      background: var(--sw-danger);
+      animation: k-breathe 2.4s ease-in-out infinite;
+    }
+    .pill[data-kiosk-page]::before {
+      display: none;
     }
     header select.layout {
-      background: #1e293b;
+      min-block-size: 44px;
+      background: var(--k-wash);
       color: var(--sw-on-video);
-      border: 1px solid var(--sw-video-line);
-      border-radius: var(--sw-r-sm);
-      padding: 3px 8px;
+      border: 1px solid var(--k-line);
+      border-radius: var(--sw-r-md);
+      padding: 0 12px;
       font: inherit;
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      cursor: pointer;
     }
     header select.layout option {
-      color: #0f1729;
-      background: #fff;
+      color: var(--sw-text);
+      background: var(--sw-surface);
     }
     header a.exit {
-      color: var(--sw-on-video-2);
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 44px;
+      min-inline-size: 44px;
+      padding-inline: 16px;
+      color: var(--sw-on-video);
       text-decoration: none;
-      font-size: var(--sw-fs-sm);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: var(--sw-r-sm);
-      padding: 3px 10px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
+      border: 1px solid var(--k-line);
+      border-radius: var(--sw-r-md);
+      transition: background-color var(--sw-t-fast) ease;
     }
     header a.exit:hover {
-      background: var(--sw-video-hover);
+      background: var(--k-wash);
     }
     .grid {
       flex: 1;
+      min-block-size: 0;
       display: grid;
       grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+      grid-auto-rows: minmax(0, 1fr);
       gap: 10px;
     }
+    /* a cell centres its 16:9 picture (container units): a page of three rows fits the tablet's height with the counters under
+       it instead of pushing them off the screen; where the units are missing the picture fills the cell's width as before */
+    .cell {
+      display: grid;
+      place-items: center;
+      min-block-size: 0;
+      min-inline-size: 0;
+      container-type: size;
+    }
     .grid sw-camera-tile {
-      border-radius: var(--sw-r-sm);
+      inline-size: 100%;
+      inline-size: min(100%, calc(100cqh * 16 / 9));
+      border-radius: var(--sw-r-md);
+      animation: k-in 0.6s var(--sw-ease) both;
+    }
+    /* a portrait tablet cannot fill its height with 16:9 pictures: the rows pack from the top and the counters follow them */
+    @media (orientation: portrait) and (min-width: 768px) {
+      .grid {
+        flex: none;
+        align-content: start;
+        grid-auto-rows: max-content;
+      }
+      .cell {
+        container-type: normal;
+      }
     }
     .stats {
       display: grid;
@@ -208,50 +326,83 @@ export class KioskWall extends LitElement {
       gap: 10px;
     }
     .stat {
-      background: #172036;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--sw-r-md);
-      padding: 12px 14px;
+      background: var(--k-wash);
+      border: 1px solid var(--k-line);
+      border-radius: var(--sw-r-lg);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
+      min-inline-size: 0;
     }
     .stat .ic {
       display: grid;
       place-items: center;
-      inline-size: 32px;
-      block-size: 32px;
-      border-radius: var(--sw-r-sm);
-      background: rgba(47, 107, 255, 0.22);
-      color: #8fb0ff;
+      flex: none;
+      inline-size: 40px;
+      block-size: 40px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--sw-recorded) 24%, transparent);
+      color: var(--sw-recorded);
     }
     .stat .ic.red {
-      background: rgba(239, 68, 68, 0.2);
-      color: #f87171;
+      background: color-mix(in srgb, var(--sw-danger) 22%, transparent);
+      color: var(--sw-danger);
     }
     .stat .ic.green {
-      background: rgba(34, 197, 94, 0.2);
-      color: #4ade80;
+      background: color-mix(in srgb, var(--sw-live) 22%, transparent);
+      color: var(--sw-live);
+    }
+    .stat > div:last-child {
+      min-inline-size: 0;
     }
     .stat b {
       display: block;
-      font-size: var(--sw-fs-2xl);
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
       line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .stat b[data-word] {
+      font-size: var(--sw-fs-xl);
     }
     .stat span {
+      display: block;
       color: var(--sw-on-video-2);
-      font-size: var(--sw-fs-xs);
+      font-size: var(--sw-fs-sm);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .note {
-      font-size: var(--sw-fs-2xs);
-      color: rgba(255, 255, 255, 0.4);
+    @keyframes k-in {
+      from {
+        opacity: 0;
+      }
+    }
+    @keyframes k-rise {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+    }
+    @keyframes k-breathe {
+      50% {
+        opacity: 0.45;
+      }
+    }
+    /* the reference tablets (820 x 1280, 1280 x 800): the counters stay four across in landscape and become two rows in portrait */
+    @media (max-width: 1023px) {
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
     /* the phone (mobile audit 2026-09-30): the header wraps instead of running off the screen, the tiles keep their own 16:9
        height and pack from the top (no dead space between rows), the summary tiles become one scrolling row, the targets
        are 44 px and the page keeps clear of the device's safe areas */
     @media (max-width: 767px) {
       :host {
-        padding-block: 10px max(14px, env(safe-area-inset-bottom, 0px));
+        padding-block: max(10px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-bottom, 0px));
         padding-inline: max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-left, 0px));
         gap: 10px;
       }
@@ -260,45 +411,59 @@ export class KioskWall extends LitElement {
         row-gap: 8px;
       }
       h1 {
-        font-size: var(--sw-fs-lg);
+        font-size: var(--sw-fs-xl);
       }
       header select.layout {
         flex: 1 1 150px;
         min-inline-size: 0;
-        min-block-size: 44px;
-        font-size: var(--sw-fs-sm);
-      }
-      header a.exit {
-        display: inline-flex;
-        align-items: center;
-        min-block-size: 44px;
-        padding-inline: 14px;
-        font-size: var(--sw-fs-sm);
       }
       .clock {
         order: 10;
         flex: 1 1 100%;
-        font-size: var(--sw-fs-xs);
+        flex-direction: row;
+        justify-content: center;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .clock b {
+        font-size: var(--sw-fs-2xl);
       }
       .grid {
         flex: none;
         align-content: start;
         grid-auto-rows: max-content;
       }
+      .cell {
+        container-type: normal;
+      }
       .stats {
         display: flex;
         overflow-x: auto;
         gap: 8px;
         scrollbar-width: none;
+        padding-block-end: 2px;
       }
       .stat {
         flex: 0 0 auto;
-        min-inline-size: 140px;
-        padding: 8px 10px;
-        gap: 8px;
+        min-inline-size: 150px;
+        padding: 8px 12px;
+        gap: 10px;
+      }
+      .stat .ic {
+        inline-size: 32px;
+        block-size: 32px;
       }
       .stat b {
         font-size: var(--sw-fs-xl);
+      }
+      .stat b[data-word] {
+        font-size: var(--sw-fs-lg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
       }
     }
   `;
@@ -314,6 +479,7 @@ export class KioskWall extends LitElement {
       else if (s.mode !== 'loading') this.requestUpdate();
     });
     window.addEventListener('hashchange', this.onHash);
+    this.addEventListener('pointerdown', this.onTouch);
     this.startRotation();
     void this.pollHealth();
     this.healthTimer = window.setInterval(() => void this.pollHealth(), 15000);
@@ -326,6 +492,7 @@ export class KioskWall extends LitElement {
     window.clearInterval(this.rotateTimer);
     window.clearInterval(this.healthTimer);
     window.removeEventListener('hashchange', this.onHash);
+    this.removeEventListener('pointerdown', this.onTouch);
     this.unsubscribe?.();
   }
 
@@ -388,7 +555,11 @@ export class KioskWall extends LitElement {
 
   private tick() {
     const d = new Date();
-    this.clock = `${d.toLocaleDateString('he-IL', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })} · ${d.toLocaleTimeString('he-IL')}`;
+    this.clock = {
+      time: d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+      date: d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }),
+    };
+    if (Date.now() - this.touchedAt >= IDLE_DIM_MS) this.setAttribute('data-idle', '');
   }
 
   private async load() {
@@ -422,22 +593,21 @@ export class KioskWall extends LitElement {
           ${this.layoutChoices().map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${c === this.view.cols && r === this.view.rows}>${c}×${r} · ${c * r} מצלמות בעמוד</option>`)}
         </select>` : nothing}
         ${api && this.health ? html`<span class="pill" data-kiosk-health data-status=${this.health.status}>מערכת: ${STATUS_LABEL[this.health.status]}${this.health.items.filter((i) => i.status !== 'ok').length ? ` · ${this.health.items.filter((i) => i.status !== 'ok').map((i) => i.label).join(', ')}` : ''}</span>` : nothing}
-        <span class="clock">${this.clock || '—'}</span>
+        <span class="clock" data-kiosk-clock><b>${this.clock.time || '—'}</b><span>${this.clock.date}</span></span>
         <a class="exit" href="#/live/wall" data-kiosk-exit title="חזרה למערכת (משתמש קיוסק בלבד נשאר כאן)">יציאה</a>
       </header>
-      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected>אין קשר לשרת Arx<br /><small>הזרמים אינם חיים · מנסה להתחבר מחדש</small></div>` : nothing}
+      ${this.disconnected ? html`<div class="overlay" data-kiosk-disconnected><span class="mark"><sw-icon name="warning" size=${28}></sw-icon></span><b>אין קשר לשרת Arx</b><span>הזרמים אינם חיים · מנסה להתחבר מחדש</span></div>` : nothing}
       <div class="grid" style=${`--cols:${api ? this.view.cols : 3}`}>
         ${api
-          ? real.map((c, i) => html`<sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile>`)
-          : demo.map((c) => html`<sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile>`)}
+          ? real.map((c, i) => html`<div class="cell"><sw-camera-tile dark data-kiosk-tile name=${c.name} state=${this.disconnected ? 'unknown' : c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} ?live=${!this.disconnected && c.status !== 'offline' && c.live_kind !== 'still' && i < cap && i < this.started} .stillRefresh=${c.live_kind === 'still' && c.status !== 'offline' ? c.still_refresh_s ?? 10 : 0} cameraId=${c.id} profile="sub" transport=${effectiveTransport(this.settings)} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} noDemo></sw-camera-tile></div>`)
+          : demo.map((c) => html`<div class="cell"><sw-camera-tile dark name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} noDemo></sw-camera-tile></div>`)}
       </div>
       <div class="stats">
         <div class="stat"><div class="ic"><sw-icon name="camera" size=${16}></sw-icon></div><div><b>${api ? `${online}/${real.length}` : '7/9'}</b><span>מצלמות מחוברות</span></div></div>
         <div class="stat"><div class="ic red"><sw-icon name="warning" size=${16}></sw-icon></div><div><b>${api ? real.filter((c) => c.status === 'offline').length : 3}</b><span>${api ? 'מצלמות מנותקות' : 'התראות פתוחות'}</span></div></div>
         <div class="stat"><div class="ic"><sw-icon name="building" size=${16}></sw-icon></div><div><b>${api ? Math.min(real.length, cap) : 2}</b><span>${api ? 'זרמים חיים במקביל' : 'מבנים'}</span></div></div>
-        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b style="font-size:var(--sw-fs-lg)">${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר לא רענן'}</span></div></div>
+        <div class="stat"><div class="ic green"><sw-icon name="check" size=${16}></sw-icon></div><div><b data-word>${api ? 'פעיל' : 'חלקי'}</b><span>${api ? 'go2rtc + NVR' : 'מצב מערכת · גשר לא רענן'}</span></div></div>
       </div>
-      <div class="note">תצוגת קיוסק: קריאה בלבד, ללא פקדי ניהול, חיבור מחדש אוטומטי · תצוגה שמורה = הכתובת (cameras, cols, rotate)${api ? '' : ' · נתוני הדגמה (סצנות מאוירות עד חיבור הזרמים)'}</div>
     `;
   }
 }

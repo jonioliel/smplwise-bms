@@ -265,7 +265,7 @@ export class ExploreEntities extends LitElement {
       ? `${total} ישויות בקטלוג · ${sync.connected ? `סנכרון פעיל · גרסה ${sync.ha_version ?? ''}` : `הסנכרון ${syncDisconnectedText(sync.last_error)}`}`
       : 'טוען את הקטלוג…';
     return html`
-      <sw-page heading="קטלוג ההתקנים" subheading=${sub}>
+      <sw-page crumbs="הגדרות" heading="קטלוג ההתקנים" subheading=${sub}>
         <sw-button slot="actions" icon="refresh" ?disabled=${this.loading} @click=${() => this.load()}>רענון</sw-button>
         <div class="filters">
           <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></sw-field>
@@ -291,13 +291,13 @@ export class ExploreEntities extends LitElement {
   }
 
   render() {
-    if (this.forbidden) return html`<sw-page heading="קטלוג ההתקנים"><sw-state-panel state="forbidden" data-entities-forbidden></sw-state-panel></sw-page>`;
+    if (this.forbidden) return html`<sw-page crumbs="הגדרות" heading="קטלוג ההתקנים"><sw-state-panel state="forbidden" data-entities-forbidden></sw-state-panel></sw-page>`;
     if (isApi()) return this.renderApi();
     const domains = ['all', ...new Set(ENTITIES.map((e) => e.domain))];
     const rows = ENTITIES.filter((e) => this.domain === 'all' || e.domain === this.domain);
     const ent = ENTITIES.find((e) => e.id === this.selected);
     return html`
-      <sw-page heading="קטלוג ההתקנים" subheading="${ENTITIES.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
+      <sw-page crumbs="הגדרות" heading="קטלוג ההתקנים" subheading="${ENTITIES.length} ישויות מורשות לחיבור · הצבה על המפה ושליטה הן הרשאות נפרדות · נתוני הדגמה">
         <sw-button slot="actions" icon="refresh">סנכרון</sw-button>
         <div class="filters">
           <sw-field class="search"><input type="search" placeholder="חיפוש לפי שם, entity_id או אזור" /></sw-field>

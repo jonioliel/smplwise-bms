@@ -218,7 +218,7 @@ export class NvrRecordersCard extends LitElement {
   static styles = css`
     .local-only {
       margin: 0;
-      color: var(--sw-text-secondary, #5b6573);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-md);
     }
     :host {
@@ -232,13 +232,41 @@ export class NvrRecordersCard extends LitElement {
       display: flex;
       flex-direction: column;
     }
+    /* one recorder per row: name and model, the state badge beside the camera count, the actions; the tone bar at the start edge says
+       error / pending restart / disabled at a glance (the badge carries the word) */
     .rec {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding: 12px 0;
+      padding: 12px 0 12px 0;
+      padding-inline-start: 12px;
       border-block-end: 1px solid var(--sw-border);
       min-inline-size: 0;
+      position: relative;
+    }
+    .rec::before {
+      content: '';
+      position: absolute;
+      inset-block: 10px;
+      inset-inline-start: 0;
+      inline-size: 3px;
+      border-radius: var(--sw-r-2xs);
+      background: var(--sw-border-strong);
+    }
+    .rec[data-recorder-state='online']::before {
+      background: var(--sw-live);
+    }
+    .rec[data-recorder-state='error']::before,
+    .rec[data-recorder-state='unreadable']::before,
+    .rec[data-recorder-state='refused']::before {
+      background: var(--sw-danger);
+    }
+    .rec[data-recorder-state='pending_restart']::before {
+      background: var(--sw-stale);
+    }
+    .rec[data-recorder-state='disabled'] .name,
+    .rec[data-recorder-state='disabled'] .meta {
+      color: var(--sw-text-3);
     }
     .rec:last-child {
       border-block-end: 0;
@@ -298,16 +326,23 @@ export class NvrRecordersCard extends LitElement {
       inline-size: 260px;
       box-sizing: border-box;
       padding: 4px 8px;
-      border: 1px solid var(--sw-border-strong, var(--sw-border));
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
       color: var(--sw-text);
     }
+    .name-in:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .line {
+      margin-block-start: 8px;
+    }
     .line.ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text);
     }
     .line.err {
-      color: var(--sw-danger-text, var(--sw-danger));
+      color: var(--sw-danger-text);
     }
     @media (max-width: 767px) {
       .name-in {

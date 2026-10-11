@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440">
+<title>Crystal day - pearl atrium (SmplWise Arx, original artwork drawn in code)</title>
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#c4dcf6"/><stop offset="0.42" stop-color="#e3eefa"/><stop offset="0.66" stop-color="#f3f6fb"/><stop offset="1" stop-color="#d9e3f1"/>
+  </linearGradient>
+  <radialGradient id="sun" cx="0.82" cy="0.10" r="0.42">
+    <stop offset="0" stop-color="#fff1cc" stop-opacity="1"/><stop offset="0.35" stop-color="#ffe9c2" stop-opacity="0.55"/><stop offset="1" stop-color="#fff1d6" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="prism" cx="0.08" cy="0.95" r="0.55">
+    <stop offset="0" stop-color="#9fd3ff" stop-opacity="0.6"/><stop offset="0.5" stop-color="#c9bfff" stop-opacity="0.3"/><stop offset="1" stop-color="#d8d2ff" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="pane" x1="0" y1="0" x2="0.3" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="1"/><stop offset="0.5" stop-color="#a9d2ff" stop-opacity="0.55"/><stop offset="1" stop-color="#8fbaf0" stop-opacity="0.35"/>
+  </linearGradient>
+  <linearGradient id="ray" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.0"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0.4"/><stop offset="1" stop-color="#c7d6ea" stop-opacity="0.75"/>
+  </linearGradient>
+  <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+  <filter id="wide" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="60"/></filter>
+</defs>
+<rect width="2560" height="1440" fill="url(#sky)"/>
+<rect width="2560" height="1440" fill="url(#prism)"/>
+<rect width="2560" height="1440" fill="url(#sun)"/>
+<!-- light rays from the upper right -->
+<g filter="url(#wide)" opacity="0.9">
+  <polygon points="2560,0 2200,0 600,1440 1100,1440" fill="url(#ray)"/>
+  <polygon points="2560,260 2560,60 1400,1440 1750,1440" fill="url(#ray)"/>
+  <polygon points="2000,0 1780,0 100,1440 420,1440" fill="url(#ray)" opacity="0.6"/>
+</g>
+<!-- glass panes -->
+<g><polygon points="60,120 230,80 160,1480 -10,1480" fill="url(#pane)" opacity="0.34"/><line x1="60" y1="120" x2="-10" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/><polygon points="300,180 510,140 440,1480 230,1480" fill="url(#pane)" opacity="0.44000000000000006"/><line x1="300" y1="180" x2="230" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/><polygon points="520,120 770,80 700,1480 450,1480" fill="url(#pane)" opacity="0.34"/><line x1="520" y1="120" x2="450" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/><polygon points="760,180 930,140 860,1480 690,1480" fill="url(#pane)" opacity="0.44000000000000006"/><line x1="760" y1="180" x2="690" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/><polygon points="980,120 1190,80 1120,1480 910,1480" fill="url(#pane)" opacity="0.34"/><line x1="980" y1="120" x2="910" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/><polygon points="1180,180 1430,140 1360,1480 1110,1480" fill="url(#pane)" opacity="0.44000000000000006"/><line x1="1180" y1="180" x2="1110" y2="1480" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3"/></g>
+<!-- the reflective floor -->
+<rect x="0" y="892.8" width="2560" height="547.2" fill="url(#floor)"/>
+<line x1="0" y1="892.8" x2="2560" y2="892.8" stroke="#ffffff" stroke-opacity="0.7" stroke-width="2"/>
+<!-- bokeh -->
+<g><circle cx="2092.4" cy="493.3" r="81.9" fill="#ffffff" opacity="0.16" filter="url(#soft)"/><circle cx="2364.3" cy="615.5" r="67.7" fill="#ffffff" opacity="0.25" filter="url(#soft)"/><circle cx="1774.5" cy="88.8" r="103.7" fill="#ffffff" opacity="0.16" filter="url(#soft)"/><circle cx="2204.2" cy="142.8" r="110.8" fill="#ffffff" opacity="0.25" filter="url(#soft)"/><circle cx="1546.1" cy="271.4" r="64.5" fill="#ffffff" opacity="0.22" filter="url(#soft)"/><circle cx="1973.8" cy="513.6" r="66.6" fill="#ffffff" opacity="0.29" filter="url(#soft)"/><circle cx="2153.8" cy="693.9" r="66.3" fill="#ffffff" opacity="0.24" filter="url(#soft)"/><circle cx="2178.1" cy="671.1" r="141.5" fill="#ffffff" opacity="0.32" filter="url(#soft)"/><circle cx="1648.3" cy="446.2" r="107.8" fill="#ffffff" opacity="0.24" filter="url(#soft)"/><circle cx="1854" cy="673.3" r="101.3" fill="#ffffff" opacity="0.2" filter="url(#soft)"/><circle cx="2095.6" cy="204.5" r="142.6" fill="#ffffff" opacity="0.16" filter="url(#soft)"/><circle cx="2099.7" cy="528.6" r="97.8" fill="#ffffff" opacity="0.21" filter="url(#soft)"/><circle cx="1779.8" cy="649.3" r="134.3" fill="#ffffff" opacity="0.14" filter="url(#soft)"/><circle cx="2246" cy="556.5" r="129.4" fill="#ffffff" opacity="0.17" filter="url(#soft)"/></g>
+</svg>

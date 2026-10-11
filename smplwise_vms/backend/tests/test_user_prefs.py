@@ -123,3 +123,28 @@ def test_an_unreadable_stored_wiskey_choice_is_the_default_not_an_error(settings
             conn.execute("INSERT INTO user_prefs(user_id, key, value_json, updated_at) VALUES (?,?,?,?)", (uid, "wiskey.density", '"7"', "2026-01-01T00:00:00Z"))
         body = c.get("/api/v1/me/prefs").json()
         assert body["prefs"]["wiskey.density"] is None and "wiskey.density" not in body["stored"]
+
+
+def test_plan_quality_is_a_personal_view_mode_auto_1_or_2_per_user_and_null_follows_the_installation(settings):
+    """Owner bug 2026-10-10: `plan.quality` is the user's own 3D view mode (auto | 1 schematic | 2 full) over the installation's
+    setting of the same name; no permission is needed (any user may keep their own), it is per user, closed, and null resets it."""
+    c = TestClient(create_app(settings))
+    c.get("/api/v1/me")
+    body = c.get("/api/v1/me/prefs").json()
+    assert body["prefs"]["plan.quality"] is None and "plan.quality" not in body["stored"]
+    for ok in ("auto", "1", "2"):
+        r = c.put("/api/v1/me/prefs", json={"plan.quality": ok})
+        assert r.status_code == 200 and r.json()["prefs"]["plan.quality"] == ok and "plan.quality" in r.json()["stored"]
+    assert c.put("/api/v1/me/prefs", json={"plan.quality": "1"}).json()["prefs"]["plan.quality"] == "1"
+    for bad in ("3", "full", "AUTO", "", 2, True, ["2"]):  # the wire value is the settings' string, like plan.quality there
+        assert c.put("/api/v1/me/prefs", json={"plan.quality": bad}).status_code == 422, bad
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["plan.quality"] == "1"  # a refused write changed nothing
+    # per user, and a viewer (no system.configure, no screen.personalize) keeps their own
+    bind(c, settings, "dana", "viewer", "installation", "*")
+    assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["plan.quality"] is None
+    assert c.put("/api/v1/me/prefs", headers=as_user("dana"), json={"plan.quality": "2"}).status_code == 200
+    assert c.get("/api/v1/me/prefs").json()["prefs"]["plan.quality"] == "1"
+    # null: back to the installation's default; the installation setting itself is untouched by personal writes
+    r = c.put("/api/v1/me/prefs", json={"plan.quality": None})
+    assert r.json()["prefs"]["plan.quality"] is None and "plan.quality" not in r.json()["stored"]
+    assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "auto"

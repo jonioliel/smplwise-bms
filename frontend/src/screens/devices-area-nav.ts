@@ -1,13 +1,11 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
-import '../components/sw-chip';
 import '../components/sw-dropdown';
 import { getDevicesTree, type DeviceCounts, type DeviceTree } from '../api/devices';
 import { navigate } from '../router';
 import { bidi } from '../i18n/bidi';
-import { HYBRID_MAX_ITEMS, TabsModeController } from '../shell/tabs-mode';
-import { clearPairChip, publishPairChip } from '../shell/tab-pair';
+import { TabsModeController } from '../shell/tabs-mode';
 
 /** One switcher entry: a floor or an area of the current floor, with its device count. */
 export interface NavOption {
@@ -37,9 +35,14 @@ type Open = '' | 'floor' | 'area';
 /**
  * The area screen's navigation (owner 2026-09-30): ONE breadcrumb of real controls - the home overview, the floor and the
  * area - where the floor and the area each open a small list of their siblings with counts, so a level is one tap away
- * from any other. Desktop: `חשמל והתקנים › קומה ▾ › אזור ▾` (lists open under the crumb). Phone: the home link and the floor
- * (a bottom sheet), with the floor's areas as a scrollable row of chips under them (44 px targets). Keyboard: Enter / Space /
- * ArrowDown open a list, ArrowUp / ArrowDown / Home / End move, Esc closes and returns to the crumb.
+ * from any other. Keyboard: Enter / Space / ArrowDown open a list, ArrowUp / ArrowDown / Home / End move, Esc closes and
+ * returns to the control.
+ *
+ * HOME polish, owner request 2026-10-10: the floor and the area are two comfortable PICKERS side by side (a caption, the
+ * value, a chevron; 44 px, the group's dropdown size dial grows or shrinks them), on every width and in every skin - the
+ * floor first, the area beside it in reading order. The area picker IS the page title (its value is the screen's h1), so the
+ * area's name is on the screen once; the floor's areas are no longer a chip row on the phone nor a chip in the shell's pair
+ * row (both lists open under their picker; a bottom sheet on a phone). The floors / areas tree of the home screen is untouched.
  */
 @customElement('devices-area-nav')
 export class DevicesAreaNav extends LitElement {
@@ -53,7 +56,7 @@ export class DevicesAreaNav extends LitElement {
   @state() private treeError = false;
   @state() private phone = false;
   private mq: MediaQueryList | null = null;
-  /** 0.1.153: the home group's presentation (tabs = the chip row, today; hybrid / dropdown = one dropdown for a longer list). */
+  /** The home group's dropdown SIZE dial (sm / md / lg) sizes the two pickers (`data-dd-size` on the host). */
   private tabsMode = new TabsModeController(this, 'home');
 
   static styles = css`
@@ -106,6 +109,98 @@ export class DevicesAreaNav extends LitElement {
       color: var(--sw-text);
       font-weight: var(--sw-fw-semibold);
     }
+    /* the two pickers (owner 2026-10-10): a field-like control - the level's caption over its value, a chevron at the end */
+    .picks {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+    .picks .wrap {
+      min-inline-size: 0;
+      max-inline-size: 100%;
+    }
+    .pick {
+      display: inline-grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 8px;
+      box-sizing: border-box;
+      min-inline-size: 150px;
+      max-inline-size: 100%;
+      min-block-size: var(--pick-h, 44px);
+      padding: 4px 10px 4px 12px;
+      border: 1px solid var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-1);
+      color: var(--sw-text);
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+    }
+    :host([data-dd-size='sm']) {
+      --pick-h: 36px;
+    }
+    :host([data-dd-size='lg']) {
+      --pick-h: 52px;
+    }
+    .pick > sw-icon:first-child {
+      color: var(--sw-text-3);
+    }
+    .pick .chev {
+      color: var(--sw-text-2);
+    }
+    .pick .pt {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+      line-height: 1.15;
+    }
+    .pick .cap {
+      font-size: var(--sw-fs-2xs);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-3);
+    }
+    .pick .val {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.2;
+      letter-spacing: normal;
+      color: var(--sw-heading);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pick[data-crumb='area'] .val {
+      font-size: var(--sw-fs-xl);
+    }
+    .pick:hover {
+      border-color: var(--sw-text-3);
+      background: var(--sw-surface-2);
+    }
+    .pick[aria-expanded='true'] {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .pick:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .pick {
+        transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), background-color var(--sw-t-fast) var(--sw-ease);
+      }
+      .pick .chev {
+        transition: transform var(--sw-t-fast) var(--sw-ease);
+      }
+    }
+    .pick[aria-expanded='true'] .chev {
+      transform: rotate(180deg);
+    }
     .menu {
       position: absolute;
       inset-block-start: calc(100% + 4px);
@@ -157,20 +252,6 @@ export class DevicesAreaNav extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
-    .areas {
-      display: flex;
-      gap: 8px;
-      margin-block-start: 6px;
-      overflow-x: auto;
-      scroll-snap-type: x proximity;
-      padding-block-end: 4px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .areas sw-chip {
-      flex: none;
-      scroll-snap-align: start;
-      min-block-size: 44px;
-    }
     .back {
       position: fixed;
       inset: 0;
@@ -181,6 +262,20 @@ export class DevicesAreaNav extends LitElement {
       .crumb {
         min-block-size: 44px;
         padding: 0 10px;
+      }
+      /* a phone: the two pickers take the next line, side by side; a long area name gets the whole line */
+      .picks {
+        flex: 1 1 100%;
+      }
+      .picks .wrap {
+        flex: 1 1 calc(50% - 4px);
+        display: flex;
+      }
+      .pick {
+        flex: 1 1 auto;
+        inline-size: 100%;
+        min-inline-size: 0;
+        min-block-size: max(var(--pick-h, 44px), 44px);
       }
       .menu {
         position: fixed;
@@ -210,16 +305,14 @@ export class DevicesAreaNav extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    clearPairChip(this);
     this.mq?.removeEventListener('change', this.onMq);
     document.removeEventListener('pointerdown', this.onOutside, true);
   }
 
-  /** 0.1.153: the areas of the floor in their dropdown form are drawn by the shell, beside the page chip of the home area (shell/tab-pair.ts). */
+  /** The group's dropdown size dial on the host (the pickers read it); re-evaluated on every render (the controller re-renders on a change). */
   protected updated() {
-    if (this.areaChipInShell()) {
-      publishPairChip(this, { group: 'home', label: 'אזורים בקומה', value: this.areaId, items: this.areas.map((a) => ({ id: a.area_id, label: bidi(a.name), count: a.counts.entities, icon: 'door' as const })), onPick: (id) => navigate(`/devices/areas/${encodeURIComponent(id)}`) });
-    } else clearPairChip(this);
+    const size = this.tabsMode.ddSize;
+    if (this.getAttribute('data-dd-size') !== size) this.setAttribute('data-dd-size', size);
   }
 
   protected willUpdate(changed: Map<string, unknown>) {
@@ -321,42 +414,28 @@ export class DevicesAreaNav extends LitElement {
       <div class="menu" role="menu" aria-label=${label} data-nav-menu=${which} @keydown=${(e: KeyboardEvent) => this.onMenuKey(e, which)}>${body}</div>`;
   }
 
-  private trigger(which: Exclude<Open, ''>, text: string, current: boolean) {
+  /** A picker: the level's caption over its value (the area's value is the page's h1), the chevron, and its list. */
+  private pick(which: Exclude<Open, ''>, caption: string, text: string, icon: 'floor' | 'door') {
+    const value = which === 'area' ? html`<h1 class="val">${bidi(text)}</h1>` : html`<span class="val">${bidi(text)}</span>`;
     return html`<span class="wrap">
-      <button type="button" class="crumb" data-crumb=${which} aria-haspopup="menu" aria-expanded=${String(this.open === which)} aria-current=${current ? 'location' : nothing} @click=${() => this.toggle(which)} @keydown=${(e: KeyboardEvent) => this.onTriggerKey(e, which)}>
-        <span>${bidi(text)}</span><sw-icon name="chevronDown" size=${12}></sw-icon>
+      <button type="button" class="pick" data-crumb=${which} aria-haspopup="menu" aria-expanded=${String(this.open === which)} aria-current=${which === 'area' ? 'location' : nothing} aria-label=${`${caption}: ${text}`} @click=${() => this.toggle(which)} @keydown=${(e: KeyboardEvent) => this.onTriggerKey(e, which)}>
+        <sw-icon .name=${icon} size=${16}></sw-icon>
+        <span class="pt"><span class="cap" aria-hidden="true">${caption}</span>${value}</span>
+        <sw-icon class="chev" name="chevronDown" size=${14}></sw-icon>
       </button>${this.renderMenu(which)}
     </span>`;
-  }
-
-  /** 0.1.157: in the dropdown form the areas of the floor are ONE selectable dropdown chip in the shell's pair row on EVERY width (before:
-   * phone only). On a wide screen it replaces the breadcrumb's area crumb; the floor crumb stays, and so does the floors / areas tree
-   * of the devices screen (its per-floor collapse is not touched by this row). */
-  private areaChipInShell(): boolean {
-    return this.areas.length > 1 && this.asDropdown();
-  }
-
-  /** `dropdown`: always; `hybrid`: only a list longer than three areas (a short one stays chips); `tabs`: never. */
-  private asDropdown(): boolean {
-    const mode = this.tabsMode.value;
-    return mode === 'dropdown' || (mode === 'hybrid' && this.areas.length > HYBRID_MAX_ITEMS);
   }
 
   render() {
     const floor = this.floorName || 'ללא קומה';
     const sep = html`<span class="sep" aria-hidden="true"><sw-icon name="chevron" size=${11}></sw-icon></span>`;
+    // the unassigned bucket is not an area of a floor: the floor picker alone, the page keeps its plain title
+    const area = this.areaId !== 'unassigned';
     return html`<nav aria-label="ניווט: קומה ואזור">
         <a class="crumb" data-crumb="home" href="#/devices/building" @click=${(e: Event) => { e.preventDefault(); navigate('/devices/building'); }}>${this.phone ? html`<sw-icon name="home" size=${16}></sw-icon>` : nothing}<span>חשמל והתקנים</span></a>
-        ${sep}${this.trigger('floor', floor, this.phone)}
-        ${this.phone || this.areaChipInShell() ? nothing : html`${sep}${this.trigger('area', this.areaName, true)}`}
-      </nav>
-      ${this.areaChipInShell()
-        ? html`<span data-areas-in-shell></span>`
-        : this.phone && this.areas.length > 1
-        ? html`<div class="areas" role="navigation" aria-label="אזורים בקומה">${this.areas.map(
-            (a) => html`<sw-chip data-nav-option=${a.area_id} data-count=${a.counts.entities} ?selected=${a.area_id === this.areaId} .count=${a.counts.entities} @click=${() => navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`)}>${bidi(a.name)}</sw-chip>`,
-          )}</div>`
-        : nothing}`;
+        ${sep}
+        <div class="picks" data-nav-picks>${this.pick('floor', 'קומה', floor, 'floor')}${area ? this.pick('area', 'אזור', this.areaName, 'door') : nothing}</div>
+      </nav>`;
   }
 }
 

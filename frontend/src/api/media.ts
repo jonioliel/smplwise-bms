@@ -71,7 +71,7 @@ export interface ProductSettings {
   'map.default_view'?: '2d' | '3d';
   /** CR-006: the 3D quality level a browser opens with ('1' schematic, '2' shadows, materials and the cutaway); each
    * browser may override it (sw.plan3d.quality) and drops to 1 by itself when level 2 misses the frame budget. */
-  'plan.quality'?: '1' | '2';
+  'plan.quality'?: 'auto' | '1' | '2';
   /** CR-006 1b: the presence tint's fade after the last motion - 'off' (the tint only while a sensor is on) or the
    * window in minutes as a string (default '3'), per installation. */
   'plan.presence_fade'?: string;
@@ -145,11 +145,15 @@ export interface ProductSettings {
    * wins), the sensors card / count, the climate strip, and the density. */
   'devices.style'?: 'smplwise' | 'glass';
   /** Design foundation (2026-10-01): the installation's skin (design/skins) and light / dark / auto choice (design/apply.ts). */
-  'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble';
+  'ui.skin'?: 'classic' | 'domus' | 'tesla' | 'bubble' | 'crystal';
   'ui.scheme'?: 'light' | 'dark' | 'auto';
   /** 2.4.4: the accent colour and the switch-on colour - 'default' | a preset id | '#rrggbb' (design/brand.ts). */
   'ui.accent'?: string;
   'ui.toggle_on'?: string;
+  /** CRY (2026-10-10): the background artwork behind the glass - the built-in day / night pair, none, or the installation's uploads
+   * (design/background.ts). `ui.background_images` is read-only here: the version stamp of each uploaded slot, written by the upload routes. */
+  'ui.background'?: 'builtin' | 'none' | 'custom';
+  'ui.background_images'?: { day: string | null; night: string | null };
   /** Bubble foundation (2026-10-02): the installation's look dials (every dial present; shape in design/look.ts). A user's own partial `ui.look` (/me/prefs) wins per dial. */
   'ui.look'?: Record<string, unknown>;
   /** Release 0.1.155: the installation's custom colour palettes (design/palette.ts; the backend refuses a palette that fails the contrast checks). */

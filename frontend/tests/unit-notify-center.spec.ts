@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS, SOURCE_CATALOG, defaultPolicies, type Notification } 
 import { MOCK_AREAS, MOCK_NOW, MOCK_TZ, mockAt, mockId, resetNotifyMock } from '../src/api/notifications-mock';
 import {
   applyLiveEvent, MAIL_TEST_DETAIL, MAX_MAIL_RECIPIENTS, badgeLabel, badgeOf, categoryIcon, detailDelivery, enabledCount, escalationLines, failedCount, failurePanel, filterCounts, iconOf, isValidLinkBase, lockPreview, parseNotificationLink, logRows, mailFormError, mailResultText, matrixGroups, openLabel, placeText, policyWithChannel,
-  policyWithRule, policyWithSeverity, replaceRow, rowTag, sourceOptions, stepAfterMin, subtitleText, toggleDay, togglePass, visibleRows, whereText,
+  menuArrow, policyWithRule, policyWithSeverity, replaceRow, rowTag, sourceOptions, stepAfterMin, subtitleText, toggleDay, togglePass, visibleRows, whereText,
 } from '../src/components/notify-logic';
 
 // CR-018 S3: the pure logic of the notification center and the Settings tab (src/components/notify-logic.ts) and the service worker's notification rules, read as source
@@ -23,6 +23,36 @@ function mk(over: Partial<Notification> = {}): Notification {
   };
 }
 const NOW = MOCK_NOW;
+
+test.describe('keyboard: arrow keys inside an open menu (MEDIA-polish)', () => {
+  /** A stand-in for a `role="menu"` node: three items, a focus record, an active element. */
+  function fakeMenu(n = 3) {
+    const focused: number[] = [];
+    const items = Array.from({ length: n }, (_, i) => ({ i, focus: (o?: { preventScroll?: boolean }) => focused.push(o?.preventScroll ? i : -1) }));
+    let active: unknown = null;
+    const menu = {
+      querySelectorAll: () => items,
+      getRootNode: () => ({ get activeElement() { return active; } }),
+    } as unknown as ParentNode;
+    return { menu, items, focused, setActive: (i: number | null) => (active = i === null ? null : items[i]) };
+  }
+  test('ArrowDown / ArrowUp move and wrap, Home / End jump, other keys are left alone, no menu = nothing', () => {
+    const m = fakeMenu();
+    expect(menuArrow({ key: 'ArrowDown' }, m.menu)).toBe(true); // nothing focused yet: the first item
+    m.setActive(0);
+    expect(menuArrow({ key: 'ArrowDown' }, m.menu)).toBe(true);
+    m.setActive(2);
+    expect(menuArrow({ key: 'ArrowDown' }, m.menu)).toBe(true); // wraps
+    m.setActive(0);
+    expect(menuArrow({ key: 'ArrowUp' }, m.menu)).toBe(true); // wraps backwards
+    expect(menuArrow({ key: 'End' }, m.menu)).toBe(true);
+    expect(menuArrow({ key: 'Home' }, m.menu)).toBe(true);
+    expect(m.focused).toEqual([0, 1, 0, 2, 2, 0]);
+    expect(menuArrow({ key: 'Enter' }, m.menu)).toBe(false);
+    expect(menuArrow({ key: 'ArrowDown' }, null)).toBe(false);
+    expect(menuArrow({ key: 'ArrowDown' }, fakeMenu(0).menu)).toBe(false);
+  });
+});
 
 test.describe('rows: place, icon, the one state tag', () => {
   test('place: the area, else what the subject is', () => {

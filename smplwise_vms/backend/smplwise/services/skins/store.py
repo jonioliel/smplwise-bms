@@ -106,6 +106,28 @@ def geometry_key(conn: sqlite3.Connection, floor_id: str) -> tuple[str, str] | N
     return hashlib.sha256(blob.encode("utf-8")).hexdigest(), g["doc_hash"]
 
 
+def served_geometry_key(conn: sqlite3.Connection, floor_id: str, visible: Any) -> tuple[str, str, str] | None:
+    """Security review 2.4.2 L1: (key, doc hash) as this reader is handed them, plus the stored key. For a reader from
+    whom a reference of the structure is withheld both are built over the hash of the document as redacted for them
+    (plan_anchor_scope.served_hash), so neither confirms a guessed camera id against the stored hash; for everyone else
+    they are the stored ones. Returns (served key, served doc hash, stored key); None without a published structure."""
+    from ..plan_anchor_scope import served_hash
+    from .. import geometry_store
+
+    gk = geometry_key(conn, floor_id)
+    if gk is None:
+        return None
+    g = published_geometry(conn, floor_id)
+    assert g is not None
+    doc_hash = served_hash(g["doc_hash"], lambda: geometry_store.load_doc(g), visible)
+    if doc_hash == g["doc_hash"]:
+        return gk[0], gk[1], gk[0]
+    rooms = [{"id": r["id"], "level_id": r["level_id"], "polygon": json.loads(r["polygon_json"])}
+             for r in conn.execute("SELECT id, level_id, polygon_json FROM spatial_zones WHERE floor_id = ? AND deleted_at IS NULL ORDER BY id", (floor_id,)).fetchall()]
+    blob = json.dumps({"v": 1, "doc": doc_hash, "rooms": rooms}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest(), doc_hash, gk[0]
+
+
 # ---------- control images ----------
 
 def validate_png(data: bytes, expected: tuple[int, int] = CONTROL_SIZE) -> tuple[int, int]:

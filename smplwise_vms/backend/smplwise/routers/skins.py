@@ -20,6 +20,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
+from ..services import plan_anchor_scope as anchor_scope
 from ..services.skins import provider as prov
 from ..services.skins import store
 from .catalog import get_floor
@@ -142,11 +143,20 @@ def floor_skins(floor_id: str, principal: Principal = Depends(current_principal)
     """The floor's geometry key (what a control image must be made from), its stored control images and its budget."""
     get_floor(conn, floor_id)
     require(conn, principal, P_EDIT, ("floor", floor_id))
-    gk = store.geometry_key(conn, floor_id)
-    key, doc_hash = gk if gk else (None, None)
+    gk = store.served_geometry_key(conn, floor_id, anchor_scope.visibility(conn, principal, floor_id))
+    key, doc_hash, real = gk if gk else (None, None, None)
+    # security review 2.4.2 L1: a reader from whom a reference is withheld is handed keys built over the redacted
+    # document; a stored control's key (built over the stored hash) is shown to them only as the current key, else null
     return {"floor_id": floor_id, "geometry_key": key, "doc_hash": doc_hash, "states": list(store.STATES), "size": list(store.CONTROL_SIZE),
-            "controls": [dict(c, current=c["geometry_key"] == key) for c in store.controls_of(conn, floor_id)],
-            "budget": store.budget(conn, floor_id, key).describe()}
+            "controls": [_control_out(c, key, real) for c in store.controls_of(conn, floor_id)],
+            "budget": store.budget(conn, floor_id, real).describe()}
+
+
+def _control_out(c: dict[str, Any], key: str | None, real: str | None) -> dict[str, Any]:
+    current = c.get("geometry_key") == real
+    if key == real:
+        return dict(c, current=current)
+    return dict(c, current=current, geometry_key=key if current else None)
 
 
 @router.post("/floors/{floor_id}/skins/control-image", status_code=201)
@@ -161,14 +171,17 @@ async def upload_control_image(floor_id: str, request: Request, state: str = For
         raise ApiError(422, "bad_state", "מצב לא מוכר לתמונת בקרה.", details={"choices": list(store.STATES)})
     if not KEY_RE.match(geometry_key):
         raise ApiError(422, "validation", "מפתח הגאומטריה אינו תקין.")
-    gk = store.geometry_key(conn, floor_id)
+    gk = store.served_geometry_key(conn, floor_id, anchor_scope.visibility(conn, principal, floor_id))
     if gk is None:
         raise ApiError(409, "no_geometry", "לקומה אין מבנה מפורסם; פרסמו את המבנה ב־Plan Studio קודם.")
-    if gk[0] != geometry_key:
-        raise ApiError(409, "geometry_changed", "המבנה או החדרים של הקומה השתנו מאז הצילום; צלמו שוב.", details={"geometry_key": gk[0]})
+    served_key, _served_doc, real_key = gk
+    if served_key != geometry_key:  # L1: the key this person was handed (the floor_skins answer); stored under the real key
+        raise ApiError(409, "geometry_changed", "המבנה או החדרים של הקומה השתנו מאז הצילום; צלמו שוב.", details={"geometry_key": served_key})
     data = await file.read(store.CONTROL_MAX_BYTES + 1)
     try:
-        row, identical = store.store_control(settings, conn, floor_id, state, geometry_key, data, principal.user_id)
+        row, identical = store.store_control(settings, conn, floor_id, state, real_key, data, principal.user_id)
+        if served_key != real_key:
+            row = dict(row, geometry_key=served_key)
     except store.SkinStoreError:
         raise ApiError(409, "floor_id_unsafe", "מזהה הקומה אינו מתאים לשמירת קבצים; לא נשמר דבר.")
     except store.ControlImageError as exc:

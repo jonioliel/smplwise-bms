@@ -365,7 +365,7 @@ export class SystemStorage extends LitElement {
   /** NVR-less mode: only the add-on's own disk - there are no recordings, disks or schedules to read. */
   private renderNvrLess() {
     const d = this.data;
-    return html`<sw-page heading="אחסון" subheading="האחסון המקומי של ה־Add-on (/data) · מצב ללא NVR">
+    return html`<sw-page crumbs="הגדרות" heading="אחסון" subheading="האחסון המקומי של ה־Add-on (/data) · מצב ללא NVR">
       <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'בודק…' : 'רענון'}</sw-button>
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
       ${this.renderDiskGuard()}
@@ -376,9 +376,9 @@ export class SystemStorage extends LitElement {
 
   private renderApi() {
     if (nvrLess()) return this.renderNvrLess();
-    if (this.error && !this.data) return html`<sw-page heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
+    if (this.error && !this.data) return html`<sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
     const d = this.data;
-    if (!d) return html`<sw-page heading="אחסון ותוכנית הקלטה">${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!d) return html`<sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה">${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const t = d.totals;
     const r = d.retention;
     const ring = 16;
@@ -386,7 +386,7 @@ export class SystemStorage extends LitElement {
     const pct = t?.used_pct ?? 0;
     const measured = r.measured_days_min == null ? '—' : r.measured_days_min === r.measured_days_max ? `${r.measured_days_min}` : `${r.measured_days_min}–${r.measured_days_max}`;
     return html`
-      <sw-page heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
+      <sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
         <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
         ${this.renderDiskGuard()}
@@ -448,7 +448,7 @@ export class SystemStorage extends LitElement {
     const c = 2 * Math.PI * r;
     const max = 410;
     return html`
-      <sw-page heading="אנליטיקת אחסון" subheading="Beta · ניטור שימוש, תכנון קדימה ושליטה · נתון נמדד לעומת אומדן מסומן · אין format או RAID · נתוני הדגמה">
+      <sw-page crumbs="הגדרות" heading="אנליטיקת אחסון" subheading="Beta · ניטור שימוש, תכנון קדימה ושליטה · נתון נמדד לעומת אומדן מסומן · אין format או RAID · נתוני הדגמה">
         <div slot="actions" style="display:flex;gap:4px">${['7D', '30D', '90D', '1Y'].map((x) => html`<sw-chip ?selected=${this.range === x} @click=${() => (this.range = x)}>${x}</sw-chip>`)}</div>
         <div class="kpis">
           <sw-card flush class="kpi"><div><div class="v">1.3 TB</div><div class="l">אחסון בשימוש (נמדד)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>

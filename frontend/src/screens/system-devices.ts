@@ -118,6 +118,14 @@ export class SystemDevices extends LitElement {
       block-size: 7px;
       border-radius: 50%;
       background: var(--c);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent);
+      flex: none;
+    }
+    .cam .none {
+      display: grid;
+      place-items: center;
+      color: var(--sw-text-3);
+      box-shadow: inset 0 0 0 1px var(--sw-border-strong);
     }
     svg.net {
       inline-size: 22px;
@@ -265,12 +273,12 @@ export class SystemDevices extends LitElement {
   }
 
   private net(level: number) {
-    return svg`<svg class="net" viewBox="0 0 22 14" aria-label="רשת">${[0, 1, 2, 3].map((i) => svg`<rect x=${i * 5.5} y=${11 - i * 3} width="4" height=${3 + i * 3} rx="1" fill=${i < level ? (level >= 3 ? '#22c55e' : '#f59e0b') : 'var(--sw-border-strong)'} />`)}</svg>`;
+    return svg`<svg class="net" viewBox="0 0 22 14" aria-label="רשת">${[0, 1, 2, 3].map((i) => svg`<rect x=${i * 5.5} y=${11 - i * 3} width="4" height=${3 + i * 3} rx="1" fill=${i < level ? (level >= 3 ? 'var(--sw-live)' : 'var(--sw-stale)') : 'var(--sw-border-strong)'} />`)}</svg>`;
   }
 
   private columns: TableColumn[] = [
-    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
-    { key: 'state', label: 'מצב', render: (r) => html`<span class="status" data-cam-state=${String(r.state)} style=${r.state === 'offline' ? 'color:var(--sw-danger);font-weight:var(--sw-fw-semibold)' : ''}><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
+    { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam">${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style="inline-size:64px;block-size:40px;object-fit:cover;border-radius:5px;flex-shrink:0;background:var(--sw-surface-3);display:block" @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind}></sw-scene>` : html`<div class="none"><sw-icon name=${r.state === 'forbidden' ? 'lock' : 'offline'} size=${14}></sw-icon></div>`}<div><b>${String(r.name)}</b><small>${String(r.sub)}</small></div></div>` },
+    { key: 'state', label: 'מצב', render: (r) => html`<span class="status" data-cam-state=${String(r.state)} style=${r.state === 'offline' ? 'color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)' : r.state === 'stale' || r.state === 'forbidden' ? 'color:var(--sw-warning-text)' : ''}><i style="--c:${r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)'}"></i>${r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק'}</span>` },
     { key: 'fps', label: 'FPS', ltr: true },
     { key: 'bitrate', label: 'קצב', ltr: true },
     { key: 'firmware', label: 'זרם ראשי', ltr: true },
@@ -294,9 +302,9 @@ export class SystemDevices extends LitElement {
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
         <div class="filters">
           <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')} count=${all.length}>הכל</sw-chip>
-          <sw-chip dot="#22c55e" ?selected=${this.filter === 'online'} @click=${() => (this.filter = 'online')} count=${all.filter((c) => c.state === 'live').length}>מחוברות</sw-chip>
-          <sw-chip dot="#ef4444" ?selected=${this.filter === 'offline'} @click=${() => (this.filter = 'offline')} count=${all.filter((c) => c.state === 'offline').length}>מנותקות</sw-chip>
-          <sw-chip dot="#f59e0b" ?selected=${this.filter === 'issues'} @click=${() => (this.filter = 'issues')} count=${all.filter((c) => c.state !== 'live' && c.state !== 'offline').length}>בעיות / לא נבדק</sw-chip>
+          <sw-chip dot="var(--sw-live)" ?selected=${this.filter === 'online'} @click=${() => (this.filter = 'online')} count=${all.filter((c) => c.state === 'live').length}>מחוברות</sw-chip>
+          <sw-chip dot="var(--sw-danger)" ?selected=${this.filter === 'offline'} @click=${() => (this.filter = 'offline')} count=${all.filter((c) => c.state === 'offline').length}>מנותקות</sw-chip>
+          <sw-chip dot="var(--sw-stale)" ?selected=${this.filter === 'issues'} @click=${() => (this.filter = 'issues')} count=${all.filter((c) => c.state !== 'live' && c.state !== 'offline').length}>בעיות / לא נבדק</sw-chip>
           <span class="grow"></span>
           <sw-field style="inline-size:200px"><input type="search" placeholder="חיפוש מצלמה…" aria-label="חיפוש" /></sw-field>
         </div>

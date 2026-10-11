@@ -51,12 +51,17 @@ def test_map_section_settings_default_validate_and_audit(settings):
     assert c.patch("/api/v1/settings", json={"map.default_view": "2d"}, headers=as_user("dana")).status_code == 403
 
 
-def test_plan_quality_setting_defaults_to_2_accepts_1_or_2_and_audits(settings):
-    """CR-006 slice 1a: plan.quality is the 3D quality level a browser opens with (2 = shadows, materials and the
-    cutaway; 1 = the schematic level, also the automatic fallback of a slow device). A browser may override it."""
+def test_plan_quality_setting_defaults_to_auto_accepts_auto_1_or_2_and_audits(settings):
+    """CR-006 slice 1a / owner bug 2026-10-10: plan.quality is the 3D view mode a browser opens with - "auto" (the full
+    level, dropping to the schematic one after a sustained low frame rate; the default), "2" (full, kept even on a slow
+    device) or "1" (schematic). A user's own choice (/me/prefs plan.quality) overrides it."""
     app = create_app(settings)
     c = TestClient(app)
-    assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "2"
+    assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "auto"
+    r = c.patch("/api/v1/settings", json={"plan.quality": "2"})
+    assert r.status_code == 200 and r.json()["settings"]["plan.quality"] == "2"
+    r = c.patch("/api/v1/settings", json={"plan.quality": "auto"})
+    assert r.status_code == 200 and r.json()["settings"]["plan.quality"] == "auto"
     r = c.patch("/api/v1/settings", json={"plan.quality": "1"})
     assert r.status_code == 200 and r.json()["settings"]["plan.quality"] == "1"
     assert c.get("/api/v1/settings").json()["settings"]["plan.quality"] == "1"
@@ -65,6 +70,7 @@ def test_plan_quality_setting_defaults_to_2_accepts_1_or_2_and_audits(settings):
         assert row is not None and '"plan.quality": "1"' in row[0]
     assert c.patch("/api/v1/settings", json={"plan.quality": "3"}).status_code == 422
     assert c.patch("/api/v1/settings", json={"plan.quality": "high"}).status_code == 422
+    assert c.patch("/api/v1/settings", json={"plan.quality": "Auto"}).status_code == 422
     bind(c, settings, "dana", "viewer", "installation", "*")
     assert c.patch("/api/v1/settings", json={"plan.quality": "2"}, headers=as_user("dana")).status_code == 403
 

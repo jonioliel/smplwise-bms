@@ -16,7 +16,7 @@ import '../components/sw-toggle';
 import type { DropdownItem } from '../components/sw-dropdown';
 import type { AdminDevice } from '../api/media-admin';
 import {
-  BREAKPOINT_MD, COL_KEYS, COL_LABEL, DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, colVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, isFiltered, optionsOf, setColPref,
+  BREAKPOINT_MD, bpOfWidth, CQ_CARDS, COL_KEYS, COL_LABEL, DEFAULT_VIEW, NO_INTEGRATION, TYPE_LABEL, buildView, colVisible, floorSplitClass, gridColumns, hasColPrefs, hideClass, isFiltered, optionsOf, setColPref,
   type Bp, type ColKey,
   type AvailFilter, type ApprovalFilter, type Group, type GroupKey, type ListView, type LiveAvail, type RowFacts, type SortKey,
 } from './media-admin-list-logic';
@@ -40,6 +40,7 @@ export class MediaAdminToolbar extends LitElement {
   /** The width class the table is in right now (the columns panel shows what the table shows). */
   @state() private bp: Bp = 'wide';
   private mq?: MediaQueryList;
+  private ro?: ResizeObserver;
   private readonly onMq = () => { this.bp = this.mq?.matches ? 'md' : 'wide'; };
   private readonly onDocDown = (e: Event) => {
     if (this.colsOpen && !e.composedPath().includes(this)) this.colsOpen = false;
@@ -47,18 +48,35 @@ export class MediaAdminToolbar extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    try {
-      this.mq = window.matchMedia(`(max-width: ${BREAKPOINT_MD}px)`);
-      this.onMq();
-      this.mq.addEventListener('change', this.onMq);
-    } catch {
-      /* no matchMedia: the wide defaults */
+    // 2.4.6: the table picks its columns by its own width (a container query); the toolbar spans the same width, so its
+    // own width tells the columns panel which layout the table shows. The viewport query is the fallback.
+    if (typeof ResizeObserver === 'function' && typeof CSS !== 'undefined' && CSS.supports?.('container-type: inline-size')) {
+      this.ro = new ResizeObserver((entries) => {
+        const w = entries[0]?.contentRect.width ?? 0;
+        if (w <= 0) return;
+        this.bp = bpOfWidth(w);
+        // the cards ignore every column choice, so the columns control hides with them (as on the phone)
+        const cards = w < CQ_CARDS;
+        this.toggleAttribute('data-cards', cards);
+        if (cards) this.colsOpen = false;
+      });
+      this.ro.observe(this);
+    } else {
+      try {
+        this.mq = window.matchMedia(`(max-width: ${BREAKPOINT_MD}px)`);
+        this.onMq();
+        this.mq.addEventListener('change', this.onMq);
+      } catch {
+        /* no matchMedia: the wide defaults */
+      }
     }
     document.addEventListener('pointerdown', this.onDocDown, true);
   }
 
   disconnectedCallback() {
     this.mq?.removeEventListener('change', this.onMq);
+    this.ro?.disconnect();
+    this.ro = undefined;
     document.removeEventListener('pointerdown', this.onDocDown, true);
     super.disconnectedCallback();
   }
@@ -196,6 +214,9 @@ export class MediaAdminToolbar extends LitElement {
       .colswrap {
         display: none;
       }
+    }
+    :host([data-cards]) .colswrap {
+      display: none;
     }
     .ints {
       display: flex;
@@ -432,15 +453,75 @@ export function adminTable(ctx: TableCtx): TemplateResult {
     </div>`;
 }
 
+/** The card layout of the rows (a phone, or a narrow container): one block, used by the container query and its viewport fallback. */
+const cardRules = css`
+    .thead,
+    .c-fl {
+      display: none;
+    }
+    .tr {
+      grid-template-columns: 44px minmax(0, 1fr) auto;
+      grid-template-areas: 'x name ap' 'x type st' 'x int int' 'x id id' 'x area area' 'x cast cast' 'x cn cn';
+      row-gap: 4px;
+      padding: 8px 6px;
+    }
+    .c-x {
+      grid-area: x;
+      align-self: start;
+    }
+    .c-name {
+      grid-area: name;
+    }
+    .c-ap {
+      grid-area: ap;
+      justify-self: end;
+    }
+    .c-type {
+      grid-area: type;
+    }
+    .c-st {
+      grid-area: st;
+      justify-self: end;
+    }
+    .c-int {
+      grid-area: int;
+    }
+    .c-id {
+      grid-area: id;
+    }
+    .c-area {
+      grid-area: area;
+      display: flex;
+    }
+    .c-cast {
+      grid-area: cast;
+      display: flex;
+    }
+    .c-cn {
+      grid-area: cn;
+    }
+    .c .lb {
+      display: inline;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+    }
+`;
+
 export const mediaAdminListCss = css`
+  /* 2.4.6: the table chooses its layout by the width it actually has (a container query on .tbl), not by the viewport: on a
+     settings page the navigation column takes 236 px, so a 1440 px window no longer leaves room for the wide columns. The
+     wide set needs 1228 px at the default columns, the tablet set 864 px (CQ_WIDE / CQ_CARDS in media-admin-list-logic.ts);
+     the viewport rules of before stay below as the fallback for a browser without container queries. */
   .tbl {
     --hit: var(--sw-touch-desktop);
     display: block;
     margin-block-start: 10px;
     --cols: var(--cols-w);
+    container: mm-tbl / inline-size;
   }
-  /* the user's column choices (columns control in the toolbar): hw = hidden above 1280 px, hm = hidden on a tablet width; the phone cards ignore both */
-  @media (min-width: 1281px) {
+  /* the user's column choices (columns control in the toolbar): hw = hidden in the wide layout, hm = hidden in the tablet
+     layout; the cards ignore both */
+  @container mm-tbl (min-width: 1228px) {
     .hw {
       display: none !important;
     }
@@ -448,12 +529,30 @@ export const mediaAdminListCss = css`
       display: none;
     }
   }
-  @media (min-width: 861px) and (max-width: 1280px) {
+  @container mm-tbl (min-width: 864px) and (max-width: 1227.98px) {
     .hm {
       display: none !important;
     }
     .tbl.fl-m .fp {
       display: none;
+    }
+  }
+  @supports not (container-type: inline-size) {
+    @media (min-width: 1281px) {
+      .hw {
+        display: none !important;
+      }
+      .tbl.fl-w .fp {
+        display: none;
+      }
+    }
+    @media (min-width: 861px) and (max-width: 1280px) {
+      .hm {
+        display: none !important;
+      }
+      .tbl.fl-m .fp {
+        display: none;
+      }
     }
   }
   .fp {
@@ -639,66 +738,32 @@ export const mediaAdminListCss = css`
     color: var(--sw-text);
     cursor: pointer;
   }
-  @media (max-width: 1280px) {
-    .tbl {
+  /* the tablet column set below the wide width (the cards below override the grid) */
+  @container mm-tbl (max-width: 1227.98px) {
+    .thead,
+    .tr {
       --cols: var(--cols-m);
     }
   }
+  @supports not (container-type: inline-size) {
+    @media (max-width: 1280px) {
+      .tbl {
+        --cols: var(--cols-m);
+      }
+    }
+  }
+  /* the touch targets follow the touch layout of the whole window (the shell's rule), not the table's width */
   @media (max-width: 1100px) {
     .tbl {
       --hit: 44px;
     }
   }
-  @media (max-width: 860px) {
-    .thead,
-    .c-fl {
-      display: none;
-    }
-    .tr {
-      grid-template-columns: 44px minmax(0, 1fr) auto;
-      grid-template-areas: 'x name ap' 'x type st' 'x int int' 'x id id' 'x area area' 'x cast cast' 'x cn cn';
-      row-gap: 4px;
-      padding: 8px 6px;
-    }
-    .c-x {
-      grid-area: x;
-      align-self: start;
-    }
-    .c-name {
-      grid-area: name;
-    }
-    .c-ap {
-      grid-area: ap;
-      justify-self: end;
-    }
-    .c-type {
-      grid-area: type;
-    }
-    .c-st {
-      grid-area: st;
-      justify-self: end;
-    }
-    .c-int {
-      grid-area: int;
-    }
-    .c-id {
-      grid-area: id;
-    }
-    .c-area {
-      grid-area: area;
-      display: flex;
-    }
-    .c-cast {
-      grid-area: cast;
-      display: flex;
-    }
-    .c-cn {
-      grid-area: cn;
-    }
-    .c .lb {
-      display: inline;
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+  @container mm-tbl (max-width: 863.98px) {
+    ${cardRules}
+  }
+  @supports not (container-type: inline-size) {
+    @media (max-width: 860px) {
+      ${cardRules}
     }
   }
 `;

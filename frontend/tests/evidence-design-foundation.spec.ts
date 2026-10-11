@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { settlePage } from './pixel-settle';
+import { SKIN_IDS } from '../src/design/skins';
 
 // Design foundation (owner 2026-10-01): one shared structure, skins = tokens + a bounded rule set, light / dark for the whole shell.
 //   1. `classic` (the default, today's look) is pixel-stable: toHaveScreenshot against the baselines captured from the build
@@ -117,12 +118,14 @@ test.describe('design foundation', () => {
       expect(await page.evaluate(() => localStorage.getItem('sw.ui.design'))).toBeNull(); // nothing stored by the override
     });
 
-    test('the picker: three skins with a swatch each; save applies skin and scheme at once and survives a reload; my own scheme wins and clears', async ({ page }, info) => {
+    test('the picker: every registered skin with a swatch each; save applies skin and scheme at once and survives a reload; my own scheme wins and clears', async ({ page }, info) => {
       test.skip(info.project.name === 'mobile', 'the picker is the same component on a phone; one width is enough here');
       await open(page, '/system/diagnostics');
-      await expect(card(page).locator('[data-skin-option]')).toHaveCount(4); // classic, domus, tesla, bubble (Bubble foundation)
+      // one option per skin of the registry (classic, domus, tesla, bubble, crystal at 2.4.5), each with its own swatch
+      await expect(card(page).locator('[data-skin-option]')).toHaveCount(SKIN_IDS.length);
+      for (const id of SKIN_IDS) await expect(card(page).locator(`[data-skin-option="${id}"] .sw`)).toHaveCount(1);
       await expect(card(page).locator('[data-skin-option="classic"] [data-skin-current]')).toBeVisible();
-      await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(4);
+      await expect(card(page).locator('[data-skin-option] .sw')).toHaveCount(SKIN_IDS.length);
       await expect(card(page).locator('[data-design-save]')).toHaveAttribute('disabled', ''); // nothing changed yet
       await card(page).locator('[data-skin-option="domus"]').click();
       await card(page).locator('[data-scheme-option="dark"]').click();

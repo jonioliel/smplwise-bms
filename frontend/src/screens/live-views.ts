@@ -127,7 +127,7 @@ export class LiveViews extends LitElement {
         <sw-field label="שם"><input data-view-name .value=${e.name} maxlength="60" @input=${(ev: Event) => (this.editing = { ...e, name: (ev.target as HTMLInputElement).value })} /></sw-field>
         <div class="lbl">מצלמות (${e.cameras.length} מתוך ${this.cams.length})</div>
         <div class="chips" data-view-cameras>
-          ${this.cams.map((c) => html`<sw-chip ?selected=${e.cameras.includes(c.id)} data-view-camera=${c.id} dot=${c.status === 'online' ? '#22c55e' : '#ef4444'} @click=${() => this.toggleCamera(c.id)}>${c.name}</sw-chip>`)}
+          ${this.cams.map((c) => html`<sw-chip ?selected=${e.cameras.includes(c.id)} data-view-camera=${c.id} dot=${c.status === 'online' ? 'var(--sw-live)' : 'var(--sw-danger)'} @click=${() => this.toggleCamera(c.id)}>${c.name}</sw-chip>`)}
         </div>
         <div class="two">
           <sw-field label="עמודות"><select data-view-cols .value=${String(e.cols)} @change=${(ev: Event) => (this.editing = { ...e, cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === e.cols}>${n}</option>`)}</select></sw-field>
@@ -196,12 +196,12 @@ export class LiveViews extends LitElement {
       block-size: 100%;
       object-fit: cover;
       border-radius: 3px;
-      background: #1e293b;
+      background: var(--sw-video-bg);
       display: block;
     }
     .thumb .empty {
       grid-column: 1 / -1;
-      color: #cbd5e1;
+      color: var(--sw-on-video-2);
       font-size: var(--sw-fs-xs);
       display: grid;
       place-items: center;

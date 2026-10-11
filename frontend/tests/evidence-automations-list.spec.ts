@@ -280,7 +280,7 @@ test.describe('the detail drawer', () => {
     await expect(d.locator('[data-trace-steps]')).toContainText('לא בוצעו פעולות');
     // a trace with a choice: the branches are indented
     await open(page, '/devices/automations/1727700000005?view=trace', '1440', { scheme: 'dark' });
-    expect(await drawer(page).locator('[data-trace-steps] .row.nest').count()).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => drawer(page).locator('[data-trace-steps] .row.nest').count()).toBeGreaterThanOrEqual(3);
     await shot(page, '22-trace-choose', '1440', 'dark');
   });
 

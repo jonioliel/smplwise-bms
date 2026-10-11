@@ -15,6 +15,7 @@ from ..auth import current_principal, get_conn
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
+from . import ui_background
 from ..services import app_download, area_row, automation_settings, brand_colors, home_config, home_screen, intercom_authority, look, media_layout, mobile_options, nav_size, nvr_capacity, dd_style, palettes, tabs_mode, timeline_colors
 
 router = APIRouter()
@@ -64,6 +65,12 @@ DEFAULTS: dict[str, str] = {
     # applied by the frontend on the DU1 token layer (design/brand.ts). Per installation.
     "ui.accent": brand_colors.DEFAULT,
     "ui.toggle_on": brand_colors.DEFAULT,
+    # CRY (2026-10-10): the background artwork behind the glass (the crystal skin paints it) - builtin (the day / night pair that
+    # ships with the product, chosen by the scheme) | none | custom (the installation's uploads, routers/ui_background.py). A user's
+    # own choice (/me/prefs `ui.background`) wins. `ui.background_images` is written by the upload routes only (the version stamp of
+    # each slot) and read back as an object.
+    "ui.background": "builtin",
+    "ui.background_images": "{}",
     # Bubble foundation (owner 2026-10-02): the look dials of the skin - density, surface, pop-up kind, corner radius, transparency,
     # scale, desktop touch target, palette - a JSON object (shape, lists and ranges in services/look.py), read back as an object.
     # The installation default carries every dial; a user's own partial override (/me/prefs) wins per dial.
@@ -126,7 +133,7 @@ DEFAULTS: dict[str, str] = {
     "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
     "map.default_floor": "",  # owner 2026-09-30: the floor the map's floor tab opens first when several floors exist ("" = the built-in order); an existing floor id, cleared when that floor is deleted
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
-    "plan.quality": "2",  # CR-006: the 3D quality level a browser opens with (1 schematic, 2 shadows/materials/cutaway); a browser can override it for itself and falls back to 1 on a slow device
+    "plan.quality": "auto",  # CR-006 / owner bug 2026-10-10: the 3D view mode a browser opens with - auto (full, dropping to schematic after a sustained low frame rate), 2 (full, kept even when slow: a hint only), 1 (schematic); a user's own /me/prefs plan.quality overrides it
     "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
@@ -329,6 +336,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.tabs"] = _stored_tabs(out["ui.tabs"])
     out["ui.nav_size"] = _stored_nav_size(out["ui.nav_size"])
     out["ui.look"] = look.stored(out["ui.look"])
+    out["ui.background_images"] = ui_background.stored_stamps(out["ui.background_images"])
     out["ui.palettes"] = palettes.stored(out["ui.palettes"])
     out["ui.tabs_mode"] = tabs_mode.stored_mode(out["ui.tabs_mode"])
     out["ui.tabs_mode_groups"] = tabs_mode.stored_groups(out["ui.tabs_mode_groups"])
@@ -346,7 +354,7 @@ def read_settings(conn: sqlite3.Connection) -> dict[str, Any]:
     out["ui.mobile"] = _stored_mobile(out["ui.mobile"])
     out["timeline.colors"] = _stored_timeline_colors(out["timeline.colors"])
     for key in brand_colors.KEYS:  # a corrupt stored colour never reaches the page as CSS
-        out[key] = brand_colors.stored(out[key])
+        out[key] = brand_colors.stored(out[key], key)
     out["devices.area_row"] = _stored_area_row(out["devices.area_row"], area_row.normalize_area, area_row.AREA_ROW_DEFAULT)
     out["devices.floor_row"] = _stored_area_row(out["devices.floor_row"], area_row.normalize_floor, area_row.FLOOR_ROW_DEFAULT)
     out["schedules.classes"] = stored_schedule_classes(out["schedules.classes"], get_setting(conn, CLASSES_REV_KEY))
@@ -547,10 +555,11 @@ class SettingsPatch(BaseModel):
     ui_hide_map: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_map")
     ui_security_snapshot: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.security_snapshot")
     ui_tile_layout: str | None = Field(default=None, pattern="^(auto|cards|compact)$", alias="ui.tile_layout")
-    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
+    ui_skin: str | None = Field(default=None, pattern="^(classic|domus|tesla|bubble|crystal)$", alias="ui.skin")  # keep in step with SKIN_IDS in frontend/src/design/skins/index.ts
     ui_scheme: str | None = Field(default=None, pattern="^(light|dark|auto)$", alias="ui.scheme")
     ui_accent: str | None = Field(default=None, max_length=16, alias="ui.accent")  # 2.4.4: validated by services/brand_colors.py
     ui_toggle_on: str | None = Field(default=None, max_length=16, alias="ui.toggle_on")
+    ui_background: str | None = Field(default=None, pattern="^(builtin|none|custom)$", alias="ui.background")  # CRY: keep in step with BACKGROUND_MODES in frontend/src/design/background.ts
     ui_tabs: dict[str, Any] | None = Field(default=None, alias="ui.tabs")  # validated in full by normalize_tabs
     ui_tabs_mode: str | None = Field(default=None, pattern="^(tabs|hybrid|dropdown)$", alias="ui.tabs_mode")
     ui_tabs_mode_groups: dict[str, Any] | None = Field(default=None, alias="ui.tabs_mode_groups")  # validated in full by services/tabs_mode.py
@@ -578,7 +587,7 @@ class SettingsPatch(BaseModel):
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
     map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
-    plan_quality: str | None = Field(default=None, pattern="^(1|2)$", alias="plan.quality")
+    plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_presence_fade: str | None = Field(default=None, pattern="^(off|[1-9]|[1-9][0-9]|1[01][0-9]|120)$", alias="plan.presence_fade")  # off, or 1-120 minutes
     plan_surfaces: list[str] | None = Field(default=None, max_length=4, alias="plan.surfaces")  # each one of PLAN_SURFACES (checked in the handler)
     ai_provider: str | None = Field(default=None, pattern="^(none|local|external)$", alias="ai.provider")
@@ -767,9 +776,9 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
     for key in brand_colors.KEYS:
         if key in changes:
             try:
-                changes[key] = brand_colors.normalize(changes[key])
+                changes[key] = brand_colors.normalize(changes[key], key)
             except ValueError as exc:
-                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן או קוד ‎#rrggbb.", details={key: str(exc)})
+                raise ApiError(422, "validation", "צבע: ברירת מחדל, צבע מוכן, קוד ‎#rrggbb, ולמתג גם \"כמו הצבע הראשי\".", details={key: str(exc)})
     if "devices.area_row" in changes:
         try:
             changes["devices.area_row"] = area_row.normalize_area(changes["devices.area_row"])

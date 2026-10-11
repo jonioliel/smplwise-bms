@@ -20,16 +20,32 @@ anchors.json / report and the DXF devices, but the stored document still named t
   reference to nothing known here, so the answer never tells the two apart (security review 2.4.2 L2) - is refused
   (the editor routes: 422 `anchor_hidden`) or dropped (the package import: warning `anchor_hidden`) - binding a body to
   a hidden camera would move the body onto the camera's position.
-- Stored documents and their hashes are unchanged; there is no migration. `geometry.doc_hash` and `result_hash` stay the
-  identity of the STORED row (the map bundle, the publish timeline and the editor's "pending publish" compare them).
-  What is served and redacted carries its own hash: the published read's ETag is computed over the served body, and the
-  package's plan.json, manifest `doc_hash` / `geometry_hash` and the DXF `SW_DOC_HASH` are computed over the redacted
-  document that is actually in the package.
+- **Write, L3** (security review 2.4.2 L3): a reference the writer was not shown stays whatever they send for that place
+  (null, a camera they see, anything) - only someone who may see it changes it. Removing an item (or a glass panel) that
+  holds such a reference is allowed - the structure is the floor's - but the save answers a warning
+  `anchor_hidden_removed` and is audited (`removed_hidden`). A package exported by a scoped person names what was
+  withheld in its signed manifest (`document.redacted`, `document.withheld`); its import gives those references back
+  from the current draft for the same items, whoever imports it (`restore_withheld`).
+- Stored documents and their hashes are unchanged; there is no migration. The server's own compares (the store's
+  "unchanged" checks, the skins geometry key, the shared-room cache keys) use the hash of the STORED row. What a reader
+  is handed follows L1 (security review 2.4.2 L1): a reader for whom a reference of a stored document is withheld gets,
+  in place of the stored `doc_hash` (geometry reads and their `published_hash`, the publish timeline, the versions
+  list, publish / rollback answers, the floor bundle's geometry ref, the package preview / import hashes, the skins
+  geometry key), the hash of the document as redacted for them (`served_hash`) - so a guessed camera id can never be
+  confirmed offline against a stored hash. Every one of those places uses the same function, so the hashes a client
+  compares (bundle ref vs geometry read, timeline vs `?at=` read, `doc_hash` vs `published_hash`, preview vs import)
+  still agree. The published read's ETag is computed over the served body, and the package's plan.json, manifest
+  `doc_hash` / `geometry_hash` and the DXF `SW_DOC_HASH` are computed over the redacted document in the package.
+- Openings and glass panels: nothing is copied from an anchor onto them (they keep their own place on their wall), so a
+  withheld reference there withholds only the reference; L1 covers the hash that used to confirm it.
 """
 from __future__ import annotations
 
 import copy
+import json
 import sqlite3
+import threading
+from collections import OrderedDict
 from typing import Any, Callable, Iterator
 
 Visible = Callable[[str, Any], bool]
@@ -145,29 +161,162 @@ def exists_here(conn: sqlite3.Connection, floor_id: str) -> Callable[[dict[str, 
 
 def fix_item(old: dict[str, Any] | None, new: dict[str, Any], coll: str, visible: Visible, exists: Callable[[dict[str, Any]], bool],
              dropped: list[str]) -> dict[str, Any]:
-    """One item a writer sent, against the stored copy of the same item (`old`, None for a new item): a hidden
-    reference left null comes back from `old` (for an object with its stored pose: the writer was shown the withheld
-    one, see `redact`); a new reference the writer may not make (`_refused`) is dropped and its item id put in `dropped`."""
+    """One item a writer sent, against the stored copy of the same item (`old`, None for a new item): a hidden stored
+    reference comes back from `old` whatever the writer sent for that place - null, a camera they see, anything
+    (security review 2.4.2 L3) - for an object with its stored pose (the writer was shown the withheld one, see
+    `redact`); a new reference the writer may not make (`_refused`) is not stored and its item id is put in `dropped`
+    (also where a hidden one is kept, so the answer does not tell a bound item from an unbound one)."""
     stored = {k: h.get("anchor_ref") for k, h in _holders(old, coll)} if isinstance(old, dict) else {}
     refused = {k for k, h in _holders(new, coll) if _refused(h.get("anchor_ref"), stored.get(k), visible, exists)}
     if not refused and not any(_hidden(r, visible) for r in stored.values()):
         return new
     out = copy.deepcopy(new)
     for key, holder in _holders(out, coll):
-        ref, before = holder.get("anchor_ref"), stored.get(key)
-        if ref is None:
-            if _hidden(before, visible):
-                holder["anchor_ref"] = copy.deepcopy(before)
-                if coll == "objects" and isinstance(old, dict):
-                    for f in POSE_FIELDS:
-                        if f in old:
-                            holder[f] = copy.deepcopy(old[f])
-                        else:
-                            holder.pop(f, None)
+        before = stored.get(key)
+        if _hidden(before, visible):
+            holder["anchor_ref"] = copy.deepcopy(before)
+            if coll == "objects" and isinstance(old, dict):
+                for f in POSE_FIELDS:
+                    if f in old:
+                        holder[f] = copy.deepcopy(old[f])
+                    else:
+                        holder.pop(f, None)
         elif key in refused:
             holder["anchor_ref"] = None
+        if key in refused:
             dropped.append(str(out.get("id")))
     return out
+
+
+def _hidden_places(doc: dict[str, Any] | None, visible: Visible) -> dict[tuple[str, Any, Any], Any]:
+    """(collection, item id, place within the item) -> the reference, for every reference of `doc` hidden by `visible`."""
+    out: dict[tuple[str, Any, Any], Any] = {}
+    for coll, it, key, holder in _slots(doc or {}):
+        ref = holder.get("anchor_ref")
+        if _hidden(ref, visible) and isinstance(it.get("id"), str):
+            out[(coll, it["id"], key)] = ref
+    return out
+
+
+def removed_hidden(written: dict[str, Any], stored: dict[str, Any] | None, visible: Visible | None) -> list[str]:
+    """Security review 2.4.2 L3: the items (or the walls whose glass panel) of `stored` holding a reference the writer may
+    not see that the written document no longer holds at the same place - the item, the wall or the panel was removed.
+    The removal is the writer's right (the structure is the floor's); the caller warns and audits it."""
+    if visible is None or not isinstance(stored, dict):
+        return []
+    before = _hidden_places(stored, visible)
+    if not before:
+        return []
+    after = {(c, i.get("id"), k): h.get("anchor_ref") for c, i, k, h in _slots(written)}
+    return sorted({f"{c}:{iid}" for (c, iid, k), ref in before.items() if not _same(after.get((c, iid, k)), ref)})
+
+
+def withheld_places(stored: dict[str, Any], visible: Visible | None) -> list[dict[str, Any]]:
+    """The places of `stored` whose reference `redact` withholds from this reader, for a package manifest (L3):
+    [{collection, id, panel?}], sorted, at most 5000."""
+    if visible is None:
+        return []
+    out = []
+    for (coll, iid, key) in _hidden_places(stored, visible):
+        e: dict[str, Any] = {"collection": coll, "id": iid}
+        if key:
+            e["panel"] = key[1]
+        out.append(e)
+    out.sort(key=lambda e: (e["collection"], e["id"], e.get("panel") if isinstance(e.get("panel"), int) else -1))
+    return out[:5000]
+
+
+def restore_withheld(incoming: dict[str, Any], current: dict[str, Any] | None, withheld: Any) -> tuple[dict[str, Any], int]:
+    """A package whose exporter was not shown some references (the manifest's `document.withheld`, L3): each such place
+    that is still null in the package takes the reference the current document holds for the same item (same id; for a
+    glass panel the same wall id and panel number) - an object with its current pose, since the package has the
+    withheld one. Whoever imports it; places the current document does not bind stay as the package has them.
+    Returns (document, how many references came back)."""
+    if not isinstance(withheld, list) or not withheld or not isinstance(current, dict):
+        return incoming, 0
+    want = set()
+    for e in withheld[:5000]:
+        if isinstance(e, dict) and e.get("collection") in (*REF_COLLECTIONS, "walls") and isinstance(e.get("id"), str):
+            want.add((e["collection"], e["id"], ("panel", e["panel"]) if e["collection"] == "walls" and isinstance(e.get("panel"), int) else ()))
+    if not want:
+        return incoming, 0
+    cur_items = {(c, i.get("id")): i for c, i, _k, _h in _slots(current)}
+    cur_refs = {(c, i.get("id"), k): h.get("anchor_ref") for c, i, k, h in _slots(current)}
+    out = copy.deepcopy(incoming)
+    n = 0
+    for coll, it, key, holder in _slots(out):
+        place = (coll, it.get("id"), key)
+        before = cur_refs.get(place)
+        if place in want and holder.get("anchor_ref") is None and isinstance(before, dict):
+            holder["anchor_ref"] = copy.deepcopy(before)
+            n += 1
+            old = cur_items.get((coll, it.get("id")))
+            if coll == "objects" and isinstance(old, dict):
+                for f in POSE_FIELDS:
+                    if f in old:
+                        holder[f] = copy.deepcopy(old[f])
+                    else:
+                        holder.pop(f, None)
+    return out, n
+
+
+# ---------------------------------------------------------------- L1: the hash a reader is handed
+
+_CACHE_MAX = 512
+_REFS: "OrderedDict[str, tuple[tuple[str, Any, str], ...]]" = OrderedDict()
+_SERVED: "OrderedDict[tuple[str, frozenset[tuple[str, str]]], str]" = OrderedDict()
+_CACHE_LOCK = threading.Lock()
+
+
+def _cache_get(cache: OrderedDict, key: Any) -> Any:
+    with _CACHE_LOCK:
+        hit = cache.get(key)
+        if hit is not None:
+            cache.move_to_end(key)
+        return hit
+
+
+def _cache_put(cache: OrderedDict, key: Any, value: Any) -> None:
+    with _CACHE_LOCK:
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > _CACHE_MAX:
+            cache.popitem(last=False)
+
+
+def _ref_id_key(rid: Any) -> str:
+    try:
+        return json.dumps(rid, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return repr(rid)
+
+
+def served_hash(stored_hash: Any, load: Callable[[], dict[str, Any]], visible: Visible | None) -> Any:
+    """Security review 2.4.2 L1: the document hash this reader is handed for a stored row. The stored hash itself when
+    nothing of the document is withheld from them (they could compute it from what they get), else the hash of the
+    document as `redact` gives it to them - never the stored hash, which would confirm a guessed camera id offline.
+    `load` gives the stored document (called only on a cache miss; documents are cached per stored hash by the
+    references they hold, so a repeated read parses nothing)."""
+    if visible is None or not isinstance(stored_hash, str) or not stored_hash:
+        return stored_hash
+    doc: dict[str, Any] | None = None
+    refs = _cache_get(_REFS, stored_hash)
+    if refs is None:
+        doc = load()
+        refs = tuple((str(h.get("anchor_ref", {}).get("resource_type")), h["anchor_ref"].get("resource_id"), _ref_id_key(h["anchor_ref"].get("resource_id")))
+                     for _c, _i, _k, h in _slots(doc) if isinstance(h.get("anchor_ref"), dict))
+        _cache_put(_REFS, stored_hash, refs)
+    hidden = frozenset((t, k) for t, rid, k in refs if not visible(t, rid))
+    if not hidden:
+        return stored_hash
+    hit = _cache_get(_SERVED, (stored_hash, hidden))
+    if hit is not None:
+        return hit
+    from . import geometry_store as store
+
+    served = store.doc_hash(redact(doc if doc is not None else load(), visible)[0])
+    _cache_put(_SERVED, (stored_hash, hidden), served)
+    return served
 
 
 def _refused(ref: Any, before: Any, visible: Visible, exists: Callable[[dict[str, Any]], bool]) -> bool:
