@@ -23,7 +23,7 @@ import type {
   CalendarDay, CalendarYear, Customer, ElecBackend, FormulaPreview, HistoryPeriodWire, HistoryPoint, PeriodChoice, PriceMode, SnapshotLine, SnapshotTou, Tariff, TariffVersionBody, TariffVersionPlan, VatRates, StatusMeterWire,
 } from './electricity-billing';
 import { astToTokens, coefficients, evaluate, meterIdsOf, sentence, type FormulaAst } from '../electricity/elec-formula';
-import { addDays, baseNumber, daysInclusive, isIsoDate, periodContaining, r2 } from '../electricity/elec-format';
+import { addDays, baseNumber, daysInclusive, fmtDate, isIsoDate, periodContaining, r2 } from '../electricity/elec-format';
 import { bandsUsed, cloneDef, dayTypeOf, hoursBySeasonBand, israelTemplate, seasonOf, toMin, weekGrid, type TouCheck, type TouDefinition } from '../electricity/elec-tou';
 
 export const MOCK_TODAY = '2026-10-04';
@@ -496,6 +496,23 @@ function seedBills(): void {
   pushBill({ a: 'a4', from: '2026-08-01', to: '2026-08-31', kwh: 13104.9, state: 'paid', issued: '2026-09-02', number: '2026-08-0004', events: ev(['2026-09-02T09:12', 'הונפק']) });
   pushBill({ a: 'a1', from: '2026-07-01', to: '2026-07-31', kwh: 845.0, state: 'paid', issued: '2026-08-03', number: '2026-07-0001', events: ev(['2026-08-03T09:12', 'הונפק']) });
   pushBill({ a: 'a2', from: '2026-07-01', to: '2026-07-31', kwh: 2120.8, state: 'paid', issued: '2026-08-03', number: '2026-07-0002', events: ev(['2026-08-03T09:12', 'הונפק']) });
+  if (demoControl().opening) seedOpening(bills[0].snapshot);
+}
+
+/** Demo control `opening: true` (BILL-start-reading): in the draft, the first meter began reporting inside the period (its opening reading is
+ * its first reading, with the server's note) and the second has no opening reading at all ("לא נקלט"). Off by default. */
+function seedOpening(s: BillSnapshot): void {
+  s.period.start_utc = `${addDays(s.period.from, -1)}T21:00:00Z`;
+  s.period.timezone = 'Asia/Jerusalem';
+  const [m0, m1] = s.meters;
+  if (m0) {
+    m0.start = { at: `${s.period.from}T11:00:00Z`, reading_kwh: m0.start.reading_kwh, kind: 'first_reading' };
+    s.notes.push({ code: 'opening_first_reading', text_he: `קריאת הפתיחה של המונה ${m0.name} היא הקריאה הראשונה שנקלטה במערכת, ב-${fmtDate(s.period.from)} 14:00. צריכה שלפניה לא נמדדה ולא חויבה.` });
+  }
+  if (m1) {
+    m1.start = { at: `${addDays(s.period.from, -1)}T21:00:00Z`, reading_kwh: null, kind: 'none' };
+    s.notes.push({ code: 'opening_unknown', text_he: `קריאת הפתיחה של המונה ${m1.name} לא נקלטה. מנהל יכול להזין אותה ידנית; עד אז החיוב כולל רק צריכה שנמדדה.` });
+  }
 }
 seedBills();
 

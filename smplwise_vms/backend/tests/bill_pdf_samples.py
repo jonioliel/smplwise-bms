@@ -88,6 +88,21 @@ def revision() -> dict[str, Any]:
     return data
 
 
+def opening() -> dict[str, Any]:
+    """BILL-start-reading: a draft whose first meter began reporting inside the period (its opening is its first reading) and whose
+    second has no opening reading at all ("לא נקלט")."""
+    data = draft()
+    data["meters"][0]["start"] = {"at": "2026-09-04T11:05:00Z", "reading_kwh": "12480.620", "kind": "first_reading"}
+    data["meters"][1]["start"] = {"at": "2026-08-31T21:00:00Z", "reading_kwh": None, "kind": "none"}
+    data["notes"] = [
+        {"code": "opening_first_reading", "meter_id": "m1",
+         "text_he": "קריאת הפתיחה של המונה לוח סטודיו היא הקריאה הראשונה שנקלטה במערכת, ב-04.09.2026 14:05. צריכה שלפניה לא נמדדה ולא חויבה."},
+        {"code": "opening_unknown", "meter_id": "m2",
+         "text_he": "קריאת הפתיחה של המונה תאורת לובי לא נקלטה. מנהל יכול להזין אותה ידנית; עד אז החיוב כולל רק צריכה שנמדדה."},
+    ]
+    return data
+
+
 def missing_report() -> dict[str, Any]:
     data = base()
     data["meters"][1].update(reported_to_end=False, last_report_at="2026-09-29T04:10:00Z")  # 07:10 in Israel (UTC+3)

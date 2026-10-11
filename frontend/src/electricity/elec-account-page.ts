@@ -13,7 +13,7 @@ import './elec-bill-create';
 import './elec-chart';
 import { billsTable } from './elec-bills-table';
 import { billChip } from './elec-ui';
-import { f0, f2, f4, fmtDate, periodLabel } from './elec-format';
+import { f0, f2, f4, fmtDate, periodLabel, readingText } from './elec-format';
 import { go, href, route } from './elec-routes';
 import { hasComparison } from './elec-chart-data';
 
@@ -129,7 +129,7 @@ export class ElecAccountPage extends ElecBase {
           ? html`<div class="list">${rows.map((r) => html`<div class="li"><div class="grow"><div class="t1">${r.name}${r.factor ? html` <span class="mut">(${r.factor})</span>` : nothing}</div><div class="t2">${hasReadings && r.start !== null ? html`${n(f2(r.start))} ← ${n(f2(r.end ?? 0))}` : html`${n(f2(r.kwh))} קוט״ש`}</div></div><b class="num">${f2(r.part)}</b></div>`)}</div>
             <div class="row" style="margin-block-start:10px"><b>סה״כ לחיוב</b><span class="sp"></span><b class="num">${f2(s.kwh)}</b></div>`
           : html`<div class="scrollx"><table class="t" data-elec-meters><thead><tr><th>מונה</th>${hasReadings ? html`<th class="num">קריאה בתחילת התקופה</th><th class="num">קריאה נוכחית</th>` : nothing}<th class="num">צריכה</th><th class="num">חלק</th><th class="num">לחיוב (קוט״ש)</th></tr></thead>
-            <tbody>${rows.map((r) => html`<tr><td class="b">${r.name} ${r.stale ? html`<span class="chip c-warn">לא מדווח</span>` : nothing}</td>${hasReadings ? html`<td class="num">${r.start !== null ? f2(r.start) : ''}</td><td class="num">${r.end !== null ? f2(r.end) : ''}</td>` : nothing}<td class="num">${f2(r.kwh)}</td><td class="num">${r.factor}</td><td class="num b">${f2(r.part)}</td></tr>`)}</tbody>
+            <tbody>${rows.map((r) => html`<tr><td class="b">${r.name} ${r.stale ? html`<span class="chip c-warn">לא מדווח</span>` : nothing}</td>${hasReadings ? html`<td class="num">${readingText(r.start)}</td><td class="num">${readingText(r.end)}</td>` : nothing}<td class="num">${f2(r.kwh)}</td><td class="num">${r.factor}</td><td class="num b">${f2(r.part)}</td></tr>`)}</tbody>
             <tfoot><tr><td colspan=${hasReadings ? 5 : 3}>סה״כ לחיוב</td><td class="num">${f2(s.kwh)}</td></tr></tfoot></table></div>`}
       </div>`;
     const side = html`<div class="card"><div class="hd"><b class="h3">לקוח</b><span class="sp"></span>${perms.bills && c ? html`<a class="btn ghost sm" href=${href.customer(c.id)}>כרטיס לקוח</a>` : nothing}</div>

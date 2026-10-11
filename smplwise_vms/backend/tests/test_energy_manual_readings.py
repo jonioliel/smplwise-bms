@@ -126,8 +126,10 @@ def test_readings_that_cannot_change_the_series_are_recorded_only(env):
     feed(store, a, [(local(2026, 9, 1, 10, k), 1_000_000 + k * 10) for k in range(0, 6)])  # reporting every minute
     feed(store, a, [(local(2026, 9, 3), 1_100_000), (local(2026, 9, 5), 50)])            # then a long gap and a reset
     before = buckets(store, a, local(2026, 9, 1), local(2026, 9, 6))
+    # before the first reading: since BILL-start-reading an opening reading ("head_gap", tests/test_energy_bill_opening_reading.py)
+    assert plan(store, a, local(2026, 8, 30), 900_000, dry=True).reason == "head_gap"
+    assert plan(store, a, local(2026, 8, 30), 1_000_001, dry=True).reason == "outside_counter"  # above the first counter value
     cases = [
-        (local(2026, 8, 30), 900_000, "no_counter_data"),     # before the first reading
         (local(2026, 9, 1, 10, 2), 1_000_020, "reported"),    # a reading at that exact instant
         (local(2026, 9, 1, 10, 2, ), 1_000_025, "reported"),
         (local(2026, 9, 2), 1_200_000, "outside_counter"),    # above the next counter reading

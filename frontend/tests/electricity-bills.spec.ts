@@ -54,6 +54,40 @@ test.describe('bill page: every state', () => {
     errs.expectNone();
   });
 
+  test('opening readings: a meter that began reporting inside the period shows its first reading, a missing one says "not captured", an administrator can type it', async ({ page }, info) => {
+    const errs = watchErrors(page);
+    await open(page, bill('b101'), { ctl: { opening: true } });
+    await screen(page, 'bill');
+    const rows = page.locator('[data-elec-paper] tbody tr[data-meter]');
+    const first = rows.nth(0).locator('[data-start-kind]');
+    await expect(first).toHaveAttribute('data-start-kind', 'first_reading');
+    await expect(first).not.toHaveText('לא נקלט');
+    await expect(first).toHaveText(/^\d[\d,]*\.\d\d$/);
+    const second = rows.nth(1).locator('[data-start-kind]');
+    await expect(second).toHaveAttribute('data-start-kind', 'none');
+    await expect(second).toHaveText('לא נקלט');
+    await expect(page.locator('[data-elec-paper] [data-note="opening_first_reading"]')).toContainText('הקריאה הראשונה שנקלטה');
+    await expect(page.locator('[data-elec-paper] [data-note="opening_unknown"]')).toContainText('לא נקלטה');
+    await expect(page.locator('[data-card="opening"] [data-opening-meter]')).toHaveCount(2);
+    await shot(page, info, 'bill-draft-opening');
+    await page.locator('[data-card="opening"] [data-opening-enter]').nth(1).click();
+    const dlg = page.locator('[data-dialog="opening"]');
+    await expect(dlg.locator('[data-confirm]')).toBeDisabled();
+    await dlg.locator('[data-opening-value]').fill('12a');
+    await expect(dlg.locator('[data-confirm]')).toBeDisabled();
+    await dlg.locator('[data-opening-value]').fill('1234.5');
+    await expect(dlg.locator('[data-confirm]')).toBeEnabled();
+    await shot(page, info, 'bill-draft-opening-dialog');
+    await noOverflow(page);
+    errs.expectNone();
+  });
+
+  test('opening readings: a viewer without meter management sees "not captured" but no entry card', async ({ page }) => {
+    await open(page, bill('b101'), { ctl: { opening: true, persona: 'bills_only' } });
+    await screen(page, 'bill');
+    await expect(page.locator('[data-elec-paper] [data-start-kind="none"]')).toHaveText('לא נקלט');
+    await expect(page.locator('[data-card="opening"]')).toHaveCount(0);
+  });
   test('issued, sent, paid: chips, actions per state, the paper shows the number and the period from-to', async ({ page }, info) => {
     const cases: [string, string, string[], string[]][] = [
       ['b104', 'issued', ['sent', 'paid', 'pdf', 'correct', 'void'], ['issue', 'delete', 'recalculate']],

@@ -98,7 +98,7 @@ def to_date(value: Any, field_name: str) -> date:
 
 
 def _opt_reading(value: Any, field_name: str) -> Decimal | None:
-    """A meter reading at a period edge; None when the meter had no reading there (it is printed as a dash)."""
+    """A meter reading at a period edge; None when the meter had no reading there (printed as "לא נקלט")."""
     return None if value is None else to_decimal(value, field_name)
 
 
@@ -166,7 +166,7 @@ class Customer:
 @dataclass(frozen=True)
 class MeterLine:
     name: str
-    start_reading: Decimal | None  # None: no reading at the period start (printed as a dash)
+    start_reading: Decimal | None  # None: no reading at the period start (printed as "לא נקלט")
     end_reading: Decimal | None
     consumption_kwh: Decimal  # what is billed for this meter before the account formula
     billed_kwh: Decimal  # contribution to the bill after the account formula (coefficient x consumption)

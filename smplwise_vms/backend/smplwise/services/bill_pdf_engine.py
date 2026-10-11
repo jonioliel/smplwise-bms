@@ -261,7 +261,7 @@ def render_fpdf2(s: BillSnapshot, logo_png: bytes | None, max_pages: int = MAX_P
     notes = []
     if s.price_note:
         notes.append(s.price_note)
-    notes.append("הקריאות הן קריאות מונה מצטברות שנמדדו בפועל.")
+    notes.append("הקריאות הן קריאות מונה מצטברות שנמדדו בפועל; הצריכה של כל מונה היא קריאת הסוף פחות קריאת הפתיחה.")
     if s.previous_kwh is not None:
         notes.append(f"צריכה בתקופה הקודמת: {kwh(s.previous_kwh)} קוט״ש.")
     write(" ".join(notes), 9)
