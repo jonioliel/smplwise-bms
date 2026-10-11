@@ -197,6 +197,17 @@ def _table(title: str, rows: list[dict[str, float]]) -> str:
         out.append(f"  {k:9s} median {statistics.median(v):7.1f}  p90 {sorted(v)[int(len(v) * 0.9) - 1]:7.1f}  max {max(v):7.1f}")
     if rows and rows[-1].get("server_timing"):
         out.append(f"  Server-Timing (last): {rows[-1]['server_timing']}")
+        # SEC246 L3: where the time goes, per hop over every toggle (the record's queue wait and its commit are their own hops)
+        hops: dict[str, list[float]] = {}
+        for r in rows:
+            for part in (r.get("server_timing") or "").split(","):
+                name, _, dur = part.strip().partition(";dur=")
+                try:
+                    hops.setdefault(name, []).append(float(dur))
+                except ValueError:
+                    pass
+        out.append("  Server-Timing medians / p90: " + ", ".join(
+            f"{k} {statistics.median(v):.1f}/{sorted(v)[max(0, int(len(v) * 0.9) - 1)]:.1f}" for k, v in hops.items() if v))
     return "\n".join(out)
 
 
@@ -221,7 +232,7 @@ def test_toggle_reaches_ha_and_pushes_back_without_waiting(lat_app):
     assert fake.connections <= 2, f"{fake.connections} connections for {len(rows)} toggles"
     # the owner's own view of the hops: DevTools -> Network -> the POST -> Timing (Server-Timing), and the answer's timing_ms
     st = rows[-1]["server_timing"]
-    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "record;dur=", "total;dur="):
+    for hop in ("checks;dur=", "bridge;dur=", "pending_row;dur=", "pending_wait;dur=", "pending_commit;dur=", "record;dur=", "total;dur="):
         assert hop in st, st
 
 

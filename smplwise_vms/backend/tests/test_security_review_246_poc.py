@@ -421,6 +421,36 @@ def test_l3_a_device_command_is_not_sent_when_its_record_cannot_be_written(bulk_
         assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ha.action'").fetchone()[0] == 0
 
 
+def test_l3_the_command_record_is_queued_ahead_of_ordinary_writers():
+    """The write gate's priority lane (the record a device command waits for): ahead of every ordinary waiter, behind the
+    current holder, FIFO among priority waiters; the ordinary waiters keep their own order."""
+    from smplwise.db import WriteGate
+
+    gate = WriteGate()
+    first = gate.acquire(1)
+    order: list[str] = []
+
+    def waiter(name: str, prio: bool) -> None:
+        tok = gate.acquire(5, priority=prio)
+        order.append(name)
+        gate.release(tok)
+
+    threads = []
+    for n, (name, prio) in enumerate((("a", False), ("b", False), ("p1", True), ("p2", True), ("c", False)), 1):
+        t = threading.Thread(target=waiter, args=(name, prio))
+        t.start()
+        threads.append(t)
+        deadline = time.monotonic() + 5
+        while gate.state()["waiting"] < n and time.monotonic() < deadline:
+            time.sleep(0.005)
+        assert gate.state()["waiting"] == n
+    gate.release(first)
+    for t in threads:
+        t.join(timeout=10)
+    assert order == ["p1", "p2", "a", "b", "c"]
+    assert gate.state() == {"held": False, "waiting": 0}
+
+
 def test_l3_the_pending_row_and_the_attempt_audit_row_are_durable_before_the_call(bulk_app):
     app, s, c, fake = bulk_app
     seen: dict = {}

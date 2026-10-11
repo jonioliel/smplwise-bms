@@ -3,7 +3,6 @@ live state push, and the bridge pairing/directory endpoints."""
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import datetime as dt
 import json
 import logging
@@ -195,9 +194,11 @@ def run_action(entity_id: str, body: ActionBody, request: Request, response: Res
 
 
 PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
+# LAT1 ran the calls on an 8-worker dispatch pool (to overlap them with the pending record); SEC246 L3 records first, so the
+# call runs in the request's own thread and only the bound stays: at most 8 single-entity calls in flight at once
+_DISPATCH_SLOTS = threading.BoundedSemaphore(8)
 _INFLIGHT_LOCK = threading.Lock()
 _INFLIGHT: dict[tuple[str, str], threading.Event] = {}
-_DISPATCH = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="ha-dispatch")
 
 
 def _claim(key: tuple[str, str]) -> threading.Event | None:
@@ -295,15 +296,21 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         payload = ha_bridge.sign(secret or "", {"user_id": principal.user_id, "domain": spec["domain"], "service": spec["service"], "data": data, "request_id": aid})
         timing.mark("checks")
 
-        # SEC246 L3 (owner 2026-10-11): record, then send. The pending row and the attempt audit row are committed BEFORE the
-        # signed command leaves; when they cannot be recorded within PENDING_WAIT_S the command is NOT sent and the client gets
-        # 503 busy (retryable). All the checks above still ran on the read connection, so only this one short write waits.
+        # SEC246 L3 (owner 2026-10-11): record, then send. The pending row and the attempt audit row are committed in ONE
+        # transaction BEFORE the signed command leaves; when they cannot be recorded within PENDING_WAIT_S the command is NOT
+        # sent and the client gets 503 busy (retryable). All the checks above still ran on the read connection, so only this
+        # one short write waits - and it is queued ahead of the background writers (the state mirror, ~40/s on a busy house).
+        # Server-Timing: pending_wait = gate queue + BEGIN IMMEDIATE, pending_commit = COMMIT (the fsync), pending_row = all of it.
         def _pending() -> None:
-            with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S) as w:
+            start = timing.clock()
+            with db.write_aside(label="ha.action pending", wait_s=PENDING_WAIT_S, priority=True) as w:
+                timing.span("pending_wait", start)
                 w.execute(insert_sql, row_args)
                 audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="attempt",
                       request_id=rid, details={"action": body.allowed_action_id, "id": aid, "phase": "attempt", "arguments": body.arguments,
                                                "sensitive": spec["sensitive"]})
+                written = timing.clock()
+            timing.span("pending_commit", written)
 
         try:
             with timing.hop("pending_row"):
@@ -313,10 +320,12 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
                         aid, type(exc).__name__, principal.user_id, entity_id, body.allowed_action_id, rid)
             raise ApiError(503, "busy", "המערכת עסוקה כרגע והפקודה לא נשלחה. נסו שוב בעוד רגע.", retryable=True,
                            details={"sent": False, "retry_after_s": 2})
-        # the record is durable: the command leaves now (no lock is held while it is in flight)
-        call = _DISPATCH.submit(timing.timed, "bridge", ha_client.call_bridge_execute, settings, payload)
+        # the record is durable: the command leaves now, from this thread (record-first leaves nothing to overlap with the
+        # call, so no hand-off to a dispatch thread); at most _DISPATCH_SLOTS calls in flight, as the 8 dispatch workers were;
+        # no lock is held while it is in flight
         try:
-            result = call.result()
+            with _DISPATCH_SLOTS:
+                result = timing.timed("bridge", ha_client.call_bridge_execute, settings, payload)
         except ApiError as exc:
             def _failed() -> None:
                 with db.write_aside(label="ha.action failed") as w:
