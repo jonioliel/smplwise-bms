@@ -157,11 +157,23 @@ hidden tab does not ask); a new publish reloads the structure. A profile with no
   follow-up); a wall with camera-scope bindings only has no floor, so no map; the band follows the wall's theme but not the skin's glass
   materials beyond the tokens.
 - A deep-idle unload of the WebGL context (section 3) and a "tap-to-tour while idle" mode.
-- The Hebrew user guide page `docs/user-guide/he/45-wall-mode_HE.md` does not describe the new Settings yet (it is generated into the guide).
+- The Hebrew user guide pages (`docs/user-guide/he/`, e.g. `45-wall-mode_HE.md`) are not edited here; the guide branch (`pilot/GUIDE-2.4.7b`) describes the idle swap, the per-screen wall options, the idle-time dial and the pointer-lock fallback.
 - The personal-dial screen for `mouse_mode` (S0 gap): the walk honours the dial, but no screen sets it.
 
 ## 8. Test record
 
-See the final report of the slice for the counts and the runner results; the specs are `unit-kiosk-idle` (15), `unit-pointer-lock-gate` (13),
-`unit-wall-plan-mode` (10), `unit-plan-change-key` (3), `unit-wall-plan-scene` (8), `test_wall.py` (+2), and, in a browser,
-`unit-plan-3d-kiosk` (7), `evidence-pointer-lock` (4) and `evidence-wall-plan`.
+What was run (counts are tests that passed; nothing here is claimed beyond that):
+
+| Where | What | Result |
+|---|---|---|
+| node, no browser | `unit-kiosk-idle` 15, `unit-pointer-lock-gate` 13, `unit-wall-plan-mode` 10, `unit-plan-change-key` 3, `unit-wall-plan-scene` 8 | 49 passed |
+| Chromium against a dev server, on the final tree | `unit-plan-3d-kiosk` 7, `evidence-pointer-lock` 4, `evidence-wall-plan` 19, `evidence-floor-wall-idle` 4, `unit-settings-index` 5 | 39 passed |
+| Chromium against a dev server | `layout-wall-plan` (drawer section x five skins x light / dark x five widths; the band on four portrait tablets x five skins; the live bare view) | 35 passed, no findings (run before the last merge) |
+| runner, `tsc` | the final tree | ok |
+| runner, `preview`, desktop + tablet + mobile | 31 spec files: this slice's, the wall and kiosk specs, the 3D / walk / route / replay specs, token lint, design tokens, plan skins, settings index, the 2.4.6 layout guard (`unit-three-chunk` caps included) | 510 passed, 204 skipped by project filters, 0 failed (tree after the first merge with `integ/247`) |
+| runner, backend | `test_wall.py` (+2: the `plan` block, and its lists agree with the `plan.view` dials) | passed (before the second merge) |
+| runner, linux pixel | `pixel-wall-plan` 11 baselines: generated, compared in the same checkout and from a fresh checkout | 11 / 11 (before the first merge) |
+
+**Not re-run after the last merges** (the release gate re-runs everything): the Linux pixel compare of the 11 baselines, the visual matrix, the
+backend suite. A mutation check proved the pause gate is covered: with `SceneView.setPaused` made a no-op the hidden-tab and idle specs fail.
+The baselines look at the plan band and the drawer section as elements; they depend on `tests/wall-plan-mocks.ts` and on the skin tokens.
